@@ -2866,7 +2866,10 @@ angles. In CPU time for one 1024 by 1024 frame at oversample 4, the twelve-featu
 budget scene renders its ring system in 1.9 s, against 1.8 s if every pixel were
 drawn at its center. A system of 150 ringlets, each 0.7 px wide and 2.5 px apart,
 takes 3.6 s against 2.7 s and needs 0.6 GB more memory, and one ramp 300 px wide
-takes 1.9 s against 1.2 s and needs 0.6 GB more.
+takes 1.9 s against 1.2 s and needs 0.6 GB more. A ramp whose whole band a density
+wave reaches is the costly case, since every pixel is cut into 32 lengths: the same
+300 px ramp under a wave takes 69 s. Those pixels are integrated in batches, which
+holds its memory to 3.9 GB.
 
 The catalog orbit: m-modes and edge waves
 -----------------------------------------

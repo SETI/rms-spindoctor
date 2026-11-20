@@ -1,5 +1,6 @@
 """The ring features' sharp radial profiles and the pixel-footprint cells."""
 
+import math
 from typing import Any
 
 import numpy as np
@@ -24,10 +25,19 @@ def _feature(kind: str, **keys: Any) -> dict[str, Any]:
     return feature
 
 
-def _bounds(feature: dict[str, Any], count: int) -> FeatureBoundaries:
-    """The feature's radii at ``count`` longitudes of zero."""
+def _bounds(feature: dict[str, Any], count: int, lam: float = 0.0) -> FeatureBoundaries:
+    """The feature's radii at ``count`` longitudes of ``lam`` radians."""
     orbit = ring_orbit_from_mapping(feature['orbit'])
-    return feature_boundaries(feature, orbit, np.zeros(count), os=1, epoch=0.0, time=0.0)
+    return feature_boundaries(feature, orbit, np.full(count, lam), os=1, epoch=0.0, time=0.0)
+
+
+def _eccentric_ramp(side: str) -> dict[str, Any]:
+    """A 4 px ramp on an orbit with ``a`` 10 px and ``ae`` 5 px.
+
+    A quarter turn from pericenter its orbit radius is 7.5 px, its linear part ends at
+    11.5 px, and the widened orbit lies at 14 - 25/14, about 12.214 px.
+    """
+    return _feature('ramp', width_px=4.0, side=side, orbit={'a_px': 10.0, 'ae_px': 5.0})
 
 
 def _cells(
@@ -106,17 +116,24 @@ def test_ramp_profile_steps_only_at_its_tau_end() -> None:
     np.testing.assert_allclose(tau, [0.5, 2.0, 0.0], atol=1e-15)
 
 
-def test_ramp_breaks_at_both_ends() -> None:
-    """A ramp's step and its bend are both boundaries."""
-    feature = _feature('ramp', width_px=4.0, side='out')
-    breaks = feature_breakpoint_radii(feature, _bounds(feature, 1))
-    np.testing.assert_allclose(np.concatenate(breaks), [10.0, 14.0])
+def test_outward_ramp_breaks_where_it_bends_levels_off_and_steps() -> None:
+    """An eccentric outward ramp breaks at its orbit, its linear end, and its outer edge."""
+    feature = _eccentric_ramp('out')
+    breaks = feature_breakpoint_radii(feature, _bounds(feature, 1, math.pi / 2.0), os=1)
+    np.testing.assert_allclose(np.concatenate(breaks), [7.5, 11.5, 14.0 - 25.0 / 14.0])
+
+
+def test_inward_ramp_breaks_at_its_step_and_its_linear_end() -> None:
+    """An inward ramp breaks at its orbit and its linear end, never at the widened orbit."""
+    feature = _eccentric_ramp('in')
+    breaks = feature_breakpoint_radii(feature, _bounds(feature, 1, math.pi / 2.0), os=1)
+    np.testing.assert_allclose(np.concatenate(breaks), [7.5, 11.5])
 
 
 def test_wave_has_no_boundary() -> None:
     """A density wave is continuous at its launch radius."""
     feature = _feature('wave', wavelength_px=4.0, density_wave_damping_px=8.0)
-    assert feature_breakpoint_radii(feature, _bounds(feature, 1)) == []
+    assert feature_breakpoint_radii(feature, _bounds(feature, 1), os=1) == []
 
 
 def test_ramp_slopes_across_its_band() -> None:
@@ -125,6 +142,14 @@ def test_ramp_slopes_across_its_band() -> None:
     band = feature_sloped_band(feature, _bounds(feature, 1), os=1)
     assert band is not None
     np.testing.assert_allclose([band.inner[0], band.outer[0], band.rate], [10.0, 14.0, 0.5])
+
+
+def test_eccentric_ramp_slopes_only_up_to_its_linear_end() -> None:
+    """An eccentric outward ramp's sloped band ends at its linear end, before its edge."""
+    feature = _eccentric_ramp('out')
+    band = feature_sloped_band(feature, _bounds(feature, 1, math.pi / 2.0), os=1)
+    assert band is not None
+    np.testing.assert_allclose(band.outer, [11.5])
 
 
 def test_constant_kinds_have_no_sloped_band() -> None:

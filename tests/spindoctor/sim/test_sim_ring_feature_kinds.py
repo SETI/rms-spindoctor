@@ -242,7 +242,9 @@ def test_edge_kind_side_in_carries_tau_inside() -> None:
     assert _probe(tau_map, 22) == 0.0
     # The pixel centered exactly on the edge is half covered: half of it passes
     # exp(-1.5) of the light behind, and the other half passes all of it.
-    assert _probe(tau_map, 20) == pytest.approx(-math.log(0.5 + 0.5 * math.exp(-1.5)), rel=1e-9)
+    assert _probe(tau_map, 20) == pytest.approx(
+        -math.log(0.5 + 0.5 * math.exp(-1.5)), rel=1e-9, abs=0.0
+    )
 
 
 def test_edge_kind_side_out_carries_tau_outside() -> None:
@@ -274,8 +276,8 @@ def test_ramp_rises_linearly_outward() -> None:
     """side 'out': tau * (r - a)/w across the band, zero outside it."""
     feature = {'kind': 'ramp', 'tau': 1.0, 'width_px': 20.0, 'side': 'out', 'orbit': {'a_px': 10.0}}
     tau_map = _tau_map([feature])
-    assert _probe(tau_map, 15) == pytest.approx(_ramp_probe_tau(0.25, 0.05), rel=1e-9)
-    assert _probe(tau_map, 25) == pytest.approx(_ramp_probe_tau(0.75, 0.05), rel=1e-9)
+    assert _probe(tau_map, 15) == pytest.approx(_ramp_probe_tau(0.25, 0.05), rel=1e-9, abs=0.0)
+    assert _probe(tau_map, 25) == pytest.approx(_ramp_probe_tau(0.75, 0.05), rel=1e-9, abs=0.0)
     assert _probe(tau_map, 5) == 0.0
     assert _probe(tau_map, 35) == 0.0
 
@@ -284,8 +286,8 @@ def test_ramp_side_in_mirrors_the_profile() -> None:
     """side 'in': tau at the orbit edge falling to zero across the band."""
     feature = {'kind': 'ramp', 'tau': 1.0, 'width_px': 20.0, 'side': 'in', 'orbit': {'a_px': 10.0}}
     tau_map = _tau_map([feature])
-    assert _probe(tau_map, 15) == pytest.approx(_ramp_probe_tau(0.75, 0.05), rel=1e-9)
-    assert _probe(tau_map, 25) == pytest.approx(_ramp_probe_tau(0.25, 0.05), rel=1e-9)
+    assert _probe(tau_map, 15) == pytest.approx(_ramp_probe_tau(0.75, 0.05), rel=1e-9, abs=0.0)
+    assert _probe(tau_map, 25) == pytest.approx(_ramp_probe_tau(0.25, 0.05), rel=1e-9, abs=0.0)
     assert _probe(tau_map, 35) == 0.0
 
 

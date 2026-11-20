@@ -31,7 +31,12 @@ from spindoctor.sim.render.rings.photometry import (
 )
 from spindoctor.sim.render.rings.render import render_ring_system
 from spindoctor.sim.shared.lighting import henyey_greenstein_phase
-from spindoctor.sim.shared.ring import ring_plane_from_sky, ring_sky_from_plane
+from spindoctor.sim.shared.ring import (
+    compute_orbit_radii,
+    ring_orbit_from_mapping,
+    ring_plane_from_sky,
+    ring_sky_from_plane,
+)
 from spindoctor.support.types import NDArrayFloatType
 
 _RADIUS = 1.0e5
@@ -74,8 +79,9 @@ def _placed_system(
     node_deg: float = 0.0,
     lam_deg: float = 0.0,
     axis: str = 'u',
+    radius: float = _RADIUS,
 ) -> tuple[dict[str, Any], float]:
-    """Center the ring so the test radius at ``lam_deg`` sits mid-frame plus ``phase``.
+    """Center the ring so ``radius`` at ``lam_deg`` sits mid-frame plus ``phase``.
 
     Along the other axis the point sits on the center of the middle row or column, so
     the edge crosses that row or column exactly at the authored position; the edge's
@@ -86,7 +92,7 @@ def _placed_system(
         detector pixel corner coordinates.
     """
     dv, du = ring_sky_from_plane(
-        np.array([_RADIUS]),
+        np.array([radius]),
         np.array([math.radians(lam_deg)]),
         opening_deg_obs=b_obs,
         node_deg=node_deg,
@@ -240,8 +246,8 @@ def test_half_covered_pixel_emits_half_the_full_brightness() -> None:
         * henyey_greenstein_phase(RING_PHASE_G_DEFAULT, 0.0)
         * float(ring_reflection_factor(np.array([2.0]), 1.0, 1.0, lit=True)[0])
     )
-    assert full_intensity == pytest.approx(expected_full, rel=1e-12)
-    assert intensity == pytest.approx(0.5 * expected_full, rel=1e-12)
+    assert full_intensity == pytest.approx(expected_full, rel=1e-12, abs=0.0)
+    assert intensity == pytest.approx(0.5 * expected_full, rel=1e-12, abs=0.0)
 
 
 def test_half_covered_pixel_passes_half_the_background() -> None:
@@ -250,8 +256,8 @@ def test_half_covered_pixel_passes_half_the_background() -> None:
     The other half passes ``exp(-2)``, the sheet's own transmission face-on.
     """
     _intensity, transmission, _full_intensity, full_transmission = _half_covered_maps()
-    assert full_transmission == pytest.approx(math.exp(-2.0), rel=1e-12)
-    assert transmission == pytest.approx(0.5 + 0.5 * math.exp(-2.0), rel=1e-12)
+    assert full_transmission == pytest.approx(math.exp(-2.0), rel=1e-12, abs=0.0)
+    assert transmission == pytest.approx(0.5 + 0.5 * math.exp(-2.0), rel=1e-12, abs=0.0)
 
 
 def test_rendered_scene_edge_lands_on_its_radius_at_oversample_4() -> None:
@@ -291,10 +297,18 @@ _UNLIT: dict[str, Any] = {'b_obs': 12.0, 'b_sun': -20.0, 'lam_deg': 180.0}
 _ROW = _SIZE // 2
 
 
-def _authored_tau(feature: dict[str, Any], r: NDArrayFloatType) -> NDArrayFloatType:
-    """An edge, ringlet, gap, or ramp's optical depth at radii ``r``, gaps negative."""
+def _authored_tau(
+    feature: dict[str, Any], r: NDArrayFloatType, lam: NDArrayFloatType
+) -> NDArrayFloatType:
+    """An edge, ringlet, gap, or ramp's optical depth at ``(r, lam)``, gaps negative.
+
+    A ramp is linear from its orbit radius to ``width_px`` outward of it; an outward
+    ramp is cut at its widened orbit, which on an eccentric orbit is not exactly
+    ``width_px`` out.
+    """
     tau = float(feature['tau'])
-    inner = float(feature['orbit']['a_px'])
+    orbit = ring_orbit_from_mapping(feature['orbit'])
+    inner = compute_orbit_radii(lam, orbit, epoch=0.0, time=0.0)
     if feature['kind'] == 'edge':
         return (
             np.where(r <= inner, tau, 0.0)
@@ -302,17 +316,18 @@ def _authored_tau(feature: dict[str, Any], r: NDArrayFloatType) -> NDArrayFloatT
             else np.where(r >= inner, tau, 0.0)
         )
     width = float(feature['width_px'])
+    outer = compute_orbit_radii(lam, orbit.widened(width), epoch=0.0, time=0.0)
     if feature['kind'] == 'ramp':
         x = np.clip((r - inner) / width, 0.0, 1.0)
         if feature['side'] == 'out':
-            return np.where(r <= inner + width, tau * x, 0.0)
+            return np.where(r <= outer, tau * x, 0.0)
         return np.where(r >= inner, tau * (1.0 - x), 0.0)
-    inside = np.where((r >= inner) & (r <= inner + width), tau, 0.0)
+    inside = np.where((r >= inner) & (r <= outer), tau, 0.0)
     return -inside if feature['kind'] == 'gap' else inside
 
 
-def _reference(system: dict[str, Any], columns: list[int]) -> NDArrayFloatType:
-    """The middle row's intensity in ``columns``, integrated densely along u."""
+def _reference(system: dict[str, Any], columns: list[int], axis: str = 'u') -> NDArrayFloatType:
+    """The middle row's (or, along v, column's) intensity, integrated densely along axis."""
     geometry = system['geometry']
     b_obs = float(geometry['opening_deg_obs'])
     b_sun = float(geometry['opening_deg_sun'])
@@ -322,16 +337,18 @@ def _reference(system: dict[str, Any], columns: list[int]) -> NDArrayFloatType:
     fractions = (np.arange(_REFERENCE_SAMPLES) + 0.5) / _REFERENCE_SAMPLES
     result = np.zeros(len(columns), dtype=np.float64)
     for index, column in enumerate(columns):
-        u = column + fractions
+        along = column + fractions
+        across = np.full(along.shape, _ROW + 0.5)
+        v, u = (across, along) if axis == 'u' else (along, across)
         r, lam, _x, _y = ring_plane_from_sky(
-            np.full(u.shape, _ROW + 0.5) - float(geometry['center_v']),
+            v - float(geometry['center_v']),
             u - float(geometry['center_u']),
             opening_deg_obs=b_obs,
             node_deg=float(geometry['node_deg']),
         )
         tau = np.zeros(r.shape, dtype=np.float64)
         for feature in system['features']:
-            tau += _authored_tau(feature, r)
+            tau += _authored_tau(feature, r, lam)
         np.clip(tau, 0.0, None, out=tau)
         for moonlet in system.get('moonlets', []):
             tau = tau * propeller_tau_factor(moonlet, moonlet['propeller'], r=r, lam=lam, os=1)
@@ -366,11 +383,12 @@ def _ringlet(inner: float, width: float, tau: float) -> dict[str, Any]:
     return {'kind': 'ringlet', 'tau': tau, 'width_px': width, 'orbit': _orbit(inner)}
 
 
-def _matches_reference(system: dict[str, Any], columns: list[int]) -> float:
+def _matches_reference(system: dict[str, Any], columns: list[int], axis: str = 'u') -> float:
     """The largest difference from the reference in ``columns``, relative to its peak."""
-    reference = _reference(system, columns)
-    row, _maps = _rendered_maps(system)
-    return float(np.max(np.abs(row[columns] - reference)) / np.max(np.abs(reference)))
+    reference = _reference(system, columns, axis)
+    row, maps = _rendered_maps(system)
+    line = row if axis == 'u' else maps.intensity[:, _ROW]
+    return float(np.max(np.abs(line[columns] - reference)) / np.max(np.abs(reference)))
 
 
 def test_narrow_ramp_keeps_its_flux() -> None:
@@ -424,6 +442,42 @@ def test_gap_clipping_a_ramp_inside_a_pixel_matches_the_reference() -> None:
     assert _matches_reference(system, [16, 17]) < _REFERENCE_TOLERANCE
 
 
+def test_gap_reaching_zero_at_a_pixel_center_matches_the_reference() -> None:
+    """A gap that cuts a ramp to zero at a pixel's center, between boundaries, matches.
+
+    A tau 2 outward ramp 4 px wide and a tau 1.25 gap over the same band leave
+    ``max(0, 0.5 * s)`` across the pixel, where ``s`` is its offset from the center in
+    pixels.  No feature has a boundary inside the pixel, so the line's zero crossing
+    is the only kink.
+    """
+    ramp = {**_ramp(4.0, side='out'), 'orbit': _orbit(_RADIUS - 2.5)}
+    gap = {'kind': 'gap', 'tau': 1.25, 'width_px': 4.0, 'orbit': _orbit(_RADIUS - 2.5)}
+    system, _authored = _placed_system([ramp, gap], phase=0.5)
+    assert _matches_reference(system, [14, 15, 16, 17]) < _REFERENCE_TOLERANCE
+
+
+def test_eccentric_ramp_levelling_off_before_its_edge_matches_the_reference() -> None:
+    """A ramp on an eccentric orbit, flat between its linear end and its edge, matches.
+
+    The orbit has ``a`` 1e5 px and ``ae`` 5e4 px.  A quarter turn from pericenter the
+    ramp rises over 4 px from 75,000 px, then stays at full tau for about 1 px more,
+    until the widened orbit at about 75,005 px.  Seen face-on there, the radial
+    direction is -v.  That edge falls between the reference's samples, which limits
+    the reference to about 2e-9 of the peak here.
+    """
+    orbit = {
+        'a_px': _RADIUS,
+        'ae_px': 0.5 * _RADIUS,
+        'long_peri_deg': 0.0,
+        'rate_peri_deg_per_day': 0.0,
+    }
+    ramp = {'kind': 'ramp', 'tau': 2.0, 'width_px': 4.0, 'side': 'out', 'orbit': orbit}
+    system, _authored = _placed_system(
+        [ramp], phase=0.3, lam_deg=90.0, axis='v', radius=0.75 * _RADIUS
+    )
+    assert _matches_reference(system, list(range(9, 18)), axis='v') < 1e-7
+
+
 def test_propeller_over_a_ramp_matches_the_reference() -> None:
     """A propeller lobe over a ramp, curving its optical depth, matches the reference.
 
@@ -464,7 +518,7 @@ def test_ramp_at_extreme_optical_depth_matches_the_analytic_integral() -> None:
 
     mean = mu0 / (mu0 - mu) * (band_mean_exp(1.0 / mu0) - band_mean_exp(1.0 / mu))
     ap = RING_ALBEDO_DEFAULT / 4.0 * henyey_greenstein_phase(RING_PHASE_G_DEFAULT, 0.0)
-    assert row[math.floor(authored)] == pytest.approx(width * ap * mean, rel=1e-9)
+    assert row[math.floor(authored)] == pytest.approx(width * ap * mean, rel=1e-9, abs=0.0)
 
 
 def test_sub_pixel_ringlet_matches_the_reference() -> None:
@@ -510,4 +564,4 @@ def test_propeller_shapes_the_pixels_an_edge_cuts() -> None:
     column = math.floor(authored)
     reference = _reference(system, [column])
     row, _maps = _rendered_maps(system)
-    assert row[column] == pytest.approx(reference[0], rel=2e-3)
+    assert row[column] == pytest.approx(reference[0], rel=2e-3, abs=0.0)

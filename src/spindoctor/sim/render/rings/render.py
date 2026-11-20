@@ -293,7 +293,7 @@ def render_ring_system(
         )
         scale_sel = radial_scale[sub_v, sub_u][sel]
         box = _BoxIndex(sel=sel, sub_v=sub_v, sub_u=sub_u, size_u=size_u)
-        for r_break in feature_breakpoint_radii(feature, bounds):
+        for r_break in feature_breakpoint_radii(feature, bounds, os=os):
             offset = (r_break - r_sel) / scale_sel
             inside = np.abs(offset) < FOOTPRINT_HALF_WIDTH_PX
             if bool(np.any(inside)):
