@@ -103,8 +103,7 @@ Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
 - :meth:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated.instances_for_obs`
   -- returns one instance for a simulated observation whose ``nav_params`` lists at
-  least one star; an empty list for a real observation or a simulated one whose scene
-  has no stars.
+  least one star, and an empty list for one whose scene has no stars.
 - :meth:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated.create_model`
   -- builds one catalog record per ``nav_params`` star entry via
   :func:`~spindoctor.sim.shared.stars.star_record_from_params`, sets a zero smear
