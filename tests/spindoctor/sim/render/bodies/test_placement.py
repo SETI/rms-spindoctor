@@ -309,6 +309,26 @@ def test_crater_plane_counts_every_pixel_inside_the_body(
     assert count == int(np.count_nonzero(grid.ellipse_dist_sq < 1.0))
 
 
+def test_crater_plane_counts_a_pixel_on_the_limb_of_a_long_thin_outline() -> None:
+    """A long, thin outline with one pixel inside it by the last bit counts that pixel.
+
+    The outline is 13,600 times as long as it is wide, and pixel (2, 4) lies on its
+    limb at a squared distance of 1 less one rounding step, so its row's span of
+    pixels below 1 is a sliver that a discriminant canceling to rounding would lose.
+    """
+    shape = (5, 9)
+    grid = project_ellipsoid(
+        shape,
+        (1054.3219104111986, -1481.041245408661),
+        0.13414593030640126,
+        semi_b_px=1820.2093722775085,
+        semi_c_px=1.0,
+        rotation_z=5.667084053647428,
+    )
+    _, count = crater_plane_site(CraterPlane(shape=shape, origin=(0, 0)), grid, cos_tilt=1.0)
+    assert count == 1
+
+
 @pytest.mark.parametrize(
     ('keys', 'patched'),
     [
@@ -382,15 +402,33 @@ def test_body_within_a_pixel_of_the_frame_edge_matches_the_unclipped_body(
     assert float(np.abs(img - reference).max()) < 1e-12
 
 
-def test_offset_sweep_of_a_large_body_keeps_one_drawing() -> None:
-    """A large body drawn at several positions leaves only its last drawing cached.
+def test_offset_sweep_of_a_large_body_keeps_few_drawings() -> None:
+    """A large body drawn at many positions keeps only its last few drawings.
 
     Its canvas changes with every position, so keeping more would only fill memory.
     """
     body_render.clear_ellipsoid_shape_caches()
-    for step in range(4):
+    for step in range(6):
         _render(disc_body(-40.0 + 1.3 * step, 32.4, 60.0, **_SHADING))
-    assert body_render._render_partial_ellipsoid_cached.cache_info().currsize == 1
+    assert body_render._render_partial_ellipsoid_cached.cache_info().currsize == 4
+
+
+def test_two_large_bodies_drawn_twice_are_each_drawn_once() -> None:
+    """Two large bodies drawn for the composite and again for the layers are drawn once.
+
+    The radiance stage draws every body of a scene that smears each layer apart
+    twice, first all for the composite and then all for the layers, so the second
+    pass must find both drawings cached.
+    """
+    bodies = [
+        disc_body(-40.0, 20.0, 60.0, name='a', **_SHADING),
+        disc_body(110.0, 50.0, 70.0, name='b', **_SHADING),
+    ]
+    body_render.clear_ellipsoid_shape_caches()
+    for _pass in ('composite', 'layers'):
+        for body in bodies:
+            _render(body)
+    assert body_render._render_partial_ellipsoid_cached.cache_info().hits == 2
 
 
 def test_partial_canvas_edges_lie_on_detector_pixels() -> None:

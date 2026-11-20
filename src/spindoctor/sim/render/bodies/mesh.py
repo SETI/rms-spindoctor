@@ -31,6 +31,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.render.bodies.placement import (
+    PARTIAL_DRAWINGS_KEPT,
     body_canvas,
     finish_single_body,
     finish_unseen_body,
@@ -141,11 +142,9 @@ def _render_mesh_shape(
 
 
 # Bodies drawn on the frame share one cache.  A larger body's canvas changes whenever
-# it moves, so an offset sweep never reuses one, and a cache as large would fill with
-# drawings about the size of the frame; its cache keeps only the last drawing, which
-# still serves a body drawn twice at one position.
+# it moves, so its cache keeps only the last few drawings (see PARTIAL_DRAWINGS_KEPT).
 _render_mesh_shape_cached = lru_cache(maxsize=30)(_render_mesh_shape)
-_render_partial_mesh_cached = lru_cache(maxsize=1)(_render_mesh_shape)
+_render_partial_mesh_cached = lru_cache(maxsize=PARTIAL_DRAWINGS_KEPT)(_render_mesh_shape)
 
 
 def clear_mesh_shape_caches() -> None:
