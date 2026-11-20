@@ -708,6 +708,13 @@ def test_the_raw_product_keywords_come_from_the_vicar_header() -> None:
     assert block['cassini:sequence_id'] == 'S06'
 
 
+def test_a_raw_product_keyword_the_header_lacks_is_null() -> None:
+    """A header without a description publishes none, never the calibrated label's."""
+    merged = {'DESCRIPTION': 'Calibrated using CISSCAL 4.0beta'}
+    block = _label_metadata(merged, 'N1481269570_1_CALIB.IMG', header={})
+    assert block['cassini:limitations'] is None
+
+
 def test_a_placeholder_raw_product_description_is_null() -> None:
     """The header is verbatim, so its N/A description is recorded as null."""
     block = _label_metadata({}, 'N1481269570_1_CALIB.IMG', header={'DESCRIPTION': 'N/A'})
