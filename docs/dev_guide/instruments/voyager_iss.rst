@@ -244,22 +244,32 @@ observation frame from a frame chain. It builds it as
 
 .. code-block:: text
 
-   P . ckgp(ck_id, sce2t(scid, et_mid), 800 + texp/48, 'J2000')
+   P . ckgp(ck_id, ticks(clock_stop_count), 20, 'J2000')
    P = pxform('VGn_SCAN_PLATFORM', camera_frame, 0)
 
 -- a single **tolerance-snapped** pointing lookup, frozen and
-time-independent, composed with a constant rotation read at epoch zero. A
-``pxform`` at the exposure midtime does not reproduce it, and in fact does not
-resolve at all, which an integration test pins.
+time-independent, composed with a constant rotation read at epoch zero. The
+host looks the record up at the image's own clock stop count, the FDS count in
+its name, within 20 ticks (1.2 s): the archive's C kernels stamp each image's
+record at that count, which can fall whole FDS minutes after the shutter
+closed. A ``pxform`` at the exposure midtime does not reproduce the frame, and
+in fact does not resolve at all, which an integration test pins.
+
+.. Issue #1085: the CK writer still reproduces the lookup at the exposure midtime.
+
+The C-kernel steps below still reproduce the lookup at the exposure midtime,
+with a tolerance of ``800 + texp/48`` ticks, and stamp the corrected records at
+the exposure start, midtime, and stop. The host does not look there, so a
+corrected kernel written for a Voyager image does not change the frame the host
+builds.
 
 Everything downstream follows from that. ``_frame_identity`` sets
 ``frozen_oops_attitude=True``, and ``_attitude_baseline`` takes the frozen
 branch: ``cmatrix_original`` is the observation frame's own attitude, the flip
 is the identity by construction, and neither the flip check nor the
 across-the-exposure constancy check runs, because there is nothing evaluated to
-compare. The tick conversion in the lookup is ``sce2t``, not ``sce2c``; the two
-differ, and every step that reproduces this lookup matches the call it
-reproduces.
+compare. In the C-kernel steps' midtime lookup, the tick conversion is
+``sce2t``, not ``sce2c``; the two differ.
 
 **Per-spacecraft variation.** Two spacecraft, two CK objects, two clocks, four
 camera frames -- all derived per image from one label character. Nothing in
@@ -455,7 +465,9 @@ the identity.
 in its round-trip cohort, and needs an extra step for it: because the host
 freezes the observation frame during ``from_file``, a kernel furnished after
 that call cannot be seen at all, so the image is loaded a **second** time with
-the correction already furnished.
+the correction already furnished. Its two offset tests fail on this frame,
+because the corrected records are not where the host looks (see "Frame
+evaluation" above).
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
 I/F scaling, the Saturn correction, and the refusal of a product with no I/F
