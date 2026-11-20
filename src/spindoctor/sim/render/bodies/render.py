@@ -458,6 +458,7 @@ def _ellipsoid_spec(spec: BodySpec, seeds: _SurfaceSeeds, *, oversample: int) ->
         crater_relief_scale=spec.crater_relief_scale,
         anti_aliasing=spec.anti_aliasing,
         crater_seed=seeds.crater_seed,
+        crater_turn=float(np.radians(spec.roll_deg)),
         oversample=int(oversample),
         limb_relief_rms=spec.limb_relief_rms,
         limb_relief_corr_deg=spec.limb_relief_corr_deg,

@@ -6,7 +6,8 @@ order chosen to mirror image formation:
 1. **Smear** averages the scene radiance over the exposure along the pointing
    drift (whole-scene, or per object class for differential smear).  It runs
    first, while the per-class layers are still separable, so the optics below
-   form the image of the time-averaged radiance.
+   form the image of the time-averaged radiance.  The drift is the scene's
+   motion, so a planted camera roll turns it with the scene.
 2. **Distortion** warps the geometric image: the residual field-position error
    the navigator does not correct maps where each point of the scene lands.
 3. **PSF** blurs the mapped image by the aperture's core-plus-wing kernel; the
@@ -14,6 +15,9 @@ order chosen to mirror image formation:
 4. **Ghosts** add displaced, defocused, low-amplitude copies of the formed
    focal-plane image (internal reflections).
 5. **Stray light** adds the smooth scattered-light background last.
+
+The distortion, the PSF, the ghosts, and the stray light belong to the camera, so a
+planted roll leaves them where the scene puts them on the detector.
 
 A stage whose scene block is absent contributes nothing.  Only the distortion
 non-radial field draws randomness, from its own stream ``optics/distortion``
@@ -204,7 +208,12 @@ def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
 
     smear = optics.get('smear')
     if smear:
-        apply_smear(frame, smear=smear, oversample=oversample)
+        apply_smear(
+            frame,
+            smear=smear,
+            oversample=oversample,
+            roll_deg=float(params.get('offset_rotation_deg', 0.0)),
+        )
 
     # The residual warp moves light by under a pixel for most cameras, which the
     # editor's preview can't show, and it is one of the slowest optics steps.
