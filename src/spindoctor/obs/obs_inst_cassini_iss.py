@@ -227,9 +227,10 @@ def _label_metadata(
     """Return the dictionary attributes an image states, under their own names.
 
     Every attribute ``_LABEL_METADATA`` names is published, so the block has the same
-    keys for every image; one whose keyword the metadata lacks is None.  The keywords of
-    ``_RAW_PRODUCT_KEYWORDS`` are read from the VICAR header when it gives them (see
-    there), and every other keyword from the merged metadata.
+    keys for every image; one whose keyword the metadata lacks is None.  When the host
+    read the VICAR header, the keywords of ``_RAW_PRODUCT_KEYWORDS`` are read from it
+    alone (see there), and are None where it lacks them; every other keyword comes from
+    the merged metadata.
 
     Parameters:
         label: The image's metadata, the host's ``dict``.
@@ -245,9 +246,11 @@ def _label_metadata(
     for attribute, keyword, element in _LABEL_METADATA:
         if keyword is None:
             value = _version_number(image_name)
-        elif keyword in _RAW_PRODUCT_KEYWORDS and header is not None and keyword in header:
-            # header_dict is verbatim, so it keeps the placeholders the host leaves out.
-            value = None if is_pds3_null(header[keyword]) else header[keyword]
+        elif keyword in _RAW_PRODUCT_KEYWORDS and header is not None:
+            # Never the merged value, which is the calibrated label's own.  header_dict is
+            # verbatim, so it keeps the placeholders the host leaves out.
+            raw = header.get(keyword)
+            value = None if is_pds3_null(raw) else raw
         elif element is None:
             value = _document_value(label, keyword)
         else:
