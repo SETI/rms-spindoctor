@@ -44,7 +44,10 @@ Data flow
    :meth:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst.from_file`.
 3. :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` walks the
    :class:`~spindoctor.nav_model.nav_model.NavModel` registry and constructs
-   per-image instances applicable to the observation.
+   per-image instances applicable to the observation. Each model's ``inputs`` is
+   matched against the observation's ``model_source``, so a real frame gets the
+   models built from SPICE geometry and a simulated frame gets the simulated-image
+   models.
 4. The :class:`~spindoctor.nav_orchestrator.orchestrator.NavOrchestrator`
    builds a :class:`~spindoctor.nav_orchestrator.nav_context.NavContext`,
    gathers features and per-:class:`~spindoctor.nav_model.nav_model.NavModel`

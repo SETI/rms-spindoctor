@@ -629,6 +629,7 @@ class NavModelBody(NavModelBodyBase):
     """
 
     _abstract = False
+    inputs = 'spice'
 
     def __init__(
         self,
@@ -682,9 +683,6 @@ class NavModelBody(NavModelBodyBase):
         Returns:
             One ``NavModelBody`` per non-Titan body present in the extfov.
         """
-        # Simulated obs use the sim-params-driven NavModelBodySimulated instead.
-        if getattr(obs, 'is_simulated', False):
-            return []
         if config is None:
             config = DEFAULT_CONFIG
         in_extfov = bodies_in_extfov(obs, config=config)

@@ -15,7 +15,26 @@ predicted-scene generators. Each subclass implements three methods:
   summary PNG.
 
 Concrete subclasses self-register via ``__init_subclass__``; abstract
-bases set ``_abstract = True`` to opt out. The class method
+bases set ``_abstract = True`` to opt out.
+
+A model predicts the scene from one of two kinds of input, and the class attribute
+``inputs`` says which. The models for real images set it to ``'spice'``: they work
+from SPICE geometry and the star, body, and ring catalogs. Their simulated-image
+siblings set it to ``'scene_view'``: they read the navigator's view of a simulated
+scene, ``obs.nav_params``. An observation states which one it can supply in
+``model_source``: ``'spice'`` for the real cameras and ``'scene_view'`` for
+:class:`~spindoctor.obs.obs_inst_sim.ObsSim`.
+:func:`~spindoctor.nav_model.nav_model.build_models_for_obs` considers a class only when
+its ``inputs`` matches the observation's ``model_source``, so no model has to check
+what kind of observation it was given.
+
+Every concrete subclass sets ``inputs`` in its own class body; if it doesn't, defining
+the class raises ``TypeError``. Two of the simulated models subclass the real ones
+(:class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` and
+:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated`). Without this
+rule, one that left ``inputs`` out would quietly inherit its parent's ``'spice'``.
+
+The class method
 :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` is the per-class hook that
 :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` iterates. Both take a
 keyword-only ``config`` parameter used for *selection* (which ring systems have

@@ -46,6 +46,8 @@ from spindoctor.support.summary_png import (
 class _FakeSnapshot:
     """Minimal stand-in for ObsSnapshotInst used by the driver tests."""
 
+    model_source = 'spice'
+
     def __init__(
         self,
         *,

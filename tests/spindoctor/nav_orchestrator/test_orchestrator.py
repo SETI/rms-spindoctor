@@ -94,6 +94,8 @@ class _FakeObs:
 class _FakeStarModel(NavModel):
     """Fake NavModel that emits one STAR feature per ``feature_count``."""
 
+    _abstract = True
+
     def __init__(self, obs: Any, *, feature_count: int = 1) -> None:
         super().__init__('stars', obs)
         self._feature_count = feature_count
@@ -693,6 +695,8 @@ def test_orchestrator_passes_classifier_thresholds_through(fake_obs: _FakeObs) -
 class _RaisingModel(NavModel):
     """NavModel whose ``to_features`` always raises a RuntimeError."""
 
+    _abstract = True
+
     def __init__(self, obs: Any) -> None:
         super().__init__('raising', obs)
 
@@ -801,6 +805,8 @@ def test_a_raising_create_model_fails_the_image(fake_obs: _FakeObs) -> None:
     class _BadBuildModel(_FakeStarModel):
         """Star model whose ``create_model`` raises."""
 
+        _abstract = True
+
         def create_model(self) -> None:
             """Raise instead of building."""
             raise ValueError('synthetic create_model failure')
@@ -859,6 +865,8 @@ def test_a_contract_violation_is_not_reclassified_as_an_internal_error(
 
     class _ContractBreakingModel(_FakeStarModel):
         """Star model whose ``to_features`` violates an internal contract."""
+
+        _abstract = True
 
         def to_features(self, context: NavContext) -> list[NavFeature]:
             """Raise the contract error."""
@@ -994,6 +1002,8 @@ def test_orchestrator_low_reliability_features_all_gated(fake_obs: _FakeObs) -> 
     obs = fake_obs
 
     class _LowReliabilityStarModel(_FakeStarModel):
+        _abstract = True
+
         def to_features(self, context: NavContext) -> list[NavFeature]:
             return [replace(f, reliability=0.01) for f in super().to_features(context)]
 
@@ -1019,8 +1029,12 @@ def test_a_raising_to_annotations_fails_the_image(
     class _GoodModel(_FakeStarModel):
         """Star model that annotates normally."""
 
+        _abstract = True
+
     class _BadAnnotationModel(_FakeStarModel):
         """Star model whose ``to_annotations`` raises."""
+
+        _abstract = True
 
         def to_annotations(self, context: NavContext) -> Annotations:
             """Raise instead of annotating."""
@@ -1077,6 +1091,8 @@ def test_prepare_apply_gate_false_returns_gated_features() -> None:
     """``apply_gate=False`` returns every emitted feature, including gated ones."""
 
     class _LowReliabilityModel(_FakeStarModel):
+        _abstract = True
+
         def to_features(self, context: NavContext) -> list[NavFeature]:
             return [replace(f, reliability=0.01) for f in super().to_features(context)]
 
@@ -1094,6 +1110,8 @@ def test_prepare_apply_gate_false_returns_gated_features() -> None:
 
 class _FakeBodyModel(NavModel):
     """Fake NavModel that emits one BODY_DISC + one BODY_BLOB for one body."""
+
+    _abstract = True
 
     def __init__(self, obs: Any, *, body_name: str = 'TestMoon') -> None:
         super().__init__('body:test', obs)
@@ -1425,6 +1443,8 @@ def test_all_features_gated_emits_status_reason_info(
     obs = fake_obs
 
     class _LowReliabilityStarModel(_FakeStarModel):
+        _abstract = True
+
         def to_features(self, context: NavContext) -> list[NavFeature]:
             return [replace(f, reliability=0.01) for f in super().to_features(context)]
 

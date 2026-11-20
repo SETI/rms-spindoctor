@@ -60,6 +60,8 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
     SSI image data.
     """
 
+    model_source = 'spice'
+
     filter: str
     """The filter, as the label names it."""
 

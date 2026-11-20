@@ -226,6 +226,7 @@ def _obs_class_for(obs: Any) -> tuple[type[ObsSnapshotInst], list[dict[str, Any]
     class _DriverObs(HermeticObs):
         """HermeticObs whose from_file records its arguments and returns ``obs``."""
 
+        model_source = 'spice'
         calls: ClassVar[list[dict[str, Any]]] = from_file_calls
 
         @staticmethod

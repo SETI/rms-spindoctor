@@ -134,6 +134,8 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
     ISS image data.
     """
 
+    model_source = 'spice'
+
     detector: str
     """The camera, ``'NAC'`` or ``'WAC'``."""
 

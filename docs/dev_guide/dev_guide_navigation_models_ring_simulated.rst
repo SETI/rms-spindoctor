@@ -184,10 +184,9 @@ Source files: ``src/spindoctor/nav_model/simulated/rings.py`` holds
 The class derives from :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 It overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to return one
 instance per navigable feature of a simulated observation, named ``rings_sim:<feature
-name>``, and an empty list for a real one. The parent
-:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` does the reverse, so the
-orchestrator's :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` driver gets
-simulated frames from this class and real frames from the parent.
+name>``, and an empty list for a real one. Its ``inputs`` is ``'scene_view'``, so a
+simulated frame's ring models come from this class, and a real frame's from
+:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
