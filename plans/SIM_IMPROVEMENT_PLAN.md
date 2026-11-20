@@ -206,6 +206,7 @@ typed scene, in Phase 3b.
 | #894 | Night-side 1% floor and clipped photometric laws |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
+| #1080 | A mesh body with the default pose draws up to 3% of peak differently near its outline on frames of different size |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
