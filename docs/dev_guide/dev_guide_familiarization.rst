@@ -352,6 +352,7 @@ sibling of each model family. These are used both by
 - :doc:`dev_guide_navigation_models_titan_simulated`
 - :mod:`spindoctor.nav_model.simulated.stars`
 - :mod:`spindoctor.nav_model.simulated.body`
+- :mod:`spindoctor.nav_model.simulated.body_arcs`
 - :mod:`spindoctor.nav_model.simulated.rings`
 - :mod:`spindoctor.nav_model.simulated.titan`
 - :mod:`spindoctor.sim` — the scene schema, the image-side renderer, and the

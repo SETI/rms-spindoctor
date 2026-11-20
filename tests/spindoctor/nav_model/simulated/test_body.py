@@ -15,6 +15,8 @@ from tests.shims import bare_nav_context
 
 from spindoctor.annotation import Annotations
 from spindoctor.feature.feature import NavFeature
+from spindoctor.feature.feature_type import NavFeatureType
+from spindoctor.feature.geometry import LimbPolyline, TerminatorPolyline
 from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
@@ -464,6 +466,38 @@ def test_terminator_reliability_reasons_carry_albedo_penalty() -> None:
     assert terminator.reliability_reasons.albedo_penalty == pytest.approx(
         min(1.0, shape.albedo_variation)
     )
+
+
+@pytest.mark.parametrize(
+    ('feature_type', 'id_prefix', 'geometry_cls', 'sigma_normal_px', 'sigma_tangent_px'),
+    [
+        (NavFeatureType.LIMB_ARC, 'limb_arc', LimbPolyline, 1.0, 0.5),
+        (NavFeatureType.TERMINATOR_ARC, 'terminator_arc', TerminatorPolyline, 2.0, 0.5),
+    ],
+    ids=['limb', 'terminator'],
+)
+def test_each_arc_carries_its_own_family_choices(
+    feature_type: NavFeatureType,
+    id_prefix: str,
+    geometry_cls: type[LimbPolyline] | type[TerminatorPolyline],
+    sigma_normal_px: float,
+    sigma_tangent_px: float,
+) -> None:
+    """Each arc carries its own ID prefix, geometry class, per-vertex sigmas, and type."""
+    obs = _limb_obs()
+    model = NavModelBodySimulated('body', obs, 'RHEA', _large_body(phase_angle=45.0))
+    model.create_model()
+    feature = next(
+        f for f in model.to_features(bare_nav_context(obs)) if f.feature_type is feature_type
+    )
+    geometry = feature.geometry
+    assert feature.feature_id == f'{id_prefix}:RHEA'
+    assert type(geometry) is geometry_cls
+    assert isinstance(geometry, LimbPolyline | TerminatorPolyline)
+    n = geometry.vertices_vu.shape[0]
+    assert np.array_equal(geometry.sigma_normal_per_vertex_px, np.full(n, sigma_normal_px))
+    assert np.array_equal(geometry.sigma_tangent_per_vertex_px, np.full(n, sigma_tangent_px))
+    assert feature.usable_types == frozenset({feature_type})
 
 
 def test_metadata_records_predicted_diameter() -> None:

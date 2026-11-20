@@ -188,8 +188,17 @@ unshifted position the planted offset is measured from.
 Implementation
 ==============
 
-Source file: ``src/spindoctor/nav_model/simulated/body.py`` —
-:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`.
+Source files: ``src/spindoctor/nav_model/simulated/body.py`` holds
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`, and
+``src/spindoctor/nav_model/simulated/body_arcs.py`` holds the limb and terminator arcs,
+:func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature` and
+:func:`~spindoctor.nav_model.simulated.body_arcs.build_terminator_arc_feature`. The class
+keeps all of the body's state. Each time it renders the body, it collects what the arcs
+read into a :class:`~spindoctor.nav_model.simulated.body_arcs.BodyArcInputs`, which
+:meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.to_features` passes to
+both functions. The two arcs share one function that computes the visible-arc fraction,
+given the edge to measure (the silhouette boundary or the lit/unlit ridge), and one
+function that builds the feature.
 
 Public class :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`, base
 :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`. The class overrides
@@ -262,20 +271,27 @@ Call path traced through
    ``blob_max_overflow_fraction``, append a BODY_BLOB built by the shared blob-feature
    helper on :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`, which
    also holds the blob's overflow test for both models.
-4. When the diameter and phase gates pass, append a LIMB_ARC. The silhouette
-   boundary is sampled into a vertex polyline with outward normals and a fixed
-   per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
-   dropped, and the visible-arc fraction compares the surviving polyline against the
-   silhouette boundary of an unclipped whole-body render -- so a limb sliding off the
-   frame or behind another body reports the loss instead of claiming ``1.0``.  The
-   reliability applies the shared
-   :func:`~spindoctor.nav_model.nav_model_body.limb_reliability` formula (arc fraction
-   and arc length), so a deeply occluded or clipped limb can be dropped by the
-   downstream reliability gate exactly as a real one would be.
-5. When the terminator gates pass, append a TERMINATOR_ARC scored the same way: its
-   visible-arc fraction compares the surviving lit/unlit ridge (net of frame clipping
-   and sibling-body occlusion) against the ridge of an unclipped whole-body render of
-   the same geometry, and its reliability applies the shared
+4. When the body is at least 100 px across and its phase is at most 60 degrees, append
+   the LIMB_ARC that
+   :func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature` builds. The
+   silhouette boundary is sampled into a vertex polyline with outward normals and a
+   fixed per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
+   dropped, and the arc is withheld if fewer than 30 vertices survive. The visible-arc
+   fraction compares the surviving polyline against the silhouette boundary of an
+   unclipped whole-body render -- so a limb sliding off the frame or behind another
+   body reports the loss instead of claiming ``1.0``.  The reliability applies the
+   shared :func:`~spindoctor.nav_model.nav_model_body.limb_reliability` formula (arc
+   fraction and arc length), so a deeply occluded or clipped limb can be dropped
+   downstream for low reliability, exactly as a real one would be. A measurement caller
+   can switch these checks off. The model then skips the size, phase, and vertex-count
+   checks and the occlusion drop, and emits the silhouette boundary of a phase-0 render
+   with a visible-arc fraction and reliability of ``1.0``.
+5. When the phase is far enough from zero and the ridge is long enough, as described
+   under *Overview*, append the TERMINATOR_ARC that
+   :func:`~spindoctor.nav_model.simulated.body_arcs.build_terminator_arc_feature` builds,
+   scored the same way: its visible-arc fraction compares the surviving lit/unlit ridge
+   (net of frame clipping and sibling-body occlusion) against the ridge of an unclipped
+   whole-body render of the same geometry, and its reliability applies the shared
    :func:`~spindoctor.nav_model.nav_model_body.terminator_reliability` formula
    (arc fraction, catalog albedo-variation penalty, ``sin(phase)`` cap) -- so a
    high-phase simulated terminator can be dropped by the downstream reliability gate

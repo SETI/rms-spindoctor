@@ -128,6 +128,11 @@ spindoctor.nav_model.simulated
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_model.simulated.body_arcs
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_model.simulated.rings
    :members:
    :undoc-members:
