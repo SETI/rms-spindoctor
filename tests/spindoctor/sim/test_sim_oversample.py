@@ -177,9 +177,9 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
         ],
     }
     frame = new_sim_frame(size, size, oversample=4)
-    for name, stage in STAGES:
-        stage(frame, params=scene, rng=np.random.default_rng(0))
-        if name == 'downsample':
+    for stage in STAGES:
+        stage(frame, params=scene)
+        if stage is downsample_to_detector:
             break
     predicted = create_predicted_body_image(
         (size, size),
@@ -380,7 +380,7 @@ def test_downsampled_mask_is_true_once_half_the_block_is() -> None:
     mask[0, 2] = True
     frame = new_sim_frame(2, 4, oversample=2)
     frame.truth['body_masks'] = [mask]
-    downsample_to_detector(frame, params={}, rng=np.random.default_rng(0))
+    downsample_to_detector(frame, params={})
     reduced = frame.truth['body_masks'][0]
     assert bool(reduced[0, 0])
     assert not bool(reduced[0, 1])
@@ -400,7 +400,7 @@ def test_downsampled_index_map_gives_a_tied_block_to_the_nearer_body() -> None:
     index_map[0, 2] = 2
     frame = new_sim_frame(1, 2, oversample=2)
     frame.truth['body_index_map'] = index_map
-    downsample_to_detector(frame, params={}, rng=np.random.default_rng(0))
+    downsample_to_detector(frame, params={})
     reduced = frame.truth['body_index_map']
     assert int(reduced[0, 0]) == 1
     assert int(reduced[0, 1]) == 0

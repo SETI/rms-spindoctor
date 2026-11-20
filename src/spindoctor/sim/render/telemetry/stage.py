@@ -70,12 +70,7 @@ _EMPTY_LOCI = FeatureLoci(
 )
 
 
-def apply_telemetry(
-    frame: SimFrame,
-    *,
-    params: Mapping[str, Any],
-    rng: np.random.Generator,
-) -> None:
+def apply_telemetry(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     """Telemetry stage: apply structured data loss and missing-data markers.
 
     Runs after the detector stage, so loss overwrites readout values the way a
@@ -88,9 +83,6 @@ def apply_telemetry(
         params: The full scene mapping; reads the ``artifacts`` block (per-mode
             maps plus ``adversarial``) and the ``noise`` block's
             ``missing_data_rate``.
-        rng: The stage generator, used for the generic missing-data markers; the
-            structured loss modes derive their own per-mode streams from the
-            scene seed.
     """
     if frame.oversample != 1:
         raise AssertionError(
@@ -168,7 +160,7 @@ def apply_telemetry(
             records[mode_name] = apply_resample_texture(frame.signal, cfg, rng=mode_rng)
 
     # Sub-stage 4: the generic missing-data markers.
-    _apply_missing_data_markers(frame, params, marker_dn, rng)
+    _apply_missing_data_markers(frame, params, marker_dn, random_seed)
 
     if records:
         frame.truth.setdefault('artifacts', {}).update(records)
@@ -231,14 +223,15 @@ def _apply_missing_data_markers(
     frame: SimFrame,
     params: Mapping[str, Any],
     marker_dn: float,
-    rng: np.random.Generator,
+    random_seed: int,
 ) -> None:
     """Overwrite randomly lost pixels with the missing-data marker.
 
     The generic per-pixel ``noise.missing_data_rate`` dropout is the worst-case
     stress knob: each pixel is lost independently with that probability and
     takes the marker the navigator applies to the frame (0 on every shipped
-    instrument), as the structured loss modes do.
+    instrument), as the structured loss modes do.  The losses draw from the
+    stream ``telemetry``.
     """
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     scene_noise = params.get('noise') or {}
@@ -249,5 +242,8 @@ def _apply_missing_data_markers(
     )
     if missing_data_rate <= 0.0:
         return
+    # The stream carries the stage's own name and must never be renamed: it seeds the
+    # lost pixels of every scene that sets a rate.
+    rng = np.random.default_rng(derive_effect_seed(random_seed, 'telemetry'))
     missing_mask = rng.random(size=frame.signal.shape) < missing_data_rate
     frame.signal[missing_mask] = marker_dn

@@ -126,12 +126,7 @@ def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) ->
     return float(detector_defaults.get('read_noise_e', 1.0))
 
 
-def compose_scene_radiance(
-    frame: SimFrame,
-    *,
-    params: Mapping[str, Any],
-    rng: np.random.Generator,
-) -> None:
+def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     """Compose the scene's noise-free radiance into the frame in place.
 
     Parameters:
@@ -143,12 +138,7 @@ def compose_scene_radiance(
             scene editor's fast preview frame (``frame.preview``), each body's limb
             is drawn without anti-aliasing supersampling.
         params: The full scene mapping.
-        rng: The stage generator.  Unused directly: this stage's randomized
-            sub-effects (background stars, craters) run behind parameter-keyed
-            caches that need scalar seeds, so they derive named sub-seeds from
-            the scene's ``random_seed`` instead of consuming generator state.
     """
-    del rng
     img = frame.signal
     point_e = frame.point_e
     size_v, size_u = img.shape

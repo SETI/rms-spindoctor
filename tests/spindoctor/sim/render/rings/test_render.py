@@ -289,7 +289,7 @@ def _body_at_center(range_km: float) -> dict[str, Any]:
 def _signal_after_radiance(scene: dict[str, Any]) -> NDArrayFloatType:
     """Run only the radiance stage and return its signal plane."""
     frame = new_sim_frame(int(scene['size_v']), int(scene['size_u']))
-    compose_scene_radiance(frame, params=scene, rng=np.random.default_rng(0))
+    compose_scene_radiance(frame, params=scene)
     return frame.signal
 
 
@@ -323,7 +323,7 @@ def test_near_arm_composites_in_front_far_arm_behind() -> None:
 def _point_e_after_radiance(scene: dict[str, Any]) -> NDArrayFloatType:
     """Run only the radiance stage and return its point-source plane."""
     frame = new_sim_frame(int(scene['size_v']), int(scene['size_u']))
-    compose_scene_radiance(frame, params=scene, rng=np.random.default_rng(0))
+    compose_scene_radiance(frame, params=scene)
     return frame.point_e
 
 

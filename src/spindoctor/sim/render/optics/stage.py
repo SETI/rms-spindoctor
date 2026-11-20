@@ -16,8 +16,8 @@ order chosen to mirror image formation:
 5. **Stray light** adds the smooth scattered-light background last.
 
 A stage whose scene block is absent contributes nothing.  Only the distortion
-non-radial field draws randomness, and it derives its own seeded stream from
-the scene seed, so the optics stage does not consume the pipeline generator.
+non-radial field draws randomness, from its own stream ``optics/distortion``
+derived from the scene seed.
 """
 
 from collections.abc import Mapping
@@ -181,12 +181,7 @@ def apply_stray_light(
     img += field
 
 
-def apply_optics(
-    frame: SimFrame,
-    *,
-    params: Mapping[str, Any],
-    rng: np.random.Generator,
-) -> None:
+def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     """Optics stage: apply the scene's optical-path effects in place.
 
     Runs the smear, distortion, PSF, ghost, and stray-light sub-stages in the
@@ -198,9 +193,7 @@ def apply_optics(
     Parameters:
         frame: The frame whose signal and point-source planes are modified.
         params: The full scene mapping; reads the ``optics`` block.
-        rng: The stage generator (used by the seeded distortion field).
     """
-    del rng
     optics = params.get('optics') or {}
     oversample = int(frame.oversample)
 

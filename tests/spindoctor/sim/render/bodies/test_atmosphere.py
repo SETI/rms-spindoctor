@@ -600,7 +600,7 @@ def _compose_scene(**extra: Any) -> Any:
     params.update(extra)
     scene = validate_sim_params(params)
     frame = new_sim_frame(_C_SIZE, _C_SIZE)
-    compose_scene_radiance(frame, params=scene, rng=np.random.default_rng(0))
+    compose_scene_radiance(frame, params=scene)
     return frame
 
 

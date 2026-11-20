@@ -26,7 +26,6 @@ from spindoctor.sim.render.detector.noise_stages import (
 )
 from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt, resolve_sqrt_lut
 from spindoctor.sim.render.stages import SimFrame
-from spindoctor.sim.seeds import derive_effect_seed
 
 # coiss_nac catalog: full well 110k e-, gain state 2 = 30 e-/DN, bias 20 DN.
 _NAC_GAIN = 30.0
@@ -51,8 +50,7 @@ def _run_detector(
     if noise is not None:
         params['noise'] = noise
     params.update(extra)
-    rng = np.random.default_rng(derive_effect_seed(seed, 'detector'))
-    apply_detector(frame, params=params, rng=rng)
+    apply_detector(frame, params=params)
     return frame.signal
 
 
