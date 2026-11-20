@@ -197,7 +197,7 @@ typed scene, in Phase 3b.
 | #931 | **Done (PR #1069).** Every ellipsoid is shaded on its working grid. The relief tilt is interpolated from the detector grid by a cubic spline, except in a limb band, along the relief's day-night edge, and wherever its cast shadows fall, and the crater slopes bilinearly; textures and transits are drawn on the working grid. Against working-grid shading the light of 14 test bodies with 2% relief at a 12-degree correlation length lands within 0.0015 px, and that of a 150 px body with 3% to 5% relief at 5 degrees within 0.0007 px. That holds while the relief's correlation length spans at least about 5 detector pixels; finer relief lands up to 0.011 px off at 1.5 to 4 pixels and 0.023 px at 1 pixel (#1068). Coarse shading had moved it up to 0.026 px on cratered and 0.008 px on textured bodies. Three regression baselines moved toward their planted offsets. Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
 | #1013 | A scene with instrument defaults oversamples 4x even when its camera has no PSF |
 | #1014 | The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
-| #890 | A body larger than half the frame and off center is clipped or vanishes |
+| #890 | **Done (PR #1081).** A body, relief, or halo that reaches past the frame from the frame center is drawn on a canvas past the frame edge and moved into place as before (the interpolated move stays, per the #984 ruling), so it matches the unclipped body exactly at whole-pixel positions and in light and light center at fractional ones; only the three Titan halo scenes moved, gaining the halo light the move had left out of a one- to two-pixel strip at the frame edge. A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
 | #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
 | #84 | Simulated rings were copied in place, so ring edges overwrote brighter objects behind them and gaps erased what lay in them. The ring system has composited by optical depth since PR #313, so a gap or a faint ring shows what lies behind it; confirm on a ring-over-body scene and close |
@@ -206,6 +206,7 @@ typed scene, in Phase 3b.
 | #894 | Night-side 1% floor and clipped photometric laws |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
+| #1080 | **Affects no current scene.** A mesh body with the default pose draws up to 3% of peak differently near its outline on frames of different size |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px

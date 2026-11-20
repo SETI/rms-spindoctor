@@ -5,21 +5,46 @@ and :func:`perturb_normals_by_slope` tilts the surface normals by the slopes of 
 field.  The ellipsoid renderer (:mod:`spindoctor.sim.render.bodies.ellipsoid`)
 carves its craters on the detector grid and shades them on its working grid.
 
+The crater centers are drawn among the pixels of a grid that holds the body.
+Usually that is the grid the craters are carved on.  A body too large to be drawn
+whole is drawn only in part, and its centers are drawn on a larger grid, a
+:class:`CraterSite`, that holds the whole body; the carved grid is a box of it.
+
 The crater knobs live only on this side of the information boundary: they are
 truth keys the navigator never sees (its best model is the smooth Lambert
 ellipsoid).
 """
 
+from collections.abc import Callable
+from dataclasses import dataclass
+
 import numpy as np
 
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
-__all__ = ['carve_crater_heights', 'perturb_normals_by_slope']
+__all__ = ['CraterSite', 'carve_crater_heights', 'perturb_normals_by_slope']
 
 # Candidate pixels drawn per round of the crater center search
 _CENTER_CANDIDATES_PER_ROUND = 256
+
+
+@dataclass(frozen=True)
+class CraterSite:
+    """The grid crater centers are drawn on, when it is larger than the carved grid.
+
+    Parameters:
+        shape: The grid's rows and columns.
+        inside: Takes flat pixel indices on the grid and returns whether each pixel
+            lies strictly inside the body.  It must find at least one such pixel
+            whenever a crater is placed.
+        origin: The grid row and column of the carved grid's first pixel.
+    """
+
+    shape: tuple[int, int]
+    inside: Callable[[NDArrayIntType], NDArrayBoolType]
+    origin: tuple[int, int]
 
 
 def carve_crater_heights(
@@ -35,6 +60,7 @@ def carve_crater_heights(
     crater_relief_scale: float,
     work_center_v: float,
     work_center_u: float,
+    site: CraterSite | None = None,
 ) -> NDArrayFloatType:
     """Carve the crater height field (bowl + walls + raised rim per crater).
 
@@ -45,10 +71,11 @@ def carve_crater_heights(
     ``derive_effect_seed(crater_seed, 'crater:<index>')``: one uniform value for the
     radius, then one normal value for the depth scatter, then its center (see
     :func:`_draw_crater_center`).  A crater's values therefore depend only on the
-    seed, its index, the grid's dimensions, and the mask at the candidate pixels
-    its own stream picks.  Changing one interior pixel moves only a crater whose
-    center search reaches that pixel, and a change in the crater count adds or
-    drops craters at the end of the list without touching the others.
+    seed, its index, the dimensions of the grid its center is drawn on, and which
+    of the candidate pixels its own stream picks lie inside the body.  Changing one
+    interior pixel moves only a crater whose center search reaches that pixel, and
+    a change in the crater count adds or drops craters at the end of the list
+    without touching the others.
 
     Parameters:
         ellipse_mask_nz: Boolean mask of pixels strictly inside the ellipse.
@@ -62,6 +89,8 @@ def carve_crater_heights(
         crater_relief_scale: Scale factor for crater depth.
         work_center_v: Body center v on the grid.
         work_center_u: Body center u on the grid.
+        site: The larger grid the crater centers are drawn on, or None to draw them
+            among the carved grid's own pixels inside ``ellipse_mask_nz``.
 
     Returns:
         The crater height field over the grid, in its pixels.
@@ -73,6 +102,13 @@ def carve_crater_heights(
     height = np.zeros_like(ellipse_mask_nz, dtype=float)
     if n_craters <= 0 or not ellipse_mask_nz.any():
         return height
+    if site is None:
+        flat_mask = ellipse_mask_nz.ravel()
+        site = CraterSite(
+            shape=(ellipse_mask_nz.shape[0], ellipse_mask_nz.shape[1]),
+            inside=lambda indices: flat_mask[indices],
+            origin=(0, 0),
+        )
     if crater_power_law_exponent <= 1:
         raise ValueError('alpha must be > 1 for a proper power law.')
 
@@ -93,7 +129,7 @@ def carve_crater_heights(
         crater_radius = float((R_min_a + rng.uniform() * (R_max_a - R_min_a)) ** (1.0 / power))
         # Multiplicative depth scatter around the size-dependent mean of the depth law
         noise = np.exp(rng.normal(loc=0.0, scale=0.25))
-        v_crater, u_crater = _draw_crater_center(ellipse_mask_nz, rng)
+        v_crater, u_crater = _draw_crater_center(site, rng)
 
         # The crater center is an array row and column, so the half pixel goes on here.
         v_dist = v_abs - (v_crater + PIXEL_CENTER_TO_CORNER_PX)
@@ -183,29 +219,30 @@ def _crater_profile(
     return local_profile
 
 
-def _draw_crater_center(mask: NDArrayBoolType, rng: np.random.Generator) -> tuple[int, int]:
-    """Draw a crater center uniformly among a mask's pixels.
+def _draw_crater_center(site: CraterSite, rng: np.random.Generator) -> tuple[int, int]:
+    """Draw a crater center uniformly among the pixels of a site inside the body.
 
     Candidates are drawn in rounds of a fixed number of pixels, each uniform over
-    the whole grid, and the first candidate inside the mask is the center.  The
-    candidates depend only on the stream and the grid's dimensions, never on the
-    mask, so changing one mask pixel changes the center only when one of the
-    candidates up to and including the chosen one is that pixel.
+    the site's whole grid, and the first candidate inside the body is the center.
+    The candidates depend only on the stream and the grid's dimensions, never on
+    which pixels lie inside, so changing one pixel changes the center only when one
+    of the candidates up to and including the chosen one is that pixel.
 
     Parameters:
-        mask: The pixels a center may land on; at least one must be set.
+        site: The grid the center is drawn on; at least one of its pixels must lie
+            inside the body.
         rng: The crater's own random stream.
 
     Returns:
-        The center's array row and column.
+        The center's array row and column on the carved grid.
     """
-    flat = mask.ravel()
+    n_rows, n_cols = site.shape
     while True:
-        candidates = rng.integers(flat.size, size=_CENTER_CANDIDATES_PER_ROUND)
-        hits = candidates[flat[candidates]]
+        candidates = rng.integers(n_rows * n_cols, size=_CENTER_CANDIDATES_PER_ROUND)
+        hits = candidates[site.inside(candidates)]
         if hits.size:
-            row, col = divmod(int(hits[0]), mask.shape[1])
-            return row, col
+            row, col = divmod(int(hits[0]), n_cols)
+            return row - site.origin[0], col - site.origin[1]
 
 
 def perturb_normals_by_slope(

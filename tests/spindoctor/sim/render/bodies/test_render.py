@@ -67,8 +67,6 @@ def _render_seedless_body(**keys: Any) -> None:
         0.0,
         offset_u=0.0,
         body_index=3,
-        ref_center_v=32.0,
-        ref_center_u=48.0,
         oversample=2,
     )
 

@@ -59,10 +59,16 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.render.bodies.craters import carve_crater_heights, perturb_normals_by_slope
+from spindoctor.sim.render.bodies.craters import (
+    CraterSite,
+    carve_crater_heights,
+    perturb_normals_by_slope,
+)
 from spindoctor.sim.render.bodies.ellipsoid_grid import (
+    CraterPlane,
     bilinear_upsample,
     body_box,
+    crater_plane_site,
     cubic_upsample,
     day_night_edge_cells,
     expand_to_working_grid,
@@ -200,6 +206,20 @@ class EllipsoidBodyRender:
     silhouette: NDArrayFloatType
 
 
+@dataclass(frozen=True)
+class _CraterLayout:
+    """Where a body's craters are drawn, and how many there are.
+
+    Parameters:
+        site: The larger grid the crater centers are drawn on, or None to draw them
+            on the detector grid itself.
+        count: The number of craters.
+    """
+
+    site: CraterSite | None
+    count: int
+
+
 def create_ellipsoid_body(
     size: tuple[int, int],
     center: tuple[float, float],
@@ -227,6 +247,8 @@ def render_ellipsoid_body(
     size: tuple[int, int],
     center: tuple[float, float],
     spec: EllipsoidBodySpec,
+    *,
+    crater_plane: CraterPlane | None = None,
 ) -> EllipsoidBodyRender:
     """Render one ellipsoid body and its solid silhouette.
 
@@ -238,6 +260,9 @@ def render_ellipsoid_body(
         size: Frame dimensions (rows, columns) on the incoming render grid.
         center: Body center (v, u) in incoming-grid pixels.
         spec: The body's geometry, texture, relief, and photometry.
+        crater_plane: The larger detector grid the craters are laid out on when the
+            frame holds only part of the body, or None to lay them out on the
+            frame's own detector grid.
 
     Returns:
         The :class:`EllipsoidBodyRender` on the ``size`` grid.
@@ -287,11 +312,13 @@ def render_ellipsoid_body(
             rotation_z=spec.rotation_z,
             rotation_tilt=spec.rotation_tilt,
         )
+    craters = _crater_layout(detector_grid, spec, crater_plane)
+    if up_factor > 1:
         # A surface setting that changes nothing (a crater fill that places no
         # crater on the detector grid, a texture with no contrast and no spots, a
         # transit with neither a moon nor a shadow) is dropped from the spec the
         # body is shaded with, so it renders exactly as the smooth body.
-        shading_spec = _without_inert_surface(spec, detector_grid)
+        shading_spec = _without_inert_surface(spec, crater_count=craters.count)
 
     if up_factor > 1 and _lays_detail_on_detector_grid(shading_spec, field):
         intensity_work = _shade_disc_with_detector_detail(
@@ -300,6 +327,7 @@ def render_ellipsoid_body(
             shading_spec,
             field,
             up_factor=up_factor,
+            craters=craters,
         )
     else:
         intensity_work = _shade_disc(
@@ -308,6 +336,7 @@ def render_ellipsoid_body(
             field,
             detector_grid=detector_grid,
             scale=up_factor,
+            craters=craters,
         )
 
     mask = silhouette_mask(work_grid, field)
@@ -371,7 +400,11 @@ def _relief_normals(
 
 
 def _crater_slopes(
-    spec: EllipsoidBodySpec, *, detector_grid: EllipsoidProjection, scale: int
+    spec: EllipsoidBodySpec,
+    *,
+    detector_grid: EllipsoidProjection,
+    scale: int,
+    craters: _CraterLayout,
 ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     """The slopes of the body's crater field on a grid ``scale`` times the detector's.
 
@@ -384,11 +417,12 @@ def _crater_slopes(
         spec: The body spec (crater keys are read).
         detector_grid: The detector-grid geometry.
         scale: Pixels of the grid evaluated on per detector pixel.
+        craters: Where the craters are drawn and how many there are.
 
     Returns:
         ``(slope_v, slope_u)`` on that grid, height per unit of length.
     """
-    heights = _crater_heights(detector_grid, spec)
+    heights = _crater_heights(detector_grid, spec, craters)
     # A frame one detector pixel tall or wide has no slope across that axis.
     slope_v, slope_u = (
         np.gradient(heights, axis=axis) if heights.shape[axis] > 1 else np.zeros_like(heights)
@@ -438,6 +472,7 @@ def _shade_disc(
     *,
     detector_grid: EllipsoidProjection,
     scale: int,
+    craters: _CraterLayout,
 ) -> NDArrayFloatType:
     """Shade the disc on one grid, with all its surface detail evaluated there.
 
@@ -455,6 +490,7 @@ def _shade_disc(
             itself when ``scale`` is 1).
         scale: Pixels of ``grid`` per detector pixel, the unit of texture and
             transit lengths.
+        craters: Where the craters are drawn and how many there are.
 
     Returns:
         The intensity on the grid.
@@ -466,7 +502,8 @@ def _shade_disc(
         normals = (relief[0], relief[1], relief[2])
     if spec.crater_fill > 0.0:
         normals = perturb_normals_by_slope(
-            *normals, *_crater_slopes(spec, detector_grid=detector_grid, scale=scale)
+            *normals,
+            *_crater_slopes(spec, detector_grid=detector_grid, scale=scale, craters=craters),
         )
     normal_v, normal_u, normal_z = normals
     cos_i = incidence_cosines(
@@ -492,6 +529,7 @@ def _shade_disc_with_detector_detail(
     field: ReliefField | None,
     *,
     up_factor: int,
+    craters: _CraterLayout,
 ) -> NDArrayFloatType:
     """Shade the disc on the working grid, with relief and craters from the detector grid.
 
@@ -512,6 +550,7 @@ def _shade_disc_with_detector_detail(
         spec: The body spec.
         field: The relief realization, or None for the smooth surface.
         up_factor: Pixels of the working grid per detector pixel.
+        craters: Where the craters are drawn and how many there are.
 
     Returns:
         The intensity on the working grid.
@@ -527,7 +566,9 @@ def _shade_disc_with_detector_detail(
     if spec.crater_fill > 0.0:
         # The craters are drawn on the whole detector grid, whose dimensions their
         # draw depends on, and cropped afterward.
-        slope_v, slope_u = _crater_slopes(spec, detector_grid=detector_grid, scale=1)
+        slope_v, slope_u = _crater_slopes(
+            spec, detector_grid=detector_grid, scale=1, craters=craters
+        )
         crater_slopes = (slope_v[rows, cols], slope_u[rows, cols])
     detector_grid = detector_grid.crop(rows, cols)
     work_grid = work_grid.crop(work_rows, work_cols)
@@ -802,9 +843,7 @@ def _apply_surface_textures(
     return textured
 
 
-def _without_inert_surface(
-    spec: EllipsoidBodySpec, detector_grid: EllipsoidProjection
-) -> EllipsoidBodySpec:
+def _without_inert_surface(spec: EllipsoidBodySpec, *, crater_count: int) -> EllipsoidBodySpec:
     """The spec with the recognized no-op surface settings removed.
 
     A crater fill is inert when it places no crater on the detector grid, the grid the
@@ -815,13 +854,13 @@ def _without_inert_surface(
 
     Parameters:
         spec: The body spec.
-        detector_grid: The detector-grid geometry the crater count is taken on.
+        crater_count: The number of craters the crater fill places.
 
     Returns:
         The spec with the inert settings cleared (``spec`` itself when none is inert).
     """
     changes: dict[str, Any] = {}
-    if spec.crater_fill > 0.0 and _crater_count(detector_grid, spec) == 0:
+    if spec.crater_fill > 0.0 and crater_count == 0:
         changes['crater_fill'] = 0.0
     albedo = spec.albedo_texture
     if albedo is not None and not (albedo.rms > 0.0 and albedo.corr_px > 0.0) and not albedo.spots:
@@ -835,22 +874,41 @@ def _without_inert_surface(
     return replace(spec, **changes) if changes else spec
 
 
-def _crater_count(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> int:
-    """The number of craters the spec's crater fill places on a grid.
+def _crater_layout(
+    grid: EllipsoidProjection, spec: EllipsoidBodySpec, plane: CraterPlane | None
+) -> _CraterLayout:
+    """Where the spec's craters are drawn, and how many its crater fill places.
+
+    The count is the crater fill times the number of pixels inside the body, over
+    the area of a crater of the largest radius, between 0 and 1000.  The pixels are
+    those of the detector grid, or of the crater plane when the grid holds only part
+    of the body.
 
     Parameters:
-        grid: The geometry the craters would be carved on.
-        spec: The body spec (crater fill and maximum radius are read).
+        grid: The detector-grid geometry the craters are carved on.
+        spec: The body spec (crater fill, maximum radius, and tilt are read).
+        plane: The larger grid the craters are laid out on, or None for ``grid``.
 
     Returns:
-        The crater count, between 0 and 1000.
+        The crater layout; a count of 0 for a body without craters.
     """
-    total_area = int(np.sum(grid.ellipse_dist_sq < 1.0))
+    if spec.crater_fill <= 0.0:
+        return _CraterLayout(site=None, count=0)
+    site: CraterSite | None = None
+    if plane is None:
+        total_area = int(np.sum(grid.ellipse_dist_sq < 1.0))
+    else:
+        site, total_area = crater_plane_site(
+            plane, grid, cos_tilt=float(np.cos(spec.rotation_tilt))
+        )
     avg_crater_area = (spec.crater_max_radius * grid.semi_a) ** 2
-    return int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
+    count = int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
+    return _CraterLayout(site=site, count=count)
 
 
-def _crater_heights(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> NDArrayFloatType:
+def _crater_heights(
+    grid: EllipsoidProjection, spec: EllipsoidBodySpec, craters: _CraterLayout
+) -> NDArrayFloatType:
     """Carve the crater height field on the detector grid.
 
     Uses the crater carving loop (count law, radius power law, and per-crater draw
@@ -859,6 +917,7 @@ def _crater_heights(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> NDArr
     Parameters:
         grid: The detector-grid geometry.
         spec: The body spec (crater knobs and seed are read).
+        craters: Where the craters are drawn and how many there are.
 
     Returns:
         The crater height field over the grid.
@@ -867,7 +926,7 @@ def _crater_heights(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> NDArr
         ValueError: If the spec places a crater on the grid but has no crater seed.
     """
     inside_strict = grid.ellipse_dist_sq < 1.0
-    n_craters = _crater_count(grid, spec)
+    n_craters = craters.count
     if n_craters == 0 or not inside_strict.any():
         return np.zeros_like(grid.ellipse_dist_sq)
 
@@ -885,4 +944,5 @@ def _crater_heights(grid: EllipsoidProjection, spec: EllipsoidBodySpec) -> NDArr
         crater_relief_scale=spec.crater_relief_scale,
         work_center_v=grid.center[0],
         work_center_u=grid.center[1],
+        site=craters.site,
     )
