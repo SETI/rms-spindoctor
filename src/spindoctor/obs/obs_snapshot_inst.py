@@ -8,8 +8,34 @@ from spindoctor.support.types import PathLike
 from .obs_inst import ObsInst
 from .obs_snapshot import ObsSnapshot
 
+# HTTP statuses that say a file does not exist, as opposed to a server that could not
+# answer
+_ABSENT_HTTP_STATUSES = frozenset({404, 410})
 
-def host_input(image: PathLike) -> FCPath:
+
+def _is_absence(exc: FileNotFoundError) -> bool:
+    """Whether a failure to retrieve a file means that the file does not exist.
+
+    filecache raises FileNotFoundError for a missing file, but for a web server it also
+    raises it for any failed request, such as a timeout, a refused connection or a
+    server error, with the request's exception as the cause.  A failure says the file is
+    not there only if nothing caused it, or if its cause carries an HTTP status of 404 or
+    410.
+
+    Parameters:
+        exc: The error raised by retrieving the file.
+
+    Returns:
+        True if the file does not exist, False if its existence is unknown.
+    """
+    cause = exc.__cause__
+    if cause is None:
+        return True
+    status = getattr(getattr(cause, 'response', None), 'status_code', None)
+    return status in _ABSENT_HTTP_STATUSES
+
+
+def host_input(image: PathLike, *, label: PathLike | None = None) -> FCPath:
     """Return the file to give a host to read an image: its PDS3 label, if it has one.
 
     A host given an image file reads that file alone, so it lacks every value that only
@@ -17,20 +43,39 @@ def host_input(image: PathLike) -> FCPath:
     of an early Cassini cruise image.  Given the label, the host reads the label and the
     image file together and merges what the two say.  The data are the same either way.
 
-    The label is the file beside the image with the image's name and the suffix
-    ``.LBL``, or ``.lbl`` when the image's own suffix is lower case, as a PDS3 volume
-    names it.  If there is no such file, the image is read alone.
+    A label the caller names, as a dataset does from the PDS3 index, is the file read.
+    Otherwise the label is the file beside the image with the image's name and the
+    suffix ``.LBL``, or ``.lbl`` when the image's own suffix is lower case, as a PDS3
+    volume names it, and the image is read alone only if that file does not exist.  A
+    label whose existence cannot be determined, such as one on a web server that does
+    not answer, is an error: reading the image alone would publish less than the label
+    gives, and nothing would say so.
 
     Parameters:
         image: The image file, local or remote.
+        label: The image's PDS3 label, if the caller knows it.
 
     Returns:
-        The label beside the image if it exists, otherwise the image file.
+        The label if one is named or exists beside the image, otherwise the image file.
+
+    Raises:
+        OSError: If the label beside the image cannot be retrieved for a reason other
+            than its absence.
     """
+    if label is not None:
+        return FCPath(label)
     image_path = FCPath(image)
     suffix = image_path.suffix
-    label = image_path.with_suffix('.LBL' if suffix == suffix.upper() else '.lbl')
-    return label if label.exists() else image_path
+    label_path = image_path.with_suffix('.LBL' if suffix == suffix.upper() else '.lbl')
+    try:
+        label_path.retrieve()
+    except FileNotFoundError as exc:
+        if not _is_absence(exc):
+            raise OSError(
+                f'cannot tell whether the label {label_path.as_posix()} exists: {exc}'
+            ) from exc
+        return image_path
+    return label_path
 
 
 class HostLabel:

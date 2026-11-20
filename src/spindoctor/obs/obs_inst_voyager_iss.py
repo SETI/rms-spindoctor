@@ -131,11 +131,12 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         *,
         config: Config | None = None,
         extfov_margin_vu: tuple[int, int] | None = None,
+        label: PathLike | None = None,
         **_kwargs: Any,
     ) -> 'ObsVoyagerISS':
         """Creates an ObsVoyagerISS from a Voyager ISS image file.
 
-        The host reads the PDS3 label beside the image together with the image file (see
+        The host reads the image's PDS3 label together with the image file (see
         :func:`~spindoctor.obs.obs_snapshot_inst.host_input`), and the data are converted
         to I/F.
 
@@ -144,6 +145,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
             config: Configuration object to use. If None, uses the default configuration.
             extfov_margin_vu: Optional tuple that overrides the extended field of view margins
                 found in the config.
+            label: The image's PDS3 label, if known; otherwise the label beside the image.
             **_kwargs: Additional keyword arguments (none for this instrument).
 
         Returns:
@@ -160,7 +162,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         logger = IMAGE_LOGGER
 
         logger.debug(f'Reading Voyager ISS image {path}')
-        obs = host_voyager.VoyagerISS.from_file(host_input(path))
+        obs = host_voyager.VoyagerISS.from_file(host_input(path, label=label))
 
         inst_config = config.category('voyager_iss')
 

@@ -439,6 +439,38 @@ def test_navigate_image_files_host_format_error_records_read_error(tmp_path: Pat
     assert metadata['status_error'] == 'image_read_error'
 
 
+def test_navigate_image_files_passes_the_dataset_label(tmp_path: Path) -> None:
+    """The loader is given the label URL the dataset holds for the image."""
+    received: dict[str, Any] = {}
+    fake_class = _make_fake_obs_class(raise_on_load=OSError('stop after the load'))
+
+    class _RecordingObsClass(fake_class):  # type: ignore[valid-type,misc]
+        """The fake observation class, recording what the driver passes it."""
+
+        @classmethod
+        def from_file(cls, path: Any, **kwargs: Any) -> Any:
+            """Record the keyword arguments and load as the fake class does.
+
+            Parameters:
+                path: The image path the driver resolved.
+                kwargs: The loader options the driver passes.
+
+            Returns:
+                What the fake class returns.
+            """
+            received.update(kwargs)
+            return super().from_file(path, **kwargs)
+
+    image_files = _make_image_files(tmp_path)
+    navigate_image_files(
+        _RecordingObsClass,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert received['label'] == image_files[0].label_file_url
+
+
 def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:
     """``write_output_files=True`` writes a non-empty summary PNG to disk."""
     obs_class = _make_fake_obs_class()

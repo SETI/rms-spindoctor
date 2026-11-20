@@ -298,7 +298,10 @@ def _run_manual_pass(
             # told so rather than recording it as this image's.
             peak_measured = reset_peak_resident()
             run_start = datetime.now(UTC)
-            obs = cast(ObsSnapshotInst, obs_class.from_file(image_url, **extra_params))
+            obs = cast(
+                ObsSnapshotInst,
+                obs_class.from_file(image_url, label=image_file.label_file_url, **extra_params),
+            )
             result = run_manual_nav(obs, config=DEFAULT_CONFIG)
             if result is None:
                 # ``run_manual_nav`` already logged the precise reason
