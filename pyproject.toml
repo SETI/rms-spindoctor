@@ -15,35 +15,20 @@ dependencies = [
   "lxml>=6.0.4",
   "matplotlib",
   "numpy>=2.2.0",
-  "PyQt6<6.12",  # 6.12.0 ships stubs that aren't valid Python, which stops mypy (#827)
+  "PyQt6<6.12",
   "rms-cloud-tasks>=0.2.0",
   "rms-filecache>=3.0.0",
   "rms-imgdisp",
   "rms-julian>=3.0.1",
   "rms-pdslogger>=3.2.1",
-  # rms-oops and the host packages read PDS3 tables a few rows at a time, which needs
-  # rms-pdstable 1.2.0.
   "rms-pdstable>=1.2.0",
   "rms-pdstemplate>=2.3.0",
-  # The four host packages read the images of each instrument. Until their pull
-  # requests merge and are released, each is installed from its branch:
-  # SETI/rms-host-cassini#9, SETI/rms-host-galileo#9, SETI/rms-host-voyager#1, and
-  # SETI/rms-host-new-horizons#7. Restore version floors once they are on PyPI
-  # (#1087); a branch deleted when its pull request merges breaks every install.
   "rms-host-cassini @ git+https://github.com/SETI/rms-host-cassini@rf_261117_label_image_consistency",
   "rms-host-galileo @ git+https://github.com/SETI/rms-host-galileo@rf_261117_vicar_label_consistency",
   "rms-host-new-horizons @ git+https://github.com/SETI/rms-host-new-horizons@rf_261117_initial_port",
   "rms-host-voyager @ git+https://github.com/SETI/rms-host-voyager@jns_261106_cruise_spks",
   "rms-polymath>=2.1.1",
   "rms-psfmodel",
-  # oops.OopsSpiceError, which every host raises for missing SPICE data, comes from
-  # SETI/rms-oops#242; the hosts install the same branch. SETI/rms-oops#243 is needed as
-  # well and is not on this branch: without it, oops evaluates the inverse of a type 1
-  # C-kernel frame through SPICE, which needs angular velocities that a type 1 kernel
-  # lacks, so the pointing of some Galileo SSI images raises SPICE(NOFRAMECONNECT)
-  # (#1088). SpinDoctor cannot add it by a second URL: pip takes one direct URL per
-  # package, and the hosts name this one. Restore a version floor once both are
-  # released (#1087).
   "rms-oops @ git+https://github.com/SETI/rms-oops@rf_261118_oops_spice_error",
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
@@ -75,10 +60,6 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = [
-  # The spelling gate's configuration below leans on behavior that is not
-  # ancient: two builtin dictionaries at once, a custom dictionary that extends
-  # rather than replaces them, a narrowed word pattern, and inline
-  # `# codespell:ignore`.  Exercised with 2.4.3.
   "codespell>=2.4",
   "coverage",
   "mypy",
