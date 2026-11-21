@@ -11,7 +11,6 @@ pin the conjugation's direction.
 
 from __future__ import annotations
 
-import gc
 import math
 from typing import Any, cast
 
@@ -450,27 +449,27 @@ def test_frame_replacement_registers_no_name(monkeypatch: pytest.MonkeyPatch) ->
     assert frame_registry_before == Frame._FRAME_REGISTRY  # type: ignore[attr-defined]  # private to oops; its stub omits it
 
 
-def test_each_replacement_is_freed_with_its_observation(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A replacement leaves nothing behind once its observation is gone.
+def test_each_distinct_replacement_is_retained(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A replacement is cached by its matrix and never released.
 
     oops keys every Cmatrix by its own matrix, so each image a batch re-points
-    gets a frame of its own.  oops keeps such a frame, which has no ID, only
-    while something uses it, so a batch does not grow the process-wide caches
-    by one frame per image.  This pins that, so a change that brings the
-    growth back is visible here rather than as a memory report from a
-    full-catalog run.
+    to a distinct attitude leaves one wayframe and two frame-cache entries
+    behind for the life of the process.  This pins the growth rate, so a
+    change that bounds it is visible here rather than as a memory report from
+    a full-catalog run.
     """
     _inject_identity(monkeypatch, _CASSINI_FLIP)
-    # Frames that earlier tests left for the collector would otherwise be freed
-    # inside the measurement.
-    gc.collect()
+    # The stub's own frame is a Cmatrix too, and on a cold cache the first one
+    # built would be counted alongside the replacements.  Build it once before
+    # the baseline is taken, so what the deltas measure is the replacements.
+    _, _, warm_c_oops = _navigated_record(_CASSINI_FLIP)
+    _FrameOnlyObs(warm_c_oops)
     wayframes_before = len(Cmatrix._WAYFRAMES)
     cache_before = len(Frame._FRAME_CACHE)  # type: ignore[attr-defined]  # private to oops; its stub omits it
-    for i in range(3):
+    replacements = 3
+    for i in range(replacements):
         cmatrix, original, c_oops = _navigated_record(_CASSINI_FLIP, offset_px=(1.0 + i, -2.0 - i))
         obs = _FrameOnlyObs(c_oops)
         apply_cmatrix_to_obs(cast(ObsSnapshotInst, obs), cmatrix, original, SYNTHETIC_MIDTIME_ET)
-    del cmatrix, original, c_oops, obs
-    gc.collect()
-    assert len(Cmatrix._WAYFRAMES) == wayframes_before
-    assert len(Frame._FRAME_CACHE) == cache_before  # type: ignore[attr-defined]  # private to oops; its stub omits it
+    assert len(Cmatrix._WAYFRAMES) == wayframes_before + replacements
+    assert len(Frame._FRAME_CACHE) == cache_before + 2 * replacements  # type: ignore[attr-defined]  # private to oops; its stub omits it
