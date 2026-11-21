@@ -13,9 +13,9 @@ passing.
 The second is which CK object each Voyager spacecraft's scan platform is, and
 the set of objects whose navigated attitude is frozen across the exposure.
 Those are one fact stated twice: the Voyager host builds its observation frame
-from a single tolerance-snapped pointing lookup rather than an evaluated frame
-chain, so the frozen set is exactly the Voyager platforms and is derived from
-them rather than written out again.
+from a single pointing lookup at the image's clock stop count, within 20 ticks,
+rather than an evaluated frame chain, so the frozen set is exactly the Voyager
+platforms and is derived from them rather than written out again.
 
 The clock is not derivable from the CK object by arithmetic.  Python's
 ``-31100 // 1000`` is -32, which is the other Voyager, so each object states
@@ -62,9 +62,10 @@ FROZEN_ATTITUDE_CK_IDS: frozenset[int] = frozenset(VOYAGER_CK_OBJECT_ID.values()
 """The CK objects whose navigated attitude is one snapped lookup, constant across the exposure.
 
 Derived from the Voyager platforms rather than restated, because that is what
-makes an object frozen: the Voyager host builds its observation frame from a
-tolerance-snapped pointing lookup instead of evaluating a frame chain, so a
-segment for one of these objects carries a single attitude and the step that
-identifies which baseline kernel an image navigated against has to make the
-same snapped lookup rather than evaluating a chain.
+makes an object frozen: the Voyager host builds its observation frame from one
+pointing lookup at the image's clock stop count instead of evaluating a frame
+chain, so a segment for one of these objects carries a single attitude and the
+step that identifies which baseline kernel an image navigated against has to
+make the same lookup rather than evaluating a chain.
 """
+# #1085: that step still makes its lookup at the exposure midtime

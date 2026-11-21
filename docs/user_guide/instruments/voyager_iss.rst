@@ -19,7 +19,8 @@ Pipeline support
 * **Navigation** -- supported, both spacecraft and both cameras.
 * **Corrected-pointing C-kernels** -- supported, as ``sd_create_ck vgiss``
   (see :doc:`/user_guide/user_guide_ck_kernels`). The segments carry one
-  constant attitude: see `Corrected-pointing C-kernels`_.
+  constant attitude, and the reader that loads Voyager images does not see
+  them: see `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
@@ -141,9 +142,9 @@ Image data and units
 ====================
 
 **Units.** I/F. The GEOMED products are archived as scaled integers, and the
-loader converts them: the scaling factor is read from the ``LABEL3`` record of
-each image's own VICAR label and the data are multiplied by it and divided by
-10000.
+loader converts them. Each image's own VICAR label states its scaling factor, as
+``FOR (I/F)*10000., MULTIPLY DN VALUE BY`` followed by the factor, and the data
+are multiplied by that factor divided by 10000.
 
 **The Voyager 1 Saturn correction.** One further factor of **3.345** is applied
 to Voyager 1 frames whose target system is Saturn, and to no others. The
@@ -235,8 +236,8 @@ The two LIDs vary by spacecraft and camera, and are the one place the metadata
 distinguishes the two spacecraft. The instrument host LID is
 ``...:instrument_host:spacecraft.vg1`` or ``...:spacecraft.vg2``, and the
 instrument LID is ``...:instrument:vg1.issn``, ``vg1.issw``, ``vg2.issn``, or
-``vg2.issw``. Which spacecraft took a frame is read from the ``LAB02`` record
-of its own label, not from the volume it sits in.
+``vg2.issw``. Which spacecraft took a frame is read from the instrument host
+its own labels name, not from the volume it sits in.
 
 Corrected-pointing C-kernels
 ============================
@@ -247,6 +248,19 @@ carries the platform attitude the navigation implies, so no camera frame is
 fabricated and no frame kernel has to change. Segment time tags are encoded
 against spacecraft clock **-31** or **-32** respectively; the clock is not
 derivable from the object by arithmetic, and each object states its own.
+
+**The image reader does not see the corrections.** The reader that loads a
+Voyager image, the rms-host-voyager package, looks up the scan platform's
+pointing at the image's own clock count, the one in its file name, and accepts
+only a record within 1.2 seconds of it. That count is the frame the image was
+read out in, which can come minutes after the shutter closed. A corrected
+segment covers the exposure itself, from the shutter opening to its closing, so
+an image loaded with corrected kernels furnished gets its original pointing
+whenever that count lies outside the exposure. The
+corrections serve a consumer that evaluates the scan platform's attitude itself
+at the exposure midtime. A consumer that loads images through the reader
+applies the offset in the metadata document instead, as SpinDoctor's own
+backplane, mosaic, and bundle stages do.
 
 The camera frames the correction is measured in are ``VG1_ISSNA``,
 ``VG1_ISSWA``, ``VG2_ISSNA``, and ``VG2_ISSWA``. One ``sd_create_ck vgiss`` run

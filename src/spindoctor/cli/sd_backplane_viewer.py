@@ -662,7 +662,7 @@ class NavBackplaneViewer(QDialog):
         # without one every load would report a scope violation per record.
         try:
             with image_scope():
-                snapshot = self._obs_class.from_file(image_path)
+                snapshot = self._obs_class.from_file(image_path, label=image_file.label_file_url)
             if not isinstance(snapshot, ObsSnapshot):
                 raise ValueError('Expected ObsSnapshot')
         except Exception as e:

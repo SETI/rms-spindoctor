@@ -22,6 +22,8 @@ from typing import Any
 import numpy as np
 import pytest
 from filecache import FCPath
+from oops import OopsSpiceError
+from oops.host import HostFormatError
 from PIL import Image
 
 from spindoctor.annotation import Annotation, Annotations
@@ -409,6 +411,109 @@ def test_navigate_image_files_spice_load_failure_records_missing_kernel(
     )
     assert success is False
     assert metadata['status_error'] == 'missing_spice_data'
+
+
+def test_navigate_image_files_host_spice_error_records_missing_kernel(tmp_path: Path) -> None:
+    """A host's OopsSpiceError is ``missing_spice_data`` whatever its message says."""
+    obs_class = _make_fake_obs_class(raise_on_load=OopsSpiceError('no NAC pointing'))
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'missing_spice_data'
+
+
+def test_navigate_image_files_host_format_error_records_read_error(tmp_path: Path) -> None:
+    """A file the host cannot use is an ``image_read_error``, not an internal error."""
+    obs_class = _make_fake_obs_class(raise_on_load=HostFormatError('no exposure in labels'))
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'image_read_error'
+
+
+def test_navigate_image_files_cspyce_key_error_records_missing_kernel(tmp_path: Path) -> None:
+    """A KeyError from cspyce that names a SPICE code is ``missing_spice_data``."""
+    obs_class = _make_fake_obs_class(
+        raise_on_load=KeyError('SPICE(UNKNOWNFRAME) -- Unknown frame "VG2_SCAN_PLATFORM"')
+    )
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'missing_spice_data'
+
+
+def test_navigate_image_files_value_error_without_spice_code_is_internal(
+    tmp_path: Path,
+) -> None:
+    """A ValueError without a SPICE code is a defect, recorded as ``internal_error``."""
+    obs_class = _make_fake_obs_class(raise_on_load=ValueError('no section for detector'))
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'internal_error'
+
+
+def test_navigate_image_files_any_spice_code_records_missing_kernel(tmp_path: Path) -> None:
+    """A SPICE code saying the kernel set itself is wrong is ``missing_spice_data`` too."""
+    obs_class = _make_fake_obs_class(
+        raise_on_load=OSError('SPICE(NOLOADEDFILES) -- No SPK files have been loaded')
+    )
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'missing_spice_data'
+
+
+def test_navigate_image_files_passes_the_dataset_label(tmp_path: Path) -> None:
+    """The loader is given the label URL the dataset holds for the image."""
+    received: dict[str, Any] = {}
+    fake_class = _make_fake_obs_class(raise_on_load=OSError('stop after the load'))
+
+    class _RecordingObsClass(fake_class):  # type: ignore[valid-type,misc]
+        """The fake observation class, recording what the driver passes it."""
+
+        @classmethod
+        def from_file(cls, path: Any, **kwargs: Any) -> Any:
+            """Record the keyword arguments and load as the fake class does.
+
+            Parameters:
+                path: The image path the driver resolved.
+                kwargs: The loader options the driver passes.
+
+            Returns:
+                What the fake class returns.
+            """
+            received.update(kwargs)
+            return super().from_file(path, **kwargs)
+
+    image_files = _make_image_files(tmp_path)
+    navigate_image_files(
+        _RecordingObsClass,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert received['label'] == image_files[0].label_file_url
 
 
 def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:

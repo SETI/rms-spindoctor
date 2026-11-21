@@ -71,7 +71,9 @@ not available.
 Check that ``SPICE_PATH`` points to the kernel tree, that the tree is readable from the
 machine running the program, and that the kernels there actually cover the mission phase
 the image comes from. An image from outside the loaded coverage fails this way even when
-every path is correct.
+every path is correct. A kernel tree that could not be loaded at all gives every image
+this status too. Once the kernels are fixed, ``--has-offset-spice-error`` selects the
+images that failed this way for a second run.
 
 No images are processed at all
 ==============================
@@ -90,11 +92,14 @@ An image cannot be read
 =======================
 
 The metadata document records ``image_read_error``, or the navigation reports
-``image_corrupt``. The image or label file could not be parsed.
+``image_corrupt``. The image or label file could not be retrieved or parsed, or neither
+gives a value the image needs, such as its exposure time.
 
 Check that both the image file and its label are present and complete. For PDS3 holdings,
 confirm that the volume was retrieved whole, and that the label beside the image is the
-label for that image.
+label for that image. For holdings on a web server, a server that did not answer when the
+label was requested fails the image this way too, so run the image again once the server
+answers.
 
 No features are found
 =====================

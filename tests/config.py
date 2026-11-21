@@ -116,6 +116,11 @@ URL_NEWHORIZONS_LORRI_CHARON_01 = 'https://pds-rings.seti.org/holdings/volumes/N
 # https://opus.pds-rings.seti.org/opus/#/view=detail&detail=vg-iss-2-j-c2062133
 URL_VOYAGER_ISS_IO_01 = 'https://pds-rings.seti.org/holdings/volumes/VGISS_5xxx/VGISS_5213/DATA/C20621XX/C2062133_GEOMED.IMG'
 
+# Image taken by Voyager 1 at Saturn, which takes the Voyager 1 Saturn I/F correction
+# Camera: Voyager ISS
+# https://opus.pds-rings.seti.org/opus/#/view=detail&detail=vg-iss-1-s-c3421729
+URL_VOYAGER_ISS_SATURN_V1_01 = 'https://pds-rings.seti.org/holdings/volumes/VGISS_6xxx/VGISS_6107/DATA/C34217XX/C3421729_GEOMED.IMG'
+
 # Image of Uranus (crescent)
 # Camera: Voyager ISS
 # Size: 800x800

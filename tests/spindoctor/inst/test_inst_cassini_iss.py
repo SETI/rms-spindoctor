@@ -22,8 +22,10 @@ from tests.spindoctor.public_metadata_cassini_iss import CASSINI_ISS_PUBLIC_META
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
 from spindoctor.obs.obs_inst_cassini_iss import (
     _LABEL_METADATA,
+    _RAW_PRODUCT_KEYWORDS,
     ObsCassiniISS,
     _label_metadata,
+    _raw_product_value,
     _sclk_count,
 )
 
@@ -61,13 +63,35 @@ def _obs_with_label(label: dict[str, Any]) -> ObsCassiniISS:
     return obs
 
 
+def _subfields(label: Mapping[str, Any], filter1: str, filter2: str) -> dict[str, Any]:
+    """Return the subfields the host gives an image with this label and these filters.
+
+    The host gives the label's clock counts as subfields as well as in ``dict``.  The
+    label items stand for the VICAR header as well, which the host always reads and keeps
+    as ``header_dict``.
+
+    Parameters:
+        label: The image's label items.
+        filter1: The filter in the first wheel.
+        filter2: The filter in the second wheel.
+
+    Returns:
+        The ``filter1``, ``filter2``, ``header_dict``, and clock count subfields.
+    """
+    subfields: dict[str, Any] = {'filter1': filter1, 'filter2': filter2, 'header_dict': label}
+    for keyword in ('SPACECRAFT_CLOCK_START_COUNT', 'SPACECRAFT_CLOCK_STOP_COUNT'):
+        if keyword in label:
+            subfields[keyword.lower()] = label[keyword]
+    return subfields
+
+
 def _cassini_observation(
     label: VicarLabelStandIn, *, image_name: str = 'image_0001.img'
 ) -> ObsCassiniISS:
     """Build a bare narrow-angle observation whose public metadata can be read.
 
     Parameters:
-        label: The image's VICAR label items.
+        label: The image's label items.
         image_name: Basename of the image file, which is where the version number is
             stated.  The default states none.
 
@@ -78,8 +102,7 @@ def _cassini_observation(
         ObsCassiniISS,
         label,
         detector='NAC',
-        filter1='CL1',
-        filter2='CL2',
+        subfields=_subfields(label, 'CL1', 'CL2'),
         image_url=f'/holdings/{image_name}',
     )
 
@@ -88,7 +111,7 @@ def _wide_angle_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
     """Build a bare wide angle observation, taken and named as W1573251410_1_CALIB was.
 
     Parameters:
-        label: The image's VICAR label items.
+        label: The image's label items.
 
     Returns:
         The observation.
@@ -97,8 +120,7 @@ def _wide_angle_observation(label: VicarLabelStandIn) -> ObsCassiniISS:
         ObsCassiniISS,
         label,
         detector='WAC',
-        filter1='CL1',
-        filter2='GRN',
+        subfields=_subfields(label, 'CL1', 'GRN'),
         image_url='/holdings/W1573251410_1_CALIB.IMG',
     )
 
@@ -107,17 +129,21 @@ def _is_marker(key: Any, name: str) -> bool:
     """Return whether a VICAR label key is one occurrence of a repeated marker.
 
     A label carrying several such sections has each marker keyed by its name and its
-    occurrence number.  One carrying a single section, as the earliest cruise labels do,
-    keys it by its name alone, so both forms have to be recognized.
+    occurrence number: rms-vicar keys it as a ``(name, n)`` tuple, and the host's
+    ``header_dict`` as the text ``NAME[n]``.  One carrying a single section, as the
+    earliest cruise labels do, keys it by its name alone, so every form has to be
+    recognized.
 
     Parameters:
         key: One key of the label.
         name: The marker's name, such as ``PROPERTY``.
 
     Returns:
-        True when the key is that marker, in either form.
+        True when the key is that marker, in any form.
     """
-    return key == name or (isinstance(key, tuple) and key[0] == name)
+    if isinstance(key, tuple):
+        return bool(key[0] == name)
+    return key == name or (isinstance(key, str) and key.startswith(f'{name}['))
 
 
 def _property_block_keywords(label: Mapping[str, Any]) -> list[str]:
@@ -239,7 +265,8 @@ _W1573251410_METADATA: dict[str, Any] = {
     'cassini:spacecraft_clock_count_partition': 1,
     'cassini:spacecraft_clock_start_count': '1573251410.115',
     'cassini:spacecraft_clock_stop_count': '1573251410.122',
-    'cassini:limitations': 'N/A',
+    # Read from the VICAR header, verbatim there, where N/A is a placeholder
+    'cassini:limitations': None,
     'cassini:antiblooming_state_flag': 'ON',
     'cassini:bias_strip_mean': 22.0,
     'cassini:calibration_lamp_state_flag': 'OFF',
@@ -436,14 +463,23 @@ def test_cassini_iss_reports_shutter_mode() -> None:
     assert obs.shutter_mode == 'BOTSIM'
 
 
+@REQUIRES_EXTERNAL_DATA
+def test_the_host_gives_both_filters_of_a_real_image() -> None:
+    """The host's ``filter1`` and ``filter2`` subfields are what ``filters`` reads.
+
+    A host that renamed them would publish an empty ``filters`` list with nothing
+    failing, so the host's own subfields are checked here on a real frame.
+    """
+    obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
+    assert obs.get_public_metadata()['filters'] == [
+        obs.subfields['filter1'],
+        obs.subfields['filter2'],
+    ]
+
+
 def test_shutter_mode_absent_from_the_label_reads_as_none() -> None:
     """A label carrying no SHUTTER_MODE_ID reports no shutter mode."""
     assert _obs_with_label({}).shutter_mode is None
-
-
-def test_shutter_mode_null_label_value_reads_as_none() -> None:
-    """A SHUTTER_MODE_ID present but null reports no shutter mode, not 'None'."""
-    assert _obs_with_label({'SHUTTER_MODE_ID': None}).shutter_mode is None
 
 
 def test_shutter_mode_non_text_label_value_is_refused() -> None:
@@ -499,9 +535,10 @@ def test_every_attribute_is_published_with_the_value_its_keyword_states() -> Non
     """A label stating every keyword publishes all of the attributes, with its values.
 
     W1573251410_1_CALIB's numbers stay numbers, its times are its own day-of-year
-    spellings with their trailing Z, its gain mode is its text, its missing-line count is
-    the text N/A, and each of its sequence keywords is split into the attributes its
-    elements hold.
+    spellings as this stand-in gives them, its gain mode is its text, its missing-line
+    count is the text N/A, its description, read from the header where N/A is a
+    placeholder, is null, and each of its sequence keywords is split into the attributes
+    its elements hold.
     """
     public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
     assert public['label_metadata'] == _W1573251410_METADATA
@@ -590,6 +627,12 @@ def test_the_filters_stay_beside_the_block() -> None:
     assert public['filters'] == ['CL1', 'GRN']
 
 
+def test_an_image_without_both_filters_publishes_no_filters() -> None:
+    """The host gives the filters only when the labels give both, and none is published."""
+    obs = bare_observation(ObsCassiniISS, {}, detector='NAC', subfields={})
+    assert obs.get_public_metadata()['filters'] == []
+
+
 @pytest.mark.parametrize(
     'image_name',
     ['N1521598221_1.IMG', 'N1521598221_1_CALIB.IMG'],
@@ -652,15 +695,56 @@ def test_a_lossy_label_states_its_compression_parameters_as_numbers() -> None:
     assert block['cassini:inst_cmprs_param_quant'] == 0
 
 
-def test_the_product_creation_time_keeps_the_trailing_z_its_label_writes() -> None:
-    """The creation time is published exactly as the label writes it, ``Z`` and all.
+def test_the_product_creation_time_loses_the_header_s_trailing_z() -> None:
+    """The creation time is published without the VICAR header's ``Z``, like every time.
 
-    The archive states this time in Pacific local time rather than UTC, and writes it
-    with a trailing ``Z`` on some labels and without one on others. Neither is corrected,
-    so a reader sees which form its own image carries.
+    The host writes every time it merges from the header without the ``Z``, and this one
+    is read from the header directly, so it is written the same way.
     """
     block = _cassini_observation(_n1454725799_label()).get_public_metadata()['label_metadata']
-    assert block['cassini:pds3_product_creation_time'] == '2004-038T19:26:35.000Z'
+    assert block['cassini:pds3_product_creation_time'] == '2004-038T19:26:35.000'
+
+
+def test_the_raw_product_keywords_come_from_the_vicar_header() -> None:
+    """The description and creation time are the raw product's, from the VICAR header.
+
+    A calibrated image's PDS3 label gives the calibration's history and date instead, and
+    the merged metadata carries the label's.  Every other keyword stays the merged one.
+    """
+    merged = {
+        'DESCRIPTION': 'Calibrated using CISSCAL 4.0beta',
+        'PRODUCT_CREATION_TIME': '2019-06-09T12:39:25',
+        'SEQUENCE_ID': 'S06',
+    }
+    header = {
+        'DESCRIPTION': 'Incomplete product finalized due to truncated lines.',
+        'PRODUCT_CREATION_TIME': '2004-345T03:30:36.000Z',
+        'SEQUENCE_ID': 'S99',
+    }
+    block = _label_metadata(merged, 'N1481269570_1_CALIB.IMG', header=header)
+    assert block['cassini:limitations'] == header['DESCRIPTION']
+    assert block['cassini:pds3_product_creation_time'] == '2004-345T03:30:36.000'
+    assert block['cassini:sequence_id'] == 'S06'
+
+
+def test_a_raw_product_keyword_the_header_lacks_is_null() -> None:
+    """A header without a description publishes none, never the calibrated label's."""
+    merged = {'DESCRIPTION': 'Calibrated using CISSCAL 4.0beta'}
+    block = _label_metadata(merged, 'N1481269570_1_CALIB.IMG', header={})
+    assert block['cassini:limitations'] is None
+
+
+def test_raw_product_keywords_are_null_when_no_header_was_read() -> None:
+    """Without the VICAR header, the calibrated label's values are never published."""
+    merged = {'PRODUCT_CREATION_TIME': '2019-06-09T12:39:25'}
+    block = _label_metadata(merged, 'N1481269570_1_CALIB.IMG')
+    assert block['cassini:pds3_product_creation_time'] is None
+
+
+def test_a_placeholder_raw_product_description_is_null() -> None:
+    """The header is verbatim, so its N/A description is recorded as null."""
+    block = _label_metadata({}, 'N1481269570_1_CALIB.IMG', header={'DESCRIPTION': 'N/A'})
+    assert block['cassini:limitations'] is None
 
 
 def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
@@ -679,10 +763,12 @@ def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
 def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
     """The metadata is read from the VICAR label inside the calibrated image file.
 
-    That label writes its times with a trailing Z, and gives a wide angle frame's back
-    optics temperature as -999.0, since the wide angle camera has no rear optics sensor.
-    Its two-element and four-element keywords reach the attributes their positions name,
-    and W1521598221_1_CALIB.IMG's own name states its version.
+    The host writes its times without the trailing Z the VICAR label gives them.  It
+    leaves out the -999.0 the label gives as a wide angle frame's back optics temperature,
+    since the wide angle camera has no rear optics sensor, and the N/A of an uncompressed
+    frame's compression parameters, so both attributes are null.  The two-element and
+    four-element keywords reach the attributes their positions name, and
+    W1521598221_1_CALIB.IMG's own name states its version.
     """
     public = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01).get_public_metadata()
     block = public['label_metadata']
@@ -700,14 +786,14 @@ def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
             'cassini:pre-pds_version_number',
         )
     } == {
-        'cassini:image_time': '2006-080T01:40:16.112Z',
+        'cassini:image_time': '2006-080T01:40:16.112',
         'cassini:gain_mode_id': '29 ELECTRONS PER DN',
         'cassini:exposure_duration': 1500.0,
         'cassini:filter_name_1': 'CL1',
         'cassini:filter_name_2': 'VIO',
         'cassini:optics_temperature_front': 6.93953,
-        'cassini:optics_temperature_back': -999.0,
-        'cassini:inst_cmprs_param_malgo': 'N/A',
+        'cassini:optics_temperature_back': None,
+        'cassini:inst_cmprs_param_malgo': None,
         'cassini:pre-pds_version_number': 1,
     }
 
@@ -749,7 +835,7 @@ def test_a_tour_era_label_states_every_keyword_the_attributes_read() -> None:
     fail here.
     """
     obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
-    stated = set(_property_block_keywords(obs.dict))
+    stated = set(_property_block_keywords(obs.subfields['header_dict']))
     read = _read_keywords()
     assert sorted(read - stated) == []
     assert sorted(stated - read) == sorted(_UNREAD_KEYWORDS)
@@ -779,7 +865,7 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
     # The attributes read a label by key, the way they read ``obs.dict``; a VicarLabel
     # answers that way without being a Mapping, so it is handed over as the one they take.
     label = cast(Mapping[str, Any], image.label)
-    published = _label_metadata(label, 'N1294562651_1_CALIB.IMG')
+    published = _label_metadata(label, 'N1294562651_1_CALIB.IMG', header=label)
     section = _property_block_keywords(label)
     absent = [
         (attribute, keyword)
@@ -805,7 +891,12 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
         for attribute, keyword, element in _LABEL_METADATA
         if keyword is not None and keyword in section and element is None
     } == {
-        f'cassini:{attribute}': label.get(keyword, None)
+        # The raw-product keywords are read from the header in the PDS3 label's form
+        f'cassini:{attribute}': (
+            _raw_product_value(label.get(keyword, None))
+            if keyword in _RAW_PRODUCT_KEYWORDS
+            else label.get(keyword, None)
+        )
         for attribute, keyword, element in _LABEL_METADATA
         if keyword is not None and keyword in section and element is None
     }
