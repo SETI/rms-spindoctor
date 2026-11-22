@@ -57,7 +57,13 @@ Each real-frame quantity has a deliberate simulated analog:
   :func:`~spindoctor.nav_model.titan_geometry.occluded_disc_fraction` helpers the real model
   uses. A sibling body with an explicitly nearer range occludes the envelope and counts toward
   the occluded fraction; every sibling, near or far, contributes its bounding box, because a
-  moon beside the limb sits in the symmetry annulus whether it hides anything or not. Scene
+  moon beside the limb sits in the symmetry annulus whether it hides anything or not. Each
+  sibling is drawn as the simulated body model draws it, through
+  :mod:`~spindoctor.nav_model.simulated.predicted_body`: a mesh body as its mesh, a body that
+  states no center at the frame center, and a rotated body at its rotation. Its box is the
+  bounding box of the part of that silhouette on the extended FOV: it reaches into the margin
+  where the body runs past the frame edge and stops at the edge of the extended FOV. A nearer
+  sibling's silhouette is drawn on the frame alone and hides nothing in the margin. Scene
   stars brighter than the configured mask limit contribute a masked disc, mirroring the real
   model's catalog queries.
 

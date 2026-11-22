@@ -25,11 +25,13 @@ import pytest
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import TitanHazeGeometry
 from spindoctor.nav_model.nav_model_titan import NavModelTitan
+from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_model.simulated.titan import (
     NavModelTitanSimulated,
 )
+from spindoctor.nav_model.titan_geometry import occluded_disc_fraction
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _SIZE = 300
 _CENTER = 150.0
@@ -401,6 +403,101 @@ def test_mask_is_extended_frame_shaped() -> None:
     geometry = _model([_titan(), _sibling(40.0, range_km=2.0e6)]).geometry_inputs
     assert geometry.contaminant_mask is not None
     assert geometry.contaminant_mask.shape == geometry.extfov_shape_vu
+
+
+# ---------------------------------------------------------------------------
+# Sibling silhouettes: the haze model predicts each sibling as the body model does.
+# ---------------------------------------------------------------------------
+
+
+def _body_model_silhouette(obs: ObsSim) -> NDArrayBoolType:
+    """The extended-frame silhouette the body model predicts for the one sibling.
+
+    Parameters:
+        obs: Simulated observation holding Titan and exactly one other body.
+
+    Returns:
+        The body model's predicted silhouette of that body.
+    """
+    instances = NavModelBodySimulated.instances_for_obs(obs)
+    assert len(instances) == 1
+    model = instances[0]
+    assert isinstance(model, NavModelBodySimulated)
+    model.create_model()
+    assert model._body_mask is not None
+    return model._body_mask
+
+
+def test_mesh_occluder_hides_its_mesh_silhouette() -> None:
+    """A nearer mesh moon hides the part of the envelope its mesh covers.
+
+    The moon is lumpy enough that its mesh and the ellipsoid of the same axes
+    cover different pixels of the envelope, so a haze model that drew it as an
+    ellipsoid reports a different occluded fraction from the one the body
+    model's silhouette of the same moon gives.
+    """
+    moon = {
+        **_sibling(_CENTER - 55.0, range_km=0.5e6),
+        'semi_a_px': 25.0,
+        'semi_b_px': 20.0,
+        'semi_c_px': 20.0,
+        'shape_model': 'polyhedral_mesh',
+        'mesh_lumpiness': 0.45,
+        'mesh_seed': 2,
+    }
+    obs = _obs([_titan(), moon])
+    geometry = _model_for(obs).geometry_inputs
+    expected = occluded_disc_fraction(
+        _body_model_silhouette(obs), geometry.predicted_center_vu, geometry.r_env_px
+    )
+    assert geometry.occluded_fraction == expected
+
+
+def test_centerless_occluder_sits_at_the_frame_center() -> None:
+    """A nearer moon that states no center hides Titan from the frame center.
+
+    The renderer puts a body that states no center at the frame center, so
+    the prediction must match that of the same moon stated there explicitly.
+    Titan sits off the frame center with its envelope edge running through
+    the frame center, so the moon there is half hidden: a default taken from
+    Titan's own center would put the whole moon over the envelope, and one at
+    pixel (0, 0) would put it clear of it.
+    """
+    titan = _titan(center_v=96.5, center_u=96.5)
+    centerless = _sibling(_CENTER, range_km=0.5e6)
+    del centerless['center_v'], centerless['center_u']
+    stated = _sibling(_SIZE / 2.0, range_km=0.5e6)
+    occluded = _model([titan, centerless]).geometry_inputs.occluded_fraction
+    assert occluded == _model([titan, stated]).geometry_inputs.occluded_fraction
+
+
+def test_rotated_sibling_box_covers_its_silhouette() -> None:
+    """A rotated, elongated moon's box covers every pixel of its silhouette.
+
+    Turned 45 degrees, the moon's long axis runs diagonally, so a box sized
+    from its unrotated semi-axes leaves the ends of the body outside it.
+    """
+    moon = {
+        **_sibling(60.0, range_km=2.0e6),
+        'semi_a_px': 30.0,
+        'semi_b_px': 6.0,
+        'semi_c_px': 6.0,
+        'rotation_z': 45.0,
+    }
+    obs = _obs([_titan(), moon])
+    mask = _model_for(obs).geometry_inputs.contaminant_mask
+    assert mask is not None
+    assert not np.any(_body_model_silhouette(obs) & ~mask)
+
+
+def test_centerless_sibling_box_covers_its_silhouette() -> None:
+    """A moon that states no center is boxed where the frame center puts it."""
+    moon = _sibling(_CENTER, range_km=2.0e6)
+    del moon['center_v'], moon['center_u']
+    obs = _obs([_titan(center_v=60.5, center_u=60.5), moon])
+    mask = _model_for(obs).geometry_inputs.contaminant_mask
+    assert mask is not None
+    assert not np.any(_body_model_silhouette(obs) & ~mask)
 
 
 # ---------------------------------------------------------------------------

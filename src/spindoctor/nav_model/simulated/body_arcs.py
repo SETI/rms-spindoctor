@@ -38,6 +38,7 @@ from spindoctor.nav_model.nav_model_body import (
     shape_features_suppressed,
     terminator_reliability,
 )
+from spindoctor.nav_model.simulated.predicted_body import predicted_semi_axes_px
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
@@ -330,12 +331,7 @@ def _visible_arc_fraction(
         The [0, 1] visible-arc fraction.  1.0 when the unclipped render has no
         edge to compare against (a degenerate geometry).
     """
-    p = inputs.nav_body
-    max_semi = max(
-        float(p.get('semi_a_px', 0.0)),
-        float(p.get('semi_b_px', 0.0)),
-        float(p.get('semi_c_px', 0.0)),
-    )
+    max_semi = max(predicted_semi_axes_px(inputs.nav_body))
     # Canvas comfortably larger than the silhouette: half again the
     # longest diameter (mesh relief can push past the ellipsoid bound)
     # plus a fixed margin.

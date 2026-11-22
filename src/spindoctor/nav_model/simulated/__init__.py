@@ -19,6 +19,8 @@ Modules:
         ``NavModelTitanSimulated``, the haze-envelope model.
     ``stars``
         ``NavModelStarsSimulated``, the star model.
+    ``predicted_body``
+        The predicted body image and silhouette the body and haze models draw.
     ``predicted_ring``
         The predicted-ring renderer the ring model uses.
 
