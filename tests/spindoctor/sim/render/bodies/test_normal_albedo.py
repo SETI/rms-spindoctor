@@ -66,6 +66,17 @@ def test_a_normal_albedo_that_is_not_a_positive_finite_number_is_refused(
     assert f'bodies[0].normal_albedo {message}' in _refusal(value)
 
 
+def test_leaving_the_key_out_draws_the_law_itself() -> None:
+    """A body without the key draws the law's own value, 1 at zero phase, at its center.
+
+    At zero phase the Lommel-Seeliger law is 1 everywhere on the disc, so the center
+    pixel reads exactly the law.
+    """
+    body = disc_body(32.5, 32.5, 20.0, illumination_angle=0.0, phase_angle=0.0)
+    image, _ = _drawn(body)
+    assert image[32, 32] == pytest.approx(1.0, rel=1e-12)
+
+
 def test_leaving_the_key_out_draws_a_white_surface() -> None:
     """A body without the key draws exactly as one whose normal albedo is 1."""
     absent, _ = _drawn(_ellipsoid())
@@ -86,3 +97,10 @@ def test_the_haze_glow_keeps_its_brightness() -> None:
     _, white = _drawn(_hazy())
     _, dark = _drawn(_hazy(normal_albedo=0.4))
     np.testing.assert_array_equal(dark['halo'].emission, white['halo'].emission)
+
+
+def test_a_normal_albedo_above_one_brightens_the_surface() -> None:
+    """A normal albedo of 1.5 draws every pixel at 1.5 times its white brightness."""
+    white, _ = _drawn(_ellipsoid())
+    bright, _ = _drawn(_ellipsoid(normal_albedo=1.5))
+    np.testing.assert_allclose(bright, 1.5 * white, rtol=1e-12, atol=0.0)

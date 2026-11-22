@@ -284,6 +284,6 @@ def scale_by_normal_albedo(intensity: NDArrayFloatType, body: BodySpec) -> NDArr
         ``intensity`` itself when the normal albedo is 1, so a body that leaves the key
         out renders bit for bit as an unscaled one; otherwise a new array.
     """
-    if body.normal_albedo == NORMAL_ALBEDO_DEFAULT:
+    if body.normal_albedo == 1.0:
         return intensity
     return np.asarray(intensity * body.normal_albedo, dtype=np.float64)
