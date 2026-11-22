@@ -119,6 +119,9 @@ class BodyArcInputs:
             the night side, so brightness above 0 is the lit region.
         body_mask: Extfov-shape boolean silhouette of the body: the pixels its
             outline touches, lit or not.
+        lit_mask: Extfov-shape boolean lit region: the silhouette pixels whose mean
+            angle of incidence is below 90 deg, the SPICE-backed body model's rule.
+            The limb keeps only these pixels.
         limb_mask: Extfov-shape boolean silhouette boundary of ``body_mask``.
         occluder_mask: Extfov-shape union silhouette of the explicitly nearer sibling
             bodies, or ``None`` when no sibling occludes this one.
@@ -141,6 +144,7 @@ class BodyArcInputs:
     source_model: str
     model_img: NDArrayFloatType
     body_mask: NDArrayBoolType
+    lit_mask: NDArrayBoolType
     limb_mask: NDArrayBoolType
     occluder_mask: NDArrayBoolType | None
     bbox_extfov_vu: tuple[int, int, int, int]
@@ -399,9 +403,9 @@ def _lit_geometric_limb_polyline(
 
     The polyline is the silhouette boundary of a phase-0 render of the same body, with
     outward normals taken from that silhouette.  The boundary is then intersected with
-    the lit region of the render at the model's phase, the pixels brighter than 0.  A
-    body's silhouette does not change with phase, so the result is the lit part of the
-    silhouette boundary, the limb the SPICE-backed body model emits.
+    the lit region at the model's phase, the pixels whose mean angle of incidence is
+    below 90 deg.  A body's silhouette does not change with phase, so the result is the
+    lit part of the silhouette boundary, the limb the SPICE-backed body model emits.
 
     Parameters:
         inputs: The body's arc inputs.
@@ -417,8 +421,8 @@ def _lit_geometric_limb_polyline(
     ext_margin_u = int(obs.extfov_margin_u)
     slice_v = slice(ext_margin_v, ext_margin_v + int(obs.data_shape_v))
     slice_u = slice(ext_margin_u, ext_margin_u + int(obs.data_shape_u))
-    # The night side renders 0, so the lit region is the predicted image above 0 (#1056).
-    lit = np.asarray(inputs.model_img[slice_v, slice_u] > 0.0, dtype=bool)
+    # The lit region follows the SPICE-backed model's rule (#1056).
+    lit = np.asarray(inputs.lit_mask[slice_v, slice_u], dtype=bool)
     full_mask_ext = obs.make_extfov_false()
     lit_boundary_ext = obs.make_extfov_false()
     full_mask_ext[slice_v, slice_u] = full_mask
@@ -433,10 +437,11 @@ def build_limb_arc_feature(
 ) -> NavFeature | None:
     """Emit a LIMB_ARC from the lit part of the rendered silhouette boundary, or ``None``.
 
-    The predicted limb is the silhouette boundary of the rendered body, kept only where
-    the predicted image is brighter than 0, as the SPICE-backed body model keeps only
-    the lit limb.  The unlit limb merges into the dark sky and carries no image edge,
-    so a vertex there could only pull the fit toward some other edge.
+    The predicted limb is the silhouette boundary of the rendered body, kept only on its
+    lit region, the pixels whose mean angle of incidence is below 90 deg.  That is the
+    SPICE-backed body model's lit limb, by the same rule.  The unlit limb merges into
+    the dark sky and carries no image edge, so a vertex there could only pull the fit
+    toward some other edge.
 
     With the emission gates on, the feature is emitted only for a body whose predicted
     diameter is at least ``_MIN_LIMB_DIAMETER_PX`` and whose phase is at most
@@ -468,7 +473,7 @@ def build_limb_arc_feature(
             return None
         if inputs.phase_angle_deg > _LIMB_MAX_PHASE_DEG:
             return None
-        lit_limb = inputs.limb_mask & (inputs.model_img > 0.0)
+        lit_limb = inputs.limb_mask & inputs.lit_mask
         vertices_vu, normals_vu = _polyline_from_mask(lit_limb, inputs.body_mask)
         vertices_vu, normals_vu = _drop_occluded_vertices(
             vertices_vu, normals_vu, inputs.occluder_mask
@@ -489,7 +494,7 @@ def build_limb_arc_feature(
         visible_arc_fraction = _visible_arc_fraction(
             inputs,
             vertices_vu.shape[0],
-            edge_mask=lambda full: inputs.silhouette_boundary(full.silhouette) & (full.image > 0.0),
+            edge_mask=lambda full: inputs.silhouette_boundary(full.silhouette) & full.lit,
         )
         reliability = limb_reliability(
             visible_arc_fraction=visible_arc_fraction,

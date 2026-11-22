@@ -16,9 +16,13 @@ same body differently:
   ellipsoid through :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid` and
   :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.
 
-The predicted brightness is 0 on the body's night side, as the SPICE-backed body
-model's is, so the silhouette comes from the geometry instead: the pixels the outline
-touches, lit or not.  A render returns both as a :class:`PredictedBody`.
+The predicted brightness is 0 on the body's night side, so the silhouette comes from
+the geometry instead: the pixels the outline touches, lit or not.  The SPICE-backed
+body model differs here: it adds 0.05 to its Lambert prediction over the whole body,
+so its night side is a 0.05 pedestal under a lit maximum of 1.05.  Its lit region is
+the pixels whose mean angle of incidence is below 90 deg, and a render here finds the
+same pixels.  A render returns the image, the silhouette, and the lit region as a
+:class:`PredictedBody`.
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ import numpy as np
 
 from spindoctor.sim.shared.ellipsoid import (
     ellipsoid_coverage,
+    ellipsoid_lit,
     project_ellipsoid,
     render_lambert_ellipsoid,
 )
@@ -56,10 +61,14 @@ class PredictedBody:
         image: The predicted brightness in ``[0, 1]``, 0 outside the body and on its
             night side.
         silhouette: The pixels the body's outline touches, lit or not.
+        lit: The silhouette pixels whose mean angle of incidence over their
+            subpixels on the body is below 90 deg, the SPICE-backed body model's
+            rule for its lit region.
     """
 
     image: NDArrayFloatType
     silhouette: NDArrayBoolType
+    lit: NDArrayBoolType
 
 
 def predicted_center_vu(
@@ -130,10 +139,13 @@ def render_predicted_body(
             illumination_angle=illumination_angle_rad,
             phase_angle=phase_angle_rad,
             anti_aliasing=1.0,
+            with_lit=True,
         )
+        assert mesh_render.lit is not None
         return PredictedBody(
             image=mesh_render.intensity,
             silhouette=np.asarray(mesh_render.coverage > 0.0, dtype=bool),
+            lit=mesh_render.lit,
         )
     projection = project_ellipsoid(
         shape_vu,
@@ -150,6 +162,9 @@ def render_predicted_body(
             projection, illumination_angle=illumination_angle_rad, phase_angle=phase_angle_rad
         ),
         silhouette=ellipsoid_coverage(projection),
+        lit=ellipsoid_lit(
+            projection, illumination_angle=illumination_angle_rad, phase_angle=phase_angle_rad
+        ),
     )
 
 

@@ -34,12 +34,15 @@ techniques consume:
 
 The terminator is distinct from the limb: the limb is the silhouette edge against sky,
 while the terminator cuts *across* the disc where the lit hemisphere meets the unlit one.
-The predicted night side is black, as the SPICE-backed model's is, so the body mask comes
-from the geometry: the pixels the outline touches, lit or not
-(:func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_coverage` for an ellipsoid, the mesh
-renderer's coverage for a mesh). The lit region is the part of the predicted image brighter
-than zero, and the terminator polyline is the lit pixels adjacent to the interior unlit
-disc, with the limb ring excluded so the polyline stays interior to the disc -- except at
+The predicted night side is black, so the body mask comes from the geometry: the pixels
+the outline touches, lit or not (:func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_coverage`
+for an ellipsoid, the mesh renderer's coverage for a mesh). The SPICE-backed model's
+prediction differs here: it adds 0.05 to its Lambert brightness over the whole body, so its
+night side is a 0.05 pedestal under a lit maximum of 1.05. The limb keeps the silhouette
+boundary pixels whose mean angle of incidence is below 90 deg, the rule the SPICE-backed
+model uses for its lit region
+(:func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_lit` for an ellipsoid). The terminator
+polyline is the pixels brighter than zero adjacent to the interior unlit disc, with the limb ring excluded so the polyline stays interior to the disc -- except at
 the cusp-adjacent vertices of a very thin crescent, where terminator and limb meet within
 a pixel and a handful of vertices land on the silhouette (the SPICE-backed model's
 sampler shares the behavior). The
@@ -283,9 +286,9 @@ Call path traced through
 4. When the body is at least 100 px across and its phase is at most 60 degrees, append
    the LIMB_ARC that
    :func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature` builds. The
-   lit part of the silhouette boundary, where the predicted image is brighter than 0, is
-   sampled into a vertex polyline with outward normals and a fixed per-vertex sigma, as
-   the SPICE-backed model keeps only the lit limb. Then vertices hidden behind an
+   lit part of the silhouette boundary, where the mean angle of incidence is below
+   90 deg, is sampled into a vertex polyline with outward normals and a fixed per-vertex
+   sigma, as the SPICE-backed model keeps only the lit limb by the same rule. Then vertices hidden behind an
    explicitly nearer sibling body are dropped, and the arc is withheld if fewer than 30
    vertices survive. The visible-arc
    fraction compares the surviving polyline against the lit silhouette boundary of an

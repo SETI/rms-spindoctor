@@ -158,6 +158,76 @@ def test_navigation_limb_keeps_only_lit_vertices() -> None:
     assert float(_limb_vertex_incidence_cosines(body, vertices).min()) > _LIMB_LIT_SLACK
 
 
+_LOW_PHASE_SPHERE = {'semi_a_px': 60.0, 'semi_b_px': 60.0, 'semi_c_px': 60.0, 'phase_angle': 10.0}
+
+
+def _mean_incidence_lit_limb(obs: ObsSim) -> set[tuple[int, int]]:
+    """The low-phase sphere's lit limb pixels by the mean-incidence rule, in extfov.
+
+    The rule is computed here from the sphere's own geometry on a 4 x 4 subpixel
+    grid: a silhouette pixel is lit when its angle of incidence, averaged over its
+    subpixels on the body, is below 90 deg.
+    """
+    sub = 4
+    centers = (np.arange(LIMB_SIZE * sub) + 0.5) / sub - LIMB_SIZE / 2.0
+    cv, cu = np.meshgrid(centers, centers, indexing='ij')
+    r2 = (cv**2 + cu**2) / 60.0**2
+    inside = r2 < 1.0
+    nz = np.sqrt(np.maximum(1.0 - r2, 0.0))
+    norm = np.sqrt(cv**2 + cu**2 + (60.0 * nz) ** 2)
+    light_v, light_u, light_z = illumination_vector(
+        illumination_angle=math.radians(25.0), phase_angle=math.radians(10.0)
+    )
+    cos_i = (cv * light_v + cu * light_u + 60.0 * nz * light_z) / norm
+    angle = np.where(inside, np.arccos(np.clip(cos_i, -1.0, 1.0)), 0.0)
+    blocks = (LIMB_SIZE, sub, LIMB_SIZE, sub)
+    count = inside.reshape(blocks).sum(axis=(1, 3))
+    lit = (count > 0) & (angle.reshape(blocks).sum(axis=(1, 3)) < 0.5 * math.pi * count)
+    disc = count > 0
+    padded = np.pad(disc, 1)
+    boundary = disc & ~(padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:])
+    vs, us = np.nonzero(boundary & lit)
+    margin_v, margin_u = int(obs.extfov_margin_v), int(obs.extfov_margin_u)
+    return {(int(v) + margin_v, int(u) + margin_u) for v, u in zip(vs, us, strict=True)}
+
+
+def _vertex_set(vertices_vu: np.ndarray) -> set[tuple[int, int]]:
+    """A polyline's vertices as a set of pixel indices."""
+    return {(int(v), int(u)) for v, u in np.asarray(vertices_vu)}
+
+
+def test_limb_lit_region_is_the_mean_incidence_rule() -> None:
+    """The limb keeps the outline pixels whose mean incidence is below 90 deg, no others.
+
+    The SPICE-backed body model counts a pixel lit when its angle of incidence,
+    averaged over the pixel's subpixels on the body, is below 90 deg.  At 10 deg phase
+    on a 60 px sphere that differs from counting a pixel lit whenever any subpixel is
+    lit by 37 of the limb pixels on the unlit side (223 against 260).
+    """
+    obs = limb_obs()
+    limb = _limb_feature(obs, large_body(**_LOW_PHASE_SPHERE))
+    assert limb is not None
+    assert _vertex_set(limb.geometry.vertices_vu) == _mean_incidence_lit_limb(obs)
+
+
+def test_gates_off_limb_lit_region_is_the_mean_incidence_rule() -> None:
+    """The gates-off limb keeps the same outline pixels as the mean-incidence rule."""
+    vertices = _ungated_limb_vertices(large_body(**_LOW_PHASE_SPHERE))
+    assert _vertex_set(vertices) == _mean_incidence_lit_limb(limb_obs())
+
+
+def test_low_phase_limb_fraction_counts_lit_pixels_on_both_sides() -> None:
+    """The fully framed low-phase limb sees its whole lit outline.
+
+    The visible-arc fraction divides the surviving lit vertices by the lit outline
+    of an unclipped render; counting that outline by a different lit rule would put
+    it at 0.86.
+    """
+    limb = _limb_feature(limb_obs(), large_body(**_LOW_PHASE_SPHERE))
+    assert limb is not None
+    assert float(limb.flags.visible_arc_fraction) == pytest.approx(1.0, abs=0.02)
+
+
 def _terminator_feature(obs: ObsSim, body_params: dict[str, Any]) -> Any:
     """Build the model and return its emitted TERMINATOR_ARC feature, or None."""
     model = NavModelBodySimulated('body', obs, body_params['name'], body_params)

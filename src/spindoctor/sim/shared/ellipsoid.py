@@ -33,6 +33,7 @@ __all__ = [
     'EllipsoidProjection',
     'ellipsoid_coverage',
     'ellipsoid_image_normals',
+    'ellipsoid_lit',
     'lambert_from_normals',
     'outline_half_extents',
     'outline_semi_a',
@@ -606,3 +607,44 @@ def ellipsoid_coverage(projection: EllipsoidProjection) -> NDArrayBoolType:
         inside = inside.reshape(rows // scale, scale, cols // scale, scale).any(axis=(1, 3))
     covered: NDArrayBoolType = np.asarray(inside, dtype=bool)
     return covered
+
+
+def ellipsoid_lit(
+    projection: EllipsoidProjection,
+    *,
+    illumination_angle: float,
+    phase_angle: float,
+) -> NDArrayBoolType:
+    """The pixels whose mean angle of incidence is below 90 deg.
+
+    The mean is taken over the pixel's ``aa_scale`` by ``aa_scale`` subpixels whose
+    centers lie strictly inside the limb, the subpixels :func:`ellipsoid_coverage`
+    counts.  It is the rule the SPICE-backed body model uses for its lit region: a
+    pixel straddling the terminator is lit only when most of its angle lies on the
+    sunlit side, not whenever any part of it does.
+
+    Parameters:
+        projection: The ellipsoid's projection onto its grid, whose dimensions must
+            be multiples of ``aa_scale``, as :func:`project_ellipsoid` builds them.
+        illumination_angle: In-plane light direction in radians; 0 is from the
+            top of the image, pi/2 from the right.
+        phase_angle: Phase angle in radians; 0 is fully lit, pi is backlit.
+
+    Returns:
+        The boolean lit mask on the grid the caller stated the geometry on.
+    """
+    normal_v, normal_u, normal_z = ellipsoid_image_normals(projection)
+    illum_v, illum_u, illum_z = illumination_vector(
+        illumination_angle=illumination_angle, phase_angle=phase_angle
+    )
+    cos_incidence = normal_v * illum_v + normal_u * illum_u + normal_z * illum_z
+    inside = projection.ellipse_dist_sq < 1.0
+    angle = np.where(inside, np.arccos(np.clip(cos_incidence, -1.0, 1.0)), 0.0)
+    scale = projection.aa_scale
+    rows, cols = inside.shape
+    angle_sum = angle.reshape(rows // scale, scale, cols // scale, scale).sum(axis=(1, 3))
+    count = inside.reshape(rows // scale, scale, cols // scale, scale).sum(axis=(1, 3))
+    lit: NDArrayBoolType = np.asarray(
+        (count > 0) & (angle_sum < 0.5 * np.pi * np.maximum(count, 1)), dtype=bool
+    )
+    return lit

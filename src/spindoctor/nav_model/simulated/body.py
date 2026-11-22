@@ -333,11 +333,13 @@ class NavModelBodySimulated(NavModelBodyBase):
         model_img_full = self.obs.make_extfov_zeros()
         limb_mask_full = self.obs.make_extfov_false()
         body_mask_full = self.obs.make_extfov_false()
+        lit_mask_full = self.obs.make_extfov_false()
         slice_v = slice(ext_margin_v, ext_margin_v + data_size_v)
         slice_u = slice(ext_margin_u, ext_margin_u + data_size_u)
         model_img_full[slice_v, slice_u] = sim_img
         limb_mask_full[slice_v, slice_u] = limb_mask
         body_mask_full[slice_v, slice_u] = body_mask
+        lit_mask_full[slice_v, slice_u] = prediction.lit
         self._model_img = model_img_full
         self._body_mask = body_mask_full
         # The scene states the body's center in pixel corner coordinates,
@@ -387,6 +389,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             source_model=self.name,
             model_img=model_img_full,
             body_mask=body_mask_full,
+            lit_mask=lit_mask_full,
             limb_mask=limb_mask_full,
             occluder_mask=self._occluder_mask,
             bbox_extfov_vu=self._bbox_extfov_vu,

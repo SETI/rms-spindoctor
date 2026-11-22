@@ -128,6 +128,22 @@ def test_coverage_is_the_covered_fraction_of_each_pixel_however_dark() -> None:
     assert np.array_equal(render.coverage, expected)
 
 
+@pytest.mark.parametrize(('phase_deg', 'lit'), [(80.0, True), (100.0, False)])
+def test_face_is_lit_by_its_mean_angle_of_incidence(phase_deg: float, lit: bool) -> None:
+    """A face square to the line of sight is lit at 80 deg phase and unlit at 100 deg."""
+    render = render_polyhedral_body(
+        size=(16, 16),
+        center=(0.0, 0.0),
+        mesh=Mesh(vertices=_OVERHANG, faces=np.array([[0, 1, 2]])),
+        semi_axes_px=(1.0, 1.0, 1.0),
+        phase_angle=math.radians(phase_deg),
+        anti_aliasing=0.0,
+        with_lit=True,
+    )
+    assert render.lit is not None
+    assert np.array_equal(render.lit, np.full((16, 16), lit) & (render.coverage > 0.0))
+
+
 def test_back_facing_triangle_is_culled() -> None:
     """The same triangle wound away from the observer covers nothing."""
     render = _render_full(Mesh(vertices=_OVERHANG, faces=np.array([[0, 2, 1]])), size=16)

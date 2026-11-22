@@ -42,7 +42,12 @@ from spindoctor.sim.shared.spherical_harmonics import (
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_matmul3
-from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType, NDArrayIntType
+from spindoctor.support.types import (
+    NDArrayBoolType,
+    NDArrayComplexType,
+    NDArrayFloatType,
+    NDArrayIntType,
+)
 
 
 @dataclass(frozen=True)
@@ -68,10 +73,14 @@ class MeshBodyRender:
         coverage: The fraction of each pixel's subpixels a front face covers, in
             [0, 1], however bright the face renders.  A pixel is in the silhouette
             when its coverage is above 0.
+        lit: The pixels whose mean angle of incidence over their covered subpixels
+            is below 90 deg, the rule the SPICE-backed body model uses for its lit
+            region, or None when the render was not asked for it.
     """
 
     intensity: NDArrayFloatType
     coverage: NDArrayFloatType
+    lit: NDArrayBoolType | None = None
 
 
 def _rotation_matrix(euler_deg: tuple[float, float, float]) -> NDArrayFloatType:
@@ -446,6 +455,7 @@ def render_polyhedral_body(
     phase_angle: float = 0.0,
     anti_aliasing: float = 1.0,
     shading: str = 'flat',
+    with_lit: bool = False,
 ) -> MeshBodyRender:
     """Render a mesh body's [0, 1] brightness and its silhouette.
 
@@ -471,6 +481,8 @@ def render_polyhedral_body(
         anti_aliasing: 0 disables supersampling; (0, 1] supersamples the limb.
         shading: ``'flat'`` (per-face) or ``'gouraud'`` (per-vertex
             interpolated).
+        with_lit: Whether to also find the lit pixels by their mean angle of
+            incidence, which rasterizes the faces a second time.
 
     Returns:
         The :class:`MeshBodyRender` on the ``size`` grid.
@@ -514,9 +526,11 @@ def render_polyhedral_body(
         illumination_angle=illumination_angle, phase_angle=phase_angle
     )
     light = np.array([light_u, light_v, light_z], dtype=np.float64)
-    face_intensity = np.clip(stable_matmul3(unit_normals, light), 0.0, 1.0)
+    face_cos = stable_matmul3(unit_normals, light)
+    face_intensity = np.clip(face_cos, 0.0, 1.0)
 
     vertex_intensity: NDArrayFloatType | None = None
+    vertex_angle: NDArrayFloatType | None = None
     if shading == 'gouraud':
         # Per-vertex normals: the area-weighted average of the adjacent face
         # normals.  The raw cross products carry twice the face area as their
@@ -526,7 +540,9 @@ def render_polyhedral_body(
             np.add.at(vertex_normals, mesh.faces[:, corner], normals)
         vn_mag = np.maximum(np.linalg.norm(vertex_normals, axis=1), 1e-12)
         vertex_normals = vertex_normals / vn_mag[:, None]
-        vertex_intensity = np.clip(stable_matmul3(vertex_normals, light), 0.0, 1.0)
+        vertex_cos = stable_matmul3(vertex_normals, light)
+        vertex_intensity = np.clip(vertex_cos, 0.0, 1.0)
+        vertex_angle = np.arccos(np.clip(vertex_cos, -1.0, 1.0))
 
     front = (unit_normals[:, 2] > 0.0) & (norm_mag > 1e-9)
     front_idx = np.nonzero(front)[0]
@@ -540,11 +556,32 @@ def render_polyhedral_body(
         grid_size=(height, width),
     )
 
-    coverage = np.asarray(np.isfinite(z_buffer), dtype=np.float64)
+    covered = np.isfinite(z_buffer)
+    lit: NDArrayBoolType | None = None
+    if with_lit:
+        # The same faces shaded by their angle of incidence instead of its clipped
+        # cosine; the mean over each pixel's covered subpixels decides whether it is lit.
+        _, angle = _rasterize_faces(
+            px=px,
+            py=py,
+            depth=depth,
+            faces=mesh.faces[front_idx],
+            face_intensity=np.arccos(np.clip(face_cos, -1.0, 1.0))[front_idx],
+            vertex_intensity=vertex_angle,
+            grid_size=(height, width),
+        )
+        angle_sum = angle.reshape(size_v, aa_scale, size_u, aa_scale).sum(axis=(1, 3))
+        count = covered.reshape(size_v, aa_scale, size_u, aa_scale).sum(axis=(1, 3))
+        lit = np.asarray(
+            (count > 0) & (angle_sum < 0.5 * math.pi * np.maximum(count, 1)), dtype=bool
+        )
+    coverage = np.asarray(covered, dtype=np.float64)
     if aa_scale > 1:
         intensity = intensity.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
         coverage = coverage.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-    return MeshBodyRender(intensity=_as_float64(np.clip(intensity, 0.0, 1.0)), coverage=coverage)
+    return MeshBodyRender(
+        intensity=_as_float64(np.clip(intensity, 0.0, 1.0)), coverage=coverage, lit=lit
+    )
 
 
 @dataclass(frozen=True)
@@ -613,6 +650,7 @@ def render_mesh_body_image(
     illumination_angle: float = 0.0,
     phase_angle: float = 0.0,
     anti_aliasing: float = 1.0,
+    with_lit: bool = False,
 ) -> MeshBodyRender:
     """Render an irregular mesh body from a :class:`MeshBodySpec`.
 
@@ -627,6 +665,8 @@ def render_mesh_body_image(
         illumination_angle: Image-plane light azimuth in radians.
         phase_angle: Phase angle in radians.
         anti_aliasing: Limb supersampling control.
+        with_lit: Whether to also find the lit pixels (see
+            :func:`render_polyhedral_body`).
 
     Returns:
         The :class:`MeshBodyRender` on the ``size`` grid.
@@ -647,4 +687,5 @@ def render_mesh_body_image(
         illumination_angle=illumination_angle,
         phase_angle=phase_angle,
         anti_aliasing=anti_aliasing,
+        with_lit=with_lit,
     )
