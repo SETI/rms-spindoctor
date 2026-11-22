@@ -1249,6 +1249,11 @@ swept across the dense sub-pixel set and the wide range described under
      - 0.264
      - 0.291
 
+This table and the two sweep figures in this section were measured before the
+simulator drew each limb pixel by how much of it the body covers, and they have not
+been regenerated since. A dense sweep run after that change puts the haze symmetry fit
+between 0.06 and 0.10 px, the range the text below quotes.
+
 The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
 
