@@ -168,6 +168,11 @@ spindoctor.sim.render
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.roll
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 spindoctor.sim.render.radiance
 ------------------------------
 

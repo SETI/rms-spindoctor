@@ -26,6 +26,7 @@ from typing import Any
 import numpy as np
 from scipy.signal import fftconvolve
 
+from spindoctor.sim.render.roll import turn_vector
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.support.stable_math import stable_hypot
@@ -107,8 +108,12 @@ def apply_smear(
     *,
     smear: Sequence[Mapping[str, Any]],
     oversample: int,
+    roll_deg: float = 0.0,
 ) -> None:
     """Apply whole-scene or differential motion smear in place.
+
+    The drift is the scene's motion across the detector, so a planted camera roll
+    turns every motion vector with the rest of the scene.
 
     Parameters:
         frame: The frame whose signal (and, for whole-scene smear, point-source)
@@ -116,8 +121,15 @@ def apply_smear(
         smear: The scene ``optics.smear`` list of per-class motion entries.
         oversample: The render-grid oversampling factor (motion vectors are in
             detector pixels and scale to the render grid).
+        roll_deg: The planted camera roll in degrees, from ``+v`` toward ``+u``.
     """
     (all_dv, all_du), per_class = _parse_smear(smear)
+    if roll_deg != 0.0:
+        all_dv, all_du = turn_vector(all_dv, all_du, roll_deg=roll_deg)
+        per_class = {
+            object_class: turn_vector(dv, du, roll_deg=roll_deg)
+            for object_class, (dv, du) in per_class.items()
+        }
 
     if not per_class:
         kernel = smear_kernel(all_dv * oversample, all_du * oversample)
