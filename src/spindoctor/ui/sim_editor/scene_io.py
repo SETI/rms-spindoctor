@@ -122,6 +122,7 @@ class SceneIoMixin(SimEditorBase):
         # sky_counts follows the absent-key discipline: a scene without the key
         # must not gain one, so it passes through rather than being defaulted.
         for passthrough_key in (
+            'noise_seed',
             'ring_system',
             'noise',
             'optics',
@@ -151,6 +152,9 @@ class SceneIoMixin(SimEditorBase):
         self._exposure_spin.setValue(float(self.sim_params['exposure_sec']))
         self._exposure_spin.blockSignals(False)
         self._random_seed_spin.setValue(self.sim_params['random_seed'])
+        self._noise_seed_spin.blockSignals(True)
+        self._noise_seed_spin.setValue(int(self.sim_params.get('noise_seed', -1)))
+        self._noise_seed_spin.blockSignals(False)
         # Update instrument selector
         self._instrument_combo.blockSignals(True)
         self._select_instrument(str(self.sim_params['instrument']))

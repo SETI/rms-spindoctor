@@ -29,6 +29,7 @@ navigator-side models.
 
 import copy
 import json
+import math
 from collections.abc import Mapping
 from functools import lru_cache
 from types import MappingProxyType
@@ -37,6 +38,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.stars import star_record_from_params
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -44,6 +46,7 @@ from spindoctor.support.types import MutableStar, NDArrayFloatType
 
 __all__ = [
     'SKY_COUNTS_DEFAULTS',
+    'clear_star_caches',
     'faint_sky_cutoff_mag',
     'render_sky_counts',
     'render_stars',
@@ -194,10 +197,20 @@ def _render_stars_cached(
     # predicts the unshifted geometry and a star technique recovers BOTH the
     # rotation and the translation.  The rotation matrix matches the navigator's
     # ``similarity_transform_fit`` convention (maps catalog -> detection in
-    # ``(v, u)`` order), so the fitted angle equals ``rotation_deg``.
+    # ``(v, u)`` order), so the fitted angle equals ``rotation_deg``.  Every
+    # direction a star carries turns with it: its smear track, the offset of its
+    # companion, and its planted catalog error, so a rolled star is the unrolled
+    # one turned with the frame.
     theta = np.radians(rotation_deg)
     cos_t = float(np.cos(theta))
     sin_t = float(np.sin(theta))
+
+    def turn(dv: float, du: float) -> tuple[float, float]:
+        """Turn an image-plane vector by the roll."""
+        if rotation_deg == 0.0:
+            return dv, du
+        return cos_t * dv - sin_t * du, sin_t * dv + cos_t * du
+
     # A star's catalog position arrives in pixel corner coordinates and is placed
     # below in pixel centric ones; on this oversampled grid the half pixel
     # between the two is scaled by ``os`` alongside every other pixel quantity.
@@ -256,8 +269,10 @@ def _render_stars_cached(
         if scatter_rng is not None:
             err_v += float(scatter_rng.normal(0.0, catalog_scatter_px))
             err_u += float(scatter_rng.normal(0.0, catalog_scatter_px))
+        err_v, err_u = turn(err_v, err_u)
         star_offset_v = roll_center_v + rot_v + offset_v + err_v
         star_offset_u = roll_center_u + rot_u + offset_u + err_u
+        move_v, move_u = turn(star.move_v, star.move_u)
 
         # A variable star renders at a brightness delta_mag off its catalog vmag
         # (positive = fainter); the catalog vmag stays what the navigator sees.
@@ -271,8 +286,8 @@ def _render_stars_cached(
             star_offset_v + grid_shift,
             star_offset_u + grid_shift,
             total=total * oversample**2,
-            move_v=star.move_v,
-            move_u=star.move_u,
+            move_v=move_v,
+            move_u=move_u,
         )
 
         # An unresolved companion is a second point mass at sep_px / angle_deg,
@@ -294,13 +309,14 @@ def _render_stars_cached(
                 zero_point=zero_point,
                 exposure_sec=exposure_sec,
             )
+            comp_dv, comp_du = turn(sep * float(np.cos(angle)), sep * float(np.sin(angle)))
             _deposit_point_mass(
                 img,
-                star_offset_v + grid_shift + sep * float(np.cos(angle)),
-                star_offset_u + grid_shift + sep * float(np.sin(angle)),
+                star_offset_v + grid_shift + comp_dv,
+                star_offset_u + grid_shift + comp_du,
                 total=comp_total * oversample**2,
-                move_v=star.move_v,
-                move_u=star.move_u,
+                move_v=move_v,
+                move_u=move_u,
             )
 
         # Truth metadata: the rendered-vs-catalog delta (position error and
@@ -366,7 +382,8 @@ def render_stars(
             offset, modeling a pointing rotation the star techniques recover.
             The pivot is the frame's center, ``(size_v / 2, size_u / 2)`` in
             pixel corner coordinates, which is the point the body and ring
-            geometry turns about.
+            geometry turns about.  A star's smear track, its companion's offset,
+            and its catalog error turn by the same angle.
         oversample: The render-grid oversampling factor.
         catalog_scatter_px: Scene-level per-star position-scatter sigma
             (oversampled units); 0 disables it.
@@ -415,6 +432,7 @@ def _render_sky_counts_cached(
     zero_point: float,
     exposure_sec: float,
     oversample: int,
+    rotation_deg: float,
 ) -> NDArrayFloatType:
     """Internal cached function to compute the background-sky star field."""
     plane = np.zeros((size_v, size_u), dtype=np.float64)
@@ -425,15 +443,8 @@ def _render_sky_counts_cached(
         return plane
     rng = np.random.default_rng(seed)
     n_stars = int(rng.poisson(n_expected))
-    if n_stars <= 0:
+    if n_stars <= 0 and rotation_deg == 0.0:
         return plane
-    # Magnitudes from the implied differential distribution dN/dm ~ 10**(b*m)
-    # between the bright bound and the faint cutoff: the inverse of the CDF that
-    # is proportional to 10**(b*m).
-    lo = 10.0 ** (b * _SKY_BRIGHT_CUTOFF_MAG)
-    hi = 10.0 ** (b * faint_cutoff_mag)
-    u_draw = rng.uniform(lo, hi, size=n_stars)
-    mags = np.log10(u_draw) / b if b != 0.0 else np.full(n_stars, faint_cutoff_mag)
     # The draw is a uniform pixel corner position over the frame of this grid,
     # which spans ``[0, size]`` there; the deposit reads a pixel centric
     # position, where the same frame spans ``[-half, size - half]``, so half a
@@ -442,12 +453,141 @@ def _render_sky_counts_cached(
     # row deposit only their in-bounds share.  Taking it off after the draw
     # rather than shifting the sampler's bounds leaves the random stream
     # untouched, so a seed keeps the star field it had.
-    vs = rng.uniform(0.0, float(size_v), size=n_stars) - PIXEL_CENTER_TO_CORNER_PX
-    us = rng.uniform(0.0, float(size_u), size=n_stars) - PIXEL_CENTER_TO_CORNER_PX
+    mags, vs, us = _draw_sky_stars(
+        rng,
+        n_stars,
+        (0.0, float(size_v)),
+        (0.0, float(size_u)),
+        b=b,
+        faint_cutoff_mag=faint_cutoff_mag,
+    )
+    vs -= PIXEL_CENTER_TO_CORNER_PX
+    us -= PIXEL_CENTER_TO_CORNER_PX
+    if rotation_deg != 0.0:
+        mags, vs, us = _roll_sky_stars(
+            (mags, vs, us),
+            (size_v, size_u),
+            seed=seed,
+            n_expected=n_expected,
+            b=b,
+            faint_cutoff_mag=faint_cutoff_mag,
+            rotation_deg=rotation_deg,
+        )
     for mag, v, u in zip(mags.tolist(), vs.tolist(), us.tolist(), strict=True):
         total = total_flux_for_vmag(float(mag), zero_point=zero_point, exposure_sec=exposure_sec)
         _deposit_point_mass(plane, v, u, total=total * oversample**2)
     return plane
+
+
+def _draw_sky_stars(
+    rng: np.random.Generator,
+    n_stars: int,
+    v_range: tuple[float, float],
+    u_range: tuple[float, float],
+    *,
+    b: float,
+    faint_cutoff_mag: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """Draw sky stars' magnitudes and their uniform positions over a box.
+
+    Magnitudes come from the implied differential distribution ``dN/dm ~ 10**(b*m)``
+    between the bright bound and the faint cutoff: the inverse of the CDF that is
+    proportional to ``10**(b*m)``.  The stream gives the magnitudes, then the v
+    positions, then the u positions.
+
+    Parameters:
+        rng: The stream to draw from.
+        n_stars: The number of stars.
+        v_range: The box's ``(low, high)`` v bounds, in pixel corner coordinates.
+        u_range: The box's ``(low, high)`` u bounds.
+        b: Cumulative-count law slope per magnitude.
+        faint_cutoff_mag: The faint magnitude the count integral is truncated at.
+
+    Returns:
+        The magnitudes and the v and u positions, in pixel corner coordinates.
+    """
+    lo = 10.0 ** (b * _SKY_BRIGHT_CUTOFF_MAG)
+    hi = 10.0 ** (b * faint_cutoff_mag)
+    u_draw = rng.uniform(lo, hi, size=n_stars)
+    mags = np.log10(u_draw) / b if b != 0.0 else np.full(n_stars, faint_cutoff_mag)
+    vs = rng.uniform(v_range[0], v_range[1], size=n_stars)
+    us = rng.uniform(u_range[0], u_range[1], size=n_stars)
+    return mags, vs, us
+
+
+def _roll_sky_stars(
+    frame_stars: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
+    size: tuple[int, int],
+    *,
+    seed: int,
+    n_expected: float,
+    b: float,
+    faint_cutoff_mag: float,
+    rotation_deg: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """The sky field turned by the roll about the frame center.
+
+    The frame's own stars are the sky the unrolled frame shows.  A turned frame
+    also shows sky from beyond the unrolled frame's corners, so stars at the same
+    density are drawn over a square about the frame center, wide enough to hold the
+    frame at any angle, from their own stream, and those that fall outside the
+    frame are added.  Every star then turns about the frame center, so the rolled
+    sky is the unrolled sky turned with the frame.  The stars the turn leaves in the
+    frame are kept, by the rule the unrolled draw follows: a star is drawn only when
+    its position lies in the frame.  So a star just outside the frame lights no edge
+    pixel, and a roll too small to carry any star across the frame edge draws the
+    unrolled frame's stars and no others, each moved by the roll alone.
+
+    Parameters:
+        frame_stars: The frame's stars, as magnitudes and pixel centric v and u
+            positions.
+        size: The grid's rows and columns.
+        seed: The sky realization's seed.
+        n_expected: The expected number of stars over the frame.
+        b: Cumulative-count law slope per magnitude.
+        faint_cutoff_mag: The faint magnitude the count integral is truncated at.
+        rotation_deg: The roll in degrees, from ``+v`` toward ``+u``.
+
+    Returns:
+        The magnitudes and turned pixel centric v and u positions of the stars in the
+        frame.
+    """
+    size_v, size_u = size
+    side = math.hypot(size_v, size_u)
+    rng = np.random.default_rng(derive_effect_seed(seed, 'roll_border'))
+    n_square = int(rng.poisson(n_expected * side * side / (size_v * size_u)))
+    mags, vs, us = _draw_sky_stars(
+        rng,
+        n_square,
+        ((size_v - side) / 2.0, (size_v + side) / 2.0),
+        ((size_u - side) / 2.0, (size_u + side) / 2.0),
+        b=b,
+        faint_cutoff_mag=faint_cutoff_mag,
+    )
+    outside = (vs < 0.0) | (vs >= size_v) | (us < 0.0) | (us >= size_u)
+    all_mags = np.concatenate([frame_stars[0], mags[outside]])
+    rel_v = np.concatenate([frame_stars[1], vs[outside] - PIXEL_CENTER_TO_CORNER_PX])
+    rel_u = np.concatenate([frame_stars[2], us[outside] - PIXEL_CENTER_TO_CORNER_PX])
+    # The pivot is the frame center, ``size / 2`` in pixel corner coordinates,
+    # written pixel centric, as for the catalog stars.
+    pivot_v = size_v / 2.0 - PIXEL_CENTER_TO_CORNER_PX
+    pivot_u = size_u / 2.0 - PIXEL_CENTER_TO_CORNER_PX
+    rel_v -= pivot_v
+    rel_u -= pivot_u
+    roll = math.radians(rotation_deg)
+    cos_r = math.cos(roll)
+    sin_r = math.sin(roll)
+    turned_v = pivot_v + cos_r * rel_v - sin_r * rel_u
+    turned_u = pivot_u + sin_r * rel_v + cos_r * rel_u
+    # The frame spans ``[-half, size - half)`` pixel centric, as the unrolled draw.
+    half = PIXEL_CENTER_TO_CORNER_PX
+    in_frame = (
+        (turned_v >= -half)
+        & (turned_v < size_v - half)
+        & (turned_u >= -half)
+        & (turned_u < size_u - half)
+    )
+    return all_mags[in_frame], turned_v[in_frame], turned_u[in_frame]
 
 
 def render_sky_counts(
@@ -463,6 +603,7 @@ def render_sky_counts(
     exposure_sec: float,
     diffuse_flux_per_px: float,
     oversample: int,
+    rotation_deg: float = 0.0,
 ) -> None:
     """Render the background-sky star field (and optional diffuse floor) in place.
 
@@ -472,7 +613,9 @@ def render_sky_counts(
     the faint cutoff.  Every star renders through the same flux/point-mass path
     as a catalog star, so the scene PSF shapes it.  A non-zero diffuse floor adds
     a flat pedestal (the box-mean downsample leaves a constant unchanged, so it
-    is a per-detector-pixel level).
+    is a per-detector-pixel level).  A camera roll turns the field about the frame
+    center, filling the corners the turn brings into view from beyond the unrolled
+    frame.
 
     Parameters:
         point_plane: The (oversampled) point-source plane, modified in place.
@@ -487,6 +630,7 @@ def render_sky_counts(
         diffuse_flux_per_px: A flat diffuse-sky pedestal per detector pixel (0
             disables it).
         oversample: The render-grid oversampling factor.
+        rotation_deg: Camera-roll angle in degrees, from ``+v`` toward ``+u``.
     """
     size_v, size_u = point_plane.shape
     det_v = size_v / oversample
@@ -505,9 +649,16 @@ def render_sky_counts(
         zero_point=float(zero_point),
         exposure_sec=float(exposure_sec),
         oversample=int(oversample),
+        rotation_deg=float(rotation_deg),
     )
     point_plane += plane
     if diffuse_flux_per_px > 0.0:
         # A flat pedestal survives the box-mean downsample as a constant, so the
         # commanded per-detector-pixel level is added directly on every subsample.
         point_plane += float(diffuse_flux_per_px)
+
+
+def clear_star_caches() -> None:
+    """Drop the cached star field and sky-count plane (test/tooling helper)."""
+    _render_stars_cached.cache_clear()
+    _render_sky_counts_cached.cache_clear()

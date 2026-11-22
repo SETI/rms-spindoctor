@@ -4,9 +4,10 @@ sweep_name: atmosphere_haze_albedo
 # haze adds no light (its halo only dims the black sky behind it), so the limb
 # renders as the bare surface and that point is the self-consistency floor.  A
 # brighter haze lifts the limb farther above the reference radius the navigator
-# predicts, growing the recovered-offset error up to the 0.6 point, past which
-# it levels off.  The 0.6 point is the base scene's default albedo, the
-# atmosphere_haze sweep's tau_ref 4 point.
+# predicts.  The disc correlation's high-pass refinement weakens the haze's smooth
+# glow, so the error dips to about 0.01 px at the 0.15 point and grows to 0.08 to
+# 0.10 px at albedo 1.0 (9 noise draws).  The 0.6 point is the base scene's default
+# albedo, the atmosphere_haze sweep's tau_ref 4 point.
 base_scene: model_mismatch/haze_limb_base.yaml
 parameters: [bodies.0.atmosphere.albedo]
 values: [0.0, 0.15, 0.3, 0.6, 1.0]

@@ -4,7 +4,7 @@ Each function here is a self-contained detector sub-effect: dark current and hot
 pixels, coherent horizontal banding, low-order bias structure, and the
 morphological cosmic-ray model.  The chain orchestrator
 (:mod:`spindoctor.sim.render.detector.chain`) draws each one an independent RNG
-via ``derive_effect_seed(random_seed, 'detector/<effect>')`` so toggling one
+via ``derive_effect_seed(<seed>, 'detector/<effect>')`` so toggling one
 never perturbs another's realization, and each stage is a no-op when its gating
 amplitude/fraction/rate is zero (the stage-activation rule).  The one exception
 is the uniform hot-pixel population, which belongs to the detector rather than

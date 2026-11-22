@@ -30,6 +30,7 @@ from spindoctor.sim.scene.validate import validate_sim_params
 # adding a truth key must extend this scene in the same change.
 _TRUTH_SAMPLES: dict[str, Any] = {
     'random_seed': 99,
+    'noise_seed': 5,
     'offset_v': 2.5,
     'offset_u': -1.5,
     'offset_rotation_deg': 0.4,

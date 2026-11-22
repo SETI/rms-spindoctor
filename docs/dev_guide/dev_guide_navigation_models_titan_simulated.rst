@@ -21,12 +21,10 @@ body parameters. It could not have reused
 function needs backplanes a simulated observation does not carry. Because the simulated path
 reads operator parameters directly, the simulated inventory needs no projected-center key.
 
-Model selection is exclusive in both directions.
-:meth:`~spindoctor.nav_model.nav_model_titan.NavModelTitan.instances_for_obs` returns nothing
-for a simulated observation, this class returns nothing for a real one, and
-:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated` excludes Titan
-unconditionally -- mirroring the real path's exclusion, so exactly one model claims a simulated
-Titan.
+Exactly one model claims a simulated Titan. This class replaces its parent's ``inputs`` of
+``'spice'`` with ``'scene_view'``, so the two are never built for the same observation, and
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated` always leaves Titan out,
+just as the real body model does.
 
 Theory
 ======
@@ -59,7 +57,13 @@ Each real-frame quantity has a deliberate simulated analog:
   :func:`~spindoctor.nav_model.titan_geometry.occluded_disc_fraction` helpers the real model
   uses. A sibling body with an explicitly nearer range occludes the envelope and counts toward
   the occluded fraction; every sibling, near or far, contributes its bounding box, because a
-  moon beside the limb sits in the symmetry annulus whether it hides anything or not. Scene
+  moon beside the limb sits in the symmetry annulus whether it hides anything or not. Each
+  sibling is drawn as the simulated body model draws it, through
+  :mod:`~spindoctor.nav_model.simulated.predicted_body`: a mesh body as its mesh, a body that
+  states no center at the frame center, and a rotated body at its rotation. Its box is the
+  bounding box of the part of that silhouette on the extended FOV: it reaches into the margin
+  where the body runs past the frame edge and stops at the edge of the extended FOV. A nearer
+  sibling's silhouette is drawn on the frame alone and hides nothing in the margin. Scene
   stars brighter than the configured mask limit contribute a masked disc, mirroring the real
   model's catalog queries.
 
@@ -124,7 +128,7 @@ Public members (autodocumented at :doc:`/api_reference/api_nav_model`):
 
 - :meth:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated.instances_for_obs`
   -- returns one instance named ``titan_sim:TITAN`` per adequately configured simulated Titan,
-  and an empty list for a real observation.
+  and an empty list otherwise.
 - :attr:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated.geometry_inputs`
   -- the geometry dataclass built from operator parameters on first access.
 - :data:`~spindoctor.nav_model.simulated.titan.REQUIRED_SIM_PARAMS`.

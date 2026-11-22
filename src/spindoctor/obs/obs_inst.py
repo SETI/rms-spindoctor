@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from psfmodel import PSF, GaussianPSF
 from starcat import Star
@@ -10,6 +10,14 @@ from spindoctor.support.types import PathLike
 if TYPE_CHECKING:
     from spindoctor.obs import Obs
 
+ModelSource = Literal['scene_view', 'spice']
+"""The two kinds of input a navigation model can predict the scene from.
+
+``'spice'`` is SPICE geometry with the star, body, and ring catalogs, which is what a
+real camera's image provides.  ``'scene_view'`` is the navigator's view of a simulated
+scene.  An observation provides one of them, and each navigation model class uses one.
+"""
+
 
 class ObsInst(ABC):
     """Mix-in class for instrument models representing spacecraft cameras.
@@ -17,6 +25,33 @@ class ObsInst(ABC):
     This class provides default functionality for methods related to instruments
     and abstract methods for instrument-specific functionality.
     """
+
+    model_source: ClassVar[ModelSource]
+    """The input this observation provides to its navigation models.
+
+    Only the model classes whose ``inputs`` matches it are built for the image.
+    """
+
+    _abstract: ClassVar[bool] = True
+    """Set to True in the body of a class that is only a shared base, so that it need
+    not set ``model_source``."""
+
+    def __init_subclass__(cls, **kwargs: Any) -> None:
+        """Require every concrete observation class to set ``model_source``.
+
+        Raises:
+            TypeError: If a concrete subclass does not set ``model_source`` in its own
+                class body.  Inheriting it does not count, so each instrument's
+                choice is written where the instrument is defined.
+        """
+        super().__init_subclass__(**kwargs)
+        if cls.__dict__.get('_abstract', False):
+            return
+        if 'model_source' not in cls.__dict__:
+            raise TypeError(
+                f"{cls.__qualname__} must set model_source ('spice' or 'scene_view') "
+                'in its class body'
+            )
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)

@@ -977,8 +977,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_ring``
      - RingEdgeNav
      - (1.43, -0.61) px
-     - (1.42, -0.62) px
-     - 0.01 px
+     - (1.41, -0.63) px
+     - 0.03 px
    * - ``planted_rotation_star_field``
      - StarFieldFromCatalogNav (roll)
      - (1.43, -0.61) px, 1.37 deg
@@ -1249,6 +1249,11 @@ swept across the dense sub-pixel set and the wide range described under
      - 0.264
      - 0.291
 
+This table and the two sweep figures in this section were measured before the
+simulator drew each limb pixel by how much of it the body covers, and they have not
+been regenerated since. A dense sweep run after that change puts the haze symmetry fit
+between 0.06 and 0.10 px, the range the text below quotes.
+
 The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
 
@@ -1260,7 +1265,7 @@ pixel; the distance-transform techniques carry a larger sub-pixel residual:
   across the dense sweep, both distance-transform effects that vary with the
   sub-pixel phase; they stay inside the scenes' truth tolerances. See
   :doc:`/dev_guide/dev_guide_techniques_body_limb` for the mechanism.
-- **The haze symmetry fit holds a ~0.26 px residual** across the dense sweep, and
+- **The haze symmetry fit holds a 0.06 to 0.10 px residual** across the dense sweep, and
   it is a floor rather than a fraction-dependent wobble: the swept axis on the
   ``titan_haze`` scene is pure cross-track, and the scene deliberately renders a
   soft optical limb a few pixels above the solid radius, so the free-radius arc
@@ -1285,7 +1290,7 @@ The wide-range sweep confirms each technique recovers across the navigable range
    the body across the full window via its coarse acquisition.
 
 The disc, ring, limb, and star recover with the same accuracy out to their
-ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its ~0.26 px floor
+ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.06 to 0.10 px floor
 flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the
 method: the mirror-correlation scan searches the whole margin and the arc fit
 recentres once, so nothing degrades across the range. The **blob now holds across the navigable
@@ -1559,8 +1564,9 @@ what belongs to one realization (2026-11-17 measurement, one noise draw):
 
   .. The veto gap is tracked as issue #790.
 
-``test_sim_sweeps`` asserts these population properties over the 13 seeds and
-keeps the single-seed walk as a tripwire on its realization.
+``test_sim_irregularity_population`` asserts these population properties over the 13
+seeds, and ``test_sim_sweeps`` keeps the single-seed walk as a tripwire on its
+realization.
 
 The seed-20260718 calibration campaign renders every irregular body at
 ``mesh_lumpiness`` = 3 x its published ellipsoid residual over its mean radius
@@ -1879,7 +1885,7 @@ Summary
   ~0.09 px distance-transform residual and the ring a ~0.03 px residual.
 * The star field improves with SNR: a dim field recovers to ~0.02 px and a bright
   field to ~0.005 px, the tightest of any technique.
-* The haze symmetry fit recovers a hazy body to ~0.26 px across both the dense
+* The haze symmetry fit recovers a hazy body to within 0.10 px across both the dense
   sub-pixel sweep and the full navigable range, against a rendered haze limb that
   is deliberately not the circle it fits. Its randomized planted-truth campaign
   (700 scenes over offset, phase, size, noise, clouds, star fields,

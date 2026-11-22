@@ -42,6 +42,10 @@ class HermeticObs(ObsSnapshotInst):
     recorded on ``inventory_calls``.
     """
 
+    # Every concrete observation class must set this.  The backplane code under
+    # test builds no navigation models, so nothing reads it here.
+    model_source = 'spice'
+
     sim_inventory: dict[str, Any]
     sim_body_mask_map: dict[str, Any]
     sim_body_order_near_to_far: list[str]

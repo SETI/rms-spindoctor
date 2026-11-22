@@ -16,6 +16,7 @@ import pytest
 from scipy import ndimage
 from tests.spindoctor.sim.scenes import frame_scene
 
+from spindoctor.sim.render.bodies import render as body_render
 from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.driver import render_scene
@@ -119,7 +120,6 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
     render_single_mesh_body(
         img,
         body_spec_from_params(body, index=0),
-        'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a_px=_RADIUS,
@@ -128,8 +128,6 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
         illumination_angle=0.0,
         phase_angle=math.radians(5.0),
         anti_aliasing=0.0,
-        ref_center_v=_CENTER,
-        ref_center_u=_CENTER,
         body_streams_seed=99,
         body_index=0,
     )
@@ -219,7 +217,6 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
     _, info = render_single_mesh_body(
         img,
         body_spec_from_params(body, index=0),
-        'LUMP',
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a_px=_RADIUS,
@@ -228,8 +225,6 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
         illumination_angle=0.0,
         phase_angle=math.radians(5.0),
         anti_aliasing=0.0,
-        ref_center_v=_CENTER,
-        ref_center_u=_CENTER,
         body_streams_seed=99,
         body_index=0,
     )
@@ -262,23 +257,19 @@ def test_navigator_view_is_unmoved_by_pose_scatter_and_shading() -> None:
 def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The mesh path consumes anti_aliasing only at oversample 1, like topo.
+    """The mesh path consumes anti_aliasing only at oversample 1, like the ellipsoid path.
 
     An oversampled scene already resolves the limb on its own grid, so the
     dispatch hands the mesh rasterizer anti_aliasing 0 there; supersampling
     on top of the oversampled grid would only multiply the render cost.
     """
-    from spindoctor.sim.render.bodies import mesh as body_mesh
-    from spindoctor.sim.render.bodies.render import render_single_body
-
     captured: list[float] = []
-    real = body_mesh.render_single_mesh_body
 
     def _capture(*args: Any, **kwargs: Any) -> Any:
         captured.append(float(kwargs['anti_aliasing']))
-        return real(*args, **kwargs)
+        return render_single_mesh_body(*args, **kwargs)
 
-    monkeypatch.setattr(body_mesh, 'render_single_mesh_body', _capture)
+    monkeypatch.setattr(body_render, 'render_single_mesh_body', _capture)
     body_params: dict[str, Any] = {
         'name': 'LUMPY',
         'shape_model': 'polyhedral_mesh',
@@ -290,25 +281,21 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
         'anti_aliasing': 1.0,
     }
     img = np.zeros((64, 64), dtype=np.float64)
-    render_single_body(
+    body_render.render_single_body(
         img,
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=32.0,
-        ref_center_u=32.0,
     )
     img_os = np.zeros((128, 128), dtype=np.float64)
     scaled = dict(body_params)
     for axis_key in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
         scaled[axis_key] = float(cast(float, scaled[axis_key])) * 2
-    render_single_body(
+    body_render.render_single_body(
         img_os,
         body_spec_from_params(scaled, index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=64.0,
-        ref_center_u=64.0,
         oversample=2,
     )
     assert captured[0] == 1.0

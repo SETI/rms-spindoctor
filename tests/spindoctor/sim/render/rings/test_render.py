@@ -2,16 +2,16 @@
 
 Pins the single-scattering photometry (lit and unlit closed forms, the
 mu0 -> mu limit, the Henyey-Greenstein defaults), the flat-ring regression
-identity (at |B| = 90 the projection reduces to sky-plane circles and the
-tau map is the anti-aliased annulus coverage exactly), the per-pixel depth
-compositing (near arm in front of a body at the ring center's range, far
-arm behind), the transmission-screen behavior (a gap reveals the
-background; a star behind a tau = 2 ring at B = 30 attenuates by exp(-4)),
-and opaque-body star extinction.
+identity (at |B| = 90 the projection reduces to sky-plane circles, and the
+emission and transmission mix by the annulus coverage exactly), the
+per-pixel depth compositing (near arm in front of a body at the ring
+center's range, far arm behind), the transmission-screen behavior (a gap
+reveals the background; a star behind a tau = 2 ring at B = 30 attenuates
+by exp(-4)), and opaque-body star extinction.
 """
 
 import math
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -19,22 +19,17 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_bloc
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
-from spindoctor.sim.render.rings.render import (
+from spindoctor.sim.render.rings import render as render_module
+from spindoctor.sim.render.rings.photometry import (
     RING_ALBEDO_DEFAULT,
     RING_PHASE_G_DEFAULT,
-    _feature_tau_profile,
-    henyey_greenstein_phase,
-    render_ring_system,
     ring_reflection_factor,
 )
+from spindoctor.sim.render.rings.render import render_ring_system
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
-from spindoctor.sim.shared.ring import (
-    ring_orbit_from_mapping,
-    ring_plane_from_sky,
-    ring_radial_scale,
-)
+from spindoctor.sim.shared.lighting import henyey_greenstein_phase
 from spindoctor.support.types import NDArrayFloatType
 
 
@@ -45,17 +40,6 @@ def _tau_array(*values: float) -> NDArrayFloatType:
 # ---------------------------------------------------------------------------
 # Photometry closed forms
 # ---------------------------------------------------------------------------
-
-
-def test_henyey_greenstein_backscatter_peak() -> None:
-    """P(g, alpha) at opposition matches (1 - g^2)/(1 + g)^3 for g < 0."""
-    g = -0.3
-    assert henyey_greenstein_phase(g, 0.0) == pytest.approx((1 - g * g) / (1 + g) ** 3)
-
-
-def test_henyey_greenstein_forward_scatter() -> None:
-    """A dusty positive g brightens strongly toward alpha = 180."""
-    assert henyey_greenstein_phase(0.6, 180.0) > 10.0 * henyey_greenstein_phase(0.6, 0.0)
 
 
 def test_lit_closed_form() -> None:
@@ -127,13 +111,15 @@ def _ringlet(a: float, width: float, tau: float, **extra: Any) -> dict[str, Any]
     return feature
 
 
-def test_feature_annulus_bounding_matches_full_grid_evaluation() -> None:
+def test_feature_annulus_bounding_matches_full_grid_evaluation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Per-feature radial bounding is exact: bit-identical to full-grid math.
 
     An inclined, node-rotated, off-center perturbed ringlet whose bounding
-    box covers only part of the frame renders the same transmission map,
-    bit for bit, as evaluating the profile form over the whole grid --
-    outside the bounded annulus the contribution is exactly zero.
+    box covers only part of the frame renders the same maps, bit for bit, as
+    evaluating every feature over the whole grid -- outside the bounded
+    annulus the contribution is exactly zero.
     """
     shape = (96, 96)
     b_obs = 35.0
@@ -158,27 +144,17 @@ def test_feature_annulus_bounding_matches_full_grid_evaluation() -> None:
     system['geometry']['center_u'] = center_u
     maps = render_ring_system(shape, system, center_v=center_v, center_u=center_u, node_deg=node)
 
-    v_grid, u_grid = np.meshgrid(
-        np.arange(shape[0], dtype=np.float64) + 0.5,
-        np.arange(shape[1], dtype=np.float64) + 0.5,
-        indexing='ij',
+    monkeypatch.setattr(render_module, '_feature_radial_bounds', lambda *_a, **_k: (0.0, math.inf))
+    monkeypatch.setattr(
+        render_module,
+        '_annulus_bbox_slices',
+        lambda grid_shape, **_k: (slice(0, grid_shape[0]), slice(0, grid_shape[1])),
     )
-    r, lam, x, y = ring_plane_from_sky(
-        v_grid - center_v, u_grid - center_u, opening_deg_obs=b_obs, node_deg=node
+    unbounded = render_ring_system(
+        shape, system, center_v=center_v, center_u=center_u, node_deg=node
     )
-    tau = _feature_tau_profile(
-        feature,
-        ring_orbit_from_mapping(feature['orbit']),
-        r=r,
-        lam=lam,
-        radial_scale=ring_radial_scale(r, x, y, opening_deg_obs=b_obs),
-        os=1,
-        epoch=0.0,
-        time=0.0,
-    )
-    mu = abs(math.sin(math.radians(b_obs)))
-    expected = np.exp(-np.clip(tau, 0.0, None) / mu)
-    np.testing.assert_array_equal(maps.transmission, expected)
+    np.testing.assert_array_equal(maps.transmission, unbounded.transmission)
+    np.testing.assert_array_equal(maps.intensity, unbounded.intensity)
 
 
 def test_feature_entirely_off_grid_contributes_nothing() -> None:
@@ -189,15 +165,24 @@ def test_feature_entirely_off_grid_contributes_nothing() -> None:
     assert not maps.mask.any()
 
 
-def test_face_on_system_reduces_to_sky_plane_circles() -> None:
-    """|B| = 90 regression identity: tau map == tau * annulus coverage.
+def _face_on_annulus_coverage(a_inner: float, a_outer: float) -> NDArrayFloatType:
+    """The one-pixel band coverage of a face-on annulus centered at (48, 48)."""
+    coords = np.arange(96, dtype=np.float64) + 0.5
+    v_grid, u_grid = np.meshgrid(coords, coords, indexing='ij')
+    distances = np.hypot(v_grid - 48.0, u_grid - 48.0)
+    inner_shade = np.clip(0.5 + (distances - a_inner), 0.0, 1.0)
+    outer_shade = np.clip(0.5 + (a_outer - distances), 0.0, 1.0)
+    return cast(NDArrayFloatType, np.minimum(inner_shade, outer_shade))
 
-    A circular ringlet rendered face-on must reproduce the sky-plane
-    annulus exactly: the ring-plane radius equals the pixel-center distance
-    from the projected center, and the tau map is the feature tau times the
-    one-pixel anti-aliased band coverage
-    ``min(clip(0.5 + (d - a_in), 0, 1), clip(0.5 + (a_out - d), 0, 1))``,
-    pixel for pixel.
+
+def test_face_on_transmission_mixes_by_annulus_coverage() -> None:
+    """|B| = 90 regression identity: the transmission mixes by coverage.
+
+    A circular ringlet rendered face-on reproduces the sky-plane annulus: the
+    ring-plane radius equals the pixel-center distance from the projected center.
+    A pixel with coverage ``c`` of the one-pixel band coverage
+    ``min(clip(0.5 + (d - a_in), 0, 1), clip(0.5 + (a_out - d), 0, 1))`` passes
+    ``c * exp(-tau) + (1 - c)`` of the light behind it, pixel for pixel.
     """
     tau, a_inner, a_outer = 1.7, 20.0, 28.0
     maps = render_ring_system(
@@ -207,14 +192,29 @@ def test_face_on_system_reduces_to_sky_plane_circles() -> None:
         center_u=48.0,
         node_deg=0.0,
     )
-    coords = np.arange(96, dtype=np.float64) + 0.5
-    v_grid, u_grid = np.meshgrid(coords, coords, indexing='ij')
-    distances = np.hypot(v_grid - 48.0, u_grid - 48.0)
-    inner_shade = np.clip(0.5 + (distances - a_inner), 0.0, 1.0)
-    outer_shade = np.clip(0.5 + (a_outer - distances), 0.0, 1.0)
-    coverage = np.minimum(inner_shade, outer_shade)
-    tau_map = -np.log(maps.transmission)  # mu = 1 face-on, so tau = -ln(T)
-    np.testing.assert_allclose(tau_map, tau * coverage, atol=1e-12)
+    coverage = _face_on_annulus_coverage(a_inner, a_outer)
+    expected = coverage * math.exp(-tau) + (1.0 - coverage)
+    np.testing.assert_allclose(maps.transmission, expected, atol=1e-12)
+
+
+def test_face_on_emission_mixes_by_annulus_coverage() -> None:
+    """A face-on pixel with band coverage ``c`` emits ``c`` of the full-tau emission."""
+    tau, a_inner, a_outer = 1.7, 20.0, 28.0
+    maps = render_ring_system(
+        (96, 96),
+        _system([_ringlet(a_inner, a_outer - a_inner, tau)], b_obs=90.0, b_sun=90.0),
+        center_v=48.0,
+        center_u=48.0,
+        node_deg=0.0,
+    )
+    full = (
+        RING_ALBEDO_DEFAULT
+        / 4.0
+        * henyey_greenstein_phase(RING_PHASE_G_DEFAULT, 0.0)
+        * float(ring_reflection_factor(_tau_array(tau), 1.0, 1.0, lit=True)[0])
+    )
+    coverage = _face_on_annulus_coverage(a_inner, a_outer)
+    np.testing.assert_allclose(maps.intensity, coverage * full, atol=1e-12)
 
 
 def test_default_photometry_matches_the_closed_form() -> None:
@@ -289,7 +289,7 @@ def _body_at_center(range_km: float) -> dict[str, Any]:
 def _signal_after_radiance(scene: dict[str, Any]) -> NDArrayFloatType:
     """Run only the radiance stage and return its signal plane."""
     frame = new_sim_frame(int(scene['size_v']), int(scene['size_u']))
-    compose_scene_radiance(frame, params=scene, rng=np.random.default_rng(0))
+    compose_scene_radiance(frame, params=scene)
     return frame.signal
 
 
@@ -323,7 +323,7 @@ def test_near_arm_composites_in_front_far_arm_behind() -> None:
 def _point_e_after_radiance(scene: dict[str, Any]) -> NDArrayFloatType:
     """Run only the radiance stage and return its point-source plane."""
     frame = new_sim_frame(int(scene['size_v']), int(scene['size_u']))
-    compose_scene_radiance(frame, params=scene, rng=np.random.default_rng(0))
+    compose_scene_radiance(frame, params=scene)
     return frame.point_e
 
 

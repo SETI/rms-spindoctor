@@ -618,6 +618,22 @@ def test_stray_center_writes_only_while_enabled(model: Any) -> None:
     assert model.sim_params['optics']['stray_light']['center_v'] == 40.0
 
 
+def test_noise_seed_handler_omits_at_minus_one(model: Any) -> None:
+    """A noise seed of -1 (Random seed) removes the key; a value sets it."""
+    model._on_noise_seed(9)
+    assert model.sim_params['noise_seed'] == 9
+    model._on_noise_seed(-1)
+    assert 'noise_seed' not in model.sim_params
+
+
+def test_scene_without_noise_seed_shows_random_seed(model: Any) -> None:
+    """A scene that leaves noise_seed out loads with the spin box at -1, shown as Random seed."""
+    model._on_noise_seed(9)
+    model._apply_params_dict({'size_v': 64, 'size_u': 64})
+    assert model._noise_seed_spin.value() == -1
+    assert model._noise_seed_spin.text() == 'Random seed'
+
+
 def test_body_seed_auto_omits(model: Any) -> None:
     """A crater seed of -1 (Auto) removes the key; a value sets it."""
     model.sim_params['bodies'] = [{'name': 'B'}]
@@ -640,6 +656,7 @@ def test_full_parameter_round_trip(
             'offset_u': -0.6,
             'offset_rotation_deg': 1.5,
             'exposure_sec': 2.5,
+            'noise_seed': 9,
             'midtime_utc': '2010-01-01T00:00:00Z',
             'fit_camera_rotation': True,
             'noise': {'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 18.0, 'bloom_length': 3},
@@ -702,6 +719,8 @@ def test_full_parameter_round_trip(
     p = model.sim_params
     assert p['offset_rotation_deg'] == 1.5
     assert p['exposure_sec'] == 2.5
+    assert p['noise_seed'] == 9
+    assert model._noise_seed_spin.value() == 9
     assert p['midtime_utc'] == '2010-01-01T00:00:00Z'
     assert p['fit_camera_rotation'] is True
     assert p['noise']['bias_dn'] == 18.0

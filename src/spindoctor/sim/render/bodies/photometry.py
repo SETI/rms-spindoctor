@@ -46,7 +46,7 @@ from typing import cast
 
 import numpy as np
 
-from spindoctor.sim.shared.ellipsoid import illumination_vector
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [

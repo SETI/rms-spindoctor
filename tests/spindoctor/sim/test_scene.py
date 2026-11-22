@@ -404,6 +404,16 @@ def test_validate_sim_params_rejects_axis1_as_an_unknown_body_key() -> None:
         validate_sim_params(params)
 
 
+def test_validate_sim_params_refuses_a_sub_observer_latitude_past_the_pole() -> None:
+    """A sub-observer latitude beyond 90 degrees fails and gives the allowed range."""
+    params = _sim_params()
+    params['bodies'][0]['sub_observer_lat_deg'] = 91.0
+    with pytest.raises(
+        SimSceneValidationError, match=re.escape('sub_observer_lat_deg must lie in [-90, 90]')
+    ):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_accepts_body_range_km() -> None:
     """The per-body 'range_km' key validates."""
     params = _sim_params()
@@ -647,6 +657,32 @@ def test_validate_sim_params_refuses_a_null_top_level_number(key: str) -> None:
     params[key] = None
     with pytest.raises(SimSceneValidationError, match=rf"\['{key}'\] must be numbers when present"):
         validate_sim_params(params)
+
+
+@pytest.mark.parametrize('value', [None, 1.5])
+def test_validate_sim_params_refuses_a_noise_seed_that_is_not_an_integer(value: Any) -> None:
+    """A noise_seed must be an integer, as random_seed must; a null is refused too."""
+    params = _sim_params()
+    params['noise_seed'] = value
+    with pytest.raises(SimSceneValidationError, match='noise_seed must be an integer'):
+        validate_sim_params(params)
+
+
+@pytest.mark.parametrize('value', [-1, 2**31])
+def test_validate_sim_params_refuses_a_noise_seed_outside_the_editor_range(value: int) -> None:
+    """A noise_seed is refused below 0, where the editor's -1 means the key is absent,
+    and above the largest value the editor's control can show."""
+    params = _sim_params()
+    params['noise_seed'] = value
+    with pytest.raises(SimSceneValidationError, match='noise_seed must be an integer from 0 to'):
+        validate_sim_params(params)
+
+
+def test_validate_sim_params_accepts_the_largest_noise_seed() -> None:
+    """The editor's largest noise_seed validates."""
+    params = _sim_params()
+    params['noise_seed'] = 2**31 - 1
+    validate_sim_params(params)
 
 
 @pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])

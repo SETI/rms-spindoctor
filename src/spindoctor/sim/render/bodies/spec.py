@@ -15,6 +15,9 @@ specs once it knows the oversampling factor and the body's identity seed, throug
 a null key as absent too.  The renderer does not read ``km_per_pixel``, which
 describes the body to the navigator, or ``nav_override``, which holds the values
 the navigator is given in place of the truth, so the spec leaves both out.
+
+:func:`body_identity_seed` chooses the seed that every random stream of a body,
+such as its craters, its relief, or its albedo noise, derives from.
 """
 
 from collections.abc import Mapping
@@ -28,12 +31,14 @@ from spindoctor.sim.render.bodies.texture import (
     transit_specs_from_params,
 )
 from spindoctor.sim.scene.fields import default_body_name, scene_value
+from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
 from spindoctor.sim.shared.mesh import MeshBodySpec, mesh_spec_from_params
 
 __all__ = [
     'CRATER_MAX_RADIUS_DEFAULT',
     'CRATER_MIN_RADIUS_DEFAULT',
     'BodySpec',
+    'body_identity_seed',
     'body_spec_from_params',
 ]
 
@@ -52,6 +57,8 @@ _LIMB_RELIEF_CORR_DEG_DEFAULT = 15.0
 _PHOTOMETRIC_LAW_DEFAULT = 'lambert'
 _MINNAERT_K_DEFAULT = 0.5
 _SURGE_WIDTH_DEG_DEFAULT = 6.0
+# A body's own seed and its fallback digest each keep their low 31 bits.
+_SEED_31_BITS = 0x7FFFFFFF
 
 
 @dataclass(frozen=True)
@@ -65,7 +72,9 @@ class BodySpec:
     When the scene radiance stage renders a body, it fills the spec with
     render-grid values.  It shifts the center by the ephemeris parallax and
     applies the planted roll, which rotates the center about the frame center and
-    adds to ``rotation_z``.  It then scales the center and semi-axes by the
+    turns the body about its own center by the same angle
+    (:func:`~spindoctor.sim.render.roll.roll_body_params`), and records
+    the roll in ``roll_deg``.  It then scales the center and semi-axes by the
     oversampling factor.  :func:`~spindoctor.sim.render.bodies.render.render_single_body`
     adds the planted translation when it draws the body.
 
@@ -82,8 +91,9 @@ class BodySpec:
         semi_c_px: Semi-axis c, half the depth along axis 3, which defaults to
             the smaller of ``semi_a_px`` and ``semi_b_px``.
         rotation_z: The in-plane rotation, in degrees.
-        rotation_tilt: The tilt of the polar axis toward the observer, in
-            degrees.
+        sub_observer_lat_deg: The latitude of the point on the body directly below
+            the observer, in degrees: positive when the north pole, the end of
+            semi-axis a on +v before ``rotation_z``, tips toward the observer.
         illumination_angle: The image-plane azimuth of the light, in degrees.
         phase_angle: The phase angle, in degrees.
         range_km: The observer distance, or None when the scene leaves it out.
@@ -114,6 +124,11 @@ class BodySpec:
         transits: The transiting moons and shadows, or None when the scene leaves
             out the ``transits`` list.  An empty list is an empty tuple.
         atmosphere: The validated ``atmosphere`` mapping, or None.
+        roll_deg: The planted roll the body was turned by, in degrees, which the
+            scene radiance stage sets; 0 for the body as the scene states it.  The
+            other fields already carry the roll, except the crater layout, which
+            is drawn on the image grid: the ellipsoid renderer lays the craters
+            out for the unrolled body and turns them by this angle.
     """
 
     name: str
@@ -124,7 +139,7 @@ class BodySpec:
     semi_b_px: float
     semi_c_px: float
     rotation_z: float
-    rotation_tilt: float
+    sub_observer_lat_deg: float
     illumination_angle: float
     phase_angle: float
     range_km: float | None
@@ -148,6 +163,7 @@ class BodySpec:
     disc_texture: DiscTextureSpec | None
     transits: tuple[TransitSpec, ...] | None
     atmosphere: Mapping[str, Any] | None
+    roll_deg: float = 0.0
 
     @property
     def has_texture(self) -> bool:
@@ -192,7 +208,7 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         semi_b_px=semi_b_px,
         semi_c_px=float(scene_value(body_params, 'semi_c_px', min(semi_a_px, semi_b_px))),
         rotation_z=float(scene_value(body_params, 'rotation_z', 0.0)),
-        rotation_tilt=float(scene_value(body_params, 'rotation_tilt', 0.0)),
+        sub_observer_lat_deg=float(scene_value(body_params, 'sub_observer_lat_deg', 0.0)),
         illumination_angle=float(scene_value(body_params, 'illumination_angle', 0.0)),
         phase_angle=float(scene_value(body_params, 'phase_angle', 0.0)),
         range_km=_optional_float(body_params, 'range_km'),
@@ -229,3 +245,41 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         transits=None if transits is None else transit_specs_from_params(body_params),
         atmosphere=body_params.get('atmosphere'),
     )
+
+
+def body_identity_seed(
+    scene_seed: int | None,
+    body: BodySpec,
+    body_index: int,
+    *,
+    fallback_key: tuple[object, ...],
+) -> int:
+    """The seed every random stream of one body derives from.
+
+    The first of these that is available sets the seed:
+
+    1. The scene's seed for the bodies' streams, mixed with the body's index and its
+       upper-cased name, so two bodies of the same geometry draw independent
+       surfaces: ``derive_effect_seed(scene_seed, 'body:<index>:<NAME>')``.
+    2. The body's own ``seed``, keeping its low 31 bits.
+    3. A digest of ``fallback_key``, ``stable_param_seed(*fallback_key)``, keeping
+       its low 31 bits.
+
+    A scene render always supplies the first, so only a renderer called directly
+    reaches the other two.
+
+    Parameters:
+        scene_seed: The scene's seed for the bodies' streams, or None.
+        body: The body (its name and its own seed are read).
+        body_index: The body's position in the scene's body list.
+        fallback_key: The values the fallback digest hashes, in order.
+
+    Returns:
+        The body's identity seed: below 2**32 from the scene's seed, and below
+        2**31 otherwise.
+    """
+    if scene_seed is not None:
+        return derive_effect_seed(scene_seed, f'body:{body_index}:{body.name.upper()}')
+    if body.seed is not None:
+        return body.seed & _SEED_31_BITS
+    return stable_param_seed(*fallback_key) & _SEED_31_BITS

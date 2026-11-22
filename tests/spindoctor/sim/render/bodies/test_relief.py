@@ -19,7 +19,9 @@ import numpy as np
 import pytest
 from scipy import special
 
+from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayComplexType
 
 _RMS = 0.01
@@ -410,3 +412,73 @@ def test_a_finer_step_changes_few_shadow_decisions() -> None:
     fine = cast_shadows(points, sun, field, step=cell / 16.0)
     assert int(fine.sum()) > 200
     assert int((coarse != fine).sum()) < 0.03 * int(fine.sum())
+
+
+def _brute_force_turned_envelope(
+    field: ReliefField, phi: float, *, tilt: float, lats: int = 4001
+) -> float:
+    """The outline envelope at one azimuth for a view tipped by ``tilt`` toward x.
+
+    The field's own limb circle and pole, sampled densely in latitude, are turned
+    about y so the pole points along the view, and the envelope is the largest
+    projected radius along the azimuth.
+
+    Parameters:
+        field: The relief realization.
+        phi: The azimuth around the turned limb, radians.
+        tilt: The angle the view leans from z toward x, radians.
+        lats: The number of latitude samples.
+
+    Returns:
+        The envelope less 1.
+    """
+    lat = np.linspace(-np.pi / 2, np.pi / 2, lats)
+    untilted = np.stack(
+        [np.cos(lat) * math.cos(phi), np.cos(lat) * math.sin(phi), np.sin(lat)], axis=-1
+    )
+    turn = np.array(
+        [
+            [math.cos(tilt), 0.0, math.sin(tilt)],
+            [0.0, 1.0, 0.0],
+            [-math.sin(tilt), 0.0, math.cos(tilt)],
+        ]
+    )
+    points = untilted @ turn.T
+    return float(np.max((1.0 + field.sample_points(points)) * np.cos(lat))) - 1.0
+
+
+@pytest.mark.parametrize('phi', [0.3, 1.9, 4.4])
+def test_the_outline_envelope_follows_a_turned_view(phi: float) -> None:
+    """Seen 50 degrees from the pole, the envelope is the turned limb circle's.
+
+    Parameters:
+        phi: The azimuth around the turned limb, radians.
+    """
+    field = synthesize_relief_field(0.05, 15.0, 3)
+    tilt = math.radians(50.0)
+    expected = _brute_force_turned_envelope(field, phi, tilt=tilt)
+    got = float(field.outline_delta(np.array([phi]), view=(math.sin(tilt), math.cos(tilt)))[0])
+    assert got == pytest.approx(expected, abs=5e-4)
+
+
+def test_a_turned_relief_spheres_outline_follows_the_turned_limb() -> None:
+    """A relief sphere seen 50 degrees from its pole draws the turned limb's outline.
+
+    Each pixel in the limb band is inside exactly when its normalized distance lies
+    below 1 plus the brute-force envelope at its azimuth; pixels within 1e-3 of that
+    edge are left out, where the stored envelope's sampling decides.
+    """
+    tilt = math.radians(50.0)
+    field = synthesize_relief_field(0.05, 15.0, 3)
+    grid = project_ellipsoid(
+        (72, 72), (36.0, 36.0), 30.0, semi_b_px=30.0, semi_c_px=30.0, sub_observer_lat=tilt
+    )
+    mask = silhouette_mask(grid, field) > 0.0
+    e = np.sqrt(grid.ellipse_dist_sq)
+    band = (e > 0.85) & (e < 1.15)
+    phi = np.arctan2(grid.u_rot, grid.v_rot)
+    envelope = np.array(
+        [_brute_force_turned_envelope(field, p, tilt=tilt, lats=1001) for p in phi[band]]
+    )
+    decided = np.abs(e[band] - (1.0 + envelope)) > 1e-3
+    np.testing.assert_array_equal(mask[band][decided], (e[band] < 1.0 + envelope)[decided])

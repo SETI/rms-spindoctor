@@ -4,7 +4,7 @@ Splits the per-body tab's truth-side appearance controls out of the geometry
 tab so neither module runs long.  Every group here follows the editor-wide
 absent-key discipline: an enable checkbox (or a combo's default choice) writes
 its block only when active, an inactive control leaves its key absent, and each
-widget writes only its own key.  The groups cover the topographic renderer's
+widget writes only its own key.  The groups cover the ellipsoid renderer's
 truth keys -- the limb-relief field, the photometric law and opposition surge,
 the multiplicative albedo texture and giant-planet disc texture, transiting
 moons and their shadows -- and the mesh-only shading / detail / pose-scatter

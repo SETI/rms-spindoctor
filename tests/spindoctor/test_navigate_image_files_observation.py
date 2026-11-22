@@ -44,6 +44,8 @@ which of the two the document kept, and the note is null.
 class _BlankSnapshot:
     """An observation whose image holds no data, publishing the made-up host's facts."""
 
+    model_source = 'spice'
+
     def __init__(self) -> None:
         """Build the snapshot around an all-zero image, which carries no data."""
         self.data = np.zeros((32, 48), np.float64)

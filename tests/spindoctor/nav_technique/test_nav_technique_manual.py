@@ -45,6 +45,8 @@ class _FakeObsForRunManual:
 class _StubStarModel(NavModel):
     """NavModel that emits a single STAR feature with a tiny template."""
 
+    _abstract = True
+
     def __init__(self, obs: Any, *, with_template: bool) -> None:
         super().__init__('stars', obs)
         self._with_template = with_template
@@ -194,6 +196,8 @@ def test_run_manual_nav_runs_on_template_less_star_feature() -> None:
 class _StubEmptyModel(NavModel):
     """NavModel that emits zero features.  Drives the no-feasible path."""
 
+    _abstract = True
+
     def __init__(self, obs: Any) -> None:
         super().__init__('stars', obs)
 
@@ -235,6 +239,8 @@ def test_run_manual_nav_returns_none_when_no_features(
 
 class _StubLimbModel(NavModel):
     """NavModel that emits a single LIMB_ARC feature (polyline only, no template)."""
+
+    _abstract = True
 
     def __init__(self, obs: Any) -> None:
         super().__init__('body', obs)

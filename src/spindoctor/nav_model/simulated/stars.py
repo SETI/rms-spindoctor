@@ -50,15 +50,16 @@ class NavModelStarsSimulated(NavModelStars):
         config: Optional ``Config`` override.
     """
 
+    inputs = 'scene_view'
+
     @classmethod
     def instances_for_obs(
         cls, obs: ObsSnapshotInst, *, config: Config | None = None
     ) -> list[NavModel]:
         """Return one star model for a simulated obs whose scene has stars.
 
-        Returns an empty list for a real obs (the catalog-driven
-        :class:`NavModelStars` handles those) and for a simulated obs whose
-        scene lists no stars (so the orchestrator builds no empty star model).
+        A scene that has no stars gets no star model, so the orchestrator never
+        carries an empty one.
 
         Parameters:
             obs: Observation snapshot.
@@ -66,11 +67,9 @@ class NavModelStarsSimulated(NavModelStars):
                 uses ``DEFAULT_CONFIG``.
 
         Returns:
-            ``[NavModelStarsSimulated('stars', obs)]`` for a simulated obs
-            with at least one scene star, else ``[]``.
+            ``[NavModelStarsSimulated('stars', obs)]`` when the scene has at
+            least one star, else ``[]``.
         """
-        if not getattr(obs, 'is_simulated', False):
-            return []
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict) or not nav_params.get('stars'):
             return []

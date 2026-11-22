@@ -10,7 +10,14 @@ one axis at a time.
 The measurement.  Each scene was rendered and navigated on its committed
 ``random_seed`` and on 15 more (101, 202, ..., 1515), so that each check covers the
 spread over noise draws rather than one draw.  A scene that fails on some seeds is
-measured over the seeds where it succeeds.
+measured over the seeds where it succeeds.  Where a scene's ``random_seed`` also draws
+part of the scene, the seeds varied that part too: the spokes of ``spoked_sheet``, the
+confounder stars of ``lock_single_dense``, and the catalog scatter of ``wrong_catalog``.
+``textured_moon_offset`` and ``relief_psf_stray_light`` were measured on 16 draws of the
+detector noise alone instead: the committed draw and the scene key ``noise_seed`` at 101,
+202, ..., 1515.  Those draws keep the albedo texture and the limb relief the test
+renders, which a new ``random_seed`` would redraw.  Every check also holds on 9 draws of
+the detector noise alone, ``noise_seed`` at 101 to 808.
 
 The two rules.
 
@@ -148,7 +155,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # the whole pixel stopped at 1.5 (#791).
     ('planted_offset_disc', FUSED): _t(0.001, 0.011, 0.010, 0.05),
     ('planted_offset_disc_if', FUSED): _t(0.001, 0.011, 0.010, 0.05),
-    ('planted_offset_irregular', FUSED): _t(0.001, 0.001, 0.000, 0.05),
+    ('planted_offset_irregular', FUSED): _t(0.007, 0.011, 0.010, 0.05),
     ('planted_offset_limb', FUSED): _t(0.009, 0.017, 0.011, 0.05),
     ('planted_offset_limb_mesh', FUSED): _t(0.014, 0.029, 0.020, 0.05),
     # The prediction is the smooth limit of the rendered lumpy mesh.  This error is the
@@ -166,7 +173,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('planted_offset_blob_mesh_crescent', 'BodyBlobNav'): _t(0.486, 0.592, 0.114, 0.12),
     ('planted_offset_limb', 'BodyLimbNav'): _t(0.099, 0.099, 0.050, 0.05),
     ('planted_offset_limb_mesh', 'BodyLimbNav'): _t(0.175, 0.255, 0.127, 0.06),
-    ('planted_offset_ring', 'RingEdgeNav'): _t(0.011, 0.016, 0.005, 0.05),
+    ('planted_offset_ring', 'RingEdgeNav'): _t(0.029, 0.033, 0.005, 0.05),
     ('planted_unique_star_single', 'StarUniqueMatchNav'): _t(0.054, 0.058, 0.006, 0.05),
     ('planted_refine_star_field', 'StarRefineNav'): _t(0.016, 0.019, 0.003, 0.05),
     # artifact_sweep.  The scene seed also places the lost lines, so the 16 seeds would
@@ -183,36 +190,37 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
     # atmosphere.  In titan_haze_limb, a haze-blind navigator fits a hard limb under a
-    # soft haze limb.
-    ('titan_haze', FUSED): _t(0.128, 0.137, 0.018, 0.05),
-    # The high-pass disc refinement ignores the haze's smooth glow (#791).
-    ('titan_haze_limb', FUSED): _t(0.060, 0.064, 0.011, 0.05),
+    # soft haze limb, and the high-pass disc refinement ignores the haze's smooth glow
+    # (#791).  titan_crescent_horns and its noiseless twin carry a known error in their
+    # expected blocks instead (#1050).
+    ('titan_haze', FUSED): _t(0.072, 0.094, 0.037, 0.05),
+    ('titan_haze_limb', FUSED): _t(0.023, 0.038, 0.014, 0.05),
     # multi_body_geometry.
-    ('two_moons', FUSED): _t(0.005, 0.005, 0.000, 0.05),
-    # mutual_event.  mutual_deep carries a known error in its expected block (#1050).
-    # The simulator paints a dark one-pixel seam where the near body occludes the far
-    # one, which real frames lack, and the high-pass disc refinement is pulled by it
-    # more than the raw one was: repairing the seam brings mutual_grazing's disc answer
-    # to 0.02 px and mutual_half's to 0.10 px (#893, #791).
-    ('mutual_grazing', FUSED): _t(0.184, 0.193, 0.012, 0.05),
-    ('mutual_half', FUSED): _t(0.382, 0.385, 0.007, 0.08),
+    ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
+    # mutual_event.  All three scenes carry a known error in their expected blocks
+    # instead.  In mutual_deep the far body's crescent, which the disc template leaves
+    # out, pulls the disc correlation 0.23 to 0.24 px off (#1050).  In mutual_grazing and
+    # mutual_half the composite disc template keeps a dark outline at the near body's
+    # limb, which the image does not have, and it pulls the disc correlation 0.12 to
+    # 0.13 px and 0.41 to 0.42 px off (#1099).
     # regression, fused answer.  relief_psf_stray_light carries a known error in its
-    # expected block instead (#791).
-    ('banded_planet_transit', FUSED): _t(0.085, 0.092, 0.013, 0.05),
-    ('disc_subpixel_offset', FUSED): _t(0.000, 0.000, 0.000, 0.05),
-    ('low_phase_limb_misconverge', FUSED): _t(0.004, 0.004, 0.000, 0.05),
+    # expected block instead (#1050).
+    ('banded_planet_transit', FUSED): _t(0.091, 0.100, 0.014, 0.05),
+    ('disc_subpixel_offset', FUSED): _t(0.000, 0.008, 0.008, 0.05),
+    ('low_phase_limb_misconverge', FUSED): _t(0.015, 0.015, 0.000, 0.05),
     ('star_equal_brightness', FUSED): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
-    ('textured_moon_offset', FUSED): _t(0.266, 0.379, 0.318, 0.08),
+    # Measured on the 16 noise draws, which keep the albedo texture: 0.249 to 0.275 px.
+    ('textured_moon_offset', FUSED): _t(0.267, 0.275, 0.026, 0.06),
     # regression, one technique navigated alone.
-    ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.000, 0.000, 0.05),
+    ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.008, 0.008, 0.05),
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', 'StarFieldFromCatalogNav'): _t(0.041, 0.041, 0.003, 0.05),
     # ring_system.  orbit_error_ringlet carries a known error in its expected block.
-    ('edge_wave_gap', FUSED): _t(0.003, 0.008, 0.005, 0.05),
-    ('mmode_ringlet', FUSED): _t(0.003, 0.004, 0.003, 0.05),
-    ('moonlet_propeller', FUSED): _t(0.003, 0.007, 0.005, 0.05),
-    ('spoked_sheet', FUSED): _t(0.014, 0.015, 0.004, 0.05),
+    ('edge_wave_gap', FUSED): _t(0.008, 0.012, 0.004, 0.05),
+    ('mmode_ringlet', FUSED): _t(0.025, 0.026, 0.002, 0.05),
+    ('moonlet_propeller', FUSED): _t(0.012, 0.015, 0.004, 0.05),
+    ('spoked_sheet', FUSED): _t(0.026, 0.026, 0.004, 0.05),
     # star_confounder.  double_star's error is the unresolved companion's pull on the
     # photocenter.  lock_single_dense fails on 4 of the 16 seeds; its numbers come from
     # the 12 where it succeeds.
@@ -233,18 +241,19 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # BodyBlobNav answers far from the truth and does not flag these answers spurious
     # (#975).
     ('two_moons', 'BodyBlobNav'): _b(36.293, 36.309, 0.05, 36.243, 36.359),
-    ('mutual_deep', 'BodyBlobNav'): _b(6.970, 6.980, 0.05, 6.920, 7.031),
-    ('mutual_half', 'BodyBlobNav'): _b(8.474, 8.741, 0.0533, 8.421, 8.795),
-    ('mutual_grazing', 'BodyBlobNav'): _b(1.822, 1.834, 0.05, 1.772, 1.884),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(28.230, 30.533, 0.4604, 27.770, 30.994),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(30.407, 30.408, 0.05, 30.357, 30.458),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(1.241, 1.347, 0.05, 1.191, 1.397),
-    ('textured_moon_offset', 'BodyBlobNav'): _b(0.427, 2.440, 0.4023, 0.025, 2.842),
-    # The band's lower end would fall below zero, so it stops at zero.
-    ('relief_psf_stray_light', 'BodyBlobNav'): _b(0.193, 1.920, 0.3454, 0.000, 2.266),
+    ('mutual_deep', 'BodyBlobNav'): _b(6.700, 6.710, 0.05, 6.650, 6.761),
+    ('mutual_half', 'BodyBlobNav'): _b(8.597, 8.863, 0.0532, 8.543, 8.917),
+    ('mutual_grazing', 'BodyBlobNav'): _b(3.485, 3.496, 0.05, 3.435, 3.547),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(26.660, 31.149, 0.8977, 25.762, 32.047),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(29.846, 29.846, 0.05, 29.796, 29.897),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(1.292, 1.302, 0.05, 1.241, 1.353),
+    # These two are measured on the 16 noise draws, which keep the albedo texture and
+    # the limb relief.  The spreads are 0.008 px and 0.059 px.
+    ('textured_moon_offset', 'BodyBlobNav'): _b(0.624, 0.632, 0.05, 0.573, 0.682),
+    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.792, 1.851, 0.05, 1.741, 1.902),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
-    ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.757, 0.05, 51.703, 51.807),
+    ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
     ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.011, 5.071, 0.05, 4.961, 5.121),
@@ -252,16 +261,20 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
 }
 
 # The rank-1 flat-ring scene misses its planted shift along the one observable axis, the
-# edge normal, by about 0.52 px (#873).  The band holds that component's magnitude.
-RANK1_NORMAL_ERROR = _b(0.5158, 0.5206, 0.05, 0.465, 0.571)
+# edge normal, by about 0.46 px (#873).  The render puts both edges on their radii.  The
+# predicted edges' vertices sit at border-pixel centers (#1092), and along these straight
+# edges, which run parallel to the v axis, the in-frame vertices the fit uses, 220 on
+# each edge, sit 0.460 px toward lower u on average; the fit inherits that.  The band
+# holds that component's magnitude.
+RANK1_NORMAL_ERROR = _b(0.4581, 0.4624, 0.05, 0.408, 0.513)
 
 # Columns as in KNOWN_ERRORS, but in sigmas: the fused error in units of the reported
 # covariance.  These are the scenes that sit above SIGMA_MULTIPLE for a known reason.
 SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # The two-star fused sigma is about 0.01 px against a steady 0.04 px error (#788).
     'lock_pair': _b(3.186, 4.479, 0.2585, 2.927, 4.738),
-    # The observable component misses by 0.52 px against a 0.16 px sigma (#873).
-    'planted_rank1_ring_flat': _b(3.132, 3.288, 0.1, 3.032, 3.388),
+    # The observable component misses by 0.46 px against a 0.095 px sigma (#873).
+    'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
     'planted_rotation_star_field': _b(16.428, 16.517, 0.1, 16.328, 16.617),
 }

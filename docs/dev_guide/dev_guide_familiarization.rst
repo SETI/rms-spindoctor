@@ -352,6 +352,7 @@ sibling of each model family. These are used both by
 - :doc:`dev_guide_navigation_models_titan_simulated`
 - :mod:`spindoctor.nav_model.simulated.stars`
 - :mod:`spindoctor.nav_model.simulated.body`
+- :mod:`spindoctor.nav_model.simulated.body_arcs`
 - :mod:`spindoctor.nav_model.simulated.rings`
 - :mod:`spindoctor.nav_model.simulated.titan`
 - :mod:`spindoctor.sim` — the scene schema, the image-side renderer, and the
@@ -362,15 +363,17 @@ sibling of each model family. These are used both by
     (:mod:`~spindoctor.sim.render.driver`), :mod:`~spindoctor.sim.render.pipeline`,
     :mod:`~spindoctor.sim.render.stages`, and the per-stage subpackages
   - :mod:`spindoctor.sim.shared` (:mod:`~spindoctor.sim.shared.ellipsoid`,
-    :mod:`~spindoctor.sim.shared.mesh`, :mod:`~spindoctor.sim.shared.ring`,
-    :mod:`~spindoctor.sim.shared.stars`) — geometry/record helpers both sides share
+    :mod:`~spindoctor.sim.shared.lighting`, :mod:`~spindoctor.sim.shared.mesh`,
+    :mod:`~spindoctor.sim.shared.ring`, :mod:`~spindoctor.sim.shared.stars`) —
+    geometry/record helpers both sides share
   - :mod:`spindoctor.sim.instruments.navigator_link`
   - :mod:`spindoctor.sim.seeds`
   - :mod:`spindoctor.sim.png_export`
 
-- :mod:`spindoctor.nav_model.simulated.predict_body` and
-  :mod:`spindoctor.nav_model.simulated.predict_ring` — the navigator-side
-  predicted-template renderers the simulated NavModels drive.
+- :mod:`spindoctor.nav_model.simulated.predicted_ring` — the navigator-side
+  predicted-ring renderer the simulated ring model drives. The simulated body model
+  and the simulated haze-envelope model draw their predicted ellipsoid with the
+  shared :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.
 
 - ``src/spindoctor/dataset/dataset_sim.py`` and ``src/spindoctor/obs/obs_inst_sim.py``
   — the simulated-image dataset and observation wrappers (not autodoc'd).

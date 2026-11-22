@@ -18,8 +18,8 @@ geometry arguments; none reads the scene mapping, so no truth-side
 information can cross the boundary here (``mesh_spec_from_params`` parses a
 body parameter mapping, but only its idealized mesh keys).
 
-The output contract matches the ellipsoid renderers (``create_simulated_body`` on
-the image side, ``create_predicted_body_image`` on the navigator side): a
+The output contract matches the ellipsoid renderers (``create_ellipsoid_body`` on
+the image side, ``render_lambert_ellipsoid`` on the navigator side): a
 ``(size_v, size_u)`` float array in [0, 1], lit by the same Lambertian convention so
 a mesh body and an ellipsoid body can be compared directly.
 """
@@ -33,6 +33,7 @@ import numpy as np
 
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.sim.shared.spherical_harmonics import (
     degree_mean_square,
     draw_sh_coefficients,
@@ -46,6 +47,19 @@ from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType, NDArr
 # shading convention in spindoctor.sim.shared.ellipsoid so the two paths
 # cannot desync.
 _DARK_SIDE_ILLUM = DARK_SIDE_ILLUM_STRENGTH
+
+
+@dataclass(frozen=True)
+class PolyhedralBodyRender:
+    """One mesh body render: its shaded radiance and its silhouette.
+
+    Parameters:
+        intensity: The shaded radiance in [0, 1], 0 outside the body.
+        silhouette: The fraction of each pixel the body covers, in [0, 1].
+    """
+
+    intensity: NDArrayFloatType
+    silhouette: NDArrayFloatType
 
 
 @dataclass(frozen=True)
@@ -249,24 +263,6 @@ def make_irregular_mesh(
     return Mesh(vertices=vertices, faces=_orient_faces_outward(vertices, face_arr))
 
 
-def _light_direction(illumination_angle: float, phase_angle: float) -> NDArrayFloatType:
-    """Unit light direction in camera (u, v, depth) coordinates.
-
-    Matches the convention in
-    ``spindoctor.sim.shared.ellipsoid.lambert_from_normals``: v increases
-    downward, depth is positive toward the observer; phase 0 lights the visible
-    face, phase pi back-lights it.
-    """
-    illum_u = np.sin(illumination_angle) * np.sin(phase_angle)
-    illum_v = -np.cos(illumination_angle) * np.sin(phase_angle)
-    illum_z = np.cos(phase_angle)
-    light = np.array([illum_u, illum_v, illum_z], dtype=np.float64)
-    norm = float(np.linalg.norm(light))
-    if norm < 1e-10:
-        return np.array([0.0, 0.0, 1.0], dtype=np.float64)
-    return _as_float64(light / norm)
-
-
 # Most candidate pixels one rasterization batch tests.  This bounds only the
 # per-candidate arrays (about twenty of this length, near 10 MB); larger batches
 # measured no faster.  The rest of the working memory is not bounded by it: the
@@ -454,6 +450,39 @@ def render_polyhedral_body(
 ) -> NDArrayFloatType:
     """Render a mesh body to a [0, 1] shaded silhouette.
 
+    The intensity of :func:`render_polyhedral_body_with_silhouette`, which documents
+    the parameters, the shading modes, and the errors.
+
+    Returns:
+        A ``(size_v, size_u)`` float array in [0, 1].
+    """
+    return render_polyhedral_body_with_silhouette(
+        size=size,
+        center=center,
+        mesh=mesh,
+        semi_axes_px=semi_axes_px,
+        pose_euler_deg=pose_euler_deg,
+        illumination_angle=illumination_angle,
+        phase_angle=phase_angle,
+        anti_aliasing=anti_aliasing,
+        shading=shading,
+    ).intensity
+
+
+def render_polyhedral_body_with_silhouette(
+    *,
+    size: tuple[int, int],
+    center: tuple[float, float],
+    mesh: Mesh,
+    semi_axes_px: tuple[float, float, float],
+    pose_euler_deg: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    illumination_angle: float = 0.0,
+    phase_angle: float = 0.0,
+    anti_aliasing: float = 1.0,
+    shading: str = 'flat',
+) -> PolyhedralBodyRender:
+    """Render a mesh body's shaded radiance and the fraction of each pixel it covers.
+
     Two shading modes share one rasterization (the same front-face set, the
     same z-buffer, the same silhouette): ``'flat'`` shades each face by its
     own normal, ``'gouraud'`` computes per-vertex normals as the
@@ -477,7 +506,9 @@ def render_polyhedral_body(
             interpolated).
 
     Returns:
-        A ``(size_v, size_u)`` float array in [0, 1].
+        The :class:`PolyhedralBodyRender`, both arrays ``(size_v, size_u)``.  The
+        silhouette is the fraction of each pixel's supersamples some face covers, so
+        a pixel inside the body is exactly 1 whatever its shade.
 
     Raises:
         ValueError: On an unknown shading mode, or a center that is not finite.
@@ -512,7 +543,12 @@ def render_polyhedral_body(
     norm_mag = np.linalg.norm(normals, axis=1)
     norm_mag = np.maximum(norm_mag, 1e-12)
     unit_normals = normals / norm_mag[:, None]
-    light = _light_direction(illumination_angle, phase_angle)
+    # The shared light direction is ordered (v, u, depth); the camera frame here is
+    # (u, v, depth).
+    light_v, light_u, light_z = illumination_vector(
+        illumination_angle=illumination_angle, phase_angle=phase_angle
+    )
+    light = np.array([light_u, light_v, light_z], dtype=np.float64)
     face_intensity = np.clip(stable_matmul3(unit_normals, light), _DARK_SIDE_ILLUM, 1.0)
 
     vertex_intensity: NDArrayFloatType | None = None
@@ -529,7 +565,7 @@ def render_polyhedral_body(
 
     front = (unit_normals[:, 2] > 0.0) & (norm_mag > 1e-9)
     front_idx = np.nonzero(front)[0]
-    _, intensity = _rasterize_faces(
+    z_buffer, intensity = _rasterize_faces(
         px=px,
         py=py,
         depth=depth,
@@ -538,10 +574,14 @@ def render_polyhedral_body(
         vertex_intensity=vertex_intensity,
         grid_size=(height, width),
     )
+    silhouette = np.isfinite(z_buffer).astype(np.float64)
 
     if aa_scale > 1:
         intensity = intensity.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-    return _as_float64(np.clip(intensity, 0.0, 1.0))
+        silhouette = silhouette.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
+    return PolyhedralBodyRender(
+        intensity=_as_float64(np.clip(intensity, 0.0, 1.0)), silhouette=silhouette
+    )
 
 
 @dataclass(frozen=True)

@@ -13,17 +13,22 @@ exposure_sec: 1.0
 # FAR's hidden arc from the predicted polyline -- its idealized view knows
 # NEAR's geometry and explicit nearer range_km -- so FAR's LIMB_ARC
 # reports visible_arc_fraction 0.41 (reliability 0.64) instead of
-# claiming 1.0, and the joint limb fit runs on arcs that exist in the image
-# and lands within ~0.1 px.  FAR's residual terminator arc is occlusion-
-# reduced too (fraction 0.27) and stays below the 0.30 reliability gate.
-# FAR is below the 40% visible lit fraction a disc template needs, so the
-# disc correlation's template holds NEAR alone, and FAR's bright crescent
-# against NEAR's dim limb pulls the correlation's high-pass refinement
-# about 0.6 px (#1050).  The fused answer takes the correlation's offset,
-# a medium-tier success 0.60 px off; over the committed seed and 101,
-# 202, ..., 1515 it runs 0.595 to 0.611 px, and the expected block holds
-# it to that range plus a 0.05 px margin on each side.  No double-
-# counting conflict was observed at any overlap depth.
+# claiming 1.0, and the joint limb fit runs on arcs that exist in the
+# image.  FAR's residual terminator arc is occlusion-reduced too
+# (fraction 0.27) and stays below the 0.30 reliability gate.  FAR is left
+# out of the disc template, and its crescent beside NEAR's limb, which the
+# template doesn't carry, pulls the disc correlation's high-pass refinement
+# to (2.40, -1.38), 0.24 px from the planted offset (#1050).  Without FAR in
+# the scene the disc correlation lands within 0.012 px.  On the committed
+# draw the limb fit stops unconverged with polarity rejection and flags
+# itself spurious, so the disc correlation alone sets the medium-tier
+# success; on the 10 of 16 draws where the limb fit survives, the two fuse
+# 0.20 to 0.21 px off.
+# Known error: over the committed seed and random_seed 101, 202, ..., 1515
+# the fused error runs 0.201 to 0.239 px (spread 0.038 px).  Each end of
+# the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
+# outside, giving [0.151, 0.289] px.  A worse miss fails, and so does a
+# fix that brings the error under 0.151 px.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -54,5 +59,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.6035
-  known_offset_error_tol_px: 0.0585
+  known_offset_error_px: 0.22
+  known_offset_error_tol_px: 0.069

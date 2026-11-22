@@ -362,16 +362,6 @@ def test_body_model_excludes_titan(tmp_path: Path) -> None:
     assert all('TITAN' not in m.name.upper() for m in instances)
 
 
-def test_simulated_obs_builds_no_titan_model(tmp_path: Path) -> None:
-    """Simulated observations drive model selection from operator parameters."""
-
-    class _SimObs:
-        is_simulated = True
-
-    config = _titan_only_config(tmp_path)
-    assert NavModelTitan.instances_for_obs(cast(Any, _SimObs()), config=config) == []
-
-
 # ---------------------------------------------------------------------------
 # Analytic geometry scene
 # ---------------------------------------------------------------------------

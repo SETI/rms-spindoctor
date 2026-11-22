@@ -1,35 +1,49 @@
-"""Shared ellipsoid shading geometry for the simulator's two sides.
+"""Shared ellipsoid geometry and shading for the simulator's two sides.
 
-The image-side renderer (``spindoctor.sim.render.bodies.render``) and the
-navigator-side predicted-body renderer
-(``spindoctor.nav_model.simulated.predict_body``) must shade an ellipsoid
-with byte-identical conventions: the same surface normals, the same light
-direction, and the same Lambert clamp.  With shared conventions the planted
-scene error is the only error in a recovery measurement; independent
-implementations would each carry their own conventions and any delta between
-them would contaminate the measurement as an unknown systematic.
+The image-side ellipsoid renderer (``spindoctor.sim.render.bodies.ellipsoid``) and the
+navigator's simulated body and haze-envelope models (``spindoctor.nav_model.simulated``)
+place an ellipsoid on a pixel grid through one projection, :func:`project_ellipsoid`,
+and take its surface normals from :func:`ellipsoid_image_normals`.  With shared
+conventions the planted scene error is the only error in a recovery measurement;
+independent implementations would each carry their own conventions and any delta
+between them would contaminate the measurement as an unknown systematic.
+
+The navigator's predicted body is the smooth Lambert ellipsoid that
+:func:`render_lambert_ellipsoid` draws.  The image side composes its own image from
+the same projection and normals, adding relief, craters, photometric laws, and
+textures, so the two sides never share a finished limb.
 
 These helpers take explicit geometry arguments only.  They never read a
 scene parameter mapping, so they cannot carry truth-side information across
 the information boundary (see ``spindoctor.sim.scene``).
 """
 
-from dataclasses import dataclass
-from typing import cast
+from dataclasses import dataclass, replace
+from typing import TypeVar, cast
 
 import numpy as np
 
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from spindoctor.support.stable_math import stable_hypot
+from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'DARK_SIDE_ILLUM_STRENGTH',
+    'EllipsoidGeometry',
     'EllipsoidProjection',
     'ellipsoid_image_normals',
-    'illumination_vector',
     'lambert_from_normals',
+    'outline_half_extents',
+    'outline_semi_a',
     'project_ellipsoid',
+    'render_lambert_ellipsoid',
+    'surface_normals',
+    'surface_unit_coords',
 ]
+
+# A vector component: one value, or one per pixel.
+_Component = TypeVar('_Component', float, NDArrayFloatType)
 
 # Lambertian floor for the visible-but-unlit hemisphere.  A pixel whose
 # illumination is clipped to this value sits past the terminator (its true
@@ -41,47 +55,337 @@ DARK_SIDE_ILLUM_STRENGTH: float = 0.01
 
 @dataclass(frozen=True)
 class EllipsoidProjection:
-    """The projected-ellipsoid working grids both simulator sides shade from.
+    """An ellipsoid projected onto one pixel grid.
 
-    Produced by :func:`project_ellipsoid`; every array lives on the working
-    grid (the render grid supersampled by ``aa_scale``).
+    Produced by :func:`project_ellipsoid`.  Every array covers the whole grid, or the
+    box that :meth:`crop` selects from it, and every length is in the grid's pixels.
+    The grid is the one the caller stated the geometry on, supersampled by
+    ``aa_scale``.
+
+    The body frame has semi-axis a along its pole, semi-axis b across, and semi-axis
+    c toward the observer when the body is seen equator-on.  The rotated frame is the
+    image turned by the in-plane rotation, so its first axis is the direction the
+    pole points in the image.  The north pole, where latitudes are positive, is the
+    pole on the positive first axis.  A sub-observer latitude tips the pole about
+    the second axis, the north pole toward the observer for a positive latitude, so
+    the outline is the ellipse of semi-axes :attr:`semi_a_outline` and ``semi_b`` in
+    the rotated frame.
 
     Parameters:
-        aa_scale: The anti-aliasing supersampling factor of the working grid.
-        work_center_v: Body center v at working resolution.
-        work_center_u: Body center u at working resolution.
-        work_semi_major: Semi-major axis (a) at working resolution.
-        work_semi_minor: Semi-minor axis (b) at working resolution.
-        work_semi_c: Depth semi-axis (c) at working resolution.
-        cos_rz: Cosine of the rotation_z angle.
-        sin_rz: Sine of the rotation_z angle.
-        v_coords: Centered v pixel coordinates at working resolution.
-        u_coords: Centered u pixel coordinates at working resolution.
-        v_rot: Rotated-frame v coordinate of each pixel (tilt applied).
-        u_rot: Rotated-frame u coordinate of each pixel.
-        z_coords: Depth of the visible ellipsoid surface at each pixel.
-        ellipse_dist_sq: Squared normalized ellipse distance of each pixel.
-        inside_mask: Pixels at or inside the projected ellipse boundary.
-        ellipse_mask: Ellipse coverage mask (a soft anti-aliased rim when
-            ``anti_aliasing`` > 0, else the hard boundary as floats).
+        aa_scale: Pixels of this grid per pixel of the grid the caller stated the
+            geometry on, along each axis.
+        center: Body center (v, u) in the whole grid's pixel corner coordinates.  A
+            crop keeps it unchanged, so ``v_coords + center[0]`` and
+            ``u_coords + center[1]`` are always a pixel's position on the whole grid.
+        semi_a: Semi-axis a, along the pole, in this grid's pixels.
+        semi_b: Semi-axis b in this grid's pixels.
+        semi_c: Semi-axis c in this grid's pixels.
+        semi_a_outline: The outline's semi-axis along the rotated first axis,
+            ``hypot(semi_a * cos(lat), semi_c * sin(lat))`` for the sub-observer
+            latitude ``lat``.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+        cos_lat: Cosine of the sub-observer latitude.
+        sin_lat: Sine of the sub-observer latitude.
+        v_coords: The v coordinate of each pixel center relative to the body center,
+            before rotation.  It is a read-only view of one value per row.
+        u_coords: The u coordinate of each pixel center relative to the body center,
+            before rotation.  It is a read-only view of one value per column.
+        v_rot: The coordinate of each pixel along the rotated first axis.
+        u_rot: The coordinate of each pixel along the rotated second axis.
+        ellipse_dist_sq: The squared normalized ellipse distance of each pixel,
+            ``(v_rot / semi_a_outline)**2 + (u_rot / semi_b)**2``, which is 1 on the
+            limb.
     """
 
     aa_scale: int
-    work_center_v: float
-    work_center_u: float
-    work_semi_major: float
-    work_semi_minor: float
-    work_semi_c: float
+    center: tuple[float, float]
+    semi_a: float
+    semi_b: float
+    semi_c: float
+    semi_a_outline: float
     cos_rz: float
     sin_rz: float
+    cos_lat: float
+    sin_lat: float
     v_coords: NDArrayFloatType
     u_coords: NDArrayFloatType
     v_rot: NDArrayFloatType
     u_rot: NDArrayFloatType
-    z_coords: NDArrayFloatType
     ellipse_dist_sq: NDArrayFloatType
-    inside_mask: NDArrayBoolType
-    ellipse_mask: NDArrayFloatType
+
+    def crop(self, rows: slice, cols: slice) -> 'EllipsoidProjection':
+        """The part of the projection inside a box on its grid.
+
+        The coordinates keep their origin at the body center, so each pixel keeps
+        the values it has in the whole projection.  The center stays in the whole
+        grid's coordinates, so adding it to the cropped coordinates still gives each
+        pixel's position on the whole grid.  The image side's crater carving needs
+        both, since it places craters by those positions.
+
+        Parameters:
+            rows: The box's rows.
+            cols: The box's columns.
+
+        Returns:
+            The cropped projection, whose arrays are views into this one's.
+        """
+        return replace(
+            self,
+            v_coords=self.v_coords[rows, cols],
+            u_coords=self.u_coords[rows, cols],
+            v_rot=self.v_rot[rows, cols],
+            u_rot=self.u_rot[rows, cols],
+            ellipse_dist_sq=self.ellipse_dist_sq[rows, cols],
+        )
+
+    def surface_unit_coords(
+        self,
+    ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+        """The body-frame point each pixel sees, on the unit sphere.
+
+        See :func:`surface_unit_coords`, which this applies to every pixel.
+
+        Returns:
+            The ``(x, y, z)`` arrays.
+        """
+        return surface_unit_coords(
+            self.v_rot, self.u_rot, self.ellipse_dist_sq, geometry=self.geometry
+        )
+
+    @property
+    def geometry(self) -> 'EllipsoidGeometry':
+        """The body's shape and orientation, without the grid."""
+        return EllipsoidGeometry(
+            semi_a=self.semi_a,
+            semi_b=self.semi_b,
+            semi_c=self.semi_c,
+            cos_lat=self.cos_lat,
+            sin_lat=self.sin_lat,
+        )
+
+
+@dataclass(frozen=True)
+class EllipsoidGeometry:
+    """An ellipsoid's semi-axes and sub-observer latitude, in one grid's pixels.
+
+    Parameters:
+        semi_a: Semi-axis a, along the pole.
+        semi_b: Semi-axis b.
+        semi_c: Semi-axis c.
+        cos_lat: Cosine of the sub-observer latitude.
+        sin_lat: Sine of the sub-observer latitude.
+    """
+
+    semi_a: float
+    semi_b: float
+    semi_c: float
+    cos_lat: float
+    sin_lat: float
+
+    def to_view(
+        self, x: _Component, y: _Component, z: _Component
+    ) -> tuple[_Component, _Component, _Component]:
+        """Turn body-frame vector components into the rotated frame.
+
+        The rotated frame's third axis points toward the observer.
+
+        Parameters:
+            x: Components along the pole.
+            y: Components along semi-axis b.
+            z: Components along semi-axis c.
+
+        Returns:
+            The components along the rotated first axis, the second, and toward the
+            observer.
+        """
+        if self.sin_lat == 0.0:
+            return x, y, z
+        return (
+            x * self.cos_lat - z * self.sin_lat,
+            y,
+            x * self.sin_lat + z * self.cos_lat,
+        )
+
+    def to_body(
+        self, first: _Component, second: _Component, toward: _Component
+    ) -> tuple[_Component, _Component, _Component]:
+        """Turn rotated-frame vector components into the body frame.
+
+        Parameters:
+            first: Components along the rotated first axis.
+            second: Components along the rotated second axis.
+            toward: Components toward the observer.
+
+        Returns:
+            The components along the pole, semi-axis b, and semi-axis c.
+        """
+        if self.sin_lat == 0.0:
+            return first, second, toward
+        return (
+            first * self.cos_lat + toward * self.sin_lat,
+            second,
+            -first * self.sin_lat + toward * self.cos_lat,
+        )
+
+
+def outline_semi_a(semi_a: float, semi_c: float, sub_observer_lat: float) -> float:
+    """The outline's semi-axis along the direction the pole points in the image.
+
+    Tipping the pole toward or away from the observer by the sub-observer latitude
+    foreshortens semi-axis a and brings semi-axis c into view, so the outline reaches
+    ``hypot(semi_a * cos(lat), semi_c * sin(lat))``.  A sphere's outline is the same
+    circle at every latitude.
+
+    Parameters:
+        semi_a: Semi-axis a, along the pole.
+        semi_c: Semi-axis c.
+        sub_observer_lat: The sub-observer latitude in radians.
+
+    Returns:
+        The outline semi-axis, in the semi-axes' unit.
+    """
+    if sub_observer_lat == 0.0:
+        return semi_a
+    return float(stable_hypot(semi_a * np.cos(sub_observer_lat), semi_c * np.sin(sub_observer_lat)))
+
+
+def outline_half_extents(
+    semi_a_px: float,
+    *,
+    semi_b_px: float,
+    semi_c_px: float,
+    rotation_z: float,
+    sub_observer_lat: float,
+) -> tuple[float, float]:
+    """How far an ellipsoid's outline reaches from its center along v and along u.
+
+    The outline is the ellipse of semi-axes :func:`outline_semi_a` and ``semi_b_px``
+    turned in the image by ``rotation_z``, the outline :func:`project_ellipsoid`
+    draws.
+
+    Parameters:
+        semi_a_px: Semi-axis a, along the pole, in pixels.
+        semi_b_px: Semi-axis b in pixels.
+        semi_c_px: Semi-axis c in pixels.
+        rotation_z: The in-plane rotation in radians.
+        sub_observer_lat: The sub-observer latitude in radians.
+
+    Returns:
+        The half-extents along v and along u, in pixels.
+    """
+    semi_a = outline_semi_a(semi_a_px, semi_c_px, sub_observer_lat)
+    cos_rz = float(np.cos(rotation_z))
+    sin_rz = float(np.sin(rotation_z))
+    half_v = float(stable_hypot(semi_a * cos_rz, semi_b_px * sin_rz))
+    half_u = float(stable_hypot(semi_a * sin_rz, semi_b_px * cos_rz))
+    return half_v, half_u
+
+
+def surface_unit_coords(
+    v_rot: NDArrayFloatType,
+    u_rot: NDArrayFloatType,
+    ellipse_dist_sq: NDArrayFloatType,
+    *,
+    geometry: EllipsoidGeometry,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """The body-frame point under each pixel, scaled to the unit sphere.
+
+    The point is where the line of sight through the pixel first meets the
+    ellipsoid, divided axis by axis by the semi-axes, so ``x`` is the sine of its
+    latitude on a sphere.  Outside the limb the line of sight meets the ellipsoid
+    nowhere.  There the point is the limb point at the pixel's azimuth on the
+    outline, where the surface faces sideways, so every point has unit length.
+
+    Parameters:
+        v_rot: Each pixel's coordinate along the rotated first axis, in pixels.
+        u_rot: Each pixel's coordinate along the rotated second axis, in pixels.
+        ellipse_dist_sq: Each pixel's squared normalized outline distance.
+        geometry: The ellipsoid's shape and orientation.
+
+    Returns:
+        ``(x, y, z)``: the components along the pole, semi-axis b, and semi-axis c.
+    """
+    # A pixel outside the limb moves in along its azimuth onto the outline.
+    radial = np.sqrt(np.maximum(ellipse_dist_sq, 1.0))
+    depth_fraction = np.sqrt(np.maximum(0.0, 1.0 - ellipse_dist_sq))
+    if geometry.sin_lat == 0.0:
+        return v_rot / geometry.semi_a / radial, u_rot / geometry.semi_b / radial, depth_fraction
+    v_rot = v_rot / radial
+    u_rot = u_rot / radial
+    cos_lat, sin_lat = geometry.cos_lat, geometry.sin_lat
+    inv_a2 = 1.0 / geometry.semi_a**2
+    inv_c2 = 1.0 / geometry.semi_c**2
+    # The line of sight through (v_rot, u_rot) meets the tilted ellipsoid where a
+    # quadratic in the depth toward the observer vanishes; its discriminant is
+    # proportional to 1 - ellipse_dist_sq, so the nearer root is the mid-point plus
+    # the depth fraction over the square root of the leading coefficient.
+    leading = sin_lat * sin_lat * inv_a2 + cos_lat * cos_lat * inv_c2
+    toward = -v_rot * (cos_lat * sin_lat * (inv_a2 - inv_c2)) / leading + depth_fraction / np.sqrt(
+        leading
+    )
+    x_body, y_body, z_body = geometry.to_body(v_rot, u_rot, toward)
+    return x_body / geometry.semi_a, y_body / geometry.semi_b, z_body / geometry.semi_c
+
+
+def surface_normals(
+    v_rot: NDArrayFloatType,
+    u_rot: NDArrayFloatType,
+    ellipse_dist_sq: NDArrayFloatType,
+    *,
+    geometry: EllipsoidGeometry,
+    cos_rz: float,
+    sin_rz: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """Unit surface normals in image coordinates at the surface points under the pixels.
+
+    The points are those :func:`surface_unit_coords` gives.
+
+    The normal at body-frame point ``(a x, b y, c z)`` is ``(x / a, y / b, z / c)``,
+    normalized.  It is turned into the rotated frame by the sub-observer latitude,
+    then into image coordinates through the inverse of the in-plane rotation.  At or
+    outside the limb the point's surface faces sideways, so the normal lies in the
+    image plane with ``normal_z`` 0.
+
+    Parameters:
+        v_rot: Each pixel's coordinate along the rotated first axis, in pixels.
+        u_rot: Each pixel's coordinate along the rotated second axis, in pixels.
+        ellipse_dist_sq: Each pixel's squared normalized outline distance.
+        geometry: The ellipsoid's shape and orientation.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+
+    Returns:
+        ``(normal_v, normal_u, normal_z)`` in image coordinates.
+    """
+    if geometry.sin_lat == 0.0:
+        z_coords = geometry.semi_c * np.sqrt(np.maximum(0.0, 1.0 - ellipse_dist_sq))
+        normal_v_local = v_rot / (geometry.semi_a**2)
+        normal_u_local = u_rot / (geometry.semi_b**2)
+        normal_z_local = z_coords / (geometry.semi_c**2)
+    else:
+        x, y, z = surface_unit_coords(v_rot, u_rot, ellipse_dist_sq, geometry=geometry)
+        normal_v_local, normal_u_local, normal_z_local = geometry.to_view(
+            x / geometry.semi_a, y / geometry.semi_b, z / geometry.semi_c
+        )
+        # At or outside the limb the normal's component toward the observer is 0
+        # in exact arithmetic; the rounding of the closest-approach depth leaves a
+        # last-bit residue, which a renderer would read as a lit sliver of sky.
+        normal_z_local = np.where(ellipse_dist_sq >= 1.0, 0.0, normal_z_local)
+
+    # Normalize the normal vectors
+    normal_mag = np.sqrt(normal_v_local**2 + normal_u_local**2 + normal_z_local**2)
+    normal_mag = np.maximum(normal_mag, 1e-10)  # Avoid division by zero
+    normal_v_local = normal_v_local / normal_mag
+    normal_u_local = normal_u_local / normal_mag
+    normal_z_local = normal_z_local / normal_mag
+
+    # Rotate normal back to image coordinates (only v and u components)
+    # The z component stays in the depth direction
+    # Use inverse rotation (negate sin) to match the coordinate transformation
+    normal_v = normal_v_local * cos_rz + normal_u_local * sin_rz
+    normal_u = -normal_v_local * sin_rz + normal_u_local * cos_rz
+    return normal_v, normal_u, normal_z_local
 
 
 def project_ellipsoid(
@@ -92,228 +396,115 @@ def project_ellipsoid(
     semi_b_px: float,
     semi_c_px: float,
     rotation_z: float = 0.0,
-    rotation_tilt: float = 0.0,
+    sub_observer_lat: float = 0.0,
     anti_aliasing: float = 0.0,
 ) -> EllipsoidProjection:
-    """Project an ellipsoid onto the image plane and build the shading grids.
+    """Project an ellipsoid onto a pixel grid.
 
-    This is the single implementation of the projection both simulator sides
-    shade from: the working-grid coordinate frames (in-plane rotation, tilt),
-    the visible-hemisphere depth, and the (optionally anti-aliased) coverage
-    mask.  The image-side renderer carves craters into these grids and the
-    navigator-side predicted-body renderer shades them smooth, so the planted
-    scene error is the only geometric difference between the two.
+    The navigator's predicted body is projected onto its supersampled frame here, and
+    the image side's ellipsoid renderer projects each body onto its working grid and
+    its detector grid.  The body's pole, semi-axis a, points along v before the
+    in-plane rotation ``rotation_z`` turns it, with the north pole, where latitudes
+    are positive, on +v.  The sub-observer latitude then tips the north pole toward
+    the observer (positive) or away (negative) about semi-axis b, a true rotation of
+    the ellipsoid, so the outline foreshortens along the pole to
+    :func:`outline_semi_a`.
 
     Parameters:
         size: Tuple of (size_v, size_u) giving the image dimensions in pixels.
         center: Tuple of (v, u) giving the center position in floating-point
             pixels.  (0.0, 0.0) is the top-left corner of pixel (0,0),
             (0.5, 0.5) is the center of pixel (0,0).
-        semi_a_px: Semi-axis a of the ellipsoid in pixels, half its width along axis 1.
-        semi_b_px: Semi-axis b of the ellipsoid in pixels, half its width along axis 2.
-        semi_c_px: Semi-axis c of the ellipsoid in pixels, half its depth along axis 3.
+        semi_a_px: Semi-axis a of the ellipsoid in pixels, half its length along the
+            pole.
+        semi_b_px: Semi-axis b of the ellipsoid in pixels, half its width across.
+        semi_c_px: Semi-axis c of the ellipsoid in pixels, half its depth toward the
+            observer when it is seen equator-on.
         rotation_z: Rotation angle around the viewing axis in radians.
-        rotation_tilt: Tilt angle of the ellipsoid in radians (0 to pi/2).
-        anti_aliasing: Anti-aliasing amount in [0, 1]; > 0 supersamples the
-            working grid (up to 4x) and softens the limb rim of
-            ``ellipse_mask``.
+        sub_observer_lat: The latitude of the point on the body directly below the
+            observer, in radians, from -pi/2 to pi/2.
+        anti_aliasing: Anti-aliasing amount in [0, 1].  Above 0 the grid is
+            supersampled by ``int(1 + 3 * anti_aliasing)`` along each axis, up to 4;
+            at 0 it is the ``size`` grid itself.
 
     Returns:
-        The :class:`EllipsoidProjection` working grids.
+        The :class:`EllipsoidProjection` on the supersampled grid.
     """
     size_v, size_u = size
+    aa_scale = int(1 + 3 * anti_aliasing) if anti_aliasing > 0 else 1
 
-    # Determine anti-aliasing scale factor (only for limb smoothing)
-    if anti_aliasing > 0:
-        # Scale factor: 1 (no AA) to 4 (max AA)
-        aa_scale = int(1 + 3 * anti_aliasing)
-    else:
-        aa_scale = 1
+    center_v = center[0] * aa_scale
+    center_u = center[1] * aa_scale
+    semi_a = semi_a_px * aa_scale
+    semi_b = semi_b_px * aa_scale
+    semi_c = semi_c_px * aa_scale
+    semi_a_outline = outline_semi_a(semi_a, semi_c, sub_observer_lat)
 
-    # Work at higher resolution for anti-aliasing at limb
-    work_v = size_v * aa_scale
-    work_u = size_u * aa_scale
-    work_center_v = center[0] * aa_scale
-    work_center_u = center[1] * aa_scale
-    work_semi_major = semi_a_px * aa_scale
-    work_semi_minor = semi_b_px * aa_scale
-    work_semi_c = semi_c_px * aa_scale
-
-    # Create coordinate grids at pixel centers.  The grid starts as array rows
-    # and columns and the projection works in the geometry layer's pixel corner
-    # coordinates, where the caller states the center, so the half pixel goes
-    # on here; that alignment holds at every supersampling scale because the
-    # center is scaled with the grid.
-    v_coords, u_coords = np.mgrid[0:work_v, 0:work_u].astype(float)
-    v_coords += PIXEL_CENTER_TO_CORNER_PX
-    u_coords += PIXEL_CENTER_TO_CORNER_PX
-    v_coords -= work_center_v
-    u_coords -= work_center_u
+    # Pixel-center coordinates relative to the body center.  The grid starts as
+    # array rows and columns and the projection works in the geometry layer's pixel
+    # corner coordinates, where the caller states the center, so the half pixel goes
+    # on here; that alignment holds at every supersampling scale because the center
+    # is scaled with the grid.  Each coordinate varies along one axis only, so it is
+    # computed once per row or column and broadcast over the grid.
+    shape = (size_v * aa_scale, size_u * aa_scale)
+    v_axis = (np.arange(shape[0], dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX) - center_v
+    u_axis = (np.arange(shape[1], dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX) - center_u
 
     # Apply rotation_z (in-plane rotation around z-axis, clockwise)
-    cos_rz = np.cos(rotation_z)
-    sin_rz = np.sin(rotation_z)
-    v_rot1 = v_coords * cos_rz - u_coords * sin_rz
-    u_rot1 = v_coords * sin_rz + u_coords * cos_rz
+    cos_rz = float(np.cos(rotation_z))
+    sin_rz = float(np.sin(rotation_z))
+    v_rot = (v_axis * cos_rz)[:, np.newaxis] - (u_axis * sin_rz)[np.newaxis, :]
+    u_rot = (v_axis * sin_rz)[:, np.newaxis] + (u_axis * cos_rz)[np.newaxis, :]
 
-    # Apply rotation_tilt (rotation around u-axis, tilting toward/away from viewer)
-    # This affects the apparent shape and the z-coordinate
-    cos_rt = np.cos(rotation_tilt)
-
-    # After tilt, the v coordinate is affected
-    # v_rot = v_rot1 * cos_rt (compressed by tilt)
-    # z coordinate appears: z = v_rot1 * sin_rt (tilted depth)
-    v_rot = v_rot1 * cos_rt
-    u_rot = u_rot1
-    # z will be computed from ellipsoid equation
-
-    # Compute distance from ellipse center in local coordinates (2D projection)
-    # For the visible ellipse: (v_rot/a)^2 + (u_rot/b)^2 <= 1
-    ellipse_dist_sq = (v_rot / work_semi_major) ** 2 + (u_rot / work_semi_minor) ** 2
-    ellipse_dist = np.sqrt(ellipse_dist_sq)
-
-    # Compute z coordinate for 3D ellipsoid
-    # Ellipsoid equation: (v_rot/a)^2 + (u_rot/b)^2 + (z/c)^2 = 1
-    # For visible hemisphere: z = c * sqrt(1 - (v_rot/a)^2 - (u_rot/b)^2)
-    # Only compute for points inside the ellipse
-    z_coords = np.zeros_like(v_rot)
-    inside_mask = ellipse_dist_sq <= 1.0
-    z_sq = np.maximum(0.0, 1.0 - ellipse_dist_sq[inside_mask])
-    z_coords[inside_mask] = work_semi_c * np.sqrt(z_sq)
-
-    # Create base ellipse mask (1.0 inside, 0.0 outside)
-    # Anti-aliasing only applied at the limb (edge)
-    if anti_aliasing > 0:
-        # Smooth transition zone: about 1 pixel at work resolution, only at edge
-        edge_width = 3.0
-        ellipse_mask = np.clip(1.0 - np.maximum(0, ellipse_dist - 1.0) / edge_width, 0.0, 1.0)
-    else:
-        ellipse_mask = (ellipse_dist <= 1.0).astype(float)
+    # The projected outline is the ellipse (v_rot/a_outline)^2 + (u_rot/b)^2 = 1.
+    ellipse_dist_sq = (v_rot / semi_a_outline) ** 2 + (u_rot / semi_b) ** 2
 
     return EllipsoidProjection(
         aa_scale=aa_scale,
-        work_center_v=work_center_v,
-        work_center_u=work_center_u,
-        work_semi_major=work_semi_major,
-        work_semi_minor=work_semi_minor,
-        work_semi_c=work_semi_c,
-        cos_rz=float(cos_rz),
-        sin_rz=float(sin_rz),
-        v_coords=v_coords,
-        u_coords=u_coords,
+        center=(center_v, center_u),
+        semi_a=semi_a,
+        semi_b=semi_b,
+        semi_c=semi_c,
+        semi_a_outline=semi_a_outline,
+        cos_rz=cos_rz,
+        sin_rz=sin_rz,
+        cos_lat=float(np.cos(sub_observer_lat)),
+        sin_lat=float(np.sin(sub_observer_lat)),
+        v_coords=np.broadcast_to(v_axis[:, np.newaxis], shape),
+        u_coords=np.broadcast_to(u_axis[np.newaxis, :], shape),
         v_rot=v_rot,
         u_rot=u_rot,
-        z_coords=z_coords,
         ellipse_dist_sq=ellipse_dist_sq,
-        inside_mask=inside_mask,
-        ellipse_mask=ellipse_mask,
     )
 
 
 def ellipsoid_image_normals(
-    ellipse_mask: NDArrayFloatType,
-    v_rot: NDArrayFloatType,
-    u_rot: NDArrayFloatType,
-    *,
-    z_coords: NDArrayFloatType,
-    work_semi_major: float,
-    work_semi_minor: float,
-    work_semi_c: float,
-    cos_rz: float,
-    sin_rz: float,
+    projection: EllipsoidProjection,
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """Unit surface normals of the base ellipsoid in image coordinates.
+    """Unit surface normals of the ellipsoid in image coordinates, at every pixel.
 
-    For a 3D ellipsoid, the surface normal at body-frame point (v, u, z) is
-    (v/a^2, u/b^2, z/c^2) normalized.  The in-plane components are then rotated
-    back from the ellipsoid's rotated frame to image coordinates through the
-    inverse of the rotation_z coordinate transformation; the z component is
-    perpendicular to the image plane and unaffected.  Both the smooth and the
-    cratered shading paths derive their base normals here, so the two paths
-    share a single illumination convention.
+    The normals :func:`surface_normals` gives at each pixel of the projection.
+    Outside the limb a pixel carries the normal of the limb point the line of sight
+    passes closest to.  That normal lies in the image plane, with ``normal_z`` 0, so
+    Lambert shading leaves the pixel dark.  A renderer that masks the body by its own
+    outline can still read the normals there, and its shading continues smoothly
+    across the limb.
 
     Parameters:
-        ellipse_mask: Ellipse coverage mask; normals are computed where > 0.
-        v_rot: Rotated-frame v coordinate of each pixel.
-        u_rot: Rotated-frame u coordinate of each pixel.
-        z_coords: Depth of the visible ellipsoid surface at each pixel.
-        work_semi_major: Semi-major axis (a) at working resolution.
-        work_semi_minor: Semi-minor axis (b) at working resolution.
-        work_semi_c: Depth semi-axis (c) at working resolution.
-        cos_rz: Cosine of the rotation_z angle.
-        sin_rz: Sine of the rotation_z angle.
+        projection: The ellipsoid's projection onto the grid.
 
     Returns:
         Tuple of (normal_v, normal_u, normal_z) unit-normal component arrays in
-        image coordinates.
+        image coordinates, on the projection's grid.
     """
-    normal_v_local = np.zeros_like(v_rot)
-    normal_u_local = np.zeros_like(u_rot)
-    normal_z_local = np.zeros_like(z_coords)
-
-    # Only compute normals for points inside the ellipsoid
-    inside_mask = ellipse_mask > 0
-    normal_v_local[inside_mask] = v_rot[inside_mask] / (work_semi_major**2)
-    normal_u_local[inside_mask] = u_rot[inside_mask] / (work_semi_minor**2)
-    normal_z_local[inside_mask] = z_coords[inside_mask] / (work_semi_c**2)
-
-    # Normalize the normal vectors
-    normal_mag = np.sqrt(normal_v_local**2 + normal_u_local**2 + normal_z_local**2)
-    normal_mag = np.maximum(normal_mag, 1e-10)  # Avoid division by zero
-    normal_v_local /= normal_mag
-    normal_u_local /= normal_mag
-    normal_z_local /= normal_mag
-
-    # Rotate normal back to image coordinates (only v and u components)
-    # The z component stays in the depth direction
-    # Use inverse rotation (negate sin) to match the coordinate transformation
-    normal_v = normal_v_local * cos_rz + normal_u_local * sin_rz
-    normal_u = -normal_v_local * sin_rz + normal_u_local * cos_rz
-    return normal_v, normal_u, normal_z_local
-
-
-def illumination_vector(
-    *, illumination_angle: float, phase_angle: float
-) -> tuple[float, float, float]:
-    """The unit body-to-sun direction in image coordinates.
-
-    Both simulator sides derive the light direction here, so their
-    illumination conventions cannot diverge.
-
-    The in-plane direction comes from ``illumination_angle`` (0 = from the
-    top of the image, pi/2 = from the right; the v component is negated
-    because v increases downward).  The out-of-plane component encodes the
-    phase angle -- the observer-body-sun angle: ``z = cos(phase_angle)`` so
-    phase 0 (full) lights the visible face head-on and phase pi (new) lights
-    it from behind, while the in-plane magnitude is ``sin(phase_angle)``.
-
-    Parameters:
-        illumination_angle: In-plane light direction in radians; 0 is from
-            the top of the image, pi/2 from the right.
-        phase_angle: Phase angle in radians; 0 is fully lit, pi is backlit.
-
-    Returns:
-        Tuple of (v, u, z) components of the unit illumination direction;
-        z points toward the observer.
-    """
-    illum_v_2d = -np.cos(illumination_angle)  # Negative because v increases downward
-    illum_u_2d = np.sin(illumination_angle)
-
-    illum_z = np.cos(phase_angle)
-    illum_scale_2d = np.sin(phase_angle)
-    illum_v_3d = illum_v_2d * illum_scale_2d
-    illum_u_3d = illum_u_2d * illum_scale_2d
-
-    # Normalize the 3D illumination direction (already unit up to rounding;
-    # the guard covers a degenerate zero vector only).
-    illum_mag = np.sqrt(illum_v_3d**2 + illum_u_3d**2 + illum_z**2)
-    if illum_mag > 1e-10:
-        illum_v_3d /= illum_mag
-        illum_u_3d /= illum_mag
-        illum_z_norm = illum_z / illum_mag
-    else:
-        illum_z_norm = 1.0  # Directly toward observer
-    return float(illum_v_3d), float(illum_u_3d), float(illum_z_norm)
+    return surface_normals(
+        projection.v_rot,
+        projection.u_rot,
+        projection.ellipse_dist_sq,
+        geometry=projection.geometry,
+        cos_rz=projection.cos_rz,
+        sin_rz=projection.sin_rz,
+    )
 
 
 def lambert_from_normals(
@@ -326,9 +517,7 @@ def lambert_from_normals(
 ) -> NDArrayFloatType:
     """Lambertian illumination strength for image-frame unit surface normals.
 
-    The normals must already be unit length (or zero outside the body).  Both
-    the smooth and the cratered shading paths use this single implementation
-    so their illumination conventions cannot diverge.
+    The normals must already be unit length (or zero outside the body).
 
     Parameters:
         normal_v: V component of the unit surface normal in image coordinates.
@@ -339,7 +528,7 @@ def lambert_from_normals(
         phase_angle: Phase angle in radians; 0 is fully lit, pi is backlit.
 
     Returns:
-        Illumination strength array in [0, 1]; 0 on the far hemisphere.
+        Illumination strength array in [0, 1]; 0 wherever ``normal_z`` is 0 or less.
     """
     illum_v_3d, illum_u_3d, illum_z_norm = illumination_vector(
         illumination_angle=illumination_angle, phase_angle=phase_angle
@@ -362,3 +551,43 @@ def lambert_from_normals(
     illum_strength **= light_side_illum_gamma
 
     return cast(NDArrayFloatType, illum_strength)
+
+
+def render_lambert_ellipsoid(
+    projection: EllipsoidProjection,
+    *,
+    illumination_angle: float,
+    phase_angle: float,
+) -> NDArrayFloatType:
+    """Render a smooth ellipsoid with Lambert shading.
+
+    This is the navigator's predicted body.  Each pixel of the projection's grid is
+    shaded by :func:`lambert_from_normals` with the normals from
+    :func:`ellipsoid_image_normals`.  The result is then averaged over blocks of
+    ``aa_scale`` by ``aa_scale`` pixels.  Before averaging, a pixel whose center lies
+    outside the limb is 0, and one on the visible hemisphere past the terminator is
+    :data:`DARK_SIDE_ILLUM_STRENGTH`.
+
+    Parameters:
+        projection: The ellipsoid's projection onto its grid, whose dimensions must
+            be multiples of ``aa_scale``, as :func:`project_ellipsoid` builds them.
+        illumination_angle: In-plane light direction in radians; 0 is from the
+            top of the image, pi/2 from the right.
+        phase_angle: Phase angle in radians; 0 is fully lit, pi is backlit.
+
+    Returns:
+        The intensity in [0, 1], on the grid the caller stated the geometry on: the
+        projection's grid divided by ``aa_scale`` along each axis.
+    """
+    # Outside the limb every normal lies in the image plane, so the Lambert term is
+    # already 0 there and the image needs no outline mask.
+    intensity = lambert_from_normals(
+        *ellipsoid_image_normals(projection),
+        illumination_angle=illumination_angle,
+        phase_angle=phase_angle,
+    )
+    scale = projection.aa_scale
+    if scale > 1:
+        rows, cols = intensity.shape
+        intensity = intensity.reshape(rows // scale, scale, cols // scale, scale).mean(axis=(1, 3))
+    return np.clip(intensity, 0.0, 1.0)

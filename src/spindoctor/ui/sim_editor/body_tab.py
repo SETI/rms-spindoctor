@@ -200,13 +200,18 @@ class BodyTabMixin(SimEditorBase):
         rz.setValue(spec.rotation_z)
         rz.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'rotation_z', v))
         fl.addRow('Rotation Z:', rz)
-        rt = QDoubleSpinBox()
-        rt.setRange(0.0, 90.0)
-        rt.setDecimals(1)
-        rt.setSuffix('°')
-        rt.setValue(spec.rotation_tilt)
-        rt.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'rotation_tilt', v))
-        fl.addRow('Rotation Tilt:', rt)
+        lat = QDoubleSpinBox()
+        lat.setRange(-90.0, 90.0)
+        lat.setDecimals(1)
+        lat.setSuffix('°')
+        lat.setValue(spec.sub_observer_lat_deg)
+        lat.setToolTip(
+            'Latitude of the point below the observer; positive tips the north pole '
+            '(semi-axis a) toward the observer.'
+        )
+        lat.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'sub_observer_lat_deg', v))
+        fl.addRow('Sub-observer lat:', lat)
+        w.sub_observer_lat_spin = lat  # type: ignore[attr-defined]
 
         illum = QDoubleSpinBox()
         illum.setRange(0.0, 360.0)

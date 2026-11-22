@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8328079886123717,
+  "confidence": 0.8328084277533958,
   "confidence_rank": "medium",
-  "offset_du_px": -0.6171875,
-  "offset_dv_px": 1.4296875,
+  "offset_du_px": -0.609375,
+  "offset_dv_px": 1.4296874999999998,
   "scene_name": "planted_offset_irregular",
   "status": "success"
 }

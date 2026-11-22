@@ -70,27 +70,50 @@ Displacements carry no origin convention and need no such care: offset_v /
 offset_u, move_v / move_u, catalog_error_v / catalog_error_u, and a
 companion's sep_px are differences between two positions.
 
-The planted offset_rotation_deg turns POSITIONS about ONE point in that same
-convention: the frame's center (size_v / 2, size_u / 2).  Catalog star
-positions, body centers, and the ring system's center all pivot there, so a
-rolled scene plants a truth its three families of content agree on.  The two
-orientations describing a whole projected pattern take the roll as well: a
-body's rotation_z and the ring system's node_deg.
+The planted offset_rotation_deg is a roll of the camera about its boresight.
+A scene describes what the camera would see unrolled, and the roll turns
+EVERYTHING in the field of view by the same angle, in the same direction,
+about ONE point in that same convention: the frame's center
+(size_v / 2, size_u / 2).  A positive roll turns from +v toward +u, carrying a
+point at (dv, du) from the center to
+(cos * dv - sin * du, sin * dv + cos * du).
+That is the rotation the navigator's star fit reports, so the rotation it
+recovers equals the planted roll.  The roll turns the scene first, and the
+planted offset_v / offset_u then moves the turned stars, bodies, and ring
+system.  The sky_counts background field turns with the roll but does not move
+with the offset.
 
-It does not turn the per-object quantities already stated in the detector
-frame: move_v / move_u and a companion's angle_deg render at the angle the
-scene wrote, whatever the roll, so stating them as they are to appear on the
-detector is what a scene author does.  The sky_counts background field is not
-rotated either -- its positions are drawn uniformly at random, so it carries no
-orientation to turn.
+So the roll turns star positions and body centers about the frame center, and
+turns each body about its own center by the same angle: its outline
+(rotation_z, or a mesh body's pose_euler_deg), the side its light comes from
+(illumination_angle), and everything drawn on it -- craters, relief, albedo
+texture, bands and storms, transiting moons and their shadows, and the haze
+with its clouds.  It adds to the ring system's node_deg, which turns every
+ring feature with it.  It turns each star's smear track (move_v / move_u),
+its companion's offset, and its catalog error.  It turns the motion smear in
+the optics block, which is the scene drifting across the detector, and a
+linear stray-light ramp, which rises toward a bright source beyond the field
+of view: the rolled ramp is the unrolled one turned about the frame center,
+continued along the same line where the turned frame reaches past the
+unrolled one and clipped at zero there.  It turns the sky_counts background
+field, which also fills the corners the turn brings into view.
 
-The two centers inside the optics block -- distortion.center_v / center_u and
-stray_light.center_v / center_u -- are pixel corners too.  What they name is
-where a whole-frame field is centered rather than where an object sits, and the
-same number written in either block names one point.  They do not turn with
-offset_rotation_deg: the roll moves the scene across the detector, while these
-name a place on the detector itself, so they render where the scene wrote them
-whatever the roll.
+Two of a body's angles run against the roll, so the roll subtracts from
+them: rotation_z turns the grid the ellipsoid is sampled on, so the drawn
+outline turns by minus rotation_z, and illumination_angle is measured from the
+top of the image toward +u.  A mesh body's line-of-sight pose angle, the third
+entry of pose_euler_deg, runs against it too.  The roll leaves an
+ellipsoid's sub_observer_lat_deg alone: turning the camera about its line of
+sight never changes the point on the body below the observer.  A scene author
+writes every angle for the unrolled camera and never adjusts it for the roll.
+
+The camera's own optics stay put: the PSF, the distortion, the ghosts' shifts,
+and the radial stray-light bump are optical properties of the camera.  The
+two centers inside the optics block -- distortion.center_v / center_u and
+stray_light.center_v / center_u -- are pixel corners too.  Each sets where a
+whole-frame field is centered rather than where an object sits, and the same
+number written in either block means one point.  They render where the scene
+wrote them whatever the roll.
 
 Fields
 ------
@@ -257,17 +280,28 @@ Every body key is optional.  The geometry keys are what the navigator knows:
   shape_model          ellipsoid (the default) or polyhedral_mesh
   center_v, center_u   the body center in image pixels, a pixel corner
                        (default the frame center)
-  semi_a_px            semi-axis a in image pixels: half the body's extent
-                       along v before rotation_z turns it, like a radius.  A
+  semi_a_px            semi-axis a in image pixels, along the body's pole:
+                       half the body's extent along v before rotation_z turns
+                       it, like a radius, when sub_observer_lat_deg is 0.  A
                        sphere 90 px across has 45.0 in all three semi-axes.
   semi_b_px            semi-axis b in image pixels: half the body's extent
                        along u before rotation_z turns it
   semi_c_px            semi-axis c in image pixels: half the body's depth
-                       toward the observer (default the smaller of
-                       semi_a_px and semi_b_px)
+                       toward the observer when sub_observer_lat_deg is 0
+                       (default the smaller of semi_a_px and semi_b_px)
   rotation_z           (ellipsoid) the in-plane rotation, in degrees
-  rotation_tilt        (ellipsoid) the tilt of the polar axis toward the
-                       observer, in degrees
+  sub_observer_lat_deg (ellipsoid) the latitude of the point on the body
+                       directly below the observer, in degrees, from -90 to
+                       90 (default 0, the body seen equator-on).  The north
+                       pole is the end of semi-axis a that points along +v
+                       before rotation_z turns it; latitudes are positive
+                       toward it.  A positive value tips the north pole
+                       toward the observer, who then sees the northern
+                       hemisphere, as for a real Saturn frame whose
+                       sub-observer latitude is positive.  The outline
+                       foreshortens along the pole to
+                       sqrt((a cos lat)^2 + (c sin lat)^2), and latitude
+                       bands curve across the disc.
   illumination_angle   the image-plane direction the light comes from, in
                        degrees (0 from the top, 90 from the right)
   phase_angle          the phase angle, in degrees (0 fully lit, 180 lit
@@ -308,8 +342,9 @@ The appearance keys are truth, which the navigator never sees:
   photometric_law      lambert (the default), lommel_seeliger, minnaert, or
                        lunar_lambert
   minnaert_k           the Minnaert exponent, a number (default 0.5)
-  seed                 the body's own crater, texture, and relief
-                       realization, an integer
+  seed                 an integer, which changes nothing in a scene render:
+                       each body's craters, texture, and relief draw from the
+                       scene's random_seed
   shading              (polyhedral_mesh) flat (the default) or gouraud
   opposition_surge, albedo_texture, disc_texture, transits, atmosphere, and
   pose_scatter are blocks; the developer guide's simulator chapter describes
@@ -320,12 +355,13 @@ and a null key renders as the absent key does.  The navigator reads it as
 absent too.  For a key set to null inside nav_override, the navigator sees the
 scene's own value.  An entry of a list such as pose_euler_deg can't be null.
 
-A polyhedral_mesh body refuses a non-null value of any of the twelve
-ellipsoid-only appearance keys, which the mesh renderer would silently ignore
-(a null reads as an absent key): atmosphere, photometric_law, minnaert_k,
-opposition_surge, albedo_texture, disc_texture, transits, crater_fill,
-crater_min_radius, crater_max_radius, crater_power_law_exponent, and
-crater_relief_scale.  A mesh body's appearance keys are shading,
+A polyhedral_mesh body refuses a non-null value of any of the thirteen
+ellipsoid-only keys, which the mesh renderer would silently ignore (a null
+reads as an absent key): the ellipsoid-only appearance keys atmosphere,
+photometric_law, minnaert_k, opposition_surge, albedo_texture, disc_texture,
+transits, crater_fill, crater_min_radius, crater_max_radius,
+crater_power_law_exponent, and crater_relief_scale, and sub_observer_lat_deg,
+since a mesh body is turned by its pose_euler_deg instead.  A mesh body's appearance keys are shading,
 limb_relief_rms, limb_relief_corr_deg, mesh_detail_octaves, and pose_scatter.
 The scene editor disables the controls for the refused keys on a mesh body.
 Switching a body to polyhedral_mesh in the editor moves the refused keys it

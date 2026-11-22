@@ -118,6 +118,11 @@ spindoctor.sim.shared
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.shared.lighting
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.shared.mesh
    :members:
    :undoc-members:
@@ -163,6 +168,11 @@ spindoctor.sim.render
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.roll
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 spindoctor.sim.render.radiance
 ------------------------------
 
@@ -193,12 +203,27 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.render.bodies.topo
+.. automodule:: spindoctor.sim.render.bodies.ellipsoid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.ellipsoid_grid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.craters
    :members:
    :undoc-members:
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.bodies.mesh
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.placement
    :members:
    :undoc-members:
    :show-inheritance:
@@ -244,6 +269,26 @@ spindoctor.sim.render.rings
 .. automodule:: spindoctor.sim.render.rings
 
 .. automodule:: spindoctor.sim.render.rings.render
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.rings.profiles
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.rings.clutter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.rings.footprint
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.rings.photometry
    :members:
    :undoc-members:
    :show-inheritance:

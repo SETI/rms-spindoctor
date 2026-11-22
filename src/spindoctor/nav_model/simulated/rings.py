@@ -13,7 +13,7 @@ One model instance per navigable feature.  Each banded feature (ringlet)
 emits a ``RING_ANNULUS`` template for the correlation path; every feature
 emits one ``RING_EDGE`` polyline per predicted catalog boundary for the
 distance-transform fit.  Rendering is delegated to
-:mod:`spindoctor.nav_model.simulated.predict_ring`, whose projection and orbit
+:mod:`spindoctor.nav_model.simulated.predicted_ring`, whose projection and orbit
 math are shared with the image-side renderer by design.
 """
 
@@ -32,10 +32,10 @@ from spindoctor.feature.flags import RingAnnulusFlags, RingEdgeFlags
 from spindoctor.feature.geometry import RingAnnulusGeometry, RingEdgePolyline
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_rings_base import NavModelRingsBase
-from spindoctor.nav_model.simulated.predict_ring import (
+from spindoctor.nav_model.simulated.predicted_ring import (
     RingEdgePredicted,
     RingFeaturePredicted,
-    predict_ring_feature,
+    create_predicted_ring_feature,
 )
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.scene.fields import scene_value
@@ -91,6 +91,8 @@ class NavModelRingsSimulated(NavModelRingsBase):
         config: Optional ``Config`` override.
     """
 
+    inputs = 'scene_view'
+
     def __init__(
         self,
         name: str,
@@ -135,9 +137,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
         """Build one simulated ring model per navigable ring_system feature.
 
         Reads the navigator view (``obs.nav_params['ring_system']``),
-        whose feature list carries exactly the navigable subset; returns an
-        empty list for a real obs so the SPICE-backed ``NavModelRings``
-        handles those instead.
+        whose feature list carries exactly the navigable subset.
 
         Parameters:
             obs: Observation snapshot.
@@ -147,8 +147,6 @@ class NavModelRingsSimulated(NavModelRingsBase):
         Returns:
             One ``NavModelRingsSimulated`` per navigable feature.
         """
-        if not getattr(obs, 'is_simulated', False):
-            return []
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict):
             return []
@@ -210,7 +208,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
             opening_deg_obs,
             node_deg,
         )
-        prediction = predict_ring_feature(
+        prediction = create_predicted_ring_feature(
             shape,
             self._feature_params,
             center_v=center_v,
@@ -227,7 +225,7 @@ class NavModelRingsSimulated(NavModelRingsBase):
         )
         self._prediction = prediction
         # The scene states the ring system's center in pixel corner
-        # coordinates, which is what ``predict_ring_feature`` renders against
+        # coordinates, which is what ``create_predicted_ring_feature`` renders against
         # (it puts the center of pixel i at i + 0.5).  The payload is pixel
         # centric, so the half pixel comes off here.
         self._predicted_center_vu = (

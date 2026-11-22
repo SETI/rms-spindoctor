@@ -28,7 +28,6 @@ from spindoctor.sim.render.bodies.atmosphere import (
     AtmosphereSpec,
     apply_atmosphere,
     atmosphere_spec_from_params,
-    hg_phase_factor,
     tangent_optical_depth,
 )
 from spindoctor.sim.render.bodies.render import render_single_body
@@ -38,7 +37,7 @@ from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
 from spindoctor.sim.scene.validate import validate_sim_params
-from spindoctor.sim.shared.ellipsoid import illumination_vector
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
@@ -55,9 +54,8 @@ def _render_haze_body(
 ) -> NDArrayFloatType:
     """Render a centered spherical body, optionally with a haze layer.
 
-    The solid disc paints opaquely and the translucent halo screen (returned
-    on the body info) is composited over the empty background, mirroring the
-    radiance stage.
+    The body goes over an empty background, its halo first, as the radiance stage
+    puts it there.
 
     Parameters:
         atmosphere: The ``atmosphere`` block, or None for a hard-limbed body.
@@ -79,18 +77,12 @@ def _render_haze_body(
     )
     if atmosphere is not None:
         body_params['atmosphere'] = atmosphere
-    _mask, body_info = render_single_body(
+    render_single_body(
         img,
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=_SIZE / 2.0,
-        ref_center_u=_SIZE / 2.0,
     )
-    halo = body_info.get('halo')
-    if halo is not None:
-        covered = (halo.emission > 0.0) | (halo.transmission < 1.0)
-        img[covered] = halo.emission[covered] + halo.transmission[covered] * img[covered]
     return img
 
 
@@ -272,16 +264,6 @@ def test_apparent_limb_radius_exceeds_the_geometric_radius() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_hg_phase_factor_is_unity_when_isotropic() -> None:
-    """The Henyey-Greenstein factor is 1 at every phase when g = 0."""
-    assert hg_phase_factor(0.0, math.radians(75.0)) == pytest.approx(1.0)
-
-
-def test_hg_phase_factor_peaks_forward_at_high_phase() -> None:
-    """Forward scattering peaks at high phase (small scattering angle)."""
-    assert hg_phase_factor(0.6, math.radians(170.0)) > hg_phase_factor(0.6, math.radians(10.0))
-
-
 def test_tangent_optical_depth_is_exponential() -> None:
     """The column falls by exp over one scale height."""
     spec = AtmosphereSpec(scale_height_px=5.0, tau_ref=2.0, ref_altitude_px=0.0)
@@ -410,9 +392,10 @@ def test_apply_atmosphere_does_not_mutate_input() -> None:
         semi_b=_RADIUS,
         semi_c=_RADIUS,
         rotation_z=0.0,
-        rotation_tilt=0.0,
+        sub_observer_lat=0.0,
         illumination_angle=math.radians(90.0),
         phase_angle=math.radians(30.0),
+        silhouette=(body > 0.0).astype(np.float64),
     )
     assert np.array_equal(body, original)
 
@@ -452,7 +435,7 @@ def _centered_layers(
         semi_b=_RADIUS,
         semi_c=_RADIUS,
         rotation_z=0.0,
-        rotation_tilt=0.0,
+        sub_observer_lat=0.0,
         illumination_angle=math.radians(90.0),
         phase_angle=math.radians(phase_deg),
         silhouette=_sphere_outline() if outline is None else outline,
@@ -479,6 +462,19 @@ def test_halo_transmission_is_the_tangent_extinction() -> None:
     altitude = math.hypot(probe_v + 0.5 - _CENTER, probe_u + 0.5 - _CENTER) - _RADIUS
     tau = float(tangent_optical_depth(np.array([altitude]), spec)[0])
     assert layers.halo.transmission[probe_v, probe_u] == pytest.approx(math.exp(-tau), rel=1e-9)
+
+
+def test_the_halo_on_a_covered_pixel_takes_the_limbs_extinction() -> None:
+    """The halo under a covered pixel beside the limb dims as the limb column does.
+
+    The pixel's center lies half a pixel inside the limb, but the halo shows only
+    through the part of a pixel the outline leaves open, which lies above the limb.
+    """
+    spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6)
+    layers = _centered_layers(spec)
+    tau = float(tangent_optical_depth(np.array([0.0]), spec)[0])
+    covered = (int(_CENTER), int(_CENTER + _RADIUS) - 1)
+    assert layers.halo.transmission[covered] == pytest.approx(math.exp(-tau), rel=1e-9)
 
 
 # ---------------------------------------------------------------------------
@@ -572,7 +568,7 @@ def test_on_disc_haze_is_continuous_across_the_limb() -> None:
 # ---------------------------------------------------------------------------
 
 # A fully lit sphere of radius 15 at the frame center whose haze (H = 5,
-# tau_ref = 2) glows over a halo out to ~38 px above the limb.
+# tau_ref = 2) glows over a halo out to ~61 px above the limb.
 _C_SIZE = 96
 _C_CENTER = 48.0
 _C_RADIUS = 15.0
@@ -600,7 +596,7 @@ def _compose_scene(**extra: Any) -> Any:
     params.update(extra)
     scene = validate_sim_params(params)
     frame = new_sim_frame(_C_SIZE, _C_SIZE)
-    compose_scene_radiance(frame, params=scene, rng=np.random.default_rng(0))
+    compose_scene_radiance(frame, params=scene)
     return frame
 
 
@@ -625,8 +621,6 @@ def test_body_mask_covers_only_the_solid_silhouette() -> None:
         body_spec_from_params(_compose_body(), index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=_C_CENTER,
-        ref_center_u=_C_CENTER,
     )
     assert bool(mask[_DISC_PIXEL])
     assert not bool(mask[_HALO_PIXEL])
@@ -718,13 +712,13 @@ def test_halo_overlap_orders_by_explicit_ranges() -> None:
 def test_overlapping_halos_without_ranges_are_ambiguous() -> None:
     """Two halos that overlap only each other still demand explicit ranges.
 
-    The discs are far enough apart that neither halo reaches the other's
-    silhouette, so only the halo-versus-halo glow overlaps -- and the two
-    screens' compositing order (each attenuates the other) would still be
+    The discs sit in opposite corners, far enough apart that neither halo reaches
+    the other's silhouette, so only the halo-versus-halo glow overlaps -- and the
+    two screens' compositing order (each attenuates the other) would still be
     ordered by the positional defaults.
     """
-    left = _compose_body(center_u=5.0)
-    right = _compose_body(name='TITAN2', center_u=91.0)
+    left = _compose_body(center_v=5.0, center_u=5.0)
+    right = _compose_body(name='TITAN2', center_v=91.0, center_u=91.0)
     # The message names the bodies in render (far-to-near) order: the second
     # body's positional default range is larger, so it renders first.
     with pytest.raises(SimSceneValidationError, match="halos of bodies 'TITAN2' and 'TITAN'"):

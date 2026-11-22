@@ -5,13 +5,9 @@ rotation, lighting) rather than from SPICE.  Used by the simulated-image
 GUI to compose synthetic test scenes; the rendered body becomes a
 ``BODY_DISC`` ``NavFeature`` that the standard pipeline can navigate
 against.  A well-resolved low-phase body also emits a ``LIMB_ARC``, and a
-body at appreciable phase emits a ``TERMINATOR_ARC`` -- both matching the
-SPICE-backed ``NavModelBody``'s geometry and gating semantics (polyline
-conventions, emission gates, reliability inputs), so a sim scene exercises
-the same techniques a real frame would.  The per-vertex sigma model is the
-deliberate exception: the real model derives per-vertex sigmas from the
-PSF, limb softness, and albedo terms, while the noise-free sim render
-carries fixed per-vertex values (see ``_TERMINATOR_SIGMA_NORMAL_PX``).
+body at appreciable phase emits a ``TERMINATOR_ARC``; both arcs are built by
+:mod:`spindoctor.nav_model.simulated.body_arcs`, which describes how they
+match the SPICE-backed ``NavModelBody``.
 """
 
 from __future__ import annotations
@@ -25,28 +21,26 @@ from spindoctor.annotation import Annotations
 from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
-from spindoctor.feature.flags import BodyDiscFlags, LimbArcFlags, TerminatorArcFlags
-from spindoctor.feature.geometry import BodyDiscGeometry, LimbPolyline, TerminatorPolyline
+from spindoctor.feature.flags import BodyDiscFlags
+from spindoctor.feature.geometry import BodyDiscGeometry
 from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.nav_model import NavModel
-from spindoctor.nav_model.nav_model_body import (
-    BODY_DISC_MAX_OVERFLOW_FRACTION,
-    LIMB_ARC_MIN_VERTICES,
-    TERMINATOR_MIN_PHASE_FACTOR,
-    TERMINATOR_MIN_VERTICES,
-    TITAN_BODY_NAME,
-    limb_reliability,
-    shape_features_suppressed,
-    terminator_reliability,
-)
+from spindoctor.nav_model.nav_model_body import BODY_DISC_MAX_OVERFLOW_FRACTION, TITAN_BODY_NAME
 from spindoctor.nav_model.nav_model_body_base import BODY_BLOB_MIN_DIAMETER_PX, NavModelBodyBase
-from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
+from spindoctor.nav_model.simulated.body_arcs import (
+    BodyArcInputs,
+    build_limb_arc_feature,
+    build_terminator_arc_feature,
+)
+from spindoctor.nav_model.simulated.predicted_body import (
+    predicted_center_vu,
+    predicted_semi_axes_px,
+    predicted_silhouette,
+    render_predicted_body,
+)
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
-from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX, containing_pixel
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
-from spindoctor.support.image import shift_array
 from spindoctor.support.time import now_dt
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -55,127 +49,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 __all__ = ['NavModelBodySimulated']
 
-# Minimum limb-polyline vertices to emit a LIMB_ARC.  Matches BodyLimbNav's
-# ``min_arc_vertices`` feasibility floor: a shorter arc cannot constrain the
-# fit.  Imported from the catalog body model so the two emission gates cannot
-# desync.
-_MIN_LIMB_ARC_VERTICES: int = LIMB_ARC_MIN_VERTICES
-# Minimum silhouette diameter to emit a LIMB_ARC.  The catalog body model gates
-# the limb on its ellipsoid-fit uncertainty (``<= 3 px``) plus the shared
-# vertex-count floor; the sim has no km scale, so it gates on resolution
-# directly.  Below this the limb fit is imprecise and -- because it is an
-# LM-refined distance-transform fit -- it injects cross-process jitter into the
-# fused offset of any body scene, so only a well-resolved body emits a limb.
-_MIN_LIMB_DIAMETER_PX: float = 100.0
-# Per-vertex limb uncertainty for a simulated body.  The rendered silhouette edge
-# is sharp and noise-free, so the predicted limb sits within ~1 px of the image
-# edge; the tangent sigma reflects the one-pixel polyline sampling resolution.
-_LIMB_SIGMA_NORMAL_PX: float = 1.0
-_LIMB_SIGMA_TANGENT_PX: float = 0.5
-# Above this phase the lit limb is a thin crescent and most of the silhouette
-# boundary is terminator (a soft brightness gradient, not a sharp image edge), so
-# a limb fit is unreliable -- the body is then navigated by the blob centroid.
-# Gating emission here keeps LIMB_ARC off the high-phase scenes and matches the
-# catalog body model's limb/blob handoff.
-_LIMB_MAX_PHASE_DEG: float = 60.0
-
 # The largest canvas, in pixels on a side, the silhouette-overflow count
 # renders at full resolution.  A larger body is counted on a canvas
 # downsampled by a whole factor and scaled back by its square, which keeps
 # memory bounded at about 32 MB of float64 however large the body is.
 _OVERFLOW_CANVAS_MAX_PX: int = 2048
-# Per-vertex terminator uncertainty for a simulated body.  The terminator is a
-# soft photometric boundary (a shading ramp crossing zero) rather than a sharp
-# silhouette edge, so its normal sigma is one pixel wider than the limb's; the
-# tangent sigma reflects the one-pixel polyline sampling resolution.  The
-# catalog body model derives these from the ellipsoid residual and albedo; the
-# noise-free sim render has neither, so fixed values stand in.
-_TERMINATOR_SIGMA_NORMAL_PX: float = 2.0
-_TERMINATOR_SIGMA_TANGENT_PX: float = 0.5
-
-
-def _limb_polyline_from_mask(
-    limb_mask: NDArrayBoolType,
-    body_mask: NDArrayBoolType,
-) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-    """Extract limb vertices and outward normals from a 1-pixel limb mask.
-
-    Each ``True`` pixel of ``limb_mask`` (a body pixel adjacent to sky) becomes
-    one vertex.  The outward normal points away from the body interior: it is the
-    normalized sum of the unit directions toward each non-body 4-neighbor, so a
-    vertex on the sunward limb gets a normal pointing into the sky.
-
-    Parameters:
-        limb_mask: Extfov-shape boolean limb mask (the silhouette boundary).
-        body_mask: Extfov-shape boolean body silhouette mask.
-
-    Returns:
-        ``(vertices_vu, normals_vu)`` each shaped ``(N, 2)``; empty when the mask
-        has no pixels.
-    """
-    if not limb_mask.any():
-        empty: NDArrayFloatType = np.empty((0, 2), dtype=np.float64)
-        return empty, empty
-    vs, us = np.where(limb_mask)
-    vertices_vu = np.stack([vs.astype(np.float64), us.astype(np.float64)], axis=1)
-    rows, cols = body_mask.shape
-    normals_vu = np.zeros_like(vertices_vu)
-    for i, (v, u) in enumerate(zip(vs, us, strict=True)):
-        dv = 0.0
-        du = 0.0
-        if v > 0 and not body_mask[v - 1, u]:
-            dv -= 1.0
-        if v < rows - 1 and not body_mask[v + 1, u]:
-            dv += 1.0
-        if u > 0 and not body_mask[v, u - 1]:
-            du -= 1.0
-        if u < cols - 1 and not body_mask[v, u + 1]:
-            du += 1.0
-        norm = float(np.hypot(dv, du)) or 1.0
-        normals_vu[i, 0] = dv / norm
-        normals_vu[i, 1] = du / norm
-    return vertices_vu, normals_vu
-
-
-def _terminator_ridge_mask(
-    model_img: NDArrayFloatType,
-) -> tuple[NDArrayBoolType, NDArrayBoolType]:
-    """Interior lit/unlit boundary ridge of a rendered body image.
-
-    The shading floors the visible-but-unlit hemisphere at
-    ``DARK_SIDE_ILLUM_STRENGTH``, so brightness ``> 0`` is the whole visible
-    disc while brightness above the floor is the lit region; the unlit disc is
-    their difference.  A ridge pixel is a lit pixel with an unlit *interior*
-    disc pixel as a 4-neighbor -- the interior restriction drops the
-    anti-aliased limb ring (unlit only because its edge brightness has ramped
-    below the floor), which keeps the ridge off the silhouette everywhere the
-    lit and unlit regions are separated by more than a pixel (the cusps of a
-    very thin crescent are the exception; see ``_terminator_polyline``).
-
-    Parameters:
-        model_img: A rendered body image (any canvas).
-
-    Returns:
-        ``(ridge_mask, lit_mask)`` boolean arrays of the same shape.
-    """
-    disc = model_img > 0.0
-    lit = model_img > DARK_SIDE_ILLUM_STRENGTH
-    dark_disc = disc & ~lit
-    touches_sky = (
-        shift_array(~disc, (-1, 0))
-        | shift_array(~disc, (1, 0))
-        | shift_array(~disc, (0, -1))
-        | shift_array(~disc, (0, 1))
-    )
-    dark_disc_interior = dark_disc & ~touches_sky
-    neighbor_dark = (
-        shift_array(dark_disc_interior, (-1, 0))
-        | shift_array(dark_disc_interior, (1, 0))
-        | shift_array(dark_disc_interior, (0, -1))
-        | shift_array(dark_disc_interior, (0, 1))
-    )
-    ridge = lit & neighbor_dark
-    return ridge, lit
 
 
 def _silhouette_diameter_px(body_mask: NDArrayBoolType) -> float:
@@ -245,14 +123,13 @@ class NavModelBodySimulated(NavModelBodyBase):
     Attributes:
         apply_limb_emission_gates: When ``True`` (the default) the LIMB_ARC
             is emitted only for a well-resolved, low-phase body (the
-            navigation-policy gates below).  Measurement callers (the
-            realism match) set this to ``False``: the silhouette geometry
-            exists regardless of whether a limb fit would be reliable, and
-            the gates-off path emits the *lit geometric limb* -- the
-            phase-0 silhouette boundary restricted to lit vertices --
-            matching the real body model's LIMB_ARC definition instead of
-            the lit-region boundary (which mixes limb and terminator at
-            nonzero phase).
+            navigation-policy gates of
+            :func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature`).
+            Measurement callers (the realism match) set this to ``False``:
+            the silhouette geometry exists regardless of whether a limb fit
+            would be reliable, so the gates-off path skips those gates and
+            emits the silhouette boundary of a phase-0 render, lit and unlit
+            vertices alike.
 
     Parameters:
         name: Name of this model instance.
@@ -269,7 +146,9 @@ class NavModelBodySimulated(NavModelBodyBase):
             - ``semi_a_px``, ``semi_b_px``, ``semi_c_px`` (pixels; the
               ellipsoid's semi-axes)
             - ``rotation_z`` (deg; rotation about the line of sight)
-            - ``rotation_tilt`` (deg; tilt of the body)
+            - ``sub_observer_lat_deg`` (deg; latitude of the sub-observer point,
+              positive when the north pole, along semi-axis a, tips toward the
+              observer)
             - ``illumination_angle`` (deg)
             - ``phase_angle`` (deg)
 
@@ -286,6 +165,8 @@ class NavModelBodySimulated(NavModelBodyBase):
             and the visible-arc fractions report the loss, mirroring how the
             SPICE-backed model's per-vertex drops feed its arc fraction.
     """
+
+    inputs = 'scene_view'
 
     def __init__(
         self,
@@ -304,7 +185,6 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._sibling_bodies: list[dict[str, Any]] = [dict(s) for s in sibling_bodies or []]
         self._model_img: NDArrayFloatType | None = None
         self._body_mask: NDArrayBoolType | None = None
-        self._limb_mask: NDArrayBoolType | None = None
         self._occluder_mask: NDArrayBoolType | None = None
         self._predicted_center_vu: tuple[float, float] = (0.0, 0.0)
         self._predicted_diameter_px: float = 0.0
@@ -312,6 +192,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._subject_range_km: float = float('inf')
         self._bbox_extfov_vu: tuple[int, int, int, int] = (0, 0, 0, 0)
         self._overflow_fraction: float = 1.0
+        self._arc_inputs: BodyArcInputs | None = None
 
     @classmethod
     def instances_for_obs(
@@ -321,8 +202,7 @@ class NavModelBodySimulated(NavModelBodyBase):
 
         Reads the per-body entries of the navigator view
         (``obs.nav_params['bodies']``) -- never the full scene, whose truth
-        keys stay behind the information boundary.  Returns an empty list for
-        a real obs, so the SPICE-backed ``NavModelBody`` handles those instead.
+        keys stay behind the information boundary.
 
         A scene body may carry a ``nav_override`` mapping: the renderer draws
         the true shape, while the boundary filter overlays the override onto
@@ -355,8 +235,6 @@ class NavModelBodySimulated(NavModelBodyBase):
             One ``NavModelBodySimulated`` per non-Titan body in the sim
             scene.
         """
-        if not getattr(obs, 'is_simulated', False):
-            return []
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict):
             return []
@@ -418,55 +296,24 @@ class NavModelBodySimulated(NavModelBodyBase):
                 shape.  The unclipped whole-body render behind the
                 visible-arc fraction passes a body-sized canvas here.
             center: Optional body center ``(v, u)`` on that canvas; defaults
-                to the rendered params' own predicted center.
+                to the rendered params' predicted center on the frame, which
+                puts a body that states no center at the center of the
+                observation's data shape whatever canvas is given.  Every
+                caller that passes a canvas passes its center too.
             params: Optional body-parameter dict to render instead of this
-                model's own ``nav_body``.  The occlusion path renders each
-                nearer sibling's predicted silhouette through this.
+                model's own ``nav_body``.  The overflow fraction renders a
+                downscaled copy of the body through this.
 
         Returns:
             The rendered image on the requested canvas.
         """
         p = self._nav_body if params is None else params
-        data_size_v, data_size_u = (
-            size
-            if size is not None
-            else (
-                int(self.obs.data_shape_v),
-                int(self.obs.data_shape_u),
-            )
-        )
-        rotation_z_rad = float(np.radians(p.get('rotation_z', 0.0)))
-        rotation_tilt_rad = float(np.radians(p.get('rotation_tilt', 0.0)))
-        illumination_angle_rad = float(np.radians(p.get('illumination_angle', 0.0)))
-        if center is not None:
-            center_v, center_u = center
-        else:
-            center_v = float(p.get('center_v', data_size_v / 2.0))
-            center_u = float(p.get('center_u', data_size_u / 2.0))
-        semi_a_px = float(p.get('semi_a_px', 0.0))
-        semi_b_px = float(p.get('semi_b_px', 0.0))
-        semi_c_px = float(p.get('semi_c_px', min(semi_a_px, semi_b_px)))
-        if str(p.get('shape_model', 'ellipsoid')) == 'polyhedral_mesh':
-            return render_mesh_body_image(
-                size=(data_size_v, data_size_u),
-                center=(center_v, center_u),
-                semi_axes_px=(semi_a_px, semi_b_px, semi_c_px),
-                spec=mesh_spec_from_params(p),
-                illumination_angle=illumination_angle_rad,
-                phase_angle=phase_angle_rad,
-                anti_aliasing=1.0,
-            )
-        return create_predicted_body_image(
-            size=(data_size_v, data_size_u),
-            center=(center_v, center_u),
-            semi_a_px=semi_a_px,
-            semi_b_px=semi_b_px,
-            semi_c_px=semi_c_px,
-            rotation_z=rotation_z_rad,
-            rotation_tilt=rotation_tilt_rad,
-            illumination_angle=illumination_angle_rad,
-            phase_angle=phase_angle_rad,
-            anti_aliasing=1.0,
+        data_shape_vu = (int(self.obs.data_shape_v), int(self.obs.data_shape_u))
+        return render_predicted_body(
+            p,
+            phase_angle_rad,
+            shape_vu=data_shape_vu if size is None else size,
+            center_vu=predicted_center_vu(p, data_shape_vu) if center is None else center,
         )
 
     def _render(self) -> None:
@@ -477,8 +324,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         ext_margin_v = int(self.obs.extfov_margin_v)
         ext_margin_u = int(self.obs.extfov_margin_u)
         phase_angle_rad = float(np.radians(p.get('phase_angle', 0.0)))
-        center_v = float(p.get('center_v', data_size_v / 2.0))
-        center_u = float(p.get('center_u', data_size_u / 2.0))
+        center_v, center_u = predicted_center_vu(p, (data_size_v, data_size_u))
         sim_img = self._render_body_image(phase_angle_rad)
         body_mask = sim_img > 0.0
         limb_mask = self._compute_limb_mask_from_body_mask(body_mask)
@@ -492,7 +338,6 @@ class NavModelBodySimulated(NavModelBodyBase):
         body_mask_full[slice_v, slice_u] = body_mask
         self._model_img = model_img_full
         self._body_mask = body_mask_full
-        self._limb_mask = limb_mask_full
         # The scene states the body's center in pixel corner coordinates,
         # which is what the silhouette renderer draws against (it puts the
         # center of pixel i at i + 0.5).  The payload is pixel centric, and so
@@ -529,8 +374,26 @@ class NavModelBodySimulated(NavModelBodyBase):
         # it explicitly; absent that it stays 0, which makes the shared
         # phase-irregularity factor collapse to 0 (the regular-body case).
         self._km_per_pixel_at_limb = float(p.get('km_per_pixel', 0.0))
-        self._metadata['phase_angle_deg'] = float(p.get('phase_angle', 0.0))
+        phase_angle_deg = float(p.get('phase_angle', 0.0))
+        self._metadata['phase_angle_deg'] = phase_angle_deg
         self._metadata['predicted_diameter_px'] = float(self._predicted_diameter_px)
+        self._arc_inputs = BodyArcInputs(
+            obs=self.obs,
+            nav_body=self._nav_body,
+            config=self._config,
+            body_name=self._body_name,
+            source_model=self.name,
+            model_img=model_img_full,
+            body_mask=body_mask_full,
+            limb_mask=limb_mask_full,
+            occluder_mask=self._occluder_mask,
+            bbox_extfov_vu=self._bbox_extfov_vu,
+            subject_range_km=self._subject_range_km,
+            predicted_diameter_px=self._predicted_diameter_px,
+            phase_angle_deg=phase_angle_deg,
+            render=self._render_body_image,
+            silhouette_boundary=self._compute_limb_mask_from_body_mask,
+        )
 
     def _silhouette_overflow_fraction(
         self, in_sensor_pixels: int, phase_angle_rad: float, center_v: float, center_u: float
@@ -559,11 +422,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             cover a pixel.
         """
         p = self._nav_body
-        max_semi = max(
-            float(p.get('semi_a_px', 0.0)),
-            float(p.get('semi_b_px', 0.0)),
-            float(p.get('semi_c_px', 0.0)),
-        )
+        max_semi = max(predicted_semi_axes_px(p))
         # Half again the longest semi-axis (mesh relief can push past the
         # ellipsoid bound), and a canvas of half again the longest diameter plus
         # a fixed margin, as the arc fractions use.
@@ -621,11 +480,12 @@ class NavModelBodySimulated(NavModelBodyBase):
         overflow gates are the SPICE-backed model's, read from this model's
         own predicted silhouette.
         """
-        if self._model_img is None or self._body_mask is None:
+        arc_inputs = self._arc_inputs
+        if arc_inputs is None:
             return []
         v_min, u_min, v_max, u_max = self._bbox_extfov_vu
-        template_img = self._model_img[v_min:v_max, u_min:u_max].copy()
-        template_mask = self._body_mask[v_min:v_max, u_min:u_max].copy()
+        template_img = arc_inputs.model_img[v_min:v_max, u_min:u_max].copy()
+        template_mask = arc_inputs.body_mask[v_min:v_max, u_min:u_max].copy()
         # A nearer sibling body hides part of this disc; the image shows the
         # occluder there, not this body.  Drop the occluded pixels from the
         # correlation template so it scores only against disc brightness the
@@ -689,47 +549,15 @@ class NavModelBodySimulated(NavModelBodyBase):
                     self._overflow_fraction,
                     self._blob_max_overflow_fraction(),
                 )
-        limb_feature = self._build_limb_arc_feature()
+        limb_feature = build_limb_arc_feature(
+            arc_inputs, apply_emission_gates=self.apply_limb_emission_gates
+        )
         if limb_feature is not None:
             features.append(limb_feature)
-        terminator_feature = self._build_terminator_arc_feature()
+        terminator_feature = build_terminator_arc_feature(arc_inputs)
         if terminator_feature is not None:
             features.append(terminator_feature)
         return features
-
-    def _lit_geometric_limb_polyline(self) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-        """Lit geometric-limb polyline for the gates-off measurement path.
-
-        The navigation polyline is the boundary of the rendered *lit* region,
-        which at nonzero phase mixes the sharp geometric limb with the soft
-        terminator (the mask edge sits where the shading ramp crosses zero).
-        The realism measurement compares against the real body model's
-        LIMB_ARC, which carries only the lit part of the geometric silhouette
-        boundary and emits the terminator as a separate feature -- so this
-        path reproduces that definition: the silhouette boundary of a phase-0
-        render of the same body, restricted to vertices lit in the true-phase
-        image, with outward normals taken from the full silhouette.
-
-        Returns:
-            ``(vertices_vu, normals_vu)`` in extfov coordinates; empty when
-            the body renders no lit silhouette-boundary pixels.
-        """
-        empty: NDArrayFloatType = np.empty((0, 2), dtype=np.float64)
-        if self._body_mask is None:
-            return empty, empty
-        full_img = self._render_body_image(0.0)
-        full_mask = full_img > 0.0
-        boundary = self._compute_limb_mask_from_body_mask(full_mask)
-        ext_margin_v = int(self.obs.extfov_margin_v)
-        ext_margin_u = int(self.obs.extfov_margin_u)
-        slice_v = slice(ext_margin_v, ext_margin_v + int(self.obs.data_shape_v))
-        slice_u = slice(ext_margin_u, ext_margin_u + int(self.obs.data_shape_u))
-        lit = np.asarray(self._body_mask[slice_v, slice_u], dtype=bool)
-        full_mask_ext = self.obs.make_extfov_false()
-        lit_boundary_ext = self.obs.make_extfov_false()
-        full_mask_ext[slice_v, slice_u] = full_mask
-        lit_boundary_ext[slice_v, slice_u] = boundary & lit
-        return _limb_polyline_from_mask(lit_boundary_ext, full_mask_ext)
 
     def _compute_occluder_mask(self) -> NDArrayBoolType | None:
         """Union silhouette (extfov coords) of explicitly nearer sibling bodies.
@@ -761,8 +589,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         data_size_u = int(self.obs.data_shape_u)
         mask = np.zeros((data_size_v, data_size_u), dtype=np.bool_)
         for sibling in occluders:
-            phase_rad = float(np.radians(sibling.get('phase_angle', 0.0)))
-            mask |= self._render_body_image(phase_rad, params=sibling) > 0.0
+            mask |= predicted_silhouette(sibling, (data_size_v, data_size_u))
         if not mask.any():
             return None
         ext_margin_v = int(self.obs.extfov_margin_v)
@@ -774,308 +601,10 @@ class NavModelBodySimulated(NavModelBodyBase):
         ] = mask
         return mask_full
 
-    def _drop_occluded_vertices(
-        self,
-        vertices_vu: NDArrayFloatType,
-        normals_vu: NDArrayFloatType,
-    ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-        """Drop polyline vertices hidden behind a nearer sibling body.
-
-        A hidden arc has no counterpart edge in the image (the occluder's
-        disc covers it), so fitting it could only anchor on the occluder's
-        own limb; dropping it keeps the DT fit on arcs that exist and lets
-        the visible-arc fraction count the hidden arc as lost.
-
-        Parameters:
-            vertices_vu: Polyline vertices, extfov coords, shape ``(N, 2)``.
-            normals_vu: Matching outward normals, shape ``(N, 2)``.
-
-        Returns:
-            The surviving ``(vertices_vu, normals_vu)``; unchanged when no
-            sibling occludes.
-        """
-        if self._occluder_mask is None or vertices_vu.shape[0] == 0:
-            return vertices_vu, normals_vu
-        vs = vertices_vu[:, 0].astype(np.intp)
-        us = vertices_vu[:, 1].astype(np.intp)
-        keep = ~self._occluder_mask[vs, us]
-        return vertices_vu[keep], normals_vu[keep]
-
-    def _limb_visible_arc_fraction(self, visible_vertex_count: int) -> float:
-        """Fraction of the full predicted silhouette boundary the fit sees.
-
-        The sim analog of the SPICE-backed model's ``_visible_arc_fraction``
-        (survivors over the predicted ridge): the denominator is the
-        silhouette-boundary length of an *unclipped* render of the same body
-        at the same phase -- a canvas sized to the whole silhouette,
-        independent of the frame -- and the numerator is the vertex count
-        that survived frame clipping and sibling-body occlusion.  A fully
-        framed, unoccluded body scores ~1.0; a body sliding off the frame or
-        hiding behind a nearer body scores the surviving fraction.  Both
-        renders read only the model's own idealized params.
-
-        Parameters:
-            visible_vertex_count: Vertex count of the surviving limb
-                polyline.
-
-        Returns:
-            The [0, 1] visible-arc fraction.  1.0 when the unclipped render
-            has no boundary to compare against (a degenerate geometry).
-        """
-        p = self._nav_body
-        max_semi = max(
-            float(p.get('semi_a_px', 0.0)),
-            float(p.get('semi_b_px', 0.0)),
-            float(p.get('semi_c_px', 0.0)),
-        )
-        # Canvas comfortably larger than the silhouette: half again the
-        # longest diameter (mesh relief can push past the ellipsoid bound)
-        # plus a fixed margin.
-        canvas = math.ceil(max_semi * 3.0) + 16
-        full_img = self._render_body_image(
-            float(np.radians(p.get('phase_angle', 0.0))),
-            size=(canvas, canvas),
-            center=(canvas / 2.0, canvas / 2.0),
-        )
-        full_mask = full_img > 0.0
-        full_boundary = self._compute_limb_mask_from_body_mask(full_mask)
-        total = int(np.count_nonzero(full_boundary))
-        if total <= 0:
-            return 1.0
-        return min(1.0, float(visible_vertex_count) / float(total))
-
-    def _build_limb_arc_feature(self) -> NavFeature | None:
-        """Emit a LIMB_ARC from the rendered silhouette boundary, or ``None``.
-
-        The predicted limb is the silhouette boundary of the rendered body; on a
-        low-phase body it is essentially all lit, so BodyLimbNav's distance-
-        transform fit aligns it to the image edge and recovers the offset.  The
-        feature is emitted only when the boundary has enough vertices to
-        constrain the fit (a tiny or barely-resolved body yields too short an
-        arc).  The shadow-side vertices of a higher-phase body carry no sharp
-        image edge and are down-weighted by the technique's robust fit rather
-        than excluded here.
-
-        With ``apply_limb_emission_gates`` off (the measurement path) the
-        resolution, phase, and arc-length gates are skipped and the polyline
-        is the lit geometric limb instead of the lit-region boundary; see
-        :meth:`_lit_geometric_limb_polyline`.
-        """
-        if self._limb_mask is None or self._body_mask is None:
-            return None
-        if self.apply_limb_emission_gates:
-            if self._predicted_diameter_px < _MIN_LIMB_DIAMETER_PX:
-                return None
-            if float(self._metadata.get('phase_angle_deg', 0.0)) > _LIMB_MAX_PHASE_DEG:
-                return None
-            vertices_vu, normals_vu = _limb_polyline_from_mask(self._limb_mask, self._body_mask)
-            vertices_vu, normals_vu = self._drop_occluded_vertices(vertices_vu, normals_vu)
-            if vertices_vu.shape[0] < _MIN_LIMB_ARC_VERTICES:
-                return None
-            # Reliability inputs computed as the SPICE-backed model does:
-            # the visible-arc fraction compares the surviving polyline (net
-            # of frame clipping and sibling-body occlusion) against the
-            # unclipped whole-body silhouette boundary, and the shared
-            # reliability formula scores it.  These feed BodyLimbNav's
-            # visible_limb_arc_fraction confidence term, so a clipped or
-            # occluded sim limb scores like a real one instead of pinning
-            # every input at 1.0.
-            visible_arc_fraction = self._limb_visible_arc_fraction(vertices_vu.shape[0])
-            reliability = limb_reliability(
-                visible_arc_fraction=visible_arc_fraction,
-                visible_arc_px=float(vertices_vu.shape[0]),
-            )
-        else:
-            vertices_vu, normals_vu = self._lit_geometric_limb_polyline()
-            if vertices_vu.shape[0] == 0:
-                return None
-            # Measurement path (realism match): the geometry is the product
-            # and no technique consumes the score, so the reliability inputs
-            # stay at their vacuous 1.0.
-            visible_arc_fraction = 1.0
-            reliability = 1.0
-        n = vertices_vu.shape[0]
-        sigma_normal = np.full(n, _LIMB_SIGMA_NORMAL_PX, dtype=np.float64)
-        sigma_tangent = np.full(n, _LIMB_SIGMA_TANGENT_PX, dtype=np.float64)
-        return NavFeature(
-            feature_id=f'limb_arc:{self._body_name}',
-            feature_type=NavFeatureType.LIMB_ARC,
-            source_model=self.name,
-            geometry=LimbPolyline(
-                vertices_vu=vertices_vu,
-                normals_vu=normals_vu,
-                sigma_normal_per_vertex_px=sigma_normal,
-                sigma_tangent_per_vertex_px=sigma_tangent,
-                bbox_extfov_vu=self._bbox_extfov_vu,
-            ),
-            subject_range_km=self._subject_range_km,
-            position_cov_px=None,
-            intensity_sigma_rel=0.0,
-            preferred_filter=NavFilterSpec(kind=NavFilterKind.NONE),
-            reliability=reliability,
-            reliability_reasons=NavReliabilityBreakdown(visible_arc_fraction=visible_arc_fraction),
-            usable_types=frozenset({NavFeatureType.LIMB_ARC}),
-            flags=LimbArcFlags(
-                body_name=self._body_name,
-                visible_arc_fraction=visible_arc_fraction,
-            ),
-        )
-
-    def _terminator_polyline(self) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-        """Interior lit/unlit boundary polyline for the terminator arc.
-
-        The terminator is the boundary *inside* the disc where the lit
-        hemisphere meets the unlit one -- distinct from the geometric limb,
-        which is the disc's silhouette edge against sky.  The shading floors the
-        visible-but-unlit hemisphere at ``DARK_SIDE_ILLUM_STRENGTH``, so
-        ``self._body_mask`` (brightness ``> 0``) is the whole visible disc while
-        ``model_img > DARK_SIDE_ILLUM_STRENGTH`` is the lit region; the unlit
-        disc is their difference.  A terminator vertex is a lit pixel with an
-        unlit *interior* disc pixel as a 4-neighbor -- the interior restriction
-        drops the anti-aliased limb ring (unlit only because its edge brightness
-        has ramped below the floor), keeping the polyline interior to the disc
-        everywhere except the cusp-adjacent vertices of a very thin crescent,
-        where terminator and limb meet within a pixel and a few vertices land
-        on the silhouette (at phase 150 roughly 9 of 155 vertices; the
-        SPICE-backed model's sampler shares the behavior).  The outward
-        normal is the gradient of the lit mask, so it points from the lit side
-        toward the unlit side, the convention the SPICE-backed body model's
-        terminator sampler uses.
-
-        Returns:
-            ``(vertices_vu, normals_vu)`` in extfov coordinates; empty arrays
-            when the body renders no interior lit/unlit boundary (a fully lit
-            or fully unlit visible disc).
-        """
-        empty: NDArrayFloatType = np.empty((0, 2), dtype=np.float64)
-        if self._body_mask is None or self._model_img is None:
-            return empty, empty
-        terminator_ridge, lit = _terminator_ridge_mask(
-            np.asarray(self._model_img, dtype=np.float64)
-        )
-        return _limb_polyline_from_mask(terminator_ridge, lit)
-
-    def _terminator_visible_arc_fraction(self, visible_vertex_count: int) -> float:
-        """Fraction of the full predicted terminator ridge the frame sees.
-
-        The sim analog of the SPICE-backed model's ``_visible_arc_fraction``
-        (survivors over the predicted ridge): the denominator is the
-        terminator ridge length of an *unclipped* render of the same body at
-        the same phase and lighting -- a canvas sized to the whole silhouette,
-        independent of the frame -- and the numerator is the ridge that
-        survived frame clipping and sibling-body occlusion.  A fully framed,
-        unoccluded body scores ~1.0; a body whose terminator runs off the
-        frame edge or behind a nearer body scores the surviving fraction.
-        Both renders read only the model's own idealized params.
-
-        Parameters:
-            visible_vertex_count: Vertex count of the surviving terminator
-                polyline.
-
-        Returns:
-            The [0, 1] visible-arc fraction.  1.0 when the unclipped render
-            has no ridge to compare against (a degenerate geometry).
-        """
-        p = self._nav_body
-        max_semi = max(
-            float(p.get('semi_a_px', 0.0)),
-            float(p.get('semi_b_px', 0.0)),
-            float(p.get('semi_c_px', 0.0)),
-        )
-        # Canvas comfortably larger than the silhouette: half again the
-        # longest diameter (mesh relief can push past the ellipsoid bound)
-        # plus a fixed margin.
-        canvas = math.ceil(max_semi * 3.0) + 16
-        full_img = self._render_body_image(
-            float(np.radians(p.get('phase_angle', 0.0))),
-            size=(canvas, canvas),
-            center=(canvas / 2.0, canvas / 2.0),
-        )
-        full_ridge, _ = _terminator_ridge_mask(full_img)
-        total = int(np.count_nonzero(full_ridge))
-        if total <= 0:
-            return 1.0
-        return min(1.0, float(visible_vertex_count) / float(total))
-
-    def _build_terminator_arc_feature(self) -> NavFeature | None:
-        """Emit a TERMINATOR_ARC from the interior lit/unlit boundary, or ``None``.
-
-        Mirrors the SPICE-backed body model's terminator gates: a resolved
-        ``highly_irregular`` body suppresses the feature (the shared
-        :func:`~spindoctor.nav_model.nav_model_body.shape_features_suppressed`
-        policy -- a chaotic rotator's rendered terminator does not match the
-        real body's), the phase must be far enough from zero for a terminator
-        to separate from the limb (``sin(phase) >=
-        TERMINATOR_MIN_PHASE_FACTOR``), and the boundary polyline must be long
-        enough to constrain a fit (``>= TERMINATOR_MIN_VERTICES`` vertices).
-        Emission is ungated by the limb-path resolution / phase policy gates --
-        the terminator is exactly the high-phase feature those gates hand the
-        body off to.  The recovered offset it produces stays
-        ``confidence_provisional`` like every sim-anchored technique result,
-        because ``BodyTerminatorNav`` is not yet calibrated against the
-        simulated renderer.
-        """
-        if self._body_mask is None:
-            return None
-        shape = load_body_shape(self._body_name, config=self._config)
-        if shape_features_suppressed(shape, self._predicted_diameter_px, config=self._config):
-            return None
-        phase_angle_deg = float(self._metadata.get('phase_angle_deg', 0.0))
-        phase_angle_factor = abs(math.sin(math.radians(phase_angle_deg)))
-        if phase_angle_factor < TERMINATOR_MIN_PHASE_FACTOR:
-            return None
-        vertices_vu, normals_vu = self._terminator_polyline()
-        vertices_vu, normals_vu = self._drop_occluded_vertices(vertices_vu, normals_vu)
-        if vertices_vu.shape[0] < TERMINATOR_MIN_VERTICES:
-            return None
-        n = vertices_vu.shape[0]
-        sigma_normal = np.full(n, _TERMINATOR_SIGMA_NORMAL_PX, dtype=np.float64)
-        sigma_tangent = np.full(n, _TERMINATOR_SIGMA_TANGENT_PX, dtype=np.float64)
-        # Reliability inputs computed as the SPICE-backed model does: the
-        # visible-arc fraction compares the surviving ridge (net of frame
-        # clipping and sibling-body occlusion) against the unclipped
-        # whole-body ridge, and the shared reliability formula applies the
-        # catalog albedo-variation and sin(phase) penalties.  These feed
-        # BodyTerminatorNav's confidence terms, so a sim terminator scores
-        # like a real one instead of pinning every input at 1.0.
-        visible_arc_fraction = self._terminator_visible_arc_fraction(n)
-        albedo_penalty = min(1.0, shape.albedo_variation)
-        reliability = terminator_reliability(
-            visible_arc_fraction=visible_arc_fraction,
-            albedo_variation=shape.albedo_variation,
-            phase_factor=phase_angle_factor,
-        )
-        return NavFeature(
-            feature_id=f'terminator_arc:{self._body_name}',
-            feature_type=NavFeatureType.TERMINATOR_ARC,
-            source_model=self.name,
-            geometry=TerminatorPolyline(
-                vertices_vu=vertices_vu,
-                normals_vu=normals_vu,
-                sigma_normal_per_vertex_px=sigma_normal,
-                sigma_tangent_per_vertex_px=sigma_tangent,
-                bbox_extfov_vu=self._bbox_extfov_vu,
-            ),
-            subject_range_km=self._subject_range_km,
-            position_cov_px=None,
-            intensity_sigma_rel=0.0,
-            preferred_filter=NavFilterSpec(kind=NavFilterKind.NONE),
-            reliability=reliability,
-            reliability_reasons=NavReliabilityBreakdown(
-                visible_arc_fraction=visible_arc_fraction,
-                albedo_penalty=albedo_penalty,
-            ),
-            usable_types=frozenset({NavFeatureType.TERMINATOR_ARC}),
-            flags=TerminatorArcFlags(
-                body_name=self._body_name,
-                visible_arc_fraction=visible_arc_fraction,
-                phase_angle_factor=min(1.0, phase_angle_factor),
-            ),
-        )
-
     def to_annotations(self, context: NavContext) -> Annotations:
         """Emit body silhouette + label annotations for the summary PNG."""
-        if self._model_img is None or self._body_mask is None or self._limb_mask is None:
+        arc_inputs = self._arc_inputs
+        if arc_inputs is None:
             return Annotations()
         # The label anchor is a pixel of the nominal frame, so it comes off
         # the payload's extended-frame pixel-centric center rather than off
@@ -1084,7 +613,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         return self._create_annotations(
             containing_pixel(u_center - self.obs.extfov_margin_u),
             containing_pixel(v_center - self.obs.extfov_margin_v),
-            self._model_img,
-            self._limb_mask,
-            self._body_mask,
+            arc_inputs.model_img,
+            arc_inputs.limb_mask,
+            arc_inputs.body_mask,
         )

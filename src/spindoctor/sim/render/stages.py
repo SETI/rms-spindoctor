@@ -6,18 +6,33 @@ A render is a fixed-order sequence of stages, each a callable matching the
 is composed, passes through the camera optics, lands on the detector grid,
 is read out, and is then transmitted.
 
-Each stage receives its own ``numpy.random.Generator`` seeded from the
-scene's single ``random_seed`` via
-``derive_effect_seed(random_seed, '<stage-name>')``, so one stage's noise
-realization is independent of which other stages are enabled.  A stage name
-is therefore part of its scenes' noise realization: renaming a stage reseeds
-it and regenerates the affected baselines.
+A stage receives only the frame and the scene.  Each stage derives every random stream
+it needs by name with :func:`~spindoctor.sim.seeds.derive_effect_seed`, from the scene's
+single ``random_seed`` and a name that begins with the stage the effect belongs to: the
+detector stage's shot and read noise draw from the stream ``detector``, its hot pixels
+from ``detector/hot_pixels``, the radiance stage's background stars from
+``scene_radiance/background_stars``, and so on.  The downsample stage draws nothing.  A
+stream may in turn seed its own named sub-streams: ``scene_radiance/craters`` seeds one
+``body:<index>:<name>`` stream for each body, which seeds that body's ``relief``,
+``albedo``, and ``pose_scatter`` streams and one ``crater:<k>`` stream for each crater.
+A scene may also set ``noise_seed``.  The detector's per-frame streams then derive from
+it in place of ``random_seed``, under the same names, so the same scene and camera are
+read out with a new draw of the noise.
+
+The derivation is a stable digest, so a stream's seed is the same in every process and
+on every run.  A stream's seed is computed from nothing but its name and the seed it is
+derived from, so one stage's realization is the same whichever other stages are
+enabled, and adding a stream never reseeds the others.  A stream name is part of the
+noise realization of every scene that uses it.  Renaming one reseeds those scenes and
+moves their committed renders, so a stream name must never change.
 
 A scene with an active whole-scene PSF renders its radiance on an oversampled
 grid (``oversample`` > 1) so the convolution resolves sub-detector-pixel edge
 structure; the box downsample after optics returns the image and the
-pixel-space truth metadata to the detector grid.  A scene with no optics block
-renders at ``oversample`` 1, where the downsample is a no-op.
+pixel-space truth metadata to the detector grid.  A scene with no PSF (no
+``optics.psf`` block, and no catalog kernel from ``instrument_defaults``) renders
+at ``oversample`` 1, where the downsample is a no-op.  An explicit ``oversample``
+key sets the factor either way.
 
 The ``signal`` plane carries normalized [0, ~1] intensive scene units through
 the optics stage; the detector stage converts it to electrons through the
@@ -78,23 +93,18 @@ class SimFrame:
 
 
 class Stage(Protocol):
-    """One rendering stage: a pure in-place transform of a :class:`SimFrame`.
+    """One rendering stage: a transform that mutates a :class:`SimFrame` in place.
+
+    A stage seeds its own random streams by name from the scene seed (see the module
+    docstring).
 
     Parameters:
         frame: The frame to mutate.
         params: The full validated scene ``sim_params`` mapping.  A stage
-            whose scene block is absent is disabled and contributes nothing
-            (per-stage parameter blocks land with their phases).
-        rng: The stage's own seeded random generator.
+            whose scene block is absent is disabled and contributes nothing.
     """
 
-    def __call__(
-        self,
-        frame: SimFrame,
-        *,
-        params: Mapping[str, Any],
-        rng: np.random.Generator,
-    ) -> None: ...
+    def __call__(self, frame: SimFrame, *, params: Mapping[str, Any]) -> None: ...
 
 
 def new_sim_frame(
@@ -215,12 +225,7 @@ def _covering_index_map(index_map: Any, os: int) -> Any:
     return np.where(empty > best_count, np.asarray(0, dtype=dtype), best_label)
 
 
-def downsample_to_detector(
-    frame: SimFrame,
-    *,
-    params: Mapping[str, Any],
-    rng: np.random.Generator,
-) -> None:
+def downsample_to_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     """Box-downsample the oversampled planes to the detector grid.
 
     The box filter is a mean over the ``os**2`` subsamples, so the intensive
@@ -234,10 +239,10 @@ def downsample_to_detector(
 
     Parameters:
         frame: The frame to downsample in place.
-        params: The scene mapping (unused; downsampling has no scene knobs).
-        rng: The stage generator (unused; downsampling is deterministic).
+        params: The scene mapping.  Unused, since downsampling has no scene knobs; it
+            is accepted because every stage takes the same arguments.
     """
-    del params, rng
+    del params
     os = frame.oversample
     if os == 1:
         return

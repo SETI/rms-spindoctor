@@ -108,7 +108,6 @@ def test_stray_light_converts_its_center_onto_the_oversampled_grid() -> None:
                 }
             }
         ),
-        rng=np.random.default_rng(1),
     )
     expected = _expected_oversampled_center(_CENTER)
     lo = math.floor(expected)

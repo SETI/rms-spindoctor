@@ -262,6 +262,7 @@ class NavModelRings(NavModelRingsBase):
     """
 
     _abstract = False
+    inputs = 'spice'
 
     def __init__(
         self,
@@ -314,9 +315,6 @@ class NavModelRings(NavModelRingsBase):
             ``[NavModelRings]`` for the closest planet when its ring catalog is
             configured and the obs exposes the extfov surface, else ``[]``.
         """
-        # Simulated obs use the sim-params-driven NavModelRingsSimulated instead.
-        if getattr(obs, 'is_simulated', False):
-            return []
         planet = getattr(obs, 'closest_planet', None)
         if planet is None:
             return []

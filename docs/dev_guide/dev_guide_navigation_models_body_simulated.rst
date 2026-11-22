@@ -53,9 +53,9 @@ low plateau -- see ``config_510_techniques.yaml``), and a terminator fix stays
 which is the condition on which trust in its confidences depends.
 
 The model overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build
-one instance per body of a simulated observation; the parent
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` declines simulated observations, so the
-autonomous registry routes simulated frames here.
+one instance per body of a simulated observation. Its ``inputs`` is ``'scene_view'``, so a
+simulated frame's bodies come from this model and never from
+:class:`~spindoctor.nav_model.nav_model_body.NavModelBody`, which needs SPICE.
 
 Theory
 ======
@@ -80,9 +80,9 @@ true offset is known to the pixel.
 Restrictions and assumptions
 ----------------------------
 
-- The operator must supply finite, positive ellipsoid axes. Degenerate inputs (zero
-  radius, negative axes) are rejected by
-  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`.
+- The operator must supply positive axes. Scene validation refuses a non-finite axis
+  but accepts zero and negative ones, and the model checks neither. An ellipsoid with
+  a zero axis draws no body, while a mesh with zero depth still draws its outline.
 - The body appearance keys -- crater terrain, the limb-relief field, the photometric
   law and opposition surge, the albedo and disc textures and transits, the atmospheric
   haze layer, the mesh shading mode and pose scatter, and anti-aliasing -- are truth
@@ -126,7 +126,9 @@ in via the per-body entry of the observation's navigator view
   pixels, each half its width along that axis. ``semi_c_px`` defaults to
   ``min(semi_a_px, semi_b_px)``.
 - ``rotation_z`` — rotation about the line of sight (degrees).
-- ``rotation_tilt`` — tilt of the body (degrees).
+- ``sub_observer_lat_deg`` — latitude of the point on the body directly below the
+  observer (degrees). Positive tips the north pole, the end of semi-axis a on +v
+  before ``rotation_z`` turns it, toward the observer.
 - ``illumination_angle`` — degrees.
 - ``phase_angle`` — degrees. Also gates LIMB_ARC emission (limb only at or below 60
   degrees).
@@ -188,23 +190,28 @@ unshifted position the planted offset is measured from.
 Implementation
 ==============
 
-Source file: ``src/spindoctor/nav_model/simulated/body.py`` —
-:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`.
+Source files: ``src/spindoctor/nav_model/simulated/body.py`` holds
+:class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`, and
+``src/spindoctor/nav_model/simulated/body_arcs.py`` holds the limb and terminator arcs,
+:func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature` and
+:func:`~spindoctor.nav_model.simulated.body_arcs.build_terminator_arc_feature`. The class
+keeps all of the body's state. Each time it renders the body, it collects what the arcs
+read into a :class:`~spindoctor.nav_model.simulated.body_arcs.BodyArcInputs`, which
+:meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.to_features` passes to
+both functions. The two arcs share one function that computes the visible-arc fraction,
+given the edge to measure (the silhouette boundary or the lit/unlit ridge), and one
+function that builds the feature.
 
 Public class :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`, base
 :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`. The class overrides
 :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to build one instance per body
-of a simulated observation; the parent
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody` returns an empty list for a simulated
-observation, so the orchestrator's
-:func:`~spindoctor.nav_model.nav_model.build_models_for_obs` driver routes simulated frames to
-this subclass.
+of a simulated observation, and sets the class attribute ``inputs = 'scene_view'``.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
 - :meth:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated.create_model` —
   renders the simulated body (an ellipsoid via
-  :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`,
+  :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`,
   or a mesh via :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`), computes the limb mask via
   the shared :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase` helper, and
   records the predicted diameter, tight bounding box, and silhouette overflow fraction
@@ -231,9 +238,15 @@ Call path traced through
 1. Open a logged section. Read the operator-supplied sim parameters off the per-instance
    dict.
 2. Convert per-axis rotations and angle parameters from degrees to radians.
-3. Call
-   :func:`~spindoctor.nav_model.simulated.predict_body.create_predicted_body_image`
-   with the semi-axes and geometry; the helper returns the rendered simulated body image.
+3. Render the simulated body image from the semi-axes and geometry with
+   :func:`~spindoctor.nav_model.simulated.predicted_body.render_predicted_body`. An
+   ellipsoid body is projected with
+   :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, as the image-side renderer
+   does, and shaded with
+   :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`; a
+   ``polyhedral_mesh`` body is drawn with
+   :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`. A body that states no
+   center sits at the frame center.
 4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask
@@ -266,20 +279,27 @@ Call path traced through
    ``blob_max_overflow_fraction``, append a BODY_BLOB built by the shared blob-feature
    helper on :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`, which
    also holds the blob's overflow test for both models.
-4. When the diameter and phase gates pass, append a LIMB_ARC. The silhouette
-   boundary is sampled into a vertex polyline with outward normals and a fixed
-   per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
-   dropped, and the visible-arc fraction compares the surviving polyline against the
-   silhouette boundary of an unclipped whole-body render -- so a limb sliding off the
-   frame or behind another body reports the loss instead of claiming ``1.0``.  The
-   reliability applies the shared
-   :func:`~spindoctor.nav_model.nav_model_body.limb_reliability` formula (arc fraction
-   and arc length), so a deeply occluded or clipped limb can be dropped by the
-   downstream reliability gate exactly as a real one would be.
-5. When the terminator gates pass, append a TERMINATOR_ARC scored the same way: its
-   visible-arc fraction compares the surviving lit/unlit ridge (net of frame clipping
-   and sibling-body occlusion) against the ridge of an unclipped whole-body render of
-   the same geometry, and its reliability applies the shared
+4. When the body is at least 100 px across and its phase is at most 60 degrees, append
+   the LIMB_ARC that
+   :func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature` builds. The
+   silhouette boundary is sampled into a vertex polyline with outward normals and a
+   fixed per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
+   dropped, and the arc is withheld if fewer than 30 vertices survive. The visible-arc
+   fraction compares the surviving polyline against the silhouette boundary of an
+   unclipped whole-body render -- so a limb sliding off the frame or behind another
+   body reports the loss instead of claiming ``1.0``.  The reliability applies the
+   shared :func:`~spindoctor.nav_model.nav_model_body.limb_reliability` formula (arc
+   fraction and arc length), so a deeply occluded or clipped limb can be dropped
+   downstream for low reliability, exactly as a real one would be. A measurement caller
+   can switch these checks off. The model then skips the size, phase, and vertex-count
+   checks and the occlusion drop, and emits the silhouette boundary of a phase-0 render
+   with a visible-arc fraction and reliability of ``1.0``.
+5. When the phase is far enough from zero and the ridge is long enough, as described
+   under *Overview*, append the TERMINATOR_ARC that
+   :func:`~spindoctor.nav_model.simulated.body_arcs.build_terminator_arc_feature` builds,
+   scored the same way: its visible-arc fraction compares the surviving lit/unlit ridge
+   (net of frame clipping and sibling-body occlusion) against the ridge of an unclipped
+   whole-body render of the same geometry, and its reliability applies the shared
    :func:`~spindoctor.nav_model.nav_model_body.terminator_reliability` formula
    (arc fraction, catalog albedo-variation penalty, ``sin(phase)`` cap) -- so a
    high-phase simulated terminator can be dropped by the downstream reliability gate

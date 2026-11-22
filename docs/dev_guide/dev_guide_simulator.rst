@@ -116,20 +116,24 @@ relative to ``sim/render/``):
      - Composes the noise-free signal image: background stars, catalog stars,
        and the body/ring stack depth-sorted far to near.
    * - ``radiance/compositing.py``
-     - The radiance stage's translucent-screen machinery: orders the ring
-       system and body halos far to near for compositing and enforces the
+     - The radiance stage's ring-screen machinery: applies the ring system to
+       the pixels that go into the stack at each depth, and enforces the
        explicit-``range_km`` depth contract on every overlap.
-   * - ``bodies/render.py`` / ``bodies/topo.py`` / ``bodies/texture.py`` /
-       ``bodies/mesh.py``
-     - The ellipsoid body renderer and its topographic path (relief, photometric
-       laws, surface texture, transits), and the polyhedral-mesh renderer (see
-       :ref:`sim-body-renderer`). The parsed body entry (``bodies/spec.py``), the
-       relief field (``bodies/relief.py``), and the photometric laws
-       (``bodies/photometry.py``) sit beside them.
+   * - ``bodies/render.py`` / ``bodies/placement.py``
+     - Sends each body to the renderer that draws it, chooses the canvas it is drawn
+       on, and moves the drawing into the frame (see :ref:`sim-body-renderer`).
+   * - ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` / ``bodies/craters.py`` /
+       ``bodies/texture.py`` / ``bodies/mesh.py``
+     - The ellipsoid renderer (relief, photometric laws, craters, surface texture,
+       transits) with its grids and its crater carving, and the polyhedral-mesh
+       renderer. The parsed body entry and the body's identity seed
+       (``bodies/spec.py``), the relief field (``bodies/relief.py``), and the
+       photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``
      - Moves a body drawn at a reference position into place by linear
-       interpolation, resampling only the box the body covers. Inside that box
-       the result is bit-identical to shifting the whole frame.
+       interpolation, resampling only the box the body covers. The drawing can be the
+       size of the frame or reach past it. For a drawing the size of the frame, the
+       result inside that box is bit-identical to shifting the whole frame.
    * - ``optics/lit_clusters.py``
      - Groups the lit pixels of a render-grid plane into clusters, so that the
        distortion warp and the PSF blur process each cluster on its own crop.
@@ -171,6 +175,9 @@ relative to ``sim/render/``):
    * - ``feature_loci.py``
      - Navigation-feature loci (body / ring rows, limb and star pixels)
        extracted from the frame truth for adversarial artifact placement.
+   * - ``roll.py``
+     - Turns a body, and any image-plane vector, by the planted camera roll
+       (see :ref:`the planted roll <sim-planted-roll>`).
    * - ``bodies/atmosphere.py``
      - The haze-limb layer for atmospheric (Titan-class) bodies: an
        exponential haze column composited onto the disc, giving a soft limb, a
@@ -225,15 +232,25 @@ without a deliberate mismatch is the navigator's own template plus a shift and
 noise. For stars that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
-doesn't match. Its models and renderers live under
-``nav_model/simulated/`` so the package layout states who owns them.
-:mod:`spindoctor.nav_model.simulated.predict_body` draws the predicted template of an
-ellipsoid body, and :mod:`spindoctor.nav_model.simulated.predict_ring` draws the
+doesn't match. Its models and the ring renderer live under
+``nav_model/simulated/`` so the package layout states who owns them. The ellipsoid
+body template is the exception, shared on purpose so both sides shade a smooth body
+the same way: the shared
+:func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` draws the predicted
+template of an ellipsoid body, and
+:mod:`spindoctor.nav_model.simulated.predicted_ring` draws the
 predicted rings. :class:`~spindoctor.nav_model.simulated.body.NavModelBodySimulated`
 and :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated` emit those
 templates as features. A ``polyhedral_mesh`` body is drawn by
 :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image` instead, and the body
-model emits that image as its template in the same way.
+model emits that image as its template in the same way. The body model draws its
+template and its occluders through
+:mod:`spindoctor.nav_model.simulated.predicted_body`, and
+:class:`~spindoctor.nav_model.simulated.titan.NavModelTitanSimulated` draws the
+bodies that hide or crowd Titan's haze through it too. That module chooses between
+the two renderers by the body's shape model and puts a body that states no center at
+the frame center, as the renderer does. The haze model's own envelope is a disc of
+the predicted radius, which it paints for itself.
 :class:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated` builds its
 catalog star records directly.
 
@@ -351,22 +368,40 @@ Sharing code is fine; sharing information is not
 ------------------------------------------------
 
 Both sides deliberately call the same geometry helpers --
-:mod:`spindoctor.sim.shared.ellipsoid`, :mod:`spindoctor.sim.shared.mesh`,
-:mod:`spindoctor.sim.shared.ring`, and :mod:`spindoctor.sim.shared.stars`.
+:mod:`spindoctor.sim.shared.ellipsoid`, :mod:`spindoctor.sim.shared.lighting`,
+:mod:`spindoctor.sim.shared.mesh`, :mod:`spindoctor.sim.shared.ring`, and
+:mod:`spindoctor.sim.shared.stars`.
 This is not a boundary leak; it is what makes the measurement clean. With
 shared conventions (the coordinate systems, the sign of ``dv``, edge
 rasterization, record defaults) the planted error is the *only* error in a recovery
 measurement. Independent implementations would each carry their own
 conventions, and any delta between them would land as an unknown systematic
 inside the measured error -- contaminating the truth reference every simulator
-result rests on. The discipline the shared helpers follow: they never read the
-scene and never accept a truth key. Most take explicit geometry
+result rests on. For the same reason both sides derive the light direction in one
+place, :mod:`spindoctor.sim.shared.lighting`, which every ellipsoid, mesh, and haze
+shading path uses. The rings and the haze, both on the image side, also take their
+Henyey-Greenstein phase function from that module, so a scattering asymmetry ``g``
+means the same thing in both. The discipline the shared helpers follow: they never
+read the scene and never accept a truth key. Most take explicit geometry
 arguments; the two record parsers
 (:func:`spindoctor.sim.shared.stars.star_record_from_params` and
 :func:`spindoctor.sim.shared.mesh.mesh_spec_from_params`) parse per-object
 mappings restricted to idealized keys, and on the navigator side they only
 ever receive entries that have already passed the boundary filter. Either
 way, truth cannot be smuggled across.
+
+An ellipsoid body shows how far the sharing goes. The navigator's predicted-body
+renderer and the image-side ellipsoid renderer both place the body on a pixel grid with
+:func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, which returns an
+:class:`~spindoctor.sim.shared.ellipsoid.EllipsoidProjection`, and both take its
+surface normals from :func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_image_normals`.
+The predicted body is
+:func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` applied to that
+projection. The image-side renderer projects each body onto its working grid and its
+detector grid (see :ref:`sim-shading-grids`) and builds its own image from there,
+with relief, craters, photometric laws, and textures. So the two sides agree on
+which pixels the body covers and which way its surface faces, but each draws its
+own limb.
 
 The shared helpers live in :mod:`spindoctor.sim.shared`. A module under
 ``nav_model/``, ``nav_technique/``, or ``nav_orchestrator/`` may import that package
@@ -478,13 +513,12 @@ Three things, each impossible with real frames alone:
   gradient, cloud blobs -- so the recovery error is measured against scenes
   the method's assumption does not describe.
 - **Failure modes real data cannot isolate become provable.** The worked
-  example is the planted-radial-error family: ``orbit_error_ringlet`` plants
-  a 2.5 px radial catalog error. The fused result is a success that is 1.8 to
-  3.2 px wrong, depending on the noise draw. On a real frame this is
-  indistinguishable from a good lock -- only a frame whose truth is known by
-  construction can *prove* the ensemble absorbs this error into the offset,
-  and keep proving it (the known-error check in :ref:`sim-expected`) until the
-  gap is closed.
+  example is the planted-radial-error family: ``orbit_error_ringlet`` plants a
+  2.5 px radial catalog error. The fused result is a success that is 1.63 px
+  wrong. On a real frame this is indistinguishable from a good lock -- only a
+  frame whose truth is known by construction can *prove* the ensemble absorbs
+  this error into the offset, and keep proving it (the known-error check in
+  :ref:`sim-expected`) until the gap is closed.
 
 What it cannot do
 -----------------
@@ -539,32 +573,33 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
    :widths: 20 30 50
    :header-rows: 1
 
-   * - Stage name
+   * - Stage
      - Callable
      - What it does
-   * - ``scene_radiance``
+   * - Scene radiance
      - :func:`~spindoctor.sim.render.radiance.compose.compose_scene_radiance`
      - Composes the noise-free signal: bodies depth-sorted far to near
-       (nearer bodies overwrite) into ``frame.signal``, with the ring
-       system composited over the stack as a per-pixel transmission
-       screen, and the star field (catalog stars plus the background sky)
-       into the point-source plane ``frame.point_e``, with the planted
-       offset and camera roll applied. Stars are flux-normalized point
+       into ``frame.signal``, each going over what lies behind it by how much
+       of each pixel it covers, with the ring system going into the stack
+       pixel by pixel at its own depth as a transmission screen, and the star
+       field (catalog stars plus the background sky) into the point-source
+       plane ``frame.point_e``, with the planted offset and camera roll
+       applied. Stars are flux-normalized point
        masses shaped only by the
        whole-scene PSF (see :ref:`sim-star-params`). Accumulates feature truth
        (star records, masks, inventory, z-order) into ``frame.truth``.
-   * - ``optics``
+   * - Optics
      - :func:`~spindoctor.sim.render.optics.stage.apply_optics`
      - Applies the optical-path effects in a fixed internal order -- motion
        smear, residual distortion, the whole-scene PSF, ghost reflections, then
        the stray-light field -- each contributing only when its ``optics``
        sub-block is present (see :ref:`sim-optics-stage`).
-   * - ``downsample``
+   * - Downsampling
      - :func:`~spindoctor.sim.render.stages.downsample_to_detector`
      - Box-downsamples the oversampled planes to the detector grid. A scene
        with an active PSF renders on a 4x oversampled grid and downsamples here;
        with no PSF the factor is 1 and this is a no-op.
-   * - ``detector``
+   * - Detector
      - :func:`~spindoctor.sim.render.detector.apply_detector`
      - Runs the electron unit chain: converts the composed [0, 1] signal to
        electrons through the exposure, applies Poisson shot noise, full-well
@@ -572,15 +607,15 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        the ADC clip (see :ref:`sim-detector-stage`). The Voyager vidicon takes
        the DN-domain path; a calibrated instrument inverts the calibration
        transform afterward.
-   * - ``telemetry``
+   * - Telemetry
      - :func:`~spindoctor.sim.render.telemetry.stage.apply_telemetry`
      - Applies the per-pixel missing-data markers.
 
 Each stage is a callable matching the
 :class:`~spindoctor.sim.render.stages.Stage` protocol: it mutates a
 :class:`~spindoctor.sim.render.stages.SimFrame` in place, reads its parameters
-from the scene, and draws randomness only from the
-``numpy.random.Generator`` it is handed. Every effect is **off unless asked
+from the scene, and draws randomness only from streams it seeds by name (see
+*Seeding by name* below). Every effect is **off unless asked
 for**: with no ``stray_light`` block no field is added, with no
 ``missing_data_rate`` no pixels are dropped, and with no ``noise``, ``detector``,
 or ``artifacts`` block the detector adds no shot noise, read noise, dark, hot
@@ -607,27 +642,78 @@ error to the one effect it varies.
   The detector adds it into the electron image after the intensive conversion
   and before Poisson, so anything in it never passes through the signal scale.
   Stars deposit in signal units, so this plane stays zeroed.
-- ``oversample`` -- the oversampling factor. A scene with an active PSF (an
-  ``optics.psf`` block or ``instrument_defaults``) renders the radiance on a 4x
-  oversampled grid and the box downsample returns it to the detector grid;
-  otherwise it is 1.
+- ``oversample`` -- the oversampling factor. A scene's ``oversample`` key sets it
+  directly. Without that key, a scene the optics stage blurs with a PSF renders the
+  radiance on a 4x oversampled grid, and the box downsample returns it to the
+  detector grid; otherwise the factor is 1. The scene has a PSF when it states an
+  ``optics.psf`` block, or when it turns on ``instrument_defaults`` and its
+  camera's catalog entry states a kernel. The generic camera states none, so a
+  generic scene with ``instrument_defaults`` renders at oversample 1. The optics
+  stage gets its kernel from
+  :func:`~spindoctor.sim.render.optics.stage.effective_psf`, and the oversampling
+  choice asks the same function, so the two always agree.
 - ``truth`` -- renderer output metadata (rendered star records, body masks,
   inventory, z-order maps). None of it crosses the information boundary.
 
-**Per-stage seeding.** Each stage receives its own generator seeded via
-:func:`spindoctor.sim.seeds.derive_effect_seed` from the scene's single
-``random_seed`` and the stage's registry name, so one stage's noise realization
-is independent of which other stages are enabled, and adding a stage later
-leaves existing stages' realizations unchanged. A stage name is therefore part
-of its scenes' noise realization: renaming a stage reseeds every scene that
-exercises it and regenerates the affected baselines -- allowed, but not to be
-done idly. (The seed derivation is a stable digest, never Python's per-process
-salted ``hash``.) Sub-effects inside a stage derive their own named streams the
-same way (background stars, cosmic rays, crater placement). Crater placement
-goes one level further: each crater draws from its own stream, named by the
-crater's index on its body, so a small change to the body's outline moves only
-a crater whose center lands on a changed pixel and leaves the rest of the
-crater field where it was.
+**Seeding by name.** A stage is handed only the frame and the scene. Each stage
+derives every random stream it needs with
+:func:`spindoctor.sim.seeds.derive_effect_seed`, from the scene's
+``random_seed`` and a name that begins with the stage's prefix: ``scene_radiance``
+for scene radiance, ``optics`` for optics, ``detector`` for the detector, and
+``telemetry`` for telemetry. Downsampling draws nothing. The detector's shot and
+read noise draw from the stream ``detector``. The usual hot pixels come from the
+detector's own fixed map, which depends only on the detector's name. Every
+scene that emulates that detector has the same hot pixels. Only hot pixels
+placed adversarially on the navigation features draw from ``detector/hot_pixels``.
+The missing-data losses draw from ``telemetry`` and the
+missing-lines mode from ``telemetry/missing_lines``. The background stars draw
+from ``scene_radiance/background_stars`` and the distortion field from
+``optics/distortion``.
+
+A stream may in turn seed its own named sub-streams. The bodies work this way:
+``scene_radiance/craters`` seeds one stream for each body, named
+``body:<index>:<name>``, and that stream seeds the body's ``relief``, ``albedo``,
+and ``pose_scatter`` streams and one ``crater:<k>`` stream for each crater.
+Because each crater draws from its own stream, a small change to the body's
+outline moves only a crater whose center lands on a changed pixel and leaves the
+rest of the crater field where it was.
+
+The derivation is a stable digest, never Python's per-process salted ``hash``, so
+a stream's seed is the same in every process and on every run. A stream's seed is
+computed from nothing but its name and the seed it is derived from. Enabling or
+disabling a stage therefore never changes another stage's seeds, and adding a
+stream never reseeds the others. A stage's output can still change when an
+earlier stage changes its input: an optics PSF changes the signal reaching the
+detector, and so the detector's shot noise, though the detector draws from the
+same stream. A stream name is part of the noise realization
+of every scene that uses it: renaming one reseeds those scenes and moves their
+committed renders, so a stream name must never change.
+
+A scene may also set ``noise_seed``, an integer from 0 to 2147483647, the range the
+scene editor offers. The detector's per-frame streams then derive from it in place of
+``random_seed``, under the same names.
+A real camera draws these again for every frame: the shot and read noise (``detector``),
+the cosmic rays, both kinds of banding, the bias structure, the calibrated product's
+per-pixel residual, the vidicon's coherent phase, the anti-blooming pairs, and the
+radiation transients. Everything else stays on ``random_seed``. That covers the scene
+itself (stars, surfaces, and spokes), the optics' distortion, the telemetry losses, and
+whether each artifact mode is active. It also covers the detector's fixed pattern, which
+a real camera shows in every frame: the hot pixels, the pattern the ``fixed_pattern``
+mode draws, and the warm columns of the ``dark_ramp`` mode. A new ``noise_seed``
+therefore renders the same scene on the same camera with a new draw of the noise. A
+scene that leaves the key out draws its noise from ``random_seed``. It renders exactly as
+it would with ``noise_seed`` set to that value, whenever the value is in the range above.
+The integration tests use the key to measure a check over several noise draws.
+
+Every random stream of one body (its craters, its relief terrain, its albedo noise,
+and a mesh body's pose scatter) derives from one identity seed, which
+:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` chooses. In a scene
+render that seed comes from the scene's ``random_seed``, mixed with the body's index
+and name, so two bodies of the same geometry get independent surfaces. The craters
+are seeded with the identity seed itself, and each other effect with a named stream
+of it. A body renderer called directly without a scene seed uses the body's own
+``seed`` if it has one, and otherwise falls back to a digest of the body's widths
+and its center (for the craters) or its index and name (for the other effects).
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as
@@ -635,9 +721,17 @@ deterministic sorted-key JSON, validates the scene with
 :func:`spindoctor.sim.scene.validate.validate_sim_params`, runs the pipeline on a fresh frame,
 and caches the result on a key built from that JSON. The render cache holds three
 entries (``lru_cache(maxsize=3)``), one each for the scene editor's fast preview, its
-full render, and the frame the navigator reads. The body, mesh, and star renderers keep
-small shape caches of their own. ``clear_render_caches`` drops them all for determinism
-tests. The caching contract: scene parameters are JSON-serializable scalars, lists,
+full render, and the frame the navigator reads. The star renderer, the ellipsoid and
+mesh body renderers, the relief field, and the PSF keep small caches of their own, and
+each of their modules has a public function that drops them:
+:func:`~spindoctor.sim.render.radiance.stars.clear_star_caches`,
+:func:`~spindoctor.sim.render.bodies.render.clear_ellipsoid_shape_caches`,
+:func:`~spindoctor.sim.render.bodies.mesh.clear_mesh_shape_caches`,
+:func:`~spindoctor.sim.render.bodies.relief.clear_relief_caches`, and
+:func:`~spindoctor.sim.render.optics.psf.clear_psf_caches`.
+:func:`~spindoctor.sim.render.driver.clear_render_caches` calls each of them and also
+drops the scene and validation caches, so a determinism test can render from cold
+caches. The caching contract: scene parameters are JSON-serializable scalars, lists,
 and maps, no wall-clock or global RNG state is consulted, and two renders of the same
 scene are bit-identical on one machine.
 
@@ -684,9 +778,10 @@ stages as ``SimFrame.preview`` and simplifies three of them:
   by a fraction of a pixel for most cameras, and it is one of the slowest optics steps.
 
 Every other stage runs as in the full render. The PSF stays, at oversample 1, where
-its convolution takes 10 to 20 ms on a full-size frame. Without it, every star would be
-a single pixel holding its whole flux, since the PSF is a star's only shape. The
-editor's display is stretched to the frame's peak, so a one-pixel star would dim
+its convolution takes 10 to 20 ms on a full-size frame. Without it, every star's deposit
+would hold its whole flux in at most 2 x 2 pixels before any motion smear, since the PSF
+is a star's only shape. The
+editor's display is stretched to the frame's peak, so stars that concentrated would dim
 everything else on screen. The body moves to its position by linear interpolation
 from its cached drawing, as in the full render (see :ref:`placing a body
 <sim-body-placement>`). That move costs little at oversample 1.
@@ -878,10 +973,10 @@ exactly the optical effects it wants and leaves the rest at the floor.
    brightens dark sky as well as lit features; the navigator's source-image
    background filter is meant to remove it.
 
-Only the distortion non-radial field draws randomness, and it derives its own
-seeded stream from the scene seed, so the optics stage does not consume the
-pipeline generator. A sub-stage whose block is a true no-op (all-zero radial
-distortion, an amplitude-0 ghost) renders bit-identically to one without it.
+Only the distortion non-radial field draws randomness, from its own stream
+``optics/distortion`` derived from the scene seed. A sub-stage whose block is a
+true no-op (all-zero radial distortion, an amplitude-0 ghost) renders
+bit-identically to one without it.
 
 .. _sim-detector-stage:
 
@@ -958,8 +1053,8 @@ intensive signal passes through the electron unit chain in
 The stochastic and structured sub-effects (dark, hot pixels, banding, bias
 structure, cosmic rays) live in
 :mod:`~spindoctor.sim.render.detector.noise_stages`; the chain draws each one
-an independent RNG stream from the scene seed, so toggling one never perturbs
-another's realization. The deterministic signal-to-DN conversion always runs --
+an independent RNG stream seeded by name (see :ref:`sim-stage-pipeline`), so toggling
+one never perturbs another's realization. The deterministic signal-to-DN conversion always runs --
 it is what makes a DN frame -- while each stochastic sub-effect is a no-op when
 its gating amplitude, fraction, or rate is zero.
 
@@ -1828,18 +1923,17 @@ and ``known_offset_error_tol_px``, which set a band around the known error. The
 band covers the fused error measured over 16 noise seeds: the scene's own seed
 and 15 more. Each end of the band sits outside the measured range by a margin of
 0.05 px or a fifth of the spread, whichever is larger. On
-``orbit_error_ringlet`` the error is 1.77 px on the scene's own seed and up to
-3.18 px on others, so a band fitted to one seed would fail on the next. The
-assertion fails in *both* directions. A regression that worsens the error fails.
-A genuine fix that shrinks the error also fails loudly, which prompts a
-deliberate re-measurement of the known error, or retirement of the check,
-instead of a silent behavior change. The success the check holds marks a known
-hazard. The scene comments and the
-campaign record carry the analysis, and the ensemble chapter
+``orbit_error_ringlet`` the error is 1.633 to 1.636 px over the 16 seeds, so the
+band runs from 1.583 to 1.686 px. The assertion fails in *both* directions. A
+regression that worsens the error fails. A genuine fix that shrinks the error
+also fails loudly, which prompts a deliberate re-measurement of the known error,
+or retirement of the check, instead of a silent behavior change. The success the
+check holds marks a known hazard. The scene comments and the campaign record
+carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
-``titan_crescent_horns`` scenes are not in this family. The cross-technique
-body-witness veto declines their haze-dragged lone-blob offset, so the scenes
-assert a ``failed`` outcome.
+``titan_crescent_horns`` scenes hold a low-confidence success 5.74 px wrong this
+way: the disc correlation, pulled by the haze's ring of light, sets it on every
+seed.
 
 .. _sim-floor:
 
@@ -1873,6 +1967,15 @@ recovered-offset error, confidence, status, and primary technique per step. A
 sweep may set ``ensemble_seeds: N`` to replicate every point across N seeds (the
 geometry fixed, the noise and confounders redrawn) so a point becomes a
 population rather than a single realization.
+
+``test_sim_sweeps`` holds each check to one of two kinds of bound. A check that holds on
+every noise draw is a single-draw tripwire on the scene's own draw, and its docstring
+records the spread measured over other draws. A check whose outcome moves with the noise
+is asserted on a population: the sweep runs on the scene's own draw and on four more,
+each with ``noise_seed`` set, so only the detector noise changes between them. Each
+population bound was measured over 25 draws and holds for every choice of 5 of them.
+The population of irregular shapes is asserted the same way, in
+``test_sim_irregularity_population``.
 
 A *model-mismatch* sweep uses this harness to characterize one render-vs-navigate
 disagreement. Each starts from a **self-consistency floor** -- the value at which
@@ -1924,22 +2027,38 @@ The body renderer
 =================
 
 A body is drawn by one of two renderers chosen by ``shape_model``: the
-ellipsoid renderer (``bodies/render.py``) and the polyhedral-mesh renderer
-(``bodies/mesh.py``), both sharing the axis convention below. A smooth Lambert
-ellipsoid at oversample 1 renders through the classic path unchanged. Whenever
-an ellipsoid body needs more than that -- a limb-relief field, a non-Lambert
-photometric law or opposition surge, a surface texture or a transit, or simply
-an oversampled radiance grid -- it dispatches to the *topographic path*
-(``bodies/topo.py``). All of the extra ingredients are truth keys: the
-navigator's predicted body is always the smooth Lambert template, so every one
-plants a known model error the technique must survive.
+ellipsoid renderer (``bodies/ellipsoid.py``) and the polyhedral-mesh renderer
+(``bodies/mesh.py``), both sharing the axis convention below. The ellipsoid
+renderer draws every ellipsoid body, whatever its settings: a smooth Lambert disc,
+a limb-relief field, a non-Lambert photometric law or opposition surge, craters,
+and surface textures and transits. All of those extra ingredients are truth keys:
+the navigator predicts an ellipsoid body as the smooth Lambert template, so every
+one plants a known model error the technique must survive. The navigator predicts a
+mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
+pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
+and ``pose_scatter`` are among the errors it plants.
+
+**The modules.** :func:`~spindoctor.sim.render.bodies.render.render_single_body` reads
+``shape_model`` and sends the body to the mesh renderer or down the ellipsoid path,
+which builds the ellipsoid renderer's spec and draws the body through a shape cache.
+The ellipsoid renderer carves its craters with
+:mod:`~spindoctor.sim.render.bodies.craters`. Both paths end in
+:func:`~spindoctor.sim.render.bodies.placement.finish_single_body`, which moves the
+drawing into the frame (see :ref:`placing a body <sim-body-placement>`). The
+imports run one way. The dispatcher imports both renderers and the placement, the
+ellipsoid renderer imports the crater carving, and the mesh renderer imports the
+placement. No body module imports the dispatcher.
 
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
 frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
 (:func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`). Every default is
-applied there, and a key set to null gets the same default as an absent key. The
-stage then shifts each center by the ephemeris parallax, applies the planted roll to the
-center and to ``rotation_z``, and scales the centers and axes to the render grid. The body
+applied there, and a key set to null gets the same default as an absent key. Under a
+planted roll the stage first turns the entry about the body's own center
+(:func:`~spindoctor.sim.render.roll.roll_body_params`; see
+:ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
+``roll_deg``, which turns the crater layout. The stage then shifts each center by the
+ephemeris parallax, turns it about the frame center by the roll, and scales the
+centers and axes to the render grid. The body
 renderer adds the planted translation when it draws the body. Both renderers read only the
 spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
@@ -1949,10 +2068,13 @@ them with :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_p
 key as absent too.
 
 The stage also writes each body's entry in the render truth. The entry starts as a
-copy of the scene entry, leaving out any key the scene sets to null, so a null key
-and an absent one give the same truth. The stage then puts in the render-grid
-centers and axes, fills in the name and range when the scene leaves them out, and,
-for a mesh body, adds the pose scatter it drew.
+copy of the scene entry, leaving out any key the scene sets to null, so the truth reads
+a null key as an absent one. Under a planted roll the entry is the turned one, and the
+angles the roll turns (``illumination_angle``, and ``rotation_z`` or
+``pose_euler_deg``) are always present: one the scene leaves out or sets to null
+carries its default turned by the roll. The stage then puts in the render-grid centers
+and axes, fills in the name and range when the scene leaves them out, and, for a mesh
+body, adds the pose scatter it drew.
 
 .. _sim-body-placement:
 
@@ -1963,6 +2085,45 @@ the body's scene position plus the planted offset by linear interpolation
 once and only moves it at each step. At catalog size a new drawing costs 0.03 to
 0.12 s. At 1024 x 1024 it costs 1.3 to 4.6 s, against 0.02 to 1.9 s to move a cached
 one.
+
+**Bodies too large for the frame.** A frame-sized drawing of a body centered on the
+frame holds only the part of the body that falls inside the frame. When the move then
+shifts a large body off center, part of what should come into view was never drawn: the
+body comes out cut off at a straight line, or vanishes if it is far enough off center.
+So the renderer first asks whether the body fits. A body fits when everything it can
+spread over, its outline (foreshortened by any sub-observer latitude), the lift of its
+limb relief, and its halo, stays at least one pixel inside the frame when the body is at
+the frame center. The pixel of clearance is there because the move reads nothing past
+the drawing, so a body touching its outermost pixels would lose part of their light.
+
+A body that fits is drawn on the frame, as described above. A body that does not fit
+is drawn on a larger canvas
+(:func:`~spindoctor.sim.render.bodies.placement.body_canvas`): the frame's pixel grid
+continued past its edges, but only as far as the move needs to fill the frame from
+this body's position, plus 8 detector pixels so the spline that interpolates the
+relief tilt never ends inside the frame. The canvas is bounded by the frame, never by
+the body, so a body thousands of pixels across costs about as much as one that fills
+the frame. Either way, the body is drawn at the frame center and then moved.
+
+The result matches what the same part of a frame large enough to hold the whole body
+would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. There are
+three small exceptions. A mesh body at its default pose differs by up to 0.03 of full
+brightness, because the mesh rasterizer gives slightly different pixels on frames of
+different sizes. A body with limb relief at an oversampling factor above 1
+differs by about 1e-6 of full brightness, from the ends of the spline. A cratered body
+has its craters laid out on a grid that holds the whole body, so they stay in the
+same places on its surface whichever part of it is drawn; a larger frame would lay
+them out differently.
+
+The canvas depends on where the body lands, so a body this large is drawn again at
+every step of an offset sweep, where a body that fits is drawn once. Only the last
+such drawing is kept.
+That is enough for a scene with one large body, which a scene that smears each layer
+apart draws twice per render, and it keeps a sweep to one drawing in memory. A scene
+with two such bodies draws each of them twice. For a body of radius 5000 pixels with
+relief, craters, and a halo, a drawing takes 1.4 to 1.8 s, against 1.1 s for a
+frame-filling body drawn on the frame, on a 256 x 256 frame at oversampling 4, and 12
+to 15 s against 12 s on a 1024 x 1024 frame at oversampling 1.
 
 A move by a fraction ``f`` of a pixel blends two copies of the drawing: one at the
 whole-pixel position, weighted ``1 - f``, and one a pixel farther, weighted ``f``.
@@ -1985,8 +2146,8 @@ keeps the cached drawing and the interpolated move.
 .. Measured 2026-11-14 for #984, which decided against drawing at the exact
    sub-pixel position. The BodyLimbNav ripple is #282.
 
-The topographic path
---------------------
+Limb relief
+-----------
 
 **The relief field.** Limb relief is a 2-D fractional-height field
 ``h(lat, lon)`` on the body surface, not a 1-D profile on the limb, so the
@@ -2148,32 +2309,84 @@ lit. Against a march at a quarter of that step, the decisions differ on under
 0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
 relief from 1 to 12 degrees across.
 
-Shading and shadows are evaluated per shading pixel and upsampled with the
-rest of the shading, so a shadow's edge is as soft as the shading grid.
+On an oversampled or anti-aliased body, the relief's tilt is computed once per detector
+pixel and interpolated over most of the disc. :ref:`sim-shading-grids` explains where
+and why.
 
-Split-resolution performance
-----------------------------
+.. _sim-shading-grids:
 
-The topographic path renders a body on a working grid: the oversampled grid,
-or, at oversample 1, the anti-aliasing supersample grid. The sharp content, the
-relief-perturbed silhouette mask, is always rasterized on the working grid.
-Where the shading field (surface normals, relief shading, cast shadows, crater
-texture, and photometric law) is computed depends on the body:
+Shading grids
+-------------
 
-- A body whose relief, craters, surface texture, or transits change its shading
-  is shaded once at **detector resolution**, and the shading is bilinearly
-  upsampled onto the working grid. Disc shading is low-frequency by
-  construction, so this replaces the per-subsample shading that made an
-  oversampled body ~16x more expensive than its detector-grid equivalent, and it
-  is what lets a body-bearing scene meet the render budget below. The budget harness
-  (``tests/integration/test_sim_perf.py``) holds a large-lit-body-with-relief
-  frame to its measured budget for exactly this reason. The upsample moves the
-  disc's light about 0.007 px away from the Sun.
-- Every other body is smooth and is shaded on the working grid itself. A
-  surface setting that changes nothing leaves a body smooth: a crater fill too
-  small to place a crater at detector resolution, an albedo texture with no
-  noise field and no spots, banding of zero amplitude with no storms, or a
-  transit with neither a moon nor a shadow.
+The ellipsoid renderer draws a body on its *working grid*: the oversampled grid,
+or, at oversample 1, the anti-aliasing supersample grid. The relief-perturbed
+silhouette, the smooth ellipsoid's surface normals, and the photometric law are
+always evaluated on the working grid. Near the limb the normal turns as the square
+root of the distance from the edge, and at the terminator the law clips. Shading
+there on a coarser grid and interpolating would move a disc's light a few
+thousandths of a pixel away from the Sun, a shift the navigator's predicted body
+does not share.
+
+Relief and craters are laid out on the *detector grid*, one point per detector
+pixel, and interpolated onto the working grid. The tilt the relief gives each normal
+is interpolated with a cubic spline, and the crater slopes bilinearly. Computing the
+relief once per detector pixel instead of once per working pixel is what lets a large
+relief body meet the render budget below. In three places interpolation isn't good
+enough, so there the relief's normals and its cast shadows are computed on the
+working grid:
+
+- A band along the limb, 3 detector pixels beyond the reach of the relief
+  outline on either side, where the relief's tilt turns with the smooth normal.
+- The detector cells along the relief's own day-night edge, widened by 3 cells.
+  An interpolated tilt varies less than the terrain does, and where the law clips
+  at the terminator, that smaller variation darkens the disc.
+- Every detector cell a cast shadow reaches, with its neighbors, because a shadow's
+  edge is sharp.
+
+Outside those places the interpolated tilt is added to the smooth normal as it is,
+without scaling the sum back to unit length. On the day side a Lambert surface's
+brightness is then the smooth brightness plus the interpolated difference between the
+relief and smooth brightness. Rescaling the sum would brighten rough terrain slightly.
+Only the rectangle a relief or cratered body covers is shaded.
+
+The craters are carved on the detector grid and their slopes taken there by
+central differences. On a finer grid those slopes are interpolated, so a body has
+the same craters at every oversampling factor. The price is that a crater is no
+finer than the detector grid it is carved on: a crater about a pixel across is a
+pixel-sized dimple, even at oversample 4 or under full anti-aliasing.
+
+A body that has no relief and no craters is shaded wholly on its working grid,
+textures and transits included, because their spots, storms, and discs have sharp
+edges. A surface setting that changes nothing leaves a body smooth: a crater fill too
+small to place a crater at detector resolution, an albedo texture that has no noise
+field and no spots, banding of zero amplitude without storms, or a transit that has
+neither a moon nor a shadow. A setting at an effectively zero value renders as the
+smooth body: a relief of 1e-9 of the radius changes no pixel by more than about 1e-8
+of the peak.
+
+Measured against the same body shaded wholly on its working grid, the center of a
+relief body's light lands within 0.0015 px on 14 test bodies with 2% relief at a
+12-degree correlation length. They include 36 px bodies at several seeds and phases, a
+crescent, a Minnaert body, a cratered body, a rotated and tilted triaxial body, a body
+clipped by the frame edge, and a 5 px body. On a 150 px body with rougher relief (an
+RMS of 3% to 5% at a 5-degree correlation length) at a phase of 80 degrees, it lands
+within 0.0007 px. Near the frame edge the spline rings a little: on the clipped body
+the light lands 0.0015 px off and no pixel more than 0.012, within about 4 pixels of
+the edge. A cratered or textured body has nothing to compare: shading it wholly on the
+working grid uses the same interpolated crater slopes and the same texture.
+
+The spline follows relief whose correlation length, in radians times the body's
+radius, spans at least about 5 detector pixels. All the bodies above meet that except
+the 5 px one, whose limb and day-night bands cover nearly all of it. Finer relief is
+interpolated less well. With 1% relief at a phase of 80 degrees, the light lands up to
+0.011 px off at 1.5 to 4 pixels of correlation length, and 0.023 px off at 1 pixel,
+where a few pixels are off by as much as 0.28 of their brightness.
+
+A small body at oversample 4 misses a render 8 times finer by the sampling of the
+working grid, with or without relief, and the miss depends on where the body sits
+within a pixel. At 90 degrees of phase, the worst over 103 sub-pixel centers was
+0.068 px in the light and 4.7% in brightness at 4 px across, 0.043 px and 1.6% at
+8 px, and 0.024 px and 0.56% at 16 px.
 
 The navigator's predicted body is shaded on a grid four times finer than the
 detector's. A smooth body whose working grid has that same factor (oversample 4,
@@ -2183,10 +2396,13 @@ another oversample factor samples the body differently from the navigator. On
 the calibrated disc sweep, shading the smooth disc at detector resolution gave
 the disc correlation a steady error of about 0.015 px.
 
+.. The working-grid shading of featured bodies and the zero-value and small-body
+   measurements are #931 and #901 (2026-11-19).
+
 Photometric laws
 ----------------
 
-The topographic renderer shades an ellipsoid with a scene-selected law
+The ellipsoid renderer shades a body with a scene-selected law
 (``photometry.py``), each normalized to 1 at disc center under head-on
 illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
 
@@ -2298,10 +2514,11 @@ navigates and states the rule in the scene file, its single-seed assertions are
 a tripwire on that realization, and any property claimed for irregular bodies in
 general is asserted over a population of seeds. ``planted_offset_shapemismatch``
 takes the seed with the median silhouette mismatch at its sweep's extreme step,
-and ``test_sim_sweeps`` asserts the veto's behavior over mesh seeds 0 to 12. The
-rule is ``tests/integration/sim_mesh_seed_rule.py``, which prints the ranking
-when run with ``python -m``, and ``test_sim_mesh_seed_rule`` fails when a change
-to the relief or the renderer moves the median away from the scene's seed.
+and ``test_sim_irregularity_population`` asserts the veto's behavior over mesh seeds
+0 to 12 on five noise draws. The rule is ``tests/integration/sim_mesh_seed_rule.py``,
+which prints the ranking when run with ``python -m``, and ``test_sim_mesh_seed_rule``
+fails when a change to the relief or the renderer moves the median away from the
+scene's seed.
 
 Faceting is a sampling effect. At the default 16 by 32 tessellation a large body
 shows rings of flat-shaded quadrilaterals around the mesh pole and a polygonal
@@ -2341,11 +2558,12 @@ The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
 pose-scatter keys. The scene validator *rejects* a non-null value of any of
-twelve ellipsoid-only appearance keys on a ``polyhedral_mesh`` body:
+thirteen ellipsoid-only keys on a ``polyhedral_mesh`` body: the appearance keys
 ``atmosphere``, ``photometric_law``, ``minnaert_k``, ``opposition_surge``,
 ``albedo_texture``, ``disc_texture``, ``transits``, ``crater_fill``,
 ``crater_min_radius``, ``crater_max_radius``, ``crater_power_law_exponent``, and
-``crater_relief_scale``. A null value reads as an absent key. The mesh renderer
+``crater_relief_scale``, and ``sub_observer_lat_deg``, since a mesh body is turned
+by its ``pose_euler_deg`` instead. A null value reads as an absent key. The mesh renderer
 would silently ignore these keys, and a scene that asks for an effect must render
 it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
 :mod:`spindoctor.sim.scene.fields`, and ``mesh_unsupported_message`` there
@@ -2370,7 +2588,11 @@ Mutual events
 A scene can place two bodies so the nearer one occludes part of the farther one
 (depth-ordered by ``range_km``; bodies at exactly equal ranges tie-break
 deterministically by scene-list position, the earlier-listed body rendering as
-the nearer). The renderer draws the true occlusion and
+the nearer). The renderer draws the true occlusion. Where the nearer body's limb
+covers a fraction ``c`` of a pixel, the pixel holds ``c`` of the nearer body's light
+and ``1 - c`` of whatever lies behind it, so the limb shows no dark outline against
+the farther body, a ring, or the sky. The same fraction scales the light of a star
+behind the limb. The renderer also
 records the outcome in the render truth (``body_occlusion``): each body's
 visible fraction and the angular extent of any hidden limb arc. This is
 bookkeeping the test can read, not something the navigator sees.
@@ -2387,18 +2609,31 @@ and the disc correlator scores only against disc brightness the image carries.
 Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
-Across grazing, half, and deep overlap the navigator recovers each scene's
-planted offset within the tolerance the mutual-event regression pins. That is a
-statement about these simulated scenes, not a certification of real-frame
-accuracy: the sim renders an idealized occlusion the true optics only
-approximate. On the deep scene the far body's disc is over 90 percent
-hidden, so its ``visible_lit_fraction`` collapses and the disc gate drops that
-feature; the near body's disc plus both visible limb arcs fuse to the recovered
-offset. The joint limb fit runs on arcs the image actually shows -- the robust
-Tukey biweight loss is a second line of defense against a stray vertex, not the
-mechanism that carries the result -- and no confident-wrong result or
-double-counting conflict arises. The mutual-event scenes pin the arc fractions
-and offsets so a regression toward hidden-arc lock-on fails loudly.
+On grazing and half overlap the limb fit lands within 0.2 px of each scene's planted
+offset over 16 noise seeds. The disc correlation does worse: it stops at the edge of its
+half-pixel refinement window, 0.18 px off on grazing overlap and 0.34 px on half
+overlap. Its composite template paints the near body over the far one wherever the near
+body touches a pixel, even partly, so the template keeps a dark outline at the near
+body's limb that the image no longer shows. With the template drawn by coverage, the
+same correlation lands within 0.01 px. Both
+scenes hold their fused errors, 0.15 to 0.18 px and 0.32 to 0.33 px, to bands. That is a
+statement about these simulated scenes, not a certification of real-frame accuracy: the
+sim renders an idealized occlusion the true optics only approximate. On the deep scene
+the far body's disc is over 90 percent hidden, so its ``visible_lit_fraction`` collapses
+and its disc feature is dropped for low reliability. The far body's crescent still shows
+beside the near body's limb, and the disc template, which holds only the near body,
+leaves it out, so the crescent pulls the disc correlation about 0.8 px off. The limb fit
+runs on arcs the image actually shows -- the robust Tukey biweight loss is a second line
+of defense against a stray vertex, not the mechanism that carries the result -- but on 6
+of the 16 seeds it stops unconverged and flags itself spurious, and the disc correlation
+alone sets the answer. The deep scene holds that 0.73 to 0.80 px error to a band. No
+double-counting conflict arises. The mutual-event scenes pin the arc fractions and
+offsets so a regression toward hidden-arc lock-on fails loudly.
+
+.. The grazing and half scenes' template outline is issue 1099, and the window edge
+   issue 791.
+
+.. The deep scene's disc correlation error is tracked in issue 1050.
 
 .. _sim-atmosphere:
 
@@ -2411,7 +2646,9 @@ on-disc haze joins the body's opaque paint, while the above-limb glow is a
 translucent halo screen composited like the ring system's -- background,
 rings, and stars behind it show through scaled by ``exp(-tau)`` with the glow
 added, and the body's mask / depth / occlusion truth sees only the solid
-silhouette. Where limb relief dips inside the reference ellipse, the uncovered
+silhouette. The body then goes over its own halo by how much of each pixel its
+outline covers, so a limb pixel shows the disc in that fraction and the glow in
+the rest. Where limb relief dips inside the reference ellipse, the uncovered
 pixels are sky seen through the haze column and join the halo screen. The
 halo reaches out until its glow, and its dimming of a full-scale background,
 both fall below 1e-5 of full scale, under a twentieth of a 12-bit DN. So a
@@ -2578,25 +2815,22 @@ to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light
-defeats the disc correlation (spurious -- there is no full lit disc), the
-predicted terminator arc is emitted but dropped by the feature reliability
-gate before any technique runs (its reliability, computed as the SPICE-backed
-model does and capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
-``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid alone would
-carry the fused answer roughly 30 px off in ``du``. That is exactly the
-lone-blob collapsed regime the body-witness veto (see
-:doc:`dev_guide_orchestrator_ensemble`) guards: the only surviving body offset
-is the bias-prone centroid while a sibling geometric technique on the same body
-self-flagged spurious, so the frame is declined (``failed``, ``status_reason``
-``lone_blob_in_collapsed_regime``) rather than reported as a 30-px-wrong
-success -- a wrong offset that is accepted is worse than a
-declared failure. The scene asserts that decline. The noiseless
-sibling ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the
-same haze and phase geometry -- pins the underlying centroid bias
-deterministically (planted ``du`` -0.8, blob centroid at 29.17), so the ring
-of light alone, not the noise, drives the collapse, and the decline is stable
-rather than noise-dependent. The haze evaluation
+outright hostile: in ``titan_crescent_horns`` (155 deg) the predicted
+terminator arc is emitted but dropped by its feature reliability before any
+technique runs (its reliability, computed as the SPICE-backed model does and
+capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
+30 px off in ``du``. The ring of light, which the disc correlation's
+hard-limbed template leaves out, also pulls the correlation 5.74 px off, and the
+correlation does not flag that answer spurious. So the body-witness veto (see
+:doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
+surviving body offset is the centroid beside a spurious geometric fit, has
+nothing to read. The disc correlation sets a low-confidence success, and the
+scene holds its 5.74 px error to a band. The noiseless sibling
+``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
+and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
+blob centroid near 28.9, and the same 5.74 px disc correlation error), so the
+ring of light alone, not the noise, drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
 that box rather than the frame, and a body without an ``atmosphere`` block
@@ -2653,6 +2887,71 @@ Kind-specific shape keys are validated strictly (a ``width_px`` on an
 ``edge`` fails loudly) because a stray shape key would silently author a
 different feature than intended. :ref:`sim-ring-system` tabulates which kind
 takes which key.
+
+Pixels that an edge crosses
+---------------------------
+
+The profiles change abruptly at their boundaries: both ends of a ringlet or gap,
+the step of an ``edge``, the end of a ``ramp`` that carries the full ``tau``,
+and the bend at the ramp's other end. When a boundary crosses a pixel, the
+renderer splits the pixel along the radial direction at the boundary. It lights
+each piece at that piece's own optical depth and averages the pieces by their
+length. A pixel that is 30% covered by a tau 2 ringlet therefore shows 30% of
+the ringlet's brightness and 70% of what lies beside it, and it passes the light
+behind it in the same proportions. A pixel crossed by two boundaries is split at
+both.
+
+Mixing the optical depth instead, so that the pixel is drawn as a full pixel of
+thinner ring, puts the edge in the wrong place. A ring's brightness levels off
+as its optical depth grows, so a thinner ring is more than proportionally
+bright, and the edge moves outward by up to 0.7 px on an opaque ring.
+
+On an oversampled grid, the split covers one grid pixel and the box downsample
+averages the grid pixels into each detector pixel, so an edge is averaged across
+exactly one detector pixel. A lone edge lands within 0.002 px of its authored
+radius, measured by the gradient centroid of the rendered profile. That holds
+for optical depths from 0.2 to 5, at every position of the edge within its
+pixel, at oversample 1 and 4, for both edge directions, for ringlet and gap
+edges, and on inclined, rotated, and unlit rings. The half-brightness crossing,
+found by straight-line interpolation between pixel centers, can't measure an
+unblurred edge that finely: on a correctly drawn edge it still reads 1/12 px
+(0.083 px) off when the edge sits a quarter of a pixel from a pixel boundary.
+
+Across a ramp, the optical depth changes along the pixel, and brightness and
+transmission don't change in proportion to it. So every pixel that a ramp's band
+overlaps is integrated along its footprint. Between boundaries the optical depth
+changes linearly, and each closed form is a sum of exponentials in it, so the
+mean over each piece has an exact closed form too. The renderer evaluates the
+optical depth at two points in the piece, which fixes the line, and takes the
+closed-form mean. Where a gap pulls the summed optical depth below zero partway
+across a piece, the piece is split where the line reaches zero, and the part
+below zero emits nothing and passes everything. A ramp pixel that no boundary
+crosses is integrated the same way, from its center value and the ramp's slope.
+Against an exact integral, every pixel stays within 3e-10 of the peak for ramps
+0.05 to 50 px wide with optical depths from 5 to 50, seen 0.05 to 2 degrees from
+edge-on on either face, at oversample 1 and 4.
+
+A propeller or a density wave that reaches a ramp pixel makes its optical depth
+curve. There each piece is cut into 32 equal lengths, and each is integrated as a
+line. On a propeller with contrast 8 over a 0.5 px ramp with optical depth 3, the
+pixel is 1e-5 off on the lit face and 5e-4 off on the unlit face, where brightness
+curves most strongly with optical depth.
+
+A pixel that no boundary crosses and no ramp overlaps is drawn at its center. A
+density wave is point sampled there, and on an oversampled grid the box downsample
+averages its point samples. Neither is an integral, and a wave whose wavelength
+approaches a render-grid pixel aliases.
+
+Integrating the crossed pixels costs time in proportion to how many there are. The
+cost of a ramp pixel doesn't depend on the ramp's optical depth or on the viewing
+angles. In CPU time for one 1024 by 1024 frame at oversample 4, the twelve-feature
+budget scene renders its ring system in 1.9 s, against 1.8 s if every pixel were
+drawn at its center. A system of 150 ringlets, each 0.7 px wide and 2.5 px apart,
+takes 3.6 s against 2.7 s and needs 0.6 GB more memory, and one ramp 300 px wide
+takes 1.9 s against 1.2 s and needs 0.6 GB more. A ramp whose whole band a density
+wave reaches is the costly case, since every pixel is cut into 32 lengths: the same
+300 px ramp under a wave takes 69 s. Those pixels are integrated in batches, which
+holds its memory to 3.9 GB.
 
 The catalog orbit: m-modes and edge waves
 -----------------------------------------
@@ -2711,8 +3010,8 @@ in quadrature to its reported covariance along the fit's radial direction
 
 The measured behavior on this axis stays deliberately uncomfortable, and the
 ``orbit_error_ringlet`` scene pins it: a navigable ringlet rendered 2.5 px
-outward of its catalog orbit navigates to a success that is 1.8 to 3.2 px
-wrong, depending on the noise draw. A uniform radial misplacement has no
+outward of its catalog orbit navigates to a success that is 1.63 px wrong on
+every noise draw measured. A uniform radial misplacement has no
 exact translational equivalent. The robust edge fit therefore down-weights one
 arc, locks onto one side of the annulus, and absorbs the ephemeris error into
 the recovered offset. The declared sigma widens the covariance enough to keep
@@ -2766,10 +3065,9 @@ oversample 4 must render in under 2 s single-core, and a 1024x1024
 Cassini-class scene in under 8 s (``tests/integration/test_sim_perf.py``).
 The harness holds two scene families to those budgets: a star field (the PSF
 convolution on the oversampled grid and the electron chain) and a frame
-dominated by a large lit body with limb relief (the topographic body
-renderer's split-resolution path -- detector-grid shading, relief normals, and
-cast shadows upsampled under an oversampled silhouette). The
-budget is a *cold-render* budget:
+dominated by a large lit body with limb relief (the ellipsoid renderer's
+working-grid shading with the relief tilt interpolated from the detector grid, see
+:ref:`sim-shading-grids`). The budget is a *cold-render* budget:
 the render caches are cleared so the timed render pays the kernel-build and
 compile costs a first render pays, while one-time non-render costs (the lazy
 config-YAML load) are paid by an untimed warm-up first. The harness pins
@@ -3082,31 +3380,88 @@ The scene's displacements need no conversion: the planted ``offset_v`` /
 ``offset_u``, a star's ``move_v`` / ``move_u`` smear vector, a planted
 ``catalog_error_v`` / ``catalog_error_u``, and a companion's ``sep_px``.
 
-The planted roll turns **positions** about **one** point in that same
-convention: the frame's center ``(size_v / 2, size_u / 2)``. Catalog star
-positions, body centers, and the ring system's center all pivot there, so a
-rolled scene plants a truth its three families of content agree on. The two
-orientations that describe a whole projected pattern take the roll as well: a
-body's ``rotation_z`` and the ring system's ``node_deg``. Moving the pivot
-displaces every rendered position by ``(I - R) d`` for a pivot moved by ``d`` --
-a rigid shift of the whole field of magnitude ``2 |d| sin(theta / 2)``, the same
-near the center as far from it -- so pivoting the star field half a pixel from
-the bodies would tilt the star solution against the body solution by that amount
-at every star.
+.. _sim-planted-roll:
 
-What the roll does not turn are the per-object quantities already stated in the
-detector frame: a star's ``move_v`` / ``move_u`` smear vector and a companion's
-``angle_deg`` render at the angle the scene wrote, whatever the roll. A scene
-author states them as they are to appear on the detector, so a roll that also
-turned them would apply the rotation twice. The background star field the
-``sky_counts`` block draws is not rotated either, and cannot be: its positions
-are drawn uniformly at random over the frame, so it carries no orientation to
-turn.
+**The planted roll** is a roll of the camera about its boresight. A scene describes
+what the unrolled camera would see, and the roll turns everything in the field of
+view by the same angle, in the same direction, about **one** point in that same
+convention: the frame's center ``(size_v / 2, size_u / 2)``. A positive roll turns
+from ``+v`` toward ``+u``, carrying a point at ``(dv, du)`` from the center to
+``(cos * dv - sin * du, sin * dv + cos * du)``. That is the rotation the star fit
+``similarity_transform_fit`` in ``nav_technique/_star_helpers.py`` reports and the
+rotation the edge fits apply to their model, so the rotation the navigator
+recovers equals the planted roll. The roll turns the scene first, and the planted
+``offset_v`` / ``offset_u`` then moves the turned stars, bodies, and ring system. The
+``sky_counts`` background field turns with the roll but does not move with the offset:
+its stars are drawn where they land in the frame whatever the offset. The navigator
+never learns the roll: ``offset_rotation_deg`` is a truth key, so the navigator's
+models predict the unrolled scene.
 
-The two centers inside the ``optics`` block -- ``distortion.center_v`` /
-``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the rule too,
-though what they name is where a whole-frame field is centered rather than where
-an object sits. Both are stated as pixel corners and both convert the same way.
+The roll turns:
+
+- catalog star positions, body centers, and the ring system's center about the frame
+  center;
+- each body about its own center by the same angle: its outline, the side its light
+  comes from, and everything drawn on it (craters, relief, albedo texture, bands and
+  storms, transiting moons and their shadows, and the haze with its clouds);
+- the ring system, through its ``node_deg``, with every feature and azimuthal pattern
+  on it;
+- each star's ``move_v`` / ``move_u`` smear track, its companion's offset, and its
+  catalog error;
+- the whole-scene and per-class motion smear in the ``optics`` block. Smear is the
+  scene drifting across the detector during the exposure, so its direction is a
+  direction in the field of view and turns with it;
+- a linear stray-light ramp. The ramp rises toward a bright source beyond the field
+  of view, and rolling the camera turns that source's direction on the detector. The
+  rolled ramp is the unrolled ramp turned about the frame center, with the same slope
+  and the same value there. Where the turned frame reaches past the span the unrolled
+  ramp was scaled to, the ramp continues the same line, and where that line falls
+  below zero it is clipped to zero, since light is never negative;
+- the ``sky_counts`` background field. The turned frame also shows sky beyond the
+  unrolled frame's corners, so stars at the same density are drawn there from their
+  own stream, and the rolled sky is the unrolled sky turned with the frame. A star is
+  drawn only when its position lies in the frame, rolled or not, so a roll too small
+  to carry a star across the frame edge draws the same stars as no roll.
+
+:mod:`spindoctor.sim.render.roll` does the turning for bodies. Three body angles run
+against the roll, so the roll subtracts from them. ``rotation_z`` turns the grid an
+ellipsoid is sampled on, so the drawn outline turns by ``-rotation_z``.
+``illumination_angle`` is measured from the top of the image toward ``+u``, so the
+light direction ``(-cos, sin)`` turns by ``-illumination_angle``. A mesh body's pose is
+``Rz @ Ry @ Rx`` in camera axes ordered ``(u, v, depth)``, so its line-of-sight angle,
+the third entry of ``pose_euler_deg``, is the outermost rotation, and a ``+v`` toward
+``+u`` turn is a negative ``Rz`` there. An ellipsoid's ``sub_observer_lat_deg`` stays
+as it is, since turning the camera about its line of sight never changes the point on
+the body below the observer. Craters are drawn on the image grid rather than on the
+body, so the ellipsoid renderer lays them out where the unrolled body
+does, on the frame or plane the unrolled body's canvas uses, and turns each center
+onto the rolled one. A scene author writes every angle for the
+unrolled camera and never adjusts one for the roll.
+
+Moving the pivot displaces every rendered position by ``(I - R) d`` for a pivot moved
+by ``d`` -- a rigid shift of the whole field of magnitude ``2 |d| sin(theta / 2)``, the
+same near the center as far from it -- so pivoting the star field half a pixel from the
+bodies would tilt the star solution against the body solution by that amount at every
+star.
+
+The camera's own optics stay put: the PSF, the distortion, the ghosts' shifts, and the
+radial stray-light bump are optical properties of the camera rather than of the field
+of view. The two centers inside the ``optics`` block -- ``distortion.center_v`` /
+``center_u`` and ``stray_light.center_v`` / ``center_u`` -- follow the pixel-corner
+rule too, though each sets where a whole-frame field is centered rather than where an
+object sits. Both are stated as pixel corners and both convert the same way, and both
+render where the scene wrote them whatever the roll.
+
+``tests/spindoctor/sim/test_sim_roll_turns_scene.py`` holds the renderer to this. For
+each quantity that turns, a +90 degree roll must render the unrolled frame turned a
+quarter turn. An ellipsoid's outline and a smear track look the same after a half
+turn, so a 30 degree roll must turn each by 30 degrees, and it must turn a half-lit
+sphere's light the same way. On a frame twice as wide as it is tall, where only one
+of the two renders draws a long cratered body on the frame, a +90 degree roll must
+still render the unrolled frame turned wherever the turn maps the frame onto itself.
+On a frame wider than it is tall, a linear stray-light ramp rolled 37 degrees must
+equal the unrolled ramp turned and clipped at zero, and a roll must leave the ghosts
+and the radial stray-light bump where they were.
 
 Scene parameter reference
 =========================
@@ -3153,6 +3508,13 @@ inside a mode's map may be null and takes its default.
      - required
      - truth
      - Scene seed; per-stage and per-effect sub-seeds derive from it.
+   * - ``noise_seed``
+     - int
+     - ``random_seed``
+     - truth
+     - Seed for the detector's per-frame noise alone; the scene, the telemetry losses,
+       the fixed pattern, and the artifact-mode activations stay on ``random_seed``
+       (see :ref:`sim-stage-pipeline`).
    * - ``exposure_sec``
      - float
      - 1.0
@@ -3168,13 +3530,19 @@ inside a mode's map may be null and takes its default.
      - float
      - 0.0
      - truth
-     - Planted boresight roll (deg), turning catalog star positions, body
-       centers, and the ring center alike about the frame's uv center
-       ``(size_v / 2, size_u / 2)`` (see :ref:`sim-pixel-convention`), and added
-       to ``rotation_z`` and ``node_deg``.  Smear vectors, a companion's
-       ``angle_deg``, and the ``distortion`` and ``stray_light`` centers in the
-       ``optics`` block are stated in the detector frame and do not turn with
-       it.
+     - Planted boresight roll (deg, from ``+v`` toward ``+u``), turning
+       everything in the field of view about the frame's uv center
+       ``(size_v / 2, size_u / 2)`` (see
+       :ref:`the planted roll <sim-planted-roll>`).  That covers the positions
+       of stars and bodies; each body's outline, lit side, and surface; the ring
+       system; star smear, companions, and catalog errors; the optics motion
+       smear; a linear stray-light ramp, clipped at zero where the turned frame
+       reaches past the unrolled one; and the sky field.  The roll subtracts
+       from ``rotation_z``, ``illumination_angle``, and a mesh body's
+       line-of-sight pose angle, which run against it, and adds to
+       ``node_deg``.  The PSF, distortion,
+       ghosts, and radial stray-light bump belong to the camera and do not
+       turn.
    * - ``midtime_utc``
      - str
      - none
@@ -3364,7 +3732,17 @@ null. Common fields:
      - idealized
      - ``ellipsoid`` or ``polyhedral_mesh``.
 
-Ellipsoid bodies add ``rotation_z`` and ``rotation_tilt`` (degrees, idealized).
+Ellipsoid bodies add ``rotation_z`` and ``sub_observer_lat_deg`` (degrees,
+idealized). The body's pole is semi-axis a, and its north pole, where latitudes are
+positive, is the end of semi-axis a that points along +v before ``rotation_z`` turns
+it. ``sub_observer_lat_deg`` is the latitude of the point on the body directly below
+the observer, from -90 to 90 degrees. A positive value tips the north pole toward the
+observer, who then sees the northern hemisphere, as in a real Saturn or Jupiter frame
+whose sub-observer latitude is positive. The ellipsoid turns as a solid body: its
+outline foreshortens along the pole to ``sqrt((a cos lat)^2 + (c sin lat)^2)``, so a
+sphere stays the same circle at any latitude, the shading and the haze follow the
+turned surface, and latitude bands curve across the disc. The navigator's predicted
+body turns the same way, through the same projection.
 Mesh bodies (``shape_model: polyhedral_mesh``) instead read the idealized mesh
 keys ``mesh_lumpiness`` (relief amplitude, default 0.3: the non-ellipsoidal
 relief has an RMS of ``mesh_lumpiness / 8`` of the radius), ``mesh_seed`` (which
@@ -3373,12 +3751,12 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 ``mesh_detail_octaves`` (bands of higher harmonic degrees, default 0), and
 ``pose_euler_deg`` (intrinsic X, Y, Z Euler angles, default ``[0, 0, 0]``).
 
-The truth-side body keys never reach the navigator. The relief, photometry,
-texture, and transit keys are consumed by the topographic path and the mesh
-extras by the mesh renderer (see :ref:`sim-body-renderer`); the navigator's
-predicted body is always the smooth Lambert template. A non-null value of a
-key in a row marked *ellipsoid only*, or of the ``atmosphere`` block, is
-refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
+The truth-side body keys never reach the navigator, which predicts each body as
+described in :ref:`sim-body-renderer`. The ellipsoid renderer consumes the relief,
+photometry, texture, and transit keys, and the mesh renderer consumes the relief
+keys and the mesh extras. A non-null value of a key in a row marked
+*ellipsoid only*, or of the ``atmosphere`` block, is refused on a
+``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. list-table::
    :widths: 30 70
@@ -3398,8 +3776,8 @@ refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
        mesh, the same field displaces the vertices.
    * - ``photometric_law``, ``minnaert_k``
      - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
-       ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent; ellipsoid
-       topographic path. *Ellipsoid only.*
+       ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent. *Ellipsoid
+       only.*
    * - ``opposition_surge``
      - ``{amplitude, width_deg}`` -- the normalized brightness surge near
        opposition. *Ellipsoid only.*
@@ -3421,8 +3799,9 @@ refused on a ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
      - ``{sigma_deg}`` -- a seeded per-frame Gaussian perturbation of the
        *rendered* mesh pose only; the navigator predicts the catalog pose.
    * - ``seed``
-     - The crater / texture / relief realization (a stable hash of the body
-       geometry when absent).
+     - The body's own seed for its craters, texture, relief, and pose scatter. The
+       scene's ``random_seed`` comes first, so only a body renderer called directly
+       without a scene seed uses it (see :ref:`sim-stage-pipeline`).
    * - ``anti_aliasing``
      - Image-side rendering-fidelity knob; the predicted template always
        renders at full anti-aliasing.
@@ -3488,7 +3867,8 @@ features nearly black. The system composites over the body stack as a
 per-pixel transmission screen (``img = I_ring + exp(-tau/mu) * img_behind``)
 ordered by observer distance: with the block-level ``range_km`` and
 ``km_per_pixel`` set, the near arm crosses in front of a body at the ring
-center's range and the far arm passes behind it, gaps reveal the background
+center's range and the far arm passes behind it, showing through a limb pixel
+in the fraction the limb leaves open, gaps reveal the background
 instead of erasing it, and stars behind the ring attenuate by
 ``exp(-tau/mu)`` (a scene whose system overlaps a body must range both).
 
@@ -3671,15 +4051,16 @@ Every star -- catalog or sky -- is a flux-normalized point source: its total
 signal is ``zero_point * 10**(-0.4 * vmag) * exposure_sec`` (the per-instrument
 photometric zero point, in electrons for a CCD or DN for the vidicon; it refers
 to the camera's clear filter, and a scene ``detector.filter`` scales it by that
-filter's throughput over the clear throughput), deposited
-as a sub-pixel-positioned point mass in ``frame.point_e`` (centroid-exact after
-the downsample). The whole-scene optics PSF is the *only* convolution a star
-receives, so the rendered star profile is the scene kernel and its peak follows
-from the PSF. Pre-spreading a star would convolve it twice and widen it by
-sqrt(2). Sky stars follow the same rule, and the star hit-test metadata records
-the scene kernel's core sigma. A scene with no PSF renders each star as a
-one-pixel spike (the undersampled limit), so the converted floor scenes carry an
-explicit ``optics.psf`` block.
+filter's throughput over the clear throughput), deposited as a sub-pixel-positioned
+point mass in ``frame.point_e``. Its centroid is exact at oversample 1 and after the
+downsample of a scene the PSF blurs; a scene that asks for oversampling with no PSF
+pulls each star toward its pixel center in the downsample. The whole-scene optics PSF
+is the *only* convolution a star receives, so the rendered star profile is the scene
+kernel and its peak follows from the PSF. Pre-spreading a star would convolve it twice
+and widen it by sqrt(2). Sky stars follow the same rule, and the star hit-test
+metadata records the scene kernel's core sigma. A scene with no PSF renders each star
+as its bilinear deposit, at most 2 x 2 pixels (the undersampled limit), so the
+converted floor scenes carry an explicit ``optics.psf`` block.
 
 The faint sky-count integral is truncated at the magnitude where a star's matched-filter
 signal drops to the read-noise floor over its PSF core
@@ -4204,9 +4585,10 @@ change alters rendered output:
     ``planted_rank1_ring_flat`` a band holds the error across the straight
     ring edge, the only direction that scene can measure.
 
-  The default suite runs the algorithmic invariants, the technique-pinned
-  regression tests, and the fused check on ``mutual_grazing``, which read their
-  limits from ``sim_truth.py``. The integration tier runs the rest. There,
+  The default suite runs the algorithmic invariants and the technique-pinned
+  regression tests, which read their limits from ``sim_truth.py``, and the fused
+  check on ``mutual_grazing``, which reads the known error its scene records. The
+  integration tier runs the rest. There,
   ``test_sim_truth_checks.py`` checks the fused answer of every validation scene
   outside ``algorithmic_invariants``, and every single-technique band.
 
@@ -4560,13 +4942,12 @@ The ``sim`` dataset (``DataSetSim``) builds an :class:`~spindoctor.obs.obs_inst_
 that loads the scene via :func:`spindoctor.sim.scene.io.load_sim_scene`, renders the
 frame with the simulator's renderer, and exposes the navigator view
 ``obs.nav_params`` to the navigator (see
-:ref:`sim-information-boundary`). The model-selection layer routes a simulated
-obs to the simulated NavModels -- ``NavModelBodySimulated``,
-``NavModelRingsSimulated``, ``NavModelStarsSimulated`` -- which build one
-feature set per body / ring / star field from that navigator view, while the
-SPICE-backed models decline a simulated obs. From there the same techniques run
-and produce the same ``NavResult``. In tests the scene is usually driven
-directly:
+:ref:`sim-information-boundary`). Because ``ObsSim``'s ``model_source`` is
+``scene_view``, the navigator builds only the simulated models
+(``NavModelBodySimulated``, ``NavModelRingsSimulated``, ``NavModelStarsSimulated``,
+and ``NavModelTitanSimulated``), which read that navigator view, and none of the
+models that need SPICE. From there the same techniques run and produce the same
+``NavResult``. In tests the scene is usually driven directly:
 
 .. code-block:: python
 

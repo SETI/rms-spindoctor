@@ -813,11 +813,16 @@ where they differ).
     tests the integer peak as well, since the window can carry the answer
     1.5 px from it. Moved out (operator, 2026-11-18): flagging an answer
     that still stops at its window edge is #1061. The strict #790
-    expectation was removed from the sim sweeps entirely, because mesh seed
-    10 now ends conflicted (the veto fires on seeds 5 and 10); a new strict
-    reproduction is #1062. The refinement's pull toward bright structure
+    expectation stays: mesh seed 10, which it used to rest on, now ends
+    conflicted on 18 of 25 noise draws and is never confidently wrong, but
+    mesh seed 7 is a 0.901-confidence success 5.2 px off on one of the 5
+    draws the check reads (3 of 25 draws in all). That is a narrow margin
+    over the 0.9 the check counts; a sturdier reproduction is #1062. The
+    refinement's pull toward bright structure
     the template leaves out is #1050, which also carries the wide-angle
-    regression on saturated frames and the remaining bias on the
+    regression on saturated frames, the haze-crescent scenes
+    (`titan_crescent_horns` and its noiseless twin, 6.7 px off), and the
+    remaining bias on the
     stray-light-and-relief scene #791 was opened on. On real irregular moons
     the disc is spurious on 46 of 47 frames with star truth, so that sim
     regime is barely testable; smeared and short-exposure frames improved

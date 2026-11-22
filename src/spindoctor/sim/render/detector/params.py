@@ -124,7 +124,10 @@ class DetectorParams:
         marker_value: The missing-data marker the navigator applies to the frame
             (see :func:`~spindoctor.support.image_class.missing_data_marker`),
             possibly NaN; the calibration inverse keeps every pixel off it.
-        random_seed: The scene seed for the per-effect sub-streams.
+        random_seed: The scene seed for the detector's fixed-pattern streams and for
+            each artifact mode's activation draw.
+        noise_seed: The seed for the detector's per-frame random streams: the
+            scene's ``noise_seed`` when it sets one, else its ``random_seed``.
         detector_id: The emulated detector the fixed hot-pixel map belongs to:
             the instrument entry's ``detector_id`` (a calibrated product's entry
             sets it to its raw camera), else the instrument name, and ``generic``
@@ -198,6 +201,7 @@ class DetectorParams:
     calibrated_sky_if: float
     marker_value: float
     random_seed: int
+    noise_seed: int
     detector_id: str = 'generic'
     binning: int = 1
     instrument_defaults: bool = False
@@ -796,6 +800,8 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         except ValueError as exc:
             raise DetectorParamError(f'sim instrument {instrument!r}: {exc}') from exc
 
+    # A scene's noise_seed redraws the per-frame detector streams of the same scene.
+    noise_seed = params['noise_seed'] if 'noise_seed' in params else params['random_seed']
     return DetectorParams(
         detector_model=detector_model,
         data_units=data_units,
@@ -832,6 +838,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         ),
         marker_value=missing_data_marker(inst_config),
         random_seed=int(params['random_seed']),
+        noise_seed=int(noise_seed),
         detector_id=resolve_detector_id(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,

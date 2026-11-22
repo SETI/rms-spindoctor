@@ -55,6 +55,7 @@ _ALLOWED_KEYS: frozenset[str] = frozenset(
         'size_v',
         'size_u',
         'random_seed',
+        'noise_seed',
         'exposure_sec',
         'offset_v',
         'offset_u',
@@ -106,12 +107,13 @@ TOP_LEVEL_IDEALIZED_KEYS: frozenset[str] = frozenset(
 )
 
 # Top-level truth keys: the planted pointing error the navigator must recover,
-# the RNG realization, and the contaminant / noise fields.  One value inside the
+# the RNG realizations, and the contaminant / noise fields.  One value inside the
 # 'detector' block is published: build_nav_params echoes the readout binning, which
 # a real frame's label states, as a top-level 'binning' key of the navigator view.
 TOP_LEVEL_TRUTH_KEYS: frozenset[str] = frozenset(
     {
         'random_seed',
+        'noise_seed',
         'offset_v',
         'offset_u',
         'offset_rotation_deg',
@@ -151,7 +153,7 @@ _BODY_IDEALIZED_KEYS: frozenset[str] = frozenset(
         'semi_b_px',
         'semi_c_px',
         'rotation_z',
-        'rotation_tilt',
+        'sub_observer_lat_deg',
         'illumination_angle',
         'phase_angle',
         'range_km',

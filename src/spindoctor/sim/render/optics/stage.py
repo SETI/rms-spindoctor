@@ -6,7 +6,8 @@ order chosen to mirror image formation:
 1. **Smear** averages the scene radiance over the exposure along the pointing
    drift (whole-scene, or per object class for differential smear).  It runs
    first, while the per-class layers are still separable, so the optics below
-   form the image of the time-averaged radiance.
+   form the image of the time-averaged radiance.  The drift is the scene's
+   motion, so a planted camera roll turns it with the scene.
 2. **Distortion** warps the geometric image: the residual field-position error
    the navigator does not correct maps where each point of the scene lands.
 3. **PSF** blurs the mapped image by the aperture's core-plus-wing kernel; the
@@ -15,13 +16,19 @@ order chosen to mirror image formation:
    focal-plane image (internal reflections).
 5. **Stray light** adds the smooth scattered-light background last.
 
+The distortion, the PSF, the ghosts, and the radial stray-light bump belong to the
+camera, so a planted roll leaves them where the scene puts them on the detector.  A
+linear stray-light ramp rises toward a bright source beyond the field of view, and a
+roll turns that source's direction on the detector, so the ramp turns with the roll
+about the frame center (see :func:`apply_stray_light`).
+
 A stage whose scene block is absent contributes nothing.  Only the distortion
-non-radial field draws randomness, and it derives its own seeded stream from
-the scene seed, so the optics stage does not consume the pipeline generator.
+non-radial field draws randomness, from its own stream ``optics/distortion``
+derived from the scene seed.
 """
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -41,7 +48,12 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['apply_optics', 'apply_stray_light', 'effective_psf', 'instrument_defaults_on']
+__all__ = [
+    'apply_optics',
+    'apply_stray_light',
+    'effective_psf',
+    'instrument_defaults_on',
+]
 
 
 def instrument_defaults_on(params: Mapping[str, Any]) -> bool:
@@ -127,6 +139,7 @@ def apply_stray_light(
     model: str = 'linear',
     center_v: float | None = None,
     center_u: float | None = None,
+    roll_deg: float = 0.0,
 ) -> None:
     """Add a smooth low-frequency stray-light field to the signal in place.
 
@@ -137,14 +150,25 @@ def apply_stray_light(
     needs suppressing -- untouched).  It is applied to the noise-free signal in
     [0, 1] before the detector stage.
 
+    A linear ramp rises toward a bright source beyond the field of view, so a
+    planted camera roll turns it: the rolled ramp is the unrolled one turned about
+    the frame center, with the same slope and the same value there.  Where the
+    turned frame reaches past the span the unrolled ramp was scaled to, the field
+    continues the same line, below zero clipped to zero, since light is never
+    negative, and above ``amplitude`` left as it is.  The radial bump is centered
+    by the camera's optics, so a roll leaves it alone.
+
     Parameters:
         img: Normalized [0, 1] signal image, modified in place.
         amplitude: Peak stray-light level added, in normalized signal units.
         direction_deg: Ramp direction for the 'linear' model, in degrees.
-        model: 'linear' (a ramp spanning [0, amplitude]) or 'radial' (a bump of
-            height amplitude fading to 0 at the farthest corner).
+        model: 'linear' (a ramp spanning [0, amplitude] over the unrolled frame)
+            or 'radial' (a bump of height amplitude fading to 0 at the farthest
+            corner).
         center_v: Bump center v for 'radial'; frame center when None.
         center_u: Bump center u for 'radial'; frame center when None.
+        roll_deg: The planted camera roll in degrees, from ``+v`` toward ``+u``;
+            it turns the 'linear' ramp only.
 
     Raises:
         ValueError: If ``model`` is not 'linear' or 'radial'.
@@ -158,9 +182,19 @@ def apply_stray_light(
     if model == 'linear':
         theta = np.radians(direction_deg)
         proj = np.cos(theta) * vv + np.sin(theta) * uu
-        proj -= float(proj.min())
+        low = float(proj.min())
+        proj -= low
         span = float(proj.max())
-        field = amplitude * (proj / span) if span > 0.0 else np.zeros_like(proj)
+        if span <= 0.0:
+            field = np.zeros_like(proj)
+        elif roll_deg == 0.0:
+            field = amplitude * (proj / span)
+        else:
+            field = (
+                amplitude
+                * np.maximum(_turned_ramp(theta, (vv, uu), roll_deg=roll_deg, low=low), 0.0)
+                / span
+            )
     elif model == 'radial':
         # ``vv`` / ``uu`` are pixel-centric, so the frame's center is
         # ``(size - 1) / 2`` and its outer corners sit half a pixel outside the
@@ -181,12 +215,44 @@ def apply_stray_light(
     img += field
 
 
-def apply_optics(
-    frame: SimFrame,
+def _turned_ramp(
+    theta: float,
+    grid: tuple[NDArrayFloatType, NDArrayFloatType],
     *,
-    params: Mapping[str, Any],
-    rng: np.random.Generator,
-) -> None:
+    roll_deg: float,
+    low: float,
+) -> NDArrayFloatType:
+    """The unrolled ramp's projection, less its frame minimum, turned by the roll.
+
+    The unrolled projection at a pixel ``p`` is ``d . p - low`` for the direction
+    ``d`` at ``theta``.  The rolled frame shows at ``p`` what the unrolled frame shows
+    at ``p`` turned back by the roll about the frame center ``c``, which is
+    ``(R d) . (p - c) + d . c - low``: the direction turned by the roll, and the value
+    at the frame center kept.
+
+    Parameters:
+        theta: The unrolled ramp direction in radians, from ``+v`` toward ``+u``.
+        grid: The pixel centric v and u coordinate of each pixel.
+        roll_deg: The roll in degrees, from ``+v`` toward ``+u``.
+        low: The unrolled projection's minimum over the frame.
+
+    Returns:
+        The turned projection, in the unrolled projection's units.
+    """
+    vv, uu = grid
+    # The frame center, ``size / 2`` in pixel corner coordinates, written pixel
+    # centric as the grid is.
+    center_v = (vv.shape[0] - 1) / 2.0
+    center_u = (vv.shape[1] - 1) / 2.0
+    turned = theta + np.radians(roll_deg)
+    at_center = float(np.cos(theta) * center_v + np.sin(theta) * center_u) - low
+    return cast(
+        NDArrayFloatType,
+        np.cos(turned) * (vv - center_v) + np.sin(turned) * (uu - center_u) + at_center,
+    )
+
+
+def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     """Optics stage: apply the scene's optical-path effects in place.
 
     Runs the smear, distortion, PSF, ghost, and stray-light sub-stages in the
@@ -198,15 +264,14 @@ def apply_optics(
     Parameters:
         frame: The frame whose signal and point-source planes are modified.
         params: The full scene mapping; reads the ``optics`` block.
-        rng: The stage generator (used by the seeded distortion field).
     """
-    del rng
     optics = params.get('optics') or {}
     oversample = int(frame.oversample)
+    roll_deg = float(params.get('offset_rotation_deg', 0.0))
 
     smear = optics.get('smear')
     if smear:
-        apply_smear(frame, smear=smear, oversample=oversample)
+        apply_smear(frame, smear=smear, oversample=oversample, roll_deg=roll_deg)
 
     # The residual warp moves light by under a pixel for most cameras, which the
     # editor's preview can't show, and it is one of the slowest optics steps.
@@ -245,6 +310,9 @@ def apply_optics(
             center_v = float(center_v) * oversample - PIXEL_CENTER_TO_CORNER_PX
         if center_u is not None:
             center_u = float(center_u) * oversample - PIXEL_CENTER_TO_CORNER_PX
+        # The linear ramp rises toward a bright source beyond the field of view, so a
+        # planted roll turns it; the radial bump is centered by the optics and stays
+        # put.
         apply_stray_light(
             frame.signal,
             amplitude=float(scene_value(stray, 'amplitude', 0.0)),
@@ -252,4 +320,5 @@ def apply_optics(
             model=str(scene_value(stray, 'model', 'linear')),
             center_v=center_v,
             center_u=center_u,
+            roll_deg=roll_deg,
         )

@@ -69,6 +69,7 @@ __all__ = [
     'MIN_LIMB_RELIEF_CORR_DEG',
     'ReliefField',
     'cast_shadows',
+    'clear_relief_caches',
     'synthesize_albedo_field',
     'synthesize_relief_field',
 ]
@@ -174,18 +175,28 @@ class ReliefField:
         phi_nodes = np.linspace(0.0, 2.0 * np.pi, n + 1)
         return phi_nodes, values
 
-    def outline_delta(self, phi: NDArrayFloatType) -> NDArrayFloatType:
+    def outline_delta(
+        self, phi: NDArrayFloatType, *, view: tuple[float, float] = (0.0, 1.0)
+    ) -> NDArrayFloatType:
         """The relief surface's outline displacement at azimuths ``phi`` (radians).
 
         The outline at azimuth ``phi`` sits at ``1 + delta(phi)`` times the
         smooth limb radius, where ``delta`` is the envelope ``max over lat of
-        (1 + h(lat, phi)) cos(lat) - 1``: the farthest any surface point
-        projects along that azimuth.  It is at least the equator slice
-        ``h(0, phi)`` everywhere.
+        (1 + h(lat, phi)) cos(lat) - 1``, with latitude measured from the plane
+        perpendicular to the line of sight: the farthest any surface point
+        projects along that azimuth.  It is at least the limb slice there.
+
+        Seen along the field's own pole, ``z``, the envelope is the stored
+        :attr:`outline`.  Seen along a direction turned toward ``x``, the limb is
+        the great circle perpendicular to it, and the envelope is evaluated for
+        that circle: azimuth 0 points along the turned ``x`` axis, and azimuth
+        ``pi / 2`` along ``y``.
 
         Parameters:
             phi: Azimuths around the limb (any real values; wrapped to
                 ``[0, 2*pi)``).
+            view: The unit direction toward the observer in the field's frame,
+                as its ``x`` and ``z`` components (its ``y`` component is 0).
 
         Returns:
             Fractional outline displacement values, same shape as ``phi``.
@@ -195,9 +206,12 @@ class ReliefField:
         """
         if self.outline is None:
             raise ValueError('this field carries no outline envelope')
-        phi_nodes = np.linspace(0.0, 2.0 * np.pi, self.outline.size)
         wrapped = np.mod(np.asarray(phi, dtype=np.float64), 2.0 * np.pi)
-        return np.interp(wrapped, phi_nodes, self.outline)
+        if view[0] == 0.0:
+            phi_nodes = np.linspace(0.0, 2.0 * np.pi, self.outline.size)
+            return np.interp(wrapped, phi_nodes, self.outline)
+        lons, envelope = _turned_outline_envelope(self, view)
+        return np.interp(wrapped, lons, envelope)
 
     def sample_points(self, points: NDArrayFloatType) -> NDArrayFloatType:
         """Sample the field at unit-sphere directions in the field's own frame.
@@ -437,6 +451,51 @@ def _outline_envelope(corr_deg: float, seed: int, rms: float) -> NDArrayFloatTyp
         radius = (1.0 + field.sample(lat_grid, lon_grid)) * cos_lat
         envelope[start : start + chunk] = radius.max(axis=0)
     return envelope - 1.0
+
+
+def _turned_outline_envelope(
+    field: ReliefField, view: tuple[float, float]
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """The outline envelope for a line of sight turned away from the field's pole.
+
+    The same envelope :func:`_outline_envelope` stores, at the same sample spacing,
+    evaluated around the great circle perpendicular to ``view`` instead of the
+    field's equator.
+
+    Parameters:
+        field: The relief realization.
+        view: The unit direction toward the observer, its ``x`` and ``z``
+            components in the field's frame.
+
+    Returns:
+        The longitudes ``0 .. 2*pi`` inclusive around the turned limb, and the
+        envelope less 1 at each.
+    """
+    view_x, view_z = view
+    n = field.grid.shape[0]
+    lat_cap = math.acos(min(1.0, (1.0 + field.h_min) / (1.0 + field.h_max)))
+    half_count = math.ceil(lat_cap / (2.0 * np.pi / n) * _OUTLINE_SAMPLES_PER_ROW)
+    lats = np.linspace(-lat_cap, lat_cap, 2 * half_count + 1)
+    lons = np.linspace(0.0, 2.0 * np.pi, _OUTLINE_NODES_PER_COLUMN * n + 1)
+    # The limb circle's axes: the turned x axis (perpendicular to the view in the
+    # x-z plane) and y, with the view direction as its pole.
+    first = np.array([view_z, 0.0, -view_x])
+    second = np.array([0.0, 1.0, 0.0])
+    pole = np.array([view_x, 0.0, view_z])
+    cos_lat = np.cos(lats)[:, np.newaxis]
+    sin_lat = np.sin(lats)[:, np.newaxis]
+    envelope = np.empty(lons.size, dtype=np.float64)
+    chunk = max(1, _OUTLINE_CHUNK_SAMPLES // lats.size)
+    for start in range(0, lons.size, chunk):
+        lon = lons[start : start + chunk][np.newaxis, :]
+        points = (
+            (cos_lat * np.cos(lon))[..., np.newaxis] * first
+            + (cos_lat * np.sin(lon))[..., np.newaxis] * second
+            + np.broadcast_to(sin_lat, (lats.size, lon.size))[..., np.newaxis] * pole
+        )
+        radius = (1.0 + field.sample_points(points)) * cos_lat
+        envelope[start : start + chunk] = radius.max(axis=0)
+    return lons, envelope - 1.0
 
 
 def synthesize_relief_field(rms: float, corr_deg: float, seed: int) -> ReliefField:

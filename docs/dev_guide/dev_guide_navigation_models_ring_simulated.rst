@@ -87,7 +87,16 @@ Sources of uncertainty
 ----------------------
 
 The rendered edge is sharp and noiseless, so the only measurement uncertainty is the
-one-pixel sampling of the polyline. The scene can also declare how well its catalog knows
+one-pixel sampling of the polyline. Each vertex sits at the center of a border pixel, up to
+half a pixel from the exact edge, the same sampling the navigator's ring model uses on real
+frames. Along a curved edge these offsets fall on both sides and average out. Along an edge
+that runs parallel to a pixel row or column, they all fall on the same side, and the fit
+inherits their mean. The flat-ring scene ``planted_rank1_ring_flat`` is such a case: its
+straight edges run along the v axis, the vertices inside the frame, 220 on each edge
+and the ones the fit uses, sit 0.460 px toward lower u on average, and the navigated
+offset misses the planted one by 0.46 px across the edges.
+
+The scene can also declare how well its catalog knows
 each orbit, with ``declared_orbit_sigma``: :math:`\sigma_a` (``sigma_a_px``),
 :math:`\sigma_{ae}` (``sigma_ae_px``), and :math:`\sigma_\varpi` (``sigma_long_peri_deg``,
 converted to radians). A key the scene omits or sets to null counts as zero. These are the
@@ -178,16 +187,15 @@ Implementation
 
 Source files: ``src/spindoctor/nav_model/simulated/rings.py`` holds
 :class:`~spindoctor.nav_model.simulated.rings.NavModelRingsSimulated`, and
-``src/spindoctor/nav_model/simulated/predict_ring.py`` holds the prediction,
-:func:`~spindoctor.nav_model.simulated.predict_ring.predict_ring_feature`.
+``src/spindoctor/nav_model/simulated/predicted_ring.py`` holds the prediction,
+:func:`~spindoctor.nav_model.simulated.predicted_ring.create_predicted_ring_feature`.
 
 The class derives from :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 It overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to return one
 instance per navigable feature of a simulated observation, named ``rings_sim:<feature
-name>``, and an empty list for a real one. The parent
-:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings` does the reverse, so the
-orchestrator's :func:`~spindoctor.nav_model.nav_model.build_models_for_obs` driver gets
-simulated frames from this class and real frames from the parent.
+name>``. Its ``inputs`` is ``'scene_view'``, so a simulated frame's ring models come
+from this class, and a real frame's from
+:class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 
 Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
@@ -212,9 +220,10 @@ Call path
 
 1. Opens a logged section and reads the feature's mapping and the shared ``geometry``
    block. It shifts the projected center by the extended-FOV margins.
-2. Calls :func:`~spindoctor.nav_model.simulated.predict_ring.predict_ring_feature`. That
-   function builds the pixel grid in pixel-corner coordinates, projects it to ring-plane
-   :math:`(r, \lambda)` with :func:`~spindoctor.sim.shared.ring.ring_plane_from_sky`, and
+2. Calls
+   :func:`~spindoctor.nav_model.simulated.predicted_ring.create_predicted_ring_feature`.
+   That function builds the pixel grid in pixel-corner coordinates, projects it to
+   ring-plane :math:`(r, \lambda)` with :func:`~spindoctor.sim.shared.ring.ring_plane_from_sky`, and
    evaluates the orbit with :func:`~spindoctor.sim.shared.ring.compute_orbit_radii`. It
    then rasterizes the coverage template and one border mask per edge, with each vertex's
    outward normal and its shifts :math:`p_{a}`, :math:`p_{ae}`, and :math:`p_{\varpi}`.
@@ -256,9 +265,9 @@ of 90) navigable ringlet centered in a 220 px frame, with radii from 60 to 85 px
 ``tau`` of 2, and plants a pointing offset of (1.43, −0.61) px. The model predicts both
 edges at their catalog position. RingEdgeNav fits the two curved polylines against the
 image's edge distance transform, and ``test_sim_algorithmic_invariants.py`` requires its
-offset to land within 0.066 px of the planted one. That tolerance is the largest error
+offset to land within 0.083 px of the planted one. That tolerance is the largest error
 measured over 16 noise seeds, plus a margin. The scene's baseline pins the fused ensemble
-result at (1.42, −0.62) px.
+result at (1.41, −0.63) px.
 
 ``ring_system/orbit_error_ringlet.yaml`` is the same kind of ringlet, but it plants
 ``orbit_error: {delta_a_px: 2.5}`` and declares ``declared_orbit_sigma: {sigma_a_px: 2.5}``.
@@ -266,6 +275,5 @@ The image shows the band 2.5 px outside the prediction. A uniform radial error d
 closed ring rather than translating it, yet the robust fit still locks onto one side and
 absorbs part of the error into the offset. The declared sigma reaches both techniques'
 covariance, so the scene expects a success at the low confidence tier with an offset error
-between 1.490 and 3.457 px. The error depends on which arc the fit locks onto, and that
-depends on the noise draw. The range covers the errors measured over 16 noise seeds, plus
+between 1.583 and 1.686 px. The range covers the errors measured over 16 noise seeds, plus
 a margin. The fused sigma of about 2.5 px covers how far the result can be from the truth.

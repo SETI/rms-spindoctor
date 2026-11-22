@@ -68,7 +68,7 @@ def _ellipsoid_body() -> dict[str, Any]:
         'semi_b_px': 6.0,
         'semi_c_px': 5.5,
         'rotation_z': 20.0,
-        'rotation_tilt': 10.0,
+        'sub_observer_lat_deg': 10.0,
         'illumination_angle': 30.0,
         'phase_angle': 40.0,
         'range_km': 500000.0,
@@ -234,7 +234,7 @@ def _null_geometry_scenes() -> tuple[dict[str, Any], dict[str, Any]]:
 
     The body sets its center, semi-axis c, range, and in-plane rotation to null.  The
     radiance stage reads each of these keys itself, to place the body, scale it to
-    the render grid, add the camera roll to its rotation, and write its render truth.
+    the render grid, turn it by the camera roll, and write its render truth.
     """
     absent = {
         'name': 'RHEA',

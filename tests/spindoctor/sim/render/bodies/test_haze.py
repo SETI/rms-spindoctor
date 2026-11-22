@@ -91,8 +91,8 @@ def _render_body(
         semi_b: The second in-plane semi-axis in pixels.
 
     Returns:
-        The rendered disc signal image, halo not yet composited, and the halo
-        screen, or None when the body carries none.
+        The rendered signal image over black, halo included, and the halo screen,
+        or None when the body carries none.
     """
     img: NDArrayFloatType = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     body_params: dict[str, Any] = {
@@ -113,8 +113,6 @@ def _render_body(
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
-        ref_center_v=_SIZE / 2.0,
-        ref_center_u=_SIZE / 2.0,
     )
     return img, body_info.get('halo')
 
@@ -128,7 +126,7 @@ def _render(
     semi_a: float = _RADIUS,
     semi_b: float = _RADIUS,
 ) -> NDArrayFloatType:
-    """Render a centered hazy ellipsoid and composite its halo over black.
+    """Render a centered hazy ellipsoid over black, its halo included.
 
     Parameters:
         atmosphere: The body's ``atmosphere`` block.
@@ -142,7 +140,7 @@ def _render(
     Returns:
         The rendered signal image, halo included.
     """
-    img, halo = _render_body(
+    img, _halo = _render_body(
         atmosphere,
         phase_deg=phase_deg,
         illumination_deg=illumination_deg,
@@ -150,9 +148,6 @@ def _render(
         semi_a=semi_a,
         semi_b=semi_b,
     )
-    if halo is not None:
-        covered = (halo.emission > 0.0) | (halo.transmission < 1.0)
-        img[covered] = halo.emission[covered] + halo.transmission[covered] * img[covered]
     return img
 
 

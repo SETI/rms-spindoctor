@@ -7,9 +7,9 @@ random_seed: 31
 exposure_sec: 1.0
 # A lit body with limb relief under a whole-scene PSF and an off-center
 # radial stray-light bump.  The explicit PSF activates oversample 4, so
-# this is the catalog's pin on the topographic renderer's
-# split-resolution path (detector-grid shading upsampled under the
-# oversampled relief silhouette), the defaulted PSF kernel size at
+# this is the catalog's pin on the ellipsoid renderer's oversampled
+# relief body (working-grid shading with the relief tilt interpolated
+# from the detector grid), the defaulted PSF kernel size at
 # oversample, and the stray-light center_v/center_u scaling onto the
 # oversampled grid.  A change to that mapping moves the rendered image;
 # it does not necessarily move the recorded result, which is what this
@@ -18,22 +18,28 @@ exposure_sec: 1.0
 # navigator fits its smooth sharp Lambert template against the blurred
 # ragged limb and the relief's slope shading over a sloped background.
 # Measured behavior: all three body techniques survive the blur and the
-# sloped background, but the fused offset is (1.43, -2.01) against the
-# planted (2.37, -1.62), a miss of 1.02 px, mostly in v.  The limb fit
-# lands at (2.18, -1.71), about 0.2 px from the planted value.  The disc
-# correlation reports (1.43, -2.01).  Its high-pass refinement does not
-# stop at a window edge; the high-pass surface's own maximum lies 1.0 px
-# from the planted offset, because the smooth template doesn't carry the
-# relief's ragged limb and slope shading the frame does (#791).  The
+# sloped background, but the fused offset is (1.43, -2.04) against the
+# planted (2.37, -1.62), a miss of 1.03 px, mostly in v.  The limb fit
+# lands at (2.12, -1.74), about 0.27 px from the planted value.  It was 0.21 px
+# when the disc was shaded on the detector grid (#931): the fit follows the
+# brightness gradient just inside the ragged limb, which the oversampled grid
+# now resolves, and the move is inside the fit's spread over the 16 noise
+# draws below (0.17 to 0.37 px from the planted value).  The disc correlation
+# reports (1.43, -2.04).  Its high-pass refinement does not stop at a window
+# edge: that surface's own maximum lies 1.0 px from the planted offset,
+# because the smooth template doesn't carry the ragged limb and the slope
+# shading the frame does (#1050).  The
 # ensemble fuses the limb fit and the correlation as one witness and takes
 # the correlation's offset, so the scene pins a medium-confidence success
 # whose error is the correlation's.
-# Known error: over 16 noise seeds (the committed one and 101, 202, ...,
-# 1515) the fused error runs 0.192 to 2.617 px, because where the relief
-# and the noise put the high-pass maximum depends on the noise draw (#791).
-# Each end of the band sits a margin of max(0.05 px, a fifth of the
-# 2.426 px spread) outside; the lower end would fall below zero, so it
-# stops at zero, giving [0.000, 3.103] px.  A worse miss fails.
+# Known error: over 16 draws of the detector noise alone (the committed draw
+# and noise_seed 101, 202, ..., 1515), which keep this scene's limb relief,
+# the fused error runs 1.022 to 1.033 px (spread 0.010 px).  Each end of the
+# band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px outside,
+# giving [0.972, 1.083] px.  A worse miss fails, and so does a fix that brings
+# the error under 0.972 px.  The relief decides the error: over 16 values of
+# random_seed, which redraw the relief too, it runs 0.183 to 2.613 px, because
+# where the high-pass maximum lies depends on the relief drawn (#1050).
 bodies:
   - name: RUGGED
     shape_model: ellipsoid
@@ -64,5 +70,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 1.5515
-  known_offset_error_tol_px: 1.5515
+  known_offset_error_px: 1.0275
+  known_offset_error_tol_px: 0.0555

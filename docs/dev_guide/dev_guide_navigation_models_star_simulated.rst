@@ -19,11 +19,11 @@ therefore navigated by exactly the same
 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` code a real frame
 is.
 
-Unlike :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars`, this model *does*
-override :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs`: it builds one
-instance for a simulated observation that rendered at least one star, and the parent
-declines simulated observations, so the autonomous registry routes simulated frames to
-this subclass and real frames to the parent.
+The model overrides :meth:`~spindoctor.nav_model.nav_model.NavModel.instances_for_obs` to
+build one instance for a simulated observation that rendered at least one star. It also
+sets its own ``inputs``, ``'scene_view'``, in place of the parent's ``'spice'``. The model
+builder then asks this class for a simulated frame's stars and asks the parent for a real
+frame's.
 
 Theory
 ======
@@ -103,8 +103,7 @@ Public methods (autodocumented at :doc:`/api_reference/api_nav_model`):
 
 - :meth:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated.instances_for_obs`
   -- returns one instance for a simulated observation whose ``nav_params`` lists at
-  least one star; an empty list for a real observation or a simulated one whose scene
-  has no stars.
+  least one star, and an empty list for one whose scene has no stars.
 - :meth:`~spindoctor.nav_model.simulated.stars.NavModelStarsSimulated.create_model`
   -- builds one catalog record per ``nav_params`` star entry via
   :func:`~spindoctor.sim.shared.stars.star_record_from_params`, sets a zero smear

@@ -2,14 +2,15 @@
 
 A star or a farther body behind any part of a body's outline is hidden: behind
 the unlit side of a crescent, and behind a pixel a surface stage renders black,
-such as a transit's full umbra.  The body's mask, which drives the paint, star
-extinction, and the truth maps, covers those pixels too.
+such as a transit's full umbra.  The body's mask, which drives the truth maps,
+covers those pixels too.
 """
 
 from typing import Any
 
 import numpy as np
 import pytest
+from scipy import ndimage
 from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.sim.render.driver import render_scene
@@ -95,13 +96,18 @@ def _relief_outline_pixel(kind: str) -> tuple[int, int]:
 
     A ``notch`` lies more than half a pixel inside the ellipse but outside the
     relief outline; a ``bump`` lies more than half a pixel outside the ellipse
-    but inside the outline.
+    and so far inside the outline that its eight neighbors belong to the body too,
+    so the outline covers it wholly.
     """
     _image, meta = render_scene(_scene(_body(limb_relief_rms=0.03)))
     mask = meta['body_masks'][0]
     offsets = np.arange(_SIZE) + 0.5 - _CENTER
     radius = np.sqrt(offsets[:, None] ** 2 + offsets[None, :] ** 2)
-    found = np.argwhere(~mask & (radius < 29.5) if kind == 'notch' else mask & (radius > 30.5))
+    found = np.argwhere(
+        ~mask & (radius < 29.5)
+        if kind == 'notch'
+        else mask & (radius > 30.5) & ndimage.binary_erosion(mask, np.ones((3, 3), dtype=bool))
+    )
     assert len(found) > 0
     return int(found[0][0]), int(found[0][1])
 

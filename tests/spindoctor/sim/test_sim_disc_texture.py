@@ -13,8 +13,8 @@ import math
 import numpy as np
 import pytest
 
+from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 from spindoctor.sim.render.bodies.texture import DiscTextureSpec, TransitSpec
-from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 200
@@ -32,7 +32,7 @@ def _spec(
     *,
     transits: tuple[TransitSpec, ...] = (),
     rotation_z: float = 0.0,
-) -> TopoBodySpec:
+) -> EllipsoidBodySpec:
     """A sphere at moderate phase with optional disc texture and transits.
 
     The opposition surge (amplitude 1 at phase ~57 deg) halves the whole
@@ -40,7 +40,7 @@ def _spec(
     signal ceiling and a multiplied texture can never clip: every ratio
     probe below is exact.
     """
-    return TopoBodySpec(
+    return EllipsoidBodySpec(
         semi_a_px=_RADIUS,
         semi_b_px=_RADIUS,
         semi_c_px=_RADIUS,
@@ -52,11 +52,11 @@ def _spec(
     )
 
 
-def _render(spec: TopoBodySpec) -> NDArrayFloatType:
-    return create_topographic_body((_SIZE, _SIZE), (_CENTER, _CENTER), spec)
+def _render(spec: EllipsoidBodySpec) -> NDArrayFloatType:
+    return create_ellipsoid_body((_SIZE, _SIZE), (_CENTER, _CENTER), spec)
 
 
-def _texture_ratio(spec: TopoBodySpec) -> NDArrayFloatType:
+def _texture_ratio(spec: EllipsoidBodySpec) -> NDArrayFloatType:
     """The textured/smooth ratio (1 outside the disc)."""
     smooth = _render(dataclasses.replace(spec, disc_texture=None, transits=()))
     textured = _render(spec)

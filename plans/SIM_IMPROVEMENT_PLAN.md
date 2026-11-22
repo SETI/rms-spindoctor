@@ -98,8 +98,8 @@ is confined to.
 
 These make every later phase cheaper or safer. Most are small.
 
-**Status (2026-11-18):** every row below is done, decided, or moved, except #960, #126 and #945,
-and #854 (on hold). The realism-record regeneration with #961 is done (PR #1034), and #925's
+**Status (2026-11-18):** every row below is done, decided, or moved, except #126 and #945, and
+#854 (on hold). #960 is done (PR #1067). The realism-record regeneration with #961 is done (PR #1034), and #925's
 star-count criterion moved to #899 and #895 in Phase 4a. #970 waits on the upstream camera-model
 fixes.
 
@@ -109,7 +109,7 @@ fixes.
 | #924 | **Done (PR #932).** The simulator developer guide mixes per-camera values into the mechanism descriptions | Move each camera's measured values to its instrument page so each is stated once, before Phases 3 and 4 re-measure them and every change has to edit two copies. Docs only. |
 | #911, including per-pixel variates | **Done (PR #962).** One frame-wide Poisson stream | Every later fix would otherwise turn into a new noise field across the whole frame. |
 | #954 | **Done (PR #998): each crater draws from its own stream, and its center from a search that does not depend on the body's exact shape.** A last-bit geometry change can reseed every crater on a simulated body | The same fragility as #911, in the crater field instead of the noise; fixing it moves every cratered render once, so it is cheapest alongside another regeneration. |
-| #960 | Simulator tripwires depend on a single noise draw | The #911 redraw moved three of them; until each rate or band is measured over several noise seeds, the next redraw can move them again. |
+| #960 | **Done (PR #1067): the optional scene key `noise_seed` redraws only the detector's per-frame noise; the rate and band checks are measured over noise seeds, and every other single-draw check records its measured spread.** Simulator tripwires depend on a single noise draw | The #911 redraw moved three of them; until each rate or band is measured over several noise seeds, the next redraw can move them again. |
 | #961 | **Done (PR #1034): the two sweep figures and the irregularity and pose-disagreement passages were regenerated from one run on 2026-11-17, the population claims included.** The simulator report quotes the sweeps' earlier noise draw | Regenerate the sweep figures and their prose together in the report's end-of-stack regeneration. |
 | #905, truth-check part | **Done (PR #976).** Assertions are change detectors and 1 px bounds | Give validation scenes truth-based assertions before the renders start moving, so a move is judged against the planted truth. |
 | #872 | **Done (PR #927).** The baseline regenerator imports whichever installed package it finds | Regenerated baselines must come from the checkout under test before the churn starts. |
@@ -146,7 +146,7 @@ regression bands of #903 and so meets the "realism match fails on a planted regr
 and #961's sweep figures were regenerated in the same pass.
 
 Phase 1b starts now: the realism-record regeneration (with #961) and #989, its prerequisites,
-are done. #854 (on hold), #960, and #126/#945 do not hold it up; a later PR among
+are done. #960 is done (PR #1067). #854 (on hold) and #126/#945 do not hold it up; a later PR among
 them that moves renders follows the rebase rule in the Risks section.
 
 ## Phase 1b: pixel-neutral restructuring
@@ -164,10 +164,10 @@ apart from a physics change.
 | #1005 | **Done (PRs #1045, #1046, and #1047).** Lay out the simulator package by concern; the image side's `forward/` package becomes `render/`, with the `render.py` entry point inside it (operator, 2026-11-17). **The navigator-side part is done (PR #1045).** **The `sim` package part is done (PR #1046).** **The editor part is done (PR #1047).** | Every later issue creates its modules in their final places, and the boundary guard checks packages instead of file names. Lands right after Phase 1's realism-record regeneration, when no other simulator PR is open. |
 | #1006 | **Done (PR #1051).** Exact copies and dead defaults | Each later change would otherwise have to find and edit every copy. |
 | #1007 | **Done (PR #1054).** Names that describe history or one of several meanings | One glossary before the typed scene model fixes names into types. |
-| #1008 | The simulated body model is over 1,000 lines, and its limb and terminator arc code is two near-copies | The one module over the limit. |
-| #1030 | The simulated-or-real model choice is spread over eight guards; each model class declares the inputs it needs instead | One place to choose models, and the shape Phase 5 needs, where a twin provides both kinds of input. Gated also on the library regression tier, because it touches model selection on real frames. |
-| #1009 | Light direction and phase function derived twice | A shared convention with two copies can plant an unmeasured systematic. If a render moves, the move is that systematic and is explained. |
-| #1010 | The stage protocol says each stage is seeded by its generator; most stages discard it | Seeding by name is the rule every later stage must follow. |
+| #1008 | **Done (PR #1059).** The simulated body model is over 1,000 lines, and its limb and terminator arc code is two near-copies | The one module over the limit. |
+| #1030 | **Done (PR #1064).** The simulated-or-real model choice is spread over eight guards; each model class declares the inputs it needs instead | One place to choose models, and the shape Phase 5 needs, where a twin provides both kinds of input. Gated also on the library regression tier, because it touches model selection on real frames. |
+| #1009 | **Done (PR #1060).** Light direction and phase function derived twice | A shared convention with two copies can plant an unmeasured systematic. If a render moves, the move is that systematic and is explained. |
+| #1010 | **Done (PR #1058).** The stage protocol says each stage is seeded by its generator; most stages discard it | Seeding by name is the rule every later stage must follow. |
 
 #923's fixtures and #1005 go first. The others can land in any order after them.
 
@@ -189,23 +189,41 @@ topographic renderer's grids. #1012 follows #901, because #901 removes the class
 module #1012 splits. The render grid that removes hand-threaded oversampling (#1015) waits for the
 typed scene, in Phase 3b.
 
+**Done (PR #1102).** Of the rows not yet started, #893 goes first (operator, 2026-11-21). Its limb
+seam paints a dark one-pixel outline wherever a body's edge crosses a pixel, because a partly
+covered limb pixel keeps the body's share and drops what lies behind it; that outline is visible
+around the haze of the Titan scenes, sharpens every occluding limb a limb technique fits, and
+loosened two mutual-event tolerances in the disc refinement work (#1053). It follows #890, whose
+coverage of a body too large for the frame the seam fix shares.
+
+With #893 done and #892, #894, and #875 under way in their own PRs, the next row not yet started
+is #842 with #646: no check compares where a simulated limb's brightness gradient peaks with a
+real limb, and the limb-bias harness measures a simulated ridge half a pixel from the deployed
+one. This phase's exit asks for that check.
+
 | Issue | Subject |
 |---|---|
-| #901 | Classic and topographic body renderers disagree; retire the classic path (part of #915) |
-| #1011 | The topographic body renderer projects through its own copy of the ellipsoid projection, while the navigator predicts through the shared one |
-| #1012 | The body renderer modules import each other through hidden cycles, and the body identity seed is written out in several places |
-| #931 | Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
-| #1013 | A scene with instrument defaults oversamples 4x even when its camera has no PSF |
-| #1014 | The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
-| #890 | A body larger than half the frame and off center is clipped or vanishes |
-| #825, #644 | A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
-| #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
-| #84 | Simulated rings were copied in place, so ring edges overwrote brighter objects behind them and gaps erased what lay in them. The ring system has composited by optical depth since PR #313, so a gap or a faint ring shows what lies behind it; confirm on a ring-over-body scene and close |
+| #901 | **Done (PR #1069).** One renderer, `bodies/ellipsoid.py`, now draws every ellipsoid; the classic path and the path choice are gone. A setting at an effectively zero value renders the smooth body: a relief of 1e-9 of the radius now changes no pixel by more than 1.2e-8 of peak, where it changed 628 pixels by up to 1%. A small body with relief at oversample 4 matches an 8x finer render as closely as a smooth one. Classic and topographic body renderers disagree; retire the classic path (part of #915) |
+| #1011 | **Done (PR #1071).** The image-side renderer builds its working and detector grids with the shared `project_ellipsoid`, and the navigator's predicted body is the shared `render_lambert_ellipsoid`; the renderer's private grid copy is gone. The predicted body is bit-identical. An image-side render can move only when a coordinate of the body center, scaled to the grid (times the anti-aliasing factor on the working grid, divided by the oversample on the detector grid), is below 0.25 px. There the two copies rounded the centered coordinates differently by one unit in the last place. The largest move measured was 1.2e-14 of peak. The navigator-side predicted-body module is gone, since its one function only called the two shared helpers, and the predicted-ring module and function are now `predicted_ring` and `create_predicted_ring_feature`. The topographic body renderer projects through its own copy of the ellipsoid projection, while the navigator predicts through the shared one |
+| #1012 | **Done (PR #1073).** Crater carving and body placement have their own modules, the body modules import one another only at the top of a file and never upward, and each render cache has a public clearer. One function, `body_identity_seed`, seeds every body, each caller hashing the key it hashed before, and no scene render moves. The body renderer modules import each other through hidden cycles, and the body identity seed is written out in several places |
+| #931 | **Done (PR #1069).** Every ellipsoid is shaded on its working grid. The relief tilt is interpolated from the detector grid by a cubic spline, except in a limb band, along the relief's day-night edge, and wherever its cast shadows fall, and the crater slopes bilinearly; textures and transits are drawn on the working grid. Against working-grid shading the light of 14 test bodies with 2% relief at a 12-degree correlation length lands within 0.0015 px, and that of a 150 px body with 3% to 5% relief at 5 degrees within 0.0007 px. That holds while the relief's correlation length spans at least about 5 detector pixels; finer relief lands up to 0.011 px off at 1.5 to 4 pixels and 0.023 px at 1 pixel (#1068). Coarse shading had moved it up to 0.026 px on cratered and 0.008 px on textured bodies. Three regression baselines moved toward their planted offsets. Coarse-grid shading shifts relief, textured, and cratered bodies at oversample above 1 (smooth bodies fixed by #916); lands with #901 |
+| #1013 | **Done (PR #1075).** The oversampling choice asks the optics stage whether the scene has a PSF, through `effective_psf`, the function the optics stage takes its kernel from, so a generic-camera scene with instrument defaults renders at oversample 1; no committed scene or render moves, since every committed scene with instrument defaults uses a camera with a kernel. A scene with instrument defaults oversamples 4x even when its camera has no PSF |
+| #1014 | **Done (PR #1078).** One navigator-side module, `nav_model/simulated/predicted_body.py`, draws every predicted body for the body and haze models, so the haze model predicts a mesh occluder as its mesh, puts a body that states no center at the frame center, and boxes each sibling by its predicted silhouette on the extended frame, rotation included; no committed scene has a Titan beside another body, so no render or baseline moves. The simulated Titan model predicts a mesh occluder as an ellipsoid, and at pixel (0, 0) when no center is given |
+| #890 | **Done (PR #1081).** A body, relief, or halo that reaches past the frame from the frame center is drawn on a canvas past the frame edge and moved into place as before (the interpolated move stays, per the #984 ruling), so it matches the unclipped body exactly at whole-pixel positions and in light and light center at fractional ones; only the three Titan halo scenes moved, gaining the halo light the move had left out of a one- to two-pixel strip at the frame edge. A body larger than half the frame and off center is clipped or vanishes |
+| #825, #644 | **Done (PR #1086).** Per the 2026-11-20 ruling, a planted roll turns everything in view about the frame center in the sense the navigator's rotation fits report, where before the ellipsoid outline turned the wrong way and the mesh pose, lit side, craters, smear, companions, sky, and stray-light ramp not at all; the camera's PSF, distortion, ghosts, and radial stray light stay put. No committed scene or sweep step moved, since the only rolled ones are star fields that carry none of these. A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
+| #891, #873 | **Done (PR #1093).** A pixel that a ring boundary crosses is split at the boundary and each piece is lit at its own optical depth; a lone edge lands within 0.002 px of its authored radius at every optical depth, pixel phase, oversampling, and view tested (it was off by up to 0.67 px). A pixel across a ramp is integrated in closed form. The rank-1 scene's remaining 0.46 px miss comes from the navigator's pixel-centered edge vertices along its grid-aligned edges. Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
+| #893 | **Done (PR #1102).** Each body now goes over what lies behind it by how much of each pixel it covers, and dims starlight by the same fraction, so the dark one-pixel outline at limbs over a farther body, a ring, a haze glow, or the sky is gone (seven scenes moved; `mutual_deep` and `titan_crescent_horns` now hold known errors from #1050); `rotation_tilt` is replaced by `sub_observer_lat_deg`, a true rotation of the ellipsoid that the image, the haze, and the navigator's predicted body share, so a sphere keeps its outline and bands curve, with no committed scene moving. Limb seam, coverage-blind star extinction, and `rotation_tilt` stretch |
+| #84 | **Done (PR #1098).** Confirmed with no code change on a planet circled by an inclined ring, against the closed form: the near arm dims the disc by exp(-tau/mu) and adds its own light, a cleared gap and a faint ring show the disc through, and the far arm is hidden where the disc covers it and shows beside it; no committed scene puts a ring in front of a body. Simulated rings were copied in place, so ring edges overwrote brighter objects behind them and gaps erased what lay in them. The ring system has composited by optical depth since PR #313, so a gap or a faint ring shows what lies behind it; confirm on a ring-over-body scene and close |
 | #892 | PSF and smear zero-pad the frame: darkened edges, no light from outside it |
-| #893 | Limb seam, coverage-blind star extinction, and `rotation_tilt` stretch |
 | #894 | Night-side 1% floor and clipped photometric laws |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
+| #1076 | **Affects no current scene.** The simulated Titan model draws a nearer moon on the frame alone, so its part in the margins hides none of the envelope |
+| #1077 | **Affects no current scene.** The simulated body model's overflow and visible-arc fractions draw a mesh body on a canvas of half again its longest semi-axis, which a very lumpy mesh reaches past, and the overflow check can report 0 for it without drawing; the tilted-ellipsoid case is fixed by #893, whose true tilt keeps every ellipsoid inside that canvas |
+| #1080 | **Affects no current scene.** A mesh body with the default pose draws up to 3% of peak differently near its outline on frames of different size |
+| #1084 | **Affects 10 current frames, but only which random clutter stars they show, not their statistics.** The sky field turns with a planted roll but does not move with the planted offset: in the 10 committed frames with a sky field, every sky star sits 1.55 px from where it belongs |
+| #1068 | **Affects no current scene.** Fine limb relief (a correlation length under about 5 detector pixels) is interpolated from too coarse a grid, moving the light up to 0.023 px; the fix is shading it wholly on the working grid |
+| #1094 | **Affects no current scene.** A ring ramp under a density wave renders about 35 times slower than without it (69 s against 1.9 s for a 300 px ramp at 1,024 px and oversample 4), because every band pixel takes the 32-cell curved path |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
@@ -235,9 +253,10 @@ edits the navigator's config files only to delete the camera-block keys nothing 
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. It also deletes the camera-block keys nothing reads, the image-side keys it stops reading among them. |
+| #1072 | **Affects no current scene.** A body's own `seed` key, and the editor's "Crater seed" control, never change a scene render; remove them and the fallback seeds behind them. A body renderer called directly without a scene seed, as some tests and tools do, then needs a seed passed in, and those direct renders change | Removes a scene key and an editor control before the typed scene declares every key. |
 
-Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part lands
-whenever it is ready.
+Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's naming part and
+#1072 land whenever they are ready.
 
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
 dark signal, hot pixels) is one effect or two.
@@ -295,7 +314,8 @@ Under the current structure, each new key is written in up to six places, each n
 needs its own dispatch, and every stage reads the scene dict with its own defaults. This phase
 gives the renderer the shape Phase 4 builds on. It runs alongside Phases 2b and 3, and must be done
 before Phase 4 starts. It changes no pixel, except where #1015 finds a hand-scaled key that was
-scaled wrongly; each such move is explained in its PR.
+scaled wrongly, and where #1074 stops a scene that asks for oversampling with no PSF from pulling
+its stars toward pixel centers (no committed scene does); each such move is explained in its PR.
 
 | Issue | Subject | Why now |
 |---|---|---|
@@ -310,16 +330,20 @@ scaled wrongly; each such move is explained in its PR.
 | #1018 | The radiance stage split into named sub-steps (after #1027 and #1028) | #895 and #896 change this stage. |
 | #1019 | Each render logs its `RenderSettings` (after #1028) | Phase 4's realism work needs to see which values a render used. |
 | #1020 | The simulated-image editor rebuilt from per-block panels generated from the typed scene's field metadata (after #1024 and #1028) | Each Phase 4 key then gets its editor control from its declaration, not from hand wiring that a later rewrite throws away. Closes #902, #947, and #967. |
+| #1074 | **Affects no current scene.** A scene that asks for oversampling with no PSF pulls its stars up to 0.43 px toward pixel centers (with #1015) | #1015 owns how the oversampling factor is chosen. |
+| #1070 | **Affects no current scene.** The haze layer places its body through the shared ellipsoid projection (with #1015, or just before it) | The haze layer keeps its own copy of the projection and the normals; the grid object is where a projection of a box of the frame belongs. |
+| #1066 | **Affects no scene; a test-budget fix.** Two render-time checks exceed their CPU budgets on main (the 1,024-pixel ring and haze body) | The restructuring in this phase must not slow rendering, and a budget check that always fails cannot show it. |
 
 Order: #1024, then #1028, then #1027, then #1026. #1015, #1016, #1018, #1019, and #1020 follow in
-any order their own dependencies allow; #310 and #1025 follow #1026.
+any order their own dependencies allow; #310 and #1025 follow #1026. #1066 goes first, so the
+budgets can guard the rest; #1070 goes with #1015.
 
 **Exit:** the issues above are closed. No render module reads the scene dict. The navigator's
 simulated models accept only the idealized types, and `ObsSim` holds no truth attribute. Each stage
 applies its artifact modes in one loop over the registry. No function in the radiance, atmosphere,
 ring, body, or detector-parameter modules is longer than about 100 lines. Every scene key has an
 editor control generated from its declaration, or a documented exception. Every committed render
-reproduced unchanged through the phase, apart from #1015's explained moves.
+reproduced unchanged through the phase, apart from #1015's and #1074's explained moves.
 
 ## Phase 4: physics, in order of how many real frames need it
 

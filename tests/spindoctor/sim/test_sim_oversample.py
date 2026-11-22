@@ -1,14 +1,15 @@
 """Oversampled radiance rendering and the no-optics identity property.
 
 A scene with an active whole-scene PSF renders its radiance on an oversampled
-grid and downsamples back to the detector grid; a scene with no optics block
-renders at oversample 1.  These tests cover the oversample resolution, the
-determinism of the no-optics path, that the oversampled render preserves body
-flux and position after the downsample, that a smooth body on an oversampled or
-anti-aliased grid renders as the navigator predicts it (on the render grid, and on the
-detector grid after the scene scaling and the downsample), that a surface setting that
-changes nothing leaves a body smooth, and that the classifying truth arrays come back
-describing the pixels the image put the body on.
+grid and downsamples back to the detector grid; a scene with no PSF renders at
+oversample 1, and an explicit ``oversample`` key sets the factor either way.  These
+tests cover the oversample resolution, the determinism of the no-optics path, that
+the oversampled render preserves body flux and position after the downsample, that
+a smooth body on an oversampled or anti-aliased grid renders as the navigator
+predicts it (on the render grid, and on the detector grid after the scene scaling
+and the downsample), that a surface setting that changes nothing leaves a body
+smooth, and that the classifying truth arrays come back describing the pixels the
+image put the body on.
 """
 
 import dataclasses
@@ -18,13 +19,49 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
-from spindoctor.nav_model.simulated.predict_body import create_predicted_body_image
+from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
-from spindoctor.sim.render.bodies.topo import TopoBodySpec, create_topographic_body
 from spindoctor.sim.render.driver import render_scene, resolve_oversample
 from spindoctor.sim.render.pipeline import STAGES
 from spindoctor.sim.render.stages import downsample_to_detector, new_sim_frame
+from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.types import NDArrayFloatType
+
+
+def _predicted_sphere(
+    size: tuple[int, int],
+    center: tuple[float, float],
+    radius_px: float,
+    *,
+    illumination_angle: float,
+    phase_angle: float,
+    anti_aliasing: float = 0.0,
+) -> NDArrayFloatType:
+    """The navigator's predicted body for a sphere: the smooth Lambert ellipsoid.
+
+    Parameters:
+        size: ``(rows, columns)`` of the image.
+        center: ``(v, u)`` of the sphere's center in pixels.
+        radius_px: The sphere's radius in pixels.
+        illumination_angle: Direction of illumination in the image plane, in radians.
+        phase_angle: Phase angle in radians.
+        anti_aliasing: Anti-aliasing amount between 0 and 1.
+
+    Returns:
+        The predicted image.
+    """
+    projection = project_ellipsoid(
+        size,
+        center,
+        radius_px,
+        semi_b_px=radius_px,
+        semi_c_px=radius_px,
+        anti_aliasing=anti_aliasing,
+    )
+    return render_lambert_ellipsoid(
+        projection, illumination_angle=illumination_angle, phase_angle=phase_angle
+    )
 
 
 def _body_scene(*, oversample: int | None) -> dict[str, Any]:
@@ -47,15 +84,27 @@ def _centroid(image: np.ndarray) -> tuple[float, float]:
     return float((image * vv).sum()) / total, float((image * uu).sum()) / total
 
 
-def test_resolve_oversample_defaults_to_one_without_optics() -> None:
-    """A scene with no optics block renders on the detector grid."""
+def test_resolve_oversample_defaults_to_one_without_a_psf() -> None:
+    """A scene with no PSF renders on the detector grid."""
     assert resolve_oversample({'size_v': 8, 'size_u': 8}) == 1
 
 
-def test_resolve_oversample_is_four_when_psf_active() -> None:
+def test_resolve_oversample_is_four_with_a_psf() -> None:
     """An explicit PSF block turns on 4x oversampling by default."""
     scene = {'size_v': 8, 'size_u': 8, 'optics': {'psf': {'sigma_v': 0.6, 'sigma_u': 0.6}}}
     assert resolve_oversample(scene) == 4
+
+
+def test_resolve_oversample_is_four_for_instrument_defaults_with_a_kernel() -> None:
+    """instrument_defaults on a camera whose catalog states a PSF kernel oversamples."""
+    scene = {'instrument': 'coiss_nac', 'artifacts': {'instrument_defaults': True}}
+    assert resolve_oversample(scene) == 4
+
+
+def test_resolve_oversample_is_one_for_instrument_defaults_without_a_kernel() -> None:
+    """instrument_defaults on the generic camera, which states no kernel, does not."""
+    scene = {'instrument': 'generic', 'artifacts': {'instrument_defaults': True}}
+    assert resolve_oversample(scene) == 1
 
 
 def test_resolve_oversample_explicit_key_wins() -> None:
@@ -103,10 +152,10 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
     """
     size = (160, 160)
     center = (81.3, 78.9)
-    rendered = create_topographic_body(
+    rendered = create_ellipsoid_body(
         size,
         center,
-        TopoBodySpec(
+        EllipsoidBodySpec(
             semi_a_px=48.0,
             semi_b_px=48.0,
             semi_c_px=48.0,
@@ -115,9 +164,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
             oversample=4,
         ),
     )
-    predicted = create_predicted_body_image(
-        size, center, 48.0, semi_b_px=48.0, semi_c_px=48.0, illumination_angle=0.7, phase_angle=0.9
-    )
+    predicted = _predicted_sphere(size, center, 48.0, illumination_angle=0.7, phase_angle=0.9)
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
 
 
@@ -129,10 +176,10 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
     """
     size = (160, 160)
     center = (81.3, 78.9)
-    rendered = create_topographic_body(
+    rendered = create_ellipsoid_body(
         size,
         center,
-        TopoBodySpec(
+        EllipsoidBodySpec(
             semi_a_px=48.0,
             semi_b_px=48.0,
             semi_c_px=48.0,
@@ -141,15 +188,8 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
             anti_aliasing=1.0,
         ),
     )
-    predicted = create_predicted_body_image(
-        size,
-        center,
-        48.0,
-        semi_b_px=48.0,
-        semi_c_px=48.0,
-        illumination_angle=0.7,
-        phase_angle=0.9,
-        anti_aliasing=1.0,
+    predicted = _predicted_sphere(
+        size, center, 48.0, illumination_angle=0.7, phase_angle=0.9, anti_aliasing=1.0
     )
     np.testing.assert_allclose(rendered, predicted, rtol=0.0, atol=1e-12)
 
@@ -177,16 +217,14 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
         ],
     }
     frame = new_sim_frame(size, size, oversample=4)
-    for name, stage in STAGES:
-        stage(frame, params=scene, rng=np.random.default_rng(0))
-        if name == 'downsample':
+    for stage in STAGES:
+        stage(frame, params=scene)
+        if stage is downsample_to_detector:
             break
-    predicted = create_predicted_body_image(
+    predicted = _predicted_sphere(
         (size, size),
         center,
         12.0,
-        semi_b_px=12.0,
-        semi_c_px=12.0,
         illumination_angle=np.radians(40.0),
         phase_angle=np.radians(51.6),
         anti_aliasing=1.0,
@@ -213,7 +251,7 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
     Parameters:
         setting: The key into ``_INERT_SURFACES`` naming the inert setting.
     """
-    smooth = TopoBodySpec(
+    smooth = EllipsoidBodySpec(
         semi_a_px=48.0,
         semi_b_px=48.0,
         semi_c_px=48.0,
@@ -225,7 +263,7 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
     size = (160, 160)
     center = (81.3, 78.9)
     np.testing.assert_array_equal(
-        create_topographic_body(size, center, inert), create_topographic_body(size, center, smooth)
+        create_ellipsoid_body(size, center, inert), create_ellipsoid_body(size, center, smooth)
     )
 
 
@@ -233,7 +271,7 @@ def test_inert_surface_setting_keeps_the_smooth_shading(setting: str) -> None:
 # places one crater on the 40 px detector grid (0.03 x 454 / 9 rounds down to 1), an albedo
 # spot with no noise field, and a storm with no banding.
 _ACTIVE_SURFACES: dict[str, dict[str, Any]] = {
-    'crater_fill': {'crater_fill': 0.03},
+    'crater_fill': {'crater_fill': 0.03, 'crater_seed': 1},
     'albedo_spot': {'albedo_texture': AlbedoTextureSpec(rms=0.0, spots=((0.0, 0.0, 20.0, 0.5),))},
     'storm': {'disc_texture': DiscTextureSpec(band_amplitude=0.0, storms=((0.0, 0.0, 20.0, 0.5),))},
 }
@@ -246,7 +284,7 @@ def test_active_surface_setting_changes_the_shading(setting: str) -> None:
     Parameters:
         setting: The key into ``_ACTIVE_SURFACES`` naming the active setting.
     """
-    smooth = TopoBodySpec(
+    smooth = EllipsoidBodySpec(
         semi_a_px=48.0,
         semi_b_px=48.0,
         semi_c_px=48.0,
@@ -258,7 +296,7 @@ def test_active_surface_setting_changes_the_shading(setting: str) -> None:
     size = (160, 160)
     center = (81.3, 78.9)
     assert not np.array_equal(
-        create_topographic_body(size, center, active), create_topographic_body(size, center, smooth)
+        create_ellipsoid_body(size, center, active), create_ellipsoid_body(size, center, smooth)
     )
 
 
@@ -380,7 +418,7 @@ def test_downsampled_mask_is_true_once_half_the_block_is() -> None:
     mask[0, 2] = True
     frame = new_sim_frame(2, 4, oversample=2)
     frame.truth['body_masks'] = [mask]
-    downsample_to_detector(frame, params={}, rng=np.random.default_rng(0))
+    downsample_to_detector(frame, params={})
     reduced = frame.truth['body_masks'][0]
     assert bool(reduced[0, 0])
     assert not bool(reduced[0, 1])
@@ -400,7 +438,7 @@ def test_downsampled_index_map_gives_a_tied_block_to_the_nearer_body() -> None:
     index_map[0, 2] = 2
     frame = new_sim_frame(1, 2, oversample=2)
     frame.truth['body_index_map'] = index_map
-    downsample_to_detector(frame, params={}, rng=np.random.default_rng(0))
+    downsample_to_detector(frame, params={})
     reduced = frame.truth['body_index_map']
     assert int(reduced[0, 0]) == 1
     assert int(reduced[0, 1]) == 0
