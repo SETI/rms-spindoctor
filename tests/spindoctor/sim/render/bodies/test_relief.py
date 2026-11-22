@@ -9,7 +9,8 @@ translation, degree 2 aliases ellipsoid shape error) or above the band
 limit, and distinct seeds are distinct terrains.  The outline envelope, the
 slope bound, and the surface gradient are pinned against brute-force
 evaluations of the same field, and the cast-shadow ray march against the
-exact geometry of a ray grazing a ridge.
+exact geometry of a ray grazing a ridge.  A line of sight that misses the
+surface reads the outline point beside it.
 """
 
 import functools
@@ -20,7 +21,12 @@ import pytest
 from scipy import special
 
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
-from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.relief import (
+    ReliefField,
+    cast_shadows,
+    synthesize_relief_field,
+    visible_surface_directions,
+)
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayComplexType
 
@@ -251,6 +257,23 @@ def test_the_outline_is_the_envelope_over_latitude() -> None:
     lat_grid, phi_grid = np.meshgrid(lats, phi, indexing='ij')
     brute = ((1.0 + field.sample(lat_grid, phi_grid)) * np.cos(lat_grid)).max(axis=0) - 1.0
     np.testing.assert_allclose(field.outline_delta(phi), brute, atol=5e-4)
+
+
+def test_a_line_of_sight_just_outside_the_outline_reads_the_outline_point() -> None:
+    """A line of sight that just misses the surface reads the outline point beside it.
+
+    A surface point projects to the radius ``(1 + h) cos(lat)``, and a line of sight
+    1e-3 beyond the outline reads a point that projects within 1e-3 of the outline:
+    the search samples the meridian a quarter of a field cell apart near its closest
+    approach, and the stored outline is good to 5e-4.
+    """
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    phi = np.linspace(0.0, 2.0 * np.pi, 97)[:-1]
+    outline = 1.0 + field.outline_delta(phi)
+    rho = outline + 1e-3
+    seen = visible_surface_directions(rho * np.cos(phi), rho * np.sin(phi), field)
+    projected = (1.0 + field.sample_points(seen)) * np.hypot(seen[:, 0], seen[:, 1])
+    np.testing.assert_allclose(projected, outline, rtol=0.0, atol=1e-3)
 
 
 def test_the_outline_departs_from_the_equator_slice_at_high_rms() -> None:

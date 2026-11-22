@@ -44,7 +44,11 @@ and one with ``tan(elevation) <= -s_max / (1 + h_min)`` always is.
 
 The relief also tilts the surface normal: the relief surface's normal in
 parameter space is ``r_hat - grad h / (1 + h)``, with ``grad h`` the field's
-surface gradient (:meth:`ReliefField.surface_gradient`).
+surface gradient (:meth:`ReliefField.surface_gradient`).  A pixel shows the
+point where its line of sight first meets the relief surface, which
+:func:`visible_surface_directions` finds.  Near the limb that point can lie well
+away from where the line of sight meets the smooth sphere, and behind a ridge the
+terrain is hidden altogether.
 
 The limb is the relief surface's own outline.  With the field's poles on the
 observer axis, a surface point at ``(lat, lon)`` projects to azimuth ``lon`` at
@@ -61,8 +65,8 @@ import numpy as np
 from scipy import ndimage
 
 from spindoctor.sim.shared.spherical_harmonics import draw_sh_coefficients, legendre_order_sums
-from spindoctor.support.stable_math import stable_matmul3
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from spindoctor.support.stable_math import stable_hypot, stable_matmul3
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = [
     'MAX_LIMB_RELIEF_RMS',
@@ -72,27 +76,20 @@ __all__ = [
     'clear_relief_caches',
     'synthesize_albedo_field',
     'synthesize_relief_field',
+    'visible_surface_directions',
 ]
 
 # The largest limb-relief RMS (a fraction of the body radius) a scene may
-# command.  The bound comes from the ellipsoid renderer, which draws the
-# relief surface's own outline but reads the terrain under each disc pixel at
-# the smooth sphere's direction: the relief surface's point under a pixel at
-# elevation lat lies h * cot(lat) radians from the one the renderer reads.
-# That error grows with the RMS and shrinks with the correlation length.
-# Averaged over 64 seeds at the default 15-degree correlation length, the
-# renderer reads the terrain under 2.5%, 12%, and 28% of the disc more than
-# half a correlation length from the point the pixel shows at RMS 0.02, 0.05,
-# and 0.1.  0.05 is a conservative bound set by that disc share, about one
-# pixel in eight at 15 degrees.  The share grows at shorter correlation
-# lengths, and this bound does not follow it: at 10 degrees and an RMS of 0.05
-# it is 20%.  The validator holds mesh bodies to the same bound; their relief
-# displaces the mesh's vertices in 3-D, so their disc shows the displaced
-# surface itself.
+# command.  The ellipsoid renderer reads the terrain where each line of sight
+# meets the relief surface, so the bound does not rest on how it reads the disc:
+# averaged over 4 seeds, it reads about 0.01% of the disc more than half a
+# correlation length from the point a pixel shows at RMS 0.05 and 15 degrees,
+# and at most 0.12% from 2 to 15 degrees at RMS up to 0.2.  At RMS 0.2 the field's
+# lowest point reaches the body center (h_min -1.0 over 8 seeds), and at 0.1 it
+# stays above -0.5.  The validator holds mesh bodies to the same bound.
 MAX_LIMB_RELIEF_RMS = 0.05
 # The shortest relief correlation length (degrees of arc) a scene may command.
-# It bounds cost.  It is not a validity bound: validity is already poor at
-# 2 degrees (above).  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
+# It bounds cost.  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
 # 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
 # 0.25 degrees.  A realization is cached by (corr, seed) and rescaled to the
 # RMS, so a render, or the scene editor, pays that cost again only when the
@@ -115,6 +112,13 @@ _BAND_LIMIT_FACTOR = 8.0
 # so a degenerate correlation length cannot demand an unbounded FFT.
 _MIN_GRID = 64
 _MAX_GRID = 8192
+# The line-of-sight search (visible_surface_directions) steps down a meridian by
+# at least this fraction of a field grid cell, and then narrows the crossing step
+# this many times by linear interpolation before a last one.  Against a brute-force
+# search, one narrowing puts 99% of the points within 1e-4 rad (none narrowing,
+# 8e-4 rad), against a field cell of 0.05 rad at 15 degrees.
+_SIGHT_STEPS_PER_CELL = 4.0
+_SIGHT_REFINEMENTS = 1
 
 
 @dataclass(frozen=True)
@@ -621,3 +625,112 @@ def cast_shadows(
         t += step
         active = active[~below & (reach[active] > t)]
     return shadowed
+
+
+def visible_surface_directions(
+    x: NDArrayFloatType, y: NDArrayFloatType, field: ReliefField
+) -> NDArrayFloatType:
+    """Where each line of sight first meets the relief surface, as unit directions.
+
+    Everything is in the body's parameter space (the smooth body is the unit sphere,
+    the field's poles on the ``z`` axis), with the observer far out on the ``+z``
+    axis.  The line of sight through ``(x, y)`` runs parallel to ``z`` and stays in
+    the meridian plane at longitude ``phi = atan2(y, x)``.  At latitude ``lat`` it
+    lies at radius ``rho / cos(lat)``, with ``rho = hypot(x, y)``, so it is inside the
+    relief surface ``r = 1 + h`` where ``g(lat) = (1 + h(lat, phi)) cos(lat) - rho``
+    is positive.  The first point it meets is the highest latitude where ``g``
+    reaches 0.
+
+    The search walks down the meridian from the highest latitude the terrain can
+    reach, ``acos(rho / (1 + h_max))``.  Each step is as long as the field's slope
+    bound allows without passing a crossing, and at least a quarter of a field grid
+    cell, so the walk resolves the terrain at its own resolution whatever the body's
+    size in pixels.  The step that crosses is then narrowed by linear interpolation
+    of ``g``.  A line of sight that misses the surface, outside its outline, reads
+    the latitude where it passes closest to the surface, which for a pixel just
+    outside the outline is the outline point beside it.
+
+    Parameters:
+        x: Parameter-space coordinates of the lines of sight along the body's first
+            axis (any shape).
+        y: The coordinates along its second axis, the same shape as ``x``.
+        field: The relief realization.
+
+    Returns:
+        ``(..., 3)`` unit directions of the points seen, ``x.shape + (3,)``.
+    """
+    x_arr = np.asarray(x, dtype=np.float64)
+    shape = x_arr.shape
+    x_flat = x_arr.ravel()
+    y_flat = np.asarray(y, dtype=np.float64).ravel()
+    rho = stable_hypot(x_flat, y_flat)
+    phi = np.mod(np.arctan2(y_flat, x_flat), 2.0 * np.pi)
+    top = 1.0 + field.h_max
+    bottom = 1.0 + field.h_min
+    # No point of the surface is inside the line of sight above lat_top, and every
+    # line of sight with rho below 1 + h_min is inside it by lat_low.  A line of
+    # sight farther out can meet only terrain no lower than -lat_top.
+    lat_top = np.arccos(np.minimum(rho / top, 1.0))
+    lat_low = np.where(rho < bottom, np.arccos(np.minimum(rho / bottom, 1.0)), -lat_top)
+    min_step = 2.0 * np.pi / field.grid.shape[0] / _SIGHT_STEPS_PER_CELL
+
+    def inside(lat: NDArrayFloatType, index: NDArrayIntType) -> NDArrayFloatType:
+        return np.asarray(
+            (1.0 + field.sample(lat, phi[index])) * np.cos(lat) - rho[index], dtype=np.float64
+        )
+
+    # hi is the last latitude outside the surface and lo the first inside it.
+    hi = lat_top.copy()
+    lo = lat_top.copy()
+    g_hi = np.full(rho.size, -np.inf)
+    g_lo = np.zeros(rho.size)
+    found = np.zeros(rho.size, dtype=np.bool_)
+    best_lat = np.zeros(rho.size)
+    best_g = np.full(rho.size, -np.inf)
+    lat = lat_top.copy()
+    active = np.arange(rho.size)
+    while active.size:
+        lat_a = lat[active]
+        g = inside(lat_a, active)
+        closer = g > best_g[active]
+        best_g[active[closer]] = g[closer]
+        best_lat[active[closer]] = lat_a[closer]
+        crossed = g >= 0.0
+        found[active[crossed]] = True
+        lo[active[crossed]] = lat_a[crossed]
+        g_lo[active[crossed]] = g[crossed]
+        walking = ~crossed & (lat_a > lat_low[active])
+        moving = active[walking]
+        hi[moving] = lat_a[walking]
+        g_hi[moving] = g[walking]
+        # Going down the meridian g rises by at most slope_max + (1 + h_max) sin(lat)
+        # per radian, so a step of -g over that bound cannot pass a crossing.
+        bound = field.slope_max + top * np.maximum(np.sin(lat_a[walking]), 0.0)
+        step = np.maximum(-g[walking] / np.maximum(bound, 1e-300), min_step)
+        lat[moving] = np.maximum(lat_a[walking] - step, lat_low[moving])
+        active = moving
+
+    hit = np.where(found, lo, best_lat)
+    # A crossing found at lat_top itself needs no narrowing; elsewhere g goes from
+    # negative at hi to non-negative at lo.
+    narrow = np.nonzero(found & np.isfinite(g_hi))[0]
+    for _ in range(_SIGHT_REFINEMENTS):
+        if narrow.size == 0:
+            break
+        a, b = hi[narrow], lo[narrow]
+        ga, gb = g_hi[narrow], g_lo[narrow]
+        mid = a + (b - a) * (-ga / np.maximum(gb - ga, 1e-300))
+        g_mid = inside(mid, narrow)
+        crossed = g_mid >= 0.0
+        lo[narrow[crossed]] = mid[crossed]
+        g_lo[narrow[crossed]] = g_mid[crossed]
+        hi[narrow[~crossed]] = mid[~crossed]
+        g_hi[narrow[~crossed]] = g_mid[~crossed]
+    if narrow.size:
+        a, b = hi[narrow], lo[narrow]
+        ga, gb = g_hi[narrow], g_lo[narrow]
+        hit[narrow] = a + (b - a) * (-ga / np.maximum(gb - ga, 1e-300))
+
+    cos_lat = np.cos(hit)
+    directions = np.stack([cos_lat * np.cos(phi), cos_lat * np.sin(phi), np.sin(hit)], axis=-1)
+    return directions.reshape(*shape, 3)

@@ -241,9 +241,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(29.846, 29.846, 0.05, 29.796, 29.897),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.292, 1.302, 0.05, 1.241, 1.353),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
-    # the limb relief.  The spreads are 0.008 px and 0.059 px.
+    # the limb relief.  The spreads are 0.008 px and 0.024 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.624, 0.632, 0.05, 0.573, 0.682),
-    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.792, 1.851, 0.05, 1.741, 1.902),
+    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.894, 1.918, 0.05, 1.844, 1.968),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),

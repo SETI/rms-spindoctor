@@ -25,11 +25,15 @@ detector pixel, and interpolated onto the working grid: the tilt the relief give
 the normals by a cubic spline, and the crater slopes bilinearly.  Computing the
 relief once per detector pixel instead of once per working pixel keeps a large
 body within the render-time budget (see ``tests/integration/test_sim_perf.py``).
-Three regions of a relief body are computed on the working grid instead: a band
+Four regions of a relief body are computed on the working grid instead: a band
 along the limb, where the relief turns with the smooth normal; the cells along the
 relief's own day-night edge, where the law's clip would darken interpolated tilts;
-and the cells its cast shadows reach, whose sharp edges interpolation would blur.
-Only the rectangle such a body covers is shaded.  Every other body, including one
+the cells its cast shadows reach, whose sharp edges interpolation would blur; and
+the cells where the point a pixel sees jumps behind a ridge or stretches across a
+slope seen nearly edge-on.  Relief whose correlation length spans fewer than
+:data:`_MIN_INTERPOLATED_CORR_PX` detector pixels is too fine for the spline, and
+such a body is shaded wholly on its working grid.  Only the rectangle a relief or
+cratered body covers is shaded.  Every other body, including one
 with a surface texture or transits, whose spots and discs have sharp edges, is
 shaded wholly on the working grid.  A surface setting that changes nothing (a
 crater fill that places no crater, a texture with no contrast and no spots, or an
@@ -40,8 +44,9 @@ empty transit) is dropped first.
 ``e_adj(p) = e(p) / (1 + delta(theta))``, placing the limb at
 ``r_ellipse * (1 + delta)``; ``delta`` is the relief surface's own outline,
 the envelope ``max over lat of (1 + h) cos(lat) - 1`` along each azimuth.
-The relief tilts every normal by the field's surface gradient, so slopes facing
-the sun brighten and slopes facing away darken, and an exact ray march through
+Each pixel reads the terrain where its line of sight first meets the relief
+surface.  The relief tilts every normal by the field's surface gradient, so slopes
+facing the sun brighten and slopes facing away darken, and an exact ray march through
 the relief shell (both in :mod:`spindoctor.sim.render.bodies.relief`) casts
 terrain shadows, which render as night.  Only points whose sun elevation lies
 within the field's steepest slope can be shadowed, so the march visits those
@@ -54,6 +59,7 @@ the photometric-law, surface-texture, crater, and atmosphere keys on mesh
 bodies rather than letting them silently not render.
 """
 
+import math
 from dataclasses import KW_ONLY, dataclass, replace
 from typing import Any
 
@@ -75,9 +81,16 @@ from spindoctor.sim.render.bodies.ellipsoid_grid import (
     limb_band,
     neighboring_cells,
     silhouette_mask,
+    smooth_surface_directions,
+    stretched_sight_cells,
 )
 from spindoctor.sim.render.bodies.photometry import incidence_cosines, shade_surface
-from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.relief import (
+    ReliefField,
+    cast_shadows,
+    synthesize_relief_field,
+    visible_surface_directions,
+)
 from spindoctor.sim.render.bodies.texture import (
     AlbedoTextureSpec,
     DiscTextureSpec,
@@ -89,7 +102,6 @@ from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
     ellipsoid_image_normals,
     project_ellipsoid,
-    surface_unit_coords,
 )
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.stable_math import stable_matmul3
@@ -116,6 +128,11 @@ _MARCH_SAMPLES_PER_CELL = 8.0
 # the limb where a supersampled body's relief normals and shadows are computed on
 # the working grid instead of interpolated from the detector grid.
 _LIMB_BAND_PX = 3.0
+# The shortest relief correlation length, in detector pixels, whose tilt is
+# interpolated from the detector grid.  Finer relief is shaded wholly on the
+# working grid, which the cubic spline cannot match there and which costs less,
+# since the exactly shaded bands cover most of such a disc anyway (#1068).
+_MIN_INTERPOLATED_CORR_PX = 5.0
 
 
 @dataclass(frozen=True)
@@ -225,6 +242,28 @@ class _CraterLayout:
 
     site: CraterSite | None
     count: int
+
+
+@dataclass(frozen=True)
+class _ReliefShading:
+    """The relief surface's shading at a set of pixels of one grid.
+
+    Parameters:
+        near: The grid mask of the pixels shaded.
+        normal_v: The relief normal's v component at those pixels, in row-major order.
+        normal_u: The normal's u component at the same pixels.
+        normal_z: The normal's toward-observer component, at least 0.
+        seen: ``(N, 3)`` parameter-space directions of the surface points the pixels
+            see.
+        shadowed: The grid mask of the pixels in a cast shadow.
+    """
+
+    near: NDArrayBoolType
+    normal_v: NDArrayFloatType
+    normal_u: NDArrayFloatType
+    normal_z: NDArrayFloatType
+    seen: NDArrayFloatType
+    shadowed: NDArrayBoolType
 
 
 def create_ellipsoid_body(
@@ -376,12 +415,30 @@ def _lays_detail_on_detector_grid(spec: EllipsoidBodySpec, field: ReliefField | 
     return field is not None or spec.crater_fill > 0.0
 
 
+def _relief_resolved_on_detector_grid(
+    field: ReliefField, detector_grid: EllipsoidProjection
+) -> bool:
+    """Whether the detector grid resolves the relief well enough to interpolate its tilt.
+
+    Parameters:
+        field: The relief realization.
+        detector_grid: The body's projection onto the detector grid.
+
+    Returns:
+        True when the relief's correlation length, in radians times the body's
+        smaller projected semi-axis, spans at least :data:`_MIN_INTERPOLATED_CORR_PX`
+        detector pixels.
+    """
+    corr_px = math.radians(field.corr_deg) * min(detector_grid.semi_a, detector_grid.semi_b)
+    return corr_px >= _MIN_INTERPOLATED_CORR_PX
+
+
 def _relief_normals(
     grid: EllipsoidProjection,
     spec: EllipsoidBodySpec,
     field: ReliefField,
     normals: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
-) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType, NDArrayBoolType]:
+) -> _ReliefShading:
     """Replace the smooth normals with the relief surface's, and cast its shadows.
 
     Parameters:
@@ -392,8 +449,8 @@ def _relief_normals(
             where the relief reaches.
 
     Returns:
-        ``(normal_v, normal_u, normal_z, shadowed)``: the relief normals and the
-        relief's cast-shadow mask on ``grid``.
+        The relief's shading at the pixels it reaches, which include every pixel
+        inside its outline.
     """
     normal_v, normal_u, normal_z = normals
     # Relief reaches only pixels inside its outline, plus the pixel an
@@ -401,11 +458,11 @@ def _relief_normals(
     # the continuity and the silhouette masks them.
     reach = 1.0 + max(field.h_max, 0.0) + 2.0 / max(min(grid.semi_a_outline, grid.semi_b), 1.0)
     near = grid.ellipse_dist_sq < reach * reach
-    relief_v, relief_u, relief_z, shadowed = _relief_shading(grid, spec, field, near)
-    normal_v[near] = relief_v
-    normal_u[near] = relief_u
-    normal_z[near] = relief_z
-    return normal_v, normal_u, normal_z, shadowed
+    shading = _relief_shading(grid, spec, field, near)
+    normal_v[near] = shading.normal_v
+    normal_u[near] = shading.normal_u
+    normal_z[near] = shading.normal_z
+    return shading
 
 
 def _crater_slopes(
@@ -449,8 +506,9 @@ def _apply_law(
     """Shade incidence cosines under the spec's photometric law and surge.
 
     The clamped-depth parametrization has no far hemisphere, and relief normals
-    are mirrored onto the near one (``normal_z >= 0`` everywhere; night still floors
-    through ``mu0 <= 0``), so the emission cosine is kept strictly positive: the
+    face the observer or lie in the sky plane (``normal_z >= 0`` everywhere; night
+    still floors through ``mu0 <= 0``), so the emission cosine is kept strictly
+    positive: the
     visibility gate must not zero a relief normal that lies in the sky plane.  A
     smooth body's normals lie in the sky plane only on and past its limb, which
     its silhouette leaves out, so the clamp lights none of its pixels.
@@ -507,8 +565,7 @@ def _shade_disc(
     normals = ellipsoid_image_normals(grid)
     shadowed: NDArrayBoolType | None = None
     if field is not None:
-        *relief, shadowed = _relief_normals(grid, spec, field, normals)
-        normals = (relief[0], relief[1], relief[2])
+        shadowed = _relief_normals(grid, spec, field, normals).shadowed
     if spec.crater_fill > 0.0:
         normals = perturb_normals_by_slope(
             *normals,
@@ -547,11 +604,11 @@ def _shade_disc_with_detector_detail(
     root of the distance from the edge, which no interpolation follows.  The relief
     and the craters are computed on the detector grid and interpolated onto the
     working grid: the tilt the relief gives each normal by a cubic spline, and the
-    crater slopes bilinearly.  Within :data:`_LIMB_BAND_PX` detector pixels of the
-    limb, along the relief's own day-night edge, and in every cell its cast shadows
-    reach, the relief's normals and shadows are computed on the working grid too.
-    Textures and transits are drawn on the working grid.  Only the rectangle the
-    body covers is shaded.
+    crater slopes bilinearly.  :func:`_add_detector_relief` lists the regions where
+    the relief's normals and shadows are computed on the working grid too.  Relief
+    too fine for the detector grid (:func:`_relief_resolved_on_detector_grid`) is
+    computed wholly on the working grid.  Textures and transits are drawn on the
+    working grid.  Only the rectangle the body covers is shaded.
 
     Parameters:
         work_grid: The working-grid geometry.
@@ -584,7 +641,11 @@ def _shade_disc_with_detector_detail(
 
     normal_v, normal_u, normal_z = ellipsoid_image_normals(work_grid)
     band_shadowed: NDArrayBoolType | None = None
-    if field is not None:
+    if field is not None and not _relief_resolved_on_detector_grid(field, detector_grid):
+        band_shadowed = _relief_normals(
+            work_grid, spec, field, (normal_v, normal_u, normal_z)
+        ).shadowed
+    elif field is not None:
         band_shadowed = _add_detector_relief(
             work_grid,
             detector_grid,
@@ -634,10 +695,12 @@ def _add_detector_relief(
     """Tilt the working grid's smooth normals by the relief, and cast its shadows.
 
     The relief's normals are computed on the detector grid, and the tilt they give
-    the smooth normals is interpolated onto the working grid.  Within
+    the smooth normals is interpolated onto the working grid.  The relief's normals
+    and shadows are computed on the working grid instead within
     :data:`_LIMB_BAND_PX` detector pixels of the limb, along the relief's own
-    day-night edge, and in every cell its cast shadows reach, the relief's normals
-    and shadows are computed on the working grid instead.
+    day-night edge, in every cell its cast shadows reach, and in the cells
+    :func:`~spindoctor.sim.render.bodies.ellipsoid_grid.stretched_sight_cells` marks,
+    with their neighbors.
 
     Parameters:
         work_grid: The working-grid geometry, cropped to the body.
@@ -652,12 +715,11 @@ def _add_detector_relief(
     """
     normal_v, normal_u, normal_z = normals
     base_v, base_u, base_z = ellipsoid_image_normals(detector_grid)
-    relief_v, relief_u, relief_z, detector_shadowed = _relief_normals(
-        detector_grid,
-        spec,
-        field,
-        (base_v.copy(), base_u.copy(), base_z.copy()),
-    )
+    relief_v, relief_u, relief_z = base_v.copy(), base_u.copy(), base_z.copy()
+    detector = _relief_normals(detector_grid, spec, field, (relief_v, relief_u, relief_z))
+    smooth = smooth_surface_directions(detector_grid)
+    seen = smooth.copy()
+    seen[detector.near] = detector.seen
     # The tilt is interpolated with a cubic spline: on relief whose correlation
     # length spans 13 detector pixels a bilinear tilt put the light 0.012 px
     # from shading on the working grid, and the spline 0.0007 px (#931).  It is
@@ -683,13 +745,20 @@ def _add_detector_relief(
     band = limb_band(work_grid, field, width_px=_LIMB_BAND_PX * up_factor)
     band |= expand_to_working_grid(day_night_edge_cells(relief_cos_i > 0.0), up_factor)
     band |= expand_to_working_grid(
-        neighboring_cells(detector_shadowed & (relief_cos_i > 0.0)), up_factor
+        neighboring_cells(detector.shadowed & (relief_cos_i > 0.0)), up_factor
     )
-    band_v, band_u, band_z, band_shadowed = _relief_shading(work_grid, spec, field, band)
-    normal_v[band] = band_v
-    normal_u[band] = band_u
-    normal_z[band] = band_z
-    return band_shadowed
+    # Where a ridge hides the terrain behind it, the point a pixel sees jumps from
+    # the ridge to the terrain beyond, and the tilt jumps with it; where a slope
+    # turns nearly edge-on, it changes faster than one detector cell can follow.
+    # Interpolation would blur both, so those cells are shaded on the working grid.
+    band |= expand_to_working_grid(
+        neighboring_cells(stretched_sight_cells(seen, smooth)), up_factor
+    )
+    shading = _relief_shading(work_grid, spec, field, band)
+    normal_v[band] = shading.normal_v
+    normal_u[band] = shading.normal_u
+    normal_z[band] = shading.normal_z
+    return shading.shadowed
 
 
 def _relief_shading(
@@ -697,21 +766,22 @@ def _relief_shading(
     spec: EllipsoidBodySpec,
     field: ReliefField,
     near: NDArrayBoolType,
-) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType, NDArrayBoolType]:
+) -> _ReliefShading:
     """The relief surface's image-frame normals and cast shadows at the ``near`` pixels.
 
-    Each shading pixel reads the terrain at its smooth-surface direction ``p`` in the
-    body's parameter space (the smooth body is the unit sphere the shared projection's
-    surface coordinates lie on; a pixel past the smooth limb reads the limb direction).
-    The relief surface ``(1 + h) p`` has the parameter-space normal
-    ``p - grad h / (1 + h)``, carried to the body frame by the ellipsoid's inverse
-    semi-axes, tipped by the sub-observer latitude, and rotated into the image like the
-    smooth normals. The sun
-    direction goes to parameter space by the same affine map, where
-    :func:`~spindoctor.sim.render.bodies.relief.cast_shadows` marches the pixels whose sun
-    elevation lies within the field's slope band; a pixel below the band always lies in
-    shadow. A normal that faces away from the observer is mirrored through the sky plane,
-    so every returned ``normal_z`` is at least 0.
+    Each shading pixel reads the terrain where its line of sight first meets the
+    relief surface, at the direction ``p`` that
+    :func:`~spindoctor.sim.render.bodies.relief.visible_surface_directions` finds in
+    the body's parameter space (the smooth body is the unit sphere the shared
+    projection's surface coordinates lie on).  The relief surface ``(1 + h) p`` has the
+    parameter-space normal ``p - grad h / (1 + h)``, carried to the body frame by the
+    ellipsoid's inverse semi-axes, tipped by the sub-observer latitude, and rotated
+    into the image like the smooth normals.  The sun direction goes to parameter space
+    by the same affine map, where
+    :func:`~spindoctor.sim.render.bodies.relief.cast_shadows` marches the pixels whose
+    sun elevation lies within the field's slope band; a pixel below the band always
+    lies in shadow.  A normal that leans away from the observer is laid into the sky
+    plane, so every returned ``normal_z`` is at least 0.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -720,33 +790,34 @@ def _relief_shading(
         near: The shading pixels the relief can reach.
 
     Returns:
-        ``(normal_v, normal_u, normal_z)`` at the ``near`` pixels, in their
-        row-major order, and the shading-grid ``shadowed`` mask.
+        The normals and the points seen at the ``near`` pixels, and the cast-shadow
+        mask on ``grid``.
     """
     semi = np.array([grid.semi_a, grid.semi_b, grid.semi_c], dtype=np.float64)
     cos_rz = grid.cos_rz
     sin_rz = grid.sin_rz
     geometry = grid.geometry
     e2 = grid.ellipse_dist_sq[near]
-    p = np.stack(
-        surface_unit_coords(grid.v_rot[near], grid.u_rot[near], e2, geometry=geometry),
-        axis=-1,
+    p = visible_surface_directions(
+        grid.v_rot[near] / grid.semi_a_outline, grid.u_rot[near] / grid.semi_b, field
     )
     h = field.sample_points(p)
     normal_param = p - field.surface_gradient(p) / (1.0 + h)[..., np.newaxis]
     normal_body = normal_param / semi
-    normal_body /= np.linalg.norm(normal_body, axis=-1, keepdims=True)
-    normal_first, normal_second, normal_toward = geometry.to_view(
-        normal_body[..., 0], normal_body[..., 1], normal_body[..., 2]
+    normal_view = np.stack(
+        geometry.to_view(normal_body[..., 0], normal_body[..., 1], normal_body[..., 2]),
+        axis=-1,
     )
-    normal_v = normal_first * cos_rz + normal_second * sin_rz
-    normal_u = -normal_first * sin_rz + normal_second * cos_rz
-    # Near the limb a pixel's smooth-surface direction can land on a slope tilted
-    # away from the observer, which the line of sight can't see: it meets the near
-    # side of the relief first.  Mirroring the normal through the sky plane stands
-    # in for that slope, as steep but facing the observer, so the law never shades
-    # a back-facing facet as lit.
-    normal_z = np.abs(normal_toward)
+    # The surface a line of sight meets first faces the observer, but a normal taken
+    # by the field's half-cell differences can lean slightly away where the line of
+    # sight grazes the terrain, and one read where the line of sight misses the
+    # surface can lean away by any amount.  Such a normal is laid into the sky plane,
+    # where the smooth body's normals lie beyond its limb.
+    normal_view[..., 2] = np.maximum(normal_view[..., 2], 0.0)
+    normal_view /= np.maximum(np.linalg.norm(normal_view, axis=-1, keepdims=True), 1e-300)
+    normal_v = normal_view[..., 0] * cos_rz + normal_view[..., 1] * sin_rz
+    normal_u = -normal_view[..., 0] * sin_rz + normal_view[..., 1] * cos_rz
+    normal_z = normal_view[..., 2]
 
     # The sun in the body frame (the inverse of the normals' in-plane
     # rotation), then in parameter space, where directions scale by 1 / semi.
@@ -776,7 +847,14 @@ def _relief_shading(
         )
     shadowed = np.zeros(grid.ellipse_dist_sq.shape, dtype=np.bool_)
     shadowed[near] = shadowed_near
-    return normal_v, normal_u, normal_z, shadowed
+    return _ReliefShading(
+        near=near,
+        normal_v=normal_v,
+        normal_u=normal_u,
+        normal_z=normal_z,
+        seen=p,
+        shadowed=shadowed,
+    )
 
 
 def _texture_factor(

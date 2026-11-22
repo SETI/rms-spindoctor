@@ -4,9 +4,10 @@ A setting at an effectively zero value renders the smooth body.  A small body at
 oversample 4 matches an 8 times finer render of the same body.  A relief body has
 its light where the same body shaded wholly on its working grid has it, although
 its relief is laid out on the detector grid, and so does a body smaller than a
-pixel.  An albedo spot's edge is drawn on the working grid.  A sample exactly on a
-smooth body's limb lies outside the body, and a cratered body renders in a frame
-one detector pixel tall or wide.
+pixel.  Relief too fine for the detector grid is shaded on the working grid.  An
+albedo spot's edge is drawn on the working grid.  A sample exactly on a smooth
+body's limb lies outside the body, and a cratered body renders in a frame one
+detector pixel tall or wide.
 """
 
 import dataclasses
@@ -181,7 +182,7 @@ _RELIEF_CASES: dict[str, dict[str, Any]] = {
         'sun': 70.0,
         'phase': 60.0,
         'rms': 0.02,
-        'corr': 12.0,
+        'corr': 40.0,
         'seed': 6,
     },
     'rough_low_sun': {
@@ -196,14 +197,44 @@ _RELIEF_CASES: dict[str, dict[str, Any]] = {
 }
 
 # The light's center may sit this far, along each axis, from where shading wholly on
-# the working grid puts it.  Measured: crescent 0.00012 px, small body 0.00008 px,
-# rough body 0.00002 px.  The crescent reaches 0.0037 px with the tilt interpolated
-# bilinearly and the small body 0.0028 px with a limb band of half a pixel.  The
-# rough body reaches 0.21 px when its cast shadows are interpolated, and 0.0050 px
-# when the cells around them are left out, where a shadow edge crosses a cell
-# without reaching its center.  Shading them on the detector grid and upsampling
-# put the light 0.013, 0.032, and 0.047 px off.
+# the working grid puts it.  Measured: crescent 0.00012 px, small body 0.00002 px,
+# rough body 0.00022 px.  The crescent reaches 0.0007 px when the cells where the
+# point seen jumps or stretches are interpolated, and 0.0037 px with the tilt
+# interpolated bilinearly.  The rough body reaches 0.21 px when its cast shadows are
+# interpolated, and 0.0050 px when the cells around them are left out, where a
+# shadow edge crosses a cell without reaching its center.
 _RELIEF_CENTROID_BOUND_PX = 0.0005
+
+# Relief about a detector pixel across, which the spline cannot follow, and relief
+# just coarse enough to be interpolated, on either side of the renderer's cutover.
+# 1% relief at a phase of 80 degrees on a 30 px body: 2 degrees spans 1.05 detector
+# pixels and 9.6 degrees 5.03.
+_CUTOVER_CASES: dict[str, dict[str, Any]] = {
+    'below_cutover': {
+        'size': 80,
+        'radius': 30.0,
+        'sun': 57.0,
+        'phase': 80.0,
+        'rms': 0.01,
+        'corr': 2.0,
+        'seed': 3,
+    },
+    'above_cutover': {
+        'size': 80,
+        'radius': 30.0,
+        'sun': 57.0,
+        'phase': 80.0,
+        'rms': 0.01,
+        'corr': 9.6,
+        'seed': 3,
+    },
+}
+
+# The light's center may sit this far from where shading wholly on the working grid
+# puts it, at any correlation length.  Measured: 0 below the cutover, where the body
+# is shaded wholly on its working grid, and 0.0004 px above it.  With its tilt
+# interpolated, the body below the cutover puts the light 0.010 px off.
+_CUTOVER_CENTROID_BOUND_PX = 0.002
 
 
 def _relief_body(case: dict[str, Any]) -> NDArrayFloatType:
@@ -228,22 +259,68 @@ def _relief_body(case: dict[str, Any]) -> NDArrayFloatType:
     return _detector(img, scale)
 
 
+def _render_counting_interpolations(
+    case: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> tuple[NDArrayFloatType, int]:
+    """A relief case's body, and how many times its relief tilt was interpolated."""
+    calls: list[int] = []
+    interpolate = ellipsoid._add_detector_relief
+
+    def counting(*args: Any, **kwargs: Any) -> Any:
+        calls.append(1)
+        return interpolate(*args, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(ellipsoid, '_add_detector_relief', counting)
+        rendered = _relief_body(case)
+    return rendered, len(calls)
+
+
+def _light_error_against_working_grid(
+    case: dict[str, Any], rendered: NDArrayFloatType, monkeypatch: pytest.MonkeyPatch
+) -> float:
+    """How far a render's light sits from the case shaded wholly on its working grid."""
+    monkeypatch.setattr(ellipsoid, '_lays_detail_on_detector_grid', lambda spec, field: False)
+    reference = _relief_body(case)
+    return float(np.abs(_centroid(rendered) - _centroid(reference)).max())
+
+
 @pytest.mark.parametrize('case', sorted(_RELIEF_CASES))
 def test_relief_body_light_matches_working_grid_shading(
     case: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A relief body's light sits where shading wholly on its working grid puts it.
 
+    The body's relief tilt is interpolated from the detector grid, so the comparison
+    tests the interpolation.
+
     Parameters:
         case: The key into ``_RELIEF_CASES``.
-        monkeypatch: Switches the reference render to shade everything on the
-            working grid.
+        monkeypatch: Counts the interpolations, and switches the reference render
+            to shade everything on the working grid.
     """
-    rendered = _relief_body(_RELIEF_CASES[case])
-    monkeypatch.setattr(ellipsoid, '_lays_detail_on_detector_grid', lambda spec, field: False)
-    reference = _relief_body(_RELIEF_CASES[case])
-    error = float(np.abs(_centroid(rendered) - _centroid(reference)).max())
+    rendered, interpolations = _render_counting_interpolations(_RELIEF_CASES[case], monkeypatch)
+    assert interpolations == 1
+    error = _light_error_against_working_grid(_RELIEF_CASES[case], rendered, monkeypatch)
     assert error < _RELIEF_CENTROID_BOUND_PX
+
+
+@pytest.mark.parametrize(('case', 'interpolated'), [('below_cutover', 0), ('above_cutover', 1)])
+def test_fine_relief_light_matches_working_grid_shading(
+    case: str, interpolated: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fine relief is shaded on the working grid, and coarser relief lands close to it.
+
+    Parameters:
+        case: The key into ``_CUTOVER_CASES``.
+        interpolated: How many times the body's relief tilt is interpolated.
+        monkeypatch: Counts the interpolations, and switches the reference render
+            to shade everything on the working grid.
+    """
+    rendered, interpolations = _render_counting_interpolations(_CUTOVER_CASES[case], monkeypatch)
+    assert interpolations == interpolated
+    error = _light_error_against_working_grid(_CUTOVER_CASES[case], rendered, monkeypatch)
+    assert error < _CUTOVER_CENTROID_BOUND_PX
 
 
 # ----------------------------------------------------------------------------

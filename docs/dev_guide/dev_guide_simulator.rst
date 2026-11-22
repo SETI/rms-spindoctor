@@ -2173,88 +2173,61 @@ the commanded ``limb_relief_rms`` per realization. That RMS is a fraction of
 the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
 RMS.
 
-The scene validator caps that RMS at 0.05. The cap comes from the ellipsoid
-renderer, which draws the relief surface's own outline but reads the terrain
-under each disc pixel at the smooth sphere's direction. Under a pixel at
-elevation ``lat`` the relief surface shows a point ``h cot(lat)`` radians away
-from the one the renderer reads. That error grows with the RMS and shrinks with
-the correlation length. The table gives the share of the disc read more than
-half a correlation length from the point shown, averaged over 64 seeds of the
-field:
+The scene validator caps that RMS at 0.05. The ellipsoid renderer reads the
+terrain under each disc pixel where the pixel's line of sight first meets the
+relief surface (see below), so the cap does not rest on how faithfully the disc
+is drawn. Near the limb that point can lie well away from where the line of
+sight meets the smooth sphere: under a pixel at elevation ``lat`` the two lie
+about ``h cot(lat)`` radians apart. The table gives the share of the disc where
+they lie more than half a correlation length apart, which is the error a
+renderer reading the smooth sphere's direction would make, and the share where
+the renderer's point lies that far from a brute-force search's. Each share is
+averaged over 4 seeds of the field, 3,000 pixels each:
 
 .. list-table::
-   :widths: 30 30 40
+   :widths: 25 15 30 30
    :header-rows: 1
 
    * - Correlation length
      - RMS
-     - Disc read more than half a correlation length from the point shown
-   * - 30 degrees
-     - 0.05
-     - 3.6%
-   * - 30 degrees
-     - 0.1
-     - 12%
-   * - 15 degrees
-     - 0.01
-     - 0.6%
-   * - 15 degrees
-     - 0.02
-     - 2.5%
+     - Smooth sphere's direction
+     - Renderer
    * - 15 degrees
      - 0.05
      - 12%
+     - 0.01%
    * - 15 degrees
      - 0.1
-     - 28%
-   * - 10 degrees
-     - 0.02
-     - 4.7%
-   * - 10 degrees
-     - 0.035
-     - 12%
-   * - 10 degrees
-     - 0.05
-     - 20%
-   * - 5 degrees
-     - 0.01
-     - 4.8%
-   * - 5 degrees
-     - 0.02
-     - 14%
+     - 27%
+     - 0.02%
+   * - 15 degrees
+     - 0.2
+     - 48%
+     - 0.05%
    * - 5 degrees
      - 0.05
-     - 39%
-   * - 2 degrees
-     - 0.005
-     - 6.8%
-   * - 2 degrees
-     - 0.01
-     - 19%
+     - 35%
+     - 0.02%
+   * - 5 degrees
+     - 0.1
+     - 54%
+     - 0.03%
    * - 2 degrees
      - 0.05
-     - 66%
+     - 64%
+     - 0.12%
 
-The cap of 0.05 is a conservative bound set by that share. At the default
-15-degree correlation length, the renderer reads the terrain under about 12% of
-the disc, one pixel in eight, more than half a correlation length from the
-point the pixel shows. The share follows the ratio of the RMS to the
-correlation length in radians. Wherever that ratio is 0.19, from 2 to
-30 degrees, the share is 11% to 12%.
-
-Validity degrades at shorter correlation lengths, and the cap does not follow
-it. At 10 degrees and an RMS of 0.05, a fifth of the disc is misread, and at
-2 degrees a fifth is misread from an RMS of 0.01.
+The renderer's few misses are lines of sight that graze a ridge tip, where the
+brute-force search finds a sliver of the ridge that the renderer's steps pass
+over.
 
 The validator holds mesh bodies to the same cap. A mesh body's relief displaces
-the mesh's vertices in 3-D, so its disc shows the displaced surface itself, and
-the misread above belongs to the ellipsoid renderer.
+the mesh's vertices in 3-D, so its disc shows the displaced surface itself.
 
 The validator also requires ``limb_relief_corr_deg`` of at least 1 degree. That
-floor bounds cost. It is not a validity bound: at 2 degrees validity is already
-poor. The field's synthesis costs about the cube of ``1 / corr``: 0.5 s and
-0.2 GB at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
-0.25 degrees. A realization is cached by its correlation length and seed and
+floor bounds cost. The field's synthesis costs about the cube of ``1 / corr``:
+0.5 s and 0.2 GB at 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and
+1.7 GB at 0.25 degrees. A realization is cached by its correlation length and seed and
 rescaled to the RMS, so a render, or the scene editor, pays that cost again
 only when the correlation length or the relief seed changes. The outline
 envelope below costs about 2 s more at 1 degree and 0.5 s at 2 degrees, and
@@ -2278,16 +2251,31 @@ the image azimuth about the body center: the field is attached to the body, so
 the outline, the shading, and the shadows read one consistent surface under any
 in-plane rotation (for a circular disc the two are identical).
 
+Each pixel reads the terrain where its line of sight first meets the relief
+surface. Because the field's poles lie on the observer axis, a line of sight
+stays in one meridian plane of the field, and the renderer walks down that
+meridian from the highest latitude the terrain can reach. Each step is as long
+as the field's slope bound allows without passing through the surface, and at
+least a quarter of a field grid cell, so the walk resolves the terrain at its
+own resolution whatever the body's size. The step that enters the surface is
+then narrowed by interpolation. Near the limb the point found can lie far from
+the smooth sphere's direction under the pixel, and behind a ridge the line of
+sight meets the ridge and never reaches the terrain beyond it. A pixel just
+outside the outline reads the outline point beside it, so the shading continues
+smoothly across the limb.
+
 The disc is shaded from the relief surface's normals. In the body's parameter
 space, where the smooth ellipsoid is the unit sphere, the relief surface
 ``(1 + h) p`` has the normal ``p - grad h / (1 + h)``, with ``grad h`` the
 field's surface gradient. The normal goes to the body frame through the
 ellipsoid's inverse semi-axes and into the image like the smooth normals, so a
 slope facing the sun brightens and one facing away darkens, across the whole
-lit disc and not only at the terminator. Near the limb a pixel can read a slope
-tilted away from the observer, which the line of sight doesn't see: it meets
-the near side of the relief first. The renderer mirrors such a normal through
-the sky plane, which gives an equally steep slope facing the observer.
+lit disc and not only at the terminator. The surface a line of sight meets first
+faces the observer. Where the line of sight grazes a ridge, the normal taken from
+the field's differences half a cell apart can lean slightly away, and the
+renderer lays such a normal into the sky plane. On five 75 px test bodies with
+2% to 10% relief, that happens at no more than 0.13% of the pixels inside the
+outline.
 
 The terrain also casts shadows. The map from the body frame to parameter space
 is affine, and an affine map carries a ray to a ray and a surface to a surface,
@@ -2331,7 +2319,7 @@ Relief and craters are laid out on the *detector grid*, one point per detector
 pixel, and interpolated onto the working grid. The tilt the relief gives each normal
 is interpolated with a cubic spline, and the crater slopes bilinearly. Computing the
 relief once per detector pixel instead of once per working pixel is what lets a large
-relief body meet the render budget below. In three places interpolation isn't good
+relief body meet the render budget below. In four places interpolation isn't good
 enough, so there the relief's normals and its cast shadows are computed on the
 working grid:
 
@@ -2342,6 +2330,11 @@ working grid:
   at the terminator, that smaller variation darkens the disc.
 - Every detector cell a cast shadow reaches, with its neighbors, because a shadow's
   edge is sharp.
+- Every pair of neighboring detector cells whose points on the relief surface lie
+  more than twice as far apart as their points on the smooth sphere would, with
+  their neighbors. That happens where a ridge hides the terrain behind it, so the
+  point a pixel sees jumps from the ridge to the terrain beyond, and where a slope
+  is seen nearly edge-on. Without these cells a crescent's light moves 0.0007 px.
 
 Outside those places the interpolated tilt is added to the smooth normal as it is,
 without scaling the sum back to unit length. On the day side a Lambert surface's
@@ -2364,23 +2357,25 @@ neither a moon nor a shadow. A setting at an effectively zero value renders as t
 smooth body: a relief of 1e-9 of the radius changes no pixel by more than about 1e-8
 of the peak.
 
+Relief whose correlation length, in radians times the body's smaller semi-axis,
+spans fewer than 5 detector pixels is shaded wholly on the working grid. The spline
+can't follow relief that fine, and shading it wholly on the working grid costs no
+more, because the bands above cover most of such a disc anyway. With its tilt
+interpolated, 1% relief at a phase of 80 degrees put the light up to 0.012 px off at
+about one pixel of correlation length, and up to 0.0023 px at two.
+
 Measured against the same body shaded wholly on its working grid, the center of a
-relief body's light lands within 0.0015 px on 14 test bodies with 2% relief at a
+relief body's light lands within 0.0004 px on 11 test bodies with 2% relief at a
 12-degree correlation length. They include 36 px bodies at several seeds and phases, a
 crescent, a Minnaert body, a cratered body, a rotated and tilted triaxial body, a body
-clipped by the frame edge, and a 5 px body. On a 150 px body with rougher relief (an
-RMS of 3% to 5% at a 5-degree correlation length) at a phase of 80 degrees, it lands
-within 0.0007 px. Near the frame edge the spline rings a little: on the clipped body
-the light lands 0.0015 px off and no pixel more than 0.012, within about 4 pixels of
-the edge. A cratered or textured body has nothing to compare: shading it wholly on the
-working grid uses the same interpolated crater slopes and the same texture.
-
-The spline follows relief whose correlation length, in radians times the body's
-radius, spans at least about 5 detector pixels. All the bodies above meet that except
-the 5 px one, whose limb and day-night bands cover nearly all of it. Finer relief is
-interpolated less well. With 1% relief at a phase of 80 degrees, the light lands up to
-0.011 px off at 1.5 to 4 pixels of correlation length, and 0.023 px off at 1 pixel,
-where a few pixels are off by as much as 0.28 of their brightness.
+clipped by the frame edge, and a 5 px body, whose relief is too fine to interpolate.
+On a 150 px body with rougher relief (an RMS of 3% to 5% at a 5-degree correlation
+length) at a phase of 80 degrees, it lands within 0.0008 px. Just above the cutover,
+on a 60 px body whose correlation length spans 5.03 detector pixels, it lands within
+0.0014 px over four seeds, and on a 150 px body whose correlation length spans 5.24,
+within 0.0011 px. A cratered or textured body has nothing to compare: shading it
+wholly on the working grid uses the same interpolated crater slopes and the same
+texture.
 
 A small body at oversample 4 misses a render 8 times finer by the sampling of the
 working grid, with or without relief, and the miss depends on where the body sits
@@ -2398,6 +2393,8 @@ the disc correlation a steady error of about 0.015 px.
 
 .. The working-grid shading of featured bodies and the zero-value and small-body
    measurements are #931 and #901 (2026-11-19).
+   The line-of-sight reading and the fine-relief cutover are #875 and #1068
+   (2026-11-21).
 
 Photometric laws
 ----------------
