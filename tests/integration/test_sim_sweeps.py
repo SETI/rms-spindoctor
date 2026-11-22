@@ -725,6 +725,7 @@ def test_psf_mismatch_grows_the_limb_error() -> None:
     1.26 px above the floor's.
     """
     rows = _rows('psf_limb_mismatch')
+    assert [row.value for row in rows if row.status != 'success'] == []
     assert rows[0].offset_error_px is not None
     mismatched = [r.offset_error_px for r in rows[1:] if r.offset_error_px is not None]
     assert max(mismatched) > rows[0].offset_error_px + 0.2

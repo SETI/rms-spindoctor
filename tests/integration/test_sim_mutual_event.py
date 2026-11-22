@@ -58,8 +58,8 @@ def test_navigator_predicts_occlusion_aware_limbs() -> None:
     catalog/SPICE-class knowledge), so the arc of FAR's limb behind NEAR's
     silhouette is dropped from the polyline and ``visible_arc_fraction``
     reports the surviving share of its lit limb -- about 0.3 at this occlusion --
-    instead of claiming 1.0.  Each limb is the lit part of the outline, about 204
-    degrees of it at this 30-degree phase.
+    instead of claiming 1.0.  Each limb is the lit part of the outline, about 198
+    degrees of it at this 30-degree phase, so its unlit part spans about 162 degrees.
     """
     scene = _load('mutual_deep')
     obs = ObsSim.from_file('/tmp/mutual_event.yaml', sim_params=scene)
@@ -77,10 +77,11 @@ def test_navigator_predicts_occlusion_aware_limbs() -> None:
     vertices = near.geometry.vertices_vu  # type: ignore[union-attr]
     dv = vertices[:, 0] - (128.0 + obs.extfov_margin_v)
     du = vertices[:, 1] - (110.0 + obs.extfov_margin_u)
-    # The near limb is one unbroken arc: apart from the unlit arc it leaves out,
-    # azimuth coverage has no gap larger than a few degrees.
+    # The near limb is one unbroken arc over the whole lit part of the outline: its
+    # largest azimuth gap is the unlit part, and no other gap passes a few degrees.
     azimuths = np.sort(np.arctan2(du, dv))
     gaps = np.sort(np.diff(np.concatenate([azimuths, [azimuths[0] + 2.0 * np.pi]])))
+    assert float(np.degrees(gaps[-1])) < 170.0
     assert float(np.degrees(gaps[-2])) < 10.0
 
     far = limb_features['limb_arc:FAR']
