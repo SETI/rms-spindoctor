@@ -106,12 +106,24 @@ def test_triangle_crossing_the_frame_edge_covers_its_in_frame_pixels() -> None:
     assert np.array_equal(image > 0.0, (u + 0.5) + (v + 0.5) <= 20.0)
 
 
-def test_silhouette_is_the_covered_fraction_of_each_pixel_however_dark() -> None:
+@pytest.mark.parametrize(
+    'dark_floor', [0.0, shared_mesh._DARK_SIDE_ILLUM], ids=['black', 'documented_floor']
+)
+def test_silhouette_is_the_covered_fraction_of_each_pixel_however_dark(
+    monkeypatch: pytest.MonkeyPatch, dark_floor: float
+) -> None:
     """The silhouette counts the supersample centers a face covers, lit or not.
 
     Lit from behind, the triangle shades at the dark-side floor, but its silhouette
     is still 1 inside and the covered fraction of each pixel along its long edge.
+    With the floor at 0 the triangle renders black, so a silhouette read from its
+    shading would be empty.
+
+    Parameters:
+        monkeypatch: Sets the dark-side floor.
+        dark_floor: The dark-side floor the triangle shades at.
     """
+    monkeypatch.setattr(shared_mesh, '_DARK_SIDE_ILLUM', dark_floor)
     render = render_polyhedral_body_with_silhouette(
         size=(16, 16),
         center=(0.0, 0.0),
