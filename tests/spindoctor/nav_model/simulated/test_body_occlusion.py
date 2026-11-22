@@ -12,7 +12,12 @@ from typing import Any
 import numpy as np
 import pytest
 from tests.shims import bare_nav_context
-from tests.spindoctor.nav_model.simulated.body_fixtures import LIMB_SIZE, large_body, limb_obs
+from tests.spindoctor.nav_model.simulated.body_fixtures import (
+    LIMB_SIZE,
+    large_body,
+    limb_feature,
+    limb_obs,
+)
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
@@ -24,26 +29,9 @@ from spindoctor.support.types import NDArrayFloatType
 # ---------------------------------------------------------------------------
 
 
-def _limb_feature(
-    obs: ObsSim,
-    body_params: dict[str, Any],
-    *,
-    sibling_bodies: list[dict[str, Any]] | None = None,
-) -> Any:
-    """Build the model and return its emitted LIMB_ARC feature, or None."""
-    model = NavModelBodySimulated(
-        'body', obs, body_params['name'], body_params, sibling_bodies=sibling_bodies
-    )
-    model.create_model()
-    for feature in model.to_features(bare_nav_context(obs)):
-        if feature.feature_type.name == 'LIMB_ARC':
-            return feature
-    return None
-
-
 def test_limb_arc_fraction_fully_framed_is_near_one() -> None:
     """A fully framed, unoccluded limb sees almost all of the silhouette."""
-    limb = _limb_feature(limb_obs(), large_body())
+    limb = limb_feature(limb_obs(), large_body())
     assert limb is not None
     assert limb.flags.visible_arc_fraction > 0.9
 
@@ -56,7 +44,7 @@ def test_limb_arc_fraction_drops_when_frame_clips_it() -> None:
     surviving portion, not 1.0, because BodyLimbNav's
     visible_limb_arc_fraction confidence term reads it.
     """
-    clipped = _limb_feature(limb_obs(), large_body(center_v=20.0))
+    clipped = limb_feature(limb_obs(), large_body(center_v=20.0))
     assert clipped is not None
     assert clipped.flags.visible_arc_fraction < 0.85
     assert clipped.flags.visible_arc_fraction > 0.2
@@ -66,7 +54,7 @@ def test_limb_reliability_matches_shared_formula() -> None:
     """The sim limb scores through the shared body-model reliability."""
     from spindoctor.nav_model.nav_model_body import limb_reliability
 
-    limb = _limb_feature(limb_obs(), large_body())
+    limb = limb_feature(limb_obs(), large_body())
     assert limb is not None
     expected = limb_reliability(
         visible_arc_fraction=float(limb.flags.visible_arc_fraction),
@@ -95,8 +83,8 @@ def _near_sibling(**overrides: Any) -> dict[str, Any]:
 def test_occluded_limb_fraction_drops() -> None:
     """A nearer sibling hides part of the limb; the fraction reports it."""
     body = large_body(range_km=700000.0)
-    unoccluded = _limb_feature(limb_obs(), body)
-    occluded = _limb_feature(limb_obs(), body, sibling_bodies=[_near_sibling()])
+    unoccluded = limb_feature(limb_obs(), body)
+    occluded = limb_feature(limb_obs(), body, sibling_bodies=[_near_sibling()])
     assert unoccluded is not None
     assert occluded is not None
     assert occluded.flags.visible_arc_fraction < unoccluded.flags.visible_arc_fraction - 0.1
@@ -110,7 +98,7 @@ def test_occluded_limb_vertices_leave_the_polyline() -> None:
     dropped rather than left for the robust fit to reject.
     """
     body = large_body(range_km=700000.0)
-    occluded = _limb_feature(limb_obs(), body, sibling_bodies=[_near_sibling()])
+    occluded = limb_feature(limb_obs(), body, sibling_bodies=[_near_sibling()])
     assert occluded is not None
     obs = limb_obs()
     vertices = np.asarray(occluded.geometry.vertices_vu)
@@ -123,8 +111,8 @@ def test_occluded_limb_vertices_leave_the_polyline() -> None:
 def test_farther_sibling_does_not_occlude() -> None:
     """A sibling with a larger range hides nothing of this body's limb."""
     body = large_body(range_km=500000.0)
-    behind = _limb_feature(limb_obs(), body, sibling_bodies=[_near_sibling(range_km=700000.0)])
-    alone = _limb_feature(limb_obs(), body)
+    behind = limb_feature(limb_obs(), body, sibling_bodies=[_near_sibling(range_km=700000.0)])
+    alone = limb_feature(limb_obs(), body)
     assert behind is not None
     assert alone is not None
     assert behind.flags.visible_arc_fraction == pytest.approx(alone.flags.visible_arc_fraction)
@@ -139,8 +127,8 @@ def test_sibling_without_range_does_not_occlude() -> None:
     body = large_body(range_km=700000.0)
     sibling = _near_sibling()
     del sibling['range_km']
-    unknown = _limb_feature(limb_obs(), body, sibling_bodies=[sibling])
-    alone = _limb_feature(limb_obs(), body)
+    unknown = limb_feature(limb_obs(), body, sibling_bodies=[sibling])
+    alone = limb_feature(limb_obs(), body)
     assert unknown is not None
     assert alone is not None
     assert unknown.flags.visible_arc_fraction == pytest.approx(alone.flags.visible_arc_fraction)
@@ -154,7 +142,7 @@ def test_deeply_occluded_limb_is_not_emitted() -> None:
     occluder = _near_sibling(
         center_u=LIMB_SIZE / 2.0 + 8.0, semi_a_px=75.0, semi_b_px=75.0, semi_c_px=75.0
     )
-    limb = _limb_feature(limb_obs(), body, sibling_bodies=[occluder])
+    limb = limb_feature(limb_obs(), body, sibling_bodies=[occluder])
     assert limb is None
 
 

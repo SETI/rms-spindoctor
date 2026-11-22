@@ -347,7 +347,7 @@ def test_render_lambert_ellipsoid_is_dark_on_the_night_side() -> None:
 
 
 def test_coverage_is_the_fully_lit_silhouette() -> None:
-    """At high phase the coverage is the outline a render lit face-on draws."""
+    """The coverage, which ignores the light, is the outline a face-on render draws."""
     projection = _tilted_body(anti_aliasing=1.0)
     face_on = render_lambert_ellipsoid(projection, illumination_angle=0.0, phase_angle=0.0)
     assert np.array_equal(ellipsoid_coverage(projection), face_on > 0.0)

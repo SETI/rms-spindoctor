@@ -15,7 +15,7 @@ import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
 
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, render_ellipsoid_body
-from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec
+from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, TransitSpec
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 
@@ -74,7 +74,7 @@ def test_limb_brightened_law_has_no_plateau(law: str, minnaert_k: float) -> None
 
 @pytest.mark.parametrize(('law', 'minnaert_k'), _LIMB_BRIGHTENED_LAWS)
 def test_limb_brightened_law_rises_toward_the_sunlit_limb(law: str, minnaert_k: float) -> None:
-    """From the disc center to 0.9 radius sunward, every pixel is brighter than the last."""
+    """From the disc center to 0.9 radius sunward, each pixel is brighter than the last."""
     intensity = _law_render(law, minnaert_k)
     # Light from the top: sunward is up the center column, from row 49 to row 14.
     profile = intensity[14:50, 50][::-1]
@@ -90,6 +90,17 @@ def test_bright_albedo_spot_multiplies_the_shading() -> None:
         (64, 64), (32.0, 32.0), dataclasses.replace(spec, albedo_texture=spot)
     ).intensity
     assert float(spotted[32, 32]) == pytest.approx(3.0 * float(plain[32, 32]), rel=1e-12)
+
+
+def test_bright_transiting_moon_renders_past_one() -> None:
+    """A transiting moon three times as bright as its parent's shading renders past 1."""
+    spec = EllipsoidBodySpec(semi_a_px=20.0, semi_b_px=20.0, semi_c_px=20.0)
+    plain = render_ellipsoid_body((64, 64), (32.0, 32.0), spec).intensity
+    moon = TransitSpec(moon=(0.0, 0.0, 5.0, 3.0))
+    transit = render_ellipsoid_body(
+        (64, 64), (32.0, 32.0), dataclasses.replace(spec, transits=(moon,))
+    ).intensity
+    assert float(transit[32, 32]) == pytest.approx(3.0 * float(plain[32, 32]), rel=1e-12)
 
 
 def _spot_scene(instrument: str, albedo_factor: float | None) -> dict[str, Any]:

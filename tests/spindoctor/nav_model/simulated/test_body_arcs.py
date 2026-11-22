@@ -15,6 +15,7 @@ from tests.spindoctor.nav_model.simulated.body_fixtures import (
     LIMB_SIZE,
     body_feature_types,
     large_body,
+    limb_feature,
     limb_obs,
 )
 
@@ -22,6 +23,7 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import LimbPolyline, TerminatorPolyline
 from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
+from spindoctor.nav_model.simulated.body_arcs import _terminator_ridge_mask
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -205,7 +207,7 @@ def test_limb_lit_region_is_the_mean_incidence_rule() -> None:
     lit by 37 of the limb pixels on the unlit side (223 against 260).
     """
     obs = limb_obs()
-    limb = _limb_feature(obs, large_body(**_LOW_PHASE_SPHERE))
+    limb = limb_feature(obs, large_body(**_LOW_PHASE_SPHERE))
     assert limb is not None
     assert _vertex_set(limb.geometry.vertices_vu) == _mean_incidence_lit_limb(obs)
 
@@ -223,7 +225,7 @@ def test_low_phase_limb_fraction_counts_lit_pixels_on_both_sides() -> None:
     of an unclipped render; counting that outline by a different lit rule would put
     it at 0.86.
     """
-    limb = _limb_feature(limb_obs(), large_body(**_LOW_PHASE_SPHERE))
+    limb = limb_feature(limb_obs(), large_body(**_LOW_PHASE_SPHERE))
     assert limb is not None
     assert float(limb.flags.visible_arc_fraction) == pytest.approx(1.0, abs=0.02)
 
@@ -411,3 +413,11 @@ def test_each_arc_carries_its_own_family_choices(
     assert np.array_equal(geometry.sigma_normal_per_vertex_px, np.full(n, sigma_normal_px))
     assert np.array_equal(geometry.sigma_tangent_per_vertex_px, np.full(n, sigma_tangent_px))
     assert feature.usable_types == frozenset({feature_type})
+
+
+def test_terminator_counts_any_light_as_lit() -> None:
+    """A disc pixel brighter than 0, however faintly, is lit for the terminator ridge."""
+    image = np.zeros((9, 9))
+    image[:, :4] = 0.01
+    ridge, _ = _terminator_ridge_mask(image, np.ones((9, 9), dtype=bool))
+    assert bool(ridge[4, 3])

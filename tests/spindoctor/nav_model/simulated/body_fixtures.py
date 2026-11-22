@@ -12,6 +12,7 @@ __all__ = [
     'SIZE',
     'body_feature_types',
     'large_body',
+    'limb_feature',
     'limb_obs',
     'small_obs',
 ]
@@ -70,3 +71,20 @@ def large_body(**overrides: Any) -> dict[str, Any]:
     }
     params.update(overrides)
     return params
+
+
+def limb_feature(
+    obs: ObsSim,
+    body_params: dict[str, Any],
+    *,
+    sibling_bodies: list[dict[str, Any]] | None = None,
+) -> Any:
+    """Build the model and return its emitted LIMB_ARC feature, or None."""
+    model = NavModelBodySimulated(
+        'body', obs, body_params['name'], body_params, sibling_bodies=sibling_bodies
+    )
+    model.create_model()
+    for feature in model.to_features(bare_nav_context(obs)):
+        if feature.feature_type.name == 'LIMB_ARC':
+            return feature
+    return None

@@ -146,7 +146,7 @@ def test_transits_render_only_on_the_parent_disc() -> None:
 
 
 def test_a_transit_shadow_reaches_the_relief_outline() -> None:
-    """With limb relief, a shadow at the limb darkens the terrain past the smooth limb too.
+    """With limb relief, a limb shadow darkens the terrain past the smooth limb too.
 
     The shadow sits on the sunward limb, where the terrain past the smooth limb is lit.
     """

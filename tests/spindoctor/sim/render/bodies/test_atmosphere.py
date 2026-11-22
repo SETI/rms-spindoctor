@@ -810,3 +810,44 @@ def test_on_disc_haze_adds_light_past_one() -> None:
         silhouette=outline,
     )
     assert float(layers.disc.max()) > 1.0
+
+
+def _forward_scattering_layers(outline: NDArrayFloatType) -> Any:
+    """The haze layers of a bright sphere at 155 deg phase in a forward-scattering haze."""
+    return apply_atmosphere(
+        0.99 * outline,
+        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.75),
+        center_v=_CENTER,
+        center_u=_CENTER,
+        semi_a=_RADIUS,
+        semi_b=_RADIUS,
+        semi_c=_RADIUS,
+        rotation_z=0.0,
+        sub_observer_lat=0.0,
+        illumination_angle=math.radians(90.0),
+        phase_angle=math.radians(155.0),
+        silhouette=outline,
+    )
+
+
+def test_forward_scattering_halo_glows_past_one() -> None:
+    """Above the limb a strong forward-scattering haze glows brighter than 1, uncapped."""
+    layers = _forward_scattering_layers(_sphere_outline())
+    assert float(layers.halo.emission.max()) > 1.0
+
+
+def test_haze_over_the_outline_rim_adds_light_past_one() -> None:
+    """Band pixels the outline covers past the ellipse take their haze uncapped.
+
+    The outline is widened by a pixel, as an anti-aliased rim or relief standing above
+    the ellipse widens it, so some above-limb band pixels are opaque paint.
+    """
+    outline = _sphere_outline()
+    rim = np.maximum.reduce(
+        [outline, np.roll(outline, 1, 0), np.roll(outline, -1, 0), np.roll(outline, 1, 1)]
+    )
+    rim = np.maximum(rim, np.roll(outline, -1, 1))
+    layers = _forward_scattering_layers(rim)
+    offsets = np.arange(_SIZE, dtype=np.float64) + (PIXEL_CENTER_TO_CORNER_PX - _CENTER)
+    past_limb = offsets[:, None] ** 2 + offsets[None, :] ** 2 >= _RADIUS * _RADIUS
+    assert float(layers.disc[past_limb & (rim > 0.0)].max()) > 1.0
