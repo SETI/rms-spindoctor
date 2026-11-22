@@ -754,6 +754,10 @@ def apply_atmosphere(
         rho = np.maximum(rho, 1e-9)
         mu0_out = (v_out * illum_v + u_out * illum_u) / rho
         h_out = (np.sqrt(e2[band_out]) - 1.0) * r_mean
+        # The halo on a pixel the outline covers is seen only through the part
+        # the outline leaves open, which lies above the limb, so it takes the
+        # glow and the dimming at the limb, never those of a column inside it.
+        h_out = np.where(covered[band_out], np.maximum(h_out, 0.0), h_out)
         height_out = scale_height_field(
             structure,
             scale_height,

@@ -32,7 +32,10 @@ body's range go in before that body, the rest after every body.  Point sources
 sit at infinity: every translucent screen (ring, halo) attenuates them, and each
 body scales them by the fraction of each pixel it leaves open, so a wholly
 covered pixel extinguishes them, its unlit side and any pixel it renders black
-included.
+included.  On the detector grid a star's light is shared among the four pixels
+nearest it, so a star just outside a limb loses the share that falls on a pixel
+the limb covers; an oversampled render resolves the limb, and the star, on a finer
+grid.
 
 The ring-screen machinery and the depth-ambiguity checks behind every stacking
 decision live in the sibling :mod:`spindoctor.sim.render.radiance.compositing`.

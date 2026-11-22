@@ -469,6 +469,19 @@ def test_halo_transmission_is_the_tangent_extinction() -> None:
     assert layers.halo.transmission[probe_v, probe_u] == pytest.approx(math.exp(-tau), rel=1e-9)
 
 
+def test_the_halo_on_a_covered_pixel_takes_the_limbs_extinction() -> None:
+    """The halo under a covered pixel beside the limb dims as the limb column does.
+
+    The pixel's center lies half a pixel inside the limb, but the halo shows only
+    through the part of a pixel the outline leaves open, which lies above the limb.
+    """
+    spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6)
+    layers = _centered_layers(spec)
+    tau = float(tangent_optical_depth(np.array([0.0]), spec)[0])
+    covered = (int(_CENTER), int(_CENTER + _RADIUS) - 1)
+    assert layers.halo.transmission[covered] == pytest.approx(math.exp(-tau), rel=1e-9)
+
+
 # ---------------------------------------------------------------------------
 # Limb/disc consistency at a nonzero reference altitude.
 # ---------------------------------------------------------------------------
