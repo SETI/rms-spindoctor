@@ -123,6 +123,8 @@ _SIGHT_REFINEMENTS = 1
 # field grid cell, so a sliver the search misses is narrower than that and rises at
 # most slope_max / 512 of a cell into the line of sight.
 _SIGHT_SLIVER_CELLS = 1.0 / 256.0
+# Steps whose slivers are searched together, which bounds the search's memory.
+_SIGHT_SLIVER_CHUNK = 1 << 12
 
 
 @dataclass(frozen=True)
@@ -667,6 +669,37 @@ class _Crossing:
     g_lower: NDArrayFloatType
 
 
+def _latitude_slope_bound(
+    row_slope: NDArrayFloatType,
+    ends: tuple[NDArrayFloatType, NDArrayFloatType],
+    phi: NDArrayFloatType,
+) -> NDArrayFloatType:
+    """A bound on the field's latitude slope along short stretches of meridians.
+
+    Along a meridian the bilinear field is linear between grid rows, with a slope
+    between those of the two grid columns beside it.  A stretch no longer than a
+    grid cell touches at most two row gaps, so the largest of the four slopes there
+    bounds the field's slope along it.
+
+    Parameters:
+        row_slope: ``|h(row + 1) - h(row)|`` over the row spacing, at every grid node.
+        ends: The stretches' upper and lower latitudes, at most a grid cell apart.
+        phi: The meridians' longitudes.
+
+    Returns:
+        The bound for each stretch, per radian of latitude.
+    """
+    n = row_slope.shape[0]
+    scale = n / (2.0 * np.pi)
+    col = np.floor(np.mod(phi, 2.0 * np.pi) * scale).astype(np.intp) % n
+    col_next = (col + 1) % n
+    rows = [np.floor((lat + np.pi) * scale).astype(np.intp) % n for lat in ends]
+    return np.asarray(
+        np.max([row_slope[row, c] for row in rows for c in (col, col_next)], axis=0),
+        dtype=np.float64,
+    )
+
+
 def _first_crossing_between(
     field: ReliefField,
     rho: NDArrayFloatType,
@@ -674,17 +707,21 @@ def _first_crossing_between(
     ends: tuple[NDArrayFloatType, NDArrayFloatType],
     gaps: tuple[NDArrayFloatType, NDArrayFloatType],
     *,
+    slope: NDArrayFloatType,
     min_width: float,
 ) -> _Crossing:
     """Find the highest crossing in latitude intervals whose ends lie outside the surface.
 
-    Over an interval the gap ``g`` changes by at most ``slope_max + (1 + h_max)
-    |sin(lat)|`` per radian, taking the larger ``|sin(lat)|`` of its two ends.  So it
-    can reach 0 inside the interval only if its two end values plus that bound times
-    the width add up to at least 0.  An interval that passes this test is halved at a
+    Over an interval the gap ``g`` changes by at most ``s + (1 + h_max) |sin(lat)|``
+    per radian, where ``s`` bounds the field's latitude slope along the interval and
+    ``|sin(lat)|`` is the larger of its two ends'.  So it can reach 0 inside the
+    interval only if its two end values plus that bound times the width add up to at
+    least 0.  An interval that passes this test is halved at a
     sample.  A midpoint inside the surface brackets a crossing with the upper end;
-    otherwise each half is tested again, until the pieces are narrower than
-    ``min_width``.  The highest bracket found is kept.
+    otherwise both halves are tested again, down to pieces narrower than
+    ``min_width``, and the highest bracket found is kept.  The intervals are searched
+    in chunks of :data:`_SIGHT_SLIVER_CHUNK`, which bounds the memory the search
+    takes.
 
     Parameters:
         field: The relief realization.
@@ -692,6 +729,8 @@ def _first_crossing_between(
         phi: Each line of sight's longitude.
         ends: The intervals' upper and lower latitudes.
         gaps: The gap at the upper and lower ends, both negative.
+        slope: For each interval, a bound on the field's latitude slope along it
+            (:func:`_latitude_slope_bound`), which also holds for its pieces.
         min_width: The narrowest piece searched, in radians.
 
     Returns:
@@ -704,37 +743,36 @@ def _first_crossing_between(
     g_upper = np.zeros(count)
     g_lower = np.zeros(count)
     top = 1.0 + field.h_max
-    which = np.arange(count)
-    a, b = ends[0].copy(), ends[1].copy()
-    g_a, g_b = gaps[0].copy(), gaps[1].copy()
-    while which.size:
-        width = a - b
-        bound = field.slope_max + top * np.maximum(np.abs(np.sin(a)), np.abs(np.sin(b)))
-        live = (width >= min_width) & (g_a + g_b + bound * width >= 0.0)
-        # A piece below a crossing already found can hold only a lower one.
-        live &= ~(found[which] & (a <= lower[which]))
-        which, a, b, g_a, g_b = which[live], a[live], b[live], g_a[live], g_b[live]
-        if which.size == 0:
-            break
-        mid = 0.5 * (a + b)
-        g_mid = _sight_gap(field, mid, phi[which], rho[which])
-        hit = g_mid >= 0.0
-        # Keep the highest bracket per interval: visit the hits from low to high, so
-        # the last write to each interval is its highest.
-        order = np.nonzero(hit)[0][np.argsort(a[hit], kind='stable')]
-        better = ~found[which[order]] | (a[order] > upper[which[order]])
-        order = order[better]
-        target = which[order]
-        found[target] = True
-        upper[target] = a[order]
-        lower[target] = mid[order]
-        g_upper[target] = g_a[order]
-        g_lower[target] = g_mid[order]
-        rest = ~hit
-        which = np.concatenate([which[rest], which[rest]])
-        a, b = np.concatenate([a[rest], mid[rest]]), np.concatenate([mid[rest], b[rest]])
-        g_a = np.concatenate([g_a[rest], g_mid[rest]])
-        g_b = np.concatenate([g_mid[rest], g_b[rest]])
+    for start in range(0, count, _SIGHT_SLIVER_CHUNK):
+        which = np.arange(start, min(start + _SIGHT_SLIVER_CHUNK, count))
+        a, b = ends[0][which], ends[1][which]
+        g_a, g_b = gaps[0][which], gaps[1][which]
+        while which.size:
+            width = a - b
+            bound = slope[which] + top * np.maximum(np.abs(np.sin(a)), np.abs(np.sin(b)))
+            live = (width >= min_width) & (g_a + g_b + bound * width >= 0.0)
+            # A piece below a crossing already found can hold only a lower one.
+            live &= ~(found[which] & (a <= lower[which]))
+            which, a, b, g_a, g_b = which[live], a[live], b[live], g_a[live], g_b[live]
+            mid = 0.5 * (a + b)
+            g_mid = _sight_gap(field, mid, phi[which], rho[which])
+            hit = g_mid >= 0.0
+            # Keep the highest bracket per interval: write the hits from low to high,
+            # so the last write to each interval is its highest.
+            order = np.nonzero(hit)[0]
+            order = order[np.argsort(a[order], kind='stable')]
+            order = order[~found[which[order]] | (a[order] > upper[which[order]])]
+            target = which[order]
+            found[target] = True
+            upper[target] = a[order]
+            lower[target] = mid[order]
+            g_upper[target] = g_a[order]
+            g_lower[target] = g_mid[order]
+            rest = ~hit
+            which = np.concatenate([which[rest], which[rest]])
+            a, b = np.concatenate([a[rest], mid[rest]]), np.concatenate([mid[rest], b[rest]])
+            g_a = np.concatenate([g_a[rest], g_mid[rest]])
+            g_b = np.concatenate([g_mid[rest], g_b[rest]])
     return _Crossing(found, upper, lower, g_upper, g_lower)
 
 
@@ -807,10 +845,9 @@ def visible_surface_directions(
     # than the slope bound allows, and so could have passed over a sliver.
     forced = np.zeros(rho.size, dtype=np.bool_)
     sliver_width = 2.0 * np.pi / field.grid.shape[0] * _SIGHT_SLIVER_CELLS
-    # The suspect steps' lines of sight, and their upper and lower ends and the gaps
-    # there, one row each.
-    suspect_pix: list[NDArrayIntType] = []
-    suspect_steps: list[NDArrayFloatType] = []
+    row_slope = np.abs(np.roll(field.grid, -1, axis=0) - field.grid) * (
+        field.grid.shape[0] / (2.0 * np.pi)
+    )
     active = np.arange(rho.size)
     while active.size:
         lat_a = lat[active]
@@ -823,12 +860,26 @@ def visible_surface_directions(
         lo[active[crossed]] = lat_a[crossed]
         g_lo[active[crossed]] = g[crossed]
         # A forced step that ends outside the surface may have passed over a sliver.
-        # The walk goes on, and the step is searched once the walk is done.
-        suspect = ~crossed & forced[active]
-        if suspect.any():
+        suspect = np.nonzero(~crossed & forced[active])[0]
+        if suspect.size:
             pix = active[suspect]
-            suspect_pix.append(pix)
-            suspect_steps.append(np.stack([hi[pix], lat_a[suspect], g_hi[pix], g[suspect]]))
+            ends = (hi[pix], lat_a[suspect])
+            sliver = _first_crossing_between(
+                field,
+                rho[pix],
+                phi[pix],
+                ends,
+                (g_hi[pix], g[suspect]),
+                slope=_latitude_slope_bound(row_slope, ends, phi[pix]),
+                min_width=sliver_width,
+            )
+            inner = pix[sliver.found]
+            crossed[suspect[sliver.found]] = True
+            found[inner] = True
+            hi[inner] = sliver.upper[sliver.found]
+            g_hi[inner] = sliver.g_upper[sliver.found]
+            lo[inner] = sliver.lower[sliver.found]
+            g_lo[inner] = sliver.g_lower[sliver.found]
         walking = ~crossed & (lat_a > lat_low[active])
         moving = active[walking]
         hi[moving] = lat_a[walking]
@@ -841,22 +892,6 @@ def visible_surface_directions(
         forced[moving] = lat_a[walking] - lat[moving] > safe
         active = moving
 
-    if suspect_pix:
-        pix = np.concatenate(suspect_pix)
-        upper, lower, g_upper, g_lower = np.concatenate(suspect_steps, axis=1)
-        sliver = _first_crossing_between(
-            field, rho[pix], phi[pix], (upper, lower), (g_upper, g_lower), min_width=sliver_width
-        )
-        # Every suspect step lies above the crossing the walk found later, so the
-        # highest sliver crossing of a line of sight is its first crossing.
-        order = np.nonzero(sliver.found)[0]
-        order = order[np.argsort(sliver.upper[order], kind='stable')]
-        inner = pix[order]
-        found[inner] = True
-        hi[inner] = sliver.upper[order]
-        g_hi[inner] = sliver.g_upper[order]
-        lo[inner] = sliver.lower[order]
-        g_lo[inner] = sliver.g_lower[order]
     hit = np.where(found, lo, best_lat)
     # A crossing found at lat_top itself needs no narrowing; elsewhere g goes from
     # negative at hi to non-negative at lo.
