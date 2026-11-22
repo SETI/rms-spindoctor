@@ -404,6 +404,16 @@ def test_validate_sim_params_rejects_axis1_as_an_unknown_body_key() -> None:
         validate_sim_params(params)
 
 
+def test_validate_sim_params_refuses_a_sub_observer_latitude_past_the_pole() -> None:
+    """A sub-observer latitude beyond 90 degrees fails and gives the allowed range."""
+    params = _sim_params()
+    params['bodies'][0]['sub_observer_lat_deg'] = 91.0
+    with pytest.raises(
+        SimSceneValidationError, match=re.escape('sub_observer_lat_deg must lie in [-90, 90]')
+    ):
+        validate_sim_params(params)
+
+
 def test_validate_sim_params_accepts_body_range_km() -> None:
     """The per-body 'range_km' key validates."""
     params = _sim_params()

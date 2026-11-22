@@ -1,12 +1,11 @@
-"""Translucent-screen compositing and depth-ambiguity checks for the radiance stage.
+"""Ring-screen compositing and depth-ambiguity checks for the radiance stage.
 
-The radiance stage (:mod:`spindoctor.sim.render.radiance.compose`) paints the
-opaque body stack far to near and then composites the scene's translucent
-screens -- the optical-depth ring system and the atmospheric bodies' above-limb
-halos -- over the painted image.  This module owns that compositing machinery:
-:func:`translucent_screen_ops` orders the screens far to near (the ring's
-per-pixel depth interleaving with the halos' scalar body ranges) and returns
-them as :class:`ScreenOp` applications, and the ``check_*`` functions enforce
+The radiance stage (:mod:`spindoctor.sim.render.radiance.compose`) composites the
+scene far to near.  Each body goes over the image by its coverage, after its own
+translucent halo, and the optical-depth ring system goes in pixel by pixel at its
+own depth between them.  This module holds the ring's part of that machinery:
+:func:`ring_screen_op` builds the application of the ring screen to a set of
+pixels, and :func:`apply_screen_op` applies it.  The ``check_*`` functions enforce
 the depth contract behind every ordering decision -- overlapping objects must
 ALL carry an explicit scene ``range_km``, or their stacking would be a silent
 guess and the scene fails loudly.
@@ -26,21 +25,21 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'ScreenOp',
+    'apply_screen_op',
     'check_depth_ambiguity',
     'check_halo_ambiguity',
     'check_ring_system_ambiguity',
-    'translucent_screen_ops',
+    'ring_screen_op',
 ]
 
 
 @dataclass(frozen=True)
 class ScreenOp:
-    """One translucent-screen application over the composed image.
+    """One application of the ring screen over the composed image.
 
     Applied to the ``(box_v, box_u)`` view of the frame as ``view[mask] =
     intensity[mask] + transmission[mask] * view[mask]`` (the screen is
-    identity outside its box); ``is_ring`` routes the emission to the rings
-    class when the differential-smear layers replay the ops per class.
+    identity outside its box).
 
     Parameters:
         box_v: Frame rows the op is restricted to.
@@ -48,8 +47,6 @@ class ScreenOp:
         mask: Box-sized mask of the pixels the screen composites over.
         intensity: Box-sized emission map.
         transmission: Box-sized per-pixel background transmission.
-        is_ring: Whether the emission belongs to the rings class (else the
-            bodies class -- a body halo).
     """
 
     box_v: slice
@@ -57,87 +54,37 @@ class ScreenOp:
     mask: NDArrayBoolType
     intensity: NDArrayFloatType
     transmission: NDArrayFloatType
-    is_ring: bool
 
 
-def translucent_screen_ops(
-    halo_screens: list[tuple[float, HaloScreen]],
-    *,
-    ring_maps: RingSystemMaps | None,
-    ring_apply: NDArrayBoolType | None,
-    body_depth_map: NDArrayFloatType | None,
-) -> list[ScreenOp]:
-    """Order the scene's translucent screens far to near for compositing.
-
-    Halo screens arrive in far-to-near body order.  The ring system's
-    per-pixel depth interleaves with the halos' scalar body ranges: the ring
-    pixels at or beyond a halo's body range apply before that halo (the ring
-    shows through the glow, attenuated), and the pixels nearer than every
-    halo apply last (the ring screens the glow).  A ring system without a
-    ``range_km`` has no depth relation, so it applies last in full.  Each
-    halo composites only where no nearer opaque body covers it.
+def ring_screen_op(ring_maps: RingSystemMaps, pixels: NDArrayBoolType) -> ScreenOp:
+    """The application of the ring screen to some of the frame's pixels.
 
     Parameters:
-        halo_screens: ``(body range_km, halo screen)`` per atmospheric body,
-            far to near.
-        ring_maps: The rendered ring-system maps, or None.
-        ring_apply: Ring pixels that survive the body depth test, or None.
-        body_depth_map: Per-pixel depth of the nearest painted body; present
-            whenever any screen exists.
+        ring_maps: The rendered ring-system maps.
+        pixels: The frame pixels the ring composites over.
 
     Returns:
-        The screen applications, in application (far-to-near) order.
+        The screen op over the whole frame, restricted to ``pixels``.
     """
     full = slice(None)
-    ops: list[ScreenOp] = []
-    remaining_ring: NDArrayBoolType | None = None
-    if ring_maps is not None and ring_apply is not None:
-        remaining_ring = ring_apply.copy() if halo_screens else ring_apply
-    for halo_range, screen in halo_screens:
-        if remaining_ring is not None and ring_maps is not None and ring_maps.depth_km is not None:
-            behind = remaining_ring & (ring_maps.depth_km >= halo_range)
-            if behind.any():
-                ops.append(
-                    ScreenOp(
-                        box_v=full,
-                        box_u=full,
-                        mask=behind,
-                        intensity=ring_maps.intensity,
-                        transmission=ring_maps.transmission,
-                        is_ring=True,
-                    )
-                )
-                remaining_ring = remaining_ring & ~behind
-        assert body_depth_map is not None
-        # The screen is identity outside its bounding box, so the op (and
-        # every consumer's work) is restricted to the box exactly.
-        box_v, box_u = screen.box_v, screen.box_u
-        emission = screen.emission[box_v, box_u]
-        transmission = screen.transmission[box_v, box_u]
-        visible = screen.mask & (body_depth_map[box_v, box_u] > halo_range)
-        if visible.any():
-            ops.append(
-                ScreenOp(
-                    box_v=box_v,
-                    box_u=box_u,
-                    mask=visible,
-                    intensity=emission,
-                    transmission=transmission,
-                    is_ring=False,
-                )
-            )
-    if remaining_ring is not None and ring_maps is not None and remaining_ring.any():
-        ops.append(
-            ScreenOp(
-                box_v=full,
-                box_u=full,
-                mask=remaining_ring,
-                intensity=ring_maps.intensity,
-                transmission=ring_maps.transmission,
-                is_ring=True,
-            )
-        )
-    return ops
+    return ScreenOp(
+        box_v=full,
+        box_u=full,
+        mask=pixels,
+        intensity=ring_maps.intensity,
+        transmission=ring_maps.transmission,
+    )
+
+
+def apply_screen_op(img: NDArrayFloatType, op: ScreenOp) -> None:
+    """Composite a screen op over the image in place.
+
+    Parameters:
+        img: The image.
+        op: The screen op.
+    """
+    view = img[op.box_v, op.box_u]
+    view[op.mask] = op.intensity[op.mask] + op.transmission[op.mask] * view[op.mask]
 
 
 def check_depth_ambiguity(

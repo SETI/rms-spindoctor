@@ -102,8 +102,10 @@ Two of a body's angles run against the roll, so the roll subtracts from
 them: rotation_z turns the grid the ellipsoid is sampled on, so the drawn
 outline turns by minus rotation_z, and illumination_angle is measured from the
 top of the image toward +u.  A mesh body's line-of-sight pose angle, the third
-entry of pose_euler_deg, runs against it too.  A scene author writes every
-angle for the unrolled camera and never adjusts it for the roll.
+entry of pose_euler_deg, runs against it too.  The roll leaves an
+ellipsoid's sub_observer_lat_deg alone: turning the camera about its line of
+sight never changes the point on the body below the observer.  A scene author
+writes every angle for the unrolled camera and never adjusts it for the roll.
 
 The camera's own optics stay put: the PSF, the distortion, the ghosts' shifts,
 and the radial stray-light bump are optical properties of the camera.  The
@@ -278,17 +280,28 @@ Every body key is optional.  The geometry keys are what the navigator knows:
   shape_model          ellipsoid (the default) or polyhedral_mesh
   center_v, center_u   the body center in image pixels, a pixel corner
                        (default the frame center)
-  semi_a_px            semi-axis a in image pixels: half the body's extent
-                       along v before rotation_z turns it, like a radius.  A
+  semi_a_px            semi-axis a in image pixels, along the body's pole:
+                       half the body's extent along v before rotation_z turns
+                       it, like a radius, when sub_observer_lat_deg is 0.  A
                        sphere 90 px across has 45.0 in all three semi-axes.
   semi_b_px            semi-axis b in image pixels: half the body's extent
                        along u before rotation_z turns it
   semi_c_px            semi-axis c in image pixels: half the body's depth
-                       toward the observer (default the smaller of
-                       semi_a_px and semi_b_px)
+                       toward the observer when sub_observer_lat_deg is 0
+                       (default the smaller of semi_a_px and semi_b_px)
   rotation_z           (ellipsoid) the in-plane rotation, in degrees
-  rotation_tilt        (ellipsoid) the tilt of the polar axis toward the
-                       observer, in degrees
+  sub_observer_lat_deg (ellipsoid) the latitude of the point on the body
+                       directly below the observer, in degrees, from -90 to
+                       90 (default 0, the body seen equator-on).  The north
+                       pole is the end of semi-axis a that points along +v
+                       before rotation_z turns it; latitudes are positive
+                       toward it.  A positive value tips the north pole
+                       toward the observer, who then sees the northern
+                       hemisphere, as for a real Saturn frame whose
+                       sub-observer latitude is positive.  The outline
+                       foreshortens along the pole to
+                       sqrt((a cos lat)^2 + (c sin lat)^2), and latitude
+                       bands curve across the disc.
   illumination_angle   the image-plane direction the light comes from, in
                        degrees (0 from the top, 90 from the right)
   phase_angle          the phase angle, in degrees (0 fully lit, 180 lit
@@ -339,12 +352,13 @@ and a null key renders as the absent key does.  The navigator reads it as
 absent too.  For a key set to null inside nav_override, the navigator sees the
 scene's own value.  An entry of a list such as pose_euler_deg can't be null.
 
-A polyhedral_mesh body refuses a non-null value of any of the twelve
-ellipsoid-only appearance keys, which the mesh renderer would silently ignore
-(a null reads as an absent key): atmosphere, photometric_law, minnaert_k,
-opposition_surge, albedo_texture, disc_texture, transits, crater_fill,
-crater_min_radius, crater_max_radius, crater_power_law_exponent, and
-crater_relief_scale.  A mesh body's appearance keys are shading,
+A polyhedral_mesh body refuses a non-null value of any of the thirteen
+ellipsoid-only keys, which the mesh renderer would silently ignore (a null
+reads as an absent key): the ellipsoid-only appearance keys atmosphere,
+photometric_law, minnaert_k, opposition_surge, albedo_texture, disc_texture,
+transits, crater_fill, crater_min_radius, crater_max_radius,
+crater_power_law_exponent, and crater_relief_scale, and sub_observer_lat_deg,
+since a mesh body is turned by its pose_euler_deg instead.  A mesh body's appearance keys are shading,
 limb_relief_rms, limb_relief_corr_deg, mesh_detail_octaves, and pose_scatter.
 The scene editor disables the controls for the refused keys on a mesh body.
 Switching a body to polyhedral_mesh in the editor moves the refused keys it

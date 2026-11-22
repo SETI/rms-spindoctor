@@ -1,9 +1,12 @@
 """The shared ellipsoid projection, its normals, and the smooth Lambert render.
 
-The projection measures each pixel from its center, rotates and then tilts it as a
-hand computation does, and stretches the outline by the tilt.  A cropped projection
-keeps each pixel's values and its position on the whole grid.  The normals face the
-way the outline does, lie in the image plane outside the limb, and have unit length.
+The projection measures each pixel from its center and rotates it as a hand
+computation does.  A sub-observer latitude turns the ellipsoid as a solid body: a
+sphere keeps its outline, an oblate body's outline is the projection of the turned
+body, and the disc center sees the sub-observer latitude.  A cropped projection keeps
+each pixel's values and its position on the whole grid.  The normals face the way the
+outline does, are perpendicular to the turned surface, lie in the image plane outside
+the limb, and have unit length.
 The Lambert render shades each pixel by its cosine of incidence, leaves the sky
 dark, and averages its supersampled grid down to the caller's.
 """
@@ -18,6 +21,7 @@ from spindoctor.sim.shared.ellipsoid import (
     ellipsoid_image_normals,
     project_ellipsoid,
     render_lambert_ellipsoid,
+    surface_unit_coords,
 )
 
 # A hand-computed pixel: row 23, column 15 of a body centered at (20.0, 18.0), whose
@@ -30,7 +34,7 @@ _TILT = 0.6
 _SEMI_A, _SEMI_B = 12.0, 7.0
 
 
-def _hand_body(*, rotation_tilt: float) -> EllipsoidProjection:
+def _hand_body(*, sub_observer_lat: float) -> EllipsoidProjection:
     """The body the hand-computed pixel belongs to, at a chosen tilt."""
     return project_ellipsoid(
         (48, 40),
@@ -39,7 +43,7 @@ def _hand_body(*, rotation_tilt: float) -> EllipsoidProjection:
         semi_b_px=_SEMI_B,
         semi_c_px=9.0,
         rotation_z=_ROTATION_Z,
-        rotation_tilt=rotation_tilt,
+        sub_observer_lat=sub_observer_lat,
     )
 
 
@@ -52,39 +56,185 @@ def _tilted_body(*, anti_aliasing: float = 0.0) -> EllipsoidProjection:
         semi_b_px=10.5,
         semi_c_px=12.0,
         rotation_z=0.6,
-        rotation_tilt=0.4,
+        sub_observer_lat=0.4,
         anti_aliasing=anti_aliasing,
     )
 
 
 def test_projection_measures_from_pixel_centers() -> None:
     """A pixel's coordinates run from the body center to the pixel's center."""
-    projection = _hand_body(rotation_tilt=_TILT)
+    projection = _hand_body(sub_observer_lat=_TILT)
     assert projection.v_coords[_ROW, _COL] == pytest.approx(_V, abs=1e-12)
     assert projection.u_coords[_ROW, _COL] == pytest.approx(_U, abs=1e-12)
 
 
-def test_projection_rotates_then_tilts_a_pixel() -> None:
-    """The rotated frame turns by rotation_z, then the tilt scales its v by cos(tilt)."""
-    projection = _hand_body(rotation_tilt=_TILT)
+def test_projection_rotates_a_pixel() -> None:
+    """The rotated frame turns by rotation_z and not by the sub-observer latitude."""
+    projection = _hand_body(sub_observer_lat=_TILT)
     cos_rz, sin_rz = math.cos(_ROTATION_Z), math.sin(_ROTATION_Z)
-    expected_v_rot = (_V * cos_rz - _U * sin_rz) * math.cos(_TILT)
+    expected_v_rot = _V * cos_rz - _U * sin_rz
     expected_u_rot = _V * sin_rz + _U * cos_rz
     assert projection.v_rot[_ROW, _COL] == pytest.approx(expected_v_rot, abs=1e-12)
     assert projection.u_rot[_ROW, _COL] == pytest.approx(expected_u_rot, abs=1e-12)
 
 
-def test_projection_stretches_the_outline_by_the_tilt() -> None:
-    """A 10 px sphere tilted by 1 radian reaches 10 / cos(1) = 18.51 px along v.
+@pytest.mark.parametrize('latitude_deg', [30.0, 60.0, -75.0])
+def test_a_sphere_keeps_its_outline_at_any_sub_observer_latitude(latitude_deg: float) -> None:
+    """A turned sphere covers exactly the pixels it covers seen equator-on.
 
-    One column of pixel centers runs through the body center, and the rows whose
-    centers lie 0.5 to 18.5 px above and below it fall within that reach: 38 rows.
+    Parameters:
+        latitude_deg: The sub-observer latitude in degrees.
+    """
+    equator_on = project_ellipsoid((64, 48), (32.0, 24.5), 10.0, semi_b_px=10.0, semi_c_px=10.0)
+    turned = project_ellipsoid(
+        (64, 48),
+        (32.0, 24.5),
+        10.0,
+        semi_b_px=10.0,
+        semi_c_px=10.0,
+        sub_observer_lat=math.radians(latitude_deg),
+    )
+    np.testing.assert_array_equal(turned.ellipse_dist_sq < 1.0, equator_on.ellipse_dist_sq < 1.0)
+
+
+def test_an_oblate_bodys_outline_is_the_projection_of_the_turned_body() -> None:
+    """The outline reaches along the pole as far as the turned body's farthest point.
+
+    The points are sampled over the surface of a body flattened along its pole
+    (a = 30, b = c = 40), turned 35 degrees toward the observer about semi-axis b,
+    and dropped onto the image plane.
+    """
+    latitude = math.radians(35.0)
+    projection = project_ellipsoid(
+        (8, 8), (4.0, 4.0), 30.0, semi_b_px=40.0, semi_c_px=40.0, sub_observer_lat=latitude
+    )
+    lat, lon = np.meshgrid(
+        np.linspace(-np.pi / 2, np.pi / 2, 20001), np.array([np.pi / 2, 3 * np.pi / 2])
+    )
+    pole = 30.0 * np.sin(lat)
+    depth = 40.0 * np.cos(lat) * np.sin(lon)
+    first = pole * math.cos(latitude) - depth * math.sin(latitude)
+    assert projection.semi_a_outline == pytest.approx(float(np.abs(first).max()), rel=1e-6)
+
+
+def test_the_disc_center_sees_the_sub_observer_latitude() -> None:
+    """A turned sphere's disc center shows the point at the sub-observer latitude."""
+    latitude = math.radians(27.0)
+    geometry = project_ellipsoid(
+        (4, 4), (2.0, 2.0), 20.0, semi_b_px=20.0, semi_c_px=20.0, sub_observer_lat=latitude
+    ).geometry
+    x, _y, _z = surface_unit_coords(
+        np.array([0.0]), np.array([0.0]), np.array([0.0]), geometry=geometry
+    )
+    assert float(x[0]) == pytest.approx(math.sin(latitude), abs=1e-12)
+
+
+def test_the_equator_curves_across_a_turned_disc() -> None:
+    """The equator crosses the central meridian sin(lat) of a radius from the center.
+
+    Seen equator-on the equator runs straight through the disc center.  With the
+    north pole tipped toward the observer it bows away from the north pole.
+    """
+    latitude = math.radians(27.0)
+    radius = 20.0
+    geometry = project_ellipsoid(
+        (4, 4), (2.0, 2.0), radius, semi_b_px=radius, semi_c_px=radius, sub_observer_lat=latitude
+    ).geometry
+    v_rot = np.array([-radius * math.sin(latitude)])
+    x, _y, _z = surface_unit_coords(
+        v_rot, np.array([0.0]), (v_rot / radius) ** 2, geometry=geometry
+    )
+    assert float(x[0]) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_the_surface_point_lies_under_its_pixel() -> None:
+    """Each on-disc point, turned back into the view, lies on its pixel's sight line."""
+    projection = _tilted_body()
+    geometry = projection.geometry
+    on_disc = projection.ellipse_dist_sq < 1.0
+    x, y, z = projection.surface_unit_coords()
+    first, _second, _toward = geometry.to_view(
+        x * geometry.semi_a, y * geometry.semi_b, z * geometry.semi_c
+    )
+    np.testing.assert_allclose(first[on_disc], projection.v_rot[on_disc], rtol=0.0, atol=1e-9)
+
+
+def test_the_surface_point_lies_on_the_turned_body() -> None:
+    """Each on-disc point of a turned triaxial body has unit length after scaling."""
+    projection = _tilted_body()
+    on_disc = projection.ellipse_dist_sq < 1.0
+    x, y, z = projection.surface_unit_coords()
+    np.testing.assert_allclose((x**2 + y**2 + z**2)[on_disc], 1.0, rtol=0.0, atol=1e-9)
+
+
+def test_a_pixel_outside_the_limb_reads_the_limb_point_at_its_azimuth() -> None:
+    """A pixel 1.2 radii out along a turned sphere's pole axis reads latitude 60.
+
+    The sphere's north pole is tipped 30 degrees toward the observer, so the limb
+    point on the pole axis, where the line of sight 1.2 radii out passes closest,
+    lies at latitude 60.
+    """
+    latitude = math.radians(30.0)
+    geometry = project_ellipsoid(
+        (4, 4), (2.0, 2.0), 20.0, semi_b_px=20.0, semi_c_px=20.0, sub_observer_lat=latitude
+    ).geometry
+    x, _y, _z = surface_unit_coords(
+        np.array([24.0]), np.array([0.0]), np.array([1.44]), geometry=geometry
+    )
+    assert float(x[0]) == pytest.approx(math.sin(math.radians(60.0)), abs=1e-12)
+
+
+@pytest.mark.parametrize('sub_observer_lat', [0.0, 0.4], ids=['equator_on', 'turned'])
+def test_every_point_outside_the_limb_has_unit_length(sub_observer_lat: float) -> None:
+    """Each pixel outside a triaxial body's limb reads a point on the body.
+
+    Parameters:
+        sub_observer_lat: The sub-observer latitude in radians.
     """
     projection = project_ellipsoid(
-        (64, 48), (32.0, 24.5), 10.0, semi_b_px=10.0, semi_c_px=10.0, rotation_tilt=1.0
+        (48, 40),
+        (22.3, 19.6),
+        14.0,
+        semi_b_px=10.5,
+        semi_c_px=12.0,
+        rotation_z=0.6,
+        sub_observer_lat=sub_observer_lat,
     )
-    covered_rows = int(np.any(projection.ellipse_dist_sq <= 1.0, axis=1).sum())
-    assert covered_rows == 38
+    off_disc = projection.ellipse_dist_sq > 1.0
+    x, y, z = projection.surface_unit_coords()
+    np.testing.assert_allclose((x**2 + y**2 + z**2)[off_disc], 1.0, rtol=0.0, atol=1e-9)
+
+
+def test_a_turned_spheres_normals_match_the_sphere_seen_equator_on() -> None:
+    """Turning a sphere about its center moves no surface normal on the image."""
+    equator_on = project_ellipsoid((40, 40), (20.0, 20.0), 15.0, semi_b_px=15.0, semi_c_px=15.0)
+    turned = project_ellipsoid(
+        (40, 40), (20.0, 20.0), 15.0, semi_b_px=15.0, semi_c_px=15.0, sub_observer_lat=0.9
+    )
+    np.testing.assert_allclose(
+        np.stack(ellipsoid_image_normals(turned)),
+        np.stack(ellipsoid_image_normals(equator_on)),
+        rtol=0.0,
+        atol=1e-9,
+    )
+
+
+def test_normals_are_perpendicular_to_the_turned_surface() -> None:
+    """The normal's slope matches the slope of the turned surface's depth.
+
+    The depth toward the observer is read from each pixel's surface point, and its
+    slope across neighboring rows, by a central difference, gives a direction along
+    the surface the normal must be perpendicular to.
+    """
+    projection = project_ellipsoid(
+        (200, 200), (100.0, 100.0), 60.0, semi_b_px=45.0, semi_c_px=80.0, sub_observer_lat=0.6
+    )
+    geometry = projection.geometry
+    x, y, z = projection.surface_unit_coords()
+    toward = geometry.to_view(x * geometry.semi_a, y * geometry.semi_b, z * geometry.semi_c)[2]
+    slope_v = (toward[121, 90] - toward[119, 90]) / 2.0
+    normal_v, _normal_u, normal_z = ellipsoid_image_normals(projection)
+    assert -normal_v[120, 90] / normal_z[120, 90] == pytest.approx(slope_v, rel=1e-3)
 
 
 def test_normals_face_the_way_the_outline_does() -> None:
@@ -93,7 +243,7 @@ def test_normals_face_the_way_the_outline_does() -> None:
     The gradient of ``(v_rot / a)**2 + (u_rot / b)**2`` with respect to the image
     coordinates comes from the chain rule through the rotation.
     """
-    normal_v, normal_u, _ = ellipsoid_image_normals(_hand_body(rotation_tilt=0.0))
+    normal_v, normal_u, _ = ellipsoid_image_normals(_hand_body(sub_observer_lat=0.0))
     cos_rz, sin_rz = math.cos(_ROTATION_Z), math.sin(_ROTATION_Z)
     v_rot = _V * cos_rz - _U * sin_rz
     u_rot = _V * sin_rz + _U * cos_rz
@@ -172,7 +322,7 @@ def test_render_lambert_ellipsoid_averages_the_supersample() -> None:
         semi_b_px=10.5 * 4,
         semi_c_px=12.0 * 4,
         rotation_z=0.6,
-        rotation_tilt=0.4,
+        sub_observer_lat=0.4,
     )
     fine = render_lambert_ellipsoid(fine_projection, illumination_angle=1.1, phase_angle=0.5)
     np.testing.assert_allclose(

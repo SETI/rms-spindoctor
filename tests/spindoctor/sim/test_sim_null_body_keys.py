@@ -68,7 +68,7 @@ def _ellipsoid_body() -> dict[str, Any]:
         'semi_b_px': 6.0,
         'semi_c_px': 5.5,
         'rotation_z': 20.0,
-        'rotation_tilt': 10.0,
+        'sub_observer_lat_deg': 10.0,
         'illumination_angle': 30.0,
         'phase_angle': 40.0,
         'range_km': 500000.0,

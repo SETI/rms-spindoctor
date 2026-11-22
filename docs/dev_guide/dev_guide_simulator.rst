@@ -116,8 +116,8 @@ relative to ``sim/render/``):
      - Composes the noise-free signal image: background stars, catalog stars,
        and the body/ring stack depth-sorted far to near.
    * - ``radiance/compositing.py``
-     - The radiance stage's translucent-screen machinery: orders the ring
-       system and body halos far to near for compositing and enforces the
+     - The radiance stage's ring-screen machinery: applies the ring system to
+       the pixels that go into the stack at each depth, and enforces the
        explicit-``range_km`` depth contract on every overlap.
    * - ``bodies/render.py`` / ``bodies/placement.py``
      - Sends each body to the renderer that draws it, chooses the canvas it is drawn
@@ -579,11 +579,12 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
    * - Scene radiance
      - :func:`~spindoctor.sim.render.radiance.compose.compose_scene_radiance`
      - Composes the noise-free signal: bodies depth-sorted far to near
-       (nearer bodies overwrite) into ``frame.signal``, with the ring
-       system composited over the stack as a per-pixel transmission
-       screen, and the star field (catalog stars plus the background sky)
-       into the point-source plane ``frame.point_e``, with the planted
-       offset and camera roll applied. Stars are flux-normalized point
+       into ``frame.signal``, each going over what lies behind it by how much
+       of each pixel it covers, with the ring system going into the stack
+       pixel by pixel at its own depth as a transmission screen, and the star
+       field (catalog stars plus the background sky) into the point-source
+       plane ``frame.point_e``, with the planted offset and camera roll
+       applied. Stars are flux-normalized point
        masses shaped only by the
        whole-scene PSF (see :ref:`sim-star-params`). Accumulates feature truth
        (star records, masks, inventory, z-order) into ``frame.truth``.
@@ -1929,9 +1930,9 @@ or retirement of the check, instead of a silent behavior change. The success the
 check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
-``titan_crescent_horns`` scenes are not in this family. The cross-technique
-body-witness veto declines their haze-dragged lone-blob offset, so the scenes
-assert a ``failed`` outcome.
+``titan_crescent_horns`` scenes hold a low-confidence success 5.74 px wrong this
+way: the disc correlation, pulled by the haze's ring of light, sets it on every
+seed.
 
 .. _sim-floor:
 
@@ -2085,15 +2086,14 @@ once and only moves it at each step. At catalog size a new drawing costs 0.03 to
 one.
 
 **Bodies too large for the frame.** A frame-sized drawing of a body centered on the
-frame holds only the part of the body that falls inside the frame. When the move
-then shifts a large body off center, part of what should come into view was never
-drawn: the body comes out cut off at a straight line, or vanishes if it is far
-enough off center. So the renderer first asks whether the body fits. A body fits
-when everything it can spread over, its outline (stretched by any tilt), the lift of
-its limb relief, and its halo, stays at least one pixel inside the frame when the
-body is at the frame center. The pixel of clearance is there because the move reads
-nothing past the drawing, so a body touching its outermost pixels would lose part of
-their light.
+frame holds only the part of the body that falls inside the frame. When the move then
+shifts a large body off center, part of what should come into view was never drawn: the
+body comes out cut off at a straight line, or vanishes if it is far enough off center.
+So the renderer first asks whether the body fits. A body fits when everything it can
+spread over, its outline (foreshortened by any sub-observer latitude), the lift of its
+limb relief, and its halo, stays at least one pixel inside the frame when the body is at
+the frame center. The pixel of clearance is there because the move reads nothing past
+the drawing, so a body touching its outermost pixels would lose part of their light.
 
 A body that fits is drawn on the frame, as described above. A body that does not fit
 is drawn on a larger canvas
@@ -2557,11 +2557,12 @@ The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
 pose-scatter keys. The scene validator *rejects* a non-null value of any of
-twelve ellipsoid-only appearance keys on a ``polyhedral_mesh`` body:
+thirteen ellipsoid-only keys on a ``polyhedral_mesh`` body: the appearance keys
 ``atmosphere``, ``photometric_law``, ``minnaert_k``, ``opposition_surge``,
 ``albedo_texture``, ``disc_texture``, ``transits``, ``crater_fill``,
 ``crater_min_radius``, ``crater_max_radius``, ``crater_power_law_exponent``, and
-``crater_relief_scale``. A null value reads as an absent key. The mesh renderer
+``crater_relief_scale``, and ``sub_observer_lat_deg``, since a mesh body is turned
+by its ``pose_euler_deg`` instead. A null value reads as an absent key. The mesh renderer
 would silently ignore these keys, and a scene that asks for an effect must render
 it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
 :mod:`spindoctor.sim.scene.fields`, and ``mesh_unsupported_message`` there
@@ -2586,7 +2587,11 @@ Mutual events
 A scene can place two bodies so the nearer one occludes part of the farther one
 (depth-ordered by ``range_km``; bodies at exactly equal ranges tie-break
 deterministically by scene-list position, the earlier-listed body rendering as
-the nearer). The renderer draws the true occlusion and
+the nearer). The renderer draws the true occlusion. Where the nearer body's limb
+covers a fraction ``c`` of a pixel, the pixel holds ``c`` of the nearer body's light
+and ``1 - c`` of whatever lies behind it, so the limb shows no dark outline against
+the farther body, a ring, or the sky. The same fraction scales the light of a star
+behind the limb. The renderer also
 records the outcome in the render truth (``body_occlusion``): each body's
 visible fraction and the angular extent of any hidden limb arc. This is
 bookkeeping the test can read, not something the navigator sees.
@@ -2603,18 +2608,31 @@ and the disc correlator scores only against disc brightness the image carries.
 Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
-Across grazing, half, and deep overlap the navigator recovers each scene's
-planted offset within the tolerance the mutual-event regression pins. That is a
-statement about these simulated scenes, not a certification of real-frame
-accuracy: the sim renders an idealized occlusion the true optics only
-approximate. On the deep scene the far body's disc is over 90 percent
-hidden, so its ``visible_lit_fraction`` collapses and the disc gate drops that
-feature; the near body's disc plus both visible limb arcs fuse to the recovered
-offset. The joint limb fit runs on arcs the image actually shows -- the robust
-Tukey biweight loss is a second line of defense against a stray vertex, not the
-mechanism that carries the result -- and no confident-wrong result or
-double-counting conflict arises. The mutual-event scenes pin the arc fractions
-and offsets so a regression toward hidden-arc lock-on fails loudly.
+On grazing and half overlap the limb fit lands within 0.2 px of each scene's planted
+offset over 16 noise seeds. The disc correlation does worse: it stops at the edge of its
+half-pixel refinement window, 0.18 px off on grazing overlap and 0.34 px on half
+overlap. Its composite template paints the near body over the far one wherever the near
+body touches a pixel, even partly, so the template keeps a dark outline at the near
+body's limb that the image no longer shows. With the template drawn by coverage, the
+same correlation lands within 0.01 px. Both
+scenes hold their fused errors, 0.15 to 0.18 px and 0.32 to 0.33 px, to bands. That is a
+statement about these simulated scenes, not a certification of real-frame accuracy: the
+sim renders an idealized occlusion the true optics only approximate. On the deep scene
+the far body's disc is over 90 percent hidden, so its ``visible_lit_fraction`` collapses
+and its disc feature is dropped for low reliability. The far body's crescent still shows
+beside the near body's limb, and the disc template, which holds only the near body,
+leaves it out, so the crescent pulls the disc correlation about 0.8 px off. The limb fit
+runs on arcs the image actually shows -- the robust Tukey biweight loss is a second line
+of defense against a stray vertex, not the mechanism that carries the result -- but on 6
+of the 16 seeds it stops unconverged and flags itself spurious, and the disc correlation
+alone sets the answer. The deep scene holds that 0.73 to 0.80 px error to a band. No
+double-counting conflict arises. The mutual-event scenes pin the arc fractions and
+offsets so a regression toward hidden-arc lock-on fails loudly.
+
+.. The grazing and half scenes' template outline is issue 1099, and the window edge
+   issue 791.
+
+.. The deep scene's disc correlation error is tracked in issue 1050.
 
 .. _sim-atmosphere:
 
@@ -2627,7 +2645,9 @@ on-disc haze joins the body's opaque paint, while the above-limb glow is a
 translucent halo screen composited like the ring system's -- background,
 rings, and stars behind it show through scaled by ``exp(-tau)`` with the glow
 added, and the body's mask / depth / occlusion truth sees only the solid
-silhouette. Where limb relief dips inside the reference ellipse, the uncovered
+silhouette. The body then goes over its own halo by how much of each pixel its
+outline covers, so a limb pixel shows the disc in that fraction and the glow in
+the rest. Where limb relief dips inside the reference ellipse, the uncovered
 pixels are sky seen through the haze column and join the halo screen. The
 halo reaches out until its glow, and its dimming of a full-scale background,
 both fall below 1e-5 of full scale, under a twentieth of a 12-bit DN. So a
@@ -2794,25 +2814,22 @@ to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light
-defeats the disc correlation (spurious -- there is no full lit disc), the
-predicted terminator arc is emitted but dropped by the feature reliability
-gate before any technique runs (its reliability, computed as the SPICE-backed
-model does and capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
-``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid alone would
-carry the fused answer roughly 30 px off in ``du``. That is exactly the
-lone-blob collapsed regime the body-witness veto (see
-:doc:`dev_guide_orchestrator_ensemble`) guards: the only surviving body offset
-is the bias-prone centroid while a sibling geometric technique on the same body
-self-flagged spurious, so the frame is declined (``failed``, ``status_reason``
-``lone_blob_in_collapsed_regime``) rather than reported as a 30-px-wrong
-success -- a wrong offset that is accepted is worse than a
-declared failure. The scene asserts that decline. The noiseless
-sibling ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the
-same haze and phase geometry -- pins the underlying centroid bias
-deterministically (planted ``du`` -0.8, blob centroid at 29.24), so the ring
-of light alone, not the noise, drives the collapse, and the decline is stable
-rather than noise-dependent. The haze evaluation
+outright hostile: in ``titan_crescent_horns`` (155 deg) the predicted
+terminator arc is emitted but dropped by its feature reliability before any
+technique runs (its reliability, computed as the SPICE-backed model does and
+capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
+30 px off in ``du``. The ring of light, which the disc correlation's
+hard-limbed template leaves out, also pulls the correlation 5.74 px off, and the
+correlation does not flag that answer spurious. So the body-witness veto (see
+:doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
+surviving body offset is the centroid beside a spurious geometric fit, has
+nothing to read. The disc correlation sets a low-confidence success, and the
+scene holds its 5.74 px error to a band. The noiseless sibling
+``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
+and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
+blob centroid near 28.9, and the same 5.74 px disc correlation error), so the
+ring of light alone, not the noise, drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
 that box rather than the frame, and a body without an ``atmosphere`` block
@@ -3412,8 +3429,10 @@ ellipsoid is sampled on, so the drawn outline turns by ``-rotation_z``.
 light direction ``(-cos, sin)`` turns by ``-illumination_angle``. A mesh body's pose is
 ``Rz @ Ry @ Rx`` in camera axes ordered ``(u, v, depth)``, so its line-of-sight angle,
 the third entry of ``pose_euler_deg``, is the outermost rotation, and a ``+v`` toward
-``+u`` turn is a negative ``Rz`` there. Craters are drawn on the image grid rather
-than on the body, so the ellipsoid renderer lays them out where the unrolled body
+``+u`` turn is a negative ``Rz`` there. An ellipsoid's ``sub_observer_lat_deg`` stays
+as it is, since turning the camera about its line of sight never changes the point on
+the body below the observer. Craters are drawn on the image grid rather than on the
+body, so the ellipsoid renderer lays them out where the unrolled body
 does, on the frame or plane the unrolled body's canvas uses, and turns each center
 onto the rolled one. A scene author writes every angle for the
 unrolled camera and never adjusts one for the roll.
@@ -3712,7 +3731,17 @@ null. Common fields:
      - idealized
      - ``ellipsoid`` or ``polyhedral_mesh``.
 
-Ellipsoid bodies add ``rotation_z`` and ``rotation_tilt`` (degrees, idealized).
+Ellipsoid bodies add ``rotation_z`` and ``sub_observer_lat_deg`` (degrees,
+idealized). The body's pole is semi-axis a, and its north pole, where latitudes are
+positive, is the end of semi-axis a that points along +v before ``rotation_z`` turns
+it. ``sub_observer_lat_deg`` is the latitude of the point on the body directly below
+the observer, from -90 to 90 degrees. A positive value tips the north pole toward the
+observer, who then sees the northern hemisphere, as in a real Saturn or Jupiter frame
+whose sub-observer latitude is positive. The ellipsoid turns as a solid body: its
+outline foreshortens along the pole to ``sqrt((a cos lat)^2 + (c sin lat)^2)``, so a
+sphere stays the same circle at any latitude, the shading and the haze follow the
+turned surface, and latitude bands curve across the disc. The navigator's predicted
+body turns the same way, through the same projection.
 Mesh bodies (``shape_model: polyhedral_mesh``) instead read the idealized mesh
 keys ``mesh_lumpiness`` (relief amplitude, default 0.3: the non-ellipsoidal
 relief has an RMS of ``mesh_lumpiness / 8`` of the radius), ``mesh_seed`` (which
@@ -3833,7 +3862,8 @@ features nearly black. The system composites over the body stack as a
 per-pixel transmission screen (``img = I_ring + exp(-tau/mu) * img_behind``)
 ordered by observer distance: with the block-level ``range_km`` and
 ``km_per_pixel`` set, the near arm crosses in front of a body at the ring
-center's range and the far arm passes behind it, gaps reveal the background
+center's range and the far arm passes behind it, showing through a limb pixel
+in the fraction the limb leaves open, gaps reveal the background
 instead of erasing it, and stars behind the ring attenuate by
 ``exp(-tau/mu)`` (a scene whose system overlaps a body must range both).
 
@@ -4550,9 +4580,10 @@ change alters rendered output:
     ``planted_rank1_ring_flat`` a band holds the error across the straight
     ring edge, the only direction that scene can measure.
 
-  The default suite runs the algorithmic invariants, the technique-pinned
-  regression tests, and the fused check on ``mutual_grazing``, which read their
-  limits from ``sim_truth.py``. The integration tier runs the rest. There,
+  The default suite runs the algorithmic invariants and the technique-pinned
+  regression tests, which read their limits from ``sim_truth.py``, and the fused
+  check on ``mutual_grazing``, which reads the known error its scene records. The
+  integration tier runs the rest. There,
   ``test_sim_truth_checks.py`` checks the fused answer of every validation scene
   outside ``algorithmic_invariants``, and every single-technique band.
 

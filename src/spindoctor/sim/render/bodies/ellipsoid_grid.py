@@ -12,6 +12,7 @@ renderer treats specially: the silhouette, the band along the limb, and the cell
 along the day-night edge.
 """
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -73,7 +74,7 @@ class CraterPlane:
 
 
 def crater_plane_site(
-    plane: CraterPlane, detector_grid: EllipsoidProjection, *, cos_tilt: float
+    plane: CraterPlane, detector_grid: EllipsoidProjection
 ) -> tuple[CraterSite, int]:
     """The crater site of a plane, and the number of its pixels inside the body.
 
@@ -89,7 +90,6 @@ def crater_plane_site(
     Parameters:
         plane: The plane.
         detector_grid: The body projected onto the drawn detector grid.
-        cos_tilt: The cosine of the body's tilt.
 
     Returns:
         The site and the count of plane pixels inside the body.
@@ -102,10 +102,10 @@ def crater_plane_site(
         """The squared normalized ellipse distance of plane pixels by row and column."""
         v = (rows + PIXEL_CENTER_TO_CORNER_PX) - center_v
         u = (cols + PIXEL_CENTER_TO_CORNER_PX) - center_u
-        v_rot = (v * detector_grid.cos_rz - u * detector_grid.sin_rz) * cos_tilt
+        v_rot = v * detector_grid.cos_rz - u * detector_grid.sin_rz
         u_rot = v * detector_grid.sin_rz + u * detector_grid.cos_rz
         return np.asarray(
-            (v_rot / detector_grid.semi_a) ** 2 + (u_rot / detector_grid.semi_b) ** 2,
+            (v_rot / detector_grid.semi_a_outline) ** 2 + (u_rot / detector_grid.semi_b) ** 2,
             dtype=np.float64,
         )
 
@@ -115,8 +115,8 @@ def crater_plane_site(
         return np.asarray(dist_sq(rows.astype(np.float64), cols.astype(np.float64)) < 1.0)
 
     # Along one row the squared distance is the quadratic a u**2 + b u + c in u.  With
-    # finite semi-axes and a computed cosine of the tilt, a is always positive.
-    p_sq = (cos_tilt / detector_grid.semi_a) ** 2
+    # finite semi-axes, a is always positive.
+    p_sq = (1.0 / detector_grid.semi_a_outline) ** 2
     q_sq = (1.0 / detector_grid.semi_b) ** 2
     cos_rz = detector_grid.cos_rz
     sin_rz = detector_grid.sin_rz
@@ -147,7 +147,7 @@ def _count_inside_by_rows(
     its roots give the columns where it lies below ``1 - delta`` and those where it
     lies below ``1 + delta``, with ``delta`` 1e-9.  The discriminant at level ``L``,
     ``b**2 - 4 a (c - L)``, equals ``4 a L - 4 p**2 q**2 v**2`` (with ``p`` and ``q``
-    the inverse semi-axes, the first scaled by the tilt's cosine, and ``v`` the row's
+    the inverse semi-axes of the outline, and ``v`` the row's
     offset from the center), and it is computed in that form, which keeps it accurate
     to the rounding of its terms however elongated the outline.  A row whose
     discriminant at ``1 + delta`` is not positive has no pixel inside.  The roots are
@@ -287,7 +287,9 @@ def body_box(
     delta_cap = 0.0 if field is None else max(abs(field.h_min), abs(field.h_max))
     # The reach is two detector pixels beyond the outline whatever the body's size;
     # a body smaller than a pixel still reaches the cells its silhouette touches.
-    reach = 1.0 + delta_cap + 2.0 / max(min(detector_grid.semi_a, detector_grid.semi_b), 1e-9)
+    reach = (
+        1.0 + delta_cap + 2.0 / max(min(detector_grid.semi_a_outline, detector_grid.semi_b), 1e-9)
+    )
     inside = detector_grid.ellipse_dist_sq < reach * reach
     rows = np.flatnonzero(inside.any(axis=1))
     cols = np.flatnonzero(inside.any(axis=0))
@@ -317,7 +319,7 @@ def limb_band(grid: EllipsoidProjection, field: ReliefField, *, width_px: float)
         included.
     """
     delta_cap = max(abs(field.h_min), abs(field.h_max))
-    margin = width_px / max(min(grid.semi_a, grid.semi_b), 1e-9)
+    margin = width_px / max(min(grid.semi_a_outline, grid.semi_b), 1e-9)
     low = max(0.0, 1.0 - delta_cap - margin)
     high = 1.0 + delta_cap + margin
     band = grid.ellipse_dist_sq < high * high
@@ -377,6 +379,27 @@ def expand_to_working_grid(cells: NDArrayBoolType, up_factor: int) -> NDArrayBoo
     return np.repeat(np.repeat(cells, up_factor, axis=0), up_factor, axis=1)
 
 
+def _relief_view(grid: EllipsoidProjection) -> tuple[float, float]:
+    """The direction toward the observer in the relief field's frame.
+
+    The field lives on the unit sphere the body's surface coordinates lie on, its
+    pole along semi-axis c.  The line of sight, turned into that space by the
+    semi-axes, leans toward the pole along semi-axis a by the sub-observer latitude.
+
+    Parameters:
+        grid: The body's projection.
+
+    Returns:
+        The direction's components along semi-axis a and semi-axis c.
+    """
+    if grid.sin_lat == 0.0:
+        return 0.0, 1.0
+    view_x = grid.sin_lat / grid.semi_a
+    view_z = grid.cos_lat / grid.semi_c
+    norm = math.hypot(view_x, view_z)
+    return view_x / norm, view_z / norm
+
+
 def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDArrayFloatType:
     """The body's silhouette on the working grid, relief-perturbed when on.
 
@@ -419,7 +442,7 @@ def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDA
             e_band = np.sqrt(grid.ellipse_dist_sq[band])
             # Body-attached azimuth: the rotated-frame elliptical parametric
             # angle (identical to the image azimuth for a circular disc).
-            phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a)
-            delta = field.outline_delta(phi)
+            phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a_outline)
+            delta = field.outline_delta(phi, view=_relief_view(grid))
             mask[band] = e_band < 1.0 + delta
     return mask.astype(np.float64)

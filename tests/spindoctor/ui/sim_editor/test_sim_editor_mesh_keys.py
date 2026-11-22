@@ -97,6 +97,7 @@ _FULL_ELLIPSOID: dict[str, Any] = {
     'crater_max_radius': 0.2,
     'crater_power_law_exponent': 2.5,
     'crater_relief_scale': 0.5,
+    'sub_observer_lat_deg': 20.0,
 }
 
 

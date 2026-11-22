@@ -31,16 +31,18 @@ offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
 # See titan_crescent_horns: the ring of light drags the blob centroid ~30 px,
-# the disc correlation is spurious, and the terminator feature is dropped by
-# the reliability gate (0.26 vs the 0.30 threshold, the sin(155 deg) phase cap
-# doing most of the capping), leaving the brightness centroid as the only
-# surviving technique.  The noiseless twin removes read/Poisson noise as a
-# confound and pins the systematic bias itself deterministically (recovered du
-# ~29.2 vs planted -0.8): the haze alone, not the noise, carries the answer
-# that far.  Because the disc correlation on the same body self-flagged
-# spurious, the lone-blob-in-collapsed-regime body-witness veto declines the
-# frame: the centroid's photometric bias is not reportable as a success.  The
-# deterministic twin asserts the decline is stable, not noise-dependent.
+# the terminator feature is dropped by the reliability gate (0.26 vs the 0.30
+# threshold, the sin(155 deg) phase cap doing most of the capping), and the
+# disc correlation, pulled by the ring of light its template leaves out
+# (#1050), answers (0.5, -6.5) without flagging it spurious.  The noiseless
+# twin removes read/Poisson noise as a confound and pins both biases
+# deterministically (the blob's du ~28.9 vs planted -0.8, and the disc
+# correlation's 5.74 px): the haze alone, not the noise, carries the answers
+# that far.  The disc correlation sets a low-tier success 5.743 px from the
+# planted offset on every seed, held to the band [5.692, 5.793] px (a margin
+# of 0.05 px each side).
 expected:
-  status: failed
-  status_reason: lone_blob_in_collapsed_regime
+  status: success
+  confidence_tier: low
+  known_offset_error_px: 5.7425
+  known_offset_error_tol_px: 0.0505

@@ -5,10 +5,18 @@ cache can serve the same body at any position.  The drawing is made on the
 *reference plane*, the frame's pixel grid extended without bound in every
 direction, and the box of that plane it is drawn on is the body's canvas
 (:func:`body_canvas`).  :func:`finish_single_body` then translates the drawing to
-the body's center by linear interpolation, paints its opaque disc into the frame,
-positions its translucent halo, and builds the body's inventory entry.  The
-ellipsoid path in :mod:`spindoctor.sim.render.bodies.render` and the mesh renderer
+the body's center by linear interpolation, composites the body over the frame, and
+builds the body's inventory entry.  The ellipsoid path in
+:mod:`spindoctor.sim.render.bodies.render` and the mesh renderer
 (:mod:`spindoctor.sim.render.bodies.mesh`) both place their bodies here.
+
+A body is composited by how much of each pixel it covers.  A renderer draws the
+body's light already weighted by that coverage, so a pixel the outline covers by a
+fraction ``c`` holds ``c`` times the light of the part it covers.  The frame pixel
+becomes that light plus ``1 - c`` times whatever lay behind it: a farther body, the
+ring system, the body's own haze glow, or the empty sky.  The translation moves the
+weighted light and the coverage by the same interpolation, so the two stay
+consistent at any sub-pixel position.
 
 A body that fits in the frame, with a pixel to spare, when drawn at the frame center
 is drawn on the frame itself.  A larger one, which a frame-sized drawing would cut
@@ -30,7 +38,9 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 __all__ = [
     'PARTIAL_DRAWINGS_KEPT',
     'BodyCanvas',
+    'BodyCoverage',
     'body_canvas',
+    'composite_halo',
     'finish_single_body',
     'finish_unseen_body',
 ]
@@ -40,6 +50,11 @@ __all__ = [
 # canvas by a fraction 0.27 per pixel, so 8 pixels hold their effect on the frame
 # below 3e-5 of the tilt.
 _CANVAS_MARGIN_DETECTOR_PX = 8
+
+# The uncovered fraction below which a pixel counts as wholly covered.  Linear
+# interpolation of a coverage of exactly 1 can return 1 less one unit in the last
+# place, which would let 1e-16 of the background through the middle of a body.
+_FULL_COVERAGE_TOLERANCE = 1e-12
 
 
 PARTIAL_DRAWINGS_KEPT = 1
@@ -51,6 +66,34 @@ every body twice for a scene that smears each layer apart, once for the composit
 once for the layers, so keeping one drawing serves a scene with one body this large.
 A scene with two such bodies, which few scenes have, draws each of them twice.
 """
+
+
+@dataclass(frozen=True)
+class BodyCoverage:
+    """How much of each frame pixel a placed body covers.
+
+    Parameters:
+        box_v: Frame rows outside which the body covers nothing.
+        box_u: Frame columns outside which the body covers nothing.
+        coverage: The box-sized fraction of each pixel the body's solid outline
+            covers, in [0, 1].
+    """
+
+    box_v: slice
+    box_u: slice
+    coverage: NDArrayFloatType
+
+    @property
+    def transmission(self) -> NDArrayFloatType:
+        """The box-sized fraction of each pixel the body leaves uncovered.
+
+        It is what shows through from behind the body: ``1 - coverage``, and exactly
+        0 where the uncovered fraction is below 1e-12.  Starlight and everything the
+        body passes in front of are scaled by it.
+        """
+        uncovered = 1.0 - self.coverage
+        uncovered[uncovered < _FULL_COVERAGE_TOLERANCE] = 0.0
+        return uncovered
 
 
 @dataclass(frozen=True)
@@ -218,6 +261,7 @@ def _union(first: slice, second: slice) -> slice:
 def finish_single_body(
     img: NDArrayFloatType,
     body_shape: NDArrayFloatType,
+    silhouette: NDArrayFloatType,
     *,
     body_name: str,
     center_v: float,
@@ -227,21 +271,25 @@ def finish_single_body(
     canvas: BodyCanvas,
     range_km: float | None,
     halo: HaloScreen | None = None,
-    silhouette: NDArrayFloatType | None = None,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
-    """Translate a body drawn on its canvas into place and composite it.
+    """Translate a body drawn on its canvas into place and composite it over the image.
 
-    Only the opaque body paints here (last writer wins); an atmospheric
-    body's translucent halo is translated alongside it and returned on the
-    info dict (key ``'halo'``) for the radiance stage to composite as a
-    transmission screen, so the returned mask and the painted pixels are the
-    solid silhouette only.  The mask is every pixel the silhouette touches,
-    so the body paints, occludes stars and farther bodies, and claims its
-    pixels in the truth maps there even where it renders black.
+    An atmospheric body's translucent halo goes over the image first, as a
+    transmission screen (:func:`composite_halo`).  The body then goes over that by
+    its coverage: each pixel becomes the body's coverage-weighted light plus the
+    uncovered fraction of what was there.  A pixel the body covers wholly takes the
+    body's light alone.
+
+    The returned mask is every pixel the outline touches, however little, so the
+    body claims its pixels in the truth maps there even where it renders black.  The
+    halo is never part of the mask.
 
     Parameters:
-        img: Image array to modify in-place.
-        body_shape: Body intensity drawn on the canvas at the reference center.
+        img: Image array to composite over in place.
+        body_shape: Body intensity drawn on the canvas at the reference center,
+            weighted by the coverage: 0 wherever the outline covers nothing.
+        silhouette: The fraction of each canvas pixel the body's solid outline
+            covers, in [0, 1].
         body_name: Upper-cased body name for the inventory keys.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
@@ -252,22 +300,29 @@ def finish_single_body(
             inventory.  None records 1.0.
         halo: The body's translucent halo screen on the canvas, or None for a
             body without an atmosphere.
-        silhouette: The body's solid-outline pixel coverage on the canvas, or
-            None when every pixel inside the body renders above zero, so
-            ``body_shape > 0`` is the outline.
 
     Returns:
-        Tuple of (body_mask, body_info_dict) where body_info_dict contains
-        the name and the inventory item (plus the positioned halo screen under
-        ``'halo'`` when the body carries one).
+        Tuple of (body_mask, body_info_dict).  The info holds the name, the
+        inventory item, the body's :class:`BodyCoverage` on the frame under
+        ``'coverage'``, and, for a body that carries one, the positioned halo screen
+        under ``'halo'``.
     """
     dv = center_v - canvas.ref_center_v
     du = center_u - canvas.ref_center_u
-    positioned_body, positioned_outline = _position_body(
+    positioned_body, positioned_outline, box = _position_body(
         body_shape, silhouette, canvas, img.shape, dv=dv, du=du
     )
     mask = positioned_outline > 0
-    img[mask] = positioned_body[mask]
+    coverage = BodyCoverage(
+        box_v=box[0], box_u=box[1], coverage=np.clip(positioned_outline[box], 0.0, 1.0)
+    )
+    positioned_halo = (
+        None if halo is None else _position_halo(halo, canvas, img.shape, dv=dv, du=du)
+    )
+    if positioned_halo is not None:
+        composite_halo(img, positioned_halo)
+    view = img[box]
+    view[...] = positioned_body[box] + coverage.transmission * view
 
     body_info: dict[str, Any] = {
         'name': body_name,
@@ -278,10 +333,27 @@ def finish_single_body(
             half_extent_u=half_extent_u,
             range_km=range_km,
         ),
+        'coverage': coverage,
     }
-    if halo is not None:
-        body_info['halo'] = _position_halo(halo, mask, canvas, dv=dv, du=du)
+    if positioned_halo is not None:
+        body_info['halo'] = positioned_halo
     return mask, body_info
+
+
+def composite_halo(img: NDArrayFloatType, halo: HaloScreen) -> None:
+    """Composite a halo screen over the image in place.
+
+    Each pixel the screen differs from identity becomes the screen's emission plus
+    its transmission times what was there.
+
+    Parameters:
+        img: Image array to composite over in place.
+        halo: The halo screen, on the image's grid.
+    """
+    view = img[halo.box_v, halo.box_u]
+    emission = halo.emission[halo.box_v, halo.box_u]
+    transmission = halo.transmission[halo.box_v, halo.box_u]
+    view[halo.mask] = emission[halo.mask] + transmission[halo.mask] * view[halo.mask]
 
 
 def finish_unseen_body(
@@ -307,7 +379,7 @@ def finish_unseen_body(
 
     Returns:
         An all-False mask and the body info, as :func:`finish_single_body` returns
-        them for a body that paints no pixel.
+        them for a body that covers no pixel.
     """
     mask = np.zeros(frame_shape, dtype=np.bool_)
     body_info: dict[str, Any] = {
@@ -319,54 +391,57 @@ def finish_unseen_body(
             half_extent_u=half_extent_u,
             range_km=range_km,
         ),
+        'coverage': BodyCoverage(
+            box_v=slice(0, 0), box_u=slice(0, 0), coverage=np.zeros((0, 0), dtype=np.float64)
+        ),
     }
     return mask, body_info
 
 
 def _position_body(
     body_shape: NDArrayFloatType,
-    silhouette: NDArrayFloatType | None,
+    silhouette: NDArrayFloatType,
     canvas: BodyCanvas,
     frame_shape: tuple[int, int],
     *,
     dv: float,
     du: float,
-) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+) -> tuple[NDArrayFloatType, NDArrayFloatType, tuple[slice, slice]]:
     """Translate a body's intensity and its outline from its canvas by ``(dv, du)``.
 
     Parameters:
         body_shape: Body intensity drawn on the canvas at the reference center.
-        silhouette: The body's solid-outline coverage on the canvas, or None when
-            ``body_shape > 0`` is the outline.
+        silhouette: The body's solid-outline coverage on the canvas.
         canvas: The canvas the body was drawn on.
         frame_shape: The frame's rows and columns.
         dv: The translation along v, in pixels.
         du: The translation along u, in pixels.
 
     Returns:
-        The translated intensity and the translated outline on the frame.  For a
-        body drawn on the frame at a zero translation they are the input arrays
-        themselves, which the caller only reads.
+        The translated intensity and the translated outline on the frame, and the
+        frame box outside which both are 0.  For a body drawn on the frame at a zero
+        translation the two planes are the input arrays themselves, which the
+        caller only reads.
     """
+    lit_box = nonzero_box(body_shape, silhouette)
     # An exactly zero translation is the bitwise identity for the order-1
     # spline, so a body drawn on the frame at the reference center skips the
     # interpolation (the shape is only read, never written).
     if canvas.on_frame and dv == 0.0 and du == 0.0:
-        return body_shape, body_shape if silhouette is None else silhouette
+        return body_shape, silhouette, lit_box
     # Only the box the body covers is resampled; see the translate module.
-    lit_planes = (body_shape,) if silhouette is None else (body_shape, silhouette)
-    box_v, box_u = _on_reference_plane(nonzero_box(*lit_planes), canvas)
+    box_v, box_u = _on_reference_plane(lit_box, canvas)
     positioned_body = translate_box(
         body_shape, dv, du, box_v, box_u, shape=frame_shape, origin=canvas.origin
     )
-    positioned_outline = (
-        positioned_body
-        if silhouette is None
-        else translate_box(
-            silhouette, dv, du, box_v, box_u, shape=frame_shape, origin=canvas.origin
-        )
+    positioned_outline = translate_box(
+        silhouette, dv, du, box_v, box_u, shape=frame_shape, origin=canvas.origin
     )
-    return positioned_body, positioned_outline
+    frame_box = (
+        shifted_box(box_v, dv, frame_shape[0]),
+        shifted_box(box_u, du, frame_shape[1]),
+    )
+    return positioned_body, positioned_outline, frame_box
 
 
 def _on_reference_plane(box: tuple[slice, slice], canvas: BodyCanvas) -> tuple[slice, slice]:
@@ -388,14 +463,24 @@ def _on_reference_plane(box: tuple[slice, slice], canvas: BodyCanvas) -> tuple[s
 
 
 def _position_halo(
-    halo: HaloScreen, mask: NDArrayBoolType, canvas: BodyCanvas, *, dv: float, du: float
+    halo: HaloScreen,
+    canvas: BodyCanvas,
+    frame_shape: tuple[int, int],
+    *,
+    dv: float,
+    du: float,
 ) -> HaloScreen:
-    """Translate a body's halo screen by ``(dv, du)``, clear of the body's opaque paint.
+    """Translate a body's halo screen by ``(dv, du)``.
+
+    The screen reaches a pixel into the body's outline (see
+    :func:`~spindoctor.sim.render.bodies.atmosphere.apply_atmosphere`), so a pixel
+    the translation blends from the limb and the sky reads glow from both of them.
+    The body covers the screen where it lies over it.
 
     Parameters:
         halo: The halo screen on the canvas.
-        mask: The positioned body's opaque mask on the frame.
         canvas: The canvas the body was drawn on.
+        frame_shape: The frame's rows and columns.
         dv: The translation along v, in pixels.
         du: The translation along u, in pixels.
 
@@ -404,13 +489,11 @@ def _position_halo(
         a zero translation).
     """
     if canvas.on_frame and dv == 0.0 and du == 0.0:
-        # The screen already excludes every pixel the (unshifted) disc
-        # painted, so it is positioned as-is.
         return halo
-    size_v, size_u = mask.shape
+    size_v, size_u = frame_shape
     source_v, source_u = _on_reference_plane((halo.box_v, halo.box_u), canvas)
     emission = translate_box(
-        halo.emission, dv, du, source_v, source_u, shape=mask.shape, origin=canvas.origin
+        halo.emission, dv, du, source_v, source_u, shape=frame_shape, origin=canvas.origin
     )
     transmission = translate_box(
         halo.transmission,
@@ -419,19 +502,13 @@ def _position_halo(
         source_v,
         source_u,
         cval=1.0,
-        shape=mask.shape,
+        shape=frame_shape,
         origin=canvas.origin,
     )
     box_v = shifted_box(source_v, dv, size_v)
     box_u = shifted_box(source_u, du, size_u)
-    # The translation's linear interpolation bleeds the halo one pixel
-    # into the painted rim; a screen never overlaps its own opaque
-    # paint.  Outside the box the screen is identity already.
-    mask_box = mask[box_v, box_u]
     emission_view = emission[box_v, box_u]
-    emission_view[mask_box] = 0.0
     transmission_view = transmission[box_v, box_u]
-    transmission_view[mask_box] = 1.0
     halo_mask = (emission_view > 0.0) | (transmission_view < 1.0)
     return HaloScreen(
         emission=emission,

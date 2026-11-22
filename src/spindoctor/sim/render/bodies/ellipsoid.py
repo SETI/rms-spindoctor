@@ -89,6 +89,7 @@ from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
     ellipsoid_image_normals,
     project_ellipsoid,
+    surface_unit_coords,
 )
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.stable_math import stable_matmul3
@@ -130,7 +131,9 @@ class EllipsoidBodySpec:
         semi_b_px: Semi-axis b of the ellipsoid in pixels.
         semi_c_px: Semi-axis c of the ellipsoid (the depth axis) in pixels.
         rotation_z: In-plane rotation about the viewing axis, radians.
-        rotation_tilt: Tilt toward/away from the viewer, radians.
+        sub_observer_lat: The sub-observer latitude, radians: positive tips the
+            north pole, the end of semi-axis a on +v before ``rotation_z``, toward
+            the observer.
         illumination_angle: In-plane light direction, radians (0 = top).
         phase_angle: Phase angle in radians (0 fully lit, pi backlit).
         crater_fill: Approximate crater coverage fraction (0 = none).
@@ -170,7 +173,7 @@ class EllipsoidBodySpec:
     semi_c_px: float
     _: KW_ONLY
     rotation_z: float = 0.0
-    rotation_tilt: float = 0.0
+    sub_observer_lat: float = 0.0
     illumination_angle: float = 0.0
     phase_angle: float = 0.0
     crater_fill: float = 0.0
@@ -299,7 +302,7 @@ def render_ellipsoid_body(
         semi_b_px=spec.semi_b_px,
         semi_c_px=spec.semi_c_px,
         rotation_z=spec.rotation_z,
-        rotation_tilt=spec.rotation_tilt,
+        sub_observer_lat=spec.sub_observer_lat,
         anti_aliasing=spec.anti_aliasing if os_in == 1 else 0.0,
     )
     aa_scale = work_grid.aa_scale
@@ -316,7 +319,7 @@ def render_ellipsoid_body(
             semi_b_px=spec.semi_b_px / os_in,
             semi_c_px=spec.semi_c_px / os_in,
             rotation_z=spec.rotation_z,
-            rotation_tilt=spec.rotation_tilt,
+            sub_observer_lat=spec.sub_observer_lat,
         )
     craters = _crater_layout(detector_grid, spec, crater_plane)
     if up_factor > 1:
@@ -396,7 +399,7 @@ def _relief_normals(
     # Relief reaches only pixels inside its outline, plus the pixel an
     # interpolation reads beyond it; farther out the smooth limb normals carry
     # the continuity and the silhouette masks them.
-    reach = 1.0 + max(field.h_max, 0.0) + 2.0 / max(min(grid.semi_a, grid.semi_b), 1.0)
+    reach = 1.0 + max(field.h_max, 0.0) + 2.0 / max(min(grid.semi_a_outline, grid.semi_b), 1.0)
     near = grid.ellipse_dist_sq < reach * reach
     relief_v, relief_u, relief_z, shadowed = _relief_shading(grid, spec, field, near)
     normal_v[near] = relief_v
@@ -697,18 +700,18 @@ def _relief_shading(
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType, NDArrayBoolType]:
     """The relief surface's image-frame normals and cast shadows at the ``near`` pixels.
 
-    Each shading pixel reads the terrain at its smooth-surface direction
-    ``p`` in the body's parameter space (the smooth body is the unit sphere,
-    its poles on the observer axis; a pixel past the smooth limb reads the
-    limb direction).  The relief surface ``(1 + h) p`` has the parameter-space
-    normal ``p - grad h / (1 + h)``, carried to the body frame by the
-    ellipsoid's inverse semi-axes and rotated into the image like the smooth
-    normals.  The sun direction goes to parameter space by the same affine
-    map, where :func:`~spindoctor.sim.render.bodies.relief.cast_shadows` marches the
-    pixels whose sun elevation lies within the field's slope band; a pixel
-    below the band always lies in shadow.  A normal that faces away from the
-    observer is mirrored through the sky plane, so every returned
-    ``normal_z`` is at least 0.
+    Each shading pixel reads the terrain at its smooth-surface direction ``p`` in the
+    body's parameter space (the smooth body is the unit sphere the shared projection's
+    surface coordinates lie on; a pixel past the smooth limb reads the limb direction).
+    The relief surface ``(1 + h) p`` has the parameter-space normal
+    ``p - grad h / (1 + h)``, carried to the body frame by the ellipsoid's inverse
+    semi-axes, tipped by the sub-observer latitude, and rotated into the image like the
+    smooth normals. The sun
+    direction goes to parameter space by the same affine map, where
+    :func:`~spindoctor.sim.render.bodies.relief.cast_shadows` marches the pixels whose sun
+    elevation lies within the field's slope band; a pixel below the band always lies in
+    shadow. A normal that faces away from the observer is mirrored through the sky plane,
+    so every returned ``normal_z`` is at least 0.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -723,23 +726,27 @@ def _relief_shading(
     semi = np.array([grid.semi_a, grid.semi_b, grid.semi_c], dtype=np.float64)
     cos_rz = grid.cos_rz
     sin_rz = grid.sin_rz
+    geometry = grid.geometry
     e2 = grid.ellipse_dist_sq[near]
-    x = grid.v_rot[near] / grid.semi_a
-    y = grid.u_rot[near] / grid.semi_b
-    radial = np.sqrt(np.maximum(e2, 1.0))
-    p = np.stack([x / radial, y / radial, np.sqrt(np.maximum(0.0, 1.0 - e2))], axis=-1)
+    p = np.stack(
+        surface_unit_coords(grid.v_rot[near], grid.u_rot[near], e2, geometry=geometry),
+        axis=-1,
+    )
     h = field.sample_points(p)
     normal_param = p - field.surface_gradient(p) / (1.0 + h)[..., np.newaxis]
     normal_body = normal_param / semi
     normal_body /= np.linalg.norm(normal_body, axis=-1, keepdims=True)
-    normal_v = normal_body[..., 0] * cos_rz + normal_body[..., 1] * sin_rz
-    normal_u = -normal_body[..., 0] * sin_rz + normal_body[..., 1] * cos_rz
+    normal_first, normal_second, normal_toward = geometry.to_view(
+        normal_body[..., 0], normal_body[..., 1], normal_body[..., 2]
+    )
+    normal_v = normal_first * cos_rz + normal_second * sin_rz
+    normal_u = -normal_first * sin_rz + normal_second * cos_rz
     # Near the limb a pixel's smooth-surface direction can land on a slope tilted
     # away from the observer, which the line of sight can't see: it meets the near
     # side of the relief first.  Mirroring the normal through the sky plane stands
     # in for that slope, as steep but facing the observer, so the law never shades
     # a back-facing facet as lit.
-    normal_z = np.abs(normal_body[..., 2])
+    normal_z = np.abs(normal_toward)
 
     # The sun in the body frame (the inverse of the normals' in-plane
     # rotation), then in parameter space, where directions scale by 1 / semi.
@@ -747,11 +754,11 @@ def _relief_shading(
         illumination_angle=spec.illumination_angle, phase_angle=spec.phase_angle
     )
     sun_body = np.array(
-        [
+        geometry.to_body(
             illum_v * cos_rz - illum_u * sin_rz,
             illum_v * sin_rz + illum_u * cos_rz,
             illum_z,
-        ]
+        )
     )
     sun = sun_body / semi
     sun /= float(np.linalg.norm(sun))
@@ -788,9 +795,7 @@ def _texture_factor(
     """
     if spec.albedo_texture is None and spec.disc_texture is None:
         return None
-    x = grid.v_rot / grid.semi_a
-    y = grid.u_rot / grid.semi_b
-    z = np.sqrt(np.maximum(0.0, 1.0 - grid.ellipse_dist_sq))
+    x, y, z = grid.surface_unit_coords()
     return surface_texture_factor(
         spec.albedo_texture,
         spec.disc_texture,
@@ -913,15 +918,13 @@ def _crater_layout(
             semi_b_px=grid.semi_b,
             semi_c_px=grid.semi_c,
             rotation_z=spec.rotation_z + spec.crater_turn,
-            rotation_tilt=spec.rotation_tilt,
+            sub_observer_lat=spec.sub_observer_lat,
         )
         plane = plane or CraterPlane(shape=(rows, cols), origin=(0, 0))
     if plane is None:
         total_area = int(np.sum(grid.ellipse_dist_sq < 1.0))
     else:
-        site, total_area = crater_plane_site(
-            plane, draw_grid, cos_tilt=float(np.cos(spec.rotation_tilt))
-        )
+        site, total_area = crater_plane_site(plane, draw_grid)
     avg_crater_area = (spec.crater_max_radius * grid.semi_a) ** 2
     count = int(np.clip(int(spec.crater_fill * total_area / avg_crater_area), 0, 1000))
     return _CraterLayout(site=site, count=count)
