@@ -46,7 +46,6 @@ __all__ = [
     'apply_stray_light',
     'effective_psf',
     'instrument_defaults_on',
-    'psf_active',
 ]
 
 
@@ -88,23 +87,6 @@ def effective_psf(params: Mapping[str, Any]) -> dict[str, Any] | None:
             # The catalog kernel is native; a binned frame's pixels are larger.
             return binned_psf_kernel(kernel, scene_binning(params))
     return None
-
-
-def psf_active(params: Mapping[str, Any]) -> bool:
-    """Whether the optics stage blurs the scene with a PSF.
-
-    This is :func:`effective_psf`'s answer, so the render's oversampling choice and
-    the optics stage agree on it.  A scene that turns on ``instrument_defaults`` has
-    a PSF only when its camera's catalog entry states a kernel; the generic camera
-    states none.
-
-    Parameters:
-        params: The full scene mapping.
-
-    Returns:
-        True when :func:`effective_psf` resolves a kernel.
-    """
-    return effective_psf(params) is not None
 
 
 def _effective_distortion(params: Mapping[str, Any]) -> dict[str, Any] | None:

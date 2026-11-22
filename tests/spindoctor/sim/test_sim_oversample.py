@@ -89,7 +89,7 @@ def test_resolve_oversample_defaults_to_one_without_a_psf() -> None:
     assert resolve_oversample({'size_v': 8, 'size_u': 8}) == 1
 
 
-def test_resolve_oversample_is_four_when_psf_active() -> None:
+def test_resolve_oversample_is_four_with_a_psf() -> None:
     """An explicit PSF block turns on 4x oversampling by default."""
     scene = {'size_v': 8, 'size_u': 8, 'optics': {'psf': {'sigma_v': 0.6, 'sigma_u': 0.6}}}
     assert resolve_oversample(scene) == 4

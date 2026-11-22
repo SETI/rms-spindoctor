@@ -647,8 +647,7 @@ error to the one effect it varies.
   generic scene with ``instrument_defaults`` renders at oversample 1. The optics
   stage gets its kernel from
   :func:`~spindoctor.sim.render.optics.stage.effective_psf`, and the oversampling
-  choice asks the same function through
-  :func:`~spindoctor.sim.render.optics.stage.psf_active`, so the two always agree.
+  choice asks the same function, so the two always agree.
 - ``truth`` -- renderer output metadata (rendered star records, body masks,
   inventory, z-order maps). None of it crosses the information boundary.
 
