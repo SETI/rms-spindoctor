@@ -12,6 +12,7 @@ renderer treats specially: the silhouette, the band along the limb, and the cell
 along the day-night edge.
 """
 
+import math
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -378,6 +379,27 @@ def expand_to_working_grid(cells: NDArrayBoolType, up_factor: int) -> NDArrayBoo
     return np.repeat(np.repeat(cells, up_factor, axis=0), up_factor, axis=1)
 
 
+def _relief_view(grid: EllipsoidProjection) -> tuple[float, float]:
+    """The direction toward the observer in the relief field's frame.
+
+    The field lives on the unit sphere the body's surface coordinates lie on, its
+    pole along semi-axis c.  The line of sight, turned into that space by the
+    semi-axes, leans toward the pole along semi-axis a by the sub-observer latitude.
+
+    Parameters:
+        grid: The body's projection.
+
+    Returns:
+        The direction's components along semi-axis a and semi-axis c.
+    """
+    if grid.sin_lat == 0.0:
+        return 0.0, 1.0
+    view_x = grid.sin_lat / grid.semi_a
+    view_z = grid.cos_lat / grid.semi_c
+    norm = math.hypot(view_x, view_z)
+    return view_x / norm, view_z / norm
+
+
 def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDArrayFloatType:
     """The body's silhouette on the working grid, relief-perturbed when on.
 
@@ -421,6 +443,6 @@ def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDA
             # Body-attached azimuth: the rotated-frame elliptical parametric
             # angle (identical to the image azimuth for a circular disc).
             phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a_outline)
-            delta = field.outline_delta(phi)
+            delta = field.outline_delta(phi, view=_relief_view(grid))
             mask[band] = e_band < 1.0 + delta
     return mask.astype(np.float64)
