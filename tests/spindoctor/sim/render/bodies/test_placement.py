@@ -18,7 +18,7 @@ from spindoctor.sim.render.bodies import mesh as body_mesh
 from spindoctor.sim.render.bodies import render as body_render
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, render_ellipsoid_body
 from spindoctor.sim.render.bodies.ellipsoid_grid import CraterPlane, crater_plane_site
-from spindoctor.sim.render.bodies.placement import body_canvas
+from spindoctor.sim.render.bodies.placement import BodyCoverage, body_canvas
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid
@@ -446,3 +446,15 @@ def test_partial_canvas_edges_lie_on_detector_pixels() -> None:
     )
     edges = [canvas.rows.start, canvas.rows.stop, canvas.cols.start, canvas.cols.stop]
     assert [edge % 4 for edge in edges] == [0, 0, 0, 0]
+
+
+def test_a_pixel_covered_to_the_last_bit_transmits_nothing() -> None:
+    """A coverage a rounding step short of 1 lets nothing through from behind.
+
+    Moving a wholly covered pixel by linear interpolation can leave its coverage one
+    unit in the last place below 1.
+    """
+    coverage = BodyCoverage(
+        box_v=slice(0, 1), box_u=slice(0, 2), coverage=np.array([[np.nextafter(1.0, 0.0), 0.25]])
+    )
+    assert coverage.transmission.tolist() == [[0.0, 0.75]]

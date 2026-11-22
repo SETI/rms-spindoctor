@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 import pytest
+from scipy import ndimage
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, ring_system_block
 
 from spindoctor.sim.render.driver import render_scene
@@ -56,13 +57,18 @@ def _scene(ring_range_km: float | None) -> dict[str, Any]:
 
 
 def test_ring_with_larger_range_km_renders_behind_the_body() -> None:
-    """A ring at range_km 2e6 sorts behind a body at 1e6: the body occludes it."""
+    """A ring at range_km 2e6 sorts behind a body at 1e6: the body occludes it.
+
+    The pixels compared are those whose eight neighbors also belong to the body, so
+    the outline covers them wholly; a limb pixel lets the ring through by the
+    fraction it leaves open.
+    """
     body_only = {k: v for k, v in _scene(2.0e6).items() if k != 'ring_system'}
-    body_img, body_meta = render_scene(body_only)
+    body_img, _body_meta = render_scene(body_only)
     behind_img, behind_meta = render_scene(_scene(2.0e6))
-    mask = behind_meta['body_masks'][0]
-    assert bool(mask.any())
-    assert np.array_equal(behind_img[mask], body_img[body_meta['body_masks'][0]])
+    covered = ndimage.binary_erosion(behind_meta['body_masks'][0], np.ones((3, 3), dtype=bool))
+    assert bool(covered.any())
+    assert np.array_equal(behind_img[covered], body_img[covered])
 
 
 def test_ring_with_smaller_range_km_renders_in_front_of_the_body() -> None:

@@ -400,6 +400,7 @@ def test_apply_atmosphere_does_not_mutate_input() -> None:
         rotation_tilt=0.0,
         illumination_angle=math.radians(90.0),
         phase_angle=math.radians(30.0),
+        silhouette=(body > 0.0).astype(np.float64),
     )
     assert np.array_equal(body, original)
 

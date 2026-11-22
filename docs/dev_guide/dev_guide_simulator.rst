@@ -116,8 +116,8 @@ relative to ``sim/render/``):
      - Composes the noise-free signal image: background stars, catalog stars,
        and the body/ring stack depth-sorted far to near.
    * - ``radiance/compositing.py``
-     - The radiance stage's translucent-screen machinery: orders the ring
-       system and body halos far to near for compositing and enforces the
+     - The radiance stage's ring-screen machinery: applies the ring system to
+       the pixels that go into the stack at each depth, and enforces the
        explicit-``range_km`` depth contract on every overlap.
    * - ``bodies/render.py`` / ``bodies/placement.py``
      - Sends each body to the renderer that draws it, chooses the canvas it is drawn
@@ -579,11 +579,12 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
    * - Scene radiance
      - :func:`~spindoctor.sim.render.radiance.compose.compose_scene_radiance`
      - Composes the noise-free signal: bodies depth-sorted far to near
-       (nearer bodies overwrite) into ``frame.signal``, with the ring
-       system composited over the stack as a per-pixel transmission
-       screen, and the star field (catalog stars plus the background sky)
-       into the point-source plane ``frame.point_e``, with the planted
-       offset and camera roll applied. Stars are flux-normalized point
+       into ``frame.signal``, each going over what lies behind it by how much
+       of each pixel it covers, with the ring system going into the stack
+       pixel by pixel at its own depth as a transmission screen, and the star
+       field (catalog stars plus the background sky) into the point-source
+       plane ``frame.point_e``, with the planted offset and camera roll
+       applied. Stars are flux-normalized point
        masses shaped only by the
        whole-scene PSF (see :ref:`sim-star-params`). Accumulates feature truth
        (star records, masks, inventory, z-order) into ``frame.truth``.
@@ -2587,7 +2588,10 @@ Mutual events
 A scene can place two bodies so the nearer one occludes part of the farther one
 (depth-ordered by ``range_km``; bodies at exactly equal ranges tie-break
 deterministically by scene-list position, the earlier-listed body rendering as
-the nearer). The renderer draws the true occlusion and
+the nearer). The renderer draws the true occlusion. Where the nearer body's limb
+covers a fraction ``c`` of a pixel, the pixel holds ``c`` of the nearer body's light
+and ``1 - c`` of whatever lies behind it, so the limb shows no dark outline against
+the farther body, a ring, or the sky. The renderer also
 records the outcome in the render truth (``body_occlusion``): each body's
 visible fraction and the angular extent of any hidden limb arc. This is
 bookkeeping the test can read, not something the navigator sees.
@@ -2628,7 +2632,9 @@ on-disc haze joins the body's opaque paint, while the above-limb glow is a
 translucent halo screen composited like the ring system's -- background,
 rings, and stars behind it show through scaled by ``exp(-tau)`` with the glow
 added, and the body's mask / depth / occlusion truth sees only the solid
-silhouette. Where limb relief dips inside the reference ellipse, the uncovered
+silhouette. The body then goes over its own halo by how much of each pixel its
+outline covers, so a limb pixel shows the disc in that fraction and the glow in
+the rest. Where limb relief dips inside the reference ellipse, the uncovered
 pixels are sky seen through the haze column and join the halo screen. The
 halo reaches out until its glow, and its dimming of a full-scale background,
 both fall below 1e-5 of full scale, under a twentieth of a 12-bit DN. So a
@@ -3838,7 +3844,8 @@ features nearly black. The system composites over the body stack as a
 per-pixel transmission screen (``img = I_ring + exp(-tau/mu) * img_behind``)
 ordered by observer distance: with the block-level ``range_km`` and
 ``km_per_pixel`` set, the near arm crosses in front of a body at the ring
-center's range and the far arm passes behind it, gaps reveal the background
+center's range and the far arm passes behind it, showing through a limb pixel
+in the fraction the limb leaves open, gaps reveal the background
 instead of erasing it, and stars behind the ring attenuate by
 ``exp(-tau/mu)`` (a scene whose system overlaps a body must range both).
 

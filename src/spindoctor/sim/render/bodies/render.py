@@ -112,10 +112,14 @@ def render_single_body(
     body_index: int = 0,
     oversample: int = 1,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
-    """Render a single body into the image.
+    """Render a single body and composite it over the image.
+
+    The body goes over what the image holds by how much of each pixel it covers,
+    after its haze halo if it has one (see
+    :func:`~spindoctor.sim.render.bodies.placement.finish_single_body`).
 
     Parameters:
-        img: Image array to modify in-place.
+        img: Image array to composite over in place.
         spec: The body, parsed by
             :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`.
             Its centers and axes must already be scaled to the render grid.  Its
@@ -141,8 +145,10 @@ def render_single_body(
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
-        the upper-cased name, the inventory item, and, for a mesh body whose
-        pose scatter drew a perturbation, ``pose_scatter_drawn_deg``.
+        the upper-cased name, the inventory item, the body's coverage on the frame
+        under ``'coverage'``, a haze body's positioned halo under ``'halo'``, and,
+        for a mesh body whose pose scatter drew a perturbation,
+        ``pose_scatter_drawn_deg``.
     """
     size_v, size_u = img.shape
     center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
@@ -273,6 +279,7 @@ def _render_single_ellipsoid_body(
     return finish_single_body(
         img,
         body_shape,
+        ellipsoid_render.silhouette,
         body_name=spec.name.upper(),
         center_v=center_v,
         center_u=center_u,
@@ -281,7 +288,6 @@ def _render_single_ellipsoid_body(
         canvas=canvas,
         range_km=spec.range_km,
         halo=halo,
-        silhouette=ellipsoid_render.silhouette,
     )
 
 
