@@ -225,6 +225,7 @@ one. This phase's exit asks for that check.
 | #1068 | **Done (PR #1107), with #875.** **Affects no current scene.** Fine limb relief (a correlation length under about 5 detector pixels) is interpolated from too coarse a grid, moving the light up to 0.023 px; the fix is shading it wholly on the working grid |
 | #1094 | **Affects no current scene.** A ring ramp under a density wave renders about 35 times slower than without it (69 s against 1.9 s for a 300 px ramp at 1,024 px and oversample 4), because every band pixel takes the 32-cell curved path |
 | #1057 | **Affects no current scene.** A Henyey-Greenstein asymmetry within rounding of 1 or -1 divides by zero in the ring renderer; cap it in the ring and haze rules |
+| #1115 | **Affects no current scene.** The outline of a relief body seen at a latitude is rebuilt on every render (5.9 s at a 1-degree correlation length); cache it by view |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
