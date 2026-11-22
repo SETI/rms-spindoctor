@@ -142,9 +142,9 @@ Image data and units
 ====================
 
 **Units.** I/F. The GEOMED products are archived as scaled integers, and the
-loader converts them: the scaling factor is read from the ``LABEL3`` record of
-each image's own VICAR label and the data are multiplied by it and divided by
-10000.
+loader converts them. Each image's own VICAR label states its scaling factor, as
+``FOR (I/F)*10000., MULTIPLY DN VALUE BY`` followed by the factor, and the data
+are multiplied by that factor divided by 10000.
 
 **The Voyager 1 Saturn correction.** One further factor of **3.345** is applied
 to Voyager 1 frames whose target system is Saturn, and to no others. The
@@ -236,8 +236,8 @@ The two LIDs vary by spacecraft and camera, and are the one place the metadata
 distinguishes the two spacecraft. The instrument host LID is
 ``...:instrument_host:spacecraft.vg1`` or ``...:spacecraft.vg2``, and the
 instrument LID is ``...:instrument:vg1.issn``, ``vg1.issw``, ``vg2.issn``, or
-``vg2.issw``. Which spacecraft took a frame is read from the ``LAB02`` record
-of its own label, not from the volume it sits in.
+``vg2.issw``. Which spacecraft took a frame is read from the instrument host
+its own labels name, not from the volume it sits in.
 
 Corrected-pointing C-kernels
 ============================
