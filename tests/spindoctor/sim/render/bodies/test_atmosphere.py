@@ -30,6 +30,7 @@ from spindoctor.sim.render.bodies.atmosphere import (
     atmosphere_spec_from_params,
     tangent_optical_depth,
 )
+from spindoctor.sim.render.bodies.haze import HazeStructure
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
@@ -812,11 +813,13 @@ def test_on_disc_haze_adds_light_past_one() -> None:
     assert float(layers.disc.max()) > 1.0
 
 
-def _forward_scattering_layers(outline: NDArrayFloatType) -> Any:
+def _forward_scattering_layers(
+    outline: NDArrayFloatType, *, structure: HazeStructure | None = None
+) -> Any:
     """The haze layers of a bright sphere at 155 deg phase in a forward-scattering haze."""
     return apply_atmosphere(
         0.99 * outline,
-        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.75),
+        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.75, structure=structure),
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a=_RADIUS,
@@ -851,3 +854,37 @@ def test_haze_over_the_outline_rim_adds_light_past_one() -> None:
     offsets = np.arange(_SIZE, dtype=np.float64) + (PIXEL_CENTER_TO_CORNER_PX - _CENTER)
     past_limb = offsets[:, None] ** 2 + offsets[None, :] ** 2 >= _RADIUS * _RADIUS
     assert float(layers.disc[past_limb & (rim > 0.0)].max()) > 1.0
+
+
+@pytest.mark.parametrize('column', [_CENTER + _RADIUS - 2.0, _CENTER + _RADIUS + 1.0])
+def test_a_half_covered_pixel_takes_half_the_haze(column: float) -> None:
+    """Haze joins the disc by the pixel's coverage, inside the ellipse and past it.
+
+    Parameters:
+        column: The pixel's column, left of the limb or right of it.
+    """
+    pixel = (int(_CENTER), int(column))
+    whole = _sphere_outline()
+    whole[pixel] = 1.0
+    half = whole.copy()
+    half[pixel] = 0.5
+    covered = float(_forward_scattering_layers(whole).disc[pixel])
+    assert covered > 0.99
+    assert float(_forward_scattering_layers(half).disc[pixel]) == pytest.approx(
+        0.5 * covered, rel=1e-12
+    )
+
+
+def test_a_hemispheric_amplitude_scales_the_bright_halo_uncapped() -> None:
+    """Poleward of the blend band a halo already brighter than 1 grows by the amplitude."""
+    outline = _sphere_outline()
+    plain = _forward_scattering_layers(outline).halo.emission
+    scaled = _forward_scattering_layers(
+        outline, structure=HazeStructure(ns_asymmetry_amplitude=0.5)
+    ).halo.emission
+    poleward = np.zeros_like(plain)
+    first = int(_CENTER + 0.4 * _RADIUS)
+    poleward[first:] = plain[first:]
+    pixel = np.unravel_index(int(np.argmax(poleward)), plain.shape)
+    assert float(plain[pixel]) > 1.0
+    assert float(scaled[pixel]) == pytest.approx(1.5 * float(plain[pixel]), rel=1e-12)

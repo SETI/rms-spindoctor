@@ -904,3 +904,20 @@ def test_a_cloud_brightens_the_disc_past_one() -> None:
         illum_u=1.0,
     )
     assert float(out_box[10, 10]) == pytest.approx(1.4, abs=1e-12)
+
+
+def test_a_cloud_brightens_a_half_covered_pixel_by_half() -> None:
+    """A cloud adds its amplitude times the pixel's coverage."""
+    out_box = np.full((21, 21), 0.45)
+    offsets = np.arange(21, dtype=np.float64) - 10.0
+    apply_disc_structure(
+        out_box,
+        HazeStructure(cloud_blobs=(CloudBlob(0.0, 0.0, 3.0, 0.5),)),
+        coverage=np.full((21, 21), 0.5),
+        v_ctr=offsets[:, np.newaxis],
+        u_ctr=offsets[np.newaxis, :],
+        r_mean=10.0,
+        illum_v=0.0,
+        illum_u=1.0,
+    )
+    assert float(out_box[10, 10]) == pytest.approx(0.7, abs=1e-12)
