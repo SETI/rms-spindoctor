@@ -821,7 +821,10 @@ def test_enum_param_rejects_bad_value() -> None:
         **_base_scene('coiss_nac'),
         'artifacts': {'alternating_lines': {'probability': 1.0, 'period': 3}},
     }
-    with pytest.raises(SimSceneValidationError, match='must be one of'):
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'artifacts\.alternating_lines\.period: 3 is not one of \[2, 4\]',
+    ):
         validate_sim_params(scene)
 
 

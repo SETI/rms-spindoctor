@@ -25,21 +25,21 @@ from tests.spindoctor.sim.fictional_camera import (
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.schema import SchemaError
 from spindoctor.sim.instruments import catalog as instrument_catalog
 from spindoctor.sim.instruments import navigator_link
 from spindoctor.sim.instruments.catalog import (
     GENERIC_INSTRUMENT,
     INSTRUMENT_CONFIG_DIR,
-    InstrumentConfigError,
     load_instrument_catalog,
     sim_instrument_names,
 )
-from spindoctor.sim.instruments.checks import _parametric_decoded_dn
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_data_units,
 )
+from spindoctor.sim.instruments.schema import DownlinkTable, parametric_decoded_dn
 from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt, LUTTabulated
 from spindoctor.sim.render.driver import render_scene
@@ -179,7 +179,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': _cam(_with('  1: {}', '  1: {}\n  0: {}'))},
-        r'cam\.yaml: cam: readout_modes\.0: expected a positive integer, got 0',
+        r'cam\.yaml: cam: readout_modes\.0: expected a positive integer as the key, got 0',
         'binning-below-one',
     ),
     (
@@ -199,19 +199,20 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': _cam(_with('read_noise_e: 3.0', 'read_noise_e: null'))},
-        r'cam\.yaml: cam: detector\.read_noise_e: null removes an inherited key, and this entry '
-        r'sets no base',
+        r'cam\.yaml: cam: detector\.read_noise_e: null removes the value an earlier layer sets, '
+        r'and no earlier layer sets this key',
         'null-without-a-base',
     ),
     (
         {'cam.yaml': _cam('base: generic\ndistortion_residual: null\n')},
-        r'cam\.yaml: cam: distortion_residual: null removes an inherited key, and the base has no '
-        r'such key',
+        r'cam\.yaml: cam: distortion_residual: null removes the value an earlier layer sets, and '
+        r'no earlier layer sets this key',
         'null-for-a-key-the-base-lacks',
     ),
     (
         {'cam.yaml': _cam('base: coiss_nac\nsky_pixel_scale_arcsec: null\n')},
-        r"cam\.yaml: cam: missing required keys: \['sky_pixel_scale_arcsec'\]",
+        r'cam\.yaml: cam, coiss\.yaml: coiss_nac: missing required keys: '
+        r"\['sky_pixel_scale_arcsec'\]",
         'null-removing-a-required-key',
     ),
     (
@@ -220,7 +221,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 _CAMERA + '  shape_defaults:\n    missing_lines: {expected_events: 5.0}\n'
             )
         },
-        r"shape_defaults\.missing_lines\.expected_events: 'expected_events' turns the mode on",
+        r"shape_defaults\.missing_lines: 'expected_events' turns the mode on",
         'activation-key-in-shape-defaults',
     ),
     (
@@ -240,7 +241,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 + '  shape_defaults:\n    edited_frame: {band_width_px: 0}\n'
             )
         },
-        r'shape_defaults\.edited_frame\.band_width_px: expected a positive_int value, got int 0',
+        r'shape_defaults\.edited_frame\.band_width_px: expected a positive integer, got 0',
         'shape-default-out-of-range',
     ),
     (
@@ -256,8 +257,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': _cam(_CAMERA + '  shape_defaults:\n    bloom: {bloom_length: 2}\n')},
-        r"cam\.yaml: cam: artifact_modes\.shape_defaults\.bloom: 'bloom' is not in "
-        r'artifact_modes\.offered',
+        r"cam\.yaml: cam: artifact_modes: shape_defaults sets 'bloom', which is not in "
+        r'offered',
         'mode-not-offered',
     ),
     (
@@ -266,7 +267,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 _CAMERA + 'filters:\n  throughput_e_per_s_per_if: {CLR: 1.0}\n  clear: CL1\n'
             )
         },
-        r"cam\.yaml: cam: filters\.clear: 'CL1' is not in throughput_e_per_s_per_if",
+        r"cam\.yaml: cam: filters: the clear filter 'CL1' is not in throughput_e_per_s_per_if",
         'filter-not-cataloged',
     ),
     (
@@ -297,8 +298,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 + '  clear: CL1+GRN\n  polarizer_clear: {P0: CL1}\n'
             )
         },
-        r"filters\.throughput_e_per_s_per_if\.P0\+GRN: the polarizer 'P0' folds onto 'CL1', "
-        r"so a scene that sets 'P0\+GRN' reads 'CL1\+GRN'",
+        r"cam\.yaml: cam: filters: the throughput key 'P0\+GRN' holds the polarizer 'P0', "
+        r"which folds onto 'CL1', so a scene that sets 'P0\+GRN' reads 'CL1\+GRN'",
         'filter-keyed-by-a-polarizer',
     ),
     (
@@ -308,14 +309,13 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 + '  clear: CLEAR\n'
             )
         },
-        r'cam\.yaml: cam: filters: a filter sets the CCD signal scale; the vidicon DN chain has no '
-        r'reference exposure',
+        r'cam\.yaml: cam, vgiss\.yaml: vgiss: filters: a filter sets the CCD signal scale; the '
+        r'vidicon DN chain has no reference exposure',
         'filters-on-a-vidicon',
     ),
     (
         {'cam.yaml': _cam(_with('default_gain_state: 0', 'default_gain_state: 3'))},
-        r'cam\.yaml: cam: detector\.default_gain_state: state 3 is not in '
-        r'gain_e_per_dn_by_state \[0\]',
+        r'cam\.yaml: cam: detector: default_gain_state 3 is not in gain_e_per_dn_by_state \[0\]',
         'gain-state-not-cataloged',
     ),
     (
@@ -330,18 +330,19 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 _with('  quantization: exact\n', '  quantization: exact\n' + _VIDICON_BLOCK)
             )
         },
-        r'cam\.yaml: cam: detector\.vidicon: a ccd detector has no vidicon chain to configure',
+        r'cam\.yaml: cam: detector: a ccd detector has no vidicon chain to configure',
         'vidicon-chain-on-a-ccd',
     ),
     (
         {'cam.yaml': _cam(_with('  1: {}', '  1: {}\n  2: {detector_model: vidicon}'))},
-        r'readout_modes\.2\.detector_model: a readout mode bins the same detector',
+        r'cam\.yaml: cam: readout_modes\.2: a readout mode bins the same detector, so it cannot '
+        r'change detector\.detector_model',
         'readout-mode-changing-the-model',
     ),
     (
         {'cam.yaml': _cam(_with('  1: {}', '  1: {}\n  2: {dark_sky_ceiling_if: 2.5e-3}'))},
-        r'readout_modes\.2\.dark_sky_ceiling_if: the realism comparison reads the dark-sky '
-        r'ceiling from the detector block',
+        r'cam\.yaml: cam: readout_modes\.2: the realism comparison reads the dark-sky ceiling '
+        r'from the detector block',
         'readout-mode-setting-the-dark-sky-ceiling',
     ),
     (
@@ -355,7 +356,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': _cam('base: vgiss\nreadout_modes: {2: {}}\n')},
-        r'cam\.yaml: cam: readout_modes\.2: the vidicon DN chain has no binned readout',
+        r'cam\.yaml: cam, vgiss\.yaml: vgiss: readout_modes\.2: the vidicon DN chain has no '
+        r'binned readout',
         'binned-vidicon',
     ),
     (
@@ -371,7 +373,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 + '    main: {decoded_dn: [0.0, 1.0]}\n'
             )
         },
-        r"downlink_tables\.default: 'other' is not one of the tables \['main'\]",
+        r"cam\.yaml: cam: downlink_tables: the default 'other' is not one of the tables "
+        r"\['main'\]",
         'downlink-default-not-listed',
     ),
     (
@@ -473,8 +476,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 + '    residual_image: {probability: 1.0}\n'
             )
         },
-        r"cam\.yaml: cam: artifact_modes\.instrument_defaults\.residual_image: 'residual_image' "
-        r'renders only in the vidicon detector chain',
+        r'cam\.yaml: cam, generic\.yaml: generic: artifact_modes\.instrument_defaults\.'
+        r"residual_image: 'residual_image' renders only in the vidicon detector chain",
         'default-mode-the-chain-never-applies',
     ),
     (
@@ -491,13 +494,13 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
                 + '  polarizer_clear: {P0: null}\n'
             )
         },
-        r'cam\.yaml: cam: filters\.polarizer_clear\.P0: null removes an inherited key, and the '
-        r'base has no such key',
+        r'cam\.yaml: cam: filters\.polarizer_clear\.P0: null removes the value an earlier layer '
+        r'sets, and no earlier layer sets this key',
         'null-under-a-key-the-base-lacks',
     ),
     (
         {'cam.yaml': _cam('base: nothing\n')},
-        r"cam\.yaml: cam: base: 'nothing' is not an instrument in the catalog",
+        r"cam\.yaml: cam: base: 'nothing' is not an entry",
         'unknown-base',
     ),
     (
@@ -505,7 +508,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
             'cam_a.yaml': keyed('cam_a', 'base: cam_b\n'),
             'cam_b.yaml': keyed('cam_b', 'base: cam_a\n'),
         },
-        r'cam_b\.yaml: cam_b: base: inheritance loops \(cam_a -> cam_b -> cam_a\)',
+        r'cam_a\.yaml: cam_a: base: inheritance loops \(cam_a -> cam_b -> cam_a\)',
         'cyclic-base',
     ),
     (
@@ -536,12 +539,12 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': '- x\n'},
-        r'cam\.yaml: the file must map instrument names to entries',
+        r"cam\.yaml: expected a mapping at the top level, got list \['x'\]",
         'file-not-a-mapping',
     ),
     (
         {'cam.yaml': '123:\n  base: generic\n'},
-        r'cam\.yaml: the instrument name 123 must be a string',
+        r'cam\.yaml: the entry name 123 must be a string',
         'instrument-name-not-a-string',
     ),
     (
@@ -568,7 +571,7 @@ def test_the_loader_refuses_a_bad_config(
     tmp_path: Path, files: dict[str, str], message: str
 ) -> None:
     """Each violation fails at load, with the file and the key path in the message."""
-    with pytest.raises(InstrumentConfigError, match=message):
+    with pytest.raises(SchemaError, match=message):
         load_instrument_catalog(config_dir=catalog_dir_with(tmp_path, files))
 
 
@@ -578,40 +581,59 @@ def test_a_null_removes_an_inherited_key(tmp_path: Path) -> None:
         tmp_path, {'cam.yaml': _cam('base: coiss_nac\nreadout_modes: {4: null}\n')}
     )
     entry = load_instrument_catalog(config_dir=directory).entry('cam')
-    assert sorted(entry['readout_modes']) == [1, 2]
+    assert sorted(entry.readout_modes) == [1, 2]
 
 
 def test_a_base_does_not_pass_on_its_realism_cohort(tmp_path: Path) -> None:
     """If an entry's base claims a realism cohort, the entry itself claims none."""
     directory = catalog_dir_with(tmp_path, {'cam.yaml': _cam('base: coiss_calib_nac\n')})
     entry = load_instrument_catalog(config_dir=directory).entry('cam')
-    assert 'realism_cohort' not in entry
+    assert entry.realism_cohort == []
 
 
-def _shipped_parametric_tables() -> list[dict[str, Any]]:
+def test_a_problem_two_entries_inherit_is_reported_once(tmp_path: Path) -> None:
+    """A bad value in a base is one line, though both entries that inherit it fail."""
+    files = {
+        'generic.yaml': _generic_without('    bias_dn: 20.0\n').replace(
+            '    quantization: exact\n', '    quantization: exact\n    bias_dn: -1.0\n'
+        ),
+        'cam.yaml': _cam('base: generic\n'),
+    }
+    line = 'generic.yaml: generic: detector.bias_dn: expected a non-negative number, got -1.0'
+    with pytest.raises(SchemaError) as caught:
+        load_instrument_catalog(config_dir=catalog_dir_with(tmp_path, files))
+    assert str(caught.value).splitlines() == [line]
+
+
+def _shipped_parametric_tables() -> list[DownlinkTable]:
     """Each distinct parametric downlink table in the packaged catalog."""
     catalog = load_instrument_catalog()
-    tables: list[dict[str, Any]] = []
+    tables: list[DownlinkTable] = []
     for name in sorted(catalog.entries):
-        for table in (
-            (catalog.entries[name].get('downlink_tables') or {}).get('tables', {}).values()
-        ):
-            if 'codes' in table and table not in tables:
-                tables.append(dict(table))
+        listed = catalog.entries[name].downlink_tables
+        for table in [] if listed is None else listed.tables.values():
+            if table.codes is not None and table not in tables:
+                tables.append(table)
     return tables
 
 
 # A table that keeps fractional DN, which no packaged table does.
-_FRACTIONAL_TABLE = {'codes': 4, 'linear_dn': 0.1, 'quadratic_dn': 0.0, 'whole_dn': False}
+_FRACTIONAL_TABLE = DownlinkTable(codes=4, linear_dn=0.1, quadratic_dn=0.0, whole_dn=False)
 
 
 @pytest.mark.parametrize('table', [*_shipped_parametric_tables(), _FRACTIONAL_TABLE])
 def test_the_load_check_decodes_a_parametric_table_as_the_renderer_does(
-    table: dict[str, Any],
+    table: DownlinkTable,
 ) -> None:
     """The load check's decoded levels are the levels the companding stage decodes to."""
-    checked = np.unique(_parametric_decoded_dn(table))
-    np.testing.assert_array_equal(checked, LUTSqrt(**table).levels())
+    checked = np.unique(parametric_decoded_dn(table))
+    curve = LUTSqrt(
+        codes=table.codes or 0,
+        linear_dn=table.linear_dn or 0.0,
+        quadratic_dn=table.quadratic_dn or 0.0,
+        whole_dn=bool(table.whole_dn),
+    )
+    np.testing.assert_array_equal(checked, curve.levels())
 
 
 @pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])
@@ -636,10 +658,10 @@ def test_an_inherited_detector_under_another_section_is_caught(
 @pytest.mark.parametrize('instrument', [*sim_instrument_names(), GENERIC_INSTRUMENT])
 def test_each_entry_states_the_units_its_navigator_block_reads(instrument: str) -> None:
     """Each entry's units are the units its navigator block sets."""
-    navigator = load_instrument_catalog().entry(instrument)['navigator']
-    block = DEFAULT_CONFIG.category(navigator['section'])
-    if 'detector' in navigator:
-        block = block[navigator['detector']]
+    navigator = load_instrument_catalog().entry(instrument).navigator
+    block = DEFAULT_CONFIG.category(navigator.section)
+    if navigator.detector is not None:
+        block = block[navigator.detector]
     assert resolve_data_units(instrument) == block['data_units']
 
 
@@ -659,7 +681,7 @@ def test_units_that_differ_from_the_navigator_block_fail(calibrated_cam_on_raw_b
         r'cam\.yaml: cam: data_units: the entry renders calibrated_if frames, but its '
         r'navigator block sim reads frames as raw_dn; the units must match$'
     )
-    with pytest.raises(InstrumentConfigError, match=message):
+    with pytest.raises(SchemaError, match=message):
         resolve_sim_inst_config(DEFAULT_CONFIG, calibrated_cam_on_raw_block)
 
 
@@ -679,7 +701,7 @@ def test_a_navigator_block_without_units_fails(
         r"cam\.yaml: cam: data_units: the navigator block sim doesn't set data_units, which "
         r'the navigator requires'
     )
-    with pytest.raises(InstrumentConfigError, match=message):
+    with pytest.raises(SchemaError, match=message):
         resolve_sim_inst_config(DEFAULT_CONFIG, 'cam')
 
 

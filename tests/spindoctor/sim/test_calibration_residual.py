@@ -133,8 +133,8 @@ def test_an_instrument_defaults_calibrated_sky_is_continuous() -> None:
 def test_each_calibrated_camera_catalogs_both_terms(instrument: str) -> None:
     """Both calibrated Cassini products carry a measured, positive residual."""
     entry = resolve_detector_defaults_native(instrument)
-    assert entry['calibration_column_residual_e'] > 0.0
-    assert entry['calibration_pixel_residual_e'] > 0.0
+    assert (entry.calibration_column_residual_e or 0.0) > 0.0
+    assert (entry.calibration_pixel_residual_e or 0.0) > 0.0
 
 
 def test_a_raw_product_ignores_the_residual() -> None:

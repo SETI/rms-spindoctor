@@ -521,10 +521,10 @@ def test_null_detector_keys_show_the_detector_defaults(model: Any) -> None:
         model._detector_quantization_combo.currentText(),
     )
     assert shown == (
-        detector_defaults.get('default_gain_state', 0),
-        detector_defaults['detector_model'],
-        detector_defaults.get('exposure_ref_sec', 1.0),
-        detector_defaults.get('quantization', 'exact'),
+        detector_defaults.default_gain_state,
+        detector_defaults.detector_model,
+        detector_defaults.exposure_ref_sec,
+        detector_defaults.quantization,
     )
 
 
