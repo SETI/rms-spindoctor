@@ -107,14 +107,17 @@ def test_a_star_just_outside_a_limb_loses_only_the_share_the_body_covers() -> No
     )
 
 
-def test_a_mesh_limb_pixel_shows_the_farther_body() -> None:
-    """A mesh body's limb pixel lets the far body through the part it leaves open."""
+def test_a_mesh_limb_pixel_shows_half_of_the_farther_body() -> None:
+    """A mesh body's limb pixel lets the far body through the half it leaves open.
+
+    The unlumpy mesh's outline covers eight of the limb pixel's sixteen supersamples.
+    """
     mesh = _near_body(shape_model='polyhedral_mesh', mesh_lumpiness=0.0)
     near = _compose(bodies=[mesh]).signal
+    far = _compose(bodies=[_far_body()]).signal
     stacked = _compose(bodies=[mesh, _far_body()]).signal
-    assert (
-        stacked[_LIMB_PIXEL]
-        > near[_LIMB_PIXEL] + 0.25 * _compose(bodies=[_far_body()]).signal[_LIMB_PIXEL]
+    assert stacked[_LIMB_PIXEL] == pytest.approx(
+        near[_LIMB_PIXEL] + _HALF * far[_LIMB_PIXEL], abs=1e-12
     )
 
 

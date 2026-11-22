@@ -16,9 +16,10 @@ from tests.spindoctor.sim.scenes import disc_body
 
 from spindoctor.sim.render.bodies import mesh as body_mesh
 from spindoctor.sim.render.bodies import render as body_render
+from spindoctor.sim.render.bodies.atmosphere import HaloScreen
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, render_ellipsoid_body
 from spindoctor.sim.render.bodies.ellipsoid_grid import CraterPlane, crater_plane_site
-from spindoctor.sim.render.bodies.placement import BodyCoverage, body_canvas
+from spindoctor.sim.render.bodies.placement import BodyCoverage, body_canvas, finish_single_body
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid
@@ -465,3 +466,40 @@ def test_a_pixel_covered_to_the_last_bit_transmits_nothing() -> None:
         box_v=slice(0, 1), box_u=slice(0, 2), coverage=np.array([[np.nextafter(1.0, 0.0), 0.25]])
     )
     assert coverage.transmission.tolist() == [[0.0, 0.75]]
+
+
+def test_a_body_covers_its_own_halo() -> None:
+    """Where a body covers a pixel wholly, its own halo screen beneath it does not show.
+
+    The halo screen glows over the whole canvas, inside the disc too; the disc goes
+    over it, so a covered pixel holds the disc's light alone and an open one the glow.
+    """
+    size = 32
+    rows, cols = np.mgrid[0:size, 0:size]
+    inside = ((rows + 0.5 - 16.0) ** 2 + (cols + 0.5 - 16.0) ** 2 < 8.0**2).astype(np.float64)
+    full = (slice(0, size), slice(0, size))
+    halo = HaloScreen(
+        emission=np.full((size, size), 0.3),
+        transmission=np.full((size, size), 0.5),
+        box_v=full[0],
+        box_u=full[1],
+        mask=np.ones((size, size), dtype=bool),
+    )
+    canvas = body_canvas(
+        (size, size), center_v=16.0, center_u=16.0, reach_v=9.0, reach_u=9.0, oversample=1
+    )
+    img = np.zeros((size, size))
+    finish_single_body(
+        img,
+        0.5 * inside,
+        inside,
+        body_name='B',
+        center_v=16.0,
+        center_u=16.0,
+        half_extent_v=8.0,
+        half_extent_u=8.0,
+        canvas=canvas,
+        range_km=None,
+        halo=halo,
+    )
+    assert float(img[16, 16]) == 0.5

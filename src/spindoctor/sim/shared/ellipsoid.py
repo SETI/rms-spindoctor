@@ -333,7 +333,9 @@ def surface_normals(
     cos_rz: float,
     sin_rz: float,
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """Unit surface normals in image coordinates at the points :func:`surface_unit_coords` gives.
+    """Unit surface normals in image coordinates at the surface points under the pixels.
+
+    The points are those :func:`surface_unit_coords` gives.
 
     The normal at body-frame point ``(a x, b y, c z)`` is ``(x / a, y / b, z / c)``,
     normalized.  It is turned into the rotated frame by the sub-observer latitude,

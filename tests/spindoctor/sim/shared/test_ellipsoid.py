@@ -69,7 +69,7 @@ def test_projection_measures_from_pixel_centers() -> None:
 
 
 def test_projection_rotates_a_pixel() -> None:
-    """The rotated frame turns by rotation_z; the sub-observer latitude leaves it alone."""
+    """The rotated frame turns by rotation_z and not by the sub-observer latitude."""
     projection = _hand_body(sub_observer_lat=_TILT)
     cos_rz, sin_rz = math.cos(_ROTATION_Z), math.sin(_ROTATION_Z)
     expected_v_rot = _V * cos_rz - _U * sin_rz
@@ -118,7 +118,7 @@ def test_an_oblate_bodys_outline_is_the_projection_of_the_turned_body() -> None:
 
 
 def test_the_disc_center_sees_the_sub_observer_latitude() -> None:
-    """On a turned sphere the point under the disc center lies at the sub-observer latitude."""
+    """A turned sphere's disc center shows the point at the sub-observer latitude."""
     latitude = math.radians(27.0)
     geometry = project_ellipsoid(
         (4, 4), (2.0, 2.0), 20.0, semi_b_px=20.0, semi_c_px=20.0, sub_observer_lat=latitude
@@ -148,7 +148,7 @@ def test_the_equator_curves_across_a_turned_disc() -> None:
 
 
 def test_the_surface_point_lies_under_its_pixel() -> None:
-    """Each on-disc point, turned back into the view, sits on its pixel's line of sight."""
+    """Each on-disc point, turned back into the view, lies on its pixel's sight line."""
     projection = _tilted_body()
     geometry = projection.geometry
     on_disc = projection.ellipse_dist_sq < 1.0
