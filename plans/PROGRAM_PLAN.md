@@ -15,16 +15,17 @@ is documented.
 
 ## How to read this plan
 
-- Each open issue has one row, in the order it should be worked. `Exit` marks an issue the phase's
+- Each open issue outside the simulator has one row, in the order it should be worked. `Exit` marks an issue the phase's
   exit condition needs. The other issues in a phase belong to its subject and can land later without
   holding the phase open.
 - A finished row stays in place and is marked **Done**, with its pull request.
 - Phases marked parallel can run beside the others. Otherwise a phase starts when its predecessors'
   exit conditions are met, except that any row that waits on nothing can start early.
 - The priority is the issue's own GitHub label.
-- The simulator's issues are in `plans/SIM_IMPROVEMENT_PLAN.md`, ordered the same way. 18 issues
-  have a row in both plans, because the simulator plan names them and the fix is navigator or
-  calibration work. They are marked below.
+- Simulator work is tracked separately, in `plans/SIM_IMPROVEMENT_PLAN.md`, and has no row here.
+  That covers changes to the simulator, its tests, and its report. 16 issues whose fix is
+  navigator or calibration work have a row in both plans, because the simulator plan also names
+  them. They are marked below.
 
 | Document | Role |
 |---|---|
@@ -53,8 +54,8 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 
 ## Issue count
 
-449 issues were open on 2026-11-22. 355 of them have a row here, and 94 only in the
-simulator plan. 10 finished issues are kept as rows.
+449 issues were open on 2026-11-22. 348 of them have a row here, and the other 101 are
+simulator work tracked separately. 5 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
 
@@ -77,10 +78,6 @@ The host session owns this phase.
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
-| #335 | 3 Important | yes | **Done (PR #834)** | Canonical environment for the simulator baselines |
-| #336 | 4 Useful | yes | **Done (PR #834)** | Simulator suites run in Actions |
-| #212 | 4 Useful |  | **Done (PR #834)** | Flaky simulator baseline under xdist |
-| #426 | 4 Useful | yes | **Done (PR #680)** | Stale committed simulator render |
 | #240 | 4 Useful |  | **Done (PR #833)** | Library coverage-matrix invariant |
 | #820 | 2 Essential | yes |  | Dataset unit tests download from the live archive |
 | #832 | 3 Important | yes |  | CI jobs hang for six hours or segfault in Qt tests |
@@ -131,7 +128,6 @@ The host session owns this phase.
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
 | #791 | 2 Essential | yes | PR #1053 open | Disc refinement stops at its half-pixel window |
-| #1052 | 4 Useful |  |  | Simulator report describes the old disc window (after #791; simulator session) |
 | #1044 | 3 Important | yes |  | Auto mode prefers a pass that found no peak |
 | #1048 | 3 Important | yes |  | Gradient correlation reads the sensor margin |
 | #1061 | 2 Essential | yes |  | Flag answers that stop at the refinement window edge |
@@ -222,11 +218,9 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
-| #283 | 4 Useful |  | **Done (PR #840)** | Pixel-center mismatch in the simulated disc's center |
 | #1110 | 2 Essential | yes |  | Lambert template biases body techniques (also in the simulator plan) |
 | #1099 | 3 Important | yes |  | Overlapping body templates leave a dark outline |
-| #1062 | 2 Essential | yes |  | Reproduce the shape-lock veto miss as a strict test (before #790; simulator session) |
-| #790 | 2 Essential | yes |  | Shape-lock veto misses confident wrong answers (also in the simulator plan) |
+| #790 | 2 Essential | yes |  | Shape-lock veto misses confident wrong answers (also in the simulator plan; after the simulator work in #1062) |
 | #321 | 2 Essential | yes | PR #789 open | Partial-arc limb fits biased inward by 2 px |
 | #747 | 3 Important | yes |  | Polarity check keys on an unreliable convergence flag |
 | #150 | 3 Important | yes |  | Limb fit's offset from the image edge |
@@ -293,7 +287,6 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #225 | 2 Essential | yes |  | Cross-technique agreement study (also in the simulator plan) |
 | #226 | 3 Important | yes |  | Reprojection-consistency check |
 | #759 | 3 Important |  |  | WAC difference from the F ring bundle |
-| #355 | 3 Important |  |  | Split the Voyager distortion per camera (also in the simulator plan) |
 | #561 | 3 Important |  |  | FOV twist cohorts |
 
 **Exit:** pairwise agreement statistics over real frames are published, with the confidently wrong families closed or their frames left out.
@@ -311,7 +304,6 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #233 | 3 Important |  |  | Star SNR from measured photometry |
 | #675 | 4 Useful |  |  | Two calibration recommendations from sidecar notes |
 | #380 | 4 Useful |  |  | Explicit cross-covariance for correlated witnesses |
-| #153 | Defer |  |  | Calibration bootstrap and validation (also in the simulator plan) |
 
 **Exit:** the confidence values are refitted on real agreement, the falsification criteria pass, and the provisional marker is gone.
 
@@ -553,7 +545,6 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #39 | 4 Useful |  |  | AttrDict missing attributes |
 | #21 | 4 Useful |  |  | Inventory in public metadata |
 | #99 | 4 Useful |  |  | Orphan report_profile.py |
-| #1057 | 5 Minor |  |  | Cap the Henyey-Greenstein asymmetry (simulator session) |
 | #105 | 5 Minor |  |  | Typed interop boundaries |
 | #147 | 5 Minor |  |  | Deduplicate confidence contexts |
 | #140 | 5 Minor |  |  | Geometry union access |
@@ -583,17 +574,15 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #187 | Defer |  |  | Hyperion pose |
 | #184 | Defer |  |  | Cartographic navigation |
 | #33 | Defer |  |  | LORRI instrument kernel |
-| #78 | Defer |  |  | CraterMaker craters |
-| #152 | Defer |  |  | Diffraction spikes |
 
 **Exit:** none; an item moves into a phase when its Defer priority is lifted.
 
 ## Dependencies at a glance
 
 - Phase 0 (released hosts) comes before the Cassini re-navigation that #949 needs.
-- #791 comes before #1052, #1061, #945, and the two disc pins of #483.
+- #791 comes before #1061, #945, and the two disc pins of #483.
 - Phase 2 (#1033) comes before Phases 4a, 4b, and 4c.
-- #1062 comes before #790. #128 carries #447.
+- The simulator's #1062 comes before #790. #128 carries #447.
 - Phases 3 to 5 come before Phase 8, and #558 waits for Phase 4b.
 - Phase 8 (#225) comes before Phase 9 (#230), and #334 comes before #230 and can start now.
 - #434 comes before #435, #561, #863, and any decision to fit rotation again.
