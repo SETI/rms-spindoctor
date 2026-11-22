@@ -62,18 +62,19 @@ classification is the top-level ``status_error`` and the evidence is
     cannot be navigated at all.
 
 ``image_read_error``
-    Any other load failure -- a truncated, corrupt, or absent file, a label that
+    The load raised any other ``OSError`` or ``RuntimeError``, or a subclass of
+    ``oops.host.HostError`` -- a truncated, corrupt, or absent file, a label that
     could not be retrieved, or a file whose labels lack a value the host needs,
-    such as the exposure. A host reports the last kind as a subclass of
-    ``oops.host.HostError``. The exception text is the reader's own message;
-    verify the holdings path in ``observation.image_path`` exists and is
-    readable.
+    such as the exposure. A host reports the last kind as a ``HostError``. The
+    exception text is the reader's own message; verify the holdings path in
+    ``observation.image_path`` exists and is readable.
 
 ``internal_error``
     Navigating the image raised an exception the orchestrator does not turn
-    into a result: in provenance or context construction, the
-    corrected-pointing computation, the summary PNG, or a defect anywhere
-    between. ``status_exception`` carries the exception type and message and
+    into a result: in the load itself, when the exception is of any other
+    class, such as a ``ValueError`` from a reader that refuses the product; in
+    provenance or context construction, the corrected-pointing computation, the
+    summary PNG, or a defect anywhere between. ``status_exception`` carries the exception type and message and
     ``status_traceback`` carries the traceback, which the per-image log
     repeats; the run goes on to the next image. A model or technique that raised is recorded instead as
     ``status_reason`` ``internal_error`` on a ``failed`` document, with the
