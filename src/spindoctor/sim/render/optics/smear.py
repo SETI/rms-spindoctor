@@ -20,6 +20,7 @@ on the un-blurred layers, so the downstream PSF and distortion form the image of
 the time-averaged radiance.
 """
 
+import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -91,26 +92,34 @@ def _kernel_radius(dv_px: float, du_px: float) -> int:
     return int(np.ceil(max(abs(dv_px), abs(du_px)) / 2.0)) + 1
 
 
-def smear_reach_px(smear: Sequence[Mapping[str, Any]], *, oversample: int) -> int:
+def smear_reach_px(
+    smear: Sequence[Mapping[str, Any]], *, oversample: int, roll_deg: float = 0.0
+) -> int:
     """How far the scene's smear spreads light, in render-grid pixels.
 
-    The reach is the widest kernel half-width among the whole-scene vector and the
-    vector each object class is smeared by.
+    A drift track runs half the drift to each side of the center, and the bilinear
+    sample at each end touches the pixels on either side of it, so light reaches
+    half the drift rounded up to a whole pixel.  The kernel array is a pixel wider on
+    each side, which holds no light.  The reach is the farthest among the
+    whole-scene vector and the vector each object class is smeared by, each turned
+    by the roll as :func:`apply_smear` turns it.
 
     Parameters:
         smear: The scene ``optics.smear`` list of per-class motion entries.
         oversample: The render-grid oversampling factor.
+        roll_deg: The planted camera roll in degrees, from ``+v`` toward ``+u``.
 
     Returns:
         The reach; 0 when nothing is smeared.
     """
-    (all_dv, all_du), per_class = _parse_smear(smear)
+    (all_dv, all_du), per_class = _turned_smear(smear, roll_deg)
     vectors = [(all_dv, all_du)] + [(all_dv + dv, all_du + du) for dv, du in per_class.values()]
     reach = 0
     for dv, du in vectors:
         # The same negligible-drift test smear_kernel applies.
         if float(stable_hypot(dv * oversample, du * oversample)) >= 1e-9:
-            reach = max(reach, _kernel_radius(dv * oversample, du * oversample))
+            half = max(abs(dv), abs(du)) * oversample / 2.0
+            reach = max(reach, math.ceil(half))
     return reach
 
 
@@ -131,6 +140,20 @@ def _parse_smear(
         else:
             pdv, pdu = per_class.get(object_class, (0.0, 0.0))
             per_class[object_class] = (pdv + dv, pdu + du)
+    return (all_dv, all_du), per_class
+
+
+def _turned_smear(
+    smear: Sequence[Mapping[str, Any]], roll_deg: float
+) -> tuple[tuple[float, float], dict[str, tuple[float, float]]]:
+    """The whole-scene and per-class smear vectors, turned by the planted roll."""
+    (all_dv, all_du), per_class = _parse_smear(smear)
+    if roll_deg != 0.0:
+        all_dv, all_du = turn_vector(all_dv, all_du, roll_deg=roll_deg)
+        per_class = {
+            object_class: turn_vector(dv, du, roll_deg=roll_deg)
+            for object_class, (dv, du) in per_class.items()
+        }
     return (all_dv, all_du), per_class
 
 
@@ -159,13 +182,7 @@ def apply_smear(
             detector pixels and scale to the render grid).
         roll_deg: The planted camera roll in degrees, from ``+v`` toward ``+u``.
     """
-    (all_dv, all_du), per_class = _parse_smear(smear)
-    if roll_deg != 0.0:
-        all_dv, all_du = turn_vector(all_dv, all_du, roll_deg=roll_deg)
-        per_class = {
-            object_class: turn_vector(dv, du, roll_deg=roll_deg)
-            for object_class, (dv, du) in per_class.items()
-        }
+    (all_dv, all_du), per_class = _turned_smear(smear, roll_deg)
 
     if not per_class:
         kernel = smear_kernel(all_dv * oversample, all_du * oversample)

@@ -1003,7 +1003,7 @@ its light into it.
 
 The margin is as wide as the four steps reach together
 (:func:`~spindoctor.sim.render.optics.stage.optics_margin_px`), rounded up to whole
-detector pixels: the PSF's ``truncation_px``, half the smear drift plus one pixel, each
+detector pixels: the PSF's ``truncation_px``, half the smear drift rounded up, each
 ghost's offset plus four sigmas of its defocus, and the distortion's largest
 displacement plus the two pixels its cubic spline reads. The spline also responds to
 the edge of the plane, past which it continues the plane as its mirror image rather
@@ -1013,7 +1013,11 @@ Cassini scene with ``instrument_defaults`` has a margin of 40 detector pixels: 3
 the PSF and 8 for the distortion. The margin costs time in proportion to the area it
 adds. The cold renders of the performance budget (see :ref:`sim-perf-budget`) take 7%
 to 16% longer at 1024 x 1024 and 15% to 31% longer at 512 x 512, and all stay within
-their budgets.
+their budgets. The margin is the same on every side, although a ghost brings light
+from one side only. A ghost displaced 300 pixels on a 1024 x 1024 Cassini frame
+widens the margin to 362 pixels: the frame renders in 10.4 s, against 5.8 s with no
+margin, and takes about 400 MB more memory. A smear of 150 pixels widens it to 115
+pixels, and the frame renders in 8.2 s against 6.7 s.
 
 Every source of light is drawn across the margin: bodies with their halos, the ring
 system, catalog stars, and the background sky. The sky stars of the margin draw from a
@@ -1026,7 +1030,10 @@ light is added to the frame alone, because no later step spreads it.
 
 The margin therefore changes none of the frame's radiance before the optics, apart
 from the share of a margin sky star that lands on an edge pixel. It changes only the
-light the optics carry across the frame edge. The truth metadata describes
+light the optics carry across the frame edge. That light includes the light of the
+sky stars in the margin. Each of those stars is the same whatever the margin's width,
+so widening the margin for a longer smear or a wider PSF adds only the light of the
+stars in the pixels it adds. The truth metadata describes
 the frame alone: the masks and the body index map are cut to the frame, and the depth
 checks that make overlapping bodies state a ``range_km`` look only at the frame, so
 whether a scene is valid does not depend on how far its optics reach.
@@ -3475,10 +3482,12 @@ The roll turns:
   ramp was scaled to, the ramp continues the same line, and where that line falls
   below zero it is clipped to zero, since light is never negative;
 - the ``sky_counts`` background field. The turned frame also shows sky beyond the
-  unrolled frame's corners, so stars at the same density are drawn there from their
-  own stream, and the rolled sky is the unrolled sky turned with the frame. A star is
-  drawn only when its position lies in the frame, rolled or not, so a roll too small
-  to carry a star across the frame edge draws the same stars as no roll.
+  unrolled frame's corners. The sky beyond the frame is drawn in fixed tiles at the
+  same density, each from its own stream, and the rolled sky is the unrolled sky
+  turned with the frame. A star is drawn when its turned position lies in the frame
+  or in the margin the optics stage reads (see :ref:`sim-frame-margin`), rolled or
+  not, so a roll too small to carry a star across the margin's outer edge draws the
+  same stars as no roll.
 
 :mod:`spindoctor.sim.render.roll` does the turning for bodies. Three body angles run
 against the roll, so the roll subtracts from them. ``rotation_z`` turns the grid an

@@ -343,7 +343,12 @@ def distortion_reach_px(
         when the block is disabled.
     """
     warp = _resolve_warp(
-        distortion, params, frame_shape=frame_shape, margin=margin, oversample=oversample
+        distortion,
+        params,
+        frame_shape=frame_shape,
+        margin=margin,
+        oversample=oversample,
+        with_field=False,
     )
     return 0 if warp is None else warp.reach + _EDGE_PREFILTER_PX
 
@@ -355,6 +360,7 @@ def _resolve_warp(
     frame_shape: tuple[int, int],
     margin: int,
     oversample: int,
+    with_field: bool = True,
 ) -> _Warp | None:
     """Resolve a distortion block into the warp over a plane with a margin.
 
@@ -369,6 +375,8 @@ def _resolve_warp(
         frame_shape: The frame's rows and columns on the render grid.
         margin: How many render-grid pixels the plane extends past the frame.
         oversample: The render-grid oversampling factor.
+        with_field: Whether to spread the non-radial field over the plane; without it
+            the warp carries only its reach, which is all the margin needs.
 
     Returns:
         The warp, or None when the block is absent or disabled.
@@ -409,8 +417,9 @@ def _resolve_warp(
         frame_field_v, frame_field_u = _nonradial_field(
             (size_v, size_u), nonradial_rms * oversample, seed
         )
-        field_v = np.pad(frame_field_v, margin, mode='edge')
-        field_u = np.pad(frame_field_u, margin, mode='edge')
+        if with_field:
+            field_v = np.pad(frame_field_v, margin, mode='edge')
+            field_u = np.pad(frame_field_u, margin, mode='edge')
         largest += float(np.sqrt(np.max(frame_field_v**2 + frame_field_u**2)))
 
     return _Warp(

@@ -150,8 +150,8 @@ def optics_margin_px(params: Mapping[str, Any], *, oversample: int, preview: boo
     margin.
 
     The PSF reaches its kernel's half-width, the instrument's ``truncation_px``.  A
-    smear reaches half its drift and one pixel more, which its kernel's bilinear
-    samples add.  A ghost reaches its offset, rounded up, plus four sigmas of its
+    smear reaches half its drift, turned by any planted roll, rounded up to a whole
+    pixel.  A ghost reaches its offset, rounded up, plus four sigmas of its
     defocus blur.  The distortion reaches its largest displacement over the frame
     widened by the other three reaches, which holds every pixel the stages after it
     read, plus the two pixels its cubic spline reads.  Its spline also responds to
@@ -171,7 +171,9 @@ def optics_margin_px(params: Mapping[str, Any], *, oversample: int, preview: boo
     reach = 0
     smear = optics.get('smear')
     if smear:
-        reach += smear_reach_px(smear, oversample=oversample)
+        reach += smear_reach_px(
+            smear, oversample=oversample, roll_deg=float(params.get('offset_rotation_deg', 0.0))
+        )
     if effective_psf(params) is not None:
         reach += resolve_psf_truncation_px(params.get('instrument')) * oversample
     ghosts = optics.get('ghosts')
