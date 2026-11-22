@@ -1,14 +1,15 @@
 """Oversampled radiance rendering and the no-optics identity property.
 
 A scene with an active whole-scene PSF renders its radiance on an oversampled
-grid and downsamples back to the detector grid; a scene with no optics block
-renders at oversample 1.  These tests cover the oversample resolution, the
-determinism of the no-optics path, that the oversampled render preserves body
-flux and position after the downsample, that a smooth body on an oversampled or
-anti-aliased grid renders as the navigator predicts it (on the render grid, and on the
-detector grid after the scene scaling and the downsample), that a surface setting that
-changes nothing leaves a body smooth, and that the classifying truth arrays come back
-describing the pixels the image put the body on.
+grid and downsamples back to the detector grid; a scene with no PSF renders at
+oversample 1, and an explicit ``oversample`` key sets the factor either way.  These
+tests cover the oversample resolution, the determinism of the no-optics path, that
+the oversampled render preserves body flux and position after the downsample, that
+a smooth body on an oversampled or anti-aliased grid renders as the navigator
+predicts it (on the render grid, and on the detector grid after the scene scaling
+and the downsample), that a surface setting that changes nothing leaves a body
+smooth, and that the classifying truth arrays come back describing the pixels the
+image put the body on.
 """
 
 import dataclasses
@@ -83,15 +84,27 @@ def _centroid(image: np.ndarray) -> tuple[float, float]:
     return float((image * vv).sum()) / total, float((image * uu).sum()) / total
 
 
-def test_resolve_oversample_defaults_to_one_without_optics() -> None:
-    """A scene with no optics block renders on the detector grid."""
+def test_resolve_oversample_defaults_to_one_without_a_psf() -> None:
+    """A scene with no PSF renders on the detector grid."""
     assert resolve_oversample({'size_v': 8, 'size_u': 8}) == 1
 
 
-def test_resolve_oversample_is_four_when_psf_active() -> None:
+def test_resolve_oversample_is_four_with_a_psf() -> None:
     """An explicit PSF block turns on 4x oversampling by default."""
     scene = {'size_v': 8, 'size_u': 8, 'optics': {'psf': {'sigma_v': 0.6, 'sigma_u': 0.6}}}
     assert resolve_oversample(scene) == 4
+
+
+def test_resolve_oversample_is_four_for_instrument_defaults_with_a_kernel() -> None:
+    """instrument_defaults on a camera whose catalog states a PSF kernel oversamples."""
+    scene = {'instrument': 'coiss_nac', 'artifacts': {'instrument_defaults': True}}
+    assert resolve_oversample(scene) == 4
+
+
+def test_resolve_oversample_is_one_for_instrument_defaults_without_a_kernel() -> None:
+    """instrument_defaults on the generic camera, which states no kernel, does not."""
+    scene = {'instrument': 'generic', 'artifacts': {'instrument_defaults': True}}
+    assert resolve_oversample(scene) == 1
 
 
 def test_resolve_oversample_explicit_key_wins() -> None:

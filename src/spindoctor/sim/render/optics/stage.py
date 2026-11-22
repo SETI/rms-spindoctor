@@ -41,7 +41,12 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['apply_optics', 'apply_stray_light', 'effective_psf', 'instrument_defaults_on']
+__all__ = [
+    'apply_optics',
+    'apply_stray_light',
+    'effective_psf',
+    'instrument_defaults_on',
+]
 
 
 def instrument_defaults_on(params: Mapping[str, Any]) -> bool:
