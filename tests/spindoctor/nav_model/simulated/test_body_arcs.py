@@ -163,24 +163,51 @@ def test_navigation_limb_keeps_only_lit_vertices() -> None:
 _LOW_PHASE_SPHERE = {'semi_a_px': 60.0, 'semi_b_px': 60.0, 'semi_c_px': 60.0, 'phase_angle': 10.0}
 
 
-def _mean_incidence_lit_limb(obs: ObsSim) -> set[tuple[int, int]]:
-    """The low-phase sphere's lit limb pixels by the mean-incidence rule, in extfov.
+def _mean_incidence_lit_limb(obs: ObsSim, body_params: dict[str, Any]) -> set[tuple[int, int]]:
+    """A body's lit limb pixels by the mean-incidence rule, in extfov.
 
-    The rule is computed here from the sphere's own geometry on a 4 x 4 subpixel
-    grid: a silhouette pixel is lit when its angle of incidence, averaged over its
-    subpixels on the body, is below 90 deg.
+    The rule is computed here from the body's own quadric on a 4 x 4 subpixel grid.
+    The near surface point under each subpixel is the larger root of the quadric
+    along the line of sight, and the normal there is the quadric's gradient.  A
+    silhouette pixel is lit when its angle of incidence, averaged over its subpixels
+    on the body, is below 90 deg.
+
+    Parameters:
+        obs: The observation, whose margins place the pixels.
+        body_params: The body, centered in the frame.
+
+    Returns:
+        The lit limb pixels.
     """
     sub = 4
     centers = (np.arange(LIMB_SIZE * sub) + 0.5) / sub - LIMB_SIZE / 2.0
-    cv, cu = np.meshgrid(centers, centers, indexing='ij')
-    r2 = (cv**2 + cu**2) / 60.0**2
-    inside = r2 < 1.0
-    nz = np.sqrt(np.maximum(1.0 - r2, 0.0))
-    norm = np.sqrt(cv**2 + cu**2 + (60.0 * nz) ** 2)
-    light_v, light_u, light_z = illumination_vector(
-        illumination_angle=math.radians(25.0), phase_angle=math.radians(10.0)
+    v, u = np.meshgrid(centers, centers, indexing='ij')
+    rz = math.radians(float(body_params.get('rotation_z', 0.0)))
+    lat = math.radians(float(body_params.get('sub_observer_lat_deg', 0.0)))
+    # The body's axes a, b, and c as rows, in image (v, u, toward the observer).
+    pole = np.array([math.cos(rz), -math.sin(rz), 0.0])
+    across = np.array([math.sin(rz), math.cos(rz), 0.0])
+    toward = np.array([0.0, 0.0, 1.0])
+    axes = np.array(
+        [
+            math.cos(lat) * pole + math.sin(lat) * toward,
+            across,
+            math.cos(lat) * toward - math.sin(lat) * pole,
+        ]
     )
-    cos_i = (cv * light_v + cu * light_u + 60.0 * nz * light_z) / norm
+    semi = np.array([body_params[key] for key in ('semi_a_px', 'semi_b_px', 'semi_c_px')])
+    q = axes.T @ np.diag(1.0 / semi**2) @ axes
+    half_b = q[0, 2] * v + q[1, 2] * u
+    constant = q[0, 0] * v * v + 2.0 * q[0, 1] * v * u + q[1, 1] * u * u - 1.0
+    discriminant = half_b**2 - q[2, 2] * constant
+    inside = discriminant > 0.0
+    depth = (-half_b + np.sqrt(np.maximum(discriminant, 0.0))) / q[2, 2]
+    normal = np.einsum('ij,jkl->ikl', q, np.array([v, u, depth]))
+    light = illumination_vector(
+        illumination_angle=math.radians(float(body_params['illumination_angle'])),
+        phase_angle=math.radians(float(body_params['phase_angle'])),
+    )
+    cos_i = np.einsum('ikl,i->kl', normal, np.array(light)) / np.linalg.norm(normal, axis=0)
     angle = np.where(inside, np.arccos(np.clip(cos_i, -1.0, 1.0)), 0.0)
     blocks = (LIMB_SIZE, sub, LIMB_SIZE, sub)
     count = inside.reshape(blocks).sum(axis=(1, 3))
@@ -190,7 +217,7 @@ def _mean_incidence_lit_limb(obs: ObsSim) -> set[tuple[int, int]]:
     boundary = disc & ~(padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:])
     vs, us = np.nonzero(boundary & lit)
     margin_v, margin_u = int(obs.extfov_margin_v), int(obs.extfov_margin_u)
-    return {(int(v) + margin_v, int(u) + margin_u) for v, u in zip(vs, us, strict=True)}
+    return {(int(row) + margin_v, int(col) + margin_u) for row, col in zip(vs, us, strict=True)}
 
 
 def _vertex_set(vertices_vu: np.ndarray) -> set[tuple[int, int]]:
@@ -207,15 +234,41 @@ def test_limb_lit_region_is_the_mean_incidence_rule() -> None:
     lit by 37 of the limb pixels on the unlit side (223 against 260).
     """
     obs = limb_obs()
-    limb = limb_feature(obs, large_body(**_LOW_PHASE_SPHERE))
+    body = large_body(**_LOW_PHASE_SPHERE)
+    limb = limb_feature(obs, body)
     assert limb is not None
-    assert _vertex_set(limb.geometry.vertices_vu) == _mean_incidence_lit_limb(obs)
+    assert _vertex_set(limb.geometry.vertices_vu) == _mean_incidence_lit_limb(obs, body)
 
 
 def test_gates_off_limb_lit_region_is_the_mean_incidence_rule() -> None:
     """The gates-off limb keeps the same outline pixels as the mean-incidence rule."""
-    vertices = _ungated_limb_vertices(large_body(**_LOW_PHASE_SPHERE))
-    assert _vertex_set(vertices) == _mean_incidence_lit_limb(limb_obs())
+    body = large_body(**_LOW_PHASE_SPHERE)
+    vertices = _ungated_limb_vertices(body)
+    assert _vertex_set(vertices) == _mean_incidence_lit_limb(limb_obs(), body)
+
+
+def test_a_turned_bodys_limb_is_the_lit_part_of_its_turned_outline() -> None:
+    """A triaxial body seen at 50 deg sub-observer latitude keeps its own lit outline.
+
+    The body's outline and the incidence that lights it both come from the turned
+    body.  Neither matches the body seen equator-on, whose lit limb shares fewer than
+    half of these pixels.
+    """
+    turned = large_body(
+        semi_a_px=40.0,
+        semi_b_px=60.0,
+        semi_c_px=75.0,
+        rotation_z=30.0,
+        sub_observer_lat_deg=50.0,
+        phase_angle=45.0,
+    )
+    obs = limb_obs()
+    expected = _mean_incidence_lit_limb(obs, turned)
+    equator_on = _mean_incidence_lit_limb(obs, turned | {'sub_observer_lat_deg': 0.0})
+    limb = limb_feature(obs, turned)
+    assert limb is not None
+    assert len(expected & equator_on) < 0.5 * len(expected)
+    assert _vertex_set(limb.geometry.vertices_vu) == expected
 
 
 def test_low_phase_limb_fraction_counts_lit_pixels_on_both_sides() -> None:
