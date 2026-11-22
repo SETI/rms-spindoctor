@@ -224,6 +224,7 @@ one. This phase's exit asks for that check.
 | #1084 | **Affects 10 current frames, but only which random clutter stars they show, not their statistics.** The sky field turns with a planted roll but does not move with the planted offset: in the 10 committed frames with a sky field, every sky star sits 1.55 px from where it belongs |
 | #1068 | **Affects no current scene.** Fine limb relief (a correlation length under about 5 detector pixels) is interpolated from too coarse a grid, moving the light up to 0.023 px; the fix is shading it wholly on the working grid |
 | #1094 | **Affects no current scene.** A ring ramp under a density wave renders about 35 times slower than without it (69 s against 1.9 s for a 300 px ramp at 1,024 px and oversample 4), because every band pixel takes the 32-cell curved path |
+| #1057 | **Affects no current scene.** A Henyey-Greenstein asymmetry within rounding of 1 or -1 divides by zero in the ring renderer; cap it in the ring and haze rules |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
@@ -247,7 +248,7 @@ edits the navigator's config files only to delete the camera-block keys nothing 
 | Issue | Subject | Why now |
 |---|---|---|
 | #988, #986, #987, #990 | Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
-| #1021 | One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the instrument catalog (#1022). It changes nothing in the navigator config. |
+| #1021 | **Done (PR #1109).** The core is the `spindoctor/schema/` package: schemas are frozen dataclasses that pydantic parses, each problem is one line naming the file and key path, and a layer merge applies the REMOVE and REFUSE null policies. One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the instrument catalog (#1022). It changes nothing in the navigator config. |
 | #1022 | The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
 | #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | **Deferred (operator, 2026-11-17).** Navigator config work, tracked with #1032 in `ENGINEERING_PLAN.md`. Until it lands, the typed scene (#1024) gives the scene's `instrument_config` overlay its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
 | #806, naming part | Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
@@ -468,6 +469,11 @@ Those classes are eligible for retirement in Phase 7.
 | #835 | Star navigation reports success at 4.9 px error under 6 px catalog scatter |
 | #975 | BodyBlobNav answers up to 36 px off on validation scenes and does not flag the answers spurious; the truth checks hold them in bands |
 | #790 | The shape-lock veto misses confident wrong solutions on irregular mesh bodies: successes at 0.9 or more confidence 3 to 13 px off on most mesh seeds. A navigator fix the simulator found (Priority 2), listed here with the other navigator failures the simulator found; no phase waits on it, and a strict expected failure over mesh seeds holds it until it lands |
+| #1062 | **Affects the test that holds #790.** Once the disc refinement work (#791) lands, no mesh seed reproduces the shape-lock veto miss; find a scene that does and hold it as a strict expected failure |
+| #1050 | **Affects `mutual_deep`, `titan_crescent_horns`, and its noiseless twin, held as known errors.** The disc correlation is pulled by bright structure its template leaves out (navigator work) |
+| #1092 | **Affects `planted_rank1_ring_flat`, held as a known error.** Ring-edge vertices sit at border-pixel centers, which biases the fit for straight edges (navigator work) |
+| #1099 | **Affects `mutual_grazing` and `mutual_half`, held as known errors.** Overlapping body templates are painted by a yes-or-no mask, which leaves a dark outline at the occluding limb (navigator work) |
+| #1103 | **Affects the widest step of the PSF sweep.** The limb fit reports a confident answer a pixel wrong under a blur the navigator does not model (navigator work) |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling
@@ -499,6 +505,7 @@ retired and retained library classes.
 | #1000 | The editor's null-keys test can see body controls that are pending deletion, so it fails intermittently in CI; collect the controls only after pending deletions run |
 | #957 | **Done (PR #1046).** The `sqrt_lut` detector module has no entry in the simulator API reference; after #1005 its path is under `render/` |
 | #816 | The developer guide's detector quantization list omits `ls8b` and `contour_8bit` |
+| #1052 | **Affects the report only.** The simulator report describes the disc correlation's old half-pixel window and the bias a haze puts on it; rewrite it in the end-of-stack regeneration, after the disc refinement work (#791) lands |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference page is generated from the typed scene's field metadata by #1024. |
 | #310 | **Moved to Phase 3b.** Advanced by #1005 (package-level import guard) and #1026 (the navigator view as types); its own change moves the truth attributes off `ObsSim`. Structural information-boundary guard |
 

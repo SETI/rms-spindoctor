@@ -19,6 +19,7 @@ This section provides detailed API documentation for the SpinDoctor system.
    api_reference/api_obs
    api_reference/api_annotation
    api_reference/api_config
+   api_reference/api_schema
    api_reference/api_support
    api_reference/api_sim
    api_reference/api_ui

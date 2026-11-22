@@ -46,6 +46,7 @@ The repo is a standard ``src``-layout Python package:
          nav_orchestrator/       # NavOrchestrator + ensemble + curator + classifier
          annotation/             # Annotation / Annotations (summary-PNG overlay)
          reproj/                 # BodyMosaic, RingMosaic, cartographic_model
+         schema/                 # typed schemas for YAML files: parse, layer merge, markers
          sim/                    # simulated-image renderer
          support/                # cross-cutting helpers (filters, types, file, time, ...)
          ui/                     # PyQt6 widgets (manual nav dialog, mosaic viewer, scene editor)
