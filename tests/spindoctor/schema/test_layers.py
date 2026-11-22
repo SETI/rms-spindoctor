@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from spindoctor.schema.core import SchemaError
+from spindoctor.schema.errors import SchemaError
 from spindoctor.schema.layers import (
     Layer,
     NullPolicy,
@@ -79,10 +79,45 @@ def test_merge_leaves_the_layers_unchanged() -> None:
     assert _BASE.data['block']['x'] == 1
 
 
+def test_merge_copies_mappings_inside_a_list() -> None:
+    """A list is copied with its contents, so changing an item changes no layer."""
+    layer = Layer({'items': [{'w': 1}]}, 'base.yaml')
+    merged = merge([layer], nulls=NullPolicy.REMOVE)
+    merged.data['items'][0]['w'] = 9
+    assert layer.data['items'][0]['w'] == 1
+
+
+def test_value_over_a_mapping_drops_the_mapping_origins() -> None:
+    """A scalar that replaces a whole mapping is the only origin left at that path."""
+    merged = merge([_BASE, Layer({'block': 5}, 'user.yaml')], nulls=NullPolicy.REMOVE)
+    assert merged.origins == {('a',): 'base.yaml', ('items',): 'base.yaml', ('block',): 'user.yaml'}
+
+
+def test_filling_an_empty_mapping_drops_its_origin() -> None:
+    """An empty mapping that a later layer fills is no longer a value of its own."""
+    layers = [Layer({'m': {}}, 'base.yaml'), Layer({'m': {'k': 1}}, 'user.yaml')]
+    merged = merge(layers, nulls=NullPolicy.REMOVE)
+    assert merged.origins == {('m', 'k'): 'user.yaml'}
+
+
+def test_read_layer_reads_an_empty_file_as_an_empty_mapping(tmp_path: Path) -> None:
+    """An empty file is an empty layer."""
+    path = tmp_path / 'f.yaml'
+    path.write_text('')
+    assert read_layer(path).data == {}
+
+
 def test_remove_deletes_an_earlier_value_and_its_origins() -> None:
     """Under REMOVE, a null deletes the value an earlier layer set, mapping and all."""
     merged = merge([_BASE, Layer({'block': None}, 'user.yaml')], nulls=NullPolicy.REMOVE)
     assert merged.origins == {('a',): 'base.yaml', ('items',): 'base.yaml'}
+
+
+def test_remove_that_empties_a_mapping_records_the_mapping() -> None:
+    """A mapping emptied by nulls is a value, set by the layer that emptied it."""
+    layers = [Layer({'block': {'x': 1}}, 'base.yaml'), Layer({'block': {'x': None}}, 'user.yaml')]
+    merged = merge(layers, nulls=NullPolicy.REMOVE)
+    assert merged.origins == {('block',): 'user.yaml'}
 
 
 @pytest.mark.parametrize(
@@ -227,3 +262,11 @@ def test_resolve_bases_reports_a_problem_once() -> None:
     with pytest.raises(SchemaError) as caught:
         resolve_bases(entries, nulls=NullPolicy.REMOVE)
     assert len(caught.value.issues) == 1
+
+
+def test_resolve_bases_keeps_an_entry_null_problem_behind_a_bad_base() -> None:
+    """Behind a bad base, a refused list-item null is reported; a removing null is not."""
+    entries = {'a': Layer({'base': 'gone', 'drop': None, 'items': [None]}, 'f.yaml: a')}
+    with pytest.raises(SchemaError) as caught:
+        resolve_bases(entries, nulls=NullPolicy.REMOVE)
+    assert [issue.path for issue in caught.value.issues] == ['base', 'items[0]']

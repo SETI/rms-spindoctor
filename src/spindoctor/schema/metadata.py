@@ -31,8 +31,10 @@ def walk_metadata(cls: type) -> dict[str, Mapping[str, Any]]:
 
     A path joins field names with dots.  An item of a list or tuple, and a value of
     a mapping, is written :data:`ELEMENT`, so ``bodies.*.radius`` is the ``radius``
-    field of every item of ``bodies``.  The members of a union share their path, so a
-    tagged union's members contribute their fields side by side.
+    field of every item of ``bodies``.  The members of a union, and the items of a
+    fixed tuple, share their path, so a tagged union's members contribute their fields
+    side by side.  Two types at one path must mark each field they share the same way,
+    and a field one of them leaves unmarked must be unmarked in the other too.
 
     Parameters:
         cls: The schema's root dataclass.
@@ -41,44 +43,47 @@ def walk_metadata(cls: type) -> dict[str, Mapping[str, Any]]:
         The markers of each field that carries any, keyed by path.
 
     Raises:
-        TypeError: If two members of a union carry different markers on a field with
-            the same path.
+        TypeError: If two types at one path mark a field with the same path
+            differently, or one marks it and the other does not.
     """
-    found: dict[str, Mapping[str, Any]] = {}
-    _walk(cls, prefix='', found=found, visiting=())
-    return found
+    seen: dict[str, Mapping[str, Any]] = {}
+    _walk(cls, prefix='', seen=seen, visiting=())
+    return {path: markers for path, markers in seen.items() if markers}
 
 
 def _walk(
-    annotation: Any, *, prefix: str, found: dict[str, Mapping[str, Any]], visiting: tuple[type, ...]
+    annotation: Any, *, prefix: str, seen: dict[str, Mapping[str, Any]], visiting: tuple[type, ...]
 ) -> None:
-    """Collect the markers under one annotation, which sits at ``prefix``."""
+    """Collect the markers of every field under one annotation, which sits at ``prefix``.
+
+    ``seen`` gets every field path, with empty markers for an unmarked field, so two
+    types that disagree about a path are found even when one of them marks nothing.
+    """
     base = get_args(annotation)[0] if get_origin(annotation) is Annotated else annotation
     origin = get_origin(base)
     if origin is Union or origin is types.UnionType:
         for member in get_args(base):
-            _walk(member, prefix=prefix, found=found, visiting=visiting)
+            _walk(member, prefix=prefix, seen=seen, visiting=visiting)
         return
     if origin in _SEQUENCES or origin in _MAPPINGS:
         arguments = get_args(base)
         items = arguments[-1:] if origin in _MAPPINGS else arguments
         for item in items:
             if item is not Ellipsis:
-                _walk(item, prefix=_join(prefix, ELEMENT), found=found, visiting=visiting)
+                _walk(item, prefix=_join(prefix, ELEMENT), seen=seen, visiting=visiting)
         return
     if not (isinstance(base, type) and dataclasses.is_dataclass(base)) or base in visiting:
         return
     hints = get_type_hints(base, include_extras=True)
     for item in dataclasses.fields(base):
         path = _join(prefix, item.name)
-        if item.metadata:
-            if path in found and found[path] != item.metadata:
-                raise TypeError(
-                    f'{path}: union members carry different markers '
-                    f'({dict(found[path])} and {dict(item.metadata)})'
-                )
-            found[path] = item.metadata
-        _walk(hints[item.name], prefix=path, found=found, visiting=(*visiting, base))
+        if path in seen and seen[path] != item.metadata:
+            raise TypeError(
+                f'{path}: two types at this path mark the field differently '
+                f'({dict(seen[path])} and {dict(item.metadata)})'
+            )
+        seen[path] = item.metadata
+        _walk(hints[item.name], prefix=path, seen=seen, visiting=(*visiting, base))
 
 
 def _join(prefix: str, segment: str) -> str:

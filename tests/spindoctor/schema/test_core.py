@@ -1,118 +1,37 @@
-"""Tests for :mod:`spindoctor.schema.core`: the aliases, the error report, and the checks.
+"""Tests for :mod:`spindoctor.schema.core`: the aliases and the schema conventions.
 
-The tests cover what the core adds on top of pydantic: the house error format, where
-each problem is placed, which file it names, and the schema conventions.  They do not
-test pydantic's own parsing.
+The tests cover what the core adds on top of pydantic: how strictly each alias reads
+a value, how it words a refusal, and which schemas the convention check refuses.
+They do not test pydantic's own parsing.
 """
 
-import pickle
+import enum
 from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
 
+import filecache
 import pytest
-from filecache import FCPath as FileCachePath
+from pydantic import AllowInfNan, BeforeValidator, Field, Strict
+from tests.spindoctor.schema.schemas import (
+    OUTER,
+    Aliases,
+    Gap,
+    Inner,
+    Model,
+    Outer,
+    Ringlet,
+    parse_error,
+)
 
 from spindoctor.schema.core import (
     SCHEMA_CONFIG,
-    Bool,
-    DigitInt,
-    FCPath,
     Float,
     Int,
-    Issue,
-    NonNeg,
-    NonNegInt,
-    Positive,
-    PositiveInt,
-    SchemaError,
     Str,
-    Unit,
     check_schema,
     parse,
     tagged,
 )
-
-
-@dataclass(frozen=True)
-class Aliases:
-    """One optional field per alias, so each test sets only the key it is about."""
-
-    __pydantic_config__ = SCHEMA_CONFIG
-    float_: Float = 0.0
-    int_: Int = 0
-    bool_: Bool = False
-    str_: Str = ''
-    positive: Positive = 1.0
-    nonneg: NonNeg = 0.0
-    unit: Unit = 0.0
-    positive_int: PositiveInt = 1
-    nonneg_int: NonNegInt = 0
-    table: dict[DigitInt, Str] = field(default_factory=dict)
-    path: FCPath | None = None
-
-
-@dataclass(frozen=True)
-class Ringlet:
-    """A tagged-union member with a required field."""
-
-    __pydantic_config__ = SCHEMA_CONFIG
-    kind: Literal['ringlet']
-    width: Positive
-
-
-@dataclass(frozen=True)
-class Gap:
-    """A second tagged-union member."""
-
-    __pydantic_config__ = SCHEMA_CONFIG
-    kind: Literal['gap']
-
-
-@dataclass(frozen=True)
-class Inner:
-    """A nested record with a cross-field rule."""
-
-    __pydantic_config__ = SCHEMA_CONFIG
-    low: Float
-    high: Float
-
-    def __post_init__(self) -> None:
-        """Refuse a range whose ends are reversed."""
-        if self.low > self.high:
-            raise ValueError(f'low ({self.low}) is above high ({self.high})')
-
-
-@dataclass(frozen=True)
-class Outer:
-    """A schema with nesting, a list of tagged entries, a union, and a literal."""
-
-    __pydantic_config__ = SCHEMA_CONFIG
-    name: Str
-    inner: Inner
-    features: tuple[Annotated[Ringlet | Gap, tagged('kind')], ...] = ()
-    either: Int | Str = 0
-    units: Literal['raw_dn', 'calibrated_if'] = 'raw_dn'
-
-
-# A valid Outer mapping, which each test breaks in one place.
-_OUTER: dict[str, Any] = {'name': 'n', 'inner': {'low': 0.0, 'high': 1.0}}
-
-
-def _message(cls: type, raw: object, **kwargs: Any) -> str:
-    """The message of the SchemaError that parsing ``raw`` raises.
-
-    Parameters:
-        cls: The schema.
-        raw: The mapping to parse, which must break the schema.
-        **kwargs: ``source`` (default ``'test.yaml'``) and ``origins``.
-
-    Returns:
-        The error message.
-    """
-    kwargs.setdefault('source', 'test.yaml')
-    with pytest.raises(SchemaError) as caught:
-        parse(cls, raw, **kwargs)
-    return str(caught.value)
 
 
 @pytest.mark.parametrize(
@@ -130,14 +49,25 @@ def _message(cls: type, raw: object, **kwargs: Any) -> str:
         ({'str_': 3}, 'test.yaml: str_: expected a string, got int 3'),
         ({'positive': 0}, 'test.yaml: positive: expected a positive number, got 0'),
         ({'nonneg': -1}, 'test.yaml: nonneg: expected a non-negative number, got -1'),
-        ({'unit': 2}, 'test.yaml: unit: expected a number of at most 1.0, got 2'),
-        ({'positive_int': 0}, 'test.yaml: positive_int: expected a positive number, got 0'),
-        ({'nonneg_int': 1.5}, 'test.yaml: nonneg_int: expected an integer, got float 1.5'),
+        ({'unit': -0.5}, 'test.yaml: unit: expected a number in [0, 1], got -0.5'),
+        ({'unit': 2}, 'test.yaml: unit: expected a number in [0, 1], got 2'),
+        ({'positive_int': 0}, 'test.yaml: positive_int: expected a positive integer, got 0'),
+        (
+            {'nonneg_int': -1},
+            'test.yaml: nonneg_int: expected a non-negative integer, got -1',
+        ),
         (
             {'table': {'x': 'a'}},
             "test.yaml: table.x: expected an integer as the key, got str 'x'",
         ),
+        (
+            {'table': {'02': 'a'}},
+            "test.yaml: table.02: expected an integer as the key, got str '02' (a number "
+            'written so YAML reads it as a string)',
+        ),
         ({'path': 3}, 'test.yaml: path: expected a path or URL, got int 3'),
+        ({'path': ''}, "test.yaml: path: expected a path or URL, got str ''"),
+        ({'model': 'cmos'}, "test.yaml: model: 'cmos' is not one of ['ccd', 'vidicon']"),
     ],
     ids=[
         'float-string',
@@ -148,16 +78,37 @@ def _message(cls: type, raw: object, **kwargs: Any) -> str:
         'str',
         'positive',
         'nonneg',
-        'unit',
+        'unit-low',
+        'unit-high',
         'positive-int',
         'nonneg-int',
         'digit-key',
+        'digit-key-leading-zero',
         'path',
+        'path-empty',
+        'enum',
     ],
 )
 def test_alias_refuses_value(raw: dict[str, Any], message: str) -> None:
-    """Each alias refuses a value outside its type or range, in the house phrasing."""
-    assert _message(Aliases, raw) == message
+    """Each alias refuses a value outside its type or range, in the catalog's words."""
+    assert str(parse_error(Aliases, raw)) == message
+
+
+@pytest.mark.parametrize(
+    ('raw', 'attribute', 'value'),
+    [
+        ({'nonneg_int': 0}, 'nonneg_int', 0),
+        ({'table': {'2': 'a'}}, 'table', {2: 'a'}),
+        ({'path': 'gs://bucket/dir'}, 'path', filecache.FCPath('gs://bucket/dir')),
+        ({'path': filecache.FCPath('/data')}, 'path', filecache.FCPath('/data')),
+        ({'model': 'vidicon'}, 'model', Model.VIDICON),
+        ({'names': {'a': 1}}, 'names', {'a': 1}),
+    ],
+    ids=['nonneg-int-zero', 'digit-key', 'path-url', 'path-instance', 'enum', 'mapping'],
+)
+def test_alias_reads_value(raw: dict[str, Any], attribute: str, value: object) -> None:
+    """Each alias reads the values its type allows."""
+    assert getattr(parse(Aliases, raw, source='test.yaml'), attribute) == value
 
 
 def test_float_reads_an_integer_as_a_float() -> None:
@@ -166,126 +117,37 @@ def test_float_reads_an_integer_as_a_float() -> None:
     assert isinstance(parsed.float_, float)
 
 
-def test_digit_int_reads_digits_as_an_integer() -> None:
-    """A DigitInt key written as digits, as JSON writes every key, becomes an integer."""
-    parsed = parse(Aliases, {'table': {'2': 'a'}}, source='test.yaml')
-    assert parsed.table == {2: 'a'}
-
-
-def test_fcpath_reads_a_url() -> None:
-    """An FCPath field turns a string into an FCPath."""
-    parsed = parse(Aliases, {'path': 'gs://bucket/dir'}, source='test.yaml')
-    assert parsed.path == FileCachePath('gs://bucket/dir')
-
-
 def test_parse_builds_the_dataclass() -> None:
     """A valid mapping becomes an instance of the schema, nested records included."""
-    parsed = parse(Outer, {**_OUTER, 'features': [{'kind': 'gap'}]}, source='test.yaml')
+    parsed = parse(Outer, {**OUTER, 'features': [{'kind': 'gap'}]}, source='test.yaml')
     assert parsed == Outer(name='n', inner=Inner(low=0.0, high=1.0), features=(Gap('gap'),))
 
 
-def test_every_problem_is_reported_at_once() -> None:
-    """Two broken keys give one issue each."""
-    with pytest.raises(SchemaError) as caught:
-        parse(Aliases, {'int_': 'a', 'unit': -1}, source='test.yaml')
-    assert len(caught.value.issues) == 2
+@dataclass(frozen=True)
+class Node:
+    """A schema that refers to itself."""
+
+    __pydantic_config__ = SCHEMA_CONFIG
+    name: Str
+    children: tuple['Node', ...] = ()
 
 
-@pytest.mark.parametrize(
-    ('raw', 'message'),
-    [
-        (
-            {**_OUTER, 'features': [{'kind': 'gap'}, {'kind': 'ringlet', 'width': -1}]},
-            'test.yaml: features[1].width: expected a positive number, got -1',
-        ),
-        (
-            {**_OUTER, 'features': [{'kind': 'ring'}]},
-            "test.yaml: features[0].kind: expected one of 'ringlet', 'gap', got 'ring'",
-        ),
-        (
-            {**_OUTER, 'features': [{'width': 1}]},
-            "test.yaml: features[0]: missing required keys: ['kind']",
-        ),
-        (
-            {**_OUTER, 'inner': {'low': 0.0, 'high': 1.0, 'mid': 0.5, 'avg': 0.5}},
-            "test.yaml: inner: unknown keys: ['avg', 'mid']",
-        ),
-        ({'inner': _OUTER['inner']}, "test.yaml: missing required keys: ['name']"),
-        ({**_OUTER, 'inner': 3}, 'test.yaml: inner: expected a mapping, got int 3'),
-        ({**_OUTER, 'features': 'gap'}, "test.yaml: features: expected a list, got str 'gap'"),
-        (
-            {**_OUTER, 'either': 1.5},
-            'test.yaml: either: expected an integer or a string, got float 1.5',
-        ),
-        (
-            {**_OUTER, 'units': 'dn'},
-            "test.yaml: units: expected 'raw_dn' or 'calibrated_if', got str 'dn'",
-        ),
-        (
-            {**_OUTER, 'inner': {'low': 2.0, 'high': 1.0}},
-            'test.yaml: inner: low (2.0) is above high (1.0)',
-        ),
-    ],
-    ids=[
-        'tagged-member-field',
-        'tagged-unknown-tag',
-        'tagged-missing-tag',
-        'unknown-keys',
-        'missing-keys',
-        'not-a-mapping',
-        'not-a-list',
-        'union-of-scalars',
-        'literal',
-        'cross-field-rule',
-    ],
-)
-def test_problem_is_placed_and_phrased(raw: dict[str, Any], message: str) -> None:
-    """Each kind of problem is reported once, at the key path it concerns."""
-    assert _message(Outer, raw) == message
+def test_parse_reads_a_recursive_schema() -> None:
+    """A schema that refers to itself passes the check and parses nested data."""
+    parsed = parse(Node, {'name': 'a', 'children': [{'name': 'b'}]}, source='test.yaml')
+    assert parsed.children[0].name == 'b'
 
 
-def test_problem_gives_the_file_that_set_the_value() -> None:
-    """A problem with a value gives the layer that set it."""
-    origins = {
-        ('name',): 'base.yaml',
-        ('inner', 'low'): 'base.yaml',
-        ('inner', 'high'): 'user.yaml',
-    }
-    raw = {'name': 'n', 'inner': {'low': 0.0, 'high': 'x'}}
-    assert _message(Outer, raw, origins=origins).startswith('user.yaml: inner.high: ')
+class _IntChoice(enum.Enum):
+    """An Enum whose value is not a string."""
+
+    ONE = 1
 
 
-def test_problem_inside_a_list_gives_the_file_that_set_the_list() -> None:
-    """A problem inside a list gives the layer that set the whole list."""
-    origins = {
-        ('name',): 'base.yaml',
-        ('inner', 'low'): 'base.yaml',
-        ('inner', 'high'): 'base.yaml',
-        ('features',): 'user.yaml',
-    }
-    raw = {**_OUTER, 'features': [{'kind': 'ringlet', 'width': 0}]}
-    assert _message(Outer, raw, origins=origins).startswith('user.yaml: features[0].width: ')
-
-
-def test_unknown_key_gives_the_file_that_set_it() -> None:
-    """An unknown key gives the layer that set it, though the line is about its mapping."""
-    origins = {('name',): 'base.yaml', ('inner', 'low'): 'base.yaml', ('title',): 'user.yaml'}
-    raw = {**_OUTER, 'title': 'n'}
-    assert _message(Outer, raw, origins=origins) == "user.yaml: unknown keys: ['title']"
-
-
-def test_missing_key_gives_every_file_that_set_the_mapping() -> None:
-    """A key that is absent gives each layer that set a value in its mapping, in order."""
-    origins = {('name',): 'base.yaml', ('inner', 'low'): 'base.yaml', ('inner', 'zz'): 'user.yaml'}
-    raw = {'name': 'n', 'inner': {'low': 0.0, 'zz': 1}}
-    message = _message(Outer, raw, origins=origins)
-    assert message.startswith('base.yaml, user.yaml: inner: missing required keys')
-
-
-def test_schema_error_survives_pickling() -> None:
-    """A SchemaError rebuilt from a pickle keeps its message."""
-    error = SchemaError([Issue('a.yaml', 'x', 'bad')])
-    assert str(pickle.loads(pickle.dumps(error))) == 'a.yaml: x: bad'
+def _schema(annotation: Any) -> type:
+    """A schema dataclass with one optional field ``value`` of the given annotation."""
+    namespace = {'__annotations__': {'value': annotation}, '__pydantic_config__': SCHEMA_CONFIG}
+    return dataclass(frozen=True)(type('Probe', (), namespace))
 
 
 @dataclass
@@ -304,19 +166,19 @@ class _NoConfig:
 
 
 @dataclass(frozen=True)
-class _BareFloat:
-    """A dataclass with a lenient scalar field."""
+class _Untagged:
+    """A union of two dataclasses without a tag."""
 
     __pydantic_config__ = SCHEMA_CONFIG
-    value: float = 0.0
+    value: Ringlet | Gap
 
 
 @dataclass(frozen=True)
-class _Unsupported:
-    """A dataclass with an annotation outside the supported forms."""
+class _TagNotLiteral:
+    """A tagged union whose tag is not a Literal field of every member."""
 
     __pydantic_config__ = SCHEMA_CONFIG
-    value: set[Int] = field(default_factory=set)
+    value: Annotated[Ringlet | Inner, tagged('kind')]
 
 
 @dataclass(frozen=True)
@@ -330,16 +192,75 @@ class _NestedBreak:
 @pytest.mark.parametrize(
     ('cls', 'match'),
     [
-        (_NotFrozen, '_NotFrozen: a schema dataclass must be frozen'),
-        (_NoConfig, '_NoConfig: a schema dataclass sets __pydantic_config__ = SCHEMA_CONFIG'),
+        (_NotFrozen, r'^_NotFrozen: a schema dataclass must be frozen$'),
+        (_NoConfig, r'^_NoConfig: a schema dataclass sets __pydantic_config__ = SCHEMA_CONFIG$'),
         (
-            _BareFloat,
-            '_BareFloat.value: a bare float reads values leniently; use the schema alias Float',
+            _schema(float),
+            r'Probe.value: a bare float reads values leniently; use the schema '
+            r'alias Float',
         ),
-        (_Unsupported, r'_Unsupported.value: set\[.*\] is not a supported schema annotation'),
-        (_NestedBreak, '_NotFrozen: a schema dataclass must be frozen'),
+        (_schema(Annotated[float, Strict()]), r'Probe.value: a float must be finite'),
+        (
+            _schema(Annotated[float, Strict(False), AllowInfNan(False)]),
+            r'Strict\(False\) reads '
+            r'values leniently',
+        ),
+        (
+            _schema(Annotated[Float, Field(strict=False)]),
+            r'Strict\(False\) reads values '
+            r'leniently',
+        ),
+        (
+            _schema(Annotated[Float, AllowInfNan(True)]),
+            r'AllowInfNan\(True\) lets a float be '
+            r'infinite',
+        ),
+        (
+            _schema(Annotated[Float, BeforeValidator(float)]),
+            r'a validator that runs before '
+            r'the type check reads values leniently',
+        ),
+        (_schema(Literal['a', 1]), r'a choice holds only strings, and \[1\] are not'),
+        (_schema(_IntChoice), r'a choice holds only strings, and \[1\] are not'),
+        (
+            _schema(Annotated[Literal['a'], Strict()]),
+            r'Strict and AllowInfNan apply only to '
+            r'the scalar aliases',
+        ),
+        (_Untagged, r'a union of two or more schema dataclasses is tagged'),
+        (_TagNotLiteral, r"the tag 'kind' is not a Literal field of Inner"),
+        (
+            _schema(Annotated[Ringlet, tagged('kind')]),
+            r'tagged\(\) marks a union of schema '
+            r'dataclasses',
+        ),
+        (
+            _schema(filecache.FCPath),
+            r'a bare FCPath cannot be read; use the schema alias '
+            r'FCPath',
+        ),
+        (_schema(set[Int]), r'Probe.value: set\[.*\] is not a supported schema annotation'),
+        (_NestedBreak, r'^_NotFrozen: a schema dataclass must be frozen$'),
     ],
-    ids=['not-frozen', 'no-config', 'bare-scalar', 'unsupported', 'nested'],
+    ids=[
+        'not-frozen',
+        'no-config',
+        'bare-scalar',
+        'float-may-be-infinite',
+        'strict-false',
+        'field-strict-false',
+        'allow-inf-nan',
+        'early-validator',
+        'literal-not-string',
+        'enum-not-string',
+        'strict-on-literal',
+        'untagged-union',
+        'tag-not-literal',
+        'tagged-not-union',
+        'bare-fcpath',
+        'unsupported',
+        'nested',
+    ],
 )
 def test_check_schema_refuses_a_convention_break(cls: type, match: str) -> None:
     """A schema that breaks a convention is refused when checked."""
@@ -350,4 +271,4 @@ def test_check_schema_refuses_a_convention_break(cls: type, match: str) -> None:
 def test_parse_checks_the_schema() -> None:
     """parse refuses a schema that breaks a convention before reading any input."""
     with pytest.raises(TypeError, match='a bare float reads values leniently'):
-        parse(_BareFloat, {}, source='test.yaml')
+        parse(_schema(float), {}, source='test.yaml')

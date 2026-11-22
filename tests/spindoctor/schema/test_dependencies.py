@@ -2,8 +2,8 @@
 
 The schema package sits below both the simulator and the configuration code, so it
 must import nothing else from ``spindoctor``: an import the other way would let one
-of them pull the other in.  Its only outside imports are the standard library,
-pydantic, ``annotated_types``, ``ruamel.yaml``, and ``filecache``.  Schemas are plain
+of them pull the other in.  Beyond the standard library it may import only pydantic,
+``annotated_types``, ``ruamel.yaml``, and ``filecache``.  Schemas are plain
 dataclasses, so no class in ``src/`` subclasses pydantic's ``BaseModel``.  Both rules
 are checked by reading the source.
 """

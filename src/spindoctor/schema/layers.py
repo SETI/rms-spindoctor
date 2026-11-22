@@ -40,7 +40,7 @@ from typing import Any
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
-from spindoctor.schema.core import Issue, KeyPath, SchemaError, describe_value, format_key_path
+from spindoctor.schema.errors import Issue, KeyPath, SchemaError, describe_value, format_key_path
 
 __all__ = [
     'Layer',
@@ -203,6 +203,9 @@ class _Merger:
                 if self.nulls is NullPolicy.REMOVE and key in target:
                     self._forget(target[key], key_path)
                     del target[key]
+                    if not target and path:
+                        # An emptied mapping is a value, set by the layer that emptied it.
+                        self.origins[path] = self._layer.label
                 else:
                     self._refuse_null(key_path, in_list=False)
                 continue
@@ -305,6 +308,11 @@ def resolve_bases(
     may in turn inherit another.  The chain merges from its far end, so the entry's
     own values come last and win.  ``base_key`` itself is never part of a result.
 
+    When a chain stops at a bad base, the part of the chain before it is still merged,
+    so the entry's other null problems are reported beside the bad base.  A null that
+    removes nothing there is not reported, since the base that could not be read may
+    have set the key.
+
     Parameters:
         entries: Each entry's layer, keyed by name.
         nulls: What a null means.
@@ -320,20 +328,25 @@ def resolve_bases(
             chain of bases that loops, and every null the policy refuses.
     """
     issues: list[Issue] = []
-    chains: dict[str, list[str]] = {}
-    for name in entries:
-        chain = _base_chain(name, entries, base_key=base_key, issues=issues)
-        if chain is not None:
-            chains[name] = chain
     passed_on = not_inherited | {base_key}
     results: dict[str, Merged] = {}
-    for name, chain in chains.items():
+    for name in entries:
+        chain, complete = _base_chain(name, entries, base_key=base_key, issues=issues)
         layers = [_without(entries[base], passed_on) for base in chain[:0:-1]]
         layers.append(_without(entries[name], frozenset({base_key})))
         try:
-            results[name] = merge(layers, nulls=nulls)
+            merged = merge(layers, nulls=nulls)
         except SchemaError as exc:
-            issues.extend(exc.issues)
+            # Behind a bad base, a null may have had a value to remove in the base that
+            # could not be read, so only the nulls refused for another reason count.
+            issues.extend(
+                issue
+                for issue in exc.issues
+                if complete or issue.message != _NULL_MESSAGES[(NullPolicy.REMOVE, False)]
+            )
+            continue
+        if complete:
+            results[name] = merged
     if issues:
         raise SchemaError(list(dict.fromkeys(issues)))
     return results
@@ -341,8 +354,13 @@ def resolve_bases(
 
 def _base_chain(
     name: str, entries: Mapping[str, Layer], *, base_key: str, issues: list[Issue]
-) -> list[str] | None:
-    """``name`` and the entries it inherits from, nearest first; None after a problem."""
+) -> tuple[list[str], bool]:
+    """``name`` and the entries it inherits from, nearest first.
+
+    Returns:
+        The chain, and whether it is complete.  After a bad base the chain ends at the
+        entry that sets it, and the problem is added to ``issues``.
+    """
     chain = [name]
     while base_key in entries[chain[-1]].data:
         current = entries[chain[-1]]
@@ -350,16 +368,16 @@ def _base_chain(
         if not isinstance(base, str):
             message = f'expected the name of an entry, got {describe_value(base)}'
             issues.append(Issue(current.label, base_key, message))
-            return None
+            return chain, False
         if base not in entries:
             issues.append(Issue(current.label, base_key, f'{base!r} is not an entry'))
-            return None
+            return chain, False
         if base in chain:
             loop = ' -> '.join((*chain, base))
             issues.append(Issue(entries[name].label, base_key, f'inheritance loops ({loop})'))
-            return None
+            return chain, False
         chain.append(base)
-    return chain
+    return chain, True
 
 
 def _without(layer: Layer, keys: frozenset[str]) -> Layer:
