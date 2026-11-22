@@ -236,6 +236,48 @@ def test_ring_crossing_the_edge_matches_a_larger_frame() -> None:
     assert _largest_relative_difference(frame.signal, _middle(reference.signal)) < 1e-9
 
 
+def test_planet_over_a_ring_at_the_edge_matches_a_larger_frame() -> None:
+    """A planet crossing the frame edge in front of a ring blends with it in the margin.
+
+    The planet's limb pixels past the edge take part of the ring's light by coverage,
+    and the ring's pixels behind the planet are hidden, as a larger frame shows.
+    """
+    planet = disc_body(-1.0, 8.0, 8.0, name='PLANET', phase_angle=40.0, range_km=1.0e6)
+    ring_system = ring_system_block(2.0, 8.0, [_ringlet(9.0)], range_km=2.0e6)
+    scene = frame_scene(size=16, optics={'psf': _NAC_PSF}, bodies=[planet], ring_system=ring_system)
+    frame = _focal_plane(scene)
+    reference = _focal_plane(_larger_frame(scene))
+    assert _largest_relative_difference(frame.signal, _middle(reference.signal)) < 1e-9
+
+
+def test_planet_over_a_body_at_the_edge_matches_a_larger_frame() -> None:
+    """A planet crossing the frame edge in front of a moon blends with it in the margin."""
+    planet = disc_body(-1.0, 8.0, 8.0, name='PLANET', phase_angle=40.0, range_km=1.0e6)
+    moon = disc_body(0.0, 8.0, 6.0, name='MOON', phase_angle=40.0, range_km=2.0e6)
+    scene = frame_scene(size=16, optics={'psf': _NAC_PSF}, bodies=[planet, moon])
+    frame = _focal_plane(scene)
+    reference = _focal_plane(_larger_frame(scene))
+    assert _largest_relative_difference(frame.signal, _middle(reference.signal)) < 1e-12
+
+
+def test_star_beside_a_limb_past_the_edge_matches_a_larger_frame() -> None:
+    """A star next to a limb above the frame is dimmed there as a larger frame shows.
+
+    The limb crosses the pixel row the star's light shares above the frame, so the
+    star loses the share the body covers before the PSF carries the rest into the frame.
+    """
+    planet = disc_body(-10.0, 8.0, 8.0, name='PLANET', phase_angle=40.0)
+    scene = frame_scene(
+        size=16,
+        optics={'psf': _NAC_PSF},
+        bodies=[planet],
+        stars=[star_entry(-2.0, 8.0, 6.0)],
+    )
+    frame = _focal_plane(scene)
+    reference = _focal_plane(_larger_frame(scene))
+    assert _largest_relative_difference(frame.point_e, _middle(reference.point_e)) < 1e-12
+
+
 def test_rolled_planet_edges_match_a_larger_rolled_frame() -> None:
     """A rolled frame-filling planet has the edge pixels a larger rolled frame shows."""
     planet = disc_body(6.0, 10.0, 40.0, name='PLANET', phase_angle=40.0, illumination_angle=30.0)
