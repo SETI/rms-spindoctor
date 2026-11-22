@@ -101,10 +101,10 @@ def test_a_star_just_outside_a_limb_loses_only_the_share_the_body_covers() -> No
     star = [star_entry(32.5, 33.4, 6.0)]
     alone = _compose(stars=star).point_e
     behind = _compose(stars=star, bodies=[_near_body()]).point_e
+    expected = alone.copy()
+    expected[_LIMB_PIXEL] *= 1.0 - _HALF
     assert alone[_LIMB_PIXEL] > 0.0
-    assert float(behind.sum()) == pytest.approx(
-        float(alone.sum()) - _HALF * alone[_LIMB_PIXEL], rel=1e-12
-    )
+    np.testing.assert_allclose(behind, expected, rtol=1e-12, atol=0.0)
 
 
 def test_a_mesh_limb_pixel_shows_half_of_the_farther_body() -> None:
