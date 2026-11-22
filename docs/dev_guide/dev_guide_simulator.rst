@@ -2077,38 +2077,44 @@ once and only moves it at each step. At catalog size a new drawing costs 0.03 to
 0.12 s. At 1024 x 1024 it costs 1.3 to 4.6 s, against 0.02 to 1.9 s to move a cached
 one.
 
-A body can be too large for a frame-sized drawing. A drawing the size of the frame
-holds only what lies within the frame when the body is at the frame center, so a
-planet whose limb crosses a corner of the frame would lose that limb or vanish.
-The move also reads nothing past the drawing, so a body that comes within a pixel
-of the frame edge from the frame center would lose part of the light in the
-drawing's outermost pixels. A body whose outline, limb relief, or halo reaches that
-far is drawn on a canvas
-(:func:`~spindoctor.sim.render.bodies.placement.body_canvas`), a part of the frame's
-pixel grid continued past its edges. The canvas is where the body overlaps the
-pixels the move reads for the frame, each widened by 8 detector pixels, so the
-spline that interpolates the relief tilt never ends inside the frame.
+**Bodies too large for the frame.** A frame-sized drawing of a body centered on the
+frame holds only the part of the body that falls inside the frame. When the move
+then shifts a large body off center, part of what should come into view was never
+drawn: the body comes out cut off at a straight line, or vanishes if it is far
+enough off center. So the renderer first asks whether the body fits. A body fits
+when everything it can spread over, its outline (stretched by any tilt), the lift of
+its limb relief, and its halo, stays at least one pixel inside the frame when the
+body is at the frame center. The pixel of clearance is there because the move reads
+nothing past the drawing, so a body touching its outermost pixels would lose part of
+their light.
 
-The body is still drawn at the frame center and moved the same way. A smooth
-ellipsoid and a halo then look as they would in the same window of a frame large
-enough to hold the body, to rounding. A mesh body does too, except at its default
-pose: there the mesh rasterizer already gives slightly different pixels, up to 0.03
-of full brightness, on frames of different sizes. A body with limb relief at an
-oversampling factor above 1 matches that window to about 1e-6 of full brightness,
-the reach of the spline's ends past the margin. A cratered body does not: its
-craters are laid out on a grid that holds the whole body, while on the larger frame
-they would be laid out on that frame. The grid depends only on the body's size, so
-the craters stay in place on its surface whichever part of it is drawn.
+A body that fits is drawn on the frame exactly as before. A body that does not fit
+is drawn on a larger canvas
+(:func:`~spindoctor.sim.render.bodies.placement.body_canvas`): the frame's pixel grid
+continued past its edges, but only as far as the move needs to fill the frame from
+this body's position, plus 8 detector pixels so the spline that interpolates the
+relief tilt never ends inside the frame. The canvas is bounded by the frame, never by
+the body, so a body thousands of pixels across costs about as much as one that fills
+the frame. The body is still drawn at the frame center and moved the same way.
+
+The result matches what the same part of a frame large enough to hold the whole body
+would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. There are
+three small exceptions. A mesh body at its default pose differs by up to 0.03 of full
+brightness, because the mesh rasterizer already gives slightly different pixels on
+frames of different sizes. A body with limb relief at an oversampling factor above 1
+differs by about 1e-6 of full brightness, from the ends of the spline. A cratered body
+has its craters laid out on a grid that holds the whole body, so they stay in the
+same places on its surface whichever part of it is drawn; a larger frame would lay
+them out differently.
 
 The canvas depends on where the body lands, so a body this large is drawn again at
-every step of an offset sweep. Only the last such drawing is kept, enough for a scene
-with one large body, drawn twice when the scene smears each layer apart, so a sweep
-holds one drawing; a scene with two such bodies draws each twice. Drawing such a
-body costs about as much as drawing a body that fills the frame on the frame itself:
-for a body
-of radius 5000 pixels with relief, craters, and a halo, 1.4 to 1.8 s against 1.1 s on
-a 256 x 256 frame at oversampling 4, and 12 to 15 s against 12 s on a 1024 x 1024
-frame at oversampling 1.
+every step of an offset sweep, instead of once. Only the last such drawing is kept.
+That is enough for a scene with one large body, which a scene that smears each layer
+apart draws twice per render, and it keeps a sweep to one drawing in memory. A scene
+with two such bodies draws each of them twice. For a body of radius 5000 pixels with
+relief, craters, and a halo, a drawing takes 1.4 to 1.8 s, against 1.1 s for a
+frame-filling body drawn on the frame, on a 256 x 256 frame at oversampling 4, and 12
+to 15 s against 12 s on a 1024 x 1024 frame at oversampling 1.
 
 A move by a fraction ``f`` of a pixel blends two copies of the drawing: one at the
 whole-pixel position, weighted ``1 - f``, and one a pixel farther, weighted ``f``.
