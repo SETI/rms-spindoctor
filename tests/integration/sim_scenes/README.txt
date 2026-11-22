@@ -353,12 +353,13 @@ and a null key renders as the absent key does.  The navigator reads it as
 absent too.  For a key set to null inside nav_override, the navigator sees the
 scene's own value.  An entry of a list such as pose_euler_deg can't be null.
 
-A polyhedral_mesh body refuses a non-null value of any of the twelve
-ellipsoid-only appearance keys, which the mesh renderer would silently ignore
-(a null reads as an absent key): atmosphere, photometric_law, minnaert_k,
-opposition_surge, albedo_texture, disc_texture, transits, crater_fill,
-crater_min_radius, crater_max_radius, crater_power_law_exponent, and
-crater_relief_scale.  A mesh body's appearance keys are shading,
+A polyhedral_mesh body refuses a non-null value of any of the thirteen
+ellipsoid-only keys, which the mesh renderer would silently ignore (a null
+reads as an absent key): the ellipsoid-only appearance keys atmosphere,
+photometric_law, minnaert_k, opposition_surge, albedo_texture, disc_texture,
+transits, crater_fill, crater_min_radius, crater_max_radius,
+crater_power_law_exponent, and crater_relief_scale, and sub_observer_lat_deg,
+since a mesh body is turned by its pose_euler_deg instead.  A mesh body's appearance keys are shading,
 limb_relief_rms, limb_relief_corr_deg, mesh_detail_octaves, and pose_scatter.
 The scene editor disables the controls for the refused keys on a mesh body.
 Switching a body to polyhedral_mesh in the editor moves the refused keys it

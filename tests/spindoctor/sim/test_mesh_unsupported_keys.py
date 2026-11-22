@@ -1,4 +1,4 @@
-"""The ellipsoid-only appearance keys a polyhedral-mesh body refuses are one table.
+"""The ellipsoid-only keys a polyhedral-mesh body refuses are one table.
 
 The scene validator refuses every key in the schema's ``MESH_UNSUPPORTED_KEYS``
 on a ``shape_model: polyhedral_mesh`` body, with the sentence
@@ -36,6 +36,7 @@ _EXPECTED_KEYS = {
     'crater_max_radius',
     'crater_power_law_exponent',
     'crater_relief_scale',
+    'sub_observer_lat_deg',
 }
 
 # A valid value for each refused key, so only the mesh rule can refuse it.
@@ -52,6 +53,7 @@ _VALID_VALUES: dict[str, Any] = {
     'crater_max_radius': 0.2,
     'crater_power_law_exponent': 2.5,
     'crater_relief_scale': 0.5,
+    'sub_observer_lat_deg': 20.0,
 }
 
 
@@ -74,8 +76,8 @@ def _mesh_body(**extra: Any) -> dict[str, Any]:
     }
 
 
-def test_the_table_holds_exactly_the_twelve_ellipsoid_only_keys() -> None:
-    """MESH_UNSUPPORTED_KEYS is the pinned twelve-key table, without duplicates."""
+def test_the_table_holds_exactly_the_thirteen_ellipsoid_only_keys() -> None:
+    """MESH_UNSUPPORTED_KEYS is the pinned thirteen-key table, without duplicates."""
     assert set(MESH_UNSUPPORTED_KEYS) == _EXPECTED_KEYS
     assert len(MESH_UNSUPPORTED_KEYS) == len(_EXPECTED_KEYS)
 

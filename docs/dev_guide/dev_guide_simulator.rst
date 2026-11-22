@@ -2558,11 +2558,12 @@ The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
 pose-scatter keys. The scene validator *rejects* a non-null value of any of
-twelve ellipsoid-only appearance keys on a ``polyhedral_mesh`` body:
+thirteen ellipsoid-only keys on a ``polyhedral_mesh`` body: the appearance keys
 ``atmosphere``, ``photometric_law``, ``minnaert_k``, ``opposition_surge``,
 ``albedo_texture``, ``disc_texture``, ``transits``, ``crater_fill``,
 ``crater_min_radius``, ``crater_max_radius``, ``crater_power_law_exponent``, and
-``crater_relief_scale``. A null value reads as an absent key. The mesh renderer
+``crater_relief_scale``, and ``sub_observer_lat_deg``, since a mesh body is turned
+by its ``pose_euler_deg`` instead. A null value reads as an absent key. The mesh renderer
 would silently ignore these keys, and a scene that asks for an effect must render
 it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
 :mod:`spindoctor.sim.scene.fields`, and ``mesh_unsupported_message`` there

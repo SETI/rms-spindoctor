@@ -21,9 +21,10 @@ from typing import Any
 
 # Body keys the polyhedral-mesh render path does not consume: the ellipsoid
 # renderer's crater carving, photometric laws, and
-# surface texture, and the ellipsoid-frame atmosphere halo (whose geometry is
+# surface texture, the ellipsoid-frame atmosphere halo (whose geometry is
 # built from rotation_z / sub_observer_lat_deg around the ellipse, which a mesh's
-# arbitrary Euler pose and lumpy limb do not follow).  A mesh body giving one
+# arbitrary Euler pose and lumpy limb do not follow), and the ellipsoid's
+# sub-observer latitude (a mesh body is turned by its Euler pose instead).  A mesh body giving one
 # of these a value would silently render without it, so the validator refuses
 # a non-null value of any of them (a null reads as an absent key); a mesh
 # body's appearance vocabulary is shading, limb_relief_*,
@@ -42,6 +43,7 @@ MESH_UNSUPPORTED_KEYS: tuple[str, ...] = (
     'crater_max_radius',
     'crater_power_law_exponent',
     'crater_relief_scale',
+    'sub_observer_lat_deg',
 )
 
 

@@ -49,6 +49,7 @@ MESH_REFUSED_WIDGETS: dict[str, tuple[str, ...]] = {
     'crater_max_radius': ('crater_max_radius_spin',),
     'crater_power_law_exponent': ('crater_exponent_spin',),
     'crater_relief_scale': ('crater_relief_scale_spin',),
+    'sub_observer_lat_deg': ('sub_observer_lat_spin',),
 }
 
 # Dynamic property holding a widget's own (ellipsoid) tooltip while a mesh body

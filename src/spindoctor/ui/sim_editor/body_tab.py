@@ -211,6 +211,7 @@ class BodyTabMixin(SimEditorBase):
         )
         lat.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'sub_observer_lat_deg', v))
         fl.addRow('Sub-observer lat:', lat)
+        w.sub_observer_lat_spin = lat  # type: ignore[attr-defined]
 
         illum = QDoubleSpinBox()
         illum.setRange(0.0, 360.0)
