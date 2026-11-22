@@ -311,7 +311,7 @@ def _first_surface_points(
 
 
 def _lambert_relief_disc(
-    *, rms: float, corr_deg: float
+    *, rms: float, corr_deg: float, sub_observer_lat: float = 0.0
 ) -> tuple[EllipsoidBodySpec, EllipsoidProjection, ReliefField]:
     """A 75 px Lambert sphere with relief, shaded at the render grid, and its grid and field."""
     spec = EllipsoidBodySpec(
@@ -324,8 +324,16 @@ def _lambert_relief_disc(
         limb_relief_rms=rms,
         limb_relief_corr_deg=corr_deg,
         relief_seed=3,
+        sub_observer_lat=sub_observer_lat,
     )
-    grid = project_ellipsoid((200, 200), (100.0, 100.0), 75.0, semi_b_px=75.0, semi_c_px=75.0)
+    grid = project_ellipsoid(
+        (200, 200),
+        (100.0, 100.0),
+        75.0,
+        semi_b_px=75.0,
+        semi_c_px=75.0,
+        sub_observer_lat=sub_observer_lat,
+    )
     return spec, grid, synthesize_relief_field(rms, corr_deg, 3)
 
 
@@ -427,7 +435,8 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     assert int(facing_away.sum()) <= 0.001 * int(inside.sum())
 
 
-def test_a_normal_leaning_away_is_laid_into_the_sky_plane() -> None:
+@pytest.mark.parametrize('lat_deg', [0.0, -60.0])
+def test_a_normal_leaning_away_is_laid_into_the_sky_plane(lat_deg: float) -> None:
     """A relief normal leaning away from the observer is laid into the sky plane.
 
     Where a line of sight grazes a ridge, the normal the field's differences give the
@@ -435,13 +444,17 @@ def test_a_normal_leaning_away_is_laid_into_the_sky_plane() -> None:
     correlation length, some pixels on the disc read such a normal.  The renderer
     gives each of them a toward-observer component of exactly 0, neither mirrored
     toward the observer nor left leaning away.
+
+    Parameters:
+        lat_deg: The sub-observer latitude the sphere is seen from, degrees.
     """
-    spec, grid, field = _lambert_relief_disc(rms=0.05, corr_deg=2.0)
+    lat = math.radians(lat_deg)
+    spec, grid, field = _lambert_relief_disc(rms=0.05, corr_deg=2.0, sub_observer_lat=lat)
     near = grid.ellipse_dist_sq < 1.0
     shading = _relief_shading(grid, spec, field, near)
     seen = shading.seen
     normals = seen - field.surface_gradient(seen) / (1.0 + field.sample_points(seen))[:, None]
-    away = normals[:, 2] < 0.0
+    away = normals @ np.array([math.sin(lat), 0.0, math.cos(lat)]) < 0.0
     assert int(away.sum()) > 0
     assert float(np.abs(shading.normal_z[away]).max()) == 0.0
 

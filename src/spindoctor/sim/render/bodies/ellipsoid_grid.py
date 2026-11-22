@@ -36,8 +36,8 @@ __all__ = [
     'expand_to_working_grid',
     'limb_band',
     'neighboring_cells',
+    'relief_view',
     'silhouette_mask',
-    'smooth_surface_directions',
     'stretched_sight_cells',
 ]
 
@@ -386,7 +386,7 @@ def expand_to_working_grid(cells: NDArrayBoolType, up_factor: int) -> NDArrayBoo
     return np.repeat(np.repeat(cells, up_factor, axis=0), up_factor, axis=1)
 
 
-def _relief_view(grid: EllipsoidProjection) -> tuple[float, float]:
+def relief_view(grid: EllipsoidProjection) -> tuple[float, float]:
     """The direction toward the observer in the relief field's frame.
 
     The field lives on the unit sphere the body's surface coordinates lie on, its
@@ -450,34 +450,9 @@ def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDA
             # Body-attached azimuth: the rotated-frame elliptical parametric
             # angle (identical to the image azimuth for a circular disc).
             phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a_outline)
-            delta = field.outline_delta(phi, view=_relief_view(grid))
+            delta = field.outline_delta(phi, view=relief_view(grid))
             mask[band] = e_band < 1.0 + delta
     return mask.astype(np.float64)
-
-
-def smooth_surface_directions(grid: EllipsoidProjection) -> NDArrayFloatType:
-    """The parameter-space direction of the smooth surface point under each pixel.
-
-    In the body's parameter space the smooth ellipsoid is the unit sphere, viewed
-    along its ``z`` axis.  A pixel beyond the limb takes the limb direction on the
-    line from the body center through it.
-
-    Parameters:
-        grid: The body's projection onto a grid.
-
-    Returns:
-        The unit directions, ``grid`` shape plus ``(3,)``.
-    """
-    e2 = grid.ellipse_dist_sq
-    radial = np.sqrt(np.maximum(e2, 1.0))
-    return np.stack(
-        [
-            grid.v_rot / grid.semi_a / radial,
-            grid.u_rot / grid.semi_b / radial,
-            np.sqrt(np.maximum(0.0, 1.0 - e2)),
-        ],
-        axis=-1,
-    )
 
 
 def stretched_sight_cells(seen: NDArrayFloatType, smooth: NDArrayFloatType) -> NDArrayBoolType:

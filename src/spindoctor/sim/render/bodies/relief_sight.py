@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from spindoctor.sim.render.bodies.relief import ReliefField
+from spindoctor.sim.render.bodies.relief import ReliefField, directions_about_view
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
@@ -37,21 +37,101 @@ _SIGHT_SLIVER_CELLS = 1.0 / 256.0
 _SIGHT_SLIVER_CHUNK = 1 << 12
 
 
-def _sight_gap(
-    field: ReliefField, lat: NDArrayFloatType, phi: NDArrayFloatType, rho: NDArrayFloatType
-) -> NDArrayFloatType:
-    """How far inside the relief surface a line of sight lies at a latitude.
+class _SightLines:
+    """Parallel lines of sight through a relief field.
+
+    Each line of sight stays in one meridian plane about the direction toward the
+    observer.  Latitude is measured from the plane perpendicular to that direction,
+    toward the observer, so a line of sight at the distance ``rho`` from the axis
+    through the body center lies at radius ``rho / cos(lat)``.
 
     Parameters:
+        x: Parameter-space coordinates of the lines of sight along the turned first
+            axis (see :func:`visible_surface_directions`), one dimensional.
+        y: The coordinates along the second axis, the same shape.
         field: The relief realization.
-        lat: Latitudes along each line of sight's meridian.
-        phi: The meridians' longitudes, the same shape as ``lat``.
-        rho: The lines of sight's distances from the observer axis, the same shape.
-
-    Returns:
-        ``(1 + h(lat, phi)) cos(lat) - rho``, positive inside the surface.
+        view: The unit direction toward the observer, its ``x`` and ``z`` components
+            in the field's frame (its ``y`` component is 0).
     """
-    return np.asarray((1.0 + field.sample(lat, phi)) * np.cos(lat) - rho, dtype=np.float64)
+
+    def __init__(
+        self,
+        x: NDArrayFloatType,
+        y: NDArrayFloatType,
+        field: ReliefField,
+        *,
+        view: tuple[float, float],
+    ) -> None:
+        self.field = field
+        self.rho = stable_hypot(x, y)
+        self.phi = np.mod(np.arctan2(y, x), 2.0 * np.pi)
+        self._view = view
+        # Seen along the field's own pole, the meridians are the field's own.  There
+        # the slope along a stretch is bounded by the row differences beside it.
+        self._along_pole = view[0] == 0.0
+        self._row_slope = np.abs(np.roll(field.grid, -1, axis=0) - field.grid) * (
+            field.grid.shape[0] / (2.0 * np.pi)
+        )
+
+    def directions(self, lat: NDArrayFloatType, index: NDArrayIntType) -> NDArrayFloatType:
+        """The field-frame unit directions at latitudes along the lines of sight.
+
+        Parameters:
+            lat: One latitude for each line of sight.
+            index: The lines of sight.
+
+        Returns:
+            ``(N, 3)`` unit directions.
+        """
+        return directions_about_view(lat, self.phi[index], self._view)
+
+    def gap(self, lat: NDArrayFloatType, index: NDArrayIntType) -> NDArrayFloatType:
+        """How far inside the relief surface lines of sight lie at latitudes.
+
+        Parameters:
+            lat: One latitude for each line of sight.
+            index: The lines of sight.
+
+        Returns:
+            ``(1 + h) cos(lat) - rho``, positive inside the surface.
+        """
+        height = (
+            self.field.sample(lat, self.phi[index])
+            if self._along_pole
+            else self.field.sample_points(self.directions(lat, index))
+        )
+        return np.asarray((1.0 + height) * np.cos(lat) - self.rho[index], dtype=np.float64)
+
+    def slope_bound(
+        self, ends: tuple[NDArrayFloatType, NDArrayFloatType], index: NDArrayIntType
+    ) -> NDArrayFloatType:
+        """A bound on the field's slope along short stretches of the lines of sight.
+
+        Along one of the field's own meridians the bilinear field is linear between
+        grid rows, with a slope between those of the two grid columns beside it.  A
+        stretch no longer than a grid cell touches at most two row gaps, so the
+        largest of the four slopes there bounds the field's slope along it.  Any
+        other meridian crosses the columns too, and takes the bound on the field's
+        surface slope anywhere.
+
+        Parameters:
+            ends: The stretches' upper and lower latitudes, at most a grid cell apart.
+            index: The stretches' lines of sight.
+
+        Returns:
+            The bound for each stretch, per radian of latitude.
+        """
+        if not self._along_pole:
+            return np.full(index.size, self.field.slope_max)
+        n = self.field.grid.shape[0]
+        scale = n / (2.0 * np.pi)
+        col = np.floor(self.phi[index] * scale).astype(np.intp) % n
+        col_next = (col + 1) % n
+        rows = [np.floor((lat + np.pi) * scale).astype(np.intp) % n for lat in ends]
+        return np.asarray(
+            np.max([self._row_slope[row, c] for row in rows for c in (col, col_next)], axis=0),
+            dtype=np.float64,
+        )
 
 
 @dataclass(frozen=True)
@@ -62,7 +142,7 @@ class _Crossing:
         found: Whether the interval holds a crossing the search found.
         upper: The upper end of the crossing's bracket, outside the surface.
         lower: The lower end of the bracket, inside the surface.
-        g_upper: The line of sight's gap (:func:`_sight_gap`) at ``upper``.
+        g_upper: The line of sight's gap (:meth:`_SightLines.gap`) at ``upper``.
         g_lower: The gap at ``lower``.
     """
 
@@ -73,41 +153,9 @@ class _Crossing:
     g_lower: NDArrayFloatType
 
 
-def _latitude_slope_bound(
-    row_slope: NDArrayFloatType,
-    ends: tuple[NDArrayFloatType, NDArrayFloatType],
-    phi: NDArrayFloatType,
-) -> NDArrayFloatType:
-    """A bound on the field's latitude slope along short stretches of meridians.
-
-    Along a meridian the bilinear field is linear between grid rows, with a slope
-    between those of the two grid columns beside it.  A stretch no longer than a
-    grid cell touches at most two row gaps, so the largest of the four slopes there
-    bounds the field's slope along it.
-
-    Parameters:
-        row_slope: ``|h(row + 1) - h(row)|`` over the row spacing, at every grid node.
-        ends: The stretches' upper and lower latitudes, at most a grid cell apart.
-        phi: The meridians' longitudes.
-
-    Returns:
-        The bound for each stretch, per radian of latitude.
-    """
-    n = row_slope.shape[0]
-    scale = n / (2.0 * np.pi)
-    col = np.floor(np.mod(phi, 2.0 * np.pi) * scale).astype(np.intp) % n
-    col_next = (col + 1) % n
-    rows = [np.floor((lat + np.pi) * scale).astype(np.intp) % n for lat in ends]
-    return np.asarray(
-        np.max([row_slope[row, c] for row in rows for c in (col, col_next)], axis=0),
-        dtype=np.float64,
-    )
-
-
 def _first_crossing_between(
-    field: ReliefField,
-    rho: NDArrayFloatType,
-    phi: NDArrayFloatType,
+    lines: _SightLines,
+    index: NDArrayIntType,
     ends: tuple[NDArrayFloatType, NDArrayFloatType],
     gaps: tuple[NDArrayFloatType, NDArrayFloatType],
     *,
@@ -117,7 +165,7 @@ def _first_crossing_between(
     """Find the highest crossing in latitude intervals whose ends lie outside the surface.
 
     Over an interval the gap ``g`` changes by at most ``s + (1 + h_max) |sin(lat)|``
-    per radian, where ``s`` bounds the field's latitude slope along the interval and
+    per radian, where ``s`` bounds the field's slope along the interval and
     ``|sin(lat)|`` is the larger of its two ends'.  So it can reach 0 inside the
     interval only if its two end values plus that bound times the width add up to at
     least 0.  An interval that passes this test is halved at a
@@ -128,25 +176,24 @@ def _first_crossing_between(
     takes.
 
     Parameters:
-        field: The relief realization.
-        rho: Each line of sight's distance from the observer axis.
-        phi: Each line of sight's longitude.
+        lines: The lines of sight.
+        index: The line of sight each interval belongs to.
         ends: The intervals' upper and lower latitudes.
         gaps: The gap at the upper and lower ends, both negative.
-        slope: For each interval, a bound on the field's latitude slope along it
-            (:func:`_latitude_slope_bound`), which also holds for its pieces.
+        slope: For each interval, a bound on the field's slope along it
+            (:meth:`_SightLines.slope_bound`), which also holds for its pieces.
         min_width: The narrowest piece searched, in radians.
 
     Returns:
         For each interval, the bracket of the highest crossing found.
     """
-    count = rho.size
+    count = index.size
     found = np.zeros(count, dtype=np.bool_)
     upper = np.zeros(count)
     lower = np.zeros(count)
     g_upper = np.zeros(count)
     g_lower = np.zeros(count)
-    top = 1.0 + field.h_max
+    top = 1.0 + lines.field.h_max
     for start in range(0, count, _SIGHT_SLIVER_CHUNK):
         which = np.arange(start, min(start + _SIGHT_SLIVER_CHUNK, count))
         a, b = ends[0][which], ends[1][which]
@@ -159,7 +206,7 @@ def _first_crossing_between(
             live &= ~(found[which] & (a <= lower[which]))
             which, a, b, g_a, g_b = which[live], a[live], b[live], g_a[live], g_b[live]
             mid = 0.5 * (a + b)
-            g_mid = _sight_gap(field, mid, phi[which], rho[which])
+            g_mid = lines.gap(mid, index[which])
             hit = g_mid >= 0.0
             # Keep the highest bracket per interval: write the hits from low to high,
             # so the last write to each interval is its highest.
@@ -181,18 +228,25 @@ def _first_crossing_between(
 
 
 def visible_surface_directions(
-    x: NDArrayFloatType, y: NDArrayFloatType, field: ReliefField
+    x: NDArrayFloatType,
+    y: NDArrayFloatType,
+    field: ReliefField,
+    *,
+    view: tuple[float, float] = (0.0, 1.0),
 ) -> NDArrayFloatType:
     """Where each line of sight first meets the relief surface, as unit directions.
 
     Everything is in the body's parameter space (the smooth body is the unit sphere,
-    the field's poles on the ``z`` axis), with the observer far out on the ``+z``
-    axis.  The line of sight through ``(x, y)`` runs parallel to ``z`` and stays in
-    the meridian plane at longitude ``phi = atan2(y, x)``.  At latitude ``lat`` it
-    lies at radius ``rho / cos(lat)``, with ``rho = hypot(x, y)``, so it is inside the
-    relief surface ``r = 1 + h`` where ``g(lat) = (1 + h(lat, phi)) cos(lat) - rho``
-    is positive.  The first point it meets is the highest latitude where ``g``
-    reaches 0.
+    the field's poles on the ``z`` axis), with the observer far out along ``view``.
+    The plane perpendicular to ``view`` has two axes: the ``x`` axis turned with the
+    view, which is the first, and ``y``.  The line of sight through ``(x, y)`` on that
+    plane runs parallel to ``view`` and stays in one meridian plane about it, at
+    longitude ``phi = atan2(y, x)``.  At latitude ``lat``, measured from the plane
+    toward the observer, it lies at radius ``rho / cos(lat)``, with
+    ``rho = hypot(x, y)``, so it is inside the relief surface ``r = 1 + h`` where
+    ``g(lat) = (1 + h) cos(lat) - rho`` is positive, with ``h`` the height in the
+    direction ``lat`` and ``phi`` point to (:func:`directions_about_view`).  The first
+    point it meets is the highest latitude where ``g`` reaches 0.
 
     The search walks down the meridian from the highest latitude the terrain can
     reach, ``acos(rho / (1 + h_max))``.  Each step is as long as the field's slope
@@ -210,20 +264,28 @@ def visible_surface_directions(
     beyond ``1 + h_max`` reads latitude 0, the limb direction.
 
     Parameters:
-        x: Parameter-space coordinates of the lines of sight along the body's first
+        x: Parameter-space coordinates of the lines of sight along the turned first
             axis (any shape).
-        y: The coordinates along its second axis, the same shape as ``x``.
+        y: The coordinates along the second axis, the same shape as ``x``.
         field: The relief realization.
+        view: The unit direction toward the observer, its ``x`` and ``z`` components
+            in the field's frame (its ``y`` component is 0).
 
     Returns:
-        ``(..., 3)`` unit directions of the points seen, ``x.shape + (3,)``.
+        ``(..., 3)`` unit directions of the points seen in the field's frame,
+        ``x.shape + (3,)``.
     """
     x_arr = np.asarray(x, dtype=np.float64)
     shape = x_arr.shape
-    x_flat = x_arr.ravel()
-    y_flat = np.asarray(y, dtype=np.float64).ravel()
-    rho = stable_hypot(x_flat, y_flat)
-    phi = np.mod(np.arctan2(y_flat, x_flat), 2.0 * np.pi)
+    cell = 2.0 * np.pi / field.grid.shape[0]
+    min_step = cell / _SIGHT_STEPS_PER_CELL
+    lines = _SightLines(
+        x_arr.ravel(),
+        np.asarray(y, dtype=np.float64).ravel(),
+        field,
+        view=view,
+    )
+    rho = lines.rho
     top = 1.0 + field.h_max
     bottom = 1.0 + field.h_min
     # No point of the surface is inside the line of sight above lat_top, and every
@@ -231,10 +293,6 @@ def visible_surface_directions(
     # sight farther out can meet only terrain no lower than -lat_top.
     lat_top = np.arccos(np.minimum(rho / top, 1.0))
     lat_low = np.where(rho < bottom, np.arccos(np.minimum(rho / bottom, 1.0)), -lat_top)
-    min_step = 2.0 * np.pi / field.grid.shape[0] / _SIGHT_STEPS_PER_CELL
-
-    def inside(lat: NDArrayFloatType, index: NDArrayIntType) -> NDArrayFloatType:
-        return _sight_gap(field, lat, phi[index], rho[index])
 
     # hi is the last latitude outside the surface and lo the first inside it.
     hi = lat_top.copy()
@@ -248,14 +306,11 @@ def visible_surface_directions(
     # Whether the step that led to each line of sight's current sample was longer
     # than the slope bound allows, and so could have passed over a sliver.
     forced = np.zeros(rho.size, dtype=np.bool_)
-    sliver_width = 2.0 * np.pi / field.grid.shape[0] * _SIGHT_SLIVER_CELLS
-    row_slope = np.abs(np.roll(field.grid, -1, axis=0) - field.grid) * (
-        field.grid.shape[0] / (2.0 * np.pi)
-    )
+    sliver_width = cell * _SIGHT_SLIVER_CELLS
     active = np.arange(rho.size)
     while active.size:
         lat_a = lat[active]
-        g = inside(lat_a, active)
+        g = lines.gap(lat_a, active)
         closer = g > best_g[active]
         best_g[active[closer]] = g[closer]
         best_lat[active[closer]] = lat_a[closer]
@@ -269,12 +324,11 @@ def visible_surface_directions(
             pix = active[suspect]
             ends = (hi[pix], lat_a[suspect])
             sliver = _first_crossing_between(
-                field,
-                rho[pix],
-                phi[pix],
+                lines,
+                pix,
                 ends,
                 (g_hi[pix], g[suspect]),
-                slope=_latitude_slope_bound(row_slope, ends, phi[pix]),
+                slope=lines.slope_bound(ends, pix),
                 min_width=sliver_width,
             )
             inner = pix[sliver.found]
@@ -306,7 +360,7 @@ def visible_surface_directions(
         a, b = hi[narrow], lo[narrow]
         ga, gb = g_hi[narrow], g_lo[narrow]
         mid = a + (b - a) * (-ga / np.maximum(gb - ga, 1e-300))
-        g_mid = inside(mid, narrow)
+        g_mid = lines.gap(mid, narrow)
         crossed = g_mid >= 0.0
         lo[narrow[crossed]] = mid[crossed]
         g_lo[narrow[crossed]] = g_mid[crossed]
@@ -317,6 +371,4 @@ def visible_surface_directions(
         ga, gb = g_hi[narrow], g_lo[narrow]
         hit[narrow] = a + (b - a) * (-ga / np.maximum(gb - ga, 1e-300))
 
-    cos_lat = np.cos(hit)
-    directions = np.stack([cos_lat * np.cos(phi), cos_lat * np.sin(phi), np.sin(hit)], axis=-1)
-    return directions.reshape(*shape, 3)
+    return lines.directions(hit, np.arange(rho.size)).reshape(*shape, 3)

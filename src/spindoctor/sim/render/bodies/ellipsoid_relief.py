@@ -24,7 +24,7 @@ from spindoctor.sim.render.bodies.ellipsoid_grid import (
     expand_to_working_grid,
     limb_band,
     neighboring_cells,
-    smooth_surface_directions,
+    relief_view,
     stretched_sight_cells,
 )
 from spindoctor.sim.render.bodies.photometry import incidence_cosines
@@ -100,7 +100,7 @@ def relief_resolved_on_detector_grid(
         smaller projected semi-axis, spans at least :data:`_MIN_INTERPOLATED_CORR_PX`
         detector pixels.
     """
-    corr_px = math.radians(field.corr_deg) * min(detector_grid.semi_a, detector_grid.semi_b)
+    corr_px = math.radians(field.corr_deg) * min(detector_grid.semi_a_outline, detector_grid.semi_b)
     return corr_px >= _MIN_INTERPOLATED_CORR_PX
 
 
@@ -183,7 +183,7 @@ def add_detector_relief(
         illumination_angle=illumination_angle,
         phase_angle=phase_angle,
     )
-    smooth = smooth_surface_directions(detector_grid)
+    smooth = np.stack(detector_grid.surface_unit_coords(), axis=-1)
     seen = smooth.copy()
     seen[detector.near] = detector.seen
     # The tilt is interpolated with a cubic spline: on relief whose correlation
@@ -274,7 +274,10 @@ def relief_shading(
     geometry = grid.geometry
     e2 = grid.ellipse_dist_sq[near]
     p = visible_surface_directions(
-        grid.v_rot[near] / grid.semi_a_outline, grid.u_rot[near] / grid.semi_b, field
+        grid.v_rot[near] / grid.semi_a_outline,
+        grid.u_rot[near] / grid.semi_b,
+        field,
+        view=relief_view(grid),
     )
     h = field.sample_points(p)
     normal_param = p - field.surface_gradient(p) / (1.0 + h)[..., np.newaxis]
