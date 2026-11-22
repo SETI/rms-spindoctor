@@ -26,7 +26,7 @@ Code map
    * - Log key
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
-   * - oops host module
+   * - Host
      - ``host_new_horizons.NewHorizonsLORRI``, from the ``rms-host-new-horizons``
        package
 
@@ -55,7 +55,7 @@ configuration entirely.
 Label and index dependencies
 ============================
 
-**Label fields read.** Beyond what the base class reads for the exposure
+**Host subfields read.** Beyond what the base class reads for the exposure
 times and the image shape, ``spacecraft_clock_start_count`` and
 ``spacecraft_clock_stop_count``, which
 :meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.get_public_metadata`
@@ -391,8 +391,8 @@ scene shows only that the navigator ignores this approximation of the header.
 the limiting-magnitude form: the anchor at unit exposure, one magnitude gained
 per Pogson ratio, the non-positive-exposure fallback, and finiteness. It also
 pins the published clock counts: fractional seconds, a midtime count that is
-the float nearest their exact mean, and counts read from the PDS3 label beside
-the image.
+the float nearest their exact mean, and, on a real image, the counts of the
+PDS3 label beside it.
 
 PDS4 hooks
 ==========

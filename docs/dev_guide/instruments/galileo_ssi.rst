@@ -26,7 +26,7 @@ Code map
    * - Log key
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
-   * - oops host module
+   * - Host
      - ``host_galileo.GalileoSSI``, from the ``rms-host-galileo`` package
 
 Loading the image
@@ -60,7 +60,7 @@ to navigate.
 Label and index dependencies
 ============================
 
-**Label fields read.** The ``filter`` subfield, for the single ``filters``
+**Host values read.** The ``filter`` subfield, for the single ``filters``
 entry in the metadata, which is empty when the host gives no filter; and the
 four fields ``RIM``, ``MOD91``, ``MOD10`` and ``MOD8``, which together are the
 image's frame count. The host gives the first two as the
@@ -411,7 +411,8 @@ shows that the navigator is unaffected by it.
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
 Pogson ratio, the non-positive-exposure fallback, and finiteness. It also pins
 the published clock count: a fractional number of RIM counts with no midtime or
-end count, and no count at all from a label lacking one of the four items.
+end count, and no count at all when one of the finer fields is missing. It
+also pins an empty ``filters`` entry when the host gives no filter.
 
 PDS4 hooks
 ==========
