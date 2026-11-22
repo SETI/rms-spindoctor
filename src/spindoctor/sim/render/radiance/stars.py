@@ -571,14 +571,16 @@ def _sky_beyond_the_frame(
     star beyond the frame is therefore the same whichever tiles are drawn, so a wider
     margin adds the stars of the pixels it adds and changes no other star.
 
-    The tiles drawn are those that meet the plane, the frame and its margin, or,
-    under a roll, those that meet a square about the frame center wide enough to
-    hold the plane at any angle.  Every star then turns about the frame center, so
-    the rolled sky is the unrolled sky turned with the frame.  The stars that land in
-    the plane are kept: a star whose turned position lies in the margin lights the
-    frame's edge through the optics.  A roll too small to carry any star across the
-    plane's edge draws the stars the unrolled plane holds and no others, each moved
-    by the roll alone.
+    A star is kept when its bilinear deposit puts light on the plane, the frame and
+    its margin: its position then lies less than one pixel past the plane's outermost
+    pixel centers, because the deposit shares its flux among the pixels on either side
+    of the position.  Such a star lights the frame's edge through the optics, and a
+    wider margin keeps the same star and more.  The tiles drawn are those that meet
+    that range, or, under a roll, those that meet a square about the frame center wide
+    enough to hold it at any angle.  Every star then turns about the frame center, so
+    the rolled sky is the unrolled sky turned with the frame.  A roll too small to
+    carry any star across the plane's edge draws the stars the unrolled plane holds
+    and no others, each moved by the roll alone.
 
     Parameters:
         frame_stars: The frame's stars, as magnitudes and pixel centric v and u
@@ -601,11 +603,13 @@ def _sky_beyond_the_frame(
     n_tile = star_density * _SKY_TILE_DETECTOR_PX**2
     plane_v = size_v + 2 * margin
     plane_u = size_u + 2 * margin
+    # A deposit reaches the plane from a pixel past each edge, so the tiles that matter
+    # extend one pixel beyond the plane.
     if rotation_deg == 0.0:
-        reach_v: tuple[float, float] = (-margin, size_v + margin)
-        reach_u: tuple[float, float] = (-margin, size_u + margin)
+        reach_v: tuple[float, float] = (-margin - 1.0, size_v + margin + 1.0)
+        reach_u: tuple[float, float] = (-margin - 1.0, size_u + margin + 1.0)
     else:
-        side = math.hypot(plane_v, plane_u)
+        side = math.hypot(plane_v + 2, plane_u + 2)
         reach_v = ((size_v - side) / 2.0, (size_v + side) / 2.0)
         reach_u = ((size_u - side) / 2.0, (size_u + side) / 2.0)
     mag_parts = [frame_stars[0]]
@@ -645,14 +649,14 @@ def _sky_beyond_the_frame(
         sin_r = math.sin(roll)
         turned_v = pivot_v + cos_r * rel_v - sin_r * rel_u
         turned_u = pivot_u + sin_r * rel_v + cos_r * rel_u
-    # The plane spans ``[-margin - half, size + margin - half)`` pixel centric, as the
-    # frame's own draw spans the frame.
-    half = PIXEL_CENTER_TO_CORNER_PX
+    # The plane's pixel centers span ``[-margin, size + margin)`` pixel centric, and a
+    # deposit at ``p`` shares its flux between the pixels ``floor(p)`` and
+    # ``floor(p) + 1``, so it reaches the plane when ``-margin - 1 < p < size + margin``.
     in_plane = (
-        (turned_v >= -margin - half)
-        & (turned_v < size_v + margin - half)
-        & (turned_u >= -margin - half)
-        & (turned_u < size_u + margin - half)
+        (turned_v > -margin - 1.0)
+        & (turned_v < size_v + margin)
+        & (turned_u > -margin - 1.0)
+        & (turned_u < size_u + margin)
     )
     return all_mags[in_plane], turned_v[in_plane], turned_u[in_plane]
 

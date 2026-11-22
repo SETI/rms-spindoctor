@@ -1031,9 +1031,11 @@ light is added to the frame alone, because no later step spreads it.
 The margin therefore changes none of the frame's radiance before the optics, apart
 from the share of a margin sky star that lands on an edge pixel. It changes only the
 light the optics carry across the frame edge. That light includes the light of the
-sky stars in the margin. Each of those stars is the same whatever the margin's width,
-so widening the margin for a longer smear or a wider PSF adds only the light of the
-stars in the pixels it adds. The truth metadata describes
+sky stars in the margin. A star counts when its light lands on any pixel of the margin,
+including a star less than a pixel past the outermost one, whose share on that pixel
+is bilinear like any other. Each of those stars is the same whatever the margin's
+width, so widening the margin for a longer smear or a wider PSF adds only the light of
+the stars in the pixels it adds. The truth metadata describes
 the frame alone: the masks and the body index map are cut to the frame, and the depth
 checks that make overlapping bodies state a ``range_km`` look only at the frame, so
 whether a scene is valid does not depend on how far its optics reach.
@@ -3484,8 +3486,8 @@ The roll turns:
 - the ``sky_counts`` background field. The turned frame also shows sky beyond the
   unrolled frame's corners. The sky beyond the frame is drawn in fixed tiles at the
   same density, each from its own stream, and the rolled sky is the unrolled sky
-  turned with the frame. A star is drawn when its turned position lies in the frame
-  or in the margin the optics stage reads (see :ref:`sim-frame-margin`), rolled or
+  turned with the frame. A star is drawn when its light lands on a pixel of the frame
+  or of the margin the optics stage reads (see :ref:`sim-frame-margin`), rolled or
   not, so a roll too small to carry a star across the margin's outer edge draws the
   same stars as no roll.
 

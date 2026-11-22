@@ -49,12 +49,20 @@ def _sky_plane(margin: int, *, rotation_deg: float = 0.0) -> np.ndarray:
 def test_margin_stars_do_not_depend_on_the_margin_width() -> None:
     """A margin one pixel wider adds stars in that pixel and changes no other star.
 
-    The added ring's stars put part of their light on the narrower plane's outermost
-    pixels, so those are left out of the comparison.
+    A star just outside the narrow plane still puts part of its light on the plane's
+    outermost pixels, so the narrow plane is the wide one cut down, edge pixels
+    included.
     """
     narrow = _sky_plane(8)
     wide = _sky_plane(9)
-    assert np.array_equal(narrow[1:-1, 1:-1], wide[2:-2, 2:-2])
+    assert np.array_equal(narrow, wide[1:-1, 1:-1])
+
+
+def test_rolled_margin_stars_do_not_depend_on_the_margin_width() -> None:
+    """A rolled sky with a wider margin holds the narrower rolled sky, edges included."""
+    narrow = _sky_plane(8, rotation_deg=30.0)
+    wide = _sky_plane(9, rotation_deg=30.0)
+    assert np.array_equal(narrow, wide[1:-1, 1:-1])
 
 
 def test_margin_holds_sky_stars() -> None:
