@@ -137,8 +137,35 @@ The data dictionary's ``limitations`` and ``pds3_product_creation_time`` are the
 product's.  The VICAR header of a calibrated image keeps the raw product's values, while
 its PDS3 label gives the calibrated product's own: the calibration's history and the
 date it ran, such as 2019-06-09.  The host's merged ``dict`` takes the label's, so these
-two are read from ``header_dict``, which the host keeps verbatim.
+two are read from ``header_dict``, which the host keeps verbatim.  A time there loses the
+trailing ``Z`` the header writes, as the host's merged times do (see
+:func:`_raw_product_value`).
 """
+
+_HEADER_TIME = re.compile(r'\d{4}-(?:\d{3}|\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d*)?Z')
+"""A time as a VICAR header writes it, ending in a ``Z`` that the PDS3 labels leave out."""
+
+
+def _raw_product_value(raw: Any) -> Any:
+    """Return a raw-product keyword's header value in the form the PDS3 labels write.
+
+    The host writes every time it merges from the header without the header's trailing
+    ``Z``, and leaves out a placeholder.  ``header_dict`` is verbatim, so the same is done
+    here for the values read from it.
+
+    Parameters:
+        raw: The value as the VICAR header gives it, or None if the header lacks it.
+
+    Returns:
+        The value, a time without its trailing ``Z``, or None for a placeholder or an
+        absent value.
+    """
+    if is_pds3_null(raw):
+        return None
+    if isinstance(raw, str) and _HEADER_TIME.fullmatch(raw):
+        return raw[:-1]
+    return raw
+
 
 _IMAGE_NAME_VERSION = re.compile(r'^[NW]\d{10}_(\d+)(?:_|\.|$)', re.IGNORECASE)
 """The version number in an image's file name: the segment after the image number.
@@ -227,9 +254,9 @@ def _label_metadata(
     """Return the dictionary attributes an image states, under their own names.
 
     Every attribute ``_LABEL_METADATA`` names is published, so the block has the same
-    keys for every image; one whose keyword the metadata lacks is None.  When the host
-    read the VICAR header, the keywords of ``_RAW_PRODUCT_KEYWORDS`` are read from it
-    alone (see there), and are None where it lacks them; every other keyword comes from
+    keys for every image; one whose keyword the metadata lacks is None.  The keywords of
+    ``_RAW_PRODUCT_KEYWORDS`` are read from the VICAR header alone (see there), and are
+    None where it lacks them or the host did not read it; every other keyword comes from
     the merged metadata.
 
     Parameters:
@@ -246,11 +273,9 @@ def _label_metadata(
     for attribute, keyword, element in _LABEL_METADATA:
         if keyword is None:
             value = _version_number(image_name)
-        elif keyword in _RAW_PRODUCT_KEYWORDS and header is not None:
-            # Never the merged value, which is the calibrated label's own.  header_dict is
-            # verbatim, so it keeps the placeholders the host leaves out.
-            raw = header.get(keyword)
-            value = None if is_pds3_null(raw) else raw
+        elif keyword in _RAW_PRODUCT_KEYWORDS:
+            # Never the merged value, which is the calibrated label's own.
+            value = None if header is None else _raw_product_value(header.get(keyword, None))
         elif element is None:
             value = _document_value(label, keyword)
         else:
