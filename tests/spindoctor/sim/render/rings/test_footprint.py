@@ -74,3 +74,5 @@ def test_cell_batches_change_no_pixel(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(footprint_module, '_CELL_BATCH', 1)
     batched = render_ring_system((64, 64), system, center_v=32.0, center_u=32.0, node_deg=25.0)
     np.testing.assert_array_equal(batched.intensity, whole.intensity)
+    np.testing.assert_array_equal(batched.transmission, whole.transmission)
+    np.testing.assert_array_equal(batched.mask, whole.mask)
