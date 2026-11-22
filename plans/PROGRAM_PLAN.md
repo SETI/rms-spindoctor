@@ -23,7 +23,7 @@ is documented.
   exit conditions are met, except that any row that waits on nothing can start early.
 - The priority is the issue's own GitHub label.
 - Simulator work is tracked separately, in `plans/SIM_IMPROVEMENT_PLAN.md`, and has no row here.
-  That covers changes to the simulator, its tests, and its report. 16 issues whose fix is
+  That covers changes to the simulator, its tests, and its report. 20 issues whose fix is
   navigator or calibration work have a row in both plans, because the simulator plan also names
   them. They are marked below.
 
@@ -133,7 +133,7 @@ The host session owns this phase.
 | #1061 | 2 Essential | yes |  | Flag answers that stop at the refinement window edge |
 | #1055 | 3 Important | yes |  | Disc locks 145 px off on an Iapetus frame |
 | #1065 | 3 Important | yes |  | Noise lock reported as a success on a dark frame |
-| #1050 | 3 Important | yes |  | Unmodeled bright structure pulls the disc correlation |
+| #1050 | 3 Important | yes |  | Unmodeled bright structure pulls the disc correlation (also in the simulator plan) |
 | #482 | 3 Important |  |  | Disc misses by up to 1 px on a weak axis |
 | #997 | 3 Important |  |  | A constant brightness offset can reject every shift |
 | #1002 | 3 Important |  |  | Annulus whole-pixel answers left unmarked |
@@ -188,7 +188,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #778 | 3 Important | yes |  | Cassini Division edges aliased onto B ring texture |
 | #566 | 2 Essential | yes |  | Recalibrate the annulus acceptance for 10-1000 km/px |
 | #316 | 2 Essential | yes |  | Ring orbit uncertainty priced as fully correlated (operator decision) |
-| #1092 | 3 Important |  |  | Ring-edge vertices at border-pixel centers |
+| #1092 | 3 Important |  |  | Ring-edge vertices at border-pixel centers (also in the simulator plan) |
 | #761 | 3 Important |  |  | A ring outer edge 34 km off the catalog |
 | #770 | 3 Important |  |  | 2009 NAC spoke movies 2.5-3.6 px from the bundle |
 | #760 | 4 Useful |  |  | WAC spoke movies barely better than SPICE |
@@ -219,15 +219,15 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
 | #1110 | 2 Essential | yes |  | Lambert template biases body techniques (also in the simulator plan) |
-| #1099 | 3 Important | yes |  | Overlapping body templates leave a dark outline |
-| #790 | 2 Essential | yes |  | Shape-lock veto misses confident wrong answers (also in the simulator plan; after the simulator work in #1062) |
+| #1099 | 3 Important | yes |  | Overlapping body templates leave a dark outline (also in the simulator plan) |
+| #790 | 2 Essential | yes |  | Shape-lock veto misses confident wrong answers (also in the simulator plan; after #1062 there) |
 | #321 | 2 Essential | yes | PR #789 open | Partial-arc limb fits biased inward by 2 px |
 | #747 | 3 Important | yes |  | Polarity check keys on an unreliable convergence flag |
 | #150 | 3 Important | yes |  | Limb fit's offset from the image edge |
 | #447 | 3 Important | yes |  | Body techniques do not return the shift they are given (held for #128) |
 | #128 | 3 Important | yes |  | Robust limb navigation redesign |
 | #223 | 2 Essential | yes |  | Terminator fit is degenerate and unvalidated |
-| #1103 | 4 Useful | yes |  | Confident limb answer a pixel wrong under blur |
+| #1103 | 4 Useful | yes |  | Confident limb answer a pixel wrong under blur (also in the simulator plan) |
 | #859 | 3 Important |  |  | Vertices beside missing-data edges still fitted |
 | #860 | 3 Important |  |  | Saturn limbs 4-9 px off on rev 36-37 frames |
 | #350 | 4 Useful |  |  | Resolved-body library frames 2 px off |
