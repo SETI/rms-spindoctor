@@ -107,8 +107,9 @@ is reported at the test that made it: had the file stayed, every later test in
 that worker would have read it as its configuration. Move to a directory of your
 own with ``monkeypatch.chdir`` before writing anything.
 
-Archive-backed tests additionally require the holdings and catalog environment
-(set by CI; see :doc:`dev_guide_introduction`):
+Archive-backed tests additionally require the holdings and catalog environment.
+CI leaves it unset and these tests skip there, so run them locally (see
+:doc:`dev_guide_introduction`):
 
 .. code-block:: bash
 
