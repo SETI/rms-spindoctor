@@ -391,6 +391,7 @@ def test_disc_terrain_is_read_where_the_line_of_sight_meets_it() -> None:
         cosines = np.clip(np.sum(points[hit] * truth[hit], axis=-1), -1.0, 1.0)
         return float(np.mean(np.arccos(cosines) > half_corr))
 
+    assert np.isfinite(seen[hit]).all()
     assert share_misread(smooth) > 0.05
     assert share_misread(seen) < 0.01
 
@@ -421,6 +422,7 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     away = inside & (_surface_normals(field, points)[:, 2] < -0.05)
     assert int(away.sum()) > 100
     seen = _relief_shading(grid, spec, field, near).seen
+    assert np.isfinite(seen[inside]).all()
     facing_away = _surface_normals(field, seen[inside])[:, 2] < 0.0
     assert int(facing_away.sum()) <= 0.001 * int(inside.sum())
 
