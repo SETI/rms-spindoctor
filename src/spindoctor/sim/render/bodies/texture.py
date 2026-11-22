@@ -22,7 +22,8 @@ correlation sees without moving the limb the navigator fits:
 parameterization ``(x, y, z)``
 (:func:`~spindoctor.sim.shared.ellipsoid.surface_unit_coords`): the body-frame point
 under each pixel divided by the semi-axes, along the pole, semi-axis b, and semi-axis c,
-so ``x^2 + y^2 + z^2 = 1`` on the disc. For a body seen equator-on
+so ``x^2 + y^2 + z^2 = 1``. A pixel outside the smooth limb, which relief can cover,
+reads the limb point at its azimuth on the outline. On the disc of a body seen equator-on
 ``x = v_rot / semi_a`` and ``y = u_rot / semi_b``; a sub-observer latitude tips the
 pole toward the observer, so the bands curve across the disc. Every texture -- the
 albedo noise field, albedo spots, bands, and storms -- lives in one body-polar frame:

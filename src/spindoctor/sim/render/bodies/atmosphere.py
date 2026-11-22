@@ -863,10 +863,7 @@ def _column_latitude_sine(
     """
     if geometry.sin_lat == 0.0:
         return latitude_sine(v_rot, e2, semi_a=geometry.semi_a)
-    radial = np.sqrt(np.maximum(e2, 1.0))
-    x, _y, _z = surface_unit_coords(
-        v_rot / radial, u_rot / radial, np.minimum(e2, 1.0), geometry=geometry
-    )
+    x, _y, _z = surface_unit_coords(v_rot, u_rot, e2, geometry=geometry)
     sin_latitude: NDArrayFloatType = np.clip(x, -1.0, 1.0)
     return sin_latitude
 

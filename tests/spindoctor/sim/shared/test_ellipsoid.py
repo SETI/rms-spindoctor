@@ -167,6 +167,44 @@ def test_the_surface_point_lies_on_the_turned_body() -> None:
     np.testing.assert_allclose((x**2 + y**2 + z**2)[on_disc], 1.0, rtol=0.0, atol=1e-9)
 
 
+def test_a_pixel_outside_the_limb_reads_the_limb_point_at_its_azimuth() -> None:
+    """A pixel 1.2 radii out along a turned sphere's pole axis reads latitude 60.
+
+    The sphere's north pole is tipped 30 degrees toward the observer, so the limb
+    point on the pole axis, where the line of sight 1.2 radii out passes closest,
+    lies at latitude 60.
+    """
+    latitude = math.radians(30.0)
+    geometry = project_ellipsoid(
+        (4, 4), (2.0, 2.0), 20.0, semi_b_px=20.0, semi_c_px=20.0, sub_observer_lat=latitude
+    ).geometry
+    x, _y, _z = surface_unit_coords(
+        np.array([24.0]), np.array([0.0]), np.array([1.44]), geometry=geometry
+    )
+    assert float(x[0]) == pytest.approx(math.sin(math.radians(60.0)), abs=1e-12)
+
+
+@pytest.mark.parametrize('sub_observer_lat', [0.0, 0.4], ids=['equator_on', 'turned'])
+def test_every_point_outside_the_limb_has_unit_length(sub_observer_lat: float) -> None:
+    """Each pixel outside a triaxial body's limb reads a point on the body.
+
+    Parameters:
+        sub_observer_lat: The sub-observer latitude in radians.
+    """
+    projection = project_ellipsoid(
+        (48, 40),
+        (22.3, 19.6),
+        14.0,
+        semi_b_px=10.5,
+        semi_c_px=12.0,
+        rotation_z=0.6,
+        sub_observer_lat=sub_observer_lat,
+    )
+    off_disc = projection.ellipse_dist_sq > 1.0
+    x, y, z = projection.surface_unit_coords()
+    np.testing.assert_allclose((x**2 + y**2 + z**2)[off_disc], 1.0, rtol=0.0, atol=1e-9)
+
+
 def test_a_turned_spheres_normals_match_the_sphere_seen_equator_on() -> None:
     """Turning a sphere about its center moves no surface normal on the image."""
     equator_on = project_ellipsoid((40, 40), (20.0, 20.0), 15.0, semi_b_px=15.0, semi_c_px=15.0)

@@ -293,9 +293,9 @@ def surface_unit_coords(
 
     The point is where the line of sight through the pixel first meets the
     ellipsoid, divided axis by axis by the semi-axes, so ``x`` is the sine of its
-    latitude on a sphere.  At or outside the limb the line of sight meets the
-    ellipsoid nowhere, and the point is where it passes closest to the limb, the
-    point whose surface faces sideways.
+    latitude on a sphere.  Outside the limb the line of sight meets the ellipsoid
+    nowhere.  There the point is the limb point at the pixel's azimuth on the
+    outline, where the surface faces sideways, so every point has unit length.
 
     Parameters:
         v_rot: Each pixel's coordinate along the rotated first axis, in pixels.
@@ -306,9 +306,13 @@ def surface_unit_coords(
     Returns:
         ``(x, y, z)``: the components along the pole, semi-axis b, and semi-axis c.
     """
+    # A pixel outside the limb moves in along its azimuth onto the outline.
+    radial = np.sqrt(np.maximum(ellipse_dist_sq, 1.0))
     depth_fraction = np.sqrt(np.maximum(0.0, 1.0 - ellipse_dist_sq))
     if geometry.sin_lat == 0.0:
-        return v_rot / geometry.semi_a, u_rot / geometry.semi_b, depth_fraction
+        return v_rot / geometry.semi_a / radial, u_rot / geometry.semi_b / radial, depth_fraction
+    v_rot = v_rot / radial
+    u_rot = u_rot / radial
     cos_lat, sin_lat = geometry.cos_lat, geometry.sin_lat
     inv_a2 = 1.0 / geometry.semi_a**2
     inv_c2 = 1.0 / geometry.semi_c**2

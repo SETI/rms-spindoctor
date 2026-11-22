@@ -728,21 +728,10 @@ def _relief_shading(
     sin_rz = grid.sin_rz
     geometry = grid.geometry
     e2 = grid.ellipse_dist_sq[near]
-    radial = np.sqrt(np.maximum(e2, 1.0))
-    if geometry.sin_lat == 0.0:
-        x = grid.v_rot[near] / grid.semi_a
-        y = grid.u_rot[near] / grid.semi_b
-        p = np.stack([x / radial, y / radial, np.sqrt(np.maximum(0.0, 1.0 - e2))], axis=-1)
-    else:
-        p = np.stack(
-            surface_unit_coords(
-                grid.v_rot[near] / radial,
-                grid.u_rot[near] / radial,
-                np.minimum(e2, 1.0),
-                geometry=geometry,
-            ),
-            axis=-1,
-        )
+    p = np.stack(
+        surface_unit_coords(grid.v_rot[near], grid.u_rot[near], e2, geometry=geometry),
+        axis=-1,
+    )
     h = field.sample_points(p)
     normal_param = p - field.surface_gradient(p) / (1.0 + h)[..., np.newaxis]
     normal_body = normal_param / semi
