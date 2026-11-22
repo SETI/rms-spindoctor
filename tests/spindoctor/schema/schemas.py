@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Annotated, Any, Literal
 
 import pytest
+from annotated_types import Len
 
 from spindoctor.schema.core import (
     SCHEMA_CONFIG,
@@ -85,6 +86,25 @@ class Inner:
 
 
 @dataclass(frozen=True)
+class Wrapper:
+    """A record that holds a nested record, as the one dataclass of an untagged union."""
+
+    __pydantic_config__ = SCHEMA_CONFIG
+    inner: Inner
+    label: Str
+
+
+@dataclass(frozen=True)
+class Nested:
+    """A tagged-union member that holds a nested record."""
+
+    __pydantic_config__ = SCHEMA_CONFIG
+    kind: Literal['nested']
+    inner: Inner
+    label: Str
+
+
+@dataclass(frozen=True)
 class Outer:
     """A schema with nesting, tagged entries, a union, a choice, and keyed tables."""
 
@@ -98,6 +118,10 @@ class Outer:
     modes: dict[DigitInt, Inner] = field(default_factory=dict)
     pair: tuple[Float, Float] = (0.0, 0.0)
     gains_or_name: dict[PositiveInt, Positive] | Str = ''
+    offered: Literal['all'] | list[Literal['a', 'b']] = 'all'
+    wrapped: Wrapper | Str = ''
+    offered_or_count: Annotated[Literal['all'] | list[Literal['a', 'b']], Len(1, 9)] | Int = 0
+    kind_or_name: Annotated[Nested | Gap, tagged('kind')] | Str = ''
 
 
 # A valid Outer mapping, which each test breaks in one place.

@@ -17,13 +17,15 @@ from __future__ import annotations
 import ast
 import dataclasses
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 __all__ = [
     'Issue',
     'KeyPath',
+    'LengthBounds',
     'RangeError',
+    'RuleError',
     'SchemaError',
     'describe_value',
     'doubled_keys',
@@ -33,6 +35,11 @@ __all__ = [
 
 #: A key path into a parsed YAML tree: mapping keys, and integer positions in lists.
 KeyPath = tuple[Any, ...]
+
+#: Given the key path of a list in the input, the (fewest, most) items each list type the
+#: schema allows there may hold; None for no most.  :func:`report` asks it whether a
+#: list of the wrong length had to have exactly one length.
+LengthBounds = Callable[[KeyPath], frozenset[tuple[int, int | None]]]
 
 
 # pydantic error types that state what the value should have been.
@@ -114,6 +121,41 @@ class RangeError(ValueError):
         super().__init__(f'expected {expected}')
 
 
+class RuleError(ValueError):
+    """A cross-field rule is broken, at a key inside the type that checks the rule.
+
+    A rule in a schema dataclass's ``__post_init__`` raises it to put the problem on the
+    key at fault rather than on the dataclass as a whole.  The line then gives that
+    key's path and the file that set its value, so a problem inherited by several
+    entries reads the same in each and is reported once.
+
+    A rule that compares keys passes all of them as ``reads``.  Two files may set them,
+    each with a value that is fine on its own, so the line gives the file that set or
+    removed any of them last, which is the one that broke the rule.
+
+    Each key path is relative to the dataclass: one key, or a tuple of keys for a key
+    deeper inside.  A key may be absent, as when a rule asks for a key that is not set.
+
+    Parameters:
+        message: What is wrong.
+        at: The key path the line gives; empty for the dataclass itself.
+        reads: The key path of each key the rule reads, the one at fault included; when
+            omitted, the line gives the file that set ``at``.
+    """
+
+    def __init__(
+        self, message: str, *, at: KeyPath | str, reads: Sequence[KeyPath | str] = ()
+    ) -> None:
+        self.at: KeyPath = _as_key_path(at)
+        self.reads: tuple[KeyPath, ...] = tuple(_as_key_path(keys) for keys in reads)
+        super().__init__(message)
+
+
+def _as_key_path(keys: KeyPath | str) -> KeyPath:
+    """A key path, from one key or a tuple of them."""
+    return (keys,) if isinstance(keys, str) else tuple(keys)
+
+
 def describe_value(value: object) -> str:
     """Describe a value for an error message: its type and its value.
 
@@ -168,24 +210,32 @@ def report(
     *,
     source: str,
     origins: Mapping[KeyPath, str],
+    lengths: LengthBounds | None = None,
 ) -> list[Issue]:
     """Turn the errors pydantic raised for one input into issues.
 
     Missing keys and unknown keys of one mapping each share a line, and so do the
     missing positions of one fixed-length list.  When a value fails every member of
-    a union, the members' expectations share a line.  Every other problem has a line
-    of its own; a bad mapping key and a bad value under it are two problems.
+    a union, the members' expectations share a line.  When one member's problems lie
+    deeper inside the value, the value matched that member's container, so only that
+    member's problems are reported.  Every other problem has a line of its own; a bad
+    mapping key and a bad value under it are two problems.  A rule that raises
+    :class:`RuleError` is placed on the key it gives.
 
     Parameters:
         errors: pydantic's errors, from ``ValidationError.errors()``.
         raw: The input pydantic checked.
         source: The source to give when ``origins`` says nothing about a key.
-        origins: The source of each value, keyed by the value's key path.
+        origins: The source of each value, and of each removed key, keyed by key path, in
+            the order they were set or removed.
+        lengths: The lengths each list in the input may have, from which a list of
+            the wrong length is said to need "exactly" so many items when only one
+            length is allowed; when omitted, only the bound pydantic gives is stated.
 
     Returns:
         One issue per line, in the order pydantic found the problems.
     """
-    return _Reporter(raw, source=source, origins=origins).issues(errors)
+    return _Reporter(raw, source=source, origins=origins, lengths=lengths).issues(errors)
 
 
 def doubled_keys(raw: object, *, source: str, origins: Mapping[KeyPath, str]) -> list[Issue]:
@@ -244,8 +294,15 @@ class _Found:
         got: For ``'expected'`` and ``'length'``, how the value is described.
         alone: The message to use when nothing is combined with this problem, or None
             for the message built from ``words``.
-        named: For ``'unknown'``, the key path of each unknown key, whose sources the
-            issue gives; otherwise empty, and the issue gives the sources of ``keys``.
+        named: For ``'unknown'`` and ``'missing'``, the key path of each key the line
+            gives, whose sources the issue gives; otherwise empty, and the issue gives
+            the sources of ``keys``.
+        reads: For a rule that compares keys, the key path of each key it reads, of
+            which the issue gives the source set last; otherwise empty.
+        reach: The deepest key path in the input the error was located at, which for a
+            missing key includes the key.
+        tags: Each union member's tag in the error's location, with the number of
+            input keys before it, which is where the union lies.
     """
 
     keys: KeyPath
@@ -255,22 +312,39 @@ class _Found:
     got: str = ''
     alone: str | None = None
     named: list[KeyPath] = dataclasses.field(default_factory=list)
+    reads: list[KeyPath] = dataclasses.field(default_factory=list)
+    reach: KeyPath = ()
+    tags: tuple[tuple[int, Any], ...] = ()
+
+    def member(self, depth: int) -> tuple[Any, ...]:
+        """The tags of the union members at ``depth`` keys into the input, outermost first."""
+        return tuple(tag for at, tag in self.tags if at == depth)
 
 
 class _Reporter:
     """Turn pydantic's errors for one input into issues in the house format."""
 
-    def __init__(self, raw: object, *, source: str, origins: Mapping[KeyPath, str]) -> None:
+    def __init__(
+        self,
+        raw: object,
+        *,
+        source: str,
+        origins: Mapping[KeyPath, str],
+        lengths: LengthBounds | None = None,
+    ) -> None:
         self._raw = raw
         self._source = source
         self._origins = origins
+        self._lengths = lengths
 
     def issues(self, errors: Sequence[Mapping[str, Any]]) -> list[Issue]:
         """Every issue, with the problems that share a line combined."""
         combined: dict[tuple[Any, ...], _Found] = {}
         lines: list[_Found] = []
-        for error in errors:
-            found = self._locate(error)
+        located = [self._locate(error) for error in errors]
+        for found in located:
+            if found.tags and _matched_elsewhere(found, located):
+                continue
             if found.slot is not None and found.slot in combined:
                 previous = combined[found.slot]
                 previous.words.extend(w for w in found.words if w not in previous.words)
@@ -285,9 +359,17 @@ class _Reporter:
     def _locate(self, error: Mapping[str, Any]) -> _Found:
         """Place one pydantic error on the input's keys and classify it."""
         kind = str(error['type'])
+        located = self._keys(tuple(error['loc']), keep_last=kind == 'missing')
+        found = self._classify(error, located)
+        found.reach = max(found.keys, located.keys, key=len)
+        found.tags = located.tags
+        return found
+
+    def _classify(self, error: Mapping[str, Any], located: _Located) -> _Found:
+        """Classify one pydantic error, placed at ``located`` in the input."""
+        kind = str(error['type'])
         ctx = error.get('ctx') or {}
         value = error['input']
-        located = self._keys(tuple(error['loc']), keep_last=kind == 'missing')
         keys = located.keys
         if kind == 'missing' and located.at_position:
             return _Found(
@@ -298,33 +380,34 @@ class _Reporter:
                 describe_value(_value_at(self._raw, keys[:-1])),
             )
         if kind == 'missing':
-            return _Found(keys[:-1], (keys[:-1], 'missing'), 'missing', [str(keys[-1])])
+            return _Found(
+                keys[:-1], (keys[:-1], 'missing'), 'missing', [str(keys[-1])], named=[keys]
+            )
         if kind in _UNKNOWN:
             word = str(value) if kind == 'invalid_key' else str(keys[-1])
             return _Found(keys[:-1], (keys[:-1], 'unknown'), 'unknown', [word], named=[keys])
         if kind == 'union_tag_not_found':
             tag = _unquote(ctx['discriminator'])
-            return _Found(keys, (keys, 'missing'), 'missing', [tag])
+            return _Found(keys, (keys, 'missing'), 'missing', [tag], named=[(*keys, tag)])
         if kind == 'union_tag_invalid':
             name = _unquote(ctx['discriminator'])
             tag = value[name] if isinstance(value, Mapping) and name in value else ctx['tag']
             choices = _choices(str(ctx['expected_tags']))
             message = f'{tag!r} is not one of {choices}'
             return _Found((*keys, name), None, 'message', [message])
+        if kind in _RULE and isinstance(ctx['error'], RuleError):
+            rule = ctx['error']
+            reads = [self._extend(keys, path) for path in rule.reads]
+            return _Found(self._extend(keys, rule.at), None, 'message', [str(rule)], reads=reads)
         if kind in _RULE and not isinstance(ctx['error'], RangeError):
             return _Found(keys, None, 'message', [str(ctx['error'])])
         if kind in ('too_short', 'too_long'):
-            bound = (
-                f'at least {ctx["min_length"]}'
-                if kind == 'too_short'
-                else f'at most {ctx["max_length"]}'
-            )
             return _Found(
-                keys, None, 'expected', [f'a list of {bound} items'], describe_value(value)
+                keys, None, 'expected', [self._length_words(kind, keys, ctx)], describe_value(value)
             )
         # A failed union member leaves its tag in the location; only then do the
         # members' expectations share one line.
-        slot = (keys, 'expected', located.about_key) if located.dropped else None
+        slot = (keys, 'expected', located.about_key) if located.tags else None
         suffix = ' as the key' if located.about_key else ''
         if kind in _RULE:
             words = f'{ctx["error"].expected}{suffix}'
@@ -347,6 +430,52 @@ class _Reporter:
         message = str(error['msg'])
         return _Found(keys, None, 'message', [message[:1].lower() + message[1:]])
 
+    def _length_words(self, kind: str, keys: KeyPath, ctx: Mapping[str, Any]) -> str:
+        """What a list of the wrong length should have been, such as "a list of at most 2
+        items".
+
+        pydantic gives only the bound the list broke.  The list needs exactly that many
+        items when every list type the schema allows at ``keys`` with that bound has
+        the same bound on its other side.
+        """
+        bounds = self._bounds(keys)
+        if kind == 'too_short':
+            count = int(ctx['min_length'])
+            others = {most for fewest, most in bounds if fewest == count}
+            amount = f'at least {count}'
+        else:
+            count = int(ctx['max_length'])
+            others = {fewest for fewest, most in bounds if most == count}
+            amount = f'at most {count}'
+        if others == {count}:
+            amount = f'exactly {count}'
+        return f'a list of {amount} items'
+
+    def _bounds(self, keys: KeyPath) -> frozenset[tuple[int, int | None]]:
+        """The lengths the schema allows for the list at ``keys``; empty when not known."""
+        return frozenset() if self._lengths is None else self._lengths(keys)
+
+    def _extend(self, keys: KeyPath, at: KeyPath) -> KeyPath:
+        """``keys`` followed by a rule's relative key path ``at``.
+
+        A key of ``at`` that the input writes as a string of digits, as a mapping that
+        passed through JSON does, is given as the input writes it.
+        """
+        extended = list(keys)
+        node: object = _value_at(self._raw, keys)
+        for key in at:
+            written = key
+            if isinstance(node, Mapping) and key not in node and str(key) in node:
+                written = str(key)
+            extended.append(written)
+            if isinstance(node, Mapping):
+                node = node.get(written)
+            elif isinstance(node, list | tuple) and _is_position(node, written):
+                node = node[written]
+            else:
+                node = None
+        return tuple(extended)
+
     def _keys(self, loc: tuple[Any, ...], *, keep_last: bool) -> _Located:
         """Map a pydantic location onto the input's keys.
 
@@ -356,7 +485,7 @@ class _Reporter:
         keys: list[Any] = []
         node: object = self._raw
         about_key = False
-        dropped = False
+        tags: list[tuple[int, Any]] = []
         at_position = False
         for index, segment in enumerate(loc):
             if segment == _KEY_SEGMENT:
@@ -374,8 +503,8 @@ class _Reporter:
                 at_position = isinstance(node, list | tuple) and isinstance(segment, int)
                 keys.append(segment)
             else:
-                dropped = True
-        return _Located(tuple(keys), about_key=about_key, dropped=dropped, at_position=at_position)
+                tags.append((len(keys), segment))
+        return _Located(tuple(keys), about_key=about_key, tags=tuple(tags), at_position=at_position)
 
     def _issue(self, found: _Found) -> Issue:
         """Write one combined problem as an issue."""
@@ -387,13 +516,30 @@ class _Reporter:
             message = f'unknown keys: {sorted(found.words)}'
         elif found.kind == 'length':
             count = max(int(word) for word in found.words) + 1
-            message = f'expected a list of {count} items, got {found.got}'
+            message = f'expected a list of exactly {count} items, got {found.got}'
         elif found.kind == 'expected':
             message = f'expected {" or ".join(found.words)}, got {found.got}'
         else:
             message = found.words[0]
-        sources = dict.fromkeys(self.origin(keys) for keys in found.named or [found.keys])
-        return Issue(', '.join(sources), format_key_path(self._raw, found.keys), message)
+        sources = [self._last_origin(found.reads)] if found.reads else []
+        if not any(sources):
+            sources = [self.origin(keys) for keys in found.named or [found.keys]]
+        label = ', '.join(dict.fromkeys(sources))
+        return Issue(label, format_key_path(self._raw, found.keys), message)
+
+    def _last_origin(self, paths: Sequence[KeyPath]) -> str:
+        """The source that set or removed a value at one of ``paths`` last.
+
+        The origins are in the order their layers applied.  A value inside a list has the
+        list's origin.  Empty when ``paths`` have no origin.
+        """
+        last = ''
+        for recorded, label in self._origins.items():
+            for path in paths:
+                depth = min(len(recorded), len(path))
+                if recorded[:depth] == path[:depth]:
+                    last = label
+        return last
 
     def origin(self, keys: KeyPath) -> str:
         """The source to give for a problem at ``keys``.
@@ -416,14 +562,36 @@ class _Located:
     Parameters:
         keys: The key path.
         about_key: Whether the problem is with a mapping key itself.
-        dropped: Whether a union member's tag was dropped from the location.
+        tags: Each union member's tag dropped from the location, with the number of
+            keys before it.
         at_position: Whether the last key is a missing position of a fixed-length list.
     """
 
     keys: KeyPath
     about_key: bool
-    dropped: bool
+    tags: tuple[tuple[int, Any], ...]
     at_position: bool
+
+
+def _matched_elsewhere(found: _Found, located: Sequence[_Found]) -> bool:
+    """Whether another member of a union that ``found`` failed got deeper into the value.
+
+    A value fails a union when it fails every member.  When another member's error
+    lies deeper inside the value than this member's, the value matched that member's
+    container, such as a list given where a list or a string belongs, so this
+    member's error says nothing useful.  A union may be a member of another union, so
+    a member is told apart by every tag at its depth together.
+    """
+    for depth in {depth for depth, _ in found.tags}:
+        union, member = found.reach[:depth], found.member(depth)
+        for other in located:
+            if (
+                len(other.reach) > len(found.reach)
+                and other.reach[:depth] == union
+                and other.member(depth) not in ((), member)
+            ):
+                return True
+    return False
 
 
 def _is_position(items: Sequence[Any], segment: Any) -> bool:

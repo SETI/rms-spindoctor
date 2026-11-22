@@ -28,8 +28,17 @@ The conventions every schema follows:
 - **Write a choice** as a ``Literal`` or an ``Enum`` of strings.
 - **Write a rule that ties two fields together** as ``__post_init__`` on the type that
   owns both fields.  It raises ``ValueError``, and the message becomes the problem's
-  message at that type's key path.  Any other exception is a bug in the rule, and it
-  propagates.
+  message at that type's key path.  To put the problem on the key at fault instead,
+  it raises :class:`~spindoctor.schema.errors.RuleError` with that key's path relative
+  to the type, as in ``RuleError('not in the table', at=('filters', 'clear'))``.  The
+  line then gives the file that set that key, so a problem every entry inherits from
+  one base reads the same in each.  A rule that compares keys passes all of them as
+  ``reads``, and the line gives the file that set or removed one of them last.  Any
+  other exception is a bug in the rule, and it propagates.
+- **Give a field an alias** with ``Annotated[X, Field(alias='from')]`` only when the
+  key a file writes cannot be a field name, because it is a Python keyword such as
+  ``from``.  The field takes another name, such as ``from_``, and a mapping writes the
+  alias.
 - **Write a polymorphic entry as a tagged union**: every member is a schema dataclass
   with a ``Literal`` tag field, and the union is ``Annotated[A | B, tagged('kind')]``.
   A union of two or more dataclasses must be tagged.
@@ -40,13 +49,13 @@ The conventions every schema follows:
 
 The supported annotations are the aliases above, ``Literal`` and ``Enum`` of strings,
 ``X | None``, unions, ``list[X]``, ``tuple[X, ...]``, fixed tuples, ``dict[K, V]``,
-``Mapping[K, V]``, nested schema dataclasses (a schema may refer to itself), and
-``annotated_types`` constraints such as ``Le`` and ``Len``.  :func:`check_schema`
-refuses everything else, and also refuses what would read a value leniently: a bare
-``float``, ``int``, ``bool``, or ``str``, a ``Strict(False)`` or ``AllowInfNan(True)``
-marker, and a validator that runs before the type check.  :func:`parse` runs that
-check the first time it sees a class.  Adding a new form or convention needs a reason,
-written here.
+``Mapping[K, V]``, nested schema dataclasses (a schema may refer to itself),
+``annotated_types`` constraints such as ``Le`` and ``Len``, and ``Field(alias=...)``
+for a key that is a Python keyword.  :func:`check_schema` refuses everything else, and
+also refuses what would read a value leniently: a bare ``float``, ``int``, ``bool``, or
+``str``, a ``Strict(False)`` or ``AllowInfNan(True)`` marker, and a validator that runs
+before the type check.  :func:`parse` runs that check the first time it sees a class.
+Adding a new form or convention needs a reason, written here.
 
 A null is never data in the files this core reads.  The layer merge
 (:mod:`spindoctor.schema.layers`) applies each file family's rule for null before
@@ -381,6 +390,69 @@ def _adapter(cls: Any) -> TypeAdapter[Any]:
     return TypeAdapter(cls)
 
 
+def _length_bounds(annotation: Any, keys: KeyPath) -> frozenset[tuple[int, int | None]]:
+    """The (fewest, most) items of each list type ``annotation`` allows at ``keys``.
+
+    The keys are the input's own: a union is followed into each of its members, since
+    the input does not say which member a value was checked against.
+
+    Parameters:
+        annotation: A schema annotation.
+        keys: A key path into a value of that annotation.
+
+    Returns:
+        One pair per list type found at ``keys``, with None for no most.
+    """
+    base, extras = annotation, []
+    if get_origin(annotation) is Annotated:
+        base, *rest = get_args(annotation)
+        extras = _flatten(tuple(rest))
+    origin = get_origin(base)
+    arguments = get_args(base)
+    if origin is Union or origin is types.UnionType:
+        return frozenset().union(*(_length_bounds(member, keys) for member in arguments))
+    fixed = origin is tuple and Ellipsis not in arguments
+    if not keys:
+        if fixed:
+            return frozenset({(len(arguments), len(arguments))})
+        if origin in (list, tuple):
+            fewest = max((getattr(extra, 'min_length', 0) or 0 for extra in extras), default=0)
+            most = [getattr(extra, 'max_length', None) for extra in extras]
+            limits = [int(limit) for limit in most if limit is not None]
+            return frozenset({(int(fewest), min(limits, default=None))})
+        return frozenset()
+    key, rest_keys = keys[0], keys[1:]
+    if isinstance(base, type) and dataclasses.is_dataclass(base):
+        hint = _field_hints(base).get(key)
+        return frozenset() if hint is None else _length_bounds(hint, rest_keys)
+    if origin in (dict, Mapping):
+        return _length_bounds(arguments[1], rest_keys)
+    if fixed:
+        inside = isinstance(key, int) and 0 <= key < len(arguments)
+        return _length_bounds(arguments[key], rest_keys) if inside else frozenset()
+    if origin in (list, tuple):
+        return _length_bounds(arguments[0], rest_keys)
+    return frozenset()
+
+
+def _field_hints(cls: type) -> dict[str, Any]:
+    """A schema dataclass's field annotations, keyed by the key a mapping writes.
+
+    That key is the field's name, or its alias when ``Field(alias=...)`` gives one.
+    """
+    hints = get_type_hints(cls, include_extras=True)
+    keyed: dict[str, Any] = {}
+    for item in dataclasses.fields(cls):
+        key = item.name
+        hint = hints[item.name]
+        if get_origin(hint) is Annotated:
+            for extra in get_args(hint)[1:]:
+                if isinstance(extra, FieldInfo) and isinstance(extra.alias, str):
+                    key = extra.alias
+        keyed[key] = hint
+    return keyed
+
+
 def parse(
     cls: type[T], raw: object, *, source: str, origins: Mapping[KeyPath, str] | None = None
 ) -> T:
@@ -392,10 +464,14 @@ def parse(
         raw: The mapping to check, normally the data of a merged set of layers.
         source: The file (or file and entry) to give in a message when ``origins``
             says nothing about the key.
-        origins: The source of each value, keyed by the value's key path, as the layer
-            merge records it.  A problem with a value, or with an unknown key, gives
-            the source that set it.  A problem with a key that is absent, or with a
-            whole mapping, gives every source that set a value inside that mapping.
+        origins: The source of each value, and of each key a null removed, keyed by
+            key path, as the layer merge records them.  A problem with a value, or with
+            an unknown key, gives the source that set it.  A problem with a key that a
+            null removed gives the source that removed it.  A problem with any other
+            absent key, or with a whole mapping, gives every source that set or
+            removed a value inside that mapping.  A rule that compares keys gives the
+            source that comes last in ``origins`` among them, so the order of
+            ``origins`` is the order of the layers.
 
     Returns:
         The instance of ``cls``.
@@ -413,7 +489,12 @@ def parse(
         value: T = adapter.validate_python(raw)
     except ValidationError as exc:
         errors = exc.errors(include_url=False)
-        found = report(errors, raw, source=source, origins=origins or {})
+
+        def lengths(keys: KeyPath) -> frozenset[tuple[int, int | None]]:
+            """The lengths ``cls`` allows for the list at ``keys``."""
+            return _length_bounds(cls, keys)
+
+        found = report(errors, raw, source=source, origins=origins or {}, lengths=lengths)
         raise SchemaError([*doubled, *found]) from exc
     if doubled:
         raise SchemaError(doubled)

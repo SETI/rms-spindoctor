@@ -17,9 +17,11 @@ name, or a file name and an entry.  :func:`merge` applies layers in order:
   mapping no earlier layer has, is an error, because there is nothing under it to
   delete.
 
-The merge records which layer set each value, so a problem found while parsing gives
-the file that holds the mistake.  It collects every null problem in all the layers
-before it raises.
+The merge records which layer set each value, and which layer removed each key a
+null deleted, so a problem found while parsing gives the file that holds the mistake.
+A required key that a null removed is reported against the file with the null, even
+when the key's mapping keeps other keys from earlier files.  The merge collects every
+null problem in all the layers before it raises.
 
 :func:`resolve_bases` merges each named entry over the chain of entries it inherits
 from, and :func:`split_entries` turns a file of named entries into one layer per
@@ -103,7 +105,9 @@ class Merged:
         data: The merged mapping, which shares no objects with the layers.
         origins: The label of the layer that set each value, keyed by the value's key
             path.  A value is a scalar, a list, or an empty mapping; a list's items are
-            not recorded separately.  Pass it to
+            not recorded separately.  A key that a null removed is recorded too, with
+            the label of the layer that removed it, though ``data`` no longer holds it.
+            The entries are in the order their layers applied.  Pass it to
             :func:`spindoctor.schema.core.parse` as ``origins``.
     """
 
@@ -201,11 +205,11 @@ class _Merger:
             key_path = (*path, key)
             if value is None:
                 if self.nulls is NullPolicy.REMOVE and key in target:
-                    self._forget(target[key], key_path)
+                    self._forget(key_path)
                     del target[key]
-                    if not target and path:
-                        # An emptied mapping is a value, set by the layer that emptied it.
-                        self.origins[path] = self._layer.label
+                    # The removal is recorded where the value was, so a problem with
+                    # the absent key gives the layer that removed it.
+                    self.origins[key_path] = self._layer.label
                 else:
                     self._refuse_null(key_path, in_list=False)
                 continue
@@ -213,8 +217,7 @@ class _Merger:
             if isinstance(value, Mapping) and isinstance(existing, dict):
                 self._merge_into(existing, value, key_path)
                 continue
-            if key in target:
-                self._forget(existing, key_path)
+            self._forget(key_path)
             target[key] = self._take(value, key_path)
 
     def _take(self, value: Any, path: KeyPath) -> Any:
@@ -255,13 +258,13 @@ class _Merger:
         shown = format_key_path(self._layer.data, path)
         self.issues.append(Issue(self._layer.label, shown, message))
 
-    def _forget(self, value: Any, path: KeyPath) -> None:
-        """Drop the recorded origins of a value that is being replaced or removed."""
-        if isinstance(value, dict):
-            for recorded in [p for p in self.origins if p[: len(path)] == path]:
-                del self.origins[recorded]
-        else:
-            self.origins.pop(path, None)
+    def _forget(self, path: KeyPath) -> None:
+        """Drop every origin recorded at ``path`` or inside it, removals included.
+
+        A layer calls it before it replaces or removes the value at ``path``.
+        """
+        for recorded in [p for p in self.origins if p[: len(path)] == path]:
+            del self.origins[recorded]
 
 
 def split_entries(layer: Layer) -> dict[str, Layer]:

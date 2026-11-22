@@ -99,8 +99,20 @@ The rules behind this example:
   is refused as ``'cmos' is not one of ['ccd', 'vidicon']``. A choice of numbers is
   refused, because it would also accept ``True`` for ``1``.
 - **A rule that ties fields together is** ``__post_init__`` on the class that owns
-  them. It raises ``ValueError``, and its message becomes the problem's message. Any
-  other exception is treated as a bug in the rule and is raised as it is.
+  them. It raises ``ValueError``, and its message becomes the problem's message, at
+  the class's key path. To point at the key at fault instead, the rule raises
+  :class:`~spindoctor.schema.errors.RuleError` with that key's path relative to the
+  class, such as ``RuleError('saturation_dn is above full_well_dn',
+  at='saturation_dn')``. The line then gives that key and the file that set it, so a
+  mistake that several entries inherit from one base reads the same in each. A rule
+  that compares keys passes all of them as ``reads``, such as
+  ``reads=('saturation_dn', 'full_well_dn')``. Either key may come from either file, and
+  the line gives the file that set or removed one of them last, since that is the file
+  that broke the rule. Any other exception is treated as a bug in the rule and is raised
+  as it is.
+- **An alias is only for a key that is a Python keyword.** A file may write a key such
+  as ``from``, which can't be a field name. The field takes another name and declares
+  the key as its alias: ``from_: Annotated[Str, Field(alias='from')]``.
 - **An entry that comes in kinds is a tagged union.** Each member declares a
   ``Literal`` tag field, and :func:`~spindoctor.schema.core.tagged` marks the union.
   The tag picks the member, so a problem is reported against that member alone. A
@@ -149,15 +161,20 @@ line each, as ``file: key.path: message``:
 
 Missing keys and unknown keys of one mapping share a line. A bad mapping key and a bad
 value under it are two problems, on two lines. A position in a list is written
-``[n]``, as in ``bodies[2].radius``, and a list of the wrong length reads "expected a
-list of 2 items". Each issue is also available on the error's ``issues`` attribute,
-as an :class:`~spindoctor.schema.errors.Issue`.
+``[n]``, as in ``bodies[2].radius``. A list of the wrong length reads "expected a
+list of exactly 2 items" when the schema allows one length, and "expected a list of at
+most 3 items" when it allows a range. When a value fails every member of a union, the
+members' expectations share a line, unless one member got further into the value. For
+example, when a key takes either ``'all'`` or a list of names and the file gives a list
+with one bad name, only the bad name is reported. Each issue is also available on the
+error's ``issues`` attribute, as an :class:`~spindoctor.schema.errors.Issue`.
 
 The file on each line comes from the ``origins`` that the layer merge records. A line
 about a value gives the file that set it, and so does a line about an unknown key. A
-line about a key that is absent, or about a whole mapping, gives every file that set
-a value in that mapping. When ``parse`` is given no origins, every line gives its
-``source`` argument.
+line about a required key that a null removed gives the file with the null. A line
+about any other absent key, or about a whole mapping, gives every file that set or
+removed a value in that mapping. When ``parse`` is given no origins, every line gives
+its ``source`` argument.
 
 Merging layers and nulls
 ========================
@@ -197,7 +214,9 @@ The navigator's configuration treats a null as a value: some keys use it to mean
 own merge.
 
 The merge returns a :class:`~spindoctor.schema.layers.Merged` with the merged ``data``
-and the ``origins`` of each value. Pass both to ``parse``:
+and the ``origins`` of each value. The origins also hold each key a null removed,
+with the file that removed it. They are in the order of the layers. Pass both to
+``parse``:
 
 .. code-block:: python
 

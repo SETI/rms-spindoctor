@@ -107,17 +107,25 @@ def test_read_layer_reads_an_empty_file_as_an_empty_mapping(tmp_path: Path) -> N
     assert read_layer(path).data == {}
 
 
-def test_remove_deletes_an_earlier_value_and_its_origins() -> None:
-    """Under REMOVE, a null deletes the value an earlier layer set, mapping and all."""
+def test_remove_records_the_layer_that_removed_the_value() -> None:
+    """Under REMOVE, a null deletes a mapping's origins and records its own layer there."""
     merged = merge([_BASE, Layer({'block': None}, 'user.yaml')], nulls=NullPolicy.REMOVE)
-    assert merged.origins == {('a',): 'base.yaml', ('items',): 'base.yaml'}
+    assert merged.origins == {
+        ('a',): 'base.yaml',
+        ('items',): 'base.yaml',
+        ('block',): 'user.yaml',
+    }
 
 
-def test_remove_that_empties_a_mapping_records_the_mapping() -> None:
-    """A mapping emptied by nulls is a value, set by the layer that emptied it."""
-    layers = [Layer({'block': {'x': 1}}, 'base.yaml'), Layer({'block': {'x': None}}, 'user.yaml')]
+def test_setting_a_removed_key_again_drops_the_removal() -> None:
+    """A later layer that sets a removed key again is the only origin left there."""
+    layers = [
+        Layer({'m': 1}, 'base.yaml'),
+        Layer({'m': None}, 'user.yaml'),
+        Layer({'m': {'k': 1}}, 'last.yaml'),
+    ]
     merged = merge(layers, nulls=NullPolicy.REMOVE)
-    assert merged.origins == {('block',): 'user.yaml'}
+    assert merged.origins == {('m', 'k'): 'last.yaml'}
 
 
 @pytest.mark.parametrize(

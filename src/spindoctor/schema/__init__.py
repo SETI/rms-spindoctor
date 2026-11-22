@@ -31,6 +31,7 @@ from spindoctor.schema.core import (
 from spindoctor.schema.errors import (
     Issue,
     KeyPath,
+    RuleError,
     SchemaError,
     describe_value,
     format_key_path,
@@ -63,6 +64,7 @@ __all__ = [
     'NullPolicy',
     'Positive',
     'PositiveInt',
+    'RuleError',
     'SchemaError',
     'Str',
     'Unit',
