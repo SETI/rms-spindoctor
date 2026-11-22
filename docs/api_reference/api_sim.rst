@@ -273,6 +273,26 @@ spindoctor.sim.render.rings
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.rings.profiles
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.rings.clutter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.rings.footprint
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.rings.photometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 spindoctor.sim.render.optics
 ----------------------------
 

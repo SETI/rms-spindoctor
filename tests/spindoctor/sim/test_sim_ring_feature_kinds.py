@@ -240,8 +240,11 @@ def test_edge_kind_side_in_carries_tau_inside() -> None:
     assert _probe(tau_map, 10) == pytest.approx(1.5, rel=1e-12)
     assert _probe(tau_map, 18) == pytest.approx(1.5, rel=1e-12)
     assert _probe(tau_map, 22) == 0.0
-    # The pixel centered exactly on the edge carries half coverage.
-    assert _probe(tau_map, 20) == pytest.approx(0.75, rel=1e-9)
+    # The pixel centered exactly on the edge is half covered: half of it passes
+    # exp(-1.5) of the light behind, and the other half passes all of it.
+    assert _probe(tau_map, 20) == pytest.approx(
+        -math.log(0.5 + 0.5 * math.exp(-1.5)), rel=1e-9, abs=0.0
+    )
 
 
 def test_edge_kind_side_out_carries_tau_outside() -> None:
@@ -258,12 +261,23 @@ def test_edge_kind_defaults_to_side_in() -> None:
     assert _probe(tau_map, 30) == 0.0
 
 
+def _ramp_probe_tau(tau_center: float, slope: float) -> float:
+    """The optical depth read back from a ramp pixel's transmission.
+
+    The pixel averages ``exp(-tau)`` across its one-pixel footprint, along which tau
+    changes linearly by ``slope``, so the read-back is ``tau_center`` less
+    ``ln(sinh(slope / 2) / (slope / 2))``.
+    """
+    half = 0.5 * slope
+    return tau_center - math.log(math.sinh(half) / half)
+
+
 def test_ramp_rises_linearly_outward() -> None:
     """side 'out': tau * (r - a)/w across the band, zero outside it."""
     feature = {'kind': 'ramp', 'tau': 1.0, 'width_px': 20.0, 'side': 'out', 'orbit': {'a_px': 10.0}}
     tau_map = _tau_map([feature])
-    assert _probe(tau_map, 15) == pytest.approx(0.25, rel=1e-9)
-    assert _probe(tau_map, 25) == pytest.approx(0.75, rel=1e-9)
+    assert _probe(tau_map, 15) == pytest.approx(_ramp_probe_tau(0.25, 0.05), rel=1e-9, abs=0.0)
+    assert _probe(tau_map, 25) == pytest.approx(_ramp_probe_tau(0.75, 0.05), rel=1e-9, abs=0.0)
     assert _probe(tau_map, 5) == 0.0
     assert _probe(tau_map, 35) == 0.0
 
@@ -272,8 +286,8 @@ def test_ramp_side_in_mirrors_the_profile() -> None:
     """side 'in': tau at the orbit edge falling to zero across the band."""
     feature = {'kind': 'ramp', 'tau': 1.0, 'width_px': 20.0, 'side': 'in', 'orbit': {'a_px': 10.0}}
     tau_map = _tau_map([feature])
-    assert _probe(tau_map, 15) == pytest.approx(0.75, rel=1e-9)
-    assert _probe(tau_map, 25) == pytest.approx(0.25, rel=1e-9)
+    assert _probe(tau_map, 15) == pytest.approx(_ramp_probe_tau(0.75, 0.05), rel=1e-9, abs=0.0)
+    assert _probe(tau_map, 25) == pytest.approx(_ramp_probe_tau(0.25, 0.05), rel=1e-9, abs=0.0)
     assert _probe(tau_map, 35) == 0.0
 
 
