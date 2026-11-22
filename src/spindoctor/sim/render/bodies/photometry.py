@@ -2,11 +2,15 @@
 
 The renderer shades body discs with a scene-selected law --
 Lambert, Lommel-Seeliger, Minnaert(k), or a lunar-Lambert blend -- plus an
-optional opposition-surge factor.  The law is a truth key: the navigator's
-predicted-body model always shades with Lambert
-(:func:`spindoctor.sim.shared.ellipsoid.lambert_from_normals`), so a
-non-Lambert scene plants a photometric mismatch that moves the terminator
-and the limb-darkening profile by a known amount.
+optional opposition-surge factor.  A body that leaves the law out shades with
+:data:`PHOTOMETRIC_LAW_DEFAULT`, Lommel-Seeliger.  On real frames of airless icy
+moons below 30 degrees phase, the limb's brightness gradient peaks within 0.2 px
+of the silhouette, as a Lommel-Seeliger disc's does, while a Lambert disc's peaks
+0.3 to 0.5 px inside it.  The law is a truth key: the navigator's predicted-body
+model always shades with Lambert
+(:func:`spindoctor.sim.shared.ellipsoid.lambert_from_normals`), so a scene that
+renders any other law, the default included, plants a photometric mismatch that
+moves the terminator and the limb-darkening profile by a known amount.
 
 All laws are normalized to 1 at disc center under head-on illumination
 (``mu = mu0 = 1``) and expressed in ``mu0 = cos(incidence)`` and
@@ -52,6 +56,7 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'MINNAERT_CEILING',
     'PHOTOMETRIC_LAWS',
+    'PHOTOMETRIC_LAW_DEFAULT',
     'incidence_cosines',
     'shade_surface',
     'surge_factor',
@@ -61,6 +66,9 @@ __all__ = [
 PHOTOMETRIC_LAWS: frozenset[str] = frozenset(
     {'lambert', 'lommel_seeliger', 'minnaert', 'lunar_lambert'}
 )
+
+PHOTOMETRIC_LAW_DEFAULT = 'lommel_seeliger'
+"""The law a body shades with when its scene entry leaves ``photometric_law`` out."""
 
 MINNAERT_CEILING = 2.0
 """The largest value the Minnaert law takes: the Lommel-Seeliger law's limb value."""
@@ -122,7 +130,7 @@ def shade_surface(
     cos_incidence: NDArrayFloatType,
     cos_emission: NDArrayFloatType,
     *,
-    law: str = 'lambert',
+    law: str = PHOTOMETRIC_LAW_DEFAULT,
     phase_angle: float = 0.0,
     minnaert_k: float = 0.5,
     surge_amplitude: float = 0.0,

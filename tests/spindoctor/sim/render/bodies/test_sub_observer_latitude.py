@@ -177,9 +177,12 @@ def test_faint_relief_on_a_turned_body_shades_like_the_smooth_body() -> None:
     """Relief a millionth of the radius high changes no pixel of a turned body by 1e-4.
 
     The relief's normals and its sun are turned with the body, so they match the
-    smooth body's to within the relief's own slope.
+    smooth body's to within the relief's own slope.  The body shades Lambert, the law
+    the bound was measured on.  Under the Lommel-Seeliger law the same relief changes two
+    pixels by up to 2.7e-4.
     """
     keys = {
+        'photometric_law': 'lambert',
         'semi_a_px': 25.0,
         'semi_c_px': 45.0,
         'sub_observer_lat_deg': 35.0,

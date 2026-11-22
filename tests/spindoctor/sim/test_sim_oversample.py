@@ -145,7 +145,7 @@ def test_oversample_keeps_body_centered() -> None:
 
 
 def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
-    """A smooth sphere on a 4x grid renders exactly as the navigator predicts it.
+    """A smooth Lambert sphere on a 4x grid renders exactly as the navigator predicts it.
 
     The body is about four-fifths lit (phase 0.9 rad), off the pixel grid, and lit from
     an oblique direction, so a shading grid coarser than the render grid would shift its
@@ -163,6 +163,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
             illumination_angle=0.7,
             phase_angle=0.9,
             oversample=4,
+            photometric_law='lambert',
         ),
     )
     predicted = _predicted_sphere(size, center, 48.0, illumination_angle=0.7, phase_angle=0.9)
@@ -170,7 +171,7 @@ def test_oversampled_smooth_body_matches_the_navigator_model() -> None:
 
 
 def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
-    """A smooth sphere anti-aliased at oversample 1 renders as the navigator predicts it.
+    """A smooth Lambert sphere anti-aliased at oversample 1 renders as predicted.
 
     Full anti-aliasing supersamples the body 4x, as the navigator's model does, so the
     shading must be computed on that supersample grid for the two renders to agree.
@@ -187,6 +188,7 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
             illumination_angle=0.7,
             phase_angle=0.9,
             anti_aliasing=1.0,
+            photometric_law='lambert',
         ),
     )
     predicted = _predicted_sphere(
@@ -196,7 +198,7 @@ def test_anti_aliased_smooth_body_matches_the_navigator_model() -> None:
 
 
 def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_grid() -> None:
-    """A smooth sphere rendered at oversample 4 and downsampled matches the navigator model.
+    """A smooth Lambert sphere at oversample 4, downsampled, matches the navigator model.
 
     The scene goes through the pipeline's own stages up to and including the downsample,
     so the scaling of its center and semi-axes onto the 4x grid and the box downsample back
@@ -214,7 +216,14 @@ def test_oversampled_smooth_body_matches_the_navigator_model_on_the_detector_gri
         'random_seed': 3,
         'oversample': 4,
         'bodies': [
-            disc_body(center[0], center[1], 12.0, illumination_angle=40.0, phase_angle=51.6)
+            disc_body(
+                center[0],
+                center[1],
+                12.0,
+                illumination_angle=40.0,
+                phase_angle=51.6,
+                photometric_law='lambert',
+            )
         ],
     }
     frame = new_sim_frame(size, size, oversample=4)

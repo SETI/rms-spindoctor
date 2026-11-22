@@ -14,11 +14,13 @@ from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, zero_bias
 from spindoctor.sim.render.bodies import render as body_render
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
 
+# The bodies are fully lit, where craters show only under the Lambert law.
 _BODY_GEOMETRY: dict[str, Any] = {
     'semi_a_px': 20.0,
     'semi_b_px': 16.0,
     'semi_c_px': 16.0,
     'crater_fill': 0.4,
+    'photometric_law': 'lambert',
 }
 
 

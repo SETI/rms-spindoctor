@@ -26,6 +26,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAW_DEFAULT
 from spindoctor.sim.render.bodies.texture import (
     DiscTextureSpec,
     TransitSpec,
@@ -62,7 +63,6 @@ _CRATER_POWER_LAW_EXPONENT_DEFAULT = 3.0
 _CRATER_RELIEF_SCALE_DEFAULT = 0.6
 _ANTI_ALIASING_DEFAULT = 1.0
 _LIMB_RELIEF_CORR_DEG_DEFAULT = 15.0
-_PHOTOMETRIC_LAW_DEFAULT = 'lambert'
 _MINNAERT_K_DEFAULT = 0.5
 _SURGE_WIDTH_DEG_DEFAULT = 6.0
 
@@ -239,7 +239,7 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         limb_relief_corr_deg=float(
             scene_value(body_params, 'limb_relief_corr_deg', _LIMB_RELIEF_CORR_DEG_DEFAULT)
         ),
-        photometric_law=str(scene_value(body_params, 'photometric_law', _PHOTOMETRIC_LAW_DEFAULT)),
+        photometric_law=str(scene_value(body_params, 'photometric_law', PHOTOMETRIC_LAW_DEFAULT)),
         minnaert_k=float(scene_value(body_params, 'minnaert_k', _MINNAERT_K_DEFAULT)),
         normal_albedo=float(scene_value(body_params, 'normal_albedo', NORMAL_ALBEDO_DEFAULT)),
         surge_amplitude=float(scene_value(surge, 'amplitude', 0.0)),

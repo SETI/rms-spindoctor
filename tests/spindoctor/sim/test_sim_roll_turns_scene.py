@@ -126,6 +126,8 @@ def _cratered_ellipsoid() -> dict[str, Any]:
                 'semi_c_px': 16.0,
                 'rotation_z': 25.0,
                 'phase_angle': 0.0,
+                # At zero phase craters show only under the Lambert law.
+                'photometric_law': 'lambert',
                 'crater_fill': 0.4,
                 'crater_max_radius': 0.2,
             }
@@ -275,6 +277,8 @@ def _large_cratered_ellipsoid() -> dict[str, Any]:
                 'semi_c_px': 44.0,
                 'rotation_z': 25.0,
                 'phase_angle': 0.0,
+                # At zero phase craters show only under the Lambert law.
+                'photometric_law': 'lambert',
                 'crater_fill': 0.4,
                 'crater_max_radius': 0.1,
             }
@@ -523,6 +527,8 @@ def test_quarter_roll_turns_the_craters_of_a_body_only_one_render_fits(
         'semi_c_px': 14.0,
         'rotation_z': rotation_z,
         'phase_angle': 0.0,
+        # At zero phase craters show only under the Lambert law.
+        'photometric_law': 'lambert',
         'crater_fill': 0.4,
         'crater_max_radius': 0.15,
     }

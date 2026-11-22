@@ -19,6 +19,9 @@ bodies:
     semi_c_px: 10.0
     illumination_angle: 25.0
     phase_angle: 30.0
+    # The sweeps this scene drives each vary one setting, so the body shades with
+    # the navigator's own Lambert law and the floor carries no photometric mismatch.
+    photometric_law: lambert
 noise:
   poisson: true
   read_noise_dn: 4.0

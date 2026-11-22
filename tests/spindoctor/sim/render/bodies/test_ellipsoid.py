@@ -51,8 +51,10 @@ def _detector(img: NDArrayFloatType, factor: int) -> NDArrayFloatType:
 # Settings at an effectively zero value
 # ----------------------------------------------------------------------------
 
+# The body states the Lambert law, which Minnaert at k = 1 reproduces.
 _ZERO_BODY: dict[str, Any] = {
     'name': 'B',
+    'photometric_law': 'lambert',
     'center_v': 64.3,
     'center_u': 63.6,
     'semi_a_px': 40.0,
@@ -107,7 +109,8 @@ _SMALL_ILLUMINATION = 0.7
 # full anti-aliasing, misses the 32 times truth by at most 0.41% and 0.016 px at
 # 4 px, 1.6% and 0.022 px at 8 px, and 0.19% and 0.0016 px at 16 px, all at
 # 90 deg phase.  Shading a body with relief at detector resolution instead missed
-# by 6% and 0.094 px at 4 px, 2.6% at 8 px, and 0.021 px at 16 px.
+# by 6% and 0.094 px at 4 px, 2.6% at 8 px, and 0.021 px at 16 px.  The bounds hold
+# Lambert bodies, so the bodies state that law.
 _SMALL_BOUNDS = {4.0: (0.02, 0.04), 8.0: (0.02, 0.025), 16.0: (0.005, 0.012)}
 
 
@@ -123,6 +126,7 @@ def _small_body(diameter: float, oversample: int, *, relief: float) -> NDArrayFl
         oversample=oversample,
         limb_relief_rms=relief,
         relief_seed=3,
+        photometric_law='lambert',
     )
     size = _SMALL_SIZE * oversample
     center = (_SMALL_CENTER[0] * oversample, _SMALL_CENTER[1] * oversample)
@@ -394,14 +398,16 @@ def test_relief_body_smaller_than_a_pixel_renders_its_light(
 
 
 def test_exact_limb_sample_renders_as_the_predicted_body() -> None:
-    """A smooth body with a working sample exactly on its limb renders as predicted.
+    """A smooth Lambert body with a working sample exactly on its limb renders as predicted.
 
     A radius-2 sphere at (4.5, 4.5) drawn at anti-aliasing 0.75 puts a sample of its
     3 times supersample grid exactly on each of its four axis limbs.  The surface
     there faces sideways, so at 90 deg phase the navigator's predicted body leaves
     the sunward one dark, and so must the renderer.
     """
-    spec = EllipsoidBodySpec(2.0, 2.0, 2.0, phase_angle=math.pi / 2.0, anti_aliasing=0.75)
+    spec = EllipsoidBodySpec(
+        2.0, 2.0, 2.0, phase_angle=math.pi / 2.0, anti_aliasing=0.75, photometric_law='lambert'
+    )
     rendered = create_ellipsoid_body((9, 9), (4.5, 4.5), spec)
     projection = project_ellipsoid(
         (9, 9), (4.5, 4.5), 2.0, semi_b_px=2.0, semi_c_px=2.0, anti_aliasing=0.75

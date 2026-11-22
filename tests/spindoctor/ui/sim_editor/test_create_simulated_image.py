@@ -366,7 +366,7 @@ def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) ->
     """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
     _set_body_scene(model, instrument='vgiss_1_nac', semi_px=43.0, center_u=64.0, offset_u=0.0)
     render_fully(model)
-    assert model._units_label.text() == 'I/F 0.01176 to 1.008'
+    assert model._units_label.text() == 'I/F 0.01176 to 1.016'
 
 
 def test_units_label_clears_after_a_failed_render(
