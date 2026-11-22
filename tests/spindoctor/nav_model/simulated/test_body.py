@@ -140,7 +140,7 @@ def test_mesh_prediction_matches_rendered_data() -> None:
     obs = _obs()
     body = _mesh_params()
     predicted = _data_region(obs, _predicted_mask(obs, body))
-    img, _ = render_scene(
+    _, meta = render_scene(
         {
             'size_v': _SIZE,
             'size_u': _SIZE,
@@ -150,7 +150,9 @@ def test_mesh_prediction_matches_rendered_data() -> None:
             'bodies': [body],
         }
     )
-    rendered = img > 0
+    # The night side renders black, so the rendered shape is the body's mask in the
+    # render truth, which covers every pixel the outline touches.
+    rendered = meta['body_mask_map']['HYPERION']
     assert np.array_equal(predicted, rendered)
 
 

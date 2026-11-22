@@ -128,6 +128,9 @@ def test_a_haze_limb_at_a_sub_pixel_position_shows_no_dark_seam() -> None:
     is the haze on the disc just inside it, so the pixel the limb crosses blends two
     bright values.  Drawing that pixel from the disc alone, without the glow behind
     its open part, leaves it darker than both its neighbors.
+
+    The limb crosses the row at columns 11.7 and 51.7, so only the columns within 5 px
+    of those are checked; the middle of the night side is black.
     """
     body = disc_body(
         32.3,
@@ -141,7 +144,7 @@ def test_a_haze_limb_at_a_sub_pixel_position_shows_no_dark_seam() -> None:
     row = _compose(bodies=[body]).signal[32]
     dips = [
         column
-        for column in range(1, row.size - 1)
+        for column in (*range(7, 17), *range(47, 57))
         if row[column] < 0.9 * min(row[column - 1], row[column + 1])
     ]
     assert dips == []

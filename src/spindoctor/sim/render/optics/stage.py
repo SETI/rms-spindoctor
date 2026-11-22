@@ -147,8 +147,8 @@ def apply_stray_light(
     navigator's BANDPASS_DOG source-image filter is meant to remove it.  The
     field is additive, so it brightens dark sky as well as lit features (a
     multiplicative field would leave the dark sky -- where the gradient most
-    needs suppressing -- untouched).  It is applied to the noise-free signal in
-    [0, 1] before the detector stage.
+    needs suppressing -- untouched).  It is applied to the noise-free signal
+    before the detector stage.
 
     A linear ramp rises toward a bright source beyond the field of view, so a
     planted camera roll turns it: the rolled ramp is the unrolled one turned about
@@ -159,7 +159,7 @@ def apply_stray_light(
     by the camera's optics, so a roll leaves it alone.
 
     Parameters:
-        img: Normalized [0, 1] signal image, modified in place.
+        img: Normalized signal image, modified in place.
         amplitude: Peak stray-light level added, in normalized signal units.
         direction_deg: Ramp direction for the 'linear' model, in degrees.
         model: 'linear' (a ramp spanning [0, amplitude] over the unrolled frame)

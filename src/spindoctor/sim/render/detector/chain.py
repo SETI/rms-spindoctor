@@ -241,11 +241,12 @@ def quantize_dn(
 
 
 def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArrayFloatType:
-    """Convert the intensive [0, 1] signal to electrons through the exposure.
+    """Convert the intensive signal to electrons through the exposure.
 
     A signal of 1.0 fills ``signal_full_scale_frac`` of a native pixel's well at
     the reference exposure; a binned frame pixel sums ``binning**2`` native
-    pixels of it.
+    pixels of it.  A signal above 1 is converted in proportion, and the full-well
+    cap that follows saturates it.
     """
     scale = (
         dp.signal_full_scale_frac
@@ -253,7 +254,8 @@ def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArr
         * dp.binning**2
         * (dp.exposure_sec / dp.exposure_ref_sec if dp.exposure_ref_sec > 0.0 else 1.0)
     )
-    return np.clip(signal, 0.0, 1.0) * scale
+    # Radiance is never negative, so the conversion floors the signal at 0.
+    return np.maximum(signal, 0.0) * scale
 
 
 def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) -> None:
@@ -512,7 +514,12 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     """
     modes = dp.detector_modes
     records: dict[str, Any] = {}
-    signal_dn = np.clip(frame.signal, 0.0, 1.0) * dp.signal_full_scale_frac * dp.full_well_dn
+    # The photoconductive target stores at most its full-scale charge, so a signal
+    # bright enough to pass it saturates there.
+    signal_dn = np.minimum(
+        np.maximum(frame.signal, 0.0) * dp.signal_full_scale_frac * dp.full_well_dn,
+        dp.full_well_dn,
+    )
     size_v, size_u = signal_dn.shape
     # Point sources on the vidicon are already DN (the vidicon has no electron
     # domain): add them onto the converted signal before the DN-domain noise, so

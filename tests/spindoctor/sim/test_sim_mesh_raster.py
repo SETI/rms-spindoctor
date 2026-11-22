@@ -11,11 +11,7 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.shared import mesh as shared_mesh
-from spindoctor.sim.shared.mesh import (
-    Mesh,
-    render_polyhedral_body,
-    render_polyhedral_body_with_silhouette,
-)
+from spindoctor.sim.shared.mesh import Mesh, MeshBodyRender, render_polyhedral_body
 from spindoctor.support.types import NDArrayFloatType
 
 # A fold: two faces sharing a vertical ridge through the pixel centers of column 10
@@ -38,7 +34,7 @@ _RIGHT_FACE_SHADE = math.sqrt(0.5)
 _OVERHANG = np.array([[-10.0, -10.0, 0.0], [30.0, -10.0, 0.0], [-10.0, 30.0, 0.0]])
 
 
-def _render(mesh: Mesh, *, size: int = 21, shading: str = 'flat') -> NDArrayFloatType:
+def _render_full(mesh: Mesh, *, size: int = 21, shading: str = 'flat') -> MeshBodyRender:
     """Render ``mesh`` in pixel units with the light along the line of sight."""
     return render_polyhedral_body(
         size=(size, size),
@@ -49,6 +45,11 @@ def _render(mesh: Mesh, *, size: int = 21, shading: str = 'flat') -> NDArrayFloa
         anti_aliasing=0.0,
         shading=shading,
     )
+
+
+def _render(mesh: Mesh, *, size: int = 21, shading: str = 'flat') -> NDArrayFloatType:
+    """The brightness of :func:`_render_full`."""
+    return _render_full(mesh, size=size, shading=shading).intensity
 
 
 def test_shared_edge_tie_goes_to_the_face_listed_first() -> None:
@@ -101,30 +102,19 @@ def test_nearer_face_wins_whatever_its_order(
 
 def test_triangle_crossing_the_frame_edge_covers_its_in_frame_pixels() -> None:
     """Exactly the in-frame pixel centers on or inside the triangle are covered."""
-    image = _render(Mesh(vertices=_OVERHANG, faces=np.array([[0, 1, 2]])), size=16)
+    render = _render_full(Mesh(vertices=_OVERHANG, faces=np.array([[0, 1, 2]])), size=16)
     v, u = np.mgrid[0:16, 0:16]
-    assert np.array_equal(image > 0.0, (u + 0.5) + (v + 0.5) <= 20.0)
+    assert np.array_equal(render.coverage > 0.0, (u + 0.5) + (v + 0.5) <= 20.0)
 
 
-@pytest.mark.parametrize(
-    'dark_floor', [0.0, shared_mesh._DARK_SIDE_ILLUM], ids=['black', 'documented_floor']
-)
-def test_silhouette_is_the_covered_fraction_of_each_pixel_however_dark(
-    monkeypatch: pytest.MonkeyPatch, dark_floor: float
-) -> None:
-    """The silhouette counts the supersample centers a face covers, lit or not.
+def test_coverage_is_the_covered_fraction_of_each_pixel_however_dark() -> None:
+    """The coverage counts the supersample centers a face covers, lit or not.
 
-    Lit from behind, the triangle shades at the dark-side floor, but its silhouette
-    is still 1 inside and the covered fraction of each pixel along its long edge.
-    With the floor at 0 the triangle renders black, so a silhouette read from its
-    shading would be empty.
-
-    Parameters:
-        monkeypatch: Sets the dark-side floor.
-        dark_floor: The dark-side floor the triangle shades at.
+    Lit from behind, the triangle renders black, but its coverage is still 1 inside
+    and the covered fraction of each pixel along its long edge.  A coverage read
+    from its shading would be empty.
     """
-    monkeypatch.setattr(shared_mesh, '_DARK_SIDE_ILLUM', dark_floor)
-    render = render_polyhedral_body_with_silhouette(
+    render = render_polyhedral_body(
         size=(16, 16),
         center=(0.0, 0.0),
         mesh=Mesh(vertices=_OVERHANG, faces=np.array([[0, 1, 2]])),
@@ -135,13 +125,13 @@ def test_silhouette_is_the_covered_fraction_of_each_pixel_however_dark(
     samples = (np.arange(64) + 0.5) / 4.0
     covered = (samples[:, None] + samples[None, :] <= 20.0).astype(np.float64)
     expected = covered.reshape(16, 4, 16, 4).mean(axis=(1, 3))
-    assert np.array_equal(render.silhouette, expected)
+    assert np.array_equal(render.coverage, expected)
 
 
 def test_back_facing_triangle_is_culled() -> None:
     """The same triangle wound away from the observer covers nothing."""
-    image = _render(Mesh(vertices=_OVERHANG, faces=np.array([[0, 2, 1]])), size=16)
-    assert not image.any()
+    render = _render_full(Mesh(vertices=_OVERHANG, faces=np.array([[0, 2, 1]])), size=16)
+    assert not render.coverage.any()
 
 
 def test_non_finite_center_is_rejected() -> None:

@@ -789,3 +789,24 @@ def test_ring_over_only_the_halo_still_needs_ranges() -> None:
     ring['geometry'] = {'opening_deg_obs': 90.0, 'opening_deg_sun': 90.0}
     with pytest.raises(SimSceneValidationError, match="ring_system and the halo of body 'TITAN'"):
         _compose_scene(bodies=[_compose_body()], ring_system=ring)
+
+
+def test_on_disc_haze_adds_light_past_one() -> None:
+    """Haze over a bright disc carries the disc radiance above 1, uncapped."""
+    outline = _sphere_outline()
+    body = 0.99 * outline
+    layers = apply_atmosphere(
+        body,
+        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6),
+        center_v=_CENTER,
+        center_u=_CENTER,
+        semi_a=_RADIUS,
+        semi_b=_RADIUS,
+        semi_c=_RADIUS,
+        rotation_z=0.0,
+        sub_observer_lat=0.0,
+        illumination_angle=math.radians(90.0),
+        phase_angle=math.radians(30.0),
+        silhouette=outline,
+    )
+    assert float(layers.disc.max()) > 1.0

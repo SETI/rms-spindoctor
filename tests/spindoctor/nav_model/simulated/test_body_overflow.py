@@ -99,7 +99,7 @@ def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
     body = _sphere(_SIZE / 2.0) | {'semi_a_px': 150.0, 'semi_b_px': 150.0, 'semi_c_px': 150.0}
     full = _overflow_model(body)._overflow_fraction
     sizes: list[int] = []
-    original = NavModelBodySimulated._render_body_image
+    original = NavModelBodySimulated._render_prediction
 
     def recording(self: NavModelBodySimulated, *args: Any, **kwargs: Any) -> Any:
         size = kwargs.get('size')
@@ -108,7 +108,7 @@ def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
         return original(self, *args, **kwargs)
 
     monkeypatch.setattr(module, '_OVERFLOW_CANVAS_MAX_PX', 128)
-    monkeypatch.setattr(NavModelBodySimulated, '_render_body_image', recording)
+    monkeypatch.setattr(NavModelBodySimulated, '_render_prediction', recording)
     bounded = _overflow_model(body)._overflow_fraction
     assert bounded == pytest.approx(full, abs=0.01)
     assert max(sizes) <= 128
@@ -134,11 +134,11 @@ def test_a_turned_body_counts_its_whole_silhouette_in_its_overflow() -> None:
     body = _body_params(**_TURNED, center_v=30.3)
     model = _overflow_model(body)
     pad = 100
-    whole = model._render_body_image(
+    whole = model._render_prediction(
         math.radians(body['phase_angle']),
         size=(_SIZE + 2 * pad, _SIZE + 2 * pad),
         center=(body['center_v'] + pad, body['center_u'] + pad),
-    )
+    ).silhouette
     inside = whole[pad : pad + _SIZE, pad : pad + _SIZE]
-    expected = 1.0 - np.count_nonzero(inside > 0.0) / np.count_nonzero(whole > 0.0)
+    expected = 1.0 - np.count_nonzero(inside) / np.count_nonzero(whole)
     assert model._overflow_fraction == pytest.approx(expected, abs=1e-12)

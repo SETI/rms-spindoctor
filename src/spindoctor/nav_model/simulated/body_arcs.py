@@ -38,9 +38,8 @@ from spindoctor.nav_model.nav_model_body import (
     shape_features_suppressed,
     terminator_reliability,
 )
-from spindoctor.nav_model.simulated.predicted_body import predicted_semi_axes_px
+from spindoctor.nav_model.simulated.predicted_body import PredictedBody, predicted_semi_axes_px
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.image import shift_array
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
@@ -81,7 +80,7 @@ _TERMINATOR_SIGMA_TANGENT_PX: float = 0.5
 
 
 class BodyRenderer(Protocol):
-    """Renders the simulated body's own predicted image.
+    """Renders the simulated body's own predicted image and silhouette.
 
     The simulated body model's renderer satisfies this: it draws the body from its
     idealized parameters at the given phase, on the observation's data canvas unless a
@@ -94,7 +93,7 @@ class BodyRenderer(Protocol):
         *,
         size: tuple[int, int] | None = None,
         center: tuple[float, float] | None = None,
-    ) -> NDArrayFloatType:
+    ) -> PredictedBody:
         """Render the body at ``phase_angle_rad`` on an optional canvas and center."""
         ...  # pragma: no cover - protocol stub
 
@@ -116,11 +115,10 @@ class BodyArcInputs:
         config: Configuration the body's shape catalog entry is loaded from.
         body_name: Upper-case body name, used in feature IDs and flags.
         source_model: Name of the model instance emitting the features.
-        model_img: Extfov-shape rendered body image at the model's phase.
-        body_mask: Extfov-shape boolean silhouette of ``model_img`` (brightness
-            ``> 0``).  The shading floors the unlit hemisphere at
-            ``DARK_SIDE_ILLUM_STRENGTH``, above zero, so this is the whole visible disc,
-            lit or not.
+        model_img: Extfov-shape rendered body image at the model's phase.  It is 0 on
+            the night side, so brightness above 0 is the lit region.
+        body_mask: Extfov-shape boolean silhouette of the body: the pixels its
+            outline touches, lit or not.
         limb_mask: Extfov-shape boolean silhouette boundary of ``body_mask``.
         occluder_mask: Extfov-shape union silhouette of the explicitly nearer sibling
             bodies, or ``None`` when no sibling occludes this one.
@@ -129,8 +127,8 @@ class BodyArcInputs:
         subject_range_km: Subject distance in km.
         predicted_diameter_px: Longer pixel extent of the rendered silhouette.
         phase_angle_deg: The model's phase angle in degrees.
-        render: Renders the body's own predicted image again, for the unclipped
-            whole-body and phase-0 renders.
+        render: Renders the body's own predicted image and silhouette again, for the
+            unclipped whole-body and phase-0 renders.
         silhouette_boundary: Takes a boolean silhouette and returns its boundary mask:
             the silhouette pixels that have at least one 4-neighbor outside the
             silhouette.  It reads nothing but its argument.
@@ -233,28 +231,26 @@ def _polyline_from_mask(
 
 
 def _terminator_ridge_mask(
-    model_img: NDArrayFloatType,
+    model_img: NDArrayFloatType, disc: NDArrayBoolType
 ) -> tuple[NDArrayBoolType, NDArrayBoolType]:
     """Interior lit/unlit boundary ridge of a rendered body image.
 
-    The shading floors the visible-but-unlit hemisphere at
-    ``DARK_SIDE_ILLUM_STRENGTH``, so brightness ``> 0`` is the whole visible
-    disc while brightness above the floor is the lit region; the unlit disc is
-    their difference.  A ridge pixel is a lit pixel with an unlit *interior*
-    disc pixel as a 4-neighbor -- the interior restriction drops the
-    anti-aliased limb ring (unlit only because its edge brightness has ramped
-    below the floor), which keeps the ridge off the silhouette everywhere the
-    lit and unlit regions are separated by more than a pixel (the cusps of a
-    very thin crescent are the exception; see ``_terminator_polyline``).
+    The night side renders 0, so brightness above 0 is the lit region, and the
+    unlit disc is the silhouette minus the lit region.  A ridge pixel is a lit
+    pixel with an unlit *interior* disc pixel as a 4-neighbor.  The interior
+    restriction drops the night side's limb ring, which keeps the ridge off the
+    silhouette everywhere the lit and unlit regions are separated by more than a
+    pixel (the cusps of a very thin crescent are the exception; see
+    ``_terminator_polyline``).
 
     Parameters:
         model_img: A rendered body image (any canvas).
+        disc: The body's silhouette on the same canvas.
 
     Returns:
         ``(ridge_mask, lit_mask)`` boolean arrays of the same shape.
     """
-    disc = model_img > 0.0
-    lit = model_img > DARK_SIDE_ILLUM_STRENGTH
+    lit = model_img > 0.0
     dark_disc = disc & ~lit
     touches_sky = (
         shift_array(~disc, (-1, 0))
@@ -307,7 +303,7 @@ def _visible_arc_fraction(
     inputs: BodyArcInputs,
     visible_vertex_count: int,
     *,
-    edge_mask: Callable[[NDArrayFloatType], NDArrayBoolType],
+    edge_mask: Callable[[PredictedBody], NDArrayBoolType],
 ) -> float:
     """Fraction of an arc's full predicted length that survives in the frame.
 
@@ -336,12 +332,12 @@ def _visible_arc_fraction(
     # longest diameter (mesh relief can push past the ellipsoid bound)
     # plus a fixed margin.
     canvas = math.ceil(max_semi * 3.0) + 16
-    full_img = inputs.render(
+    full = inputs.render(
         float(np.radians(inputs.phase_angle_deg)),
         size=(canvas, canvas),
         center=(canvas / 2.0, canvas / 2.0),
     )
-    total = int(np.count_nonzero(edge_mask(full_img)))
+    total = int(np.count_nonzero(edge_mask(full)))
     if total <= 0:
         return 1.0
     return min(1.0, float(visible_vertex_count) / float(total))
@@ -404,9 +400,9 @@ def _lit_geometric_limb_polyline(
     The polyline is the silhouette boundary of a phase-0 render of the same body, with
     outward normals taken from that silhouette.  The boundary is then intersected with
     the body mask of the render at the model's phase.  That mask is the whole visible
-    disc, because the shading floors the unlit hemisphere above zero, and a body's
-    silhouette does not change with phase.  So every boundary vertex inside the frame
-    survives, lit or unlit, and the result is the full silhouette boundary.
+    disc, lit or not, and a body's silhouette does not change with phase.  So every
+    boundary vertex inside the frame survives, lit or unlit, and the result is the full
+    silhouette boundary.
 
     Parameters:
         inputs: The body's arc inputs.
@@ -416,8 +412,7 @@ def _lit_geometric_limb_polyline(
         render has no silhouette-boundary pixels in the frame.
     """
     obs = inputs.obs
-    full_img = inputs.render(0.0)
-    full_mask = full_img > 0.0
+    full_mask = inputs.render(0.0).silhouette
     boundary = inputs.silhouette_boundary(full_mask)
     ext_margin_v = int(obs.extfov_margin_v)
     ext_margin_u = int(obs.extfov_margin_u)
@@ -440,13 +435,12 @@ def build_limb_arc_feature(
 ) -> NavFeature | None:
     """Emit a LIMB_ARC from the rendered silhouette boundary, or ``None``.
 
-    The predicted limb is the silhouette boundary of the rendered body.  The shading
-    floors the unlit hemisphere above zero, so the silhouette is the whole visible disc
-    and its boundary holds lit and unlit vertices alike.  On a low-phase body most of
-    the outline borders the sunlit hemisphere, so BodyLimbNav's distance-transform fit
-    aligns it to the image edge and recovers the offset.  The unlit vertices of a
-    higher-phase body carry no sharp image edge and are down-weighted by the
-    technique's robust fit rather than excluded here.
+    The predicted limb is the silhouette boundary of the rendered body.  The silhouette
+    is the whole visible disc, so its boundary holds lit and unlit vertices alike.  On a
+    low-phase body most of the outline borders the sunlit hemisphere, so BodyLimbNav's
+    distance-transform fit aligns it to the image edge and recovers the offset.  The
+    unlit vertices of a higher-phase body carry no sharp image edge and are
+    down-weighted by the technique's robust fit rather than excluded here.
 
     With the emission gates on, the feature is emitted only for a body whose predicted
     diameter is at least ``_MIN_LIMB_DIAMETER_PX`` and whose phase is at most
@@ -497,7 +491,7 @@ def build_limb_arc_feature(
         visible_arc_fraction = _visible_arc_fraction(
             inputs,
             vertices_vu.shape[0],
-            edge_mask=lambda img: inputs.silhouette_boundary(img > 0.0),
+            edge_mask=lambda full: inputs.silhouette_boundary(full.silhouette),
         )
         reliability = limb_reliability(
             visible_arc_fraction=visible_arc_fraction,
@@ -533,18 +527,15 @@ def _terminator_polyline(
 
     The terminator is the boundary *inside* the disc where the lit
     hemisphere meets the unlit one -- distinct from the geometric limb,
-    which is the disc's silhouette edge against sky.  The shading floors the
-    visible-but-unlit hemisphere at ``DARK_SIDE_ILLUM_STRENGTH``, so the body
-    mask (brightness ``> 0``) is the whole visible disc while
-    ``model_img > DARK_SIDE_ILLUM_STRENGTH`` is the lit region; the unlit
-    disc is their difference.  A terminator vertex is a lit pixel with an
-    unlit *interior* disc pixel as a 4-neighbor -- the interior restriction
-    drops the anti-aliased limb ring (unlit only because its edge brightness
-    has ramped below the floor), keeping the polyline interior to the disc
-    everywhere except the cusp-adjacent vertices of a very thin crescent,
+    which is the disc's silhouette edge against sky.  The body mask is the whole
+    visible disc, and the night side renders 0, so ``model_img > 0`` is the lit
+    region and the unlit disc is their difference.  A terminator vertex is a lit
+    pixel with an unlit *interior* disc pixel as a 4-neighbor -- the interior
+    restriction drops the night side's limb ring, keeping the polyline interior to
+    the disc everywhere except the cusp-adjacent vertices of a very thin crescent,
     where terminator and limb meet within a pixel and a few vertices land
-    on the silhouette (at phase 150 roughly 9 of 155 vertices; the
-    SPICE-backed model's sampler shares the behavior).  The outward
+    on the silhouette (at phase 150 on a sphere of radius 60 px, 13 of 152
+    vertices; the SPICE-backed model's sampler shares the behavior).  The outward
     normal is the gradient of the lit mask, so it points from the lit side
     toward the unlit side, the convention the SPICE-backed body model's
     terminator sampler uses.
@@ -557,7 +548,9 @@ def _terminator_polyline(
         when the body renders no interior lit/unlit boundary (a fully lit
         or fully unlit visible disc).
     """
-    terminator_ridge, lit = _terminator_ridge_mask(np.asarray(inputs.model_img, dtype=np.float64))
+    terminator_ridge, lit = _terminator_ridge_mask(
+        np.asarray(inputs.model_img, dtype=np.float64), inputs.body_mask
+    )
     return _polyline_from_mask(terminator_ridge, lit)
 
 
@@ -607,7 +600,7 @@ def build_terminator_arc_feature(inputs: BodyArcInputs) -> NavFeature | None:
     visible_arc_fraction = _visible_arc_fraction(
         inputs,
         vertices_vu.shape[0],
-        edge_mask=lambda img: _terminator_ridge_mask(img)[0],
+        edge_mask=lambda full: _terminator_ridge_mask(full.image, full.silhouette)[0],
     )
     albedo_penalty = min(1.0, shape.albedo_variation)
     reliability = terminator_reliability(

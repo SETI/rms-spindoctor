@@ -34,10 +34,11 @@ techniques consume:
 
 The terminator is distinct from the limb: the limb is the silhouette edge against sky,
 while the terminator cuts *across* the disc where the lit hemisphere meets the unlit one.
-Because the shading floors the visible-but-unlit hemisphere at a small constant
-(:data:`~spindoctor.sim.shared.ellipsoid.DARK_SIDE_ILLUM_STRENGTH`), the rendered body mask
-(brightness above zero) is the whole visible disc, and the lit region is the part brighter
-than that floor; the terminator polyline is the lit pixels adjacent to the interior unlit
+The predicted night side is black, as the SPICE-backed model's is, so the body mask comes
+from the geometry: the pixels the outline touches, lit or not
+(:func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_coverage` for an ellipsoid, the mesh
+renderer's coverage for a mesh). The lit region is the part of the predicted image brighter
+than zero, and the terminator polyline is the lit pixels adjacent to the interior unlit
 disc, with the limb ring excluded so the polyline stays interior to the disc -- except at
 the cusp-adjacent vertices of a very thin crescent, where terminator and limb meet within
 a pixel and a handful of vertices land on the silhouette (the SPICE-backed model's
@@ -247,7 +248,7 @@ Call path traced through
    ``polyhedral_mesh`` body is drawn with
    :func:`~spindoctor.sim.shared.mesh.render_mesh_body_image`. A body that states no
    center sits at the frame center.
-4. Derive the body mask from the rendered image (every non-zero pixel is on the body).
+4. Derive the body mask from the geometry: every pixel the outline touches, lit or not.
 5. Compute the limb mask via
    :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`'s shared discrete-mask
    neighbor-shift helper.

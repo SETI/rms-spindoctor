@@ -19,7 +19,7 @@ from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
-from spindoctor.sim.shared.mesh import make_irregular_mesh, render_polyhedral_body
+from spindoctor.sim.shared.mesh import MeshBodyRender, make_irregular_mesh, render_polyhedral_body
 
 
 def _boundary_radial_cv(mask: np.ndarray) -> float:
@@ -41,7 +41,7 @@ def _render(
     *,
     pose: tuple[float, float, float] = (0.0, 0.0, 0.0),
     illumination_angle: float = 0.0,
-) -> np.ndarray:
+) -> MeshBodyRender:
     """Render a single equal-axis mesh body (a sphere when lumpiness is 0)."""
     mesh = make_irregular_mesh(lumpiness=lumpiness, seed=4)
     return render_polyhedral_body(
@@ -69,32 +69,59 @@ def test_mesh_is_outward_wound() -> None:
 
 def test_zero_lumpiness_is_nearly_round() -> None:
     """A zero-relief mesh projects to a nearly circular silhouette."""
-    cv = _boundary_radial_cv(_render(0.0) > 0)
+    cv = _boundary_radial_cv(_render(0.0).coverage > 0)
     assert cv < 0.05
 
 
 def test_relief_increases_roughness() -> None:
     """Surface relief makes the silhouette less round than a sphere."""
-    smooth = _boundary_radial_cv(_render(0.0) > 0)
-    lumpy = _boundary_radial_cv(_render(0.45) > 0)
+    smooth = _boundary_radial_cv(_render(0.0).coverage > 0)
+    lumpy = _boundary_radial_cv(_render(0.45).coverage > 0)
     assert lumpy > smooth * 2.0
 
 
 def test_pose_changes_silhouette() -> None:
     """Rotating the body changes its projected silhouette."""
-    a = _render(0.45, pose=(0.0, 0.0, 0.0)) > 0
-    b = _render(0.45, pose=(0.0, 90.0, 30.0)) > 0
+    a = _render(0.45, pose=(0.0, 0.0, 0.0)).coverage > 0
+    b = _render(0.45, pose=(0.0, 90.0, 30.0)).coverage > 0
     assert int((a != b).sum()) > 50
+
+
+def test_coverage_does_not_change_with_the_light() -> None:
+    """At 150 deg phase the coverage is still the outline a face-on light shows."""
+    mesh = make_irregular_mesh(lumpiness=0.45, seed=4)
+    kwargs: dict[str, Any] = {
+        'size': (96, 96),
+        'center': (48.0, 48.0),
+        'mesh': mesh,
+        'semi_axes_px': (34.0, 34.0, 34.0),
+    }
+    face_on = render_polyhedral_body(**kwargs, phase_angle=0.0)
+    crescent = render_polyhedral_body(**kwargs, phase_angle=np.radians(150.0))
+    assert np.array_equal(crescent.coverage > 0.0, face_on.intensity > 0.0)
+
+
+def test_night_side_is_black() -> None:
+    """Lit from the top at 120 deg phase, the covered lower half of a sphere renders 0."""
+    render = render_polyhedral_body(
+        size=(96, 96),
+        center=(48.0, 48.0),
+        mesh=make_irregular_mesh(lumpiness=0.0, seed=4),
+        semi_axes_px=(34.0, 34.0, 34.0),
+        phase_angle=np.radians(120.0),
+    )
+    night = render.coverage[50:, :] > 0.0
+    assert float(render.intensity[50:, :][night].max()) == 0.0
 
 
 def test_render_is_deterministic() -> None:
     """The same mesh and pose render byte-identically."""
-    assert np.array_equal(_render(0.4), _render(0.4))
+    assert np.array_equal(_render(0.4).intensity, _render(0.4).intensity)
 
 
 def test_shading_follows_illumination() -> None:
     """With light from the top, the lit (upper) half is brighter."""
-    img = _render(0.2)
+    img = _render(0.2).intensity
     half = img.shape[0] // 2
     assert float(img[:half, :].mean()) > float(img[half:, :].mean())
 
@@ -105,7 +132,7 @@ def test_shading_follows_illumination_from_the_right() -> None:
     A swap of the light direction's in-plane axes would light the lower half
     instead, leaving the two side halves equally bright.
     """
-    img = _render(0.0, illumination_angle=math.pi / 2)
+    img = _render(0.0, illumination_angle=math.pi / 2).intensity
     half = img.shape[1] // 2
     assert float(img[:, half:].mean()) > 5.0 * float(img[:, :half].mean())
 
@@ -220,7 +247,7 @@ def test_a_posed_mesh_turns_its_long_axis_by_the_stated_yaw(yaw_deg: float) -> N
         semi_axes_px=(10.0, 30.0, 10.0),
         pose_euler_deg=(0.0, 0.0, yaw_deg),
     )
-    v, u = np.nonzero(image > 0.0)
+    v, u = np.nonzero(image.coverage > 0.0)
     dv = v - v.mean()
     du = u - u.mean()
     angle = 0.5 * math.atan2(2.0 * float(np.mean(du * dv)), float(np.mean(du * du - dv * dv)))

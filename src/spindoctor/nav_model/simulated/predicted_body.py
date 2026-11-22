@@ -16,30 +16,50 @@ same body differently:
   ellipsoid through :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid` and
   :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid`.
 
-The rendered brightness is above zero over the whole visible disc, because the shading
-floors the unlit side above zero, so ``image > 0`` is the body's full silhouette, lit
-or not.
+The predicted brightness is 0 on the body's night side, as the SPICE-backed body
+model's is, so the silhouette comes from the geometry instead: the pixels the outline
+touches, lit or not.  A render returns both as a :class:`PredictedBody`.
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
 
-from spindoctor.sim.shared.ellipsoid import project_ellipsoid, render_lambert_ellipsoid
+from spindoctor.sim.shared.ellipsoid import (
+    ellipsoid_coverage,
+    project_ellipsoid,
+    render_lambert_ellipsoid,
+)
 from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
+    'PredictedBody',
     'predicted_center_vu',
     'predicted_semi_axes_px',
     'predicted_silhouette',
     'predicted_silhouette_bbox',
     'render_predicted_body',
 ]
+
+
+@dataclass(frozen=True)
+class PredictedBody:
+    """A body's predicted render on one canvas.
+
+    Parameters:
+        image: The predicted brightness in ``[0, 1]``, 0 outside the body and on its
+            night side.
+        silhouette: The pixels the body's outline touches, lit or not.
+    """
+
+    image: NDArrayFloatType
+    silhouette: NDArrayBoolType
 
 
 def predicted_center_vu(
@@ -83,8 +103,8 @@ def render_predicted_body(
     *,
     shape_vu: tuple[int, int],
     center_vu: tuple[float, float],
-) -> NDArrayFloatType:
-    """Render a body's predicted image on a canvas.
+) -> PredictedBody:
+    """Render a body's predicted image and silhouette on a canvas.
 
     The body is drawn at full anti-aliasing, with the shape, pose, and lighting its
     entry states.
@@ -97,12 +117,12 @@ def render_predicted_body(
             render on the frame passes :func:`predicted_center_vu`.
 
     Returns:
-        The rendered image, brightness in ``[0, 1]``.
+        The :class:`PredictedBody` on the canvas.
     """
     semi_axes_px = predicted_semi_axes_px(nav_body)
     illumination_angle_rad = math.radians(float(nav_body.get('illumination_angle', 0.0)))
     if str(nav_body.get('shape_model', 'ellipsoid')) == 'polyhedral_mesh':
-        return render_mesh_body_image(
+        mesh_render = render_mesh_body_image(
             size=shape_vu,
             center=center_vu,
             semi_axes_px=semi_axes_px,
@@ -110,6 +130,10 @@ def render_predicted_body(
             illumination_angle=illumination_angle_rad,
             phase_angle=phase_angle_rad,
             anti_aliasing=1.0,
+        )
+        return PredictedBody(
+            image=mesh_render.intensity,
+            silhouette=np.asarray(mesh_render.coverage > 0.0, dtype=bool),
         )
     projection = project_ellipsoid(
         shape_vu,
@@ -121,8 +145,11 @@ def render_predicted_body(
         sub_observer_lat=math.radians(float(nav_body.get('sub_observer_lat_deg', 0.0))),
         anti_aliasing=1.0,
     )
-    return render_lambert_ellipsoid(
-        projection, illumination_angle=illumination_angle_rad, phase_angle=phase_angle_rad
+    return PredictedBody(
+        image=render_lambert_ellipsoid(
+            projection, illumination_angle=illumination_angle_rad, phase_angle=phase_angle_rad
+        ),
+        silhouette=ellipsoid_coverage(projection),
     )
 
 
@@ -147,14 +174,12 @@ def predicted_silhouette(
         the body covers, rendered at its own phase.
     """
     center_v, center_u = predicted_center_vu(nav_body, data_shape_vu)
-    image = render_predicted_body(
+    return render_predicted_body(
         nav_body,
         math.radians(float(nav_body.get('phase_angle', 0.0))),
         shape_vu=(data_shape_vu[0] + 2 * margin_vu[0], data_shape_vu[1] + 2 * margin_vu[1]),
         center_vu=(center_v + margin_vu[0], center_u + margin_vu[1]),
-    )
-    mask: NDArrayBoolType = np.asarray(image > 0.0, dtype=bool)
-    return mask
+    ).silhouette
 
 
 def predicted_silhouette_bbox(

@@ -23,8 +23,8 @@ from spindoctor.support.types import NDArrayFloatType
 _SIZE = 200
 _CENTER = _SIZE / 2.0
 _RADIUS = 80.0
-# Phase 1 rad keeps the smooth shading well below the signal ceiling, so a
-# multiplied texture can never clip at 1 and the ratio probe stays exact.
+# At phase 1 rad, lit from the top, the terminator crosses the central column
+# about 43 px below the center, and the night side below it renders black.
 _PHASE = 1.0
 
 
@@ -111,8 +111,11 @@ def test_noise_texture_is_multiplicative_on_the_shading() -> None:
 
 
 def test_spot_lands_at_commanded_surface_position() -> None:
-    """A dark spot at (lat, lon) darkens exactly the predicted disc location."""
-    lat_deg = 40.0
+    """A dark spot at (lat, lon) darkens exactly the predicted disc location.
+
+    The spot and its mirror both lie on the lit disc, above the terminator.
+    """
+    lat_deg = -25.0
     albedo = AlbedoTextureSpec(rms=0.0, spots=((lat_deg, 90.0, 10.0, 0.5),), seed=0)
     smooth = _render(None)
     textured = _render(albedo)
@@ -121,7 +124,7 @@ def test_spot_lands_at_commanded_surface_position() -> None:
     spot_v = int(_CENTER + _RADIUS * math.sin(math.radians(lat_deg)))
     spot_u = int(_CENTER)
     assert textured[spot_v, spot_u] / smooth[spot_v, spot_u] == pytest.approx(0.5, abs=1e-9)
-    # The mirror latitude (lat -40) is untouched, so the spot is a localized
+    # The mirror latitude (lat +25) is untouched, so the spot is a localized
     # mark, not a global rescale.
     anti_v = int(_CENTER - _RADIUS * math.sin(math.radians(lat_deg)))
     assert textured[anti_v, spot_u] == smooth[anti_v, spot_u]

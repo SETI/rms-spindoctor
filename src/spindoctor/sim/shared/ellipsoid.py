@@ -26,12 +26,12 @@ import numpy as np
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
-    'DARK_SIDE_ILLUM_STRENGTH',
     'EllipsoidGeometry',
     'EllipsoidProjection',
+    'ellipsoid_coverage',
     'ellipsoid_image_normals',
     'lambert_from_normals',
     'outline_half_extents',
@@ -44,13 +44,6 @@ __all__ = [
 
 # A vector component: one value, or one per pixel.
 _Component = TypeVar('_Component', float, NDArrayFloatType)
-
-# Lambertian floor for the visible-but-unlit hemisphere.  A pixel whose
-# illumination is clipped to this value sits past the terminator (its true
-# cos(incidence) is at or below the floor), so a strictly-greater comparison
-# against it separates the lit region from the unlit disc -- the boundary the
-# terminator polyline traces.  The mesh shading path mirrors this floor.
-DARK_SIDE_ILLUM_STRENGTH: float = 0.01
 
 
 @dataclass(frozen=True)
@@ -528,7 +521,8 @@ def lambert_from_normals(
         phase_angle: Phase angle in radians; 0 is fully lit, pi is backlit.
 
     Returns:
-        Illumination strength array in [0, 1]; 0 wherever ``normal_z`` is 0 or less.
+        Illumination strength array in [0, 1]; 0 on the night side and wherever
+        ``normal_z`` is 0 or less.
     """
     illum_v_3d, illum_u_3d, illum_z_norm = illumination_vector(
         illumination_angle=illumination_angle, phase_angle=phase_angle
@@ -542,13 +536,9 @@ def lambert_from_normals(
     # cos(incidence) = dot(normal, illumination_direction)
     cos_incidence = normal_v * illum_v_3d + normal_u * illum_u_3d + normal_z * illum_z_norm
 
-    # Lambertian shading: I = I_0 * max(0, cos(incidence))
-    # Only apply to visible hemisphere and clip to [0, 1] range
-    light_side_illum_gamma = 1  # TODO make config parameter
-    illum_strength = np.where(
-        visible_hemisphere, np.clip(cos_incidence, DARK_SIDE_ILLUM_STRENGTH, 1.0), 0.0
-    )
-    illum_strength **= light_side_illum_gamma
+    # Lambertian shading: I = I_0 * max(0, cos(incidence)) on the visible hemisphere.
+    # The night side is black, as it is on a real airless body.
+    illum_strength = np.where(visible_hemisphere, np.clip(cos_incidence, 0.0, 1.0), 0.0)
 
     return cast(NDArrayFloatType, illum_strength)
 
@@ -565,8 +555,8 @@ def render_lambert_ellipsoid(
     shaded by :func:`lambert_from_normals` with the normals from
     :func:`ellipsoid_image_normals`.  The result is then averaged over blocks of
     ``aa_scale`` by ``aa_scale`` pixels.  Before averaging, a pixel whose center lies
-    outside the limb is 0, and one on the visible hemisphere past the terminator is
-    :data:`DARK_SIDE_ILLUM_STRENGTH`.
+    outside the limb or past the terminator is 0.  The night side is therefore 0 too,
+    so the brightness does not mark the silhouette; :func:`ellipsoid_coverage` does.
 
     Parameters:
         projection: The ellipsoid's projection onto its grid, whose dimensions must
@@ -591,3 +581,28 @@ def render_lambert_ellipsoid(
         rows, cols = intensity.shape
         intensity = intensity.reshape(rows // scale, scale, cols // scale, scale).mean(axis=(1, 3))
     return np.clip(intensity, 0.0, 1.0)
+
+
+def ellipsoid_coverage(projection: EllipsoidProjection) -> NDArrayBoolType:
+    """The pixels an ellipsoid's outline touches, lit or not.
+
+    A pixel is covered when the center of any of its ``aa_scale`` by ``aa_scale``
+    subpixels lies strictly inside the limb.  Those are exactly the pixels where
+    :func:`render_lambert_ellipsoid` averages at least one subpixel of the visible
+    hemisphere, so this is the silhouette that render draws, night side included.
+
+    Parameters:
+        projection: The ellipsoid's projection onto its grid, whose dimensions must
+            be multiples of ``aa_scale``, as :func:`project_ellipsoid` builds them.
+
+    Returns:
+        The boolean silhouette on the grid the caller stated the geometry on: the
+        projection's grid divided by ``aa_scale`` along each axis.
+    """
+    inside = projection.ellipse_dist_sq < 1.0
+    scale = projection.aa_scale
+    if scale > 1:
+        rows, cols = inside.shape
+        inside = inside.reshape(rows // scale, scale, cols // scale, scale).any(axis=(1, 3))
+    covered: NDArrayBoolType = np.asarray(inside, dtype=bool)
+    return covered

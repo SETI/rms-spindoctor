@@ -206,8 +206,7 @@ def _flat_defaults_scene(**noise_extra: Any) -> dict[str, Any]:
     frame in the flat center region isolates the shot term.
     """
     scene = _disc('generic', size=128, oversample=1, artifacts={'instrument_defaults': True})
-    # A disc much larger than the frame makes the center region flat; the
-    # signal clips at 1.0, which only flattens it further.
+    # A disc much larger than the frame makes the center region flat.
     scene['bodies'][0].update({'semi_a_px': 200.0, 'semi_b_px': 200.0, 'semi_c_px': 200.0})
     if noise_extra:
         scene['noise'] = dict(noise_extra)

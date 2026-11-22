@@ -601,7 +601,7 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        with no PSF the factor is 1 and this is a no-op.
    * - Detector
      - :func:`~spindoctor.sim.render.detector.apply_detector`
-     - Runs the electron unit chain: converts the composed [0, 1] signal to
+     - Runs the electron unit chain: converts the composed signal to
        electrons through the exposure, applies Poisson shot noise, full-well
        bloom, read noise, banding, gain to DN, bias structure, quantization, and
        the ADC clip (see :ref:`sim-detector-stage`). The Voyager vidicon takes
@@ -633,9 +633,10 @@ error to the one effect it varies.
 ``SimFrame`` carries the mutable image state between stages:
 
 - ``signal`` -- the ``(V*os, U*os)`` float64 image. It holds normalized
-  [0, ~1] intensive scene units through the radiance and optics stages (a
-  point-mass star deposit may legitimately spike above 1.0 on the oversampled
-  grid before the PSF spreads it); the detector stage converts it to electrons
+  intensive scene units through the radiance and optics stages, where 1 is a
+  white disc lit face-on. A limb-brightened law, a bright albedo spot, or a haze
+  can carry it above 1, and so can a point-mass star deposit on the oversampled
+  grid before the PSF spreads it. The detector stage converts it to electrons
   through the exposure and digitizes it to DN in place (the electron unit
   chain).
 - ``point_e`` -- a same-shaped plane reserved for electron-unit point sources.
@@ -988,9 +989,11 @@ normative unit chain of the renderer. For a CCD instrument the composed
 intensive signal passes through the electron unit chain in
 :func:`~spindoctor.sim.render.detector.chain.apply_detector`:
 
-1. **Signal to electrons.** The intensive [0, 1] signal is scaled to electrons
+1. **Signal to electrons.** The intensive signal is scaled to electrons
    through ``signal_full_scale_frac * full_well_e * (exposure_sec /
-   exposure_ref_sec)``. A scene that sets a filter (see
+   exposure_ref_sec)``. The signal is not capped first: a limb-brightened law or
+   a bright albedo spot can carry it above 1, and the full well in step 4
+   saturates it as a real camera does. A scene that sets a filter (see
    :ref:`sim-detector-block`) sets ``exposure_ref_sec`` from the filter's
    measured throughput, so a signal of 1.0 collects that filter's electrons.
 2. **Point sources.** The point-source plane (``frame.point_e``) carries the
@@ -1129,7 +1132,8 @@ seeded stream and a no-op when its activation key is 0.
 **The vidicon path.** The Voyager vidicon
 (:func:`~spindoctor.sim.render.detector.chain.apply_detector`, vidicon branch)
 is not photon-noise dominated, so it skips the electron conversion: the signal
-maps straight to the 8-bit DN full scale and the noise is applied in DN -- a
+maps straight to the 8-bit DN full scale, the target saturates where the stored
+signal passes its full scale (``full_well_dn``), and the noise is applied in DN -- a
 line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
@@ -2418,12 +2422,14 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
      - ``I = mu0`` (the navigator's own template law).
    * - ``lommel_seeliger``
      - truth
-     - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, clipped at the signal
-       ceiling.
+     - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, rising to 2 at the sunlit
+       limb.
    * - ``minnaert``
      - truth
      - ``I = mu0**k mu**(k - 1)`` with ``minnaert_k``; ``k = 1`` is Lambert,
-       ``k = 0.5`` the classic lunar value.
+       ``k = 0.5`` the classic lunar value. Below ``k = 1`` the law grows without
+       bound toward the limb, so it is capped at 2, the Lommel-Seeliger limb value.
+       Without the cap the brightest limb pixel would depend on the pixel size.
    * - ``lunar_lambert``
      - truth
      - ``2 L(a) mu0 / (mu0 + mu) + (1 - L(a)) mu0`` with the McEwen (1991)
@@ -2433,10 +2439,16 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
 An optional ``opposition_surge`` (truth) multiplies the law by a normalized
 exponential ``(1 + amplitude exp(-a / width)) / (1 + amplitude)`` -- 1 at exact
 opposition, ``1 / (1 + amplitude)`` far from it -- so it plants the
-brightness-versus-phase surge signature while keeping the normalized signal
-plane within [0, 1]. Because the navigator always shades Lambert, any non-Lambert
-law or surge moves the terminator and the limb-darkening profile by a known
-amount.
+brightness-versus-phase surge signature. Because the navigator always shades
+Lambert, any non-Lambert law or surge moves the terminator and the limb-darkening
+profile by a known amount.
+
+No law is capped at 1. The body stages carry the brightness uncapped to the
+detector, which saturates at its full well. A scene's albedo spot brighter than 1
+brightens everywhere it lies, until the detector saturates. None of the laws has a
+night-side term, so a body's night side renders black, as a real airless body's
+does; the body's silhouette is drawn separately, so a black pixel inside the body
+still occludes what lies behind it.
 
 Surface texture and transits
 -----------------------------
@@ -2755,16 +2767,10 @@ the scaled half stays below saturation. Inside the band the multiplier is
 ``1 + (ratio - 1) * w`` or ``1 + amplitude * w`` for the weight ``w``, so a
 ratio of one or an amplitude of zero leaves the haze untouched.
 
-The render clips the signal at 1, so a positive amplitude flattens the bright
-crescent wherever the base brightness times ``1 + amplitude`` would pass 1, and
-there the two halves differ by the clip instead of a scaling, poleward of the
-band or not. Over 26 of the 40 clean Titan truth scenes that navigate both with
-and without an ``ns_asymmetry_amplitude`` of +0.35, the amplitude shifts the
-recovered cross-track position by 0.063 pixels on average with a switch at the
-equator and 0.065 pixels with the 10 degree band, about four times what an
-amplitude of -0.35 costs with the band (below). Nearly all of that cost is there
-with a switch too, where an amplitude of -0.35, which darkens and so never
-reaches the clip, costs 0.004 pixels, so the clip sets it and the band does not.
+The render carries the brightness uncapped to the detector. A positive amplitude
+therefore flattens the bright crescent only where the scaled brightness passes
+the detector's full well, and there the two halves differ by the saturation
+instead of a scaling, poleward of the band or not.
 
 Inside the band ``ns_asymmetry_amplitude`` is not an affine control, and no
 continuous blend can make it one. The mirror about the hemispheric split maps

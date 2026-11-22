@@ -37,7 +37,9 @@ from spindoctor.sim.render.bodies.haze import (
     HAZE_STRUCTURE_KEYS,
     HEMISPHERE_BLEND_HALF_WIDTH_DEG,
     SECTOR_REFERENCE_HALF_ANGLE_DEG,
+    CloudBlob,
     HazeStructure,
+    apply_disc_structure,
     haze_structure_from_params,
     hemisphere_weight,
     latitude_sine,
@@ -219,9 +221,7 @@ def _disc_mean(img: NDArrayFloatType, *, southern: bool) -> float:
     Restricted well inside the limb so the anti-aliased rim and the halo
     cannot contribute, poleward of the equatorial blend band so every
     sampled pixel carries the hemispheric terms at their full value, and to
-    the anti-sunward side so every sampled pixel has headroom
-    below the top of the [0, 1] signal plane -- a brightening measured where
-    the render already saturates would report the clip, not the scaling.
+    the anti-sunward side, the dimmer half of the disc.
 
     Parameters:
         img: A rendered image with the body centered at ``_CENTER``.
@@ -793,8 +793,7 @@ def test_interior_ramp_tilts_the_disc_brightness_along_the_axis() -> None:
 def test_cloud_blob_brightens_the_disc_where_it_was_placed() -> None:
     """A blob adds its amplitude at its own center and nothing far away.
 
-    Placed on the anti-sunward interior, where the disc is dim enough that
-    the added amplitude has headroom inside the [0, 1] signal plane.
+    Placed on the anti-sunward interior, where the disc is dim.
     """
     center_v, center_u = -18.0, -28.0
     blob = {'center_vu': [center_v, center_u], 'sigma_px': 5.0, 'amplitude': 0.25}
@@ -887,3 +886,21 @@ def test_validator_rejects_a_malformed_cloud_blob_center() -> None:
     )
     with pytest.raises(SimSceneValidationError, match='center_vu'):
         validate_sim_params(scene, source='probe')
+
+
+def test_a_cloud_brightens_the_disc_past_one() -> None:
+    """A cloud on a bright disc adds its full amplitude, with no cap at 1."""
+    out_box = np.full((21, 21), 0.9)
+    offsets = np.arange(21, dtype=np.float64) - 10.0
+    structure = HazeStructure(cloud_blobs=(CloudBlob(0.0, 0.0, 3.0, 0.5),))
+    apply_disc_structure(
+        out_box,
+        structure,
+        coverage=np.ones((21, 21)),
+        v_ctr=offsets[:, np.newaxis],
+        u_ctr=offsets[np.newaxis, :],
+        r_mean=10.0,
+        illum_v=0.0,
+        illum_u=1.0,
+    )
+    assert float(out_box[10, 10]) == pytest.approx(1.4, abs=1e-12)

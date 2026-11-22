@@ -7,8 +7,9 @@ body, and the disc center sees the sub-observer latitude.  A cropped projection 
 each pixel's values and its position on the whole grid.  The normals face the way the
 outline does, are perpendicular to the turned surface, lie in the image plane outside
 the limb, and have unit length.
-The Lambert render shades each pixel by its cosine of incidence, leaves the sky
-dark, and averages its supersampled grid down to the caller's.
+The Lambert render shades each pixel by its cosine of incidence, leaves the sky and
+the night side dark, and averages its supersampled grid down to the caller's.  The
+coverage is the silhouette a fully lit render draws, whatever the lighting.
 """
 
 import math
@@ -18,6 +19,7 @@ import pytest
 
 from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
+    ellipsoid_coverage,
     ellipsoid_image_normals,
     project_ellipsoid,
     render_lambert_ellipsoid,
@@ -328,3 +330,24 @@ def test_render_lambert_ellipsoid_averages_the_supersample() -> None:
     np.testing.assert_allclose(
         coarse, fine.reshape(48, 4, 40, 4).mean(axis=(1, 3)), rtol=0.0, atol=1e-15
     )
+
+
+def test_render_lambert_ellipsoid_is_dark_on_the_night_side() -> None:
+    """A pixel past the terminator renders 0, as a real airless body's night side does."""
+    radius = 20.0
+    projection = project_ellipsoid(
+        (64, 64), (32.0, 32.0), radius, semi_b_px=radius, semi_c_px=radius
+    )
+    # Lit from the top at 120 deg phase, the half below the center is all night.
+    image = render_lambert_ellipsoid(
+        projection, illumination_angle=0.0, phase_angle=math.radians(120.0)
+    )
+    night = (projection.ellipse_dist_sq < 1.0) & (projection.v_coords > 0.0)
+    assert float(image[night].max()) == 0.0
+
+
+def test_coverage_is_the_fully_lit_silhouette() -> None:
+    """At high phase the coverage is the outline a render lit face-on draws."""
+    projection = _tilted_body(anti_aliasing=1.0)
+    face_on = render_lambert_ellipsoid(projection, illumination_angle=0.0, phase_angle=0.0)
+    assert np.array_equal(ellipsoid_coverage(projection), face_on > 0.0)

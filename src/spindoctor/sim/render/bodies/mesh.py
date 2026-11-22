@@ -41,10 +41,10 @@ from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import (
     Mesh,
+    MeshBodyRender,
     MeshBodySpec,
-    PolyhedralBodyRender,
     make_irregular_mesh,
-    render_polyhedral_body_with_silhouette,
+    render_polyhedral_body,
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -119,15 +119,15 @@ def _render_mesh_shape(
     relief_rms: float,
     relief_corr_deg: float,
     relief_seed: int,
-) -> PolyhedralBodyRender:
-    """Draw an irregular mesh body shape and its silhouette at the reference center.
+) -> MeshBodyRender:
+    """Draw an irregular mesh body shape and its coverage at the reference center.
 
     The truth-side upgrades (shading mode, relief field) are part of the cache key
     of ``_render_mesh_shape_cached``; at their defaults ('flat', relief off) the
     intensity is exactly the shared ``render_mesh_body_image`` result the navigator
     predicts.
     """
-    return render_polyhedral_body_with_silhouette(
+    return render_polyhedral_body(
         size=shape,
         center=center,
         mesh=_body_mesh(
@@ -245,7 +245,7 @@ def render_single_mesh_body(
         )
     else:
         draw = _render_mesh_shape_cached if canvas.on_frame else _render_partial_mesh_cached
-        drawing = draw(
+        body_render = draw(
             canvas.shape,
             canvas.center,
             semi_a_px,
@@ -262,8 +262,8 @@ def render_single_mesh_body(
         )
         mask, body_info = finish_single_body(
             img,
-            drawing.intensity,
-            drawing.silhouette,
+            body_render.intensity,
+            body_render.coverage,
             body_name=body_name,
             center_v=center_v,
             center_u=center_u,
