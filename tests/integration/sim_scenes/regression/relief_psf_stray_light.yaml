@@ -20,8 +20,8 @@ exposure_sec: 1.0
 # Measured behavior: all three body techniques survive the blur and the
 # sloped background, but the fused offset is (1.54, -1.5) against the
 # planted (2.37, -1.62), a miss of 0.84 px, nearly all in v.  The limb fit
-# lands at (1.73, -1.96), about 0.72 px from the planted value, and over the 16
-# noise draws below it lands 0.67 to 0.73 px away.  It was 0.27 px while the
+# lands at (1.77, -1.88), about 0.66 px from the planted value, and over the 16
+# noise draws below it lands 0.65 to 0.67 px away.  It was 0.27 px while the
 # predicted limb ran along the whole outline, unlit part included, and the night
 # side glowed at 1% of full brightness (#894, #1056); it now fits only the lit
 # limb, where the brightness gradient just inside the ragged limb draws it.  The

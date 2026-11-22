@@ -1912,7 +1912,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are three:
+not yet fixed. There are five:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -1920,6 +1920,9 @@ not yet fixed. There are three:
   sub-pixel search window.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
+- In ``titan_crescent_horns`` and its noiseless twin, the disc correlation stops
+  at the edge of its sub-pixel window too, and carries a low-tier success 0.76 px
+  wrong.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
 answer as correct behavior. So the scene also declares ``known_offset_error_px``
@@ -1995,7 +1998,7 @@ render departs from it. The sweeps and their floors:
 
 - ``psf_limb_mismatch`` -- rendered PSF sigma broadened above the navigator's
   Gaussian; the softened limb edge biases the distance-transform fit, and at a
-  4 px sigma the lit limb still navigates, about 1.3 px off.
+  4 px sigma the lit limb still navigates, 1.2 to 1.5 px off.
 - ``photometric_minnaert_mismatch`` -- Minnaert ``k`` walked below 1; the
   limb-brightened disc departs from the Lambert template.
 - ``spk_parallax_error`` -- a spacecraft-position error parallax-shifts the body

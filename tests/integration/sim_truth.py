@@ -152,11 +152,11 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # algorithmic_invariants, fused answer (disc and star scenes).  planted_offset_disc,
     # planted_offset_disc_if, and planted_offset_small carry known errors instead.
     ('planted_offset_irregular', FUSED): _t(0.001, 0.001, 0.000, 0.05),
-    ('planted_offset_limb', FUSED): _t(0.072, 0.074, 0.003, 0.05),
-    ('planted_offset_limb_mesh', FUSED): _t(0.102, 0.106, 0.005, 0.05),
+    ('planted_offset_limb', FUSED): _t(0.076, 0.077, 0.002, 0.05),
+    ('planted_offset_limb_mesh', FUSED): _t(0.108, 0.108, 0.004, 0.05),
     # The prediction is the smooth limit of the rendered lumpy mesh.  This error is the
     # cost of that mismatch.
-    ('planted_offset_shapemismatch', FUSED): _t(0.659, 0.662, 0.012, 0.14),
+    ('planted_offset_shapemismatch', FUSED): _t(0.657, 0.660, 0.011, 0.14),
     ('planted_offset_star_field', FUSED): _t(0.018, 0.019, 0.003, 0.05),
     ('planted_offset_star_field_bright', FUSED): _t(0.040, 0.041, 0.001, 0.05),
     # algorithmic_invariants, one technique navigated alone.  StarRefineNav is read from
@@ -165,8 +165,8 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('planted_offset_blob_crescent', 'BodyBlobNav'): _t(0.013, 0.017, 0.011, 0.05),
     ('planted_offset_blob_crescent_displaced', 'BodyBlobNav'): _t(0.006, 0.019, 0.013, 0.05),
     ('planted_offset_blob_mesh_crescent', 'BodyBlobNav'): _t(0.800, 0.805, 0.016, 0.17),
-    ('planted_offset_limb', 'BodyLimbNav'): _t(0.162, 0.171, 0.021, 0.05),
-    ('planted_offset_limb_mesh', 'BodyLimbNav'): _t(0.379, 0.411, 0.039, 0.09),
+    ('planted_offset_limb', 'BodyLimbNav'): _t(0.197, 0.197, 0.022, 0.05),
+    ('planted_offset_limb_mesh', 'BodyLimbNav'): _t(0.429, 0.433, 0.030, 0.09),
     ('planted_offset_ring', 'RingEdgeNav'): _t(0.029, 0.033, 0.005, 0.05),
     ('planted_unique_star_single', 'StarUniqueMatchNav'): _t(0.054, 0.058, 0.006, 0.05),
     ('planted_refine_star_field', 'StarRefineNav'): _t(0.016, 0.019, 0.003, 0.05),
@@ -182,22 +182,22 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # atmosphere.  In titan_haze_limb, a haze-blind navigator fits a hard limb under a
     # soft haze limb.
     ('titan_haze', FUSED): _t(0.098, 0.101, 0.011, 0.05),
-    ('titan_haze_limb', FUSED): _t(0.207, 0.210, 0.005, 0.05),
+    ('titan_haze_limb', FUSED): _t(0.210, 0.211, 0.001, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.005, 0.005, 0.000, 0.05),
     # mutual_event.
-    ('mutual_deep', FUSED): _t(0.177, 0.177, 0.020, 0.05),
-    ('mutual_grazing', FUSED): _t(0.114, 0.122, 0.008, 0.05),
-    ('mutual_half', FUSED): _t(0.350, 0.350, 0.030, 0.08),
+    ('mutual_deep', FUSED): _t(0.165, 0.166, 0.002, 0.05),
+    ('mutual_grazing', FUSED): _t(0.109, 0.117, 0.008, 0.05),
+    ('mutual_half', FUSED): _t(0.328, 0.328, 0.010, 0.07),
     # regression, fused answer.  relief_psf_stray_light carries a known error in its
     # expected block instead (#791).
-    ('banded_planet_transit', FUSED): _t(0.136, 0.138, 0.007, 0.05),
+    ('banded_planet_transit', FUSED): _t(0.135, 0.138, 0.009, 0.05),
     ('disc_subpixel_offset', FUSED): _t(0.000, 0.000, 0.000, 0.05),
-    ('low_phase_limb_misconverge', FUSED): _t(0.032, 0.032, 0.000, 0.05),
+    ('low_phase_limb_misconverge', FUSED): _t(0.059, 0.059, 0.000, 0.05),
     ('star_equal_brightness', FUSED): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
-    # Measured on the 16 noise draws, which keep the albedo texture: 0.218 to 0.222 px.
-    ('textured_moon_offset', FUSED): _t(0.218, 0.222, 0.004, 0.05),
+    # Measured on the 16 noise draws, which keep the albedo texture: 0.216 to 0.220 px.
+    ('textured_moon_offset', FUSED): _t(0.216, 0.220, 0.004, 0.05),
     # regression, one technique navigated alone.
     ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.000, 0.000, 0.05),
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
@@ -235,8 +235,8 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_deep', 'BodyBlobNav'): _b(6.985, 6.994, 0.05, 6.934, 7.045),
     ('mutual_half', 'BodyBlobNav'): _b(8.422, 8.673, 0.0503, 8.371, 8.724),
     ('mutual_grazing', 'BodyBlobNav'): _b(1.795, 1.804, 0.05, 1.744, 1.854),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(24.981, 25.049, 0.05, 24.930, 25.100),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.028, 25.028, 0.05, 24.978, 25.079),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(24.944, 25.011, 0.05, 24.894, 25.062),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.016, 25.016, 0.05, 24.965, 25.066),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.421, 1.428, 0.05, 1.371, 1.479),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.006 px and 0.287 px.

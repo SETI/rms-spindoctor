@@ -39,7 +39,11 @@ offset_rotation_deg: 0.0
 # outcome deterministically: the haze alone, not the noise, decides it.
 # Known error: 0.762 px on the committed draw and on random_seed 101, 202, ...,
 # 1515 alike, giving the band [0.711, 0.812] px with the 0.05 px margin.
+# The ring of light saturates because the simulated haze is about four times too
+# bright: its single-scattering source lacks the factor of 1/4 (#1101).  This
+# recorded outcome rests on that brightness and moves when #1101 is fixed.
 expected:
+  # Depends on the haze brightness #1101 corrects.
   status: success
   confidence_tier: low
   known_offset_error_px: 0.7615
