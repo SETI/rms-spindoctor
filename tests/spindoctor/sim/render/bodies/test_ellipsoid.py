@@ -18,7 +18,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.render.bodies import ellipsoid
+from spindoctor.sim.render.bodies import ellipsoid, ellipsoid_relief
 from spindoctor.sim.render.bodies.ellipsoid import (
     EllipsoidBodySpec,
     create_ellipsoid_body,
@@ -264,14 +264,14 @@ def _render_counting_interpolations(
 ) -> tuple[NDArrayFloatType, int]:
     """A relief case's body, and how many times its relief tilt was interpolated."""
     calls: list[int] = []
-    interpolate = ellipsoid._add_detector_relief
+    interpolate = ellipsoid_relief.add_detector_relief
 
     def counting(*args: Any, **kwargs: Any) -> Any:
         calls.append(1)
         return interpolate(*args, **kwargs)
 
     with monkeypatch.context() as patch:
-        patch.setattr(ellipsoid, '_add_detector_relief', counting)
+        patch.setattr(ellipsoid, 'add_detector_relief', counting)
         rendered = _relief_body(case)
     return rendered, len(calls)
 

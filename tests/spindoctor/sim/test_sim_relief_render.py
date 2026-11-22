@@ -17,7 +17,7 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
-from spindoctor.sim.render.bodies import ellipsoid as body_ellipsoid
+from spindoctor.sim.render.bodies import ellipsoid_relief
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
 from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
@@ -129,7 +129,7 @@ def _terminator_spec(*, rms: float) -> EllipsoidBodySpec:
 def _band_elevation_deg(field_rms: float, seed: int) -> float:
     """The sun elevation, in degrees, above which a realization casts no shadow."""
     field = synthesize_relief_field(field_rms, _CORR_DEG, seed)
-    band = body_ellipsoid._SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
+    band = ellipsoid_relief._SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
     return math.degrees(math.atan(band))
 
 
@@ -232,6 +232,19 @@ def test_relief_darkens_no_pixel_above_the_slope_band(seed: int) -> None:
     newly_dark = inner & (smooth > DARK_SIDE_FLOOR * 1.2) & (ragged <= DARK_SIDE_FLOOR * 1.05)
     assert int(newly_dark.sum()) > 0
     assert float(elevation[newly_dark].max()) <= _band_elevation_deg(_RMS, seed) + 0.5
+
+
+def _relief_shading(
+    grid: EllipsoidProjection, spec: EllipsoidBodySpec, field: ReliefField, near: Any
+) -> ellipsoid_relief.ReliefShading:
+    """The renderer's relief shading of ``near`` on ``grid``, lit as ``spec`` lights it."""
+    return ellipsoid_relief.relief_shading(
+        grid,
+        field,
+        near,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
 
 
 def _surface_normals(field: ReliefField, points: NDArrayFloatType) -> NDArrayFloatType:
@@ -341,7 +354,7 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
         ]
     )
     cos_i = np.sum(_surface_normals(field, points) * sun, axis=-1)
-    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near).shadowed
+    shadowed = _relief_shading(grid, spec, field, near).shadowed
     lit = (cos_i > 0.05) & ~shadowed[near]
     np.testing.assert_allclose(ragged[near][lit], cos_i[lit], rtol=0.0, atol=0.02)
     expected_change = cos_i[lit] - smooth[near][lit]
@@ -363,7 +376,7 @@ def test_disc_terrain_is_read_where_the_line_of_sight_meets_it() -> None:
     disc = grid.ellipse_dist_sq < 1.0
     truth = _first_surface_points(field, grid.v_rot[disc] / 75.0, grid.u_rot[disc] / 75.0)
     hit = np.isfinite(truth[:, 0])
-    seen = body_ellipsoid._relief_shading(grid, spec, field, disc).seen
+    seen = _relief_shading(grid, spec, field, disc).seen
     smooth = np.stack(
         [
             grid.v_rot[disc] / 75.0,
@@ -407,7 +420,7 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     )
     away = inside & (_surface_normals(field, points)[:, 2] < -0.05)
     assert int(away.sum()) > 100
-    seen = body_ellipsoid._relief_shading(grid, spec, field, near).seen
+    seen = _relief_shading(grid, spec, field, near).seen
     facing_away = _surface_normals(field, seen[inside])[:, 2] < 0.0
     assert int(facing_away.sum()) <= 0.001 * int(inside.sum())
 
@@ -436,7 +449,7 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
     grid = project_ellipsoid((80, 80), (40.0, 40.0), 30.0, semi_b_px=30.0, semi_c_px=30.0)
     field = synthesize_relief_field(0.03, 1.0, 3)
     near = grid.ellipse_dist_sq < (1.0 + field.h_max + 2.0 / 30.0) ** 2
-    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near).shadowed
+    shadowed = _relief_shading(grid, spec, field, near).shadowed
 
     cell = 2.0 * np.pi / field.grid.shape[0]
 
@@ -445,8 +458,8 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
     ) -> Any:
         return cast_shadows(points, sun, relief, step=min(step, cell / 32.0))
 
-    monkeypatch.setattr(body_ellipsoid, 'cast_shadows', fine_march)
-    reference = body_ellipsoid._relief_shading(grid, spec, field, near).shadowed
+    monkeypatch.setattr(ellipsoid_relief, 'cast_shadows', fine_march)
+    reference = _relief_shading(grid, spec, field, near).shadowed
     assert int(reference.sum()) > 100
     assert int((shadowed != reference).sum()) <= 0.01 * int(reference.sum())
 

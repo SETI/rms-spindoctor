@@ -122,11 +122,12 @@ relative to ``sim/render/``):
    * - ``bodies/render.py`` / ``bodies/placement.py``
      - Sends each body to the renderer that draws it, chooses the canvas it is drawn
        on, and moves the drawing into the frame (see :ref:`sim-body-renderer`).
-   * - ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` / ``bodies/craters.py`` /
+   * - ``bodies/ellipsoid.py`` / ``bodies/ellipsoid_grid.py`` /
+       ``bodies/ellipsoid_relief.py`` / ``bodies/craters.py`` /
        ``bodies/texture.py`` / ``bodies/mesh.py``
      - The ellipsoid renderer (relief, photometric laws, craters, surface texture,
-       transits) with its grids and its crater carving, and the polyhedral-mesh
-       renderer. The parsed body entry and the body's identity seed
+       transits) with its grids, its relief shading, and its crater carving, and the
+       polyhedral-mesh renderer. The parsed body entry and the body's identity seed
        (``bodies/spec.py``), the relief field (``bodies/relief.py``), and the
        photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``

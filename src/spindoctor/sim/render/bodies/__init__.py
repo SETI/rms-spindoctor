@@ -9,6 +9,8 @@
   renderer uses.
 - :mod:`spindoctor.sim.render.bodies.ellipsoid_grid`: the pixel grids the ellipsoid
   renderer works on.
+- :mod:`spindoctor.sim.render.bodies.ellipsoid_relief`: the ellipsoid renderer's
+  relief normals and cast shadows.
 - :mod:`spindoctor.sim.render.bodies.mesh`: the polyhedral-mesh renderer.
 - :mod:`spindoctor.sim.render.bodies.spec`: the typed, frozen form of one scene
   ``bodies`` entry.

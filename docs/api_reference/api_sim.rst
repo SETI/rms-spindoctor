@@ -213,6 +213,11 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.bodies.ellipsoid_relief
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.render.bodies.craters
    :members:
    :undoc-members:
