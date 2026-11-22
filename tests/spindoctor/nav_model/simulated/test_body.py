@@ -21,6 +21,7 @@ from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
 _SIZE = 96
@@ -312,6 +313,52 @@ def test_gates_off_limb_is_geometric_not_terminator() -> None:
     cu = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_u)
     radii = np.hypot(vertices[:, 0] - cv, vertices[:, 1] - cu)
     assert float(radii.min()) > 62.0
+
+
+def _limb_vertex_incidence_cosines(body_params: dict[str, Any], vertices: np.ndarray) -> np.ndarray:
+    """The sun's incidence cosine on the sphere's limb at each vertex's direction.
+
+    On the limb the surface normal lies in the image plane along the direction from
+    the body center, so the cosine is that direction against the in-plane light.
+    """
+    obs = _limb_obs()
+    cv = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_v)
+    cu = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_u)
+    dv = vertices[:, 0] + PIXEL_CENTER_TO_CORNER_PX - cv
+    du = vertices[:, 1] + PIXEL_CENTER_TO_CORNER_PX - cu
+    light_v, light_u, _ = illumination_vector(
+        illumination_angle=math.radians(float(body_params['illumination_angle'])),
+        phase_angle=math.radians(float(body_params['phase_angle'])),
+    )
+    return np.asarray((dv * light_v + du * light_u) / np.hypot(dv, du))
+
+
+# How far below 0 a lit limb vertex's in-plane cosine may fall.  A limb pixel lies a
+# little inside the outline, where the surface tilts toward the observer, so below 90
+# deg phase the sun reaches it slightly past the limb's own terminator.  The unlit limb
+# runs on to -sin(phase), -0.87 at both phases tested.
+_LIMB_LIT_SLACK = -0.15
+
+
+def test_gates_off_limb_keeps_only_lit_vertices() -> None:
+    """At 120 deg phase no gates-off limb vertex lies on the unlit side."""
+    body = _large_body(phase_angle=120.0)
+    vertices = _ungated_limb_vertices(body)
+    assert float(_limb_vertex_incidence_cosines(body, vertices).min()) > _LIMB_LIT_SLACK
+
+
+def test_navigation_limb_keeps_only_lit_vertices() -> None:
+    """At 60 deg phase, the most the limb gate allows, every limb vertex is lit."""
+    body = _large_body(phase_angle=60.0)
+    obs = _limb_obs()
+    model = NavModelBodySimulated('body', obs, body['name'], body)
+    model.create_model()
+    limb = next(
+        f for f in model.to_features(bare_nav_context(obs)) if f.feature_type.name == 'LIMB_ARC'
+    )
+    assert isinstance(limb.geometry, LimbPolyline)
+    vertices = np.asarray(limb.geometry.vertices_vu)
+    assert float(_limb_vertex_incidence_cosines(body, vertices).min()) > _LIMB_LIT_SLACK
 
 
 def _terminator_feature(obs: ObsSim, body_params: dict[str, Any]) -> Any:

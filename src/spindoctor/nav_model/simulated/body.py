@@ -129,8 +129,8 @@ class NavModelBodySimulated(NavModelBodyBase):
             Measurement callers (the realism match) set this to ``False``:
             the silhouette geometry exists regardless of whether a limb fit
             would be reliable, so the gates-off path skips those gates and
-            emits the silhouette boundary of a phase-0 render, lit and unlit
-            vertices alike.
+            emits the silhouette boundary of a phase-0 render, kept where the
+            body is lit at its own phase.
 
     Parameters:
         name: Name of this model instance.

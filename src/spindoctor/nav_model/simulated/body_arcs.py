@@ -399,10 +399,9 @@ def _lit_geometric_limb_polyline(
 
     The polyline is the silhouette boundary of a phase-0 render of the same body, with
     outward normals taken from that silhouette.  The boundary is then intersected with
-    the body mask of the render at the model's phase.  That mask is the whole visible
-    disc, lit or not, and a body's silhouette does not change with phase.  So every
-    boundary vertex inside the frame survives, lit or unlit, and the result is the full
-    silhouette boundary.
+    the lit region of the render at the model's phase, the pixels brighter than 0.  A
+    body's silhouette does not change with phase, so the result is the lit part of the
+    silhouette boundary, the limb the SPICE-backed body model emits.
 
     Parameters:
         inputs: The body's arc inputs.
@@ -418,9 +417,8 @@ def _lit_geometric_limb_polyline(
     ext_margin_u = int(obs.extfov_margin_u)
     slice_v = slice(ext_margin_v, ext_margin_v + int(obs.data_shape_v))
     slice_u = slice(ext_margin_u, ext_margin_u + int(obs.data_shape_u))
-    # The body mask covers the whole visible disc, so this keeps every boundary vertex
-    # rather than only the lit ones (see #1056).
-    lit = np.asarray(inputs.body_mask[slice_v, slice_u], dtype=bool)
+    # The night side renders 0, so the lit region is the predicted image above 0 (#1056).
+    lit = np.asarray(inputs.model_img[slice_v, slice_u] > 0.0, dtype=bool)
     full_mask_ext = obs.make_extfov_false()
     lit_boundary_ext = obs.make_extfov_false()
     full_mask_ext[slice_v, slice_u] = full_mask
@@ -433,27 +431,26 @@ def build_limb_arc_feature(
     *,
     apply_emission_gates: bool,
 ) -> NavFeature | None:
-    """Emit a LIMB_ARC from the rendered silhouette boundary, or ``None``.
+    """Emit a LIMB_ARC from the lit part of the rendered silhouette boundary, or ``None``.
 
-    The predicted limb is the silhouette boundary of the rendered body.  The silhouette
-    is the whole visible disc, so its boundary holds lit and unlit vertices alike.  On a
-    low-phase body most of the outline borders the sunlit hemisphere, so BodyLimbNav's
-    distance-transform fit aligns it to the image edge and recovers the offset.  The
-    unlit vertices of a higher-phase body carry no sharp image edge and are
-    down-weighted by the technique's robust fit rather than excluded here.
+    The predicted limb is the silhouette boundary of the rendered body, kept only where
+    the predicted image is brighter than 0, as the SPICE-backed body model keeps only
+    the lit limb.  The unlit limb merges into the dark sky and carries no image edge,
+    so a vertex there could only pull the fit toward some other edge.
 
     With the emission gates on, the feature is emitted only for a body whose predicted
     diameter is at least ``_MIN_LIMB_DIAMETER_PX`` and whose phase is at most
     ``_LIMB_MAX_PHASE_DEG``.  Its boundary must also keep at least
     ``LIMB_ARC_MIN_VERTICES`` vertices once those hidden behind a nearer sibling are
     dropped, because a tiny or barely-resolved body yields too short an arc.  The
-    feature's visible-arc fraction compares the surviving polyline against the
+    feature's visible-arc fraction compares the surviving polyline against the lit
     silhouette boundary of an unclipped whole-body render, and its reliability is the
     shared limb formula.
 
     With the gates off (the measurement path) the resolution, phase, and arc-length
     gates are skipped, no vertices are dropped for occlusion, and the polyline is the
-    silhouette boundary of a phase-0 render (see ``_lit_geometric_limb_polyline``).
+    silhouette boundary of a phase-0 render, kept where the body is lit at its own
+    phase (see ``_lit_geometric_limb_polyline``).
     Its visible-arc fraction and reliability are both 1.0, because no technique
     consumes the score there.
 
@@ -471,7 +468,8 @@ def build_limb_arc_feature(
             return None
         if inputs.phase_angle_deg > _LIMB_MAX_PHASE_DEG:
             return None
-        vertices_vu, normals_vu = _polyline_from_mask(inputs.limb_mask, inputs.body_mask)
+        lit_limb = inputs.limb_mask & (inputs.model_img > 0.0)
+        vertices_vu, normals_vu = _polyline_from_mask(lit_limb, inputs.body_mask)
         vertices_vu, normals_vu = _drop_occluded_vertices(
             vertices_vu, normals_vu, inputs.occluder_mask
         )
@@ -483,7 +481,7 @@ def build_limb_arc_feature(
         # Reliability inputs computed as the SPICE-backed model does:
         # the visible-arc fraction compares the surviving polyline (net
         # of frame clipping and sibling-body occlusion) against the
-        # unclipped whole-body silhouette boundary, and the shared
+        # unclipped whole-body lit silhouette boundary, and the shared
         # reliability formula scores it.  These feed BodyLimbNav's
         # visible_limb_arc_fraction confidence term, so a clipped or
         # occluded sim limb scores like a real one instead of pinning
@@ -491,7 +489,7 @@ def build_limb_arc_feature(
         visible_arc_fraction = _visible_arc_fraction(
             inputs,
             vertices_vu.shape[0],
-            edge_mask=lambda full: inputs.silhouette_boundary(full.silhouette),
+            edge_mask=lambda full: inputs.silhouette_boundary(full.silhouette) & (full.image > 0.0),
         )
         reliability = limb_reliability(
             visible_arc_fraction=visible_arc_fraction,

@@ -22,8 +22,8 @@ techniques consume:
   diameter clears the blob floor and the silhouette overflow is at most the ``bodies``
   configuration value ``blob_max_overflow_fraction``, for
   :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav`;
-- a :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` (the silhouette boundary as
-  a vertex polyline with outward normals) when the body is well resolved (diameter at
+- a :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` (the lit part of the
+  silhouette boundary as a vertex polyline with outward normals) when the body is well resolved (diameter at
   least 100 px) and at low phase (at most 60 degrees), for
   :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`;
 - a :data:`~spindoctor.feature.feature_type.NavFeatureType.TERMINATOR_ARC` (the lit/unlit
@@ -283,18 +283,21 @@ Call path traced through
 4. When the body is at least 100 px across and its phase is at most 60 degrees, append
    the LIMB_ARC that
    :func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature` builds. The
-   silhouette boundary is sampled into a vertex polyline with outward normals and a
-   fixed per-vertex sigma, vertices hidden behind an explicitly nearer sibling body are
-   dropped, and the arc is withheld if fewer than 30 vertices survive. The visible-arc
-   fraction compares the surviving polyline against the silhouette boundary of an
+   lit part of the silhouette boundary, where the predicted image is brighter than 0, is
+   sampled into a vertex polyline with outward normals and a fixed per-vertex sigma, as
+   the SPICE-backed model keeps only the lit limb. Then vertices hidden behind an
+   explicitly nearer sibling body are dropped, and the arc is withheld if fewer than 30
+   vertices survive. The visible-arc
+   fraction compares the surviving polyline against the lit silhouette boundary of an
    unclipped whole-body render -- so a limb sliding off the frame or behind another
    body reports the loss instead of claiming ``1.0``.  The reliability applies the
    shared :func:`~spindoctor.nav_model.nav_model_body.limb_reliability` formula (arc
    fraction and arc length), so a deeply occluded or clipped limb can be dropped
    downstream for low reliability, exactly as a real one would be. A measurement caller
    can switch these checks off. The model then skips the size, phase, and vertex-count
-   checks and the occlusion drop, and emits the silhouette boundary of a phase-0 render
-   with a visible-arc fraction and reliability of ``1.0``.
+   checks and the occlusion drop, and emits the silhouette boundary of a phase-0 render,
+   kept where the body is lit at its own phase, with a visible-arc fraction and
+   reliability of ``1.0``.
 5. When the phase is far enough from zero and the ridge is long enough, as described
    under *Overview*, append the TERMINATOR_ARC that
    :func:`~spindoctor.nav_model.simulated.body_arcs.build_terminator_arc_feature` builds,
