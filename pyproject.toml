@@ -9,12 +9,14 @@ description = "Navigation system for spacecraft imagery"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+  "annotated-types>=0.6.0",
   "astropy>=6.0",
   "cspyce>=2.3.5",
   "elementpath>=5.0.4",
   "lxml>=6.0.4",
   "matplotlib",
   "numpy>=2.2.0",
+  "pydantic>=2.12,<3",
   "PyQt6<6.12",  # 6.12.0 ships stubs that aren't valid Python, which stops mypy (#827)
   "rms-cloud-tasks>=0.2.0",
   "rms-filecache>=3.0.0",
