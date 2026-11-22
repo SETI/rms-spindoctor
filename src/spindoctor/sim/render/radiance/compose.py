@@ -393,7 +393,10 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # and goes in last, over everything.
     ring_pending: NDArrayBoolType | None = None if ring_maps is None else ring_maps.mask.copy()
     # The compositing steps in order, for the per-class layers: a ring screen,
-    # or the index into render_items of a body (with its halo).
+    # or the index into render_items of a body (with its halo).  Each ring
+    # screen holds a full-frame mask, so the steps are kept only when the scene
+    # needs the layers.
+    needs_layers = _optics_needs_layers(params)
     stack_steps: list[ScreenOp | int] = []
     # Atmospheric bodies' halo screens, collected in render (far-to-near) order
     # for the star attenuation; the parallel check list carries each halo's body
@@ -417,7 +420,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             if behind.any():
                 ring_op = ring_screen_op(ring_maps, behind)
                 apply_screen_op(img, ring_op)
-                stack_steps.append(ring_op)
+                if needs_layers:
+                    stack_steps.append(ring_op)
                 ring_pending &= ~behind
         body_mask, body_info = render_single_body(
             img,
@@ -428,7 +432,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             body_index=orig_idx,
             oversample=os,
         )
-        stack_steps.append(step_index)
+        if needs_layers:
+            stack_steps.append(step_index)
         # Store mask by original index for proper ordering
         body_mask_map_by_idx[orig_idx] = body_mask
         body_mask_map_dict[body_info['name']] = body_mask
@@ -486,7 +491,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         if ring_pending.any():
             ring_op = ring_screen_op(ring_maps, ring_pending)
             apply_screen_op(img, ring_op)
-            stack_steps.append(ring_op)
+            if needs_layers:
+                stack_steps.append(ring_op)
         if ring_maps.depth_km is None:
             # No depth relation exists; the ambiguity check above proved the
             # system overlaps nothing painted, so it screens only the sky.
@@ -512,7 +518,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # geometry and z-order as the composite so occlusion is consistent.  The star
     # layer lives in the point-source (electron / DN) domain like the composite
     # ``point_e``; the body and ring layers are intensive-signal layers.
-    if _optics_needs_layers(params):
+    if needs_layers:
         stars_layer = np.zeros((size_v, size_u), dtype=np.float64)
         _render_sky(stars_layer, params, os=os, seed=background_stars_seed)
         # The layer must be pixel-identical to the primary deposit above (same
