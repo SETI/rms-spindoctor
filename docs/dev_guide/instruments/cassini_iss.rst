@@ -43,7 +43,7 @@ Loading the image
 fast_distortion=..., return_all_planets=...)``.
 :func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses the image's
 ``_CALIB.LBL``, so that the host reads that PDS3 label and the VICAR file
-together. The two other keyword arguments are read from ``**kwargs`` and default
+together, or the image file alone if the image has no label. The two other keyword arguments are read from ``**kwargs`` and default
 to ``True``.
 ``fast_distortion`` selects the host's polynomial inverse rather than an
 iterative one, which is what makes per-pixel geometry affordable in a batch;

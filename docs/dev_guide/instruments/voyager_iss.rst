@@ -40,7 +40,8 @@ Loading the image
 :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.from_file` calls
 ``host_voyager.VoyagerISS.from_file`` with the file that
 :func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the image's PDS3
-label, so that the host reads the label and the VICAR file together.
+label, so that the host reads the label and the VICAR file together, or the
+image file alone if the image has no label.
 The label gives more than the start clock count. Some VICAR headers have no
 usable time, and some give a clock count one or two FDS minutes late, at which
 the C kernels hold no pointing. The host takes both values from the label.
@@ -318,16 +319,19 @@ Three consequences follow that are easy to get wrong:
   velocity, and that changes nothing.
 
 **Reproduction path.** Also the frozen one, and it is made twice.
-:mod:`spindoctor.cli.ck.assignment` reproduces the observation frame the way
-``oops`` built it -- ``ckgp`` at a snapped tick, then
+:mod:`spindoctor.cli.ck.assignment` reproduces the observation frame with a
+lookup at the exposure midtime -- ``ckgp`` at a snapped tick, then
 ``pxform(object_frame, camera_frame, 0.0)`` for the fixed rotation -- at two
 tolerances in turn:
 
-* ``sce2t(sclk_id, midtime_et)`` at ``800 + texp/48`` ticks, the tolerance the
-  host's own frame uses;
+* ``sce2t(sclk_id, midtime_et)`` at ``800 + texp/48`` ticks;
 * ``sce2c(sclk_id, midtime_et)`` at
-  :data:`~spindoctor.cli.ck.index.SNAPPED_LOOKUP_TOL_TICKS` (80000 ticks),
-  the far wider tolerance ``oops`` registers its fallback frame with.
+  :data:`~spindoctor.cli.ck.index.SNAPPED_LOOKUP_TOL_TICKS` (80000 ticks).
+
+The host's own lookup is neither of these: it is at the image's clock stop
+count, within 20 ticks (see "Frame evaluation" above). An image whose midtime
+record is not the record at its clock count therefore has no reproducing
+baseline.
 
 The index widens a frozen-attitude object's coverage by that same wider
 tolerance, read from the same constant rather than restated, so that every
