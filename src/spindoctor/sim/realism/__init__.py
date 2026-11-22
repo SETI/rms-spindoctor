@@ -13,6 +13,8 @@ image-library cohort and matched simulated frames:
 - :mod:`spindoctor.sim.realism.profiles`: star-cutout radial profiles and
   encircled energy (FOM 2), and edge-normal profile sampling shared by the
   limb (FOM 3) and ring-edge (FOM 4) comparisons.
+- :mod:`spindoctor.sim.realism.limb_peak`: where a limb's brightness gradient peaks,
+  relative to the body's silhouette (FOM 3).
 - :mod:`spindoctor.sim.realism.dynamic_range`: exposure-stratified dynamic
   range statistics (FOM 5) and the stratification logic itself.
 - :mod:`spindoctor.sim.realism.artifact_rates`: measured artifact rates
@@ -44,6 +46,11 @@ from spindoctor.sim.realism.dynamic_range import (
     frame_dynamic_range,
     stratify_by_exposure,
 )
+from spindoctor.sim.realism.limb_peak import (
+    LimbPeakFit,
+    fit_limb_peak_offset,
+    gradient_peak_positions,
+)
 from spindoctor.sim.realism.noise import (
     SkyPatch,
     find_uniform_patches,
@@ -64,13 +71,16 @@ __all__ = [
     'ArtifactRates',
     'CohortSupport',
     'DynamicRangeStats',
+    'LimbPeakFit',
     'SkyPatch',
     'W1Result',
     'cohort_support',
     'edge_normal_profiles',
     'encircled_energy',
     'find_uniform_patches',
+    'fit_limb_peak_offset',
     'frame_dynamic_range',
+    'gradient_peak_positions',
     'lattice_noise_sigma',
     'measure_artifact_rates',
     'paired_difference_sigma',

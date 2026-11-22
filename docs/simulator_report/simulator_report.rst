@@ -535,6 +535,94 @@ The FOM 3 strata behind the pooled number (2026-11-23; p = phase bin
      - 148
      - 148
 
+The record predates the limb gradient-peak comparison
+(:ref:`sim-realism-limb-peak`), which measures how far each limb's steepest
+brightness fall lies from the body's true silhouette.  A check run of the Cassini
+cohorts on 2026-11-21, which isn't in the record, gives these NAC bins (offsets in
+pixels, negative inside the silhouette; the band is set from the real limbs alone):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 14 14 14 14 14 14
+
+   * - Stratum
+     - real median
+     - sim median
+     - band
+     - n real
+     - n sim
+     - within
+   * - p0 r0
+     - -0.02
+     - +0.33
+     - 0.10
+     - 5
+     - 7
+     - no
+   * - p0 r1
+     - +0.50
+     - -0.20
+     - 0.15
+     - 2
+     - 2
+     - no
+   * - p0 r2
+     - +0.11
+     - -0.13
+     - 1.06
+     - 4
+     - 4
+     - yes
+   * - p1 r0
+     - -0.02
+     - +0.36
+     - 0.10
+     - 5
+     - 2
+     - no
+   * - p1 r1
+     - -0.11
+     - +0.24
+     - 0.16
+     - 5
+     - 4
+     - no
+   * - p1 r2
+     - -0.67
+     - +0.42
+     - 0.15
+     - 2
+     - 1
+     - no
+   * - p2 r0
+     - +0.01
+     - --
+     - 0.21
+     - 1
+     - 0
+     - --
+   * - p2 r1
+     - -0.08
+     - +0.37
+     - 0.21
+     - 1
+     - 1
+     - no
+
+The matched bodies are drawn white, and 9 of the 24 matched limb frames overflow
+the detector's full well.  The charge spreads along the columns and pushes those
+limbs' gradient peaks 0.3 to 0.9 px outside the silhouette, which carries most of
+the bins out of their bands.  Rendered at a quarter of the exposure, those frames
+peak within 0.2 px of the silhouette like the rest, and the matched and real
+medians agree to 0.02 px over the 17 frames measured both ways.  The 2-limb bins
+p0 r1 and p1 r2 are set by single limbs whose real offsets (+1.08 px for a 377 px
+Mimas, -1.05 px for a 1264 px Dione) mostly measure the shape models.  The same
+check rules out the Lambert law for these limbs below 30 degrees phase, where it
+puts the peak 0.34 to 0.53 px inside the silhouette and the real limbs peak 0.02 to
+0.17 px inside it.
+
+.. Matched bodies drawn white are issue 895.
+
 The headline reading: each matched star frame now holds the catalog stars
 of its real frame's field, and the simulated star cutouts number 9, from 6
 of the matched frames, against 25 real cutouts from 11 frames.  The record

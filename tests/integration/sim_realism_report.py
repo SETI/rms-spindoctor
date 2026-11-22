@@ -42,6 +42,7 @@ from tests.integration.sim_realism import (
     SkyPair,
     SkyPairStatus,
 )
+from tests.integration.sim_realism_limb_peak import LimbPeakBin
 
 __all__ = [
     'CodeProvenance',
@@ -446,6 +447,24 @@ def _round(value: float, digits: int = 6) -> float | None:
     return float(f'{float(value):.{digits}g}')
 
 
+def _round_optional(value: float | None) -> float | None:
+    """:func:`_round` for a value that may be absent."""
+    return None if value is None else _round(value)
+
+
+def _limb_peak_entry(peak: LimbPeakBin) -> dict[str, Any]:
+    """One limb bin's gradient-peak comparison as the summary records it."""
+    return {
+        'n_real': peak.n_real,
+        'n_sim': peak.n_sim,
+        'real_median_px': _round_optional(peak.real_median_px),
+        'sim_median_px': _round_optional(peak.sim_median_px),
+        'real_scatter_px': _round_optional(peak.real_scatter_px),
+        'band_px': _round_optional(peak.band_px),
+        'within_band': peak.within_band,
+    }
+
+
 def _downlink_label(pair: SkyPair) -> str:
     """The pair's downlink label: its companding table, else ``'native'``."""
     return pair.quantization if pair.quantization is not None else 'native'
@@ -630,6 +649,10 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
             },
             'divergences': kinds,
             'curve_divergences': curve_kinds,
+            'limb_peaks': {
+                label: _limb_peak_entry(peak)
+                for label, peak in sorted(comparison.limb_peaks.items())
+            },
             'limb_bins_real_only': list(comparison.limb_bins_real_only),
             'limb_bins_sim_only': list(comparison.limb_bins_sim_only),
             'spike_split_real': [

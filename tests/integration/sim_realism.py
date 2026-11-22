@@ -8,8 +8,8 @@ seven figures of merit:
    in both the real and the matched frame (:func:`pair_sky`).
 2. Star-cutout radial profiles / encircled energy where the cohort has
    star frames.
-3. Normalized limb profiles and 10-90% rise widths, binned by resolution
-   and phase.
+3. Normalized limb profiles, 10-90% rise widths, and gradient-peak offsets
+   from the silhouette, binned by resolution and phase.
 4. Ring-edge profiles and rise widths (Cassini).
 5. Exposure-stratified dynamic-range statistics (never unstratified).
 6. Artifact rates vs the catalog defaults.
@@ -79,6 +79,12 @@ from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patch
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
+from tests.integration.sim_realism_limb_peak import (
+    LimbPeakBin,
+    compare_limb_peaks,
+    matched_silhouette_offsets,
+    real_silhouette_offsets,
+)
 from tests.integration.sim_realism_scenes import STAR_CLASSES, matched_scene
 from tests.integration.sim_realism_support import (
     FrameSamples,
@@ -163,7 +169,7 @@ FOM7_MAX_PAIRS_PER_INSTRUMENT = 3
 FOM_KIND_PREFIXES: dict[str, tuple[str, ...]] = {
     'fom1_noise': ('sky_sigma', 'sky_mean_minus_floor', 'signal_sigma', 'sky_psd'),
     'fom2_psf': ('star_ee50', 'star_ee80', 'star_profile'),
-    'fom3_limb': ('limb_width', 'limb_profile'),
+    'fom3_limb': ('limb_width', 'limb_profile', 'limb_peak'),
     'fom4_ring': ('ring_edge_width', 'ring_radial_profile'),
     'fom5_dynrange': ('frac_saturated', 'frac_near_floor', 'signal_p95', 'signal_p99'),
     'fom6_artifacts': ('artifact_',),
@@ -337,6 +343,7 @@ class InstrumentComparison:
             navigation pairs.
         sky_pairs: Per frame, how its FOM 1 sky patches compared with the
             matched frame's.
+        limb_peaks: Per FOM 3 stratum, the limb gradient-peak comparison.
     """
 
     instrument: str
@@ -356,6 +363,7 @@ class InstrumentComparison:
     kind_support: dict[str, str] = field(default_factory=dict)
     fom7_rows: list[dict[str, Any]] = field(default_factory=list)
     sky_pairs: list[SkyPair] = field(default_factory=list)
+    limb_peaks: dict[str, LimbPeakBin] = field(default_factory=dict)
     real_rates: list[ArtifactRates] = field(default_factory=list)
     sim_rates: list[ArtifactRates] = field(default_factory=list)
     spike_split_real: tuple[float, float] = (float('nan'), float('nan'))
@@ -466,6 +474,7 @@ def _frame_samples_real(
                 offset_vu=offset,
                 extfov_margin_vu=obs.extfov_margin_vu,
                 saturation_level=saturation,
+                silhouette_offsets=real_silhouette_offsets(obs),
             )
         )
     return samples, record, rates
@@ -511,7 +520,7 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
 
 def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates]:
     """Extract the matched sim frame's samples (same machinery as real)."""
-    obs, _scene = _sim_obs_for_record(record)
+    obs, scene = _sim_obs_for_record(record)
     saturation = saturation_level(record.instrument)
     samples, rates = extract_pixel_samples(
         np.asarray(obs.data, dtype=np.float64),
@@ -529,6 +538,9 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
                 offset_vu=(0.0, 0.0),  # matched scenes plant zero offset
                 extfov_margin_vu=obs.extfov_margin_vu,
                 saturation_level=saturation,
+                silhouette_offsets=(
+                    matched_silhouette_offsets(scene, obs) if scene.get('bodies') else None
+                ),
             )
         )
     return samples, rates
@@ -853,6 +865,7 @@ def _aggregate(comparison: InstrumentComparison) -> None:
     # the stationary fractions compare directly.
     comparison.spike_split_real = split_stationary_spikes(comparison.real_rates)
     comparison.spike_split_sim = split_stationary_spikes(comparison.sim_rates)
+    comparison.limb_peaks = compare_limb_peaks(comparison.real.samples, comparison.sim.samples)
 
 
 def _kinds_of(frame: FrameSamples) -> frozenset[str]:

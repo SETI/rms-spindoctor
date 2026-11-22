@@ -53,6 +53,11 @@ from spindoctor.sim.realism.profiles import (
     radial_profile,
 )
 from spindoctor.support.types import NDArrayFloatType
+from tests.integration.sim_realism_limb_peak import (
+    LIMB_PEAK_KIND_PREFIX,
+    SilhouetteOffsets,
+    limb_peak_offset,
+)
 
 __all__ = [
     'FrameSamples',
@@ -495,6 +500,7 @@ def extract_feature_samples(
     offset_vu: tuple[float, float],
     extfov_margin_vu: tuple[int, int],
     saturation_level: float,
+    silhouette_offsets: SilhouetteOffsets | None = None,
 ) -> FrameSamples:
     """FOM 2-4 samples around the frame's extracted features.
 
@@ -518,6 +524,9 @@ def extract_feature_samples(
             CALIB saturation is not represented by a fixed level).  The
             flat-top plateau guard runs regardless, so clipped cores are
             rejected on every cohort.
+        silhouette_offsets: The frame's body silhouettes.  When given, each binned limb
+            also adds its gradient-peak offset from the silhouette, as a sample of kind
+            ``limb_peak_<bin>`` (see :mod:`tests.integration.sim_realism_limb_peak`).
 
     Returns:
         The frame's feature samples.
@@ -606,6 +615,17 @@ def extract_feature_samples(
                 # pooled FOM 3 statistic from strata populated on both
                 # sides, so a raw cross-strata pool never appears.
                 out.add(f'limb_width_{_limb_bin_label(phase, diameter)}', widths)
+                if silhouette_offsets is not None:
+                    peak_offset = limb_peak_offset(
+                        image,
+                        geometry,
+                        feature.source_model,
+                        shift_vu=shift,
+                        silhouette_offsets=silhouette_offsets,
+                    )
+                    if peak_offset is not None:
+                        label = _limb_bin_label(phase, diameter)
+                        out.add(f'{LIMB_PEAK_KIND_PREFIX}{label}', [peak_offset])
             mean_profile = _normalized_mean_profile(profiles)
             if mean_profile is not None:
                 taps = np.linspace(-_EDGE_HALF_LENGTH_PX, _EDGE_HALF_LENGTH_PX, _EDGE_N_SAMPLES)

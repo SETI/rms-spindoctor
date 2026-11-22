@@ -461,6 +461,11 @@ spindoctor.sim.realism
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.realism.limb_peak
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.realism.noise
    :members:
    :undoc-members:

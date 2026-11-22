@@ -5566,7 +5566,9 @@ instrument, on seven figures of merit:
    uncertainty and per-star catalog/distortion residuals, while sim-side
    centers are exact by construction, so misregistration inflates only
    the real widths and part of any tuned PSF wing may absorb
-   registration error rather than optics.
+   registration error rather than optics.  The same limbs also give the
+   position of each limb's gradient peak relative to the body's silhouette,
+   described under :ref:`sim-realism-limb-peak` below.
 4. **Ring edges** -- the same profile machinery along predicted ring-edge
    polylines (Cassini cohort).
 5. **Dynamic range** -- fraction saturated, fraction near the frame floor,
@@ -6084,6 +6086,98 @@ The fresh match reads real frames, so it carries the ``integration`` marker.  It
 only where the real frames are available, which needs both ``PDS3_HOLDINGS_DIR`` and
 ``OOPS_RESOURCES`` set.  CI does not run it, because the CI workflow leaves
 ``OOPS_RESOURCES`` and the star catalogs unset.
+
+.. _sim-realism-limb-peak:
+
+The limb gradient peak
+----------------------
+
+The limb rise width of figure of merit 3 says how fast a limb fades, but two limbs
+can fade over the same width and still put their steepest point at different
+radii.  ``BodyLimbNav`` locates a limb at that steepest point, the *gradient peak*,
+so a simulated limb whose peak lies in the wrong place gives the technique a bias
+that real images don't have.  The realism match therefore also measures, for each
+limb, how far the gradient peak lies from the body's true silhouette, the edge of
+the body in exact geometry.  The measurement is in
+:mod:`spindoctor.sim.realism.limb_peak`, and the realism match's use of it is in
+``tests/integration/sim_realism_limb_peak.py``.
+
+**One limb's offset.**  The limb is the polyline the navigator's feature extraction
+places, the same one the rise widths use.  For each of its vertices, the silhouette
+point along the vertex's outward normal comes from each side's own geometry.  On a
+real frame, oops traces rays along the normal every 1/64 px and finds where they
+stop hitting the body in its SPICE shape.  On a matched frame, the silhouette is
+the circle the scene states.  Only the lit half of the limb is measured, because
+the unlit half has no edge against the sky.  On a real frame a vertex counts when the
+Sun is above the horizon just inside the silhouette.  On a matched frame it counts
+when its normal leans toward the light.  The simulated body model's limb runs all
+the way around the body, so this step matters on that side.
+
+.. The simulated body model's limb holding unlit vertices is issue 1056.
+
+The image is sampled along each normal from 4 px inside the silhouette point to 4 px
+outside it, every 0.05 px, by cubic spline interpolation.  The peak is where the
+brightness falls fastest within 3 px of the silhouette, refined by a parabola
+through the three samples around it.  A vertex gets no peak when its samples leave
+the frame or the disc side is not brighter than the sky side.
+
+The vertices' peak distances are then fitted with one radial offset for the whole
+limb and a translation of the limb, using a robust fit (a Tukey biweight) that drops
+vertices on a crater rim or a cosmic-ray hit.  A translation moves each vertex's peak
+by its component along that vertex's normal, so along an arc that turns through a
+wide angle the two separate.  An error in a real frame's verified offset or in the
+body's ephemeris moves the translation and leaves the radial offset alone, and so
+does the half pixel between the two coordinate conventions.  A real frame therefore
+doesn't have to be star-navigated to contribute.  A limb whose radial offset is
+known to worse than 0.2 px, which happens on a short arc of a body that runs off the
+frame, is left out.
+
+**Bins and band.**  Each limb's radial offset is one sample of kind
+``limb_peak_<bin>``, in the same phase and diameter bins as the rise widths.  The
+JSON summary's ``limb_peaks`` block gives, for each instrument and bin, the number of
+real and matched limbs, the median of each, the band, and whether the matched median
+lies within it.  The band comes from the real limbs alone.  It is 2 standard errors
+of the real median: the robust scatter of the real offsets (1.4826 times their
+median absolute deviation) divided by the square root of their number, and never
+less than 0.1 px.  A bin with fewer than 3 real limbs borrows the scatter of all
+the instrument's real limbs, and an instrument with fewer than 3 real limbs has no
+band.  ``tests/integration/test_sim_realism_limb_peak.py`` holds the record to the
+bands: it fails when a bin's matched median lies outside its band.  It reads only the
+record, or the summary that ``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it
+skips on a record that predates the statistic.
+
+**What the real limbs show.**  On 2026-11-21 the Cassini NAC cohort gave 25 real
+limbs and the WAC cohort 1.  The real limbs of bodies under 400 px across lie close
+to the silhouette.  Over 19 limbs of Mimas, Enceladus, Tethys, Dione, and Rhea,
+between 15 and 136 degrees phase, their median offset is -0.02 px, with a robust
+scatter of 0.08 px.  The 7 limbs of bodies over 400 px across scatter by about a
+pixel, from -1.10 to +0.97 px.  At those scales a pixel is 0.6 to 1.8 km, so the
+difference between a body's shape model and its true shape is a large part of a
+pixel, and the scatter mostly measures that.  Their band is wide accordingly.  There
+are too few real limbs to bin by the incidence angle at the limb as well.
+
+**What the matched limbs show.**  The matched bodies are white Lommel-Seeliger
+spheres.  In 9 of the 24 matched limb frames they are bright enough to overflow the
+detector's full well, and the overflowing charge spreads along the columns.  That
+pushes the gradient peak 0.3 to 0.9 px outside the silhouette.  Rendered at a
+quarter of the real exposure, the 7 of those frames that have a real limb to compare
+peak 0.06 to 0.17 px inside the silhouette, like the frames that don't overflow.  So
+in the 2026-11-21 run, 6 of the 7 NAC bins that have a verdict lie outside their
+bands.  The cause is the body's brightness, which no scene key sets yet.
+
+Where nothing overflows, the matched limbs agree with the real ones.  Over the 17
+NAC frames measured every way, the median offset is -0.10 px at a quarter of the
+exposure against -0.08 px real.  The same frames drawn with a Lambert law, the
+default for a scene body, give a median of -0.20 px at a quarter of the exposure.
+The difference lies at low phase.  Below 30 degrees, five frames show bodies under
+400 px across.  In four of them the real limb peaks 0.02 to 0.17 px inside the
+silhouette, the matched Lommel-Seeliger limb 0.07 to 0.20 px inside, and the
+Lambert limb 0.34 to 0.53 px inside.  The fifth, a 377 px Mimas, peaks 1.08 px
+outside its shape model's silhouette in the real image.  So the real limbs agree
+with the Lommel-Seeliger law the matched scenes use, and rule out the Lambert law
+at low phase.
+
+.. Matched bodies drawn white and overflowing the full well are issue 895.
 
 The FOM 7 firewall
 ------------------
