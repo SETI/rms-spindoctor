@@ -80,12 +80,15 @@ __all__ = [
 ]
 
 # The largest limb-relief RMS (a fraction of the body radius) a scene may
-# command.  It is a limit of the scene format, and its value is under review: no
-# rendering error sets it, since the ellipsoid renderer reads the terrain where
-# each line of sight meets the relief surface.  At RMS 0.2 the field's lowest
-# point reaches the body center (h_min -1.0 over 8 seeds), and at 0.1 it stays
-# above -0.5.  The validator holds mesh bodies to the same bound.
-MAX_LIMB_RELIEF_RMS = 0.05
+# command, a limit of the scene format.  At 0.1 the surface stays about half the
+# radius out from the center: over 16 seeds at each of 1, 2, 5, 15, and 30 degrees
+# of correlation length, the deepest point lies 0.5004 of the radius below the
+# smooth surface.  At 0.2 it reaches the center (h_min -1.0 over 8 seeds).  The
+# ellipsoid renderer reads the terrain where each line of sight meets the relief
+# surface; at 0.1 and 2 to 30 degrees, a brute-force search puts its point more
+# than half a correlation length off on at most 0.025% of the disc.  The validator
+# holds mesh bodies to the same bound.
+MAX_LIMB_RELIEF_RMS = 0.1
 # The shortest relief correlation length (degrees of arc) a scene may command.
 # It bounds cost.  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
 # 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
@@ -419,8 +422,9 @@ def _unit_relief_slope(corr_deg: float, seed: int) -> float:
 # is located to an eighth of a row, and in longitude the envelope is stored at
 # eight nodes per column, because between two columns the maximizing latitude
 # can jump and the envelope bends where a straight line between the columns'
-# values would not.  Together they hold the stored outline within 5e-4 of the
-# bilinear field's exact envelope (0.04 px on an 80 px radius) at 5% relief.
+# values would not.  Together they hold the stored outline within 1e-3 of the
+# bilinear field's exact envelope (0.08 px on an 80 px radius) at 5% relief and
+# 1.4e-3 at 10%, at a 15-degree correlation length over 8 seeds.
 # The longitudes are evaluated in chunks so the sample grid stays bounded.
 _OUTLINE_SAMPLES_PER_ROW = 8.0
 _OUTLINE_NODES_PER_COLUMN = 8

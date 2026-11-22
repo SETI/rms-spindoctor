@@ -193,20 +193,18 @@ def test_validate_sim_params_rejects_negative_limb_relief_rms() -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize(('rms', 'accepted'), [(0.05, True), (0.0501, False), (0.1, False)])
-def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
-    rms: float, accepted: bool
-) -> None:
-    """Relief RMS above 5% of the radius fails validation.
-
-    At the cap the ellipsoid renderer misreads the terrain under about 12% of the disc.
-    """
+def test_validate_sim_params_accepts_limb_relief_rms_at_the_cap() -> None:
+    """A relief RMS of 10% of the radius, the scene format's limit, passes validation."""
     params = _sim_params()
-    params['bodies'][0]['limb_relief_rms'] = rms
-    if accepted:
-        assert validate_sim_params(params) is params
-        return
-    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.05'):
+    params['bodies'][0]['limb_relief_rms'] = 0.1
+    assert validate_sim_params(params) is params
+
+
+def test_validate_sim_params_refuses_limb_relief_rms_above_the_cap() -> None:
+    """A relief RMS just above 10% of the radius fails validation, stating the limit."""
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_rms'] = 0.1001
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.1;'):
         validate_sim_params(params)
 
 

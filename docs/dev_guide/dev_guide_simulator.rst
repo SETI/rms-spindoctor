@@ -2174,9 +2174,13 @@ the commanded ``limb_relief_rms`` per realization. That RMS is a fraction of
 the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
 RMS.
 
-The scene validator caps that RMS at 0.05. The cap is a limit of the scene
-format, and its value is under review; no rendering error sets it. The ellipsoid
-renderer reads the terrain under each disc pixel where the pixel's line of sight
+The scene validator caps that RMS at 0.1, a limit of the scene format. At the
+cap the relief surface stays about half the radius out from the body center: over
+16 seeds at each of 1, 2, 5, 15, and 30 degrees of correlation length, the field's
+deepest point lies 0.5004 of the radius below the smooth surface. At an RMS of 0.2
+it reaches the center. At the cap the disc is drawn faithfully: the table below
+finds the renderer's point more than half a correlation length off on at most
+0.025% of the disc. The ellipsoid renderer reads the terrain under each disc pixel where the pixel's line of sight
 first meets the relief surface (see below). Near the limb that point can lie well
 away from where the line of sight meets the smooth sphere: under a pixel at
 elevation ``lat`` the two lie about ``h cot(lat)`` radians apart. The table gives
@@ -2259,8 +2263,9 @@ renderer's normalized ellipse radial function ``e(p)`` (1 exactly at the
 unperturbed limb) is divided by ``1 + delta(theta)``, with ``delta`` that
 envelope less 1. The limb lands on the outline, and the silhouette turns
 ragged. The envelope is stored at eight nodes per field column and located to
-an eighth of a field row in latitude, which holds it within 5e-4 of the exact
-envelope at 5% relief, 0.04 px on an 80 px radius. The relief azimuth
+an eighth of a field row in latitude, which holds it within 1e-3 of the exact
+envelope at 5% relief, 0.08 px on an 80 px radius, and within 1.4e-3 at 10%, over
+8 seeds at a 15-degree correlation length. The relief azimuth
 ``theta`` is the elliptical parametric angle in the body's rotated frame, not
 the image azimuth about the body center: the field is attached to the body, so
 the outline, the shading, and the shadows read one consistent surface under any
@@ -3790,7 +3795,7 @@ keys and the mesh extras. A non-null value of a key in a row marked
        smooth predicted template does not know. *Ellipsoid only.*
    * - ``limb_relief_rms``, ``limb_relief_corr_deg``
      - The limb/terminator relief field: RMS of the limb slice as a fraction
-       of the body radius (at most 0.05), and its correlation length in
+       of the body radius (at most 0.1), and its correlation length in
        degrees of surface arc (at least 1). On an ellipsoid, the relief
        surface's ragged outline, its slope shading, and its cast shadows; on a
        mesh, the same field displaces the vertices.
