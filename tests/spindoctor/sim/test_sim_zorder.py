@@ -135,6 +135,9 @@ _RB_GAP = (99, 64)
 _RB_BEHIND = (35, 64)
 # Far arm, ring-plane radius 58.4, inside the sheet, 7.7 px outside the limb:
 _RB_BESIDE = (44, 107)
+# Near arm, straddling the sheet's inner gap edge at ring-plane radius 65 (the pixel
+# spans radii 64 to 66 down its column), 7.5 px inside the limb:
+_RB_EDGE = (96, 64)
 
 
 def _rb_orbit(a_px: float) -> dict[str, float]:
@@ -244,3 +247,37 @@ def test_a_faint_ring_in_front_of_a_body_shows_it_through() -> None:
     both = _rb_radiance(body=True, ring=True, tau=_RB_FAINT_TAU)
     expected = _rb_sheet_light(_RB_FAINT_TAU) + _rb_transmission(_RB_FAINT_TAU) * planet[_RB_FRONT]
     assert float(both[_RB_FRONT]) == pytest.approx(expected, rel=1e-12)
+
+
+def _rb_sheet_share(pixel: tuple[int, int], *, samples: int = 1000) -> float:
+    """The share of ``pixel`` on the sheet side of the gap edge, by dense sampling.
+
+    Counts the sample points whose ring-plane radius
+    ``hypot(du, dv / sin(opening))`` is below the gap's inner edge at 65 px, on a
+    ``samples`` by ``samples`` grid across the pixel.
+    """
+    offsets = (np.arange(samples) + 0.5) / samples
+    v = pixel[0] + offsets[:, None] - _RB_CENTER
+    u = pixel[1] + offsets[None, :] - _RB_CENTER
+    radius = np.hypot(u, v / math.sin(math.radians(_RB_OPENING_DEG)))
+    return float(np.mean(radius < 65.0))
+
+
+def test_a_ring_edge_in_front_of_a_body_screens_only_its_share() -> None:
+    """A pixel the sheet's edge crosses screens the disc only on the sheet's side.
+
+    The sheet covers a share ``f`` of the pixel, so the pixel shows
+    ``f * (L + T * planet) + (1 - f) * planet``. The disc darkens by about 6% across
+    the pixel, which this pixel-mean form ignores, so it holds to about 2e-4; an edge
+    that screened or hid the whole pixel would miss by more than 30%.
+    """
+    share = _rb_sheet_share(_RB_EDGE)
+    planet = _rb_radiance(body=True, ring=False)
+    both = _rb_radiance(body=True, ring=True)
+    behind = float(planet[_RB_EDGE])
+    expected = (
+        share * (_rb_sheet_light(_RB_TAU) + _rb_transmission(_RB_TAU) * behind)
+        + (1.0 - share) * behind
+    )
+    assert 0.2 < share < 0.8
+    assert float(both[_RB_EDGE]) == pytest.approx(expected, rel=1e-3)
