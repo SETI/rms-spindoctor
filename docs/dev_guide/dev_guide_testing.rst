@@ -108,16 +108,16 @@ that worker would have read it as its configuration. Move to a directory of your
 own with ``monkeypatch.chdir`` before writing anything.
 
 Archive-backed tests additionally require the holdings and catalog environment.
-CI leaves it unset and these tests skip there, so run them locally (see
-:doc:`dev_guide_introduction`):
+CI leaves it unset and these tests skip there, so run them locally, against local
+copies of the trees (see :doc:`dev_guide_introduction`):
 
 .. code-block:: bash
 
-   export PDS3_HOLDINGS_DIR=https://pds-rings.seti.org/holdings
-   export PDS4_HOLDINGS_DIR=https://pds-rings.seti.org/pds4
-   export OOPS_RESOURCES=https://storage.googleapis.com/rms-node-oops-resources
-   export UCAC4_PATH=https://storage.googleapis.com/rms-node-star-catalogs/UCAC4
-   export YBSC_PATH=https://storage.googleapis.com/rms-node-star-catalogs/YBSC
+   export PDS3_HOLDINGS_DIR=/path/to/pds3/holdings
+   export PDS4_HOLDINGS_DIR=/path/to/pds4/holdings
+   export OOPS_RESOURCES=/path/to/oops-resources
+   export UCAC4_PATH=/path/to/star-catalogs/UCAC4
+   export YBSC_PATH=/path/to/star-catalogs/YBSC
    # plus SPICE kernels at $SPICE_PATH for any real navigation run
 
 Test kinds
