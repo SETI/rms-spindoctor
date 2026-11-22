@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -0.5829530322037279,
-  "offset_dv_px": 1.5010947041661309,
+  "offset_du_px": -0.6296139682580422,
+  "offset_dv_px": 1.5305887041045565,
   "scene_name": "planted_offset_limb_mesh",
   "status": "success"
 }

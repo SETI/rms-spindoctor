@@ -1935,9 +1935,9 @@ or retirement of the check, instead of a silent behavior change. The success the
 check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
-``titan_crescent_horns`` scenes hold a low-confidence success 5.74 px wrong this
-way: the disc correlation, pulled by the haze's ring of light, sets it on every
-seed.
+``titan_crescent_horns`` scenes hold a known error of this kind: a low-tier
+success 0.76 px wrong, carried by a disc correlation that stops at the edge of
+its sub-pixel window.
 
 .. _sim-floor:
 
@@ -1994,10 +1994,10 @@ boundary filter strips, so the navigator keeps its default belief while the
 render departs from it. The sweeps and their floors:
 
 - ``psf_limb_mismatch`` -- rendered PSF sigma broadened above the navigator's
-  Gaussian; the softened limb edge biases the distance-transform fit and, past a
-  few pixels of blur, washes the edge out (a navigability cliff).
+  Gaussian; the softened limb edge biases the distance-transform fit, and at a
+  4 px sigma the lit limb still navigates, about 1.3 px off.
 - ``photometric_minnaert_mismatch`` -- Minnaert ``k`` walked below 1; the
-  limb-darkened disc departs from the Lambert template.
+  limb-brightened disc departs from the Lambert template.
 - ``spk_parallax_error`` -- a spacecraft-position error parallax-shifts the body
   while the navigator predicts the catalog geometry; the recovery absorbs the
   shift almost one-for-one.
@@ -2821,22 +2821,19 @@ to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the predicted
-terminator arc is emitted but dropped by its feature reliability before any
-technique runs (its reliability, computed as the SPICE-backed model does and
-capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
-``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
-30 px off in ``du``. The ring of light, which the disc correlation's
-hard-limbed template leaves out, also pulls the correlation 5.74 px off, and the
-correlation does not flag that answer spurious. So the body-witness veto (see
-:doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
-surviving body offset is the centroid beside a spurious geometric fit, has
-nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its 5.74 px error to a band. The noiseless sibling
-``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
-and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near 28.9, and the same 5.74 px disc correlation error), so the
-ring of light alone, not the noise, drives them. The haze evaluation
+outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light is
+brighter than a white disc lit face-on and saturates the detector. The predicted
+terminator arc is emitted but dropped before any technique runs, because its
+reliability, computed as the SPICE-backed model does and capped by
+``sin(155 deg)`` = 0.42, is 0.26, below the 0.30 that a ``TERMINATOR_ARC`` needs.
+The haze drags the blob centroid about 25 px off in ``du``. The disc correlation
+survives: it stops at the edge of its sub-pixel window and carries the fused answer, a low-tier success 0.76 px from
+the planted offset, which the scene holds as a known error. Because the
+correlation is not flagged spurious, the lone-blob collapsed regime the
+body-witness veto guards (see :doc:`dev_guide_orchestrator_ensemble`) does not
+arise here. The noiseless sibling ``titan_crescent_horns_noiseless`` -- Poisson
+and read noise off, the same haze and phase geometry -- gives the same answer on
+every draw, so the haze alone, not the noise, decides it. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
 that box rather than the frame, and a body without an ``atmosphere`` block

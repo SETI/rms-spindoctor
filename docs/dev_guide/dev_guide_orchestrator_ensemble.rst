@@ -370,43 +370,40 @@ consistent with agreement is not vetoed on scatter alone. Both checks apply
 only to single-body frames, where no companion body corrupts the centroid and
 the whole-frame verdict maps to one body.
 
-The two modes below are the standing evidence that motivated the veto. Each has
-a regression test, and each also shows where the veto's coverage ends:
+The two modes below are the evidence that motivated the veto. The first has a
+regression test, which also shows where the veto's coverage ends:
 
 - ``tests/integration/sim_sweeps/irregularity_shape_mismatch.yaml`` -- at
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
   non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
   the limb fit lock onto the mismatched model. Over mesh seeds 0 to 12 the
-  veto fires on 0 to 3 of the 13 shapes, depending on the noise draw, and
+  veto fires on 1 to 8 of the 13 shapes, depending on the noise draw, and
   reports each one ``conflicted``, with the status reason
   ``body_shape_lock_suspect``. On such a shape the pose-free blob, which does
   not chase the shape, sits pixels from the consensus, and its separation clears
   both the body-scaled pixel floor and the Mahalanobis threshold.
   ``test_sim_irregularity_population`` counts that status reason over the 13
   shapes on five noise draws and asserts the count as a floor. Another shape
-  usually ends ``conflicted`` too, but because its disc and limb disagree with
+  often ends ``conflicted`` too, but because its disc and limb disagree with
   each other, and the veto plays no part. On the remaining shapes the blob
   either carries the result itself at low confidence or is displaced together
-  with the lock, so the disagreement the veto reads never appears. One shape ends a
-  0.91-confidence success 12.7 px off on the scene's own draw, and is
-  confidently wrong on most other draws as well. That
-  confident wrong result is a known gap, held by a strict expected-failure
-  test until the veto catches it. The sweep's own walk uses a typical shape
-  (``mesh_seed`` 4, chosen by its silhouette mismatch): its extreme step is a
-  0.40-confidence success 5.2 px off, carried by the blob, and the veto
-  doesn't fire. Its clean (zero-relief) step recovers the planted offset
+  with the lock, so the disagreement the veto reads never appears. Over 25
+  noise draws, one shape ends a 0.91-confidence success 8.4 px off on two of
+  them. That confident wrong result is a known gap, held by a strict
+  expected-failure test on those two frames until the veto catches it. The
+  sweep's own walk uses a typical shape (``mesh_seed`` 4, chosen by its
+  silhouette mismatch): on the scene's own draw its extreme step is a
+  0.40-confidence success 5.3 px off, carried by the blob, and the veto doesn't
+  fire. Over 25 noise draws the veto declines that step on 13. Its clean (zero-relief) step recovers the planted offset
   sub-pixel and stays a success, so the veto doesn't blanket the walk.
-- ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and
-  its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
-  a ~30 px wrong offset. A spurious disc correlation would leave the blob as the
-  lone survivor, and the collapsed-regime veto would decline the frame. Here the
-  disc correlation is pulled 5.7 px off by the ring of light its template leaves
-  out, and it doesn't flag that answer spurious. The blob is dropped from the fuse
-  as a fallback, and neither veto applies. At 155 degrees the blob is past half
-  phase, where the shape-lock check does not trust it. The collapsed-regime check
-  applies only when the disc correlation flags itself spurious, and here it does
-  not. The frame ends a low-confidence success 5.7 px wrong, and the scene holds
-  that error to a band.
+- A 155-degree haze crescent drags the blob centroid to an offset tens of
+  pixels wrong while the disc correlation self-flags spurious. The
+  collapsed-regime veto declines the frame instead of reporting the lone-blob
+  success. The simulated crescent in
+  ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` does not
+  reach this mode: its ring of light saturates the detector, the disc correlation
+  is not flagged spurious there, and the frame ends a low-tier success. The
+  veto's tests are unit tests of the ensemble.
 
 The witness is a defense against a geometric lock, not a cure for the blob's
 own bias: past half phase the centroid is itself crescent- and haze-biased, so

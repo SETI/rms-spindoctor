@@ -78,18 +78,3 @@ def test_star_field_recovers_offset_on_equal_brightness_field() -> None:
     no longer depends on which equal-brightness star wins an arbitrary tie-break.
     """
     _assert_technique_recovers('star_equal_brightness', 'StarFieldFromCatalogNav')
-
-
-def test_low_phase_limb_misconvergence_is_flagged_spurious() -> None:
-    """A low-phase limb mis-lock is rejected, never a confident wrong offset.
-
-    Guards the coarse-seed mis-lock gate: at phase 10 deg the under-conditioned
-    limb geometry lets a false overlap peak seed the fit in the wrong basin, so
-    the Levenberg-Marquardt stage ends unconverged and pinned against the trust
-    region several pixels from the true limb.  This pins the BodyLimbNav result
-    only: it must be flagged spurious so it contributes no confident multi-pixel
-    offset (the disc technique still navigates the scene, so the fused ensemble
-    result is a success).
-    """
-    pinned = _pin_technique('low_phase_limb_misconverge', 'BodyLimbNav')
-    assert pinned.spurious

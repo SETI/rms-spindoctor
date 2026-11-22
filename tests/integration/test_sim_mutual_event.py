@@ -57,8 +57,9 @@ def test_navigator_predicts_occlusion_aware_limbs() -> None:
     params but knows its siblings' idealized geometry too (both are
     catalog/SPICE-class knowledge), so the arc of FAR's limb behind NEAR's
     silhouette is dropped from the polyline and ``visible_arc_fraction``
-    reports the surviving share -- at this ~206-degree occlusion roughly
-    0.4 of the full circle -- instead of claiming 1.0.
+    reports the surviving share of its lit limb -- about 0.3 at this occlusion --
+    instead of claiming 1.0.  Each limb is the lit part of the outline, about 204
+    degrees of it at this 30-degree phase.
     """
     scene = _load('mutual_deep')
     obs = ObsSim.from_file('/tmp/mutual_event.yaml', sim_params=scene)
@@ -76,15 +77,11 @@ def test_navigator_predicts_occlusion_aware_limbs() -> None:
     vertices = near.geometry.vertices_vu  # type: ignore[union-attr]
     dv = vertices[:, 0] - (128.0 + obs.extfov_margin_v)
     du = vertices[:, 1] - (110.0 + obs.extfov_margin_u)
-    quadrants = {(bool(a), bool(b)) for a, b in zip(dv >= 0, du >= 0, strict=True)}
-    assert quadrants == {(False, False), (False, True), (True, False), (True, True)}, (
-        f'NEAR limb does not surround its center: {sorted(quadrants)}'
-    )
-    # The near limb is a closed circle: azimuth coverage has no gap larger
-    # than a few degrees.
+    # The near limb is one unbroken arc: apart from the unlit arc it leaves out,
+    # azimuth coverage has no gap larger than a few degrees.
     azimuths = np.sort(np.arctan2(du, dv))
-    gaps = np.diff(np.concatenate([azimuths, [azimuths[0] + 2.0 * np.pi]]))
-    assert float(np.degrees(gaps.max())) < 10.0
+    gaps = np.sort(np.diff(np.concatenate([azimuths, [azimuths[0] + 2.0 * np.pi]])))
+    assert float(np.degrees(gaps[-2])) < 10.0
 
     far = limb_features['limb_arc:FAR']
     far_fraction = float(far.flags.visible_arc_fraction)  # type: ignore[union-attr]

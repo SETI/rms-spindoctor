@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": 1.5545499989084473,
-  "offset_dv_px": -2.4109130953283597,
+  "offset_du_px": 1.5504753785922682,
+  "offset_dv_px": -2.3589547089654928,
   "scene_name": "textured_moon_offset",
   "status": "success"
 }
