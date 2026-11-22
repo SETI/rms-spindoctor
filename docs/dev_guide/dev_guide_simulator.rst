@@ -3430,8 +3430,10 @@ ellipsoid is sampled on, so the drawn outline turns by ``-rotation_z``.
 light direction ``(-cos, sin)`` turns by ``-illumination_angle``. A mesh body's pose is
 ``Rz @ Ry @ Rx`` in camera axes ordered ``(u, v, depth)``, so its line-of-sight angle,
 the third entry of ``pose_euler_deg``, is the outermost rotation, and a ``+v`` toward
-``+u`` turn is a negative ``Rz`` there. Craters are drawn on the image grid rather
-than on the body, so the ellipsoid renderer lays them out where the unrolled body
+``+u`` turn is a negative ``Rz`` there. An ellipsoid's ``sub_observer_lat_deg`` stays
+as it is, since turning the camera about its line of sight never changes the point on
+the body below the observer. Craters are drawn on the image grid rather than on the
+body, so the ellipsoid renderer lays them out where the unrolled body
 does, on the frame or plane the unrolled body's canvas uses, and turns each center
 onto the rolled one. A scene author writes every angle for the
 unrolled camera and never adjusts one for the roll.

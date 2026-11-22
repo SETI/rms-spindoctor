@@ -102,8 +102,10 @@ Two of a body's angles run against the roll, so the roll subtracts from
 them: rotation_z turns the grid the ellipsoid is sampled on, so the drawn
 outline turns by minus rotation_z, and illumination_angle is measured from the
 top of the image toward +u.  A mesh body's line-of-sight pose angle, the third
-entry of pose_euler_deg, runs against it too.  A scene author writes every
-angle for the unrolled camera and never adjusts it for the roll.
+entry of pose_euler_deg, runs against it too.  The roll leaves an
+ellipsoid's sub_observer_lat_deg alone: turning the camera about its line of
+sight never changes the point on the body below the observer.  A scene author
+writes every angle for the unrolled camera and never adjusts it for the roll.
 
 The camera's own optics stay put: the PSF, the distortion, the ghosts' shifts,
 and the radial stray-light bump are optical properties of the camera.  The
