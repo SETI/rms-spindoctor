@@ -32,7 +32,7 @@ from spindoctor.sim.scene.fields import scene_value
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['apply_smear', 'smear_kernel']
+__all__ = ['apply_smear', 'smear_kernel', 'smear_reach_px']
 
 # The intensive-signal layers (summed back into frame.signal) and the
 # point-source layer (summed back into frame.point_e), kept separate because the
@@ -58,7 +58,7 @@ def smear_kernel(dv_px: float, du_px: float) -> NDArrayFloatType | None:
     length = float(stable_hypot(dv_px, du_px))
     if length < 1e-9:
         return None
-    radius = int(np.ceil(max(abs(dv_px), abs(du_px)) / 2.0)) + 1
+    radius = _kernel_radius(dv_px, du_px)
     size = 2 * radius + 1
     kernel = np.zeros((size, size), dtype=np.float64)
     n_samples = max(2, int(np.ceil(length)) + 1)
@@ -76,6 +76,42 @@ def smear_kernel(dv_px: float, du_px: float) -> NDArrayFloatType | None:
         kernel[v0 + 1, u0 + 1] += fv * fu * weight
     kernel /= kernel.sum()
     return kernel
+
+
+def _kernel_radius(dv_px: float, du_px: float) -> int:
+    """The half-width of the smear kernel for a drift, in render-grid pixels.
+
+    Parameters:
+        dv_px: Total drift along v in pixels of the render grid.
+        du_px: Total drift along u in pixels of the render grid.
+
+    Returns:
+        The half-width; the kernel spreads no light farther from its center.
+    """
+    return int(np.ceil(max(abs(dv_px), abs(du_px)) / 2.0)) + 1
+
+
+def smear_reach_px(smear: Sequence[Mapping[str, Any]], *, oversample: int) -> int:
+    """How far the scene's smear spreads light, in render-grid pixels.
+
+    The reach is the widest kernel half-width among the whole-scene vector and the
+    vector each object class is smeared by.
+
+    Parameters:
+        smear: The scene ``optics.smear`` list of per-class motion entries.
+        oversample: The render-grid oversampling factor.
+
+    Returns:
+        The reach; 0 when nothing is smeared.
+    """
+    (all_dv, all_du), per_class = _parse_smear(smear)
+    vectors = [(all_dv, all_du)] + [(all_dv + dv, all_du + du) for dv, du in per_class.values()]
+    reach = 0
+    for dv, du in vectors:
+        # The same negligible-drift test smear_kernel applies.
+        if float(stable_hypot(dv * oversample, du * oversample)) >= 1e-9:
+            reach = max(reach, _kernel_radius(dv * oversample, du * oversample))
+    return reach
 
 
 def _parse_smear(

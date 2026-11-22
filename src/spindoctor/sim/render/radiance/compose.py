@@ -143,12 +143,20 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             ``body_masks``, ``ring_masks``, ``order_near_to_far``,
             ``body_index_map``, ``body_mask_map``, ``body_occlusion``).  On the
             scene editor's fast preview frame (``frame.preview``), each body's limb
-            is drawn without anti-aliasing supersampling.
+            is drawn without anti-aliasing supersampling.  The scene is drawn across
+            the frame's margin as well as the frame; the truth describes the frame
+            alone, its per-pixel arrays cut to the frame.
         params: The full scene mapping.
     """
     img = frame.signal
     point_e = frame.point_e
+    # The planes extend ``margin`` pixels past the frame on each side.  Positions
+    # stay frame positions, and each renderer is told the margin and paints into
+    # it too; the per-pixel truth is cut to the frame at the end.
     size_v, size_u = img.shape
+    margin = frame.margin
+    frame_box = frame.frame_box
+    frame_size_v, frame_size_u = frame.frame_shape
     # The signal plane is the oversampled grid (V*os, U*os).  Every pixel-space
     # quantity below (offsets, centers, radii, PSF sigmas, anti-aliasing widths)
     # is scaled by ``os`` so the radiance renders at the oversampled resolution;
@@ -214,7 +222,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # identical to the scene's stars.
     stars_params_scaled = [_scale_star_params(sp, os) for sp in stars_params]
 
-    _render_sky(point_e, params, os=os, seed=background_stars_seed)
+    _render_sky(point_e, params, os=os, seed=background_stars_seed, margin=margin)
 
     point_e, sim_star_list, star_info = render_stars(
         point_e,
@@ -228,6 +236,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         oversample=os,
         catalog_scatter_px=catalog_scatter_px,
         catalog_scatter_seed=catalog_scatter_seed,
+        margin=margin,
     )
     del flux_domain
 
@@ -239,8 +248,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # more than far ones); stars carry no such shift.
     roll_cos = float(np.cos(np.radians(offset_rotation_deg)))
     roll_sin = float(np.sin(np.radians(offset_rotation_deg)))
-    det_center_v = (size_v / os) / 2.0
-    det_center_u = (size_u / os) / 2.0
+    det_center_v = (frame_size_v / os) / 2.0
+    det_center_u = (frame_size_u / os) / 2.0
     spk_dv = float(scene_value(spk_error, 'dv_px', 0.0))
     spk_du = float(scene_value(spk_error, 'du_px', 0.0))
     spk_ref_range = float(scene_value(spk_error, 'reference_range_km', 0.0))
@@ -372,8 +381,9 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             (size_v, size_u),
             det_center_v=det_center_v,
             det_center_u=det_center_u,
-            offset_v=offset_v,
-            offset_u=offset_u,
+            # The margin moves the frame's first pixel into the planes.
+            offset_v=offset_v + margin,
+            offset_u=offset_u + margin,
             roll_deg=offset_rotation_deg,
             spk_shift=_spk_shift,
             time=time,
@@ -431,6 +441,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             body_streams_seed=body_streams_seed,
             body_index=orig_idx,
             oversample=os,
+            margin=margin,
         )
         if needs_layers:
             stack_steps.append(step_index)
@@ -455,11 +466,16 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             coverage: BodyCoverage = body_info['coverage']
             star_transmission[coverage.box_v, coverage.box_u] *= coverage.transmission
         halo = body_info.get('halo')
+        # The depth checks look at the frame alone, so whether a scene is valid
+        # does not depend on how far its optics carry light.
         if halo is not None:
             halo_screens.append(halo)
-            halo_check_items.append((body_info['name'], explicit_depth, halo))
-        check_depth_ambiguity(painted_items, body_info['name'], body_mask, explicit_depth)
-        painted_items.append((body_info['name'], body_mask, explicit_depth))
+            halo_check_items.append(
+                (body_info['name'], explicit_depth, _halo_in_frame(halo, frame_box))
+            )
+        frame_mask = body_mask[frame_box]
+        check_depth_ambiguity(painted_items, body_info['name'], frame_mask, explicit_depth)
+        painted_items.append((body_info['name'], frame_mask, explicit_depth))
 
     # Halo-ambiguity check over the completed paint: a halo composites
     # against everything it covers by range_km, so its overlaps demand the
@@ -485,7 +501,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         check_ring_system_ambiguity(
             painted_items,
             halo_check_items,
-            ring_maps.mask,
+            ring_maps.mask[frame_box],
             ring_explicit=ring_system_params.get('range_km') is not None,
         )
         if ring_pending.any():
@@ -520,7 +536,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # ``point_e``; the body and ring layers are intensive-signal layers.
     if needs_layers:
         stars_layer = np.zeros((size_v, size_u), dtype=np.float64)
-        _render_sky(stars_layer, params, os=os, seed=background_stars_seed)
+        _render_sky(stars_layer, params, os=os, seed=background_stars_seed, margin=margin)
         # The layer must be pixel-identical to the primary deposit above (same
         # scatter sigma and seed included): differential smear REPLACES the
         # point-source plane with this layer, so any argument omitted here
@@ -537,6 +553,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             oversample=os,
             catalog_scatter_px=catalog_scatter_px,
             catalog_scatter_seed=catalog_scatter_seed,
+            margin=margin,
         )
         # The star layer carries the same occlusion the primary point-source
         # plane received (ring and halo transmission, then the bodies).
@@ -555,6 +572,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             offset_u=offset_u,
             body_streams_seed=body_streams_seed,
             os=os,
+            margin=margin,
         )
         frame.truth['radiance_layers'] = {
             'stars': stars_layer,
@@ -582,8 +600,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # the ring-mask truth list (the adversarial feature loci and the GUI's
     # click mapping consume it).
     ring_masks: list[NDArrayBoolType] = []
-    if ring_apply is not None and ring_apply.any():
-        ring_masks.append(ring_apply)
+    if ring_apply is not None and ring_apply[frame_box].any():
+        ring_masks.append(_in_frame(ring_apply, frame_box))
 
     frame.truth.update(
         {
@@ -592,12 +610,16 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             'ring_features': ring_feature_truth,
             'inventory': inventory_dict,
             'star_info': star_info,
-            'body_masks': body_masks,
+            'body_masks': [_in_frame(mask, frame_box) for mask in body_masks],
             'ring_masks': ring_masks,
             'order_near_to_far': order_near_to_far,
-            'body_index_map': body_index_map,
-            'body_mask_map': body_mask_map_dict,
-            'body_occlusion': _body_occlusion_truth(rendered_bodies),
+            'body_index_map': _in_frame(body_index_map, frame_box),
+            'body_mask_map': {
+                name: _in_frame(mask, frame_box) for name, mask in body_mask_map_dict.items()
+            },
+            'body_occlusion': _body_occlusion_truth(
+                [(name, mask[frame_box]) for name, mask in rendered_bodies]
+            ),
         }
     )
 
@@ -611,6 +633,7 @@ def _bodies_and_rings_layers(
     offset_u: float,
     body_streams_seed: int,
     os: int,
+    margin: int,
 ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     """Replay the composite's stack class by class into a bodies and a rings layer.
 
@@ -620,7 +643,7 @@ def _bodies_and_rings_layers(
     composite.
 
     Parameters:
-        shape: The render grid's rows and columns.
+        shape: The rows and columns of the render grid, the frame and its margin.
         stack_steps: The composite's steps in order: a ring screen, or the index
             into ``render_items`` of a body.
         render_items: The bodies in render (far-to-near) order, as the radiance
@@ -630,6 +653,7 @@ def _bodies_and_rings_layers(
         offset_u: The planted pointing offset u on the render grid.
         body_streams_seed: The scene's seed for every body's random streams.
         os: The oversampling factor.
+        margin: How many pixels the layers extend past the frame on each side.
 
     Returns:
         The bodies layer and the rings layer.
@@ -654,6 +678,7 @@ def _bodies_and_rings_layers(
             body_streams_seed=body_streams_seed,
             body_index=orig_idx,
             oversample=os,
+            margin=margin,
         )
         halo: HaloScreen | None = body_info.get('halo')
         if halo is not None:
@@ -836,6 +861,7 @@ def _render_sky(
     *,
     os: int,
     seed: int,
+    margin: int,
 ) -> None:
     """Render the background-sky star field into a point-source plane in place.
 
@@ -849,6 +875,7 @@ def _render_sky(
         params: The full scene mapping.
         os: The oversampling factor.
         seed: The sky realization sub-seed.
+        margin: How many pixels the plane extends past the frame on each side.
     """
     sky = params.get('sky_counts')
     if not isinstance(sky, Mapping):
@@ -875,6 +902,52 @@ def _render_sky(
         ),
         oversample=os,
         rotation_deg=float(params.get('offset_rotation_deg', 0.0)),
+        margin=margin,
+    )
+
+
+def _in_frame(array: Any, frame_box: tuple[slice, slice]) -> Any:
+    """A contiguous copy of the frame's part of a per-pixel array.
+
+    Parameters:
+        array: A per-pixel array over the frame and its margin.
+        frame_box: The array's rows and columns that hold the frame.
+
+    Returns:
+        The frame's pixels, as an array of their own.
+    """
+    return np.ascontiguousarray(array[frame_box])
+
+
+def _halo_in_frame(halo: HaloScreen, frame_box: tuple[slice, slice]) -> HaloScreen:
+    """The frame's part of a halo screen drawn over the frame and its margin.
+
+    Parameters:
+        halo: The halo screen over the frame and its margin.
+        frame_box: The rows and columns of the screen's planes that hold the frame.
+
+    Returns:
+        The screen over the frame alone, its box clipped to the frame.
+    """
+    rows, cols = frame_box
+    box_v = slice(
+        min(max(halo.box_v.start, rows.start), rows.stop),
+        max(min(halo.box_v.stop, rows.stop), rows.start),
+    )
+    box_u = slice(
+        min(max(halo.box_u.start, cols.start), cols.stop),
+        max(min(halo.box_u.stop, cols.stop), cols.start),
+    )
+    mask = halo.mask[
+        box_v.start - halo.box_v.start : box_v.stop - halo.box_v.start,
+        box_u.start - halo.box_u.start : box_u.stop - halo.box_u.start,
+    ]
+    return HaloScreen(
+        emission=halo.emission[frame_box],
+        transmission=halo.transmission[frame_box],
+        box_v=slice(box_v.start - rows.start, box_v.stop - rows.start),
+        box_u=slice(box_u.start - cols.start, box_u.stop - cols.start),
+        mask=mask,
     )
 
 

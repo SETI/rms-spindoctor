@@ -36,6 +36,7 @@ diffuse sky has lit everywhere is warped that way, and gains nothing.
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Any
 
 import numpy as np
@@ -54,7 +55,7 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['apply_distortion']
+__all__ = ['apply_distortion', 'clear_distortion_caches', 'distortion_reach_px']
 
 # Control-grid resolution of the non-radial wander before it is smoothly
 # upsampled to the render grid: a handful of points keeps the field low-order
@@ -70,6 +71,14 @@ _PREFILTER_MARGIN_PX = 2 * CLUSTER_BLOCK_PX
 # therefore reaches this many render-grid pixels past its input crop, on top of the
 # largest displacement rounded up to a whole pixel.
 _SPLINE_REACH_PX = 2
+
+# A plane lit up to its edge, as a frame-filling body lights its margin, is warped in
+# one piece, and the prefilter continues the plane past its edge as its mirror image,
+# which is not the scene there.  The error that makes in the coefficients falls by
+# 2 - sqrt(3) per pixel away from the edge, so by 4e-16 across this many render-grid
+# pixels, which the margin keeps between the plane's edge and the pixels the later
+# stages read.
+_EDGE_PREFILTER_PX = 27
 
 
 @dataclass(frozen=True)
@@ -100,13 +109,23 @@ class _Warp:
     reach: int
 
 
+def clear_distortion_caches() -> None:
+    """Drop the cached non-radial displacement field (test/tooling helper)."""
+    _nonradial_field.cache_clear()
+
+
+# One entry: the driver sizes the margin from the field before the optics stage
+# warps by it, so each render builds the field once.
+@lru_cache(maxsize=1)
 def _nonradial_field(
     shape: tuple[int, int], rms_px: float, seed: int
 ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     """Build a seeded, smooth non-radial displacement field at a target RMS.
 
+    The field is cached, so its planes are read-only.
+
     Parameters:
-        shape: The render-grid ``(V*os, U*os)`` shape.
+        shape: The frame's render-grid ``(V*os, U*os)`` shape.
         rms_px: Target RMS displacement magnitude in render-grid pixels.
         seed: Seed for the field's own RNG stream.
 
@@ -124,6 +143,8 @@ def _nonradial_field(
         scale = rms_px / magnitude_rms
         field_v *= scale
         field_u *= scale
+    field_v.setflags(write=False)
+    field_u.setflags(write=False)
     return field_v, field_u
 
 
@@ -282,40 +303,118 @@ def apply_distortion(
     if distortion is None:
         optics = params.get('optics') or {}
         distortion = optics.get('distortion')
-    if not isinstance(distortion, dict):
+    warp = _resolve_warp(
+        distortion,
+        params,
+        frame_shape=frame.frame_shape,
+        margin=frame.margin,
+        oversample=oversample,
+    )
+    if warp is None:
         return
+    _warp_plane(frame.signal, warp)
+    _warp_plane(frame.point_e, warp)
+
+
+def distortion_reach_px(
+    distortion: Mapping[str, Any] | None,
+    params: Mapping[str, Any],
+    *,
+    frame_shape: tuple[int, int],
+    margin: int,
+    oversample: int,
+) -> int:
+    """How far the residual distortion moves light, in render-grid pixels.
+
+    The warp moves light farther the farther it lies from the optical center, so the
+    reach is measured over the frame widened by ``margin``: the pixels the stages
+    after the warp read.
+
+    Parameters:
+        distortion: The resolved distortion block, or None.
+        params: The full scene mapping (its ``random_seed`` seeds the non-radial field).
+        frame_shape: The frame's rows and columns on the render grid.
+        margin: How far past the frame the reach is measured, in render-grid pixels.
+        oversample: The render-grid oversampling factor.
+
+    Returns:
+        The reach, including the pixels the cubic spline reads and the pixels that
+        keep the prefilter's response to the plane's edge away from the frame; 0
+        when the block is disabled.
+    """
+    warp = _resolve_warp(
+        distortion, params, frame_shape=frame_shape, margin=margin, oversample=oversample
+    )
+    return 0 if warp is None else warp.reach + _EDGE_PREFILTER_PX
+
+
+def _resolve_warp(
+    distortion: Mapping[str, Any] | None,
+    params: Mapping[str, Any],
+    *,
+    frame_shape: tuple[int, int],
+    margin: int,
+    oversample: int,
+) -> _Warp | None:
+    """Resolve a distortion block into the warp over a plane with a margin.
+
+    The optical center, the normalizing radius, and the non-radial field belong to
+    the frame.  The plane extends ``margin`` pixels past it on each side, where the
+    radial term carries on by its formula and the non-radial field repeats its value
+    at the nearest frame pixel.
+
+    Parameters:
+        distortion: The resolved distortion block, or None.
+        params: The full scene mapping (its ``random_seed`` seeds the non-radial field).
+        frame_shape: The frame's rows and columns on the render grid.
+        margin: How many render-grid pixels the plane extends past the frame.
+        oversample: The render-grid oversampling factor.
+
+    Returns:
+        The warp, or None when the block is absent or disabled.
+    """
+    if not isinstance(distortion, Mapping):
+        return None
     k1 = float(scene_value(distortion, 'k1', 0.0))
     k2 = float(scene_value(distortion, 'k2', 0.0))
     nonradial_rms = float(scene_value(distortion, 'nonradial_rms_px', 0.0))
     if k1 == 0.0 and k2 == 0.0 and nonradial_rms == 0.0:
-        return
+        return None
 
-    size_v, size_u = frame.signal.shape
+    size_v, size_u = frame_shape
+    shape = (size_v + 2 * margin, size_u + 2 * margin)
     # A scene states a center in pixel-corner coordinates on the detector grid;
     # the sampling grid below is pixel-centric on the oversampled one.  Scaling
     # a corner coordinate is a plain multiply, and the half pixel takes it the
     # rest of the way.  The default is the frame's own center, which lands on
-    # (size - 1) / 2 by the same route.
+    # (size - 1) / 2 by the same route.  The frame starts ``margin`` pixels into
+    # the plane.
     center_v = (
         float(scene_value(distortion, 'center_v', (size_v / oversample) / 2.0)) * oversample
         - PIXEL_CENTER_TO_CORNER_PX
+        + margin
     )
     center_u = (
         float(scene_value(distortion, 'center_u', (size_u / oversample) / 2.0)) * oversample
         - PIXEL_CENTER_TO_CORNER_PX
+        + margin
     )
     rho_ref = 0.5 * float(stable_hypot(size_v, size_u))
-    largest = _largest_radial_displacement((size_v, size_u), center_v, center_u, rho_ref, k1, k2)
+    largest = _largest_radial_displacement(shape, center_v, center_u, rho_ref, k1, k2)
 
     field_v: NDArrayFloatType | None = None
     field_u: NDArrayFloatType | None = None
     if nonradial_rms > 0.0:
         seed = derive_effect_seed(int(params['random_seed']), 'optics/distortion')
-        field_v, field_u = _nonradial_field((size_v, size_u), nonradial_rms * oversample, seed)
-        largest += float(np.sqrt(np.max(field_v**2 + field_u**2)))
+        frame_field_v, frame_field_u = _nonradial_field(
+            (size_v, size_u), nonradial_rms * oversample, seed
+        )
+        field_v = np.pad(frame_field_v, margin, mode='edge')
+        field_u = np.pad(frame_field_u, margin, mode='edge')
+        largest += float(np.sqrt(np.max(frame_field_v**2 + frame_field_u**2)))
 
-    warp = _Warp(
-        shape=(size_v, size_u),
+    return _Warp(
+        shape=shape,
         center_v=center_v,
         center_u=center_u,
         rho_ref=rho_ref,
@@ -325,5 +424,3 @@ def apply_distortion(
         field_u=field_u,
         reach=math.ceil(largest) + _SPLINE_REACH_PX,
     )
-    _warp_plane(frame.signal, warp)
-    _warp_plane(frame.point_e, warp)

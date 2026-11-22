@@ -3,6 +3,8 @@
 A body is drawn at a reference position and then translated into place by
 linear (order-1) interpolation.  Its content covers a small box of the plane it
 is drawn on, and the plane is constant outside it, so only the box is resampled.
+The output is a box of the reference plane too: the frame, or the frame and the
+margin around it that the render pipeline draws for the optics stage.
 
 The plane a body is drawn on need not be the frame.  It is a box of the
 *reference plane*, the frame's pixel grid extended without bound in every
@@ -61,7 +63,7 @@ def nonzero_box(*planes: NDArrayFloatType) -> tuple[slice, slice]:
     return slice(int(rows[0]), int(rows[-1]) + 1), slice(int(cols[0]), int(cols[-1]) + 1)
 
 
-def shifted_box(box: slice, delta: float, size: int) -> slice:
+def shifted_box(box: slice, delta: float, size: int, *, low: int = 0) -> slice:
     """The frame slice conservatively covering a box translated by ``delta``.
 
     The order-1 interpolation reads one source pixel to each side, so the
@@ -72,14 +74,15 @@ def shifted_box(box: slice, delta: float, size: int) -> slice:
         box: The source slice, on the reference plane.
         delta: The translation along this axis, in pixels.
         size: The frame extent along this axis.
+        low: The reference-plane index of the frame's first pixel along this axis.
 
     Returns:
-        The translated, widened, clipped slice.
+        The translated, widened, clipped slice, on the reference plane.
     """
     if box.start >= box.stop:
         return slice(0, 0)
-    start = max(math.floor(box.start + delta) - 1, 0)
-    stop = min(math.ceil(box.stop + delta) + 1, size)
+    start = max(math.floor(box.start + delta) - 1, low)
+    stop = min(math.ceil(box.stop + delta) + 1, low + size)
     if start >= stop:
         return slice(0, 0)
     return slice(start, stop)
@@ -113,8 +116,12 @@ def translate_box(
     cval: float = 0.0,
     shape: tuple[int, int] | None = None,
     origin: tuple[int, int] = (0, 0),
+    out_origin: tuple[int, int] = (0, 0),
 ) -> NDArrayFloatType:
     """Translate a plane whose content lies in a box, by order-1 interpolation.
+
+    Each output pixel is computed from its reference-plane index, so a pixel comes out
+    the same wherever the output starts on the reference plane.
 
     Parameters:
         plane: The plane; it must equal ``cval`` outside ``(box_v, box_u)``.  Its
@@ -129,6 +136,8 @@ def translate_box(
         cval: The plane's value outside the box, and the fill beyond the plane.
         shape: The frame the content lands on; None for the plane's own shape.
         origin: The reference-plane row and column of the plane's first pixel.
+        out_origin: The reference-plane row and column of the output's first pixel:
+            ``(0, 0)`` for the frame, or minus the margin for a frame with a margin.
 
     Returns:
         A new frame-sized plane: the translated content, and ``cval`` everywhere
@@ -136,11 +145,13 @@ def translate_box(
     """
     size_v, size_u = plane.shape if shape is None else shape
     origin_v, origin_u = origin
+    first_v, first_u = out_origin
     out = np.full((size_v, size_u), cval, dtype=np.float64)
-    out_v = shifted_box(box_v, dv, size_v)
-    out_u = shifted_box(box_u, du, size_u)
+    out_v = shifted_box(box_v, dv, size_v, low=first_v)
+    out_u = shifted_box(box_u, du, size_u, low=first_u)
     if out_v.start >= out_v.stop or out_u.start >= out_u.stop:
         return out
+    out_cols = slice(out_u.start - first_u, out_u.stop - first_u)
     src_u = _source_span(out_u, du, origin_u, origin_u + plane.shape[1])
     cols = (np.arange(out_u.start, out_u.stop, dtype=np.float64) - du) - src_u.start
     plane_cols = slice(src_u.start - origin_u, src_u.stop - origin_u)
@@ -151,7 +162,7 @@ def translate_box(
         coords = np.empty((2, rows.size, cols.size))
         coords[0] = rows[:, np.newaxis]
         coords[1] = cols[np.newaxis, :]
-        out[strip, out_u] = ndimage.map_coordinates(
+        out[strip.start - first_v : strip.stop - first_v, out_cols] = ndimage.map_coordinates(
             plane[src_v.start - origin_v : src_v.stop - origin_v, plane_cols],
             coords,
             order=1,

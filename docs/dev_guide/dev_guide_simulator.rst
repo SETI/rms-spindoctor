@@ -586,8 +586,11 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        plane ``frame.point_e``, with the planted offset and camera roll
        applied. Stars are flux-normalized point
        masses shaped only by the
-       whole-scene PSF (see :ref:`sim-star-params`). Accumulates feature truth
-       (star records, masks, inventory, z-order) into ``frame.truth``.
+       whole-scene PSF (see :ref:`sim-star-params`). Draws the scene across a
+       margin around the frame as well as the frame, for the optics stage to
+       spread into the frame (see :ref:`sim-frame-margin`). Accumulates feature
+       truth (star records, masks, inventory, z-order) for the frame alone into
+       ``frame.truth``.
    * - Optics
      - :func:`~spindoctor.sim.render.optics.stage.apply_optics`
      - Applies the optical-path effects in a fixed internal order -- motion
@@ -596,9 +599,10 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        sub-block is present (see :ref:`sim-optics-stage`).
    * - Downsampling
      - :func:`~spindoctor.sim.render.stages.downsample_to_detector`
-     - Box-downsamples the oversampled planes to the detector grid. A scene
-       with an active PSF renders on a 4x oversampled grid and downsamples here;
-       with no PSF the factor is 1 and this is a no-op.
+     - Cuts the frame out of the margin, then box-downsamples the oversampled
+       planes to the detector grid. A scene with an active PSF renders on a 4x
+       oversampled grid and downsamples here; with no PSF the factor is 1 and
+       the downsample is a no-op.
    * - Detector
      - :func:`~spindoctor.sim.render.detector.apply_detector`
      - Runs the electron unit chain: converts the composed [0, 1] signal to
@@ -652,8 +656,12 @@ error to the one effect it varies.
   stage gets its kernel from
   :func:`~spindoctor.sim.render.optics.stage.effective_psf`, and the oversampling
   choice asks the same function, so the two always agree.
+- ``margin`` -- how many render-grid pixels the planes extend past the frame on
+  each side (see :ref:`sim-frame-margin`). The downsample stage cuts the frame out
+  and sets it to 0.
 - ``truth`` -- renderer output metadata (rendered star records, body masks,
-  inventory, z-order maps). None of it crosses the information boundary.
+  inventory, z-order maps), describing the frame alone. None of it crosses the
+  information boundary.
 
 **Seeding by name.** A stage is handed only the frame and the scene. Each stage
 derives every random stream it needs with
@@ -667,8 +675,8 @@ scene that emulates that detector has the same hot pixels. Only hot pixels
 placed adversarially on the navigation features draw from ``detector/hot_pixels``.
 The missing-data losses draw from ``telemetry`` and the
 missing-lines mode from ``telemetry/missing_lines``. The background stars draw
-from ``scene_radiance/background_stars`` and the distortion field from
-``optics/distortion``.
+from ``scene_radiance/background_stars``, those in the margin around the frame from
+its sub-stream ``margin``, and the distortion field from ``optics/distortion``.
 
 A stream may in turn seed its own named sub-streams. The bodies work this way:
 ``scene_radiance/craters`` seeds one stream for each body, named
@@ -977,6 +985,51 @@ Only the distortion non-radial field draws randomness, from its own stream
 ``optics/distortion`` derived from the scene seed. A sub-stage whose block is a
 true no-op (all-zero radial distortion, an amplitude-0 ghost) renders
 bit-identically to one without it.
+
+.. _sim-frame-margin:
+
+Light from beyond the frame edge
+--------------------------------
+
+Smear, distortion, the PSF, and ghosts move light sideways. A real camera's edge
+pixels therefore receive light from the scene just outside its field of view, and
+lose some of their own light past the edge. The render reproduces both. The radiance
+and optics stages work on planes larger than the frame by a margin on every side, and
+the downsample stage cuts the frame out before it averages. If the optics treated the
+outside of the frame as dark instead, a planet filling a Cassini narrow-angle frame
+would read 0.72 of its brightness in the first row and 0.52 in a corner, a false edge
+along the frame border, and a star centered just outside the frame would put none of
+its light into it.
+
+The margin is as wide as the four steps reach together
+(:func:`~spindoctor.sim.render.optics.stage.optics_margin_px`), rounded up to whole
+detector pixels: the PSF's ``truncation_px``, half the smear drift plus one pixel, each
+ghost's offset plus four sigmas of its defocus, and the distortion's largest
+displacement plus the two pixels its cubic spline reads. The spline also responds to
+the edge of the plane, past which it continues the plane as its mirror image rather
+than the scene, so the distortion adds 27 render-grid pixels, across which that
+response falls below 4e-16. A scene with none of the four steps has no margin. A
+Cassini scene with ``instrument_defaults`` has a margin of 40 detector pixels: 32 for
+the PSF and 8 for the distortion. The margin costs time in proportion to the area it
+adds. The cold renders of the performance budget (see :ref:`sim-perf-budget`) take 7%
+to 16% longer at 1024 x 1024 and 15% to 31% longer at 512 x 512, and all stay within
+their budgets.
+
+Every source of light is drawn across the margin: bodies with their halos, the ring
+system, catalog stars, and the background sky. The sky stars of the margin draw from a
+stream of their own, so the stars in the frame are the same whatever the margin.
+Everything that depends on the frame's size still uses the frame alone: the frame
+center, the roll pivot, the distortion's optical center and normalizing radius, and
+where each body is drawn and its craters are laid out. The non-radial distortion
+wander is defined over the frame and repeats its edge value across the margin. Stray
+light is added to the frame alone, because no later step spreads it.
+
+The margin therefore changes none of the frame's radiance before the optics, apart
+from the share of a margin sky star that lands on an edge pixel. It changes only the
+light the optics carry across the frame edge. The truth metadata describes
+the frame alone: the masks and the body index map are cut to the frame, and the depth
+checks that make overlapping bodies state a ``range_km`` look only at the frame, so
+whether a scene is valid does not depend on how far its optics reach.
 
 .. _sim-detector-stage:
 
@@ -2103,7 +2156,11 @@ continued past its edges, but only as far as the move needs to fill the frame fr
 this body's position, plus 8 detector pixels so the spline that interpolates the
 relief tilt never ends inside the frame. The canvas is bounded by the frame, never by
 the body, so a body thousands of pixels across costs about as much as one that fills
-the frame. Either way, the body is drawn at the frame center and then moved.
+the frame. Either way, the body is drawn at the frame center and then moved. When the
+frame carries a margin for the optics stage (see :ref:`sim-frame-margin`), the move
+fills the margin too, and a body that does not fit has its canvas widened by the
+margin. The frame alone decides whether a body fits and where its craters go, so the
+margin changes no pixel of the frame.
 
 The result matches what the same part of a frame large enough to hold the whole body
 would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. There are
