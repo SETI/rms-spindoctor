@@ -12,6 +12,7 @@ dependencies = [
   "astropy>=6.0",
   "cspyce>=2.3.5",
   "elementpath>=5.0.4",
+  "filelock<4.3",
   "lxml>=6.0.4",
   "matplotlib",
   "numpy>=2.2.0",
