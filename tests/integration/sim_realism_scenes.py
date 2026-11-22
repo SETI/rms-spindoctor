@@ -7,7 +7,9 @@ whose apparent diameter and phase angle mirror the real body for a limb
 frame, a multi-feature ring system for a ring frame, a bare sky for the
 negative / scattered-light frames.  Matching content class and exposure is
 what makes the FOM 5 strata and the FOM 3 bins compare the forward model
-rather than what the spacecraft happened to point at.
+rather than what the spacecraft happened to point at.  A matched body is as
+bright as the real one: its normal albedo is measured from the real disc's
+I/F where the real product is calibrated, and it is white otherwise.
 
 Scenes are deterministic: the random seed derives from the real frame's
 image_id, so re-running the runner re-renders identical frames.
@@ -28,6 +30,7 @@ from spindoctor.sim.instruments.resolvers import binning_for_frame_size
 from spindoctor.sim.scene.validate import validate_sim_params
 
 __all__ = [
+    'MATCHED_BODY_LAW',
     'STAR_CLASSES',
     'limb_scene',
     'matched_scene',
@@ -55,6 +58,15 @@ _LIMB_CLASSES = frozenset(
     {'body_full_fov', 'body_partial_overflow', 'high_phase_terminator', 'multi_body'}
 )
 _RING_CLASSES = frozenset({'ring_only_flat', 'ring_only_curved', 'ring_plus_body'})
+
+# Content matching, not tuning: the cohort's limb frames are airless icy satellites,
+# whose disks follow a Lommel-Seeliger law (flat toward the limb) far better than
+# Lambert.  Under Lambert the FOM 3 rise width would measure the shading ramp, not the
+# limb.  The law is stated, although it is the scene default, because the matched
+# body's normal albedo is measured against it.
+MATCHED_BODY_LAW = 'lommel_seeliger'
+"""The photometric law of every matched body, and the law its normal albedo is
+measured against."""
 
 
 def _seed_for(image_id: str) -> int:
@@ -164,6 +176,7 @@ def limb_scene(
     *,
     diameter_px: float,
     phase_angle_deg: float,
+    normal_albedo: float | None = None,
 ) -> dict[str, Any]:
     """A matched limb frame: one ellipsoid at the real body's scale and phase.
 
@@ -180,6 +193,8 @@ def limb_scene(
         size_vu: The real frame's (v, u) shape.
         diameter_px: The real body's predicted apparent diameter.
         phase_angle_deg: The real frame's phase angle.
+        normal_albedo: The real body's normal albedo, measured from its disc's I/F;
+            None leaves the body white (normal albedo 1).
     """
     seed = _seed_for(image_id)
     scene = _base_scene(f'realism_limb_{image_id}', instrument, exposure_sec, seed, size_vu)
@@ -197,16 +212,18 @@ def limb_scene(
             'semi_c_px': semi_px,
             'illumination_angle': 0.0,
             'phase_angle': float(min(max(phase_angle_deg, 0.0), 179.0)),
-            # Content matching, not tuning: the cohort's limb frames are
-            # airless icy satellites, whose disks follow a Lommel-Seeliger
-            # law (flat toward the limb) far better than Lambert.  Under
-            # Lambert the FOM 3 rise width would measure the shading ramp,
-            # not the limb.
-            'photometric_law': 'lommel_seeliger',
+            'photometric_law': MATCHED_BODY_LAW,
         }
     ]
+    _set_normal_albedo(scene, normal_albedo)
     scene['stars'] = _star_list(seed, 5, size_vu, vmag_bright=9.0, vmag_step=0.5)
     return scene
+
+
+def _set_normal_albedo(scene: dict[str, Any], normal_albedo: float | None) -> None:
+    """Give the scene's one body the real body's normal albedo, when it was measured."""
+    if normal_albedo is not None:
+        scene['bodies'][0]['normal_albedo'] = float(normal_albedo)
 
 
 def ring_scene(
@@ -219,6 +236,7 @@ def ring_scene(
     with_body: bool,
     diameter_px: float = 150.0,
     phase_angle_deg: float = 45.0,
+    normal_albedo: float | None = None,
 ) -> dict[str, Any]:
     """A matched ring frame: three sharp-edged features around an annulus.
 
@@ -236,6 +254,8 @@ def ring_scene(
             real body's.
         phase_angle_deg: The real frame's phase angle for the ``with_body``
             case (same stratification argument).
+        normal_albedo: The real body's normal albedo for the ``with_body`` case;
+            None leaves the body white.
     """
     seed = _seed_for(image_id)
     scene = _base_scene(f'realism_ring_{image_id}', instrument, exposure_sec, seed, size_vu)
@@ -307,12 +327,10 @@ def ring_scene(
                 'semi_c_px': semi_px,
                 'illumination_angle': 0.0,
                 'phase_angle': float(min(max(phase_angle_deg, 0.0), 179.0)),
-                # Same content-matching choice as the limb scenes: airless
-                # bodies shade Lommel-Seeliger, and a Lambert ramp would
-                # masquerade as limb softness in the FOM 3 widths.
-                'photometric_law': 'lommel_seeliger',
+                'photometric_law': MATCHED_BODY_LAW,
             }
         ]
+        _set_normal_albedo(scene, normal_albedo)
     scene['stars'] = _star_list(seed, 5, size_vu, vmag_bright=9.5, vmag_step=0.5)
     return scene
 
@@ -326,6 +344,7 @@ def matched_scene(
     size_vu: tuple[int, int],
     diameter_px: float = 150.0,
     phase_angle_deg: float = 45.0,
+    normal_albedo: float | None = None,
     filter_name: str | None = None,
     gain_state: int | None = None,
     quantization: str | None = None,
@@ -347,6 +366,10 @@ def matched_scene(
             default covers frames where no body model could be built).
         phase_angle_deg: Real frame's phase angle for the limb classes
             and ring_plus_body.
+        normal_albedo: The real body's normal albedo for the limb classes and
+            ring_plus_body, measured from its disc's I/F
+            (:func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).  None
+            leaves the body white.
         filter_name: The real frame's filter combination.  It sets the sim's
             DN-to-I/F scale and dims every star by the filter's throughput.  None
             keeps the camera's nominal scale and the clear filter.
@@ -380,6 +403,7 @@ def matched_scene(
             size_vu,
             diameter_px=diameter_px,
             phase_angle_deg=phase_angle_deg,
+            normal_albedo=normal_albedo,
         )
     elif scene_class in _RING_CLASSES:
         scene = ring_scene(
@@ -391,6 +415,7 @@ def matched_scene(
             with_body=scene_class == 'ring_plus_body',
             diameter_px=diameter_px,
             phase_angle_deg=phase_angle_deg,
+            normal_albedo=normal_albedo,
         )
     else:
         scene = sky_scene(image_id, instrument, exposure_sec, size_vu)

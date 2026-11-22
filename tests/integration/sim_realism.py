@@ -79,6 +79,7 @@ from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patch
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
+from tests.integration.sim_realism_albedo import real_normal_albedo
 from tests.integration.sim_realism_limb_peak import (
     LimbPeakBin,
     compare_limb_peaks,
@@ -92,6 +93,7 @@ from tests.integration.sim_realism_support import (
     extract_feature_samples,
     extract_pixel_samples,
     frame_settings_reader,
+    largest_body,
     prepare_frame_features,
 )
 from tests.integration.sim_realism_twin_stars import catalog_twin_stars
@@ -190,6 +192,8 @@ class FrameRecord:
         diameter_px: Largest body's predicted apparent diameter (limb
             frames; default where no body model was built).
         phase_angle_deg: That body's phase angle.
+        normal_albedo: That body's normal albedo, measured from the disc of a
+            calibrated frame, else None.
         frame_shape_vu: The frame's (v, u) shape.
         filter_name: The frame's filter combination (``'CL1+CL2'``) on a
             camera the sim's filter catalog covers, else None.
@@ -210,6 +214,7 @@ class FrameRecord:
     offset_vu: tuple[float, float]
     diameter_px: float = 150.0
     phase_angle_deg: float = 45.0
+    normal_albedo: float | None = None
     frame_shape_vu: tuple[int, int] = (512, 512)
     filter_name: str | None = None
     gain_state: int | None = None
@@ -462,10 +467,14 @@ def _frame_samples_real(
     only_models = MODELS_FOR_CLASS.get(scene_class)
     if only_models is not None:
         image, features, model_metadata = prepare_frame_features(obs, only_models=only_models)
-        diameter, phase = _largest_body(model_metadata)
-        if diameter is not None and phase is not None:
+        body, diameter, phase = largest_body(model_metadata)
+        if body is not None and diameter is not None and phase is not None:
             record.diameter_px = diameter
             record.phase_angle_deg = phase
+            if resolve_data_units(instrument) == 'calibrated_if':
+                record.normal_albedo = real_normal_albedo(
+                    obs, body, offset_vu=offset, phase_angle_deg=phase
+                )
         samples.merge(
             extract_feature_samples(
                 image,
@@ -480,25 +489,6 @@ def _frame_samples_real(
     return samples, record, rates
 
 
-def _largest_body(
-    model_metadata: dict[str, dict[str, Any]],
-) -> tuple[float | None, float | None]:
-    """Diameter and phase of the largest body model, if any."""
-    best: tuple[float, float] | None = None
-    for name, meta in model_metadata.items():
-        if not name.startswith('body:'):
-            continue
-        diameter = meta.get('predicted_diameter_px')
-        phase = meta.get('phase_angle_deg')
-        if diameter is None or phase is None:
-            continue
-        if best is None or float(diameter) > best[0]:
-            best = (float(diameter), float(phase))
-    if best is None:
-        return None, None
-    return best
-
-
 def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
     """Render the matched sim frame for one cohort record."""
     scene = matched_scene(
@@ -509,6 +499,7 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
         size_vu=record.frame_shape_vu,
         diameter_px=record.diameter_px,
         phase_angle_deg=record.phase_angle_deg,
+        normal_albedo=record.normal_albedo,
         filter_name=record.filter_name,
         gain_state=record.gain_state,
         quantization=record.quantization,

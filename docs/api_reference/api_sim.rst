@@ -446,6 +446,11 @@ spindoctor.sim.realism
 
 .. automodule:: spindoctor.sim.realism
 
+.. automodule:: spindoctor.sim.realism.albedo
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.realism.artifact_rates
    :members:
    :undoc-members:

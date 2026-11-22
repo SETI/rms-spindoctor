@@ -68,6 +68,7 @@ __all__ = [
     'extract_feature_samples',
     'extract_pixel_samples',
     'frame_settings_reader',
+    'largest_body',
     'prepare_frame_features',
     'register_frame_settings_reader',
 ]
@@ -385,6 +386,35 @@ def add_sky_samples(frame: FrameSamples, patches: list[SkyPatch]) -> None:
             warnings.simplefilter('ignore', category=RuntimeWarning)
             mean_psd = np.nanmean(np.stack(psd_curves), axis=0)
         frame.add_curve('sky_psd', sky.psd_freq, mean_psd)
+
+
+def largest_body(
+    model_metadata: dict[str, dict[str, Any]],
+) -> tuple[str | None, float | None, float | None]:
+    """Name, diameter, and phase of the largest body model, if any.
+
+    Parameters:
+        model_metadata: The per-model metadata of one frame, keyed by model name
+            (``body:DIONE``).
+
+    Returns:
+        The body's name after the colon, its predicted apparent diameter in pixels,
+        and its phase angle in degrees, or three Nones when no body model states
+        both.
+    """
+    best: tuple[str, float, float] | None = None
+    for name, meta in model_metadata.items():
+        if not name.startswith('body:'):
+            continue
+        diameter = meta.get('predicted_diameter_px')
+        phase = meta.get('phase_angle_deg')
+        if diameter is None or phase is None:
+            continue
+        if best is None or float(diameter) > best[1]:
+            best = (name.split(':', 1)[1], float(diameter), float(phase))
+    if best is None:
+        return None, None, None
+    return best
 
 
 def prepare_frame_features(

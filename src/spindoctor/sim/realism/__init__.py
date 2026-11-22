@@ -15,6 +15,8 @@ image-library cohort and matched simulated frames:
   limb (FOM 3) and ring-edge (FOM 4) comparisons.
 - :mod:`spindoctor.sim.realism.limb_peak`: where a limb's brightness gradient peaks,
   relative to the body's silhouette (FOM 3).
+- :mod:`spindoctor.sim.realism.albedo`: a real body's normal albedo from the I/F of
+  its disc, which sets the brightness of the matched simulated body.
 - :mod:`spindoctor.sim.realism.dynamic_range`: exposure-stratified dynamic
   range statistics (FOM 5) and the stratification logic itself.
 - :mod:`spindoctor.sim.realism.artifact_rates`: measured artifact rates
@@ -30,6 +32,7 @@ it reuses :func:`divergence.w1_divergence` on diagnostics the runner collects
 from navigation runs, and is a read-only report -- never a tuning target.
 """
 
+from spindoctor.sim.realism.albedo import disc_normal_albedo
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     measure_artifact_rates,
@@ -75,6 +78,7 @@ __all__ = [
     'SkyPatch',
     'W1Result',
     'cohort_support',
+    'disc_normal_albedo',
     'edge_normal_profiles',
     'encircled_energy',
     'find_uniform_patches',
