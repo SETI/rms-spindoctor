@@ -595,7 +595,7 @@ Examples
     The standing base scene for the offset sweeps: a 120 px-radius hazy body at 60 degrees
     phase, rendered with a soft haze limb a few pixels above the solid radius so the free-radius
     arc fit has a genuine altitude mismatch to absorb. Across the dense sub-pixel sweep the
-    total recovery error stays between 0.06 and 0.10 px, and across the wide sweep it holds
+    total recovery error stays between 0.02 and 0.07 px, and across the wide sweep it holds
     flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the method.
     See :doc:`/simulator_report/simulator_report`.
 

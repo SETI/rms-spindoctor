@@ -181,14 +181,16 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
     # atmosphere.  In titan_haze_limb, a haze-blind navigator fits a hard limb under a
     # soft haze limb.
-    ('titan_haze', FUSED): _t(0.098, 0.101, 0.011, 0.05),
-    ('titan_haze_limb', FUSED): _t(0.210, 0.211, 0.001, 0.05),
+    ('titan_haze', FUSED): _t(0.046, 0.063, 0.020, 0.05),
+    ('titan_haze_limb', FUSED): _t(0.233, 0.233, 0.003, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.005, 0.005, 0.000, 0.05),
-    # mutual_event.
-    ('mutual_deep', FUSED): _t(0.165, 0.166, 0.002, 0.05),
-    ('mutual_grazing', FUSED): _t(0.109, 0.117, 0.008, 0.05),
-    ('mutual_half', FUSED): _t(0.328, 0.328, 0.010, 0.07),
+    # mutual_event.  All three scenes carry a known error in their expected blocks
+    # instead.  In mutual_deep the far body's crescent, which the disc template leaves
+    # out, pulls the disc correlation 0.78 to 0.79 px off (#1050).  In mutual_grazing and
+    # mutual_half the composite disc template keeps a dark outline at the near body's
+    # limb, which the image no longer has, and the disc correlation stops at the edge
+    # of its refinement window (#1099, #791).
     # regression, fused answer.  relief_psf_stray_light carries a known error in its
     # expected block instead (#791).
     ('banded_planet_transit', FUSED): _t(0.135, 0.138, 0.009, 0.05),
@@ -232,12 +234,12 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # BodyBlobNav answers far from the truth and does not flag these answers spurious
     # (#975).
     ('two_moons', 'BodyBlobNav'): _b(36.293, 36.309, 0.05, 36.243, 36.359),
-    ('mutual_deep', 'BodyBlobNav'): _b(6.985, 6.994, 0.05, 6.934, 7.045),
-    ('mutual_half', 'BodyBlobNav'): _b(8.422, 8.673, 0.0503, 8.371, 8.724),
-    ('mutual_grazing', 'BodyBlobNav'): _b(1.795, 1.804, 0.05, 1.744, 1.854),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(24.944, 25.011, 0.05, 24.894, 25.062),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.016, 25.016, 0.05, 24.965, 25.066),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(1.421, 1.428, 0.05, 1.371, 1.479),
+    ('mutual_deep', 'BodyBlobNav'): _b(6.720, 6.729, 0.05, 6.670, 6.780),
+    ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
+    ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(25.091, 25.123, 0.05, 25.041, 25.174),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.151, 25.151, 0.05, 25.100, 25.201),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(1.474, 1.482, 0.05, 1.424, 1.532),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.006 px and 0.287 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.597, 0.604, 0.05, 0.547, 0.654),

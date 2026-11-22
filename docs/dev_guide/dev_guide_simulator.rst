@@ -1132,8 +1132,9 @@ seeded stream and a no-op when its activation key is 0.
 **The vidicon path.** The Voyager vidicon
 (:func:`~spindoctor.sim.render.detector.chain.apply_detector`, vidicon branch)
 is not photon-noise dominated, so it skips the electron conversion: the signal
-maps straight to the 8-bit DN full scale, the target saturates where the stored
-signal passes its full scale (``full_well_dn``), and the noise is applied in DN -- a
+maps straight to the 8-bit DN full scale, the target saturates where the charge
+stored on it (the signal, the stars, the residual image, and the cosmic-ray hits
+together) passes its full scale (``full_well_dn``), and the noise is applied in DN -- a
 line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
@@ -1912,7 +1913,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are five:
+not yet fixed. There are eight:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -1920,9 +1921,12 @@ not yet fixed. There are five:
   sub-pixel search window.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
-- In ``titan_crescent_horns`` and its noiseless twin, the disc correlation stops
-  at the edge of its sub-pixel window too, and carries a low-tier success 0.76 px
-  wrong.
+- In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
+  pulls the disc correlation, which carries a low-tier success 1.84 px wrong.
+- In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
+  outline that the image doesn't have, and the disc correlation stops at the
+  edge of its sub-pixel search window.
+- In ``mutual_deep``, the far body's crescent pulls the disc correlation.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
 answer as correct behavior. So the scene also declares ``known_offset_error_px``
@@ -1937,10 +1941,7 @@ also fails loudly, which prompts a deliberate re-measurement of the known error,
 or retirement of the check, instead of a silent behavior change. The success the
 check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
-(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
-``titan_crescent_horns`` scenes hold a known error of this kind: a low-tier
-success 0.76 px wrong, carried by a disc correlation that stops at the edge of
-its sub-pixel window.
+(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family.
 
 .. _sim-floor:
 
@@ -2624,14 +2625,14 @@ and the disc correlator scores only against disc brightness the image carries.
 Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
-On grazing and half overlap the limb fit lands within 0.2 px of each scene's planted
-offset over 16 noise seeds. The disc correlation does worse: it stops at the edge of its
-half-pixel refinement window, 0.18 px off on grazing overlap and 0.34 px on half
-overlap. Its composite template paints the near body over the far one wherever the near
-body touches a pixel, even partly, so the template keeps a dark outline at the near
-body's limb that the image no longer shows. With the template drawn by coverage, the
-same correlation lands within 0.01 px. Both
-scenes hold their fused errors, 0.15 to 0.18 px and 0.32 to 0.33 px, to bands. That is a
+Over 16 noise seeds the limb fit lands 0.32 to 0.34 px from the planted offset on
+grazing overlap and 0.23 to 0.25 px on half overlap. The disc correlation stops at the
+edge of its half-pixel refinement window, 0.18 px off on grazing overlap (on 14 of the
+16 seeds) and 0.34 to 0.35 px on half overlap. Its composite template paints the near
+body over the far one wherever the near body touches a pixel, even partly, so the
+template keeps a dark outline at the near body's limb that the image no longer shows.
+With the template drawn by coverage, the same correlation lands within 0.01 px. Both
+scenes hold their fused errors, 0.07 to 0.17 px and 0.31 to 0.32 px, to bands. That is a
 statement about these simulated scenes, not a certification of real-frame accuracy: the
 sim renders an idealized occlusion the true optics only approximate. On the deep scene
 the far body's disc is over 90 percent hidden, so its ``visible_lit_fraction`` collapses
@@ -2639,9 +2640,9 @@ and its disc feature is dropped for low reliability. The far body's crescent sti
 beside the near body's limb, and the disc template, which holds only the near body,
 leaves it out, so the crescent pulls the disc correlation about 0.8 px off. The limb fit
 runs on arcs the image actually shows -- the robust Tukey biweight loss is a second line
-of defense against a stray vertex, not the mechanism that carries the result -- but on 6
-of the 16 seeds it stops unconverged and flags itself spurious, and the disc correlation
-alone sets the answer. The deep scene holds that 0.73 to 0.80 px error to a band. No
+of defense against a stray vertex, not the mechanism that carries the result -- and lands
+0.14 to 0.17 px off, but it flags itself spurious on every seed, and the disc correlation
+alone sets the answer. The deep scene holds that 0.78 to 0.79 px error to a band. No
 double-counting conflict arises. The mutual-event scenes pin the arc fractions and
 offsets so a regression toward hidden-arc lock-on fails loudly.
 
@@ -2826,17 +2827,21 @@ is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
 outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light is
 brighter than a white disc lit face-on and saturates the detector. The predicted
-terminator arc is emitted but dropped before any technique runs, because its
-reliability, computed as the SPICE-backed model does and capped by
-``sin(155 deg)`` = 0.42, is 0.26, below the 0.30 that a ``TERMINATOR_ARC`` needs.
-The haze drags the blob centroid about 25 px off in ``du``. The disc correlation
-survives: it stops at the edge of its sub-pixel window and carries the fused answer, a low-tier success 0.76 px from
-the planted offset, which the scene holds as a known error. Because the
-correlation is not flagged spurious, the lone-blob collapsed regime the
-body-witness veto guards (see :doc:`dev_guide_orchestrator_ensemble`) does not
-arise here. The noiseless sibling ``titan_crescent_horns_noiseless`` -- Poisson
-and read noise off, the same haze and phase geometry -- gives the same answer on
-every draw, so the haze alone, not the noise, decides it. The haze evaluation
+terminator arc is emitted but dropped by its feature reliability before any
+technique runs (its reliability, computed as the SPICE-backed model does and
+capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
+25 px off in ``du``. The ring of light, which the disc correlation's
+hard-limbed template leaves out, also pulls the correlation 1.84 px off, and the
+correlation does not flag that answer spurious. So the body-witness veto (see
+:doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
+surviving body offset is the centroid beside a spurious geometric fit, has
+nothing to read. The disc correlation sets a low-confidence success, and the
+scene holds its 1.84 px error to a band. The noiseless sibling
+``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
+and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
+blob centroid near -26.0, and the same 1.84 px disc correlation error), so the
+ring of light alone drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
 that box rather than the frame, and a body without an ``atmosphere`` block

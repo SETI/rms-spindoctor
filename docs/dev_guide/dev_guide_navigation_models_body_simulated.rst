@@ -23,8 +23,8 @@ techniques consume:
   configuration value ``blob_max_overflow_fraction``, for
   :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav`;
 - a :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` (the lit part of the
-  silhouette boundary as a vertex polyline with outward normals) when the body is well resolved (diameter at
-  least 100 px) and at low phase (at most 60 degrees), for
+  silhouette boundary as a vertex polyline with outward normals) when the body is well
+  resolved (diameter at least 100 px) and at low phase (at most 60 degrees), for
   :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`;
 - a :data:`~spindoctor.feature.feature_type.NavFeatureType.TERMINATOR_ARC` (the lit/unlit
   boundary *interior* to the disc, as a vertex polyline whose outward normals point from the
@@ -42,10 +42,11 @@ night side is a 0.05 pedestal under a lit maximum of 1.05. The limb keeps the si
 boundary pixels whose mean angle of incidence is below 90 deg, the rule the SPICE-backed
 model uses for its lit region
 (:func:`~spindoctor.sim.shared.ellipsoid.ellipsoid_lit` for an ellipsoid). The terminator
-polyline is the pixels brighter than zero adjacent to the interior unlit disc, with the limb ring excluded so the polyline stays interior to the disc -- except at
-the cusp-adjacent vertices of a very thin crescent, where terminator and limb meet within
-a pixel and a handful of vertices land on the silhouette (the SPICE-backed model's
-sampler shares the behavior). The
+polyline is the pixels brighter than zero adjacent to the interior unlit disc, with the
+limb ring excluded so the polyline stays interior to the disc -- except at the
+cusp-adjacent vertices of a very thin crescent, where terminator and limb meet within a
+pixel and a handful of vertices land on the silhouette (the SPICE-backed model's sampler
+shares the behavior). The
 gates mirror the SPICE-backed :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`
 (a ``sin(phase)`` floor, a minimum vertex count, and the shared
 :func:`~spindoctor.nav_model.nav_model_body.shape_features_suppressed` policy that
@@ -288,12 +289,12 @@ Call path traced through
    :func:`~spindoctor.nav_model.simulated.body_arcs.build_limb_arc_feature` builds. The
    lit part of the silhouette boundary, where the mean angle of incidence is below
    90 deg, is sampled into a vertex polyline with outward normals and a fixed per-vertex
-   sigma, as the SPICE-backed model keeps only the lit limb by the same rule. Then vertices hidden behind an
-   explicitly nearer sibling body are dropped, and the arc is withheld if fewer than 30
-   vertices survive. The visible-arc
-   fraction compares the surviving polyline against the lit silhouette boundary of an
-   unclipped whole-body render -- so a limb sliding off the frame or behind another
-   body reports the loss instead of claiming ``1.0``.  The reliability applies the
+   sigma, as the SPICE-backed model keeps only the lit limb by the same rule. Then
+   vertices hidden behind an explicitly nearer sibling body are dropped, and the arc is
+   withheld if fewer than 30 vertices survive. The visible-arc fraction compares the
+   surviving polyline against the lit silhouette boundary of an unclipped whole-body
+   render -- so a limb sliding off the frame or behind another body reports the loss
+   instead of claiming ``1.0``.  The reliability applies the
    shared :func:`~spindoctor.nav_model.nav_model_body.limb_reliability` formula (arc
    fraction and arc length), so a deeply occluded or clipped limb can be dropped
    downstream for low reliability, exactly as a real one would be. A measurement caller

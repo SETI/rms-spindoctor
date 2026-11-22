@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8409777374542086,
+  "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -1.9429857397044443,
-  "offset_dv_px": 2.31447343506874,
+  "offset_du_px": -1.343392930562928,
+  "offset_dv_px": 2.507556160483561,
   "scene_name": "mutual_half",
   "status": "success"
 }

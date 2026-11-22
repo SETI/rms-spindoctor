@@ -30,30 +30,31 @@ noise:
 offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
-# At 155 deg phase the forward-scattering haze defeats most body techniques.
+# At 155 deg phase the forward-scattering haze defeats every body technique.
 # The ring of light drags the lit-weighted blob centroid 25 px from the planted
 # offset.  The predicted TERMINATOR_ARC is emitted but never fitted: with its
 # reliability computed as the SPICE-backed model does (visible-arc fraction
 # ~1.0, the albedo penalty, and the sin(155 deg) = 0.42 phase cap), it scores
 # 0.26 against the 0.30 TERMINATOR_ARC reliability gate.  The ring of light is
-# brighter than a white disc lit face-on, and the detector saturates on it (it
-# was capped at that brightness before #894).  The disc correlation is no longer
-# flagged spurious against it: it reports (0.5, -0.5) for the planted
-# (1.2, -0.8), stopping at the edge of its +-0.5 px sub-pixel window (#791), and
-# carries a low-tier success 0.76 px wrong.  Because the disc correlation
-# survives, the lone-blob-in-collapsed-regime veto no longer declines the frame
-# (it did while the correlation self-flagged spurious); the veto keeps its unit
-# tests in tests/spindoctor/nav_orchestrator/test_ensemble.py.
-# Known error: over the committed draw and random_seed 101, 202, ..., 1515 the
-# fused error is 0.762 px on every draw (spread under 0.001 px).  Each end of the
-# band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px outside,
-# giving [0.711, 0.812] px.
-# The ring of light saturates because the simulated haze is about four times too
-# bright: its single-scattering source lacks the factor of 1/4 (#1101).  This
-# recorded outcome rests on that brightness and moves when #1101 is fixed.
+# brighter than a white disc lit face-on, and the detector saturates on it.
+# The disc correlation is pulled by the ring of light, which its hard-limbed
+# template leaves out (#1050): it answers (0.5, -2.5), 1.84 px from the planted
+# offset, at the corner of its +-0.5 px refinement window (#791).  It does not
+# flag that answer spurious, so the body-witness veto has nothing to read, the
+# blob is dropped as a fallback, and the disc correlation alone sets a low-tier
+# success.  The status: success asserted below is a hazard held in view, not an
+# endorsement.
+# Known error: the fused error is 1.838 px on the committed seed and on
+# random_seed 101, 202, ..., 1515 (spread 0.000 px).  Each end of the band
+# sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px outside,
+# giving [1.788, 1.889] px.
+# The ring of light saturates because the simulated haze is about four times
+# too bright: its single-scattering source lacks the factor of 1/4 (#1101).
+# The recorded error moves when #1101 is fixed; at a quarter of the haze
+# brightness the same correlation is 1.70 px off.
 expected:
   # Depends on the haze brightness #1101 corrects.
   status: success
   confidence_tier: low
-  known_offset_error_px: 0.7615
+  known_offset_error_px: 1.8385
   known_offset_error_tol_px: 0.0505

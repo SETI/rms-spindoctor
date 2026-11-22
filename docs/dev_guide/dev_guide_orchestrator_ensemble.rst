@@ -370,8 +370,8 @@ consistent with agreement is not vetoed on scatter alone. Both checks apply
 only to single-body frames, where no companion body corrupts the centroid and
 the whole-frame verdict maps to one body.
 
-The two modes below are the evidence that motivated the veto. The first has a
-regression test, which also shows where the veto's coverage ends:
+The two modes below are the standing evidence that motivated the veto. Each has
+a regression test, and each also shows where the veto's coverage ends:
 
 - ``tests/integration/sim_sweeps/irregularity_shape_mismatch.yaml`` -- at
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
@@ -397,14 +397,17 @@ regression test, which also shows where the veto's coverage ends:
   success 5.3 px off, carried by the blob. Its clean (zero-relief) step recovers
   the planted offset sub-pixel and stays a success, so the veto doesn't blanket
   the walk.
-- A 155-degree haze crescent drags the blob centroid to an offset tens of
-  pixels wrong while the disc correlation self-flags spurious. The
-  collapsed-regime veto declines the frame instead of reporting the lone-blob
-  success. The simulated crescent in
-  ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` does not
-  reach this mode: its ring of light saturates the detector, the disc correlation
-  is not flagged spurious there, and the frame ends a low-tier success. The
-  veto's tests are unit tests of the ensemble.
+- ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and
+  its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
+  a ~25 px wrong offset. A spurious disc correlation would leave the blob as the
+  lone survivor, and the collapsed-regime veto would decline the frame. Here the
+  disc correlation is pulled 1.8 px off by the ring of light its template leaves
+  out, and it doesn't flag that answer spurious. The blob is dropped from the fuse
+  as a fallback, and neither veto applies. At 155 degrees the blob is past half
+  phase, where the shape-lock check does not trust it. The collapsed-regime check
+  applies only when the disc correlation flags itself spurious, and here it does
+  not. The frame ends a low-confidence success 1.8 px wrong, and the scene holds
+  that error to a band.
 
 The witness is a defense against a geometric lock, not a cure for the blob's
 own bias: past half phase the centroid is itself crescent- and haze-biased, so
