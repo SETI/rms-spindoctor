@@ -158,7 +158,15 @@ def test_large_relief_body_at_oversample_2_matches_the_unclipped_body() -> None:
 @pytest.mark.parametrize(
     'keys',
     [
-        pytest.param({'semi_a_px': 18.0, 'rotation_tilt': 60.0, 'rotation_z': 20.0}, id='tilt'),
+        pytest.param(
+            {
+                'semi_a_px': 18.0,
+                'semi_c_px': 60.0,
+                'sub_observer_lat_deg': 60.0,
+                'rotation_z': 20.0,
+            },
+            id='tilt',
+        ),
         pytest.param({'limb_relief_rms': 0.04, 'limb_relief_corr_deg': 10.0}, id='relief'),
     ],
 )
@@ -168,7 +176,8 @@ def test_body_reaching_past_the_frame_by_its_tilt_or_relief_matches_the_unclippe
     """A body carried past the frame only by tilt or relief matches the unclipped body.
 
     Without them the body would fit in the frame drawn at the frame center.  The
-    tilt stretches the outline along semi-axis a, and the relief lifts the limb.
+    tilt brings the long semi-axis c into view along the pole, and the relief lifts
+    the limb.
 
     Parameters:
         keys: The body keys that carry it past the frame.
@@ -274,7 +283,7 @@ def _refuse_to_draw(*args: Any, **kwargs: Any) -> NDArrayFloatType:
 
 
 @pytest.mark.parametrize(
-    ('semi_a', 'semi_b', 'rotation_z', 'rotation_tilt', 'center'),
+    ('semi_a', 'semi_b', 'rotation_z', 'sub_observer_lat', 'center'),
     [
         pytest.param(40.0, 40.0, 0.0, 0.0, (61.0, 57.0), id='circle_on_pixel_corners'),
         pytest.param(37.3, 21.9, 0.7, 0.5, (60.41, 57.83), id='rotated_and_tilted'),
@@ -285,7 +294,7 @@ def test_crater_plane_counts_every_pixel_inside_the_body(
     semi_a: float,
     semi_b: float,
     rotation_z: float,
-    rotation_tilt: float,
+    sub_observer_lat: float,
     center: tuple[float, float],
 ) -> None:
     """The crater plane counts the pixels inside the body as testing each one does.
@@ -297,7 +306,7 @@ def test_crater_plane_counts_every_pixel_inside_the_body(
         semi_a: Semi-axis a in pixels.
         semi_b: Semi-axis b in pixels.
         rotation_z: In-plane rotation in radians.
-        rotation_tilt: Tilt in radians.
+        sub_observer_lat: The sub-observer latitude in radians.
         center: The body center on the plane.
     """
     shape = (122, 115)
@@ -308,11 +317,9 @@ def test_crater_plane_counts_every_pixel_inside_the_body(
         semi_b_px=semi_b,
         semi_c_px=semi_b,
         rotation_z=rotation_z,
-        rotation_tilt=rotation_tilt,
+        sub_observer_lat=sub_observer_lat,
     )
-    _, count = crater_plane_site(
-        CraterPlane(shape=shape, origin=(0, 0)), grid, cos_tilt=float(np.cos(rotation_tilt))
-    )
+    _, count = crater_plane_site(CraterPlane(shape=shape, origin=(0, 0)), grid)
     assert count == int(np.count_nonzero(grid.ellipse_dist_sq < 1.0))
 
 
@@ -332,7 +339,7 @@ def test_crater_plane_counts_a_pixel_on_the_limb_of_a_long_thin_outline() -> Non
         semi_c_px=1.0,
         rotation_z=5.667084053647428,
     )
-    _, count = crater_plane_site(CraterPlane(shape=shape, origin=(0, 0)), grid, cos_tilt=1.0)
+    _, count = crater_plane_site(CraterPlane(shape=shape, origin=(0, 0)), grid)
     assert count == 1
 
 

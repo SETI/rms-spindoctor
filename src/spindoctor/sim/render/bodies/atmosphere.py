@@ -88,6 +88,12 @@ from spindoctor.sim.render.bodies.haze import (
     scale_height_field,
     tilted_illumination_2d,
 )
+from spindoctor.sim.shared.ellipsoid import (
+    EllipsoidGeometry,
+    outline_semi_a,
+    surface_normals,
+    surface_unit_coords,
+)
 from spindoctor.sim.shared.lighting import henyey_greenstein_phase, illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -391,8 +397,9 @@ def halo_reach(
     *,
     semi_a: float,
     semi_b: float,
+    semi_c: float,
     rotation_z: float,
-    rotation_tilt: float,
+    sub_observer_lat: float,
     phase_angle: float,
 ) -> tuple[float, float]:
     """How far a body's haze layer reaches from the body center along each image axis.
@@ -403,10 +410,11 @@ def halo_reach(
 
     Parameters:
         spec: The haze spec (pixel lengths already on the grid).
-        semi_a: Semi-axis a in grid pixels.
+        semi_a: Semi-axis a, along the pole, in grid pixels.
         semi_b: Semi-axis b in grid pixels.
+        semi_c: Semi-axis c in grid pixels.
         rotation_z: In-plane rotation about the viewing axis, radians.
-        rotation_tilt: Tilt toward or away from the viewer, radians.
+        sub_observer_lat: The sub-observer latitude, radians.
         phase_angle: Phase angle in radians.
 
     Returns:
@@ -416,7 +424,7 @@ def halo_reach(
     semi_b = max(semi_b, 1e-6)
     hg = henyey_greenstein_phase(spec.g, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
     e_outer = _outer_scale(spec, hg=hg, r_mean=0.5 * (semi_a + semi_b))
-    reach_a = e_outer * semi_a / max(abs(math.cos(rotation_tilt)), 1e-6)
+    reach_a = e_outer * outline_semi_a(semi_a, semi_c, sub_observer_lat)
     reach_b = e_outer * semi_b
     cos_rz = abs(math.cos(rotation_z))
     sin_rz = abs(math.sin(rotation_z))
@@ -506,7 +514,7 @@ def apply_atmosphere(
     semi_b: float,
     semi_c: float,
     rotation_z: float,
-    rotation_tilt: float,
+    sub_observer_lat: float,
     illumination_angle: float,
     phase_angle: float,
     silhouette: NDArrayFloatType,
@@ -531,11 +539,13 @@ def apply_atmosphere(
         spec: The haze spec (pixel lengths already on this grid).
         center_v: Body center v the shape was rendered at, in grid pixels.
         center_u: Body center u the shape was rendered at, in grid pixels.
-        semi_a: Semi-axis a in grid pixels.
+        semi_a: Semi-axis a, along the pole, in grid pixels.
         semi_b: Semi-axis b in grid pixels.
-        semi_c: Depth semi-axis c in grid pixels.
+        semi_c: Semi-axis c in grid pixels.
         rotation_z: In-plane rotation about the viewing axis, radians.
-        rotation_tilt: Tilt toward/away from the viewer, radians.
+        sub_observer_lat: The sub-observer latitude, radians; the haze uses the
+            outline and surface the shared projection gives
+            (:func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`).
         illumination_angle: In-plane light direction, radians (0 = top).
         phase_angle: Phase angle in radians (0 fully lit, pi backlit).
         silhouette: The fraction of each pixel the body's solid outline covers at
@@ -566,7 +576,14 @@ def apply_atmosphere(
 
     cos_rz = math.cos(rotation_z)
     sin_rz = math.sin(rotation_z)
-    cos_rt = math.cos(rotation_tilt)
+    geometry = EllipsoidGeometry(
+        semi_a=semi_a,
+        semi_b=semi_b,
+        semi_c=semi_c,
+        cos_lat=math.cos(sub_observer_lat),
+        sin_lat=math.sin(sub_observer_lat),
+    )
+    semi_a_outline = outline_semi_a(semi_a, semi_c, sub_observer_lat)
 
     # Restrict all heavy work to a limb band: a halo out to where the tangent
     # glow vanishes, and, on the disc, an annulus in from the limb to where the
@@ -605,7 +622,7 @@ def apply_atmosphere(
         (size_v, size_u),
         center_v=center_v,
         center_u=center_u,
-        reach_a=e_outer * semi_a / max(abs(cos_rt), 1e-6),
+        reach_a=e_outer * semi_a_outline,
         reach_b=e_outer * semi_b,
         cos_rz=cos_rz,
         sin_rz=sin_rz,
@@ -625,9 +642,9 @@ def apply_atmosphere(
         + (PIXEL_CENTER_TO_CORNER_PX - center_u)
     )[None, :]
 
-    v_rot = (v_ctr * cos_rz - u_ctr * sin_rz) * cos_rt
+    v_rot = v_ctr * cos_rz - u_ctr * sin_rz
     u_rot = v_ctr * sin_rz + u_ctr * cos_rz
-    e2 = (v_rot / semi_a) ** 2 + (u_rot / semi_b) ** 2
+    e2 = (v_rot / semi_a_outline) ** 2 + (u_rot / semi_b) ** 2
 
     out_box = out[box_v, box_u]
     outline_box = silhouette[box_v, box_u]
@@ -662,7 +679,7 @@ def apply_atmosphere(
     # of the haze column each pixel sees.  Only those two terms read the
     # weight, so every other haze skips building it.
     weight = (
-        hemisphere_weight(latitude_sine(v_rot, e2, semi_a=semi_a))
+        hemisphere_weight(_column_latitude_sine(v_rot, u_rot, e2, geometry=geometry))
         if structure is not None and structure.splits_hemispheres
         else None
     )
@@ -701,9 +718,7 @@ def apply_atmosphere(
             v_rot[band_in],
             u_rot[band_in],
             e2_in,
-            semi_a=semi_a,
-            semi_b=semi_b,
-            semi_c=semi_c,
+            geometry=geometry,
             cos_rz=cos_rz,
             sin_rz=sin_rz,
             illum_v=illum_v,
@@ -819,14 +834,45 @@ def _add_covered_haze(
     out_box[pixels] = np.clip(out_box[pixels] + covered * haze, 0.0, covered)
 
 
+def _column_latitude_sine(
+    v_rot: NDArrayFloatType,
+    u_rot: NDArrayFloatType,
+    e2: NDArrayFloatType,
+    *,
+    geometry: EllipsoidGeometry,
+) -> NDArrayFloatType:
+    """The sine of the latitude of the haze column each pixel sees.
+
+    On the disc it is the latitude of the surface point under the pixel.  Above the
+    limb it is the latitude of the limb point at the pixel's azimuth on the outline,
+    where the column the line of sight grazes stands.  For a body seen equator-on
+    this is :func:`~spindoctor.sim.render.bodies.haze.latitude_sine`.
+
+    Parameters:
+        v_rot: Each pixel's coordinate along the rotated first axis.
+        u_rot: Each pixel's coordinate along the rotated second axis.
+        e2: Each pixel's squared normalized outline distance.
+        geometry: The body's shape and orientation.
+
+    Returns:
+        The sine of latitude per pixel, in [-1, 1].
+    """
+    if geometry.sin_lat == 0.0:
+        return latitude_sine(v_rot, e2, semi_a=geometry.semi_a)
+    radial = np.sqrt(np.maximum(e2, 1.0))
+    x, _y, _z = surface_unit_coords(
+        v_rot / radial, u_rot / radial, np.minimum(e2, 1.0), geometry=geometry
+    )
+    sin_latitude: NDArrayFloatType = np.clip(x, -1.0, 1.0)
+    return sin_latitude
+
+
 def _disc_incidence(
     v_rot: NDArrayFloatType,
     u_rot: NDArrayFloatType,
     e2: NDArrayFloatType,
     *,
-    semi_a: float,
-    semi_b: float,
-    semi_c: float,
+    geometry: EllipsoidGeometry,
     cos_rz: float,
     sin_rz: float,
     illum_v: float,
@@ -835,19 +881,15 @@ def _disc_incidence(
 ) -> NDArrayFloatType:
     """Cosine of the surface incidence angle at on-disc haze pixels.
 
-    The ellipsoid surface normal in image coordinates (rotated back from the
-    body frame) dotted with the illumination direction; shared shading
-    conventions are not required here because the haze never crosses the
-    information boundary, but the same normal construction keeps the haze
-    aligned with the disc shading.
+    The shared projection's surface normal in image coordinates
+    (:func:`~spindoctor.sim.shared.ellipsoid.surface_normals`) dotted with the
+    illumination direction, so the haze stays aligned with the disc shading.
 
     Parameters:
-        v_rot: Rotated-frame v coordinate of each pixel.
-        u_rot: Rotated-frame u coordinate of each pixel.
-        e2: Squared normalized ellipse radial function at each pixel.
-        semi_a: Semi-axis a in grid pixels.
-        semi_b: Semi-axis b in grid pixels.
-        semi_c: Depth semi-axis c in grid pixels.
+        v_rot: Rotated-frame first-axis coordinate of each pixel.
+        u_rot: Rotated-frame second-axis coordinate of each pixel.
+        e2: Squared normalized outline distance at each pixel.
+        geometry: The body's shape and orientation.
         cos_rz: Cosine of the in-plane rotation.
         sin_rz: Sine of the in-plane rotation.
         illum_v: V component of the unit illumination direction.
@@ -857,15 +899,7 @@ def _disc_incidence(
     Returns:
         ``cos(incidence)`` per pixel (negative on the night side).
     """
-    z = semi_c * np.sqrt(np.maximum(1.0 - e2, 0.0))
-    nv_local = v_rot / (semi_a * semi_a)
-    nu_local = u_rot / (semi_b * semi_b)
-    nz_local = z / (semi_c * semi_c)
-    mag = np.sqrt(nv_local**2 + nu_local**2 + nz_local**2)
-    mag = np.maximum(mag, 1e-12)
-    nv_local /= mag
-    nu_local /= mag
-    nz_local /= mag
-    normal_v = nv_local * cos_rz + nu_local * sin_rz
-    normal_u = -nv_local * sin_rz + nu_local * cos_rz
-    return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + nz_local * illum_z)
+    normal_v, normal_u, normal_z = surface_normals(
+        v_rot, u_rot, e2, geometry=geometry, cos_rz=cos_rz, sin_rz=sin_rz
+    )
+    return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)

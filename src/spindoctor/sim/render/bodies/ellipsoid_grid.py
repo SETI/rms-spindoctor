@@ -73,7 +73,7 @@ class CraterPlane:
 
 
 def crater_plane_site(
-    plane: CraterPlane, detector_grid: EllipsoidProjection, *, cos_tilt: float
+    plane: CraterPlane, detector_grid: EllipsoidProjection
 ) -> tuple[CraterSite, int]:
     """The crater site of a plane, and the number of its pixels inside the body.
 
@@ -89,7 +89,6 @@ def crater_plane_site(
     Parameters:
         plane: The plane.
         detector_grid: The body projected onto the drawn detector grid.
-        cos_tilt: The cosine of the body's tilt.
 
     Returns:
         The site and the count of plane pixels inside the body.
@@ -102,10 +101,10 @@ def crater_plane_site(
         """The squared normalized ellipse distance of plane pixels by row and column."""
         v = (rows + PIXEL_CENTER_TO_CORNER_PX) - center_v
         u = (cols + PIXEL_CENTER_TO_CORNER_PX) - center_u
-        v_rot = (v * detector_grid.cos_rz - u * detector_grid.sin_rz) * cos_tilt
+        v_rot = v * detector_grid.cos_rz - u * detector_grid.sin_rz
         u_rot = v * detector_grid.sin_rz + u * detector_grid.cos_rz
         return np.asarray(
-            (v_rot / detector_grid.semi_a) ** 2 + (u_rot / detector_grid.semi_b) ** 2,
+            (v_rot / detector_grid.semi_a_outline) ** 2 + (u_rot / detector_grid.semi_b) ** 2,
             dtype=np.float64,
         )
 
@@ -115,8 +114,8 @@ def crater_plane_site(
         return np.asarray(dist_sq(rows.astype(np.float64), cols.astype(np.float64)) < 1.0)
 
     # Along one row the squared distance is the quadratic a u**2 + b u + c in u.  With
-    # finite semi-axes and a computed cosine of the tilt, a is always positive.
-    p_sq = (cos_tilt / detector_grid.semi_a) ** 2
+    # finite semi-axes, a is always positive.
+    p_sq = (1.0 / detector_grid.semi_a_outline) ** 2
     q_sq = (1.0 / detector_grid.semi_b) ** 2
     cos_rz = detector_grid.cos_rz
     sin_rz = detector_grid.sin_rz
@@ -147,7 +146,7 @@ def _count_inside_by_rows(
     its roots give the columns where it lies below ``1 - delta`` and those where it
     lies below ``1 + delta``, with ``delta`` 1e-9.  The discriminant at level ``L``,
     ``b**2 - 4 a (c - L)``, equals ``4 a L - 4 p**2 q**2 v**2`` (with ``p`` and ``q``
-    the inverse semi-axes, the first scaled by the tilt's cosine, and ``v`` the row's
+    the inverse semi-axes of the outline, and ``v`` the row's
     offset from the center), and it is computed in that form, which keeps it accurate
     to the rounding of its terms however elongated the outline.  A row whose
     discriminant at ``1 + delta`` is not positive has no pixel inside.  The roots are
@@ -287,7 +286,9 @@ def body_box(
     delta_cap = 0.0 if field is None else max(abs(field.h_min), abs(field.h_max))
     # The reach is two detector pixels beyond the outline whatever the body's size;
     # a body smaller than a pixel still reaches the cells its silhouette touches.
-    reach = 1.0 + delta_cap + 2.0 / max(min(detector_grid.semi_a, detector_grid.semi_b), 1e-9)
+    reach = (
+        1.0 + delta_cap + 2.0 / max(min(detector_grid.semi_a_outline, detector_grid.semi_b), 1e-9)
+    )
     inside = detector_grid.ellipse_dist_sq < reach * reach
     rows = np.flatnonzero(inside.any(axis=1))
     cols = np.flatnonzero(inside.any(axis=0))
@@ -317,7 +318,7 @@ def limb_band(grid: EllipsoidProjection, field: ReliefField, *, width_px: float)
         included.
     """
     delta_cap = max(abs(field.h_min), abs(field.h_max))
-    margin = width_px / max(min(grid.semi_a, grid.semi_b), 1e-9)
+    margin = width_px / max(min(grid.semi_a_outline, grid.semi_b), 1e-9)
     low = max(0.0, 1.0 - delta_cap - margin)
     high = 1.0 + delta_cap + margin
     band = grid.ellipse_dist_sq < high * high
@@ -419,7 +420,7 @@ def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDA
             e_band = np.sqrt(grid.ellipse_dist_sq[band])
             # Body-attached azimuth: the rotated-frame elliptical parametric
             # angle (identical to the image azimuth for a circular disc).
-            phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a)
+            phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a_outline)
             delta = field.outline_delta(phi)
             mask[band] = e_band < 1.0 + delta
     return mask.astype(np.float64)

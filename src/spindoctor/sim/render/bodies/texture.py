@@ -18,18 +18,21 @@ correlation sees without moving the limb the navigator fits:
   shadow is the sharp, high-contrast circular *false crater* that disc
   correlation and blob techniques can lock onto.
 
-**Coordinate convention.**  Surface points come from the ellipsoid
-renderer's unit-sphere parameterization ``(x, y, z)`` with
-``x = v_rot / semi_a``, ``y = u_rot / semi_b``, ``z = sqrt(1 - x^2 - y^2)``
-(so ``x^2 + y^2 + z^2 = 1`` on the disc).  Every texture -- the albedo
-noise field, albedo spots, bands, and storms -- lives in one body-polar
-frame: the pole is the direction of the body's semi-axis a (``lat = arcsin(x)``),
-and longitude is measured from the +b direction toward the observer
-(``lon = atan2(z, y)``; 90 deg = the sub-observer meridian).  Texture is
-terrain attached to the body, so it rotates in the image with the body's
-``rotation_z`` pose, bands follow the planet's belts, and the lat-lon
-synthesis grid's polar pinch sits at the foreshortened limb points on the
-pole axis rather than anywhere on the disc face.
+**Coordinate convention.** Surface points come from the shared projection's unit-sphere
+parameterization ``(x, y, z)``
+(:func:`~spindoctor.sim.shared.ellipsoid.surface_unit_coords`): the body-frame point
+under each pixel divided by the semi-axes, along the pole, semi-axis b, and semi-axis c,
+so ``x^2 + y^2 + z^2 = 1`` on the disc. For a body seen equator-on
+``x = v_rot / semi_a`` and ``y = u_rot / semi_b``; a sub-observer latitude tips the
+pole toward the observer, so the bands curve across the disc. Every texture -- the
+albedo noise field, albedo spots, bands, and storms -- lives in one body-polar frame:
+the pole is the direction of the body's semi-axis a (``lat = arcsin(x)``), and
+longitude is measured from the +b direction toward +c, the axis toward the observer
+when the body is seen equator-on (``lon = atan2(z, y)``; 90 deg = the sub-observer
+meridian). Texture is terrain attached to the body, so it turns in the image with the
+body's ``rotation_z`` pose and sub-observer latitude, bands follow the planet's belts,
+and the lat-lon synthesis grid's polar pinch sits at the foreshortened limb points on
+the pole axis rather than anywhere on the disc face.
 
 The commanded albedo correlation length is ``corr_px`` in *detector pixels
 on the disc*: it is converted to degrees of surface arc using the body's
@@ -286,10 +289,12 @@ def surface_texture_factor(
     Parameters:
         albedo: The body's albedo-texture spec, or None.
         disc_texture: The body's disc-texture spec, or None.
-        x: Unit-sphere a-axis component per shading pixel (``v_rot / a``).
-        y: Unit-sphere b-axis component per shading pixel (``u_rot / b``).
-        z: Unit-sphere toward-observer component (0 outside the disc, so
-            pixels just past the limb carry the limb's values).
+        x: Unit-sphere component along the pole per shading pixel.
+        y: Unit-sphere component along semi-axis b per shading pixel.
+        z: Unit-sphere component along semi-axis c, the axis toward the observer
+            for a body seen equator-on (outside the disc, the limb point the line
+            of sight passes closest to, so pixels just past the limb carry the
+            limb's values).
         mean_radius_px: Mean projected body radius in detector
             pixels, the ``corr_px`` -> surface-arc conversion scale.
 

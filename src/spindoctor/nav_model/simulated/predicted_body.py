@@ -118,7 +118,7 @@ def render_predicted_body(
         semi_b_px=semi_axes_px[1],
         semi_c_px=semi_axes_px[2],
         rotation_z=math.radians(float(nav_body.get('rotation_z', 0.0))),
-        rotation_tilt=math.radians(float(nav_body.get('rotation_tilt', 0.0))),
+        sub_observer_lat=math.radians(float(nav_body.get('sub_observer_lat_deg', 0.0))),
         anti_aliasing=1.0,
     )
     return render_lambert_ellipsoid(

@@ -278,17 +278,28 @@ Every body key is optional.  The geometry keys are what the navigator knows:
   shape_model          ellipsoid (the default) or polyhedral_mesh
   center_v, center_u   the body center in image pixels, a pixel corner
                        (default the frame center)
-  semi_a_px            semi-axis a in image pixels: half the body's extent
-                       along v before rotation_z turns it, like a radius.  A
+  semi_a_px            semi-axis a in image pixels, along the body's pole:
+                       half the body's extent along v before rotation_z turns
+                       it, like a radius, when sub_observer_lat_deg is 0.  A
                        sphere 90 px across has 45.0 in all three semi-axes.
   semi_b_px            semi-axis b in image pixels: half the body's extent
                        along u before rotation_z turns it
   semi_c_px            semi-axis c in image pixels: half the body's depth
-                       toward the observer (default the smaller of
-                       semi_a_px and semi_b_px)
+                       toward the observer when sub_observer_lat_deg is 0
+                       (default the smaller of semi_a_px and semi_b_px)
   rotation_z           (ellipsoid) the in-plane rotation, in degrees
-  rotation_tilt        (ellipsoid) the tilt of the polar axis toward the
-                       observer, in degrees
+  sub_observer_lat_deg (ellipsoid) the latitude of the point on the body
+                       directly below the observer, in degrees, from -90 to
+                       90 (default 0, the body seen equator-on).  The north
+                       pole is the end of semi-axis a that points along +v
+                       before rotation_z turns it; latitudes are positive
+                       toward it.  A positive value tips the north pole
+                       toward the observer, who then sees the northern
+                       hemisphere, as for a real Saturn frame whose
+                       sub-observer latitude is positive.  The outline
+                       foreshortens along the pole to
+                       sqrt((a cos lat)^2 + (c sin lat)^2), and latitude
+                       bands curve across the disc.
   illumination_angle   the image-plane direction the light comes from, in
                        degrees (0 from the top, 90 from the right)
   phase_angle          the phase angle, in degrees (0 fully lit, 180 lit

@@ -107,7 +107,7 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
         'semi_b_px',
         'semi_c_px',
         'rotation_z',
-        'rotation_tilt',
+        'sub_observer_lat_deg',
         'illumination_angle',
         'phase_angle',
         'range_km',
@@ -118,6 +118,12 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
         'anti_aliasing',
     ):
         _check_optional_number(obj.get(key), f'{label}.{key}', source=source)
+    sub_observer_lat = obj.get('sub_observer_lat_deg')
+    if sub_observer_lat is not None and not -90.0 <= float(sub_observer_lat) <= 90.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.sub_observer_lat_deg must lie in [-90, 90] degrees; '
+            f'got {sub_observer_lat!r}'
+        )
     _check_crater_shape_keys(obj, label=label, source=source)
     for key in ('mesh_n_lat', 'mesh_n_lon', 'mesh_seed', 'seed'):
         if obj.get(key) is not None:

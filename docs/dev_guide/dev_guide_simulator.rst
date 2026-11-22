@@ -2087,15 +2087,14 @@ once and only moves it at each step. At catalog size a new drawing costs 0.03 to
 one.
 
 **Bodies too large for the frame.** A frame-sized drawing of a body centered on the
-frame holds only the part of the body that falls inside the frame. When the move
-then shifts a large body off center, part of what should come into view was never
-drawn: the body comes out cut off at a straight line, or vanishes if it is far
-enough off center. So the renderer first asks whether the body fits. A body fits
-when everything it can spread over, its outline (stretched by any tilt), the lift of
-its limb relief, and its halo, stays at least one pixel inside the frame when the
-body is at the frame center. The pixel of clearance is there because the move reads
-nothing past the drawing, so a body touching its outermost pixels would lose part of
-their light.
+frame holds only the part of the body that falls inside the frame. When the move then
+shifts a large body off center, part of what should come into view was never drawn: the
+body comes out cut off at a straight line, or vanishes if it is far enough off center.
+So the renderer first asks whether the body fits. A body fits when everything it can
+spread over, its outline (foreshortened by any sub-observer latitude), the lift of its
+limb relief, and its halo, stays at least one pixel inside the frame when the body is at
+the frame center. The pixel of clearance is there because the move reads nothing past
+the drawing, so a body touching its outermost pixels would lose part of their light.
 
 A body that fits is drawn on the frame, as described above. A body that does not fit
 is drawn on a larger canvas
@@ -3723,7 +3722,17 @@ null. Common fields:
      - idealized
      - ``ellipsoid`` or ``polyhedral_mesh``.
 
-Ellipsoid bodies add ``rotation_z`` and ``rotation_tilt`` (degrees, idealized).
+Ellipsoid bodies add ``rotation_z`` and ``sub_observer_lat_deg`` (degrees,
+idealized). The body's pole is semi-axis a, and its north pole, where latitudes are
+positive, is the end of semi-axis a that points along +v before ``rotation_z`` turns
+it. ``sub_observer_lat_deg`` is the latitude of the point on the body directly below
+the observer, from -90 to 90 degrees. A positive value tips the north pole toward the
+observer, who then sees the northern hemisphere, as in a real Saturn or Jupiter frame
+whose sub-observer latitude is positive. The ellipsoid turns as a solid body: its
+outline foreshortens along the pole to ``sqrt((a cos lat)^2 + (c sin lat)^2)``, so a
+sphere stays the same circle at any latitude, the shading and the haze follow the
+turned surface, and latitude bands curve across the disc. The navigator's predicted
+body turns the same way, through the same projection.
 Mesh bodies (``shape_model: polyhedral_mesh``) instead read the idealized mesh
 keys ``mesh_lumpiness`` (relief amplitude, default 0.3: the non-ellipsoidal
 relief has an RMS of ``mesh_lumpiness / 8`` of the radius), ``mesh_seed`` (which

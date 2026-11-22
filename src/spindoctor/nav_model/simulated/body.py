@@ -146,7 +146,9 @@ class NavModelBodySimulated(NavModelBodyBase):
             - ``semi_a_px``, ``semi_b_px``, ``semi_c_px`` (pixels; the
               ellipsoid's semi-axes)
             - ``rotation_z`` (deg; rotation about the line of sight)
-            - ``rotation_tilt`` (deg; tilt of the body)
+            - ``sub_observer_lat_deg`` (deg; latitude of the sub-observer point,
+              positive when the north pole, along semi-axis a, tips toward the
+              observer)
             - ``illumination_angle`` (deg)
             - ``phase_angle`` (deg)
 

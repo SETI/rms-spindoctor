@@ -22,7 +22,7 @@ from typing import Any
 # Body keys the polyhedral-mesh render path does not consume: the ellipsoid
 # renderer's crater carving, photometric laws, and
 # surface texture, and the ellipsoid-frame atmosphere halo (whose geometry is
-# built from rotation_z / rotation_tilt around the ellipse, which a mesh's
+# built from rotation_z / sub_observer_lat_deg around the ellipse, which a mesh's
 # arbitrary Euler pose and lumpy limb do not follow).  A mesh body giving one
 # of these a value would silently render without it, so the validator refuses
 # a non-null value of any of them (a null reads as an absent key); a mesh

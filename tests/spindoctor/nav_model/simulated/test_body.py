@@ -969,3 +969,33 @@ def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
     bounded = _overflow_model(body)._overflow_fraction
     assert bounded == pytest.approx(full, abs=0.01)
     assert max(sizes) <= 128
+
+
+# A body flattened across (b = 8) and long in depth (c = 40), turned 70 degrees
+# toward the observer, so semi-axis c fills most of its outline along the pole.
+_TURNED = {
+    'name': 'MIMAS',
+    'semi_a_px': 30.0,
+    'semi_b_px': 8.0,
+    'semi_c_px': 40.0,
+    'sub_observer_lat_deg': 70.0,
+}
+
+
+def test_a_turned_body_counts_its_whole_silhouette_in_its_overflow() -> None:
+    """A turned body near the frame edge reports the overflow of its whole silhouette.
+
+    The reference draws the same prediction on the frame padded by 100 px on every
+    side, at the same sub-pixel phase, and counts the share of it outside the frame.
+    """
+    body = _body_params(**_TURNED, center_v=30.3)
+    model = _overflow_model(body)
+    pad = 100
+    whole = model._render_body_image(
+        math.radians(body['phase_angle']),
+        size=(_SIZE + 2 * pad, _SIZE + 2 * pad),
+        center=(body['center_v'] + pad, body['center_u'] + pad),
+    )
+    inside = whole[pad : pad + _SIZE, pad : pad + _SIZE]
+    expected = 1.0 - np.count_nonzero(inside > 0.0) / np.count_nonzero(whole > 0.0)
+    assert model._overflow_fraction == pytest.approx(expected, abs=1e-12)

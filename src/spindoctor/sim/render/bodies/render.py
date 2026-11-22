@@ -44,7 +44,7 @@ from spindoctor.sim.render.bodies.relief import synthesize_relief_field
 from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
 from spindoctor.sim.render.bodies.texture import albedo_spec_from_params
 from spindoctor.sim.seeds import derive_effect_seed
-from spindoctor.support.stable_math import stable_hypot
+from spindoctor.sim.shared.ellipsoid import outline_half_extents
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = ['clear_ellipsoid_shape_caches', 'render_single_body']
@@ -330,10 +330,10 @@ def _ellipsoid_reach(
 ) -> tuple[float, float]:
     """How far an ellipsoid body, its relief, and its halo reach from its center.
 
-    The outline is the ellipse of semi-axes a and b, stretched along a by the tilt
-    (see :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`) and rotated
-    in-plane by ``rotation_z``.  Relief can lift the limb by the field's largest
-    height, and a haze layer reaches out to its outer edge.
+    The outline is the ellipse the shared projection draws (see
+    :func:`~spindoctor.sim.shared.ellipsoid.outline_half_extents`).  Relief can lift
+    the limb by the field's largest height, and a haze layer reaches out to its outer
+    edge.
 
     Parameters:
         spec: The body, scaled to the render grid.
@@ -344,25 +344,30 @@ def _ellipsoid_reach(
         The reach along v and along u, in render-grid pixels.
     """
     rotation_z = math.radians(spec.rotation_z)
-    rotation_tilt = math.radians(spec.rotation_tilt)
-    cos_rz = math.cos(rotation_z)
-    sin_rz = math.sin(rotation_z)
-    stretched_a = spec.semi_a_px / max(abs(math.cos(rotation_tilt)), 1e-6)
+    sub_observer_lat = math.radians(spec.sub_observer_lat_deg)
     lift = 1.0
     if spec.limb_relief_rms > 0.0:
         field = synthesize_relief_field(
             spec.limb_relief_rms, spec.limb_relief_corr_deg, relief_seed
         )
         lift += max(abs(field.h_min), abs(field.h_max))
-    reach_v = lift * math.hypot(stretched_a * cos_rz, spec.semi_b_px * sin_rz)
-    reach_u = lift * math.hypot(stretched_a * sin_rz, spec.semi_b_px * cos_rz)
+    half_v, half_u = outline_half_extents(
+        spec.semi_a_px,
+        semi_b_px=spec.semi_b_px,
+        semi_c_px=spec.semi_c_px,
+        rotation_z=rotation_z,
+        sub_observer_lat=sub_observer_lat,
+    )
+    reach_v = lift * half_v
+    reach_u = lift * half_u
     if atmosphere_spec is not None:
         halo_v, halo_u = halo_reach(
             atmosphere_spec,
             semi_a=spec.semi_a_px,
             semi_b=spec.semi_b_px,
+            semi_c=spec.semi_c_px,
             rotation_z=rotation_z,
-            rotation_tilt=rotation_tilt,
+            sub_observer_lat=sub_observer_lat,
             phase_angle=math.radians(spec.phase_angle),
         )
         reach_v = max(reach_v, halo_v)
@@ -479,7 +484,7 @@ def _ellipsoid_spec(spec: BodySpec, seeds: _SurfaceSeeds, *, oversample: int) ->
         semi_b_px=spec.semi_b_px,
         semi_c_px=spec.semi_c_px,
         rotation_z=float(np.radians(spec.rotation_z)),
-        rotation_tilt=float(np.radians(spec.rotation_tilt)),
+        sub_observer_lat=float(np.radians(spec.sub_observer_lat_deg)),
         illumination_angle=float(np.radians(spec.illumination_angle)),
         phase_angle=float(np.radians(spec.phase_angle)),
         crater_fill=spec.crater_fill,
@@ -543,7 +548,7 @@ def _apply_body_atmosphere(
         semi_b=spec.semi_b_px,
         semi_c=spec.semi_c_px,
         rotation_z=float(np.radians(spec.rotation_z)),
-        rotation_tilt=float(np.radians(spec.rotation_tilt)),
+        sub_observer_lat=float(np.radians(spec.sub_observer_lat_deg)),
         illumination_angle=float(np.radians(spec.illumination_angle)),
         phase_angle=float(np.radians(spec.phase_angle)),
         silhouette=ellipsoid_render.silhouette,
@@ -554,8 +559,9 @@ def _apply_body_atmosphere(
 def _projected_half_extents(spec: BodySpec) -> tuple[float, float]:
     """The half-extents of an ellipsoid's silhouette along the image axes.
 
-    The rendered silhouette is the ellipse of semi-axes a and b rotated in-plane by
-    ``rotation_z``; semi-axis c is the depth axis and does not project.
+    The silhouette is the outline the shared projection draws, foreshortened along
+    the pole by the sub-observer latitude and turned in-plane by ``rotation_z``
+    (see :func:`~spindoctor.sim.shared.ellipsoid.outline_half_extents`).
 
     Parameters:
         spec: The body.
@@ -563,9 +569,10 @@ def _projected_half_extents(spec: BodySpec) -> tuple[float, float]:
     Returns:
         The half-extents along v and u, in render-grid pixels.
     """
-    rotation_z = np.radians(spec.rotation_z)
-    cos_rz = float(np.cos(rotation_z))
-    sin_rz = float(np.sin(rotation_z))
-    half_extent_v = float(stable_hypot(spec.semi_a_px * cos_rz, spec.semi_b_px * sin_rz))
-    half_extent_u = float(stable_hypot(spec.semi_a_px * sin_rz, spec.semi_b_px * cos_rz))
-    return half_extent_v, half_extent_u
+    return outline_half_extents(
+        spec.semi_a_px,
+        semi_b_px=spec.semi_b_px,
+        semi_c_px=spec.semi_c_px,
+        rotation_z=float(np.radians(spec.rotation_z)),
+        sub_observer_lat=float(np.radians(spec.sub_observer_lat_deg)),
+    )
