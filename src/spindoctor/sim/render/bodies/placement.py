@@ -42,14 +42,14 @@ __all__ = [
 _CANVAS_MARGIN_DETECTOR_PX = 8
 
 
-PARTIAL_DRAWINGS_KEPT = 4
+PARTIAL_DRAWINGS_KEPT = 1
 """How many drawings on a canvas reaching past the frame a body renderer keeps.
 
 Such a canvas changes whenever the body moves, so an offset sweep never reuses a
-drawing, and the cache holds at most this many, each about the size of the frame.
-The radiance stage draws every body twice for a scene that smears each layer apart,
-once for the composite and once for the layers, so a scene with up to four bodies
-this large draws each of them once.
+drawing, and each drawing is about the size of the frame. The radiance stage draws
+every body twice for a scene that smears each layer apart, once for the composite and
+once for the layers, so keeping one drawing serves a scene with one body this large.
+A scene with two such bodies, which few scenes have, draws each of them twice.
 """
 
 

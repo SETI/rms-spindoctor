@@ -142,7 +142,7 @@ def _render_mesh_shape(
 
 
 # Bodies drawn on the frame share one cache.  A larger body's canvas changes whenever
-# it moves, so its cache keeps only the last few drawings (see PARTIAL_DRAWINGS_KEPT).
+# it moves, so its cache keeps only the last drawing (see PARTIAL_DRAWINGS_KEPT).
 _render_mesh_shape_cached = lru_cache(maxsize=30)(_render_mesh_shape)
 _render_partial_mesh_cached = lru_cache(maxsize=PARTIAL_DRAWINGS_KEPT)(_render_mesh_shape)
 

@@ -2101,10 +2101,11 @@ they would be laid out on that frame. The grid depends only on the body's size, 
 the craters stay in place on its surface whichever part of it is drawn.
 
 The canvas depends on where the body lands, so a body this large is drawn again at
-every step of an offset sweep. Only the last four such drawings are kept, enough for
-a scene with a few large bodies, each drawn twice when the scene smears each layer
-apart, and few enough that a sweep holds little memory. Drawing such a body costs
-about as much as drawing a body that fills the frame on the frame itself: for a body
+every step of an offset sweep. Only the last such drawing is kept, enough for a scene
+with one large body, drawn twice when the scene smears each layer apart, so a sweep
+holds one drawing; a scene with two such bodies draws each twice. Drawing such a
+body costs about as much as drawing a body that fills the frame on the frame itself:
+for a body
 of radius 5000 pixels with relief, craters, and a halo, 1.4 to 1.8 s against 1.1 s on
 a 256 x 256 frame at oversampling 4, and 12 to 15 s against 12 s on a 1024 x 1024
 frame at oversampling 1.

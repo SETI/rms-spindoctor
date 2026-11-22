@@ -83,13 +83,12 @@ def _render_partial_ellipsoid_cached(
     crater_plane: CraterPlane | None,
     spec: EllipsoidBodySpec,
 ) -> EllipsoidBodyRender:
-    """Cache the last ellipsoid bodies drawn on a canvas reaching past the frame.
+    """Cache the last ellipsoid body drawn on a canvas reaching past the frame.
 
     The cache keeps
-    :data:`~spindoctor.sim.render.bodies.placement.PARTIAL_DRAWINGS_KEPT` drawings,
-    enough for a scene with a few such bodies, each drawn twice when the scene
-    smears each layer apart, and few enough that an offset sweep, which never reuses
-    one, holds little memory.
+    :data:`~spindoctor.sim.render.bodies.placement.PARTIAL_DRAWINGS_KEPT` drawing,
+    enough for a scene with one such body, drawn twice when the scene smears each
+    layer apart, and an offset sweep, which never reuses one, holds one drawing.
     """
     return render_ellipsoid_body(shape, center, spec, crater_plane=crater_plane)
 

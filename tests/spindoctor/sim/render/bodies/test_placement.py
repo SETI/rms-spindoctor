@@ -402,33 +402,29 @@ def test_body_within_a_pixel_of_the_frame_edge_matches_the_unclipped_body(
     assert float(np.abs(img - reference).max()) < 1e-12
 
 
-def test_offset_sweep_of_a_large_body_keeps_few_drawings() -> None:
-    """A large body drawn at many positions keeps only its last few drawings.
+def test_offset_sweep_of_a_large_body_keeps_one_drawing() -> None:
+    """A large body drawn at many positions keeps only its last drawing.
 
     Its canvas changes with every position, so keeping more would only fill memory.
     """
     body_render.clear_ellipsoid_shape_caches()
     for step in range(6):
         _render(disc_body(-40.0 + 1.3 * step, 32.4, 60.0, **_SHADING))
-    assert body_render._render_partial_ellipsoid_cached.cache_info().currsize == 4
+    assert body_render._render_partial_ellipsoid_cached.cache_info().currsize == 1
 
 
-def test_two_large_bodies_drawn_twice_are_each_drawn_once() -> None:
-    """Two large bodies drawn for the composite and again for the layers are drawn once.
+def test_large_body_drawn_twice_is_drawn_once() -> None:
+    """A large body drawn for the composite and again for the layers is drawn once.
 
     The radiance stage draws every body of a scene that smears each layer apart
-    twice, first all for the composite and then all for the layers, so the second
-    pass must find both drawings cached.
+    twice, first for the composite and then for the layers, so the second pass must
+    find the drawing cached.
     """
-    bodies = [
-        disc_body(-40.0, 20.0, 60.0, name='a', **_SHADING),
-        disc_body(110.0, 50.0, 70.0, name='b', **_SHADING),
-    ]
+    body = disc_body(-40.0, 20.0, 60.0, name='a', **_SHADING)
     body_render.clear_ellipsoid_shape_caches()
     for _pass in ('composite', 'layers'):
-        for body in bodies:
-            _render(body)
-    assert body_render._render_partial_ellipsoid_cached.cache_info().hits == 2
+        _render(body)
+    assert body_render._render_partial_ellipsoid_cached.cache_info().hits == 1
 
 
 def test_partial_canvas_edges_lie_on_detector_pixels() -> None:
