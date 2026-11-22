@@ -15,18 +15,21 @@ dependencies = [
   "lxml>=6.0.4",
   "matplotlib",
   "numpy>=2.2.0",
-  "PyQt6<6.12",  # 6.12.0 ships stubs that aren't valid Python, which stops mypy (#827)
+  "PyQt6<6.12",
   "rms-cloud-tasks>=0.2.0",
-  "rms-filecache>=3.0.0",
+  "rms-filecache>=3.2.1",
   "rms-imgdisp",
   "rms-julian>=3.0.1",
   "rms-pdslogger>=3.2.1",
-  "rms-pdstable>=1.0.1",
+  "rms-pdstable>=1.2.0",
   "rms-pdstemplate>=2.3.0",
-  "rms-host-cassini>=0.1.1",
+  "rms-host-cassini @ git+https://github.com/SETI/rms-host-cassini@rf_261117_label_image_consistency",
+  "rms-host-galileo @ git+https://github.com/SETI/rms-host-galileo@rf_261117_vicar_label_consistency",
+  "rms-host-new-horizons @ git+https://github.com/SETI/rms-host-new-horizons@rf_261117_initial_port",
+  "rms-host-voyager @ git+https://github.com/SETI/rms-host-voyager@jns_261106_cruise_spks",
   "rms-polymath>=2.1.1",
   "rms-psfmodel",
-  "rms-oops>=0.4.0",
+  "rms-oops @ git+https://github.com/SETI/rms-oops@rf_261118_oops_spice_error",
   "rms-starcat>=1.0.1",
   "ruamel.yaml",
   "scipy",
@@ -57,10 +60,6 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = [
-  # The spelling gate's configuration below leans on behavior that is not
-  # ancient: two builtin dictionaries at once, a custom dictionary that extends
-  # rather than replaces them, a narrowed word pattern, and inline
-  # `# codespell:ignore`.  Exercised with 2.4.3.
   "codespell>=2.4",
   "coverage",
   "mypy",
@@ -72,8 +71,8 @@ dev = [
   "pytest-xdist",
   "ruff",
   # The Cassini ISS label tests read a VICAR label directly, which is the only
-  # direct use of rms-vicar; the runtime reaches VICAR files through rms-oops
-  # and rms-host-cassini.
+  # direct use of rms-vicar; the runtime reaches VICAR files through the host
+  # packages.
   "rms-vicar>=1.3.0",
   "rms-spindoctor[docs]",
   "rms-spindoctor[postgres]",
