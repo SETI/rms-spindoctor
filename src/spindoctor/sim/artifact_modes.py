@@ -61,6 +61,7 @@ the registry defaults to :func:`resolve_mode_config`.
 
 from __future__ import annotations
 
+import copy
 import dataclasses
 import keyword
 from collections.abc import Mapping
@@ -345,7 +346,7 @@ def _build_params_type(mode_name: str, params: tuple[ModeParam, ...]) -> type[An
     )
 
 
-def parse_mode_params(mode_name: str, raw: object, *, source: str) -> Any:
+def parse_mode_params(mode_name: str, raw: object, *, source: str) -> object:
     """Check a mode's map against its parameter types.
 
     Parameters:
@@ -354,17 +355,20 @@ def parse_mode_params(mode_name: str, raw: object, *, source: str) -> Any:
         source: What an error message gives as the map's source.
 
     Returns:
-        The instance of the mode's :attr:`ArtifactMode.params_type`.
+        The instance of the mode's :attr:`ArtifactMode.params_type`, whose values
+        :func:`mode_scene_map` reads.  The class is built from the registry, so a type
+        checker sees only an object.
 
     Raises:
         ~spindoctor.schema.errors.SchemaError: Listing each unknown key and each value
             of the wrong type or out of range.  A key path in a message is relative to
             the map.
     """
-    return parse(ARTIFACT_MODES[mode_name].params_type, raw, source=source)
+    params_type: type[object] = ARTIFACT_MODES[mode_name].params_type
+    return parse(params_type, raw, source=source)
 
 
-def mode_scene_map(values: Any) -> dict[str, Any]:
+def mode_scene_map(values: object) -> dict[str, Any]:
     """The keys a mode's parsed map sets, as a scene writes them.
 
     Parameters:
@@ -372,13 +376,14 @@ def mode_scene_map(values: Any) -> dict[str, Any]:
 
     Returns:
         A fresh dict of each parameter the map sets, keyed as in the scene, such as
-        ``from``.  A parameter left unset is absent.
+        ``from``.  A list in it is fresh too.  A parameter left unset is absent.
     """
+    assert dataclasses.is_dataclass(values)
     scene_map: dict[str, Any] = {}
     for item in dataclasses.fields(values):
         value = getattr(values, item.name)
         if value is not None:
-            scene_map[item.metadata[_MAP_KEY]] = value
+            scene_map[item.metadata[_MAP_KEY]] = copy.copy(value)
     return scene_map
 
 
@@ -721,6 +726,10 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
 ARTIFACT_MODES: dict[str, ArtifactMode] = {
     mode.name: mode for mode in (*_IMPLEMENTED_MODES, *_DETECTOR_MODES, *_TELEMETRY_ARTIFACT_MODES)
 }
+
+# Pickle finds a class by its name in its module, so each registered mode's built class
+# is put there, and an instrument entry that holds its instances can be pickled.
+globals().update({mode.params_type.__name__: mode.params_type for mode in ARTIFACT_MODES.values()})
 
 # The complete key set the ``artifacts`` block may carry beyond the two switch
 # keys.  The validator keys on this exact set.

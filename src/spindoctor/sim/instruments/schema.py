@@ -13,8 +13,9 @@ the type that holds both parts, and a rule about one value is a check on that va
 annotation.  So a typo, a value written as a string, a negative gain, a missing
 table, a setting the renderer could not honor, or a setting that would do nothing
 fails when the catalog loads, and the message gives the file, the entry, and the key
-path.  A rule on the entry as a whole begins its message with the key path it is
-about, so its line reads like any other.
+path.  A rule that compares keys raises :class:`~spindoctor.schema.errors.RuleError`
+with the key at fault and the keys it reads, so its line gives the entry that set one
+of them last.
 
 The two kinds of artifact-mode table an entry may state, ``shape_defaults`` and
 ``instrument_defaults``, have one optional field per registered mode, typed as that
@@ -37,10 +38,12 @@ from spindoctor.schema import (
     SCHEMA_CONFIG,
     Bool,
     Float,
+    KeyPath,
     NonNeg,
     NonNegInt,
     Positive,
     PositiveInt,
+    RuleError,
     Str,
     Unit,
 )
@@ -94,6 +97,9 @@ CATALOG_BLIND_MODES: dict[str, str] = {
         'its shape comes from detector.hot_pixel_amplitude_e and detector.hot_pixel_column_factor'
     ),
 }
+
+# The key path of an entry's detector model, which several of its rules read.
+_MODEL_PATH: KeyPath = ('detector', 'detector_model')
 
 # The fewest codes a downlink table may send.
 _MIN_TABLE_CODES = 2
@@ -383,8 +389,10 @@ class DownlinkTables:
     def __post_init__(self) -> None:
         """Refuse a default that is not one of the tables."""
         if self.default not in self.tables:
-            raise ValueError(
-                f'the default {self.default!r} is not one of the tables {sorted(self.tables)}'
+            raise RuleError(
+                f'{self.default!r} is not one of the tables {sorted(self.tables)}',
+                at='default',
+                reads=('default', ('tables', self.default)),
             )
 
 
@@ -413,19 +421,26 @@ class Filters:
         A scene's polarizer folds onto its wheel's clear element before lookup, so a
         throughput key that holds a polarizer could never be selected.
         """
+        table = 'throughput_e_per_s_per_if'
         polarizers = self.polarizer_clear
         for combination in self.throughput_e_per_s_per_if:
             parts = combination.split('+')
             for element in parts:
                 if element in polarizers:
                     folded = '+'.join(polarizers.get(part, part) for part in parts)
-                    raise ValueError(
-                        f'the throughput key {combination!r} holds the polarizer {element!r}, '
-                        f'which folds onto {polarizers[element]!r}, so a scene that sets '
-                        f'{combination!r} reads {folded!r}; key the throughput by that'
+                    raise RuleError(
+                        f'the polarizer {element!r} folds onto {polarizers[element]!r}, so a '
+                        f'scene that sets {combination!r} reads {folded!r}; key the throughput '
+                        'by that',
+                        at=(table, combination),
+                        reads=((table, combination), ('polarizer_clear', element)),
                     )
         if self.clear not in self.throughput_e_per_s_per_if:
-            raise ValueError(f'the clear filter {self.clear!r} is not in throughput_e_per_s_per_if')
+            raise RuleError(
+                f'{self.clear!r} is not in {table}',
+                at='clear',
+                reads=('clear', (table, self.clear)),
+            )
         elements = {
             element
             for combination in self.throughput_e_per_s_per_if
@@ -433,9 +448,10 @@ class Filters:
         }
         for polarizer, clear in polarizers.items():
             if clear not in elements:
-                raise ValueError(
-                    f'the polarizer {polarizer} folds onto {clear!r}, which is not an element '
-                    'of any cataloged filter combination'
+                raise RuleError(
+                    f'{clear!r} is not an element of any cataloged filter combination',
+                    at=('polarizer_clear', polarizer),
+                    reads=(('polarizer_clear', polarizer), table),
                 )
 
 
@@ -463,7 +479,7 @@ def _shape_default_rule(mode_name: str) -> AfterValidator:
     """
     mode = ARTIFACT_MODES[mode_name]
 
-    def check(values: Any) -> Any:
+    def check(values: object) -> object:
         """Return the shape defaults if they could take effect."""
         if mode_name in CATALOG_BLIND_MODES:
             raise ValueError(
@@ -471,9 +487,10 @@ def _shape_default_rule(mode_name: str) -> AfterValidator:
             )
         for key in (mode.activation, mode.count_alternative):
             if key is not None and key in mode_scene_map(values):
-                raise ValueError(
+                raise RuleError(
                     f'{key!r} turns the mode on, and a shape default never does; a scene '
-                    'sets it, or the mode goes in artifact_modes.instrument_defaults'
+                    'sets it, or the mode goes in artifact_modes.instrument_defaults',
+                    at=key,
                 )
         return values
 
@@ -488,7 +505,7 @@ def _instrument_default_rule(mode_name: str) -> AfterValidator:
     """
     activation = ARTIFACT_MODES[mode_name].activation
 
-    def check(values: Any) -> Any:
+    def check(values: object) -> object:
         """Return the map if it turns a detector-stage mode on."""
         if mode_name not in DETECTOR_MODE_ORDER:
             raise ValueError(
@@ -518,7 +535,7 @@ def _mode_table(class_name: str, doc: str, rule: Any) -> type[Any]:
     fields = [
         (
             name,
-            Annotated[mode.params_type | None, rule(name)],
+            Annotated[mode.params_type, rule(name)] | None,
             dataclasses.field(default=None),
         )
         for name, mode in ARTIFACT_MODES.items()
@@ -532,10 +549,11 @@ def _mode_table(class_name: str, doc: str, rule: Any) -> type[Any]:
 
 
 # Each table is a dataclass built from the registry, which a type checker cannot see
-# through, so it reads the two names as Any.
+# through, so it reads the two names as object: a table's values are read through
+# mode_table_maps, and a misspelled attribute is a type error.
 if TYPE_CHECKING:
-    ShapeDefaults: TypeAlias = Any
-    InstrumentDefaultModes: TypeAlias = Any
+    ShapeDefaults: TypeAlias = object
+    InstrumentDefaultModes: TypeAlias = object
 else:
     ShapeDefaults = _mode_table(
         'ShapeDefaults',
@@ -549,7 +567,7 @@ else:
     )
 
 
-def mode_table_maps(table: Any) -> dict[str, dict[str, Any]]:
+def mode_table_maps(table: object) -> dict[str, dict[str, Any]]:
     """The map of each mode a :data:`ShapeDefaults` or similar table sets.
 
     Parameters:
@@ -557,6 +575,7 @@ def mode_table_maps(table: Any) -> dict[str, dict[str, Any]]:
 
     Returns:
         Each mode the table sets, keyed by name, with its map as a scene writes it.
+        The dicts, and the lists in them, are fresh.
     """
     return {
         name: mode_scene_map(getattr(table, name))
@@ -594,10 +613,18 @@ class ArtifactModes:
         ):
             for name in mode_table_maps(table):
                 if not self.offers(name):
-                    raise ValueError(f'{section} sets {name!r}, which is not in offered')
+                    raise RuleError(
+                        f'{name!r} is not in artifact_modes.offered',
+                        at=(section, name),
+                        reads=((section, name), 'offered'),
+                    )
         for name in self.unavailable_reasons:
             if self.offers(name):
-                raise ValueError(f'{name!r} is offered, so it has no unavailability reason')
+                raise RuleError(
+                    f'{name!r} is offered, so it has no unavailability reason',
+                    at=('unavailable_reasons', name),
+                    reads=(('unavailable_reasons', name), 'offered'),
+                )
 
     def offers(self, mode_name: str) -> bool:
         """Whether the instrument offers ``mode_name``.
@@ -656,20 +683,28 @@ class InstrumentEntry:
     def __post_init__(self) -> None:
         """Refuse a combination of parts the renderer could not honor."""
         model = self.detector.detector_model
+        ceiling = ('detector', 'dark_sky_ceiling_if')
         if self.data_units != 'calibrated_if' and self.detector.dark_sky_ceiling_if is not None:
-            raise ValueError(
-                'detector.dark_sky_ceiling_if: the dark-sky ceiling applies only to '
-                f"calibrated_if products, and this entry's data_units is {self.data_units}"
+            raise RuleError(
+                'the dark-sky ceiling applies only to calibrated_if products, and this '
+                f"entry's data_units is {self.data_units}",
+                at=ceiling,
+                reads=(ceiling, 'data_units'),
             )
         self._check_readout_modes()
-        if model == 'vidicon' and self.star_flux.dn_per_s_vmag0 is None:
-            raise ValueError('star_flux: a vidicon detector states dn_per_s_vmag0')
-        if model != 'vidicon' and self.star_flux.e_per_s_vmag0 is None:
-            raise ValueError(f'star_flux: a {model} detector states e_per_s_vmag0')
+        zero_point = 'dn_per_s_vmag0' if model == 'vidicon' else 'e_per_s_vmag0'
+        if getattr(self.star_flux, zero_point) is None:
+            raise RuleError(
+                f'a {model} detector states {zero_point}',
+                at='star_flux',
+                reads=('star_flux', _MODEL_PATH),
+            )
         if self.filters is not None and model == 'vidicon':
-            raise ValueError(
-                'filters: a filter sets the CCD signal scale; the vidicon DN chain has no '
-                'reference exposure for it to set'
+            raise RuleError(
+                'a filter sets the CCD signal scale; the vidicon DN chain has no reference '
+                'exposure for it to set',
+                at='filters',
+                reads=('filters', _MODEL_PATH),
             )
         self._check_mode_chains()
 
@@ -683,26 +718,36 @@ class InstrumentEntry:
         base_table = self.detector.gain_e_per_dn_by_state or {}
         native = self.native_frame_size_px
         for binning, mode in self.readout_modes.items():
-            path = f'readout_modes.{binning}'
+            path = ('readout_modes', binning)
             if self.detector.detector_model == 'vidicon' and binning != 1:
-                raise ValueError(f'{path}: the vidicon DN chain has no binned readout')
+                raise RuleError(
+                    'the vidicon DN chain has no binned readout',
+                    at=path,
+                    reads=(path, _MODEL_PATH),
+                )
             table = mode.gain_e_per_dn_by_state
             if table is None:
                 table = base_table
+            gains = 'gain_e_per_dn_by_state'
             if sorted(table) != sorted(base_table):
-                raise ValueError(
-                    f'{path}.gain_e_per_dn_by_state: the states {sorted(table)} differ from '
-                    f'detector.gain_e_per_dn_by_state {sorted(base_table)}'
+                raise RuleError(
+                    f'the states {sorted(table)} differ from detector.{gains} {sorted(base_table)}',
+                    at=(*path, gains),
+                    reads=((*path, gains), ('detector', gains)),
                 )
             state = mode.default_gain_state
             if state is not None and state not in table:
-                raise ValueError(
-                    f'{path}.default_gain_state: state {state} is not in '
-                    f'gain_e_per_dn_by_state {sorted(table)}'
+                default = (*path, 'default_gain_state')
+                raise RuleError(
+                    f'state {state} is not in {gains} {sorted(table)}',
+                    at=default,
+                    reads=(default, (*path, gains, state), ('detector', gains, state)),
                 )
             if native is not None and native % binning != 0:
-                raise ValueError(
-                    f'{path}: binning {binning} does not divide native_frame_size_px {native}'
+                raise RuleError(
+                    f'binning {binning} does not divide native_frame_size_px {native}',
+                    at=path,
+                    reads=(path, 'native_frame_size_px'),
                 )
 
     def _check_mode_chains(self) -> None:
@@ -713,21 +758,23 @@ class InstrumentEntry:
         """
         model = self.detector.detector_model
         modes = self.artifact_modes
-        listed: list[tuple[str, str]] = []
+        listed: list[tuple[KeyPath, str]] = []
         if modes.offered != OFFER_EVERY_MODE:
-            listed.extend(('offered', name) for name in modes.offered)
+            listed.extend((('offered',), name) for name in modes.offered)
         for section, table in (
             ('shape_defaults', modes.shape_defaults),
             ('instrument_defaults', modes.instrument_defaults),
         ):
-            listed.extend((f'{section}.{name}', name) for name in mode_table_maps(table))
-        for key, name in listed:
+            listed.extend(((section, name), name) for name in mode_table_maps(table))
+        for keys, name in listed:
             chains = ARTIFACT_MODES[name].detector_models
             if model not in chains:
-                raise ValueError(
-                    f'artifact_modes.{key}: {name!r} renders only in the '
-                    f'{" and ".join(sorted(chains))} detector chain; a {model} detector never '
-                    'applies it'
+                path = ('artifact_modes', *keys)
+                raise RuleError(
+                    f'{name!r} renders only in the {" and ".join(sorted(chains))} detector '
+                    f'chain; a {model} detector never applies it',
+                    at=path,
+                    reads=(path, _MODEL_PATH),
                 )
 
     def shape_default_map(self, mode_name: str) -> Mapping[str, Any]:

@@ -1267,17 +1267,21 @@ typed as its mode's parameters, as the artifact-mode registry declares them (see
 The load reports every problem it finds at once, in one
 :class:`~spindoctor.schema.errors.SchemaError` with one line per problem. Each line
 gives the file and entry that set the value, and the key path, as in
-``coiss.yaml: coiss_calib_nac: detector.gain_e_per_dn_by_state: ...``. A line about
-the entry as a whole, such as a missing required key, gives the entry first and then
-the entries it inherits from. A problem in an entry that other entries inherit is
-reported once. A message about a
-whole file gives the file, and a message about the directory, such as a stray file
-or a missing ``generic`` entry, gives the directory. The directory may hold only
-``.yaml`` files: a ``.yml`` file, or any other entry in the directory, fails the
+``coiss.yaml: coiss_calib_nac: detector.gain_e_per_dn_by_state: ...``. If an entry
+removes a required key with a null, the line gives that entry. When two keys don't fit
+together, the line gives the entry that set one of them last. For example, if an entry
+sets a ``native_frame_size_px`` that its base's binnings don't divide, the line gives
+that entry, although the binnings come from the base. A problem in an entry that other
+entries inherit is reported once.
+
+A message about a whole file gives the file, and a message about the directory, such as
+a stray file or a missing ``generic`` entry, gives the directory. The directory may hold
+only ``.yaml`` files: a ``.yml`` file, or any other entry in the directory, fails the
 load rather than being skipped. A file also fails the load if it isn't valid YAML,
-writes a key twice, or doesn't hold a mapping of instrument names to entries. An
-instrument name must be a string, so a name that YAML reads as a number, a boolean,
+writes a key twice, is empty, or doesn't hold a mapping of instrument names to entries.
+An instrument name must be a string, so a name that YAML reads as a number, a boolean,
 or a date, such as a bare ``123``, fails.
+
 The load fails if two files define the same instrument, or if an instrument's
 top-level value isn't a mapping. Within an entry, the load fails on:
 
@@ -1353,9 +1357,10 @@ PSF kernel and truncation radius, distortion residual, detector identity,
 calibrated sky, downlink tables, filters, and artifact-mode availability and shape
 defaults. The navigator block an entry points at is read by
 :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config`. Each of these
-raises :class:`ValueError` for an instrument that no entry defines. Scene
-validation's allowed names, the scene editor's instrument list, and the realism
-match's cohort map all come from the catalog.
+raises :class:`ValueError` for an instrument that no entry defines. Every caller shares
+one catalog, so a resolver that returns a list or a mapping, such as a gain table,
+returns a copy of it. Scene validation's allowed names, the scene editor's instrument
+list, and the realism match's cohort map all come from the catalog.
 
 An entry's ``data_units`` must match the ``data_units`` of the navigator block it
 points at. Otherwise the navigator would read a calibrated frame as DN, or a DN

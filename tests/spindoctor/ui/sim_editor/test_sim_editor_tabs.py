@@ -42,10 +42,13 @@ from tests.spindoctor.sim.fictional_camera import (
     catalog_dir_with,
 )
 
+from spindoctor.schema import Str, Unit
+from spindoctor.sim.artifact_modes import ArtifactMode, ModeParam
 from spindoctor.sim.instruments import catalog as instrument_catalog
 from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
+from spindoctor.ui.sim_editor.artifact_mode_rows import ModeRow
 
 
 @pytest.fixture
@@ -61,6 +64,20 @@ def qapp() -> QApplication:
 def model(qapp: QApplication) -> Any:
     """A freshly constructed simulated-image editor model."""
     return CreateSimulatedImageModel()
+
+
+def test_a_mode_parameter_whose_type_has_no_widget_fails(qapp: QApplication) -> None:
+    """A mode row refuses a parameter type it has no widget for."""
+    mode = ArtifactMode(
+        name='labeled',
+        stage='telemetry',
+        implemented=True,
+        params=(ModeParam('probability', Unit, 0.0), ModeParam('label', Str)),
+        activation='probability',
+        activation_semantics='unused',
+    )
+    with pytest.raises(TypeError, match=r'labeled\.label: no editor widget for'):
+        ModeRow(mode, cast(Any, None))
 
 
 def test_gui_added_star_psf_size_is_list(model: Any) -> None:

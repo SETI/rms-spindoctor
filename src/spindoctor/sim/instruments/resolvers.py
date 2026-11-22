@@ -7,7 +7,9 @@ zero point, the plate scale the background-sky star count uses, the whole-scene 
 kernel and its truncation radius, the residual geometric distortion, the downlink
 tables, the filter throughputs, and the artifact modes the camera offers with their
 shape defaults.  The rest of the simulator reads the catalog through these resolvers,
-which return the entry's typed parts (:mod:`spindoctor.sim.instruments.schema`).
+which return the entry's typed parts (:mod:`spindoctor.sim.instruments.schema`).  The
+catalog is shared by every caller, so a resolver whose result holds a list or a dict
+returns a fresh copy of it.
 Each takes a sim instrument name, an alias, or ``None`` for the generic entry, and
 raises :class:`ValueError` if the catalog doesn't hold the name.
 
@@ -25,6 +27,7 @@ the only filter-dependent quantity the simulator models: haze, body photometry,
 star color, and the PSF render the same for every filter.
 """
 
+import copy
 from collections.abc import Mapping
 from typing import Any
 
@@ -286,8 +289,8 @@ def resolve_downlink_table(instrument: str | None, name: str | None) -> Downlink
             the instrument's default table.
 
     Returns:
-        The table; None for an instrument that lists no tables, which decodes
-        through the plain square-root curve.
+        A fresh copy of the table; None for an instrument that lists no tables, which
+        decodes through the plain square-root curve.
 
     Raises:
         ValueError: If the instrument is not in the catalog, or ``name`` is not a
@@ -304,7 +307,7 @@ def resolve_downlink_table(instrument: str | None, name: str | None) -> Downlink
             f'downlink table {chosen!r} is not listed for sim instrument {instrument!r}; '
             f'available tables: {sorted(tables.tables)}'
         )
-    return tables.tables[chosen]
+    return copy.deepcopy(tables.tables[chosen])
 
 
 def mode_available(mode_name: str, instrument: str | None) -> bool:
@@ -363,7 +366,7 @@ def instrument_default_modes(instrument: str | None) -> dict[str, dict[str, Any]
         Each mode the entry's ``artifact_modes.instrument_defaults`` sets, with its
         map as a scene writes it, which the detector resolver uses when the scene has
         not set the mode itself.  Empty for an instrument that turns no mode on.  The
-        dicts are fresh.
+        dicts, and the lists in them, are fresh.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
@@ -399,14 +402,14 @@ def resolve_readout_mode(instrument: str | None, binning: int) -> ReadoutMode:
         binning: A binning factor from :func:`cataloged_binnings`.
 
     Returns:
-        The mode; a mode that keeps every 1x1 value for an uncataloged binning (the
-        resolver refuses those).
+        A fresh copy of the mode; a mode that keeps every 1x1 value for an uncataloged
+        binning (the resolver refuses those).
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
     modes = instrument_entry(instrument).readout_modes
-    return modes.get(int(binning), ReadoutMode())
+    return copy.deepcopy(modes.get(int(binning), ReadoutMode()))
 
 
 def resolve_native_frame_size_px(instrument: str | None) -> int | None:
@@ -463,12 +466,12 @@ def resolve_detector_defaults_native(instrument: str | None) -> Detector:
             entry.
 
     Returns:
-        The instrument entry's ``detector`` block.
+        A fresh copy of the instrument entry's ``detector`` block.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    return instrument_entry(instrument).detector
+    return copy.deepcopy(instrument_entry(instrument).detector)
 
 
 def resolve_detector_defaults(instrument: str | None, binning: int) -> Detector:

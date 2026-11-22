@@ -45,7 +45,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from spindoctor.schema import Bool, NonNeg, PositiveInt, Unit
+from spindoctor.schema import Bool, NonNeg, NonNegInt, PositiveInt, Unit
 from spindoctor.sim.artifact_modes import (
     PIXEL_FRACTION,
     ArtifactMode,
@@ -167,7 +167,11 @@ class ModeRow:
         return container
 
     def _build_scalar_widget(self, param: ModeParam) -> QWidget:
-        """Build the single widget for a scalar (non-list) parameter, by its type."""
+        """Build the single widget for a scalar (non-list) parameter, by its type.
+
+        Raises:
+            TypeError: If the parameter's type has no widget.
+        """
         if param.annotation is Bool:
             return QCheckBox()
         choices = param.choices
@@ -183,10 +187,11 @@ class ModeRow:
             )
             spin.setRange(0.0, 1.0 if param.annotation is Unit else _NUMBER_MAX)
             return spin
-        # The integer types: PositiveInt and NonNegInt.
-        spin_int = QSpinBox()
-        spin_int.setRange(1 if param.annotation is PositiveInt else 0, _INT_MAX)
-        return spin_int
+        if param.annotation is PositiveInt or param.annotation is NonNegInt:
+            spin_int = QSpinBox()
+            spin_int.setRange(1 if param.annotation is PositiveInt else 0, _INT_MAX)
+            return spin_int
+        raise TypeError(f'{self.mode.name}.{param.name}: no editor widget for {param.annotation!r}')
 
     def _build_int_list_widget(self, param: ModeParam) -> QWidget:
         """Build a checkable group of spins for a rect / window integer-list param.

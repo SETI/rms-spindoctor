@@ -25,13 +25,13 @@ The catalog loads once per directory.  Each merged entry is parsed into an
 checks that span entries run last.  Every problem found in the directory is reported
 at once in one :class:`~spindoctor.schema.SchemaError`, one line each, and a problem
 inherited by several entries is reported once.  The load fails on a file that is not
-valid YAML or not a ``.yaml`` file, an instrument defined in two files, an unknown
-key, a missing required key, or a value of the wrong type or out of range.  It also
+valid YAML or not a ``.yaml`` file, an empty file, an instrument defined in two files,
+an unknown key, a missing required key, or a value of the wrong type or out of range.  It also
 fails on a base that doesn't exist or that loops back on itself, and on a gain state,
 readout mode, filter, downlink table, or artifact mode that an entry refers to but
 does not define.  A setting that would do nothing fails too.  Every line about an
 entry gives the file and the entry that set the value, and the key path.  A line
-about a whole file (a YAML error, or a file that holds no mapping) gives the file,
+about a whole file (a YAML error, or a file that holds no entry) gives the file,
 and a line about the directory (a stray file, or no ``generic`` entry) gives the
 directory.
 
@@ -165,9 +165,9 @@ def _read_entries(config_dir: Path) -> tuple[dict[str, Layer], dict[str, str]]:
         Each instrument's own layer keyed by name, and each name mapped to its file.
 
     Raises:
-        SchemaError: Listing each stray file; or each file that is not valid YAML or
-            holds no mapping of instrument names to entries, and each instrument
-            defined in two files.
+        SchemaError: Listing each stray file; or each file that is not valid YAML,
+            holds no mapping of instrument names to entries, or is empty, and each
+            instrument defined in two files.
     """
     entries: dict[str, Layer] = {}
     files: dict[str, str] = {}
@@ -178,6 +178,8 @@ def _read_entries(config_dir: Path) -> tuple[dict[str, Layer], dict[str, str]]:
         except SchemaError as exc:
             issues.extend(exc.issues)
             continue
+        if not layers:
+            issues.append(Issue(path.name, '', 'the file holds no instrument entry'))
         for name, layer in layers.items():
             if name in files:
                 message = f'the instrument is already defined in {files[name]}'
@@ -210,12 +212,9 @@ def _parse_entries(entries: Mapping[str, Layer]) -> dict[str, InstrumentEntry]:
     issues: list[Issue] = []
     for name in sorted(merged):
         label = entries[name].label
-        # The entry's own layer is a source of every problem with the entry as a whole,
-        # even when it sets nothing there itself, such as a null that removes a
-        # required key the base sets.
-        origins = {(): label, **merged[name].origins}
+        data, origins = merged[name].data, merged[name].origins
         try:
-            parsed[name] = parse(InstrumentEntry, merged[name].data, source=label, origins=origins)
+            parsed[name] = parse(InstrumentEntry, data, source=label, origins=origins)
         except SchemaError as exc:
             issues.extend(exc.issues)
     if issues:

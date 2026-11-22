@@ -23,6 +23,7 @@ from spindoctor.schema import (
     NonNeg,
     NonNegInt,
     Positive,
+    RuleError,
     Unit,
 )
 from spindoctor.schema.errors import RangeError
@@ -89,10 +90,10 @@ def _has_unbinned_mode(modes: dict[int, Any]) -> dict[int, Any]:
     """Return the readout modes if binning 1 is among them.
 
     Raises:
-        ValueError: If it is not.
+        RuleError: If it is not.
     """
     if 1 not in modes:
-        raise ValueError('binning 1 (the unbinned readout) is not defined')
+        raise RuleError('binning 1 (the unbinned readout) is not defined', at=(), reads=((1,),))
     return modes
 
 
@@ -208,14 +209,24 @@ class Detector:
         required = _CCD_REQUIRED if model == 'ccd' else ('vidicon',)
         missing = sorted(key for key in required if getattr(self, key) is None)
         if missing:
-            raise ValueError(f'a {model} detector requires the keys {missing}')
+            raise RuleError(
+                f'a {model} detector requires the keys {missing}',
+                at=(),
+                reads=(*missing, 'detector_model'),
+            )
         if model != 'vidicon' and self.vidicon is not None:
-            raise ValueError(f'a {model} detector has no vidicon chain to configure')
+            raise RuleError(
+                f'a {model} detector has no vidicon chain to configure',
+                at='vidicon',
+                reads=('vidicon', 'detector_model'),
+            )
         table = self.gain_e_per_dn_by_state or {}
         state = self.default_gain_state
         if state is not None and state not in table:
-            raise ValueError(
-                f'default_gain_state {state} is not in gain_e_per_dn_by_state {sorted(table)}'
+            raise RuleError(
+                f'state {state} is not in gain_e_per_dn_by_state {sorted(table)}',
+                at='default_gain_state',
+                reads=('default_gain_state', ('gain_e_per_dn_by_state', state)),
             )
 
     def with_readout_mode(self, mode: ReadoutMode) -> Detector:
@@ -308,13 +319,15 @@ class ReadoutMode:
         """Refuse a key that belongs to the detector as a whole."""
         for key in _READOUT_FIXED_KEYS:
             if getattr(self, key) is not None:
-                raise ValueError(
-                    f'a readout mode bins the same detector, so it cannot change detector.{key}'
+                raise RuleError(
+                    f'a readout mode bins the same detector, so it cannot change detector.{key}',
+                    at=key,
                 )
         if self.dark_sky_ceiling_if is not None:
-            raise ValueError(
+            raise RuleError(
                 'the realism comparison reads the dark-sky ceiling from the detector block, '
-                'so a readout mode cannot set it'
+                'so a readout mode cannot set it',
+                at='dark_sky_ceiling_if',
             )
 
     def overrides(self) -> dict[str, Any]:

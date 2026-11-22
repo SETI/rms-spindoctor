@@ -24,6 +24,20 @@ def test_a_keyword_parameter_refuses_its_field_name() -> None:
         parse_mode_params('truncated_frame', {'from_': 'top'}, source='scene')
 
 
+@pytest.mark.parametrize('rect', [[0, 0, 4], [0, 0, 4, 4, 4]], ids=['too-few', 'too-many'])
+def test_a_list_parameter_of_the_wrong_length_fails(rect: list[int]) -> None:
+    """A list of integers holds exactly its own number of items."""
+    with pytest.raises(SchemaError, match=r'scene: rect: expected a list of exactly 4 items'):
+        parse_mode_params('cutout_window', {'rect': rect}, source='scene')
+
+
+def test_changing_a_scene_map_leaves_the_parsed_map_unchanged() -> None:
+    """The map of a parsed mode is fresh, its lists included."""
+    values = parse_mode_params('cutout_window', {'rect': [0, 1, 2, 3]}, source='scene')
+    mode_scene_map(values)['rect'].clear()
+    assert mode_scene_map(values) == {'rect': [0, 1, 2, 3]}
+
+
 def test_a_string_choice_lists_its_values() -> None:
     """A Literal parameter offers its values in the registry's order."""
     param = ARTIFACT_MODES['truncated_frame'].param_map['from']
