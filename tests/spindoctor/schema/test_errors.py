@@ -13,7 +13,7 @@ from annotated_types import Ge, Gt, Le, Len, Lt
 from pydantic import Field
 from tests.spindoctor.schema.schemas import OUTER, Aliases, Outer, parse_error
 
-from spindoctor.schema.core import SCHEMA_CONFIG, DigitInt, Float, Str
+from spindoctor.schema.core import SCHEMA_CONFIG, DigitInt, Float, Str, parse
 from spindoctor.schema.errors import Issue, RuleError, SchemaError
 from spindoctor.schema.layers import Layer, NullPolicy, merge
 
@@ -298,6 +298,27 @@ def test_integer_key_written_twice_is_refused() -> None:
     assert message == "test.yaml: table: the key 2 is written twice, as 2 and '2'"
 
 
+def test_mapping_that_keeps_string_keys_holds_both_spellings() -> None:
+    """A mapping whose keys may be strings keeps 2 and '2' as two keys."""
+    parsed = parse(Aliases, {'by_either': {'2': 'a', 2: 'b'}}, source='test.yaml')
+    assert parsed.by_either == {'2': 'a', 2: 'b'}
+
+
+def test_tag_is_not_taken_for_a_key_of_the_same_name() -> None:
+    """A problem in a tagged entry is placed, though the entry has a key named as its tag."""
+    raw = {**OUTER, 'features': [{'kind': 'ringlet', 'width': 0, 'ringlet': {}}]}
+    assert [str(issue) for issue in parse_error(Outer, raw).issues] == [
+        'test.yaml: features[0].width: expected a positive number, got 0',
+        "test.yaml: features[0]: unknown keys: ['ringlet']",
+    ]
+
+
+def test_unknown_key_spelled_as_pydantic_marks_a_key_is_reported() -> None:
+    """A key written [key], which pydantic uses as a marker, is an unknown key."""
+    message = str(parse_error(Outer, {**OUTER, '[key]': 1}))
+    assert message == "test.yaml: unknown keys: ['[key]']"
+
+
 def test_missing_key_gives_the_file_that_removed_it() -> None:
     """A required key that a null removed gives the layer with the null alone."""
     base = Layer({'name': 'n', 'inner': {'low': 0.0, 'high': 1.0}}, 'base.yaml')
@@ -326,8 +347,20 @@ def test_rule_error_is_placed_on_the_key_at_fault() -> None:
             ],
             'b.yaml',
         ),
+        (
+            [
+                Layer({'rows': {'1': 1.0, '2': 0.0}, 'names': ['a']}, 'a.yaml'),
+                Layer({'rows': {'1': None}}, 'b.yaml'),
+            ],
+            'b.yaml',
+        ),
     ],
-    ids=['key-at-fault-set-last', 'other-key-set-last', 'key-removed-last'],
+    ids=[
+        'key-at-fault-set-last',
+        'other-key-set-last',
+        'key-removed-last',
+        'key-written-as-digits-removed-last',
+    ],
 )
 def test_rule_that_reads_keys_gives_the_file_that_set_one_last(
     layers: list[Layer], source: str

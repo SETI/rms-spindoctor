@@ -130,19 +130,27 @@ def read_layer(path: Path, *, label: str | None = None) -> Layer:
 
     Raises:
         SchemaError: If the file is not valid YAML (a key written twice included), or
-            holds something other than a mapping.
+            holds something other than a mapping, such as a null.
     """
     source = path.name if label is None else label
+    text = path.read_text(encoding='utf-8')
     try:
-        loaded = YAML(typ='safe').load(path.read_text(encoding='utf-8'))
+        loaded = YAML(typ='safe').load(text)
+        empty = loaded is None and _is_empty(text)
     except YAMLError as exc:
         raise SchemaError([Issue(source, '', f'not valid YAML: {exc}')]) from exc
-    if loaded is None:
+    if empty:
         loaded = {}
     if not isinstance(loaded, dict):
         message = f'expected a mapping at the top level, got {describe_value(loaded)}'
         raise SchemaError([Issue(source, '', message)])
     return Layer(_drop_notes(loaded), source)
+
+
+def _is_empty(text: str) -> bool:
+    """Whether a YAML file's text holds nothing, rather than a written null."""
+    node = YAML(typ='safe').compose(text)
+    return node is None or node.value == ''
 
 
 def _drop_notes(value: Any) -> Any:
@@ -217,7 +225,11 @@ class _Merger:
             if isinstance(value, Mapping) and isinstance(existing, dict):
                 self._merge_into(existing, value, key_path)
                 continue
-            self._forget(key_path)
+            if key in target:
+                self._forget(key_path)
+            else:
+                # All that can be recorded is the key's own removal.
+                self.origins.pop(key_path, None)
             target[key] = self._take(value, key_path)
 
     def _take(self, value: Any, path: KeyPath) -> Any:

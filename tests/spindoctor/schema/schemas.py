@@ -52,6 +52,7 @@ class Aliases:
     path: FCPath | None = None
     model: Model = Model.CCD
     names: Mapping[Str, Int] = field(default_factory=dict)
+    by_either: dict[Int | Str, Str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

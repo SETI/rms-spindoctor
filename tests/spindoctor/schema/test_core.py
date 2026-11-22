@@ -6,12 +6,12 @@ They do not test pydantic's own parsing.
 """
 
 import enum
-from dataclasses import dataclass, field
+from dataclasses import InitVar, dataclass, field
 from typing import Annotated, Any, Literal
 
 import filecache
 import pytest
-from pydantic import AllowInfNan, BeforeValidator, Field, Strict
+from pydantic import AllowInfNan, BeforeValidator, Field, PlainValidator, Strict
 from tests.spindoctor.schema.schemas import (
     OUTER,
     Aliases,
@@ -27,6 +27,7 @@ from spindoctor.schema.core import (
     SCHEMA_CONFIG,
     Float,
     Int,
+    Positive,
     Str,
     check_schema,
     parse,
@@ -182,6 +183,23 @@ class _TagNotLiteral:
 
 
 @dataclass(frozen=True)
+class _BadDefault:
+    """A schema whose default is a value a file could not write."""
+
+    __pydantic_config__ = SCHEMA_CONFIG
+    required: Int
+    count: Positive = 0.0
+
+
+@dataclass(frozen=True)
+class _InitOnly:
+    """A schema with an input that is not a field."""
+
+    __pydantic_config__ = SCHEMA_CONFIG
+    count: InitVar[int]
+
+
+@dataclass(frozen=True)
 class _NestedBreak:
     """A schema whose nested record breaks a convention."""
 
@@ -220,6 +238,12 @@ class _NestedBreak:
             r'a validator that runs before '
             r'the type check reads values leniently',
         ),
+        (
+            _schema(Annotated[list[Int], PlainValidator(lambda value: value)]),
+            r'Probe.value: a validator that runs before the type check reads values leniently',
+        ),
+        (_BadDefault, r"^_BadDefault: the defaults of \['count'\] do not fit their annotations$"),
+        (_InitOnly, r'^_InitOnly.count: a schema has no InitVar; use a field$'),
         (_schema(Literal['a', 1]), r'a choice holds only strings, and \[1\] are not'),
         (_schema(_IntChoice), r'a choice holds only strings, and \[1\] are not'),
         (
@@ -251,6 +275,9 @@ class _NestedBreak:
         'field-strict-false',
         'allow-inf-nan',
         'early-validator',
+        'early-validator-on-a-container',
+        'default-out-of-range',
+        'init-var',
         'literal-not-string',
         'enum-not-string',
         'strict-on-literal',

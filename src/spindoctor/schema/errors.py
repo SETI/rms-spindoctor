@@ -17,16 +17,16 @@ from __future__ import annotations
 import ast
 import dataclasses
 import re
-from collections.abc import Callable, Mapping, Sequence
-from typing import Any
+from collections.abc import Mapping, Sequence
+from typing import Any, Protocol
 
 __all__ = [
     'Issue',
     'KeyPath',
-    'LengthBounds',
     'RangeError',
     'RuleError',
     'SchemaError',
+    'SchemaView',
     'describe_value',
     'doubled_keys',
     'format_key_path',
@@ -36,10 +36,21 @@ __all__ = [
 #: A key path into a parsed YAML tree: mapping keys, and integer positions in lists.
 KeyPath = tuple[Any, ...]
 
-#: Given the key path of a list in the input, the (fewest, most) items each list type the
-#: schema allows there may hold; None for no most.  :func:`report` asks it whether a
-#: list of the wrong length had to have exactly one length.
-LengthBounds = Callable[[KeyPath], frozenset[tuple[int, int | None]]]
+
+class SchemaView(Protocol):
+    """What the schema says about a place in the input, given the place's key path.
+
+    The report asks it where pydantic's errors, or the input alone, do not say enough.
+    """
+
+    def lengths(self, keys: KeyPath) -> frozenset[tuple[int, int | None]]:
+        """The (fewest, most) items of each list type allowed at ``keys``; None for no most."""
+
+    def tag_keys(self, keys: KeyPath) -> frozenset[str]:
+        """The tag field of each tagged union at ``keys``."""
+
+    def digit_keyed(self, keys: KeyPath) -> bool:
+        """Whether a mapping at ``keys`` reads a string of digits as an integer key."""
 
 
 # pydantic error types that state what the value should have been.
@@ -210,7 +221,7 @@ def report(
     *,
     source: str,
     origins: Mapping[KeyPath, str],
-    lengths: LengthBounds | None = None,
+    schema: SchemaView,
 ) -> list[Issue]:
     """Turn the errors pydantic raised for one input into issues.
 
@@ -228,32 +239,34 @@ def report(
         source: The source to give when ``origins`` says nothing about a key.
         origins: The source of each value, and of each removed key, keyed by key path, in
             the order they were set or removed.
-        lengths: The lengths each list in the input may have, from which a list of
-            the wrong length is said to need "exactly" so many items when only one
-            length is allowed; when omitted, only the bound pydantic gives is stated.
+        schema: The schema the input was checked against.
 
     Returns:
         One issue per line, in the order pydantic found the problems.
     """
-    return _Reporter(raw, source=source, origins=origins, lengths=lengths).issues(errors)
+    return _Reporter(raw, source=source, origins=origins, schema=schema).issues(errors)
 
 
-def doubled_keys(raw: object, *, source: str, origins: Mapping[KeyPath, str]) -> list[Issue]:
+def doubled_keys(
+    raw: object, *, source: str, origins: Mapping[KeyPath, str], schema: SchemaView
+) -> list[Issue]:
     """Find each mapping that writes one integer key twice, as ``2`` and as ``'2'``.
 
     A mapping that passed through JSON has string keys, so merging it with one read
     from YAML can leave both spellings side by side.  An integer key type reads both as
-    one key, and one value would be lost without a word.
+    one key, and one value would be lost without a word.  A mapping whose keys may be
+    strings keeps both.
 
     Parameters:
         raw: The input, at any depth of which a mapping is looked at.
         source: The source to give when ``origins`` says nothing about a key.
         origins: The source of each value, keyed by the value's key path.
+        schema: The schema the input is checked against.
 
     Returns:
         One issue per doubled key.
     """
-    reporter = _Reporter(raw, source=source, origins=origins)
+    reporter = _Reporter(raw, source=source, origins=origins, schema=schema)
     issues: list[Issue] = []
 
     def visit(node: object, keys: KeyPath) -> None:
@@ -266,7 +279,7 @@ def doubled_keys(raw: object, *, source: str, origins: Mapping[KeyPath, str]) ->
             return
         for key, item in node.items():
             # type() rather than isinstance(): a boolean key is not an integer key.
-            if type(key) is int and str(key) in node:
+            if type(key) is int and str(key) in node and schema.digit_keyed(keys):
                 sources = dict.fromkeys(
                     reporter.origin((*keys, written)) for written in (key, str(key))
                 )
@@ -330,12 +343,12 @@ class _Reporter:
         *,
         source: str,
         origins: Mapping[KeyPath, str],
-        lengths: LengthBounds | None = None,
+        schema: SchemaView,
     ) -> None:
         self._raw = raw
         self._source = source
         self._origins = origins
-        self._lengths = lengths
+        self._schema = schema
 
     def issues(self, errors: Sequence[Mapping[str, Any]]) -> list[Issue]:
         """Every issue, with the problems that share a line combined."""
@@ -438,7 +451,7 @@ class _Reporter:
         items when every list type the schema allows at ``keys`` with that bound has
         the same bound on its other side.
         """
-        bounds = self._bounds(keys)
+        bounds = self._schema.lengths(keys)
         if kind == 'too_short':
             count = int(ctx['min_length'])
             others = {most for fewest, most in bounds if fewest == count}
@@ -451,22 +464,21 @@ class _Reporter:
             amount = f'exactly {count}'
         return f'a list of {amount} items'
 
-    def _bounds(self, keys: KeyPath) -> frozenset[tuple[int, int | None]]:
-        """The lengths the schema allows for the list at ``keys``; empty when not known."""
-        return frozenset() if self._lengths is None else self._lengths(keys)
-
     def _extend(self, keys: KeyPath, at: KeyPath) -> KeyPath:
         """``keys`` followed by a rule's relative key path ``at``.
 
         A key of ``at`` that the input writes as a string of digits, as a mapping that
-        passed through JSON does, is given as the input writes it.
+        passed through JSON does, is given as the input writes it, and so is one that a
+        null removed.
         """
         extended = list(keys)
         node: object = _value_at(self._raw, keys)
         for key in at:
-            written = key
-            if isinstance(node, Mapping) and key not in node and str(key) in node:
-                written = str(key)
+            spellings = (key, str(key))
+            here = node if isinstance(node, Mapping) else {}
+            live = [spelling for spelling in spellings if spelling in here]
+            removed = [spelling for spelling in spellings if (*extended, spelling) in self._origins]
+            written = [*live, *removed, key][0]
             extended.append(written)
             if isinstance(node, Mapping):
                 node = node.get(written)
@@ -479,25 +491,36 @@ class _Reporter:
     def _keys(self, loc: tuple[Any, ...], *, keep_last: bool) -> _Located:
         """Map a pydantic location onto the input's keys.
 
-        A segment that leads nowhere in the input is a union member's tag, and is
-        dropped, except a missing key's own name or list position at the end.
+        pydantic puts a union member's tag in the location, and it is dropped here.  A
+        tagged union's tag is told by the schema, since the input may hold a key of the
+        same name.  Any other segment that leads nowhere in the input is a tag too,
+        except a missing key's own name or list position at the end.
         """
         keys: list[Any] = []
         node: object = self._raw
         about_key = False
         tags: list[tuple[int, Any]] = []
         at_position = False
+        tagged = False
         for index, segment in enumerate(loc):
-            if segment == _KEY_SEGMENT:
-                about_key = True
-                continue
+            if not tagged and isinstance(node, Mapping):
+                tag_keys = self._schema.tag_keys(tuple(keys))
+                tagged = any(node.get(key) == segment for key in tag_keys)
+                if tagged:
+                    tags.append((len(keys), segment))
+                    continue
             if isinstance(node, Mapping) and segment in node:
                 keys.append(segment)
                 node = node[segment]
+                tagged = False
+                continue
+            if segment == _KEY_SEGMENT:
+                about_key = True
                 continue
             if isinstance(node, list | tuple) and _is_position(node, segment):
                 keys.append(segment)
                 node = node[segment]
+                tagged = False
                 continue
             if keep_last and index == len(loc) - 1:
                 at_position = isinstance(node, list | tuple) and isinstance(segment, int)

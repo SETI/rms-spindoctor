@@ -54,7 +54,9 @@ The supported annotations are the aliases above, ``Literal`` and ``Enum`` of str
 for a key that is a Python keyword.  :func:`check_schema` refuses everything else, and
 also refuses what would read a value leniently: a bare ``float``, ``int``, ``bool``, or
 ``str``, a ``Strict(False)`` or ``AllowInfNan(True)`` marker, and a validator that runs
-before the type check.  :func:`parse` runs that check the first time it sees a class.
+before the type check, on any type.  A default that does not fit its field, and an
+``InitVar``, are refused too.  :func:`parse` runs that check the first time it sees a
+class.
 Adding a new form or convention needs a reason, written here.
 
 A null is never data in the files this core reads.  The layer merge
@@ -197,6 +199,7 @@ def _to_fcpath(value: object) -> filecache.FCPath:
 # The validators of DigitInt and FCPath, which the schema check recognizes by identity.
 _DIGIT_VALIDATOR = BeforeValidator(_digits_to_int)
 _FCPATH_VALIDATOR = PlainValidator(_to_fcpath)
+_CORE_VALIDATORS = (_DIGIT_VALIDATOR, _FCPATH_VALIDATOR)
 
 #: An integer, also written as a string of digits with no leading zero.  Use it for
 #: mapping keys; :func:`parse` refuses a mapping that writes one key both ways.
@@ -244,10 +247,14 @@ def check_schema(cls: object) -> None:
             infinite, or a validator that runs before the type check); if a choice
             has a value that is not a string; if a union of two or more dataclasses
             is not tagged, or a tag does not name a ``Literal`` field of every
-            member; if a path is a bare ``FCPath``; or if an annotation is not one of
-            the supported forms.
+            member; if a path is a bare ``FCPath``; if an annotation is not one of
+            the supported forms; if a dataclass has an ``InitVar``; or if a field's
+            default does not fit its annotation.
     """
-    _check_annotation(cls, where=getattr(cls, '__qualname__', repr(cls)), seen=set())
+    seen: set[type] = set()
+    _check_annotation(cls, where=getattr(cls, '__qualname__', repr(cls)), seen=seen)
+    for record in seen:
+        _check_defaults(record)
 
 
 def _flatten(extras: tuple[Any, ...]) -> list[Any]:
@@ -260,17 +267,32 @@ def _flatten(extras: tuple[Any, ...]) -> list[Any]:
     return flat
 
 
-def _check_annotation(annotation: Any, *, where: str, seen: set[type]) -> None:
-    """Check one annotation and everything inside it; ``where`` locates it in messages."""
-    base = annotation
-    extras: list[Any] = []
-    if get_origin(annotation) is Annotated:
-        base, *rest = get_args(annotation)
-        extras = _flatten(tuple(rest))
-    tag: str | None = None
+def _unwrap(annotation: Any) -> tuple[Any, list[Any]]:
+    """An annotation without its ``Annotated`` extras, and the extras, flattened."""
+    if get_origin(annotation) is not Annotated:
+        return annotation, []
+    base, *extras = get_args(annotation)
+    return base, _flatten(tuple(extras))
+
+
+def _tag_key(extras: list[Any]) -> str | None:
+    """The tag field that :func:`tagged` gives among ``Annotated`` extras, or None."""
     for extra in extras:
         if isinstance(extra, FieldInfo) and isinstance(extra.discriminator, str):
-            tag = extra.discriminator
+            return extra.discriminator
+    return None
+
+
+def _check_annotation(annotation: Any, *, where: str, seen: set[type]) -> None:
+    """Check one annotation and everything inside it; ``where`` locates it in messages."""
+    base, extras = _unwrap(annotation)
+    for extra in extras:
+        if isinstance(extra, _EARLY_VALIDATORS) and extra not in _CORE_VALIDATORS:
+            raise TypeError(
+                f'{where}: a validator that runs before the type check reads values '
+                f'leniently; check the value after the type with AfterValidator'
+            )
+    tag = _tag_key(extras)
     origin = get_origin(base)
     if base in _STRICT_ALIASES:
         _check_scalar(base, extras, where=where)
@@ -314,11 +336,6 @@ def _check_scalar(base: type, extras: list[Any], *, where: str) -> None:
             raise TypeError(f'{where}: Strict(False) reads values leniently; use {alias}')
         if getattr(extra, 'allow_inf_nan', None) is True:
             raise TypeError(f'{where}: AllowInfNan(True) lets a float be infinite; use {alias}')
-        if isinstance(extra, _EARLY_VALIDATORS) and extra is not _DIGIT_VALIDATOR:
-            raise TypeError(
-                f'{where}: a validator that runs before the type check reads values '
-                f'leniently; check the value after the type with AfterValidator'
-            )
     if not any(isinstance(extra, Strict) for extra in extras):
         raise TypeError(
             f'{where}: a bare {base.__name__} reads values leniently; use the schema alias {alias}'
@@ -379,8 +396,38 @@ def _check_dataclass(cls: type, *, seen: set[type]) -> None:
             f'{cls.__qualname__}: a schema dataclass sets __pydantic_config__ = SCHEMA_CONFIG'
         )
     hints = get_type_hints(cls, include_extras=True)
+    for name, hint in hints.items():
+        if isinstance(hint, dataclasses.InitVar):
+            raise TypeError(f'{cls.__qualname__}.{name}: a schema has no InitVar; use a field')
     for item in dataclasses.fields(cls):
         _check_annotation(hints[item.name], where=f'{cls.__qualname__}.{item.name}', seen=seen)
+
+
+def _check_defaults(cls: type) -> None:
+    """Check each default of a schema dataclass against its field's annotation.
+
+    pydantic does not check a default, so a key left out would take a value that a file
+    could not write.
+    """
+    defaults: dict[str, Any] = {}
+    for key, item in zip(_field_hints(cls), dataclasses.fields(cls), strict=True):
+        if item.default is not dataclasses.MISSING:
+            defaults[key] = item.default
+        elif item.default_factory is not dataclasses.MISSING:
+            defaults[key] = item.default_factory()
+    try:
+        TypeAdapter(cls).validate_python(defaults)
+    except ValidationError as exc:
+        # A required field is missing here, and a rule may refuse the defaults alone.
+        bad = {
+            str(error['loc'][0])
+            for error in exc.errors(include_url=False)
+            if error['loc'] and (error['type'] != 'missing' or len(error['loc']) > 1)
+        }
+        if bad:
+            raise TypeError(
+                f'{cls.__qualname__}: the defaults of {sorted(bad)} do not fit their annotations'
+            ) from exc
 
 
 @functools.cache
@@ -390,8 +437,8 @@ def _adapter(cls: Any) -> TypeAdapter[Any]:
     return TypeAdapter(cls)
 
 
-def _length_bounds(annotation: Any, keys: KeyPath) -> frozenset[tuple[int, int | None]]:
-    """The (fewest, most) items of each list type ``annotation`` allows at ``keys``.
+def _types_at(annotation: Any, keys: KeyPath) -> list[tuple[Any, list[Any]]]:
+    """Each type ``annotation`` allows at ``keys``, without and with its extras.
 
     The keys are the input's own: a union is followed into each of its members, since
     the input does not say which member a value was checked against.
@@ -401,38 +448,68 @@ def _length_bounds(annotation: Any, keys: KeyPath) -> frozenset[tuple[int, int |
         keys: A key path into a value of that annotation.
 
     Returns:
-        One pair per list type found at ``keys``, with None for no most.
+        The types, as :func:`_unwrap` gives them; a union, and then its members.
     """
-    base, extras = annotation, []
-    if get_origin(annotation) is Annotated:
-        base, *rest = get_args(annotation)
-        extras = _flatten(tuple(rest))
+    base, extras = _unwrap(annotation)
     origin = get_origin(base)
     arguments = get_args(base)
     if origin is Union or origin is types.UnionType:
-        return frozenset().union(*(_length_bounds(member, keys) for member in arguments))
-    fixed = origin is tuple and Ellipsis not in arguments
+        members = [found for member in arguments for found in _types_at(member, keys)]
+        return members if keys else [(base, extras), *members]
     if not keys:
-        if fixed:
-            return frozenset({(len(arguments), len(arguments))})
-        if origin in (list, tuple):
+        return [(base, extras)]
+    key, rest = keys[0], keys[1:]
+    if isinstance(base, type) and dataclasses.is_dataclass(base):
+        hint = _field_hints(base).get(key)
+        return [] if hint is None else _types_at(hint, rest)
+    if origin in (dict, Mapping):
+        return _types_at(arguments[1], rest)
+    if origin is tuple and Ellipsis not in arguments:
+        inside = isinstance(key, int) and 0 <= key < len(arguments)
+        return _types_at(arguments[key], rest) if inside else []
+    if origin in (list, tuple):
+        return _types_at(arguments[0], rest)
+    return []
+
+
+class _View:
+    """A schema's :class:`~spindoctor.schema.errors.SchemaView`.
+
+    Parameters:
+        cls: The schema's root type.
+    """
+
+    def __init__(self, cls: Any) -> None:
+        self._cls = cls
+
+    def lengths(self, keys: KeyPath) -> frozenset[tuple[int, int | None]]:
+        """The (fewest, most) items of each list type allowed at ``keys``; None for no most."""
+        found: set[tuple[int, int | None]] = set()
+        for base, extras in _types_at(self._cls, keys):
+            arguments = get_args(base)
+            if get_origin(base) not in (list, tuple):
+                continue
+            if get_origin(base) is tuple and Ellipsis not in arguments:
+                found.add((len(arguments), len(arguments)))
+                continue
             fewest = max((getattr(extra, 'min_length', 0) or 0 for extra in extras), default=0)
             most = [getattr(extra, 'max_length', None) for extra in extras]
             limits = [int(limit) for limit in most if limit is not None]
-            return frozenset({(int(fewest), min(limits, default=None))})
-        return frozenset()
-    key, rest_keys = keys[0], keys[1:]
-    if isinstance(base, type) and dataclasses.is_dataclass(base):
-        hint = _field_hints(base).get(key)
-        return frozenset() if hint is None else _length_bounds(hint, rest_keys)
-    if origin in (dict, Mapping):
-        return _length_bounds(arguments[1], rest_keys)
-    if fixed:
-        inside = isinstance(key, int) and 0 <= key < len(arguments)
-        return _length_bounds(arguments[key], rest_keys) if inside else frozenset()
-    if origin in (list, tuple):
-        return _length_bounds(arguments[0], rest_keys)
-    return frozenset()
+            found.add((int(fewest), min(limits, default=None)))
+        return frozenset(found)
+
+    def tag_keys(self, keys: KeyPath) -> frozenset[str]:
+        """The tag field of each tagged union at ``keys``."""
+        tags = [_tag_key(extras) for _, extras in _types_at(self._cls, keys)]
+        return frozenset(tag for tag in tags if tag is not None)
+
+    def digit_keyed(self, keys: KeyPath) -> bool:
+        """Whether a mapping at ``keys`` reads a string of digits as an integer key."""
+        return any(
+            get_origin(base) in (dict, Mapping)
+            and _DIGIT_VALIDATOR in _unwrap(get_args(base)[0])[1]
+            for base, _ in _types_at(self._cls, keys)
+        )
 
 
 def _field_hints(cls: type) -> dict[str, Any]:
@@ -484,17 +561,13 @@ def parse(
     """
     # A class is hashable; typeshed's type[T] does not say so.
     adapter = _adapter(cast(Hashable, cls))
-    doubled = doubled_keys(raw, source=source, origins=origins or {})
+    view = _View(cls)
+    doubled = doubled_keys(raw, source=source, origins=origins or {}, schema=view)
     try:
         value: T = adapter.validate_python(raw)
     except ValidationError as exc:
         errors = exc.errors(include_url=False)
-
-        def lengths(keys: KeyPath) -> frozenset[tuple[int, int | None]]:
-            """The lengths ``cls`` allows for the list at ``keys``."""
-            return _length_bounds(cls, keys)
-
-        found = report(errors, raw, source=source, origins=origins or {}, lengths=lengths)
+        found = report(errors, raw, source=source, origins=origins or {}, schema=view)
         raise SchemaError([*doubled, *found]) from exc
     if doubled:
         raise SchemaError(doubled)

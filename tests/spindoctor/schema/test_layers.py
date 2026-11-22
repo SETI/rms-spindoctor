@@ -37,8 +37,9 @@ def test_read_layer_labels_the_layer_with_the_file_name(tmp_path: Path) -> None:
     [
         ('a: 1\na: 2\n', 'f.yaml: not valid YAML: '),
         ('- 1\n- 2\n', 'f.yaml: expected a mapping at the top level, got list'),
+        ('null\n', 'f.yaml: expected a mapping at the top level, got NoneType None'),
     ],
-    ids=['duplicate-key', 'not-a-mapping'],
+    ids=['duplicate-key', 'not-a-mapping', 'null'],
 )
 def test_read_layer_refuses_a_bad_file(tmp_path: Path, text: str, match: str) -> None:
     """A file that is not valid YAML, or holds no mapping, fails with the file's name."""
