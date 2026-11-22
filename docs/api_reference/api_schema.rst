@@ -8,6 +8,11 @@ spindoctor.schema
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.schema.errors
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.schema.layers
    :members:
    :undoc-members:

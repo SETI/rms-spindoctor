@@ -18,9 +18,9 @@ The navigator's configuration loads through :class:`~spindoctor.config.config.Co
 (see :doc:`dev_guide_config_and_static_data`), and the simulator's instrument catalog
 and scenes are checked by their own modules.
 
-The package imports nothing else from ``spindoctor``. Its only outside imports are
-pydantic, ``annotated_types``, ``ruamel.yaml``, and ``filecache``, and a test reads its
-source to hold it to that. Both the simulator and the configuration code can
+The package imports nothing else from ``spindoctor``. Beyond the standard library it
+may import only pydantic, ``annotated_types``, ``ruamel.yaml``, and ``filecache``, and a
+test reads its source to hold it to that. Both the simulator and the configuration code can
 therefore build on it without importing each other.
 
 Declaring a schema
@@ -85,31 +85,49 @@ The rules behind this example:
   :data:`~spindoctor.schema.core.NonNeg`, and :data:`~spindoctor.schema.core.Unit`
   are floats above zero, at or above zero, and in [0, 1].
   :data:`~spindoctor.schema.core.PositiveInt` and
-  :data:`~spindoctor.schema.core.NonNegInt` are the integer versions. Any other range is
-  an ``annotated_types`` constraint, such as ``Annotated[Float, Le(90)]``.
+  :data:`~spindoctor.schema.core.NonNegInt` are the integer versions. Each states its
+  own range when it refuses a value: "expected a number in [0, 1], got 2". Any other
+  range is an ``annotated_types`` constraint, such as ``Annotated[Float, Le(90)]``,
+  and its message gives the bound: "expected a number of at most 90, got 91".
 - **Integer keys use** :data:`~spindoctor.schema.core.DigitInt`. A scene that passes
   through JSON comes back with string keys, and ``DigitInt`` reads ``'2'`` as ``2``.
+  A key with a leading zero, such as ``'02'``, is refused, and so is a mapping that
+  writes one key both as ``2`` and as ``'2'``, so no two keys can stand for one
+  integer.
 - **A path or URL uses** :data:`~spindoctor.schema.core.FCPath`.
+- **A choice is a** ``Literal`` **or an** ``Enum`` **of strings.** A value outside it
+  is refused as ``'cmos' is not one of ['ccd', 'vidicon']``. A choice of numbers is
+  refused, because it would also accept ``True`` for ``1``.
 - **A rule that ties fields together is** ``__post_init__`` on the class that owns
-  them. It raises ``ValueError``, and its message becomes the problem's message.
+  them. It raises ``ValueError``, and its message becomes the problem's message. Any
+  other exception is treated as a bug in the rule and is raised as it is.
 - **An entry that comes in kinds is a tagged union.** Each member declares a
   ``Literal`` tag field, and :func:`~spindoctor.schema.core.tagged` marks the union.
-  The tag picks the member, so a problem is reported against that member alone.
+  The tag picks the member, so a problem is reported against that member alone. A
+  union of two or more dataclasses must be tagged, and every member must declare the
+  tag field as a ``Literal``.
 - **Markers for other code go in the field's metadata.** The core never reads them.
   :func:`~spindoctor.schema.metadata.walk_metadata` collects them for the whole schema,
   keyed by field path, such as ``by_binning.*.read_noise_dn``. The simulator can use
   them to sort keys by its information boundary, and the scene editor can read hints
-  for its controls.
+  for its controls. Two types at one path, such as two members of a tagged union,
+  must mark the fields they share the same way.
+- **A schema is built once, at import.** ``parse`` keeps the checked pydantic adapter
+  of every class it has seen for the life of the process, so a class built on the fly
+  for each call would be kept again on each call.
 
 Unknown keys are always refused, so a misspelled key is an error. Strictness lives
 on the fields, never on the dataclass, because a strict pydantic dataclass accepts
 only an instance of itself and refuses a mapping. No class subclasses pydantic's
 ``BaseModel``; a test reads the source to keep it that way.
 
-:func:`~spindoctor.schema.core.check_schema` refuses a schema that breaks these rules:
-a dataclass that is not frozen or does not use ``SCHEMA_CONFIG``, a bare ``float``,
-``int``, ``bool``, or ``str``, or an annotation outside the supported forms that the
-core module's docstring lists. :func:`~spindoctor.schema.core.parse` runs the check
+:func:`~spindoctor.schema.core.check_schema` refuses a schema that breaks these rules.
+That covers a dataclass that is not frozen or does not use ``SCHEMA_CONFIG``, an untagged
+union of dataclasses, and a choice that is not all strings. It also covers anything
+that would read a value leniently: a bare ``float``, ``int``, ``bool``, ``str``, or
+``FCPath``, a ``Strict(False)`` or ``AllowInfNan(True)`` marker, and a validator that
+runs before the type check. An annotation outside the supported forms that the core
+module's docstring lists is refused too. :func:`~spindoctor.schema.core.parse` runs the check
 the first time it sees a class. A new form or convention needs a reason, written in
 that docstring.
 
@@ -118,7 +136,7 @@ Parsing and error messages
 
 :func:`~spindoctor.schema.core.parse` checks a mapping and returns the instance. When
 the mapping breaks the schema it raises one
-:class:`~spindoctor.schema.core.SchemaError`, which lists every problem at once, one
+:class:`~spindoctor.schema.errors.SchemaError`, which lists every problem at once, one
 line each, as ``file: key.path: message``:
 
 .. code-block:: text
@@ -126,12 +144,14 @@ line each, as ``file: key.path: message``:
    generic.yaml, coiss.yaml: missing required keys: ['name']
    coiss.yaml: bloom_fraction: expected a number, got str '0.8' (a number written so YAML reads it as a string)
    coiss.yaml: by_binning.2.read_noise_dn: expected a non-negative number, got -1
-   coiss.yaml: psf.kind: expected one of 'gaussian', 'airy', got 'moffat'
+   coiss.yaml: psf.kind: 'moffat' is not one of ['airy', 'gaussian']
    coiss.yaml: unknown keys: ['gian']
 
-Missing keys and unknown keys of one mapping share a line. A position in a list is
-written ``[n]``, as in ``bodies[2].radius``. Each issue is also available on the
-error's ``issues`` attribute.
+Missing keys and unknown keys of one mapping share a line. A bad mapping key and a bad
+value under it are two problems, on two lines. A position in a list is written
+``[n]``, as in ``bodies[2].radius``, and a list of the wrong length reads "expected a
+list of 2 items". Each issue is also available on the error's ``issues`` attribute,
+as an :class:`~spindoctor.schema.errors.Issue`.
 
 The file on each line comes from the ``origins`` that the layer merge records. A line
 about a value gives the file that set it, and so does a line about an unknown key. A
@@ -200,7 +220,9 @@ chain of entries it inherits from. The far end of the chain merges first, so the
 entry's own values win. The key that holds the base's name is dropped from the
 result. Keys listed in ``not_inherited`` reach an entry only from its own layer. An
 unknown base, a base that is not a string, and a chain that loops are each reported
-with the entry's file and name.
+with the entry's file and name. The entry's other null problems are reported beside
+a bad base, except a null that removes nothing, since the base that could not be read
+may have set that key.
 
 API reference
 =============
