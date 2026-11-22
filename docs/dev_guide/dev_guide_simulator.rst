@@ -2088,27 +2088,28 @@ body is at the frame center. The pixel of clearance is there because the move re
 nothing past the drawing, so a body touching its outermost pixels would lose part of
 their light.
 
-A body that fits is drawn on the frame exactly as before. A body that does not fit
+A body that fits is drawn on the frame, as described above. A body that does not fit
 is drawn on a larger canvas
 (:func:`~spindoctor.sim.render.bodies.placement.body_canvas`): the frame's pixel grid
 continued past its edges, but only as far as the move needs to fill the frame from
 this body's position, plus 8 detector pixels so the spline that interpolates the
 relief tilt never ends inside the frame. The canvas is bounded by the frame, never by
 the body, so a body thousands of pixels across costs about as much as one that fills
-the frame. The body is still drawn at the frame center and moved the same way.
+the frame. Either way, the body is drawn at the frame center and then moved.
 
 The result matches what the same part of a frame large enough to hold the whole body
 would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. There are
 three small exceptions. A mesh body at its default pose differs by up to 0.03 of full
-brightness, because the mesh rasterizer already gives slightly different pixels on
-frames of different sizes. A body with limb relief at an oversampling factor above 1
+brightness, because the mesh rasterizer gives slightly different pixels on frames of
+different sizes. A body with limb relief at an oversampling factor above 1
 differs by about 1e-6 of full brightness, from the ends of the spline. A cratered body
 has its craters laid out on a grid that holds the whole body, so they stay in the
 same places on its surface whichever part of it is drawn; a larger frame would lay
 them out differently.
 
 The canvas depends on where the body lands, so a body this large is drawn again at
-every step of an offset sweep, instead of once. Only the last such drawing is kept.
+every step of an offset sweep, where a body that fits is drawn once. Only the last
+such drawing is kept.
 That is enough for a scene with one large body, which a scene that smears each layer
 apart draws twice per render, and it keeps a sweep to one drawing in memory. A scene
 with two such bodies draws each of them twice. For a body of radius 5000 pixels with
