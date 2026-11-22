@@ -235,9 +235,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_deep', 'BodyBlobNav'): _b(6.970, 6.980, 0.05, 6.920, 7.031),
     ('mutual_half', 'BodyBlobNav'): _b(8.474, 8.741, 0.0533, 8.421, 8.795),
     ('mutual_grazing', 'BodyBlobNav'): _b(1.822, 1.834, 0.05, 1.772, 1.884),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(28.230, 30.533, 0.4604, 27.770, 30.994),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(30.407, 30.408, 0.05, 30.357, 30.458),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(1.241, 1.347, 0.05, 1.191, 1.397),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(28.255, 30.558, 0.4603, 27.795, 31.019),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(30.143, 30.144, 0.05, 30.093, 30.194),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(1.240, 1.252, 0.05, 1.190, 1.302),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.008 px and 0.059 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.624, 0.632, 0.05, 0.573, 0.682),

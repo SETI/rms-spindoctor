@@ -12,17 +12,23 @@ renderer treats specially: the silhouette, the band along the limb, and the cell
 along the day-night edge.
 """
 
+from collections.abc import Callable
+from dataclasses import dataclass
+
 import numpy as np
 from scipy import ndimage
 
+from spindoctor.sim.render.bodies.craters import CraterSite
 from spindoctor.sim.render.bodies.relief import ReliefField
 from spindoctor.sim.shared.ellipsoid import EllipsoidProjection
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
 __all__ = [
+    'CraterPlane',
     'bilinear_upsample',
     'body_box',
+    'crater_plane_site',
     'cubic_upsample',
     'day_night_edge_cells',
     'expand_to_working_grid',
@@ -42,6 +48,163 @@ _DAY_NIGHT_MARGIN_CELLS = 3
 # Detector cells kept around the silhouette when a body is cropped to its box; one
 # cell covers the bilinear interpolation's reach and one more the outline's.
 _BOX_MARGIN_CELLS = 2
+
+
+@dataclass(frozen=True)
+class CraterPlane:
+    """The detector grid a partly drawn body's crater centers are drawn on.
+
+    A body too large to be drawn whole is drawn on a box of a larger grid that holds
+    all of it.  Its craters are laid out on that larger grid, so they stay in place
+    on the body's surface whichever part of it is drawn.
+
+    Parameters:
+        shape: The plane's rows and columns, in detector pixels.
+        origin: The plane row and column of the drawn detector grid's first pixel.
+    """
+
+    shape: tuple[int, int]
+    origin: tuple[int, int]
+
+
+def crater_plane_site(
+    plane: CraterPlane, detector_grid: EllipsoidProjection, *, cos_tilt: float
+) -> tuple[CraterSite, int]:
+    """The crater site of a plane, and the number of its pixels inside the body.
+
+    A plane pixel lies inside the body when its center lies strictly inside the
+    smooth outline, as on the detector grid
+    (:func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`), with the same
+    arithmetic.  The site tests pixels as they are drawn, and the count tests only
+    the pixels near the limb of each row (:func:`_count_inside_by_rows`), so a plane
+    far larger than the frame takes little time or memory.  The count is the one
+    testing every pixel gives, so a site whose count is positive always finds a
+    pixel inside.
+
+    Parameters:
+        plane: The plane.
+        detector_grid: The body projected onto the drawn detector grid.
+        cos_tilt: The cosine of the body's tilt.
+
+    Returns:
+        The site and the count of plane pixels inside the body.
+    """
+    n_rows, n_cols = plane.shape
+    center_v = detector_grid.center[0] + plane.origin[0]
+    center_u = detector_grid.center[1] + plane.origin[1]
+
+    def dist_sq(rows: NDArrayFloatType, cols: NDArrayFloatType) -> NDArrayFloatType:
+        """The squared normalized ellipse distance of plane pixels by row and column."""
+        v = (rows + PIXEL_CENTER_TO_CORNER_PX) - center_v
+        u = (cols + PIXEL_CENTER_TO_CORNER_PX) - center_u
+        v_rot = (v * detector_grid.cos_rz - u * detector_grid.sin_rz) * cos_tilt
+        u_rot = v * detector_grid.sin_rz + u * detector_grid.cos_rz
+        return np.asarray(
+            (v_rot / detector_grid.semi_a) ** 2 + (u_rot / detector_grid.semi_b) ** 2,
+            dtype=np.float64,
+        )
+
+    def inside(indices: NDArrayIntType) -> NDArrayBoolType:
+        """Whether each flat plane index lies inside the body."""
+        rows, cols = np.divmod(indices, n_cols)
+        return np.asarray(dist_sq(rows.astype(np.float64), cols.astype(np.float64)) < 1.0)
+
+    # Along one row the squared distance is the quadratic a u**2 + b u + c in u.  With
+    # finite semi-axes and a computed cosine of the tilt, a is always positive.
+    p_sq = (cos_tilt / detector_grid.semi_a) ** 2
+    q_sq = (1.0 / detector_grid.semi_b) ** 2
+    cos_rz = detector_grid.cos_rz
+    sin_rz = detector_grid.sin_rz
+    v = (np.arange(n_rows, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX) - center_v
+    count = _count_inside_by_rows(
+        n_cols,
+        dist_sq,
+        quad_a=p_sq * sin_rz * sin_rz + q_sq * cos_rz * cos_rz,
+        quad_b=2.0 * v * sin_rz * cos_rz * (q_sq - p_sq),
+        pq_v_sq=p_sq * q_sq * v * v,
+        center_u=center_u,
+    )
+    return CraterSite(shape=plane.shape, inside=inside, origin=plane.origin), count
+
+
+def _count_inside_by_rows(
+    n_cols: int,
+    dist_sq: Callable[[NDArrayFloatType, NDArrayFloatType], NDArrayFloatType],
+    *,
+    quad_a: float,
+    quad_b: NDArrayFloatType,
+    pq_v_sq: NDArrayFloatType,
+    center_u: float,
+) -> int:
+    """Count a plane's pixels inside the body row by row, testing those near the limb.
+
+    Along each row the squared distance is the quadratic ``a u**2 + b u + c`` in u, so
+    its roots give the columns where it lies below ``1 - delta`` and those where it
+    lies below ``1 + delta``, with ``delta`` 1e-9.  The discriminant at level ``L``,
+    ``b**2 - 4 a (c - L)``, equals ``4 a L - 4 p**2 q**2 v**2`` (with ``p`` and ``q``
+    the inverse semi-axes, the first scaled by the tilt's cosine, and ``v`` the row's
+    offset from the center), and it is computed in that form, which keeps it accurate
+    to the rounding of its terms however elongated the outline.  A row whose
+    discriminant at ``1 + delta`` is not positive has no pixel inside.  The roots are
+    then good to far less than a column, so a pixel a column or more inside the
+    first span is inside the body whatever the rounding of the distance, and one a
+    column or more outside the second is outside it.  The pixels between are tested
+    with ``dist_sq``, the arithmetic the site tests a candidate with.  On 400
+    random outlines and on outlines up to 1e7 times as long as they are wide, each
+    with a pixel on its limb, the count equals testing every pixel.  Its cost grows
+    with the plane's rows instead of its area.
+
+    Parameters:
+        n_cols: The plane's columns.
+        dist_sq: The squared normalized ellipse distance by row and column.
+        quad_a: The quadratic's ``a``, the same for every row.
+        quad_b: The quadratic's ``b`` for each row.
+        pq_v_sq: ``p**2 q**2 v**2`` for each row.
+        center_u: The body center u on the plane.
+
+    Returns:
+        The number of plane pixels whose distance is below 1.
+    """
+    delta = 1e-9
+    offset = center_u - PIXEL_CENTER_TO_CORNER_PX
+
+    def column_span(level: float) -> tuple[NDArrayBoolType, NDArrayFloatType, NDArrayFloatType]:
+        """Where the distance is below ``level``: per row, any, and the column bounds."""
+        disc = 4.0 * quad_a * level - 4.0 * pq_v_sq
+        root = np.sqrt(np.maximum(disc, 0.0))
+        return (
+            disc > 0.0,
+            (-quad_b - root) / (2.0 * quad_a) + offset,
+            (-quad_b + root) / (2.0 * quad_a) + offset,
+        )
+
+    near, near_lo, near_hi = column_span(1.0 + delta)
+    sure, sure_lo, sure_hi = column_span(1.0 - delta)
+    last = float(n_cols - 1)
+    # The candidates: every column that can lie inside the body, on the plane.
+    cand_lo = np.clip(np.floor(near_lo) - 1.0, 0.0, last).astype(np.int64)
+    cand_hi = np.clip(np.ceil(near_hi) + 1.0, -1.0, last).astype(np.int64)
+    cand_hi = np.where(near, cand_hi, cand_lo - 1)
+    # The columns certainly inside, among the candidates.
+    in_lo = np.maximum(np.ceil(sure_lo) + 1.0, cand_lo).astype(np.int64)
+    in_hi = np.minimum(np.floor(sure_hi) - 1.0, cand_hi).astype(np.int64)
+    certain = near & sure & (in_lo <= in_hi)
+    in_lo = np.where(certain, in_lo, cand_hi + 1)
+    in_hi = np.where(certain, in_hi, cand_hi)
+    count = int(np.sum(np.maximum(in_hi - in_lo + 1, 0)))
+    # The rest of the candidates, before and after the certain columns, are tested.
+    rows = np.arange(quad_b.size)
+    for start, stop in ((cand_lo, in_lo), (in_hi + 1, cand_hi + 1)):
+        lengths = np.maximum(stop - start, 0)
+        total = int(lengths.sum())
+        if total == 0:
+            continue
+        row_of = np.repeat(rows, lengths).astype(np.float64)
+        col_of = np.repeat(start, lengths) + (
+            np.arange(total) - np.repeat(np.cumsum(lengths) - lengths, lengths)
+        )
+        count += int(np.count_nonzero(dist_sq(row_of, col_of.astype(np.float64)) < 1.0))
+    return count
 
 
 def bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
