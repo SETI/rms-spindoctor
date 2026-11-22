@@ -189,6 +189,13 @@ topographic renderer's grids. #1012 follows #901, because #901 removes the class
 module #1012 splits. The render grid that removes hand-threaded oversampling (#1015) waits for the
 typed scene, in Phase 3b.
 
+Of the rows not yet started, #893 goes first (operator, 2026-11-21). Its limb seam paints a
+dark one-pixel outline wherever a body's edge crosses a pixel, because a partly covered limb pixel
+keeps the body's share and drops what lies behind it; that outline is visible around the haze of
+the Titan scenes, sharpens every occluding limb a limb technique fits, and loosened two
+mutual-event tolerances in the disc refinement work (#1053). It follows #890, whose coverage of a
+body too large for the frame the seam fix shares.
+
 | Issue | Subject |
 |---|---|
 | #901 | **Done (PR #1069).** One renderer, `bodies/ellipsoid.py`, now draws every ellipsoid; the classic path and the path choice are gone. A setting at an effectively zero value renders the smooth body: a relief of 1e-9 of the radius now changes no pixel by more than 1.2e-8 of peak, where it changed 628 pixels by up to 1%. A small body with relief at oversample 4 matches an 8x finer render as closely as a smooth one. Classic and topographic body renderers disagree; retire the classic path (part of #915) |
@@ -200,9 +207,9 @@ typed scene, in Phase 3b.
 | #890 | **Done (PR #1081).** A body, relief, or halo that reaches past the frame from the frame center is drawn on a canvas past the frame edge and moved into place as before (the interpolated move stays, per the #984 ruling), so it matches the unclipped body exactly at whole-pixel positions and in light and light center at fractional ones; only the three Titan halo scenes moved, gaining the halo light the move had left out of a one- to two-pixel strip at the frame edge. A body larger than half the frame and off center is clipped or vanishes |
 | #825, #644 | **Done (PR #1086).** Per the 2026-11-20 ruling, a planted roll turns everything in view about the frame center in the sense the navigator's rotation fits report, where before the ellipsoid outline turned the wrong way and the mesh pose, lit side, craters, smear, companions, sky, and stray-light ramp not at all; the camera's PSF, distortion, ghosts, and radial stray light stay put. No committed scene or sweep step moved, since the only rolled ones are star fields that carry none of these. A planted roll turns ellipsoids the wrong way, mesh bodies and the lit side not at all, and leaves smear, companions, and sky unturned; #644 also asks for a ruling on what a roll turns |
 | #891, #873 | Ring-edge anti-aliasing on optical depth shifts lone edges up to 0.7 px; a rank-1 ring scene misses its planted shift by 0.52 px |
+| #893 | Limb seam, coverage-blind star extinction, and `rotation_tilt` stretch |
 | #84 | Simulated rings were copied in place, so ring edges overwrote brighter objects behind them and gaps erased what lay in them. The ring system has composited by optical depth since PR #313, so a gap or a faint ring shows what lies behind it; confirm on a ring-over-body scene and close |
 | #892 | PSF and smear zero-pad the frame: darkened edges, no light from outside it |
-| #893 | Limb seam, coverage-blind star extinction, and `rotation_tilt` stretch |
 | #894 | Night-side 1% floor and clipped photometric laws |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
