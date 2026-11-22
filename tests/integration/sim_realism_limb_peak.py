@@ -66,11 +66,12 @@ _SILHOUETTE_STEP_PX = 1.0 / 64.0
 # tell a radial offset from a translation.
 MAX_OFFSET_SIGMA_PX = 0.2
 
-# The band rule.  A bin's band is BAND_MULTIPLE standard errors of the real median,
-# where the standard error is the real offsets' robust scatter over the square root of
-# their count, and never less than BAND_FLOOR_PX.  The scatter is the bin's own when it
-# holds at least MIN_BIN_LIMBS_FOR_SCATTER real limbs, else the instrument's, pooled
-# over every bin; an instrument with fewer real limbs than that gets no band.
+# The band rule.  Only a bin holding at least MIN_BIN_LIMBS_FOR_SCATTER real limbs gets
+# a band and a verdict.  Its band is BAND_MULTIPLE standard errors of the real median,
+# where the standard error is the bin's own robust scatter of the real offsets over the
+# square root of their count, and never less than BAND_FLOOR_PX.  With fewer real limbs
+# one limb that the body's shape pulls off sets the median (operator ruling of
+# 2026-11-22, #842), so such a bin is reported without a verdict.
 BAND_MULTIPLE = 2.0
 BAND_FLOOR_PX = 0.1
 MIN_BIN_LIMBS_FOR_SCATTER = 3
@@ -236,12 +237,12 @@ class LimbPeakBin:
         n_sim: Matched limbs in the bin.
         real_median_px: The real offsets' median, or None without real limbs.
         sim_median_px: The matched offsets' median, or None without matched limbs.
-        real_scatter_px: The robust scatter the band rests on (the bin's own or the
-            instrument's), or None when there is too little real data for one.
-        band_px: The band's half-width around the real median, or None without a
-            scatter.
+        real_scatter_px: The robust scatter of the bin's real offsets, or None when
+            the bin holds fewer than 3 real limbs.
+        band_px: The band's half-width around the real median, or None when the bin
+            holds fewer than 3 real limbs.
         within_band: Whether the matched median lies within the band, or None when
-            either side is empty or there is no band.
+            the bin has no band or no matched limbs.
     """
 
     n_real: int
@@ -263,11 +264,11 @@ def compare_limb_peaks(
 ) -> dict[str, LimbPeakBin]:
     """Compare each bin's matched gradient-peak offsets with its real ones.
 
-    The band is set from the real offsets before the matched ones are looked at.  Its
-    half-width is 2 standard errors of the real median, the robust scatter of the real
-    offsets over the square root of their count, and never less than 0.1 px.  The
-    scatter is the bin's own when it holds at least 3 real limbs; otherwise it is the
-    scatter of every real limb of the instrument, if there are at least 3.
+    The band is set from the real offsets before the matched ones are looked at.  Only
+    a bin that holds at least 3 real limbs gets one.  Its half-width is 2 standard
+    errors of the real median: the robust scatter of the bin's own real offsets over
+    the square root of their count, and never less than 0.1 px.  A bin with fewer real
+    limbs records both medians and no band or verdict.
 
     Parameters:
         real: The real side's samples, keyed by kind; only ``limb_peak_*`` kinds are
@@ -277,14 +278,7 @@ def compare_limb_peaks(
     Returns:
         One comparison per bin that either side populates, keyed by the bin's label.
     """
-    kinds = sorted(
-        k for k in set(real) | set(sim) if k.startswith(LIMB_PEAK_KIND_PREFIX) and k != ''
-    )
-    pooled = np.asarray(
-        [x for k in kinds for x in real.get(k, [])],
-        dtype=np.float64,
-    )
-    pooled_scatter = _robust_scatter(pooled) if pooled.size >= MIN_BIN_LIMBS_FOR_SCATTER else None
+    kinds = sorted(k for k in set(real) | set(sim) if k.startswith(LIMB_PEAK_KIND_PREFIX))
     out: dict[str, LimbPeakBin] = {}
     for kind in kinds:
         real_values = np.asarray(real.get(kind, []), dtype=np.float64)
@@ -295,9 +289,6 @@ def compare_limb_peaks(
         band: float | None = None
         if real_values.size >= MIN_BIN_LIMBS_FOR_SCATTER:
             scatter = _robust_scatter(real_values)
-        elif real_values.size:
-            scatter = pooled_scatter
-        if scatter is not None:
             band = max(BAND_MULTIPLE * scatter / float(np.sqrt(real_values.size)), BAND_FLOOR_PX)
         within: bool | None = None
         if band is not None and real_median is not None and sim_median is not None:

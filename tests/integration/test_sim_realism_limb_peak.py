@@ -178,25 +178,18 @@ def test_a_matched_median_beyond_the_band_is_outside_it() -> None:
     assert bins['p0_r1'].within_band is False
 
 
-def test_a_bin_with_one_real_limb_borrows_the_instruments_scatter() -> None:
-    """A lone real limb is held to the scatter of every real limb of the instrument."""
-    real = {'limb_peak_p0_r1': [-0.5, -0.3, -0.1], 'limb_peak_p1_r2': [0.4]}
+def test_a_bin_with_two_real_limbs_is_not_judged() -> None:
+    """Two real limbs give no band and no verdict, however many the instrument has."""
+    real = {'limb_peak_p0_r1': [-0.5, -0.3, -0.1], 'limb_peak_p1_r2': [0.4, 1.08]}
     bins = compare_limb_peaks(real, {'limb_peak_p1_r2': [0.0]})
-    pooled = np.asarray([-0.5, -0.3, -0.1, 0.4])
-    scatter = 1.4826 * np.median(np.abs(pooled - np.median(pooled)))
-    assert bins['p1_r2'].band_px == pytest.approx(2.0 * scatter)
+    assert bins['p1_r2'].band_px is None
+    assert bins['p1_r2'].within_band is None
 
 
 def test_a_tight_bin_is_held_to_the_band_floor() -> None:
     """Real limbs that agree exactly still get a band of 0.1 px."""
     bins = compare_limb_peaks({'limb_peak_p0_r0': [0.2, 0.2, 0.2]}, {'limb_peak_p0_r0': [0.0]})
     assert bins['p0_r0'].band_px == pytest.approx(0.1)
-
-
-def test_an_instrument_with_two_real_limbs_gets_no_band() -> None:
-    """Two real limbs are too few for a scatter, so the bin is not judged."""
-    bins = compare_limb_peaks({'limb_peak_p0_r0': [0.2, -0.2]}, {'limb_peak_p0_r0': [0.0]})
-    assert bins['p0_r0'].within_band is None
 
 
 def test_a_bin_without_matched_limbs_is_not_judged() -> None:
