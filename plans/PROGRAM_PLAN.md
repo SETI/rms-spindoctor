@@ -23,7 +23,7 @@ is documented.
   exit conditions are met, except that any row that waits on nothing can start early.
 - The priority is the issue's own GitHub label.
 - Simulator work is tracked separately, in `plans/SIM_IMPROVEMENT_PLAN.md`, and has no row here.
-  That covers changes to the simulator, its tests, and its report. 20 issues whose fix is
+  That covers changes to the simulator, its tests, and its report. 21 issues whose fix is
   navigator or calibration work have a row in both plans, because the simulator plan also names
   them. They are marked below.
 
@@ -54,7 +54,7 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 
 ## Issue count
 
-450 issues were open on 2026-11-22. 348 of them have a row here, and the other 102 are
+450 issues were open on 2026-11-22. 349 of them have a row here, and the other 101 are
 simulator work tracked separately. 5 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
@@ -79,7 +79,7 @@ The host session owns this phase.
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
 | #240 | 4 Useful |  | **Done (PR #833)** | Library coverage-matrix invariant |
-| #820 | 2 Essential | yes |  | Dataset unit tests download from the live archive |
+| #820 | 2 Essential | yes | PR #1117 open | Dataset unit tests download from the live archive |
 | #832 | 3 Important | yes |  | CI jobs hang for six hours or segfault in Qt tests |
 | #744 | 3 Important | yes |  | Two Galileo truths record the rotation-fitted answer (operator decision) |
 | #867 | 3 Important | yes |  | Re-verify three truths the image stars contradict (operator check) |
@@ -460,11 +460,12 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 
 ## Phase 15: validate configuration and give every program one interface
 
-#427, #1032, and #1001 are deferred by the operator (2026-11-17). #1029 is in the simulator plan.
+#427, #1029, #1032, and #1001 are deferred by the operator (2026-11-17).
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
 | #427 | 4 Useful | yes |  | Reorganize the config namespace (deferred by the operator) |
+| #1029 | 3 Important | yes |  | Type the navigator camera blocks (deferred by the operator; after the simulator's #1023 and #1024; also in the simulator plan) |
 | #1032 | 3 Important | yes |  | Type every navigator config section (deferred by the operator) |
 | #1001 | 4 Useful | yes |  | One rule for which keys the loader checks (closes with #1032) |
 | #118 | 3 Important | yes |  | Config validation system |
@@ -589,7 +590,8 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 - The decisions on #55 and #57 come before the rest of Phase 12, and #241 and #242 before Phases 12
   and 13.
 - Phases 12 and 13 come before #232, and #232 before #231.
-- #427 comes before #1032, and #1032 before #1001.
+- #427 and the simulator's #1023 and #1024 come before #1029, #1029 before the typing work of #1032,
+  and #1032 before #1001.
 
 ## Operator decisions
 
