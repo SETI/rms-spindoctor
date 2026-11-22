@@ -2,7 +2,8 @@
 
 When the near body's outline covers a fraction ``c`` of a limb pixel, the pixel holds
 ``c`` of the near body and ``1 - c`` of whatever lies behind it: a farther body, the
-ring system, or the body's own haze glow.  The scenes here put the near body's limb
+ring system, or the body's own haze glow.  A star behind the limb keeps the
+same open fraction of its light.  The scenes here put the near body's limb
 across the middle of one pixel, so the outline covers exactly half of it.
 """
 
@@ -10,7 +11,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_block
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, ring_system_block, star_entry
 
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.stages import SimFrame, new_sim_frame
@@ -88,6 +89,21 @@ def test_a_half_covered_limb_pixel_shows_half_of_the_ring_behind_it() -> None:
     assert ring[_LIMB_PIXEL] > 0.0
     assert stacked[_LIMB_PIXEL] == pytest.approx(
         near[_LIMB_PIXEL] + _HALF * ring[_LIMB_PIXEL], abs=1e-12
+    )
+
+
+def test_a_star_just_outside_a_limb_loses_only_the_share_the_body_covers() -> None:
+    """A star 0.9 px outside the limb keeps all its light but half its limb share.
+
+    The star's bilinear share falls on the limb pixel and the open pixel beyond it,
+    so the body covers half of the limb pixel's share and nothing else.
+    """
+    star = [star_entry(32.5, 33.4, 6.0)]
+    alone = _compose(stars=star).point_e
+    behind = _compose(stars=star, bodies=[_near_body()]).point_e
+    assert alone[_LIMB_PIXEL] > 0.0
+    assert float(behind.sum()) == pytest.approx(
+        float(alone.sum()) - _HALF * alone[_LIMB_PIXEL], rel=1e-12
     )
 
 

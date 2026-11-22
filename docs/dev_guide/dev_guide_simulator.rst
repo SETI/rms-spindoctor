@@ -2591,7 +2591,8 @@ deterministically by scene-list position, the earlier-listed body rendering as
 the nearer). The renderer draws the true occlusion. Where the nearer body's limb
 covers a fraction ``c`` of a pixel, the pixel holds ``c`` of the nearer body's light
 and ``1 - c`` of whatever lies behind it, so the limb shows no dark outline against
-the farther body, a ring, or the sky. The renderer also
+the farther body, a ring, or the sky. The same fraction scales the light of a star
+behind the limb. The renderer also
 records the outcome in the render truth (``body_occlusion``): each body's
 visible fraction and the angular extent of any hidden limb arc. This is
 bookkeeping the test can read, not something the navigator sees.

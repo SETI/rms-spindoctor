@@ -29,9 +29,10 @@ exactly as opaque overlaps do.  The optical-depth ``ring_system`` is a
 transmission screen too (``img = I_ring + exp(-tau/mu) * img_behind``), and it
 goes into the stack pixel by pixel at its own depth: its pixels at or beyond a
 body's range go in before that body, the rest after every body.  Point sources
-sit at infinity: every translucent screen (ring, halo) attenuates them, and a
-body extinguishes them in every pixel its outline touches, its unlit side and any
-pixel it renders black included.
+sit at infinity: every translucent screen (ring, halo) attenuates them, and each
+body scales them by the fraction of each pixel it leaves open, so a wholly
+covered pixel extinguishes them, its unlit side and any pixel it renders black
+included.
 
 The ring-screen machinery and the depth-ambiguity checks behind every stacking
 decision live in the sibling :mod:`spindoctor.sim.render.radiance.compositing`.
@@ -397,7 +398,9 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # checks.
     halo_screens: list[HaloScreen] = []
     halo_check_items: list[tuple[str, bool, HaloScreen]] = []
-    # Starlight survives only in the pixels no body touches.
+    # The fraction of each pixel no body covers.  Starlight is scaled by it, so
+    # a star behind a limb keeps the share of its light that falls on the part
+    # of each pixel the limb leaves open.
     star_transmission: NDArrayFloatType | None = (
         np.ones((size_v, size_u), dtype=np.float64) if render_items else None
     )
@@ -441,7 +444,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             # the nearest body.
             body_depth_map[body_mask] = sort_key[0]
         if star_transmission is not None:
-            star_transmission[body_mask] = 0.0
+            coverage: BodyCoverage = body_info['coverage']
+            star_transmission[coverage.box_v, coverage.box_u] *= coverage.transmission
         halo = body_info.get('halo')
         if halo is not None:
             halo_screens.append(halo)
@@ -490,7 +494,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
 
     # Point sources sit at infinity, behind everything: every translucent
     # screen (ring, halo) attenuates them wherever it carries optical depth,
-    # and an opaque body extinguishes them in every pixel it touches.
+    # and each body scales them by the fraction of each pixel it leaves open.
     if ring_maps is not None and ring_maps.mask.any():
         point_e *= ring_maps.transmission
     for halo_screen in halo_screens:
