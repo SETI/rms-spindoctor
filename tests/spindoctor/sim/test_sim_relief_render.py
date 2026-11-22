@@ -237,7 +237,7 @@ def test_relief_darkens_no_pixel_above_the_slope_band(seed: int) -> None:
 def _relief_shading(
     grid: EllipsoidProjection, spec: EllipsoidBodySpec, field: ReliefField, near: Any
 ) -> ellipsoid_relief.ReliefShading:
-    """The renderer's relief shading of ``near`` on ``grid``, lit as ``spec`` lights it."""
+    """The renderer's relief shading of ``near`` on ``grid``, lit as ``spec`` says."""
     return ellipsoid_relief.relief_shading(
         grid,
         field,
@@ -365,7 +365,7 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
 
 
 def test_disc_terrain_is_read_where_the_line_of_sight_meets_it() -> None:
-    """Each pixel reads the terrain where its line of sight first meets the relief surface.
+    """Each pixel reads the terrain where its line of sight first meets the surface.
 
     At 5% relief and a 15-degree correlation length, the smooth sphere's direction
     under a pixel lies more than half a correlation length from the point the pixel
@@ -403,7 +403,7 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     direction reads such a normal.  The surface the renderer reads, where each line of
     sight first meets it, faces the observer at all but 2 of them, where the line of
     sight grazes a ridge and the test's differences, half a field cell apart, tilt the
-    normal slightly away.
+    normal away.  The test allows 0.1% of the pixels inside the outline, 19 here.
     """
     spec, grid, field = _lambert_relief_disc(rms=0.035, corr_deg=5.0)
     reach = 1.0 + field.h_max + 2.0 / 75.0
@@ -423,6 +423,25 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     seen = _relief_shading(grid, spec, field, near).seen
     facing_away = _surface_normals(field, seen[inside])[:, 2] < 0.0
     assert int(facing_away.sum()) <= 0.001 * int(inside.sum())
+
+
+def test_a_normal_leaning_away_is_laid_into_the_sky_plane() -> None:
+    """A relief normal leaning away from the observer is laid into the sky plane.
+
+    Where a line of sight grazes a ridge, the normal the field's differences give the
+    point it meets can lean away from the observer.  At 5% relief and a 2-degree
+    correlation length, some pixels on the disc read such a normal.  The renderer
+    gives each of them a toward-observer component of exactly 0, neither mirrored
+    toward the observer nor left leaning away.
+    """
+    spec, grid, field = _lambert_relief_disc(rms=0.05, corr_deg=2.0)
+    near = grid.ellipse_dist_sq < 1.0
+    shading = _relief_shading(grid, spec, field, near)
+    seen = shading.seen
+    normals = seen - field.surface_gradient(seen) / (1.0 + field.sample_points(seen))[:, None]
+    away = normals[:, 2] < 0.0
+    assert int(away.sum()) > 0
+    assert float(np.abs(shading.normal_z[away]).max()) == 0.0
 
 
 def test_shadow_march_resolves_fine_relief_on_a_small_body(

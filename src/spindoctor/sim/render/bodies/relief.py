@@ -80,13 +80,11 @@ __all__ = [
 ]
 
 # The largest limb-relief RMS (a fraction of the body radius) a scene may
-# command.  The ellipsoid renderer reads the terrain where each line of sight
-# meets the relief surface, so the bound does not rest on how it reads the disc:
-# averaged over 4 seeds, it reads about 0.01% of the disc more than half a
-# correlation length from the point a pixel shows at RMS 0.05 and 15 degrees,
-# and at most 0.12% from 2 to 15 degrees at RMS up to 0.2.  At RMS 0.2 the field's
-# lowest point reaches the body center (h_min -1.0 over 8 seeds), and at 0.1 it
-# stays above -0.5.  The validator holds mesh bodies to the same bound.
+# command.  It is a limit of the scene format, and its value is under review: no
+# rendering error sets it, since the ellipsoid renderer reads the terrain where
+# each line of sight meets the relief surface.  At RMS 0.2 the field's lowest
+# point reaches the body center (h_min -1.0 over 8 seeds), and at 0.1 it stays
+# above -0.5.  The validator holds mesh bodies to the same bound.
 MAX_LIMB_RELIEF_RMS = 0.05
 # The shortest relief correlation length (degrees of arc) a scene may command.
 # It bounds cost.  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
@@ -119,6 +117,12 @@ _MAX_GRID = 8192
 # 8e-4 rad), against a field cell of 0.05 rad at 15 degrees.
 _SIGHT_STEPS_PER_CELL = 4.0
 _SIGHT_REFINEMENTS = 1
+# A step of that minimum length can pass over a sliver of terrain whose top pokes
+# into the line of sight between two samples outside it.  Wherever the slope bound
+# leaves room for one, the step is halved until its pieces are this fraction of a
+# field grid cell, so a sliver the search misses is narrower than that and rises at
+# most slope_max / 512 of a cell into the line of sight.
+_SIGHT_SLIVER_CELLS = 1.0 / 256.0
 
 
 @dataclass(frozen=True)
@@ -627,6 +631,113 @@ def cast_shadows(
     return shadowed
 
 
+def _sight_gap(
+    field: ReliefField, lat: NDArrayFloatType, phi: NDArrayFloatType, rho: NDArrayFloatType
+) -> NDArrayFloatType:
+    """How far inside the relief surface a line of sight lies at a latitude.
+
+    Parameters:
+        field: The relief realization.
+        lat: Latitudes along each line of sight's meridian.
+        phi: The meridians' longitudes, the same shape as ``lat``.
+        rho: The lines of sight's distances from the observer axis, the same shape.
+
+    Returns:
+        ``(1 + h(lat, phi)) cos(lat) - rho``, positive inside the surface.
+    """
+    return np.asarray((1.0 + field.sample(lat, phi)) * np.cos(lat) - rho, dtype=np.float64)
+
+
+@dataclass(frozen=True)
+class _Crossing:
+    """The highest crossing found in each of a set of latitude intervals.
+
+    Parameters:
+        found: Whether the interval holds a crossing the search found.
+        upper: The upper end of the crossing's bracket, outside the surface.
+        lower: The lower end of the bracket, inside the surface.
+        g_upper: The line of sight's gap (:func:`_sight_gap`) at ``upper``.
+        g_lower: The gap at ``lower``.
+    """
+
+    found: NDArrayBoolType
+    upper: NDArrayFloatType
+    lower: NDArrayFloatType
+    g_upper: NDArrayFloatType
+    g_lower: NDArrayFloatType
+
+
+def _first_crossing_between(
+    field: ReliefField,
+    rho: NDArrayFloatType,
+    phi: NDArrayFloatType,
+    ends: tuple[NDArrayFloatType, NDArrayFloatType],
+    gaps: tuple[NDArrayFloatType, NDArrayFloatType],
+    *,
+    min_width: float,
+) -> _Crossing:
+    """Find the highest crossing in latitude intervals whose ends lie outside the surface.
+
+    Over an interval the gap ``g`` changes by at most ``slope_max + (1 + h_max)
+    |sin(lat)|`` per radian, taking the larger ``|sin(lat)|`` of its two ends.  So it
+    can reach 0 inside the interval only if its two end values plus that bound times
+    the width add up to at least 0.  An interval that passes this test is halved at a
+    sample.  A midpoint inside the surface brackets a crossing with the upper end;
+    otherwise each half is tested again, until the pieces are narrower than
+    ``min_width``.  The highest bracket found is kept.
+
+    Parameters:
+        field: The relief realization.
+        rho: Each line of sight's distance from the observer axis.
+        phi: Each line of sight's longitude.
+        ends: The intervals' upper and lower latitudes.
+        gaps: The gap at the upper and lower ends, both negative.
+        min_width: The narrowest piece searched, in radians.
+
+    Returns:
+        For each interval, the bracket of the highest crossing found.
+    """
+    count = rho.size
+    found = np.zeros(count, dtype=np.bool_)
+    upper = np.zeros(count)
+    lower = np.zeros(count)
+    g_upper = np.zeros(count)
+    g_lower = np.zeros(count)
+    top = 1.0 + field.h_max
+    which = np.arange(count)
+    a, b = ends[0].copy(), ends[1].copy()
+    g_a, g_b = gaps[0].copy(), gaps[1].copy()
+    while which.size:
+        width = a - b
+        bound = field.slope_max + top * np.maximum(np.abs(np.sin(a)), np.abs(np.sin(b)))
+        live = (width >= min_width) & (g_a + g_b + bound * width >= 0.0)
+        # A piece below a crossing already found can hold only a lower one.
+        live &= ~(found[which] & (a <= lower[which]))
+        which, a, b, g_a, g_b = which[live], a[live], b[live], g_a[live], g_b[live]
+        if which.size == 0:
+            break
+        mid = 0.5 * (a + b)
+        g_mid = _sight_gap(field, mid, phi[which], rho[which])
+        hit = g_mid >= 0.0
+        # Keep the highest bracket per interval: visit the hits from low to high, so
+        # the last write to each interval is its highest.
+        order = np.nonzero(hit)[0][np.argsort(a[hit], kind='stable')]
+        better = ~found[which[order]] | (a[order] > upper[which[order]])
+        order = order[better]
+        target = which[order]
+        found[target] = True
+        upper[target] = a[order]
+        lower[target] = mid[order]
+        g_upper[target] = g_a[order]
+        g_lower[target] = g_mid[order]
+        rest = ~hit
+        which = np.concatenate([which[rest], which[rest]])
+        a, b = np.concatenate([a[rest], mid[rest]]), np.concatenate([mid[rest], b[rest]])
+        g_a = np.concatenate([g_a[rest], g_mid[rest]])
+        g_b = np.concatenate([g_mid[rest], g_b[rest]])
+    return _Crossing(found, upper, lower, g_upper, g_lower)
+
+
 def visible_surface_directions(
     x: NDArrayFloatType, y: NDArrayFloatType, field: ReliefField
 ) -> NDArrayFloatType:
@@ -645,10 +756,16 @@ def visible_surface_directions(
     reach, ``acos(rho / (1 + h_max))``.  Each step is as long as the field's slope
     bound allows without passing a crossing, and at least a quarter of a field grid
     cell, so the walk resolves the terrain at its own resolution whatever the body's
-    size in pixels.  The step that crosses is then narrowed by linear interpolation
-    of ``g``.  A line of sight that misses the surface, outside its outline, reads
-    the latitude where it passes closest to the surface, which for a pixel just
-    outside the outline is the outline point beside it.
+    size in pixels.  A step of that minimum length can pass over a sliver of terrain
+    between two samples outside it, so wherever the slope bound leaves room for one
+    the step is searched by halving (:func:`_first_crossing_between`).  The step
+    that crosses is then narrowed by linear interpolation of ``g``.
+
+    A line of sight that misses the surface, outside its outline, reads the latitude
+    of the walk's sample that came closest to the surface, the one with the largest
+    ``g``.  For a pixel just outside the outline that is the outline point beside
+    it, to the walk's quarter-cell spacing.  A line of sight with ``rho`` at or
+    beyond ``1 + h_max`` reads latitude 0, the limb direction.
 
     Parameters:
         x: Parameter-space coordinates of the lines of sight along the body's first
@@ -675,9 +792,7 @@ def visible_surface_directions(
     min_step = 2.0 * np.pi / field.grid.shape[0] / _SIGHT_STEPS_PER_CELL
 
     def inside(lat: NDArrayFloatType, index: NDArrayIntType) -> NDArrayFloatType:
-        return np.asarray(
-            (1.0 + field.sample(lat, phi[index])) * np.cos(lat) - rho[index], dtype=np.float64
-        )
+        return _sight_gap(field, lat, phi[index], rho[index])
 
     # hi is the last latitude outside the surface and lo the first inside it.
     hi = lat_top.copy()
@@ -688,6 +803,14 @@ def visible_surface_directions(
     best_lat = np.zeros(rho.size)
     best_g = np.full(rho.size, -np.inf)
     lat = lat_top.copy()
+    # Whether the step that led to each line of sight's current sample was longer
+    # than the slope bound allows, and so could have passed over a sliver.
+    forced = np.zeros(rho.size, dtype=np.bool_)
+    sliver_width = 2.0 * np.pi / field.grid.shape[0] * _SIGHT_SLIVER_CELLS
+    # The suspect steps' lines of sight, and their upper and lower ends and the gaps
+    # there, one row each.
+    suspect_pix: list[NDArrayIntType] = []
+    suspect_steps: list[NDArrayFloatType] = []
     active = np.arange(rho.size)
     while active.size:
         lat_a = lat[active]
@@ -699,6 +822,13 @@ def visible_surface_directions(
         found[active[crossed]] = True
         lo[active[crossed]] = lat_a[crossed]
         g_lo[active[crossed]] = g[crossed]
+        # A forced step that ends outside the surface may have passed over a sliver.
+        # The walk goes on, and the step is searched once the walk is done.
+        suspect = ~crossed & forced[active]
+        if suspect.any():
+            pix = active[suspect]
+            suspect_pix.append(pix)
+            suspect_steps.append(np.stack([hi[pix], lat_a[suspect], g_hi[pix], g[suspect]]))
         walking = ~crossed & (lat_a > lat_low[active])
         moving = active[walking]
         hi[moving] = lat_a[walking]
@@ -706,10 +836,27 @@ def visible_surface_directions(
         # Going down the meridian g rises by at most slope_max + (1 + h_max) sin(lat)
         # per radian, so a step of -g over that bound cannot pass a crossing.
         bound = field.slope_max + top * np.maximum(np.sin(lat_a[walking]), 0.0)
-        step = np.maximum(-g[walking] / np.maximum(bound, 1e-300), min_step)
-        lat[moving] = np.maximum(lat_a[walking] - step, lat_low[moving])
+        safe = -g[walking] / np.maximum(bound, 1e-300)
+        lat[moving] = np.maximum(lat_a[walking] - np.maximum(safe, min_step), lat_low[moving])
+        forced[moving] = lat_a[walking] - lat[moving] > safe
         active = moving
 
+    if suspect_pix:
+        pix = np.concatenate(suspect_pix)
+        upper, lower, g_upper, g_lower = np.concatenate(suspect_steps, axis=1)
+        sliver = _first_crossing_between(
+            field, rho[pix], phi[pix], (upper, lower), (g_upper, g_lower), min_width=sliver_width
+        )
+        # Every suspect step lies above the crossing the walk found later, so the
+        # highest sliver crossing of a line of sight is its first crossing.
+        order = np.nonzero(sliver.found)[0]
+        order = order[np.argsort(sliver.upper[order], kind='stable')]
+        inner = pix[order]
+        found[inner] = True
+        hi[inner] = sliver.upper[order]
+        g_hi[inner] = sliver.g_upper[order]
+        lo[inner] = sliver.lower[order]
+        g_lo[inner] = sliver.g_lower[order]
     hit = np.where(found, lo, best_lat)
     # A crossing found at lat_top itself needs no narrowing; elsewhere g goes from
     # negative at hi to non-negative at lo.

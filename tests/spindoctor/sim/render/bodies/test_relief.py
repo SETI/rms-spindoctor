@@ -276,6 +276,38 @@ def test_a_line_of_sight_just_outside_the_outline_reads_the_outline_point() -> N
     np.testing.assert_allclose(projected, outline, rtol=0.0, atol=1e-3)
 
 
+def test_a_line_of_sight_passes_over_no_sliver_of_a_ridge() -> None:
+    """A line of sight reads no terrain behind a ridge whose top pokes into it.
+
+    At 5% relief and a 1-degree correlation length, a step a quarter of a field cell
+    long passes over such a ridge top on 12 of these 4,000 lines of sight.  Sampled
+    every 1/32 of a cell from the top of the relief shell down to the point the
+    search reads, every line of sight stays outside the surface.  Points within a
+    quarter of a cell above that point are left out, since the crossing is narrowed
+    by interpolation within a step that long.
+    """
+    field = synthesize_relief_field(0.05, 1.0, 1)
+    rng = np.random.default_rng(1)
+    radius = np.sqrt(rng.random(4000))
+    angle = rng.uniform(0.0, 2.0 * np.pi, 4000)
+    x, y = radius * np.cos(angle), radius * np.sin(angle)
+    seen_lat = np.arcsin(visible_surface_directions(x, y, field)[:, 2])
+    cell = 2.0 * np.pi / field.grid.shape[0]
+    lat_top = np.arccos(np.minimum(radius / (1.0 + field.h_max), 1.0))
+    phi = np.mod(angle, 2.0 * np.pi)
+    passed_over = 0
+    for start in range(0, radius.size, 200):
+        part = slice(start, start + 200)
+        steps = int(np.ceil(float((lat_top[part] - seen_lat[part]).max()) / (cell / 32.0)))
+        lats = lat_top[part, None] - (cell / 32.0) * np.arange(steps + 1)
+        above = lats > (seen_lat[part] + cell / 4.0)[:, None]
+        gap = (1.0 + field.sample(lats, np.broadcast_to(phi[part, None], lats.shape))) * np.cos(
+            lats
+        ) - radius[part, None]
+        passed_over += int(np.any(above & (gap > 1e-12), axis=1).sum())
+    assert passed_over == 0
+
+
 def test_the_outline_departs_from_the_equator_slice_at_high_rms() -> None:
     """At 5% relief the outline differs from the equator slice by a sizable share of the RMS."""
     field = synthesize_relief_field(0.05, _CORR_DEG, 9)

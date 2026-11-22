@@ -2174,16 +2174,17 @@ the commanded ``limb_relief_rms`` per realization. That RMS is a fraction of
 the body radius: 0.02 moves the limb of a 100-pixel-radius body by 2 pixels
 RMS.
 
-The scene validator caps that RMS at 0.05. The ellipsoid renderer reads the
-terrain under each disc pixel where the pixel's line of sight first meets the
-relief surface (see below), so the cap does not rest on how faithfully the disc
-is drawn. Near the limb that point can lie well away from where the line of
-sight meets the smooth sphere: under a pixel at elevation ``lat`` the two lie
-about ``h cot(lat)`` radians apart. The table gives the share of the disc where
-they lie more than half a correlation length apart, which is the error a
-renderer reading the smooth sphere's direction would make, and the share where
-the renderer's point lies that far from a brute-force search's. Each share is
-averaged over 4 seeds of the field, 3,000 pixels each:
+The scene validator caps that RMS at 0.05. The cap is a limit of the scene
+format, and its value is under review; no rendering error sets it. The ellipsoid
+renderer reads the terrain under each disc pixel where the pixel's line of sight
+first meets the relief surface (see below). Near the limb that point can lie well
+away from where the line of sight meets the smooth sphere: under a pixel at
+elevation ``lat`` the two lie about ``h cot(lat)`` radians apart. The table gives
+the share of the disc where they lie more than half a correlation length apart,
+which is the error a renderer reading the smooth sphere's direction would make,
+and the share where the renderer's point lies that far from a brute-force
+search's. The brute force samples every line of sight every 1/64 of a field
+grid cell. Each share is averaged over 4 seeds of the field, 3,000 pixels each:
 
 .. list-table::
    :widths: 25 15 30 30
@@ -2193,34 +2194,47 @@ averaged over 4 seeds of the field, 3,000 pixels each:
      - RMS
      - Smooth sphere's direction
      - Renderer
+   * - 30 degrees
+     - 0.1
+     - 7.1%
+     - 0.009%
    * - 15 degrees
      - 0.05
-     - 12%
-     - 0.01%
+     - 9.2%
+     - 0
    * - 15 degrees
      - 0.1
-     - 27%
-     - 0.02%
+     - 25%
+     - 0
    * - 15 degrees
      - 0.2
-     - 48%
-     - 0.05%
+     - 44%
+     - 0
+   * - 10 degrees
+     - 0.05
+     - 17%
+     - 0
    * - 5 degrees
      - 0.05
-     - 35%
-     - 0.02%
+     - 37%
+     - 0
    * - 5 degrees
      - 0.1
-     - 54%
-     - 0.03%
+     - 56%
+     - 0
    * - 2 degrees
      - 0.05
-     - 64%
-     - 0.12%
+     - 63%
+     - 0.008%
+   * - 2 degrees
+     - 0.1
+     - 79%
+     - 0.025%
 
-The renderer's few misses are lines of sight that graze a ridge tip, where the
-brute-force search finds a sliver of the ridge that the renderer's steps pass
-over.
+Where the renderer and the brute force disagree, either the brute force steps
+over a ridge top that the renderer finds, or the ridge top is narrower than
+1/256 of a cell, the finest piece the renderer searches. In the cases examined,
+such a ridge top pokes about 3e-6 of the radius into the line of sight.
 
 The validator holds mesh bodies to the same cap. A mesh body's relief displaces
 the mesh's vertices in 3-D, so its disc shows the displaced surface itself.
@@ -2258,12 +2272,16 @@ stays in one meridian plane of the field, and the renderer walks down that
 meridian from the highest latitude the terrain can reach. Each step is as long
 as the field's slope bound allows without passing through the surface, and at
 least a quarter of a field grid cell, so the walk resolves the terrain at its
-own resolution whatever the body's size. The step that enters the surface is
-then narrowed by interpolation. Near the limb the point found can lie far from
-the smooth sphere's direction under the pixel, and behind a ridge the line of
-sight meets the ridge and never reaches the terrain beyond it. A pixel just
-outside the outline reads the outline point beside it, so the shading continues
-smoothly across the limb.
+own resolution whatever the body's size. A step that long can pass over the top
+of a ridge that pokes into the line of sight between two samples outside the
+surface. Wherever the slope bound leaves room for such a ridge top, the step is
+halved, and the halves are tested again, until the pieces are 1/256 of a cell
+long. The step that enters the surface is then narrowed by interpolation. Near
+the limb the point found can lie far from the smooth sphere's direction under the
+pixel, and behind a ridge the line of sight meets the ridge and never reaches the
+terrain beyond it. A pixel just outside the outline reads the closest of the
+walk's samples, which is the outline point beside it to within a quarter of a
+cell, so the shading continues smoothly across the limb.
 
 The disc is shaded from the relief surface's normals. In the body's parameter
 space, where the smooth ellipsoid is the unit sphere, the relief surface
@@ -2272,11 +2290,13 @@ field's surface gradient. The normal goes to the body frame through the
 ellipsoid's inverse semi-axes and into the image like the smooth normals, so a
 slope facing the sun brightens and one facing away darkens, across the whole
 lit disc and not only at the terminator. The surface a line of sight meets first
-faces the observer. Where the line of sight grazes a ridge, the normal taken from
-the field's differences half a cell apart can lean slightly away, and the
-renderer lays such a normal into the sky plane. On five 75 px test bodies with
-2% to 10% relief, that happens at no more than 0.13% of the pixels inside the
-outline.
+faces the observer. Where the line of sight grazes a ridge, though, the normal
+taken from the field's differences half a cell apart can lean away, by as much
+as -0.82 in its toward-observer component, and the renderer lays such a normal
+into the sky plane. On 75 px bodies over four seeds, that happens at up to 0.07%
+of the pixels inside the outline at a correlation length of 5 degrees or more and
+5% relief, 0.29% at 1 degree and 5% relief, and 0.30% at 2 degrees and 10%
+relief.
 
 The terrain also casts shadows. The map from the body frame to parameter space
 is affine, and an affine map carries a ray to a ray and a surface to a surface,
@@ -2366,14 +2386,16 @@ interpolated, 1% relief at a phase of 80 degrees put the light up to 0.012 px of
 about one pixel of correlation length, and up to 0.0023 px at two.
 
 Measured against the same body shaded wholly on its working grid, the center of a
-relief body's light lands within 0.0004 px on 11 test bodies with 2% relief at a
-12-degree correlation length. They include 36 px bodies at several seeds and phases, a
-crescent, a Minnaert body, a cratered body, a rotated and tilted triaxial body, a body
-clipped by the frame edge, and a 5 px body, whose relief is too fine to interpolate.
+relief body's light lands within 0.0004 px on 10 test bodies with 2% relief at a
+12-degree correlation length, whose relief tilt is interpolated. They include 36 px
+bodies at several seeds and phases, a crescent, a Minnaert body, a cratered body, a
+rotated and tilted triaxial body, and a body clipped by the frame edge. A 5 px body
+with the same relief is too fine to interpolate and is shaded wholly on its working
+grid.
 On a 150 px body with rougher relief (an RMS of 3% to 5% at a 5-degree correlation
 length) at a phase of 80 degrees, it lands within 0.0008 px. Just above the cutover,
 on a 60 px body whose correlation length spans 5.03 detector pixels, it lands within
-0.0014 px over four seeds, and on a 150 px body whose correlation length spans 5.24,
+0.00142 px over four seeds, and on a 150 px body whose correlation length spans 5.24,
 within 0.0011 px. A cratered or textured body has nothing to compare: shading it
 wholly on the working grid uses the same interpolated crater slopes and the same
 texture.
