@@ -219,6 +219,7 @@ one. This phase's exit asks for that check.
 | #893 | Limb seam, coverage-blind star extinction, and `rotation_tilt` stretch |
 | #875 | Relief reads disc terrain at the smooth sphere's direction |
 | #842, #646 | Simulated limbs are not checked for where the brightness gradient peaks; the limb-bias harness measures a simulated ridge half a pixel from the deployed one |
+| #1100 | **Affects a current scene, `relief_psf_stray_light`, by an amount not yet measured.** Relief terrain hidden from both the Sun and the camera is drawn as black shadow inside the lit disc, because the cast-shadow march has no visibility test; at phase 0 a 2% relief body has 344 black pixels on an 80 px sphere |
 | #1076 | **Affects no current scene.** The simulated Titan model draws a nearer moon on the frame alone, so its part in the margins hides none of the envelope |
 | #1077 | **Affects no current scene.** The simulated body model's overflow and visible-arc fractions draw a mesh body on a canvas of half again its longest semi-axis, which a very lumpy mesh reaches past, and the overflow check can report 0 for it without drawing; the tilted-ellipsoid case is fixed by #893, whose true tilt keeps every ellipsoid inside that canvas |
 | #1080 | **Affects no current scene.** A mesh body with the default pose draws up to 3% of peak differently near its outline on frames of different size |
