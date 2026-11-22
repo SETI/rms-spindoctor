@@ -774,8 +774,9 @@ stages as ``SimFrame.preview`` and simplifies three of them:
   by a fraction of a pixel for most cameras, and it is one of the slowest optics steps.
 
 Every other stage runs as in the full render. The PSF stays, at oversample 1, where
-its convolution takes 10 to 20 ms on a full-size frame. Without it, every star would
-put its whole flux into at most 2 x 2 pixels, since the PSF is a star's only shape. The
+its convolution takes 10 to 20 ms on a full-size frame. Without it, every star's deposit
+would hold its whole flux in at most 2 x 2 pixels before any motion smear, since the PSF
+is a star's only shape. The
 editor's display is stretched to the frame's peak, so stars that concentrated would dim
 everything else on screen. The body moves to its position by linear interpolation
 from its cached drawing, as in the full render (see :ref:`placing a body
@@ -3845,15 +3846,16 @@ Every star -- catalog or sky -- is a flux-normalized point source: its total
 signal is ``zero_point * 10**(-0.4 * vmag) * exposure_sec`` (the per-instrument
 photometric zero point, in electrons for a CCD or DN for the vidicon; it refers
 to the camera's clear filter, and a scene ``detector.filter`` scales it by that
-filter's throughput over the clear throughput), deposited
-as a sub-pixel-positioned point mass in ``frame.point_e`` (centroid-exact after
-the downsample). The whole-scene optics PSF is the *only* convolution a star
-receives, so the rendered star profile is the scene kernel and its peak follows
-from the PSF. Pre-spreading a star would convolve it twice and widen it by
-sqrt(2). Sky stars follow the same rule, and the star hit-test metadata records
-the scene kernel's core sigma. A scene with no PSF renders each star as a
-one-pixel spike (the undersampled limit), so the converted floor scenes carry an
-explicit ``optics.psf`` block.
+filter's throughput over the clear throughput), deposited as a sub-pixel-positioned
+point mass in ``frame.point_e``. Its centroid is exact at oversample 1 and after the
+downsample of a scene the PSF blurs; a scene that asks for oversampling with no PSF
+pulls each star toward its pixel center in the downsample. The whole-scene optics PSF
+is the *only* convolution a star receives, so the rendered star profile is the scene
+kernel and its peak follows from the PSF. Pre-spreading a star would convolve it twice
+and widen it by sqrt(2). Sky stars follow the same rule, and the star hit-test
+metadata records the scene kernel's core sigma. A scene with no PSF renders each star
+as its bilinear deposit, at most 2 x 2 pixels (the undersampled limit), so the
+converted floor scenes carry an explicit ``optics.psf`` block.
 
 The faint sky-count integral is truncated at the magnitude where a star's matched-filter
 signal drops to the read-noise floor over its PSF core
