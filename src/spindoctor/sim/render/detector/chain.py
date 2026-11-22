@@ -514,20 +514,16 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     """
     modes = dp.detector_modes
     records: dict[str, Any] = {}
-    # The photoconductive target stores at most its full-scale charge, so a signal
-    # bright enough to pass it saturates there.
-    signal_dn = np.minimum(
-        np.maximum(frame.signal, 0.0) * dp.signal_full_scale_frac * dp.full_well_dn,
-        dp.full_well_dn,
-    )
+    signal_dn = np.maximum(frame.signal, 0.0) * dp.signal_full_scale_frac * dp.full_well_dn
     size_v, size_u = signal_dn.shape
     # Point sources on the vidicon are already DN (the vidicon has no electron
     # domain): add them onto the converted signal before the DN-domain noise, so
     # the read-noise and coherent terms ride on the star cores as they do on the
-    # extended signal.  The optics PSF has already shaped them.
-    dn = signal_dn
-    dn += frame.point_e
-    # The erase-cycle residual image is a pre-noise ghost of the prior frame.
+    # extended signal.  The optics PSF has already shaped them.  The photoconductive
+    # target stores at most its full-scale charge, so the exposure saturates there.
+    dn = np.minimum(signal_dn + frame.point_e, dp.full_well_dn)
+    # The erase-cycle residual image is a pre-noise ghost of the prior frame, whose
+    # own charge the target capped at full scale too.
     if 'residual_image' in modes:
         cfg = modes['residual_image']
         offset = cfg.get('offset_px') or [5, 5]
@@ -546,10 +542,10 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         amplitude_e=dp.full_well_dn,
         rng=_stream_rng(dp, 'cosmic_rays'),
     )
-    # The target holds at most its full-scale charge, so a hit saturates the
-    # pixels it lands on.
-    hit = hits > 0.0
-    dn[hit] = np.minimum(dn[hit] + hits[hit], dp.full_well_dn)
+    # The charge the beam reads is the exposure, the residual image, and the hits
+    # together, and the target holds at most its full scale of it.  The readout noise
+    # rides on the saturated charge.
+    dn = np.minimum(dn + hits, dp.full_well_dn)
     vidicon = dp.vidicon
     line_sigma = float(vidicon.get('read_noise_line_dn', 0.0))
     pixel_sigma = float(vidicon.get('read_noise_pixel_dn', 0.0))
