@@ -8,10 +8,9 @@ targets, and provenance.  The schema is the single source of truth: ``test_image
 exercises its structural invariants; ``test_autonomous_nav`` consumes the parsed
 fields to score real-holdings runs.
 
-The validator is intentionally hand-rolled (pydantic is not a project dependency).
-Every field that the orchestrator or the regression test reads is checked here so
-malformed entries break collection rather than producing a confusing per-image
-failure later.
+The validator is written by hand.  Every field that the orchestrator or the regression
+test reads is checked here so malformed entries break collection rather than producing
+a confusing per-image failure later.
 """
 
 from __future__ import annotations
