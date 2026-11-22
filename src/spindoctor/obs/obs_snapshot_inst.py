@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 
 from filecache import FCPath
@@ -13,14 +14,42 @@ from .obs_snapshot import ObsSnapshot
 _ABSENT_HTTP_STATUSES = frozenset({404, 410})
 
 
+def _http_status(cause: BaseException) -> int | None:
+    """Return the HTTP status a failed remote request carries, if it carries one.
+
+    A web request's error carries a response with a ``status_code``.  An S3 client
+    error carries its response as a mapping, with the status under
+    ``ResponseMetadata``.  A Google Cloud Storage error carries the status as its
+    ``code``.
+
+    Parameters:
+        cause: The exception behind a failed retrieval.
+
+    Returns:
+        The HTTP status, or None if the exception carries none.
+    """
+    response = getattr(cause, 'response', None)
+    if isinstance(response, Mapping):
+        metadata = response.get('ResponseMetadata')
+        status = metadata.get('HTTPStatusCode') if isinstance(metadata, Mapping) else None
+    else:
+        status = getattr(response, 'status_code', None)
+    if status is None:
+        status = getattr(cause, 'code', None)
+    return status if isinstance(status, int) else None
+
+
 def _is_absence(exc: FileNotFoundError) -> bool:
     """Whether a failure to retrieve a file means that the file does not exist.
 
     filecache raises FileNotFoundError for a missing file, but for a web server it also
     raises it for any failed request, such as a timeout, a refused connection or a
-    server error, with the request's exception as the cause.  A failure says the file is
-    not there only if nothing caused it, or if its cause carries an HTTP status of 404 or
-    410.
+    server error, with the request's exception as the cause.  For S3 it raises it for
+    any client error, such as a denied access, and for Google Cloud Storage for a
+    missing object, in both cases inside the handler of the client's exception, which
+    is then the error's context rather than its cause.  A failure says the file is not
+    there only if nothing caused it, or if the exception behind it carries an HTTP status
+    of 404 or 410.
 
     Parameters:
         exc: The error raised by retrieving the file.
@@ -28,11 +57,10 @@ def _is_absence(exc: FileNotFoundError) -> bool:
     Returns:
         True if the file does not exist, False if its existence is unknown.
     """
-    cause = exc.__cause__
+    cause = exc.__cause__ if exc.__cause__ is not None else exc.__context__
     if cause is None:
         return True
-    status = getattr(getattr(cause, 'response', None), 'status_code', None)
-    return status in _ABSENT_HTTP_STATUSES
+    return _http_status(cause) in _ABSENT_HTTP_STATUSES
 
 
 def host_input(image: PathLike, *, label: PathLike | None = None) -> FCPath:
