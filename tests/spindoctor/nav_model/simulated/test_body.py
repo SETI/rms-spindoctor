@@ -2,8 +2,9 @@
 
 ``NavModelBodySimulated`` renders the *predicted* body silhouette from its own
 params, which need not match what was rendered into the image.  These tests
-cover the mesh-vs-ellipsoid prediction split, the pose-disagreement fixture, and
-that the predicted mesh reproduces the rendered data when the params agree.
+cover the mesh-vs-ellipsoid prediction split, the pose-disagreement fixture, that
+the predicted mesh reproduces the rendered data when the params agree, and the blob
+feature.
 """
 
 import math
@@ -12,40 +13,28 @@ from typing import Any
 import numpy as np
 import pytest
 from tests.shims import bare_nav_context
+from tests.spindoctor.nav_model.simulated.body_fixtures import (
+    SIZE,
+    large_body,
+    limb_obs,
+    small_obs,
+)
 
 from spindoctor.annotation import Annotations
-from spindoctor.feature.feature_type import NavFeatureType
-from spindoctor.feature.geometry import LimbPolyline, TerminatorPolyline
 from spindoctor.nav_model.body_shape import load_body_shape
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render.driver import render_scene
-from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-
-_SIZE = 96
-
-
-def _obs() -> ObsSim:
-    """A coiss_nac sim obs sized for the body scenes below."""
-    return ObsSim.from_file(
-        '/tmp/body_sim.json',
-        sim_params={
-            'size_v': _SIZE,
-            'size_u': _SIZE,
-            'instrument': 'coiss_nac',
-            'random_seed': 1,
-        },
-    )
 
 
 def _body_params(**overrides: Any) -> dict[str, Any]:
     """Centered irregular-body params for prediction and rendering."""
     params = {
         'name': 'HYPERION',
-        'center_v': _SIZE / 2.0,
-        'center_u': _SIZE / 2.0,
+        'center_v': SIZE / 2.0,
+        'center_u': SIZE / 2.0,
         'semi_a_px': 30.0,
         'semi_b_px': 23.0,
         'semi_c_px': 23.0,
@@ -68,7 +57,7 @@ def _data_region(obs: ObsSim, full: np.ndarray) -> np.ndarray:
     """Crop an extfov-coordinate mask to the data region."""
     ev = int(obs.extfov_margin_v)
     eu = int(obs.extfov_margin_u)
-    return full[ev : ev + _SIZE, eu : eu + _SIZE]
+    return full[ev : ev + SIZE, eu : eu + SIZE]
 
 
 def _mesh_params(**overrides: Any) -> dict[str, Any]:
@@ -105,7 +94,7 @@ def test_the_label_anchors_on_the_pixel_the_body_center_falls_in(
         return Annotations()
 
     monkeypatch.setattr(NavModelBodySimulated, '_create_annotations', _record)
-    obs = _obs()
+    obs = small_obs()
     params = _body_params(center_v=40.7, center_u=52.7)
     model = NavModelBodySimulated('body', obs, params['name'], params)
     model.create_model()
@@ -115,7 +104,7 @@ def test_the_label_anchors_on_the_pixel_the_body_center_falls_in(
 
 def test_mesh_prediction_differs_from_ellipsoid() -> None:
     """Predicting a mesh vs an ellipsoid of equal axes gives different masks."""
-    obs = _obs()
+    obs = small_obs()
     mesh = _predicted_mask(obs, _mesh_params())
     ellipsoid = _predicted_mask(obs, _body_params())
     assert int((mesh != ellipsoid).sum()) > 50
@@ -123,7 +112,7 @@ def test_mesh_prediction_differs_from_ellipsoid() -> None:
 
 def test_mesh_prediction_pose_disagreement_changes_mask() -> None:
     """A different assumed pose changes the predicted mesh (chaotic-rotator)."""
-    obs = _obs()
+    obs = small_obs()
     true_pose = _predicted_mask(obs, _mesh_params(pose_euler_deg=[0.0, 0.0, 0.0]))
     wrong_pose = _predicted_mask(obs, _mesh_params(pose_euler_deg=[0.0, 90.0, 30.0]))
     assert int((true_pose != wrong_pose).sum()) > 50
@@ -138,13 +127,13 @@ def test_mesh_prediction_matches_rendered_data() -> None:
     two sides get wrong together.  Being a round trip, it can be exact, and an
     overlap ratio would only hide the pixels that a placement error moves.
     """
-    obs = _obs()
+    obs = small_obs()
     body = _mesh_params()
     predicted = _data_region(obs, _predicted_mask(obs, body))
     _, meta = render_scene(
         {
-            'size_v': _SIZE,
-            'size_u': _SIZE,
+            'size_v': SIZE,
+            'size_u': SIZE,
             'random_seed': 1,
             'instrument': 'coiss_nac',
             'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
@@ -167,17 +156,17 @@ def test_prediction_centers_on_the_center_the_scene_states() -> None:
     two coordinate systems, exactly.  A model reading the scene's center pixel
     centric fails here by that half pixel.
     """
-    obs = _obs()
+    obs = small_obs()
     predicted = _data_region(obs, _predicted_mask(obs, _body_params()))
     vs, us = np.where(predicted)
-    expected = _SIZE / 2.0 - PIXEL_CENTER_TO_CORNER_PX
+    expected = SIZE / 2.0 - PIXEL_CENTER_TO_CORNER_PX
     assert float(vs.mean()) == pytest.approx(expected, abs=1e-12)
     assert float(us.mean()) == pytest.approx(expected, abs=1e-12)
 
 
 def test_mesh_prediction_is_deterministic() -> None:
     """The predicted mesh mask is reproduced exactly across builds."""
-    obs = _obs()
+    obs = small_obs()
     first = _predicted_mask(obs, _mesh_params())
     second = _predicted_mask(obs, _mesh_params())
     assert np.array_equal(first, second)
@@ -185,373 +174,15 @@ def test_mesh_prediction_is_deterministic() -> None:
 
 def test_ellipsoid_prediction_still_renders() -> None:
     """The default ellipsoid prediction path remains non-empty."""
-    obs = _obs()
+    obs = small_obs()
     ellipsoid = _predicted_mask(obs, _body_params())
     assert int(ellipsoid.sum()) > 0
 
 
-_LIMB_SIZE = 220
-
-
-def _limb_obs() -> ObsSim:
-    """A coiss_nac sim obs sized for a well-resolved limb body."""
-    return ObsSim.from_file(
-        '/tmp/limb_sim.json',
-        sim_params={
-            'size_v': _LIMB_SIZE,
-            'size_u': _LIMB_SIZE,
-            'instrument': 'coiss_nac',
-            'random_seed': 1,
-        },
-    )
-
-
-def _body_feature_types(obs: ObsSim, body_params: dict[str, Any]) -> list[str]:
-    """Build the model and return the feature-type names it emits."""
-    model = NavModelBodySimulated('body', obs, body_params['name'], body_params)
-    model.create_model()
-    features = model.to_features(bare_nav_context(obs))
-    return [f.feature_type.name for f in features]
-
-
-def _large_body(**overrides: Any) -> dict[str, Any]:
-    """A well-resolved sphere (diameter 130 px) at low phase."""
-    params = {
-        'name': 'RHEA',
-        'center_v': _LIMB_SIZE / 2.0,
-        'center_u': _LIMB_SIZE / 2.0,
-        'semi_a_px': 65.0,
-        'semi_b_px': 65.0,
-        'semi_c_px': 65.0,
-        'illumination_angle': 25.0,
-        'phase_angle': 30.0,
-    }
-    params.update(overrides)
-    return params
-
-
-def test_large_low_phase_body_emits_limb_arc() -> None:
-    """A well-resolved low-phase body emits a LIMB_ARC feature."""
-    assert 'LIMB_ARC' in _body_feature_types(_limb_obs(), _large_body())
-
-
-def test_small_body_emits_no_limb_arc() -> None:
-    """A body below the limb-resolution floor emits no LIMB_ARC."""
-    assert 'LIMB_ARC' not in _body_feature_types(
-        _limb_obs(), _large_body(semi_a_px=20.0, semi_b_px=20.0, semi_c_px=20.0)
-    )
-
-
-def test_high_phase_body_emits_no_limb_arc() -> None:
-    """A high-phase body (mostly terminator) emits no LIMB_ARC."""
-    assert 'LIMB_ARC' not in _body_feature_types(_limb_obs(), _large_body(phase_angle=120.0))
-
-
-def test_limb_arc_polyline_has_vertices_and_unit_normals() -> None:
-    """The emitted LIMB_ARC carries a vertex polyline with unit outward normals."""
-    from spindoctor.feature.geometry import LimbPolyline
-
-    obs = _limb_obs()
-    model = NavModelBodySimulated('body', obs, 'RHEA', _large_body())
-    model.create_model()
-    limb = next(
-        f for f in model.to_features(bare_nav_context(obs)) if f.feature_type.name == 'LIMB_ARC'
-    )
-    geometry = limb.geometry
-    assert isinstance(geometry, LimbPolyline)
-    assert geometry.vertices_vu.shape[0] >= 30
-    norms = np.hypot(geometry.normals_vu[:, 0], geometry.normals_vu[:, 1])
-    assert np.allclose(norms, 1.0, atol=1e-9)
-
-
-def _ungated_limb_model(body_params: dict[str, Any]) -> NavModelBodySimulated:
-    """Build a model with the limb emission gates disabled (measurement path)."""
-    obs = _limb_obs()
-    model = NavModelBodySimulated('body', obs, body_params['name'], body_params)
-    model.apply_limb_emission_gates = False
-    model.create_model()
-    return model
-
-
-def _ungated_limb_vertices(body_params: dict[str, Any]) -> np.ndarray:
-    """The gates-off LIMB_ARC vertex array for the given body."""
-    from spindoctor.feature.geometry import LimbPolyline
-
-    model = _ungated_limb_model(body_params)
-    limb = next(
-        f
-        for f in model.to_features(bare_nav_context(model.obs))
-        if f.feature_type.name == 'LIMB_ARC'
-    )
-    geometry = limb.geometry
-    assert isinstance(geometry, LimbPolyline)
-    return np.asarray(geometry.vertices_vu)
-
-
-def test_gates_off_high_phase_body_emits_limb_arc() -> None:
-    """With the gates off, a high-phase body still exposes its limb geometry."""
-    vertices = _ungated_limb_vertices(_large_body(phase_angle=120.0))
-    assert vertices.shape[0] > 0
-
-
-def test_gates_off_small_body_emits_limb_arc() -> None:
-    """With the gates off, a body below the resolution floor still emits."""
-    vertices = _ungated_limb_vertices(_large_body(semi_a_px=20.0, semi_b_px=20.0, semi_c_px=20.0))
-    assert vertices.shape[0] > 0
-
-
-def test_gates_off_limb_is_geometric_not_terminator() -> None:
-    """Gates-off vertices trace the geometric limb, not the lit-region boundary.
-
-    For a phase-120 sphere the lit-region boundary includes the terminator,
-    which cuts through the disc interior; the lit geometric limb keeps every
-    vertex on the silhouette outline (constant radius from the center).
-    """
-    vertices = _ungated_limb_vertices(_large_body(phase_angle=120.0))
-    obs = _limb_obs()
-    cv = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_v)
-    cu = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_u)
-    radii = np.hypot(vertices[:, 0] - cv, vertices[:, 1] - cu)
-    assert float(radii.min()) > 62.0
-
-
-def _limb_vertex_incidence_cosines(body_params: dict[str, Any], vertices: np.ndarray) -> np.ndarray:
-    """The sun's incidence cosine on the sphere's limb at each vertex's direction.
-
-    On the limb the surface normal lies in the image plane along the direction from
-    the body center, so the cosine is that direction against the in-plane light.
-    """
-    obs = _limb_obs()
-    cv = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_v)
-    cu = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_u)
-    dv = vertices[:, 0] + PIXEL_CENTER_TO_CORNER_PX - cv
-    du = vertices[:, 1] + PIXEL_CENTER_TO_CORNER_PX - cu
-    light_v, light_u, _ = illumination_vector(
-        illumination_angle=math.radians(float(body_params['illumination_angle'])),
-        phase_angle=math.radians(float(body_params['phase_angle'])),
-    )
-    return np.asarray((dv * light_v + du * light_u) / np.hypot(dv, du))
-
-
-# How far below 0 a lit limb vertex's in-plane cosine may fall.  A limb pixel lies a
-# little inside the outline, where the surface tilts toward the observer, so below 90
-# deg phase the sun reaches it slightly past the limb's own terminator.  The unlit limb
-# runs on to -sin(phase), -0.87 at both phases tested.
-_LIMB_LIT_SLACK = -0.15
-
-
-def test_gates_off_limb_keeps_only_lit_vertices() -> None:
-    """At 120 deg phase no gates-off limb vertex lies on the unlit side."""
-    body = _large_body(phase_angle=120.0)
-    vertices = _ungated_limb_vertices(body)
-    assert float(_limb_vertex_incidence_cosines(body, vertices).min()) > _LIMB_LIT_SLACK
-
-
-def test_navigation_limb_keeps_only_lit_vertices() -> None:
-    """At 60 deg phase, the most the limb gate allows, every limb vertex is lit."""
-    body = _large_body(phase_angle=60.0)
-    obs = _limb_obs()
-    model = NavModelBodySimulated('body', obs, body['name'], body)
-    model.create_model()
-    limb = next(
-        f for f in model.to_features(bare_nav_context(obs)) if f.feature_type.name == 'LIMB_ARC'
-    )
-    assert isinstance(limb.geometry, LimbPolyline)
-    vertices = np.asarray(limb.geometry.vertices_vu)
-    assert float(_limb_vertex_incidence_cosines(body, vertices).min()) > _LIMB_LIT_SLACK
-
-
-def _terminator_feature(obs: ObsSim, body_params: dict[str, Any]) -> Any:
-    """Build the model and return its emitted TERMINATOR_ARC feature, or None."""
-    model = NavModelBodySimulated('body', obs, body_params['name'], body_params)
-    model.create_model()
-    for feature in model.to_features(bare_nav_context(obs)):
-        if feature.feature_type.name == 'TERMINATOR_ARC':
-            return feature
-    return None
-
-
-def test_high_phase_body_emits_terminator_arc() -> None:
-    """A resolved body at appreciable phase emits a TERMINATOR_ARC."""
-    assert 'TERMINATOR_ARC' in _body_feature_types(_limb_obs(), _large_body(phase_angle=90.0))
-
-
-def test_zero_phase_body_emits_no_terminator_arc() -> None:
-    """A fully-lit (zero-phase) body has no terminator and emits none."""
-    assert 'TERMINATOR_ARC' not in _body_feature_types(_limb_obs(), _large_body(phase_angle=0.0))
-
-
-def test_near_zero_phase_body_emits_no_terminator_arc() -> None:
-    """Below the phase-factor floor the terminator is indistinct from the limb."""
-    assert 'TERMINATOR_ARC' not in _body_feature_types(_limb_obs(), _large_body(phase_angle=1.0))
-
-
-def test_highly_irregular_resolved_body_emits_no_terminator_arc() -> None:
-    """A resolved highly_irregular body suppresses TERMINATOR_ARC.
-
-    The shared ``shape_features_suppressed`` policy: a chaotic rotator's
-    rendered terminator does not match the real body once it is resolved,
-    so the SPICE-backed model emits none -- and the simulated model must
-    not either.
-    """
-    assert 'TERMINATOR_ARC' not in _body_feature_types(
-        _limb_obs(), _large_body(name='HYPERION', phase_angle=90.0)
-    )
-
-
-def test_regular_body_same_geometry_emits_terminator_arc() -> None:
-    """The identical geometry on a regular body still emits TERMINATOR_ARC."""
-    assert 'TERMINATOR_ARC' in _body_feature_types(
-        _limb_obs(), _large_body(name='RHEA', phase_angle=90.0)
-    )
-
-
-def test_terminator_arc_geometry_is_terminator_polyline() -> None:
-    """The emitted TERMINATOR_ARC carries a TerminatorPolyline with enough vertices."""
-    from spindoctor.feature.geometry import TerminatorPolyline
-
-    terminator = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0))
-    assert terminator is not None
-    assert isinstance(terminator.geometry, TerminatorPolyline)
-    assert terminator.geometry.vertices_vu.shape[0] >= 8
-
-
-def test_terminator_arc_is_interior_not_geometric_limb() -> None:
-    """The terminator lies inside the disc, distinct from the silhouette limb.
-
-    At 90-degree phase the lit/unlit boundary is a great circle cutting through
-    the disc center, so its vertices span radii from near the center out to the
-    limb -- unlike the geometric limb, whose vertices all sit near the disc
-    edge.  The mean terminator radius therefore sits well inside the limb.
-    """
-    obs = _limb_obs()
-    terminator = _terminator_feature(obs, _large_body(phase_angle=90.0))
-    assert terminator is not None
-    vertices = np.asarray(terminator.geometry.vertices_vu)
-    cv = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_v)
-    cu = _LIMB_SIZE / 2.0 + int(obs.extfov_margin_u)
-    radii = np.hypot(vertices[:, 0] - cv, vertices[:, 1] - cu)
-    disc_radius = 130.0 / 2.0
-    assert float(radii.min()) < 0.5 * disc_radius
-    assert float(radii.mean()) < 0.85 * disc_radius
-
-
-def test_terminator_arc_normals_are_unit_length() -> None:
-    """The terminator polyline carries unit outward normals."""
-    terminator = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0))
-    assert terminator is not None
-    normals = np.asarray(terminator.geometry.normals_vu)
-    norms = np.hypot(normals[:, 0], normals[:, 1])
-    assert np.allclose(norms, 1.0, atol=1e-9)
-
-
-def test_terminator_arc_stays_provisional_via_flags() -> None:
-    """The terminator carries its phase-angle factor for the (uncalibrated) technique."""
-    terminator = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0))
-    assert terminator is not None
-    assert terminator.flags.body_name == 'RHEA'
-    assert terminator.flags.phase_angle_factor == pytest.approx(1.0, abs=0.02)
-
-
-def test_terminator_reliability_matches_shared_formula() -> None:
-    """The sim terminator scores through the shared body-model reliability.
-
-    ``terminator_reliability`` applies the albedo-variation and sin(phase)
-    penalties the SPICE-backed model applies; the sim feature must carry
-    exactly that score for its own computed arc fraction.
-    """
-    import math
-
-    from spindoctor.nav_model.body_shape import load_body_shape
-    from spindoctor.nav_model.nav_model_body import terminator_reliability
-
-    terminator = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0))
-    assert terminator is not None
-    shape = load_body_shape('RHEA')
-    expected = terminator_reliability(
-        visible_arc_fraction=float(terminator.flags.visible_arc_fraction),
-        albedo_variation=shape.albedo_variation,
-        phase_factor=math.sin(math.radians(90.0)),
-    )
-    assert terminator.reliability == pytest.approx(expected)
-
-
-def test_terminator_reliability_is_not_pinned_at_one() -> None:
-    """The albedo/phase penalties keep the reliability strictly below 1.0."""
-    terminator = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0))
-    assert terminator is not None
-    assert terminator.reliability < 1.0
-
-
-def test_terminator_arc_fraction_fully_framed_is_near_one() -> None:
-    """A fully framed terminator sees almost all of the unclipped ridge."""
-    terminator = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0))
-    assert terminator is not None
-    assert terminator.flags.visible_arc_fraction > 0.95
-
-
-def test_terminator_arc_fraction_drops_when_frame_clips_it() -> None:
-    """A body whose terminator runs off the frame edge scores a lower fraction.
-
-    Center the body near the frame edge so part of the lit/unlit boundary
-    falls outside the render; the visible-arc fraction must report the
-    surviving portion, not 1.0, because BodyTerminatorNav's confidence
-    reads it.
-    """
-    clipped = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0, center_v=20.0))
-    assert clipped is not None
-    assert clipped.flags.visible_arc_fraction < 0.9
-    assert clipped.flags.visible_arc_fraction > 0.2
-
-
-def test_terminator_reliability_reasons_carry_albedo_penalty() -> None:
-    """The reliability breakdown mirrors the real model's terminator fields."""
-    from spindoctor.nav_model.body_shape import load_body_shape
-
-    terminator = _terminator_feature(_limb_obs(), _large_body(phase_angle=90.0))
-    assert terminator is not None
-    shape = load_body_shape('RHEA')
-    assert terminator.reliability_reasons.albedo_penalty == pytest.approx(
-        min(1.0, shape.albedo_variation)
-    )
-
-
-@pytest.mark.parametrize(
-    ('feature_type', 'id_prefix', 'geometry_cls', 'sigma_normal_px', 'sigma_tangent_px'),
-    [
-        (NavFeatureType.LIMB_ARC, 'limb_arc', LimbPolyline, 1.0, 0.5),
-        (NavFeatureType.TERMINATOR_ARC, 'terminator_arc', TerminatorPolyline, 2.0, 0.5),
-    ],
-    ids=['limb', 'terminator'],
-)
-def test_each_arc_carries_its_own_family_choices(
-    feature_type: NavFeatureType,
-    id_prefix: str,
-    geometry_cls: type[LimbPolyline] | type[TerminatorPolyline],
-    sigma_normal_px: float,
-    sigma_tangent_px: float,
-) -> None:
-    """Each arc carries its own ID prefix, geometry class, per-vertex sigmas, and type."""
-    obs = _limb_obs()
-    model = NavModelBodySimulated('body', obs, 'RHEA', _large_body(phase_angle=45.0))
-    model.create_model()
-    feature = next(
-        f for f in model.to_features(bare_nav_context(obs)) if f.feature_type is feature_type
-    )
-    geometry = feature.geometry
-    assert feature.feature_id == f'{id_prefix}:RHEA'
-    assert type(geometry) is geometry_cls
-    assert isinstance(geometry, LimbPolyline | TerminatorPolyline)
-    n = geometry.vertices_vu.shape[0]
-    assert np.array_equal(geometry.sigma_normal_per_vertex_px, np.full(n, sigma_normal_px))
-    assert np.array_equal(geometry.sigma_tangent_per_vertex_px, np.full(n, sigma_tangent_px))
-    assert feature.usable_types == frozenset({feature_type})
-
-
 def test_metadata_records_predicted_diameter() -> None:
     """The model metadata carries the rendered silhouette diameter."""
-    obs = _limb_obs()
-    model = NavModelBodySimulated('body', obs, 'RHEA', _large_body())
+    obs = limb_obs()
+    model = NavModelBodySimulated('body', obs, 'RHEA', large_body())
     model.create_model()
     assert model.metadata['predicted_diameter_px'] == pytest.approx(130.0, abs=3.0)
 
@@ -600,7 +231,7 @@ def test_blob_gated_on_pure_noise_image() -> None:
     sigma individually; the null-level subtraction must keep the
     detection SNR near zero regardless.
     """
-    obs = _obs()
+    obs = small_obs()
     image = _noise_image(obs, seed=20260710)
     blob = _blob_feature(obs, _small_body(obs), bare_nav_context(obs, image))
     assert blob.reliability < 0.2
@@ -613,7 +244,7 @@ def test_blob_admits_small_bright_body_off_prediction() -> None:
     inside the extfov capture range (the pointing error is unknown), and
     the resulting reliability must clear the 0.20 BODY_BLOB gate.
     """
-    obs = _obs()
+    obs = small_obs()
     image = _noise_image(obs, seed=20260711)
     # Plant a bright disc displaced (12, -9) px from the predicted center
     # (extfov coords), well inside the 50 px extfov margins.
@@ -638,7 +269,7 @@ def test_blob_snr_ignores_off_sensor_flux() -> None:
     """
     import dataclasses
 
-    obs = _obs()
+    obs = small_obs()
     # Body centered 2 px inside the frame edge: roughly half the 20 px
     # silhouette hangs past the sensor into the extfov margin.
     params = dict(_small_body(obs))
