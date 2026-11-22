@@ -17,6 +17,8 @@
 - :mod:`spindoctor.sim.render.bodies.texture`: multiplicative surface textures.
 - :mod:`spindoctor.sim.render.bodies.relief`: the limb and terminator topography
   field.
+- :mod:`spindoctor.sim.render.bodies.relief_sight`: where each line of sight first
+  meets the topography.
 - :mod:`spindoctor.sim.render.bodies.photometry`: the surface-scattering laws.
 - :mod:`spindoctor.sim.render.bodies.atmosphere`: the haze layer of a haze-limb body.
 - :mod:`spindoctor.sim.render.bodies.haze`: the structure that breaks a haze

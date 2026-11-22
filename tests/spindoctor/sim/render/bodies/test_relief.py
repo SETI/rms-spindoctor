@@ -21,12 +21,8 @@ import pytest
 from scipy import special
 
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
-from spindoctor.sim.render.bodies.relief import (
-    ReliefField,
-    cast_shadows,
-    synthesize_relief_field,
-    visible_surface_directions,
-)
+from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.relief_sight import visible_surface_directions
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayComplexType
 

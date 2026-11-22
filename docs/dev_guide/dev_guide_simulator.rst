@@ -128,7 +128,8 @@ relative to ``sim/render/``):
      - The ellipsoid renderer (relief, photometric laws, craters, surface texture,
        transits) with its grids, its relief shading, and its crater carving, and the
        polyhedral-mesh renderer. The parsed body entry and the body's identity seed
-       (``bodies/spec.py``), the relief field (``bodies/relief.py``), and the
+       (``bodies/spec.py``), the relief field (``bodies/relief.py``), the search along
+       each line of sight for its terrain (``bodies/relief_sight.py``), and the
        photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``
      - Moves a body drawn at a reference position into place by linear

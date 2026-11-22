@@ -8,9 +8,9 @@ on the detector grid with the tilt interpolated onto the working grid
 (:func:`add_detector_relief`), and decides which of the two a body gets
 (:func:`relief_resolved_on_detector_grid`).
 
-Everything about the relief surface itself (its synthesis, its sampling, the search
-along a line of sight, and the cast-shadow march) lives in
-:mod:`spindoctor.sim.render.bodies.relief`.
+The relief surface's synthesis, its sampling, and the cast-shadow march live in
+:mod:`spindoctor.sim.render.bodies.relief`, and the search along a line of sight in
+:mod:`spindoctor.sim.render.bodies.relief_sight`.
 """
 
 import math
@@ -28,11 +28,8 @@ from spindoctor.sim.render.bodies.ellipsoid_grid import (
     stretched_sight_cells,
 )
 from spindoctor.sim.render.bodies.photometry import incidence_cosines
-from spindoctor.sim.render.bodies.relief import (
-    ReliefField,
-    cast_shadows,
-    visible_surface_directions,
-)
+from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows
+from spindoctor.sim.render.bodies.relief_sight import visible_surface_directions
 from spindoctor.sim.shared.ellipsoid import EllipsoidProjection, ellipsoid_image_normals
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.stable_math import stable_matmul3
@@ -248,8 +245,8 @@ def relief_shading(
 
     Each shading pixel reads the terrain where its line of sight first meets the
     relief surface, at the direction ``p`` that
-    :func:`~spindoctor.sim.render.bodies.relief.visible_surface_directions` finds in
-    the body's parameter space (the smooth body is the unit sphere the shared
+    :func:`~spindoctor.sim.render.bodies.relief_sight.visible_surface_directions` finds
+    in the body's parameter space (the smooth body is the unit sphere the shared
     projection's surface coordinates lie on).  The relief surface ``(1 + h) p`` has the
     parameter-space normal ``p - grad h / (1 + h)``, carried to the body frame by the
     ellipsoid's inverse semi-axes, tipped by the sub-observer latitude, and rotated

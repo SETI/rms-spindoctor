@@ -248,6 +248,11 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.bodies.relief_sight
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.render.bodies.photometry
    :members:
    :undoc-members:
