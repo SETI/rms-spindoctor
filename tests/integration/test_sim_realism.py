@@ -939,5 +939,8 @@ def test_a_calibrated_frame_reads_its_downlink_table_from_its_vicar_label(
     )
     monkeypatch.setattr('tests.integration.sim_realism._load_real_obs', lambda _sidecar: frame)
     monkeypatch.setattr('tests.integration.sim_realism.MODELS_FOR_CLASS', {})
+    monkeypatch.setattr(
+        'tests.integration.sim_realism_frames_cassini.cassini_clipped_pixels', lambda *_args: None
+    )
     _, record, _ = _frame_samples_real(sidecar, 'coiss_calib_nac')
     assert record.quantization == quantization

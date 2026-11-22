@@ -16,8 +16,10 @@ error, and the half pixel between two coordinate conventions all move the transl
 and leave the radial offset alone.
 
 Each limb's offset is a sample of kind ``limb_peak_<bin>``, binned like the limb widths.
-:func:`compare_limb_peaks` sets each bin's band from the real offsets alone and then
-says whether the matched frames' median lies within it.
+Each frame measures one limb, that of the body its matched scene renders, and
+:func:`pair_limb_peaks` keeps a frame pair's two offsets only when both frames measured
+it.  :func:`compare_limb_peaks` then sets each bin's band from the real offsets alone
+and says whether the matched frames' median lies within it.
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ __all__ = [
     'compare_limb_peaks',
     'limb_peak_offset',
     'matched_silhouette_offsets',
+    'pair_limb_peaks',
     'real_silhouette_offsets',
     'record_has_limb_peaks',
     'record_limb_peak_problems',
@@ -67,8 +70,8 @@ _SILHOUETTE_STEP_PX = 1.0 / 64.0
 MAX_OFFSET_SIGMA_PX = 0.2
 
 # The band rule.  Only a bin holding at least MIN_BIN_LIMBS_FOR_SCATTER real limbs gets
-# a band and a verdict.  Its band is BAND_MULTIPLE standard errors of the real median,
-# where the standard error is the bin's own robust scatter of the real offsets over the
+# a band and a verdict.  Its half-width, around the real median, is BAND_MULTIPLE
+# standard errors of the mean: the bin's own robust scatter of the real offsets over the
 # square root of their count, and never less than BAND_FLOOR_PX.  With fewer real limbs
 # one limb that the body's shape pulls off sets the median (operator ruling of
 # 2026-11-22, #842), so such a bin is reported without a verdict.
@@ -228,6 +231,35 @@ def limb_peak_offset(
     return fit.offset_px
 
 
+def pair_limb_peaks(real: dict[str, list[float]], sim: dict[str, list[float]]) -> None:
+    """Keep a frame pair's gradient-peak offsets only when both frames measured the limb.
+
+    Each frame measures the limb of one body, the one its matched scene renders.  The
+    real frame gives none when the navigator places no limb for that body or its disc is
+    clipped, and the matched frame gives none when its limb is not measured.  Unless
+    each frame holds exactly one offset and both offsets fall in the same bin, both
+    frames' offsets are removed.
+
+    Parameters:
+        real: The real frame's samples, keyed by kind; its ``limb_peak_*`` kinds may be
+            removed.
+        sim: The matched frame's samples, changed the same way.
+    """
+    real_kinds = [k for k in real if k.startswith(LIMB_PEAK_KIND_PREFIX)]
+    sim_kinds = [k for k in sim if k.startswith(LIMB_PEAK_KIND_PREFIX)]
+    if (
+        len(real_kinds) == 1
+        and real_kinds == sim_kinds
+        and len(real[real_kinds[0]]) == 1
+        and len(sim[sim_kinds[0]]) == 1
+    ):
+        return
+    for kind in real_kinds:
+        del real[kind]
+    for kind in sim_kinds:
+        del sim[kind]
+
+
 @dataclass(frozen=True)
 class LimbPeakBin:
     """One limb bin's gradient-peak comparison.
@@ -265,9 +297,10 @@ def compare_limb_peaks(
     """Compare each bin's matched gradient-peak offsets with its real ones.
 
     The band is set from the real offsets before the matched ones are looked at.  Only
-    a bin that holds at least 3 real limbs gets one.  Its half-width is 2 standard
-    errors of the real median: the robust scatter of the bin's own real offsets over
-    the square root of their count, and never less than 0.1 px.  A bin with fewer real
+    a bin that holds at least 3 real limbs gets one.  It is centered on the real median,
+    and its half-width is 2 standard errors of the mean: the robust scatter of the bin's
+    own real offsets over the square root of their count, and never less than 0.1 px.
+    The robust scatter stands in for the standard deviation.  A bin with fewer real
     limbs records both medians and no band or verdict.
 
     Parameters:
@@ -309,8 +342,8 @@ def record_limb_peak_problems(record: dict[str, Any]) -> list[str]:
     """The bins of a realism record whose matched median lies outside its band.
 
     Parameters:
-        record: A realism summary, as :func:`tests.integration.realism_regression.load_record`
-            reads it.
+        record: A realism summary, as
+            :func:`tests.integration.realism_regression.load_record` reads it.
 
     Returns:
         One line per bin that lies outside its band, giving the instrument, the bin, both

@@ -17,11 +17,14 @@ import pytest
 from scipy.special import erfc
 
 from spindoctor.feature.geometry import LimbPolyline
+from tests.integration import sim_realism_limb_peak
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
 from tests.integration.sim_realism_limb_peak import (
     compare_limb_peaks,
     limb_peak_offset,
     matched_silhouette_offsets,
+    pair_limb_peaks,
+    real_silhouette_offsets,
     record_has_limb_peaks,
     record_limb_peak_problems,
 )
@@ -61,14 +64,19 @@ def _disc_image(center_vu: tuple[float, float], radius: float, *, size: int = 12
 
 
 def _limb(
-    center_vu: tuple[float, float], radius: float, n: int = 90, *, facing_deg: float = 0.0
+    center_vu: tuple[float, float],
+    radius: float,
+    n: int = 90,
+    *,
+    facing_deg: float = 0.0,
+    half_deg: float = 85.0,
 ) -> LimbPolyline:
-    """A half-limb of vertices 0.4 px inside a circle, in extended-FOV coordinates.
+    """An arc of vertices 0.4 px inside a circle, in extended-FOV coordinates.
 
     Its middle normal points ``facing_deg`` from +u toward +v: 0 faces +u, the lit half
-    under ``_sphere_scene``.
+    under ``_sphere_scene``.  The arc reaches ``half_deg`` to each side of it.
     """
-    angles = np.radians(np.linspace(-85.0, 85.0, n) + facing_deg)
+    angles = np.radians(np.linspace(-half_deg, half_deg, n) + facing_deg)
     normals = np.column_stack([np.sin(angles), np.cos(angles)])
     vertices = np.asarray(center_vu) + normals * (radius - 0.4)
     return LimbPolyline(
@@ -135,7 +143,7 @@ def test_a_matched_body_that_is_not_a_sphere_is_refused() -> None:
 def test_a_limbs_peak_offset_is_its_edge_less_its_silhouette(
     edge_radius: float, expected: float
 ) -> None:
-    """A disc stated at radius 30 whose edge lies at ``edge_radius`` peaks that far off."""
+    """A disc stated at radius 30 with its edge at ``edge_radius`` peaks that far off."""
     offsets = matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS)
     image = _disc_image((60.0, 60.0), edge_radius)
     limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
@@ -164,6 +172,99 @@ def test_a_misplaced_limb_moves_the_translation_and_keeps_the_offset() -> None:
     assert peak == pytest.approx(-0.5, abs=0.03)
 
 
+def test_a_limb_on_a_short_arc_gives_no_offset() -> None:
+    """A noisy 30 degree arc fits, but knows its offset to worse than 0.2 px.
+
+    Over so short an arc a radial offset and a translation along the arc's middle normal
+    move the peaks almost alike, so the fit cannot tell them apart.
+    """
+    offsets = matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS)
+    rng = np.random.default_rng(1)
+    image = _disc_image((60.0, 60.0), 30.0) + rng.normal(0.0, 0.05, (120, 120))
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, 40, half_deg=15.0)
+    peak = limb_peak_offset(
+        image,
+        limb,
+        'body_sim:REALISM_BODY',
+        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
+        silhouette_offsets=offsets,
+    )
+    assert peak is None
+
+
+class _CircleBackplane:
+    """A backplane of a round body 30 px in radius at (60.5, 60.5), lit from +u.
+
+    It reads its meshgrid as an ``(N, 2)`` array of (u, v) pixel-corner coordinates.
+    """
+
+    def __init__(self, _obs: Any, *, meshgrid: np.ndarray) -> None:
+        du = meshgrid[:, 0] - 60.5
+        dv = meshgrid[:, 1] - 60.5
+        self.hits = np.hypot(du, dv) < 30.0
+        self.incidence = np.where(du > 0.0, np.pi / 4.0, 3.0 * np.pi / 4.0)
+
+    def where_intercepted(self, _body: str) -> Any:
+        return SimpleNamespace(vals=self.hits)
+
+    def incidence_angle(self, _body: str) -> Any:
+        return SimpleNamespace(mvals=np.ma.array(self.incidence, mask=~self.hits))
+
+
+@pytest.fixture
+def _circle_geometry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The real silhouette's oops calls, replaced by :class:`_CircleBackplane`."""
+    monkeypatch.setattr(sim_realism_limb_peak, 'Pair', lambda uv: uv)
+    monkeypatch.setattr(sim_realism_limb_peak, 'Meshgrid', lambda _fov, uv: uv)
+    monkeypatch.setattr(sim_realism_limb_peak, 'Backplane', _CircleBackplane)
+
+
+@pytest.mark.usefixtures('_circle_geometry')
+def test_the_real_silhouette_is_where_the_rays_stop_hitting_the_body() -> None:
+    """A vertex 0.4 px inside the body's edge lies 0.4 px from its silhouette.
+
+    The rays are traced every 1/64 px, so the silhouette is found to within that.
+    """
+    offsets = real_silhouette_offsets(SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None))
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=0.0)
+    distances = offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
+    assert np.max(np.abs(distances - 0.4)) <= 1.0 / 64.0
+
+
+@pytest.mark.usefixtures('_circle_geometry')
+def test_the_real_silhouette_leaves_out_the_unlit_limb() -> None:
+    """Vertices where the Sun is below the horizon just inside the edge get NaN."""
+    offsets = real_silhouette_offsets(SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None))
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=180.0)
+    distances = offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
+    assert np.all(np.isnan(distances))
+
+
+def test_a_frame_pair_that_both_measured_the_limb_keeps_both_offsets() -> None:
+    """One offset on each side, in the same bin, enters the pools."""
+    real = {'limb_peak_p0_r0': [-0.02], 'limb_width_p0_r0': [1.1]}
+    sim = {'limb_peak_p0_r0': [0.03]}
+    pair_limb_peaks(real, sim)
+    assert real == {'limb_peak_p0_r0': [-0.02], 'limb_width_p0_r0': [1.1]}
+    assert sim == {'limb_peak_p0_r0': [0.03]}
+
+
+def test_a_matched_limb_without_its_real_twin_is_dropped() -> None:
+    """A matched offset whose real frame measured no limb is removed, and nothing else."""
+    real = {'limb_width_p0_r0': [1.1]}
+    sim = {'limb_peak_p0_r0': [0.42], 'limb_width_p0_r0': [1.0]}
+    pair_limb_peaks(real, sim)
+    assert sim == {'limb_width_p0_r0': [1.0]}
+
+
+def test_a_frame_pair_whose_offsets_fall_in_different_bins_is_dropped() -> None:
+    """Offsets of a real and a matched limb in different bins are both removed."""
+    real = {'limb_peak_p0_r1': [0.1]}
+    sim = {'limb_peak_p0_r0': [0.2]}
+    pair_limb_peaks(real, sim)
+    assert (real, sim) == ({}, {})
+
+
 def test_a_bin_with_three_real_limbs_sets_its_band_from_its_own_scatter() -> None:
     """Three real limbs at -0.5, -0.3, and -0.1 px give a band of 0.34 px."""
     bins = compare_limb_peaks({'limb_peak_p0_r1': [-0.5, -0.3, -0.1]}, {'limb_peak_p0_r1': [-0.05]})
@@ -190,6 +291,12 @@ def test_a_tight_bin_is_held_to_the_band_floor() -> None:
     """Real limbs that agree exactly still get a band of 0.1 px."""
     bins = compare_limb_peaks({'limb_peak_p0_r0': [0.2, 0.2, 0.2]}, {'limb_peak_p0_r0': [0.0]})
     assert bins['p0_r0'].band_px == pytest.approx(0.1)
+
+
+def test_a_matched_median_on_the_band_edge_is_within_it() -> None:
+    """A matched median exactly one band half-width from the real median is within."""
+    bins = compare_limb_peaks({'limb_peak_p0_r0': [0.0, 0.0, 0.0]}, {'limb_peak_p0_r0': [0.1]})
+    assert bins['p0_r0'].within_band is True
 
 
 def test_a_bin_without_matched_limbs_is_not_judged() -> None:

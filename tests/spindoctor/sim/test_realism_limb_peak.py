@@ -96,3 +96,27 @@ def test_the_fit_needs_twenty_measured_peaks() -> None:
     peaks = np.zeros(30)
     peaks[19:] = np.nan
     assert fit_limb_peak_offset(peaks, normals) is None
+
+
+def test_the_peak_is_looked_for_up_to_3_px_from_the_silhouette() -> None:
+    """An edge 2.5 px inside the silhouette point is found there."""
+    image = _vertical_edge(20.0)
+    peaks = gradient_peak_positions(image, np.array([[20.0, 22.5]]), np.array([[0.0, 1.0]]))
+    assert peaks[0] == pytest.approx(-2.5, abs=1e-3)
+
+
+def test_a_steepest_fall_at_the_end_of_the_search_range_is_no_peak() -> None:
+    """An edge 3.5 px inside the silhouette point, beyond the search, gives NaN."""
+    image = _vertical_edge(20.0)
+    peaks = gradient_peak_positions(image, np.array([[20.0, 23.5]]), np.array([[0.0, 1.0]]))
+    assert np.isnan(peaks[0])
+
+
+def test_the_fit_needs_twenty_kept_peaks() -> None:
+    """Thirty measured peaks of which the robust fit drops twelve are too few."""
+    normals = _disc_normals(30, -90.0, 90.0)
+    peaks = np.full(30, -0.2)
+    peaks[::5] += 3.0
+    peaks[1::5] -= 3.0
+    peaks[2::5] += 0.01
+    assert fit_limb_peak_offset(peaks, normals) is None

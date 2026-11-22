@@ -43,7 +43,6 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import math
 import os
 import time
 import warnings
@@ -53,6 +52,7 @@ from typing import Any, cast
 
 import numpy as np
 
+from spindoctor.feature.geometry import LimbPolyline
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs import ObsSnapshotInst
@@ -62,7 +62,6 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_calibrated_sky_if,
     resolve_dark_sky_ceiling_if,
     resolve_data_units,
-    resolve_detector_defaults_native,
 )
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
@@ -79,11 +78,12 @@ from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patch
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
-from tests.integration.sim_realism_albedo import real_normal_albedo
+from tests.integration.sim_realism_body import real_body, saturation_level
 from tests.integration.sim_realism_limb_peak import (
     LimbPeakBin,
     compare_limb_peaks,
     matched_silhouette_offsets,
+    pair_limb_peaks,
     real_silhouette_offsets,
 )
 from tests.integration.sim_realism_scenes import STAR_CLASSES, matched_scene
@@ -93,7 +93,6 @@ from tests.integration.sim_realism_support import (
     extract_feature_samples,
     extract_pixel_samples,
     frame_settings_reader,
-    largest_body,
     prepare_frame_features,
 )
 from tests.integration.sim_realism_twin_stars import catalog_twin_stars
@@ -113,23 +112,6 @@ __all__ = [
 # (mission, spacecraft or None, camera) -> sim instrument whose signal chain and units match the
 # cohort's products: each instrument config entry's realism_cohort.
 INSTRUMENT_FOR: dict[tuple[str, str | None, str], str] = realism_cohort_instruments()
-
-
-def saturation_level(instrument: str) -> float:
-    """The full-scale level in cohort units, from the instrument entry.
-
-    The level feeds the saturation statistics and the FOM 2 saturated-star filter.
-
-    Parameters:
-        instrument: The sim instrument a cohort is matched against.
-
-    Returns:
-        The entry's ``detector.saturation_dn`` for a ``raw_dn`` product; NaN for a
-        calibrated one, whose I/F units define no fixed level.
-    """
-    if resolve_data_units(instrument) != 'raw_dn':
-        return math.nan
-    return resolve_detector_defaults_native(instrument).saturation_dn
 
 
 # Scene classes -> NavModel globs for the feature FOMs (the sim-side models
@@ -193,7 +175,9 @@ class FrameRecord:
             frames; default where no body model was built).
         phase_angle_deg: That body's phase angle.
         normal_albedo: That body's normal albedo, measured from the disc of a
-            calibrated frame, else None.
+            calibrated frame whose disc is not clipped, else None.
+        limb_emitted: Whether the navigator placed that body's limb in the real
+            frame; the matched frame's limb is measured only when it did.
         frame_shape_vu: The frame's (v, u) shape.
         filter_name: The frame's filter combination (``'CL1+CL2'``) on a
             camera the sim's filter catalog covers, else None.
@@ -215,6 +199,7 @@ class FrameRecord:
     diameter_px: float = 150.0
     phase_angle_deg: float = 45.0
     normal_albedo: float | None = None
+    limb_emitted: bool = True
     frame_shape_vu: tuple[int, int] = (512, 512)
     filter_name: str | None = None
     gain_state: int | None = None
@@ -445,36 +430,48 @@ def _frame_samples_real(
         offset_vu=offset,
         frame_shape_vu=(int(obs.data_shape_vu[0]), int(obs.data_shape_vu[1])),
     )
+    data = np.asarray(obs.data, dtype=np.float64)
+    saturation = saturation_level(instrument)
+    clipped = data >= saturation if np.isfinite(saturation) else None
     reader = frame_settings_reader(sidecar.mission)
     if reader is not None:
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
         # and quantization step are the real product's.
-        settings = reader(obs, image_id=sidecar.image_id, instrument=instrument)
+        settings = reader(
+            obs,
+            image_id=sidecar.image_id,
+            instrument=instrument,
+            image_path=_resolve_image_url(sidecar.image_url),
+        )
         record.filter_name = settings.filter_name
         record.gain_state = settings.gain_state
         record.quantization = settings.quantization
+        if clipped is None:
+            clipped = settings.clipped
     if scene_class in STAR_CLASSES:
         record.stars = catalog_twin_stars(
             obs, instrument=instrument, exposure_sec=float(exposure), offset_vu=offset
         )
-    saturation = saturation_level(instrument)
     samples, rates = extract_pixel_samples(
-        np.asarray(obs.data, dtype=np.float64),
-        exposure_stratum=stratum,
-        saturation_level=saturation,
+        data, exposure_stratum=stratum, saturation_level=saturation
     )
     only_models = MODELS_FOR_CLASS.get(scene_class)
     if only_models is not None:
         image, features, model_metadata = prepare_frame_features(obs, only_models=only_models)
-        body, diameter, phase = largest_body(model_metadata)
-        if body is not None and diameter is not None and phase is not None:
-            record.diameter_px = diameter
-            record.phase_angle_deg = phase
-            if resolve_data_units(instrument) == 'calibrated_if':
-                record.normal_albedo = real_normal_albedo(
-                    obs, body, offset_vu=offset, phase_angle_deg=phase
-                )
+        body = real_body(
+            obs,
+            features,
+            model_metadata,
+            offset_vu=offset,
+            calibrated=resolve_data_units(instrument) == 'calibrated_if',
+            clipped=clipped,
+        )
+        if body is not None:
+            record.diameter_px = body.diameter_px
+            record.phase_angle_deg = body.phase_angle_deg
+            record.normal_albedo = body.normal_albedo
+            record.limb_emitted = body.limb_emitted
         samples.merge(
             extract_feature_samples(
                 image,
@@ -484,6 +481,7 @@ def _frame_samples_real(
                 extfov_margin_vu=obs.extfov_margin_vu,
                 saturation_level=saturation,
                 silhouette_offsets=real_silhouette_offsets(obs),
+                limb_peak_model=None if body is None else body.limb_peak_model,
             )
         )
     return samples, record, rates
@@ -521,6 +519,10 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
     only_models = MODELS_FOR_CLASS.get(record.scene_class)
     if only_models is not None:
         image, features, model_metadata = prepare_frame_features(obs, only_models=only_models)
+        if not record.limb_emitted:
+            # The real frame has no limb of this body, so neither does its twin.
+            features = [f for f in features if not isinstance(f.geometry, LimbPolyline)]
+        bodies = scene.get('bodies') or []
         samples.merge(
             extract_feature_samples(
                 image,
@@ -529,9 +531,8 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
                 offset_vu=(0.0, 0.0),  # matched scenes plant zero offset
                 extfov_margin_vu=obs.extfov_margin_vu,
                 saturation_level=saturation,
-                silhouette_offsets=(
-                    matched_silhouette_offsets(scene, obs) if scene.get('bodies') else None
-                ),
+                silhouette_offsets=matched_silhouette_offsets(scene, obs) if bodies else None,
+                limb_peak_model=f'body_sim:{bodies[0]["name"]}' if bodies else None,
             )
         )
     return samples, rates
@@ -869,10 +870,12 @@ def pool_frame_pairs(
     real_frames: list[FrameSamples],
     sim_frames: list[FrameSamples],
 ) -> None:
-    """Pair each frame's sky with its matched frame's and pool both sides' samples.
+    """Pair each frame's sky and limb peak with its matched frame's, then pool both sides.
 
     Each pair's sky samples are added to its frames before the frames are merged
     into the pools, so the pools hold only the sky samples that the pairing kept.
+    A pair's limb gradient peaks enter the pools only when both frames measured
+    one (:func:`~tests.integration.sim_realism_limb_peak.pair_limb_peaks`).
 
     Parameters:
         comparison: The instrument's comparison, which holds one record per
@@ -888,6 +891,7 @@ def pool_frame_pairs(
         comparison.sky_pairs.append(
             pair_sky(record, real_samples, sim_samples, twins_with_sky=with_sky)
         )
+        pair_limb_peaks(real_samples.samples, sim_samples.samples)
         comparison.real.merge(real_samples)
         comparison.sim.merge(sim_samples)
         comparison.frame_kinds['real'].append(_kinds_of(real_samples))

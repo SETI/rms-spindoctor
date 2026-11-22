@@ -52,7 +52,7 @@ from spindoctor.sim.realism.profiles import (
     profile_rise_width,
     radial_profile,
 )
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 from tests.integration.sim_realism_limb_peak import (
     LIMB_PEAK_KIND_PREFIX,
     SilhouetteOffsets,
@@ -116,21 +116,29 @@ _FLAT_TOP_REL_EPS = 1e-6
 class FrameSettings:
     """A real frame's commanded settings its matched scene renders through.
 
+    The reader also says which of the frame's pixels the camera clipped, which a
+    calibrated product hides: calibration rescales each pixel, so a clipped disc no
+    longer reads one exact level.
+
     Parameters:
         filter_name: The filter combination (``'CL1+CL2'``) when the matched
             instrument catalogs it, else None.
         gain_state: The frame's gain state, or None when its label carries none.
         quantization: The downlink quantization the frame went through, as a scene's
             ``detector.quantization`` spells it, or None for the instrument's own.
+        clipped: Which of the frame's pixels read the camera's full scale in its raw
+            product, in the frame's shape, or None when the reader cannot tell.
     """
 
     filter_name: str | None = None
     gain_state: int | None = None
     quantization: str | None = None
+    clipped: NDArrayBoolType | None = None
 
 
 # A reader of a real frame's commanded settings: it takes the real observation and
-# the keywords ``image_id`` and ``instrument``.
+# the keywords ``image_id``, ``instrument``, and ``image_path`` (the product's resolved
+# path).
 FrameSettingsReader = Callable[..., FrameSettings]
 
 # The prefix of a module that reads one mission's frame labels and registers its
@@ -531,6 +539,7 @@ def extract_feature_samples(
     extfov_margin_vu: tuple[int, int],
     saturation_level: float,
     silhouette_offsets: SilhouetteOffsets | None = None,
+    limb_peak_model: str | None = None,
 ) -> FrameSamples:
     """FOM 2-4 samples around the frame's extracted features.
 
@@ -554,9 +563,13 @@ def extract_feature_samples(
             CALIB saturation is not represented by a fixed level).  The
             flat-top plateau guard runs regardless, so clipped cores are
             rejected on every cohort.
-        silhouette_offsets: The frame's body silhouettes.  When given, each binned limb
-            also adds its gradient-peak offset from the silhouette, as a sample of kind
+        silhouette_offsets: The frame's body silhouettes, which the gradient peak of
+            ``limb_peak_model``'s limb is measured from.
+        limb_peak_model: The one body model whose binned limb also adds its
+            gradient-peak offset from the silhouette, as a sample of kind
             ``limb_peak_<bin>`` (see :mod:`tests.integration.sim_realism_limb_peak`).
+            It is the body the matched scene renders, so each frame of a pair measures
+            the same body.  None, or no silhouettes, adds no gradient peak.
 
     Returns:
         The frame's feature samples.
@@ -645,7 +658,7 @@ def extract_feature_samples(
                 # pooled FOM 3 statistic from strata populated on both
                 # sides, so a raw cross-strata pool never appears.
                 out.add(f'limb_width_{_limb_bin_label(phase, diameter)}', widths)
-                if silhouette_offsets is not None:
+                if silhouette_offsets is not None and feature.source_model == limb_peak_model:
                     peak_offset = limb_peak_offset(
                         image,
                         geometry,

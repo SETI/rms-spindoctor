@@ -52,3 +52,19 @@ def test_too_few_pixels_give_no_albedo() -> None:
     mu0, mu = _cosines(49)
     disc = 0.42 * shade_surface(mu0, mu, law='lommel_seeliger')
     assert disc_normal_albedo(disc, mu0, mu, law='lommel_seeliger', phase_angle=_PHASE) is None
+
+
+def test_a_disc_darker_than_the_sky_gives_no_albedo() -> None:
+    """A disc whose I/F lies below zero, as an over-subtracted background leaves it."""
+    mu0, mu = _cosines(200)
+    disc = np.full(200, -0.01)
+    assert disc_normal_albedo(disc, mu0, mu, law='lommel_seeliger', phase_angle=_PHASE) is None
+
+
+def test_a_few_cosmic_ray_hits_leave_the_albedo_alone() -> None:
+    """Ten pixels fifty times too bright do not move the median of two hundred."""
+    mu0, mu = _cosines(200)
+    disc = 0.42 * shade_surface(mu0, mu, law='lommel_seeliger')
+    disc[:10] *= 50.0
+    albedo = disc_normal_albedo(disc, mu0, mu, law='lommel_seeliger', phase_angle=_PHASE)
+    assert albedo == pytest.approx(0.42, rel=1e-12)
