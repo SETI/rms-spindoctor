@@ -50,18 +50,24 @@ classification is the top-level ``status_error`` and the evidence is
 ``status_exception`` with the traceback in ``status_traceback``.
 
 ``missing_spice_data``
-    The load raised a SPICE coverage error (``CKINSUFFDATA``, ``SPKINSUFFDATA``,
-    or ``NOFRAMECONNECT``). The document records no epoch of its own, since an
+    The load raised ``oops.OopsSpiceError``, which every host raises when the
+    kernels cannot supply what the image needs, or a SPICE error straight from
+    ``cspyce``, such as ``SPICE(SPKINSUFFDATA)``. A host's message reads like
+    "no Cassini ISS NAC pointing at 2005-01-15T12:00:00.000 for <image file>:
+    SPICE(CKINSUFFDATA)". The document records no epoch of its own, since an
     epoch is the midtime of the observation the load never built, but the
-    exception text gives both the frame and the epoch. Check that the kernel set
-    covers that epoch: attitude gaps in reconstructed C-kernels are the common
-    case, and an epoch outside every loaded CK's coverage bounds cannot be
-    navigated at all.
+    exception text gives the epoch and the SPICE error code. Check that the
+    kernel set covers that epoch: attitude gaps in reconstructed C-kernels are
+    the common case, and an epoch outside every loaded CK's coverage bounds
+    cannot be navigated at all.
 
 ``image_read_error``
-    Any other load failure -- a truncated, corrupt, or absent file. The
-    exception text is the reader's own message; verify the holdings path in
-    ``observation.image_path`` exists and is readable.
+    Any other load failure -- a truncated, corrupt, or absent file, a label that
+    could not be retrieved, or a file whose labels lack a value the host needs,
+    such as the exposure. A host reports the last kind as a subclass of
+    ``oops.host.HostError``. The exception text is the reader's own message;
+    verify the holdings path in ``observation.image_path`` exists and is
+    readable.
 
 ``internal_error``
     Navigating the image raised an exception the orchestrator does not turn

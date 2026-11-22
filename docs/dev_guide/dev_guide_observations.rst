@@ -364,16 +364,16 @@ Shipping subclasses:
   NAC and WAC. Delegates to ``host_cassini.CassiniISS.from_file``, from the
   ``rms-host-cassini`` package.
 - :class:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS` — Voyager 1 / 2
-  ISS NA and WA cameras. Delegates to
-  ``oops.hosts.voyager.iss.from_file``.
+  ISS NA and WA cameras. Delegates to ``host_voyager.VoyagerISS.from_file``, from
+  the ``rms-host-voyager`` package.
 - :class:`~spindoctor.obs.obs_inst_galileo_ssi.ObsGalileoSSI` — Galileo SSI
   (uses ``full_fov=True`` to read the full sensor regardless of the
-  on-chip ROI). Delegates to ``oops.hosts.galileo.ssi.from_file``, because the
-  ``rms-host-galileo`` package fails to read some of the Galileo frames in the archive.
+  on-chip ROI). Delegates to ``host_galileo.GalileoSSI.from_file``, from the
+  ``rms-host-galileo`` package.
 - :class:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI` —
-  New Horizons LORRI (passes ``calibration=False`` so the raw pixel
-  values pass through). Delegates to
-  ``oops.hosts.newhorizons.lorri.from_file``.
+  New Horizons LORRI. Delegates to
+  ``host_new_horizons.NewHorizonsLORRI.from_file``, from the
+  ``rms-host-new-horizons`` package.
 - :class:`~spindoctor.obs.obs_inst_sim.ObsSim` — simulated-image observation
   backed by a validated YAML scene (bodies, rings, stars); renders the frame with
   the simulator's renderer and exposes the navigator the filtered idealized scene view
@@ -434,8 +434,8 @@ The end-to-end checklist lives at
    :attr:`~spindoctor.obs.obs_inst.ObsInst.model_source` to ``'spice'`` in the
    class body.
 2. Implement :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` (delegate to the mission's
-   ``oops`` host: a class-style host package such as ``rms-host-cassini`` where one exists,
-   otherwise the ``oops.hosts.<mission>.<inst>`` module),
+   host package, such as ``rms-host-cassini``, and give it
+   ``host_input(path, label=label)`` so that it reads the PDS3 label with the image),
    :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf`,
    :meth:`~spindoctor.obs.obs_inst.ObsInst.star_min_usable_vmag`,
    :meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag`, and
