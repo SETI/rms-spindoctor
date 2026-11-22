@@ -375,7 +375,7 @@ def _check_dataclass(cls: type, *, seen: set[type]) -> None:
 
 
 @functools.cache
-def _adapter(cls: Hashable) -> TypeAdapter[Any]:
+def _adapter(cls: Any) -> TypeAdapter[Any]:
     """The checked, cached pydantic adapter for one schema root."""
     check_schema(cls)
     return TypeAdapter(cls)
