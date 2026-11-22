@@ -36,7 +36,7 @@ offset_rotation_deg: 0.0
 # disc correlation, pulled by the ring of light its template leaves out
 # (#1050), answers (0.5, -6.5) without flagging it spurious.  The noiseless
 # twin removes read/Poisson noise as a confound and pins both biases
-# deterministically (the blob's du ~27.3 vs planted -0.8, and the disc
+# deterministically (the blob's du ~28.9 vs planted -0.8, and the disc
 # correlation's 5.74 px): the haze alone, not the noise, carries the answers
 # that far.  The disc correlation sets a low-tier success 5.743 px from the
 # planted offset on every seed, held to the band [5.692, 5.793] px (a margin

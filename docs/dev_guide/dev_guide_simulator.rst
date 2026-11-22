@@ -2609,22 +2609,29 @@ and the disc correlator scores only against disc brightness the image carries.
 Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
-On grazing and half overlap the navigator recovers each scene's planted offset
-within the tolerance the mutual-event regression pins, 0.18 px and 0.33 px at
-worst over 16 noise seeds. That is a statement about these simulated scenes, not a
-certification of real-frame accuracy: the sim renders an idealized occlusion the
-true optics only approximate. On the deep scene the far body's disc is over 90
-percent hidden, so its ``visible_lit_fraction`` collapses and its disc feature is
-dropped for low reliability. The far body's crescent still shows beside the near
-body's limb, and the disc template, which holds only the near body, leaves it out,
-so the crescent pulls the disc correlation about 0.8 px off. The limb fit runs on
-arcs the image actually shows -- the robust Tukey biweight loss is a second line
-of defense against a stray vertex, not the mechanism that carries the result --
-but on 6 of the 16 seeds it stops unconverged and flags itself spurious, and the
-disc correlation alone sets the answer. The deep scene holds that 0.73 to 0.80 px
-error to a band. No double-counting conflict arises. The mutual-event scenes pin
-the arc fractions and offsets so a regression toward hidden-arc lock-on fails
-loudly.
+On grazing and half overlap the limb fit lands within 0.2 px of each scene's planted
+offset over 16 noise seeds. The disc correlation does worse: it stops at the edge of its
+half-pixel refinement window, 0.18 px off on grazing overlap and 0.34 px on half
+overlap. Its composite template paints the near body over the far one wherever the near
+body touches a pixel, even partly, so the template keeps a dark outline at the near
+body's limb that the image no longer shows. With the template drawn by coverage, the
+same correlation lands within 0.01 px. Both
+scenes hold their fused errors, 0.15 to 0.18 px and 0.32 to 0.33 px, to bands. That is a
+statement about these simulated scenes, not a certification of real-frame accuracy: the
+sim renders an idealized occlusion the true optics only approximate. On the deep scene
+the far body's disc is over 90 percent hidden, so its ``visible_lit_fraction`` collapses
+and its disc feature is dropped for low reliability. The far body's crescent still shows
+beside the near body's limb, and the disc template, which holds only the near body,
+leaves it out, so the crescent pulls the disc correlation about 0.8 px off. The limb fit
+runs on arcs the image actually shows -- the robust Tukey biweight loss is a second line
+of defense against a stray vertex, not the mechanism that carries the result -- but on 6
+of the 16 seeds it stops unconverged and flags itself spurious, and the disc correlation
+alone sets the answer. The deep scene holds that 0.73 to 0.80 px error to a band. No
+double-counting conflict arises. The mutual-event scenes pin the arc fractions and
+offsets so a regression toward hidden-arc lock-on fails loudly.
+
+.. The grazing and half scenes' template outline is issue 1099, and the window edge
+   issue 791.
 
 .. The deep scene's disc correlation error is tracked in issue 1050.
 
@@ -2822,7 +2829,7 @@ nothing to read. The disc correlation sets a low-confidence success, and the
 scene holds its 5.74 px error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
 and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near 27.3, and the same 5.74 px disc correlation error), so the
+blob centroid near 28.9, and the same 5.74 px disc correlation error), so the
 ring of light alone, not the noise, drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
@@ -4576,9 +4583,10 @@ change alters rendered output:
     ``planted_rank1_ring_flat`` a band holds the error across the straight
     ring edge, the only direction that scene can measure.
 
-  The default suite runs the algorithmic invariants, the technique-pinned
-  regression tests, and the fused check on ``mutual_grazing``, which read their
-  limits from ``sim_truth.py``. The integration tier runs the rest. There,
+  The default suite runs the algorithmic invariants and the technique-pinned
+  regression tests, which read their limits from ``sim_truth.py``, and the fused
+  check on ``mutual_grazing``, which reads the known error its scene records. The
+  integration tier runs the rest. There,
   ``test_sim_truth_checks.py`` checks the fused answer of every validation scene
   outside ``algorithmic_invariants``, and every single-technique band.
 

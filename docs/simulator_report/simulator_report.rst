@@ -1260,7 +1260,7 @@ pixel; the distance-transform techniques carry a larger sub-pixel residual:
   across the dense sweep, both distance-transform effects that vary with the
   sub-pixel phase; they stay inside the scenes' truth tolerances. See
   :doc:`/dev_guide/dev_guide_techniques_body_limb` for the mechanism.
-- **The haze symmetry fit holds a ~0.26 px residual** across the dense sweep, and
+- **The haze symmetry fit holds a 0.06 to 0.10 px residual** across the dense sweep, and
   it is a floor rather than a fraction-dependent wobble: the swept axis on the
   ``titan_haze`` scene is pure cross-track, and the scene deliberately renders a
   soft optical limb a few pixels above the solid radius, so the free-radius arc
@@ -1285,7 +1285,7 @@ The wide-range sweep confirms each technique recovers across the navigable range
    the body across the full window via its coarse acquisition.
 
 The disc, ring, limb, and star recover with the same accuracy out to their
-ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its ~0.26 px floor
+ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.06 to 0.10 px floor
 flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the
 method: the mirror-correlation scan searches the whole margin and the arc fit
 recentres once, so nothing degrades across the range. The **blob now holds across the navigable
@@ -1880,7 +1880,7 @@ Summary
   ~0.09 px distance-transform residual and the ring a ~0.03 px residual.
 * The star field improves with SNR: a dim field recovers to ~0.02 px and a bright
   field to ~0.005 px, the tightest of any technique.
-* The haze symmetry fit recovers a hazy body to ~0.26 px across both the dense
+* The haze symmetry fit recovers a hazy body to within 0.10 px across both the dense
   sub-pixel sweep and the full navigable range, against a rendered haze limb that
   is deliberately not the circle it fits. Its randomized planted-truth campaign
   (700 scenes over offset, phase, size, noise, clouds, star fields,
