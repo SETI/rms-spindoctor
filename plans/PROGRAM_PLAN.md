@@ -50,11 +50,11 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 - **The frozen stack waits for the benchmark.** The seven pull requests frozen on 2026-11-06 are
   measured on it before any of them merges.
 - **No new library failures.** A change that moves answers is compared with `main` on the 75 library
-  frames on the same machine. Six fail on `main`, each under an issue in Phase 1 or 5.
+  frames on the same machine. Six fail on `main`, each under an issue in Phase 1, 3, or 5.
 
 ## Issue count
 
-449 issues were open on 2026-11-22. 348 of them have a row here, and the other 101 are
+450 issues were open on 2026-11-22. 348 of them have a row here, and the other 102 are
 simulator work tracked separately. 5 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
@@ -84,8 +84,6 @@ The host session owns this phase.
 | #744 | 3 Important | yes |  | Two Galileo truths record the rotation-fitted answer (operator decision) |
 | #867 | 3 Important | yes |  | Re-verify three truths the image stars contradict (operator check) |
 | #338 | 3 Important | yes |  | Highly-irregular exclusion discards a good terminator fit (operator decision) |
-| #483 | 3 Important | yes |  | Re-pin the frames moved by the shift-equivariance fix (after #791) |
-| #288 | 2 Essential | yes |  | Library regression: 6 of 75 frames disagree (closes when the others do) |
 | #547 | 3 Important |  |  | Written-product comparison runs against no frame |
 | #516 | 4 Useful |  |  | A root-ownership test that cannot fail |
 | #814 | 5 Minor |  |  | Ring performance test runs close to its limit |
@@ -128,6 +126,7 @@ The host session owns this phase.
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
 | #791 | 2 Essential | yes | PR #1053 open | Disc refinement stops at its half-pixel window |
+| #483 | 3 Important | yes |  | Re-pin the frames moved by the shift-equivariance fix (operator decision; after #791) |
 | #1044 | 3 Important | yes |  | Auto mode prefers a pass that found no peak |
 | #1048 | 3 Important | yes |  | Gradient correlation reads the sensor margin |
 | #1061 | 2 Essential | yes |  | Flag answers that stop at the refinement window edge |
@@ -145,7 +144,7 @@ The host session owns this phase.
 | #945 | 3 Important |  |  | Refine candidates on a window at a fast length (after #791; also in the simulator plan) |
 | #1049 | 5 Minor |  |  | Signed lag misreads the midpoint of an odd surface |
 
-**Exit:** an answer that stops at its window edge is flagged, the known wrong locks (#1055, #1065) are refused, and the rotation search finds a planted roll.
+**Exit:** an answer that stops at its window edge is flagged, the known wrong locks (#1055, #1065) are refused, the rotation search finds a planted roll, and the frames of #483 are re-pinned.
 
 ## Phase 4a: navigate on every star the frame shows (frozen stack)
 
@@ -231,6 +230,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #859 | 3 Important |  |  | Vertices beside missing-data edges still fitted |
 | #860 | 3 Important |  |  | Saturn limbs 4-9 px off on rev 36-37 frames |
 | #350 | 4 Useful |  |  | Resolved-body library frames 2 px off |
+| #288 | 2 Essential |  |  | Library regression: 6 of 75 frames disagree (closes when the others do) |
 | #858 | 3 Important |  |  | Visible-limb altitude by body and wavelength |
 | #878 | 3 Important |  |  | Calibrate that altitude from a full Cassini run |
 | #857 | 4 Useful |  |  | Saturn's visible-limb table misses filter, latitude, season |
@@ -598,7 +598,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #744 | Truth of the two Galileo library frames | 1 |
 | #867 | Three library truths the image stars contradict | 1 |
 | #338 | Terminator fits on highly irregular bodies | 1 |
-| #483 | The re-pins, after #791 | 1 |
+| #483 | The re-pins, after #791 | 3 |
 | #880 | Which stars judge a lone star's absent-star test | 4a |
 | #316 | Ring orbit uncertainty severity | 4b |
 | #748 | Overflow limit for a witness blob | 5 |
