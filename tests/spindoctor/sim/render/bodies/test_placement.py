@@ -197,9 +197,16 @@ def test_large_halo_matches_the_unclipped_halo() -> None:
     _, info = _render(body)
     _, reference_info = _render(body, pad=_PAD)
     window = slice(_PAD, _PAD + _SIZE)
+    halo = info['halo']
     reference = reference_info['halo'].emission[window, window]
     assert float(reference[:, 14:].max()) > 0.0
-    assert float(np.abs(info['halo'].emission - reference).max()) < 1e-12
+    assert float(np.abs(halo.emission - reference).max()) < 1e-12
+    reference_transmission = reference_info['halo'].transmission[window, window]
+    assert float(np.abs(halo.transmission - reference_transmission).max()) < 1e-12
+    differs = (halo.emission != 0.0) | (halo.transmission != 1.0)
+    in_box = np.zeros_like(differs)
+    in_box[halo.box_v, halo.box_u] = halo.mask
+    assert not np.any(differs & ~in_box)
 
 
 def test_large_mesh_body_matches_the_unclipped_body() -> None:
