@@ -91,8 +91,9 @@ class BodySpec:
         semi_c_px: Semi-axis c, half the depth along axis 3, which defaults to
             the smaller of ``semi_a_px`` and ``semi_b_px``.
         rotation_z: The in-plane rotation, in degrees.
-        rotation_tilt: The tilt of the polar axis toward the observer, in
-            degrees.
+        sub_observer_lat_deg: The latitude of the point on the body directly below
+            the observer, in degrees: positive when the north pole, the end of
+            semi-axis a on +v before ``rotation_z``, tips toward the observer.
         illumination_angle: The image-plane azimuth of the light, in degrees.
         phase_angle: The phase angle, in degrees.
         range_km: The observer distance, or None when the scene leaves it out.
@@ -138,7 +139,7 @@ class BodySpec:
     semi_b_px: float
     semi_c_px: float
     rotation_z: float
-    rotation_tilt: float
+    sub_observer_lat_deg: float
     illumination_angle: float
     phase_angle: float
     range_km: float | None
@@ -207,7 +208,7 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         semi_b_px=semi_b_px,
         semi_c_px=float(scene_value(body_params, 'semi_c_px', min(semi_a_px, semi_b_px))),
         rotation_z=float(scene_value(body_params, 'rotation_z', 0.0)),
-        rotation_tilt=float(scene_value(body_params, 'rotation_tilt', 0.0)),
+        sub_observer_lat_deg=float(scene_value(body_params, 'sub_observer_lat_deg', 0.0)),
         illumination_angle=float(scene_value(body_params, 'illumination_angle', 0.0)),
         phase_angle=float(scene_value(body_params, 'phase_angle', 0.0)),
         range_km=_optional_float(body_params, 'range_km'),

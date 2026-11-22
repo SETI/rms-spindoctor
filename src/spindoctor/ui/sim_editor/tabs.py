@@ -209,7 +209,7 @@ class TabsMixin(SimEditorBase):
                 'mesh_seed': 0,
                 'pose_euler_deg': [0.0, 0.0, 0.0],
                 'rotation_z': 0.0,
-                'rotation_tilt': 0.0,
+                'sub_observer_lat_deg': 0.0,
                 'illumination_angle': 0.0,
                 'phase_angle': 0.0,
                 'crater_fill': 0.0,

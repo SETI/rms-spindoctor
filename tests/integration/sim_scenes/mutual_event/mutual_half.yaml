@@ -10,11 +10,19 @@ exposure_sec: 1.0
 # Rendered truth (body_occlusion): FAR visible_fraction ~0.67, occluded limb
 # arc ~100 deg; NEAR fully visible.  Measured ensemble behavior
 # (2026-07-18, occlusion-aware sim limb): FAR's LIMB_ARC drops the hidden
-# arc and reports visible_arc_fraction 0.72 (reliability 0.75); BOTH
-# techniques stay accurate -- the disc correlation is anchored by the
-# intact NEAR template and the limb fit runs on visible arcs only -- so
-# the fused result remains an accurate success at medium tier rather than
-# degrading to conflicted.  The expected block pins that measured outcome.
+# arc and reports visible_arc_fraction 0.72 (reliability 0.75), and the
+# limb fit, on visible arcs only, lands 0.11 to 0.19 px from the planted
+# offset.  The disc correlation answers about (2.5, -1.30), 0.34 px off,
+# with v at the edge of its +-0.5 px refinement window (#791).  The
+# composite disc template paints the near body over the far one by a
+# yes-or-no mask, so it keeps a dark outline at the near body's limb that
+# the image no longer has (#1099).  Drawn by coverage, without that
+# outline, the template brings the disc correlation to 0.006 px.  The fused
+# result stays a medium-tier success rather than degrading to conflicted.
+# Known error: over the committed seed and random_seed 101, 202, ..., 1515
+# the fused error runs 0.317 to 0.333 px (spread 0.016 px).  Each end of
+# the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
+# outside, giving [0.266, 0.383] px.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -45,3 +53,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
+  known_offset_error_px: 0.3245
+  known_offset_error_tol_px: 0.0585

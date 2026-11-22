@@ -126,7 +126,9 @@ in via the per-body entry of the observation's navigator view
   pixels, each half its width along that axis. ``semi_c_px`` defaults to
   ``min(semi_a_px, semi_b_px)``.
 - ``rotation_z`` — rotation about the line of sight (degrees).
-- ``rotation_tilt`` — tilt of the body (degrees).
+- ``sub_observer_lat_deg`` — latitude of the point on the body directly below the
+  observer (degrees). Positive tips the north pole, the end of semi-axis a on +v
+  before ``rotation_z`` turns it, toward the observer.
 - ``illumination_angle`` — degrees.
 - ``phase_angle`` — degrees. Also gates LIMB_ARC emission (limb only at or below 60
   degrees).

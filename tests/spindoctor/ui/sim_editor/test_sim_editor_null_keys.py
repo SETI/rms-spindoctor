@@ -92,7 +92,7 @@ _NULL_BODY: dict[str, Any] = dict.fromkeys(
         'pose_euler_deg',
         'pose_scatter',
         'range_km',
-        'rotation_tilt',
+        'sub_observer_lat_deg',
         'rotation_z',
         'seed',
         'semi_a_px',

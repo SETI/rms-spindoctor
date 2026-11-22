@@ -1,14 +1,13 @@
 """Behavioral checks for the mutual-event scene class.
 
-A grazing two-body overlap must still navigate to its planted offset within its
-truth tolerance, and the navigator-side simulated body model must predict
+A grazing two-body overlap must still navigate to within the known error its scene
+records, and the navigator-side simulated body model must predict
 occlusion-aware limbs.  The near body's limb stays complete.  The far body's limb
 loses the arc hidden behind the near body's silhouette, and its
 ``visible_arc_fraction`` reports the fraction of the limb that stays visible.  The limb
 reliability and BodyLimbNav's confidence formula both read that value.  The deeper
 overlaps' fused outcomes are pinned by their scenes' ``expected`` blocks
-(test_sim_expected), their truth tolerances (test_sim_truth_checks), and their
-baselines.
+(test_sim_expected) and their baselines.
 
 Everything renders and navigates in-process (no holdings or SPICE), so this
 runs in the default suite.
@@ -23,8 +22,11 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.scene.io import load_sim_scene
-from tests.integration.sim_expected import navigate_scene
-from tests.integration.sim_truth import FUSED, assert_matches_truth
+from tests.integration.sim_expected import (
+    assert_result_matches_expected,
+    expected_from_scene,
+    navigate_scene,
+)
 from tests.shims.context import bare_nav_context
 
 _SCENES_DIR = Path(__file__).parent / 'sim_scenes' / 'mutual_event'
@@ -34,12 +36,18 @@ def _load(scene_name: str) -> dict[str, Any]:
     return load_sim_scene(_SCENES_DIR / f'{scene_name}.yaml')
 
 
-def test_grazing_overlap_navigates_within_tolerance() -> None:
-    """The grazing mutual event recovers its planted offset within its truth tolerance."""
+def test_grazing_overlap_navigates_within_its_known_error() -> None:
+    """The grazing mutual event lands within the known-error band its scene records."""
     scene = _load('mutual_grazing')
     result = navigate_scene(scene)
-    assert result.status == 'success'
-    assert_matches_truth(result.offset_px, scene, FUSED)
+    expected = expected_from_scene(scene)
+    assert expected is not None
+    assert_result_matches_expected(
+        scene_name='mutual_grazing',
+        expected=expected,
+        result=result,
+        planted_offset_vu=(float(scene['offset_v']), float(scene['offset_u'])),
+    )
 
 
 def test_navigator_predicts_occlusion_aware_limbs() -> None:

@@ -54,9 +54,8 @@ def _render_haze_body(
 ) -> NDArrayFloatType:
     """Render a centered spherical body, optionally with a haze layer.
 
-    The solid disc paints opaquely and the translucent halo screen (returned
-    on the body info) is composited over the empty background, mirroring the
-    radiance stage.
+    The body goes over an empty background, its halo first, as the radiance stage
+    puts it there.
 
     Parameters:
         atmosphere: The ``atmosphere`` block, or None for a hard-limbed body.
@@ -78,16 +77,12 @@ def _render_haze_body(
     )
     if atmosphere is not None:
         body_params['atmosphere'] = atmosphere
-    _mask, body_info = render_single_body(
+    render_single_body(
         img,
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
     )
-    halo = body_info.get('halo')
-    if halo is not None:
-        covered = (halo.emission > 0.0) | (halo.transmission < 1.0)
-        img[covered] = halo.emission[covered] + halo.transmission[covered] * img[covered]
     return img
 
 
@@ -397,9 +392,10 @@ def test_apply_atmosphere_does_not_mutate_input() -> None:
         semi_b=_RADIUS,
         semi_c=_RADIUS,
         rotation_z=0.0,
-        rotation_tilt=0.0,
+        sub_observer_lat=0.0,
         illumination_angle=math.radians(90.0),
         phase_angle=math.radians(30.0),
+        silhouette=(body > 0.0).astype(np.float64),
     )
     assert np.array_equal(body, original)
 
@@ -439,7 +435,7 @@ def _centered_layers(
         semi_b=_RADIUS,
         semi_c=_RADIUS,
         rotation_z=0.0,
-        rotation_tilt=0.0,
+        sub_observer_lat=0.0,
         illumination_angle=math.radians(90.0),
         phase_angle=math.radians(phase_deg),
         silhouette=_sphere_outline() if outline is None else outline,
@@ -466,6 +462,19 @@ def test_halo_transmission_is_the_tangent_extinction() -> None:
     altitude = math.hypot(probe_v + 0.5 - _CENTER, probe_u + 0.5 - _CENTER) - _RADIUS
     tau = float(tangent_optical_depth(np.array([altitude]), spec)[0])
     assert layers.halo.transmission[probe_v, probe_u] == pytest.approx(math.exp(-tau), rel=1e-9)
+
+
+def test_the_halo_on_a_covered_pixel_takes_the_limbs_extinction() -> None:
+    """The halo under a covered pixel beside the limb dims as the limb column does.
+
+    The pixel's center lies half a pixel inside the limb, but the halo shows only
+    through the part of a pixel the outline leaves open, which lies above the limb.
+    """
+    spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6)
+    layers = _centered_layers(spec)
+    tau = float(tangent_optical_depth(np.array([0.0]), spec)[0])
+    covered = (int(_CENTER), int(_CENTER + _RADIUS) - 1)
+    assert layers.halo.transmission[covered] == pytest.approx(math.exp(-tau), rel=1e-9)
 
 
 # ---------------------------------------------------------------------------

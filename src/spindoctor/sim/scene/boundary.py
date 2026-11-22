@@ -153,7 +153,7 @@ _BODY_IDEALIZED_KEYS: frozenset[str] = frozenset(
         'semi_b_px',
         'semi_c_px',
         'rotation_z',
-        'rotation_tilt',
+        'sub_observer_lat_deg',
         'illumination_angle',
         'phase_angle',
         'range_km',

@@ -50,6 +50,19 @@ _DARK_SIDE_ILLUM = DARK_SIDE_ILLUM_STRENGTH
 
 
 @dataclass(frozen=True)
+class PolyhedralBodyRender:
+    """One mesh body render: its shaded radiance and its silhouette.
+
+    Parameters:
+        intensity: The shaded radiance in [0, 1], 0 outside the body.
+        silhouette: The fraction of each pixel the body covers, in [0, 1].
+    """
+
+    intensity: NDArrayFloatType
+    silhouette: NDArrayFloatType
+
+
+@dataclass(frozen=True)
 class Mesh:
     """A triangle mesh in a unit-radius body-fixed frame.
 
@@ -437,6 +450,39 @@ def render_polyhedral_body(
 ) -> NDArrayFloatType:
     """Render a mesh body to a [0, 1] shaded silhouette.
 
+    The intensity of :func:`render_polyhedral_body_with_silhouette`, which documents
+    the parameters, the shading modes, and the errors.
+
+    Returns:
+        A ``(size_v, size_u)`` float array in [0, 1].
+    """
+    return render_polyhedral_body_with_silhouette(
+        size=size,
+        center=center,
+        mesh=mesh,
+        semi_axes_px=semi_axes_px,
+        pose_euler_deg=pose_euler_deg,
+        illumination_angle=illumination_angle,
+        phase_angle=phase_angle,
+        anti_aliasing=anti_aliasing,
+        shading=shading,
+    ).intensity
+
+
+def render_polyhedral_body_with_silhouette(
+    *,
+    size: tuple[int, int],
+    center: tuple[float, float],
+    mesh: Mesh,
+    semi_axes_px: tuple[float, float, float],
+    pose_euler_deg: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    illumination_angle: float = 0.0,
+    phase_angle: float = 0.0,
+    anti_aliasing: float = 1.0,
+    shading: str = 'flat',
+) -> PolyhedralBodyRender:
+    """Render a mesh body's shaded radiance and the fraction of each pixel it covers.
+
     Two shading modes share one rasterization (the same front-face set, the
     same z-buffer, the same silhouette): ``'flat'`` shades each face by its
     own normal, ``'gouraud'`` computes per-vertex normals as the
@@ -460,7 +506,9 @@ def render_polyhedral_body(
             interpolated).
 
     Returns:
-        A ``(size_v, size_u)`` float array in [0, 1].
+        The :class:`PolyhedralBodyRender`, both arrays ``(size_v, size_u)``.  The
+        silhouette is the fraction of each pixel's supersamples some face covers, so
+        a pixel inside the body is exactly 1 whatever its shade.
 
     Raises:
         ValueError: On an unknown shading mode, or a center that is not finite.
@@ -517,7 +565,7 @@ def render_polyhedral_body(
 
     front = (unit_normals[:, 2] > 0.0) & (norm_mag > 1e-9)
     front_idx = np.nonzero(front)[0]
-    _, intensity = _rasterize_faces(
+    z_buffer, intensity = _rasterize_faces(
         px=px,
         py=py,
         depth=depth,
@@ -526,10 +574,14 @@ def render_polyhedral_body(
         vertex_intensity=vertex_intensity,
         grid_size=(height, width),
     )
+    silhouette = np.isfinite(z_buffer).astype(np.float64)
 
     if aa_scale > 1:
         intensity = intensity.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-    return _as_float64(np.clip(intensity, 0.0, 1.0))
+        silhouette = silhouette.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
+    return PolyhedralBodyRender(
+        intensity=_as_float64(np.clip(intensity, 0.0, 1.0)), silhouette=silhouette
+    )
 
 
 @dataclass(frozen=True)

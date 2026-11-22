@@ -86,7 +86,7 @@ import numpy as np
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.sim.shared.lighting import in_plane_light_direction
 from spindoctor.support.stable_math import stable_hypot
-from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'CLOUD_BLOB_KEYS',
@@ -495,7 +495,7 @@ def apply_disc_structure(
     out_box: NDArrayFloatType,
     structure: HazeStructure | None,
     *,
-    disc: NDArrayBoolType,
+    coverage: NDArrayFloatType,
     v_ctr: NDArrayFloatType,
     u_ctr: NDArrayFloatType,
     r_mean: float,
@@ -504,15 +504,18 @@ def apply_disc_structure(
 ) -> None:
     """Add the interior ramp and the cloud blobs to a body's disc radiance.
 
-    Both are painted only where the disc render already painted, so neither
-    can create light outside the silhouette (a cloud is on the body, and the
-    sunward ramp is a property of the illuminated disc).  The result is
-    clipped back into the [0, 1] signal plane.
+    Both are painted only on the part of each pixel the body's silhouette covers, so
+    neither can create light outside it (a cloud is on the body, and the sunward
+    ramp is a property of the illuminated disc).  The disc radiance is weighted by
+    the coverage, so each pixel gains its coverage times the added brightness and is
+    clipped back to between 0 and its coverage, which is the [0, 1] signal plane for
+    the part of the pixel the body covers.
 
     Parameters:
-        out_box: Body radiance over the haze bounding box, modified in place.
+        out_box: Body radiance over the haze bounding box, weighted by the coverage,
+            modified in place.
         structure: The haze structure, or None for the base haze.
-        disc: Boolean mask of the box pixels the body silhouette painted.
+        coverage: The fraction of each box pixel the body's silhouette covers.
         v_ctr: Image-frame v offset of each box pixel from the body center.
         u_ctr: Image-frame u offset of each box pixel from the body center.
         r_mean: Mean apparent body radius in grid pixels.
@@ -523,7 +526,7 @@ def apply_disc_structure(
         return
     if structure.interior_ramp_amplitude == 0.0 and not structure.cloud_blobs:
         return
-    extra: NDArrayFloatType = np.zeros(disc.shape, dtype=np.float64)
+    extra: NDArrayFloatType = np.zeros(coverage.shape, dtype=np.float64)
     if structure.interior_ramp_amplitude != 0.0:
         # The ramp runs along the haze axis: +amplitude at the sunward limb,
         # -amplitude at the anti-sunward one, linear in between.
@@ -531,7 +534,9 @@ def apply_disc_structure(
         extra = extra + structure.interior_ramp_amplitude * np.clip(axial, -1.0, 1.0)
     for blob in structure.cloud_blobs:
         _add_blob(extra, blob, v_ctr=v_ctr, u_ctr=u_ctr)
-    out_box[disc] = np.clip(out_box[disc] + extra[disc], 0.0, 1.0)
+    disc = coverage > 0.0
+    covered = coverage[disc]
+    out_box[disc] = np.clip(out_box[disc] + covered * extra[disc], 0.0, covered)
 
 
 def _add_blob(

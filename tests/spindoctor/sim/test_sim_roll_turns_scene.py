@@ -285,6 +285,33 @@ def _stray_light_ramp() -> dict[str, Any]:
     return {'optics': {'stray_light': {'amplitude': 0.3, 'direction_deg': 30.0, 'model': 'linear'}}}
 
 
+def _latitude_turned_body() -> dict[str, Any]:
+    """A banded triaxial body turned in the plane and seen 35 degrees from its equator."""
+    return {
+        'bodies': [
+            disc_body(
+                _CENTER,
+                _CENTER,
+                24.0,
+                semi_a_px=18.0,
+                semi_c_px=30.0,
+                phase_angle=0.0,
+                rotation_z=25.0,
+                sub_observer_lat_deg=35.0,
+                disc_texture={'band_amplitude': 0.3, 'band_wavenumber': 5.0},
+            )
+        ]
+    }
+
+
+def _star_beside_a_limb() -> dict[str, Any]:
+    """A star just outside a body's limb, which dims it by the share the limb covers."""
+    return {
+        'bodies': [disc_body(_CENTER, _CENTER - 10.0, 14.0, phase_angle=0.0, range_km=1.0e6)],
+        'stars': [star_entry(_CENTER + 0.5, _CENTER + 4.4, 2.0, psf_sigma=1.0)],
+    }
+
+
 _QUARTER_TURN_CASES: dict[str, Callable[[], dict[str, Any]]] = {
     'ellipsoid_orientation': _elongated_ellipsoid,
     'lit_side': _half_lit_sphere,
@@ -301,6 +328,8 @@ _QUARTER_TURN_CASES: dict[str, Callable[[], dict[str, Any]]] = {
     'catalog_error': _star_with_catalog_error,
     'scene_smear': _scene_smear,
     'stray_light_ramp': _stray_light_ramp,
+    'sub_observer_latitude': _latitude_turned_body,
+    'star_beside_a_limb': _star_beside_a_limb,
 }
 
 
