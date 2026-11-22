@@ -189,12 +189,17 @@ topographic renderer's grids. #1012 follows #901, because #901 removes the class
 module #1012 splits. The render grid that removes hand-threaded oversampling (#1015) waits for the
 typed scene, in Phase 3b.
 
-Of the rows not yet started, #893 goes first (operator, 2026-11-21). Its limb seam paints a
-dark one-pixel outline wherever a body's edge crosses a pixel, because a partly covered limb pixel
-keeps the body's share and drops what lies behind it; that outline is visible around the haze of
-the Titan scenes, sharpens every occluding limb a limb technique fits, and loosened two
-mutual-event tolerances in the disc refinement work (#1053). It follows #890, whose coverage of a
-body too large for the frame the seam fix shares.
+**Done (PR #1102).** Of the rows not yet started, #893 goes first (operator, 2026-11-21). Its limb
+seam paints a dark one-pixel outline wherever a body's edge crosses a pixel, because a partly
+covered limb pixel keeps the body's share and drops what lies behind it; that outline is visible
+around the haze of the Titan scenes, sharpens every occluding limb a limb technique fits, and
+loosened two mutual-event tolerances in the disc refinement work (#1053). It follows #890, whose
+coverage of a body too large for the frame the seam fix shares.
+
+With #893 done and #892, #894, and #875 under way in their own PRs, the next row not yet started
+is #842 with #646: no check compares where a simulated limb's brightness gradient peaks with a
+real limb, and the limb-bias harness measures a simulated ridge half a pixel from the deployed
+one. This phase's exit asks for that check.
 
 | Issue | Subject |
 |---|---|
