@@ -83,6 +83,7 @@ def _render_haze_body(
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
+        body_streams_seed=7,
     )
     halo = body_info.get('halo')
     if halo is not None:
@@ -612,6 +613,7 @@ def test_body_mask_covers_only_the_solid_silhouette() -> None:
         body_spec_from_params(_compose_body(), index=0),
         0.0,
         offset_u=0.0,
+        body_streams_seed=7,
     )
     assert bool(mask[_DISC_PIXEL])
     assert not bool(mask[_HALO_PIXEL])

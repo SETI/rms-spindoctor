@@ -148,7 +148,6 @@ _FULL_SCENE: dict[str, Any] = {
             'limb_relief_corr_deg': 12.0,
             'shading': 'gouraud',
             'pose_scatter': {'sigma_deg': 1.5},
-            'seed': 11,
             'anti_aliasing': 0.5,
             'nav_override': {
                 'shape_model': 'ellipsoid',

@@ -634,15 +634,6 @@ def test_scene_without_noise_seed_shows_random_seed(model: Any) -> None:
     assert model._noise_seed_spin.text() == 'Random seed'
 
 
-def test_body_seed_auto_omits(model: Any) -> None:
-    """A crater seed of -1 (Auto) removes the key; a value sets it."""
-    model.sim_params['bodies'] = [{'name': 'B'}]
-    model._on_body_seed(0, 11)
-    assert model.sim_params['bodies'][0]['seed'] == 11
-    model._on_body_seed(0, -1)
-    assert 'seed' not in model.sim_params['bodies'][0]
-
-
 def test_full_parameter_round_trip(
     model: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -683,7 +674,6 @@ def test_full_parameter_round_trip(
                     'mesh_n_lat': 20,
                     'mesh_n_lon': 40,
                     'pose_euler_deg': [10.0, 35.0, 0.0],
-                    'seed': 11,
                     'km_per_pixel': 5.0,
                     'nav_override': {
                         'shape_model': 'ellipsoid',
@@ -729,7 +719,6 @@ def test_full_parameter_round_trip(
     body = p['bodies'][0]
     assert body['mesh_n_lat'] == 20
     assert body['mesh_n_lon'] == 40
-    assert body['seed'] == 11
     assert body['km_per_pixel'] == 5.0
     assert body['nav_override']['shape_model'] == 'ellipsoid'
     star = p['stars'][0]

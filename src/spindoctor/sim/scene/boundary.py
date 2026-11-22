@@ -169,8 +169,8 @@ _BODY_IDEALIZED_KEYS: frozenset[str] = frozenset(
 
 # Per-body truth keys: surface texture (craters, the multiplicative albedo
 # texture, giant-planet bands/storms, transiting moons and their shadows)
-# and the limb-relief field are nature's terrain, 'seed' is its
-# realization, the photometric law and opposition surge are nature's
+# and the limb-relief field are nature's terrain, the photometric law and
+# opposition surge are nature's
 # scattering behavior (the navigator's template always shades Lambert),
 # 'atmosphere' is the exponential haze layer above the surface (the
 # navigator's template keeps a hard limb at the reference radius, so the
@@ -206,7 +206,6 @@ _BODY_TRUTH_KEYS: frozenset[str] = frozenset(
         'atmosphere',
         'shading',
         'pose_scatter',
-        'seed',
         'anti_aliasing',
         'nav_override',
     }

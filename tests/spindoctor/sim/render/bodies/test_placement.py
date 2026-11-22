@@ -360,7 +360,9 @@ def test_body_that_misses_the_frame_is_never_drawn(
     monkeypatch.setattr(*patched, _refuse_to_draw)
     img = np.zeros((_SIZE, _SIZE))
     body = {**disc_body(-200.0, 32.0, 50.0, name='far'), **keys}
-    mask, info = render_single_body(img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0)
+    mask, info = render_single_body(
+        img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0, body_streams_seed=7
+    )
     assert not mask.any()
     assert info['inventory']['v_max_unclipped'] == pytest.approx(-150.0)
 

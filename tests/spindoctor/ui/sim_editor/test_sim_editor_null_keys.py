@@ -94,7 +94,6 @@ _NULL_BODY: dict[str, Any] = dict.fromkeys(
         'range_km',
         'rotation_tilt',
         'rotation_z',
-        'seed',
         'semi_a_px',
         'semi_b_px',
         'semi_c_px',
