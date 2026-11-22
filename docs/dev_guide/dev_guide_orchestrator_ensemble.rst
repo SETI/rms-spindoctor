@@ -371,7 +371,7 @@ only to single-body frames, where no companion body corrupts the centroid and
 the whole-frame verdict maps to one body.
 
 The two modes below are the standing evidence that motivated the veto. Each has
-a regression test, and the first also shows where the veto's coverage ends:
+a regression test, and each also shows where the veto's coverage ends:
 
 - ``tests/integration/sim_sweeps/irregularity_shape_mismatch.yaml`` -- at
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
@@ -398,9 +398,12 @@ a regression test, and the first also shows where the veto's coverage ends:
   sub-pixel and stays a success, so the veto doesn't blanket the walk.
 - ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and
   its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
-  a ~30 px wrong offset while the disc correlation self-flags spurious. The
-  collapsed-regime veto declines the frame instead of reporting the lone-blob
-  success.
+  a ~30 px wrong offset. A spurious disc correlation would leave the blob as the
+  lone survivor, and the collapsed-regime veto would decline the frame. Here the
+  disc correlation is pulled 5.7 px off by the ring of light its template leaves
+  out, and it doesn't flag that answer spurious. The blob is dropped as a fallback,
+  the veto has nothing to read, and the frame ends a low-confidence success 5.7 px
+  wrong. The scene holds that error to a band.
 
 The witness is a defense against a geometric lock, not a cure for the blob's
 own bias: past half phase the centroid is itself crescent- and haze-biased, so

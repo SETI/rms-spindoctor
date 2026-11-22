@@ -1931,9 +1931,9 @@ or retirement of the check, instead of a silent behavior change. The success the
 check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
-``titan_crescent_horns`` scenes are not in this family. The cross-technique
-body-witness veto declines their haze-dragged lone-blob offset, so the scenes
-assert a ``failed`` outcome.
+``titan_crescent_horns`` scenes hold a low-confidence success 5.74 px wrong this
+way: the disc correlation, pulled by the haze's ring of light, sets it on every
+seed.
 
 .. _sim-floor:
 
@@ -2609,18 +2609,24 @@ and the disc correlator scores only against disc brightness the image carries.
 Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
-Across grazing, half, and deep overlap the navigator recovers each scene's
-planted offset within the tolerance the mutual-event regression pins. That is a
-statement about these simulated scenes, not a certification of real-frame
-accuracy: the sim renders an idealized occlusion the true optics only
-approximate. On the deep scene the far body's disc is over 90 percent
-hidden, so its ``visible_lit_fraction`` collapses and the disc gate drops that
-feature; the near body's disc plus both visible limb arcs fuse to the recovered
-offset. The joint limb fit runs on arcs the image actually shows -- the robust
-Tukey biweight loss is a second line of defense against a stray vertex, not the
-mechanism that carries the result -- and no confident-wrong result or
-double-counting conflict arises. The mutual-event scenes pin the arc fractions
-and offsets so a regression toward hidden-arc lock-on fails loudly.
+On grazing and half overlap the navigator recovers each scene's planted offset
+within the tolerance the mutual-event regression pins, 0.18 px and 0.33 px at
+worst over 16 noise seeds. That is a statement about these simulated scenes, not a
+certification of real-frame accuracy: the sim renders an idealized occlusion the
+true optics only approximate. On the deep scene the far body's disc is over 90
+percent hidden, so its ``visible_lit_fraction`` collapses and its disc feature is
+dropped for low reliability. The far body's crescent still shows beside the near
+body's limb, and the disc template, which holds only the near body, leaves it out,
+so the crescent pulls the disc correlation about 0.8 px off. The limb fit runs on
+arcs the image actually shows -- the robust Tukey biweight loss is a second line
+of defense against a stray vertex, not the mechanism that carries the result --
+but on 6 of the 16 seeds it stops unconverged and flags itself spurious, and the
+disc correlation alone sets the answer. The deep scene holds that 0.73 to 0.80 px
+error to a band. No double-counting conflict arises. The mutual-event scenes pin
+the arc fractions and offsets so a regression toward hidden-arc lock-on fails
+loudly.
+
+.. The deep scene's disc correlation error is tracked in issue 1050.
 
 .. _sim-atmosphere:
 
@@ -2802,25 +2808,22 @@ to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light
-defeats the disc correlation (spurious -- there is no full lit disc), the
-predicted terminator arc is emitted but dropped by the feature reliability
-gate before any technique runs (its reliability, computed as the SPICE-backed
-model does and capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
-``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid alone would
-carry the fused answer roughly 30 px off in ``du``. That is exactly the
-lone-blob collapsed regime the body-witness veto (see
-:doc:`dev_guide_orchestrator_ensemble`) guards: the only surviving body offset
-is the bias-prone centroid while a sibling geometric technique on the same body
-self-flagged spurious, so the frame is declined (``failed``, ``status_reason``
-``lone_blob_in_collapsed_regime``) rather than reported as a 30-px-wrong
-success -- a wrong offset that is accepted is worse than a
-declared failure. The scene asserts that decline. The noiseless
-sibling ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the
-same haze and phase geometry -- pins the underlying centroid bias
-deterministically (planted ``du`` -0.8, blob centroid at 29.24), so the ring
-of light alone, not the noise, drives the collapse, and the decline is stable
-rather than noise-dependent. The haze evaluation
+outright hostile: in ``titan_crescent_horns`` (155 deg) the predicted
+terminator arc is emitted but dropped by its feature reliability before any
+technique runs (its reliability, computed as the SPICE-backed model does and
+capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
+30 px off in ``du``. The ring of light, which the disc correlation's
+hard-limbed template leaves out, also pulls the correlation 5.74 px off, and the
+correlation does not flag that answer spurious. So the body-witness veto (see
+:doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
+surviving body offset is the centroid beside a spurious geometric fit, has
+nothing to read. The disc correlation sets a low-confidence success, and the
+scene holds its 5.74 px error to a band. The noiseless sibling
+``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
+and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
+blob centroid near 27.3, and the same 5.74 px disc correlation error), so the
+ring of light alone, not the noise, drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
 that box rather than the frame, and a body without an ``atmosphere`` block
