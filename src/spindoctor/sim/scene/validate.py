@@ -5,8 +5,8 @@ scene authors call it directly, and loading and saving a scene file
 (:mod:`spindoctor.sim.scene.io`) call it too.  ``validate_scene`` puts that check
 behind a small cache, which loading a file and every render share, so a scene is
 not checked twice while its contents and label stay the same.  The validator is
-hand-rolled (no pydantic dependency): the key inventory and boundary classification
-live in :mod:`spindoctor.sim.scene.boundary` and the per-field type checks in
+written by hand: the key inventory and boundary classification live in
+:mod:`spindoctor.sim.scene.boundary` and the per-field type checks in
 :mod:`spindoctor.sim.scene.rules_common` (body entries:
 :mod:`spindoctor.sim.scene.rules_body`; the ring_system block:
 :mod:`spindoctor.sim.scene.rules_ring`; the artifacts block:
