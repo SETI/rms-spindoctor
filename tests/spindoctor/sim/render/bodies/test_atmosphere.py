@@ -54,9 +54,8 @@ def _render_haze_body(
 ) -> NDArrayFloatType:
     """Render a centered spherical body, optionally with a haze layer.
 
-    The solid disc paints opaquely and the translucent halo screen (returned
-    on the body info) is composited over the empty background, mirroring the
-    radiance stage.
+    The body goes over an empty background, its halo first, as the radiance stage
+    puts it there.
 
     Parameters:
         atmosphere: The ``atmosphere`` block, or None for a hard-limbed body.
@@ -78,16 +77,12 @@ def _render_haze_body(
     )
     if atmosphere is not None:
         body_params['atmosphere'] = atmosphere
-    _mask, body_info = render_single_body(
+    render_single_body(
         img,
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
     )
-    halo = body_info.get('halo')
-    if halo is not None:
-        covered = (halo.emission > 0.0) | (halo.transmission < 1.0)
-        img[covered] = halo.emission[covered] + halo.transmission[covered] * img[covered]
     return img
 
 
