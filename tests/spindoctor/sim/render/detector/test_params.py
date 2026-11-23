@@ -4,6 +4,9 @@ A mode takes its parameters from the scene, then from what the camera's instrume
 defaults set, then from the camera's shape defaults.
 """
 
+from typing import Any
+
+import pytest
 from tests.spindoctor.sim.scenes import disc_scene
 
 from spindoctor.sim.render.detector.params import resolve_detector_params
@@ -57,3 +60,47 @@ def test_floor_scene_records_no_detector_artifacts() -> None:
     """A scene with no artifact modes records no detector-artifact truth."""
     _img, truth = render_scene(disc_scene('coiss_nac'))
     assert 'artifacts' not in truth or not truth['artifacts']
+
+
+# Each camera's modes under instrument_defaults, with the keys that set its character:
+# the mode's activation key where the camera states it, and the shape a review checks.
+_DEFAULT_MODES: dict[str, dict[str, dict[str, Any]]] = {
+    'coiss_wac': {
+        'hot_pixels': {'pixel_fraction': 2.0e-3},
+        'banding': {'orientation': 'horizontal'},
+        'readout_dark': {'amplitude': 33.0},
+        'bias_structure': {},
+        'bloom': {},
+    },
+    'coiss_calib_nac': {
+        'hot_pixels': {'pixel_fraction': 1.6e-5},
+        'readout_dark': {'amplitude': 55.0},
+        'bloom': {},
+    },
+    'gossi': {
+        'hot_pixels': {'pixel_fraction': 1.4e-6, 'amplitude_e': 4.0e4, 'column_factor': 0.5},
+        'banding': {'orientation': 'vertical'},
+        'bias_structure': {},
+        'bloom': {'bloom_length': 6},
+    },
+    'nhlorri': {
+        'frame_transfer_smear': {},
+        'banding': {'orientation': 'horizontal'},
+        'bias_structure': {'pedestal_sigma_dn': 1.0, 'row_gradient_dn': 0.5},
+    },
+    'vgiss': {
+        'banding': {'amplitude': 0.25, 'orientation': 'vertical'},
+    },
+}
+
+
+@pytest.mark.parametrize('instrument', sorted(_DEFAULT_MODES))
+def test_each_camera_turns_on_its_own_modes(instrument: str) -> None:
+    """The instrument defaults turn on exactly the camera's modes, at the camera's values."""
+    expected = _DEFAULT_MODES[instrument]
+    dp = resolve_detector_params(disc_scene(instrument, artifacts={'instrument_defaults': True}))
+    shown = {
+        name: {key: cfg[key] for key in expected.get(name, {})}
+        for name, cfg in dp.detector_modes.items()
+    }
+    assert shown == expected

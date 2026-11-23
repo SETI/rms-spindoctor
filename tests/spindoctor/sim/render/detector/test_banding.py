@@ -4,11 +4,12 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_scene
+from tests.spindoctor.sim.scenes import disc_scene, frame_scene, quiet_noise
 
 from spindoctor.sim.render.detector.banding import add_banding
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.support.types import NDArrayFloatType
 
 _SIZE = 64
 
@@ -50,6 +51,84 @@ def test_banding_vertical_is_column_correlated() -> None:
     )
     assert float(np.ptp(electrons, axis=0).max()) < 1e-9
     assert float(np.ptp(electrons, axis=1).max()) > 1.0
+
+
+def _bands(orientation: str, *, freq_step_factor: float = 1.0) -> NDArrayFloatType:
+    """Bands of 100 units every 16 pixels, drawn on an empty plane."""
+    plane = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    add_banding(
+        plane,
+        amplitude=100.0,
+        period_px=16.0,
+        orientation=orientation,
+        freq_step_factor=freq_step_factor,
+        dark_step_dn=0.0,
+        gain_e_per_dn=1.0,
+        rng=_rng(5),
+    )
+    return plane
+
+
+def test_both_orientations_vary_along_a_row() -> None:
+    """Bands drawn in both orientations include the vertical set, which varies along a row."""
+    assert float(np.ptp(_bands('both'), axis=1).min()) > 1.0
+
+
+def test_both_orientations_vary_down_a_column() -> None:
+    """Bands drawn in both orientations include the horizontal set, which varies down a column."""
+    assert float(np.ptp(_bands('both'), axis=0).min()) > 1.0
+
+
+def test_the_frequency_step_leaves_the_upper_half_alone() -> None:
+    """The bands above the mid-line are the same with and without the frequency step."""
+    stepped = _bands('horizontal', freq_step_factor=2.0)
+    assert np.array_equal(stepped[: _SIZE // 2], _bands('horizontal')[: _SIZE // 2])
+
+
+def test_the_frequency_step_changes_the_lower_half() -> None:
+    """The bands below the mid-line change with the frequency step."""
+    stepped = _bands('horizontal', freq_step_factor=2.0)
+    assert not np.array_equal(stepped[_SIZE // 2 :], _bands('horizontal')[_SIZE // 2 :])
+
+
+def _dark_step_frame(instrument: str, noise: dict[str, Any]) -> dict[str, Any]:
+    """A quiet empty frame whose bands are negligible and whose dark step is 10 DN."""
+    banding = {'probability': 1.0, 'amplitude': 1.0e-6, 'period_px': 16.0, 'dark_step_dn': 10.0}
+    return frame_scene(
+        instrument=instrument,
+        exposure_sec=0.1,
+        noise=noise,
+        detector={'quantization': 'exact'},
+        artifacts={'banding': banding},
+    )
+
+
+def test_the_ccd_chain_converts_the_dark_step_through_the_gain() -> None:
+    """On the CCD chain the lower half of the frame sits 10 DN above the upper half."""
+    img, _ = render_scene(_dark_step_frame('coiss_nac', quiet_noise()))
+    step = float(img[_SIZE // 2 :].mean() - img[: _SIZE // 2].mean())
+    assert step == pytest.approx(10.0)
+
+
+def test_the_vidicon_chain_adds_the_dark_step_in_dn() -> None:
+    """On the vidicon chain the dark step is 10 DN, read through the calibration."""
+    quiet = {'vidicon': {'read_noise_line_dn': 0.0, 'read_noise_pixel_dn': 0.0}}
+    scene = _dark_step_frame('vgiss', quiet)
+    img, _ = render_scene(scene)
+    step_if = 10.0 / (resolve_detector_params(scene).calibration_scale_dn_per_s_per_if * 0.1)
+    step = float(img[_SIZE // 2 :].mean() - img[: _SIZE // 2].mean())
+    assert step == pytest.approx(step_if)
+
+
+def test_the_ccd_chain_records_its_bands() -> None:
+    """The frame truth records the orientation, the period, and the dark-step line."""
+    _img, truth = render_scene(_dark_step_frame('coiss_nac', quiet_noise()))
+    assert truth['artifacts']['banding'] == {
+        'active': True,
+        'orientation': 'horizontal',
+        'period_px': 16.0,
+        'dark_step_line': _SIZE // 2,
+    }
 
 
 def test_banding_dark_step_lifts_the_lower_half() -> None:
