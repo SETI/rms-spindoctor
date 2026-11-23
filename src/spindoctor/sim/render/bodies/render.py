@@ -108,7 +108,7 @@ def render_single_body(
     offset_v: float,
     *,
     offset_u: float,
-    body_streams_seed: int | None = None,
+    body_streams_seed: int,
     body_index: int = 0,
     oversample: int = 1,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
@@ -133,9 +133,7 @@ def render_single_body(
             :func:`~spindoctor.sim.render.bodies.spec.body_identity_seed`).  Its
             craters draw from that identity seed, and its relief terrain, albedo
             noise, and mesh pose scatter each from a named stream of it, so bodies
-            with identical geometry still get independent surfaces.  None falls
-            back to the body's own ``seed`` and then to a seed derived from its
-            geometry.
+            with identical geometry still get independent surfaces.
         body_index: Stable index of this body in the scene's body list, mixed
             into the body's identity seed alongside the body name.
         oversample: The render grid's oversampling factor.  An ellipsoid is shaded
@@ -195,7 +193,7 @@ def _render_single_ellipsoid_body(
     *,
     center_v: float,
     center_u: float,
-    body_streams_seed: int | None,
+    body_streams_seed: int,
     body_index: int,
     oversample: int,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
@@ -209,7 +207,7 @@ def _render_single_ellipsoid_body(
         spec: The body, scaled to the render grid.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
-        body_streams_seed: The scene's seed for every body's random streams, or None.
+        body_streams_seed: The scene's seed for every body's random streams.
         body_index: The body's position in the scene's body list.
         oversample: The render grid's oversampling factor.
 
@@ -217,13 +215,7 @@ def _render_single_ellipsoid_body(
         Tuple of (body_mask, body_info_dict), as :func:`render_single_body` returns.
     """
     size_v, size_u = img.shape
-    seeds = _surface_seeds(
-        spec,
-        body_streams_seed=body_streams_seed,
-        body_index=body_index,
-        size=(size_v, size_u),
-        oversample=oversample,
-    )
+    seeds = _surface_seeds(spec, body_streams_seed=body_streams_seed, body_index=body_index)
     atmosphere_spec = atmosphere_spec_from_params(spec.atmosphere, oversample=int(oversample))
     reach_v, reach_u = _ellipsoid_reach(spec, atmosphere_spec, relief_seed=seeds.relief_seed)
     canvas = body_canvas(
@@ -391,14 +383,7 @@ class _SurfaceSeeds:
     albedo_seed: int
 
 
-def _surface_seeds(
-    spec: BodySpec,
-    *,
-    body_streams_seed: int | None,
-    body_index: int,
-    size: tuple[int, int],
-    oversample: int,
-) -> _SurfaceSeeds:
+def _surface_seeds(spec: BodySpec, *, body_streams_seed: int, body_index: int) -> _SurfaceSeeds:
     """The seeds of an ellipsoid's craters, relief terrain, and albedo noise.
 
     All three derive from the body's identity seed
@@ -408,59 +393,24 @@ def _surface_seeds(
     other, and stable when other randomized features are toggled.
 
     Parameters:
-        spec: The body (its name, geometry, surface keys, and seed are read).
-        body_streams_seed: The scene's seed for every body's random streams, or None.
+        spec: The body (its name and surface keys are read).
+        body_streams_seed: The scene's seed for every body's random streams.
         body_index: The body's position in the scene's body list.
-        size: The render grid's dimensions (rows, columns).
-        oversample: The render grid's oversampling factor.
 
     Returns:
         The body's surface seeds.
     """
-    size_v, size_u = size
-    semi_a_px = spec.semi_a_px
-    semi_b_px = spec.semi_b_px
-    semi_c_px = spec.semi_c_px
-
     # Two bodies with identical geometry draw independent crater patterns and
     # occupy distinct shape-cache entries.  A body without craters never consumes
     # the seed; None keeps identical smooth bodies sharing one cached shape.
     crater_seed: int | None = None
     if spec.crater_fill > 0.0:
-        # The fallback digest hashes the full widths, twice the semi-axes, and the
-        # body center on the detector grid, where the craters are carved, of the
-        # shape drawn at the reference center (#913).  render_ellipsoid_body builds
-        # its detector grid at that center divided by the same factor.
-        os_in = max(1, int(oversample))
-        ref_v, ref_u = _reference_center(size_v, size_u)
-        crater_seed = body_identity_seed(
-            body_streams_seed,
-            spec,
-            body_index,
-            fallback_key=(
-                2.0 * semi_a_px,
-                2.0 * semi_b_px,
-                2.0 * semi_c_px,
-                (ref_v / os_in, ref_u / os_in),
-            ),
-        )
+        crater_seed = body_identity_seed(body_streams_seed, spec, body_index)
 
     relief_seed = 0
     albedo_seed = 0
     if spec.limb_relief_rms > 0.0 or spec.albedo_texture is not None:
-        # The fallback digest hashes the full widths, twice the semi-axes (#913).
-        identity_seed = body_identity_seed(
-            body_streams_seed,
-            spec,
-            body_index,
-            fallback_key=(
-                2.0 * semi_a_px,
-                2.0 * semi_b_px,
-                2.0 * semi_c_px,
-                body_index,
-                spec.name.upper(),
-            ),
-        )
+        identity_seed = body_identity_seed(body_streams_seed, spec, body_index)
         if spec.limb_relief_rms > 0.0:
             relief_seed = derive_effect_seed(identity_seed, 'relief')
         if spec.albedo_texture is not None:
