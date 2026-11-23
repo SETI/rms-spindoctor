@@ -1723,12 +1723,13 @@ asserts the generated half matches the registries.
 
 CI and test infrastructure:
 
-- **#820** (Priority 2) — the PDS3 dataset unit tests download index files
-  from the live archive on every CI run without the `integration` marker,
-  so a slow server fails the unit suite on unrelated PRs. #829 reduced it
-  (CI caches the index files between runs, and the Voyager test scans two
-  volumes rather than 91); the cause, a live download in a unit test,
-  remains.
+- **#820** (Priority 2; done) — the PDS3 dataset unit tests download index
+  files from the live archive on every CI run without the `integration`
+  marker, so a slow server fails the unit suite on unrelated PRs. #829
+  reduced it (CI caches the index files between runs, and the Voyager test
+  scans two volumes rather than 91). Done: CI no longer sets
+  `PDS3_HOLDINGS_DIR`, so the tests marked `REQUIRES_PDS3_HOLDINGS` skip
+  there and run locally against a local holdings tree.
 - **#832** — CI test jobs have hung for six hours and segfaulted in a PyQt6
   editor test, on code that passes on every other Python version of the
   same commit. Check whether the Qt tests run headless, and whether a
