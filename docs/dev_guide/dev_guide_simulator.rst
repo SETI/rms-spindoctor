@@ -2439,8 +2439,9 @@ rise. A pixel whose sun elevation has ``tan(elevation)`` at or above that bound
 is never shadowed, and one at or below its negative always is. The march
 visits the pixels inside that band, widened by half again because ``s_max`` is
 taken from the field grid's own differences. Of those, it visits only the ones
-whose normal faces the Sun, since a pixel facing away is night by its own
-normal. The steps are an eighth of a field
+whose normal faces the Sun. A pixel facing away is night by its own normal, and
+it is marked shadowed all the same, so craters, which tilt the normals
+afterward, cannot light it. The steps are an eighth of a field
 grid cell, whatever the body's size in pixels. A step tied to the shading pixel
 would skip ridge tips on a small body with fine relief and leave their shadows
 lit. Against a march at a quarter of that step, the decisions differ on under

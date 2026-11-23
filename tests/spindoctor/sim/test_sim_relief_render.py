@@ -572,6 +572,46 @@ def test_cast_shadows_fall_only_where_terrain_lies_between_the_point_and_the_sun
     assert int((truth & ~rendered).sum()) <= 0.005 * int(truth.sum())
 
 
+def test_craters_light_no_pixel_whose_relief_normal_faces_away_from_the_sun() -> None:
+    """Craters tilt the normals after the relief has, and light none of its night.
+
+    On a 70 px sphere with 5% relief and craters at phase 60, rendered at oversample 1
+    without anti-aliasing so that the shading grid is the render grid, every pixel the
+    body covers whose relief normal faces away from the sun renders black.  Left
+    unshadowed, 108 of those pixels were turned toward the sun by the craters.
+    """
+    spec = EllipsoidBodySpec(
+        semi_a_px=70.0,
+        semi_b_px=70.0,
+        semi_c_px=70.0,
+        illumination_angle=math.radians(70.0),
+        phase_angle=math.radians(60.0),
+        anti_aliasing=0.0,
+        crater_fill=0.3,
+        crater_seed=12,
+        crater_relief_scale=1.0,
+        limb_relief_rms=0.05,
+        limb_relief_corr_deg=8.0,
+        relief_seed=4,
+    )
+    size = 182
+    center = (size / 2.0, size / 2.0)
+    body = render_ellipsoid_body((size, size), center, spec)
+    grid = project_ellipsoid((size, size), center, 70.0, semi_b_px=70.0, semi_c_px=70.0)
+    covered = body.silhouette >= 1.0
+    shading = _relief_shading(grid, spec, synthesize_relief_field(0.05, 8.0, 4), covered)
+    cos_i = incidence_cosines(
+        shading.normal_v,
+        shading.normal_u,
+        shading.normal_z,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
+    away = cos_i <= 0.0
+    assert int(away.sum()) > 1000
+    assert float(body.intensity[covered][away].max()) == 0.0
+
+
 def test_shadow_march_resolves_fine_relief_on_a_small_body(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

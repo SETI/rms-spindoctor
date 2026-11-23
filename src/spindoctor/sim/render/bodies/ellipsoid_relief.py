@@ -84,7 +84,8 @@ class ReliefShading:
         normal_z: The normal's toward-observer component, above 0.
         seen: ``(N, 3)`` parameter-space directions of the surface points the pixels
             see.
-        shadowed: The grid mask of the pixels in a cast shadow.
+        shadowed: The grid mask of the pixels the sun does not light: those whose
+            normal faces away from it and those in a cast shadow.
     """
 
     near: NDArrayBoolType
@@ -264,10 +265,11 @@ def relief_shading(
     :func:`~spindoctor.sim.render.bodies.relief.cast_shadows` marches the pixels whose
     normal faces the sun and whose sun elevation lies within the field's slope band,
     from the point each pixel's line of sight meets the surface, so only terrain
-    between that point and the sun can shadow it; a pixel below the band always lies
-    in shadow, and one facing away from the sun is night by its own normal.  A normal
-    that leans away from the observer is laid just in front of the sky plane, so every
-    returned ``normal_z`` is above 0.
+    between that point and the sun can shadow it.  A pixel below the band, or one
+    whose normal faces away from the sun, is always shadowed; the second is night by
+    its own normal anyway, and marking it keeps craters, which tilt the normals
+    afterward, from lighting it.  A normal that leans away from the observer is laid
+    just in front of the sky plane, so every returned ``normal_z`` is above 0.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -328,10 +330,12 @@ def relief_shading(
     cos_beta = stable_matmul3(p.reshape(-1, 3), sun).reshape(p.shape[:-1])
     tan_elevation = cos_beta / np.sqrt(np.maximum(1.0 - cos_beta**2, 1e-24))
     band = _SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
-    shadowed_near = on_body & (tan_elevation <= -band)
-    # A pixel whose normal faces away from the sun is night by its own normal, so
-    # only the pixels facing it are marched.
+    # A pixel whose normal faces away from the sun is night by its own normal.  It is
+    # marked shadowed all the same, so that craters, which tilt the normals after the
+    # relief has, cannot turn it toward the sun.  Only the pixels facing the sun are
+    # marched.
     facing = normal_v * illum_v + normal_u * illum_u + normal_z * illum_z > 0.0
+    shadowed_near = on_body & ((tan_elevation <= -band) | ~facing)
     marched = on_body & facing & (np.abs(tan_elevation) < band)
     if marched.any():
         # The march starts on the pixel's own line of sight, so only terrain between
