@@ -167,23 +167,35 @@ def test_a_calibrated_product_shares_its_cameras_hot_pixels() -> None:
     assert _hot_pixels_of('coiss_calib_nac', 1) == _hot_pixels_of('coiss_nac', 5)
 
 
+def _nac_map_pixels() -> list[list[int]]:
+    """The NAC detector's hot pixels in a 96 by 96 frame at the camera's fraction."""
+    vs, us, _amps = detector_hot_pixel_map((96, 96), fraction=2.0e-3, detector_id='coiss_nac')
+    return [[int(v), int(u)] for v, u in zip(vs, us, strict=True)]
+
+
 def test_the_instrument_defaults_record_their_hot_pixels() -> None:
     """The hot pixels a camera's instrument defaults plant are in the truth."""
     _img, truth = render_scene(disc_scene('coiss_nac', artifacts={'instrument_defaults': True}))
-    vs, us, _amps = detector_hot_pixel_map((96, 96), fraction=2.0e-3, detector_id='coiss_nac')
-    expected = [[int(v), int(u)] for v, u in zip(vs, us, strict=True)]
-    assert expected
-    assert truth['artifacts']['hot_pixels']['pixels'] == expected
+    assert _nac_map_pixels()
+    assert truth['artifacts']['hot_pixels']['pixels'] == _nac_map_pixels()
 
 
-def test_hot_pixels_of_the_defaults_follow_the_adversarial_switch() -> None:
-    """Under the adversarial switch the defaults' hot pixels land on the features."""
-    defaults = {'instrument_defaults': True}
-    _img, uniform = render_scene(disc_scene('coiss_nac', artifacts=defaults))
-    _img, adversarial = render_scene(
-        disc_scene('coiss_nac', artifacts={**defaults, 'adversarial': True})
-    )
-    assert uniform['artifacts']['hot_pixels'] != adversarial['artifacts']['hot_pixels']
+def test_the_defaults_hot_pixels_stay_on_the_map_under_the_adversarial_switch() -> None:
+    """The camera's own hot pixels keep the detector's map in an adversarial scene."""
+    artifacts = {'instrument_defaults': True, 'adversarial': True}
+    _img, truth = render_scene(disc_scene('coiss_nac', artifacts=artifacts))
+    assert truth['artifacts']['hot_pixels']['pixels'] == _nac_map_pixels()
+
+
+def test_a_scene_fraction_places_hot_pixels_adversarially_under_the_defaults() -> None:
+    """A scene that sets its own pixel_fraction draws it onto the features."""
+    artifacts = {
+        'instrument_defaults': True,
+        'adversarial': True,
+        'hot_pixels': {'pixel_fraction': 2.0e-3},
+    }
+    _img, truth = render_scene(disc_scene('coiss_nac', artifacts=artifacts))
+    assert truth['artifacts']['hot_pixels']['pixels'] != _nac_map_pixels()
 
 
 def test_bright_dark_pairs_are_vertical_and_charge_conserving() -> None:

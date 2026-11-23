@@ -1029,8 +1029,9 @@ intensive signal passes through the electron unit chain in
    every scene emulating that camera, whatever its seed, has the same hot pixels at the
    same coordinates with the same amplitudes. A smaller frame sees the map's corner from
    ``(0, 0)``, raising the fraction only adds pixels, and a calibrated Cassini product
-   shares its raw camera's map. An adversarial placement onto the navigation features
-   stays per scene.
+   shares its raw camera's map. A population the scene sets itself under the
+   adversarial switch is drawn onto the navigation features instead (see
+   :ref:`sim-adversarial-placement`).
 5. **Cosmic rays and read noise.** Cosmic rays deposit after the bloom cap. The
    detector collects them during the exposure and while the frame waits to be
    read, so the event count is a Poisson draw with mean
@@ -1883,6 +1884,8 @@ shape, and a scene under ``instrument_defaults`` can change one parameter of a m
 the camera shows, or turn the mode off by setting its activation key to 0. The shape
 defaults never hold an activation key or ``count``.
 
+.. _sim-adversarial-placement:
+
 Adversarial placement
 ---------------------
 
@@ -1892,8 +1895,11 @@ pixel lands on a star -- through the shared
 :mod:`spindoctor.sim.render.feature_loci` helpers; placement is uniform when the
 switch is off or absent. Purely periodic or commanded shapes (``alternating_lines``,
 the frame-level edits) ignore the switch: their geometry is fixed once active.
-The switch is one scene-level flag, so a scene is either adversarial for all its
-modes or none.
+The switch is one scene-level flag, and it applies to every mode the scene sets
+itself. A mode that only ``instrument_defaults`` turns on keeps the camera's own
+placement. A raw Cassini camera's hot pixels therefore stay on the detector's fixed map
+in an adversarial scene, where every frame of the camera shows them. A scene that wants
+hot pixels on the features sets ``hot_pixels: {pixel_fraction: ...}`` itself.
 
 The per-pixel modes (``pixel_spikes`` and ``dead_pixels``) draw distinct pixels,
 uniform or adversarial. An adversarial draw weights each pixel by the number of

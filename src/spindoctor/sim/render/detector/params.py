@@ -143,8 +143,11 @@ class DetectorParams:
             selects, else the instrument's default table, else (for an instrument
             that lists none) the plain square-root curve scaled to
             ``saturation_dn``; None selects that plain curve.
-        artifacts_adversarial: Whether stochastic detector artifact modes place
-            their events adversarially onto the navigation features.
+        adversarial_modes: The active detector modes that place their events on the
+            navigation features.  Under the scene's ``adversarial`` switch these are
+            the modes whose activation key the scene itself sets.  A mode that only
+            the instrument defaults turn on keeps the camera's own placement, so the
+            camera's hot pixels stay on its fixed map.
         detector_modes: The resolved config of every active detector-stage
             artifact mode (registry defaults filled from the catalog), keyed by
             mode name; the chain applies each at its physical point and records it.
@@ -182,7 +185,7 @@ class DetectorParams:
     calibration_pixel_residual_e: float = 0.0
     quantization_contour_step: int = DEFAULT_CONTOUR_STEP
     sqrt_lut: DownlinkCurve | None = None
-    artifacts_adversarial: bool = False
+    adversarial_modes: frozenset[str] = frozenset()
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -601,12 +604,20 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         )
     dark_dn = 0.0 if detector_model == 'vidicon' else dark_current * exposure_sec / gain_e_per_dn
 
-    artifacts_adversarial = bool(artifacts.get('adversarial', False))
     detector_modes = _resolve_detector_modes(
         artifacts,
         instrument,
         int(params['random_seed']),
         instrument_defaults=instrument_defaults,
+    )
+    adversarial_modes = (
+        frozenset(
+            name
+            for name in detector_modes
+            if ARTIFACT_MODES[name].activation in artifacts.get(name, {})
+        )
+        if artifacts.get('adversarial', False)
+        else frozenset()
     )
     try:
         downlink_table = resolve_downlink_table(instrument, detector_block.get('downlink_table'))
@@ -658,6 +669,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         calibration_pixel_residual_e=calibration_pixel_residual,
         quantization_contour_step=int(detector_block.get('contour_step', DEFAULT_CONTOUR_STEP)),
         sqrt_lut=sqrt_lut,
-        artifacts_adversarial=artifacts_adversarial,
+        adversarial_modes=adversarial_modes,
         detector_modes=detector_modes,
     )

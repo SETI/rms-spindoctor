@@ -94,8 +94,16 @@ def _stream_rng(dp: DetectorParams, effect: str) -> np.random.Generator:
     return np.random.default_rng(derive_effect_seed(seed, f'detector/{effect}'))
 
 
-def _feature_pool(frame: SimFrame) -> tuple[NDArrayIntType, NDArrayIntType]:
-    """The dilated navigation-feature pixel pool for adversarial placement."""
+def _feature_pool(
+    frame: SimFrame, dp: DetectorParams, mode_name: str
+) -> tuple[NDArrayIntType, NDArrayIntType] | None:
+    """The pixels a mode places its events among when it places them adversarially.
+
+    Returns the dilated navigation-feature pixels if the mode is one of
+    ``dp.adversarial_modes``, and None, for the mode's own placement, otherwise.
+    """
+    if mode_name not in dp.adversarial_modes:
+        return None
     loci = extract_feature_loci(frame.truth, frame.signal.shape)
     return dilated_pixels(loci, radius=3, shape=frame.signal.shape)
 
@@ -323,13 +331,12 @@ def _apply_bright_dark_pairs(
     rng = _stream_rng(dp, 'bright_dark_pairs')
     expected = float(cfg['expected_events_per_sec']) * dp.exposure_sec
     count = int(rng.poisson(expected)) if expected > 0.0 else 0
-    pool = _feature_pool(frame) if dp.artifacts_adversarial else None
     return add_bright_dark_pairs(
         electrons,
         count=count,
         amplitude_e=float(cfg.get('amplitude_e') or 0.0),
         rng=rng,
-        candidate_pool=pool,
+        candidate_pool=_feature_pool(frame, dp, 'bright_dark_pairs'),
     )
 
 
@@ -338,9 +345,10 @@ def _apply_hot_pixels(
 ) -> dict[str, Any]:
     """Apply the hot_pixels mode: the detector's fixed map, or an adversarial draw.
 
-    Under the scene's adversarial switch the population is drawn onto the pixels on and
-    beside the navigation features (limb and ring-edge arcs and star positions, dilated
-    by a few pixels).
+    If the scene sets the mode's ``pixel_fraction`` and turns its adversarial switch on,
+    the population is drawn onto the pixels on and beside the navigation features (limb
+    and ring-edge arcs and star positions, dilated by a few pixels).  The population the
+    instrument defaults turn on stays on the detector's map.
     """
     return add_hot_pixels(
         electrons,
@@ -349,7 +357,7 @@ def _apply_hot_pixels(
         column_factor=float(cfg['column_factor'] or 0.0),
         detector_id=dp.detector_id,
         rng=_stream_rng(dp, 'hot_pixels'),
-        candidate_pool=_feature_pool(frame) if dp.artifacts_adversarial else None,
+        candidate_pool=_feature_pool(frame, dp, 'hot_pixels'),
         binning=dp.binning,
     )
 
