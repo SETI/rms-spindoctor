@@ -90,7 +90,10 @@ class BodyAtmosphereMixin(SimEditorBase):
             decimals=3,
             step=0.05,
             value=_shown(atmosphere, 'albedo'),
-            tooltip='Haze brightness scale (0 adds no light; the halo still dims what is behind).',
+            tooltip=(
+                'Haze single-scattering albedo (0 adds no light; the halo still dims '
+                'what is behind).'
+            ),
         )
         shell_check = QCheckBox('Detached shell')
         detached = make_dspin(

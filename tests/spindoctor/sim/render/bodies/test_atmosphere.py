@@ -257,7 +257,7 @@ def test_apparent_limb_radius_grows_with_phase() -> None:
 def test_apparent_limb_radius_exceeds_the_geometric_radius() -> None:
     """The soft ramp places the apparent limb outside the hard geometric limb."""
     atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.5, 'g': 0.6}
-    assert _half_light_radius(_render_haze_body(atmosphere)) > _RADIUS
+    assert _half_light_radius(_render_haze_body(atmosphere), threshold=0.01) > _RADIUS
 
 
 # ---------------------------------------------------------------------------
@@ -450,6 +450,30 @@ def test_halo_transmission_is_the_tangent_extinction() -> None:
     altitude = math.hypot(probe_v + 0.5 - _CENTER, probe_u + 0.5 - _CENTER) - _RADIUS
     tau = float(tangent_optical_depth(np.array([altitude]), spec)[0])
     assert layers.halo.transmission[probe_v, probe_u] == pytest.approx(math.exp(-tau), rel=1e-9)
+
+
+@pytest.mark.parametrize('phase_deg', [45.0, 90.0, 135.0])
+def test_a_thin_halo_matches_single_scattering(phase_deg: float) -> None:
+    """A thin, fully lit tangent column glows at albedo * P(phase) * tau / 4 in I/F.
+
+    That is the single-scattering reflectance of an optically thin layer, with the
+    Henyey-Greenstein phase function averaging 1 over the sphere and a white
+    Lambert disc lit face-on at 1.  The probe sits above the sunward limb, where
+    the sun stands far enough above the column's horizon to light it fully.
+
+    Parameters:
+        phase_deg: The phase angle in degrees.
+    """
+    albedo = 0.8
+    g = 0.5
+    spec = AtmosphereSpec(scale_height_px=0.5, tau_ref=0.01, g=g, albedo=albedo)
+    layers = _centered_layers(spec, phase_deg=phase_deg)
+    probe = (int(_CENTER), int(_CENTER + _RADIUS + 2))
+    tau = -math.log(float(layers.halo.transmission[probe]))
+    cos_phase = math.cos(math.radians(phase_deg))
+    phase_function = (1.0 - g * g) / (1.0 + g * g + 2.0 * g * cos_phase) ** 1.5
+    expected = albedo * phase_function * tau / 4.0
+    assert float(layers.halo.emission[probe]) == pytest.approx(expected, rel=1e-3)
 
 
 def test_the_halo_on_a_covered_pixel_takes_the_limbs_extinction() -> None:
@@ -804,10 +828,10 @@ def test_on_disc_haze_adds_light_past_one() -> None:
 def _forward_scattering_layers(
     outline: NDArrayFloatType, *, structure: HazeStructure | None = None
 ) -> Any:
-    """The haze layers of a bright sphere at 155 deg phase in a forward-scattering haze."""
+    """The haze layers of a bright sphere at 170 deg phase in a forward-scattering haze."""
     return apply_atmosphere(
         0.99 * outline,
-        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.75, structure=structure),
+        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.9, structure=structure),
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a=_RADIUS,
@@ -816,7 +840,7 @@ def _forward_scattering_layers(
         rotation_z=0.0,
         sub_observer_lat=0.0,
         illumination_angle=math.radians(90.0),
-        phase_angle=math.radians(155.0),
+        phase_angle=math.radians(170.0),
         silhouette=outline,
     )
 

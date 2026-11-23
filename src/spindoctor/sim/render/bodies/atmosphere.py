@@ -33,11 +33,15 @@ thin shell projected against the disc adds negligible slant contrast), so
 the shell renders solely as a second band in the tangent glow.
 
 **Single scattering.**  The emergent haze brightness is a source term times
-an opacity term.  The source is the block's single-scattering ``albedo``
-(:data:`DEFAULT_HAZE_ALBEDO` when the scene leaves it out) scaled by a
-Henyey-Greenstein phase factor (forward-scattering when ``g`` > 0, which
+an opacity term.  The source is ``albedo * P / 4``: the block's single-scattering
+``albedo`` (:data:`DEFAULT_HAZE_ALBEDO` when the scene leaves it out) times a
+Henyey-Greenstein phase factor ``P`` (forward-scattering when ``g`` > 0, which
 brightens the limb at high phase and, in the limit, produces the ring of
-light past phase 150 deg) and a wrapped illumination weight that stays
+light past phase 150 deg), over 4, scaled by a wrapped illumination weight.
+The image is in I/F, where a white Lambert disc lit face-on is 1, and ``P``
+averages 1 over the sphere, so a thin layer of slant optical depth ``tau``
+reflects ``albedo * P * tau / 4``, the standard single-scattering result.
+The illumination weight stays
 positive past the terminator over the horizon-dip angle ``sqrt(2 * H / R)``
 of arc -- the solar depression at which a column one scale height up loses
 direct sunlight -- floored at 0.05 rad so a razor-thin atmosphere still
@@ -111,16 +115,22 @@ __all__ = [
 DEFAULT_HAZE_ALBEDO: float = 0.6
 """The haze ``albedo`` a scene's ``atmosphere`` block takes when it leaves the key out.
 
-The albedo is the single-scattering brightness scale of a fully lit, optically
-thick grazing haze column, before the phase factor and the illumination
-weight, and lies in [0, 1] as a single-scattering albedo does.  The haze's
-emergent intensity is not capped, so a strong forward-scattering peak can carry
-the signal above 1, and the detector saturates there as a real camera does.
+The albedo is the haze particles' single-scattering albedo and lies in [0, 1].  A
+fully lit, optically thick grazing haze column reflects ``albedo * P / 4`` in I/F,
+where ``P`` is the phase factor.  The haze's emergent intensity is not capped, so a
+strong forward-scattering peak can carry the signal above 1, and the detector
+saturates there as a real camera does.
 """
 
 # Amplitude of a detached shell's Gaussian tau bump, as a multiple of
 # tau_ref; the shell's radial width is one scale height.
 _SHELL_AMPLITUDE = 1.0
+
+# The 1 / 4 of the single-scattering source albedo * P / 4.  Sunlight of flux
+# pi * F scatters into albedo * P / (4 * pi) of it per steradian per unit of
+# optical depth, with P averaging 1 over the sphere, and I/F divides the
+# emergent intensity by F.
+_SINGLE_SCATTERING_FACTOR = 0.25
 
 # The grazing-excess optical depth below which the on-disc haze is treated as
 # absent: it sets how deep into the disc the haze annulus reaches.
@@ -230,9 +240,9 @@ class AtmosphereSpec:
             forward-scattering (bright limb at high phase).
         detached_px: Altitude of an optional detached haze shell above the
             surface, in pixels; None for no shell.
-        albedo: The haze's single-scattering brightness scale (at least 0);
-            0 is a purely absorbing haze, which still dims what lies behind
-            the halo but adds no light.
+        albedo: The haze's single-scattering albedo (at least 0); 0 is a purely
+            absorbing haze, which still dims what lies behind the halo but adds no
+            light.
         structure: The optional symmetry-breaking structure (see
             :mod:`spindoctor.sim.render.bodies.haze`); None for the
             plain mirror-symmetric column, which is what every quantity
@@ -358,7 +368,7 @@ def _outer_altitude(spec: AtmosphereSpec, *, peak_glow: float) -> float:
     Parameters:
         spec: The haze spec.
         peak_glow: The largest single-scattering source the halo can carry:
-            the albedo times the phase factor times any hemispheric
+            the source scale (:func:`_source_scale`) times any hemispheric
             brightening.
 
     Returns:
@@ -374,6 +384,19 @@ def _outer_altitude(spec: AtmosphereSpec, *, peak_glow: float) -> float:
     return max(reach, scale_height)
 
 
+def _source_scale(spec: AtmosphereSpec, hg: float) -> float:
+    """The single-scattering source of a fully lit haze column, ``albedo * P / 4``.
+
+    Parameters:
+        spec: The haze spec.
+        hg: The Henyey-Greenstein phase factor at the scene's phase angle.
+
+    Returns:
+        The source in I/F per unit of opacity, before the illumination weight.
+    """
+    return spec.albedo * hg * _SINGLE_SCATTERING_FACTOR
+
+
 def _outer_scale(spec: AtmosphereSpec, *, hg: float, r_mean: float) -> float:
     """The normalized ellipse radius of the halo's outer edge (1 on the limb).
 
@@ -387,7 +410,8 @@ def _outer_scale(spec: AtmosphereSpec, *, hg: float, r_mean: float) -> float:
     """
     structure = spec.structure
     brightening = 1.0 + max(0.0, 0.0 if structure is None else structure.ns_asymmetry_amplitude)
-    return 1.0 + _outer_altitude(spec, peak_glow=spec.albedo * hg * brightening) / r_mean
+    peak_glow = _source_scale(spec, hg) * brightening
+    return 1.0 + _outer_altitude(spec, peak_glow=peak_glow) / r_mean
 
 
 def halo_reach(
@@ -698,12 +722,13 @@ def apply_atmosphere(
     # the column's shadowing), floored at 0.05 rad so a razor-thin
     # atmosphere still brightens resolvably past the terminator.
     delta_wrap = max(math.sqrt(2.0 * scale_height / r_mean), 0.05)
+    source_scale = _source_scale(spec, hg)
 
     def _source(mu0: NDArrayFloatType) -> NDArrayFloatType:
         """The single-scattering source from the solar elevation weight."""
         elevation = np.arcsin(np.clip(mu0, -1.0, 1.0))
         illum_weight = 0.5 * (1.0 + np.tanh(elevation / delta_wrap))
-        return cast(NDArrayFloatType, spec.albedo * hg * illum_weight)
+        return cast(NDArrayFloatType, source_scale * illum_weight)
 
     # On-disc annulus: the solar elevation comes from the surface incidence,
     # and the opacity is the grazing EXCESS over the nadir column:

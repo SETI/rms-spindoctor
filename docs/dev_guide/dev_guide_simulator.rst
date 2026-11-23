@@ -2958,10 +2958,14 @@ reference radius) accumulates a tangent optical depth
 ``tau(h) = tau_ref * exp(-(h - ref_altitude_px) / scale_height_px)``, so
 ``tau_ref`` is the tangent optical depth at ``ref_altitude_px``. The emergent
 haze brightness is a single-scattering source (the haze ``albedo``, times a
-Henyey-Greenstein phase factor of asymmetry ``g``, times a wrapped
-illumination weight) multiplied by an opacity ``1 - exp(-tau)``. ``albedo``
-defaults to 0.6 and lies in [0, 1], as a single-scattering albedo does. It
-sets how bright the
+Henyey-Greenstein phase factor ``P`` of asymmetry ``g``, divided by 4, times a
+wrapped illumination weight) multiplied by an opacity ``1 - exp(-tau)``. The
+image is in I/F, where a white Lambert disc lit face-on is 1, and ``P``
+averages 1 over the sphere, so a thin, fully lit column of optical depth
+``tau`` reflects ``albedo * P * tau / 4``, the standard single-scattering
+result, and a thick one at most ``albedo * P / 4``. The ring system's
+photometry uses the same factor. ``albedo`` is the haze's single-scattering
+albedo: it defaults to 0.6 and lies in [0, 1]. It sets how bright the
 haze is against the disc and the sky, independently of how thick it is, so a
 dim Titan-like haze and a brighter Saturn-like one can share a column. At 0
 the haze adds no light: the halo still dims what lies behind it, and the
