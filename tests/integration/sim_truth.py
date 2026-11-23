@@ -251,15 +251,15 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.023, 0.113, 0.107, 0.05),
     # mixed_defects.  The seed also places the lost lines and blocks, so the 16 seeds
     # cover 16 placements of the damage; every noise_seed draw also lies inside each
-    # tolerance.  gossi_ict_moon's error is the unfit twist: the roll turns the scene
-    # about the frame center before the 260 px offset moves it, which moves the disc
-    # about 0.22 px, and the frame lands 0.07 to 0.09 px off without the roll.
-    # nhlorri_moon_raw is carried by the limb fit alone, at low tier, as its expected
-    # block holds (#997).
-    ('coiss_nac_lossy_moon', FUSED): _t(0.085, 0.086, 0.009, 0.05),
-    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.028, 0.202, 0.197, 0.05),
-    ('gossi_ict_moon', FUSED): _t(0.324, 0.324, 0.055, 0.07),
-    ('nhlorri_moon_raw', FUSED): _t(0.286, 0.328, 0.116, 0.07),
+    # tolerance.  coiss_nac_lossy_moon seeds nothing but the noise, so its noise_seed
+    # draws repeat random_seed 101 to 808.  gossi_ict_moon's largest errors come from
+    # the lost slices: where a band of them crosses the disc, the disc correlation
+    # lands up to 0.91 px off unflagged and pulls the fused answer up to 0.46 px off
+    # (#1164); without the slices the frame lands 0.05 to 0.07 px off.
+    ('coiss_nac_lossy_moon', FUSED): _t(0.081, 0.084, 0.008, 0.05),
+    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.038, 0.204, 0.199, 0.05),
+    ('gossi_ict_moon', FUSED): _t(0.115, 0.458, 0.396, 0.10),
+    ('nhlorri_moon_raw', FUSED): _t(0.292, 0.300, 0.010, 0.06),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
@@ -328,12 +328,21 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 8.3 to 10.1 px off with every
-    # defect present and 7.4 to 9.9 px off with each one removed in turn.  On
-    # nhlorri_moon_raw the frame-transfer smear pulls it 4.2 to 4.8 px off; without
-    # the smear it lands 0.08 to 0.34 px off.
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(8.301, 10.075, 0.355, 7.945, 10.430),
-    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(4.190, 4.821, 0.126, 4.063, 4.948),
+    # coiss_nac_stars_moon_lost_lines the blob lands 8.3 to 10.2 px off with every
+    # defect present and 7.4 to 10.2 px off with each one removed in turn (#975).
+    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(8.298, 10.185, 0.377, 7.920, 10.563),
+    # On nhlorri_moon_raw the frame-transfer smear pulls the blob 4.7 to 5.1 px off;
+    # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
+    # step at each column's centroid, where the real smear builds up along the column
+    # (#920), so part of the pull may be the simulator's.
+    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(4.734, 5.092, 0.072, 4.662, 5.164),
+    # Measured on all 24 draws of gossi_ict_moon.  Where a band of lost 8-line slices
+    # crosses the disc, the disc correlation lands up to 0.91 px off without flagging
+    # it; with the slices removed it lands 0.05 to 0.06 px off on four seeds whose
+    # slices cross the disc (#1164).  Seeds whose slices miss the disc, or that lose
+    # none, sit at 0.05 to 0.14 px, so the spread is large and the band's lower end
+    # falls below zero.
+    ('gossi_ict_moon', 'BodyDiscCorrelateNav'): _b(0.050, 0.905, 0.171, -0.122, 1.077),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),

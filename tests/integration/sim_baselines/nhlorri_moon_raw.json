@@ -1,8 +1,8 @@
 {
-  "confidence": 0.7245819265051194,
-  "confidence_rank": "low",
-  "offset_du_px": -0.7842898820920952,
-  "offset_dv_px": 0.530417336420655,
+  "confidence": 0.99,
+  "confidence_rank": "medium",
+  "offset_du_px": -0.9912142799647,
+  "offset_dv_px": 1.0574258174516562,
   "scene_name": "nhlorri_moon_raw",
   "status": "success"
 }

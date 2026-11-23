@@ -3,7 +3,7 @@ scene_name: coiss_nac_stars_moon_lost_lines
 instrument: coiss_nac
 size_v: 1024
 size_u: 1024
-random_seed: 7
+random_seed: 19
 exposure_sec: 1.0
 # A raw Cassini NAC frame of stars and a moon whose readout lost lines and whose
 # pointing drifted during the exposure, over the camera's whole raw chain.
@@ -17,12 +17,18 @@ exposure_sec: 1.0
 # than the simulator draws them through UV3 (#895).
 #
 # The lost lines follow the 12-bit lossless NAC frames of COISS_2023, whose
-# readouts often end early and lose runs of lines mid-frame: N1526130404 lost
-# its last 41 lines, and N1526044304 lost runs of 4 to 11 lines (311-315,
-# 327-330, 338-348, ...).  In the metadata indexes of COISS_2010, 2023, 2050, and
-# 2068, 321 of 5,473 12-bit NAC frames lost lines.  The scene truncates the last
-# 41 lines and loses one run of a Poisson-drawn length, 11 lines expected, at a
-# place the seed draws, so each seed loses a different run.
+# readouts often end early and lose runs of lines mid-frame.  N1526130404 lost
+# its last 41 lines (983-1023; its index says MISSING_LINES 42, but the image has
+# 41 zero lines), and the lines above them hold dark sky.  N1526044304 lost runs
+# of 4 to 11 lines (311-315, 327-330, 338-348, ...) across the bright planet.  In
+# the metadata indexes of COISS_2010, 2023, 2050, and 2068, 321 of the 5,489
+# 12-bit NAC frames lost lines; all 321 are among the 5,473 lossless ones, and
+# none of the 16 uncompressed ones lost any.  The scene truncates the last 41
+# lines and loses one run of a Poisson-drawn length, 11 lines expected, at a
+# place the seed draws.  The committed seed loses lines 541-554, across the
+# middle of the disc, as N1526044304's runs cross the planet; the run crosses
+# the disc on 4 of the other 15 seeds too.  The truncated lines hold dark sky,
+# as on N1526130404.
 #
 # The whole scene drifts 2.0 px during the exposure.  Measured streaks on real
 # NAC frames run under 2 px on sequences predicted at 6 px, and about 0.6 times
@@ -35,19 +41,25 @@ exposure_sec: 1.0
 # left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
 # fitting off as the camera ships.
 #
-# The fused answer lands 0.005 to 0.20 px off over 24 draws, carried by the disc
-# correlation (0.12 to 0.36 px off) and the star refinement (0.01 to 0.30 px).
-# Removing any one defect (the truncation, the run of lost lines, the smear, the
-# hot pixels, or the cosmic rays) leaves it 0.005 to 0.08 px off on four draws.
+# The fused answer lands 0.006 to 0.20 px off over 24 draws, carried by the disc
+# correlation (0.12 to 0.35 px off) and the star refinement (0.01 to 0.30 px).
+# The worst draw, 0.20 px, is seed 909, whose star noise sends StarRefineNav
+# 0.30 px off and StarUniqueMatchNav spurious; the defects do not set it.  On
+# the committed seed the run of lost lines moves the disc correlation from 0.22
+# to 0.14 px off and the fused answer from 0.029 to 0.038 px.  On the committed
+# seed and seeds 101 to 303, which land 0.006 to 0.063 px off, removing any one
+# defect (the truncation, the run of lost lines, the smear, the hot pixels, or
+# the cosmic rays) leaves the fused answer 0.006 to 0.084 px off.  The truncation
+# is realistic but does not move the fused answer, so the scene shows the
+# navigator unaffected by it.
 #
 # StarFieldFromCatalogNav returns spurious on every draw, with each of those
 # defects removed in turn too, which is #1146: the hot pixels and cosmic rays
 # crowd the stars out of the 30 sources it matches, and either one alone is
 # enough.  The simulated hot pixels are overstrong (#906).  StarUniqueMatchNav
-# returns spurious on 3 of the 24 draws.  With the body removed the frame fails
-# on 2 of 4 draws.  BodyBlobNav lands 8.3 to 10.1 px off the gibbous disc
-# without flagging it (#975), and 7.4 to 9.9 px off with each defect removed, so
-# the defects do not cause it; sim_truth holds it to a band.
+# returns spurious on 2 of the 24 draws.  BodyBlobNav lands 8.3 to 10.2 px off
+# the gibbous disc without flagging it (#975), and 7.4 to 10.2 px off with each
+# defect removed, so the defects do not cause it; sim_truth holds it to a band.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}

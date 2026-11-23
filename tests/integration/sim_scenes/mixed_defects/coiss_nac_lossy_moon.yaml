@@ -9,9 +9,9 @@ exposure_sec: 0.06
 # downlink table, over the camera's whole raw chain.  It follows N1488892945
 # (Rhea, 143 px across at 29 deg phase, CL1+CL2, 100 ms, gain state 2,
 # DATA_CONVERSION_TYPE TABLE, INST_CMPRS_TYPE LOSSY, compression ratio 52.8).
-# Lossy frames are always table frames: in the metadata indexes of COISS_2010,
-# 2023, 2050, and 2068, all 375 lossy NAC frames and all 255 lossy WAC frames
-# are 8-bit (TABLE, or 8LSB for 52 NAC frames).  Their labels give no count of
+# In the metadata indexes of COISS_2010, 2023, 2050, and 2068, all 375 lossy NAC
+# frames and all 255 lossy WAC frames are 8-bit: TABLE, except 52 NAC frames
+# that are 8LSB.  Their labels give no count of
 # lost lines (MISSING_LINES N/A), and N1488892945 has none, so the scene loses
 # none.  instrument_defaults turns on shot, read, and readout-dark noise, hot
 # pixels, cosmic rays, banding, bias structure, bloom, and the fitted PSF and
@@ -34,11 +34,14 @@ exposure_sec: 0.06
 # pointing down and right.  The roll is the camera's measured twist,
 # +0.0115 deg, planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.076 to 0.086 px off over 24 draws.  The compression
-# and the table move it by at most 0.012 px: with either one removed it lands
-# 0.080 to 0.088 px off on four draws.  Without the hot pixels the disc
-# correlation lands 0.17 px off and the fused answer 0.19 px.  BodyLimbNav lands
-# 0.32 to 0.36 px off with or without the compression.
+# The fused answer lands 0.076 to 0.084 px off over 16 distinct draws: the scene
+# seeds nothing but the noise, so its noise_seed draws repeat random_seed 101 to
+# 808.  The table and the compression are realistic but do not move the answer,
+# so the scene shows the navigator unaffected by them: with the compression
+# removed the fused answer lands 0.087 to 0.088 px off on four draws, and with the
+# table removed 0.076 to 0.081 px.  Without the hot pixels the disc correlation
+# lands 0.17 to 0.18 px off and the fused answer 0.19 px.  BodyLimbNav lands 0.30
+# to 0.35 px off, and 0.36 to 0.37 px without the compression.
 artifacts:
   instrument_defaults: true
   compression_dct: {probability: 1.0, scale_factor: 128.0}

@@ -4,7 +4,7 @@ instrument: nhlorri
 size_v: 1024
 size_u: 1024
 random_seed: 7
-exposure_sec: 0.005
+exposure_sec: 0.085
 # A raw New Horizons LORRI frame of a moon at the full 1x1 frame, with the
 # camera's whole raw chain and the defects of its raw (_eng) products.  It
 # follows lor_0034849319_0x630_eng (Europa 197 px across at 28 deg phase, 5 ms,
@@ -13,50 +13,50 @@ exposure_sec: 0.005
 # instrument_defaults turns on the frame-transfer smear, the random row striping
 # and amplifier ringing, and the bias structure.  The scene adds:
 # - the embedded header: the first 34 pixels of row 0 are housekeeping in every
-#   raw frame, as in lor_0034849319, whose row 0 holds housekeeping values up to
-#   pixel 34 and the 543 DN bias after it;
+#   raw frame, as in lor_0034849319, whose row 0 holds housekeeping values as
+#   high as 4,038 DN in its first 34 pixels and the 543 DN bias after them.  The
+#   simulated header holds random values from 0 to 255, and the header key cannot
+#   set their range;
 # - the fixed pattern (vignetting, response pattern, jail bars, dust donuts),
 #   which the raw product keeps;
 # - radiation hits in the Jovian environment, 16 expected in the frame from the
-#   catalog's estimate of about 16 per short exposure (3,200 per second over the
-#   5 ms exposure; illustrative).
+#   catalog's estimate of about 16 per short exposure (188 per second over the
+#   85 ms exposure; illustrative).
 #
-# The exposure is the real frame's.  The frame-transfer smear then holds the real
-# frame's share of the disc's light: the columns through the simulated disc
-# carry 0.25 of the disc's level above the bias (29 against 117 DN), and those
-# of the real frame 0.24 (475 against 1,973 DN).  The simulated disc is 17 times
-# fainter than the real one (#895).
+# The exposure runs 85 ms, 17 times the real frame's, because simulated
+# brightness has no shared scale with real frames (#895): at 85 ms the middle of
+# the simulated disc reads 2,001 DN above the bias, and the real one 1,973 DN.
+# Both timings that depend on the exposure are scaled with it.  The smear's scrub
+# and transfer times are 17 times the camera's (0.204 and 0.187 s), so the smear
+# holds the real frame's share of the disc's light: the columns through the
+# simulated disc carry 0.26 of the disc's level above the bias (514 against
+# 2,001 DN), and those of the real frame 0.24 (475 against 1,973 DN).  The
+# radiation rate is scaled down by the same factor to keep about 16 hits.
 #
 # The planted offset, 1.21 px, is the size of the image library's LORRI offsets
 # (about 1.2 px each).  The roll is the camera's measured twist, +0.1912 deg,
 # planted with roll fitting off as the camera ships.
 #
-# The limb fit carries the frame alone, 0.21 to 0.34 px off over 24 draws, at
-# low tier with a 2.6 px sigma; without the roll it lands 0.43 to 0.50 px off,
-# so the twist offsets part of its own error.  The expected block holds the low
-# tier, so a fix that brings the disc correlation back fails here until the
-# block is retired.
+# The fused answer lands 0.29 to 0.30 px off over 24 draws, at medium tier,
+# from the disc correlation and the limb fit together.  The disc correlation
+# lands 0.42 to 0.43 px off on every draw without flagging it; it lands 0.35 px
+# off without the smear and 0.28 px without the roll.  The limb fit lands 0.26
+# to 0.32 px off, and 0.47 to 0.48 px without the roll, so the twist offsets
+# part of its own error.
 #
-# The disc correlation returns spurious on every draw, 34 to 46 px off.  Without
-# the smear it finds no shift at all: every lag is rejected, the same with the
-# camera's defaults off.  That is #997: the masked correlation rejects every
-# shift when a constant level, here the 545 DN bias, outweighs the variation
-# the disc brings.  The simulator's faint disc exposes it.  At 85 ms, where the
-# simulated disc is as bright as the real one, the correlation finds the offset
-# 0.19 px off with the smear on, and 0.42 px off when the smear is lengthened to
-# hold the real frame's share of the light at that exposure.
-#
-# BodyBlobNav lands 4.2 to 4.8 px off without flagging it (#975).  The smear
-# causes it: without the smear it lands 0.08 to 0.34 px off.  Real raw frames
+# BodyBlobNav lands 4.7 to 5.1 px off without flagging it (#975).  The smear
+# causes it: without the smear it lands 0.17 to 0.19 px off.  Real raw frames
 # carry the smear too, but the simulated smear is a step at each column's
 # centroid where the real one builds up along the column (#920).  The header,
-# the fixed pattern, and the radiation hits each move the fused answer by less
-# than 0.05 px.
+# the fixed pattern, and the radiation hits are realistic but each moves the
+# fused answer by at most 0.01 px, so the scene shows the navigator unaffected
+# by them.
 artifacts:
   instrument_defaults: true
   embedded_header: {probability: 1.0}
   fixed_pattern: {probability: 1.0}
-  radiation_transients: {expected_events_per_sec: 3200.0}
+  frame_transfer_smear: {probability: 1.0, t_scrub_sec: 0.204, t_transfer_sec: 0.187}
+  radiation_transients: {expected_events_per_sec: 188.0}
 bodies:
   - name: EUROPA
     center_v: 461.0
@@ -69,6 +69,3 @@ bodies:
 offset_v: 0.77
 offset_u: -0.94
 offset_rotation_deg: 0.1912
-expected:
-  status: success
-  confidence_tier: low
