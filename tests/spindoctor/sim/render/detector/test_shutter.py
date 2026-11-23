@@ -57,14 +57,14 @@ def _lit_frame(
         detector={'quantization': 'exact', **zero_bias()},
         artifacts=artifacts,
     )
-    sky = resolve_detector_params(scene).calibrated_sky_if if instrument == 'vgiss' else 0.0
+    sky = resolve_detector_params(scene).calibrated_sky_if if instrument == 'vgiss_1_nac' else 0.0
     image, truth = render_scene(scene)
     return image - sky, truth
 
 
 @pytest.mark.parametrize(
     ('instrument', 'noise'),
-    [('gossi', _QUIET_CCD), ('vgiss', _QUIET_VIDICON)],
+    [('gossi', _QUIET_CCD), ('vgiss_1_nac', _QUIET_VIDICON)],
     ids=['ccd', 'vidicon'],
 )
 def test_each_chain_shades_the_last_line_by_the_factor_ratio(
@@ -79,7 +79,7 @@ def test_each_chain_shades_the_last_line_by_the_factor_ratio(
 
 @pytest.mark.parametrize(
     ('instrument', 'noise'),
-    [('gossi', _QUIET_CCD), ('vgiss', _QUIET_VIDICON)],
+    [('gossi', _QUIET_CCD), ('vgiss_1_nac', _QUIET_VIDICON)],
     ids=['ccd', 'vidicon'],
 )
 def test_each_chain_records_the_shutter_shading(instrument: str, noise: dict[str, Any]) -> None:

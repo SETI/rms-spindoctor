@@ -102,9 +102,9 @@ __all__ = [
     'twins_have_sky',
 ]
 
-# (mission, camera) -> sim instrument whose signal chain and units match the
+# (mission, spacecraft or None, camera) -> sim instrument whose signal chain and units match the
 # cohort's products: each instrument config entry's realism_cohort.
-INSTRUMENT_FOR: dict[tuple[str, str], str] = realism_cohort_instruments()
+INSTRUMENT_FOR: dict[tuple[str, str | None, str], str] = realism_cohort_instruments()
 
 
 def saturation_level(instrument: str) -> float:
@@ -398,7 +398,7 @@ def discover_cohort() -> dict[str, list[Sidecar]]:
     cohort: dict[str, list[Sidecar]] = {}
     for path in LibraryRoot().discover_sidecar_paths():
         sidecar = load_sidecar(path)
-        instrument = INSTRUMENT_FOR.get((sidecar.mission, sidecar.camera))
+        instrument = INSTRUMENT_FOR.get((sidecar.mission, sidecar.spacecraft, sidecar.camera))
         if instrument is not None:
             cohort.setdefault(instrument, []).append(sidecar)
     for sidecars in cohort.values():

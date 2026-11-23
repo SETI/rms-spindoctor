@@ -452,12 +452,16 @@ class CohortCamera:
     Parameters:
         mission: The real cohort's mission, such as ``COISS``.
         camera: The camera within the mission, such as ``NAC``.
+        spacecraft: The spacecraft that carries the camera, such as ``VG1``, for a
+            mission whose cameras differ from one spacecraft to the next; omitted
+            for a mission whose cameras are matched by mission and camera alone.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
 
     mission: Str
     camera: Str
+    spacecraft: Str | None = None
 
 
 def _shape_default_rule(mode_name: str) -> AfterValidator:

@@ -14,9 +14,10 @@ import pytest
 # OOPS_RESOURCES: these tests run only locally, against a local copy of
 # the oops resources directory.
 #
-# REQUIRES_PDS3_HOLDINGS needs only the PDS3 holdings tree, which is served
-# by the PDS Ring-Moon Systems Node; CI sets PDS3_HOLDINGS_DIR, so these
-# tests run in automated environments too.
+# REQUIRES_PDS3_HOLDINGS needs only the PDS3 holdings tree. CI does not set
+# PDS3_HOLDINGS_DIR, because the live archive times out under the suite's
+# parallel load (#820): these tests run only locally, against a local
+# holdings tree.
 REQUIRES_EXTERNAL_DATA = pytest.mark.skipif(
     'OOPS_RESOURCES' not in os.environ or 'PDS3_HOLDINGS_DIR' not in os.environ,
     reason='requires OOPS_RESOURCES and PDS3_HOLDINGS_DIR (external holdings/resources)',

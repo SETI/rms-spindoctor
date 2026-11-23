@@ -67,8 +67,9 @@ surface, then refines it to a fraction of a pixel. The technique refines in two 
 - **Coarser pyramid levels.** The refinement interpolates the raw cross-power of the image
   and the template with a localized upsampled DFT (the Guizar-Sicairos efficient
   subpixel-registration method). It takes the largest value within half a pixel of the
-  whole-pixel peak, on a 1/128 px grid. The body disc technique refines this way on every
-  pass; see :doc:`dev_guide_techniques_body_disc`.
+  whole-pixel peak, on a 1/128 px grid. The body disc technique refines this way on its
+  coarser passes and on a high-pass surface on its final pass; see
+  :doc:`dev_guide_techniques_body_disc`.
 - **Final full-resolution pass.** The refinement fits a quadratic surface to the 3x3 block
   of NCC values centered on the whole-pixel peak and moves to the top of that surface. The
   move is at most one pixel along each axis. If the fit has no maximum, the offset stays on
