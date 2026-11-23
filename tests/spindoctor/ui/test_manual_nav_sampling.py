@@ -17,15 +17,9 @@ import pytest
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
-    from PyQt6.QtWidgets import QApplication
+    import PyQt6.QtWidgets  # noqa: F401
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6 not available: {exc}', allow_module_level=True)
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(f'QApplication failed: {exc}', allow_module_level=True)
 
 from spindoctor.ui.manual_nav_dialog import _bilinear_interpolate_fov
 

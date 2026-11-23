@@ -9,7 +9,7 @@ Qt runs headless (offscreen platform).
 
 import copy
 import os
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -19,12 +19,6 @@ try:
     from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QSpinBox, QWidget
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6/QtWidgets not available: {exc}', allow_module_level=True)
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(f'PyQt6 QApplication init failed: {exc}', allow_module_level=True)
 
 from spindoctor.sim.instruments.catalog import sim_instrument_names
 from spindoctor.sim.scene.validate import validate_sim_params
@@ -41,15 +35,6 @@ _NOISE_CONTROLS = (
     '_signal_frac_spin',
 )
 _INSTRUMENTS = (*sim_instrument_names(), 'generic')
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture

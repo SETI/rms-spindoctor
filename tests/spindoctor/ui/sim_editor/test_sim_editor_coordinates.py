@@ -11,7 +11,7 @@ Qt runs headless (offscreen platform).
 
 import copy
 import os
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import pytest
@@ -23,26 +23,11 @@ try:
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6/QtWidgets not available: {exc}', allow_module_level=True)
 
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(f'PyQt6 QApplication init failed: {exc}', allow_module_level=True)
-
 from PyQt6.QtCore import QPointF
 
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 
 _SIZE = 40
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture
