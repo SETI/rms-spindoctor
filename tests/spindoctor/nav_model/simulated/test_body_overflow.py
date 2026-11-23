@@ -139,3 +139,66 @@ def test_a_turned_body_counts_its_whole_silhouette_in_its_overflow() -> None:
     inside = whole[pad : pad + SIZE, pad : pad + SIZE]
     expected = 1.0 - np.count_nonzero(inside) / np.count_nonzero(whole)
     assert model._overflow_fraction == pytest.approx(expected, abs=1e-12)
+
+
+# A mesh body whose relief is so strong that its outline reaches past the 1.5 times its
+# longest semi-axis the model used to size its canvas by.
+_LUMPY = {
+    'name': 'MIMAS',
+    'shape_model': 'polyhedral_mesh',
+    'semi_a_px': 20.0,
+    'semi_b_px': 20.0,
+    'semi_c_px': 20.0,
+    'mesh_lumpiness': 3.0,
+    'mesh_seed': 0,
+}
+
+
+def _whole_lumpy_silhouette(model: NavModelBodySimulated, body: dict[str, Any], pad: int) -> Any:
+    """The lumpy body drawn on the frame padded by ``pad`` px on every side."""
+    return model._render_prediction(
+        math.radians(body['phase_angle']),
+        size=(SIZE + 2 * pad, SIZE + 2 * pad),
+        center=(body['center_v'] + pad, body['center_u'] + pad),
+    ).silhouette
+
+
+def test_a_lumpy_mesh_reaches_past_its_old_canvas() -> None:
+    """The fixture's silhouette is wider than the canvas the model used to draw it on."""
+    body = _body_params(**_LUMPY, center_v=30.3)
+    whole = _whole_lumpy_silhouette(_overflow_model(body), body, 100)
+    rows = np.flatnonzero(whole.any(axis=1))
+    assert rows[-1] - rows[0] + 1 > math.ceil(3.0 * 20.0) + 16
+
+
+def test_a_lumpy_mesh_counts_its_whole_silhouette_in_its_overflow() -> None:
+    """A lumpy mesh near the frame edge reports the overflow of its whole silhouette.
+
+    The reference draws the same prediction on the frame padded by 100 px on every
+    side and counts the share of it outside the frame.
+    """
+    body = _body_params(**_LUMPY, center_v=30.3)
+    model = _overflow_model(body)
+    pad = 100
+    whole = _whole_lumpy_silhouette(model, body, pad)
+    inside = whole[pad : pad + SIZE, pad : pad + SIZE]
+    expected = 1.0 - np.count_nonzero(inside) / np.count_nonzero(whole)
+    assert expected > 0.0
+    assert model._overflow_fraction == pytest.approx(expected, abs=1e-12)
+
+
+def test_a_lumpy_mesh_measures_its_visible_arc_against_its_whole_limb() -> None:
+    """The visible-arc fraction divides by the limb length of the whole silhouette."""
+    from spindoctor.nav_model.simulated.body_arcs import _visible_arc_fraction
+
+    body = _body_params(**_LUMPY, center_v=30.3)
+    model = _overflow_model(body)
+    whole = _whole_lumpy_silhouette(model, body, 100)
+    total = int(np.count_nonzero(model._compute_limb_mask_from_body_mask(whole)))
+    assert model._arc_inputs is not None
+    fraction = _visible_arc_fraction(
+        model._arc_inputs,
+        total // 2,
+        edge_mask=lambda full: model._compute_limb_mask_from_body_mask(full.silhouette),
+    )
+    assert fraction == pytest.approx((total // 2) / total, abs=1e-12)
