@@ -371,11 +371,9 @@ def _resolve_detector_modes(
     supplied = instrument_default_modes(instrument) if instrument_defaults else {}
     modes: dict[str, dict[str, Any]] = {}
     for name in DETECTOR_MODE_ORDER:
-        raw = artifacts.get(name)
-        if raw is None:
-            if name not in supplied:
-                continue
-            raw = {}
+        if name not in artifacts and name not in supplied:
+            continue
+        raw = artifacts.get(name, {})
         if not isinstance(raw, Mapping) or not mode_available(name, instrument):
             continue
         cfg = resolve_mode_with_catalog(

@@ -315,7 +315,10 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 # throughput sets it), the quantization sub-mode, the downlink table the sqrt_lut
 # quantization decodes through, and the step of the contour_8bit quantization.
 # Per-instrument defaults, filter throughputs, and downlink tables come from the
-# instrument entry; scene keys override them.
+# instrument entry; scene keys override them.  The largest contour step is the
+# top code of the 8-bit word it posterizes.
+_CONTOUR_STEP_MAX = 255
+
 _DETECTOR_KEYS: frozenset[str] = frozenset(
     {
         'gain_state',
@@ -431,13 +434,11 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             f'got {quantization!r}'
         )
     _check_downlink_table(value.get('downlink_table'), instrument=instrument, source=source)
-    if value.get('contour_step') is not None:
-        step = _require_int(
-            {'contour_step': value['contour_step']}, 'contour_step', source=f'{source}: detector'
-        )
-        if step < 1:
+    if 'contour_step' in value:
+        step = _require_int(value, 'contour_step', source=f'{source}: detector')
+        if not 1 <= step <= _CONTOUR_STEP_MAX:
             raise SimSceneValidationError(
-                f'{source}: detector.contour_step must be at least 1; got {step}'
+                f'{source}: detector.contour_step must be from 1 to {_CONTOUR_STEP_MAX}; got {step}'
             )
 
 
@@ -500,10 +501,9 @@ def _check_quantization_keys_used(detector: Any, *, instrument: str, source: str
         detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
         quantization = detector_defaults.quantization
     for key, sub_mode in _QUANTIZATION_KEYS.items():
-        value = detector.get(key)
-        if value is not None and quantization != sub_mode:
+        if key in detector and quantization != sub_mode:
             raise SimSceneValidationError(
-                f'{source}: detector.{key} {value!r} has no effect: only the {sub_mode} '
+                f'{source}: detector.{key} {detector[key]!r} has no effect: only the {sub_mode} '
                 f'quantization reads it, and this scene quantizes with {quantization!r}; set '
                 f'detector.quantization: {sub_mode}, or drop the key'
             )

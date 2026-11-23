@@ -1176,7 +1176,7 @@ contouring of a coarse ADC.
 The scene's ``detector.quantization`` selects the sub-mode, and the camera's entry
 supplies the default. Real archives mix downlink formats, so a campaign that emulates
 one sets the key scene by scene. ``detector.contour_step`` sets the step of
-``contour_8bit``, 8 DN unless the scene sets it.
+``contour_8bit``, an integer from 1 to 255, and 8 DN unless the scene sets it.
 
 The ``sqrt_lut`` sub-mode decodes through one of the tables listed under
 ``downlink_tables`` in the camera's instrument entry (see
@@ -4358,9 +4358,10 @@ for the instrument), ``binning`` (the readout mode, below), ``detector_model``
 (``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
 exposure the signal full-scale fraction references), ``filter`` (below),
 ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
-``sqrt_lut``, ``ls8b``, or ``contour_8bit``), and ``downlink_table`` (the name
-of the downlink table that the ``sqrt_lut`` sub-mode decodes through; see
-:ref:`sim-detector-stage` for when a scene may set it). Omitted keys fall back to
+``sqrt_lut``, ``ls8b``, or ``contour_8bit``), ``downlink_table`` (the name
+of the downlink table that the ``sqrt_lut`` sub-mode decodes through), and
+``contour_step`` (the DN step ``contour_8bit`` posterizes to); see
+:ref:`sim-detector-stage` for when a scene may set the last two. Omitted keys fall back to
 the instrument's detector defaults.
 
 ``filter`` sets the filter combination the frame was shot through, written as

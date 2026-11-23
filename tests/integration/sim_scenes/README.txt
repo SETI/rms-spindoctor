@@ -220,8 +220,9 @@ out.
                                      contour_8bit), downlink_table (the table, by
                                      name, sqrt_lut decodes through; one the
                                      instrument's config lists), contour_step (the DN
-                                     step contour_8bit posterizes to, default 8);
-                                     omitted keys track the instrument catalog
+                                     step contour_8bit posterizes to, 1 to 255,
+                                     default 8); omitted keys track the instrument
+                                     catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
                                      (PSF, distortion residual, shot, read, and dark

@@ -1178,7 +1178,16 @@ def test_a_contour_step_below_one_fails() -> None:
     """A contour step of 0 would divide by it, so validation refuses it."""
     scene = frame_scene(size=32, detector={'quantization': 'contour_8bit', 'contour_step': 0})
     with pytest.raises(
-        SimSceneValidationError, match=r'detector\.contour_step must be at least 1; got 0'
+        SimSceneValidationError, match=r'detector\.contour_step must be from 1 to 255; got 0'
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_above_the_8bit_top_code_fails() -> None:
+    """A step above 255 would posterize the 8-bit word to at most two levels."""
+    scene = frame_scene(size=32, detector={'quantization': 'contour_8bit', 'contour_step': 256})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.contour_step must be from 1 to 255; got 256'
     ):
         validate_sim_params(scene)
 
