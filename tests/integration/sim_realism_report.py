@@ -381,7 +381,7 @@ def _figure_artifacts(comparison: InstrumentComparison, out: Path) -> bool:
         log_x=True,
     )
     defaults = resolve_detector_defaults_native(comparison.instrument)
-    hot_default = float(defaults.get('hot_pixel_fraction', 0.0))
+    hot_default = defaults.hot_pixel_fraction or 0.0
     if hot_default > 0.0:
         axes[1].axvline(
             hot_default,
@@ -632,13 +632,9 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
                 _round(comparison.spike_split_sim[1]),
             ],
             'catalog_defaults': {
-                'hot_pixel_fraction': float(defaults.get('hot_pixel_fraction', 0.0)),
-                'cosmic_ray_events_per_pixel_per_sec': float(
-                    defaults.get('cosmic_ray_events_per_pixel_per_sec', 0.0)
-                ),
-                'read_noise_e': float(defaults.get('read_noise_e', 0.0))
-                if 'read_noise_e' in defaults
-                else None,
+                'hot_pixel_fraction': defaults.hot_pixel_fraction or 0.0,
+                'cosmic_ray_events_per_pixel_per_sec': defaults.cosmic_ray_events_per_pixel_per_sec,
+                'read_noise_e': defaults.read_noise_e,
             },
             'fom7_rows': comparison.fom7_rows,
             'sky_comparison': _sky_comparison(comparison),

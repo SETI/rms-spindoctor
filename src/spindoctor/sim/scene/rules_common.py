@@ -407,7 +407,7 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.
         native = resolve_detector_defaults_native(instrument)
-        table = native.get('gain_e_per_dn_by_state') or {0: 1.0}
+        table = native.gain_e_per_dn_by_state or {0: 1.0}
         if gain_state not in table:
             raise SimSceneValidationError(
                 f'{source}: detector.gain_state {gain_state} is not cataloged for '
@@ -511,7 +511,7 @@ def _check_downlink_table_used(
     if quantization is None:
         binning = detector.get('binning')
         detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
-        quantization = detector_defaults.get('quantization', 'exact')
+        quantization = detector_defaults.quantization
     if quantization == 'sqrt_lut':
         return
     raise SimSceneValidationError(

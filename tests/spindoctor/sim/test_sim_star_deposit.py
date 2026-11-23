@@ -207,11 +207,11 @@ def test_instrument_defaults_star_reproduces_the_catalog_kernel() -> None:
     k = resolve_psf_kernel('coiss_nac')
     assert k is not None
     kernel = psf_kernel(
-        k['sigma_v'],
-        k['sigma_u'],
-        k['w'],
-        k['r0'],
-        k['n'],
+        k.sigma_v,
+        k.sigma_u,
+        k.w,
+        k.r0,
+        k.n,
         truncation_px=resolve_psf_truncation_px('coiss_nac'),
         oversample=os,
     )

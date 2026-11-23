@@ -17,19 +17,23 @@ merged under the entry's own keys: mappings merge key by key, and any other valu
 replaces the base's.  A calibrated product can therefore state only what differs
 from its raw camera, such as its ``data_units``.  Setting a key to null removes the
 key the base would otherwise pass on.  A base does not pass on ``aliases`` or
-``realism_cohort``.
+``realism_cohort``.  The merge is :func:`spindoctor.schema.resolve_bases` under the
+``REMOVE`` rule for null.
 
-The catalog loads once per directory and is checked against
-:mod:`spindoctor.sim.instruments.schema` and :mod:`spindoctor.sim.instruments.checks`
-as it loads.  The load fails on a file that is not valid YAML or not a ``.yaml``
-file, an instrument defined in two files, an unknown key, a missing required key,
-or a value of the wrong type or out of range.  It also fails on a base that
-doesn't exist or that loops back on itself, and on a gain state, readout mode,
-filter, downlink table, or artifact mode that an entry refers to but does not
-define.  A setting that would do nothing fails too.  Every message about an entry
-gives the file, the entry, and the key path.  A message about a whole file (a YAML
-error, or a file that holds no mapping) gives the file, and a message about the
-directory (a stray file, or no ``generic`` entry) gives the directory.
+The catalog loads once per directory.  Each merged entry is parsed into an
+:class:`~spindoctor.sim.instruments.schema.InstrumentEntry`, which checks it, and the
+checks that span entries run last.  Every problem found in the directory is reported
+at once in one :class:`~spindoctor.schema.SchemaError`, one line each, and a problem
+inherited by several entries is reported once.  The load fails on a file that is not
+valid YAML or not a ``.yaml`` file, an empty file, an instrument defined in two files,
+an unknown key, a missing required key, or a value of the wrong type or out of range.  It also
+fails on a base that doesn't exist or that loops back on itself, and on a gain state,
+readout mode, filter, downlink table, or artifact mode that an entry refers to but
+does not define.  A setting that would do nothing fails too.  Every line about an
+entry gives the file and the entry that set the value, and the key path.  A line
+about a whole file (a YAML error, or a file that holds no entry) gives the file,
+and a line about the directory (a stray file, or no ``generic`` entry) gives the
+directory.
 
 The rest of the simulator reads the catalog through the resolvers in
 :mod:`spindoctor.sim.instruments.resolvers`, and through
@@ -39,30 +43,31 @@ emulates.
 
 from __future__ import annotations
 
-import copy
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
-from ruamel.yaml import YAML
-from ruamel.yaml.error import YAMLError
-
-from spindoctor.sim.instruments.checks import check_catalog
+from spindoctor.schema import (
+    Issue,
+    Layer,
+    NullPolicy,
+    SchemaError,
+    parse,
+    read_layer,
+    resolve_bases,
+    split_entries,
+)
 from spindoctor.sim.instruments.schema import (
     GENERIC_INSTRUMENT,
     NON_INHERITED_KEYS,
-    InstrumentConfigError,
-    check_own_entry,
-    config_error,
+    InstrumentEntry,
 )
 
 __all__ = [
     'GENERIC_INSTRUMENT',
     'INSTRUMENT_CONFIG_DIR',
     'InstrumentCatalog',
-    'InstrumentConfigError',
     'instrument_entry',
     'load_instrument_catalog',
     'realism_cohort_instruments',
@@ -79,15 +84,14 @@ class InstrumentCatalog:
 
     Parameters:
         config_dir: The directory the entries were read from.
-        entries: Each instrument's entry keyed by name, ``generic`` included, with
-            its base merged in and ``base`` and ``aliases`` removed.
+        entries: Each instrument's entry keyed by name, ``generic`` included.
         aliases: Each alias mapped to the instrument it stands for.
         sources: For each instrument, the file and entry name its error messages
             begin with (``'coiss.yaml: coiss_nac'``).
     """
 
     config_dir: Path
-    entries: Mapping[str, dict[str, Any]]
+    entries: Mapping[str, InstrumentEntry]
     aliases: Mapping[str, str]
     sources: Mapping[str, str]
 
@@ -113,15 +117,15 @@ class InstrumentCatalog:
             f'unknown sim instrument {instrument!r}; expected one of {sorted(self.allowed_names())}'
         )
 
-    def entry(self, instrument: str | None) -> dict[str, Any]:
-        """The shared entry of one instrument; callers must not modify it.
+    def entry(self, instrument: str | None) -> InstrumentEntry:
+        """The entry of one instrument.
 
         Parameters:
             instrument: An instrument name, an alias, or ``None`` for the generic
                 entry.
 
         Returns:
-            The entry, not a copy.
+            The entry.
 
         Raises:
             ValueError: If the name is neither an instrument nor an alias.
@@ -137,199 +141,6 @@ class InstrumentCatalog:
         return frozenset(self.entries) | frozenset(self.aliases)
 
 
-def _read_file(path: Path) -> dict[str, Any]:
-    """Read one config file, returning its entries keyed by instrument.
-
-    A YAML syntax error and a key written twice fail with a message that gives the
-    file, as every schema violation does.  A file that holds anything but a mapping
-    fails too, and so does an instrument name that isn't a string.
-    """
-    yaml = YAML(typ='safe')
-    try:
-        raw = yaml.load(path.read_text())
-    except YAMLError as exc:
-        raise InstrumentConfigError(f'{path.name}: not valid YAML: {exc}') from exc
-    if not isinstance(raw, dict):
-        raise config_error(path.name, '', 'the file must map instrument names to entries')
-    for name in raw:
-        if not isinstance(name, str):
-            raise config_error(path.name, '', f'the instrument name {name!r} must be a string')
-    return raw
-
-
-def _read_entries(
-    paths: list[Path],
-) -> tuple[dict[str, dict[str, Any]], dict[str, str], dict[str, str]]:
-    """Merge the top-level keys of every config file, checking each entry on its own.
-
-    Parameters:
-        paths: The config files, in the order to read them.
-
-    Returns:
-        Each instrument's own entry keyed by name, each name mapped to the
-        ``file: entry`` prefix its error messages carry, and each name mapped to its
-        file.
-
-    Raises:
-        InstrumentConfigError: If a file is not valid YAML or holds no mapping, an
-            instrument is defined in two files, or an entry breaks the schema.
-    """
-    raw: dict[str, dict[str, Any]] = {}
-    sources: dict[str, str] = {}
-    files: dict[str, str] = {}
-    for path in paths:
-        for name, entry in _read_file(path).items():
-            source = f'{path.name}: {name}'
-            if name in files:
-                raise InstrumentConfigError(
-                    f'{source}: the instrument is already defined in {files[name]}'
-                )
-            files[name] = path.name
-            sources[name] = source
-            raw[name] = check_own_entry(entry, source=source)
-    return raw, sources, files
-
-
-def _deep_merge(
-    base: Mapping[str, Any], overrides: Mapping[str, Any], *, source: str, path: str = ''
-) -> dict[str, Any]:
-    """``base`` with ``overrides`` merged in, key by key.
-
-    Mappings merge key by key, a null removes the base's key, and any other value
-    replaces the base's.
-
-    Parameters:
-        base: The base entry (or one of its mappings).
-        overrides: The entry's own keys at the same place.
-        source: The file and the entry, for error messages.
-        path: The dotted key path of ``overrides``, for error messages.
-
-    Returns:
-        The merged mapping, a fresh copy.
-
-    Raises:
-        InstrumentConfigError: If a null is set on a key the base does not have, so
-            it would remove nothing.
-    """
-    merged = copy.deepcopy(dict(base))
-    for key, value in overrides.items():
-        key_path = f'{path}.{key}' if path else str(key)
-        existing = merged.get(key)
-        if value is None:
-            if key not in merged:
-                raise InstrumentConfigError(
-                    f'{source}: {key_path}: null removes an inherited key, and the base has '
-                    'no such key'
-                )
-            del merged[key]
-        elif isinstance(value, Mapping) and isinstance(existing, Mapping):
-            merged[key] = _deep_merge(existing, value, source=source, path=key_path)
-        else:
-            # The base has nothing under this key to merge with, so a null anywhere
-            # inside the entry's mapping would remove nothing.
-            _refuse_nulls(value, source=source, path=key_path)
-            merged[key] = copy.deepcopy(value)
-    return merged
-
-
-def _refuse_nulls(value: Any, *, source: str, path: str) -> None:
-    """Refuse a null inside a mapping the base has no counterpart for.
-
-    Parameters:
-        value: An entry's value under a key the base lacks (or holds as a non-mapping).
-        source: The file and the entry, for error messages.
-        path: The dotted key path of ``value``, for error messages.
-
-    Raises:
-        InstrumentConfigError: If a mapping inside ``value`` sets a key to null; the
-            message gives that key's path.
-    """
-    if not isinstance(value, Mapping):
-        return
-    for key, item in value.items():
-        key_path = f'{path}.{key}'
-        if item is None:
-            raise InstrumentConfigError(
-                f'{source}: {key_path}: null removes an inherited key, and the base has no such key'
-            )
-        _refuse_nulls(item, source=source, path=key_path)
-
-
-def _resolve_inheritance(
-    raw: Mapping[str, dict[str, Any]], sources: Mapping[str, str]
-) -> dict[str, dict[str, Any]]:
-    """Merge each entry over its base chain, refusing an unknown base or a cycle.
-
-    Parameters:
-        raw: Each instrument's own entry, keyed by name.
-        sources: Each name's ``file: entry`` prefix, for error messages.
-
-    Returns:
-        Each entry after inheritance, keyed by name.
-
-    Raises:
-        InstrumentConfigError: If a base is not in the catalog or the bases loop.
-    """
-    resolved: dict[str, dict[str, Any]] = {}
-
-    def resolve(name: str, chain: tuple[str, ...]) -> dict[str, Any]:
-        """Merge ``name`` over its base, ``chain`` being the names already visited."""
-        if name in resolved:
-            return resolved[name]
-        own = raw[name]
-        base = own.get('base')
-        entry = {key: value for key, value in own.items() if key not in NON_INHERITED_KEYS}
-        if base is not None:
-            if base not in raw:
-                raise config_error(
-                    sources[name], 'base', f'{base!r} is not an instrument in the catalog'
-                )
-            if base in chain:
-                loop = ' -> '.join((*chain, base))
-                raise config_error(sources[name], 'base', f'inheritance loops ({loop})')
-            # A resolved entry already lacks the keys a base does not pass on.
-            entry = _deep_merge(resolve(base, (*chain, base)), entry, source=sources[name])
-        resolved[name] = entry
-        return entry
-
-    entries: dict[str, dict[str, Any]] = {}
-    for name in sorted(raw):
-        entry = copy.deepcopy(resolve(name, (name,)))
-        # The entry's own realism cohort, which a base does not pass on.
-        if 'realism_cohort' in raw[name]:
-            entry['realism_cohort'] = copy.deepcopy(raw[name]['realism_cohort'])
-        entries[name] = entry
-    return entries
-
-
-def _collect_aliases(
-    raw: Mapping[str, dict[str, Any]], sources: Mapping[str, str], files: Mapping[str, str]
-) -> dict[str, str]:
-    """Map each alias to its instrument, refusing an alias already in use.
-
-    An alias may be neither an instrument's name nor another entry's alias; the
-    message gives the file that holds the clashing name or alias.
-    """
-    aliases: dict[str, str] = {}
-    for name in sorted(raw):
-        for alias in raw[name].get('aliases') or []:
-            if alias in raw:
-                raise config_error(
-                    sources[name],
-                    'aliases',
-                    f'{alias!r} is already an instrument, defined in {files[alias]}',
-                )
-            if alias in aliases:
-                other = aliases[alias]
-                raise config_error(
-                    sources[name],
-                    'aliases',
-                    f'{alias!r} is already an alias of {other!r} in {files[other]}',
-                )
-            aliases[alias] = name
-    return aliases
-
-
 def _config_paths(config_dir: Path) -> list[Path]:
     """The config files in ``config_dir``, refusing anything that is not one.
 
@@ -339,26 +150,146 @@ def _config_paths(config_dir: Path) -> list[Path]:
     paths = sorted(config_dir.iterdir())
     strays = [path.name for path in paths if path.suffix != '.yaml' or not path.is_file()]
     if strays:
-        raise InstrumentConfigError(
-            f'{config_dir}: {strays} are not instrument config files, which are .yaml files'
-        )
+        message = f'{strays} are not instrument config files, which are .yaml files'
+        raise SchemaError([Issue(str(config_dir), '', message)])
     return paths
+
+
+def _read_entries(config_dir: Path) -> tuple[dict[str, Layer], dict[str, str]]:
+    """Read every config file in ``config_dir`` as one layer per instrument.
+
+    Parameters:
+        config_dir: The directory.
+
+    Returns:
+        Each instrument's own layer keyed by name, and each name mapped to its file.
+
+    Raises:
+        SchemaError: Listing each stray file; or each file that is not valid YAML,
+            holds no mapping of instrument names to entries, or is empty, and each
+            instrument defined in two files.
+    """
+    entries: dict[str, Layer] = {}
+    files: dict[str, str] = {}
+    issues: list[Issue] = []
+    for path in _config_paths(config_dir):
+        try:
+            layers = split_entries(read_layer(path))
+        except SchemaError as exc:
+            issues.extend(exc.issues)
+            continue
+        if not layers:
+            issues.append(Issue(path.name, '', 'the file holds no instrument entry'))
+        for name, layer in layers.items():
+            if name in files:
+                message = f'the instrument is already defined in {files[name]}'
+                issues.append(Issue(layer.label, '', message))
+                continue
+            files[name] = path.name
+            entries[name] = layer
+    if issues:
+        raise SchemaError(issues)
+    return entries, files
+
+
+def _parse_entries(entries: Mapping[str, Layer]) -> dict[str, InstrumentEntry]:
+    """Merge each entry over its bases and parse it, collecting every problem.
+
+    A problem in an entry that others inherit surfaces once for each of them, with
+    the same file, key path, and message, so each is reported once.
+
+    Parameters:
+        entries: Each instrument's own layer, keyed by name.
+
+    Returns:
+        Each instrument's entry, keyed by name, sorted by name.
+
+    Raises:
+        SchemaError: Listing every problem in every entry.
+    """
+    merged = resolve_bases(entries, nulls=NullPolicy.REMOVE, not_inherited=NON_INHERITED_KEYS)
+    parsed: dict[str, InstrumentEntry] = {}
+    issues: list[Issue] = []
+    for name in sorted(merged):
+        label = entries[name].label
+        data, origins = merged[name].data, merged[name].origins
+        try:
+            parsed[name] = parse(InstrumentEntry, data, source=label, origins=origins)
+        except SchemaError as exc:
+            issues.extend(exc.issues)
+    if issues:
+        raise SchemaError(list(dict.fromkeys(issues)))
+    return parsed
+
+
+def _cross_entry_issues(
+    entries: Mapping[str, InstrumentEntry], sources: Mapping[str, str], files: Mapping[str, str]
+) -> list[Issue]:
+    """The problems that span entries.
+
+    The generic entry must state the calibrated sky residual that every entry without
+    its own falls back on.  No real (mission, camera) pair may be claimed by two
+    entries' realism cohorts.  An alias may be neither an instrument's name nor
+    another entry's alias; the message gives the file that holds the clashing name or
+    alias.
+    """
+    issues: list[Issue] = []
+    if entries[GENERIC_INSTRUMENT].detector.calibrated_sky_if is None:
+        issues.append(
+            Issue(
+                sources[GENERIC_INSTRUMENT],
+                'detector.calibrated_sky_if',
+                'the generic entry states the calibrated sky residual that every entry '
+                'without its own falls back on',
+            )
+        )
+    owner: dict[tuple[str, str], tuple[str, int]] = {}
+    aliases: dict[str, str] = {}
+    for name in sorted(entries):
+        for index, camera in enumerate(entries[name].realism_cohort):
+            key = (camera.mission, camera.camera)
+            if key in owner:
+                other, other_index = owner[key]
+                issues.append(
+                    Issue(
+                        sources[name],
+                        f'realism_cohort[{index}]',
+                        f'{key} is already claimed by {sources[other]} '
+                        f'(realism_cohort[{other_index}]); one camera of the real cohort '
+                        'matches one instrument',
+                    )
+                )
+            else:
+                owner[key] = (name, index)
+        for alias in entries[name].aliases:
+            if alias in entries:
+                message = f'{alias!r} is already an instrument, defined in {files[alias]}'
+                issues.append(Issue(sources[name], 'aliases', message))
+            elif alias in aliases:
+                other = aliases[alias]
+                message = f'{alias!r} is already an alias of {other!r} in {files[other]}'
+                issues.append(Issue(sources[name], 'aliases', message))
+            else:
+                aliases[alias] = name
+    return issues
 
 
 @lru_cache(maxsize=4)
 def _load(config_dir: Path) -> InstrumentCatalog:
     """Read, merge, and check every config file in ``config_dir``."""
-    raw, sources, files = _read_entries(_config_paths(config_dir))
-    if GENERIC_INSTRUMENT not in raw:
-        raise InstrumentConfigError(
-            f'{config_dir}: no {GENERIC_INSTRUMENT!r} entry (the instrument-agnostic entry)'
-        )
-    entries = _resolve_inheritance(raw, sources)
-    check_catalog(entries, sources)
+    layers, files = _read_entries(config_dir)
+    if GENERIC_INSTRUMENT not in layers:
+        message = f'no {GENERIC_INSTRUMENT!r} entry (the instrument-agnostic entry)'
+        raise SchemaError([Issue(str(config_dir), '', message)])
+    entries = _parse_entries(layers)
+    sources = {name: layers[name].label for name in entries}
+    issues = _cross_entry_issues(entries, sources, files)
+    if issues:
+        raise SchemaError(issues)
     return InstrumentCatalog(
         config_dir=config_dir,
         entries=entries,
-        aliases=_collect_aliases(raw, sources, files),
+        aliases={alias: name for name in entries for alias in entries[name].aliases},
         sources=sources,
     )
 
@@ -372,26 +303,26 @@ def load_instrument_catalog(*, config_dir: Path | None = None) -> InstrumentCata
 
     Returns:
         The checked catalog.  The result is cached, so every caller shares one
-        catalog; its entries must not be modified.
+        catalog.
 
     Raises:
-        InstrumentConfigError: If any file breaks the schema or defines an
-            instrument another file defines, or if an entry sets a base that doesn't
-            exist or loops, reuses an alias, or claims another instrument's realism
-            cohort.  Also if no file defines the ``generic`` entry, or that entry
-            states no ``detector.calibrated_sky_if``.
+        ~spindoctor.schema.SchemaError: Listing every problem: each file that breaks
+            the schema or defines an instrument another file defines, each entry
+            that sets a base that doesn't exist or loops, reuses an alias, or claims
+            another instrument's realism cohort.  Also if no file defines the
+            ``generic`` entry, or that entry states no ``detector.calibrated_sky_if``.
     """
     return _load((config_dir or INSTRUMENT_CONFIG_DIR).resolve())
 
 
-def instrument_entry(instrument: str | None) -> dict[str, Any]:
-    """The packaged catalog's shared entry of one instrument; do not modify it.
+def instrument_entry(instrument: str | None) -> InstrumentEntry:
+    """The packaged catalog's entry of one instrument.
 
     Parameters:
         instrument: An instrument name, an alias, or ``None`` for the generic entry.
 
     Returns:
-        The entry, not a copy.
+        The entry.
 
     Raises:
         ValueError: If the name is neither an instrument nor an alias.
@@ -412,7 +343,7 @@ def realism_cohort_instruments() -> dict[tuple[str, str], str]:
     """
     catalog = load_instrument_catalog()
     return {
-        (pair['mission'], pair['camera']): name
+        (camera.mission, camera.camera): name
         for name in catalog.instrument_names()
-        for pair in catalog.entry(name).get('realism_cohort') or []
+        for camera in catalog.entry(name).realism_cohort
     }
