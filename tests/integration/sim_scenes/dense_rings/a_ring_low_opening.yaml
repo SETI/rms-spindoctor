@@ -1,0 +1,95 @@
+schema_version: 2
+scene_name: a_ring_low_opening
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 41
+exposure_sec: 1.0
+# The outer A ring and the F ring at 10 km/px seen at a ring opening of 2.5
+# deg, lit, with the ansa in the middle of the frame and the navigator told
+# only about the cataloged edges.
+#
+# The features are those of a_ring_edge_f_ring.  The cataloged edges, all
+# from config_310_saturn_rings.yaml and all navigable: the Encke gap,
+# 133,423.24 to 133,744.84 km; the Keeler gap, 136,484.91 to 136,522.087
+# km; and the A ring's outer edge at 136,770.41 km.  Drawn but not known to
+# the navigator: the F ring at 140,224 km with its strands and envelope,
+# and the Encke gap's central ringlet, with the illustrative widths and
+# depths that scene gives.  The A ring is a uniform sheet at tau 0.5.
+#
+# Geometry: B = +2.5 deg to the observer and +12 deg to the Sun (the lit
+# face), phase 40 deg.  At this opening each ring is a thin ellipse, its
+# minor axis sin(B) = 0.044 of its major axis, so the edges in the frame
+# are nested hairpins about the ansa: an edge's radius of curvature on the
+# sky at the ansa is a sin^2(B), 26 px for the A ring's edge, and its arms
+# run nearly along the line of nodes, the ring's radial direction squeezed
+# by sin(B) across them.  The frame spans ring longitudes -44 to +40 deg,
+# and most of it is sky.  The faint F ring brightens at this opening,
+# because a ring's slant optical depth grows as 1/sin(B).  The 1 s exposure
+# puts the A ring at about 640 DN.  The planted twist, +0.0115 deg, is the
+# NAC's measured twist, with roll fitting off as the camera ships.
+#
+# Measured outcome (2026-11-23): success at medium tier (confidence 0.68),
+# 0.774 px from the planted offset along the line of nodes, the radial
+# direction at the ansa, with a reported sigma of 0.022 to 0.056 px: 14
+# sigma.  Neither the twist (0.767 px with it removed) nor the unmodeled F
+# ring and Encke ringlet (0.776 px with them removed) moves it.  The Keeler
+# gap does: with the gap unknown to the navigator the committed draw is
+# 0.068 px off at 1.5 sigma.  The gap is 3.7 px wide at the ansa, but its
+# arms are foreshortened to 0.58 to 3.7 px on the sky, 0.84 px at the
+# median, and it is at least 2 px wide on only 105 of the 1,098 px of its
+# arc.  The simulated ring model keeps every navigable feature, and the
+# production ring model would keep this one too, since it judges a feature
+# by the finest radial resolution in the frame.  So the fit uses two edges
+# the image does not resolve over most of their length (#1152).  The
+# measurement covers the committed seed and random_seed 101, 202, ...,
+# 1515: 16 distinct draws.  noise_seed 101 to 808 repeats random_seed 101
+# to 808 exactly, because the random seed draws only the detector noise
+# here.  The error is 0.755 to 0.789 px and 13.3 to 14.6 sigma, at medium
+# tier on every draw.  The band puts each end max(0.05 px, a fifth of the
+# spread) outside the measured range: [0.704, 0.839] px.
+expected:
+  status: success
+  confidence_tier: medium
+  known_offset_error_px: 0.7715
+  known_offset_error_tol_px: 0.0675
+artifacts:
+  instrument_defaults: true
+bodies: []
+ring_system:
+  phase_deg: 40.0
+  geometry:
+    center_v: -203.801
+    center_u: -13098.297
+    opening_deg_obs: 2.5
+    opening_deg_sun: 12.0
+    node_deg: -3.0
+  features:
+    - name: A_RING
+      kind: edge
+      side: in
+      tau: 0.5
+      albedo: 0.9
+      navigable: true
+      orbit: {a_px: 13677.041}
+    - name: ENCKE
+      kind: gap
+      tau: 0.5
+      width_px: 32.16
+      navigable: true
+      orbit: {a_px: 13342.324}
+    - name: KEELER
+      kind: gap
+      tau: 0.5
+      width_px: 3.718
+      navigable: true
+      orbit: {a_px: 13648.491}
+    - {kind: ringlet, tau: 0.05, width_px: 2.0, albedo: 0.9, phase_g: 0.6, orbit: {a_px: 13357.4}}
+    - {kind: ringlet, tau: 0.01, width_px: 50.0, albedo: 0.9, phase_g: 0.6, orbit: {a_px: 13997.37}}
+    - {kind: ringlet, tau: 0.5, width_px: 2.0, albedo: 0.9, orbit: {a_px: 14021.37}}
+    - {kind: ringlet, tau: 0.05, width_px: 1.0, albedo: 0.9, phase_g: 0.6, orbit: {a_px: 14010.37}}
+    - {kind: ringlet, tau: 0.05, width_px: 1.0, albedo: 0.9, phase_g: 0.6, orbit: {a_px: 14028.87}}
+    - {kind: ringlet, tau: 0.05, width_px: 1.0, albedo: 0.9, phase_g: 0.6, orbit: {a_px: 14037.37}}
+offset_v: -24.62
+offset_u: -18.37
+offset_rotation_deg: 0.0115

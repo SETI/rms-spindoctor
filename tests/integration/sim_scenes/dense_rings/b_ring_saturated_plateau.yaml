@@ -1,0 +1,137 @@
+schema_version: 2
+scene_name: b_ring_saturated_plateau
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 37
+exposure_sec: 12.0
+# The B ring's outer edge, the Huygens gap, and the inner Cassini Division
+# at 4 km/px, lit, near the ansa, in a long exposure that saturates the B
+# ring into a flat plateau, the way an exposure set for the faint Cassini
+# Division does.  The frame spans 114,300 to 118,789 km.
+#
+# The radii and orbits, all from config_310_saturn_rings.yaml, with each
+# pericenter and pattern frozen.  A gap or ringlet carries its inner edge's
+# mode-1 orbit, and its width puts its outer edge on that edge's own
+# catalog orbit in the middle of its arc in the frame (longitude 0, the
+# ansa, or -2.9 deg for the Russell gap); along its arc every outer edge
+# then sits within 0.16 km (0.04 px) of its catalog radius.  The Strange
+# ringlet keeps its catalog width.  Every edge below is known to the
+# navigator except the Strange ringlet's.
+# - the B ring's outer edge (the Huygens gap's inner edge), 117,569.41 km,
+#   ae = 22.89 km, pericenter 66.89 deg, with the catalog's first m = 2 term
+#   (37.94 km).  Its second m = 2 term and its m = 3 to 6 terms are left
+#   out.
+# - the Huygens ringlet, 117,805.55 to 117,823.65 km (ae = 27.81 and 28.03
+#   km).
+# - the Strange ringlet, 117,907.04 km, 1.73 km (0.43 px) wide, ae = 7.63
+#   km, drawn but not known to the navigator: the production ring model
+#   keeps only features at least 2 px wide.
+# - the Huygens gap's outer edge (the inner edge of the Cassini Division),
+#   117,930.9 km, ae = 2.2 km.
+# - the Herschel gap, 118,188.42 to 118,283.52 km (ae = 8.27 and 0.24 km),
+#   and the Herschel ringlet inside it, 118,234.3 to 118,263.25 km (ae =
+#   1.49 and 1.76 km).  Both cross the full frame height.
+# - the Russell gap, 118,589.92 to 118,628.4 km (ae = 7.6 and 0.11 km),
+#   which crosses a 198 px arc in the frame's outer corner.
+# The B ring is a sheet at tau 2.5 and the Huygens ringlet tau 1.0.  The
+# Cassini Division is a plateau at tau 0.05 with albedo 0.4, and the
+# Herschel ringlet tau 0.3 at albedo 0.4.  These depths and albedos are
+# illustrative, not measured.
+#
+# Geometry: B = +15 deg to the observer and +24 deg to the Sun (the lit
+# face), phase 30 deg, so the edges are curved arcs.  The 12 s exposure
+# fills the B ring to about 1.5 full wells, so the B ring and the Huygens
+# ringlet read a flat 3685 to 3688 DN, the Division about 790 DN, and the
+# Herschel ringlet about 2,300 DN.  The camera's column bloom (4 px)
+# spills the excess along columns, which here run along the edges, so the
+# bloom plays no part: with it off the error moves only 0.306 to 0.290 px.
+# The planted twist, +0.0115 deg, is the NAC's measured twist, with roll
+# fitting off as the camera ships.
+#
+# Measured outcome (2026-11-23): success at high tier, 0.306 px from the
+# planted offset with a reported sigma of 0.012 to 0.083 px: 5.4 sigma.
+# RingAnnulusNav is 0.58 px off and not flagged.  Two things share the
+# error.  The saturated edge reads farther out than the same edge
+# unsaturated: across the edges the committed draw is 0.070 px off, and
+# 0.009 px at 2 s, where the B ring does not saturate.  With the twist
+# removed the frame sits at 5.5 sigma saturated and 1.15 sigma at 2 s
+# (#1145).  And the unfit twist slides the arcs along themselves: with it
+# removed the committed draw is 0.073 px off (#1143).  The measurement
+# covers the committed seed and random_seed 101, 202, ..., 1515: 16
+# distinct draws.  noise_seed 101 to 808 repeats random_seed 101 to 808
+# exactly, because the random seed draws only the detector noise here.  The
+# error is 0.304 to 0.307 px and 5.34 to 5.37 sigma, at high tier on every
+# draw.  The band puts each end max(0.05 px, a fifth of the spread) outside
+# the measured range: [0.254, 0.358] px.
+expected:
+  status: success
+  confidence_tier: high
+  known_offset_error_px: 0.306
+  known_offset_error_tol_px: 0.052
+artifacts:
+  instrument_defaults: true
+bodies: []
+ring_system:
+  phase_deg: 30.0
+  geometry:
+    center_v: -1538.307
+    center_u: -28540.754
+    opening_deg_obs: 15.0
+    opening_deg_sun: 24.0
+    node_deg: -4.0
+  features:
+    - name: B_RING
+      kind: edge
+      side: in
+      tau: 2.5
+      albedo: 0.8
+      navigable: true
+      orbit:
+        a_px: 29392.353
+        ae_px: 5.7225
+        long_peri_deg: 66.89
+        rate_peri_deg_per_day: 0.0
+        modes:
+          - {m: 2, amp_px: 9.485, peri_deg: 58.6}
+    - name: HUYGENS_RINGLET
+      kind: ringlet
+      tau: 1.0
+      width_px: 4.901
+      albedo: 0.8
+      navigable: true
+      orbit: {a_px: 29451.388, ae_px: 6.9525, long_peri_deg: 137.53, rate_peri_deg_per_day: 0.0}
+    - kind: ringlet
+      tau: 0.3
+      width_px: 0.4325
+      albedo: 0.8
+      orbit: {a_px: 29476.76, ae_px: 1.9075, long_peri_deg: 153.21, rate_peri_deg_per_day: 0.0}
+    - name: CASSINI_DIVISION
+      kind: edge
+      side: out
+      tau: 0.05
+      albedo: 0.4
+      navigable: true
+      orbit: {a_px: 29482.725, ae_px: 0.55, long_peri_deg: 248.98, rate_peri_deg_per_day: 0.0}
+    - name: HERSCHEL_GAP
+      kind: gap
+      tau: 0.05
+      width_px: 25.829
+      navigable: true
+      orbit: {a_px: 29547.105, ae_px: 2.0675, long_peri_deg: 347.32, rate_peri_deg_per_day: 0.0}
+    - name: HERSCHEL_RINGLET
+      kind: ringlet
+      tau: 0.3
+      width_px: 6.908
+      albedo: 0.4
+      navigable: true
+      orbit: {a_px: 29558.575, ae_px: 0.3725, long_peri_deg: 172.81, rate_peri_deg_per_day: 0.0}
+    - name: RUSSELL_GAP
+      kind: gap
+      tau: 0.05
+      width_px: 8.653
+      navigable: true
+      orbit: {a_px: 29647.48, ae_px: 1.9, long_peri_deg: 236.73, rate_peri_deg_per_day: 0.0}
+offset_v: 13.71
+offset_u: 31.26
+offset_rotation_deg: 0.0115

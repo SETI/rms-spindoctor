@@ -63,6 +63,7 @@ DECLARED_SIM_SCENE_CLASSES: frozenset[str] = frozenset(
         'expected_fail',
         'full_frame_cameras',
         'mixed_content',
+        'dense_rings',
     }
 )
 

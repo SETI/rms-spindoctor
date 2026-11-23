@@ -2143,7 +2143,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are eight:
+not yet fixed. There are thirteen:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -2160,6 +2160,15 @@ not yet fixed. There are eight:
   outline that the image doesn't have, and the disc correlation lands on the
   maximum of its high-pass surface, pulled by that outline.
 - In ``mutual_deep``, the far body's crescent pulls the disc correlation.
+- In ``keeler_gap_unlit_ansa``, the edge fit slides along nearly straight edges.
+- In ``maxwell_hidden_eccentricity``, the fit follows a ringlet drawn eccentric
+  while the navigator's orbit for it is circular.
+- In ``a_ring_edge_f_ring``, the unfit camera twist slides the curved edges along
+  themselves.
+- In ``b_ring_saturated_plateau``, the saturated edge reads farther out than the
+  same edge unsaturated, and the twist slides the edges along themselves.
+- In ``a_ring_low_opening``, the fit uses both edges of a narrow gap that the
+  image resolves only near the ansa.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
 answer as correct behavior. So the scene also declares ``known_offset_error_px``
@@ -3430,6 +3439,61 @@ non-navigable gap plus a bright propeller moonlet at its center) both
 recover the planted offset from the catalog edges alone, with the clutter
 present and unmodeled.
 
+Saturn's rings at real scale
+----------------------------
+
+The ``ring_system`` scenes are small and clean: one or two features on black sky.
+The ``dense_rings`` class draws Saturn's main rings the way a full-size Cassini
+narrow-angle frame shows them. Each cataloged edge sits at its radius in the
+navigator's ring catalog, converted to pixels at the scene's scale. The navigator
+is told only about those edges, and structure it doesn't know about is drawn
+beside them. Every scene has the camera's detector chain on, a realistic exposure,
+a pointing error of 27 to 34 px, and the camera's measured twist of 0.0115
+degrees, with roll fitting off as the camera ships. The scene's comments say where
+every radius comes from and give its measured outcome.
+
+- ``keeler_gap_unlit_ansa`` draws the Keeler gap at 0.338 km/px on the unlit face,
+  near the ansa, beside 453 one-kilometer bins of a radial profile. The profile
+  was measured on a library frame after its operator-verified pointing was
+  applied, because a profile read from an unnavigated frame carries that frame's
+  pointing error. The edge fit lands about 3.4 px off along the nearly straight
+  edges and reports a sigma near 0.1 px. With one uniform sheet in place of the
+  profile it lands about 1.4 px off, so the profile carries most of the error.
+- ``a_ring_edge_f_ring`` draws the outer A ring at 10 km/px with the F ring 345 px
+  outside the A ring's edge and the Encke gap's central ringlet inside the gap.
+  Neither pulls the fit.
+- ``a_ring_low_opening`` draws the same rings at a ring opening of 2.5 degrees.
+  The edges become nested hairpins about the ansa, and along their arms the
+  rings' radial direction is squeezed to about a twentieth of its length. The
+  Keeler gap, 3.7 px wide at the ansa, is under a pixel wide over most of its arc,
+  and fitting both of its edges puts the answer 0.77 px off at a sigma under
+  0.06 px.
+- ``maxwell_hidden_eccentricity`` draws the Maxwell ringlet with its measured
+  eccentricity while the navigator's orbit for it is circular. The fit follows the
+  drawn ringlet, about 5 px inward of the circular orbit, and ends 6.8 px off at a
+  sigma under 0.1 px.
+- In ``b_ring_saturated_plateau`` a 12 s exposure saturates the B ring into a flat
+  plateau beside the Huygens gap, with the Herschel and Russell gaps in the
+  Cassini Division beyond it. The saturated edge pulls the answer 0.06 px farther
+  out across the edges than the same frame unsaturated, which is five times the
+  reported sigma.
+
+Turning a frame about its center slides a curved ring edge along itself by about
+the twist angle times the edge's radius of curvature on the sky. For the A ring
+at 10 km/px that is about 0.26 px, and the navigator's reported sigma leaves it
+out: with the twist removed, ``a_ring_edge_f_ring`` lands 0.045 px off. The twist
+is not what puts the other scenes above three sigma. Without it they still sit at
+5.5 sigma (the saturated B ring), 25 sigma (the Keeler gap), 14 sigma (the low
+opening), and 153 sigma (the hidden eccentricity). Where the along-edge answer is
+weakly determined, as at the Keeler gap, the twist moves it by more than a slide
+would, in a direction that depends on the twist's sign. Each scene's answer is
+held to its known-error band (see :ref:`sim-expected`).
+
+These frames cost more than the rest of the catalog. Rendering and navigating one
+took 6 to 40 seconds, measured four at a time, most of it the ring renderer at the
+fourfold oversampling the detector chain's blur selects, so the class has its own
+test module, ``test_sim_dense_rings.py``.
+
 .. _sim-perf-budget:
 
 The render performance budget
@@ -3662,7 +3726,7 @@ The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
 ``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``,
-``mixed_content``) scope what each scene is testing and are enforced by the
+``mixed_content``, ``dense_rings``) scope what each scene is testing and are enforced by the
 structural test. The scene README at ``tests/integration/sim_scenes/README.txt``
 documents the schema alongside the code.
 
