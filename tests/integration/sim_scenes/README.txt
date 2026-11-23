@@ -338,7 +338,7 @@ The appearance keys are truth, which the navigator never sees:
   crater_relief_scale  the crater depth scale, a number (default 0.6)
   anti_aliasing        the limb supersampling, from 0 to 1 (default 1)
   limb_relief_rms      the limb relief's RMS as a fraction of the radius, at
-                       most 0.05 (default 0, no relief)
+                       most 0.1 (default 0, no relief)
   limb_relief_corr_deg the relief's correlation length, in degrees of surface
                        arc (default 15)
   photometric_law      lambert (the default), lommel_seeliger, minnaert, or

@@ -9,7 +9,8 @@ translation, degree 2 aliases ellipsoid shape error) or above the band
 limit, and distinct seeds are distinct terrains.  The outline envelope, the
 slope bound, and the surface gradient are pinned against brute-force
 evaluations of the same field, and the cast-shadow ray march against the
-exact geometry of a ray grazing a ridge.
+exact geometry of a ray grazing a ridge.  A line of sight that misses the
+surface reads the outline point beside it.
 """
 
 import functools
@@ -19,8 +20,10 @@ import numpy as np
 import pytest
 from scipy import special
 
+from spindoctor.sim.render.bodies import relief_sight
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.relief_sight import visible_surface_directions
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayComplexType
 
@@ -253,6 +256,103 @@ def test_the_outline_is_the_envelope_over_latitude() -> None:
     np.testing.assert_allclose(field.outline_delta(phi), brute, atol=5e-4)
 
 
+def _view_tilted(tilt: float) -> tuple[float, float]:
+    """The direction toward the observer, leaning ``tilt`` radians from z toward x."""
+    return math.sin(tilt), math.cos(tilt)
+
+
+@pytest.mark.parametrize('tilt_deg', [0.0, 50.0])
+def test_a_line_of_sight_just_outside_the_outline_reads_the_outline_point(
+    tilt_deg: float,
+) -> None:
+    """A line of sight that just misses the surface reads the outline point beside it.
+
+    A surface point projects to the radius ``(1 + h) cos(lat)``, and a line of sight
+    1e-3 beyond the outline reads a point that projects within 1e-3 of the outline:
+    the search samples the meridian a quarter of a field cell apart near its closest
+    approach, and the outline envelope is good to 5e-4.
+
+    Parameters:
+        tilt_deg: The angle the view leans from the field's pole, degrees.
+    """
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    view = _view_tilted(math.radians(tilt_deg))
+    phi = np.linspace(0.0, 2.0 * np.pi, 97)[:-1]
+    outline = 1.0 + field.outline_delta(phi, view=view)
+    rho = outline + 1e-3
+    seen = visible_surface_directions(rho * np.cos(phi), rho * np.sin(phi), field, view=view)
+    sin_lat = seen @ np.array([view[0], 0.0, view[1]])
+    projected = (1.0 + field.sample_points(seen)) * np.sqrt(1.0 - sin_lat**2)
+    np.testing.assert_allclose(projected, outline, rtol=0.0, atol=1e-3)
+
+
+def test_a_line_of_sight_beyond_all_terrain_reads_the_turned_limb() -> None:
+    """Beyond the highest terrain a line of sight reads the turned limb at its azimuth."""
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    view = _view_tilted(math.radians(50.0))
+    phi = np.linspace(0.0, 2.0 * np.pi, 13)[:-1]
+    rho = 1.0 + field.h_max + 1e-6
+    seen = visible_surface_directions(rho * np.cos(phi), rho * np.sin(phi), field, view=view)
+    limb = np.stack([np.cos(phi) * view[1], np.sin(phi), -np.cos(phi) * view[0]], axis=-1)
+    np.testing.assert_allclose(seen, limb, rtol=0.0, atol=1e-12)
+
+
+def test_the_slope_bound_holds_along_a_turned_line_of_sight() -> None:
+    """The terrain along a turned line of sight is nowhere steeper than its bound.
+
+    The bound decides which steps the search for ridge tops may pass over.  Each
+    stretch here is the search's step, a quarter of a field cell.
+    """
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    rng = np.random.default_rng(2)
+    phi = rng.uniform(0.0, 2.0 * np.pi, 5000)
+    lines = relief_sight._SightLines(
+        np.cos(phi), np.sin(phi), field, view=_view_tilted(math.radians(50.0))
+    )
+    index = np.arange(phi.size)
+    width = np.pi / 2.0 / field.grid.shape[0]
+    upper = rng.uniform(-np.pi / 2.0 + width, np.pi / 2.0, phi.size)
+    lower = upper - width
+    rise = np.abs(
+        field.sample_points(lines.directions(upper, index))
+        - field.sample_points(lines.directions(lower, index))
+    )
+    excess = rise / width - lines.slope_bound((upper, lower), index)
+    assert float(excess.max()) <= 1e-9
+
+
+def test_a_line_of_sight_passes_over_no_sliver_of_a_ridge() -> None:
+    """A line of sight reads no terrain behind a ridge whose top pokes into it.
+
+    At 5% relief and a 1-degree correlation length, a step a quarter of a field cell
+    long passes over such a ridge top on 12 of these 4,000 lines of sight.  Sampled
+    every 1/32 of a cell from the top of the relief shell down to the point the
+    search reads, every line of sight stays outside the surface.  Points within a
+    quarter of a cell above that point are left out, since the crossing is narrowed
+    by interpolation within a step that long.
+    """
+    field = synthesize_relief_field(0.05, 1.0, 1)
+    rng = np.random.default_rng(1)
+    radius = np.sqrt(rng.random(4000))
+    angle = rng.uniform(0.0, 2.0 * np.pi, 4000)
+    x, y = radius * np.cos(angle), radius * np.sin(angle)
+    seen_lat = np.arcsin(visible_surface_directions(x, y, field)[:, 2])
+    cell = 2.0 * np.pi / field.grid.shape[0]
+    lat_top = np.arccos(np.minimum(radius / (1.0 + field.h_max), 1.0))
+    phi = np.mod(angle, 2.0 * np.pi)
+    passed_over = 0
+    for start in range(0, radius.size, 200):
+        part = slice(start, start + 200)
+        steps = int(np.ceil(float((lat_top[part] - seen_lat[part]).max()) / (cell / 32.0)))
+        lats = lat_top[part, None] - (cell / 32.0) * np.arange(steps + 1)
+        above = lats > (seen_lat[part] + cell / 4.0)[:, None]
+        gap = (1.0 + field.sample(lats, np.broadcast_to(phi[part, None], lats.shape))) * np.cos(
+            lats
+        ) - radius[part, None]
+        passed_over += int(np.any(above & (gap > 1e-12), axis=1).sum())
+    assert passed_over == 0
+
+
 def test_the_outline_departs_from_the_equator_slice_at_high_rms() -> None:
     """At 5% relief the outline differs from the equator slice by a sizable share of the RMS."""
     field = synthesize_relief_field(0.05, _CORR_DEG, 9)
@@ -457,7 +557,7 @@ def test_the_outline_envelope_follows_a_turned_view(phi: float) -> None:
     field = synthesize_relief_field(0.05, 15.0, 3)
     tilt = math.radians(50.0)
     expected = _brute_force_turned_envelope(field, phi, tilt=tilt)
-    got = float(field.outline_delta(np.array([phi]), view=(math.sin(tilt), math.cos(tilt)))[0])
+    got = float(field.outline_delta(np.array([phi]), view=_view_tilted(tilt))[0])
     assert got == pytest.approx(expected, abs=5e-4)
 
 

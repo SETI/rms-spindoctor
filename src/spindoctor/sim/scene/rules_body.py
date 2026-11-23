@@ -313,13 +313,11 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
         obj.get('limb_relief_rms'), f'{label}.limb_relief_rms', source=source
     )
     # The bounds and their reasons live with the constants in
-    # spindoctor.sim.render.bodies.relief.  The RMS cap is a conservative validity
-    # bound for the limb-only ellipsoid renderer, set by the share of the disc
-    # whose terrain it misreads at the default correlation length (about 12% at
-    # the cap); validity degrades at shorter lengths, which the cap does not
-    # follow.  The correlation floor bounds the field's synthesis cost; it is
-    # not a validity bound.  Each key's range is checked on its own, as every
-    # other key's is, so the floor applies even to a body whose relief is off.
+    # spindoctor.sim.render.bodies.relief.  The RMS cap is a limit of the scene
+    # format: at the cap the relief surface stays about half the radius out from
+    # the body center.  The correlation floor bounds the field's synthesis cost.
+    # Each key's range is checked on its own, as every other key's is, so the floor
+    # applies even to a body whose relief is off.
     relief_rms = obj.get('limb_relief_rms')
     if relief_rms is not None and float(relief_rms) > MAX_LIMB_RELIEF_RMS:
         raise SimSceneValidationError(
