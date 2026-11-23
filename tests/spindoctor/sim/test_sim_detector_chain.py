@@ -12,8 +12,11 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
+from spindoctor.sim.render.detector import chain
+from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
+from spindoctor.sim.render.stages import SimFrame
 
 
 def _disc(instrument: str, *, size: int = 64, **extra: Any) -> dict[str, Any]:
@@ -70,6 +73,43 @@ def test_vidicon_defaults_add_dn_domain_noise() -> None:
     plain, _ = render_scene(_disc('vgiss'))
     noisy, _ = render_scene(_disc('vgiss', artifacts={'instrument_defaults': True}))
     assert not np.array_equal(plain, noisy)
+
+
+@pytest.mark.parametrize(
+    ('signal', 'point_dn', 'artifacts'),
+    [
+        (1.0, 250.0, {}),
+        (
+            1.9,
+            0.0,
+            {'residual_image': {'probability': 1.0, 'amplitude': 0.5, 'prior': 'flat'}},
+        ),
+    ],
+    ids=['stars', 'residual_image'],
+)
+def test_vidicon_target_saturates_on_its_total_charge(
+    signal: float, point_dn: float, artifacts: dict[str, Any]
+) -> None:
+    """Charge past the target's full scale is lost before the readout noise joins it.
+
+    Neither the signal nor the added charge passes full scale alone, but their sum does,
+    by at least 100 DN.  With 3 DN of pixel read noise and the bias at 0, about half of
+    the pixels then read below the 255 DN ceiling.  Uncapped charge would hold every
+    pixel at the ceiling.
+
+    Parameters:
+        signal: The frame's uniform signal; 1 fills half the target's full scale.
+        point_dn: The uniform point-source charge in DN.
+        artifacts: The artifact block, which adds the residual image.
+    """
+    scene = _disc('vgiss', artifacts=artifacts)
+    scene['noise'] = {'bias_dn': 0.0, 'vidicon': {'read_noise_pixel_dn': 3.0}}
+    frame = SimFrame(
+        signal=np.full((64, 64), signal, dtype=np.float64),
+        point_e=np.full((64, 64), point_dn, dtype=np.float64),
+    )
+    chain._apply_vidicon(frame, resolve_detector_params(scene), np.random.default_rng(5))
+    assert 0.4 < float((frame.signal < 255.0).mean()) < 0.6
 
 
 def test_vidicon_calibrated_if_is_exposure_invariant() -> None:
@@ -206,8 +246,7 @@ def _flat_defaults_scene(**noise_extra: Any) -> dict[str, Any]:
     frame in the flat center region isolates the shot term.
     """
     scene = _disc('generic', size=128, oversample=1, artifacts={'instrument_defaults': True})
-    # A disc much larger than the frame makes the center region flat; the
-    # signal clips at 1.0, which only flattens it further.
+    # A disc much larger than the frame makes the center region flat.
     scene['bodies'][0].update({'semi_a_px': 200.0, 'semi_b_px': 200.0, 'semi_c_px': 200.0})
     if noise_extra:
         scene['noise'] = dict(noise_extra)

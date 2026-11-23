@@ -9,7 +9,7 @@ asserts the *decision*, per technique, not an exact recovery:
 
 * The orientation-dependent ``BodyLimbNav`` recovers the planted offset at the
   correct pose but lands far off at the wrong pose -- a wrong-pose limb the
-  navigator should not trust (here it also self-flags spurious).
+  navigator should not trust (it self-flags spurious on 3 of 9 noise draws).
 * The orientation-free ``BodyBlobNav`` stays accurate at both poses, because the
   body's relief is low: its bulk shape is close to its triaxial ellipsoid, which
   is centrally symmetric, so its lit-weighted centroid barely moves under
@@ -90,12 +90,12 @@ def _params(*, wrong_pose: bool) -> dict[str, Any]:
 
 
 def test_correct_pose_limb_is_accurate() -> None:
-    """At the true predicted pose the limb recovers the planted offset (0.14-0.25 px)."""
+    """At the true predicted pose the limb recovers the planted offset (0.23-0.26 px)."""
     assert _technique_error_px(_params(wrong_pose=False), 'BodyLimbNav') < 1.0
 
 
 def test_wrong_pose_limb_degrades() -> None:
-    """A wrong in-plane roll drives the limb far off the planted offset (19.8-20.9 px)."""
+    """A wrong in-plane roll drives the limb far off the planted offset (15.1-16.7 px)."""
     assert _technique_error_px(_params(wrong_pose=True), 'BodyLimbNav') > 4.0
 
 
@@ -110,7 +110,7 @@ def test_blob_stays_accurate_at_wrong_pose() -> None:
 
 
 def test_wrong_pose_limb_much_worse_than_blob() -> None:
-    """The wrong-pose limb error dwarfs the blob error, 30 to 32 times it."""
+    """The wrong-pose limb error dwarfs the blob error, 23 to 25 times it."""
     limb = _technique_error_px(_params(wrong_pose=True), 'BodyLimbNav')
     blob = _technique_error_px(_params(wrong_pose=True), 'BodyBlobNav')
     assert limb > 3.0 * blob

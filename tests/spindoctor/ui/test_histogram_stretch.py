@@ -1,7 +1,6 @@
 """Tests for ``spindoctor.ui.mosaic_viewer.histogram_stretch``."""
 
 import os
-from typing import cast
 
 import numpy as np
 import numpy.ma as ma
@@ -19,24 +18,7 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
-        allow_module_level=True,
-    )
-
 from spindoctor.ui.mosaic_viewer.histogram_stretch import HistogramStretchWidget
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 def _make_widget() -> tuple[HistogramStretchWidget, list[float], list[float]]:

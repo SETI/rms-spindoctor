@@ -11,13 +11,8 @@ from typing import Any
 import numpy as np
 import pytest
 from tests.shims import bare_nav_context
-from tests.spindoctor.nav_model.simulated.test_body import (
-    _SIZE,
-    _body_feature_types,
-    _body_params,
-    _mesh_params,
-    _obs,
-)
+from tests.spindoctor.nav_model.simulated.body_fixtures import SIZE, body_feature_types, small_obs
+from tests.spindoctor.nav_model.simulated.test_body import _body_params, _mesh_params
 
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
 
@@ -40,14 +35,14 @@ def _sphere(center_u: float) -> dict[str, Any]:
 
 def _overflow_model(body_params: dict[str, Any]) -> NavModelBodySimulated:
     """The built model for ``body_params`` on the standard obs."""
-    model = NavModelBodySimulated('body', _obs(), body_params['name'], body_params)
+    model = NavModelBodySimulated('body', small_obs(), body_params['name'], body_params)
     model.create_model()
     return model
 
 
 @pytest.mark.parametrize(
     'body_params',
-    [_sphere(_SIZE / 2.0 + 0.3), _mesh_params()],
+    [_sphere(SIZE / 2.0 + 0.3), _mesh_params()],
     ids=['sphere', 'mesh'],
 )
 def test_a_framed_body_has_zero_overflow(body_params: dict[str, Any]) -> None:
@@ -62,7 +57,7 @@ def test_a_body_centered_on_the_frame_edge_overflows_by_half() -> None:
 
 def test_a_body_half_off_the_frame_withholds_its_disc_and_blob() -> None:
     """Past both overflow limits the model emits neither a disc nor a blob."""
-    types = _body_feature_types(_obs(), _sphere(0.0))
+    types = body_feature_types(small_obs(), _sphere(0.0))
     assert 'BODY_DISC' not in types
     assert 'BODY_BLOB' not in types
 
@@ -71,7 +66,7 @@ def test_a_slightly_clipped_body_keeps_its_disc_and_withholds_its_blob() -> None
     """About 11 percent off frame is under the disc limit and over the blob limit."""
     model = _overflow_model(_sphere(20.0))
     assert 0.05 < model._overflow_fraction < 0.3
-    types = [f.feature_type.name for f in model.to_features(bare_nav_context(_obs()))]
+    types = [f.feature_type.name for f in model.to_features(bare_nav_context(small_obs()))]
     assert 'BODY_DISC' in types
     assert 'BODY_BLOB' not in types
 
@@ -80,7 +75,9 @@ def test_the_disc_reports_its_overflow() -> None:
     """The emitted disc carries the model's overflow fraction in its geometry."""
     model = _overflow_model(_sphere(20.0))
     disc = next(
-        f for f in model.to_features(bare_nav_context(_obs())) if f.feature_type.name == 'BODY_DISC'
+        f
+        for f in model.to_features(bare_nav_context(small_obs()))
+        if f.feature_type.name == 'BODY_DISC'
     )
     assert disc.geometry.overflow_fraction == model._overflow_fraction  # type: ignore[union-attr]
 
@@ -96,10 +93,10 @@ def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
     """
     from spindoctor.nav_model.simulated import body as module
 
-    body = _sphere(_SIZE / 2.0) | {'semi_a_px': 150.0, 'semi_b_px': 150.0, 'semi_c_px': 150.0}
+    body = _sphere(SIZE / 2.0) | {'semi_a_px': 150.0, 'semi_b_px': 150.0, 'semi_c_px': 150.0}
     full = _overflow_model(body)._overflow_fraction
     sizes: list[int] = []
-    original = NavModelBodySimulated._render_body_image
+    original = NavModelBodySimulated._render_prediction
 
     def recording(self: NavModelBodySimulated, *args: Any, **kwargs: Any) -> Any:
         size = kwargs.get('size')
@@ -108,7 +105,7 @@ def test_a_frame_filling_body_counts_its_overflow_on_a_bounded_canvas(
         return original(self, *args, **kwargs)
 
     monkeypatch.setattr(module, '_OVERFLOW_CANVAS_MAX_PX', 128)
-    monkeypatch.setattr(NavModelBodySimulated, '_render_body_image', recording)
+    monkeypatch.setattr(NavModelBodySimulated, '_render_prediction', recording)
     bounded = _overflow_model(body)._overflow_fraction
     assert bounded == pytest.approx(full, abs=0.01)
     assert max(sizes) <= 128
@@ -134,11 +131,11 @@ def test_a_turned_body_counts_its_whole_silhouette_in_its_overflow() -> None:
     body = _body_params(**_TURNED, center_v=30.3)
     model = _overflow_model(body)
     pad = 100
-    whole = model._render_body_image(
+    whole = model._render_prediction(
         math.radians(body['phase_angle']),
-        size=(_SIZE + 2 * pad, _SIZE + 2 * pad),
+        size=(SIZE + 2 * pad, SIZE + 2 * pad),
         center=(body['center_v'] + pad, body['center_u'] + pad),
-    )
-    inside = whole[pad : pad + _SIZE, pad : pad + _SIZE]
-    expected = 1.0 - np.count_nonzero(inside > 0.0) / np.count_nonzero(whole > 0.0)
+    ).silhouette
+    inside = whole[pad : pad + SIZE, pad : pad + SIZE]
+    expected = 1.0 - np.count_nonzero(inside) / np.count_nonzero(whole)
     assert model._overflow_fraction == pytest.approx(expected, abs=1e-12)

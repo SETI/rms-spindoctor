@@ -34,8 +34,9 @@ pixel-space truth metadata to the detector grid.  A scene with no PSF (no
 at ``oversample`` 1, where the downsample is a no-op.  An explicit ``oversample``
 key sets the factor either way.
 
-The ``signal`` plane carries normalized [0, ~1] intensive scene units through
-the optics stage; the detector stage converts it to electrons through the
+The ``signal`` plane carries normalized intensive scene units through the optics
+stage, where 1 is a white disc lit face-on and a bright law, spot, or haze can carry it
+above 1; the detector stage converts it to electrons through the
 exposure and digitizes it to DN in place (the electron unit chain).  The
 ``point_e`` plane carries the detector-native point sources (stars): electrons
 for a CCD, added into the electron image after the signal conversion and before

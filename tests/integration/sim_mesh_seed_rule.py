@@ -100,7 +100,7 @@ def _silhouette(
         spec=spec,
         anti_aliasing=0.0,
     )
-    return np.asarray(image > 0.0)
+    return np.asarray(image.coverage > 0.0)
 
 
 def _perimeter(mask: NDArrayBoolType) -> float:

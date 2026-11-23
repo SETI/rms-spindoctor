@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import pytest
@@ -29,15 +29,6 @@ try:
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
-        allow_module_level=True,
-    )
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
         allow_module_level=True,
     )
 
@@ -55,15 +46,6 @@ from spindoctor.sim.render.driver import render_scene
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 from spindoctor.ui.sim_editor import verdict as verdict_module
 from spindoctor.ui.sim_editor import worker as worker_module
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture
@@ -192,6 +174,7 @@ def test_a_stale_verdict_never_reaches_the_label(model: Any, gated: _GatedSummar
     # The newer request starts only once the stale render has been collected.
     process_until(lambda: len(gated.calls) == 2)
     assert model._units_label.text() == 'DN: verdict pending'
+    gated.release(1)
 
 
 def test_a_verdict_for_a_changed_scene_never_reaches_the_label(
@@ -511,6 +494,20 @@ def test_closing_the_editor_drops_the_running_verdict(model: Any, gated: _GatedS
     gated.release(0)
     _wait_for_verdict(model)
     assert model._units_label.text() == 'DN: verdict pending'
+
+
+def test_closing_the_editor_drops_the_waiting_edit(model: Any) -> None:
+    """An edit still waiting out the debounce is not drawn after the window closed."""
+    model._updater.request_update()
+    model.close()
+    assert not model._updater._timer.isActive()
+
+
+def test_deleting_the_editor_deletes_its_debounce_timer(model: Any) -> None:
+    """The debounce timer goes with the window, so no edit is drawn in a deleted one."""
+    timer = model._updater._timer
+    sip.delete(model)
+    assert sip.isdeleted(timer)
 
 
 def test_deleting_the_editor_mid_render_is_safe(
