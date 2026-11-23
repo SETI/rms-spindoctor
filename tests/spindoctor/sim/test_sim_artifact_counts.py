@@ -36,7 +36,8 @@ def _base_scene() -> dict[str, Any]:
         seed=7,
         scene_name='artifact_counts_base',
         exposure_sec=1.0,
-        noise={'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 20.0},
+        noise={'poisson': True, 'read_noise_dn': 4.0},
+        detector={'bias_dn': 20.0},
         body={'illumination_angle': 25.0, 'phase_angle': 30.0},
     )
 

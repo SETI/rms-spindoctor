@@ -10,7 +10,7 @@ only its own effect when present.
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.optics.stage import apply_optics
@@ -23,6 +23,7 @@ def _base_scene(**extra: Any) -> dict[str, Any]:
         size=60,
         seed=4,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[
             {'name': 'B', 'center_v': 30.0, 'center_u': 30.0, 'semi_a_px': 10.0, 'semi_b_px': 10.0}
         ],

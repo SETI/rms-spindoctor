@@ -28,7 +28,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.optics.stage import apply_optics
@@ -44,7 +44,9 @@ _CORNER_MARGIN_PX = 3.0
 
 def _scene(roll_deg: float, **blocks: Any) -> dict[str, Any]:
     """A noiseless square frame holding ``blocks``, rolled by ``roll_deg``."""
-    params = frame_scene(size=_SIZE, seed=5, exposure_sec=1.0, noise=quiet_noise(), **blocks)
+    params = frame_scene(
+        size=_SIZE, seed=5, exposure_sec=1.0, noise=quiet_noise(), detector=zero_bias(), **blocks
+    )
     params['offset_rotation_deg'] = roll_deg
     return params
 
@@ -527,7 +529,12 @@ def test_quarter_roll_turns_the_craters_of_a_body_only_one_render_fits(
     renders = []
     for roll_deg in (0.0, 90.0):
         params = frame_scene(
-            size=(_WIDE_V, _WIDE_U), seed=5, exposure_sec=1.0, noise=quiet_noise(), bodies=[body]
+            size=(_WIDE_V, _WIDE_U),
+            seed=5,
+            exposure_sec=1.0,
+            noise=quiet_noise(),
+            detector=zero_bias(),
+            bodies=[body],
         )
         params['offset_rotation_deg'] = roll_deg
         img, _meta = render_scene(params)

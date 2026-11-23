@@ -100,7 +100,7 @@ class GlobalFieldsMixin(SimEditorBase):
 
         # Instrument selector: drives the per-instrument noise / saturation /
         # PSF / unit settings the renderer applies (see
-        # spindoctor.sim.instruments.navigator_link).
+        # spindoctor.sim.instruments.resolvers).
         self._instrument_combo = QComboBox()
         # The generic (instrument-agnostic) frame, then every instrument config
         # file's camera.

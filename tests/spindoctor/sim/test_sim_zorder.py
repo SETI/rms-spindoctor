@@ -19,7 +19,13 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy import ndimage
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, ring_system_block
+from tests.spindoctor.sim.scenes import (
+    disc_body,
+    frame_scene,
+    quiet_noise,
+    ring_system_block,
+    zero_bias,
+)
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
@@ -51,6 +57,7 @@ def _scene(ring_range_km: float | None) -> dict[str, Any]:
         size=60,
         seed=5,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[disc_body(30.0, 30.0, 10.0, phase_angle=0.0, range_km=1.0e6)],
         ring_system=ring_system,
     )

@@ -15,7 +15,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.bodies import ellipsoid_relief
 from spindoctor.sim.render.bodies.ellipsoid import (
@@ -24,10 +24,12 @@ from spindoctor.sim.render.bodies.ellipsoid import (
     render_ellipsoid_body,
 )
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
+from spindoctor.sim.render.bodies.photometry import incidence_cosines
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.shared.ellipsoid import EllipsoidProjection, project_ellipsoid
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.sim.shared.lighting import illumination_vector
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 _RMS = 0.02
 _CORR_DEG = 15.0
@@ -321,6 +323,35 @@ def _first_surface_points(
     return np.stack([np.cos(lat) * np.cos(phi), np.cos(lat) * np.sin(phi), np.sin(lat)], axis=-1)
 
 
+def _unlit_by_terrain(
+    field: ReliefField, starts: NDArrayFloatType, sun: NDArrayFloatType
+) -> NDArrayBoolType:
+    """Whether the terrain shadows each point or turns it from the sun, by a fine march.
+
+    Each ray is sampled every 1/4096 of a field cell over its first 1/1024 of a cell,
+    where a sample below the terrain means the ground at the point turns away from
+    the sun.  Beyond, it is sampled every 1/64 of a cell until it leaves the relief
+    shell, and a point is shadowed when its ray falls below the terrain after it has
+    risen above it.  It shares only the field's samples with the renderer.
+    """
+    cell = 2.0 * np.pi / field.grid.shape[0]
+    shadowed = np.zeros(starts.shape[0], dtype=np.bool_)
+    for count in range(1, 5):
+        ray = starts + count * cell / 4096.0 * sun
+        shadowed |= np.linalg.norm(ray, axis=1) < 1.0 + field.sample_points(ray)
+    step = cell / 64.0
+    risen = np.zeros(starts.shape[0], dtype=np.bool_)
+    for count in range(1, math.ceil(2.0 * (1.0 + field.h_max) / step) + 1):
+        ray = starts + count * step * sun
+        radius = np.linalg.norm(ray, axis=1)
+        if float(radius.min()) > 1.0 + field.h_max:
+            break
+        below = radius < 1.0 + field.sample_points(ray)
+        shadowed |= below & risen
+        risen |= ~below
+    return shadowed
+
+
 def _lambert_relief_disc(
     *, rms: float, corr_deg: float, sub_observer_lat: float = 0.0
 ) -> tuple[EllipsoidBodySpec, EllipsoidProjection, ReliefField]:
@@ -447,14 +478,15 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
 
 
 @pytest.mark.parametrize('lat_deg', [0.0, -60.0])
-def test_a_normal_leaning_away_is_laid_into_the_sky_plane(lat_deg: float) -> None:
-    """A relief normal leaning away from the observer is laid into the sky plane.
+def test_a_normal_leaning_away_is_laid_just_in_front_of_the_sky_plane(lat_deg: float) -> None:
+    """A relief normal leaning away from the observer is laid just in front of the sky plane.
 
     Where a line of sight grazes a ridge, the normal the field's differences give the
     point it meets can lean away from the observer.  At 5% relief and a 2-degree
     correlation length, some pixels on the disc read such a normal.  The renderer
-    gives each of them a toward-observer component of exactly 0, neither mirrored
-    toward the observer nor left leaning away.
+    gives each of them a toward-observer component a little above 0, neither mirrored
+    toward the observer nor left leaning away, so it faces the observer as the
+    surface it belongs to does.
 
     Parameters:
         lat_deg: The sub-observer latitude the sphere is seen from, degrees.
@@ -467,7 +499,124 @@ def test_a_normal_leaning_away_is_laid_into_the_sky_plane(lat_deg: float) -> Non
     normals = seen - field.surface_gradient(seen) / (1.0 + field.sample_points(seen))[:, None]
     away = normals @ np.array([math.sin(lat), 0.0, math.cos(lat)]) < 0.0
     assert int(away.sum()) > 0
-    assert float(np.abs(shading.normal_z[away]).max()) == 0.0
+    assert float(shading.normal_z[away].min()) > 0.0
+    assert float(shading.normal_z[away].max()) < 1e-5
+
+
+def test_a_relief_body_at_phase_0_has_no_dark_pixel() -> None:
+    """With the sun behind the camera, every pixel the body covers is lit.
+
+    At phase 0 the sun lights all the terrain the camera sees and shadows none of
+    it, so a Lommel-Seeliger disc renders at full brightness wherever the body covers
+    a whole pixel.  A march that counts the ground a point lies in, or a normal
+    leaning away laid into the sky plane, renders some of these pixels as night.
+    """
+    size = 256
+    spec = _limb_spec(rms=0.05, seed=42)
+    body = render_ellipsoid_body((size, size), (size / 2.0, size / 2.0), spec)
+    covered = body.silhouette >= 1.0
+    assert float(body.intensity[covered].min()) > 0.99
+
+
+def test_no_terrain_the_camera_sees_is_shadowed_at_phase_0() -> None:
+    """At phase 0 the sun ray from each point seen runs back along its line of sight.
+
+    That line of sight meets no terrain before the point, so the march shadows none
+    of the pixels on a 320 px sphere with 5% relief at a 15-degree correlation
+    length, here the outer part of the disc.  A march from the surface point
+    straight out from the center, which lies just off the line of sight, shadows
+    pixels whose line of sight only just clears a ridge.
+    """
+    size = 900
+    grid = project_ellipsoid(
+        (size, size), (size / 2.0, size / 2.0), 320.0, semi_b_px=320.0, semi_c_px=320.0
+    )
+    field = synthesize_relief_field(0.05, _CORR_DEG, 42)
+    outer = (silhouette_mask(grid, field) > 0.0) & (grid.ellipse_dist_sq > 0.5)
+    shading = ellipsoid_relief.relief_shading(
+        grid, field, outer, illumination_angle=0.0, phase_angle=0.0
+    )
+    assert int(shading.shadowed.sum()) == 0
+
+
+def test_shadows_fall_where_terrain_lies_between_the_point_and_the_sun() -> None:
+    """Terrain the sun faces is shadowed by terrain between it and the sun, or its own.
+
+    At phase 35 on a 75 px sphere with 5% relief at a 5-degree correlation length,
+    the truth starts at a brute-force search's point on each line of sight.  It
+    counts the terrain its sun ray meets after it rises above the ground there,
+    sampled every 1/64 of a field cell, and the ground at the point where the ray
+    starts into it, sampled every 1/4096 of a cell.  On the pixels whose relief
+    normal faces the sun, the renderer's shadows agree with it on all but 1 of its
+    3,712 shadowed pixels each way, and the test allows 0.5% each way.  Counting only
+    the terrain the ray meets after it rises leaves 65 of the truth's pixels lit.
+    """
+    spec, grid, field = _lambert_relief_disc(rms=0.05, corr_deg=5.0)
+    covered = silhouette_mask(grid, field) > 0.5
+    shading = _relief_shading(grid, spec, field, covered)
+    cos_i = incidence_cosines(
+        shading.normal_v,
+        shading.normal_u,
+        shading.normal_z,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
+    x = grid.v_rot[covered] / 75.0
+    y = grid.u_rot[covered] / 75.0
+    points = _first_surface_points(field, x, y)
+    hit = np.isfinite(points[:, 0]) & (cos_i > 0.0)
+    # The point on each line of sight at the latitude found: (rho / cos(lat)) p.
+    on_line = points * (np.hypot(x, y) / np.hypot(points[:, 0], points[:, 1]))[:, np.newaxis]
+    sun = np.array(
+        illumination_vector(
+            illumination_angle=spec.illumination_angle, phase_angle=spec.phase_angle
+        )
+    )
+    truth = _unlit_by_terrain(field, on_line[hit], sun)
+    rendered = shading.shadowed[covered][hit]
+    assert int(truth.sum()) > 1000
+    assert int((rendered & ~truth).sum()) <= 0.005 * int(truth.sum())
+    assert int((truth & ~rendered).sum()) <= 0.005 * int(truth.sum())
+
+
+def test_craters_light_no_pixel_whose_relief_normal_faces_away_from_the_sun() -> None:
+    """Craters tilt the normals after the relief has, and light none of its night.
+
+    On a 70 px sphere with 5% relief and craters at phase 60, rendered at oversample 1
+    without anti-aliasing so that the shading grid is the render grid, every pixel the
+    body covers whose relief normal faces away from the sun renders black.  Left
+    unshadowed, 108 of those pixels were turned toward the sun by the craters.
+    """
+    spec = EllipsoidBodySpec(
+        semi_a_px=70.0,
+        semi_b_px=70.0,
+        semi_c_px=70.0,
+        illumination_angle=math.radians(70.0),
+        phase_angle=math.radians(60.0),
+        anti_aliasing=0.0,
+        crater_fill=0.3,
+        crater_seed=12,
+        crater_relief_scale=1.0,
+        limb_relief_rms=0.05,
+        limb_relief_corr_deg=8.0,
+        relief_seed=4,
+    )
+    size = 182
+    center = (size / 2.0, size / 2.0)
+    body = render_ellipsoid_body((size, size), center, spec)
+    grid = project_ellipsoid((size, size), center, 70.0, semi_b_px=70.0, semi_c_px=70.0)
+    covered = body.silhouette >= 1.0
+    shading = _relief_shading(grid, spec, synthesize_relief_field(0.05, 8.0, 4), covered)
+    cos_i = incidence_cosines(
+        shading.normal_v,
+        shading.normal_u,
+        shading.normal_z,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
+    away = cos_i <= 0.0
+    assert int(away.sum()) > 1000
+    assert float(body.intensity[covered][away].max()) == 0.0
 
 
 def test_shadow_march_resolves_fine_relief_on_a_small_body(
@@ -524,7 +673,7 @@ def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[s
         'crater_max_radius': 0.2,
     }
     body.update(body_extra)
-    scene = frame_scene(size=80, seed=11, noise=quiet_noise(), bodies=[body])
+    scene = frame_scene(size=80, seed=11, noise=quiet_noise(), detector=zero_bias(), bodies=[body])
     if oversample is not None:
         scene['oversample'] = oversample
     return scene
@@ -612,6 +761,7 @@ def test_two_identical_bodies_get_independent_terrains() -> None:
         size=120,
         seed=11,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[
             disc_body(30.0, 30.0, 20.0, name='FIRST', limb_relief_rms=0.03, range_km=1.0),
             disc_body(88.0, 88.0, 20.0, name='SECOND', limb_relief_rms=0.03, range_km=2.0),

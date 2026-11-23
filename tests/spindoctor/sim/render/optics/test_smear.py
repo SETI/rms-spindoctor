@@ -8,7 +8,7 @@ the right length and direction), the zero-length no-op, and differential smear
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.optics.smear import apply_smear, smear_kernel
@@ -64,6 +64,7 @@ def _star_and_body_scene(*, smear: list[dict[str, Any]] | None) -> dict[str, Any
         size=60,
         seed=5,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[
             {'name': 'B', 'center_v': 40.0, 'center_u': 40.0, 'semi_a_px': 8.0, 'semi_b_px': 8.0}
         ],
