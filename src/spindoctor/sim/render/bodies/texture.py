@@ -129,8 +129,8 @@ class TransitSpec:
     Parameters:
         moon: ``(dv_px, du_px, radius_px, albedo_factor)`` -- the moon disc's
             offset from the parent body center, its radius, and its brightness
-            as a factor of the local smooth-law shading (bright moon > 1 is
-            clipped at the signal ceiling; dark moon < 1).  None for a
+            as a factor of the local smooth-law shading (above 1 for a moon
+            brighter than its parent, below 1 for a darker one).  None for a
             shadow-only entry.
         shadow: ``(dv_px, du_px, radius_px, darkness)`` -- the cast shadow
             disc; the textured shading inside it is multiplied by
@@ -366,4 +366,4 @@ def apply_transits(
         if transit.moon is not None:
             dv, du, radius, albedo_factor = transit.moon
             inside = disc_mask & ((v_ctr - dv) ** 2 + (u_ctr - du) ** 2 <= radius * radius)
-            intensity[inside] = np.clip(base_intensity[inside] * albedo_factor, 0.0, 1.0)
+            intensity[inside] = base_intensity[inside] * albedo_factor

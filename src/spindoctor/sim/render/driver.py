@@ -41,8 +41,9 @@ from spindoctor.sim.instruments.navigator_link import PLANTED_POINTING_KEYS
 from spindoctor.sim.render.bodies.mesh import clear_mesh_shape_caches
 from spindoctor.sim.render.bodies.relief import clear_relief_caches
 from spindoctor.sim.render.bodies.render import clear_ellipsoid_shape_caches
+from spindoctor.sim.render.optics.distortion import clear_distortion_caches
 from spindoctor.sim.render.optics.psf import clear_psf_caches
-from spindoctor.sim.render.optics.stage import effective_psf
+from spindoctor.sim.render.optics.stage import effective_psf, optics_margin_px
 from spindoctor.sim.render.pipeline import run_pipeline
 from spindoctor.sim.render.radiance.stars import clear_star_caches
 from spindoctor.sim.render.stages import new_sim_frame
@@ -64,6 +65,7 @@ def clear_render_caches() -> None:
     clear_mesh_shape_caches()
     clear_relief_caches()
     clear_psf_caches()
+    clear_distortion_caches()
 
 
 # Three entries: the scene editor renders a scene's fast preview, its full
@@ -94,7 +96,15 @@ def _render_scene_cached(
     # oversample 1: drawing on a grid 4 times finer in each direction costs 16
     # times the pixels, for detail its display can't show.
     oversample = 1 if preview else resolve_oversample(sim_params)
-    frame = new_sim_frame(size_v, size_u, oversample=oversample, preview=preview)
+    # The radiance is drawn past the frame edge as far as the optics carry light
+    # into the frame; the downsample stage cuts the frame back out.
+    frame = new_sim_frame(
+        size_v,
+        size_u,
+        oversample=oversample,
+        preview=preview,
+        margin_px=optics_margin_px(sim_params, oversample=oversample, preview=preview),
+    )
     run_pipeline(frame, sim_params)
     return frame.signal, frame.truth
 

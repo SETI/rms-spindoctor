@@ -585,8 +585,11 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        plane ``frame.point_e``, with the planted offset and camera roll
        applied. Stars are flux-normalized point
        masses shaped only by the
-       whole-scene PSF (see :ref:`sim-star-params`). Accumulates feature truth
-       (star records, masks, inventory, z-order) into ``frame.truth``.
+       whole-scene PSF (see :ref:`sim-star-params`). Draws the scene across a
+       margin around the frame as well as the frame, for the optics stage to
+       spread into the frame (see :ref:`sim-frame-margin`). Accumulates feature
+       truth (star records, masks, inventory, z-order) for the frame alone into
+       ``frame.truth``.
    * - Optics
      - :func:`~spindoctor.sim.render.optics.stage.apply_optics`
      - Applies the optical-path effects in a fixed internal order -- motion
@@ -595,12 +598,13 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        sub-block is present (see :ref:`sim-optics-stage`).
    * - Downsampling
      - :func:`~spindoctor.sim.render.stages.downsample_to_detector`
-     - Box-downsamples the oversampled planes to the detector grid. A scene
-       with an active PSF renders on a 4x oversampled grid and downsamples here;
-       with no PSF the factor is 1 and this is a no-op.
+     - Cuts the frame out of the margin, then box-downsamples the oversampled
+       planes to the detector grid. A scene with an active PSF renders on a 4x
+       oversampled grid and downsamples here; with no PSF the factor is 1 and
+       the downsample is a no-op.
    * - Detector
      - :func:`~spindoctor.sim.render.detector.apply_detector`
-     - Runs the electron unit chain: converts the composed [0, 1] signal to
+     - Runs the electron unit chain: converts the composed signal to
        electrons through the exposure, applies Poisson shot noise, full-well
        bloom, read noise, banding, gain to DN, bias structure, quantization, and
        the ADC clip (see :ref:`sim-detector-stage`). The Voyager vidicon takes
@@ -632,9 +636,10 @@ error to the one effect it varies.
 ``SimFrame`` carries the mutable image state between stages:
 
 - ``signal`` -- the ``(V*os, U*os)`` float64 image. It holds normalized
-  [0, ~1] intensive scene units through the radiance and optics stages (a
-  point-mass star deposit may legitimately spike above 1.0 on the oversampled
-  grid before the PSF spreads it); the detector stage converts it to electrons
+  intensive scene units through the radiance and optics stages, where 1 is a
+  white disc lit face-on. A limb-brightened law, a bright albedo spot, or a haze
+  can carry it above 1, and so can a point-mass star deposit on the oversampled
+  grid before the PSF spreads it. The detector stage converts it to electrons
   through the exposure and digitizes it to DN in place (the electron unit
   chain).
 - ``point_e`` -- a same-shaped plane reserved for electron-unit point sources.
@@ -651,8 +656,12 @@ error to the one effect it varies.
   stage gets its kernel from
   :func:`~spindoctor.sim.render.optics.stage.effective_psf`, and the oversampling
   choice asks the same function, so the two always agree.
+- ``margin`` -- how many render-grid pixels the planes extend past the frame on
+  each side (see :ref:`sim-frame-margin`). The downsample stage cuts the frame out
+  and sets it to 0.
 - ``truth`` -- renderer output metadata (rendered star records, body masks,
-  inventory, z-order maps). None of it crosses the information boundary.
+  inventory, z-order maps), describing the frame alone. None of it crosses the
+  information boundary.
 
 **Seeding by name.** A stage is handed only the frame and the scene. Each stage
 derives every random stream it needs with
@@ -666,8 +675,8 @@ scene that emulates that detector has the same hot pixels. Only hot pixels
 placed adversarially on the navigation features draw from ``detector/hot_pixels``.
 The missing-data losses draw from ``telemetry`` and the
 missing-lines mode from ``telemetry/missing_lines``. The background stars draw
-from ``scene_radiance/background_stars`` and the distortion field from
-``optics/distortion``.
+from ``scene_radiance/background_stars``, those in the margin around the frame from
+its sub-stream ``margin``, and the distortion field from ``optics/distortion``.
 
 A stream may in turn seed its own named sub-streams. The bodies work this way:
 ``scene_radiance/craters`` seeds one stream for each body, named
@@ -976,6 +985,60 @@ Only the distortion non-radial field draws randomness, from its own stream
 true no-op (all-zero radial distortion, an amplitude-0 ghost) renders
 bit-identically to one without it.
 
+.. _sim-frame-margin:
+
+Light from beyond the frame edge
+--------------------------------
+
+Smear, distortion, the PSF, and ghosts move light sideways. A real camera's edge
+pixels therefore receive light from the scene just outside its field of view, and
+lose some of their own light past the edge. The render reproduces both. The radiance
+and optics stages work on planes larger than the frame by a margin on every side, and
+the downsample stage cuts the frame out before it averages. If the optics treated the
+outside of the frame as dark instead, a planet filling a Cassini narrow-angle frame
+would read 0.72 of its brightness in the first row and 0.52 in a corner, a false edge
+along the frame border, and a star centered just outside the frame would put none of
+its light into it.
+
+The margin is as wide as the four steps reach together
+(:func:`~spindoctor.sim.render.optics.stage.optics_margin_px`), rounded up to whole
+detector pixels: the PSF's ``truncation_px``, half the smear drift rounded up, each
+ghost's offset plus four sigmas of its defocus, and the distortion's largest
+displacement plus the two pixels its cubic spline reads. The spline also responds to
+the edge of the plane, past which it continues the plane as its mirror image rather
+than the scene, so the distortion adds 27 render-grid pixels, across which that
+response falls below 4e-16. A scene with none of the four steps has no margin. A
+Cassini scene with ``instrument_defaults`` has a margin of 40 detector pixels: 32 for
+the PSF and 8 for the distortion. The margin costs time in proportion to the area it
+adds. The cold renders of the performance budget (see :ref:`sim-perf-budget`) take 7%
+to 16% longer at 1024 x 1024 and 15% to 31% longer at 512 x 512, and all stay within
+their budgets. The margin is the same on every side, although a ghost brings light
+from one side only. A ghost displaced 300 pixels on a 1024 x 1024 Cassini frame
+widens the margin to 362 pixels: the frame renders in 10.4 s, against 5.8 s with no
+margin, and takes about 400 MB more memory. A smear of 150 pixels widens it to 115
+pixels, and the frame renders in 8.2 s against 6.7 s.
+
+Every source of light is drawn across the margin: bodies with their halos, the ring
+system, catalog stars, and the background sky. The sky stars of the margin draw from a
+stream of their own, so the stars in the frame are the same whatever the margin.
+Everything that depends on the frame's size still uses the frame alone: the frame
+center, the roll pivot, the distortion's optical center and normalizing radius, and
+where each body is drawn and its craters are laid out. The non-radial distortion
+wander is defined over the frame and repeats its edge value across the margin. Stray
+light is added to the frame alone, because no later step spreads it.
+
+The margin therefore changes none of the frame's radiance before the optics, apart
+from the share of a margin sky star that lands on an edge pixel. It changes only the
+light the optics carry across the frame edge. That light includes the light of the
+sky stars in the margin. A star counts when its light lands on any pixel of the margin,
+including a star less than a pixel past the outermost one, whose share on that pixel
+is bilinear like any other. Each of those stars is the same whatever the margin's
+width, so widening the margin for a longer smear or a wider PSF adds only the light of
+the stars in the pixels it adds. The truth metadata describes
+the frame alone: the masks and the body index map are cut to the frame, and the depth
+checks that make overlapping bodies state a ``range_km`` look only at the frame, so
+whether a scene is valid does not depend on how far its optics reach.
+
 .. _sim-detector-stage:
 
 The detector stage
@@ -986,9 +1049,11 @@ normative unit chain of the renderer. For a CCD instrument the composed
 intensive signal passes through the electron unit chain in
 :func:`~spindoctor.sim.render.detector.chain.apply_detector`:
 
-1. **Signal to electrons.** The intensive [0, 1] signal is scaled to electrons
+1. **Signal to electrons.** The intensive signal is scaled to electrons
    through ``signal_full_scale_frac * full_well_e * (exposure_sec /
-   exposure_ref_sec)``. A scene that sets a filter (see
+   exposure_ref_sec)``. The signal is not capped first: a limb-brightened law or
+   a bright albedo spot can carry it above 1, and the full well in step 4
+   saturates it as a real camera does. A scene that sets a filter (see
    :ref:`sim-detector-block`) sets ``exposure_ref_sec`` from the filter's
    measured throughput, so a signal of 1.0 collects that filter's electrons.
 2. **Point sources.** The point-source plane (``frame.point_e``) carries the
@@ -1127,7 +1192,9 @@ seeded stream and a no-op when its activation key is 0.
 **The vidicon path.** The Voyager vidicon
 (:func:`~spindoctor.sim.render.detector.chain.apply_detector`, vidicon branch)
 is not photon-noise dominated, so it skips the electron conversion: the signal
-maps straight to the 8-bit DN full scale and the noise is applied in DN -- a
+maps straight to the 8-bit DN full scale, the target saturates where the charge
+stored on it (the signal, the stars, the residual image, and the cosmic-ray hits
+together) passes its full scale (``full_well_dn``), and the noise is applied in DN -- a
 line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
@@ -1929,7 +1996,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are three:
+not yet fixed. There are eight:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -1937,6 +2004,12 @@ not yet fixed. There are three:
   sub-pixel search window.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
+- In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
+  pulls the disc correlation, which carries a low-tier success 1.84 px wrong.
+- In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
+  outline that the image doesn't have, and the disc correlation stops at the
+  edge of its sub-pixel search window.
+- In ``mutual_deep``, the far body's crescent pulls the disc correlation.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
 answer as correct behavior. So the scene also declares ``known_offset_error_px``
@@ -1951,10 +2024,7 @@ also fails loudly, which prompts a deliberate re-measurement of the known error,
 or retirement of the check, instead of a silent behavior change. The success the
 check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
-(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
-``titan_crescent_horns`` scenes hold a low-confidence success 5.74 px wrong this
-way: the disc correlation, pulled by the haze's ring of light, sets it on every
-seed.
+(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family.
 
 .. _sim-floor:
 
@@ -2011,10 +2081,10 @@ boundary filter strips, so the navigator keeps its default belief while the
 render departs from it. The sweeps and their floors:
 
 - ``psf_limb_mismatch`` -- rendered PSF sigma broadened above the navigator's
-  Gaussian; the softened limb edge biases the distance-transform fit and, past a
-  few pixels of blur, washes the edge out (a navigability cliff).
+  Gaussian; the softened limb edge biases the distance-transform fit, and at a
+  4 px sigma the lit limb still navigates, 1.2 to 1.5 px off.
 - ``photometric_minnaert_mismatch`` -- Minnaert ``k`` walked below 1; the
-  limb-darkened disc departs from the Lambert template.
+  limb-brightened disc departs from the Lambert template.
 - ``spk_parallax_error`` -- a spacecraft-position error parallax-shifts the body
   while the navigator predicts the catalog geometry; the recovery absorbs the
   shift almost one-for-one.
@@ -2122,7 +2192,11 @@ continued past its edges, but only as far as the move needs to fill the frame fr
 this body's position, plus 8 detector pixels so the spline that interpolates the
 relief tilt never ends inside the frame. The canvas is bounded by the frame, never by
 the body, so a body thousands of pixels across costs about as much as one that fills
-the frame. Either way, the body is drawn at the frame center and then moved.
+the frame. Either way, the body is drawn at the frame center and then moved. When the
+frame carries a margin for the optics stage (see :ref:`sim-frame-margin`), the move
+fills the margin too, and a body that does not fit has its canvas widened by the
+margin. The frame alone decides whether a body fits and where its craters go, so the
+margin changes no pixel of the frame.
 
 The result matches what the same part of a frame large enough to hold the whole body
 would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. There are
@@ -2476,12 +2550,14 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
      - ``I = mu0`` (the navigator's own template law).
    * - ``lommel_seeliger``
      - truth
-     - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, clipped at the signal
-       ceiling.
+     - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, rising to 2 at the sunlit
+       limb.
    * - ``minnaert``
      - truth
      - ``I = mu0**k mu**(k - 1)`` with ``minnaert_k``; ``k = 1`` is Lambert,
-       ``k = 0.5`` the classic lunar value.
+       ``k = 0.5`` the classic lunar value. Below ``k = 1`` the law grows without
+       bound toward the limb, so it is capped at 2, the Lommel-Seeliger limb value.
+       Without the cap the brightest limb pixel would depend on the pixel size.
    * - ``lunar_lambert``
      - truth
      - ``2 L(a) mu0 / (mu0 + mu) + (1 - L(a)) mu0`` with the McEwen (1991)
@@ -2491,10 +2567,16 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
 An optional ``opposition_surge`` (truth) multiplies the law by a normalized
 exponential ``(1 + amplitude exp(-a / width)) / (1 + amplitude)`` -- 1 at exact
 opposition, ``1 / (1 + amplitude)`` far from it -- so it plants the
-brightness-versus-phase surge signature while keeping the normalized signal
-plane within [0, 1]. Because the navigator always shades Lambert, any non-Lambert
-law or surge moves the terminator and the limb-darkening profile by a known
-amount.
+brightness-versus-phase surge signature. Because the navigator always shades
+Lambert, any non-Lambert law or surge moves the terminator and the limb-darkening
+profile by a known amount.
+
+No law is capped at 1. The body stages carry the brightness uncapped to the
+detector, which saturates at its full well. A scene's albedo spot brighter than 1
+brightens everywhere it lies, until the detector saturates. None of the laws has a
+night-side term, so a body's night side renders black, as a real airless body's
+does; the body's silhouette is drawn separately, so a black pixel inside the body
+still occludes what lies behind it.
 
 Surface texture and transits
 -----------------------------
@@ -2667,14 +2749,14 @@ and the disc correlator scores only against disc brightness the image carries.
 Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
-On grazing and half overlap the limb fit lands within 0.2 px of each scene's planted
-offset over 16 noise seeds. The disc correlation does worse: it stops at the edge of its
-half-pixel refinement window, 0.18 px off on grazing overlap and 0.34 px on half
-overlap. Its composite template paints the near body over the far one wherever the near
-body touches a pixel, even partly, so the template keeps a dark outline at the near
-body's limb that the image no longer shows. With the template drawn by coverage, the
-same correlation lands within 0.01 px. Both
-scenes hold their fused errors, 0.15 to 0.18 px and 0.32 to 0.33 px, to bands. That is a
+Over 16 noise seeds the limb fit lands 0.32 to 0.34 px from the planted offset on
+grazing overlap and 0.23 to 0.25 px on half overlap. The disc correlation stops at the
+edge of its half-pixel refinement window, 0.18 px off on grazing overlap (on 14 of the
+16 seeds) and 0.34 to 0.35 px on half overlap. Its composite template paints the near
+body over the far one wherever the near body touches a pixel, even partly, so the
+template keeps a dark outline at the near body's limb that the image no longer shows.
+With the template drawn by coverage, the same correlation lands within 0.01 px. Both
+scenes hold their fused errors, 0.07 to 0.17 px and 0.31 to 0.32 px, to bands. That is a
 statement about these simulated scenes, not a certification of real-frame accuracy: the
 sim renders an idealized occlusion the true optics only approximate. On the deep scene
 the far body's disc is over 90 percent hidden, so its ``visible_lit_fraction`` collapses
@@ -2682,9 +2764,9 @@ and its disc feature is dropped for low reliability. The far body's crescent sti
 beside the near body's limb, and the disc template, which holds only the near body,
 leaves it out, so the crescent pulls the disc correlation about 0.8 px off. The limb fit
 runs on arcs the image actually shows -- the robust Tukey biweight loss is a second line
-of defense against a stray vertex, not the mechanism that carries the result -- but on 6
-of the 16 seeds it stops unconverged and flags itself spurious, and the disc correlation
-alone sets the answer. The deep scene holds that 0.73 to 0.80 px error to a band. No
+of defense against a stray vertex, not the mechanism that carries the result -- and lands
+0.14 to 0.17 px off, but it flags itself spurious on every seed, and the disc correlation
+alone sets the answer. The deep scene holds that 0.78 to 0.79 px error to a band. No
 double-counting conflict arises. The mutual-event scenes pin the arc fractions and
 offsets so a regression toward hidden-arc lock-on fails loudly.
 
@@ -2813,16 +2895,10 @@ the scaled half stays below saturation. Inside the band the multiplier is
 ``1 + (ratio - 1) * w`` or ``1 + amplitude * w`` for the weight ``w``, so a
 ratio of one or an amplitude of zero leaves the haze untouched.
 
-The render clips the signal at 1, so a positive amplitude flattens the bright
-crescent wherever the base brightness times ``1 + amplitude`` would pass 1, and
-there the two halves differ by the clip instead of a scaling, poleward of the
-band or not. Over 26 of the 40 clean Titan truth scenes that navigate both with
-and without an ``ns_asymmetry_amplitude`` of +0.35, the amplitude shifts the
-recovered cross-track position by 0.063 pixels on average with a switch at the
-equator and 0.065 pixels with the 10 degree band, about four times what an
-amplitude of -0.35 costs with the band (below). Nearly all of that cost is there
-with a switch too, where an amplitude of -0.35, which darkens and so never
-reaches the clip, costs 0.004 pixels, so the clip sets it and the band does not.
+The render carries the brightness uncapped to the detector. A positive amplitude
+therefore flattens the bright crescent only where the scaled brightness passes
+the detector's full well, and there the two halves differ by the saturation
+instead of a scaling, poleward of the band or not.
 
 Inside the band ``ns_asymmetry_amplitude`` is not an affine control, and no
 continuous blend can make it one. The mirror about the hemispheric split maps
@@ -2873,22 +2949,23 @@ to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the predicted
+outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light is
+brighter than a white disc lit face-on and saturates the detector. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
 ``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
-30 px off in ``du``. The ring of light, which the disc correlation's
-hard-limbed template leaves out, also pulls the correlation 5.74 px off, and the
+25 px off in ``du``. The ring of light, which the disc correlation's
+hard-limbed template leaves out, also pulls the correlation 1.84 px off, and the
 correlation does not flag that answer spurious. So the body-witness veto (see
 :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
 nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its 5.74 px error to a band. The noiseless sibling
+scene holds its 1.84 px error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
 and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near 28.9, and the same 5.74 px disc correlation error), so the
-ring of light alone, not the noise, drives them. The haze evaluation
+blob centroid near -26.0, and the same 1.84 px disc correlation error), so the
+ring of light alone drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
 that box rather than the frame, and a body without an ``atmosphere`` block
@@ -3476,10 +3553,12 @@ The roll turns:
   ramp was scaled to, the ramp continues the same line, and where that line falls
   below zero it is clipped to zero, since light is never negative;
 - the ``sky_counts`` background field. The turned frame also shows sky beyond the
-  unrolled frame's corners, so stars at the same density are drawn there from their
-  own stream, and the rolled sky is the unrolled sky turned with the frame. A star is
-  drawn only when its position lies in the frame, rolled or not, so a roll too small
-  to carry a star across the frame edge draws the same stars as no roll.
+  unrolled frame's corners. The sky beyond the frame is drawn in fixed tiles at the
+  same density, each from its own stream, and the rolled sky is the unrolled sky
+  turned with the frame. A star is drawn when its light lands on a pixel of the frame
+  or of the margin the optics stage reads (see :ref:`sim-frame-margin`), rolled or
+  not, so a roll too small to carry a star across the margin's outer edge draws the
+  same stars as no roll.
 
 :mod:`spindoctor.sim.render.roll` does the turning for bodies. Three body angles run
 against the roll, so the roll subtracts from them. ``rotation_z`` turns the grid an
@@ -4933,8 +5012,9 @@ thread. ``FullRenderRunner`` in ``full_render.py`` renders the offset-free pictu
   status bar, and prints a failure's traceback. Every Qt object is therefore created,
   used, and destroyed on the UI thread. A worker that outlives the window writes only
   into a job that nothing reads, because the poll timer is the runner's child and is
-  destroyed with the window. A worker that can't start reports the failure on the
-  status bar.
+  destroyed with the window. The debounce timer is also destroyed with the window, and
+  closing the window drops the redraw of an edit still waiting out the debounce. A worker
+  that can't start reports the failure on the status bar.
 - **Exit.** The worker is an ordinary, non-daemon thread, so the interpreter
   waits for it before it shuts down: quitting the editor mid-render waits for
   that render to finish. A daemon thread would be killed at shutdown in the

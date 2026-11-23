@@ -114,8 +114,8 @@ DEFAULT_HAZE_ALBEDO: float = 0.6
 The albedo is the single-scattering brightness scale of a fully lit, optically
 thick grazing haze column, before the phase factor and the illumination
 weight, and lies in [0, 1] as a single-scattering albedo does.  The haze's
-emergent intensity is clipped into the [0, 1] signal plane, so a strong
-forward-scattering peak saturates by design.
+emergent intensity is not capped, so a strong forward-scattering peak can carry
+the signal above 1, and the detector saturates there as a real camera does.
 """
 
 # Amplitude of a detached shell's Gaussian tau bump, as a multiple of
@@ -166,7 +166,7 @@ class HaloScreen:
     halo) multiply by ``transmission``.
 
     Parameters:
-        emission: Per-pixel tangent glow of the halo, in [0, 1]; 0 where the
+        emission: Per-pixel tangent glow of the halo, at least 0; 0 where the
             halo carries no light.
         transmission: Per-pixel ``exp(-tau)`` along the grazing line of
             sight: the fraction of background light that passes through;
@@ -192,7 +192,7 @@ class AtmosphereLayers:
 
     Parameters:
         disc: The body radiance with the on-disc haze composited, weighted by the
-            outline's coverage, in [0, 1].  Zero wherever the outline covers
+            outline's coverage, at least 0.  Zero wherever the outline covers
             nothing, so it covers the same pixels a no-atmosphere body would.
         halo: The translucent above-limb screen, covering every band pixel the
             outline leaves partly or wholly open and the covered pixels beside
@@ -532,8 +532,8 @@ def apply_atmosphere(
     is never mutated (it may be a shared render cache entry).
 
     Parameters:
-        body_shape: The shaded body radiance at the reference center, in
-            [0, 1], weighted by the outline's coverage, so 0 outside the body.
+        body_shape: The shaded body radiance at the reference center, weighted
+            by the outline's coverage, so 0 outside the body.
         spec: The haze spec (pixel lengths already on this grid).
         center_v: Body center v the shape was rendered at, in grid pixels.
         center_u: Body center u the shape was rendered at, in grid pixels.
@@ -551,8 +551,8 @@ def apply_atmosphere(
             even where it renders black.
 
     Returns:
-        The :class:`AtmosphereLayers`: the disc radiance, weighted by the coverage
-        and clipped to between 0 and the coverage, and the translucent halo screen.
+        The :class:`AtmosphereLayers`: the disc radiance, weighted by the coverage,
+        and the translucent halo screen.
     """
     out = np.array(body_shape, dtype=np.float64, copy=True)
     emission = np.zeros_like(out)
@@ -770,7 +770,7 @@ def apply_atmosphere(
 
         _add_covered_haze(out_box, outline_box, solid_out, haze_out[solid_out[band_out]])
         halo = halo_mask[band_out]
-        emission[box_v, box_u][halo_mask] = np.clip(haze_out[halo], 0.0, 1.0)
+        emission[box_v, box_u][halo_mask] = haze_out[halo]
         # The screen's opacity is 1 - exp(-tau) of the tangent column, so its
         # transmission is the complement.
         transmission[box_v, box_u][halo_mask] = 1.0 - opacity_out[halo]
@@ -780,13 +780,12 @@ def apply_atmosphere(
     # silhouette, then a hemispheric brightness scaling of everything --
     # disc radiance and halo glow alike -- so poleward of the equatorial
     # blend band the two halves the mirror maps onto each other differ by a
-    # pure scaling wherever the scaled half stays below saturation.  The
-    # clip to [0, 1] that follows (to the coverage, for the coverage-weighted
-    # disc) flattens a positive amplitude's brightest pixels (the haze module
-    # docstring gives what that costs).  Transmission is opacity, not
-    # brightness, and is deliberately left alone.  The whole block is skipped
-    # for a structureless haze: not for tidiness but because every line of it
-    # is per-pixel work the cold-render budget does not carry.
+    # pure scaling.  The floor at 0 that follows catches a pixel a negative
+    # ramp or cloud pushed below 0.
+    # Transmission is opacity, not brightness, and is deliberately left
+    # alone.  The whole block is skipped for a structureless haze: not for
+    # tidiness but because every line of it is per-pixel work the
+    # cold-render budget does not carry.
     if structure is not None:
         apply_disc_structure(
             out_box,
@@ -799,10 +798,10 @@ def apply_atmosphere(
             illum_u=axis_u,
         )
         apply_hemispheric_scaling(out_box, structure, weight)
-        np.clip(out_box, 0.0, outline_box, out=out_box)
+        np.maximum(out_box, 0.0, out=out_box)
         emission_box = emission[box_v, box_u]
         apply_hemispheric_scaling(emission_box, structure, weight)
-        np.clip(emission_box, 0.0, 1.0, out=emission_box)
+        np.maximum(emission_box, 0.0, out=emission_box)
     return AtmosphereLayers(
         disc=out,
         halo=HaloScreen(
@@ -823,8 +822,8 @@ def _add_covered_haze(
 ) -> None:
     """Add haze to the coverage-weighted disc radiance at some pixels, in place.
 
-    Each pixel gains its coverage times the haze and is clipped to between 0 and its
-    coverage, the [0, 1] signal plane for the part of the pixel the body covers.
+    Each pixel gains its coverage times the haze.  The sum is not capped, so bright
+    haze over a bright disc can pass 1.
 
     Parameters:
         out_box: The disc radiance over the haze box, weighted by the coverage.
@@ -832,8 +831,7 @@ def _add_covered_haze(
         pixels: The box pixels that take haze.
         haze: The haze brightness at each of those pixels, in their array order.
     """
-    covered = coverage[pixels]
-    out_box[pixels] = np.clip(out_box[pixels] + covered * haze, 0.0, covered)
+    out_box[pixels] += coverage[pixels] * haze
 
 
 def _column_latitude_sine(

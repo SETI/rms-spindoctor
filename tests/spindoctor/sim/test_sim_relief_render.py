@@ -18,9 +18,12 @@ import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
 from spindoctor.sim.render.bodies import ellipsoid_relief
-from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
+from spindoctor.sim.render.bodies.ellipsoid import (
+    EllipsoidBodySpec,
+    create_ellipsoid_body,
+    render_ellipsoid_body,
+)
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
-from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.shared.ellipsoid import EllipsoidProjection, project_ellipsoid
@@ -28,13 +31,17 @@ from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
 _CORR_DEG = 15.0
+# A pixel counts as lit above this brightness, and as night at or below the second
+# level, which leaves room for a pixel the anti-aliasing shares with the lit side.
+_LIT_LEVEL = 0.002
+_NIGHT_LEVEL = 0.0005
 
 
 def _limb_spec(*, rms: float, seed: int) -> EllipsoidBodySpec:
     """A fully lit sphere shaded flat (Lommel-Seeliger at phase 0).
 
-    The flat disc makes the rendered image a pure silhouette probe: every
-    interior pixel is bright, so the mask boundary is the limb.
+    The limb tests read the render's silhouette, so the boundary they measure is the
+    outline whatever the shading draws next to it.
     """
     return EllipsoidBodySpec(
         semi_a_px=80.0,
@@ -76,10 +83,12 @@ def test_limb_lands_on_the_relief_outline(rms: float) -> None:
     """
     seed = 42
     size = 256
-    img = create_ellipsoid_body(
-        (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=rms, seed=seed)
+    mask = (
+        render_ellipsoid_body(
+            (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=rms, seed=seed)
+        ).silhouette
+        > 0.0
     )
-    mask = img > 0.0
     field = synthesize_relief_field(rms, _CORR_DEG, seed)
 
     n_windows, rays_per_window = 16, 16
@@ -101,10 +110,12 @@ def test_rendered_limb_rms_tracks_the_commanded_value() -> None:
     """The pooled silhouette displacement RMS lands near rms * r_ellipse."""
     seed = 7
     size = 256
-    img = create_ellipsoid_body(
-        (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=_RMS, seed=seed)
+    mask = (
+        render_ellipsoid_body(
+            (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=_RMS, seed=seed)
+        ).silhouette
+        > 0.0
     )
-    mask = img > 0.0
     angles = np.arange(256) * (2.0 * np.pi / 256)
     measured = np.array([_ray_edge_radius(mask, size / 2.0, a) for a in angles])
     commanded_px = _RMS * 80.0
@@ -142,15 +153,15 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     the smooth terminator (the shadowed fraction falls with elevation).
     """
     size = 320
-    smooth = create_ellipsoid_body(
+    smooth = render_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _terminator_spec(rms=0.0)
     )
-    ragged = create_ellipsoid_body(
+    ragged = render_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _terminator_spec(rms=_RMS)
     )
-    both = (smooth > 0.0) & (ragged > 0.0)
-    lit_smooth = both & (smooth > DARK_SIDE_FLOOR * 1.2)
-    dark_ragged = both & (ragged <= DARK_SIDE_FLOOR * 1.05)
+    both = (smooth.silhouette > 0.0) & (ragged.silhouette > 0.0)
+    lit_smooth = both & (smooth.intensity > _LIT_LEVEL)
+    dark_ragged = both & (ragged.intensity <= _NIGHT_LEVEL)
     newly_dark = lit_smooth & dark_ragged
     assert int(newly_dark.sum()) > 50
 
@@ -229,7 +240,7 @@ def test_relief_darkens_no_pixel_above_the_slope_band(seed: int) -> None:
     elevation = _sun_elevation_deg(size, semi_axes=(85.0, 84.0), spec=spec)
     v, u = np.mgrid[0:size, 0:size].astype(float) + 0.5 - size / 2.0
     inner = np.hypot(v / 85.0, u / 84.0) < 0.85
-    newly_dark = inner & (smooth > DARK_SIDE_FLOOR * 1.2) & (ragged <= DARK_SIDE_FLOOR * 1.05)
+    newly_dark = inner & (smooth > _LIT_LEVEL) & (ragged <= _NIGHT_LEVEL)
     assert int(newly_dark.sum()) > 0
     assert float(elevation[newly_dark].max()) <= _band_elevation_deg(_RMS, seed) + 0.5
 
@@ -584,12 +595,14 @@ def test_relief_terrain_is_stable_when_craters_toggle() -> None:
     Toggling craters must not reseed the limb: the silhouette (where only
     relief acts) stays identical while the disc shading changes.
     """
-    with_craters, _ = render_scene(
+    with_craters, with_meta = render_scene(
         _body_scene(oversample=None, body_extra={'limb_relief_rms': 0.02})
     )
     body_extra: dict[str, Any] = {'limb_relief_rms': 0.02, 'crater_fill': 0.0}
-    without_craters, _ = render_scene(_body_scene(oversample=None, body_extra=body_extra))
-    assert np.array_equal(with_craters > 0.0, without_craters > 0.0)
+    without_craters, without_meta = render_scene(
+        _body_scene(oversample=None, body_extra=body_extra)
+    )
+    assert np.array_equal(with_meta['body_mask_map']['B'], without_meta['body_mask_map']['B'])
     assert not np.array_equal(with_craters, without_craters)
 
 

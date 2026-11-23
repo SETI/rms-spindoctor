@@ -34,8 +34,9 @@ pixel-space truth metadata to the detector grid.  A scene with no PSF (no
 at ``oversample`` 1, where the downsample is a no-op.  An explicit ``oversample``
 key sets the factor either way.
 
-The ``signal`` plane carries normalized [0, ~1] intensive scene units through
-the optics stage; the detector stage converts it to electrons through the
+The ``signal`` plane carries normalized intensive scene units through the optics
+stage, where 1 is a white disc lit face-on and a bright law, spot, or haze can carry it
+above 1; the detector stage converts it to electrons through the
 exposure and digitizes it to DN in place (the electron unit chain).  The
 ``point_e`` plane carries the detector-native point sources (stars): electrons
 for a CCD, added into the electron image after the signal conversion and before
@@ -43,6 +44,16 @@ Poisson so they never pass through the intensive scale; DN for the Voyager
 vidicon (which has no electron domain), added onto the converted signal before
 the DN-domain noise.  Both planes share every optical transform (PSF, smear,
 distortion, ghosts), so a star's shape tracks the limb and ring-edge profiles.
+
+A camera's optics spread light from just outside its field of view into the pixels at
+its edge, and spread the light at the edge outward.  The planes therefore cover more
+than the frame: a margin on every side, as wide as the optics stage reaches (see
+:func:`~spindoctor.sim.render.optics.stage.optics_margin_px`).  The radiance stage
+draws the scene across the margin as well as the frame, the optics stage spreads light
+across both, and the downsample stage cuts the frame out before it averages.  A scene
+whose optics spread no light has no margin.  The truth metadata describes the frame
+alone: the radiance stage cuts its per-pixel arrays to the frame and states every
+position in frame pixels.
 """
 
 from collections.abc import Mapping
@@ -53,7 +64,7 @@ import numpy as np
 
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['SimFrame', 'Stage', 'downsample_to_detector', 'new_sim_frame']
+__all__ = ['SimFrame', 'Stage', 'crop_to_frame', 'downsample_to_detector', 'new_sim_frame']
 
 
 @dataclass
@@ -83,6 +94,10 @@ class SimFrame:
             draws each body's limb without anti-aliasing, and the optics stage reads
             it and skips the distortion warp.  Nothing but the editor's preview sets
             it (see :func:`~spindoctor.sim.render.driver.render_scene`).
+        margin: How many render-grid pixels the planes extend past the frame on each
+            side, a whole number of detector pixels (see the module docstring).  The
+            frame's first pixel is plane pixel ``(margin, margin)``.  The downsample
+            stage cuts the frame out and sets it to 0.
     """
 
     signal: NDArrayFloatType
@@ -90,6 +105,22 @@ class SimFrame:
     oversample: int = 1
     truth: dict[str, Any] = field(default_factory=dict)
     preview: bool = False
+    margin: int = 0
+
+    @property
+    def frame_shape(self) -> tuple[int, int]:
+        """The frame's rows and columns on the render grid, without the margin."""
+        size_v, size_u = self.signal.shape
+        return size_v - 2 * self.margin, size_u - 2 * self.margin
+
+    @property
+    def frame_box(self) -> tuple[slice, slice]:
+        """The rows and columns of the planes that hold the frame."""
+        size_v, size_u = self.frame_shape
+        return (
+            slice(self.margin, self.margin + size_v),
+            slice(self.margin, self.margin + size_u),
+        )
 
 
 class Stage(Protocol):
@@ -108,7 +139,12 @@ class Stage(Protocol):
 
 
 def new_sim_frame(
-    size_v: int, size_u: int, *, oversample: int = 1, preview: bool = False
+    size_v: int,
+    size_u: int,
+    *,
+    oversample: int = 1,
+    preview: bool = False,
+    margin_px: int = 0,
 ) -> SimFrame:
     """Allocate a zeroed :class:`SimFrame` for a ``(size_v, size_u)`` detector.
 
@@ -117,17 +153,37 @@ def new_sim_frame(
         size_u: Detector-grid width in pixels.
         oversample: Oversampling factor of the radiance grid.
         preview: Whether the frame is the scene editor's fast preview.
+        margin_px: How many detector pixels the planes extend past the frame on
+            each side.
 
     Returns:
         A frame with zeroed ``signal`` and ``point_e`` planes.
     """
-    shape = (size_v * oversample, size_u * oversample)
+    margin = int(margin_px) * oversample
+    shape = (size_v * oversample + 2 * margin, size_u * oversample + 2 * margin)
     return SimFrame(
         signal=np.zeros(shape, dtype=np.float64),
         point_e=np.zeros(shape, dtype=np.float64),
         oversample=oversample,
         preview=preview,
+        margin=margin,
     )
+
+
+def crop_to_frame(frame: SimFrame) -> None:
+    """Cut the frame out of the planes, dropping the margin, in place.
+
+    A frame without a margin is left as it is.
+
+    Parameters:
+        frame: The frame whose planes are cut.
+    """
+    if frame.margin == 0:
+        return
+    box = frame.frame_box
+    frame.signal = np.ascontiguousarray(frame.signal[box])
+    frame.point_e = np.ascontiguousarray(frame.point_e[box])
+    frame.margin = 0
 
 
 # Truth-metadata keys carrying a per-pixel array on the render grid.  The
@@ -226,15 +282,17 @@ def _covering_index_map(index_map: Any, os: int) -> Any:
 
 
 def downsample_to_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
-    """Box-downsample the oversampled planes to the detector grid.
+    """Cut the frame out of the planes, then box-downsample it to the detector grid.
 
-    The box filter is a mean over the ``os**2`` subsamples, so the intensive
-    ``signal`` passes through unchanged in level.  The pixel-space truth
+    The margin the planes carry past the frame (see :class:`SimFrame`) is dropped
+    first, so only the frame reaches the detector.  The box filter is a mean over
+    the ``os**2`` subsamples, so the intensive ``signal`` passes through unchanged
+    in level.  The pixel-space truth
     metadata (body/ring masks, the body index map, inventory bounding boxes,
     and star hit-test records) is returned to the detector grid alongside the
     image: classifying arrays are reduced by coverage (see
     :func:`_covering_mask` and :func:`_covering_index_map`), and pixel-unit
-    scalars are divided by ``os``.  At ``oversample == 1`` this stage is a
+    scalars are divided by ``os``.  At ``oversample == 1`` the downsample is a
     no-op.
 
     Parameters:
@@ -243,6 +301,7 @@ def downsample_to_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             is accepted because every stage takes the same arguments.
     """
     del params
+    crop_to_frame(frame)
     os = frame.oversample
     if os == 1:
         return

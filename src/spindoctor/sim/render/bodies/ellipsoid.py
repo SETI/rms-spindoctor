@@ -190,8 +190,9 @@ class EllipsoidBodyRender:
     """One ellipsoid body render: its radiance and its solid silhouette.
 
     Parameters:
-        intensity: The intensity image in [0, 1], 0 outside the body.  A
-            surface stage can also leave a pixel inside the body at 0, such
+        intensity: The intensity image, 0 outside the body and on its night side.
+            A limb-brightened law or a bright albedo spot can carry it above 1.
+            A surface stage can also leave a lit pixel inside the body at 0, such
             as a transit's full umbra.
         silhouette: The fraction of each pixel the body's solid outline
             covers, in [0, 1], independent of how bright the pixel renders.
@@ -228,8 +229,8 @@ def create_ellipsoid_body(
         spec: The body's geometry, texture, relief, and photometry.
 
     Returns:
-        The ``size`` intensity image in [0, 1] (0 outside the body); the
-        intensity of :func:`render_ellipsoid_body`.
+        The ``size`` intensity image (0 outside the body); the intensity of
+        :func:`render_ellipsoid_body`.
 
     Raises:
         ValueError: If the frame size is not divisible by the oversample, or if the
@@ -248,8 +249,8 @@ def render_ellipsoid_body(
     """Render one ellipsoid body and its solid silhouette.
 
     The silhouette is the relief-perturbed outline's pixel coverage, taken
-    before any shading, so a pixel that renders black inside the body (a
-    transit umbra, a zero-albedo spot) still belongs to it.
+    before any shading, so a pixel that renders black inside the body (the night
+    side, a transit umbra, or a zero-albedo spot) still belongs to it.
 
     Parameters:
         size: Frame dimensions (rows, columns) on the incoming render grid.
@@ -344,7 +345,7 @@ def render_ellipsoid_body(
             axis=(1, 3)
         )
         mask = mask.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-    return EllipsoidBodyRender(intensity=np.clip(intensity_work, 0.0, 1.0), silhouette=mask)
+    return EllipsoidBodyRender(intensity=intensity_work, silhouette=mask)
 
 
 def _lays_detail_on_detector_grid(spec: EllipsoidBodySpec, field: ReliefField | None) -> bool:
@@ -405,12 +406,11 @@ def _apply_law(
     """Shade incidence cosines under the spec's photometric law and surge.
 
     The clamped-depth parametrization has no far hemisphere, and relief normals
-    face the observer or lie in the sky plane (``normal_z >= 0`` everywhere; night
-    still floors through ``mu0 <= 0``), so the emission cosine is kept strictly
-    positive: the
-    visibility gate must not zero a relief normal that lies in the sky plane.  A
-    smooth body's normals lie in the sky plane only on and past its limb, which
-    its silhouette leaves out, so the clamp lights none of its pixels.
+    face the observer or lie in the sky plane (``normal_z >= 0`` everywhere; night is
+    still black through ``mu0 <= 0``), so the emission cosine is kept strictly
+    positive: the visibility gate must not zero a relief normal that lies in the
+    sky plane.  A smooth body's normals lie in the sky plane only on and past its
+    limb, which its silhouette leaves out, so the clamp lights none of its pixels.
 
     Parameters:
         cos_i: Incidence cosine per pixel (negative on the night side).
@@ -486,8 +486,8 @@ def _shade_disc(
         phase_angle=spec.phase_angle,
     )
     if shadowed is not None:
-        # A cast shadow is night: the law floors it like the far side of the
-        # terminator.
+        # A cast shadow is night: the law renders it black like the far side of
+        # the terminator.
         cos_i = np.where(shadowed, -1.0, cos_i)
     intensity = _apply_law(cos_i, normal_z, spec)
     factor = _texture_factor(grid, spec, scale=scale)
@@ -655,7 +655,7 @@ def _apply_surface_textures(
     """
     if factor is None and not spec.transits:
         return intensity
-    textured = intensity if factor is None else np.clip(intensity * factor, 0.0, 1.0)
+    textured = intensity if factor is None else intensity * factor
     if spec.transits:
         if textured is intensity:
             textured = intensity.copy()

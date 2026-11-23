@@ -9,7 +9,7 @@ exposure_sec: 1.0
 # The navigator's disc template always shades Lambert, and Minnaert at k = 1 is
 # exactly Lambert (I = mu0), so this base value is the self-consistency floor.
 # A sweep that walks ``bodies.0.minnaert_k`` down from 1.0 renders a limb-
-# darkened disc the Lambert template does not predict, growing a controlled
+# brightened disc the Lambert template does not predict, growing a controlled
 # photometric mismatch.  The navigator-matched PSF keeps the body edge free of a
 # hidden PSF mismatch at the floor.
 optics:

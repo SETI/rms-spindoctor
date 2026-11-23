@@ -1,8 +1,8 @@
 {
-  "confidence": 0.7715818343460583,
+  "confidence": 0.7545045464546696,
   "confidence_rank": "medium",
-  "offset_du_px": -1.5,
-  "offset_dv_px": 1.5546875000000002,
+  "offset_du_px": -1.5000000000000002,
+  "offset_dv_px": 1.4999999999999998,
   "scene_name": "relief_psf_stray_light",
   "status": "success"
 }

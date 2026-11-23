@@ -15,7 +15,7 @@ Qt runs headless (offscreen platform).
 
 import copy
 import os
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -26,15 +26,6 @@ try:
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
-        allow_module_level=True,
-    )
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
         allow_module_level=True,
     )
 
@@ -84,17 +75,14 @@ _EMPTY_FRAME_BLOCKS: dict[str, Any] = {
 
 
 @pytest.fixture
-def qapp(monkeypatch: pytest.MonkeyPatch) -> QApplication:
+def qapp(qapp: QApplication, monkeypatch: pytest.MonkeyPatch) -> QApplication:
     """Return the shared headless Qt application, with error dialogs patched to raise."""
 
     def _raise(*args: Any, **kwargs: Any) -> None:
         raise AssertionError(f'error dialog raised: {args!r}')
 
     monkeypatch.setattr(QMessageBox, 'critical', staticmethod(_raise))
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
+    return qapp
 
 
 def test_body_without_name_or_center_shows_the_renderers(qapp: QApplication) -> None:
