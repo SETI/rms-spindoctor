@@ -149,3 +149,19 @@ def test_a_calibrated_product_keeps_the_enhanced_columns() -> None:
     step_if = 1.0 / (dp.calibration_scale_dn_per_s_per_if * 0.1)
     excess = float(img[-1, enhanced].mean() - img[-1, plain].mean())
     assert excess == pytest.approx(600.0 / dp.gain_e_per_dn * step_if, rel=0.05)
+
+
+def test_the_readout_dark_carries_shot_noise() -> None:
+    """The readout dark joins the charge before the shot noise, so its last line is noisy.
+
+    The last line collects 90,000 e-, whose shot noise is 300 e-, or 10 DN at the NAC's
+    gain of 30 e- per DN.
+    """
+    scene = _readout_scene(
+        'coiss_nac',
+        {'amplitude': 9.0e4},
+        noise={**quiet_noise(), 'poisson': True},
+        detector={'quantization': 'exact'},
+    )
+    img, _ = render_scene(scene)
+    assert float(img[-1].std()) == pytest.approx(10.0, rel=0.3)
