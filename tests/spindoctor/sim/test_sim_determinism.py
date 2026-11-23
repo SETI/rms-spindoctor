@@ -305,7 +305,7 @@ def _camera_scene(**extra: Any) -> dict[str, Any]:
                 'dust_donut_count': 2,
                 'jail_bar_dn': 2.0,
             },
-            'readout_dark': {'probability': 1.0, 'amplitude_e': 200.0, 'rbi_column_factor': 0.5},
+            'readout_dark': {'probability': 1.0, 'amplitude': 200.0, 'rbi_column_factor': 0.5},
         },
         **extra,
     )

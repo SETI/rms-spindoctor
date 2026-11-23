@@ -1,7 +1,7 @@
 """The dark signal: the dark current and the readout dark.
 
 The dark current builds up over the exposure, the same on every line.  The
-``readout_dark`` mode's ``amplitude_e`` is the charge a native pixel of the last line
+``readout_dark`` mode's ``amplitude`` is the charge a native pixel of the last line
 collects, growing from 0 at the first line, whatever the exposure.  It is added before
 the shot noise, a binned pixel sums its native pixels' share, and a calibrated CCD
 product subtracts it again, as a real pipeline's dark model does.
@@ -40,7 +40,7 @@ def test_dark_current_disabled_at_zero_rate() -> None:
 
 def test_readout_dark_grows_with_line_number() -> None:
     """The profile is zero at the first line and the amplitude at the last."""
-    profile = readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=1.0, binning=1)
+    profile = readout_dark_profile(_SIZE, amplitude=100.0, nonlinear=1.0, binning=1)
     assert profile[0] == 0.0
     assert profile[-1] == pytest.approx(100.0)
     assert profile[_SIZE // 2] == pytest.approx(100.0 * (_SIZE // 2) / (_SIZE - 1))
@@ -48,8 +48,8 @@ def test_readout_dark_grows_with_line_number() -> None:
 
 def test_a_nonlinear_readout_dark_grows_late() -> None:
     """An exponent above 1 holds the profile below the linear one between the ends."""
-    linear = readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=1.0, binning=1)
-    bent = readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=2.0, binning=1)
+    linear = readout_dark_profile(_SIZE, amplitude=100.0, nonlinear=1.0, binning=1)
+    bent = readout_dark_profile(_SIZE, amplitude=100.0, nonlinear=2.0, binning=1)
     assert np.all(bent[1:-1] < linear[1:-1])
 
 
@@ -58,7 +58,7 @@ def test_readout_dark_enhances_the_rbi_columns() -> None:
     plane = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     add_readout_dark(
         plane,
-        readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=1.0, binning=1),
+        readout_dark_profile(_SIZE, amplitude=100.0, nonlinear=1.0, binning=1),
         rbi_column_factor=0.5,
         rbi_columns=np.array([10, 20], dtype=np.int64),
     )
@@ -71,7 +71,7 @@ def test_readout_dark_disabled_at_zero_amplitude() -> None:
     plane = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     record = add_readout_dark(
         plane,
-        readout_dark_profile(_SIZE, amplitude_e=0.0, nonlinear=1.0, binning=1),
+        readout_dark_profile(_SIZE, amplitude=0.0, nonlinear=1.0, binning=1),
         rbi_column_factor=0.5,
         rbi_columns=np.array([10], dtype=np.int64),
     )
@@ -95,8 +95,8 @@ def _readout_scene(instrument: str, readout_dark: dict[str, Any], **extra: Any) 
 
 @pytest.mark.parametrize('exposure_sec', [0.01, 10.0], ids=['short', 'long'])
 def test_a_raw_frame_ramps_from_zero_to_the_readout_dark(exposure_sec: float) -> None:
-    """Row means rise linearly to amplitude_e / gain at the last line, at any exposure."""
-    scene = _readout_scene('coiss_nac', {'amplitude_e': 300.0}, exposure_sec=exposure_sec)
+    """Row means rise linearly to amplitude / gain at the last line, at any exposure."""
+    scene = _readout_scene('coiss_nac', {'amplitude': 300.0}, exposure_sec=exposure_sec)
     img, _ = render_scene(scene)
     gain = resolve_detector_params(scene).gain_e_per_dn
     expected = 300.0 / gain * np.linspace(0.0, 1.0, 128)
@@ -106,9 +106,9 @@ def test_a_raw_frame_ramps_from_zero_to_the_readout_dark(exposure_sec: float) ->
 def test_a_binned_pixel_sums_its_native_pixels_readout_dark() -> None:
     """A SUM2 pixel holds four native pixels' readout dark."""
     _img, truth = render_scene(
-        _readout_scene('coiss_nac', {'amplitude_e': 50.0}, detector={'binning': 2})
+        _readout_scene('coiss_nac', {'amplitude': 50.0}, detector={'binning': 2})
     )
-    assert truth['artifacts']['readout_dark']['peak_e'] == pytest.approx(200.0)
+    assert truth['artifacts']['readout_dark']['peak'] == pytest.approx(200.0)
 
 
 def test_the_instrument_defaults_supply_the_measured_readout_dark() -> None:
@@ -116,12 +116,12 @@ def test_the_instrument_defaults_supply_the_measured_readout_dark() -> None:
     dp = resolve_detector_params(
         frame_scene(instrument='coiss_nac', artifacts={'instrument_defaults': True})
     )
-    assert dp.detector_modes['readout_dark']['amplitude_e'] == 55.0
+    assert dp.detector_modes['readout_dark']['amplitude'] == 55.0
 
 
 def test_a_calibrated_vidicon_frame_keeps_its_readout_dark() -> None:
     """The vidicon's readout dark is what its calibrated product keeps."""
-    scene = _readout_scene('vgiss', {'amplitude_e': 40.0}, detector={'quantization': 'exact'})
+    scene = _readout_scene('vgiss', {'amplitude': 40.0}, detector={'quantization': 'exact'})
     img, _ = render_scene(scene)
     dp = resolve_detector_params(scene)
     rise_if = 40.0 / (dp.calibration_scale_dn_per_s_per_if * 0.1)
@@ -130,7 +130,7 @@ def test_a_calibrated_vidicon_frame_keeps_its_readout_dark() -> None:
 
 def test_a_calibrated_product_removes_the_readout_dark() -> None:
     """The calibration inverse subtracts the ramp, leaving a flat calibrated sky."""
-    scene = _readout_scene('coiss_calib_nac', {'amplitude_e': 300.0})
+    scene = _readout_scene('coiss_calib_nac', {'amplitude': 300.0})
     img, _ = render_scene(scene)
     row_means = img.mean(axis=1)
     # One DN at this exposure bounds the rounding of the ramp before it is removed.
@@ -141,7 +141,7 @@ def test_a_calibrated_product_removes_the_readout_dark() -> None:
 
 def test_a_calibrated_product_keeps_the_enhanced_columns() -> None:
     """The pipeline's dark model is per line, so the enhanced columns stay in the product."""
-    scene = _readout_scene('coiss_calib_nac', {'amplitude_e': 600.0, 'rbi_column_factor': 1.0})
+    scene = _readout_scene('coiss_calib_nac', {'amplitude': 600.0, 'rbi_column_factor': 1.0})
     img, truth = render_scene(scene)
     enhanced = truth['artifacts']['readout_dark']['enhanced_columns']
     plain = [u for u in range(64) if u not in enhanced]

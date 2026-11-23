@@ -997,7 +997,7 @@ intensive signal passes through the electron unit chain in
    The shutter shading and the fixed-pattern response scale this light.
 3. **Dark signal, then Poisson.** The dark current accumulates over the exposure, the same
    on every line. The readout dark is the charge each line collects while it waits to be
-   read: 0 at the first line, rising to the mode's ``amplitude_e`` at the last, whatever
+   read: 0 at the first line, rising to the mode's ``amplitude`` at the last, whatever
    the exposure. The amplitude is stated per native pixel, so a binned pixel sums its
    native pixels' share. Both are added before the shot term, so the shot noise grows with
    the dark signal. A calibrated CCD product subtracts the dark current and the readout
@@ -1209,8 +1209,11 @@ The Cassini cameras' table and its measurement are on the Cassini page
 is not photon-noise dominated, so it skips the electron conversion: the signal
 maps straight to the 8-bit DN full scale and the noise is applied in DN -- a
 line-correlated read-noise term (a per-line offset plus a within-line white
-component) and the banding -- then 8-bit quantization. On this chain the banding's
-``amplitude`` and the readout dark's ``amplitude_e`` are in DN.
+component) and the banding -- then 8-bit quantization. The ``amplitude`` of the
+``banding`` and ``readout_dark`` modes is in the units of the chain that draws them:
+electrons on the CCD chain and DN on this one. A ``vgiss`` scene that renders through
+the CCD chain reads the camera's values as electrons at a gain of 1 e- per DN, so it
+draws the same 0.25 DN bands and 6 DN readout dark.
 
 Cosmic rays work on the vidicon through the CCD's stage: the event count is a Poisson draw
 with mean ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count, with

@@ -213,7 +213,7 @@ coiss_nac:
       # to 2.6 s, so it accumulates during the readout, not the exposure.
       # CISSCAL's dark model subtracts it from the CALIB product; its shot noise
       # stays.
-      readout_dark: {amplitude_e: 55.0}
+      readout_dark: {amplitude: 55.0}
       # Estimated (no antiblooming; column bleed above the well).
       bloom: {bloom_length: 4}
       # Anti-blooming vertical 2-px pairs in unsummed long exposures.
@@ -370,7 +370,7 @@ coiss_wac:
       # Measured 2026-11-06 on one 12-bit full-frame WAC star field (the other
       # 12-bit full frames carry scene light down the frame): the dark sky rises
       # 1.2 DN, 33 e-, from the first line to the last.
-      readout_dark: {amplitude_e: 33.0}
+      readout_dark: {amplitude: 33.0}
       bloom: {bloom_length: 4}
       bright_dark_pairs: {amplitude_e: 3.5e+3}
       radiation_transients: {amplitude_e: 3.5e+4}

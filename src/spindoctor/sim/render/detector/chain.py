@@ -291,7 +291,7 @@ def _readout_dark_profile(size_v: int, dp: DetectorParams) -> NDArrayFloatType:
         return np.zeros(size_v, dtype=np.float64)
     return readout_dark_profile(
         size_v,
-        amplitude_e=float(cfg['amplitude_e'] or 0.0),
+        amplitude=float(cfg['amplitude'] or 0.0),
         nonlinear=float(cfg['nonlinear']),
         binning=dp.binning,
     )

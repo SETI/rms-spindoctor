@@ -41,7 +41,7 @@ def add_dark_current(
 
 
 def readout_dark_profile(
-    size_v: int, *, amplitude_e: float, nonlinear: float, binning: int
+    size_v: int, *, amplitude: float, nonlinear: float, binning: int
 ) -> NDArrayFloatType:
     """The dark charge each line collects while it waits its turn to be read.
 
@@ -50,19 +50,19 @@ def readout_dark_profile(
 
     Parameters:
         size_v: The frame's line count.
-        amplitude_e: The charge a native pixel of the last line collects, in the
+        amplitude: The charge a native pixel of the last line collects, in the
             image's units.
         nonlinear: The exponent of the growth with line number; 1 is linear.
         binning: The readout mode's binning factor ``b``; a frame pixel sums the
             charge of ``b**2`` native pixels.
 
     Returns:
-        The per-line charge of a frame pixel, zeros when ``amplitude_e`` is 0.
+        The per-line charge of a frame pixel, zeros when ``amplitude`` is 0.
     """
-    if amplitude_e <= 0.0:
+    if amplitude <= 0.0:
         return np.zeros(size_v, dtype=np.float64)
     exponent = nonlinear if nonlinear > 0.0 else 1.0
-    result: NDArrayFloatType = amplitude_e * binning**2 * np.linspace(0.0, 1.0, size_v) ** exponent
+    result: NDArrayFloatType = amplitude * binning**2 * np.linspace(0.0, 1.0, size_v) ** exponent
     return result
 
 
@@ -98,4 +98,4 @@ def add_readout_dark(
         cols = np.unique(rbi_columns)
         plane[:, cols] += (rbi_column_factor * profile)[:, None]
         enhanced = [int(c) for c in cols]
-    return {'active': True, 'peak_e': peak, 'enhanced_columns': enhanced}
+    return {'active': True, 'peak': peak, 'enhanced_columns': enhanced}

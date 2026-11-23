@@ -557,7 +557,7 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     ),
     _detector_mode(
         'readout_dark',
-        ModeParam('amplitude_e', NonNeg, None),
+        ModeParam('amplitude', NonNeg, None),
         ModeParam('nonlinear', NonNeg, 1.0),
         ModeParam('rbi_column_factor', Unit, 0.0),
         activation=PROBABILITY,
