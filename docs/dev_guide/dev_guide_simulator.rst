@@ -312,7 +312,8 @@ applies where. The *channel* is structural:
   of the scene's ``noise`` block, so a scene that plants noise different from
   the published values gets a detection limit that does not match the scene's
   noise. The saturation ceiling works the same way: ``detector.saturation_dn`` clips
-  the image, and the navigator masks at its own block's ``noise.saturation_dn``. That
+  the image, and on a raw-DN camera the navigator masks at its own block's
+  ``noise.saturation_dn`` (a calibrated camera has no saturation mask). That
   is planted model error, exactly what such a scene is for. On a
   binned frame the limit reads the zero point and the read noise from that
   block's ``noise.by_binning`` entry for the frame's binning, which holds the
@@ -4518,8 +4519,9 @@ instrument entry. An omitted key keeps the instrument's own value.
    * - ``saturation_dn``
      - float
      - The ADC ceiling. The detector clips every pixel at it, and the wrong values that
-       garble and spikes write stay within it. The navigator still masks at its own
-       block's ``noise.saturation_dn``.
+       garble and spikes write stay within it. On a raw-DN camera the navigator still
+       masks at its own block's ``noise.saturation_dn``; a calibrated camera has no
+       saturation mask.
    * - ``full_well_dn``
      - float
      - The full well of a native pixel, in DN. The CCD chain converts it to electrons
