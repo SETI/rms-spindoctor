@@ -1680,9 +1680,10 @@ The keys of an entry, all directly under the instrument's top-level key:
        ``polarizer_clear`` (the clear element each polarizer folds onto).
    * - ``realism_cohort``
      - no
-     - The image library's ``{mission, camera}`` pairs whose frames the realism
-       match compares against this instrument. Not passed on to an entry that
-       sets this one as its ``base``.
+     - The image library's ``{mission, camera}`` pairs, with an optional
+       ``spacecraft``, whose frames the realism match compares against this
+       instrument. A sidecar's ``spacecraft`` must equal the entry's when the entry
+       states one. Not passed on to an entry that sets this one as its ``base``.
 
 Write a number so YAML reads it as one: ``1.0e+7`` and ``1.0e7`` are numbers,
 but ``.5e3`` is a string, which the loader refuses.

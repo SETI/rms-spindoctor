@@ -2,6 +2,7 @@ schema_version: 1
 image_id: C3446143_GEOMED
 mission: VGISS
 camera: WA
+spacecraft: VG1
 filter_combo: UNKNOWN
 image_url: pds3://volumes/VGISS_6xxx/VGISS_6108/DATA/C34461XX/C3446143_GEOMED.IMG
 scene_tags:

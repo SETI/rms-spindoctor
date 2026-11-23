@@ -416,11 +416,11 @@ model does not gain them.
 
 | Issue | Subject |
 |---|---|
-| #806, per-camera values | One `vgiss` key for four cameras; the split of the entry and the scene value is Phase 2a; this part gives each camera its own values. Operator ruling 2026-11-23: optical values (PSF, distortion, plate scale, star zero point, vidicon values) are per camera and never shared or inherited, because each vidicon and telescope is unique; PR #1118 states every value in each entry, with the same numbers until a camera is measured. Rotation is grouped by spacecraft |
-| #907 | GEOMED plate scale, beam-bend sign, reseau lattice, and a fixed DN scale with no exposure term |
+| #806, per-camera values | One `vgiss` key for four cameras; the split of the entry and the scene value is Phase 2a; this part gives each camera its own values. Operator ruling 2026-11-23: optical values (PSF, distortion, plate scale, star zero point, vidicon values) are per camera and never shared or inherited, because each vidicon and telescope is unique; PR #1118 states every value in each entry, with the same numbers until a camera is measured. Operator ruling, second part: every analysis (realism, field-of-view distortion, rotation) is per camera; the realism cohort of each entry holds only its own camera's frames, and a sidecar gives its spacecraft |
+| #907 | GEOMED plate scale, beam-bend sign, reseau lattice, and a fixed DN scale with no exposure term; each is measured and stated per camera |
 | #804 | Noise keys inert on the vidicon and on calibrated frames |
 | #935 | The vidicon chain renders no fixed-pattern structure, so `vgiss` does not offer `fixed_pattern`; measure the residual pattern on calibrated frames before adding a stage |
-| #355 | Distortion per camera and twist per spacecraft once the split keys exist: distortion and the other optical values are per camera, and twist (rotation) is per spacecraft, shared by the two cameras on it (deferred until star navigation locks enough frames per camera) |
+| #355 | Distortion and twist per camera once the split keys exist: distortion, twist (rotation), and every other analysis are measured per camera (deferred until star navigation locks enough frames per camera) |
 
 **4f. Filters beyond Cassini throughput:**
 

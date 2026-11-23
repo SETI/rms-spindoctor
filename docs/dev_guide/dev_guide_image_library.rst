@@ -89,6 +89,10 @@ Sidecar schema (schema_version 1)
      techniques_must_run: [BodyLimbNav]
      techniques_must_skip: [StarFieldFromCatalogNav]
 
+A sidecar for a Voyager frame may also carry ``spacecraft: VG1`` or ``spacecraft: VG2``
+beside ``camera``. The realism match uses it to pair the frame with the simulator entry
+of its own camera. The other missions omit it.
+
 The full validator lives in :mod:`tests.integration.sidecar`; malformed
 fields raise :class:`~tests.integration.sidecar.SidecarValidationError`
 at collection time.

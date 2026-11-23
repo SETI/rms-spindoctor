@@ -373,13 +373,15 @@ comment beside each says where the number comes from and that it is not yet
 measured for that camera. The values that do not describe a camera's optics (the
 data units, the navigator link, the readout modes, and the artifact-mode
 availability) are repeated in each entry as well, because a shared parent would
-have to be one of the cameras. Rotation is grouped by spacecraft, since the twist
-belongs to the scan platform that carries both cameras. No simulator entry holds a
-rotation value today. All four emulate the one ``voyager_iss``
+have to be one of the cameras. Every analysis is per camera too: the realism match,
+the field-of-view distortion, and the rotation each use one camera's frames. No
+simulator entry holds a rotation value today. All four emulate the one ``voyager_iss``
 section of the navigator configuration. The realism match pairs the image
-library's Voyager frames with ``vgiss_1_wac`` alone. A library sidecar records the
-mission and the camera but not the spacecraft, and the match compares the three
-frames as one group. The entry states ``data_units: calibrated_if``, the units of the
+library's two Voyager 1 wide angle frames with ``vgiss_1_wac`` and its one Voyager 2
+narrow angle frame with ``vgiss_2_nac``; the other two entries have no frame in the
+library. A library sidecar for a Voyager frame gives its spacecraft (``VG1`` or
+``VG2``) beside the mission and the camera, so the match can tell the four cameras
+apart. The entry states ``data_units: calibrated_if``, the units of the
 GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,

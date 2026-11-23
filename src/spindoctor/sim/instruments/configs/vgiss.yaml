@@ -5,9 +5,9 @@
 # detector values are never shared between cameras, even where the number is the
 # same today.  Where a comment says "the camera model", the value is a
 # placeholder that stands for the camera until a measurement for that camera
-# exists.  Rotation is a different matter: the twist belongs to the spacecraft's
-# scan platform, so a rotation test groups the two cameras of one spacecraft.  No
-# entry holds a rotation value today.
+# exists.  Every analysis of the cameras is per camera as well: the realism match,
+# the FOV distortion, and the rotation each use one camera's frames.  No entry holds
+# a rotation value today.
 #
 # A value marked "published" comes from Benesh and Jepsen 1978 (Voyager
 # Imaging Science Subsystem Calibration Report, JPL 618-802), the PDS
@@ -193,14 +193,12 @@ vgiss_1_nac:
 
 # Voyager 1 wide-angle camera.
 vgiss_1_wac:
-
-  # The image library's GEOMED frames from both cameras (two Voyager 1 wide-angle
-  # frames and one Voyager 2 narrow-angle frame) are matched against this entry by
-  # the realism match, because a library sidecar names the mission and camera but
-  # not the spacecraft, and the match compares the three frames as one group.
+  # The realism match compares the image library's two Voyager 1 wide-angle GEOMED
+  # frames against this entry, and no frame of another camera.  A library sidecar
+  # gives the spacecraft as well as the mission and camera for this reason.
   realism_cohort:
-    - {mission: VGISS, camera: NA}
-    - {mission: VGISS, camera: WA}
+    - {mission: VGISS, spacecraft: VG1, camera: WA}
+
   # A GEOMED product is in I/F, which is what the navigator block below expects.
   # The units belong to the product and not to the optics, so all four entries
   # state the same value.
@@ -367,6 +365,11 @@ vgiss_1_wac:
 
 # Voyager 2 narrow-angle camera.
 vgiss_2_nac:
+  # The realism match compares the image library's one Voyager 2 narrow-angle GEOMED
+  # frame against this entry, and no frame of another camera.
+  realism_cohort:
+    - {mission: VGISS, spacecraft: VG2, camera: NA}
+
   # A GEOMED product is in I/F, which is what the navigator block below expects.
   # The units belong to the product and not to the optics, so all four entries
   # state the same value.

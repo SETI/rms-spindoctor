@@ -639,7 +639,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': _cam(_CAMERA + 'realism_cohort:\n  - {mission: COISS, camera: NAC}\n')},
-        r"^coiss\.yaml: coiss_calib_nac: realism_cohort\[0\]: \('COISS', 'NAC'\) is already "
+        r"^coiss\.yaml: coiss_calib_nac: realism_cohort\[0\]: \('COISS', None, 'NAC'\) is already "
         r'claimed by cam\.yaml: cam \(realism_cohort\[0\]\)',
         'realism-cohort-claimed-twice',
     ),
