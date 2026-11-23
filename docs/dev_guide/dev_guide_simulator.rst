@@ -2131,11 +2131,12 @@ the body, so a body thousands of pixels across costs about as much as one that f
 the frame. Either way, the body is drawn at the frame center and then moved.
 
 The result matches what the same part of a frame large enough to hold the whole body
-would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. There are
-three small exceptions. A mesh body at its default pose differs by up to 0.03 of full
-brightness, because the mesh rasterizer gives slightly different pixels on frames of
-different sizes. A body with limb relief at an oversampling factor above 1
-differs by about 1e-6 of full brightness, from the ends of the spline. A cratered body
+would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. The mesh
+renderer measures each face and each pixel center from the pixel corner at the
+body's center, or just before it, so the size of the canvas cannot change which
+pixels a face covers. There are two small exceptions. A body with limb relief at an
+oversampling factor above 1 differs by about 1e-6 of full brightness, from the ends
+of the spline. A cratered body
 has its craters laid out on a grid that holds the whole body, so they stay in the
 same places on its surface whichever part of it is drawn; a larger frame would lay
 them out differently.
