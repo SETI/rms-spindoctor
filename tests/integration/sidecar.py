@@ -259,7 +259,9 @@ def _validate_sidecar(raw: dict[str, Any], *, path: Path) -> Sidecar:
     mission = _require_enum(raw, 'mission', ALLOWED_MISSIONS, path=path)
     camera = _require_enum(raw, 'camera', ALLOWED_CAMERAS, path=path)
     spacecraft = raw.get('spacecraft')
-    if spacecraft is not None and spacecraft not in ALLOWED_SPACECRAFT:
+    if spacecraft is not None and (
+        not isinstance(spacecraft, str) or spacecraft not in ALLOWED_SPACECRAFT
+    ):
         raise SidecarValidationError(
             f'{path}: spacecraft must be one of {sorted(ALLOWED_SPACECRAFT)} when present, '
             f'got {spacecraft!r}'
