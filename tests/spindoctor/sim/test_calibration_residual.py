@@ -12,10 +12,9 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene
+from tests.spindoctor.sim.scenes import frame_scene, zero_bias
 
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
-from spindoctor.sim.render.detector.noise_stages import detector_column_map
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
@@ -25,8 +24,9 @@ _SIZE = 256
 
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
-    """A dark-sky scene on ``instrument`` with ``noise``."""
+    """A dark-sky scene on ``instrument`` with ``noise`` and no bias."""
     scene = frame_scene(instrument=instrument, size=_SIZE, seed=11, exposure_sec=0.1, noise=noise)
+    scene['detector'] = {**zero_bias(), **extra.pop('detector', {})}
     scene.update(extra)
     return scene
 
@@ -36,7 +36,6 @@ def _residual_only(column_e: float, pixel_e: float) -> dict[str, Any]:
     return {
         'poisson': False,
         'read_noise_dn': 0.0,
-        'bias_dn': 0.0,
         'calibration_column_residual_e': column_e,
         'calibration_pixel_residual_e': pixel_e,
     }
@@ -49,35 +48,6 @@ def _electrons(scene: dict[str, Any]) -> np.ndarray:
     cal = calibration_map(dp)
     assert cal is not None
     return np.asarray(img - cal.sky_if) * cal.dn_per_if * dp.gain_e_per_dn
-
-
-# ---- The column map ----
-
-
-def test_the_column_map_is_standard_normal() -> None:
-    """Over many columns the map has mean 0 and sigma 1."""
-    values = detector_column_map(200_000, effect='calibration_columns', detector_id='coiss_nac')
-    assert float(values.mean()) == pytest.approx(0.0, abs=0.01)
-    assert float(values.std()) == pytest.approx(1.0, abs=0.01)
-
-
-def test_the_column_map_keys_each_column_on_the_detector_alone() -> None:
-    """A narrower frame sees the first columns of the same map."""
-    wide = detector_column_map(512, effect='calibration_columns', detector_id='coiss_nac')
-    narrow = detector_column_map(128, effect='calibration_columns', detector_id='coiss_nac')
-    assert np.array_equal(wide[:128], narrow)
-
-
-@pytest.mark.parametrize(
-    ('effect', 'detector_id'),
-    [('calibration_columns', 'coiss_wac'), ('other_effect', 'coiss_nac')],
-    ids=['other-detector', 'other-effect'],
-)
-def test_another_detector_or_effect_draws_another_map(effect: str, detector_id: str) -> None:
-    """The map is keyed on both the effect and the detector."""
-    base = detector_column_map(4096, effect='calibration_columns', detector_id='coiss_nac')
-    other = detector_column_map(4096, effect=effect, detector_id=detector_id)
-    assert abs(float(np.corrcoef(base, other)[0, 1])) < 0.05
 
 
 # ---- The residual's amplitude ----

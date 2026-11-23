@@ -127,8 +127,8 @@ table. ``extfov_margin_vu`` is a bare ``[350, 350]`` rather than a size-keyed
 table.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
-``noisy_threshold_dn`` and the ``mag_offset_table`` entry. Only
+``read_noise_dn``, ``blank_max_dn``,
+``noisy_threshold_dn``, and the ``mag_offset_table`` entry. Only
 ``saturation_dn`` and ``saturation_threshold_dn`` (255, the 8-bit ADC ceiling)
 and ``marker_value`` are hard facts. The ``_sources`` convention is not used in
 this file.
@@ -285,7 +285,14 @@ carry valid data on every 2nd or every 4th line only. ``missing_blocks``
 defaults to 8-line blocks, the height of a lost compression slice, and
 ``truth_window`` to a 96-pixel square, the losslessly coded window. The entry
 states no band width for ``edited_frame``, so that mode takes the registry's
-generic fallback. The entry states no exclusion reason.
+generic fallback. ``instrument_defaults`` turns on ``hot_pixels``, ``banding``,
+``bias_structure``, and ``bloom``. The banding is the published supply noise, vertical
+bands of 65 e- every 42 pixels; a high-gain scene adds the camera's horizontal
+component with ``orientation: both``. The published shutter values are an exposure
+offset, the extra time the shutter adds to each line: 1.5 ms at the first line and
+1.05 ms at the last. The ``shutter_shading`` shape defaults hold those two numbers, and
+the mode scales the light by their ratio, so the last line gets 0.70 of the first
+line's light at every exposure. The entry doesn't state an exclusion reason.
 
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.
@@ -349,8 +356,8 @@ Open items
 ==========
 
 * Every value marked ``# PLACEHOLDER`` in ``config_410_inst_gossi.yaml``:
-  ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
-  ``noisy_threshold_dn`` and the ``mag_offset_table`` entry.
+  ``read_noise_dn``, ``blank_max_dn``,
+  ``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
 * The limiting-magnitude anchor is a nominal-optics derivation, not a
   measurement.
 * ``from_file`` carries a TODO saying the extended-FOV margin branch belongs

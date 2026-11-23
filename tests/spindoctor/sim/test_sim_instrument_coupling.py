@@ -47,8 +47,7 @@ def test_resolver_maps_vgiss_to_calibrated_if() -> None:
 def test_resolver_generic_returns_sim_block() -> None:
     """A None instrument resolves to the standalone sim block."""
     cfg = resolve_sim_inst_config(DEFAULT_CONFIG, None)
-    assert cfg['data_units'] == 'raw_dn'
-    assert 'signal_full_scale_frac' in cfg['noise']
+    assert cfg is DEFAULT_CONFIG.category('sim')
 
 
 def test_resolver_rejects_unknown_instrument() -> None:

@@ -2,11 +2,10 @@
 # of the real instrument blocks so the sim path can be navigated without
 # branching the orchestrator on observation type.
 #
-# This block serves the instrument-agnostic ('generic') sim frame. When a
-# scene names an instrument, the physical parameters (read noise, saturation,
-# marker, units, thresholds) delegate to that instrument's config_4N0 block;
-# only the sim-only knobs here (signal_full_scale_frac,
-# cosmic_ray_events_per_pixel_per_sec, missing_data_rate) continue to apply.
+# This block is what the navigator knows about the instrument-agnostic
+# ('generic') sim frame. A scene that sets another instrument is read with that
+# instrument's config_4N0 block. The physics the frame is rendered with is in
+# the simulator's own entries, sim/instruments/configs/.
 sim:
   data_units: raw_dn
   extfov_margin_vu: [50, 50]
@@ -21,28 +20,12 @@ sim:
   max_rotation_deg: 5.0
   noise:
     saturation_dn: 4095            # 12-bit synthetic detector
-    full_well_dn: 4095
-    expected_noise_dn: 1.0
     marker_value: 0
     read_noise_dn: 1.0
     # Photometric zero point: DN a vmag-0 star deposits per second.  Derived so a
     # vmag-4 star reproduces the prior peak-normalized brightness at the generic
     # detector (see sim/instruments/configs/generic.yaml).
     star_flux_dn_per_s_vmag0: 1.3e4
-    # Additive bias pedestal in DN.  Real raw frames sit on a bias level, so
-    # signal-free sky is never exactly zero; without it the dark sky collides
-    # with the missing-data marker (0) and the frame is misclassified.
-    bias_dn: 20.0
-    # Fraction of the instrument's full well that a normalized signal of 1.0
-    # maps to, so brightness scales with the selected camera's DN depth.
-    signal_full_scale_frac: 0.5
-    # Detector-noise defaults; scenes may override via a 'noise' block.
-    # Poisson shot noise is off at the floor and turns on with a scene's
-    # noise block or artifacts.instrument_defaults; cosmic rays and
-    # dropouts are off unless a scene asks for them.
-    cosmic_ray_events_per_pixel_per_sec: 0.0   # expected events / pixel / sec of exposure
-    missing_data_rate: 0.0         # fraction of pixels marked missing
-    bloom_length: 0                # column-bloom half-length, px (0 = no bloom)
   image_quality_thresholds:
     blank_max_dn: 5.0
     saturation_threshold_dn: 4095

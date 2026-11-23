@@ -13,11 +13,8 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import (
-    read_frame_as_navigator,
-    resolve_sim_inst_config,
-)
+from spindoctor.nav_orchestrator import NavOrchestrator
+from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.telemetry.artifacts import apply_compression_dct
@@ -67,9 +64,8 @@ def test_a_compressed_calibrated_frame_has_no_pixel_at_the_marker(
 def test_a_compressed_calibrated_frame_classifies_clean(instrument: str, case: str) -> None:
     """The navigator reads a compressed calibrated disc frame as clean."""
     params = _disc(instrument, **_CASES[case])
-    img, _ = render_scene(params)
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
-    assert read_frame_as_navigator(img, inst_config).image_class == 'clean'
+    obs = ObsSim.from_file('/tmp/sim_calibrated_compression.json', sim_params=params)
+    assert NavOrchestrator([]).prepare(obs).image_classifier.image_class == 'clean'
 
 
 @pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac'])
