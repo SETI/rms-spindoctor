@@ -733,17 +733,25 @@ real frames of this camera carry together:
   frame, and lossy labels give no count of lost lines. The simulator's codec steps
   every frequency alike, so its 128 DN step is illustrative: it matches the block
   edges of real lossy frames and zeroes more of the fine detail than they lose.
-  The fused answer lands 0.076 to 0.086 px off over 24 draws, and the compression
-  and the table move it by at most 0.012 px.
+  The scene seeds only the noise, so it has 16 distinct draws, and the fused
+  answer lands 0.076 to 0.084 px off over them. The table and the compression are
+  realistic but leave the answer where it is: with either one removed, the fused
+  answer lands 0.076 to 0.088 px off. So the scene shows that the navigator is
+  unaffected by them.
 - ``coiss_nac_stars_moon_lost_lines`` is a frame of stars and a gibbous moon whose
   readout lost its last 41 lines and one run of lines mid-frame, and whose scene
-  drifts 2 px during the exposure. Real 12-bit frames lose lines that way: 321 of
-  5,473 12-bit narrow angle frames in those four volumes lost lines. The fused
-  answer lands 0.005 to 0.20 px off over 24 draws, and removing any one defect
-  leaves it within 0.08 px. The star-field technique returns spurious on every
-  draw, because hot pixels and cosmic rays crowd the stars out of the sources it
-  matches, and the blob technique lands 8 to 10 px off the gibbous disc without
-  flagging it.
+  drifts 2 px during the exposure. Real 12-bit frames lose lines that way: in
+  those four volumes, 321 of the 5,489 12-bit narrow angle frames lost lines, all
+  of them losslessly compressed. On the committed seed the run crosses the middle
+  of the disc, as runs cross the planet on the real frame it follows, and moves
+  the disc correlation by 0.08 px. The truncated lines hold dark sky, as they do
+  on the real truncated frame, so the scene shows that the navigator is unaffected
+  by the truncation. The fused answer lands 0.006 to 0.20 px off over 24 draws. The worst draw
+  comes from star noise on one seed, and removing any one defect on four draws
+  leaves the answer 0.006 to 0.084 px off. The star-field technique returns
+  spurious on every draw, because hot pixels and cosmic rays crowd the stars out
+  of the sources it matches, and the blob technique lands 8 to 10 px off the
+  gibbous disc without flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.

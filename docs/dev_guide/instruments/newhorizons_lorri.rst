@@ -360,23 +360,26 @@ instead reaches half the camera's search window.
   features. The frame fails, and the scene's expected block holds the failure.
 **Mixed-defect guard scene.** ``nhlorri_moon_raw`` in the ``mixed_defects`` scene
 class (see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px
-across at the 5 ms exposure of the real Jupiter-flyby frame it follows. It carries
-the camera's chain, including the frame-transfer smear, plus the housekeeping
-header at the start of row 0, the fixed pattern, and radiation hits. At that
-exposure the columns through the disc carry 0.25 of the disc's level, against
-0.24 on the real frame, but the simulated disc is 17 times fainter than the real
-one. The limb fit carries the frame alone, 0.21 to 0.34 px off over 24 draws, at
-low confidence, and the scene's expected block holds that.
+across, following a real Jupiter-flyby frame taken at 5 ms. It carries the
+camera's chain, including the frame-transfer smear, plus the housekeeping header
+at the start of row 0, the fixed pattern, and radiation hits. Simulated
+brightness has no shared scale with real frames, so the scene runs 85 ms, where
+the simulated disc is as bright as the real one. The smear timing and the rate of
+radiation hits are scaled by the same factor, so the columns through the disc
+carry 0.26 of the disc's level, against 0.24 on the real frame, and about 16 hits
+land in the frame. The simulated header holds values up to 255, where the real
+one reaches 4,038 DN.
 
-Two techniques fail on the scene. Without the smear, the disc correlation finds
-no valid shift at all, even with the camera's defects off: the masked correlation
-rejects every shift when the 545 DN bias outweighs the faint disc's variation.
-With the smear, it finds a false match 34 to 46 px off and flags it. When the
-simulated disc is as bright as the real one, the correlation finds the offset to
-0.2 px. The blob technique lands 4.2 to 4.8 px off without flagging it, pulled by
-the smear columns, and 0.08 to 0.34 px off without the smear. The simulated smear
-is a step at each column's centroid, where the real smear builds up along the
-column, so part of that pull may be the simulator's.
+The fused answer lands 0.29 to 0.30 px off over 24 draws, at medium confidence,
+from the disc correlation and the limb fit together. The disc correlation lands
+0.42 to 0.43 px off without flagging its answer; without the smear it lands
+0.35 px off, and without the twist 0.28 px. The blob technique lands 4.7 to 5.1 px
+off without flagging it, pulled by the smear columns, and 0.17 to 0.19 px off
+without the smear. The simulated smear is a step at each column's centroid, where
+the real smear builds up along the column, so part of that pull may be the
+simulator's. The header, the fixed pattern, and the radiation hits are realistic
+but each moves the fused answer by at most 0.01 px, so the scene shows that the
+navigator is unaffected by them.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
 the limiting-magnitude form: the anchor at unit exposure, one magnitude gained

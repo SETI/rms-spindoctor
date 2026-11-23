@@ -2234,8 +2234,11 @@ the other validation scenes. The seed also places the lost lines and blocks, so
 the 16 seeds cover 16 placements of the damage as well as 16 noise draws. Where
 one technique fails on a scene, the scene says whether the failure is the
 simulator's or the navigator's, from controls that each remove one defect. The
-instrument chapters (:doc:`instruments/instruments`) describe each camera's
-scene and its results.
+same controls show which defects move the answer at all. Some realistic defects do
+not, and a scene that carries one says so: it shows that the navigator is
+unaffected by that defect, which is all it can show about it. The instrument
+chapters (:doc:`instruments/instruments`) describe each camera's scene and its
+results.
 
 ``test_sim_mixed_defects.py`` navigates each scene once per run and takes about a
 minute on one worker.

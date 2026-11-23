@@ -305,8 +305,9 @@ are the authorable parts of #904 and the ring-only part of #377:
 - interleaved defect modes on one frame. **Done (PR #TBD).** The `mixed_defects` class holds a
   lossy table NAC moon, a NAC stars-and-moon frame with lost and truncated lines and 2 px of
   smear, a Galileo moon with compression and lost 8-line slices, and a raw LORRI moon with
-  frame-transfer smear; all four navigate within 0.40 px over 24 draws, the LORRI frame on the
-  limb fit alone at low tier because its disc correlation rejects every shift (#997).
+  frame-transfer smear; all four navigate within 0.46 px over 24 draws. Where the Galileo
+  frame's lost slices cross the disc, the disc correlation lands up to 0.91 px off unflagged,
+  held as a known error (#1164).
 
 Each scene asserts against its planted truth (#905). Scenes that expose a navigator failure are
 committed as expected failures with the issue they reproduce.
@@ -530,6 +531,7 @@ Those classes are eligible for retirement in Phase 7.
 | #1144 | **Affects `maxwell_hidden_eccentricity`, held as a conflicted frame with a known-error band on each technique.** RingEdgeNav follows an eccentric ringlet whose catalog orbit is circular and answers 6.8 px off at 120 sigma; RingAnnulusNav, pulled by the same ringlet, answers 11.8 px off without flagging it, so the frame conflicts (navigator work) |
 | #1145 | **Affects `b_ring_saturated_plateau`, held as a known error.** A saturated ring edge pulls the answer 0.06 px farther out across the edges than the same frame unsaturated, about five times the reported sigma (navigator work) |
 | #1152 | **Affects `a_ring_low_opening`, held as a known error.** At a low ring opening a narrow gap is resolved only near the ansa, yet both its edges are fitted along the whole arc, and the answer lands 0.84 px off at 16 sigma (navigator work) |
+| #1164 | **Affects `gossi_ict_moon`, held as a known error.** When lost 8-line slices of zero data cross a body's disc, the disc correlation lands up to 0.91 px off without flagging it (0.05 to 0.06 px without the slices). Exclude missing rows from the correlation, or flag the answer when they cover enough of the disc |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling

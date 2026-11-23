@@ -372,17 +372,32 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
   20 seconds to navigate, because the search window reaches 350 px.
 **Mixed-defect guard scene.** ``gossi_ict_moon`` in the ``mixed_defects`` scene
 class (see :ref:`sim-mixed-defects`) is a full frame of a moon 400 px across with
-the camera's chain and its fitted cosmic rays on, lossy compression, and lost
-8-line compression slices, as most tour frames carry. In the metadata indexes of
-GO_0017, GO_0019, and GO_0023, 1,318 of 1,865 frames use the camera's lossy
-codec, at a median compression ratio of 9.5. The simulator has no model of that
-codec, so the scene uses the generic one with a step of 4 DN, which leaves block
-edges no sharper than the inside of the blocks, as on the real frame the disc
-follows. The scene plants a 260 px offset and the camera's twist. The fused
-answer lands 0.27 to 0.33 px off over 24 draws. The twist sets that error: without
-it the frame lands 0.07 to 0.09 px off, and the compression and the lost slices
-each move the answer by less than 0.05 px. The blob technique lands up to 4 px
-off without flagging it when a lost slice crosses the disc.
+the camera's chain and its fitted cosmic rays on, lossy compression, and a band of
+lost 8-line compression slices. In the metadata indexes of GO_0017, GO_0019, and
+GO_0023, 1,318 of 1,865 frames use the camera's lossy codec, at a median
+compression ratio of 9.5. In a sample of 40 of those frames showing a moon, 34
+have zero bands in multiples of 8 lines. Most of them are frames cut short at the
+top or bottom, and 10 lose bands of 8 to 24 lines inside the frame or at its top
+edge. The three moon-filled frames the scene follows each lost one band of 3 or 4
+slices.
+
+The simulator has no model of the lossy codec, so the scene uses the generic one
+with a step of 4 DN, which leaves block edges no sharper than the inside of the
+blocks, as on the real frame the disc follows. The simulator also cannot plant
+exactly one band of slices that starts on any slice. The scene loses whole bands
+of three slices on a 24-line grid instead, a random number of them with one
+expected, so some seeds lose none and some lose two. On the committed seed one
+band crosses the middle of the disc.
+
+The scene plants a 260 px offset and the camera's twist. The fused answer lands
+0.06 to 0.46 px off over 24 draws, and the lost slices set that error. Where a
+band crosses the disc, the disc correlation can land up to 0.91 px off without
+flagging its answer, and the fused answer follows it; with the slices removed,
+the frame lands 0.05 to 0.07 px off. The truth checks hold the disc correlation
+to a band. The blob technique lands up to 6 px off without flagging it when a
+band crosses the disc. The twist moves the answer by at most 0.02 px. The
+compression is realistic but moves the answer by at most 0.01 px, so the scene
+shows that the navigator is unaffected by it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
