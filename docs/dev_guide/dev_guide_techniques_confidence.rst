@@ -149,7 +149,8 @@ shape is:
   attribute matches the demanded boolean, the calibrated confidence is forced to zero.
 - ``hard_cap`` — float in :math:`[0, 1]`, optional. Post-sigmoid clamp. Leave the key out
   for no cap. An override file cannot remove a packaged ``hard_cap``, because a null is
-  refused, but ``hard_cap: 1.0`` has the same effect, since the sigmoid's output is below 1.
+  refused, but ``hard_cap: 1.0`` has the same effect, since the sigmoid's output is
+  below 1.
 
 This module exposes no module-level numeric constants of its own; the spec values come from
 YAML and the runtime constructors validate them.
