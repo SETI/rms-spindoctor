@@ -1,6 +1,6 @@
 """Rasterization rules of the shared mesh renderer.
 
-Each mesh here is built directly in pixel units (unit semi-axes, zero pose, no
+Most meshes here are built directly in pixel units (unit semi-axes, zero pose, no
 supersampling, light from the observer), so a vertex sits exactly where its
 coordinates say and a flat face's shade is the depth component of its unit normal.
 """
@@ -142,6 +142,27 @@ def test_face_is_lit_by_its_mean_angle_of_incidence(phase_deg: float, lit: bool)
     )
     assert render.lit is not None
     assert np.array_equal(render.lit, np.full((16, 16), lit) & (render.coverage > 0.0))
+
+
+def test_body_draws_the_same_pixels_on_frames_of_any_size() -> None:
+    """A lumpy mesh at the default pose draws the same window on a 64 and a 192 px frame.
+
+    At the default pose, with the body centered on a whole pixel, many supersample
+    centers lie exactly on the edges between faces, so which face covers them depends
+    on the last bit of each edge test.
+    """
+    mesh = shared_mesh.make_irregular_mesh(lumpiness=0.3)
+    small, large = (
+        render_polyhedral_body(
+            size=(size, size),
+            center=(size / 2.0, size / 2.0),
+            mesh=mesh,
+            semi_axes_px=(20.0, 20.0, 20.0),
+            anti_aliasing=1.0,
+        ).intensity
+        for size in (64, 192)
+    )
+    assert np.array_equal(small, large[64:128, 64:128])
 
 
 def test_back_facing_triangle_is_culled() -> None:

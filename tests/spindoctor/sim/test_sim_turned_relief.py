@@ -21,6 +21,7 @@ from spindoctor.sim.render.bodies.ellipsoid_relief import (
     relief_resolved_on_detector_grid,
     relief_shading,
 )
+from spindoctor.sim.render.bodies.photometry import incidence_cosines
 from spindoctor.sim.render.bodies.relief import ReliefField, synthesize_relief_field
 from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
@@ -216,7 +217,18 @@ def test_a_turned_bodys_relief_normals_are_the_relief_surfaces() -> None:
 
 
 def test_a_turned_bodys_cast_shadows_follow_the_sun() -> None:
-    """The cast shadows are those of the sun rays through the body in its own frame."""
+    """The shadows are those of the sun rays through the body in its own frame.
+
+    Each sun ray starts on the pixel's line of sight, level with the point it meets.
+    The pixel is shadowed when the ray falls below the terrain after it has risen
+    above it, or when it lies below the terrain within 1/1024 of a field cell of the
+    point, where the ground turns away from the sun.  The comparison covers the
+    pixels whose relief normal faces the sun, the only ones the terrain darkens, less
+    those whose sun cosine is under 0.01: near grazing the brute force's point and
+    the renderer's, which agree only to their searches' precision, can lie on either
+    side of a crease in the bilinear terrain.  On the 524 pixels left, the two agree
+    exactly.
+    """
     body = _turned_body()
     illum_v, illum_u, illum_z = illumination_vector(illumination_angle=_SUN, phase_angle=_PHASE)
     sun = (
@@ -230,17 +242,48 @@ def test_a_turned_bodys_cast_shadows_follow_the_sun() -> None:
         @ _BODY_TO_ROTATED
     )
     seen = body.truth[body.hit]
-    points = seen * (1.0 + body.field.sample_points(seen))[:, np.newaxis] * _SEMI
-    step = 2.0 * np.pi / body.field.grid.shape[0] / 32.0 * float(_SEMI.min())
-    distances = np.arange(step, 2.0 * float(_SEMI.max()) * (1.0 + body.field.h_max), step)
+    surface = seen * (1.0 + body.field.sample_points(seen))[:, np.newaxis] * _SEMI
+    # In the rotated frame, the line of sight is the pixel's (v, u) at every depth.
+    rotated = surface @ _BODY_TO_ROTATED.T
+    rotated[:, 0] = body.grid.v_rot[body.near][body.hit]
+    rotated[:, 1] = body.grid.u_rot[body.near][body.hit]
+    points = rotated @ _BODY_TO_ROTATED
+    cell = 2.0 * np.pi / body.field.grid.shape[0] * float(_SEMI.min())
+    # Four samples over the first 1/1024 of a cell, then every 1/32 of a cell, scanned
+    # as one ray, so a ray seen above the ground at the near samples that meets
+    # terrain at the first coarse sample counts as falling below it again.
+    near_count = 4
+    distances = np.concatenate(
+        [
+            np.arange(1, near_count + 1) * (cell / 4096.0),
+            np.arange(
+                cell / 32.0, 2.0 * float(_SEMI.max()) * (1.0 + body.field.h_max), cell / 32.0
+            ),
+        ]
+    )
     expected = np.zeros(seen.shape[0], dtype=np.bool_)
     for start in range(0, seen.shape[0], 200):
         part = slice(start, start + 200)
         rays = points[part, np.newaxis] + distances[:, np.newaxis] * sun
-        expected[part] = _inside(rays, body.field).any(axis=1)
-    shadowed = body.shading.shadowed[body.near][body.hit]
-    assert int(expected.sum()) > 200
-    assert int((shadowed != expected).sum()) <= 0.01 * int(expected.sum())
+        inside = _inside(rays, body.field)
+        risen = np.logical_or.accumulate(~inside, axis=1)
+        expected[part] = inside[:, :near_count].any(axis=1) | (inside[:, 1:] & risen[:, :-1]).any(
+            axis=1
+        )
+    shading = body.shading
+    lit = (
+        incidence_cosines(
+            shading.normal_v,
+            shading.normal_u,
+            shading.normal_z,
+            illumination_angle=_SUN,
+            phase_angle=_PHASE,
+        )[body.hit]
+        >= 0.01
+    )
+    shadowed = shading.shadowed[body.near][body.hit]
+    assert int(expected[lit].sum()) > 50
+    np.testing.assert_array_equal(shadowed[lit], expected[lit])
 
 
 # A body much shorter along its c axis than the others, seen almost along its pole, so

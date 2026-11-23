@@ -41,7 +41,7 @@ from spindoctor.sim.shared.spherical_harmonics import (
     evaluate_at_directions,
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.stable_math import stable_matmul3
+from spindoctor.support.stable_math import stable_hypot, stable_matmul3
 from spindoctor.support.types import (
     NDArrayBoolType,
     NDArrayComplexType,
@@ -292,6 +292,7 @@ def _rasterize_faces(
     face_intensity: NDArrayFloatType,
     vertex_intensity: NDArrayFloatType | None,
     grid_size: tuple[int, int],
+    origin: tuple[int, int],
 ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
     """Z-buffer and shade a list of projected triangles.
 
@@ -302,33 +303,43 @@ def _rasterize_faces(
     listed first wins: the result of drawing the faces one at a time in list order
     with a strict ``>`` depth test.
 
+    The vertices and the pixel centers are both measured from ``origin``, so moving
+    the faces and the origin together by whole pixels moves the result by exactly
+    those pixels, whatever the size of the grid.  A pixel center that lies exactly on
+    an edge then gets the same weights wherever the faces are drawn.
+
     Parameters:
-        px: ``(N,)`` vertex column coordinates in pixel-corner units.
-        py: ``(N,)`` vertex row coordinates in pixel-corner units.
+        px: ``(N,)`` vertex column coordinates in pixel-corner units, measured from
+            the origin.
+        py: ``(N,)`` vertex row coordinates in pixel-corner units, measured from the
+            origin.
         depth: ``(N,)`` vertex depths, larger nearer the observer.
         faces: ``(M, 3)`` vertex indices of the faces to draw, in priority order.
         face_intensity: ``(M,)`` flat shade of each face.
         vertex_intensity: ``(N,)`` per-vertex shade interpolated across each face
             (Gouraud), or None to shade each face with ``face_intensity``.
         grid_size: ``(height, width)`` of the grid.
+        origin: ``(row, column)`` of the grid pixel whose top-left corner is the
+            origin of ``px`` and ``py``.
 
     Returns:
         The ``(height, width)`` depth buffer (``-inf`` where no face covers a pixel)
         and the shade buffer (0 there).
     """
     height, width = grid_size
+    origin_v, origin_u = origin
     z_buffer = np.full((height, width), -np.inf, dtype=np.float64)
     intensity = np.zeros((height, width), dtype=np.float64)
     xs = px[faces]
     ys = py[faces]
     ds = depth[faces]
 
-    # Clip the boxes in floating point, before any integer conversion, so a vertex
-    # far off the grid cannot overflow the cast.
-    box_x0 = np.maximum(np.floor(xs.min(axis=1)), 0.0)
-    box_x1 = np.minimum(np.ceil(xs.max(axis=1)), float(width - 1))
-    box_y0 = np.maximum(np.floor(ys.min(axis=1)), 0.0)
-    box_y1 = np.minimum(np.ceil(ys.max(axis=1)), float(height - 1))
+    # The boxes are in grid columns and rows.  Clip them in floating point, before
+    # any integer conversion, so a vertex far off the grid cannot overflow the cast.
+    box_x0 = np.maximum(np.floor(xs.min(axis=1)) + origin_u, 0.0)
+    box_x1 = np.minimum(np.ceil(xs.max(axis=1)) + origin_u, float(width - 1))
+    box_y0 = np.maximum(np.floor(ys.min(axis=1)) + origin_v, 0.0)
+    box_y1 = np.minimum(np.ceil(ys.max(axis=1)) + origin_v, float(height - 1))
     x0, x1, x2 = xs[:, 0], xs[:, 1], xs[:, 2]
     y0, y1, y2 = ys[:, 0], ys[:, 1], ys[:, 2]
     area = (x1 - x0) * (y2 - y0) - (x2 - x0) * (y1 - y0)
@@ -357,20 +368,23 @@ def _rasterize_faces(
 
     # One entry per (face, box row), carrying what the weight tests need.  Along a row
     # the pixel-center v is constant, so each weight's first product is computed once
-    # per row.  The boxes are named by array rows and columns and the projected
-    # vertices are in the geometry layer's pixel corner coordinates, so the half pixel
-    # goes on to the row and column indices.
+    # per row.  The columns tested (``cand_u``) count from the origin's column and the
+    # projected vertices are in the geometry layer's pixel corner coordinates from the
+    # origin, so the half pixel goes on to the row and column counts from the origin.
+    # These are whole numbers, so a pixel center's coordinates are exact.
     row_face = np.repeat(np.arange(keep.size, dtype=np.int32), n_rows)
     row_first = np.cumsum(n_rows) - n_rows
     row_v = row0[row_face] + (np.arange(row_face.size) - np.repeat(row_first, n_rows))
-    gy = row_v + PIXEL_CENTER_TO_CORNER_PX
+    gy = (row_v - origin_v) + PIXEL_CENTER_TO_CORNER_PX
     row_a0 = e0x[row_face] * (gy - y0[row_face])
     row_a1 = e1x[row_face] * (gy - y1[row_face])
     row_a2 = e2x[row_face] * (gy - y2[row_face])
     row_e0y, row_e1y, row_e2y = e0y[row_face], e1y[row_face], e2y[row_face]
     row_x0, row_x1, row_x2 = x0[row_face], x1[row_face], x2[row_face]
     row_area = area[row_face]
-    row_col0 = col0[row_face]
+    row_col0 = col0[row_face] - origin_u
+    # The flat grid index of each row's pixel at the origin's column.
+    row_pix0 = row_v * width + origin_u
     row_len = n_cols[row_face]
     row_end = np.cumsum(row_len)
 
@@ -411,7 +425,7 @@ def _rasterize_faces(
         sel = np.nonzero(w2 >= 0)[0]
         cand_row, w0, w1, w2 = cand_row[sel], w0[sel], w1[sel], w2[sel]
         cand_face = row_face[cand_row]
-        cand_pix = row_v[cand_row] * width + cand_u[sel]
+        cand_pix = row_pix0[cand_row] + cand_u[sel]
         cand_depth = w0 * d2[cand_face] + w1 * d0[cand_face] + w2 * d1[cand_face]
 
         # A candidate must beat what the earlier batches left at its pixel; within the
@@ -509,8 +523,14 @@ def render_polyhedral_body(
     semi = np.array([semi_b, semi_a, semi_c])
     rot = _rotation_matrix(pose_euler_deg)
     verts_cam = stable_matmul3(mesh.vertices * semi, rot.T)
-    px = center[1] * aa_scale + verts_cam[:, 0]
-    py = center[0] * aa_scale + verts_cam[:, 1]
+    # Measure the projected vertices from the grid corner at or before the body center,
+    # never from the grid's own corner: the rounding of a vertex coordinate then
+    # depends only on where the body sits on the pixel grid, so a body draws the same
+    # pixels on a canvas of any size.
+    origin_v = math.floor(center[0] * aa_scale)
+    origin_u = math.floor(center[1] * aa_scale)
+    px = (center[1] * aa_scale - origin_u) + verts_cam[:, 0]
+    py = (center[0] * aa_scale - origin_v) + verts_cam[:, 1]
     depth = verts_cam[:, 2]
 
     p0 = verts_cam[mesh.faces[:, 0]]
@@ -554,6 +574,7 @@ def render_polyhedral_body(
         face_intensity=face_intensity[front_idx],
         vertex_intensity=vertex_intensity,
         grid_size=(height, width),
+        origin=(origin_v, origin_u),
     )
 
     covered = np.isfinite(z_buffer)
@@ -569,6 +590,7 @@ def render_polyhedral_body(
             face_intensity=np.arccos(np.clip(face_cos, -1.0, 1.0))[front_idx],
             vertex_intensity=vertex_angle,
             grid_size=(height, width),
+            origin=(origin_v, origin_u),
         )
         angle_sum = angle.reshape(size_v, aa_scale, size_u, aa_scale).sum(axis=(1, 3))
         count = covered.reshape(size_v, aa_scale, size_u, aa_scale).sum(axis=(1, 3))
@@ -639,6 +661,35 @@ def mesh_spec_from_params(body_params: Mapping[str, Any]) -> MeshBodySpec:
         pose_euler_deg=(values[0], values[1], values[2]),
         detail_octaves=int(scene_value(body_params, 'mesh_detail_octaves', 0)),
     )
+
+
+def mesh_projected_reach_px(semi_axes_px: tuple[float, float, float], spec: MeshBodySpec) -> float:
+    """Return how far a mesh body reaches from its center in the image plane.
+
+    The farthest projected vertex, in pixels, of the mesh built from ``spec`` and
+    scaled and posed as :func:`render_polyhedral_body` does.  A lumpy mesh reaches
+    past its longest semi-axis, and a faceted body's silhouette lies within its
+    vertices, so a canvas this far from the center on every side holds the whole body.
+
+    Parameters:
+        semi_axes_px: Per-axis ``(a, b, c)`` half-sizes in pixels.
+        spec: The mesh shape and pose.
+
+    Returns:
+        The largest image-plane distance of any vertex from the body center.
+    """
+    mesh = make_irregular_mesh(
+        n_lat=spec.n_lat,
+        n_lon=spec.n_lon,
+        lumpiness=spec.lumpiness,
+        seed=spec.seed,
+        detail_octaves=spec.detail_octaves,
+    )
+    semi_a, semi_b, semi_c = semi_axes_px
+    verts_cam = stable_matmul3(
+        mesh.vertices * np.array([semi_b, semi_a, semi_c]), _rotation_matrix(spec.pose_euler_deg).T
+    )
+    return float(np.max(stable_hypot(verts_cam[:, 0], verts_cam[:, 1])))
 
 
 def render_mesh_body_image(
