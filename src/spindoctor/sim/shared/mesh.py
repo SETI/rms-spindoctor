@@ -41,7 +41,7 @@ from spindoctor.sim.shared.spherical_harmonics import (
     evaluate_at_directions,
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.stable_math import stable_matmul3
+from spindoctor.support.stable_math import stable_hypot, stable_matmul3
 from spindoctor.support.types import (
     NDArrayBoolType,
     NDArrayComplexType,
@@ -639,6 +639,35 @@ def mesh_spec_from_params(body_params: Mapping[str, Any]) -> MeshBodySpec:
         pose_euler_deg=(values[0], values[1], values[2]),
         detail_octaves=int(scene_value(body_params, 'mesh_detail_octaves', 0)),
     )
+
+
+def mesh_projected_reach_px(semi_axes_px: tuple[float, float, float], spec: MeshBodySpec) -> float:
+    """Return how far a mesh body reaches from its center in the image plane.
+
+    The farthest projected vertex, in pixels, of the mesh built from ``spec`` and
+    scaled and posed as :func:`render_polyhedral_body` does.  A lumpy mesh reaches
+    past its longest semi-axis, and a faceted body's silhouette lies within its
+    vertices, so a canvas this far from the center on every side holds the whole body.
+
+    Parameters:
+        semi_axes_px: Per-axis ``(a, b, c)`` half-sizes in pixels.
+        spec: The mesh shape and pose.
+
+    Returns:
+        The largest image-plane distance of any vertex from the body center.
+    """
+    mesh = make_irregular_mesh(
+        n_lat=spec.n_lat,
+        n_lon=spec.n_lon,
+        lumpiness=spec.lumpiness,
+        seed=spec.seed,
+        detail_octaves=spec.detail_octaves,
+    )
+    semi_a, semi_b, semi_c = semi_axes_px
+    verts_cam = stable_matmul3(
+        mesh.vertices * np.array([semi_b, semi_a, semi_c]), _rotation_matrix(spec.pose_euler_deg).T
+    )
+    return float(np.max(stable_hypot(verts_cam[:, 0], verts_cam[:, 1])))
 
 
 def render_mesh_body_image(
