@@ -93,7 +93,7 @@ spindoctor.sim.instruments
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.instruments.checks
+.. automodule:: spindoctor.sim.instruments.schema_detector
    :members:
    :undoc-members:
    :show-inheritance:

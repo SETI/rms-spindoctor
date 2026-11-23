@@ -48,6 +48,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_defaults,
     resolve_detector_model,
 )
+from spindoctor.sim.instruments.schema_detector import Detector
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
 from spindoctor.ui.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.ui.sim_editor.base import SimEditorBase
@@ -227,7 +228,7 @@ class ArtifactsTabMixin(SimEditorBase):
 
     # ---- Detector override group ----
 
-    def _detector_defaults(self, binning: int) -> dict[str, Any]:
+    def _detector_defaults(self, binning: int) -> Detector:
         """The selected instrument's detector defaults in one readout mode.
 
         Where the readout mode sets a key, its value replaces the native one, as
@@ -338,24 +339,22 @@ class ArtifactsTabMixin(SimEditorBase):
         """
         block = self._detector_block()
         detector_defaults = self._detector_defaults(binning)
-        gain_state = int(block.get('gain_state', detector_defaults.get('default_gain_state', 0)))
+        gain_state = int(block.get('gain_state', detector_defaults.default_gain_state or 0))
         self._set_gain_state_range(detector_defaults, gain_state)
         self._detector_gain_state_spin.setValue(gain_state)
-        model = str(block.get('detector_model', detector_defaults.get('detector_model', 'ccd')))
+        model = str(block.get('detector_model', detector_defaults.detector_model))
         model_index = self._detector_model_combo.findText(model)
         if model_index >= 0:
             self._detector_model_combo.setCurrentIndex(model_index)
         self._detector_exposure_ref_spin.setValue(
-            float(block.get('exposure_ref_sec', detector_defaults.get('exposure_ref_sec', 1.0)))
+            float(block.get('exposure_ref_sec', detector_defaults.exposure_ref_sec))
         )
-        quantization = str(
-            block.get('quantization', detector_defaults.get('quantization', 'exact'))
-        )
+        quantization = str(block.get('quantization', detector_defaults.quantization))
         quantization_index = self._detector_quantization_combo.findText(quantization)
         if quantization_index >= 0:
             self._detector_quantization_combo.setCurrentIndex(quantization_index)
 
-    def _set_gain_state_range(self, detector_defaults: dict[str, Any], gain_state: int) -> None:
+    def _set_gain_state_range(self, detector_defaults: Detector, gain_state: int) -> None:
         """Span the gain-state spin over the instrument's cataloged states.
 
         The catalog requires an instrument's gain states to be contiguous
@@ -368,7 +367,7 @@ class ArtifactsTabMixin(SimEditorBase):
             detector_defaults: The instrument's detector defaults.
             gain_state: The state the spin is about to show.
         """
-        states = {*(detector_defaults.get('gain_e_per_dn_by_state') or {0: 1.0}), gain_state}
+        states = {*(detector_defaults.gain_e_per_dn_by_state or {0: 1.0}), gain_state}
         self._detector_gain_state_spin.setRange(min(states), max(states))
 
     def _set_binning_choices(self, binning: int) -> None:
