@@ -235,10 +235,8 @@ def _apply_missing_data_markers(
     """
     sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     scene_noise = params.get('noise') or {}
-    # A null rate reads as absent and takes the configuration default.
-    scene_rate = scene_noise.get('missing_data_rate')
     missing_data_rate = float(
-        sim_noise.get('missing_data_rate', 0.0) if scene_rate is None else scene_rate
+        scene_noise.get('missing_data_rate', sim_noise.get('missing_data_rate', 0.0))
     )
     if missing_data_rate <= 0.0:
         return

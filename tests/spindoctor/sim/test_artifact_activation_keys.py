@@ -24,7 +24,6 @@ from spindoctor.sim.artifact_modes import (
     EXPECTED_EVENTS_PER_SEC,
     PIXEL_FRACTION,
     PROBABILITY,
-    resolve_mode_config,
 )
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
@@ -115,14 +114,6 @@ def test_radiation_transients_semantics_state_its_scaling() -> None:
     assert [word for word in words if word not in semantics] == []
 
 
-@pytest.mark.parametrize('mode_name', sorted(ARTIFACT_MODES))
-def test_plain_resolver_reads_a_null_parameter_as_unset(mode_name: str) -> None:
-    """A parameter set to null resolves to its registry default, as the catalog resolver does."""
-    params = ARTIFACT_MODES[mode_name].params
-    resolved = resolve_mode_config(mode_name, {param.name: None for param in params})
-    assert resolved == {param.name: param.default for param in params}
-
-
 # --- validation: ranges ----------------------------------------------------------
 
 
@@ -183,17 +174,6 @@ def test_count_or_expected_events_alone_validates(mode_name: str, key: str) -> N
     validate_sim_params(_scene({mode_name: {key: 3}}))
 
 
-@pytest.mark.parametrize('mode_name', _DEAD_MODES)
-@pytest.mark.parametrize(
-    'config',
-    [{'count': None, 'expected_events': 3.0}, {'count': 3, 'expected_events': None}],
-    ids=['null-count', 'null-expected'],
-)
-def test_a_null_key_beside_the_other_validates(mode_name: str, config: dict[str, Any]) -> None:
-    """A key set to null counts as unset, so it never conflicts with the other key."""
-    validate_sim_params(_scene({mode_name: config}))
-
-
 def _render_dead(mode_name: str, config: dict[str, Any]) -> tuple[NDArrayFloatType, dict[str, Any]]:
     """Render one dead-pixel or dead-column map on a flat 64 x 64 frame."""
     frame = SimFrame(
@@ -222,13 +202,6 @@ def test_dead_pixels_count_plants_exactly_that_many() -> None:
     signal, record = _render_dead('dead_pixels', {'count': 10})
     assert len(record['pixels']) == 10
     assert int(np.count_nonzero(signal == 0.0)) == 10
-
-
-def test_dead_pixels_null_count_draws_from_expected_events() -> None:
-    """A null count leaves expected_events in charge of the draw."""
-    signal, record = _render_dead('dead_pixels', {'count': None, 'expected_events': 20.0})
-    assert len(record['pixels']) > 0
-    assert int(np.count_nonzero(signal == 0.0)) > 0
 
 
 def test_dead_pixels_expected_events_plants_its_pixels() -> None:

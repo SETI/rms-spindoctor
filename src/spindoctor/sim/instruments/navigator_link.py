@@ -379,7 +379,7 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
         True when any of ``offset_v``, ``offset_u``, or ``offset_rotation_deg``
         is non-zero, so the navigated frame differs from an offset-free preview.
     """
-    return any(float(sim_params.get(key) or 0.0) != 0.0 for key in PLANTED_POINTING_KEYS)
+    return any(float(sim_params.get(key, 0.0)) != 0.0 for key in PLANTED_POINTING_KEYS)
 
 
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:

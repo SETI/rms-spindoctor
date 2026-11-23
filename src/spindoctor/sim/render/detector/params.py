@@ -473,43 +473,11 @@ def _filter_exposure_ref(
     return well_e / throughput
 
 
-def _set_keys(block: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a scene block's keys that carry a value, dropping every explicit null.
-
-    A null scene key reads as absent everywhere in the resolver, as a null
-    ``detector`` key does (see :func:`_scene_or_default`), so it falls through to
-    the detector default or the configuration default instead of reaching ``float()`` or
-    ``bool()``.
-    """
-    return {key: value for key, value in block.items() if value is not None}
-
-
-def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
-    """Read a scene ``detector`` key, treating an explicit null as absent.
-
-    The validator accepts ``detector_model: null`` (and the other detector keys
-    at null) as "use the instrument's default", so the resolver must read it
-    the same way; ``str(None)`` would otherwise select a model named ``'None'``
-    and fall through to the CCD chain.
-
-    Parameters:
-        block: The scene ``detector`` mapping.
-        key: The detector key to read.
-        default: The detector default used when the key is absent or null.
-
-    Returns:
-        The scene's value, or ``default`` when the scene leaves it unset or null.
-    """
-    value = block.get(key)
-    return default if value is None else value
-
-
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     """Collapse the scene, navigator block, and detector defaults into one detector view.
 
-    A scene ``noise`` or ``noise.vidicon`` key set to null reads as absent, as a
-    null ``detector`` key does: it resolves to the value the scene would get
-    without the key.
+    A scene ``noise``, ``noise.vidicon``, or ``detector`` key that the scene leaves out
+    takes the detector default or the configuration default.
 
     Parameters:
         params: The scene.
@@ -536,15 +504,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     # A binned pixel collects the charge of its binning**2 native pixels.
     pixels_per_frame_pixel = float(binning * binning)
 
-    # A null noise key reads as absent: it takes the detector default or the
-    # configuration default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
-    scene_noise = _set_keys(params.get('noise') or {})
+    scene_noise = params.get('noise') or {}
     artifacts = params.get('artifacts') or {}
     instrument_defaults = instrument_defaults_on(params)
 
-    detector_model = str(
-        _scene_or_default(detector_block, 'detector_model', detector_defaults.detector_model)
-    )
+    detector_model = str(detector_block.get('detector_model', detector_defaults.detector_model))
     if detector_model == 'vidicon' and binning != 1:
         raise DetectorParamError(
             f'sim instrument {instrument!r} cannot use detector_model vidicon with '
@@ -553,11 +517,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     data_units = resolve_data_units(instrument)
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
-        _scene_or_default(detector_block, 'exposure_ref_sec', detector_defaults.exposure_ref_sec)
+        detector_block.get('exposure_ref_sec', detector_defaults.exposure_ref_sec)
     )
-    quantization = str(
-        _scene_or_default(detector_block, 'quantization', detector_defaults.quantization)
-    )
+    quantization = str(detector_block.get('quantization', detector_defaults.quantization))
 
     signal_full_scale_frac = float(
         scene_noise.get(
@@ -753,7 +715,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         if instrument_defaults and detector_defaults.vidicon is not None
         else {}
     )
-    scene_vidicon = _set_keys(scene_noise.get('vidicon') or {})
+    scene_vidicon = scene_noise.get('vidicon') or {}
     vidicon = {**default_vidicon, **{k: float(v) for k, v in scene_vidicon.items()}}
 
     # Derived I/F calibration scale: a noise-free signal of 1.0 round-trips
@@ -789,9 +751,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     contour_step = 8
     try:
-        downlink_table = resolve_downlink_table(
-            instrument, _scene_or_default(detector_block, 'downlink_table', None)
-        )
+        downlink_table = resolve_downlink_table(instrument, detector_block.get('downlink_table'))
     except ValueError as exc:
         raise DetectorParamError(str(exc)) from exc
     if 'banding_coherent' in detector_modes:

@@ -6,8 +6,8 @@ optional ``status_reason`` token, and a ``confidence_tier``.  It is test-only
 metadata -- the integration suite's assertion machinery reads it, and neither
 the image-side renderer nor the navigator sees it.  The panel is a checkable
 group: enabling it writes the block (with the required ``status``), unchecking
-it removes the block entirely.  The confidence-tier ``(none)`` choice writes a
-null tier (assert the status only).
+it removes the block entirely.  The confidence-tier ``(none)`` choice leaves the
+tier out (assert the status only).
 
 A ``failed`` or ``conflicted`` status must pin the matching tier (the validator
 enforces this at save time); the panel leaves the two combos independent, so an
@@ -21,7 +21,7 @@ from PyQt6.QtWidgets import QComboBox, QFormLayout, QGroupBox, QLineEdit
 from spindoctor.sim.scene.fields import scene_value
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
-# The tier combo's visible choices; ``(none)`` maps to a null tier.
+# The tier combo's visible choices; ``(none)`` leaves the tier out.
 _TIER_CHOICES: list[str] = ['high', 'medium', 'low', 'failed', 'conflicted', '(none)']
 
 
@@ -80,9 +80,17 @@ class ExpectedOutcomeMixin(SimEditorBase):
         self._expected_group.toggled.connect(self._on_expected_toggled)
         gen_layout.addRow(self._expected_group)
 
-    def _tier_from_text(self, text: str) -> str | None:
-        """Map the tier combo text to its stored value (``(none)`` -> None)."""
-        return None if text == '(none)' else text
+    def _set_tier(self, block: dict[str, Any], text: str) -> None:
+        """Write the tier combo's choice into the block; ``(none)`` removes the key.
+
+        Parameters:
+            block: The scene's ``expected`` block.
+            text: The tier combo's text.
+        """
+        if text == '(none)':
+            block.pop('confidence_tier', None)
+        else:
+            block['confidence_tier'] = text
 
     def _on_expected_toggled(self, checked: bool) -> None:
         """Insert or remove the expected block from the scene.
@@ -94,9 +102,9 @@ class ExpectedOutcomeMixin(SimEditorBase):
         are re-attached when the group is re-enabled.
         """
         if checked:
-            block: dict[str, object] = dict(self._removed_expected_extras)
+            block: dict[str, Any] = dict(self._removed_expected_extras)
             block['status'] = self._expected_status_combo.currentText()
-            block['confidence_tier'] = self._tier_from_text(self._expected_tier_combo.currentText())
+            self._set_tier(block, self._expected_tier_combo.currentText())
             reason = self._expected_reason_edit.text().strip()
             if reason:
                 block['status_reason'] = reason
@@ -124,7 +132,7 @@ class ExpectedOutcomeMixin(SimEditorBase):
         """Update the expected confidence tier when the block is present."""
         expected = self.sim_params.get('expected')
         if isinstance(expected, dict):
-            expected['confidence_tier'] = self._tier_from_text(text)
+            self._set_tier(expected, text)
             self._updater.request_update()
 
     def _on_expected_reason(self, text: str) -> None:

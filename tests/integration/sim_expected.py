@@ -2,8 +2,8 @@
 
 A sim scene may carry a scene-level ``expected`` block declaring the outcome the
 navigator should produce: a ``status`` (``success`` / ``failed`` / ``conflicted``),
-an optional ``confidence_tier`` (one of the five navigation ranks, or null to
-assert the status only), an optional ``status_reason``, and an optional
+an optional ``confidence_tier`` (one of the five navigation ranks; leave it out
+to assert the status only), an optional ``status_reason``, and an optional
 known-error check, the ``known_offset_error_px`` / ``known_offset_error_tol_px``
 pair.  This module loads that block and asserts a
 :class:`~spindoctor.nav_orchestrator.nav_result.NavResult` against it with clear
@@ -128,8 +128,8 @@ def assert_result_matches_expected(
     """Assert a NavResult matches a scene's expected outcome, with clear messages.
 
     The status is always checked; the confidence tier and the status_reason are
-    checked only when the scene asserts them (a null tier or an omitted reason
-    leaves that field unconstrained).  When the scene carries a known-error
+    checked only when the scene asserts them (an omitted tier or reason leaves
+    that field unconstrained).  When the scene carries a known-error
     check (``known_offset_error_px``), the measured fused error magnitude
     against the planted offset must sit inside the check's tolerance band.
     Below the band means the hazard quietly improved (re-measure the known

@@ -706,11 +706,7 @@ class RingAdvancedMixin(SimEditorBase):
         if ring_system is None:
             return
         if block is not None:
-            azimuthal = ring_system.get('azimuthal')
-            if azimuthal is None:
-                # A null block reads as absent, so it is replaced like a missing one.
-                azimuthal = {}
-                ring_system['azimuthal'] = azimuthal
+            azimuthal = ring_system.setdefault('azimuthal', {})
             azimuthal[sub] = block
         else:
             azimuthal = ring_system.get('azimuthal')

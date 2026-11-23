@@ -162,11 +162,10 @@ An optional ``nav_override`` mapping breaks that tie. The renderer ignores it an
 always draws the true geometry; the boundary filter
 (:func:`~spindoctor.sim.scene.boundary.build_nav_params`) overlays ``nav_override`` onto the
 body's idealized view and drops the key, so the predicted body is built from what the
-navigator *believes* without the true values underneath. A key set to null inside
-``nav_override`` leaves the idealized value in place, and a body key that is still
-null after the overlay is left out of the view, so the model treats a null key as an
-absent one. This is the channel that lets the navigation geometry diverge from the
-render geometry, which the irregular-body scenarios exercise:
+navigator *believes* without the true values underneath. A key that ``nav_override``
+leaves out keeps the body's own idealized value. This is the channel that lets the
+navigation geometry diverge from the render geometry, which the irregular-body scenarios
+exercise:
 
 - **Same geometry (no override)** -- mesh vs mesh at the true pose. The
   resolved-mesh limb is exact by construction.
