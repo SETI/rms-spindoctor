@@ -58,6 +58,11 @@ __all__ = [
 # distribution toward faint stars), so the exact value only bounds the sampler.
 _SKY_BRIGHT_CUTOFF_MAG = -2.0
 
+# The side of the square tiles the sky beyond the frame is drawn in, in detector
+# pixels.  Each tile draws from its own stream, so a star there does not depend on
+# how much of the sky beyond the frame a render draws.
+_SKY_TILE_DETECTOR_PX = 32
+
 SKY_COUNTS_DEFAULTS: Mapping[str, float] = MappingProxyType(
     {
         'a': -3.1,
@@ -66,7 +71,7 @@ SKY_COUNTS_DEFAULTS: Mapping[str, float] = MappingProxyType(
         'diffuse_e_per_px': 0.0,
     }
 )
-"""The value each ``sky_counts`` key takes when a scene leaves it out or sets it to null.
+"""The value each ``sky_counts`` key takes when a scene leaves it out.
 
 Together they give the count law at mid galactic latitude.  A density factor of 1
 leaves the counts unscaled, and the diffuse floor is 0."""
@@ -126,6 +131,7 @@ def _deposit_point_mass(
     total: float,
     move_v: float = 0.0,
     move_u: float = 0.0,
+    margin: int = 0,
 ) -> None:
     """Bilinearly deposit a point source's total flux at a sub-pixel position.
 
@@ -143,6 +149,9 @@ def _deposit_point_mass(
         total: Total flux to deposit.
         move_v: Total drift along v over the exposure, in grid pixels.
         move_u: Total drift along u over the exposure, in grid pixels.
+        margin: How many pixels ``img`` extends past the frame on each side; ``v`` and
+            ``u`` are frame coordinates.  The margin moves only the pixel each share
+            lands on, so a deposit's weights do not depend on it.
     """
     track = float(stable_hypot(move_v, move_u))
     n_samples = 1 if track < 1e-9 else max(2, int(np.ceil(track)) + 1)
@@ -162,8 +171,8 @@ def _deposit_point_mass(
             (0, 1, (1.0 - fv) * fu),
             (1, 1, fv * fu),
         ):
-            vv = v0 + dv
-            uu = u0 + du
+            vv = v0 + dv + margin
+            uu = u0 + du + margin
             if 0 <= vv < size_v and 0 <= uu < size_u:
                 img[vv, uu] += weight * frac
 
@@ -183,10 +192,15 @@ def _render_stars_cached(
     oversample: int,
     catalog_scatter_px: float,
     catalog_scatter_seed: int,
+    margin: int,
 ) -> tuple[Any, ...]:
-    """Internal cached function to compute star deposition."""
+    """Internal cached function to compute star deposition.
+
+    ``size_v`` and ``size_u`` are the frame's; the plane extends ``margin`` pixels
+    past it on each side, and every position below is a frame position.
+    """
     stars_params = json.loads(stars_params_json)
-    img = np.zeros((size_v, size_u), dtype=np.float64)
+    img = np.zeros((size_v + 2 * margin, size_u + 2 * margin), dtype=np.float64)
     sim_star_list: list[MutableStar] = []
     star_info: list[dict[str, Any]] = []
 
@@ -288,6 +302,7 @@ def _render_stars_cached(
             total=total * oversample**2,
             move_v=move_v,
             move_u=move_u,
+            margin=margin,
         )
 
         # An unresolved companion is a second point mass at sep_px / angle_deg,
@@ -317,6 +332,7 @@ def _render_stars_cached(
                 total=comp_total * oversample**2,
                 move_v=move_v,
                 move_u=move_u,
+                margin=margin,
             )
 
         # Truth metadata: the rendered-vs-catalog delta (position error and
@@ -357,6 +373,7 @@ def render_stars(
     oversample: int = 1,
     catalog_scatter_px: float = 0.0,
     catalog_scatter_seed: int = 0,
+    margin: int = 0,
 ) -> tuple[NDArrayFloatType, list[MutableStar], list[dict[str, Any]]]:
     """Deposit catalog stars into the point-source plane. Returns (plane, list, info).
 
@@ -388,8 +405,13 @@ def render_stars(
         catalog_scatter_px: Scene-level per-star position-scatter sigma
             (oversampled units); 0 disables it.
         catalog_scatter_seed: Seed for the per-star scatter stream.
+        margin: How many pixels the plane extends past the frame on each side.  A
+            star there deposits its light into the plane like one in the frame.  The
+            star positions, the roll pivot, and the returned records belong to the
+            frame.
     """
-    size_v, size_u = point_plane.shape
+    size_v = point_plane.shape[0] - 2 * margin
+    size_u = point_plane.shape[1] - 2 * margin
     stars_params_json = json.dumps(stars_params, sort_keys=True)
     cached_img, cached_star_list, cached_star_info = _render_stars_cached(
         size_v,
@@ -404,6 +426,7 @@ def render_stars(
         oversample=oversample,
         catalog_scatter_px=catalog_scatter_px,
         catalog_scatter_seed=catalog_scatter_seed,
+        margin=margin,
     )
     # Point deposits are added (never clipped) on the oversampled grid; the optics
     # PSF spreads them and the detector conversion clips after the downsample.
@@ -433,9 +456,14 @@ def _render_sky_counts_cached(
     exposure_sec: float,
     oversample: int,
     rotation_deg: float,
+    margin: int,
 ) -> NDArrayFloatType:
-    """Internal cached function to compute the background-sky star field."""
-    plane = np.zeros((size_v, size_u), dtype=np.float64)
+    """Internal cached function to compute the background-sky star field.
+
+    ``size_v`` and ``size_u`` are the frame's, and ``fov_deg2`` is its field of view;
+    the plane extends ``margin`` pixels past the frame on each side.
+    """
+    plane = np.zeros((size_v + 2 * margin, size_u + 2 * margin), dtype=np.float64)
     # Cumulative count per square degree down to the faint cutoff, scaled to the
     # frame's field of view and the local-density multiplier.
     n_expected = 10.0 ** (a + b * faint_cutoff_mag) * density_factor * fov_deg2
@@ -443,7 +471,7 @@ def _render_sky_counts_cached(
         return plane
     rng = np.random.default_rng(seed)
     n_stars = int(rng.poisson(n_expected))
-    if n_stars <= 0 and rotation_deg == 0.0:
+    if n_stars <= 0 and rotation_deg == 0.0 and margin == 0:
         return plane
     # The draw is a uniform pixel corner position over the frame of this grid,
     # which spans ``[0, size]`` there; the deposit reads a pixel centric
@@ -463,19 +491,21 @@ def _render_sky_counts_cached(
     )
     vs -= PIXEL_CENTER_TO_CORNER_PX
     us -= PIXEL_CENTER_TO_CORNER_PX
-    if rotation_deg != 0.0:
-        mags, vs, us = _roll_sky_stars(
+    if rotation_deg != 0.0 or margin > 0:
+        mags, vs, us = _sky_beyond_the_frame(
             (mags, vs, us),
             (size_v, size_u),
             seed=seed,
-            n_expected=n_expected,
+            star_density=n_expected / ((size_v / oversample) * (size_u / oversample)),
             b=b,
             faint_cutoff_mag=faint_cutoff_mag,
             rotation_deg=rotation_deg,
+            oversample=oversample,
+            margin=margin,
         )
     for mag, v, u in zip(mags.tolist(), vs.tolist(), us.tolist(), strict=True):
         total = total_flux_for_vmag(float(mag), zero_point=zero_point, exposure_sec=exposure_sec)
-        _deposit_point_mass(plane, v, u, total=total * oversample**2)
+        _deposit_point_mass(plane, v, u, total=total * oversample**2, margin=margin)
     return plane
 
 
@@ -515,79 +545,120 @@ def _draw_sky_stars(
     return mags, vs, us
 
 
-def _roll_sky_stars(
+def _tile_span(low: float, high: float, tile: int) -> range:
+    """The indices of the tiles of width ``tile`` that meet ``[low, high)``."""
+    return range(math.floor(low / tile), math.ceil(high / tile))
+
+
+def _sky_beyond_the_frame(
     frame_stars: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
     size: tuple[int, int],
     *,
     seed: int,
-    n_expected: float,
+    star_density: float,
     b: float,
     faint_cutoff_mag: float,
     rotation_deg: float,
+    oversample: int,
+    margin: int,
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """The sky field turned by the roll about the frame center.
+    """The sky field with the stars beyond the frame, turned by the roll.
 
-    The frame's own stars are the sky the unrolled frame shows.  A turned frame
-    also shows sky from beyond the unrolled frame's corners, so stars at the same
-    density are drawn over a square about the frame center, wide enough to hold the
-    frame at any angle, from their own stream, and those that fall outside the
-    frame are added.  Every star then turns about the frame center, so the rolled
-    sky is the unrolled sky turned with the frame.  The stars the turn leaves in the
-    frame are kept, by the rule the unrolled draw follows: a star is drawn only when
-    its position lies in the frame.  So a star just outside the frame lights no edge
-    pixel, and a roll too small to carry any star across the frame edge draws the
-    unrolled frame's stars and no others, each moved by the roll alone.
+    The frame's own stars are the sky the unrolled frame shows.  The sky beyond it is
+    laid out in square tiles of 32 detector pixels, counted from the frame's first
+    pixel corner.  Each tile draws its stars at the same density from a stream of its
+    own, ``tile:<row>:<column>`` of ``seed``, and keeps those outside the frame.  A
+    star beyond the frame is therefore the same whichever tiles are drawn, so a wider
+    margin adds the stars of the pixels it adds and changes no other star.
+
+    A star is kept when its bilinear deposit puts light on the plane, the frame and
+    its margin: its position then lies less than one pixel past the plane's outermost
+    pixel centers, because the deposit shares its flux among the pixels on either side
+    of the position.  Such a star lights the frame's edge through the optics, and a
+    wider margin keeps the same star and more.  The tiles drawn are those that meet
+    that range, or, under a roll, those that meet a square about the frame center wide
+    enough to hold it at any angle.  Every star then turns about the frame center, so
+    the rolled sky is the unrolled sky turned with the frame.  A roll too small to
+    carry any star across the plane's edge draws the stars the unrolled plane holds
+    and no others, each moved by the roll alone.
 
     Parameters:
         frame_stars: The frame's stars, as magnitudes and pixel centric v and u
-            positions.
-        size: The grid's rows and columns.
+            positions on the render grid.
+        size: The frame's rows and columns on the render grid.
         seed: The sky realization's seed.
-        n_expected: The expected number of stars over the frame.
+        star_density: The expected number of stars per square detector pixel.
         b: Cumulative-count law slope per magnitude.
         faint_cutoff_mag: The faint magnitude the count integral is truncated at.
         rotation_deg: The roll in degrees, from ``+v`` toward ``+u``.
+        oversample: The render-grid oversampling factor.
+        margin: How many render-grid pixels the plane extends past the frame.
 
     Returns:
-        The magnitudes and turned pixel centric v and u positions of the stars in the
-        frame.
+        The magnitudes and pixel centric v and u positions, measured from the
+        frame's first pixel, of the stars in the plane.
     """
     size_v, size_u = size
-    side = math.hypot(size_v, size_u)
-    rng = np.random.default_rng(derive_effect_seed(seed, 'roll_border'))
-    n_square = int(rng.poisson(n_expected * side * side / (size_v * size_u)))
-    mags, vs, us = _draw_sky_stars(
-        rng,
-        n_square,
-        ((size_v - side) / 2.0, (size_v + side) / 2.0),
-        ((size_u - side) / 2.0, (size_u + side) / 2.0),
-        b=b,
-        faint_cutoff_mag=faint_cutoff_mag,
+    tile = _SKY_TILE_DETECTOR_PX * oversample
+    n_tile = star_density * _SKY_TILE_DETECTOR_PX**2
+    plane_v = size_v + 2 * margin
+    plane_u = size_u + 2 * margin
+    # A deposit reaches the plane from a pixel past each edge, so the tiles that matter
+    # extend one pixel beyond the plane.
+    if rotation_deg == 0.0:
+        reach_v: tuple[float, float] = (-margin - 1.0, size_v + margin + 1.0)
+        reach_u: tuple[float, float] = (-margin - 1.0, size_u + margin + 1.0)
+    else:
+        side = math.hypot(plane_v + 2, plane_u + 2)
+        reach_v = ((size_v - side) / 2.0, (size_v + side) / 2.0)
+        reach_u = ((size_u - side) / 2.0, (size_u + side) / 2.0)
+    mag_parts = [frame_stars[0]]
+    v_parts = [frame_stars[1]]
+    u_parts = [frame_stars[2]]
+    for row in _tile_span(reach_v[0], reach_v[1], tile):
+        for col in _tile_span(reach_u[0], reach_u[1], tile):
+            # A tile wholly inside the frame holds none of its stars.
+            in_rows = row * tile >= 0 and (row + 1) * tile <= size_v
+            if in_rows and col * tile >= 0 and (col + 1) * tile <= size_u:
+                continue
+            rng = np.random.default_rng(derive_effect_seed(seed, f'tile:{row}:{col}'))
+            mags, vs, us = _draw_sky_stars(
+                rng,
+                int(rng.poisson(n_tile)),
+                (float(row * tile), float((row + 1) * tile)),
+                (float(col * tile), float((col + 1) * tile)),
+                b=b,
+                faint_cutoff_mag=faint_cutoff_mag,
+            )
+            outside = (vs < 0.0) | (vs >= size_v) | (us < 0.0) | (us >= size_u)
+            mag_parts.append(mags[outside])
+            v_parts.append(vs[outside] - PIXEL_CENTER_TO_CORNER_PX)
+            u_parts.append(us[outside] - PIXEL_CENTER_TO_CORNER_PX)
+    all_mags = np.concatenate(mag_parts)
+    turned_v = np.concatenate(v_parts)
+    turned_u = np.concatenate(u_parts)
+    if rotation_deg != 0.0:
+        # The pivot is the frame center, ``size / 2`` in pixel corner coordinates,
+        # written pixel centric, as for the catalog stars.
+        pivot_v = size_v / 2.0 - PIXEL_CENTER_TO_CORNER_PX
+        pivot_u = size_u / 2.0 - PIXEL_CENTER_TO_CORNER_PX
+        rel_v = turned_v - pivot_v
+        rel_u = turned_u - pivot_u
+        roll = math.radians(rotation_deg)
+        cos_r = math.cos(roll)
+        sin_r = math.sin(roll)
+        turned_v = pivot_v + cos_r * rel_v - sin_r * rel_u
+        turned_u = pivot_u + sin_r * rel_v + cos_r * rel_u
+    # The plane's pixel centers span ``[-margin, size + margin)`` pixel centric, and a
+    # deposit at ``p`` shares its flux between the pixels ``floor(p)`` and
+    # ``floor(p) + 1``, so it reaches the plane when ``-margin - 1 < p < size + margin``.
+    in_plane = (
+        (turned_v > -margin - 1.0)
+        & (turned_v < size_v + margin)
+        & (turned_u > -margin - 1.0)
+        & (turned_u < size_u + margin)
     )
-    outside = (vs < 0.0) | (vs >= size_v) | (us < 0.0) | (us >= size_u)
-    all_mags = np.concatenate([frame_stars[0], mags[outside]])
-    rel_v = np.concatenate([frame_stars[1], vs[outside] - PIXEL_CENTER_TO_CORNER_PX])
-    rel_u = np.concatenate([frame_stars[2], us[outside] - PIXEL_CENTER_TO_CORNER_PX])
-    # The pivot is the frame center, ``size / 2`` in pixel corner coordinates,
-    # written pixel centric, as for the catalog stars.
-    pivot_v = size_v / 2.0 - PIXEL_CENTER_TO_CORNER_PX
-    pivot_u = size_u / 2.0 - PIXEL_CENTER_TO_CORNER_PX
-    rel_v -= pivot_v
-    rel_u -= pivot_u
-    roll = math.radians(rotation_deg)
-    cos_r = math.cos(roll)
-    sin_r = math.sin(roll)
-    turned_v = pivot_v + cos_r * rel_v - sin_r * rel_u
-    turned_u = pivot_u + sin_r * rel_v + cos_r * rel_u
-    # The frame spans ``[-half, size - half)`` pixel centric, as the unrolled draw.
-    half = PIXEL_CENTER_TO_CORNER_PX
-    in_frame = (
-        (turned_v >= -half)
-        & (turned_v < size_v - half)
-        & (turned_u >= -half)
-        & (turned_u < size_u - half)
-    )
-    return all_mags[in_frame], turned_v[in_frame], turned_u[in_frame]
+    return all_mags[in_plane], turned_v[in_plane], turned_u[in_plane]
 
 
 def render_sky_counts(
@@ -604,6 +675,7 @@ def render_sky_counts(
     diffuse_flux_per_px: float,
     oversample: int,
     rotation_deg: float = 0.0,
+    margin: int = 0,
 ) -> None:
     """Render the background-sky star field (and optional diffuse floor) in place.
 
@@ -616,6 +688,11 @@ def render_sky_counts(
     is a per-detector-pixel level).  A camera roll turns the field about the frame
     center, filling the corners the turn brings into view from beyond the unrolled
     frame.
+
+    A plane with a margin past the frame gets sky there too, at the same density
+    and with the same floor.  The stars beyond the frame come from fixed tiles, each
+    with its own stream (see :func:`_sky_beyond_the_frame`), so the frame's stars and
+    every star beyond it are the same whatever the margin's width.
 
     Parameters:
         point_plane: The (oversampled) point-source plane, modified in place.
@@ -631,8 +708,10 @@ def render_sky_counts(
             disables it).
         oversample: The render-grid oversampling factor.
         rotation_deg: Camera-roll angle in degrees, from ``+v`` toward ``+u``.
+        margin: How many pixels the plane extends past the frame on each side.
     """
-    size_v, size_u = point_plane.shape
+    size_v = point_plane.shape[0] - 2 * margin
+    size_u = point_plane.shape[1] - 2 * margin
     det_v = size_v / oversample
     det_u = size_u / oversample
     deg_per_px = float(pixel_scale_arcsec) / 3600.0
@@ -650,6 +729,7 @@ def render_sky_counts(
         exposure_sec=float(exposure_sec),
         oversample=int(oversample),
         rotation_deg=float(rotation_deg),
+        margin=int(margin),
     )
     point_plane += plane
     if diffuse_flux_per_px > 0.0:

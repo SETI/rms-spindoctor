@@ -1,18 +1,17 @@
 """The typed, frozen form of one scene ``bodies`` entry.
 
-Every key of a scene body is optional, and the validator reads a key written as
-null as if it were left out.  :func:`body_spec_from_params` parses a body mapping
-once into a :class:`BodySpec`.  Every default is applied there, and a null takes
-the same default an absent key takes, so the renderer reads typed fields and never
-meets a null.
+Every key of a scene body is optional, and the validator refuses a key written as
+null, so a scene leaves a key out to take its default.  :func:`body_spec_from_params`
+parses a body mapping once into a :class:`BodySpec`.  Every default is applied there,
+so the renderer reads typed fields.
 
 Two sub-blocks stay as their validated mappings: ``atmosphere``, whose pixel
 lengths scale with the render grid's oversampling, and ``albedo_texture``, whose
 noise field draws its seed from the body's identity.  The renderer builds their
 specs once it knows the oversampling factor and the body's identity seed, through
 :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_params` and
-:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which read
-a null key as absent too.  The renderer does not read ``km_per_pixel``, which
+:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which apply
+the defaults of those blocks.  The renderer does not read ``km_per_pixel``, which
 describes the body to the navigator, or ``nav_override``, which holds the values
 the navigator is given in place of the truth, so the spec leaves both out.
 
@@ -31,7 +30,7 @@ from spindoctor.sim.render.bodies.texture import (
     transit_specs_from_params,
 )
 from spindoctor.sim.scene.fields import default_body_name, scene_value
-from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import MeshBodySpec, mesh_spec_from_params
 
 __all__ = [
@@ -57,8 +56,6 @@ _LIMB_RELIEF_CORR_DEG_DEFAULT = 15.0
 _PHOTOMETRIC_LAW_DEFAULT = 'lambert'
 _MINNAERT_K_DEFAULT = 0.5
 _SURGE_WIDTH_DEG_DEFAULT = 6.0
-# A body's own seed and its fallback digest each keep their low 31 bits.
-_SEED_31_BITS = 0x7FFFFFFF
 
 
 @dataclass(frozen=True)
@@ -112,7 +109,6 @@ class BodySpec:
             turns the surge off.
         surge_width_deg: The ``opposition_surge`` block's ``width_deg``, in
             degrees of phase.
-        seed: The body's own seed, or None.
         shading: A mesh body's shading mode, ``'flat'`` or ``'gouraud'``.
         pose_scatter_sigma_deg: The ``pose_scatter`` block's ``sigma_deg``, the
             per-axis sigma of a mesh body's pose scatter in degrees.  Zero turns
@@ -155,7 +151,6 @@ class BodySpec:
     minnaert_k: float
     surge_amplitude: float
     surge_width_deg: float
-    seed: int | None
     shading: str
     pose_scatter_sigma_deg: float
     mesh: MeshBodySpec
@@ -176,7 +171,7 @@ class BodySpec:
 
 
 def _optional_float(block: Mapping[str, Any], key: str) -> float | None:
-    """The key's value as a float, or None when it is absent or null."""
+    """The key's value as a float, or None when it is absent."""
     value = block.get(key)
     return None if value is None else float(value)
 
@@ -184,7 +179,7 @@ def _optional_float(block: Mapping[str, Any], key: str) -> float | None:
 def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> BodySpec:
     """Parse one validated scene body into a :class:`BodySpec`.
 
-    A key that is absent or null takes its default.  The mapping is only read.
+    A key that the entry leaves out takes its default.  The mapping is only read.
 
     Parameters:
         body_params: One entry of the scene's ``bodies`` list.
@@ -195,7 +190,6 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
     """
     semi_a_px = float(scene_value(body_params, 'semi_a_px', 0.0))
     semi_b_px = float(scene_value(body_params, 'semi_b_px', 0.0))
-    seed = body_params.get('seed')
     surge = scene_value(body_params, 'opposition_surge', {})
     scatter = scene_value(body_params, 'pose_scatter', {})
     transits = body_params.get('transits')
@@ -236,7 +230,6 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         minnaert_k=float(scene_value(body_params, 'minnaert_k', _MINNAERT_K_DEFAULT)),
         surge_amplitude=float(scene_value(surge, 'amplitude', 0.0)),
         surge_width_deg=float(scene_value(surge, 'width_deg', _SURGE_WIDTH_DEG_DEFAULT)),
-        seed=None if seed is None else int(seed),
         shading=str(scene_value(body_params, 'shading', 'flat')),
         pose_scatter_sigma_deg=float(scene_value(scatter, 'sigma_deg', 0.0)),
         mesh=mesh_spec_from_params(body_params),
@@ -247,39 +240,19 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
     )
 
 
-def body_identity_seed(
-    scene_seed: int | None,
-    body: BodySpec,
-    body_index: int,
-    *,
-    fallback_key: tuple[object, ...],
-) -> int:
+def body_identity_seed(body_streams_seed: int, body: BodySpec, body_index: int) -> int:
     """The seed every random stream of one body derives from.
 
-    The first of these that is available sets the seed:
-
-    1. The scene's seed for the bodies' streams, mixed with the body's index and its
-       upper-cased name, so two bodies of the same geometry draw independent
-       surfaces: ``derive_effect_seed(scene_seed, 'body:<index>:<NAME>')``.
-    2. The body's own ``seed``, keeping its low 31 bits.
-    3. A digest of ``fallback_key``, ``stable_param_seed(*fallback_key)``, keeping
-       its low 31 bits.
-
-    A scene render always supplies the first, so only a renderer called directly
-    reaches the other two.
+    The scene's seed for the bodies' streams is mixed with the body's index and its
+    upper-cased name, so two bodies of the same geometry draw independent surfaces:
+    ``derive_effect_seed(body_streams_seed, 'body:<index>:<NAME>')``.
 
     Parameters:
-        scene_seed: The scene's seed for the bodies' streams, or None.
-        body: The body (its name and its own seed are read).
+        body_streams_seed: The scene's seed for the bodies' streams.
+        body: The body (its name is read).
         body_index: The body's position in the scene's body list.
-        fallback_key: The values the fallback digest hashes, in order.
 
     Returns:
-        The body's identity seed: below 2**32 from the scene's seed, and below
-        2**31 otherwise.
+        The body's identity seed, below 2**32.
     """
-    if scene_seed is not None:
-        return derive_effect_seed(scene_seed, f'body:{body_index}:{body.name.upper()}')
-    if body.seed is not None:
-        return body.seed & _SEED_31_BITS
-    return stable_param_seed(*fallback_key) & _SEED_31_BITS
+    return derive_effect_seed(body_streams_seed, f'body:{body_index}:{body.name.upper()}')

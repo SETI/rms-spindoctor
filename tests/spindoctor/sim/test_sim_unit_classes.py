@@ -149,9 +149,9 @@ def test_every_instrument_marks_a_lost_line_with_zero(instrument: str) -> None:
 
 
 @pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
-def test_lost_lines_carry_a_null_marker_as_the_navigator_reads_it(instrument: str) -> None:
-    """A marker_value of null is NaN to the navigator, and on every lost line."""
-    overrides = {'noise': {'marker_value': None}}
+def test_lost_lines_carry_a_nan_marker_as_the_navigator_reads_it(instrument: str) -> None:
+    """A marker_value of NaN is NaN to the navigator, and on every lost line."""
+    overrides = {'noise': {'marker_value': math.nan}}
     written = _lost_line_value(instrument, overrides)
     assert _same(written, _navigator_marker(instrument, overrides))
 
@@ -368,11 +368,10 @@ def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
     [
         ({}, False),
         ({'offset_v': 0.0, 'offset_u': 0.0}, False),
-        ({'offset_v': None}, False),
         ({'offset_u': -0.5}, True),
         ({'offset_rotation_deg': 0.1}, True),
     ],
-    ids=['none', 'zeros', 'null', 'u', 'roll'],
+    ids=['none', 'zeros', 'u', 'roll'],
 )
 def test_planted_offset_is_any_non_zero_offset_or_roll(
     params: dict[str, Any], planted: bool

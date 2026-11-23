@@ -45,8 +45,8 @@ from typing import Any
 import numpy as np
 
 from spindoctor.config import Config
+from spindoctor.schema import Issue, SchemaError
 from spindoctor.sim.instruments.catalog import InstrumentCatalog, load_instrument_catalog
-from spindoctor.sim.instruments.schema import config_error
 from spindoctor.support.image_class import (
     decide_image_class,
     image_quality_thresholds,
@@ -145,7 +145,7 @@ def resolve_sim_inst_config(
     Raises:
         ValueError: If ``instrument`` is unrecognized, the referenced config section
             or detector is missing, or ``overrides`` sets ``data_units``.
-        ~spindoctor.sim.instruments.schema.InstrumentConfigError: If the referenced
+        ~spindoctor.schema.SchemaError: If the referenced
             block doesn't set ``data_units``, or the entry's ``data_units`` differ
             from the block's.  The message gives the entry's file and name and the
             block; for a mismatch it also gives both units.
@@ -164,9 +164,9 @@ def resolve_sim_inst_config(
 def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, Any]:
     """Resolve the unmodified navigator block of an instrument (or the generic one)."""
     catalog = load_instrument_catalog()
-    navigator = catalog.entry(instrument)['navigator']
-    section: str = navigator['section']
-    detector: str | None = navigator.get('detector')
+    navigator = catalog.entry(instrument).navigator
+    section = navigator.section
+    detector = navigator.detector
     category = config.category(section)
     if not category:
         raise ValueError(
@@ -209,22 +209,19 @@ def _check_units_agree(
     name = catalog.canonical_name(instrument)
     source = catalog.sources[name]
     if 'data_units' not in block:
-        raise config_error(
-            source,
-            'data_units',
-            f"the navigator block {block_name} doesn't set data_units, which the "
-            'navigator requires',
+        message = (
+            f"the navigator block {block_name} doesn't set data_units, which the navigator requires"
         )
-    own = catalog.entry(name)['data_units']
+        raise SchemaError([Issue(source, 'data_units', message)])
+    own = catalog.entry(name).data_units
     expected = str(block['data_units'])
     if own == expected:
         return
-    raise config_error(
-        source,
-        'data_units',
+    message = (
         f'the entry renders {own} frames, but its navigator block {block_name} reads '
-        f'frames as {expected}; the units must match',
+        f'frames as {expected}; the units must match'
     )
+    raise SchemaError([Issue(source, 'data_units', message)])
 
 
 def navigator_matched_psf(
@@ -382,7 +379,7 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
         True when any of ``offset_v``, ``offset_u``, or ``offset_rotation_deg``
         is non-zero, so the navigated frame differs from an offset-free preview.
     """
-    return any(float(sim_params.get(key) or 0.0) != 0.0 for key in PLANTED_POINTING_KEYS)
+    return any(float(sim_params.get(key, 0.0)) != 0.0 for key in PLANTED_POINTING_KEYS)
 
 
 def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:

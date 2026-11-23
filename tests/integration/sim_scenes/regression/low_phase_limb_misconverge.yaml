@@ -9,16 +9,17 @@ exposure_sec: 1.0
 # small planted sub-pixel offset.  Near zero phase the lit arc spans almost
 # the whole silhouette and the limb-darkening roll-off is nearly symmetric,
 # so the across-limb gradient that constrains the limb fit is weakest exactly
-# where the geometry offers the least leverage.  A false polarity-weighted
-# overlap peak several pixels from the true limb then outscores it, seeds the
-# Levenberg-Marquardt stage in the wrong basin, and the trust region pins the
-# fit against its boundary while it fails to converge -- a multi-pixel offset
-# on a clean single-body frame.  Measured behavior: BodyLimbNav flags the
-# fit spurious (the unconverged-at-trust-boundary mis-lock gate), so it
-# contributes no confident wrong offset; the disc technique still navigates
-# the scene, so the fused ensemble result is a success at the planted offset.
-# This scene is the tripwire for that gate: a regression that lets the
-# mis-lock through as a confident success fails loudly.
+# where the geometry offers the least leverage.  The scene was built when the
+# limb fit mis-locked here: a false overlap peak several pixels from the true
+# limb seeded the Levenberg-Marquardt stage in the wrong basin, and the fit,
+# pinned against its trust region, was flagged spurious.  That mis-lock came
+# from the predicted limb running along the unlit outline, where the night side
+# then glowed at 1% of full brightness; with a black night side and a lit-only
+# predicted limb (#894, #1056) it no longer happens.  Measured behavior: the
+# limb fit converges 0.28 px from the planted offset and is not flagged, the
+# disc correlation lands 0.004 px from it, and the fused ensemble result is a
+# success 0.032 px from the planted offset.  The mis-lock gate itself is
+# covered by the limb technique's unit tests.
 bodies:
   - name: RHEA
     shape_model: ellipsoid

@@ -21,17 +21,17 @@ def test_validate_sim_params_accepts_expected_block() -> None:
     assert validate_sim_params(params) is params
 
 
-def test_validate_sim_params_accepts_expected_with_null_tier() -> None:
-    """A success expected block may leave the tier unasserted (null)."""
+def test_validate_sim_params_accepts_expected_without_a_tier() -> None:
+    """A success expected block may leave the tier out, which leaves it unasserted."""
     params = _sim_params()
-    params['expected'] = {'status': 'success', 'confidence_tier': None}
+    params['expected'] = {'status': 'success'}
     assert validate_sim_params(params) is params
 
 
 def test_validate_sim_params_rejects_expected_status() -> None:
     """An unknown expected status fails validation."""
     params = _sim_params()
-    params['expected'] = {'status': 'triumphant', 'confidence_tier': None}
+    params['expected'] = {'status': 'triumphant'}
     with pytest.raises(SimSceneValidationError, match=r'expected.status'):
         validate_sim_params(params)
 

@@ -322,8 +322,8 @@ def ring_orbit_from_mapping(orbit: Mapping[str, Any]) -> RingOrbit:
 
     This is the single interpretation of the idealized orbit block, shared by
     the image-side renderer and the navigator-side model so both sides apply
-    the same defaults to the same catalog values.  An optional key set to null
-    takes the default an absent key does, as the validator reads it.
+    the same defaults to the same catalog values.  An optional key that the block
+    leaves out takes its default.
 
     Parameters:
         orbit: The validated ``ring_system.features[].orbit`` mapping.

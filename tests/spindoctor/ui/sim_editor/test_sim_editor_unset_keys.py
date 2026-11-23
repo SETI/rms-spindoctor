@@ -1,56 +1,31 @@
-"""Null scene keys in the ``sd_create_simulated_image`` editor.
+"""Scene keys left out, in the ``sd_create_simulated_image`` editor.
 
-The scene validator and the renderer both accept null for any optional key and read it
-as absent.  These tests load scenes whose optional keys are null.  They check that each
-editor control shows the same value as when those keys are left out.  Further tests
-check that a body whose name and center are unset shows the renderer's name and the
-frame center, that unset derived values follow edits, and that loading a scene leaves
-it unchanged.  The remaining tests check that adding a ring to a null ring block or
-feature list works, that a ring kind switch fills a null required shape key, that a
-ring modulation can be turned on under a null azimuthal block, and that a body whose
-range is unset counts at its default range when the editor picks a range for an added
-body and when it warns about duplicate ranges.  The last tests check that the range box
-writes the default range its spin shows, and that the navigation-override group writes
-only the keys the author edits and shows the body's own values for the keys it leaves
-unset.
+A scene leaves a key out to take its default.  These tests check that a body whose name
+and center are left out shows the renderer's name and the frame center, that an unset
+key shows the renderer's default, that unset derived values follow edits, and that
+loading a scene leaves it unchanged.  The remaining tests check that a ring kind switch
+fills a required shape key the feature leaves out, and that a body whose range is unset
+counts at its default range when the editor picks a range for an added body and when it
+warns about duplicate ranges.  The last tests check that the range box writes the
+default range its spin shows, and that the navigation-override group writes only the
+keys the author edits and shows the body's own values for the keys it leaves unset.
 
 Qt runs headless (offscreen platform).
 """
 
 import copy
 import os
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
-    from PyQt6.QtWidgets import (
-        QAbstractSpinBox,
-        QApplication,
-        QCheckBox,
-        QComboBox,
-        QDoubleSpinBox,
-        QGroupBox,
-        QLineEdit,
-        QMessageBox,
-        QSlider,
-        QSpinBox,
-        QWidget,
-    )
+    from PyQt6.QtWidgets import QApplication, QComboBox, QMessageBox, QWidget
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
-        allow_module_level=True,
-    )
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
         allow_module_level=True,
     )
 
@@ -59,220 +34,55 @@ from spindoctor.sim.render.radiance.stars import SKY_COUNTS_DEFAULTS
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 
-# Every key a scene body may carry, each set to null.  The scenes below replace some
-# of these with sub-blocks whose own keys are null.
-_NULL_BODY: dict[str, Any] = dict.fromkeys(
-    (
-        'albedo_texture',
-        'anti_aliasing',
-        'atmosphere',
-        'center_u',
-        'center_v',
-        'crater_fill',
-        'crater_max_radius',
-        'crater_min_radius',
-        'crater_power_law_exponent',
-        'crater_relief_scale',
-        'disc_texture',
-        'illumination_angle',
-        'km_per_pixel',
-        'limb_relief_corr_deg',
-        'limb_relief_rms',
-        'mesh_detail_octaves',
-        'mesh_lumpiness',
-        'mesh_n_lat',
-        'mesh_n_lon',
-        'mesh_seed',
-        'minnaert_k',
-        'name',
-        'nav_override',
-        'opposition_surge',
-        'phase_angle',
-        'photometric_law',
-        'pose_euler_deg',
-        'pose_scatter',
-        'range_km',
-        'sub_observer_lat_deg',
-        'rotation_z',
-        'seed',
-        'semi_a_px',
-        'semi_b_px',
-        'semi_c_px',
-        'shading',
-        'shape_model',
-        'transits',
-    )
-)
-
-_NULL_SPOT: dict[str, Any] = dict.fromkeys(('lat_deg', 'lon_deg', 'radius_deg', 'albedo_factor'))
-
-_NULL_BODIES_SCENE: dict[str, Any] = {
-    'instrument': 'coiss_nac',
-    'size_v': 300,
-    'size_u': 400,
-    'random_seed': 42,
-    'bodies': [
-        {
-            **_NULL_BODY,
-            'semi_a_px': 20.0,
-            'semi_b_px': 15.0,
-            'opposition_surge': dict.fromkeys(('amplitude', 'width_deg')),
-            'albedo_texture': {'rms': None, 'corr_px': None, 'spots': [dict(_NULL_SPOT)]},
-            'disc_texture': {
-                **dict.fromkeys(('band_amplitude', 'band_wavenumber', 'band_phase_deg')),
-                'storms': [dict(_NULL_SPOT)],
-            },
-            'transits': [
-                {
-                    'moon': dict.fromkeys(('dv_px', 'du_px', 'radius_px', 'albedo_factor')),
-                    'shadow': dict.fromkeys(('dv_px', 'du_px', 'radius_px', 'darkness')),
-                }
-            ],
-            'atmosphere': {
-                'scale_height_px': 8.0,
-                'tau_ref': 1.0,
-                **dict.fromkeys(('ref_altitude_px', 'g', 'detached_px', 'albedo')),
-            },
-            'nav_override': dict.fromkeys(('shape_model', 'mesh_lumpiness', 'pose_euler_deg')),
-        },
-        {
-            **_NULL_BODY,
-            'center_v': 40.0,
-            'center_u': 40.0,
-            'semi_a_px': 20.0,
-            'semi_b_px': 15.0,
-            'shape_model': 'polyhedral_mesh',
-            'pose_scatter': {'sigma_deg': None},
-        },
-    ],
-}
-"""Two bodies, an ellipsoid and a mesh, whose optional body keys are all null.
-
-Each body sets its axes so that it is drawn.  The mesh body sets a center away from
-the frame center, because two overlapping bodies need ranges to order them."""
-
-# The spacecraft-ephemeris block needs a range on every body, so the frame-wide
-# blocks get a scene of their own.
-_NULL_FRAME_SCENE: dict[str, Any] = {
-    'instrument': 'coiss_nac',
-    'size_v': 300,
-    'size_u': 400,
-    'random_seed': 42,
-    'closest_planet': None,
-    'midtime_utc': None,
-    'fit_camera_rotation': None,
-    'oversample': None,
-    'bodies': None,
-    'stars': None,
-    'noise': dict.fromkeys(
-        (
-            'poisson',
-            'read_noise_dn',
-            'cosmic_ray_events_per_pixel_per_sec',
-            'missing_data_rate',
-            'bias_dn',
-            'bloom_length',
-            'signal_full_scale_frac',
-        )
-    ),
-    'optics': {
-        'psf': {'sigma_v': 1.0, **dict.fromkeys(('sigma_u', 'w', 'r0', 'n'))},
-        'smear': [dict.fromkeys(('dv_px', 'du_px'))],
-        'distortion': dict.fromkeys(('k1', 'k2', 'center_v', 'center_u', 'nonradial_rms_px')),
-        'ghosts': [dict.fromkeys(('dv_px', 'du_px', 'amplitude', 'defocus_sigma'))],
-        'stray_light': dict.fromkeys(
-            ('amplitude', 'direction_deg', 'model', 'center_v', 'center_u')
-        ),
+# Two bodies, an ellipsoid and a mesh, that set few keys and leave every sub-block
+# empty.  Each body sets its axes so that it is drawn.  The mesh body sets a center
+# away from the frame center, because two overlapping bodies need ranges to order them.
+_EMPTY_BLOCK_BODIES: list[dict[str, Any]] = [
+    {
+        'semi_a_px': 20.0,
+        'semi_b_px': 15.0,
+        'opposition_surge': {},
+        'albedo_texture': {'spots': [{}]},
+        'disc_texture': {'storms': [{}]},
+        'transits': [{'moon': {}, 'shadow': {}}],
+        'atmosphere': {'scale_height_px': 8.0, 'tau_ref': 1.0},
+        'nav_override': {},
     },
-    'spk_error': dict.fromkeys(('dv_px', 'du_px', 'reference_range_km')),
-    'detector': dict.fromkeys(
-        ('gain_state', 'binning', 'detector_model', 'exposure_ref_sec', 'quantization')
-    ),
-    'artifacts': dict.fromkeys(('instrument_defaults', 'adversarial')),
-    'sky_counts': dict.fromkeys(('a', 'b', 'density_factor', 'diffuse_e_per_px')),
+    {
+        'center_v': 40.0,
+        'center_u': 40.0,
+        'semi_a_px': 20.0,
+        'semi_b_px': 15.0,
+        'shape_model': 'polyhedral_mesh',
+        'pose_scatter': {},
+    },
+]
+
+# The frame-wide blocks, each empty or holding only the keys it needs.
+_EMPTY_FRAME_BLOCKS: dict[str, Any] = {
+    'noise': {},
+    'optics': {
+        'psf': {'sigma_v': 1.0},
+        'smear': [{}],
+        'distortion': {},
+        'ghosts': [{}],
+        'stray_light': {},
+    },
+    'detector': {},
+    'artifacts': {},
+    'sky_counts': {},
 }
-"""The optional top-level keys and the frame-wide blocks, set to null."""
 
 
 @pytest.fixture
-def qapp(monkeypatch: pytest.MonkeyPatch) -> QApplication:
+def qapp(qapp: QApplication, monkeypatch: pytest.MonkeyPatch) -> QApplication:
     """Return the shared headless Qt application, with error dialogs patched to raise."""
 
     def _raise(*args: Any, **kwargs: Any) -> None:
         raise AssertionError(f'error dialog raised: {args!r}')
 
     monkeypatch.setattr(QMessageBox, 'critical', staticmethod(_raise))
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
-
-
-def _without_nulls(value: Any) -> Any:
-    """Return ``value`` with every null-valued mapping key left out, at every depth.
-
-    Parameters:
-        value: A scene, or any value inside one.
-
-    Returns:
-        A copy without the null keys.
-    """
-    if isinstance(value, dict):
-        return {key: _without_nulls(item) for key, item in value.items() if item is not None}
-    if isinstance(value, list):
-        return [_without_nulls(item) for item in value]
-    return value
-
-
-def _control_state(widget: QWidget) -> Any:
-    """Return what one control shows, or None for a widget that is not a control.
-
-    Parameters:
-        widget: Any widget inside a tab.
-
-    Returns:
-        The control's type name and displayed value.  The type name keeps two
-        different kinds of control from comparing equal.
-    """
-    if isinstance(widget, (QDoubleSpinBox, QSpinBox)):
-        return (type(widget).__name__, widget.value())
-    if isinstance(widget, QSlider):
-        return ('QSlider', widget.value())
-    if isinstance(widget, QCheckBox):
-        return ('QCheckBox', widget.isChecked())
-    if isinstance(widget, QGroupBox) and widget.isCheckable():
-        return ('QGroupBox', widget.title(), widget.isChecked())
-    if isinstance(widget, QComboBox):
-        return ('QComboBox', widget.currentText())
-    if isinstance(widget, QLineEdit) and not isinstance(widget.parent(), QAbstractSpinBox):
-        return ('QLineEdit', widget.text())
-    return None
-
-
-def _shown(scene: dict[str, Any]) -> list[tuple[str, list[Any]]]:
-    """Load a scene into a fresh editor and return every tab's controls, in order.
-
-    Parameters:
-        scene: The scene to load.
-
-    Returns:
-        One entry per tab: its title and the state of each control in it.
-    """
-    model: Any = CreateSimulatedImageModel()
-    model._apply_params_dict(copy.deepcopy(scene))
-    tabs: list[tuple[str, list[Any]]] = []
-    for index in range(model._tabs.count()):
-        tab: Any = model._tabs.widget(index)
-        states = [_control_state(child) for child in tab.findChildren(QWidget)]
-        tabs.append((model._tabs.tabText(index), [s for s in states if s is not None]))
-    return tabs
-
-
-@pytest.mark.parametrize('scene', [_NULL_BODIES_SCENE, _NULL_FRAME_SCENE], ids=['bodies', 'frame'])
-def test_null_keys_show_what_absent_keys_show(qapp: QApplication, scene: dict[str, Any]) -> None:
-    """Each control shows the same value for a null key as for the key left out."""
-    validate_sim_params(copy.deepcopy(scene), source='null scene')
-    assert _shown(scene) == _shown(_without_nulls(scene))
+    return qapp
 
 
 def test_body_without_name_or_center_shows_the_renderers(qapp: QApplication) -> None:
@@ -340,13 +150,10 @@ def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
 
 def test_loading_a_scene_leaves_it_unchanged(qapp: QApplication) -> None:
     """Loading a scene and touching nothing leaves the editor's scene equal to it."""
-    frame_blocks = {
-        key: value
-        for key, value in _NULL_FRAME_SCENE.items()
-        if key not in ('closest_planet', 'bodies', 'stars', 'spk_error')
-    }
     scene = {
-        **frame_blocks,
+        **_FRAME_300_BY_400,
+        'random_seed': 42,
+        **_EMPTY_FRAME_BLOCKS,
         'offset_v': 0.0,
         'offset_u': 0.0,
         'offset_rotation_deg': 0.0,
@@ -354,7 +161,7 @@ def test_loading_a_scene_leaves_it_unchanged(qapp: QApplication) -> None:
         'time': 0.0,
         'ring_epoch': 0.0,
         'closest_planet': 'SATURN',
-        'bodies': _NULL_BODIES_SCENE['bodies'],
+        'bodies': _EMPTY_BLOCK_BODIES,
         'stars': [],
     }
     validate_sim_params(copy.deepcopy(scene), source='round-trip scene')
@@ -400,65 +207,23 @@ def test_an_empty_ring_modulation_starts_turned_off(qapp: QApplication) -> None:
 _RING_GEOMETRY: dict[str, Any] = {'opening_deg_obs': 90.0, 'opening_deg_sun': 90.0}
 
 
-@pytest.mark.parametrize(
-    'ring_system',
-    [None, {'geometry': _RING_GEOMETRY, 'features': None}],
-    ids=['null-block', 'null-features'],
-)
-def test_adding_a_ring_to_a_null_ring_system(
-    qapp: QApplication, ring_system: dict[str, Any] | None
-) -> None:
-    """Adding a ring where the ring system or its feature list is null adds one feature."""
-    scene = {**_FRAME_300_BY_400, 'random_seed': 42, 'ring_system': ring_system}
-    validate_sim_params(copy.deepcopy(scene), source='null ring scene')
-    model = _loaded(scene)
-    model._add_ring_tab()
-    assert len(model._ring_features()) == 1
-
-
-def test_a_kind_switch_fills_a_null_required_shape_key(qapp: QApplication) -> None:
-    """A switch to a kind that needs a null shape key writes the editor's starting width."""
-    feature = {
-        'name': 'Edge',
-        'kind': 'edge',
-        'tau': 1.0,
-        'width_px': None,
-        'orbit': {'a_px': 100.0},
-    }
+def test_a_kind_switch_fills_an_absent_required_shape_key(qapp: QApplication) -> None:
+    """A switch to a kind that needs an absent shape key writes the editor's starting width."""
+    feature = {'name': 'Edge', 'kind': 'edge', 'tau': 1.0, 'orbit': {'a_px': 100.0}}
     scene = {
         **_FRAME_300_BY_400,
         'random_seed': 42,
         'ring_system': {'geometry': _RING_GEOMETRY, 'features': [feature]},
     }
-    validate_sim_params(copy.deepcopy(scene), source='null width scene')
+    validate_sim_params(copy.deepcopy(scene), source='edge scene')
     model = _loaded(scene)
     model._on_ring_kind(0, 'ringlet')
     assert model.sim_params['ring_system']['features'][0]['width_px'] == 20.0
 
 
-def test_turning_on_a_ring_modulation_under_a_null_azimuthal_block(
-    qapp: QApplication,
-) -> None:
-    """Turning the modulation group on writes it when the azimuthal block is null."""
-    feature = {'name': 'Ring', 'kind': 'ringlet', 'tau': 1.0, 'width_px': 20.0}
-    scene = {
-        **_FRAME_300_BY_400,
-        'random_seed': 42,
-        'ring_system': {
-            'geometry': _RING_GEOMETRY,
-            'features': [{**feature, 'orbit': {'a_px': 100.0}}],
-            'azimuthal': None,
-        },
-    }
-    validate_sim_params(copy.deepcopy(scene), source='null azimuthal scene')
-    model = _loaded(scene)
-    model._on_ring_modulation_toggled(True)
-    assert 'modulation' in model.sim_params['ring_system']['azimuthal']
-
-
 # The first body sits at the frame center with no range, so the renderer draws it at
 # its default range of 1; the second sits apart from it.
-_UNSET_RANGE_BODY: dict[str, Any] = {'semi_a_px': 10.0, 'semi_b_px': 10.0, 'range_km': None}
+_UNSET_RANGE_BODY: dict[str, Any] = {'semi_a_px': 10.0, 'semi_b_px': 10.0}
 _APART_BODY: dict[str, Any] = {
     'semi_a_px': 10.0,
     'semi_b_px': 10.0,
@@ -468,7 +233,7 @@ _APART_BODY: dict[str, Any] = {
 
 
 def test_an_added_body_skips_an_unset_bodys_default_range(qapp: QApplication) -> None:
-    """A body added beside one whose range is null takes a range the other doesn't use."""
+    """A body added beside one whose range is unset takes a range the other doesn't use."""
     scene = {**_FRAME_300_BY_400, 'random_seed': 42, 'bodies': [_UNSET_RANGE_BODY]}
     validate_sim_params(copy.deepcopy(scene), source='unset range scene')
     model = _loaded(scene)
@@ -477,7 +242,7 @@ def test_an_added_body_skips_an_unset_bodys_default_range(qapp: QApplication) ->
 
 
 def test_an_unset_range_counts_toward_the_duplicate_warning(qapp: QApplication) -> None:
-    """A body whose null range defaults to another body's explicit range raises the warning."""
+    """A body whose unset range defaults to another body's range raises the warning."""
     scene = {
         **_FRAME_300_BY_400,
         'random_seed': 42,
@@ -504,7 +269,8 @@ def test_the_range_spin_is_enabled_only_for_a_set_range(
 ) -> None:
     """The range spin starts disabled for an unset range and enabled for a set one."""
     scene = copy.deepcopy(_SECOND_UNSET_SCENE)
-    scene['bodies'][1]['range_km'] = range_km
+    if range_km is not None:
+        scene['bodies'][1]['range_km'] = range_km
     assert _body_tab(_loaded(scene), 1).range_spin.isEnabled() is enabled
 
 
@@ -580,24 +346,27 @@ def _control_value(control: Any) -> Any:
     [
         (
             None,
-            {'mesh_lumpiness': None},
+            {'mesh_lumpiness': 0.3},
             'nav_shape_combo',
             'ellipsoid',
-            {'mesh_lumpiness': None, 'shape_model': 'ellipsoid'},
+            {'mesh_lumpiness': 0.3, 'shape_model': 'ellipsoid'},
         ),
         (
             None,
-            {'shape_model': None},
+            {'shape_model': 'polyhedral_mesh'},
             'nav_lump_spin',
             0.5,
-            {'shape_model': None, 'mesh_lumpiness': pytest.approx(0.5)},
+            {'shape_model': 'polyhedral_mesh', 'mesh_lumpiness': pytest.approx(0.5)},
         ),
         (
             [10.0, 20.0, 30.0],
-            {'shape_model': None},
+            {'shape_model': 'polyhedral_mesh'},
             'nav_pose_spins',
             40.0,
-            {'shape_model': None, 'pose_euler_deg': pytest.approx([40.0, 20.0, 30.0])},
+            {
+                'shape_model': 'polyhedral_mesh',
+                'pose_euler_deg': pytest.approx([40.0, 20.0, 30.0]),
+            },
         ),
         (
             None,
@@ -708,3 +477,77 @@ def test_a_body_edit_keeps_a_set_predicted_value(
     tab = _body_tab(_loaded({**_FRAME_300_BY_400, 'bodies': [body]}), 0)
     _set_control(getattr(tab, attr), value)
     assert _control_value(getattr(tab, nav_attr)) == kept
+
+
+def test_a_kind_switch_keeps_a_stored_width(qapp: QApplication) -> None:
+    """A switch to a kind that needs a width keeps the width the feature already has."""
+    feature = {
+        'name': 'Gap',
+        'kind': 'gap',
+        'tau': 1.0,
+        'width_px': 33.0,
+        'orbit': {'a_px': 100.0},
+    }
+    scene = {
+        **_FRAME_300_BY_400,
+        'random_seed': 42,
+        'ring_system': {'geometry': _RING_GEOMETRY, 'features': [feature]},
+    }
+    validate_sim_params(copy.deepcopy(scene), source='gap scene')
+    model = _loaded(scene)
+    model._on_ring_kind(0, 'ringlet')
+    assert model.sim_params['ring_system']['features'][0]['width_px'] == 33.0
+
+
+def test_adding_a_ring_to_a_ring_system_without_features(qapp: QApplication) -> None:
+    """A ring system that leaves out ``features`` takes the added ring as its first."""
+    scene = {
+        **_FRAME_300_BY_400,
+        'random_seed': 42,
+        'ring_system': {'geometry': _RING_GEOMETRY},
+    }
+    model = _loaded(scene)
+    model._add_ring_tab()
+    assert len(model.sim_params['ring_system']['features']) == 1
+
+
+def test_an_absent_expected_tier_shows_none(qapp: QApplication) -> None:
+    """An expected block that leaves out the tier shows the (none) choice."""
+    model = _loaded({**_FRAME_300_BY_400, 'expected': {'status': 'success'}})
+    assert model._expected_tier_combo.currentText() == '(none)'
+
+
+def test_the_noise_panel_shows_the_defaults_for_absent_keys(qapp: QApplication) -> None:
+    """A scene whose noise block leaves out every key shows each control's default."""
+    model = _loaded({'instrument': 'coiss_nac', 'noise': {}})
+    shown = (
+        model._poisson_check.isChecked(),
+        model._read_noise_spin.value(),
+        model._bias_spin.value(),
+        model._signal_frac_spin.value(),
+        model._cosmic_ray_spin.value(),
+        model._missing_data_spin.value(),
+    )
+    assert shown == (True, 4.0, 20.0, 0.5, 0.0, 0.0)
+
+
+def _atmosphere_widget(model: Any) -> Any:
+    """Build the atmosphere group for a body whose atmosphere sets only the required keys."""
+    widget = QWidget()
+    body = {'atmosphere': {'scale_height_px': 8.0, 'tau_ref': 1.0}}
+    model._build_atmosphere_group(widget, 0, body)
+    return widget
+
+
+def test_the_atmosphere_asymmetry_spin_shows_zero_when_absent(qapp: QApplication) -> None:
+    """An atmosphere that leaves out ``g`` shows 0.0 in the asymmetry spin."""
+    model: Any = CreateSimulatedImageModel()
+    assert _atmosphere_widget(model).atmosphere_g_spin.value() == 0.0
+
+
+def test_the_atmosphere_reference_altitude_spin_shows_zero_when_absent(
+    qapp: QApplication,
+) -> None:
+    """An atmosphere that leaves out ``ref_altitude_px`` shows 0.0 in its spin."""
+    model: Any = CreateSimulatedImageModel()
+    assert _atmosphere_widget(model).atmosphere_ref_altitude_spin.value() == 0.0

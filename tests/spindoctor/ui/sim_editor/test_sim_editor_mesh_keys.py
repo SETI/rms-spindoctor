@@ -1,6 +1,6 @@
 """The sim editor cannot author a mesh body its scene validator refuses.
 
-The validator refuses a non-null value of every key in the schema's
+The validator refuses every key in the schema's
 ``MESH_UNSUPPORTED_KEYS`` on a ``shape_model: polyhedral_mesh`` body.  The editor
 reads the same table: switching a body to a mesh disables every control that
 writes one of those keys, gives each (and every control inside it) the
@@ -44,12 +44,6 @@ try:
     )
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6/QtWidgets not available: {exc}', allow_module_level=True)
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(f'PyQt6 QApplication init failed: {exc}', allow_module_level=True)
 
 from tests.spindoctor.sim.scenes import frame_scene
 
@@ -99,15 +93,6 @@ _FULL_ELLIPSOID: dict[str, Any] = {
     'crater_relief_scale': 0.5,
     'sub_observer_lat_deg': 20.0,
 }
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture

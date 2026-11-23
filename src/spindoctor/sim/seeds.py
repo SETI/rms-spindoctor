@@ -49,19 +49,3 @@ def derive_effect_seed(scene_seed: int, effect: str) -> int:
         An integer in [0, 2**32 - 1] suitable for seeding numpy.random.Generator.
     """
     return _digest_to_seed(f'{int(scene_seed)}:{effect}'.encode())
-
-
-def stable_param_seed(*values: object) -> int:
-    """Derive a process-stable seed from arbitrary parameter values.
-
-    Used as a fallback when no explicit seed is supplied but a deterministic
-    stream is still required (e.g. crater placement keyed on body geometry).
-
-    Parameters:
-        values: The parameter values to derive a seed from; their ``repr`` must
-            be stable across runs (numbers, strings, and tuples thereof are).
-
-    Returns:
-        An integer in [0, 2**32 - 1] suitable for seeding numpy.random.Generator.
-    """
-    return _digest_to_seed(repr(tuple(values)).encode())

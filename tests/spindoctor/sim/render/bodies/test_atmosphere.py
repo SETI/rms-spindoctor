@@ -30,12 +30,12 @@ from spindoctor.sim.render.bodies.atmosphere import (
     atmosphere_spec_from_params,
     tangent_optical_depth,
 )
+from spindoctor.sim.render.bodies.haze import HazeStructure
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
-from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -82,6 +82,7 @@ def _render_haze_body(
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
+        body_streams_seed=7,
     )
     return img
 
@@ -320,19 +321,6 @@ def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
     spec = atmosphere_spec_from_params({'scale_height_px': 4.0, 'tau_ref': 1.2}, oversample=1)
     assert spec is not None
     assert spec.albedo == DEFAULT_HAZE_ALBEDO
-
-
-@pytest.mark.parametrize('key', sorted(ATMOSPHERE_KEYS - {'scale_height_px', 'tau_ref'}))
-def test_a_null_atmosphere_key_reads_as_omitted(key: str) -> None:
-    """An optional key written as null builds the same spec as leaving it out.
-
-    A structure key written as null leaves the structure off, as leaving it out
-    does.
-    """
-    block = {'scale_height_px': 4.0, 'tau_ref': 1.2}
-    stated = atmosphere_spec_from_params({**block, key: None}, oversample=2)
-    omitted = atmosphere_spec_from_params(block, oversample=2)
-    assert stated == omitted
 
 
 def test_the_halo_glow_scales_with_the_haze_albedo() -> None:
@@ -621,6 +609,7 @@ def test_body_mask_covers_only_the_solid_silhouette() -> None:
         body_spec_from_params(_compose_body(), index=0),
         0.0,
         offset_u=0.0,
+        body_streams_seed=7,
     )
     assert bool(mask[_DISC_PIXEL])
     assert not bool(mask[_HALO_PIXEL])
@@ -789,3 +778,101 @@ def test_ring_over_only_the_halo_still_needs_ranges() -> None:
     ring['geometry'] = {'opening_deg_obs': 90.0, 'opening_deg_sun': 90.0}
     with pytest.raises(SimSceneValidationError, match="ring_system and the halo of body 'TITAN'"):
         _compose_scene(bodies=[_compose_body()], ring_system=ring)
+
+
+def test_on_disc_haze_adds_light_past_one() -> None:
+    """Haze over a bright disc carries the disc radiance above 1, uncapped."""
+    outline = _sphere_outline()
+    body = 0.99 * outline
+    layers = apply_atmosphere(
+        body,
+        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6),
+        center_v=_CENTER,
+        center_u=_CENTER,
+        semi_a=_RADIUS,
+        semi_b=_RADIUS,
+        semi_c=_RADIUS,
+        rotation_z=0.0,
+        sub_observer_lat=0.0,
+        illumination_angle=math.radians(90.0),
+        phase_angle=math.radians(30.0),
+        silhouette=outline,
+    )
+    assert float(layers.disc.max()) > 1.0
+
+
+def _forward_scattering_layers(
+    outline: NDArrayFloatType, *, structure: HazeStructure | None = None
+) -> Any:
+    """The haze layers of a bright sphere at 155 deg phase in a forward-scattering haze."""
+    return apply_atmosphere(
+        0.99 * outline,
+        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.75, structure=structure),
+        center_v=_CENTER,
+        center_u=_CENTER,
+        semi_a=_RADIUS,
+        semi_b=_RADIUS,
+        semi_c=_RADIUS,
+        rotation_z=0.0,
+        sub_observer_lat=0.0,
+        illumination_angle=math.radians(90.0),
+        phase_angle=math.radians(155.0),
+        silhouette=outline,
+    )
+
+
+def test_forward_scattering_halo_glows_past_one() -> None:
+    """Above the limb a strong forward-scattering haze glows brighter than 1, uncapped."""
+    layers = _forward_scattering_layers(_sphere_outline())
+    assert float(layers.halo.emission.max()) > 1.0
+
+
+def test_haze_over_the_outline_rim_adds_light_past_one() -> None:
+    """Band pixels the outline covers past the ellipse take their haze uncapped.
+
+    The outline is widened by a pixel, as an anti-aliased rim or relief standing above
+    the ellipse widens it, so some above-limb band pixels are opaque paint.
+    """
+    outline = _sphere_outline()
+    rim = np.maximum.reduce(
+        [outline, np.roll(outline, 1, 0), np.roll(outline, -1, 0), np.roll(outline, 1, 1)]
+    )
+    rim = np.maximum(rim, np.roll(outline, -1, 1))
+    layers = _forward_scattering_layers(rim)
+    offsets = np.arange(_SIZE, dtype=np.float64) + (PIXEL_CENTER_TO_CORNER_PX - _CENTER)
+    past_limb = offsets[:, None] ** 2 + offsets[None, :] ** 2 >= _RADIUS * _RADIUS
+    assert float(layers.disc[past_limb & (rim > 0.0)].max()) > 1.0
+
+
+@pytest.mark.parametrize('column', [_CENTER + _RADIUS - 2.0, _CENTER + _RADIUS + 1.0])
+def test_a_half_covered_pixel_takes_half_the_haze(column: float) -> None:
+    """Haze joins the disc by the pixel's coverage, inside the ellipse and past it.
+
+    Parameters:
+        column: The pixel's column, left of the limb or right of it.
+    """
+    pixel = (int(_CENTER), int(column))
+    whole = _sphere_outline()
+    whole[pixel] = 1.0
+    half = whole.copy()
+    half[pixel] = 0.5
+    covered = float(_forward_scattering_layers(whole).disc[pixel])
+    assert covered > 0.99
+    assert float(_forward_scattering_layers(half).disc[pixel]) == pytest.approx(
+        0.5 * covered, rel=1e-12
+    )
+
+
+def test_a_hemispheric_amplitude_scales_the_bright_halo_uncapped() -> None:
+    """Poleward of the blend band a halo already brighter than 1 grows by the amplitude."""
+    outline = _sphere_outline()
+    plain = _forward_scattering_layers(outline).halo.emission
+    scaled = _forward_scattering_layers(
+        outline, structure=HazeStructure(ns_asymmetry_amplitude=0.5)
+    ).halo.emission
+    poleward = np.zeros_like(plain)
+    first = int(_CENTER + 0.4 * _RADIUS)
+    poleward[first:] = plain[first:]
+    pixel = np.unravel_index(int(np.argmax(poleward)), plain.shape)
+    assert float(plain[pixel]) > 1.0
+    assert float(scaled[pixel]) == pytest.approx(1.5 * float(plain[pixel]), rel=1e-12)

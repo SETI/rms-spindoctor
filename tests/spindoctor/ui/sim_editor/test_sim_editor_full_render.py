@@ -11,7 +11,7 @@ Qt runs headless (offscreen platform).
 import os
 import threading
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import pytest
@@ -23,15 +23,6 @@ try:
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
-        allow_module_level=True,
-    )
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
         allow_module_level=True,
     )
 
@@ -50,15 +41,6 @@ from spindoctor.ui.sim_editor import full_render as full_render_module
 from spindoctor.ui.sim_editor.full_render import FullRender
 from spindoctor.ui.sim_editor.main_window import build_arg_parser
 from spindoctor.ui.sim_editor.render_display import _dn_to_display_uint8
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture(autouse=True)

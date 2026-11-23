@@ -63,8 +63,8 @@ class _GhostRow:
 
 
 def _has_center(block: dict[str, Any]) -> bool:
-    """True when a block sets either center key to a non-null value."""
-    return block.get('center_v') is not None or block.get('center_u') is not None
+    """True when a block sets either center key."""
+    return 'center_v' in block or 'center_u' in block
 
 
 class OpticsTabMixin(SimEditorBase):
@@ -394,8 +394,7 @@ class OpticsTabMixin(SimEditorBase):
         # The optical center is an optional key pair: an absent key means the
         # frame center, so a center spin only authors its own key when the
         # enable is on and the spin itself is edited (a legitimate 0.0 center
-        # is then expressible, and a partial block keeps its absent key).  A null
-        # key reads as absent.
+        # is then expressible, and a partial block keeps its absent key).
         has_center = _has_center(block)
         self._distortion_center_check = QCheckBox('Set optical center')
         self._distortion_center_check.setChecked(has_center)
@@ -764,7 +763,7 @@ class OpticsTabMixin(SimEditorBase):
         """Return the dv, du, and reference range the spk_error group shows.
 
         If the scene has the block, each spin shows the value the renderer reads, so
-        an absent or null key shows the renderer's default.  If the scene leaves the
+        an absent key shows the renderer's default.  If the scene leaves the
         block out, the spins show the values that turning the group on writes.
         """
         spk = self.sim_params.get('spk_error')

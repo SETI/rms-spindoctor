@@ -5,10 +5,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 import pytest
 
-from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import (
     _ALLOWED_KEYS,
     _OBJECT_BLOCKS,
@@ -18,6 +16,7 @@ from spindoctor.sim.scene.boundary import (
     TRUTH_KEYS,
 )
 from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.fields import default_body_name
 from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
 from spindoctor.sim.scene.validate import validate_sim_params
 
@@ -193,20 +192,18 @@ def test_validate_sim_params_rejects_negative_limb_relief_rms() -> None:
         validate_sim_params(params)
 
 
-@pytest.mark.parametrize(('rms', 'accepted'), [(0.05, True), (0.0501, False), (0.1, False)])
-def test_validate_sim_params_bounds_limb_relief_rms_as_a_fraction_of_the_radius(
-    rms: float, accepted: bool
-) -> None:
-    """Relief RMS above 5% of the radius fails validation.
-
-    At the cap the ellipsoid renderer misreads the terrain under about 12% of the disc.
-    """
+def test_validate_sim_params_accepts_limb_relief_rms_at_the_cap() -> None:
+    """A relief RMS of 10% of the radius, the scene format's limit, passes validation."""
     params = _sim_params()
-    params['bodies'][0]['limb_relief_rms'] = rms
-    if accepted:
-        assert validate_sim_params(params) is params
-        return
-    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.05'):
+    params['bodies'][0]['limb_relief_rms'] = 0.1
+    assert validate_sim_params(params) is params
+
+
+def test_validate_sim_params_refuses_limb_relief_rms_above_the_cap() -> None:
+    """A relief RMS just above 10% of the radius fails validation, stating the limit."""
+    params = _sim_params()
+    params['bodies'][0]['limb_relief_rms'] = 0.1001
+    with pytest.raises(SimSceneValidationError, match=r'limb_relief_rms .*at most 0\.1;'):
         validate_sim_params(params)
 
 
@@ -639,31 +636,10 @@ def test_validate_sim_params_rejects_a_negative_tau_ref() -> None:
         validate_sim_params(params)
 
 
-_TOP_LEVEL_NUMBERS = (
-    'exposure_sec',
-    'offset_v',
-    'offset_u',
-    'offset_rotation_deg',
-    'time',
-    'ring_epoch',
-    'star_catalog_scatter_px',
-)
-
-
-@pytest.mark.parametrize('key', _TOP_LEVEL_NUMBERS)
-def test_validate_sim_params_refuses_a_null_top_level_number(key: str) -> None:
-    """A top-level number set to null fails, since every reader takes it as a float."""
+def test_validate_sim_params_refuses_a_noise_seed_that_is_not_an_integer() -> None:
+    """A noise_seed must be an integer, as random_seed must."""
     params = _sim_params()
-    params[key] = None
-    with pytest.raises(SimSceneValidationError, match=rf"\['{key}'\] must be numbers when present"):
-        validate_sim_params(params)
-
-
-@pytest.mark.parametrize('value', [None, 1.5])
-def test_validate_sim_params_refuses_a_noise_seed_that_is_not_an_integer(value: Any) -> None:
-    """A noise_seed must be an integer, as random_seed must; a null is refused too."""
-    params = _sim_params()
-    params['noise_seed'] = value
+    params['noise_seed'] = 1.5
     with pytest.raises(SimSceneValidationError, match='noise_seed must be an integer'):
         validate_sim_params(params)
 
@@ -685,16 +661,9 @@ def test_validate_sim_params_accepts_the_largest_noise_seed() -> None:
     validate_sim_params(params)
 
 
-@pytest.mark.parametrize('key', ['noise', 'optics', 'detector', 'artifacts', 'bodies', 'stars'])
-def test_a_null_top_level_block_validates_and_renders(key: str) -> None:
-    """A top-level block or list set to null renders exactly as the scene without it."""
-    params = _sim_params()
-    params['bodies'][0].update(semi_b_px=30.0, semi_c_px=25.0)
-    params['stars'] = [{'name': 'S1', 'v': 20.0, 'u': 20.0, 'vmag': 8.0}]
-    absent = {name: value for name, value in params.items() if name != key}
-    params[key] = None
-    validate_sim_params(params)
-    np.testing.assert_array_equal(render_scene(params)[0], render_scene(absent)[0])
+def test_default_body_name_counts_from_one() -> None:
+    """The entry at zero-based index 2 takes the name SIM-BODY-3."""
+    assert default_body_name(2) == 'SIM-BODY-3'
 
 
 def test_validate_sim_params_rejects_duplicate_body_names() -> None:

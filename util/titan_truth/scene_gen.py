@@ -107,11 +107,9 @@ MAX_PLANTED_OFFSET_PX: float = 40.0
 # falls from the full factor to 1, and that band runs along the sun axis,
 # over the sunward limb the technique scores on.  Poleward of the band it is
 # a pure scaling only where the scaled half stays below saturation: the
-# renderer clips the signal at 1, so a positive amplitude flattens the bright
-# crescent.  Over 26 of the 40 clean scenes that navigate both with and without
-# it, an amplitude of +0.35 moves the recovered cross-track position by 0.063
-# pixels on average with a switch at the equator and 0.065 with the band,
-# about four times what -0.35 costs with the band.  Leaving the roll at zero
+# renderer carries the brightness uncapped to the detector, so a positive
+# amplitude flattens the bright crescent only where the scaled brightness
+# passes the detector's full well.  Leaving the roll at zero
 # instead would leave the split line off the sun axis at most illumination
 # angles, and the control would be measuring an unrelated gradient.
 #

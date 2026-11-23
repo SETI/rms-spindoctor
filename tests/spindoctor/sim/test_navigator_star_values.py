@@ -86,8 +86,8 @@ def _written_step(instrument: str, *keys: str | int) -> float:
     Returns:
         The place value of the value's last written digit.
     """
-    navigator = load_instrument_catalog().entry(instrument)['navigator']
-    path = [navigator['section'], navigator.get('detector'), *keys]
+    navigator = load_instrument_catalog().entry(instrument).navigator
+    path = [navigator.section, navigator.detector, *keys]
     text = None
     for config_file in sorted(_CONFIG_FILES_DIR.glob('*.yaml')):
         node: Node | None = YAML().compose(config_file.read_text(encoding='utf-8'))
@@ -337,26 +337,15 @@ def test_a_noise_override_that_is_not_a_mapping_is_refused(noise: Any) -> None:
         validate_sim_params(_scene({'noise': noise}), source='by_binning_probe')
 
 
-@pytest.mark.parametrize(
-    ('instrument_config', 'path'),
-    [
-        ({'noise': None}, r'instrument_config\.noise'),
-        ({'noise': {'by_binning': None}}, r'instrument_config\.noise\.by_binning'),
-        (
-            {'noise': {'by_binning': {2: {'read_noise_dn': None}}}},
-            r'instrument_config\.noise\.by_binning\.2\.read_noise_dn',
-        ),
-        ({'noise': {'read_noise_dn': None}}, r'instrument_config\.noise\.read_noise_dn'),
-    ],
-    ids=['noise', 'table', 'mode_value', 'unbinned_value'],
-)
-def test_a_null_noise_block_or_value_is_refused(instrument_config: Any, path: str) -> None:
-    """A null noise block or star-limit value is refused with the way to take the default."""
+def test_a_null_binned_noise_value_is_refused() -> None:
+    """A null star-limit value inside a binned mode's noise table is refused."""
+    scene = _scene({'noise': {'by_binning': {2: {'read_noise_dn': None}}}})
+    path = r'instrument_config\.noise\.by_binning\.2\.read_noise_dn'
     with pytest.raises(
         SimSceneValidationError,
         match=rf'{path} is null; leave the key out to take its default',
     ):
-        validate_sim_params(_scene(instrument_config), source='by_binning_probe')
+        validate_sim_params(scene, source='by_binning_probe')
 
 
 def test_a_binning_key_written_as_digits_names_that_mode() -> None:
