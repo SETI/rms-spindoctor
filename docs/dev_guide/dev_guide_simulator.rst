@@ -2183,90 +2183,27 @@ Full-frame camera scenes
 
 The ``full_frame_cameras`` scene class
 (``tests/integration/sim_scenes/full_frame_cameras/``) holds realistic frames
-from each camera the simulator catalogs, apart from Voyager. Each scene renders
-at the camera's real frame size: 1024 px for the Cassini cameras and LORRI, and
-800 px for Galileo. Each turns on the camera's whole detector chain and uses an
-exposure a real frame of that kind uses. The Cassini and Galileo offsets lie
-within the range of real pointing errors on each camera, most of them near its
-upper end. The image library's LORRI frames are only about a pixel off, so the
-LORRI offset instead reaches half the camera's search window. The offsets point
-in different directions. Each scene also plants the camera's measured twist and
-leaves roll fitting off, as every camera ships. Together the scenes guard the
-renderer and the navigator, so a change that moves a realistic frame's answer
-shows up.
-
-The scenes are:
-
-- ``coiss_nac_star_field``: a raw NAC star field, 18 stars of V 8.7 to 11.4 at
-  2 s, offset 39 px.
-- ``coiss_calib_nac_disc``: a calibrated NAC frame of a moon 280 px across,
-  offset 57 px.
-- ``coiss_wac_disc``: a raw WAC frame of a moon 128 px across, offset 13 px.
-- ``coiss_calib_wac_star_field``: a calibrated WAC star field, 95 stars of V 7.4
-  to 10.4 at 26 s, offset 12 px.
-- ``coiss_calib_wac_star_field_large_offset``: the same WAC field with the
-  offset at the largest real per-axis extent, 12.4 px, where navigation fails.
-- ``gossi_star_field``: a Galileo star field, two bright stars among 14 fainter
-  ones at 1.6 s, offset 257 px.
-- ``gossi_star_field_short_exposure``: the same Galileo field at 0.1 s, where
-  navigation fails.
-- ``gossi_disc``: a Galileo frame of a moon 240 px across, offset 286 px.
-- ``nhlorri_star_field``: a LORRI star field, 18 stars of V 10.5 to 13.0 at 5 s,
-  offset 32 px.
-- ``nhlorri_star_field_short_exposure``: the same LORRI field at 1 s, where
-  navigation fails.
+from the cataloged cameras. Each scene renders at its camera's real frame size
+with the camera's whole detector chain, and uses an exposure a real frame of
+that kind uses. Each offset is as large as the camera's real pointing errors,
+or larger where those are small, and the offsets point in different directions.
+Each scene also plants
+the camera's measured twist and leaves roll fitting off, as the cameras ship.
+Together the scenes guard the renderer and the navigator, so a change that moves
+a realistic frame's answer shows up.
 
 Each scene that navigates has its fused answer held to a tolerance measured
-over 16 seeds, like the other validation scenes, and several scenes record
-behavior worth knowing:
+over 16 seeds, like the other validation scenes. A scene the navigator fails is
+an expected failure: its expected block holds the failure, so a fix fails the
+scene until the block is retired. A scene whose answer depends on a navigator
+weakness says so in its comments and in ``sim_truth.py``.
 
-- On the raw NAC star field, the star-field technique matches the catalog
-  against the 30 brightest sources it detects. The frame's hot pixels and
-  cosmic rays crowd the stars out of that list, so the technique finds one
-  match where it needs six and returns spurious. The single-star and refinement
-  techniques carry the answer. The simulated hot pixels are stronger than real
-  ones, so the failure with hot pixels alone is partly the simulator's, but the
-  technique also fails with cosmic rays alone.
-- The NAC star field renders its stars through the clear filter, though the
-  real frame it follows was taken through CL1+IR3. Through CL1+IR3 the
-  simulator dims each star by the filter's throughput for sunlight, 22 times,
-  and the frame fails at 2 s, where the real frame navigates. The real frame's
-  stars are about 50 times brighter than the simulator draws them through that
-  filter, and about twice as bright as it draws them through the clear filter.
-- On the WAC disc, the disc correlation finds the offset to 0.01 px but marks
-  it spurious, because it lies within 2 px of the edge of the 13 px WAC search
-  window. The limb fit carries the frame at low confidence. The scene's expected
-  block holds the low tier.
-- Simulated Galileo skies are about four times quieter than real ones, so both
-  Galileo scenes plant the measured sky noise of 0.96 DN in place of the
-  catalog's read noise.
-- The unfit twist sets the largest errors, because a translation follows the
-  turned stars it measures. On the LORRI field the 0.19 deg twist moves the
-  four measured stars' mean position by about 0.95 px. On the Galileo field the
-  roll turns the scene about the frame center before the 257 px offset moves
-  it, which moves the two bright stars in view by 0.22 and 0.50 px.
+The instrument chapters list each camera's scenes, with their content, their
+measured errors, and the failures they hold.
 
-Three scenes are expected failures, and each scene's expected block holds its
-failure, so a fix fails the scene until the block is retired:
-
-- ``nhlorri_star_field_short_exposure``: the navigator's LORRI star blur is a
-  3.0 px placeholder against a published core near 1 px, so at 1 s it predicts
-  every star too faint to see and draws no star features.
-- ``gossi_star_field_short_exposure``: at the 0.1 s exposure of the real
-  Pleiades frames, which navigate on three stars, the navigator predicts only
-  the brightest star visible, so the frame fails. The simulated Galileo stars
-  are about 12 times fainter than real stars of the same magnitude. The
-  navigator's star limit on a simulated frame also spreads the simulator's
-  star brightness over a 3.0 px placeholder blur, so it reaches only V 3.2 at
-  0.1 s, against V 7.8 on the real frames.
-- ``coiss_calib_wac_star_field_large_offset``: both star techniques find the
-  offset to within 0.06 px, but an answer within 1 px of the 13 px WAC search
-  limit has its confidence set to zero, so the frame is refused.
-
-``test_sim_full_frame_cameras.py`` navigates the ten scenes once each, and
-the module takes a little over a minute on one worker. The three disc scenes
-take 10 to 25 seconds each, the Galileo disc the longest because its search
-window reaches 350 px. The star fields take one to five seconds each.
+``test_sim_full_frame_cameras.py`` navigates each scene once per run. A star
+field takes a few seconds to navigate, and a frame with a disc takes up to half
+a minute, since the disc correlation searches the camera's whole offset window.
 
 .. _sim-floor:
 
