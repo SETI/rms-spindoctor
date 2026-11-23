@@ -126,8 +126,9 @@ class Detector:
             1.0 fills the scaled well.
         bias_dn: The bias pedestal, in DN.
         saturation_dn: The ADC ceiling, in DN, at which the frame is clipped.
-        full_well_dn: The DN full scale of the vidicon chain, and the well of a CCD
-            chain whose entry states no ``full_well_e``.
+        full_well_dn: The DN full scale of the vidicon chain.  A CCD entry repeats its
+            ADC ceiling here, which only a scene that renders the camera through the
+            vidicon chain reads.
         signal_full_scale_frac: The fraction of the well that a signal of 1.0 fills at
             the reference exposure.
         missing_data_rate: The fraction of the pixels lost at random in the downlink.

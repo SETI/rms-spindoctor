@@ -96,7 +96,7 @@ class DetectorParams:
         read_noise_e: Read-noise sigma in electrons (CCD path).
         bias_dn: Additive DN bias pedestal.
         saturation_dn: ADC clip ceiling in DN.
-        full_well_dn: The vidicon chain's DN full scale.
+        full_well_dn: The DN full scale of the vidicon chain.
         quantization: ADC quantization sub-mode.
         poisson: Whether shot noise is applied.
         cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel

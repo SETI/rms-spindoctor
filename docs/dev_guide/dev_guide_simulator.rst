@@ -826,8 +826,7 @@ A frame has to share a few values with the navigator, and the renderer reads tho
 the navigator's configuration, through
 :mod:`spindoctor.sim.instruments.navigator_link`. They are the missing-data marker that
 a lost pixel carries and the star PSF. The PSF is read for a scene that sets
-``optics.psf.match_navigator``, and as the star width behind the background sky's faint
-cutoff in a scene without a PSF. A static guard keeps every other read of the
+``optics.psf.match_navigator``. A static guard keeps every other read of the
 navigator's configuration out of the renderer.
 
 Each instrument renders into one of two unit classes, set by the ``data_units``
@@ -4561,7 +4560,8 @@ instrument entry. An omitted key keeps the instrument's own value.
      - The full well of a native pixel, in DN. The CCD chain converts it to electrons
        through the resolved gain, where it replaces the entry's ``full_well_e``. On the
        vidicon chain it is the DN full scale. A signal of 1.0 fills a fraction of the
-       well, so a smaller well also makes the frame darker in DN.
+       well, so without a filter a smaller well also makes the frame darker in DN. A filter
+       sets the reference exposure from the well, so the frame keeps its brightness.
    * - ``signal_full_scale_frac``
      - float
      - The fraction of the well a signal of 1.0 fills at the reference exposure.
@@ -4755,8 +4755,9 @@ that skipped validation.
 The block changes what the navigator believes about the camera, and the frame keeps the
 instrument entry's physics. Two of its values reach the frame, because the frame has to
 match the navigator there. A lost pixel carries ``noise.marker_value``. A scene that sets
-``optics.psf.match_navigator`` is blurred at ``star_psf_sigma``, and in a scene without a
-PSF that width sets the faint cutoff of the background sky.
+``optics.psf.match_navigator`` is blurred at ``star_psf_sigma``. The background sky's
+faint cutoff in a scene without a PSF counts a one-pixel core, since that frame is
+unblurred.
 
 ``instrument_config.noise`` must be a mapping. It may set only the keys the navigator
 reads: ``saturation_dn``, ``marker_value``, ``read_noise_dn``,

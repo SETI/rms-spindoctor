@@ -30,8 +30,10 @@ from spindoctor.sim.instruments.resolvers import (
     downlink_table_names,
     resolve_detector_defaults,
     resolve_detector_defaults_native,
+    resolve_downlink_table,
     resolve_filter_throughput,
 )
+from spindoctor.sim.render.detector.sqrt_lut import check_curve_ceiling, resolve_sqrt_lut
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -425,10 +427,12 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             f'{source}: detector.detector_model must be one of {sorted(DETECTOR_MODELS)}; '
             f'got {model!r}'
         )
-    for key in ('saturation_dn', 'full_well_dn', 'exposure_ref_sec'):
+    for key in ('saturation_dn', 'full_well_dn', 'exposure_ref_sec', 'signal_full_scale_frac'):
         _check_optional_positive_number(value.get(key), f'detector.{key}', source=source)
-    for key in ('bias_dn', 'signal_full_scale_frac', 'missing_data_rate'):
-        _check_optional_nonnegative_number(value.get(key), f'detector.{key}', source=source)
+    _check_optional_nonnegative_number(value.get('bias_dn'), 'detector.bias_dn', source=source)
+    _check_optional_fraction(
+        value.get('missing_data_rate'), 'detector.missing_data_rate', source=source
+    )
     _check_detector_filter(value, instrument=instrument, source=source)
     quantization = value.get('quantization')
     if quantization is not None and quantization not in QUANTIZATION_MODES:
@@ -510,6 +514,40 @@ def _check_quantization_keys_used(detector: Any, *, instrument: str, source: str
                 f'quantization reads it, and this scene quantizes with {quantization!r}; set '
                 f'detector.quantization: {sub_mode}, or drop the key'
             )
+
+
+def _check_downlink_table_ceiling(detector: Any, *, instrument: str, source: str) -> None:
+    """Refuse a companded frame whose downlink table decodes above the ADC ceiling.
+
+    The ceiling is the scene's ``detector.saturation_dn``, else the camera's.  Only the
+    ``sqrt_lut`` quantization decodes through a table.  Run after
+    :func:`_check_detector`, so the block is a well-formed mapping or None.
+
+    Parameters:
+        detector: The scene ``detector`` block, or None when absent.
+        instrument: The scene's (already validated) instrument name.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If the table's top decoded value exceeds the ceiling.
+    """
+    detector = detector or {}
+    binning = detector.get('binning')
+    defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
+    if detector.get('quantization', defaults.quantization) != 'sqrt_lut':
+        return
+    table = resolve_downlink_table(instrument, detector.get('downlink_table'))
+    if table is None:
+        return
+    saturation_dn = float(detector.get('saturation_dn', defaults.saturation_dn))
+    curve = resolve_sqrt_lut(table, saturation_dn=saturation_dn)
+    try:
+        check_curve_ceiling(curve, saturation_dn=saturation_dn)
+    except ValueError as exc:
+        raise SimSceneValidationError(
+            f'{source}: detector.saturation_dn {saturation_dn:g}: {exc}; raise the ceiling '
+            f'or choose another downlink table'
+        ) from exc
 
 
 def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: str) -> None:
@@ -832,6 +870,16 @@ def _check_optional_nonnegative_number(value: Any, key: str, *, source: str) -> 
         raise SimSceneValidationError(f'{source}: {key} must be a non-negative number when present')
     if not math.isfinite(float(value)):
         raise SimSceneValidationError(f'{source}: {key} must be finite; got {value!r}')
+
+
+def _check_optional_fraction(value: Any, key: str, *, source: str) -> None:
+    """Fail validation unless ``value`` is None or a finite number from 0 to 1."""
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise SimSceneValidationError(f'{source}: {key} must be a number when present')
+    if not math.isfinite(float(value)) or not 0.0 <= value <= 1.0:
+        raise SimSceneValidationError(f'{source}: {key} must be from 0 to 1; got {value!r}')
 
 
 def _check_optional_str(value: Any, key: str, *, source: str) -> None:
