@@ -54,8 +54,8 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 
 ## Issue count
 
-457 issues were open on 2026-11-23. 350 of them have a row here, and the other 107 are
-simulator work tracked separately. 5 finished issues are kept as rows.
+457 issues were open on 2026-11-23. 349 of them have a row here, and the other 108 are
+simulator work tracked separately. 6 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
 
@@ -97,7 +97,7 @@ The host session owns this phase.
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
-| #727 | 3 Important | yes |  | Land the ring-truth curation campaign |
+| #727 | 3 Important | yes |  | Land the ring-truth curation campaign (not started, by operator decision of 2026-11-23) |
 | #637 | 3 Important | yes |  | Add the B ring spokes bundle as a second answer |
 | #1033 | 3 Important | yes |  | Cross-mission navigation benchmark |
 | #340 | 4 Useful |  |  | Cross-check records only a yes/no primary technique |
@@ -109,7 +109,7 @@ The host session owns this phase.
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
-| #591 | 3 Important | yes |  | Sparse ring pre-check can skip a frame with rings |
+| #591 | 3 Important | yes |  | Sparse ring pre-check can skip a frame with rings (started 2026-11-23 at the operator's request) |
 | #787 | 3 Important | yes |  | Star model emits nothing when its noise estimate is zero |
 | #400 | 2 Essential | yes |  | Ensemble merge and tiers on anisotropic covariances |
 | #994 | 4 Useful |  |  | Catalog lists a star on a magnitude-bin edge twice |
@@ -476,7 +476,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #711 | 4 Useful |  |  | Hash only the instrument configuration used |
 | #731 | 4 Useful |  |  | Log names in UTC, records in local time |
 | #734 | 4 Useful |  |  | --profile produces no profile |
-| #411 | 4 Useful |  |  | snake_case technique keys |
+| #411 | 4 Useful |  |  | snake_case technique keys (operator chose the rename on 2026-11-23; done in #1032's PR 4) |
 | #552 | 4 Useful |  |  | Remove the AttrDict workaround |
 | #100 | 4 Useful |  |  | One root-path getter |
 | #101 | 4 Useful |  |  | ArgumentParser.error for CLI errors |
@@ -495,7 +495,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #548 | 4 Useful | yes |  | Coverage floor (operator decision) |
 | #243 | 4 Useful | yes |  | Star-conflict tests |
 | #177 | 4 Useful | yes |  | Summary-PNG tests |
-| #1160 | 3 Important |  | PR #1162 open | Keep the documentation build under Read the Docs' time limit (PR #1162 open (the simulator session's, at the operator's request)) |
+| #1160 | 3 Important |  | **Done (PR #1162)** | Keep the documentation build under Read the Docs' time limit (merged as #1162 (the simulator session's, at the operator's request)) |
 | #438 | 4 Useful |  |  | Run the nitpicky Sphinx check |
 | #129 | 4 Useful |  |  | Zero nitpicky warnings |
 | #122 | 4 Useful |  |  | Verify the terminator guide's rationale |
