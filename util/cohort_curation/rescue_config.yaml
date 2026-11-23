@@ -38,7 +38,7 @@ orchestrator:
   ensemble:
     min_confidence: 0.05
     tier_thresholds:
-      low: {min_confidence: 0.05, max_sigma_px: null}
+      low: {min_confidence: 0.05}
   reliability_gate:
     STAR: 0.05
     LIMB_ARC: 0.05

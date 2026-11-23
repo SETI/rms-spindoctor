@@ -318,6 +318,8 @@ class EnsembleConfig:
                 their field; a ``tier_thresholds`` block is merged tier-by-
                 tier over the defaults, so a partial override (for example
                 only ``low.min_confidence``) leaves the other tiers intact.
+                A tier that leaves out ``max_sigma_px`` keeps the default's,
+                which is None (no sigma bound) for the low tier.
 
         Returns:
             An ``EnsembleConfig`` with mapping values overriding the code
@@ -358,11 +360,11 @@ class EnsembleConfig:
                     if key not in ('min_confidence', 'max_sigma_px'):
                         raise ValueError(f'Unknown tier_thresholds[{tier!r}] key {key!r}')
                     try:
-                        tiers[tier][key] = None if value is None else float(value)
+                        tiers[tier][key] = float(value)
                     except (TypeError, ValueError) as exc:
                         raise ValueError(
                             f'orchestrator.ensemble.tier_thresholds[{tier!r}].{key} '
-                            f'must be a number or null; got {value!r}'
+                            f'must be a number; got {value!r}'
                         ) from exc
             kwargs['tier_thresholds'] = tiers
         return cls(**kwargs)
