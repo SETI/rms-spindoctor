@@ -153,6 +153,14 @@ def test_load_sidecar_rejects_unknown_mission(tmp_path: Path) -> None:
         load_sidecar(p)
 
 
+def test_load_sidecar_rejects_a_list_as_spacecraft(tmp_path: Path) -> None:
+    """``spacecraft`` given as a list is refused with the validator's own error."""
+    p = tmp_path / 'BAD.yaml'
+    p.write_text(_VALID_SIDECAR_TEXT.replace('camera: NAC\n', 'camera: NAC\nspacecraft: [VG1]\n'))
+    with pytest.raises(SidecarValidationError, match=r'spacecraft must be one of'):
+        load_sidecar(p)
+
+
 def test_load_sidecar_rejects_unknown_primary_scene_tag(tmp_path: Path) -> None:
     """The primary ``scene_tag`` must be a declared scene class."""
     bad = _VALID_SIDECAR_TEXT.replace(

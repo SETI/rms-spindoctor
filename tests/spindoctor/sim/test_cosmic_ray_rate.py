@@ -204,7 +204,7 @@ def test_both_chains_give_the_stage_the_rate_and_exposure(
         calls.append((kwargs['events_per_pixel_per_sec'], kwargs['exposure_sec']))
 
     monkeypatch.setattr(chain, 'add_cosmic_rays', _record)
-    scene = _scene('vgiss', {_KEY: 3.0e-4}, detector={'detector_model': detector_model})
+    scene = _scene('vgiss_1_nac', {_KEY: 3.0e-4}, detector={'detector_model': detector_model})
     scene['exposure_sec'] = 2.5
     _detector_dn(scene)
     assert calls == [(3.0e-4, 2.5)]
@@ -218,7 +218,7 @@ def _vgiss_dn(noise: dict[str, Any], **extra: Any) -> np.ndarray:
     the calibration would give the same DN only while vgiss has no calibration
     residual.
     """
-    scene = _scene('vgiss', noise, **extra)
+    scene = _scene('vgiss_1_nac', noise, **extra)
     scene.update(size_v=64, size_u=64)
     frame = SimFrame(
         signal=np.zeros((64, 64), dtype=np.float64),
@@ -291,7 +291,7 @@ def _vgiss_bent_body(rate: float, seed: int) -> np.ndarray:
     """A 128 x 128 vgiss frame of a full-phase body with the beam bend on."""
     scene = body_scene(
         30.0,
-        instrument='vgiss',
+        instrument='vgiss_1_nac',
         size=128,
         seed=seed,
         noise={_KEY: rate},

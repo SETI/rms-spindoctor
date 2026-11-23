@@ -92,7 +92,7 @@ def _disc_scene(instrument: str) -> dict[str, Any]:
 
 @pytest.mark.parametrize(
     ('instrument', 'units'),
-    [('coiss_nac', 'DN'), ('gossi', 'DN'), ('coiss_calib_nac', 'I/F'), ('vgiss', 'I/F')],
+    [('coiss_nac', 'DN'), ('gossi', 'DN'), ('coiss_calib_nac', 'I/F'), ('vgiss_1_nac', 'I/F')],
 )
 def test_summary_names_the_unit_class(instrument: str, units: str) -> None:
     """The summary opens with the instrument's units."""
@@ -111,11 +111,11 @@ def test_summary_names_the_unit_class(instrument: str, units: str) -> None:
 _NAVIGATED_SCENES = {
     'coiss_nac-disc': _disc_scene('coiss_nac'),
     'coiss_calib_nac-disc': _disc_scene('coiss_calib_nac'),
-    'vgiss-disc': _disc_scene('vgiss'),
-    'vgiss-disc-lost-lines': _with_lost_lines(_disc_scene('vgiss'), 40.0),
+    'vgiss-disc': _disc_scene('vgiss_1_nac'),
+    'vgiss-disc-lost-lines': _with_lost_lines(_disc_scene('vgiss_1_nac'), 40.0),
     'calib-offset-leaves-frame': _body_scene('coiss_calib_nac', 3.0, (0.0, 20.0), center_u=118.0),
-    'vgiss-offset': _body_scene('vgiss', 80.0, (3.0, -2.0), light=(18.0, 30.0)),
-    'vgiss-empty': _empty_scene('vgiss'),
+    'vgiss-offset': _body_scene('vgiss_1_nac', 80.0, (3.0, -2.0), light=(18.0, 30.0)),
+    'vgiss-empty': _empty_scene('vgiss_1_nac'),
     'coiss_calib_nac-empty': _empty_scene('coiss_calib_nac'),
     'coiss_nac-empty': _empty_scene('coiss_nac'),
     'generic-sky-at-raised-marker': {
@@ -185,8 +185,8 @@ def test_summary_states_the_orchestrator_verdict(name: str, image_class: str, ph
 
 def test_empty_vgiss_summary_reads_the_sky_residual() -> None:
     """An empty vgiss frame reads its 1.5 DN sky residual and no marker pixel."""
-    img, _ = render_scene(_empty_scene('vgiss'))
-    summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
+    img, _ = render_scene(_empty_scene('vgiss_1_nac'))
+    summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac'))
     assert summary == 'I/F 0.01176 to 0.01176'
 
 
@@ -278,7 +278,9 @@ def test_raised_missing_limit_from_the_scene_is_honored() -> None:
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.70}},
     }
     img, _ = render_scene(params)
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', params['instrument_config'])
+    inst_config = resolve_sim_inst_config(
+        DEFAULT_CONFIG, 'vgiss_1_nac', params['instrument_config']
+    )
     summary = frame_units_summary(img, inst_config)
     assert summary.endswith('of pixels')
     assert _orchestrator_class(params) == 'clean'
@@ -291,7 +293,9 @@ def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.02}},
     }
     img, _ = render_scene(params)
-    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', params['instrument_config'])
+    inst_config = resolve_sim_inst_config(
+        DEFAULT_CONFIG, 'vgiss_1_nac', params['instrument_config']
+    )
     assert '(over 2%: the navigator refuses it as missing data)' in frame_units_summary(
         img, inst_config
     )
@@ -334,8 +338,8 @@ def test_units_name_follows_the_data_units(inst_config: dict[str, Any], units: s
 
 def test_vgiss_dark_sky_stays_out_of_the_marker_count() -> None:
     """A vgiss frame's dark sky sits above the 0 marker, so the summary names no marker."""
-    img, _ = render_scene(_disc_scene('vgiss'), ignore_offset=True)
-    summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
+    img, _ = render_scene(_disc_scene('vgiss_1_nac'), ignore_offset=True)
+    summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac'))
     assert summary == f'I/F {float(img.min()):.4g} to {float(img.max()):.4g}'
 
 
@@ -367,5 +371,5 @@ def test_summary_warns_only_above_the_missing_data_limit(marker_rows: int, warns
     """The refusal warning starts strictly above the 30% the navigator accepts."""
     img = np.full((100, 10), 0.5)
     img[:marker_rows, :] = 0.0
-    summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss'))
+    summary = frame_units_summary(img, resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac'))
     assert ('refuses' in summary) == warns

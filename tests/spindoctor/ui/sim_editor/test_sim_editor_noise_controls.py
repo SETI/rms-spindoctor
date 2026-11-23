@@ -86,7 +86,7 @@ def test_operating_every_noise_control_keeps_the_scene_valid(
     assert model.sim_params['noise']['cosmic_ray_events_per_pixel_per_sec'] > 0.0
 
 
-@pytest.mark.parametrize('instrument', ['vgiss', 'coiss_calib_nac'])
+@pytest.mark.parametrize('instrument', ['vgiss_1_nac', 'coiss_calib_nac'])
 def test_a_rate_survives_a_switch_of_instrument(model: Any, instrument: str) -> None:
     """A rate set on coiss_nac stays in the scene after a switch to another instrument."""
     _set_scene(model, 'coiss_nac', None)
