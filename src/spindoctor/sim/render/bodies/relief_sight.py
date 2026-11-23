@@ -4,7 +4,9 @@ The ellipsoid renderer shades a body with limb relief by the terrain each pixel
 shows.  On rough terrain that can lie far from where the line of sight meets the
 smooth body: near the limb, and on a ridge that hides the terrain behind it.
 :func:`visible_surface_directions` searches each line of sight for the first point
-it meets.
+it meets, :func:`points_on_sight_lines` puts each point found on the line of sight
+that sees it, and :func:`settle_on_surface` moves it along that line of sight onto the
+surface.
 
 The search works in the body's parameter space, like the field it reads
 (:mod:`spindoctor.sim.render.bodies.relief`).
@@ -18,7 +20,7 @@ from spindoctor.sim.render.bodies.relief import ReliefField, directions_about_vi
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
-__all__ = ['visible_surface_directions']
+__all__ = ['points_on_sight_lines', 'settle_on_surface', 'visible_surface_directions']
 
 # The line-of-sight search (visible_surface_directions) steps down a meridian by
 # at least this fraction of a field grid cell, and then narrows the crossing step
@@ -35,6 +37,13 @@ _SIGHT_REFINEMENTS = 1
 _SIGHT_SLIVER_CELLS = 1.0 / 256.0
 # Steps whose slivers are searched together, which bounds the search's memory.
 _SIGHT_SLIVER_CHUNK = 1 << 12
+# settle_on_surface moves a point along its line of sight onto the surface by steps
+# that start at this fraction of a field grid cell and double, and then halves the
+# step that crosses the surface this many times.  The steps stop at a whole cell, so
+# the point ends within 1/4096 of a cell of the surface, the length over which
+# relief.turned_from_sun reads the terrain there, and typically far closer.
+_SETTLE_FIRST_STEP_CELLS = 1.0 / 4096.0
+_SETTLE_HALVINGS = 12
 
 
 class _SightLines:
@@ -372,3 +381,102 @@ def visible_surface_directions(
         hit[narrow] = a + (b - a) * (-ga / np.maximum(gb - ga, 1e-300))
 
     return lines.directions(hit, np.arange(rho.size)).reshape(*shape, 3)
+
+
+def points_on_sight_lines(
+    x: NDArrayFloatType,
+    y: NDArrayFloatType,
+    surface: NDArrayFloatType,
+    *,
+    view: tuple[float, float] = (0.0, 1.0),
+) -> NDArrayFloatType:
+    """Move surface points across the view onto the lines of sight that see them.
+
+    The surface point a line of sight meets, as :func:`visible_surface_directions`
+    finds it, lies on that line of sight only to the search's precision.  Each point
+    is moved perpendicular to the view onto its own line of sight, keeping its
+    distance toward the observer, so a ray from the point seen starts on the line of
+    sight that sees it.
+
+    Parameters:
+        x: Parameter-space coordinates of the lines of sight along the turned first
+            axis, as for :func:`visible_surface_directions`, one dimensional.
+        y: The coordinates along the second axis, the same shape.
+        surface: ``(N, 3)`` parameter-space positions of the surface points the lines
+            of sight see, in the field's frame.
+        view: The unit direction toward the observer, its ``x`` and ``z`` components
+            in the field's frame (its ``y`` component is 0).
+
+    Returns:
+        ``(N, 3)`` positions on the lines of sight, in the field's frame.
+    """
+    view_x, view_z = view
+    toward = surface[:, 0] * view_x + surface[:, 2] * view_z
+    x_arr = np.asarray(x, dtype=np.float64)
+    return np.stack(
+        [
+            x_arr * view_z + toward * view_x,
+            np.asarray(y, dtype=np.float64),
+            toward * view_z - x_arr * view_x,
+        ],
+        axis=-1,
+    )
+
+
+def settle_on_surface(
+    points: NDArrayFloatType,
+    field: ReliefField,
+    *,
+    view: tuple[float, float] = (0.0, 1.0),
+) -> NDArrayFloatType:
+    """Move points on their lines of sight to where those lines cross the relief surface.
+
+    A point the search of :func:`visible_surface_directions` finds can lie up to a
+    field grid cell inside or outside the terrain, and there the terrain may be
+    another facet than the one the line of sight crosses.  Each point is moved along
+    its line of sight, toward the observer when it lies inside the terrain and away
+    when it lies outside, by steps that double from :data:`_SETTLE_FIRST_STEP_CELLS`
+    of a cell until one ends on the other side of the surface.  That last step is
+    then halved :data:`_SETTLE_HALVINGS` times, and the point is placed at the end
+    outside the terrain.  A point whose steps reach a whole cell without crossing
+    stays where it is.
+
+    Parameters:
+        points: ``(N, 3)`` parameter-space positions on lines of sight, in the field's
+            frame.
+        field: The relief realization.
+        view: The unit direction toward the observer, its ``x`` and ``z`` components
+            in the field's frame (its ``y`` component is 0).
+
+    Returns:
+        ``(N, 3)`` positions on the same lines of sight, at the surface.
+    """
+    start = np.asarray(points, dtype=np.float64)
+    toward = np.array([view[0], 0.0, view[1]])
+    inside = field.depth_below(start) > 0.0
+    # Inside the terrain the surface lies toward the observer; outside, away from it.
+    sense = np.where(inside, 1.0, -1.0)
+    cell = 2.0 * np.pi / field.grid.shape[0]
+    near_end = np.zeros(start.shape[0])
+    far_end = np.full(start.shape[0], np.nan)
+    length = cell * _SETTLE_FIRST_STEP_CELLS
+    pending = np.arange(start.shape[0])
+    while pending.size and length <= cell:
+        moved = start[pending] + (sense[pending] * length)[:, np.newaxis] * toward
+        crossed = (field.depth_below(moved) > 0.0) != inside[pending]
+        far_end[pending[crossed]] = length
+        near_end[pending[~crossed]] = length
+        pending = pending[~crossed]
+        length *= 2.0
+    found = np.nonzero(np.isfinite(far_end))[0]
+    near, far = near_end[found], far_end[found]
+    for _ in range(_SETTLE_HALVINGS):
+        middle = 0.5 * (near + far)
+        moved = start[found] + (sense[found] * middle)[:, np.newaxis] * toward
+        crossed = (field.depth_below(moved) > 0.0) != inside[found]
+        near = np.where(crossed, near, middle)
+        far = np.where(crossed, middle, far)
+    outside_end = np.where(inside[found], far, near)
+    settled = start.copy()
+    settled[found] = start[found] + (sense[found] * outside_end)[:, np.newaxis] * toward
+    return settled
