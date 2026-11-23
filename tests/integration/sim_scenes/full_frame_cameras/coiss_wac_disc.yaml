@@ -32,7 +32,7 @@ offset_v: 6.83
 offset_u: -11.29
 offset_rotation_deg: -0.0115
 # The disc correlation finds the offset to 0.012 px but discards it on every draw
-# (#TBD).  The correlation marks any answer within 2 px of its search window's edge
+# (#1147).  The correlation marks any answer within 2 px of its search window's edge
 # spurious, and the WAC window is 13 px, so every answer past 11 px on an axis is
 # thrown away; real WAC errors reach 12.4 px.  The limb fit carries the frame alone,
 # 0.14 to 0.17 px off over 16 seeds, at low tier with a 2.6 px sigma.  The block holds

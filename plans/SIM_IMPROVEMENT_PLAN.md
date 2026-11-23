@@ -249,9 +249,9 @@ once, in the format that stays. The same changes build the shared schema core th
 (Phase 3b) uses. Renders move here only where an issue says so, and each moved baseline is
 explained.
 
-The navigator config is left alone for now (operator, 2026-11-17). Typing it is deferred and
-tracked in `ENGINEERING_PLAN.md`: the camera blocks (#1029), and every other section with the
-deletion of the keys nothing reads (#1032). No issue in this plan changes navigator code; #1023
+The navigator config work resumed on 2026-11-23 (operator) and is tracked in
+`PROGRAM_PLAN.md`: the camera blocks (#1029), and every other section with the deletion of the
+keys nothing reads (#1032). The navigator config refuses null keys, as scenes do. No issue in this plan changes navigator code; #1023
 edits the navigator's config files only to delete the camera-block keys nothing reads.
 
 | Issue | Subject | Why now |
@@ -259,7 +259,7 @@ edits the navigator's config files only to delete the camera-block keys nothing 
 | #988, #986, #987, #990 | **Done (PR #1116): the validator refuses a null anywhere in a scene with its key path, and each nav_override value passes the check of the body key it replaces.** Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
 | #1021 | **Done (PR #1109).** The core is the `spindoctor/schema/` package: schemas are frozen dataclasses that pydantic parses, each problem is one line naming the file and key path, and a layer merge applies the REMOVE and REFUSE null policies. One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the instrument catalog (#1022). It changes nothing in the navigator config. |
 | #1022 | **Done (PR #1114).** Catalog entries are typed frozen dataclasses parsed through the core, with their cross-checks as `__post_init__` rules, and each artifact mode's parameters are annotated types checked by one parse for scenes and catalog entries alike; every committed render reproduces unchanged. The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
-| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | **Deferred (operator, 2026-11-17).** Navigator config work, tracked with #1032 in `ENGINEERING_PLAN.md`. Until it lands, the typed scene (#1024) gives the scene's `instrument_config` overlay its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
+| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | **Navigator config work, tracked with #1032 in `PROGRAM_PLAN.md`; it lands after #1023 and #1024.** Until it lands, the typed scene (#1024) gives the scene's `instrument_config` overlay its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
 | #806, naming part | **Done (PR #1118).** `vgiss.yaml` holds `vgiss_1_nac`, `vgiss_1_wac`, `vgiss_2_nac`, and `vgiss_2_wac`, each stating every value itself with the same numbers, so nothing renders differently; `instrument: vgiss` now fails as unknown. Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | **Done (PR #1124).** Banding, hot pixels, and the readout dark are one effect each, set by one artifact mode; dark current stays a separate effect in the noise block, shutter shading becomes a mode of its own, bias structure, bloom, and quantization each keep one setting, and the detector modules are grouped by physics. No committed scene, sweep, or baseline moves. Under `instrument_defaults` Galileo's bands turn vertical and Voyager's take a new phase, and LORRI's banding is drawn as published (random row striping within 1 DN plus a damped amplifier ringing from the first column), which moves the realism match's Galileo, Voyager, and LORRI statistics; the realism record and LORRI's regression bands are regenerated. Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | **Done (PR #1138, with #1139).** The instrument entries are the only image-side source of detector physics, a scene's `detector` block sets the ceiling, well, bias, signal scale, and loss rate, the `noise` block holds only noise, the renderer reads the navigator config only for the marker and a scene's matched PSF, and the camera-block keys nothing reads are deleted; no committed render moves. Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. It also deletes the camera-block keys nothing reads, the image-side keys it stops reading among them. |
@@ -271,7 +271,7 @@ Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
 dark signal, hot pixels) is one effect or two.
 
-**Exit:** the issues above are closed, except the deferred #1029. No scene key is renamed or moved
+**Exit:** the issues above are closed, except #1029, which the navigator config work carries. No scene key is renamed or moved
 after this phase except by an issue that adds new physics. The simulator's instrument catalog is
 typed. Image-side detector physics has one source.
 
@@ -502,6 +502,9 @@ Those classes are eligible for retirement in Phase 7.
 | #1092 | **Affects `planted_rank1_ring_flat`, held as a known error.** Ring-edge vertices sit at border-pixel centers, which biases the fit for straight edges (navigator work) |
 | #1099 | **Affects `mutual_grazing` and `mutual_half`, held as known errors.** Overlapping body templates are painted by a yes-or-no mask, which leaves a dark outline at the occluding limb (navigator work) |
 | #1103 | **Affects the widest step of the PSF sweep.** The limb fit reports a confident answer a pixel wrong under a blur the navigator does not model (navigator work) |
+| #1146 | **Affects `coiss_nac_star_field`, where the other star techniques carry the answer.** StarFieldFromCatalogNav passes only its 30 brightest sources to the matcher, and on a raw frame hot pixels and cosmic rays take those places, so it returns spurious (navigator work) |
+| #1147 | **Affects `coiss_wac_disc`, held at low tier.** The disc correlation discards any answer within 2 px of its search limit, so with the WAC's 13 px window a correct answer past 11 px is thrown away (navigator work) |
+| #1148 | **Affects the Galileo guard scenes, which plant the measured sky noise to navigate.** A quantized 8-bit sky measures zero noise, and the star model then draws no stars (navigator work) |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling
@@ -522,7 +525,7 @@ retired and retained library classes.
 
 | Issue | Subject |
 |---|---|
-| #915 | **Now tracked through its slices, each its own issue: #1005 to #1030, #901, #923, and #310, in Phases 1b, 2, 2a, and 3b (#1029 is deferred; see Phase 2a).** It closes when its slices close, except the deferred #1029, which moved to the navigator config work in `ENGINEERING_PLAN.md`. Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
+| #915 | **Now tracked through its slices, each its own issue: #1005 to #1030, #901, #923, and #310, in Phases 1b, 2, 2a, and 3b (#1029 is navigator config work; see Phase 2a).** It closes when its slices close, except #1029, which moved to the navigator config work in `PROGRAM_PLAN.md`. Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
 | #1020 | **Moved to Phase 3b.** Build the simulated-image editor from per-block panels driven by the typed scene's field metadata (#1024) |
 | #923 | **Moved to Phase 1b.** Duplicate classifier, test-only module, missing fixtures, and codenames |
 | #902 | **Closes with #1020 (Phase 3b).** 26 scene keys without editor controls |
@@ -560,7 +563,7 @@ Code-structure critique items not taken, with the reason for each:
   `schema/nodes.py`.**
   The artifact registry stays one module (`artifact_modes.py`), `stages.py` keeps `SimFrame`, and
   the schema core is the top-level `spindoctor/schema/` package (#1021), which the navigator config
-  will share once its deferred typing (#1029 and #1032) lands.
+  will share once its typing (#1029 and #1032) lands.
 
 #856, #1000, #957, and #816 can land whenever their fixes are ready.
 

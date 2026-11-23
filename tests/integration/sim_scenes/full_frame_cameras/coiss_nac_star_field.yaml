@@ -45,7 +45,7 @@ offset_v: -23.37
 offset_u: 31.81
 offset_rotation_deg: 0.0115
 # The star-field technique returns spurious on every draw, with 1 inlier where it
-# needs 6 (#TBD).  It matches the catalog against the 30 brightest sources it
+# needs 6 (#1146).  It matches the catalog against the 30 brightest sources it
 # detects, and the raw frame's hot pixels and cosmic rays crowd the stars out of
 # that list: with either one off it still fails, and with both off it finds the
 # offset to 0.05 px.  The single-star and refinement techniques carry the answer,

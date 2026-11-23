@@ -16,7 +16,8 @@ exposure_sec: 1.6
 #
 # instrument_defaults turns on the camera's whole chain.  The catalog's read
 # noise leaves the 8-bit sky below one DN, so nearly every sky pixel reads the
-# same value and the navigator measures zero noise and draws no star features.
+# same value and the navigator measures zero noise and draws no star features
+# (#1148).
 # Real Galileo skies are about four times noisier (#979: 0.96 DN against 0.22
 # DN on 8 frames each), and the scene plants that measured 0.96 DN.
 #
