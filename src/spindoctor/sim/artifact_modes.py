@@ -41,12 +41,14 @@ says what quantity it holds, so a scene line reads the same way on every mode:
 * ``pixel_fraction`` (``hot_pixels`` alone): the fraction of detector pixels that
   are hot, a spatial density in [0, 1].
 
-The key defaults to 0, also under ``instrument_defaults``.  A mode renders as a
-no-op when its activation key is 0, or, on ``dead_pixels`` and ``dead_columns``,
-when its ``count`` is 0 where given (the stage-activation rule).  Those two modes
-accept ``count``, a fixed number of events in place of the Poisson draw, and
-``count`` and ``expected_events`` are mutually exclusive: a map may set one of
-them.  Each mode's
+The key defaults to 0.  Under ``instrument_defaults``, a mode that the camera's entry
+turns on takes its activation key from the entry unless the scene sets it, so
+``hot_pixels: {}`` plants the camera's hot pixels, and an activation key of 0 turns the
+mode off.  A mode renders as a no-op when its activation key is 0, or, on
+``dead_pixels`` and ``dead_columns``, when its ``count`` is 0 where given (the
+stage-activation rule).  Those two modes accept ``count``, a fixed number of events in
+place of the Poisson draw, and ``count`` and ``expected_events`` are mutually
+exclusive: a map may set one of them.  Each mode's
 :attr:`ArtifactMode.activation_semantics` says what its events are.
 
 **Parameter types.**  Each parameter's type is an annotation from the schema core

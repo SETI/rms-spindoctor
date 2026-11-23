@@ -388,6 +388,7 @@ model does not gain them.
 | #979 | Simulated Galileo SSI skies are about a quarter as noisy as real ones (0.22 DN against 0.96 DN on 8 frames each), measured with #903's quantized-noise fit; the Voyager comparison waits on modeling the GEOMED resampling in the twins |
 | #995 | On a binned simulated frame the navigator's star blur, star box sizes, and per-pixel thresholds stay in unbinned pixels, and a `match_navigator` PSF is not divided by the binning. #993 (done) fixed only the faint-star limit, so none of these is covered yet. No committed scene or sweep sets binning; the realism twins do, with the catalog kernel |
 | #920 | WAC and Galileo gain states, Galileo ICT, and LORRI frame-transfer smear and calibrated mode |
+| #1121 | **Affects no current scene.** Galileo's shutter shading scales the light at every exposure, where the shutter adds a fixed exposure time that differs across the frame |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |

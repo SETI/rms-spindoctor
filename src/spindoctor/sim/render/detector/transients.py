@@ -1,9 +1,10 @@
 """Transients: the hits of cosmic rays and of a radiation environment.
 
 The two are different particle populations that leave the same shapes (points,
-streaks, and splatters).  Cosmic rays arrive at a rate per pixel and deposit at least
-a set charge, with a lognormal tail above it.  A radiation environment's hits arrive
-at a rate per frame, and their charge falls off steeply from a few DN.
+streaks, and splatters).  Cosmic rays arrive at a rate per pixel per second and
+deposit at least a set charge, with a lognormal tail above it.  A radiation
+environment's hits arrive at a rate per second over the whole frame, and their charge
+falls off steeply from a few DN.
 """
 
 from __future__ import annotations

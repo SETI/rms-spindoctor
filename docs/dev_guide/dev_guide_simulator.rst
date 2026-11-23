@@ -619,11 +619,12 @@ for**: with no ``stray_light`` block no field is added, with no
 or ``artifacts`` block the detector adds no shot noise, read noise, dark, hot
 pixels, banding, or bias structure. The detector always converts the composed
 signal to detector counts -- that is what makes a DN frame -- but the stochastic
-and structured noise activates only through a scene ``noise`` block (which pins
-the individual parameters, e.g. ``poisson: true`` with a ``read_noise_dn``) or
-the ``artifacts: {instrument_defaults: true}`` opt-in (which turns on the
-emulated camera's physical signal chain -- including Poisson shot noise and the
-full-well bloom -- at its detector defaults). A scene with none of those
+and structured effects activate only through a scene ``noise`` block (which pins
+the individual parameters, e.g. ``poisson: true`` with a ``read_noise_dn``), an
+artifact mode the scene sets, or the ``artifacts: {instrument_defaults: true}``
+opt-in (which turns on the emulated camera's physical signal chain -- including
+Poisson shot noise -- and the artifact modes every frame of the camera shows, at
+its catalog values). A scene with none of those
 blocks renders a clean DN frame: the self-consistency floor. A single-variable
 sweep therefore relies on every other block staying absent so it attributes
 error to the one effect it varies.
@@ -1148,9 +1149,10 @@ toggling one of those never changes another.
      - ``chain.py``
 
 Cosmic rays and radiation transients are two populations that leave hits of the same
-shapes. Cosmic rays arrive at a rate per pixel, and each deposits at least a set
-charge, with a long tail above it. Radiation hits arrive at a rate per frame that the
-environment scales, and their charge falls off steeply from a few DN.
+shapes. Cosmic rays arrive at a rate per pixel per second, and each deposits at least
+a set charge, with a long tail above it. Radiation hits arrive at a rate per second
+over the whole frame, which the environment scales, and their charge falls off steeply
+from a few DN.
 
 No draw in the chain takes a number of random values that depends on the signal.
 The shot noise, the read noise, the response pattern, and the calibration
@@ -1372,7 +1374,7 @@ top-level value isn't a mapping. Within an entry, the load fails on:
 * a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains, the full
   well, the reference exposure, the plate scale, the star zero point, the PSF radii,
   periods, filter throughputs, the native frame size, and the dark-sky ceiling must be
-  positive; noise amplitudes, rates, the bias, the and truncation radius must be
+  positive; noise amplitudes, rates, the bias, and the truncation radius must be
   non-negative; fractions (the PSF wing fraction) lie in [0, 1]; gain states are
   non-negative integers and binnings positive ones; a shape default's value must lie in
   its parameter's range, as a scene's must;

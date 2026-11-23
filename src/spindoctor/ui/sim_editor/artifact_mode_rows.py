@@ -443,7 +443,8 @@ class ModeRow:
             ):
                 tip += (
                     '\nThe instrument defaults turn this mode on. Each key set here '
-                    "replaces the camera's value for that key."
+                    f"replaces the camera's value for that key, and {self.mode.activation} "
+                    '0 turns the mode off.'
                 )
             self.group.setToolTip(tip)
         else:
