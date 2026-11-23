@@ -282,6 +282,10 @@ validation scenes that YAML can express today, so they guard the churn of Phases
 are the authorable parts of #904 and the ring-only part of #377:
 
 - every camera the simulator catalogs, at real frame sizes and real offsets, with twist;
+  **Done (PR #TBD), apart from Voyager, which follows the four-camera split (#806, PR #1118):**
+  the `full_frame_cameras` class holds eight full-frame scenes on the Cassini NAC and WAC (raw
+  and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
+  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`;
 - star fields with a body, and rings with a body;
 - dense ring profiles at real scale and low opening, with only catalog edges navigable and
   unmodeled structure beside them;
