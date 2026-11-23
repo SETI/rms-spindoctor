@@ -227,7 +227,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('double_star', FUSED): _t(0.388, 0.390, 0.006, 0.08),
     ('lock_pair', FUSED): _t(0.039, 0.041, 0.004, 0.05),
     ('lock_single', FUSED): _t(0.029, 0.030, 0.003, 0.05),
-    ('lock_single_dense', FUSED): _t(0.058, 0.059, 0.010, 0.05),
+    ('lock_single_dense', FUSED): _t(0.055, 0.056, 0.006, 0.05),
     ('lock_triangle', FUSED): _t(0.055, 0.056, 0.003, 0.05),
     ('saturated_star', FUSED): _t(0.019, 0.021, 0.003, 0.05),
 }
