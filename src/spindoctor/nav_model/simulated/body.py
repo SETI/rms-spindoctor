@@ -591,18 +591,17 @@ class NavModelBodySimulated(NavModelBodyBase):
             return None
         data_size_v = int(self.obs.data_shape_v)
         data_size_u = int(self.obs.data_shape_u)
-        mask = np.zeros((data_size_v, data_size_u), dtype=np.bool_)
-        for sibling in occluders:
-            mask |= predicted_silhouette(sibling, (data_size_v, data_size_u))
-        if not mask.any():
-            return None
         ext_margin_v = int(self.obs.extfov_margin_v)
         ext_margin_u = int(self.obs.extfov_margin_u)
         mask_full = self.obs.make_extfov_false()
-        mask_full[
-            ext_margin_v : ext_margin_v + data_size_v,
-            ext_margin_u : ext_margin_u + data_size_u,
-        ] = mask
+        for sibling in occluders:
+            mask_full |= predicted_silhouette(
+                sibling,
+                (data_size_v, data_size_u),
+                margin_vu=(ext_margin_v, ext_margin_u),
+            )
+        if not mask_full.any():
+            return None
         return mask_full
 
     def to_annotations(self, context: NavContext) -> Annotations:
