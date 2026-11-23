@@ -219,8 +219,7 @@ loader indexes the block by detector.
 common schema by **omission**: its ``noise`` block carries only
 ``marker_value: 0``, and its ``image_quality_thresholds`` carry only the two
 ``_if`` thresholds and the two fractions. It has no ``saturation_dn``, no
-``full_well_dn``, no ``expected_noise_dn``, no ``read_noise_dn``, no
-``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
+``read_noise_dn``, no ``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
 ``saturation_threshold_if``.
 
 That last omission is deliberate and is documented in the file. The calibration
@@ -233,7 +232,7 @@ disabled. Adding a threshold to this block would not restore the mask; the
 mask is gated on the units, not on the presence of the key.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
-``expected_noise_dn`` and ``read_noise_dn``, the calibrated block's
+``read_noise_dn``, the calibrated block's
 ``blank_max_if`` and ``noisy_threshold_if``, and both blocks'
 ``mag_offset_table`` entries. The ``_sources`` convention is not used in this
 file.
@@ -627,7 +626,7 @@ Open items
 ==========
 
 * Every value marked ``# PLACEHOLDER`` in ``config_400_inst_coiss.yaml``: the
-  raw block's ``expected_noise_dn`` and ``read_noise_dn``, the calibrated
+  raw block's ``read_noise_dn``, the calibrated
   block's ``blank_max_if`` and ``noisy_threshold_if``, and the magnitude-offset
   tables on all four detector entries.
 * ``from_file`` carries a TODO noting that the ``np.min`` / ``np.max`` debug

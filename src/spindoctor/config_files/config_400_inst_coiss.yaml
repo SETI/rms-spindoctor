@@ -29,8 +29,6 @@ cassini_iss:
     max_rotation_deg: 5.0
     noise:
       saturation_dn: 4095          # 12-bit ADC
-      full_well_dn: 4095
-      expected_noise_dn: 4.0       # PLACEHOLDER — calibrate in Phase 10
       marker_value: 0              # CISS RAW missing-pixel marker
       read_noise_dn: 4.0           # PLACEHOLDER — calibrate in Phase 10
       # interim: photometric zero point (DN a vmag-0 star deposits per second),
@@ -92,8 +90,6 @@ cassini_iss:
     max_rotation_deg: 5.0
     noise:
       saturation_dn: 4095
-      full_well_dn: 4095
-      expected_noise_dn: 4.0       # PLACEHOLDER — calibrate in Phase 10
       marker_value: 0
       read_noise_dn: 4.0           # PLACEHOLDER — calibrate in Phase 10
       # interim: photometric zero point (DN a vmag-0 star deposits per second),

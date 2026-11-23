@@ -128,11 +128,8 @@ at all; it exists so a reviewer can trace a number's provenance and so a
 calibration pass has a checklist.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``full_well_dn``, ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
-``noisy_threshold_dn`` and the ``mag_offset_table`` entry. ``full_well_dn``
-being a placeholder while ``saturation_dn`` is a hard fact is the point the
-``_sources`` block makes explicitly: the 12-bit ADC ceiling of 4095 DN and the
-detector full well are different quantities, and only the first is known here.
+``read_noise_dn``, ``blank_max_dn``,
+``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
 
 Photometric and PSF calibration
 ===============================
@@ -392,8 +389,8 @@ Open items
 
 * Every value marked ``# PLACEHOLDER`` in ``config_420_inst_nhlorri.yaml``,
   each with its own ``_sources`` line saying what has to be measured:
-  ``full_well_dn``, ``expected_noise_dn``, ``read_noise_dn``,
-  ``blank_max_dn``, ``noisy_threshold_dn`` and the ``mag_offset_table`` entry.
+  ``read_noise_dn``,
+  ``blank_max_dn``, ``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
 * The limiting-magnitude anchor, including its panchromatic bandpass term, is a
   nominal-optics derivation rather than a measurement.
 * The simulator PSF describes the unbinned readout mode and the cohort holds
