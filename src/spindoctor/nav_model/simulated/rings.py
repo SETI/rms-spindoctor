@@ -245,8 +245,8 @@ class NavModelRingsSimulated(NavModelRingsBase):
         Returns:
             ``(sigma_a_px, sigma_ae_px, sigma_long_peri)`` with the pericenter
             sigma in radians, ordered like a predicted edge's
-            ``orbit_partials_px`` columns.  A key the scene omits or sets to
-            null contributes zero.
+            ``orbit_partials_px`` columns.  A key the scene omits contributes
+            zero.
         """
         sigma = self._feature_params.get('declared_orbit_sigma') or {}
         return np.array(

@@ -55,7 +55,7 @@ class BodyTabMixin(SimEditorBase):
         # mesh shows the values switching it back to an ellipsoid restores.
         p = self._mesh_key_stash.view(self.sim_params['bodies'][idx])
         # Every control shows the value the renderer draws with.  The body's spec
-        # fills in each default, and it reads a null key as absent.
+        # fills in the default of each key the body leaves out.
         spec = body_spec_from_params(p, index=idx)
         w = QWidget()
         w.setProperty('kind', 'body')
@@ -336,8 +336,8 @@ class BodyTabMixin(SimEditorBase):
         # true geometry), but the navigator predicts the body with these fields
         # overlaid, so a scene can render a mesh and predict a smooth ellipsoid or
         # a different pose.  Turning it on writes an empty override, and an edit
-        # writes only its own key.  Unchecking it removes the override.  If an
-        # override key is absent or null, the navigator uses the body's own value,
+        # writes only its own key.  Unchecking it removes the override.  If the
+        # override leaves a key out, the navigator uses the body's own value,
         # and so does the control, which follows edits to the body's value.
         raw_override = p.get('nav_override')
         override: dict[str, Any] = raw_override if isinstance(raw_override, dict) else {}
@@ -557,7 +557,7 @@ class BodyTabMixin(SimEditorBase):
     def _refresh_body_override_controls(self, idx: int) -> None:
         """Show the body's own values in its unset navigation-override controls.
 
-        If an override key is absent or null, the navigator uses the body's own
+        If the override leaves a key out, the navigator uses the body's own
         value, so an edit to the body's shape model, mesh lumpiness, or pose changes
         what that control shows.  A control whose override key is set keeps its
         value.  The refresh never writes to the scene.

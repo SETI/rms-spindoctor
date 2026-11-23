@@ -126,9 +126,8 @@ def _check_artifact_mode(
 
     The map is checked against the mode's parameter types, so an unknown key or a
     value of the wrong type or range fails, and the message lists every such problem.
-    A map that sets both ``count`` and ``expected_events`` to a value
-    (``dead_pixels``, ``dead_columns``) fails as ambiguous; a key set to null counts
-    as unset.
+    A map that sets both ``count`` and ``expected_events`` (``dead_pixels``,
+    ``dead_columns``) fails as ambiguous.
     """
     label = f'artifacts.{mode_name}'
     if not isinstance(config, dict):
@@ -159,11 +158,7 @@ def _check_artifact_mode(
         ]
         raise SimSceneValidationError('\n'.join(lines)) from exc
     count_key = mode.count_alternative
-    if (
-        count_key is not None
-        and config.get(count_key) is not None
-        and config.get(mode.activation) is not None
-    ):
+    if count_key is not None and count_key in config and mode.activation in config:
         raise SimSceneValidationError(
             f'{source}: {label}: {count_key!r} (a fixed event count) and '
             f'{mode.activation!r} (a Poisson expected event count) are mutually exclusive; '

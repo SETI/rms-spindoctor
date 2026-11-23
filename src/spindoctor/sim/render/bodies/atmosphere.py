@@ -256,7 +256,7 @@ def atmosphere_spec_from_params(
     Returns None when the body carries no atmosphere, so a body without the
     block never enters the haze path.  Pixel lengths are scaled to the render
     grid by ``oversample`` exactly as the body's axes are.  An optional key that
-    is absent or null takes its default.
+    the block leaves out takes its default.
 
     Parameters:
         atmosphere: One body's ``atmosphere`` mapping, or None.
@@ -272,8 +272,6 @@ def atmosphere_spec_from_params(
     ref_altitude = atmosphere.get('ref_altitude_px')
     g = atmosphere.get('g')
     albedo = atmosphere.get('albedo')
-    # The validator accepts an optional key written as null, which means the
-    # same as leaving it out.
     return AtmosphereSpec(
         scale_height_px=float(atmosphere['scale_height_px']) * os_factor,
         tau_ref=float(atmosphere['tau_ref']),
