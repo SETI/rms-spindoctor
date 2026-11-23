@@ -249,8 +249,17 @@ def test_a_turned_bodys_cast_shadows_follow_the_sun() -> None:
     rotated[:, 1] = body.grid.u_rot[body.near][body.hit]
     points = rotated @ _BODY_TO_ROTATED
     cell = 2.0 * np.pi / body.field.grid.shape[0] * float(_SEMI.min())
-    distances = np.arange(
-        cell / 32.0, 2.0 * float(_SEMI.max()) * (1.0 + body.field.h_max), cell / 32.0
+    # Four samples over the first 1/1024 of a cell, then every 1/32 of a cell, scanned
+    # as one ray, so a ray seen above the ground at the near samples that meets
+    # terrain at the first coarse sample counts as falling below it again.
+    near_count = 4
+    distances = np.concatenate(
+        [
+            np.arange(1, near_count + 1) * (cell / 4096.0),
+            np.arange(
+                cell / 32.0, 2.0 * float(_SEMI.max()) * (1.0 + body.field.h_max), cell / 32.0
+            ),
+        ]
     )
     expected = np.zeros(seen.shape[0], dtype=np.bool_)
     for start in range(0, seen.shape[0], 200):
@@ -258,9 +267,9 @@ def test_a_turned_bodys_cast_shadows_follow_the_sun() -> None:
         rays = points[part, np.newaxis] + distances[:, np.newaxis] * sun
         inside = _inside(rays, body.field)
         risen = np.logical_or.accumulate(~inside, axis=1)
-        expected[part] = (inside[:, 1:] & risen[:, :-1]).any(axis=1)
-        near = points[part, np.newaxis] + np.arange(1, 5)[:, np.newaxis] * (cell / 4096.0) * sun
-        expected[part] |= _inside(near, body.field).any(axis=1)
+        expected[part] = inside[:, :near_count].any(axis=1) | (inside[:, 1:] & risen[:, :-1]).any(
+            axis=1
+        )
     shading = body.shading
     lit = (
         incidence_cosines(
