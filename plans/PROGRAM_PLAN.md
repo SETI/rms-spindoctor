@@ -54,7 +54,7 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 
 ## Issue count
 
-456 issues were open on 2026-11-23. 349 of them have a row here, and the other 107 are
+457 issues were open on 2026-11-23. 350 of them have a row here, and the other 107 are
 simulator work tracked separately. 5 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
@@ -495,6 +495,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 | #548 | 4 Useful | yes |  | Coverage floor (operator decision) |
 | #243 | 4 Useful | yes |  | Star-conflict tests |
 | #177 | 4 Useful | yes |  | Summary-PNG tests |
+| #1160 | 3 Important |  | PR #1162 open | Keep the documentation build under Read the Docs' time limit (PR #1162 open (the simulator session's, at the operator's request)) |
 | #438 | 4 Useful |  |  | Run the nitpicky Sphinx check |
 | #129 | 4 Useful |  |  | Zero nitpicky warnings |
 | #122 | 4 Useful |  |  | Verify the terminator guide's rationale |
