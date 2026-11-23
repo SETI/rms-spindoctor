@@ -19,12 +19,9 @@ split across these modules:
   sub-mode applies.
 """
 
-from spindoctor.sim.render.detector.chain import (
-    apply_detector,
-    apply_saturation,
-    quantize_dn,
-)
+from spindoctor.sim.render.detector.chain import apply_detector, apply_saturation
 from spindoctor.sim.render.detector.params import DetectorParams, resolve_detector_params
+from spindoctor.sim.render.detector.quantization import quantize_dn
 
 __all__ = [
     'DetectorParams',

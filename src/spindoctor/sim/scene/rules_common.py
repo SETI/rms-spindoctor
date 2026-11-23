@@ -28,7 +28,6 @@ from spindoctor.sim.instruments.resolvers import (
     FilterCatalogError,
     cataloged_binnings,
     downlink_table_names,
-    instrument_default_modes,
     resolve_detector_defaults,
     resolve_detector_defaults_native,
     resolve_filter_throughput,
@@ -312,10 +311,10 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 # The detector block selects the electron-chain gain state, the readout
 # mode's binning, the detector model (CCD electron chain or vidicon DN path),
 # the exposure the well fraction references (or the filter whose measured
-# throughput sets it), the ADC quantization sub-mode, and the downlink table the
-# sqrt_lut quantization decodes through.  Per-instrument defaults, filter
-# throughputs, and downlink tables come from the instrument entry; scene
-# keys override them.
+# throughput sets it), the quantization sub-mode, the downlink table the sqrt_lut
+# quantization decodes through, and the step of the contour_8bit quantization.
+# Per-instrument defaults, filter throughputs, and downlink tables come from the
+# instrument entry; scene keys override them.
 _DETECTOR_KEYS: frozenset[str] = frozenset(
     {
         'gain_state',
@@ -325,6 +324,7 @@ _DETECTOR_KEYS: frozenset[str] = frozenset(
         'filter',
         'quantization',
         'downlink_table',
+        'contour_step',
     }
 )
 
@@ -430,6 +430,14 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             f'got {quantization!r}'
         )
     _check_downlink_table(value.get('downlink_table'), instrument=instrument, source=source)
+    if value.get('contour_step') is not None:
+        step = _require_int(
+            {'contour_step': value['contour_step']}, 'contour_step', source=f'{source}: detector'
+        )
+        if step < 1:
+            raise SimSceneValidationError(
+                f'{source}: detector.contour_step must be at least 1; got {step}'
+            )
 
 
 def _check_downlink_table(name: Any, *, instrument: str, source: str) -> None:
@@ -458,53 +466,46 @@ def _check_downlink_table(name: Any, *, instrument: str, source: str) -> None:
         )
 
 
-def _check_downlink_table_used(
-    detector: Any, artifacts: Any, *, instrument: str, source: str
-) -> None:
-    """Refuse a ``detector.downlink_table`` that no quantization would decode through.
+# The detector keys that one quantization sub-mode alone reads, with that sub-mode.
+_QUANTIZATION_KEYS: dict[str, str] = {
+    'downlink_table': 'sqrt_lut',
+    'contour_step': 'contour_8bit',
+}
 
-    Only the ``sqrt_lut`` quantization reads the table, so a scene may set one only
-    when the frame can be companded: the scene quantizes with ``sqrt_lut`` (its own
-    ``detector.quantization``, else the camera's default for the selected readout
-    mode), the scene includes the ``quantization_sqrt_lut`` artifact mode at any
-    probability, or the scene sets ``artifacts.instrument_defaults`` and the camera
-    lists the mode under ``artifact_modes.instrument_defaults``.  Run after
-    :func:`_check_detector` and
-    :func:`~spindoctor.sim.scene.rules_artifacts._check_artifacts`, so both blocks
-    are well-formed mappings or None.
+
+def _check_quantization_keys_used(detector: Any, *, instrument: str, source: str) -> None:
+    """Refuse a detector key that the scene's quantization never reads.
+
+    Only the ``sqrt_lut`` quantization decodes through ``downlink_table``, and only
+    ``contour_8bit`` posterizes to ``contour_step``.  The scene's quantization is its
+    own ``detector.quantization``, else the camera's default for the selected readout
+    mode.  Run after :func:`_check_detector`, so the block is a well-formed mapping or
+    None.
 
     Parameters:
         detector: The scene ``detector`` block, or None when absent.
-        artifacts: The scene ``artifacts`` block, or None when absent.
         instrument: The scene's (already validated) instrument name.
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If the scene sets a downlink table and nothing
-            selects the ``sqrt_lut`` quantization.
+        SimSceneValidationError: If the scene sets a key and quantizes with another
+            sub-mode.
     """
-    if not detector or detector.get('downlink_table') is None:
-        return
-    artifacts = artifacts or {}
-    if artifacts.get('quantization_sqrt_lut') is not None:
-        return
-    if artifacts.get('instrument_defaults') and (
-        'quantization_sqrt_lut' in instrument_default_modes(instrument)
-    ):
+    if not detector:
         return
     quantization = detector.get('quantization')
     if quantization is None:
         binning = detector.get('binning')
         detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
         quantization = detector_defaults.quantization
-    if quantization == 'sqrt_lut':
-        return
-    raise SimSceneValidationError(
-        f'{source}: detector.downlink_table {detector["downlink_table"]!r} has no effect: '
-        f'only the sqrt_lut quantization decodes through a downlink table, and this '
-        f'scene quantizes with {quantization!r}; set detector.quantization: sqrt_lut, '
-        f'add the quantization_sqrt_lut artifact mode, or drop the key'
-    )
+    for key, sub_mode in _QUANTIZATION_KEYS.items():
+        value = detector.get(key)
+        if value is not None and quantization != sub_mode:
+            raise SimSceneValidationError(
+                f'{source}: detector.{key} {value!r} has no effect: only the {sub_mode} '
+                f'quantization reads it, and this scene quantizes with {quantization!r}; set '
+                f'detector.quantization: {sub_mode}, or drop the key'
+            )
 
 
 def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: str) -> None:

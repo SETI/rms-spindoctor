@@ -58,6 +58,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_mode_with_catalog,
 )
 from spindoctor.sim.instruments.schema_detector import Detector
+from spindoctor.sim.render.detector.quantization import DEFAULT_CONTOUR_STEP
 from spindoctor.sim.render.detector.sqrt_lut import (
     DownlinkCurve,
     check_curve_ceiling,
@@ -146,9 +147,7 @@ class DetectorParams:
             their events adversarially onto the navigation features.
         detector_modes: The resolved config of every active detector-stage
             artifact mode (registry defaults filled from the catalog), keyed by
-            mode name; the chain applies each at its physical point and records
-            it.  The quantization modes also appear here for
-            the truth record, their override already folded into the flat fields.
+            mode name; the chain applies each at its physical point and records it.
     """
 
     detector_model: str
@@ -181,7 +180,7 @@ class DetectorParams:
     instrument_defaults: bool = False
     calibration_column_residual_e: float = 0.0
     calibration_pixel_residual_e: float = 0.0
-    quantization_contour_step: int = 8
+    quantization_contour_step: int = DEFAULT_CONTOUR_STEP
     sqrt_lut: DownlinkCurve | None = None
     artifacts_adversarial: bool = False
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -602,8 +601,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         )
     dark_dn = 0.0 if detector_model == 'vidicon' else dark_current * exposure_sec / gain_e_per_dn
 
-    # Detector-stage artifact modes.  An active quantization mode replaces the
-    # quantization key's sub-mode.
     artifacts_adversarial = bool(artifacts.get('adversarial', False))
     detector_modes = _resolve_detector_modes(
         artifacts,
@@ -611,18 +608,10 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         int(params['random_seed']),
         instrument_defaults=instrument_defaults,
     )
-    contour_step = 8
     try:
         downlink_table = resolve_downlink_table(instrument, detector_block.get('downlink_table'))
     except ValueError as exc:
         raise DetectorParamError(str(exc)) from exc
-    if 'quantization_sqrt_lut' in detector_modes:
-        quantization = 'sqrt_lut'
-    if 'quantization_ls8b' in detector_modes:
-        quantization = 'ls8b'
-    if 'quantization_contour_8bit' in detector_modes:
-        quantization = 'contour_8bit'
-        contour_step = int(detector_modes['quantization_contour_8bit'].get('step', 8))
     sqrt_lut = resolve_sqrt_lut(downlink_table, saturation_dn=saturation_dn)
     if quantization == 'sqrt_lut' and downlink_table is not None:
         try:
@@ -667,7 +656,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         instrument_defaults=instrument_defaults,
         calibration_column_residual_e=calibration_column_residual,
         calibration_pixel_residual_e=calibration_pixel_residual,
-        quantization_contour_step=contour_step,
+        quantization_contour_step=int(detector_block.get('contour_step', DEFAULT_CONTOUR_STEP)),
         sqrt_lut=sqrt_lut,
         artifacts_adversarial=artifacts_adversarial,
         detector_modes=detector_modes,

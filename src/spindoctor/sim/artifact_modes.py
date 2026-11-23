@@ -645,24 +645,6 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         detector_models=_VIDICON_ONLY,
     ),
     _detector_mode(
-        'quantization_sqrt_lut',
-        activation=PROBABILITY,
-        activation_semantics=(
-            "per-frame probability the frame is companded through the camera's sqrt_lut table"
-        ),
-    ),
-    _detector_mode(
-        'quantization_ls8b',
-        activation=PROBABILITY,
-        activation_semantics='per-frame probability the LS8B wraparound quantization is active',
-    ),
-    _detector_mode(
-        'quantization_contour_8bit',
-        ModeParam('step', PositiveInt, 8),
-        activation=PROBABILITY,
-        activation_semantics='per-frame probability the 8-bit contouring quantization is active',
-    ),
-    _detector_mode(
         'fixed_pattern',
         ModeParam('prnu_rms', Unit, None),
         ModeParam('vignetting_frac', Unit, None),
@@ -768,7 +750,4 @@ DETECTOR_MODE_ORDER: tuple[str, ...] = (
     'serial_tail',
     'bias_structure',
     'beam_bend',
-    'quantization_sqrt_lut',
-    'quantization_ls8b',
-    'quantization_contour_8bit',
 )

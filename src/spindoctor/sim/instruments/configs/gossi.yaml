@@ -63,6 +63,8 @@ gossi:
     cosmic_ray_readout_dwell_sec: 4.33
     cosmic_ray_amplitude_e: 6000.0
     cosmic_ray_spread_px: 0.4
+    # The 8-bit ADC contours worst at DN multiples of 8, which a scene gets from the
+    # contour_8bit quantization at its default step.
     quantization: exact
 
   # The 2x2 summation mode reads 44 e- (published; 31 e- at full resolution).
@@ -89,7 +91,6 @@ gossi:
       - shutter_shading
       - bloom
       - radiation_transients
-      - quantization_contour_8bit
       - fixed_pattern
       - compression_dct
     # The modes every frame of the camera shows, which a scene's
@@ -125,14 +126,12 @@ gossi:
       # amplitudes few DN steeply falling (near full well at the top).  A scene
       # plants the hits as a rate, with expected_events_per_sec.
       radiation_transients: {amplitude_e: 4.0e+4}
-      # 33-px photolithography stitch comb plus corner vignetting; the 8-bit ADC
-      # contours worst at DN multiples of 8.
+      # 33-px photolithography stitch comb plus corner vignetting.
       fixed_pattern:
         stitch_period_px: 33
         stitch_amplitude_dn: 1.0
         vignetting_frac: 0.03
         dust_donut_count: 4
-      quantization_contour_8bit: {step: 8}
       # The HMA and HCA telemetry formats decimate vertically, with valid data on
       # every 2nd or every 4th line only, so the periodic-line default is 'keep'.
       alternating_lines: {mode: keep}

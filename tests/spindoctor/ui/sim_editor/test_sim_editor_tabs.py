@@ -484,6 +484,16 @@ def test_detector_quantization_is_authorable(model: Any) -> None:
     assert model.sim_params['detector'] == {'quantization': 'sqrt_lut'}
 
 
+def test_the_contour_step_spin_writes_and_removes_the_key(model: Any) -> None:
+    """A positive contour step writes the key, and the default value removes it."""
+    model._detector_group.setChecked(True)
+    model._detector_contour_step_spin.setValue(16)
+    written = dict(model.sim_params['detector'])
+    model._detector_contour_step_spin.setValue(0)
+    assert written == {'contour_step': 16}
+    assert model.sim_params['detector'] == {}
+
+
 def test_choosing_a_downlink_table_writes_the_key(model: Any) -> None:
     """The downlink-table combo writes the detector.downlink_table key."""
     model._instrument_combo.setCurrentText('coiss_nac')

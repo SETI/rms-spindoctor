@@ -1158,9 +1158,27 @@ def test_a_downlink_table_no_quantization_reads_fails() -> None:
     with pytest.raises(
         SimSceneValidationError,
         match=r"detector\.downlink_table 'table_12_to_8' has no effect: only the sqrt_lut "
-        r"quantization decodes through a downlink table, and this scene quantizes with 'exact'; "
-        r'set detector\.quantization: sqrt_lut, add the quantization_sqrt_lut artifact mode, or '
-        r'drop the key',
+        r"quantization reads it, and this scene quantizes with 'exact'; "
+        r'set detector\.quantization: sqrt_lut, or drop the key',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_the_quantization_ignores_fails() -> None:
+    """A scene may set the contour step only when its quantization is contour_8bit."""
+    scene = frame_scene(size=32, detector={'quantization': '8bit', 'contour_step': 4})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'detector\.contour_step 4 has no effect: only the contour_8bit quantization',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_below_one_fails() -> None:
+    """A contour step of 0 would divide by it, so validation refuses it."""
+    scene = frame_scene(size=32, detector={'quantization': 'contour_8bit', 'contour_step': 0})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.contour_step must be at least 1; got 0'
     ):
         validate_sim_params(scene)
 

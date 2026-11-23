@@ -32,6 +32,7 @@ from spindoctor.sim.render.detector.electronics_stages import (
 )
 from spindoctor.sim.render.detector.noise_stages import detector_hot_pixel_map
 from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.detector.quantization import quantize_dn
 from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt
 from spindoctor.sim.render.driver import render_scene
 
@@ -459,24 +460,27 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
     return scene
 
 
-def test_quantization_ls8b_mode_routes_to_the_ls8b_submode() -> None:
-    """The quantization_ls8b mode selects the LS8B ADC sub-mode."""
-    dp = resolve_detector_params(
-        _disc('coiss_nac', artifacts={'quantization_ls8b': {'probability': 1.0}})
-    )
-    assert dp.quantization == 'ls8b'
-
-
 @pytest.mark.parametrize(
     'instrument', ['coiss_nac', 'coiss_wac', 'coiss_calib_nac', 'coiss_calib_wac']
 )
-def test_quantization_sqrt_lut_mode_routes_to_the_cassini_table(instrument: str) -> None:
-    """The quantization_sqrt_lut mode selects sqrt_lut through each camera's measured table."""
-    dp = resolve_detector_params(
-        _disc(instrument, artifacts={'quantization_sqrt_lut': {'probability': 1.0}})
-    )
-    assert dp.quantization == 'sqrt_lut'
+def test_sqrt_lut_decodes_through_the_cassini_table(instrument: str) -> None:
+    """Each Cassini camera's sqrt_lut quantization reads its measured table."""
+    dp = resolve_detector_params(_disc(instrument, detector={'quantization': 'sqrt_lut'}))
     assert dp.sqrt_lut == LUTSqrt(codes=256, linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)
+
+
+def test_a_scene_sets_the_contour_step() -> None:
+    """A contour_8bit frame holds only multiples of the scene's step."""
+    img, _ = render_scene(
+        _disc(
+            'gossi',
+            noise={'read_noise_dn': 5.0},
+            detector={'quantization': 'contour_8bit', 'contour_step': 16},
+        )
+    )
+    levels = set(np.unique(img).tolist())
+    assert len(levels) > 1
+    assert {level % 16 for level in levels - {255.0}} == {0.0}
 
 
 def test_bias_structure_records_the_pedestal_it_draws() -> None:
@@ -666,16 +670,12 @@ def test_radiation_morphology_mix_present() -> None:
 
 def test_quantize_ls8b_wraps_modulo_256() -> None:
     """LS8B keeps the low 8 bits: 256 -> 0, 300 -> 44, 4095 -> 255."""
-    from spindoctor.sim.render.detector.chain import quantize_dn
-
     out = quantize_dn(np.array([256.0, 300.0, 4095.0]), mode='ls8b', saturation_dn=4095.0)
     assert out.tolist() == [0.0, 44.0, 255.0]
 
 
 def test_quantize_contour_8bit_posterizes_to_step_multiples() -> None:
     """contour_8bit posterizes the 8-bit word to DN multiples of the step."""
-    from spindoctor.sim.render.detector.chain import quantize_dn
-
     dn = np.arange(0, 256, dtype=np.float64)
     out = quantize_dn(dn, mode='contour_8bit', saturation_dn=255.0, contour_step=8)
     levels = set(out.tolist())

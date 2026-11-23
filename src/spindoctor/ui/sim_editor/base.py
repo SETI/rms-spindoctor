@@ -155,6 +155,7 @@ class SimEditorBase(QMainWindow):
     _detector_model_combo: QComboBox
     _detector_exposure_ref_spin: QDoubleSpinBox
     _detector_quantization_combo: QComboBox
+    _detector_contour_step_spin: QSpinBox
     _mode_rows: dict[str, Any]
 
     # ---- General tab: PSF preview ----

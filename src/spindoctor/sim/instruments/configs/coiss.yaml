@@ -183,8 +183,6 @@ coiss_nac:
       - bloom
       - radiation_transients
       - bright_dark_pairs
-      - quantization_sqrt_lut
-      - quantization_ls8b
       - fixed_pattern
       - compression_dct
     # The modes every raw frame of the camera shows, which a scene's
@@ -352,8 +350,6 @@ coiss_wac:
       - bloom
       - radiation_transients
       - bright_dark_pairs
-      - quantization_sqrt_lut
-      - quantization_ls8b
       - fixed_pattern
       - compression_dct
     # The modes every raw frame of the camera shows, which a scene's
