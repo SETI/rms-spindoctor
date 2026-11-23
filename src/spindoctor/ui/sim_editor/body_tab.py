@@ -55,7 +55,7 @@ class BodyTabMixin(SimEditorBase):
         # mesh shows the values switching it back to an ellipsoid restores.
         p = self._mesh_key_stash.view(self.sim_params['bodies'][idx])
         # Every control shows the value the renderer draws with.  The body's spec
-        # fills in each default, and it reads a null key as absent.
+        # fills in the default of each key the body leaves out.
         spec = body_spec_from_params(p, index=idx)
         w = QWidget()
         w.setProperty('kind', 'body')
@@ -324,16 +324,6 @@ class BodyTabMixin(SimEditorBase):
         w.anti_aliasing_slider = aa_slider  # type: ignore[attr-defined]
         w.anti_aliasing_spin = aa_spin  # type: ignore[attr-defined]
 
-        # Crater seed: -1 ("Auto") omits the key so the renderer hashes the
-        # geometry; any other value pins the crater pattern.
-        crater_seed = QSpinBox()
-        crater_seed.setRange(-1, 2147483647)
-        crater_seed.setSpecialValueText('Auto')
-        crater_seed.setValue(-1 if spec.seed is None else spec.seed)
-        crater_seed.setToolTip('Crater RNG seed; Auto hashes the body geometry.')
-        crater_seed.valueChanged.connect(lambda v, i=idx: self._on_body_seed(i, v))
-        fl.addRow('Crater seed:', crater_seed)
-
         km_pp = QDoubleSpinBox()
         km_pp.setRange(0.0, 1.0e9)
         km_pp.setDecimals(4)
@@ -346,8 +336,8 @@ class BodyTabMixin(SimEditorBase):
         # true geometry), but the navigator predicts the body with these fields
         # overlaid, so a scene can render a mesh and predict a smooth ellipsoid or
         # a different pose.  Turning it on writes an empty override, and an edit
-        # writes only its own key.  Unchecking it removes the override.  If an
-        # override key is absent or null, the navigator uses the body's own value,
+        # writes only its own key.  Unchecking it removes the override.  If the
+        # override leaves a key out, the navigator uses the body's own value,
         # and so does the control, which follows edits to the body's value.
         raw_override = p.get('nav_override')
         override: dict[str, Any] = raw_override if isinstance(raw_override, dict) else {}
@@ -567,7 +557,7 @@ class BodyTabMixin(SimEditorBase):
     def _refresh_body_override_controls(self, idx: int) -> None:
         """Show the body's own values in its unset navigation-override controls.
 
-        If an override key is absent or null, the navigator uses the body's own
+        If the override leaves a key out, the navigator uses the body's own
         value, so an edit to the body's shape model, mesh lumpiness, or pose changes
         what that control shows.  A control whose override key is set keeps its
         value.  The refresh never writes to the scene.
@@ -628,15 +618,6 @@ class BodyTabMixin(SimEditorBase):
                 if tab_w is not None:
                     self._sync_body_mesh_enabled(tab_w, text == 'polyhedral_mesh')
             self._refresh_body_override_controls(idx)
-            self._updater.request_update()
-
-    def _on_body_seed(self, idx: int, value: int) -> None:
-        """Set an integer crater seed, or remove it (Auto) when value is -1."""
-        if 0 <= idx < len(self.sim_params['bodies']):
-            if value < 0:
-                self.sim_params['bodies'][idx].pop('seed', None)
-            else:
-                self.sim_params['bodies'][idx]['seed'] = int(value)
             self._updater.request_update()
 
     def _on_body_pose(self, idx: int, axis: int, value: float) -> None:

@@ -20,6 +20,7 @@ violation raises :class:`~spindoctor.sim.scene.errors.SimSceneValidationError`.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from typing import Any
 
 from spindoctor.sim.artifact_modes import DETECTOR_MODELS, QUANTIZATION_MODES
@@ -39,7 +40,8 @@ from spindoctor.support.status_reason import NavStatusReason
 # image-library sidecar taxonomy (status / confidence tier / status_reason) but
 # are defined independently here: a sim scene is not a sidecar, so the sim path
 # owns its own copy rather than importing the sidecar module.  ``confidence_tier``
-# admits the five navigation ranks plus null (assert the status only).
+# admits the five navigation ranks; a scene that leaves it out asserts the status
+# only.
 _EXPECTED_KEYS: frozenset[str] = frozenset(
     {
         'status',
@@ -407,7 +409,7 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
         # render-time resolver keeps its own guard as a backstop for scenes
         # that bypass validation.
         native = resolve_detector_defaults_native(instrument)
-        table = native.get('gain_e_per_dn_by_state') or {0: 1.0}
+        table = native.gain_e_per_dn_by_state or {0: 1.0}
         if gain_state not in table:
             raise SimSceneValidationError(
                 f'{source}: detector.gain_state {gain_state} is not cataloged for '
@@ -511,7 +513,7 @@ def _check_downlink_table_used(
     if quantization is None:
         binning = detector.get('binning')
         detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
-        quantization = detector_defaults.get('quantization', 'exact')
+        quantization = detector_defaults.quantization
     if quantization == 'sqrt_lut':
         return
     raise SimSceneValidationError(
@@ -631,11 +633,11 @@ def _check_expected(value: Any, *, source: str) -> None:
 
     The block declares what the navigator should produce for the scene, read by
     the sim integration suite's assertion machinery (not by the renderer or the
-    navigator).  ``status`` is required; ``confidence_tier`` is required but may
-    be null (assert the status only); ``status_reason`` is optional.  The
+    navigator).  ``status`` is required; ``confidence_tier`` and ``status_reason``
+    are optional, and a block that leaves the tier out asserts the status only.  The
     cross-field rules mirror the image-library sidecar taxonomy: a ``failed`` or
     ``conflicted`` status pins the matching tier, and those tiers require the
-    matching status, but only when the tier is asserted (non-null).
+    matching status, but only when the block sets a tier.
 
     ``known_offset_error_px`` sets the known-error check: the measured fused
     offset-error magnitude a scene deliberately pins as a documented hazard (a
@@ -667,8 +669,8 @@ def _check_expected(value: Any, *, source: str) -> None:
     tier = value.get('confidence_tier')
     if tier is not None and tier not in _EXPECTED_TIERS:
         raise SimSceneValidationError(
-            f'{source}: expected.confidence_tier must be one of {sorted(_EXPECTED_TIERS)} or '
-            f'null; got {tier!r}'
+            f'{source}: expected.confidence_tier must be one of {sorted(_EXPECTED_TIERS)} '
+            f'when present; got {tier!r}'
         )
     if tier is not None:
         if status == 'failed' and tier != 'failed':
@@ -736,6 +738,40 @@ def _require_ranges_for_spk_error(sim_params: dict[str, Any], *, source: str) ->
         raise SimSceneValidationError(
             f'{source}: ring_system needs range_km when spk_error is present'
         )
+
+
+def _refuse_nulls(value: Any, path: str, *, source: str) -> None:
+    """Refuse a null at any depth of a scene value, giving its key path.
+
+    A scene leaves a key out to take its default, so a null means nothing anywhere in
+    a scene: as a top-level key, as a key of a block or of a mapping inside a list,
+    or as a list entry.
+
+    Parameters:
+        value: The value to search: a mapping, a list, or a scalar.
+        path: The value's key path, such as ``bodies[1].nav_override``, or an empty
+            string for the whole scene.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If a value at any depth is null.
+    """
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            item_path = f'{path}.{key}' if path else str(key)
+            if item is None:
+                raise SimSceneValidationError(
+                    f'{source}: {item_path} is null; leave the key out to take its default'
+                )
+            _refuse_nulls(item, item_path, source=source)
+    elif isinstance(value, list | tuple):
+        for index, item in enumerate(value):
+            item_path = f'{path}[{index}]'
+            if item is None:
+                raise SimSceneValidationError(
+                    f'{source}: {item_path} is null; give the list entry a value or remove it'
+                )
+            _refuse_nulls(item, item_path, source=source)
 
 
 def _require_str(raw: dict[str, Any], key: str, *, source: str) -> str:

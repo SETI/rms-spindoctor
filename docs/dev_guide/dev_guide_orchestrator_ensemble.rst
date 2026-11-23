@@ -377,35 +377,36 @@ a regression test, and each also shows where the veto's coverage ends:
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
   non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
   the limb fit lock onto the mismatched model. Over mesh seeds 0 to 12 the
-  veto fires on 1 to 4 of the 13 shapes, depending on the noise draw, and
+  veto fires on 3 to 7 of the 13 shapes, depending on the noise draw, and
   reports each one ``conflicted``, with the status reason
   ``body_shape_lock_suspect``. On such a shape the pose-free blob, which does
   not chase the shape, sits pixels from the consensus, and its separation clears
   both the body-scaled pixel floor and the Mahalanobis threshold.
   ``test_sim_irregularity_population`` counts that status reason over the 13
   shapes on five noise draws and asserts the count as a floor. Another shape
-  usually ends ``conflicted`` too, but because its disc and limb disagree with
+  often ends ``conflicted`` too, but because its disc and limb disagree with
   each other, and the veto plays no part. On the remaining shapes the blob
   either carries the result itself at low confidence or is displaced together
-  with the lock, so the disagreement the veto reads never appears. On 3 of 25
-  noise draws one shape (``mesh_seed`` 7) ends a success at about 0.90 confidence,
-  5.2 to 5.3 px off, and one of those draws is among the five the test reads. That
-  confident wrong result is a known gap, held by a strict expected-failure
-  test until the veto catches it. The sweep's own walk uses a typical shape
-  (``mesh_seed`` 4, chosen by its silhouette mismatch): its extreme step is a
-  0.40-confidence success 5.2 px off, carried by the blob, and the veto
-  doesn't fire. Its clean (zero-relief) step recovers the planted offset
-  sub-pixel and stays a success, so the veto doesn't blanket the walk.
+  with the lock, so the disagreement the veto reads never appears. One shape
+  ends a success 12.8 px off, carried by the disc correlation, on 24 of 25 noise
+  draws, at 0.89 confidence. That wrong result is a known gap, held by a strict
+  expected-failure test until the veto catches it. The sweep's own walk uses a
+  typical shape (``mesh_seed`` 4, chosen by its silhouette mismatch): on the
+  scene's own draw the veto declines its extreme step. Over 25 noise draws it
+  declines that step on 5, and on the other 20 the step is a 0.40-confidence
+  success 5.3 px off, carried by the blob. Its clean (zero-relief) step recovers
+  the planted offset sub-pixel and stays a success, so the veto doesn't blanket
+  the walk.
 - ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and
   its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
-  a ~30 px wrong offset. A spurious disc correlation would leave the blob as the
+  a ~25 px wrong offset. A spurious disc correlation would leave the blob as the
   lone survivor, and the collapsed-regime veto would decline the frame. Here the
-  disc correlation is pulled 6.7 px off by the ring of light its template leaves
+  disc correlation is pulled 3.0 px off by the ring of light its template leaves
   out, and it doesn't flag that answer spurious. The blob is dropped from the fuse
   as a fallback, and neither veto applies. At 155 degrees the blob is past half
   phase, where the shape-lock check does not trust it. The collapsed-regime check
   applies only when the disc correlation flags itself spurious, and here it does
-  not. The frame ends a low-confidence success 6.7 px wrong, and the scene holds
+  not. The frame ends a low-confidence success 3.0 px wrong, and the scene holds
   that error to a band.
 
 The witness is a defense against a geometric lock, not a cure for the blob's

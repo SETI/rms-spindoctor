@@ -111,7 +111,7 @@ def test_noise_sweep_degrades_to_failure() -> None:
 def test_noise_sweep_low_noise_all_succeed() -> None:
     """Every below-cliff step recovers within tolerance.
 
-    A single-draw tripwire: over 9 noise draws the worst error is 0.008 to 0.022 px.
+    A single-draw tripwire: over 9 noise draws the worst error is 0 to 0.022 px.
     """
     rows = _rows('noise_read_noise')
     for row in rows:
@@ -127,7 +127,7 @@ def test_calibrated_noise_sweep_recovers_at_every_read_noise() -> None:
     The calibrated base renders through the full instrument chain, and its disc
     carries a charge comparable to the raw base's, yet the raw sweep's cliff at
     64 DN does not appear: every step recovers.  A single-draw tripwire: over 9 noise
-    draws the worst error is 0.016 to 0.070 px.
+    draws the worst error is 0.016 to 0.067 px.
     """
     rows = _rows('noise_read_noise_calib')
     assert [row.value for row in rows] == _sweep_values('noise_read_noise_calib')
@@ -167,7 +167,7 @@ def test_calibrated_exposure_sweep_starts_clean() -> None:
 
 
 # Measured on 25 noise draws.  At 30 us the frame fails on 24; on noise seed 707 it is a
-# 0.61-confidence success 47.2 px off.
+# 0.61-confidence success 47.3 px off.
 _EXPOSURE_SHORTEST_MIN_FAILED = 4
 
 
@@ -190,21 +190,21 @@ def test_calibrated_exposure_sweep_degrades_to_failure() -> None:
 
 
 # The exposure cliff over 25 noise draws.  At 0.1 s and 10 ms every draw recovers
-# within 0.02 px, and at 0.1 ms every draw fails.  At 1 ms 22 draws recover; the
-# other three succeed 1.05, 0.75, and 0.52 px off at 0.40 confidence.  At 0.3 ms
-# 24 draws fail; noise seed 707 recovers.  The minimum counts below hold for
-# every choice of 5 of the 25 draws.
+# within 0.02 px, and at 0.1 ms every draw fails.  At 1 ms 23 draws recover; the
+# other two succeed 1.11 and 0.71 px off at 0.40 confidence.  At 0.3 ms 23 draws
+# fail; noise seeds 707 and 2323 recover.  The minimum counts below hold for every
+# choice of 5 of the 25 draws.
 _EXPOSURE_ALWAYS_RECOVERS = (0.1, 0.01)
 _EXPOSURE_ALWAYS_FAILS = 0.0001
 _EXPOSURE_1_MS_MIN_RECOVERED = 2
-_EXPOSURE_0_3_MS_MIN_FAILED = 4
+_EXPOSURE_0_3_MS_MIN_FAILED = 3
 
 
 def test_calibrated_exposure_sweep_cliff_lies_between_10_ms_and_0_1_ms() -> None:
     """Every draw recovers down to 10 ms and fails at 0.1 ms; 1 ms and 0.3 ms straddle it.
 
     Asserted on the noise population.  At 1 ms at least 2 of the 5 draws recover,
-    and at 0.3 ms at least 4 of them fail.
+    and at 0.3 ms at least 3 of them fail.
     """
     population = [{row.value: row for row in rows} for rows in _population('noise_exposure_calib')]
     for by_exposure in population:
@@ -222,7 +222,8 @@ def test_calibrated_exposure_sweep_cliff_lies_between_10_ms_and_0_1_ms() -> None
 # of 0.0078 px over 9 noise draws x 23 steps, one step of the 1/128 px refinement
 # grid, which the high-pass refinement shows at whole-pixel and quarter-pixel offsets.
 # The offsets of 0.31, 0.382, and 0.45 px, past the reach of a half-pixel window around
-# the integer peak, read 0.0025, 0.0008, and 0.0031 px on every draw (#929, #791).
+# the integer peak, read 0.0025, 0.0008, and 0.0031 px on each of the 9 draws
+# (#929, #791).
 _CALIB_DISC_STEADY_BIAS_PX = 0.008
 
 
@@ -243,7 +244,7 @@ def test_calibrated_disc_offset_sweep_holds_its_bias() -> None:
     """At every offset the error stays below a hundredth of a pixel.
 
     A single-draw tripwire: over 9 noise draws the worst error is 0.0036 to 0.0078 px.
-    On two further draws, noise seeds 1414 and 2424, it is 0.0091 and 0.0086 px, above
+    On two further draws, noise seeds 1414 and 2424, it is 0.0084 and 0.0086 px, above
     the bound.
     """
     for row in _rows('disc_offset_fine_calib'):
@@ -369,8 +370,8 @@ def test_star_rotation_sweep_recovers_roll() -> None:
 _CONFIDENT = 0.9
 # Twelve of the 13 mesh seeds 0 to 12 dip at least this far below the clean
 # step's confidence somewhere on their walks (the smallest of those dips is seed
-# 9's, 0.38).  Seed 7 dips only 0.11, to 0.88 at lumpiness 0.7.  Measured
-# 2026-11-22.
+# 2's, 0.34).  Seed 7 dips only 0.29, to 0.70 at lumpiness 0.5.  Measured
+# 2026-11-23.
 _IRREGULARITY_MIN_CONFIDENCE_DROP = 0.3
 
 
@@ -379,13 +380,13 @@ def test_irregularity_sweep_starts_matched() -> None:
     """At zero relief the fused recovery stays sub-half-pixel.
 
     The fused offset precision-weights the disc correlation (0.007 px off
-    here) against the limb DT fit (which carries the documented ~0.1 px-class
-    gradient-peak/model offset and is 0.05 px off here).  With the per-technique
+    here) against the limb DT fit (which carries the documented gradient-peak/model
+    offset and, fitting only the lit limb, is 0.39 px off here).  With the per-technique
     model-error floors, both report comparable sigmas, so the fused
     value is their blend rather than whichever technique used to claim the
     tighter covariance; the bound reflects that blend, not a single
     technique's floor.  A single-draw tripwire: over 9 noise draws the error is
-    0.002 to 0.010 px.
+    0.044 to 0.057 px.
     """
     rows = _rows('irregularity_shape_mismatch')
     assert rows[0].offset_error_px is not None
@@ -395,12 +396,13 @@ def test_irregularity_sweep_starts_matched() -> None:
 def test_irregularity_sweep_bias_grows() -> None:
     """Shape mismatch grows the recovered centroid bias as relief increases.
 
-    This realization ends 5.2 px off.  Every one of mesh seeds 0 to 12 ends
-    more than 2 px off (the least, seeds 6 and 11, both at 2.7 px), but the
-    error never falls between steps on only 6 of them (seeds 2, 5, 7, 9, 10,
-    and 12).  On this realization it rises to 3.37 px at lumpiness 0.5 and falls to
-    3.08 px at 0.6.  A single-draw tripwire: over 9 noise draws the last step is 5.245
-    to 5.247 px off.
+    On the scene's own draw this realization ends 8.3 px off, where the shape-lock
+    veto declines it.  Every one of mesh seeds 0 to 12 ends more than 2 px off (the
+    least, seed 11, at 2.7 px), and the error never falls between steps on 7 of them
+    (seeds 1, 2, 4, 6, 7, 9, and 10), this realization among them.  A single-draw
+    tripwire: over 9 noise draws the last step is 5.262 to 5.265 px off on the 7
+    draws where the blob carries it, and 8.27 to 8.29 px off on the 2 where the veto
+    declines it.
     """
     rows = _rows('irregularity_shape_mismatch')
     assert rows[-1].offset_error_px is not None
@@ -414,17 +416,18 @@ def test_irregularity_sweep_confidence_drops() -> None:
 
     Somewhere on the walk the confidence falls at least 0.3 below the clean
     (zero-relief) step's 0.99.  That holds on 12 of the 13 mesh seeds 0 to 12
-    (seed 7 dips only 0.11), but it is asserted on this realization only, so the
+    (seed 7 dips only 0.29), but it is asserted on this realization only, so the
     test is a tripwire on this walk rather than a check of the population.  The
-    bound sits below the smallest of those 12 dips (seed 9's, 0.38); this walk
-    dips 0.59, to 0.40 at lumpiness 0.7, so a failure here means the walk
-    changed, and the population is what to measure next.  The dip is 0.59 on each of
-    9 noise draws.
+    bound sits below the smallest of those 12 dips (seed 2's, 0.34); on the scene's
+    own draw this walk dips 0.84, to 0.15 at lumpiness 0.7, where the shape-lock veto
+    declines the step, so a failure here means the walk changed, and the population
+    is what to measure next.  Over 9 noise draws the dip is 0.84 on the 2 draws where
+    the veto declines the extreme step and 0.59 on the other 7.
 
-    Falling that far at every mismatched step holds on none of the seeds, and
-    from lumpiness 0.2 on it holds only on seed 8, so neither is asserted: on
-    many shapes a mismatched step still reports 0.99 (this realization does at
-    lumpiness 0.1 and 0.2).
+    Falling that far at every mismatched step holds on none of the seeds, nor
+    does it from lumpiness 0.2 on, so neither is asserted: on many shapes a
+    mismatched step still reports 0.99 (this realization does from lumpiness 0.1
+    to 0.6).
     """
     rows = _rows('irregularity_shape_mismatch')
     lowest = min(row.confidence for row in rows[1:])
@@ -435,11 +438,12 @@ def test_irregularity_sweep_extreme_step_is_not_a_confident_success() -> None:
     """This realization's extreme step is not reported as a confident success.
 
     At lumpiness 0.7 this realization's disc and limb lock onto the mismatched
-    shape and the pose-free blob carries the result, a 0.40-confidence success
-    5.2 px off; the shape-lock veto does not fire here.  The veto's rate over
-    shapes is asserted on the population in ``test_sim_irregularity_population``,
-    and so is the confident-wrong case this tripwire guards on this one shape.  It
-    is the same 0.40-confidence success on each of 9 noise draws.
+    shape.  On the scene's own draw the shape-lock veto declines the step as
+    conflicted, at 0.15 confidence.  The veto's rate over shapes is asserted on the
+    population in ``test_sim_irregularity_population``, and so is the wrong lock
+    this tripwire guards on this one shape.  Over 9 noise draws the step is declined
+    on 2 and is a 0.40-confidence success 5.3 px off, carried by the pose-free blob,
+    on the other 7.
     """
     rows = _rows('irregularity_shape_mismatch')
     extreme = rows[-1]
@@ -459,7 +463,7 @@ def test_irregularity_sweep_clean_step_still_succeeds() -> None:
 def test_pose_disagreement_starts_clean() -> None:
     """With the predicted pose agreeing, the limb recovers the planted offset.
 
-    A single-draw tripwire: over 25 noise draws the error is 0.13 to 0.25 px.
+    A single-draw tripwire: over 25 noise draws the error is 0.22 to 0.26 px.
     """
     rows = _rows('pose_disagreement')
     assert rows[0].status == 'success'
@@ -467,15 +471,11 @@ def test_pose_disagreement_starts_clean() -> None:
     assert rows[0].offset_error_px < 1.0
 
 
-# Measured on 25 noise draws.  Which steps the pinned limb self-flags spurious at
-# moves with the noise.  It never flags the 35 and 55 deg steps, which read 0.13 to
-# 0.25 px and 1.20 to 1.29 px off.  It flags the 45 deg step on 7 draws, the 90 deg
-# step on 22, and the 110 deg step on 2.  Where it reads the 110 deg step, that step
-# is 4.51 to 5.45 px off.  Every choice of 5 of the 25 draws reads it at least 3 times.
-# On noise seed 1515 the 45 deg step reads 5.99 px off without a spurious flag.
+# Measured on 25 noise draws.  The pinned limb never flags the 35, 45, and 55 deg
+# steps, which read 0.22 to 0.26, 0.56 to 0.60, and 1.42 to 1.45 px off.  It flags
+# the 90 deg step on 21 draws and the 110 deg step on 12; where it reads them, they
+# are 0.95 to 0.96 and 0.78 to 0.81 px off, closer than the 55 deg step.
 _POSE_ALWAYS_READ = (35.0, 55.0)
-_POSE_LAST_STEP = 110.0
-_POSE_LAST_STEP_MIN_READ = 3
 
 
 def _limb_reading(rows: list[SweepRow]) -> dict[float, float]:
@@ -488,43 +488,16 @@ def _limb_reading(rows: list[SweepRow]) -> dict[float, float]:
 
 
 def test_pose_disagreement_limb_error_grows() -> None:
-    """The limb fit error grows as the predicted pose drifts.
+    """The limb fit error grows as the predicted pose drifts 20 deg from the true one.
 
-    Asserted on the noise population.  On every draw the limb reads the 35 and 55
-    deg steps (0 and 20 deg from the true pose), and the 55 deg step is further off.
-    The 110 deg step (75 deg from the true pose) must be read on at least 3 of the 5
-    draws, and wherever it is read it must be more than 1 px further off than the
-    35 deg step and more than 2 px off.
+    Asserted on the noise population: on every draw the limb reads the 35 and 55 deg
+    steps (0 and 20 deg from the true pose), and the 55 deg step is further off.
+    Farther from the true pose the error does not keep growing (see the measurement
+    above), so no bound is asserted there.
     """
-    readings = [_limb_reading(rows) for rows in _population('pose_disagreement')]
-    for reading in readings:
+    for reading in (_limb_reading(rows) for rows in _population('pose_disagreement')):
         assert set(_POSE_ALWAYS_READ) <= set(reading)
         assert reading[55.0] > reading[35.0]
-    last_read = [reading for reading in readings if _POSE_LAST_STEP in reading]
-    assert len(last_read) >= _POSE_LAST_STEP_MIN_READ
-    for reading in last_read:
-        assert reading[_POSE_LAST_STEP] > reading[35.0] + 1.0
-        assert reading[_POSE_LAST_STEP] > 2.0
-
-
-def test_pose_disagreement_limb_is_confidently_wrong() -> None:
-    """At the largest disagreement the limb is several pixels off yet still 'success'.
-
-    The pinned limb self-flags spurious at some steps, and the frame fails there.  At
-    the last step it mostly does not, and returns a confidently-wrong fix (5.4 px off
-    at 110 deg on the scene's own draw, at 0.55 confidence against 0.62 at the true
-    pose).  That is why the per-technique demote decision (test_sim_irregular_pose)
-    cannot rely on the limb's own status and compares it against the pose-free blob
-    instead.  Asserted on the noise population: the last step is a success more than
-    2 px off on at least 3 of the 5 draws.
-    """
-    wrong = [
-        rows[-1].status == 'success'
-        and rows[-1].offset_error_px is not None
-        and rows[-1].offset_error_px > 2.0
-        for rows in _population('pose_disagreement')
-    ]
-    assert sum(wrong) >= _POSE_LAST_STEP_MIN_READ
 
 
 def test_artifact_sweep_starts_clean() -> None:
@@ -727,7 +700,7 @@ def test_star_catalog_scatter_reaches_the_wholesale_error_regime() -> None:
 def test_psf_mismatch_floor_recovers() -> None:
     """At the navigator-matched PSF (sigma 0.54) the limb recovers the offset.
 
-    A single-draw tripwire: over 9 noise draws the error is 0.057 to 0.120 px.
+    A single-draw tripwire: over 9 noise draws the error is 0.181 to 0.201 px.
     """
     rows = _rows('psf_limb_mismatch')
     assert rows[0].value == 0.54
@@ -736,23 +709,25 @@ def test_psf_mismatch_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-def test_psf_mismatch_degrades_to_cliff() -> None:
-    """A broad rendered PSF grows the limb error, then washes the edge out.
+def test_psf_mismatch_grows_the_limb_error() -> None:
+    """A broad rendered PSF grows the limb error.
 
-    A single-draw tripwire: over 9 noise draws the largest error rises 0.62 to 0.98 px
-    above the floor's, and the last step fails on each.
+    The lit limb survives every blur the sweep walks: at a PSF sigma of 4 px it is
+    still a success, 1.24 to 1.46 px off at 0.56 to 0.58 confidence over 9 noise
+    draws.  A single-draw tripwire: over those draws the largest error rises 1.04 to
+    1.26 px above the floor's.
     """
     rows = _rows('psf_limb_mismatch')
+    assert [row.value for row in rows if row.status != 'success'] == []
     assert rows[0].offset_error_px is not None
     mismatched = [r.offset_error_px for r in rows[1:] if r.offset_error_px is not None]
     assert max(mismatched) > rows[0].offset_error_px + 0.2
-    assert rows[-1].status == 'failed'
 
 
 def test_psf_wings_floor_recovers() -> None:
     """At zero wing energy the kernel is the navigator-matched pure Gaussian.
 
-    A single-draw tripwire: over 9 noise draws the error is 0.057 to 0.120 px.
+    A single-draw tripwire: over 9 noise draws the error is 0.181 to 0.201 px.
     """
     rows = _rows('psf_limb_wings')
     assert rows[0].value == 0.0
@@ -764,13 +739,12 @@ def test_psf_wings_floor_recovers() -> None:
 def test_psf_wings_bias_stays_gentle() -> None:
     """Unmodeled Moffat wing energy does not break the DT limb fit.
 
-    Unlike the core-sigma axis (whose blur washes the limb gradient out to
-    outright failure), moving up to 60% of the kernel energy into the
-    isotropic wing leaves the core sharp: every step still recovers within
-    tolerance.  Any bias the wings add is smaller than the sweep's scatter
-    across noise seeds, several hundredths of a pixel, so no bound on it is
-    asserted.  A single-draw tripwire: over 9 noise draws the worst error is 0.064 to
-    0.120 px.
+    Unlike the core-sigma axis (whose blur grows the limb error past a pixel),
+    moving up to 60% of the kernel energy into the isotropic wing leaves the core
+    sharp: every step still recovers within tolerance.  Any bias the wings add is
+    smaller than the sweep's scatter across noise seeds, several hundredths of a
+    pixel, so no bound on it is asserted.  A single-draw tripwire: over 9 noise draws
+    the worst error is 0.241 to 0.276 px.
     """
     rows = _rows('psf_limb_wings')
     for row in rows:
@@ -812,7 +786,7 @@ def test_photometric_mismatch_floor_recovers() -> None:
 def test_photometric_mismatch_biases_recovery() -> None:
     """Walking off Lambert grows the disc-correlation centroid bias.
 
-    A single-draw tripwire: over 9 noise draws the largest error is 0.336 to 0.343 px
+    A single-draw tripwire: over 9 noise draws the largest error is 0.640 to 0.647 px
     above the floor's.
     """
     rows = _rows('photometric_minnaert_mismatch')
@@ -902,7 +876,7 @@ def test_ring_orbit_error_absorbs_into_offset() -> None:
 def test_atmosphere_haze_floor_recovers() -> None:
     """With no haze the hard limb recovers the planted offset.
 
-    A single-draw tripwire: over 9 noise draws the error is 0.014 to 0.021 px.
+    A single-draw tripwire: over 9 noise draws the error is 0.033 to 0.035 px.
     """
     rows = _rows('atmosphere_haze')
     assert rows[0].value == 0.0
@@ -912,17 +886,18 @@ def test_atmosphere_haze_floor_recovers() -> None:
 
 
 # The fused answer is the disc correlation's, whose high-pass refinement weakens the
-# haze's smooth glow, so the haze barely biases it (#791).  The bound sits above the
-# largest rise measured over 25 noise draws, 0.053 px (thickness) and 0.087 px (albedo).
-# The rows record only the error's size, so these tests bound how much the error grows.
+# haze's smooth glow, so the haze barely biases it (#791).  Over 25 noise draws the
+# thickest haze's largest rise above the bare limb's error is 0.025 px, and a brighter
+# haze never raises the error above it.  The rows record only the error's size, so
+# these tests bound how much the error grows.
 _HAZE_FUSED_RISE_BOUND_PX = 0.1
 
 
 def test_atmosphere_haze_barely_raises_the_fused_error() -> None:
     """The thickest haze raises the fused error less than 0.1 px above the bare limb's.
 
-    A single-draw tripwire: over 9 noise draws the last step is 0.030 to 0.045 px
-    further off than the floor.
+    A single-draw tripwire: over 9 noise draws the last step's error runs from 0.005 px
+    below the floor's to 0.007 px above it.
     """
     rows = _rows('atmosphere_haze')
     assert rows[0].offset_error_px is not None
@@ -933,7 +908,7 @@ def test_atmosphere_haze_barely_raises_the_fused_error() -> None:
 def test_atmosphere_haze_albedo_floor_recovers() -> None:
     """An albedo-0 haze adds no light, so the bare limb recovers the offset.
 
-    A single-draw tripwire: over 9 noise draws the error is 0.014 to 0.021 px.
+    A single-draw tripwire: over 25 noise draws the error is 0.033 to 0.035 px.
     """
     rows = _rows('atmosphere_haze_albedo')
     assert rows[0].value == 0.0
@@ -945,8 +920,8 @@ def test_atmosphere_haze_albedo_floor_recovers() -> None:
 def test_atmosphere_haze_albedo_barely_raises_the_fused_error() -> None:
     """The brightest haze raises the fused error less than 0.1 px above the bare limb's.
 
-    A single-draw tripwire: over 9 noise draws the last step is 0.066 to 0.082 px
-    further off than the floor.
+    A single-draw tripwire: over 9 noise draws the last step is 0.023 to 0.031 px
+    closer than the floor.
     """
     rows = _rows('atmosphere_haze_albedo')
     assert rows[0].offset_error_px is not None

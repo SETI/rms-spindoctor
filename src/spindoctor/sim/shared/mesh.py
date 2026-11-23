@@ -18,10 +18,12 @@ geometry arguments; none reads the scene mapping, so no truth-side
 information can cross the boundary here (``mesh_spec_from_params`` parses a
 body parameter mapping, but only its idealized mesh keys).
 
-The output contract matches the ellipsoid renderers (``create_ellipsoid_body`` on
-the image side, ``render_lambert_ellipsoid`` on the navigator side): a
-``(size_v, size_u)`` float array in [0, 1], lit by the same Lambertian convention so
-a mesh body and an ellipsoid body can be compared directly.
+The output contract matches the ellipsoid renderers (``render_ellipsoid_body`` on
+the image side, ``render_lambert_ellipsoid`` and ``ellipsoid_coverage`` on the
+navigator side): a ``(size_v, size_u)`` brightness in [0, 1], lit by the same
+Lambertian convention so a mesh body and an ellipsoid body can be compared directly,
+and the silhouette beside it.  The night side renders black, so the brightness does
+not mark the silhouette.
 """
 
 import math
@@ -32,7 +34,6 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.scene.fields import scene_value
-from spindoctor.sim.shared.ellipsoid import DARK_SIDE_ILLUM_STRENGTH
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.sim.shared.spherical_harmonics import (
     degree_mean_square,
@@ -41,25 +42,12 @@ from spindoctor.sim.shared.spherical_harmonics import (
 )
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_matmul3
-from spindoctor.support.types import NDArrayComplexType, NDArrayFloatType, NDArrayIntType
-
-# Lambertian floor for the visible-but-unlit side, shared with the ellipsoid
-# shading convention in spindoctor.sim.shared.ellipsoid so the two paths
-# cannot desync.
-_DARK_SIDE_ILLUM = DARK_SIDE_ILLUM_STRENGTH
-
-
-@dataclass(frozen=True)
-class PolyhedralBodyRender:
-    """One mesh body render: its shaded radiance and its silhouette.
-
-    Parameters:
-        intensity: The shaded radiance in [0, 1], 0 outside the body.
-        silhouette: The fraction of each pixel the body covers, in [0, 1].
-    """
-
-    intensity: NDArrayFloatType
-    silhouette: NDArrayFloatType
+from spindoctor.support.types import (
+    NDArrayBoolType,
+    NDArrayComplexType,
+    NDArrayFloatType,
+    NDArrayIntType,
+)
 
 
 @dataclass(frozen=True)
@@ -73,6 +61,26 @@ class Mesh:
 
     vertices: NDArrayFloatType
     faces: NDArrayIntType
+
+
+@dataclass(frozen=True)
+class MeshBodyRender:
+    """One mesh body render: its brightness and its silhouette.
+
+    Parameters:
+        intensity: The ``(size_v, size_u)`` brightness in [0, 1], 0 outside the body
+            and on its night side.
+        coverage: The fraction of each pixel's subpixels a front face covers, in
+            [0, 1], however bright the face renders.  A pixel is in the silhouette
+            when its coverage is above 0.
+        lit: The pixels whose mean angle of incidence over their covered subpixels
+            is below 90 deg, the rule the SPICE-backed body model uses for its lit
+            region, or None when the render was not asked for it.
+    """
+
+    intensity: NDArrayFloatType
+    coverage: NDArrayFloatType
+    lit: NDArrayBoolType | None = None
 
 
 def _rotation_matrix(euler_deg: tuple[float, float, float]) -> NDArrayFloatType:
@@ -447,41 +455,9 @@ def render_polyhedral_body(
     phase_angle: float = 0.0,
     anti_aliasing: float = 1.0,
     shading: str = 'flat',
-) -> NDArrayFloatType:
-    """Render a mesh body to a [0, 1] shaded silhouette.
-
-    The intensity of :func:`render_polyhedral_body_with_silhouette`, which documents
-    the parameters, the shading modes, and the errors.
-
-    Returns:
-        A ``(size_v, size_u)`` float array in [0, 1].
-    """
-    return render_polyhedral_body_with_silhouette(
-        size=size,
-        center=center,
-        mesh=mesh,
-        semi_axes_px=semi_axes_px,
-        pose_euler_deg=pose_euler_deg,
-        illumination_angle=illumination_angle,
-        phase_angle=phase_angle,
-        anti_aliasing=anti_aliasing,
-        shading=shading,
-    ).intensity
-
-
-def render_polyhedral_body_with_silhouette(
-    *,
-    size: tuple[int, int],
-    center: tuple[float, float],
-    mesh: Mesh,
-    semi_axes_px: tuple[float, float, float],
-    pose_euler_deg: tuple[float, float, float] = (0.0, 0.0, 0.0),
-    illumination_angle: float = 0.0,
-    phase_angle: float = 0.0,
-    anti_aliasing: float = 1.0,
-    shading: str = 'flat',
-) -> PolyhedralBodyRender:
-    """Render a mesh body's shaded radiance and the fraction of each pixel it covers.
+    with_lit: bool = False,
+) -> MeshBodyRender:
+    """Render a mesh body's [0, 1] brightness and its silhouette.
 
     Two shading modes share one rasterization (the same front-face set, the
     same z-buffer, the same silhouette): ``'flat'`` shades each face by its
@@ -490,7 +466,8 @@ def render_polyhedral_body_with_silhouette(
     per-vertex intensities barycentrically across each face, removing the
     facet-boundary shading discontinuities.  The mode never moves the
     silhouette; each caller picks its own mode (the navigator's predicted
-    mesh keeps flat shading unless told otherwise).
+    mesh keeps flat shading unless told otherwise).  A face turned away from the
+    sun renders black, and the coverage marks it as part of the body all the same.
 
     Parameters:
         size: ``(size_v, size_u)`` output image size in pixels.
@@ -504,11 +481,11 @@ def render_polyhedral_body_with_silhouette(
         anti_aliasing: 0 disables supersampling; (0, 1] supersamples the limb.
         shading: ``'flat'`` (per-face) or ``'gouraud'`` (per-vertex
             interpolated).
+        with_lit: Whether to also find the lit pixels by their mean angle of
+            incidence, which rasterizes the faces a second time.
 
     Returns:
-        The :class:`PolyhedralBodyRender`, both arrays ``(size_v, size_u)``.  The
-        silhouette is the fraction of each pixel's supersamples some face covers, so
-        a pixel inside the body is exactly 1 whatever its shade.
+        The :class:`MeshBodyRender` on the ``size`` grid.
 
     Raises:
         ValueError: On an unknown shading mode, or a center that is not finite.
@@ -549,9 +526,11 @@ def render_polyhedral_body_with_silhouette(
         illumination_angle=illumination_angle, phase_angle=phase_angle
     )
     light = np.array([light_u, light_v, light_z], dtype=np.float64)
-    face_intensity = np.clip(stable_matmul3(unit_normals, light), _DARK_SIDE_ILLUM, 1.0)
+    face_cos = stable_matmul3(unit_normals, light)
+    face_intensity = np.clip(face_cos, 0.0, 1.0)
 
     vertex_intensity: NDArrayFloatType | None = None
+    vertex_angle: NDArrayFloatType | None = None
     if shading == 'gouraud':
         # Per-vertex normals: the area-weighted average of the adjacent face
         # normals.  The raw cross products carry twice the face area as their
@@ -561,7 +540,9 @@ def render_polyhedral_body_with_silhouette(
             np.add.at(vertex_normals, mesh.faces[:, corner], normals)
         vn_mag = np.maximum(np.linalg.norm(vertex_normals, axis=1), 1e-12)
         vertex_normals = vertex_normals / vn_mag[:, None]
-        vertex_intensity = np.clip(stable_matmul3(vertex_normals, light), _DARK_SIDE_ILLUM, 1.0)
+        vertex_cos = stable_matmul3(vertex_normals, light)
+        vertex_intensity = np.clip(vertex_cos, 0.0, 1.0)
+        vertex_angle = np.arccos(np.clip(vertex_cos, -1.0, 1.0))
 
     front = (unit_normals[:, 2] > 0.0) & (norm_mag > 1e-9)
     front_idx = np.nonzero(front)[0]
@@ -574,13 +555,32 @@ def render_polyhedral_body_with_silhouette(
         vertex_intensity=vertex_intensity,
         grid_size=(height, width),
     )
-    silhouette = np.isfinite(z_buffer).astype(np.float64)
 
+    covered = np.isfinite(z_buffer)
+    lit: NDArrayBoolType | None = None
+    if with_lit:
+        # The same faces shaded by their angle of incidence instead of its clipped
+        # cosine; the mean over each pixel's covered subpixels decides whether it is lit.
+        _, angle = _rasterize_faces(
+            px=px,
+            py=py,
+            depth=depth,
+            faces=mesh.faces[front_idx],
+            face_intensity=np.arccos(np.clip(face_cos, -1.0, 1.0))[front_idx],
+            vertex_intensity=vertex_angle,
+            grid_size=(height, width),
+        )
+        angle_sum = angle.reshape(size_v, aa_scale, size_u, aa_scale).sum(axis=(1, 3))
+        count = covered.reshape(size_v, aa_scale, size_u, aa_scale).sum(axis=(1, 3))
+        lit = np.asarray(
+            (count > 0) & (angle_sum < 0.5 * math.pi * np.maximum(count, 1)), dtype=bool
+        )
+    coverage = np.asarray(covered, dtype=np.float64)
     if aa_scale > 1:
         intensity = intensity.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-        silhouette = silhouette.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
-    return PolyhedralBodyRender(
-        intensity=_as_float64(np.clip(intensity, 0.0, 1.0)), silhouette=silhouette
+        coverage = coverage.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
+    return MeshBodyRender(
+        intensity=_as_float64(np.clip(intensity, 0.0, 1.0)), coverage=coverage, lit=lit
     )
 
 
@@ -616,7 +616,7 @@ def mesh_spec_from_params(body_params: Mapping[str, Any]) -> MeshBodySpec:
 
     The mesh seed and pose are explicit body parameters (not the scene's noise
     seed), so the same body params reproduce the same shape on both the render
-    and prediction sides.  A key that is absent or null takes its default.
+    and prediction sides.  A key that the mapping leaves out takes its default.
 
     Parameters:
         body_params: A body parameter mapping.
@@ -650,7 +650,8 @@ def render_mesh_body_image(
     illumination_angle: float = 0.0,
     phase_angle: float = 0.0,
     anti_aliasing: float = 1.0,
-) -> NDArrayFloatType:
+    with_lit: bool = False,
+) -> MeshBodyRender:
     """Render an irregular mesh body from a :class:`MeshBodySpec`.
 
     A thin convenience over ``make_irregular_mesh`` + ``render_polyhedral_body``
@@ -664,9 +665,11 @@ def render_mesh_body_image(
         illumination_angle: Image-plane light azimuth in radians.
         phase_angle: Phase angle in radians.
         anti_aliasing: Limb supersampling control.
+        with_lit: Whether to also find the lit pixels (see
+            :func:`render_polyhedral_body`).
 
     Returns:
-        A ``(size_v, size_u)`` float array in [0, 1].
+        The :class:`MeshBodyRender` on the ``size`` grid.
     """
     mesh = make_irregular_mesh(
         n_lat=spec.n_lat,
@@ -684,4 +687,5 @@ def render_mesh_body_image(
         illumination_angle=illumination_angle,
         phase_angle=phase_angle,
         anti_aliasing=anti_aliasing,
+        with_lit=with_lit,
     )

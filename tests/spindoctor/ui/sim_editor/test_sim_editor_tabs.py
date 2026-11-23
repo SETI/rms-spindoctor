@@ -27,40 +27,39 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
-        allow_module_level=True,
-    )
-
 from tests.spindoctor.sim.fictional_camera import (
     FICTIONAL_CAMERA,
     FICTIONAL_CAMERA_NAME,
     catalog_dir_with,
 )
 
+from spindoctor.schema import Str, Unit
+from spindoctor.sim.artifact_modes import ArtifactMode, ModeParam
 from spindoctor.sim.instruments import catalog as instrument_catalog
 from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
+from spindoctor.ui.sim_editor.artifact_mode_rows import ModeRow
 
 
 @pytest.fixture
 def model(qapp: QApplication) -> Any:
     """A freshly constructed simulated-image editor model."""
     return CreateSimulatedImageModel()
+
+
+def test_a_mode_parameter_whose_type_has_no_widget_fails(qapp: QApplication) -> None:
+    """A mode row refuses a parameter type it has no widget for."""
+    mode = ArtifactMode(
+        name='labeled',
+        stage='telemetry',
+        implemented=True,
+        params=(ModeParam('probability', Unit, 0.0), ModeParam('label', Str)),
+        activation='probability',
+        activation_semantics='unused',
+    )
+    with pytest.raises(TypeError, match=r'labeled\.label: no editor widget for'):
+        ModeRow(mode, cast(Any, None))
 
 
 def test_gui_added_star_psf_size_is_list(model: Any) -> None:
@@ -507,57 +506,6 @@ def test_choosing_the_camera_default_drops_an_unlisted_table(model: Any) -> None
     assert [combo.itemText(i) for i in range(combo.count())] == ['camera default']
 
 
-def test_null_detector_keys_show_the_detector_defaults(model: Any) -> None:
-    """A loaded detector block of nulls shows the detector defaults, as the renderer reads it."""
-    from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
-
-    keys = ('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization')
-    model._apply_params_dict({'instrument': 'coiss_nac', 'detector': dict.fromkeys(keys)})
-    detector_defaults = resolve_detector_defaults('coiss_nac', 1)
-    shown = (
-        model._detector_gain_state_spin.value(),
-        model._detector_model_combo.currentText(),
-        model._detector_exposure_ref_spin.value(),
-        model._detector_quantization_combo.currentText(),
-    )
-    assert shown == (
-        detector_defaults.get('default_gain_state', 0),
-        detector_defaults['detector_model'],
-        detector_defaults.get('exposure_ref_sec', 1.0),
-        detector_defaults.get('quantization', 'exact'),
-    )
-
-
-def test_null_noise_keys_show_the_panel_defaults(model: Any) -> None:
-    """A loaded noise block of nulls shows each control's default, as for absent keys."""
-    keys = (
-        'poisson',
-        'read_noise_dn',
-        'cosmic_ray_events_per_pixel_per_sec',
-        'missing_data_rate',
-        'bias_dn',
-        'bloom_length',
-        'signal_full_scale_frac',
-    )
-    model._apply_params_dict({'instrument': 'coiss_nac', 'noise': dict.fromkeys(keys)})
-    shown = (
-        model._poisson_check.isChecked(),
-        model._read_noise_spin.value(),
-        model._cosmic_ray_spin.value(),
-        model._missing_data_spin.value(),
-        model._bias_spin.value(),
-        model._bloom_spin.value(),
-        model._signal_frac_spin.value(),
-    )
-    assert shown == (True, 4.0, 0.0, 0.0, 20.0, 0, 0.5)
-
-
-def test_null_body_and_star_lists_load_as_empty(model: Any) -> None:
-    """A loaded scene with null bodies and stars opens with neither, as the renderer reads it."""
-    model._apply_params_dict({'instrument': 'coiss_nac', 'bodies': None, 'stars': None})
-    assert (model.sim_params['bodies'], model.sim_params['stars']) == ([], [])
-
-
 # ---- Registry-driven artifact-mode rows ----
 
 
@@ -776,16 +724,6 @@ def test_setting_count_resets_the_expected_events_display(model: Any) -> None:
     assert row._scalar_widgets['expected_events'].value() == 0.0
 
 
-def test_null_mode_parameter_shows_its_default(model: Any) -> None:
-    """A mode parameter set to null shows the registry default the renderer uses."""
-    model.sim_params['instrument'] = 'coiss_nac'
-    model._refresh_artifact_mode_availability()
-    row = model._mode_rows['missing_blocks']
-    model.sim_params.setdefault('artifacts', {})['missing_blocks'] = {'block_lines': None}
-    row.sync()
-    assert row._scalar_widgets['block_lines'].value() == 8
-
-
 def test_an_unset_mode_parameter_shows_the_cameras_shape_default(model: Any) -> None:
     """An unset key shows the camera's shape default, as the renderer resolves it."""
     model._apply_params_dict({'instrument': 'vgiss', 'artifacts': {'edited_frame': {}}})
@@ -965,11 +903,17 @@ def test_expected_toggle_inserts_and_removes(model: Any) -> None:
     assert 'expected' not in model.sim_params
 
 
-def test_expected_tier_none_writes_null(model: Any) -> None:
-    """The confidence-tier (none) choice stores a null tier (assert status only)."""
+def test_expected_tier_none_leaves_the_tier_out(model: Any) -> None:
+    """The confidence-tier (none) choice removes the tier, so the block asserts the status."""
     model._expected_group.setChecked(True)
     model._expected_tier_combo.setCurrentText('(none)')
-    assert model.sim_params['expected']['confidence_tier'] is None
+    assert 'confidence_tier' not in model.sim_params['expected']
+
+
+def test_clearing_the_closest_planet_removes_the_key(model: Any) -> None:
+    """An empty closest-planet box removes the key, so the scene has no closest planet."""
+    model._closest_planet_combo.setCurrentText('')
+    assert 'closest_planet' not in model.sim_params
 
 
 def test_expected_reason_line_edit_sets_and_clears(model: Any) -> None:
@@ -1103,17 +1047,12 @@ def test_body_atmosphere_albedo_spin_starts_at_the_default(model: Any) -> None:
     assert _body_tab(model).atmosphere_albedo_spin.value() == DEFAULT_HAZE_ALBEDO
 
 
-@pytest.mark.parametrize(
-    ('stated', 'shown'), [(0.95, 0.95), (None, DEFAULT_HAZE_ALBEDO)], ids=['stated', 'null']
-)
-def test_body_atmosphere_albedo_spin_shows_the_stated_albedo(
-    model: Any, stated: float | None, shown: float
-) -> None:
-    """A loaded albedo shows as stated, and a null one shows the renderer's default."""
+def test_body_atmosphere_albedo_spin_shows_the_stated_albedo(model: Any) -> None:
+    """A loaded albedo shows as stated."""
     widget = QWidget()
-    body = {'atmosphere': {'scale_height_px': 8.0, 'tau_ref': 1.0, 'albedo': stated}}
+    body = {'atmosphere': {'scale_height_px': 8.0, 'tau_ref': 1.0, 'albedo': 0.95}}
     model._build_atmosphere_group(widget, 0, body)
-    assert widget.atmosphere_albedo_spin.value() == shown  # type: ignore[attr-defined]
+    assert widget.atmosphere_albedo_spin.value() == 0.95  # type: ignore[attr-defined]
 
 
 def test_body_atmosphere_toggle_keeps_a_loaded_map_exactly(model: Any) -> None:
@@ -1134,30 +1073,6 @@ def test_body_atmosphere_toggle_keeps_a_loaded_map_exactly(model: Any) -> None:
     assert model.sim_params['bodies'][1]['atmosphere'] == atmosphere
 
 
-@pytest.mark.parametrize(
-    ('key', 'shown'),
-    [('ref_altitude_px', 0.0), ('g', 0.0), ('albedo', DEFAULT_HAZE_ALBEDO)],
-    ids=['ref_altitude_px', 'g', 'albedo'],
-)
-def test_body_atmosphere_null_key_shows_the_default_and_survives_a_toggle(
-    model: Any, key: str, shown: float
-) -> None:
-    """A null key shows the renderer's default, and turning the group off and on keeps it null."""
-    _body_tab(model)
-    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.0, key: None}
-    model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
-    tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
-    spin = {
-        'ref_altitude_px': tab.atmosphere_ref_altitude_spin,
-        'g': tab.atmosphere_g_spin,
-        'albedo': tab.atmosphere_albedo_spin,
-    }[key]
-    assert spin.value() == shown
-    tab.atmosphere_group.setChecked(False)
-    tab.atmosphere_group.setChecked(True)
-    assert model.sim_params['bodies'][1]['atmosphere'][key] is None
-
-
 def test_body_atmosphere_toggle_keeps_a_value_qt_rounds_up_on_a_tie(model: Any) -> None:
     """A loaded 0.125 shows as 0.13 and still survives a toggle unrounded."""
     _body_tab(model)
@@ -1169,10 +1084,10 @@ def test_body_atmosphere_toggle_keeps_a_value_qt_rounds_up_on_a_tie(model: Any) 
     assert model.sim_params['bodies'][1]['atmosphere']['scale_height_px'] == 0.125
 
 
-def test_body_atmosphere_an_edited_null_key_takes_the_spin_value(model: Any) -> None:
-    """A null key edited while the group is off takes the spin's value when it is turned on."""
+def test_body_atmosphere_an_edited_absent_key_takes_the_spin_value(model: Any) -> None:
+    """An absent key edited while the group is off takes the spin's value when turned on."""
     _body_tab(model)
-    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.0, 'albedo': None}
+    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.0}
     model._add_body_tab({**_body(model), 'name': 'Hazy', 'atmosphere': dict(atmosphere)})
     tab = model._tabs.widget(model._find_tab_by_properties('body', 1))
     tab.atmosphere_group.setChecked(False)

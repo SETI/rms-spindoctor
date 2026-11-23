@@ -30,19 +30,23 @@ noise:
 offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
-# See titan_crescent_horns: the ring of light drags the blob centroid ~30 px,
+# See titan_crescent_horns: the ring of light drags the blob centroid 25 px,
 # the terminator feature is dropped by the reliability gate (0.26 vs the 0.30
 # threshold, the sin(155 deg) phase cap doing most of the capping), and the
 # disc correlation, pulled by the ring of light its template leaves out
-# (#1050), answers (1.20, -7.5) without flagging it spurious.  The noiseless
-# twin removes read/Poisson noise as a confound and pins both biases
-# deterministically (the blob's du ~28.9 vs planted -0.8, and the disc
-# correlation's 6.70 px): the haze alone, not the noise, carries the answers
-# that far.  The disc correlation sets a low-tier success 6.700 px from the
-# planted offset on every seed, held to the band [6.650, 6.751] px (a margin
-# of 0.05 px each side).
+# (#1050), answers (1.20, -3.79) at the edge of its refinement window along u
+# (#1061) without flagging it spurious.  The noiseless twin removes read and
+# Poisson noise as a confound and pins both biases deterministically: the haze
+# alone, not the noise, decides them.
+# Known error: 2.989 px on the committed draw and on random_seed 101, 202, ...,
+# 1515 alike, giving the band [2.939, 3.040] px with the 0.05 px margin.
+# The ring of light saturates because the simulated haze is about four times
+# too bright: its single-scattering source lacks the factor of 1/4 (#1101).
+# The recorded error moves when #1101 is fixed; at a quarter of the haze
+# brightness the same correlation is 2.87 px off.
 expected:
+  # Depends on the haze brightness #1101 corrects.
   status: success
   confidence_tier: low
-  known_offset_error_px: 6.7005
+  known_offset_error_px: 2.9895
   known_offset_error_tol_px: 0.0505

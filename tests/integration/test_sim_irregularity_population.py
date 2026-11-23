@@ -32,20 +32,16 @@ _SWEEP_PATH = Path(__file__).parent / 'sim_sweeps' / 'irregularity_shape_mismatc
 _NOISE_DRAWS: tuple[int | None, ...] = (None, 101, 202, 303, 404)
 _POPULATION_MESH_SEEDS = range(13)
 _EXTREME_LUMPINESS = 0.7
-# Measured on 25 noise draws (2026-11-22): at lumpiness 0.7 the shape-lock veto fires
-# on 1 to 4 of the 13 mesh seeds per draw, 56 of the 325 frames in all, and only ever
-# on mesh seeds 0, 1, 5, 10, and 12.  Over any 5 of the 25 draws it fires 5 to 16 times
-# (median 11); over the 5 draws the test reads, 10 times.  Seed 2 also ends conflicted
-# on most draws, but because its disc and limb disagree with each other; the veto
-# plays no part.  A veto that stopped firing on these shapes would count 0.  The floor
-# of 5 catches only the loss of about half the veto, because the smallest count over
-# any 5 of the 25 draws is 5, against the 10 the test's own draws give.
-_MIN_VETOED = 5
+# Measured on 25 noise draws (2026-11-23): at lumpiness 0.7 the shape-lock veto fires
+# on 3 to 7 of the 13 mesh seeds per draw, 126 of the 325 frames in all, on mesh seeds
+# 1, 4, 5, 6, 8, 10, 11, and 12.  Over any 5 of the 25 draws it fires 19 to 31
+# times (median 25); over the 5 draws the test reads, 25 times.  Seed 2 also ends
+# conflicted on 13 of the draws, but because its disc and limb disagree with each
+# other; the veto plays no part.  A veto that stopped firing on these shapes would
+# count 0.  The floor is the smallest count over any 5 of the 25 draws.
+_MIN_VETOED = 19
 # The status reason the shape-lock veto sets on the frames it declines.
 _SHAPE_LOCK_REASON = 'body_shape_lock_suspect'
-# A "confident wrong" result: success at this confidence or above, this far off.
-_CONFIDENT = 0.9
-_CONFIDENT_WRONG_PX = 5.0
 
 
 @functools.cache
@@ -75,7 +71,7 @@ def _population() -> list[SweepRow]:
 
 
 def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
-    """At lumpiness 0.7 the shape-lock veto declines at least 5 of the 65 frames.
+    """At lumpiness 0.7 the shape-lock veto declines at least 19 of the 65 frames.
 
     Over mesh seeds 0 to 12 the disc correlation and the limb fit lock onto the
     mismatched shape at the extreme step.  When the pose-free blob disagrees with
@@ -83,7 +79,7 @@ def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
     ``body_shape_lock_suspect``.  The test counts that reason, so a frame that is
     conflicted for another reason does not count.  The population is the 13 shapes
     on each of 5 noise draws, because which shapes the veto catches moves with the
-    noise: it fires on 1 to 4 shapes per draw.  On the remaining shapes the blob
+    noise: it fires on 3 to 7 shapes per draw.  On the remaining shapes the blob
     moves with the lock or carries the result itself.  A change that weakens the
     veto on these shapes fails here.
     """
@@ -91,28 +87,36 @@ def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
     assert len(vetoed) >= _MIN_VETOED
 
 
+# A disc- or limb-carried success this far off has locked onto the mismatched shape: the
+# farthest such success on any other mesh seed is 8.4 px (seed 9).
+_SHAPE_LOCK_WRONG_PX = 10.0
+
+
 @pytest.mark.xfail(
     strict=True,
     raises=AssertionError,
-    reason='#790: the shape-lock veto misses confident wrong solutions on irregular mesh '
-    'bodies; mesh seed 7 on noise seed 101 ends a 0.901-confidence success 5.2 px off at '
-    'lumpiness 0.7',
+    reason='#790: the shape-lock veto misses shape-dependent locks on irregular mesh '
+    'bodies; mesh seed 10 ends a disc-carried success 12.8 px off at lumpiness 0.7, '
+    'at 0.89 confidence',
 )
-def test_irregularity_population_never_confidently_wrong() -> None:
-    """No mesh shape at lumpiness 0.7 is a confident (>= 0.9) success more than 5 px off.
+def test_irregularity_population_never_locks_far_off() -> None:
+    """No mesh shape at lumpiness 0.7 ends a disc- or limb-carried success over 10 px off.
 
-    A frame whose fit is several pixels off must not report a confident success,
-    whatever the shape.  Mesh seed 7 does on 3 of 25 noise draws (101, 1313, and
-    2020), at 0.901 to 0.903 confidence and 5.2 to 5.3 px off.  On 17 others its
-    confidence is 0.87 or above but under 0.9, so the defect sits at the edge of what
-    the check counts: of the 5 draws the check reads, only noise seed 101 shows it.
+    A frame whose shape-dependent fit has locked onto the mismatched shape must not
+    report a success.  Mesh seed 10 does on 24 of 25 noise draws: a success 12.8 px
+    off carried by the disc correlation, at 0.889 to 0.893 confidence (0.902 to 0.913
+    while the night side glowed), just under the 0.9 at which a success counts as
+    confident.  Its blob is displaced together with the disc lock, so the
+    body-witness disagreement the veto reads never appears.  The check reads the
+    population, which shows it on every one of its 5 draws.  No frame of the 325
+    reaches 0.9 confidence more than 5 px off.
     """
-    confident_wrong = [
+    locked = [
         int(row.value)
         for row in _population()
         if row.status == 'success'
-        and row.confidence >= _CONFIDENT
+        and row.primary_technique not in (None, 'BodyBlobNav')
         and row.offset_error_px is not None
-        and row.offset_error_px > _CONFIDENT_WRONG_PX
+        and row.offset_error_px > _SHAPE_LOCK_WRONG_PX
     ]
-    assert confident_wrong == []
+    assert locked == []

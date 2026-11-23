@@ -41,26 +41,6 @@ _TABLE_PATH = f'{_NOISE_PATH}.by_binning'
 """The key path of the binned-mode table, for error messages."""
 
 
-def _refuse_nulls(value: Mapping[Any, Any], path: str, *, source: str) -> None:
-    """Refuse a null at any depth of a mapping, naming its key path.
-
-    Parameters:
-        value: The mapping to search.
-        path: The mapping's dotted key path.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: If any value at any depth is None.
-    """
-    for key, item in value.items():
-        if item is None:
-            raise SimSceneValidationError(
-                f'{source}: {path}.{key} is null; leave the key out to take its default'
-            )
-        if isinstance(item, Mapping):
-            _refuse_nulls(item, f'{path}.{key}', source=source)
-
-
 def _binning_of_key(key: Any) -> int | None:
     """The binning a binned-mode table key spells, or None when it spells none.
 
@@ -176,8 +156,7 @@ def _check_noise_is_read(
 def _check_finite_number(value: Any, path: str, *, positive: bool, source: str) -> None:
     """Refuse a value that isn't a finite number within its range.
 
-    The value has no null meaning, so a null is refused with the way to take the
-    default.  An integer too large for a float is refused as not finite.
+    An integer too large for a float is refused as not finite.
 
     Parameters:
         value: The value as the scene sets it.
@@ -187,13 +166,9 @@ def _check_finite_number(value: Any, path: str, *, positive: bool, source: str) 
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If the value is null, is a boolean, isn't an integer or
-            a float, isn't finite as a float, or lies outside its range.
+        SimSceneValidationError: If the value is a boolean, isn't an integer or a float,
+            isn't finite as a float, or lies outside its range.
     """
-    if value is None:
-        raise SimSceneValidationError(
-            f'{source}: {path} is null; leave the key out to take its default'
-        )
     is_number = isinstance(value, int | float) and not isinstance(value, bool)
     try:
         is_finite = is_number and math.isfinite(value)
@@ -254,8 +229,8 @@ def _check_star_limit_values(override: Mapping[str, Any], *, source: str) -> Non
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If a value the limit reads is null or out of range, or
-            an entry of the binned-mode table isn't a mapping or sets another key.
+        SimSceneValidationError: If a value the limit reads is out of range, or an entry
+            of the binned-mode table isn't a mapping or sets another key.
     """
     if 'star_psf_sigma' in override:
         _check_finite_number(
@@ -279,35 +254,26 @@ def _check_star_limit_values(override: Mapping[str, Any], *, source: str) -> Non
 def _check_noise_override(noise: Any, *, source: str) -> None:
     """Refuse a scene's ``instrument_config.noise`` block unless its form is sound.
 
-    The block must be a mapping.  Its binned-mode table, when set, must be a mapping with
-    no null at any depth, keyed under the rules of :func:`_check_binning_keys`.
+    The block must be a mapping.  Its binned-mode table, when set, must be a mapping
+    keyed under the rules of :func:`_check_binning_keys`.
 
     Parameters:
         noise: The scene's ``instrument_config.noise`` value, as written.
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If the block or its table is null or isn't a mapping,
-            the table holds a null, or a key of the table is refused.
+        SimSceneValidationError: If the block or its table isn't a mapping, or a key of
+            the table is refused.
     """
-    if noise is None:
-        raise SimSceneValidationError(
-            f'{source}: {_NOISE_PATH} is null; leave the key out to take its default'
-        )
     if not isinstance(noise, Mapping):
         raise SimSceneValidationError(f'{source}: {_NOISE_PATH} must be a mapping when present')
     if 'by_binning' not in noise:
         return
     table = noise['by_binning']
-    if table is None:
-        raise SimSceneValidationError(
-            f'{source}: {_TABLE_PATH} is null; leave the key out to take its default'
-        )
     if not isinstance(table, Mapping):
         raise SimSceneValidationError(
             f'{source}: {_TABLE_PATH} must be a mapping keyed by binning factor'
         )
-    _refuse_nulls(table, _TABLE_PATH, source=source)
     _check_binning_keys(table, source=source)
 
 
@@ -318,11 +284,9 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     frame's units come only from the instrument entry; for other units, a
     scene uses another instrument.
 
-    When the block sets ``noise``, that must be a mapping.  A null value of a navigator
-    key there keeps the navigator's meaning where it has one (a null ``marker_value`` is
-    NaN).  A value the faint-star limit reads has no null meaning, and neither has the
-    binned-mode table, so a null there, or at any depth of the table, is refused: a scene
-    leaves a key out to take its default.  The binned-mode table ``noise.by_binning`` may
+    When the block sets ``noise``, that must be a mapping.  As everywhere in a scene, a
+    null is refused before this check: a scene leaves a key out to keep the navigator
+    block's value.  The binned-mode table ``noise.by_binning`` may
     write a key only as an integer or as a string of ASCII digits, since a scene read
     through JSON carries every key as a string, and each binning only once and without a
     leading zero.  Each noise value the star limit reads must be one that a frame of the
@@ -346,10 +310,10 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     Raises:
         SimSceneValidationError: If the block isn't a mapping, it sets ``data_units``,
             its ``noise`` isn't a mapping, its ``noise.by_binning`` table isn't a
-            mapping, holds a null or a key that is neither an integer nor a string of
-            ASCII digits, spells a binning twice, or holds an entry no frame reads, the
+            mapping, holds a key that is neither an integer nor a string of ASCII
+            digits, spells a binning twice, or holds an entry no frame reads, the
             block sets an unbinned noise value on a calibrated-unit block, a value the
-            star limit reads is null or out of range, a binned-mode entry sets another
+            star limit reads is out of range, a binned-mode entry sets another
             key, or the block sets an unbinned noise value that a frame of this binning
             reads from the table.
     """

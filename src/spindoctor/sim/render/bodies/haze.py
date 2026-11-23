@@ -66,14 +66,9 @@ hemispheric split along the sun axis, the band covers the sunward limb a
 haze navigator scores on.
 
 Poleward of the band the amplitude is a pure scaling only where the scaled
-half stays below saturation.  The renderer clips the signal at 1, so a
-positive amplitude flattens the bright crescent wherever the base brightness
-times ``1 + ns_asymmetry_amplitude`` would pass 1.  Over 26 of the 40 clean
-Titan truth scenes that navigate both with and without an amplitude of +0.35, the
-amplitude shifts the recovered cross-track position by 0.063 pixels on
-average with a switch at the equator and 0.065 pixels with a 10 degree band,
-about four times what -0.35 costs with the band.  A switch carries nearly
-all of that cost too, so the clip sets it and the band does not.
+half stays below saturation.  The renderer carries the brightness uncapped to
+the detector, so a positive amplitude flattens the bright crescent only where
+the scaled brightness passes the detector's full well.
 """
 
 import math
@@ -205,8 +200,9 @@ class CloudBlob:
         center_u: Cloud center offset from the body center along u, in grid
             pixels.
         sigma_px: Gaussian standard deviation in grid pixels (> 0).
-        amplitude: Peak brightness added at the cloud center, in the [0, 1]
-            signal plane; negative darkens.
+        amplitude: Peak brightness added at the cloud center, in the units of
+            the body's shading, where 1 is a white disc lit face-on; negative
+            darkens.
     """
 
     center_v: float
@@ -226,7 +222,8 @@ class HazeStructure:
     Parameters:
         interior_ramp_amplitude: Peak brightness of a linear ramp along the
             haze axis inside the disc, added at the sunward limb and
-            subtracted at the anti-sunward one, in the [0, 1] signal plane.
+            subtracted at the anti-sunward one, in the units of the body's
+            shading.
         ns_asymmetry_amplitude: Fractional brightness scaling applied to the
             positive-``v_rot`` hemisphere (an affine difference between the
             two halves poleward of the equatorial blend band, where the
@@ -308,8 +305,8 @@ def haze_structure_from_params(
 ) -> HazeStructure | None:
     """Build a :class:`HazeStructure` from a body's ``atmosphere`` block.
 
-    Returns None when every key of :data:`HAZE_STRUCTURE_KEYS` is absent or null,
-    so a plain haze renders as an unstructured haze.  A key that is absent or null
+    Returns None when the block leaves out every key of :data:`HAZE_STRUCTURE_KEYS`,
+    so a plain haze renders as an unstructured haze.  A key that the block leaves out
     takes its default.  Pixel lengths are scaled to the render grid by
     ``oversample`` exactly as the body's axes are; the amplitudes, ratios, and
     angles are dimensionless and are not.
@@ -460,11 +457,10 @@ def apply_hemispheric_scaling(
     onto each other differ by a pure scaling -- the relation a Pearson
     symmetry score is invariant to, which is what makes this axis the
     control against the non-affine ones -- wherever the scaled half stays
-    below saturation.  The caller clips the result to [0, 1], so a positive
-    amplitude flattens the brightest pixels and the difference there is the
-    clip (see the module docstring for what that costs).  Inside the band the scaling
-    changes continuously with latitude, so the brightness carries no seam
-    at the equator, and the control is not affine there: a mirror pair's
+    below saturation.  The detector saturates at its full well, so a positive
+    amplitude flattens the brightest pixels only where they pass it.  Inside the
+    band the scaling changes continuously with latitude, so the brightness
+    carries no seam at the equator, and the control is not affine there: a mirror pair's
     ratio falls from ``1 + ns_asymmetry_amplitude`` at the band edge to 1 on
     the mirror line (see the module docstring for why every continuous blend
     does this).
@@ -507,9 +503,9 @@ def apply_disc_structure(
     Both are painted only on the part of each pixel the body's silhouette covers, so
     neither can create light outside it (a cloud is on the body, and the sunward
     ramp is a property of the illuminated disc).  The disc radiance is weighted by
-    the coverage, so each pixel gains its coverage times the added brightness and is
-    clipped back to between 0 and its coverage, which is the [0, 1] signal plane for
-    the part of the pixel the body covers.
+    the coverage, so each pixel gains its coverage times the added brightness.  A
+    negative ramp or cloud can push a pixel below 0, and the result is floored at 0
+    there.
 
     Parameters:
         out_box: Body radiance over the haze bounding box, weighted by the coverage,
@@ -535,8 +531,7 @@ def apply_disc_structure(
     for blob in structure.cloud_blobs:
         _add_blob(extra, blob, v_ctr=v_ctr, u_ctr=u_ctr)
     disc = coverage > 0.0
-    covered = coverage[disc]
-    out_box[disc] = np.clip(out_box[disc] + covered * extra[disc], 0.0, covered)
+    out_box[disc] = np.maximum(out_box[disc] + coverage[disc] * extra[disc], 0.0)
 
 
 def _add_blob(

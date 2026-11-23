@@ -93,7 +93,7 @@ spindoctor.sim.instruments
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.instruments.checks
+.. automodule:: spindoctor.sim.instruments.schema_detector
    :members:
    :undoc-members:
    :show-inheritance:
@@ -213,6 +213,11 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.bodies.ellipsoid_relief
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.render.bodies.craters
    :members:
    :undoc-members:
@@ -239,6 +244,11 @@ spindoctor.sim.render.bodies
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.bodies.relief
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.relief_sight
    :members:
    :undoc-members:
    :show-inheritance:

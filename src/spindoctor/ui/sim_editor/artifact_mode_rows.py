@@ -8,8 +8,8 @@ mode therefore acquires an editor row with no GUI change: the row's enable
 checkbox maps to the mode key's presence, the activation-key spin
 (``expected_events``, ``expected_events_per_sec``, ``probability``, or
 ``pixel_fraction``, whichever the registry assigns) and one widget per parameter map
-to that mode's map keys, and the parameter kinds pick the widget (a spin, a
-checkbox, an enum combo, or a group of spins for a rect/window list).
+to that mode's map keys, and each parameter's type picks the widget (a spin, a
+checkbox, a choice combo, or a group of spins for a rect/window list).
 
 The fixed ``count`` that ``dead_pixels`` and ``dead_columns`` take in place of
 ``expected_events`` carries a "set" box, like a list parameter, so a count of 0
@@ -45,6 +45,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from spindoctor.schema import Bool, NonNeg, NonNegInt, PositiveInt, Unit
 from spindoctor.sim.artifact_modes import (
     PIXEL_FRACTION,
     ArtifactMode,
@@ -128,7 +129,7 @@ class ModeRow:
 
     def _add_param_row(self, form: QFormLayout, param: ModeParam) -> None:
         """Add one labeled parameter widget to the row's form."""
-        if param.kind == 'int_list':
+        if param.length is not None:
             form.addRow(f'{param.name}:', self._build_int_list_widget(param))
             return
         if param.name == self.mode.count_alternative:
@@ -166,33 +167,31 @@ class ModeRow:
         return container
 
     def _build_scalar_widget(self, param: ModeParam) -> QWidget:
-        """Build the single widget for a scalar (non-list) parameter kind."""
-        if param.kind == 'bool':
+        """Build the single widget for a scalar (non-list) parameter, by its type.
+
+        Raises:
+            TypeError: If the parameter's type has no widget.
+        """
+        if param.annotation is Bool:
             return QCheckBox()
-        if param.kind == 'enum':
+        choices = param.choices
+        if choices is not None:
             combo = QComboBox()
-            choices = param.choices or ()
             self._enum_choices[param.name] = choices
             combo.addItems([str(choice) for choice in choices])
             return combo
-        if param.kind in ('nonneg_number', 'unit_interval'):
+        if param.annotation is NonNeg or param.annotation is Unit:
             spin = QDoubleSpinBox()
             spin.setDecimals(
                 _PIXEL_FRACTION_DECIMALS if param.name == PIXEL_FRACTION else _NUMBER_DECIMALS
             )
-            spin.setRange(0.0, 1.0 if param.kind == 'unit_interval' else _NUMBER_MAX)
+            spin.setRange(0.0, 1.0 if param.annotation is Unit else _NUMBER_MAX)
             return spin
-        # The integer kinds.
-        spin_int = QSpinBox()
-        low = (
-            1
-            if param.kind == 'positive_int'
-            else 0
-            if param.kind == 'nonneg_int'
-            else int(_NUMBER_MIN)
-        )
-        spin_int.setRange(low, _INT_MAX)
-        return spin_int
+        if param.annotation is PositiveInt or param.annotation is NonNegInt:
+            spin_int = QSpinBox()
+            spin_int.setRange(1 if param.annotation is PositiveInt else 0, _INT_MAX)
+            return spin_int
+        raise TypeError(f'{self.mode.name}.{param.name}: no editor widget for {param.annotation!r}')
 
     def _build_int_list_widget(self, param: ModeParam) -> QWidget:
         """Build a checkable group of spins for a rect / window integer-list param.
@@ -347,7 +346,7 @@ class ModeRow:
         self.group.blockSignals(False)
         current = mode_map or {}
         for param in self.mode.params:
-            if param.kind == 'int_list':
+            if param.length is not None:
                 self._sync_int_list(param, current)
             else:
                 self._sync_scalar(param, current)
@@ -360,7 +359,7 @@ class ModeRow:
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
         """Show one scalar parameter's scene value, or its default.
 
-        If the key is absent or set to null, the widget shows the camera's shape
+        If the key is absent, the widget shows the camera's shape
         default if its config has one, else the registry default.  A key with no
         default at all shows 0, or the spin box's minimum, though the renderer may
         take its value from the detector block instead.

@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -1.9045249773693704,
-  "offset_dv_px": 3.190396684443853,
+  "offset_du_px": -1.9170218722647974,
+  "offset_dv_px": 3.2197546900729432,
   "scene_name": "banded_planet_transit",
   "status": "success"
 }

@@ -6,7 +6,10 @@ detector chain an ``instrument_defaults`` scene turns on, the readout modes, the
 zero point, the plate scale the background-sky star count uses, the whole-scene PSF
 kernel and its truncation radius, the residual geometric distortion, the downlink
 tables, the filter throughputs, and the artifact modes the camera offers with their
-shape defaults.  The rest of the simulator reads the catalog through these resolvers.
+shape defaults.  The rest of the simulator reads the catalog through these resolvers,
+which return the entry's typed parts (:mod:`spindoctor.sim.instruments.schema`).  The
+catalog is shared by every caller, so a resolver whose result holds a list or a dict
+returns a fresh copy of it.
 Each takes a sim instrument name, an alias, or ``None`` for the generic entry, and
 raises :class:`ValueError` if the catalog doesn't hold the name.
 
@@ -34,7 +37,15 @@ from spindoctor.sim.instruments.catalog import (
     instrument_entry,
     load_instrument_catalog,
 )
-from spindoctor.sim.instruments.schema import OFFER_EVERY_MODE, canonical_filter_elements
+from spindoctor.sim.instruments.schema import (
+    DistortionResidual,
+    DownlinkTable,
+    Filters,
+    PsfKernel,
+    canonical_filter_elements,
+    mode_table_maps,
+)
+from spindoctor.sim.instruments.schema_detector import Detector, ReadoutMode
 
 __all__ = [
     'FilterCatalogError',
@@ -87,8 +98,7 @@ def resolve_data_units(instrument: str | None) -> str:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    data_units: str = instrument_entry(instrument)['data_units']
-    return data_units
+    return instrument_entry(instrument).data_units
 
 
 def resolve_star_flux_zero_point(instrument: str | None) -> tuple[float, str]:
@@ -111,10 +121,12 @@ def resolve_star_flux_zero_point(instrument: str | None) -> tuple[float, str]:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    star_flux = instrument_entry(instrument)['star_flux']
-    if 'dn_per_s_vmag0' in star_flux:
-        return star_flux['dn_per_s_vmag0'], 'dn'
-    return star_flux['e_per_s_vmag0'], 'electrons'
+    star_flux = instrument_entry(instrument).star_flux
+    if star_flux.dn_per_s_vmag0 is not None:
+        return star_flux.dn_per_s_vmag0, 'dn'
+    # The schema states exactly one of the two zero points.
+    assert star_flux.e_per_s_vmag0 is not None
+    return star_flux.e_per_s_vmag0, 'electrons'
 
 
 def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
@@ -129,26 +141,23 @@ def resolve_sky_pixel_scale_arcsec(instrument: str | None) -> float:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    scale: float = instrument_entry(instrument)['sky_pixel_scale_arcsec']
-    return scale
+    return instrument_entry(instrument).sky_pixel_scale_arcsec
 
 
-def resolve_psf_kernel(instrument: str | None) -> dict[str, float] | None:
+def resolve_psf_kernel(instrument: str | None) -> PsfKernel | None:
     """Return the instrument's native whole-scene PSF kernel, if it has one.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        A fresh ``sigma_v`` / ``sigma_u`` / ``w`` / ``r0`` / ``n`` mapping, radii in
-        native detector pixels and ``w`` the wing energy fraction; None for an
-        instrument whose config states no ``psf.kernel``.
+        The kernel, radii in native detector pixels and ``w`` the wing energy
+        fraction; None for an instrument whose config states no ``psf.kernel``.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    kernel = instrument_entry(instrument)['psf'].get('kernel')
-    return None if kernel is None else dict(kernel)
+    return instrument_entry(instrument).psf.kernel
 
 
 def resolve_psf_truncation_px(instrument: str | None) -> int:
@@ -168,11 +177,10 @@ def resolve_psf_truncation_px(instrument: str | None) -> int:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    truncation: int = instrument_entry(instrument)['psf']['truncation_px']
-    return truncation
+    return instrument_entry(instrument).psf.truncation_px
 
 
-def resolve_distortion_residual(instrument: str | None) -> dict[str, float] | None:
+def resolve_distortion_residual(instrument: str | None) -> DistortionResidual | None:
     """Return the instrument's residual geometric distortion, if it has one.
 
     The residual is what remains after the navigator applies the instrument's own
@@ -183,14 +191,13 @@ def resolve_distortion_residual(instrument: str | None) -> dict[str, float] | No
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        A fresh ``k1`` / ``k2`` / ``nonradial_rms_px`` mapping; None for an
-        instrument whose config states no ``distortion_residual``.
+        The residual; None for an instrument whose config states no
+        ``distortion_residual``.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    residual = instrument_entry(instrument).get('distortion_residual')
-    return None if residual is None else dict(residual)
+    return instrument_entry(instrument).distortion_residual
 
 
 def resolve_detector_id(instrument: str | None) -> str:
@@ -211,8 +218,8 @@ def resolve_detector_id(instrument: str | None) -> str:
     """
     catalog = load_instrument_catalog()
     name = catalog.canonical_name(instrument)
-    detector_id: str = catalog.entry(name).get('detector_id', name)
-    return detector_id
+    detector_id = catalog.entry(name).detector_id
+    return name if detector_id is None else detector_id
 
 
 def resolve_calibrated_sky_if(instrument: str | None) -> float:
@@ -227,10 +234,13 @@ def resolve_calibrated_sky_if(instrument: str | None) -> float:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    own = instrument_entry(instrument)['detector'].get('calibrated_sky_if')
+    own = instrument_entry(instrument).detector.calibrated_sky_if
     if own is not None:
-        return float(own)
-    return float(instrument_entry(GENERIC_INSTRUMENT)['detector']['calibrated_sky_if'])
+        return own
+    generic = instrument_entry(GENERIC_INSTRUMENT).detector.calibrated_sky_if
+    # The catalog refuses a generic entry without a calibrated sky residual.
+    assert generic is not None
+    return generic
 
 
 def resolve_dark_sky_ceiling_if(instrument: str | None) -> float | None:
@@ -250,8 +260,7 @@ def resolve_dark_sky_ceiling_if(instrument: str | None) -> float | None:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    ceiling = instrument_entry(instrument)['detector'].get('dark_sky_ceiling_if')
-    return float(ceiling) if ceiling is not None else None
+    return instrument_entry(instrument).detector.dark_sky_ceiling_if
 
 
 def downlink_table_names(instrument: str | None) -> tuple[str, ...]:
@@ -267,11 +276,11 @@ def downlink_table_names(instrument: str | None) -> tuple[str, ...]:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    tables = instrument_entry(instrument).get('downlink_tables')
-    return () if tables is None else tuple(sorted(tables['tables']))
+    tables = instrument_entry(instrument).downlink_tables
+    return () if tables is None else tuple(sorted(tables.tables))
 
 
-def resolve_downlink_table(instrument: str | None, name: str | None) -> dict[str, Any] | None:
+def resolve_downlink_table(instrument: str | None, name: str | None) -> DownlinkTable | None:
     """The downlink table the ``sqrt_lut`` quantization decodes a frame through.
 
     Parameters:
@@ -280,33 +289,25 @@ def resolve_downlink_table(instrument: str | None, name: str | None) -> dict[str
             the instrument's default table.
 
     Returns:
-        A fresh copy of the table's entry (``codes``, ``linear_dn``,
-        ``quadratic_dn``, and ``whole_dn``, or ``decoded_dn``); None for an
-        instrument that lists no tables, which decodes through the plain
-        square-root curve.
+        A fresh copy of the table; None for an instrument that lists no tables, which
+        decodes through the plain square-root curve.
 
     Raises:
         ValueError: If the instrument is not in the catalog, or ``name`` is not a
             table it lists.
     """
-    tables = instrument_entry(instrument).get('downlink_tables')
+    tables = instrument_entry(instrument).downlink_tables
     if tables is None:
         if name is None:
             return None
         raise ValueError(f'sim instrument {instrument!r} lists no downlink tables; got {name!r}')
-    chosen = tables['default'] if name is None else name
-    if chosen not in tables['tables']:
+    chosen = tables.default if name is None else name
+    if chosen not in tables.tables:
         raise ValueError(
             f'downlink table {chosen!r} is not listed for sim instrument {instrument!r}; '
-            f'available tables: {sorted(tables["tables"])}'
+            f'available tables: {sorted(tables.tables)}'
         )
-    return copy.deepcopy(dict(tables['tables'][chosen]))
-
-
-def _offers(entry: Mapping[str, Any], mode_name: str) -> bool:
-    """Whether a catalog entry offers ``mode_name``."""
-    offered = entry['artifact_modes']['offered']
-    return bool(offered == OFFER_EVERY_MODE or mode_name in offered)
+    return copy.deepcopy(tables.tables[chosen])
 
 
 def mode_available(mode_name: str, instrument: str | None) -> bool:
@@ -323,7 +324,7 @@ def mode_available(mode_name: str, instrument: str | None) -> bool:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    return _offers(instrument_entry(instrument), mode_name)
+    return instrument_entry(instrument).artifact_modes.offers(mode_name)
 
 
 def mode_unavailable_message(mode_name: str, instrument: str | None) -> str:
@@ -340,12 +341,14 @@ def mode_unavailable_message(mode_name: str, instrument: str | None) -> str:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    reasons = instrument_entry(instrument)['artifact_modes'].get('unavailable_reasons') or {}
+    reasons = instrument_entry(instrument).artifact_modes.unavailable_reasons
     if mode_name in reasons:
         return f'artifact mode {mode_name!r} is {reasons[mode_name]}'
     catalog = load_instrument_catalog()
     available = [
-        name for name in catalog.instrument_names() if _offers(catalog.entry(name), mode_name)
+        name
+        for name in catalog.instrument_names()
+        if catalog.entry(name).artifact_modes.offers(mode_name)
     ]
     return (
         f'artifact mode {mode_name!r} is not available for instrument {instrument!r}; '
@@ -360,15 +363,15 @@ def instrument_default_modes(instrument: str | None) -> dict[str, dict[str, Any]
         instrument: The sim instrument name, an alias, or ``None``.
 
     Returns:
-        A fresh copy of the entry's ``artifact_modes.instrument_defaults``: each
-        mode's scene map, which the detector resolver uses when the scene has not
-        set the mode itself.  Empty for an instrument that turns no mode on.
+        Each mode the entry's ``artifact_modes.instrument_defaults`` sets, with its
+        map as a scene writes it, which the detector resolver uses when the scene has
+        not set the mode itself.  Empty for an instrument that turns no mode on.  The
+        dicts, and the lists in them, are fresh.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    modes = instrument_entry(instrument)['artifact_modes'].get('instrument_defaults') or {}
-    return copy.deepcopy(dict(modes))
+    return mode_table_maps(instrument_entry(instrument).artifact_modes.instrument_defaults)
 
 
 def cataloged_binnings(instrument: str | None) -> tuple[int, ...]:
@@ -384,10 +387,10 @@ def cataloged_binnings(instrument: str | None) -> tuple[int, ...]:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    return tuple(sorted(instrument_entry(instrument)['readout_modes']))
+    return tuple(sorted(instrument_entry(instrument).readout_modes))
 
 
-def resolve_readout_mode(instrument: str | None, binning: int) -> dict[str, Any]:
+def resolve_readout_mode(instrument: str | None, binning: int) -> ReadoutMode:
     """The detector-key overrides of one cataloged readout mode.
 
     A b-by-b block of native pixels reads out as one pixel; the mode overrides the
@@ -399,14 +402,14 @@ def resolve_readout_mode(instrument: str | None, binning: int) -> dict[str, Any]
         binning: A binning factor from :func:`cataloged_binnings`.
 
     Returns:
-        A fresh copy of the mode's overrides; empty for a mode that keeps every
-        1x1 value, and for an uncataloged binning (the resolver refuses those).
+        A fresh copy of the mode; a mode that keeps every 1x1 value for an uncataloged
+        binning (the resolver refuses those).
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    modes = instrument_entry(instrument)['readout_modes']
-    return copy.deepcopy(modes.get(int(binning), {}))
+    modes = instrument_entry(instrument).readout_modes
+    return copy.deepcopy(modes.get(int(binning), ReadoutMode()))
 
 
 def resolve_native_frame_size_px(instrument: str | None) -> int | None:
@@ -422,8 +425,7 @@ def resolve_native_frame_size_px(instrument: str | None) -> int | None:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    native: int | None = instrument_entry(instrument).get('native_frame_size_px')
-    return native
+    return instrument_entry(instrument).native_frame_size_px
 
 
 def binning_for_frame_size(instrument: str | None, size_vu: tuple[int, int]) -> int:
@@ -454,7 +456,7 @@ def binning_for_frame_size(instrument: str | None, size_vu: tuple[int, int]) -> 
     )
 
 
-def resolve_detector_defaults_native(instrument: str | None) -> dict[str, Any]:
+def resolve_detector_defaults_native(instrument: str | None) -> Detector:
     """Return a sim instrument's native detector values, before a readout mode is merged.
 
     :func:`resolve_detector_defaults` merges a readout mode over these values.
@@ -464,27 +466,19 @@ def resolve_detector_defaults_native(instrument: str | None) -> dict[str, Any]:
             entry.
 
     Returns:
-        A fresh copy of the instrument entry's ``detector`` block, plus, under
-        ``artifact_modes``, the entry's per-mode shape defaults
-        (``artifact_modes.shape_defaults``) when it states any.
+        A fresh copy of the instrument entry's ``detector`` block.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    entry = instrument_entry(instrument)
-    defaults: dict[str, Any] = copy.deepcopy(entry['detector'])
-    shape_defaults = entry['artifact_modes'].get('shape_defaults')
-    if shape_defaults is not None:
-        defaults['artifact_modes'] = copy.deepcopy(shape_defaults)
-    return defaults
+    return copy.deepcopy(instrument_entry(instrument).detector)
 
 
-def resolve_detector_defaults(instrument: str | None, binning: int) -> dict[str, Any]:
+def resolve_detector_defaults(instrument: str | None, binning: int) -> Detector:
     """Return a sim instrument's detector defaults in one readout mode.
 
     Where the readout mode sets a key, its value replaces the native one; the keys
-    it leaves out keep the native values.  The result also carries the entry's
-    per-mode artifact shape defaults under ``artifact_modes`` when it states any.
+    it leaves out keep the native values.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None`` for the generic
@@ -492,16 +486,14 @@ def resolve_detector_defaults(instrument: str | None, binning: int) -> dict[str,
         binning: A binning factor from :func:`cataloged_binnings`.
 
     Returns:
-        A fresh dict: :func:`resolve_detector_defaults_native` updated with
-        :func:`resolve_readout_mode`.
+        :func:`resolve_detector_defaults_native` with :func:`resolve_readout_mode`
+        merged over it.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    return {
-        **resolve_detector_defaults_native(instrument),
-        **resolve_readout_mode(instrument, binning),
-    }
+    native = resolve_detector_defaults_native(instrument)
+    return native.with_readout_mode(resolve_readout_mode(instrument, binning))
 
 
 def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] | None) -> str:
@@ -509,7 +501,6 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
 
     The scene's own ``detector.detector_model`` wins; otherwise the camera's
     default in the scene's readout mode (the mode's values over the native ones).
-    A null key reads as absent, as it does everywhere in the detector resolver.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None``.
@@ -528,7 +519,7 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
         return str(model)
     binning = block.get('binning')
     detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
-    return str(detector_defaults['detector_model'])
+    return detector_defaults.detector_model
 
 
 def resolve_mode_with_catalog(
@@ -543,7 +534,8 @@ def resolve_mode_with_catalog(
     ``pixel_fraction``) and the fixed-count alternative ``count`` are never read
     from the shape defaults: a mode activates only when a scene sets one (or, if
     the instrument lists the mode in ``artifact_modes.instrument_defaults``, when
-    the detector resolver supplies it under ``instrument_defaults``).
+    the detector resolver supplies it under ``instrument_defaults``).  The catalog
+    refuses a shape default that sets either key.
 
     Parameters:
         mode_name: A registered artifact-mode name.
@@ -553,16 +545,13 @@ def resolve_mode_with_catalog(
     Returns:
         A fresh dict carrying every parameter at its resolved value.
     """
-    catalog_modes = resolve_detector_defaults_native(instrument).get('artifact_modes') or {}
-    catalog = catalog_modes.get(mode_name) or {}
-    mode = ARTIFACT_MODES[mode_name]
-    scene_only = {mode.activation, mode.count_alternative}
+    catalog = instrument_entry(instrument).shape_default_map(mode_name)
     resolved: dict[str, Any] = {}
-    for param in mode.params:
+    for param in ARTIFACT_MODES[mode_name].params:
         name = param.name
-        if name in scene_cfg and scene_cfg[name] is not None:
+        if name in scene_cfg:
             resolved[name] = scene_cfg[name]
-        elif name not in scene_only and name in catalog:
+        elif name in catalog:
             resolved[name] = catalog[name]
         else:
             resolved[name] = param.default
@@ -573,19 +562,13 @@ class FilterCatalogError(ValueError):
     """A scene sets a filter its camera does not catalog."""
 
 
-def _filters(instrument: str | None) -> dict[str, Any] | None:
-    """The ``filters`` section of an instrument's config, or None."""
-    filters: dict[str, Any] | None = instrument_entry(instrument).get('filters')
-    return filters
-
-
-def _require_filters(instrument: str | None) -> dict[str, Any]:
+def _require_filters(instrument: str | None) -> Filters:
     """The ``filters`` section of an instrument's config, refusing one without it."""
-    filters = _filters(instrument)
+    filters = instrument_entry(instrument).filters
     if filters is None:
         catalog = load_instrument_catalog()
         cataloged = [
-            name for name in catalog.instrument_names() if 'filters' in catalog.entry(name)
+            name for name in catalog.instrument_names() if catalog.entry(name).filters is not None
         ]
         raise FilterCatalogError(
             f'sim instrument {instrument!r} has no filter table; instruments with one: {cataloged}'
@@ -613,8 +596,8 @@ def canonical_filter(instrument: str | None, filter_name: str) -> str:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    filters = _filters(instrument) or {}
-    polarizers = filters.get('polarizer_clear') or {}
+    filters = instrument_entry(instrument).filters
+    polarizers = {} if filters is None else filters.polarizer_clear
     elements = canonical_filter_elements(filter_name)
     return '+'.join(polarizers.get(element, element) for element in elements)
 
@@ -632,8 +615,8 @@ def cataloged_filters(instrument: str | None) -> tuple[str, ...]:
     Raises:
         ValueError: If the instrument is not in the catalog.
     """
-    filters = _filters(instrument)
-    return () if filters is None else tuple(sorted(filters['throughput_e_per_s_per_if']))
+    filters = instrument_entry(instrument).filters
+    return () if filters is None else tuple(sorted(filters.throughput_e_per_s_per_if))
 
 
 def resolve_filter_throughput(instrument: str | None, filter_name: str) -> float:
@@ -652,15 +635,14 @@ def resolve_filter_throughput(instrument: str | None, filter_name: str) -> float
             combination is not in it.
         ValueError: If the instrument is not in the catalog.
     """
-    table = _require_filters(instrument)['throughput_e_per_s_per_if']
+    table = _require_filters(instrument).throughput_e_per_s_per_if
     canonical = canonical_filter(instrument, filter_name)
     if canonical not in table:
         raise FilterCatalogError(
             f'filter {filter_name!r} is not cataloged for sim instrument {instrument!r}; '
             f'available filters: {sorted(table)}'
         )
-    throughput: float = table[canonical]
-    return throughput
+    return table[canonical]
 
 
 def filter_star_flux_scale(instrument: str | None, filter_name: str | None) -> float:
@@ -683,5 +665,5 @@ def filter_star_flux_scale(instrument: str | None, filter_name: str | None) -> f
     if filter_name is None:
         return 1.0
     throughput = resolve_filter_throughput(instrument, filter_name)
-    clear = _require_filters(instrument)['clear']
+    clear = _require_filters(instrument).clear
     return throughput / resolve_filter_throughput(instrument, clear)

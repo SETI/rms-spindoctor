@@ -812,16 +812,18 @@ where they differ).
     median radial error rose from 1.64 to 2.03 px. The at-edge flag now
     tests the integer peak as well, since the window can carry the answer
     1.5 px from it. Moved out (operator, 2026-11-18): flagging an answer
-    that still stops at its window edge is #1061. The strict #790
-    expectation stays: mesh seed 10, which it used to rest on, now ends
-    conflicted on 18 of 25 noise draws and is never confidently wrong, but
-    mesh seed 7 is a 0.901-confidence success 5.2 px off on one of the 5
-    draws the check reads (3 of 25 draws in all). That is a narrow margin
-    over the 0.9 the check counts; a sturdier reproduction is #1062. The
+    that still stops at its window edge is #1061. Main's strict #790
+    expectation reads mesh seed 10, a disc-carried success 12.8 px off on
+    24 of 25 noise draws. With this change the shape-lock veto declines
+    mesh seed 10 on all 25 draws, so that expectation no longer fails;
+    mesh seed 9 instead ends a 0.92-confidence success 8.1 to 8.2 px off
+    on 7 of 25 draws, one of them among the 5 the check reads. What the
+    expectation should hold now is open (operator); a sturdier
+    reproduction is #1062. The
     refinement's pull toward bright structure
     the template leaves out is #1050, which also carries the wide-angle
     regression on saturated frames, the haze-crescent scenes
-    (`titan_crescent_horns` and its noiseless twin, 6.7 px off), and the
+    (`titan_crescent_horns` and its noiseless twin, 3.0 px off), and the
     remaining bias on the
     stray-light-and-relief scene #791 was opened on. On real irregular moons
     the disc is spurious on 46 of 47 frames with star truth, so that sim

@@ -94,7 +94,7 @@ class NoiseMixin(SimEditorBase):
     def _sync_noise_from_params(self) -> None:
         """Set every detector-noise control from the scene's ``noise`` block.
 
-        A key the block leaves out or sets to null shows the control's default.  The
+        A key the block leaves out shows the control's default.  The
         controls' signals are blocked, so syncing writes nothing back to the scene.
         """
         values: tuple[tuple[QCheckBox | QDoubleSpinBox | QSpinBox, Any], ...] = (
@@ -118,10 +118,7 @@ class NoiseMixin(SimEditorBase):
             widget.blockSignals(False)
 
     def _noise_value(self, key: str, default: Any) -> Any:
-        """Read a value from the sim_params noise block, or a default.
-
-        A key set to null reads as absent, as the renderer reads it.
-        """
+        """Read a value from the sim_params noise block, or a default when it is absent."""
         noise = self.sim_params.get('noise')
         value = noise.get(key) if isinstance(noise, dict) else None
         return default if value is None else value

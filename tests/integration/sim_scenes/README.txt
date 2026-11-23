@@ -118,9 +118,11 @@ wrote them whatever the roll.
 Fields
 ------
 
-A top-level number (exposure_sec, offset_v, offset_u, offset_rotation_deg,
-time, ring_epoch, star_catalog_scatter_px) can't be null: leave it out to
-take its default.  A top-level block or list set to null reads as unset.
+A scene either sets a key or leaves it out to take its default.  A key set to
+null fails validation anywhere in a scene: at the top level, inside a block or
+a mapping in a list, and as a list entry.  The message gives the key's full
+path, such as bodies[1].nav_override.mesh_lumpiness, and says to leave the key
+out.
 
   schema_version   (int, required)   must be 2
   scene_name       (str, required)   must equal the filename stem
@@ -180,7 +182,8 @@ take its default.  A top-level block or list set to null reads as unset.
                                      diffuse_e_per_px flat floor
   expected         (mapping, opt)    the scene's expected navigation outcome
                                      (status success|failed|conflicted,
-                                     confidence_tier or null, optional
+                                     optional confidence_tier, left out to
+                                     check the status alone, optional
                                      status_reason); read only by the sim
                                      expected-outcome test machinery -- fed to
                                      neither the renderer nor the navigator
@@ -195,8 +198,7 @@ take its default.  A top-level block or list set to null reads as unset.
                                      bias_pedestal_sigma_dn, bias_row_gradient_dn,
                                      bias_col_gradient_dn, vidicon {read_noise_line_dn,
                                      read_noise_pixel_dn, coherent_amplitude_dn,
-                                     coherent_period_px}; unknown keys fail validation,
-                                     and a key set to null counts as unset
+                                     coherent_period_px}; unknown keys fail validation
   oversample       (int, opt)        radiance oversampling factor (default 4 when a PSF
                                      is active, else 1)
   optics           (mapping, opt)    whole-scene optical effects: psf (sigma_v, sigma_u,
@@ -215,8 +217,8 @@ take its default.  A top-level block or list set to null reads as unset.
                                      (exact | 8bit | uneven_12bit | sqrt_lut | ls8b |
                                      contour_8bit), downlink_table (the table, by
                                      name, sqrt_lut decodes through; one the
-                                     instrument's config lists); omitted or null keys
-                                     track the instrument catalog
+                                     instrument's config lists); omitted keys track
+                                     the instrument catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
                                      (PSF, distortion residual, shot noise, dark / hot /
@@ -336,53 +338,46 @@ The appearance keys are truth, which the navigator never sees:
   crater_relief_scale  the crater depth scale, a number (default 0.6)
   anti_aliasing        the limb supersampling, from 0 to 1 (default 1)
   limb_relief_rms      the limb relief's RMS as a fraction of the radius, at
-                       most 0.05 (default 0, no relief)
+                       most 0.1 (default 0, no relief)
   limb_relief_corr_deg the relief's correlation length, in degrees of surface
                        arc (default 15)
   photometric_law      lambert (the default), lommel_seeliger, minnaert, or
                        lunar_lambert
   minnaert_k           the Minnaert exponent, a number (default 0.5)
-  seed                 an integer, which changes nothing in a scene render:
-                       each body's craters, texture, and relief draw from the
-                       scene's random_seed
-  shading              (polyhedral_mesh) flat (the default) or gouraud
+  shading             (polyhedral_mesh) flat (the default) or gouraud
   opposition_surge, albedo_texture, disc_texture, transits, atmosphere, and
   pose_scatter are blocks; the developer guide's simulator chapter describes
   each of their keys.
 
-Every body key, and every optional key inside a body's blocks, may be null,
-and a null key renders as the absent key does.  The navigator reads it as
-absent too.  For a key set to null inside nav_override, the navigator sees the
-scene's own value.  An entry of a list such as pose_euler_deg can't be null.
-
-A polyhedral_mesh body refuses a non-null value of any of the thirteen
-ellipsoid-only keys, which the mesh renderer would silently ignore (a null
-reads as an absent key): the ellipsoid-only appearance keys atmosphere,
+A polyhedral_mesh body refuses each of thirteen keys, which the mesh renderer
+would silently ignore: the ellipsoid-only appearance keys atmosphere,
 photometric_law, minnaert_k, opposition_surge, albedo_texture, disc_texture,
 transits, crater_fill, crater_min_radius, crater_max_radius,
 crater_power_law_exponent, and crater_relief_scale, and sub_observer_lat_deg,
-since a mesh body is turned by its pose_euler_deg instead.  A mesh body's appearance keys are shading,
-limb_relief_rms, limb_relief_corr_deg, mesh_detail_octaves, and pose_scatter.
-The scene editor disables the controls for the refused keys on a mesh body.
-Switching a body to polyhedral_mesh in the editor moves the refused keys it
-carries out of the scene, and the status bar names them; switching it back to
-ellipsoid in the same session restores them, and a saved mesh scene file
-doesn't carry them.
+since a mesh body is turned by its pose_euler_deg instead. A mesh body's
+appearance keys are shading, limb_relief_rms, limb_relief_corr_deg,
+mesh_detail_octaves, and pose_scatter. The scene editor disables the controls
+for the refused keys on a mesh body. Switching a body to polyhedral_mesh in the
+editor moves the refused keys it carries out of the scene, and the status bar
+names them; switching it back to ellipsoid in the same session restores them,
+and a saved mesh scene file doesn't carry them.
 
-The reverse holds too: an ellipsoid body, stated or by default, refuses a
-non-null shading, mesh_detail_octaves, or pose_scatter, which the ellipsoid
+The reverse holds too: an ellipsoid body, stated or by default, refuses
+shading, mesh_detail_octaves, and pose_scatter, which the ellipsoid
 renderer would silently ignore.  Switching a mesh body to ellipsoid in the
 editor moves those keys out the same way, and switching back restores them.
 
-A body may also carry an optional nav_override mapping.  The renderer ignores it
-(it always draws the true geometry), but the navigator builds its predicted body
-from the body params with nav_override overlaid -- the channel that makes the
-navigation geometry diverge from the render geometry.  Use it to render an
-irregular mesh yet predict its smooth (ellipsoidal) limit (mesh_lumpiness 0.0)
-for a shape mismatch, or to predict the same body at a different pose_euler_deg
-for a pose disagreement.  The override never changes the center, so the
-predicted body stays at the unshifted position the planted offset is measured
-from.
+A body may also carry an optional nav_override mapping. The renderer ignores it
+(it always draws the true geometry), but the navigator builds its predicted
+body from the body params with nav_override overlaid -- the channel that makes
+the navigation geometry diverge from the render geometry. It may set only the
+idealized body keys, and each value it sets must pass the check the same key
+passes on the body, so a two-angle pose_euler_deg or a center that isn't finite
+fails validation there too. Use it to render an irregular mesh yet predict its
+smooth (ellipsoidal) limit (mesh_lumpiness 0.0) for a shape mismatch, or to
+predict the same body at a different pose_euler_deg for a pose disagreement.
+The override never changes the center, so the predicted body stays at the
+unshifted position the planted offset is measured from.
 
 The planted offset_v/offset_u is applied as the rendered offset, so a navigator
 predicting the unshifted geometry must recover it.
@@ -425,9 +420,8 @@ the key's name says what the number means:
 
 dead_pixels and dead_columns also take count (int >= 0), a fixed number of dead
 pixels or columns in place of the Poisson draw; a map may set count or
-expected_events, never both (a key set to null counts as unset).  Every key
-defaults to 0, and a mode whose key is 0 (or whose count is 0) renders as a
-no-op.  For example:
+expected_events, never both. Every key defaults to 0, and a mode whose key is 0
+(or whose count is 0) renders as a no-op. For example:
 
     artifacts:
       missing_lines: {expected_events: 3.0}
@@ -511,8 +505,7 @@ annulus is only the band where tau doubles.  Author a band as a ringlet (a_px 60
 width_px 35), or carve it into a sheet with a gap.
 
 Every mapping in the ring_system block accepts only its own keys, so an unknown
-key anywhere in it fails validation.  An optional ring key set to null counts as
-unset, to the validator, the renderer, and the editor alike.
+key anywhere in it fails validation.
 
 Adding a scene
 --------------

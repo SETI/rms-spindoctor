@@ -9,20 +9,20 @@ exposure_sec: 1.0
 # interlock (centers 100 px apart, radii 60 + 50, ~10 px of overlap depth).
 # Rendered truth (body_occlusion): FAR visible_fraction ~0.97, occluded limb
 # arc ~51 deg; NEAR fully visible.  Measured ensemble behavior
-# (2026-07-18, occlusion-aware sim limb): FAR's LIMB_ARC drops the arc
-# hidden behind NEAR and reports visible_arc_fraction 0.86 (reliability
-# 0.78), so the fit never sees the interlocked arc, and the limb fit
-# lands 0.11 to 0.16 px from the planted offset.  The disc correlation
+# (2026-11-22, occlusion-aware lit sim limb): FAR's LIMB_ARC drops the arc
+# hidden behind NEAR and reports visible_arc_fraction 0.74 of its lit limb
+# (reliability 0.74), so the fit never sees the interlocked arc, and the limb
+# fit lands 0.32 to 0.34 px from the planted offset.  The disc correlation
 # answers (2.39, -1.50), 0.12 to 0.13 px off, the maximum of its high-pass
 # refinement surface.  The composite disc template paints the near body over
 # the far one by a yes-or-no mask, so it keeps a dark outline at the near
 # body's limb that the image does not have, and the outline pulls that
 # maximum (#1099).  Drawn by coverage, without that outline, the template
-# brings the disc correlation to 0.017 px.
+# brings the disc correlation to 0.017 px on every seed tried.
 # Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 0.097 to 0.122 px (spread 0.025 px).  Each end of
+# the fused error runs 0.105 to 0.112 px (spread 0.007 px).  Each end of
 # the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [0.046, 0.172] px.  test_sim_mutual_event (in the default
+# outside, giving [0.054, 0.162] px.  test_sim_mutual_event (in the default
 # suite) and test_sim_expected hold the fused answer to it.
 bodies:
   - name: FAR
@@ -54,5 +54,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.109
-  known_offset_error_tol_px: 0.063
+  known_offset_error_px: 0.108
+  known_offset_error_tol_px: 0.054
