@@ -165,8 +165,10 @@ redraws as usual.
 
 The random pixel loss (the missing-data rate, in the Artifacts tab's detector override)
 and the cosmic-ray rate (on the General tab) work on every camera. The detector override
-also sets the image's saturation level. The navigator keeps using the camera's own
-level, so a scene can show how navigation copes with a detector that saturates early.
+also sets the image's saturation level. On a camera that delivers raw counts the
+navigator keeps using the camera's own level, so a scene can show how navigation copes
+with a detector that saturates early. A calibrated frame has no saturation level for the
+navigator to use.
 
 Planting defects in a scene
 ===========================

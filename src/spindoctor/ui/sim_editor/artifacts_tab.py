@@ -108,7 +108,7 @@ _VALUE_SPINS: tuple[_ValueSpin, ...] = (
     _ValueSpin(
         key='signal_full_scale_frac',
         label='Signal full-scale frac:',
-        value_range=(0.0, 10.0),
+        value_range=(0.001, 10.0),
         decimals=3,
         step=0.05,
         tooltip='Signal of 1.0 maps to this fraction of the full well.',
