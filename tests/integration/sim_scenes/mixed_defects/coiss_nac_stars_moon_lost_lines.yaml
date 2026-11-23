@@ -1,0 +1,78 @@
+schema_version: 2
+scene_name: coiss_nac_stars_moon_lost_lines
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 1.0
+# A raw Cassini NAC frame of stars and a moon whose readout lost lines and whose
+# pointing drifted during the exposure, over the camera's whole raw chain.
+#
+# The content follows the image library's stars_plus_body frame N1686349893
+# (Iapetus 252 px across at 81 deg phase, eight stars of V 7.29 to 11.68).  The
+# star magnitudes are that frame's; their positions were drawn at random off the
+# disc.  The real frame ran 3.8 s through CL1+UV3; the scene sets no filter and
+# runs 1.0 s, which keeps the disc below the full well (99th percentile 1,445 DN)
+# and the stars at the camera's clear-filter brightness, closer to real stars
+# than the simulator draws them through UV3 (#895).
+#
+# The lost lines follow the 12-bit lossless NAC frames of COISS_2023, whose
+# readouts often end early and lose runs of lines mid-frame: N1526130404 lost
+# its last 41 lines, and N1526044304 lost runs of 4 to 11 lines (311-315,
+# 327-330, 338-348, ...).  In the metadata indexes of COISS_2010, 2023, 2050, and
+# 2068, 321 of 5,473 12-bit NAC frames lost lines.  The scene truncates the last
+# 41 lines and loses one run of a Poisson-drawn length, 11 lines expected, at a
+# place the seed draws, so each seed loses a different run.
+#
+# The whole scene drifts 2.0 px during the exposure.  Measured streaks on real
+# NAC frames run under 2 px on sequences predicted at 6 px, and about 0.6 times
+# predictions of 4.5 to 8 px (#768).  The navigator's star model predicts
+# unsmeared stars here, as it does on a real frame whose predicted smear is
+# wrong.
+#
+# The planted offset, 30.3 px, lies just below the 90th percentile of the
+# operator-verified NAC offsets in the image library (33.9 px), pointing up and
+# left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
+# fitting off as the camera ships.
+#
+# The fused answer lands 0.005 to 0.20 px off over 24 draws, carried by the disc
+# correlation (0.12 to 0.36 px off) and the star refinement (0.01 to 0.30 px).
+# Removing any one defect (the truncation, the run of lost lines, the smear, the
+# hot pixels, or the cosmic rays) leaves it 0.005 to 0.08 px off on four draws.
+#
+# StarFieldFromCatalogNav returns spurious on every draw, with each of those
+# defects removed in turn too, which is #1146: the hot pixels and cosmic rays
+# crowd the stars out of the 30 sources it matches, and either one alone is
+# enough.  The simulated hot pixels are overstrong (#906).  StarUniqueMatchNav
+# returns spurious on 3 of the 24 draws.  With the body removed the frame fails
+# on 2 of 4 draws.  BodyBlobNav lands 8.3 to 10.1 px off the gibbous disc
+# without flagging it (#975), and 7.4 to 9.9 px off with each defect removed, so
+# the defects do not cause it; sim_truth holds it to a band.
+artifacts:
+  instrument_defaults: true
+  truncated_frame: {probability: 1.0, lines: 41, from: bottom}
+  missing_lines: {expected_events: 11.0, contiguous_run: true}
+optics:
+  smear:
+    - {dv_px: 1.2, du_px: 1.6, object_class: all}
+bodies:
+  - name: IAPETUS
+    center_v: 560.0
+    center_u: 430.0
+    semi_a_px: 126.0
+    semi_b_px: 126.0
+    semi_c_px: 126.0
+    illumination_angle: 250.0
+    phase_angle: 81.0
+stars:
+  - {name: S1, v: 313.10, u: 631.06, vmag: 7.29}
+  - {name: S2, v: 499.64, u: 252.43, vmag: 9.11}
+  - {name: S3, v: 451.70, u: 57.41, vmag: 10.0}
+  - {name: S4, v: 271.37, u: 138.02, vmag: 10.6}
+  - {name: S5, v: 324.39, u: 79.96, vmag: 10.88}
+  - {name: S6, v: 564.20, u: 741.43, vmag: 11.29}
+  - {name: S7, v: 802.35, u: 840.90, vmag: 11.56}
+  - {name: S8, v: 119.53, u: 890.93, vmag: 11.68}
+offset_v: -27.71
+offset_u: -12.38
+offset_rotation_deg: 0.0115

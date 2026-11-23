@@ -1,0 +1,63 @@
+schema_version: 2
+scene_name: gossi_ict_moon
+instrument: gossi
+size_v: 800
+size_u: 800
+random_seed: 7
+exposure_sec: 0.1
+# A Galileo SSI frame of a whole moon, lossy-compressed and missing compression
+# slices, over the camera's whole chain with its fitted cosmic rays.
+#
+# Most Galileo tour frames are compressed with the camera's lossy ICT codec: in
+# the metadata indexes of GO_0017, 0019, and 0023, 1,318 of 1,865 frames, at a
+# median compression ratio of 9.5.  The disc follows C0401785378R (Io at 47 deg
+# phase, 6.25 ms, ICT at a ratio of 12.7), whose disc covers as many pixels as a
+# disc 401 px across.  The lost slices follow the ICT moon frames C0368293101R,
+# C0368558239R, and C0368599800R, which lost 3, 3, and 4 bands of exactly 8
+# lines; those frames are filled by the moon, so the scene takes their losses
+# and C0401785378R's whole disc.  missing_blocks loses a Poisson-drawn number of
+# 8-line slices, 3 expected, at places the seed draws.
+#
+# The simulator has no ICT codec (#920); compression_dct, which steps every
+# frequency alike, stands in for it, and its step is illustrative.  4 DN is the
+# largest step tried (2, 4, 8, 16) that keeps block edges inside the disc no
+# sharper than the inside of the blocks (1.01 times), as on C0401785378R (1.00);
+# 8 DN gives 1.68.
+#
+# The exposure is scaled to the simulator's brightness scale (#895): at 0.1 s the
+# middle of the disc reads a median 102 DN, where the real disc reads 128 DN.
+# instrument_defaults turns on the camera's whole chain, cosmic rays at their
+# fitted rate among it.  The scene plants the measured Galileo sky noise,
+# 0.96 DN, in place of the catalog's read noise, because simulated Galileo skies
+# are about four times quieter than real ones (#979).
+#
+# The planted offset, 260 px, is the size of the library's Galileo
+# scattered-light offsets (257 and 286 px), pointing up and right, inside the
+# camera's 350 px search window.  The roll is the camera's measured twist,
+# -0.0526 deg, planted with roll fitting off as the camera ships.
+#
+# The fused answer lands 0.27 to 0.33 px off over 24 draws.  The twist sets it:
+# the roll turns the scene about the frame center before the offset moves it,
+# which moves the disc about 0.22 px, and without the roll the frame lands 0.07
+# to 0.09 px off on four draws.  The compression and the lost slices move it by
+# less than 0.05 px.  BodyBlobNav lands 0.18 to 4.05 px off without flagging it
+# (#975); the lost slices that cross the disc cause it (0.20 to 0.28 px off
+# without them), and its error follows where they land, so no band holds it.
+artifacts:
+  instrument_defaults: true
+  compression_dct: {probability: 1.0, scale_factor: 4.0}
+  missing_blocks: {expected_events: 3.0}
+noise:
+  read_noise_dn: 0.96
+bodies:
+  - name: IO
+    center_v: 600.0
+    center_u: 260.0
+    semi_a_px: 200.0
+    semi_b_px: 200.0
+    semi_c_px: 200.0
+    illumination_angle: 120.0
+    phase_angle: 47.0
+offset_v: -204.37
+offset_u: 161.29
+offset_rotation_deg: -0.0526
