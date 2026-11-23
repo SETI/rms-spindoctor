@@ -384,6 +384,33 @@ library. A library sidecar for a Voyager frame gives its spacecraft (``VG1`` or
 apart. The entry states ``data_units: calibrated_if``, the units of the
 GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
 
+**Realism match.** The match compares each camera with its own library frames
+(the 2026-11-23 record in ``tests/integration/realism_results/``). The two
+entries without a library frame have no row.
+
+* ``vgiss_1_wac``, two Saturn frames. The simulated sky noise is 3.1e-3 I/F
+  against 1.7e-3 real (W1/IQR 3.8, over 485 simulated and 409 real sky patches),
+  the sky level above the floor is 7.6e-3 against 5.7e-3 I/F (W1/IQR 1.6), and
+  the noise at signal is 3.0e-3 against 2.1e-3 I/F (W1/IQR 2.5). One of the two
+  frames is filled by Saturn's cloud deck, so its darkest quarter of tiles is
+  cloud.
+* ``vgiss_2_nac``, one star field. The simulated sky noise is 3.1e-3 I/F against
+  6.9e-3 real (W1/IQR 2.7, over 241 simulated and 203 real sky patches), the sky
+  level above the floor is 7.3e-3 against 2.1e-2 I/F (W1/IQR 1.8), and the noise
+  at signal is 3.0e-3 against 9.0e-3 I/F (W1/IQR 4.4). The real frame gives 6
+  star cutouts (EE50 median 1.26 px). Its matched frame holds the field's catalog
+  stars, but none yields a usable simulated cutout, so the PSF comparison is
+  unconstrained, and the kernel rests on its published range alone. On the real
+  frame the star-field fit locks at 0.94 on 7 of 11 predicted stars. On the
+  matched frame it predicts 5 and locks at 0.6, a wide-offset lock on 3 inliers.
+
+The simulated values are nearly the same for both cameras, because their entries
+hold the same numbers. The real frames differ: the narrow angle frame's sky is
+about four times as noisy as the wide angle frames'. Neither sky comparison is
+like for like. The real frames are resampled, which correlates neighboring
+pixels, so the paired-difference estimate reads their noise about a third low,
+and the matched scenes don't turn on the simulator's resampling mode.
+
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable
 cutouts with a 50% encircled-energy radius of 1.22 pixels, but the geometric
