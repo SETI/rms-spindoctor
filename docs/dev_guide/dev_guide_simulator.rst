@@ -2313,11 +2313,12 @@ margin. The frame alone decides whether a body fits and where its craters go, so
 margin changes no pixel of the frame.
 
 The result matches what the same part of a frame large enough to hold the whole body
-would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. There are
-three small exceptions. A mesh body at its default pose differs by up to 0.03 of full
-brightness, because the mesh rasterizer gives slightly different pixels on frames of
-different sizes. A body with limb relief at an oversampling factor above 1
-differs by about 1e-6 of full brightness, from the ends of the spline. A cratered body
+would show, to rounding, for smooth ellipsoids, mesh bodies, and halos. The mesh
+renderer measures each face and each pixel center from the pixel corner at the
+body's center, or just before it, so the size of the canvas cannot change which
+pixels a face covers. There are two small exceptions. A body with limb relief at an
+oversampling factor above 1 differs by about 1e-6 of full brightness, from the ends
+of the spline. A cratered body
 has its craters laid out on a grid that holds the whole body, so they stay in the
 same places on its surface whichever part of it is drawn; a larger frame would lay
 them out differently.
@@ -2517,28 +2518,62 @@ slope facing the sun brightens and one facing away darkens, across the whole
 lit disc and not only at the terminator. The surface a line of sight meets first
 faces the observer. Where the line of sight grazes a ridge, though, the normal
 taken from the field's differences half a cell apart can lean away, by as much
-as -0.82 in its toward-observer component, and the renderer lays such a normal
-into the sky plane. On 75 px bodies over four seeds, that happens at up to 0.07%
-of the pixels inside the outline at a correlation length of 5 degrees or more and
-5% relief, 0.29% at 1 degree and 5% relief, and 0.30% at 2 degrees and 10%
-relief.
+as -0.82 in its toward-observer component. The renderer lays such a normal just
+in front of the sky plane, with a toward-observer component of one millionth, so
+it still faces the observer as the surface does. At phase 0 the Sun then lights
+it, as it lights all the terrain the camera sees; under any other light its
+incidence cosine moves by at most a millionth. On 75 px bodies over four seeds,
+such a normal turns up at up to 0.07% of the pixels inside the outline at a
+correlation length of 5 degrees or more and 5% relief, 0.29% at 1 degree and 5%
+relief, and 0.30% at 2 degrees and 10% relief.
 
 The terrain also casts shadows. The map from the body frame to parameter space
 is affine, and an affine map carries a ray to a ray and a surface to a surface,
 so a pixel's sun ray meets the terrain in parameter space exactly when it does
-on the body. Each candidate pixel's ray is marched from its surface point until
-it leaves the relief shell ``r <= 1 + h_max``, and the pixel is shadowed when a
-sample falls below the terrain. The march reads terrain on the far hemisphere
-as readily as on the near one, and the body's curvature is in the geometry
-rather than an approximation. A shadowed pixel renders as night. Which pixels
-can be shadowed follows from the field's steepest slope ``s_max``: along a ray
-the terrain rises at most ``s_max / (1 + h_min)`` per unit of the ray's own
-rise. A pixel whose sun elevation has ``tan(elevation)`` at or above that bound
-is never shadowed, and one at or below its negative always is. The march
-visits the pixels inside that band, widened by half again because ``s_max`` is
-taken from the field grid's own differences. The steps are an eighth of a field
-grid cell, whatever the body's size in pixels. A step tied to the shading pixel
-would skip ridge tips on a small body with fine relief and leave their shadows
+on the body. Each candidate pixel's ray starts where the pixel's line of sight
+crosses the terrain, on that line of sight. The search places that point only to
+within its precision, as much as a field cell inside or outside the terrain, so
+the point is first moved along the line of sight onto the surface, by steps that
+double until one crosses it and are then halved. The ray is marched until it
+leaves the relief shell ``r <= 1 + h_max``. The pixel is shadowed when the ray,
+once it has risen above the terrain, falls below it again, so only terrain
+between the point the camera sees and the Sun casts a shadow there. At phase 0,
+where the Sun ray runs back along the line of sight, no terrain lies in its way,
+so the march shadows nothing inside a fully lit disc. The first step is sampled
+eight times more finely than the rest, after six samples nearer still whose
+distances double up to that spacing, so a wall close to the point still shows
+open sky between itself and the point. The march reads terrain on the far
+hemisphere as readily as on the near one, and the body's curvature is in the
+geometry rather than an approximation.
+
+The terrain right at the point can also turn away from the Sun while the shading
+normal still faces it, because that normal is taken from differences half a cell
+apart. So the renderer also differences the depth below the terrain over 1/4096
+of a cell, toward the Sun and toward the observer, and shadows the pixel where the
+depth grows toward the Sun and shrinks toward the observer, each faster than a
+millionth per unit of distance. The second condition holds wherever a line of
+sight crosses into the terrain. It keeps a point placed just past a crease, on
+terrain the camera does not see, from being darkened, and at phase 0, where the
+Sun lies toward the observer, the two conditions cannot both hold.
+
+Against a brute-force truth on 18 bodies from 60 to 150 px in radius, with relief
+from 2% to 8% and seen at phases from 0 to 150 degrees, the renderer lights none
+of the pixels whose terrain turns away from the Sun and shadows none that the
+truth leaves lit. Of the truth's 24,245 cast-shadowed pixels whose normal faces
+the Sun, it misses 19, and at phase 0 every pixel it covers is lit. A pixel whose
+normal faces away from the Sun is always marked shadowed. It is night by its own
+normal anyway, and the mark keeps craters, which tilt the normals afterward, from
+lighting it. A shadowed pixel renders as night.
+
+Which pixels can be shadowed follows from the field's steepest slope ``s_max``:
+along a ray the terrain rises at most ``s_max / (1 + h_min)`` per unit of the
+ray's own rise. A pixel whose sun elevation has ``tan(elevation)`` at or above
+that bound is never shadowed, and one at or below its negative always is. The
+march visits the pixels inside that band, widened by half again because
+``s_max`` is taken from the field grid's own differences, and of those only the
+ones whose normal faces the Sun. The steps are an eighth of a field grid cell,
+whatever the body's size in pixels. A step tied to the shading pixel would skip
+ridge tips on a small body with fine relief and leave their shadows
 lit. Against a march at a quarter of that step, the decisions differ on under
 0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
 relief from 1 to 12 degrees across.

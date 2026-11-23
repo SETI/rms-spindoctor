@@ -621,3 +621,36 @@ def test_a_sibling_near_the_frame_origin_enters_the_mask() -> None:
     geometry = _model([_titan(), _sibling(10.0, range_km=2.0e6)]).geometry_inputs
     assert geometry.contaminant_mask is not None
     assert np.count_nonzero(geometry.contaminant_mask) > 0
+
+
+# ---------------------------------------------------------------------------
+# A nearer moon straddling the frame edge.
+# ---------------------------------------------------------------------------
+
+# Titan sits near the left edge so its envelope reaches into the margin; the
+# moon is centered on the frame edge, half of it in the margin.
+_EDGE_TITAN_U = 40.5
+_EDGE_MOON_U = 0.5
+_EDGE_V = 150.5
+_EDGE_SHIFT_PX = 60
+
+
+def _edge_scene(shift: int) -> list[dict[str, Any]]:
+    """Titan with a nearer 20 px moon at the edge, both moved right by shift."""
+    moon = _sibling(_EDGE_V, range_km=0.5e6)
+    moon.update(center_v=_EDGE_V, center_u=_EDGE_MOON_U + shift, semi_a_px=20.0)
+    moon.update(semi_b_px=20.0, semi_c_px=20.0)
+    return [_titan(center_v=_EDGE_V, center_u=_EDGE_TITAN_U + shift), moon]
+
+
+def test_moon_in_the_margin_hides_envelope_there() -> None:
+    """A moon straddling the frame edge hides as much as the same moon inside.
+
+    Shifting the whole scene right by whole pixels puts the moon wholly inside
+    the frame at the same overlap with the envelope, so the two fractions must
+    agree.
+    """
+    edge = _model(_edge_scene(0)).geometry_inputs.occluded_fraction
+    inside = _model(_edge_scene(_EDGE_SHIFT_PX)).geometry_inputs.occluded_fraction
+    assert edge > 0.0
+    assert edge == pytest.approx(inside, abs=1e-9)
