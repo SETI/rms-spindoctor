@@ -23,7 +23,7 @@ def _scene(**extra: Any) -> dict[str, Any]:
     """A minimal scene with a planted noise block and a Gaussian PSF."""
     return frame_scene(
         seed=7,
-        noise={'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 20.0},
+        noise={'poisson': True, 'read_noise_dn': 4.0},
         optics={'psf': {'sigma_v': 1.3, 'sigma_u': 1.1}},
         **extra,
     )
@@ -40,37 +40,18 @@ def test_copying_the_planted_read_noise_warns_naming_both_sites() -> None:
         validate_sim_params(scene, source='echo.yaml')
 
 
-def test_a_vidicon_echo_warns_without_claiming_the_navigator_reads_it() -> None:
-    """The navigator doesn't read vidicon keys, so their warning says what the copy does."""
-    scene = _scene(instrument_config={'noise': {'vidicon': {'read_noise_line_dn': 2.0}}})
-    scene['noise']['vidicon'] = {'read_noise_line_dn': 2.0}
-    with pytest.warns(SimSceneTruthEchoWarning) as caught:
-        validate_sim_params(scene, source='echo.yaml')
-    assert [str(warning.message) for warning in caught] == [
-        'echo.yaml: instrument_config.noise.vidicon.read_noise_line_dn repeats the planted '
-        "noise.vidicon.read_noise_line_dn, so the published config carries the scene's "
-        "realization instead of the camera's; list 'noise.vidicon.read_noise_line_dn' in "
-        'published_equals_truth if they are equal on purpose'
-    ]
-
-
 def test_each_repeated_value_is_listed() -> None:
-    """Noise keys, vidicon keys, and the PSF sigma each count as an echo."""
+    """Noise keys, detector keys, and the PSF sigma each count as an echo."""
     scene = _scene(
+        detector={'saturation_dn': 2000.0},
         instrument_config={
             'star_psf_sigma': 1.3,
-            'noise': {
-                'read_noise_dn': 4.0,
-                'bias_dn': 20.0,
-                'vidicon': {'read_noise_line_dn': 2.0},
-            },
-        }
+            'noise': {'read_noise_dn': 4.0, 'saturation_dn': 2000.0},
+        },
     )
-    scene['noise']['vidicon'] = {'read_noise_line_dn': 2.0}
     assert truth_echoes(scene) == [
         ('noise.read_noise_dn', 'instrument_config.noise.read_noise_dn'),
-        ('noise.bias_dn', 'instrument_config.noise.bias_dn'),
-        ('noise.vidicon.read_noise_line_dn', 'instrument_config.noise.vidicon.read_noise_line_dn'),
+        ('detector.saturation_dn', 'instrument_config.noise.saturation_dn'),
         ('optics.psf.sigma_v', 'instrument_config.star_psf_sigma'),
     ]
 
@@ -131,10 +112,13 @@ def test_a_declared_coincidence_validates_quietly() -> None:
 def test_a_declaration_covers_only_the_paths_it_lists() -> None:
     """An undeclared coincidence still warns beside a declared one."""
     scene = _scene(
-        instrument_config={'noise': {'read_noise_dn': 4.0, 'bias_dn': 20.0}},
+        detector={'saturation_dn': 2000.0},
+        instrument_config={'noise': {'read_noise_dn': 4.0, 'saturation_dn': 2000.0}},
         published_equals_truth=['noise.read_noise_dn'],
     )
-    with pytest.warns(SimSceneTruthEchoWarning, match=r'the planted noise\.bias_dn') as caught:
+    with pytest.warns(
+        SimSceneTruthEchoWarning, match=r'the planted detector\.saturation_dn'
+    ) as caught:
         validate_sim_params(scene)
     assert len(caught) == 1
 
