@@ -278,8 +278,9 @@ per planet: Jupiter, Saturn, Uranus, Neptune). Each per-planet entry sets:
 - ``min_feature_pixels`` — float (px). Minimum per-feature pixel extent below which the
   per-image filter drops the feature.
 - ``features`` — dict[str, dict]. Per-edge entries keyed by feature name. Each entry
-  carries ``feature_type`` (``GAP`` / ``RINGLET`` / ``RING``), ``name`` (display label),
-  and one or both of ``inner_data`` / ``outer_data`` lists. Each ``*_data`` list
+  carries ``feature_type`` (``GAP`` / ``RINGLET`` / ``RING``), an optional ``name``
+  (display label, left out for an unnamed feature), and one or both of ``inner_data`` /
+  ``outer_data`` lists. An edge that has no data has no list. Each ``*_data`` list
   enumerates the per-mode catalog terms (mode number plus ``a`` / ``rms`` / ``ae`` /
   ``long_peri`` / ``rate_peri`` for orbiting features, or ``amplitude`` / ``phase`` /
   ``pattern_speed`` for free-mode features). Consumed by

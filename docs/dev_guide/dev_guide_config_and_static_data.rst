@@ -34,6 +34,32 @@ access. The stack is, in order (later files override earlier ones for the same k
    program, so a program offers it exactly when the dataset it was asked for
    enumerates a PDS3 holdings tree.
 
+How the files merge
+-------------------
+
+Each file is read with :func:`~spindoctor.schema.layers.read_layer`, which drops
+every key that begins with an underscore, and the files are merged in the order
+above by :func:`~spindoctor.schema.layers.merge`, the same merge the simulator's
+files use (see :doc:`dev_guide_schema`):
+
+- A mapping merges key by key, so an override that sets one key in a section, or
+  one key deep inside it, keeps every sibling the earlier files set.
+- Any other value replaces the earlier one whole. A list replaces the earlier
+  list; its items are never merged.
+- A null is refused, in every file, under
+  :attr:`~spindoctor.schema.layers.NullPolicy.REFUSE`. A key that is not set is
+  left out of the file, and every reader treats an absent key as not set. A user
+  override can therefore change a packaged value but cannot unset it.
+- An override that gives a whole section, such as ``bodies``, as something other
+  than a mapping is refused too.
+
+When a file is refused, the load raises
+:class:`~spindoctor.schema.errors.SchemaError`, a :class:`ValueError` whose message
+has one line per problem, in the form ``file: key.path: message``. An override is
+given by the path it was loaded from, and a packaged file by its name. A refused override leaves the
+configuration as it was. :attr:`~spindoctor.config.config.Config.override_paths`
+lists the overrides applied, in order, for provenance.
+
 Direct programmatic use:
 
 .. code-block:: python
@@ -319,13 +345,13 @@ parsed ``Config`` — the citation lives in the file for human review only.
         radii_km: [207.8, 196.7, 190.6]
         ellipsoid_rms_residual_km: 0.74
         crater_scale_km: 1.0
-        albedo_mean: null
         albedo_variation: 0.06
         shape_class_hint: regular
         _sources:
           radii_km: 'Archinal et al. 2011, CMDA 109, Table 5 (per Thomas
                      2010, Icarus 208); PDF fetched in-session 2026-07-10'
           ellipsoid_rms_residual_km: '...'
+          albedo_mean: 'PLACEHOLDER — no in-session source fetched; no runtime consumer'
           # ... and so on for every numeric field.
 
 Body-shape table: sources
@@ -365,9 +391,10 @@ Fields that are *estimates by design*: ``crater_scale_km`` (characteristic
 limb topographic roughness beyond the ellipsoid) and ``albedo_variation``
 have no standard published per-body scalar; entries carry
 ``'ESTIMATE — <physical basis>'`` sources and feed sigma/reliability
-terms only.  ``albedo_mean`` is ``null`` throughout because it has no
-runtime consumer; a developer adding a consumer should populate it with
-cited values at that point, following the procedure below.
+terms only.  ``albedo_mean`` is left out of every entry because it has no
+runtime consumer, and each entry's ``_sources`` says so.  A developer adding a
+consumer should populate it with cited values at that point, following the
+procedure below.
 
 Downstream, ``ellipsoid_rms_residual_km`` drives the LIMB_ARC
 normal-sigma quadrature and the ``max_phase_irregularity_factor``
@@ -391,11 +418,11 @@ AI agents drafting body-shape entries:
    *summary* (rather than the fetched document itself) is permitted only
    when its ``_sources`` entry says so explicitly and flags the value for
    reviewer spot-check, as the Io and Ganymede residual entries do.
-2. If a value cannot be sourced from a fetched document, leave it as ``null``
-   and write
-   ``'PLACEHOLDER — no source found, calibration pending'`` as the
+2. If a value cannot be sourced from a fetched document, leave the key out
+   of the entry and write
+   ``'PLACEHOLDER — no source found, calibration pending'`` as its
    ``_sources`` entry. The runtime fallback (10 % radius default plus a
-   reliability cap of 0.3) handles ``null`` values.
+   reliability cap of 0.3) takes the place of a value that is left out.
 3. DOIs and paper titles must verify against a real
    ``https://doi.org/<DOI>`` lookup; agents do not invent identifiers.
 4. Any draft PR that lists a citation an AI agent invented (caught in human
@@ -420,7 +447,7 @@ Validation tests
   ``_sources`` entry that is a non-empty string.
 - No ``_sources`` value contains the substrings ``TODO`` / ``FIXME`` /
   ``XXX`` (case-insensitive).
-- ``PLACEHOLDER`` is allowed only when the value itself is ``null``.
+- ``PLACEHOLDER`` is allowed only for a field the entry leaves out.
 
 The same validation pattern extends to per-camera ``noise`` /
 ``mag_offset`` blocks in ``config_4N0_inst_*.yaml`` and to any new entries
@@ -432,7 +459,7 @@ additions need explicit ``_sources`` entries.
 Strip-rule guarantee
 --------------------
 
-``Config._load_yaml`` strips every mapping key whose
+:func:`~spindoctor.schema.layers.read_layer` drops every mapping key whose
 name starts with ``_`` before merging, so ``_sources`` blocks never appear in
 the parsed :class:`~spindoctor.config.config.Config` object. The runtime accessors
 (``config.body_shape``, ``config.<camera>.mag_offset``, etc.) see only the

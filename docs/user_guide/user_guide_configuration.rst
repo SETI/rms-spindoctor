@@ -135,7 +135,12 @@ The sections are:
 When two configuration files give the same setting different values, the file loaded
 last wins.
 Sections merge setting by setting, so a file that sets one value in a section leaves the
-rest of that section at its default.
+rest of that section at its default. A list is the exception: a file that sets a list
+replaces the whole list.
+
+A setting you do not want to change is left out of your file. A setting written with no
+value, or as ``null``, is refused when the file is read, and the message gives the file
+and the setting. Your file cannot unset a default. It can only give it another value.
 
 Writing your own default file
 =============================

@@ -206,16 +206,16 @@ in order:
      - Deletes the value an earlier layer set. A null with nothing beneath it to
        delete is an error.
    * - ``REFUSE``
-     - Simulated scenes
-     - Is always an error. A scene leaves a key out to take its default.
+     - Simulated scenes, navigator configuration
+     - Is always an error. A file leaves a key out to take its default.
 
 Under both policies, a null inside a list, or inside a mapping that no earlier layer
 has, is an error. A merge collects every refused null in every layer before it
 raises.
 
-The navigator's configuration treats a null as a value: some keys use it to mean
-"no limit". The package has no policy for that, so the navigator's loader keeps its
-own merge.
+The navigator's configuration loader merges its packaged files and the user's
+overrides under ``REFUSE``, so a null in an operator's override is refused with its
+file and key path, as one in a scene is.
 
 The merge returns a :class:`~spindoctor.schema.layers.Merged` with the merged ``data``
 and the ``origins`` of each value. The origins also hold each key a null removed,
