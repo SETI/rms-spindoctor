@@ -34,31 +34,45 @@ access. The stack is, in order (later files override earlier ones for the same k
    program, so a program offers it exactly when the dataset it was asked for
    enumerates a PDS3 holdings tree.
 
+.. _config-merge:
+
 How the files merge
 -------------------
 
-Each file is read with :func:`~spindoctor.schema.layers.read_layer`, which drops
-every key that begins with an underscore, and the files are merged in the order
-above by :func:`~spindoctor.schema.layers.merge`, the same merge the simulator's
-files use (see :doc:`dev_guide_schema`):
+Each file is read with :func:`~spindoctor.schema.layers.read_layer`, and the files are
+merged in the order above by :func:`~spindoctor.schema.layers.merge`, the same merge the
+simulator's files use (see :doc:`dev_guide_schema`):
 
-- A mapping merges key by key, so an override that sets one key in a section, or
-  one key deep inside it, keeps every sibling the earlier files set.
-- Any other value replaces the earlier one whole. A list replaces the earlier
-  list; its items are never merged.
+- A mapping merges key by key. An override that sets ``bodies.use_lambert: false``
+  keeps every other key under ``bodies``, and the same holds for a key set deeper in a
+  section.
+- Any other value replaces the earlier one whole. A list replaces the earlier list, so
+  an override of ``stars.catalogs`` takes the place of the packaged list instead of
+  adding to it.
 - A null is refused, in every file, under
-  :attr:`~spindoctor.schema.layers.NullPolicy.REFUSE`. A key that is not set is
-  left out of the file, and every reader treats an absent key as not set. A user
-  override can therefore change a packaged value but cannot unset it.
-- An override that gives a whole section, such as ``bodies``, as something other
-  than a mapping is refused too.
+  :attr:`~spindoctor.schema.layers.NullPolicy.REFUSE`. A key that is not set is left
+  out of the file, and every reader treats an absent key as not set. A user override
+  can therefore change a packaged value but cannot unset it.
+- An override that gives a whole section, such as ``bodies``, as something other than
+  a mapping is refused too.
+- Every mapping key that begins with an underscore is dropped as its file is read, at
+  any depth. That is what lets a static-data file carry ``_sources`` citations beside
+  its values (see :ref:`static-data-citations`): no reader of the configuration ever
+  sees them, and tests hold the loader to that.
 
-When a file is refused, the load raises
-:class:`~spindoctor.schema.errors.SchemaError`, a :class:`ValueError` whose message
-has one line per problem, in the form ``file: key.path: message``. An override is
-given by the path it was loaded from, and a packaged file by its name. A refused override leaves the
-configuration as it was. :attr:`~spindoctor.config.config.Config.override_paths`
-lists the overrides applied, in order, for provenance.
+A file the merge refuses raises :class:`~spindoctor.schema.errors.SchemaError`, a
+:class:`ValueError` whose message has one line per problem, in the form
+``file: key.path: message``. An override is given by the path it was loaded from, and
+a packaged file by its name. The merged result then goes through the load-time checks,
+which raise a :class:`ValueError` of their own. An override refused at either step
+leaves the configuration as it was, so a later override still loads.
+:attr:`~spindoctor.config.config.Config.override_paths` lists the overrides applied, in
+order, for provenance.
+
+Numeric values are typed by YAML; downstream consumers convert with explicit casts
+where the section schema is mixed (e.g. the per-instrument
+``image_quality_thresholds`` block constructs a frozen
+:class:`~spindoctor.support.image_class.ImageQualityThresholds` dataclass).
 
 Direct programmatic use:
 
@@ -223,26 +237,6 @@ Each shipping file and what it holds:
 - ``config_960_results_tree`` — how much of a pass over a navigation results
   tree runs at once; see :doc:`dev_guide_results_index`.
 
-Loader rules
-------------
-
-- YAML mappings are deep-merged, not overwritten. A user override that sets
-  ``bodies.use_lambert: false`` does not unset every other key under
-  ``bodies``.
-- Lists are overwritten wholesale. A user override of ``stars.catalogs``
-  overwrites the bundled list rather than appending to it.
-- Mapping keys whose name starts with ``_`` are stripped at load time. This
-  is the strip-rule that lets static-data files carry ``_sources`` blocks
-  alongside their numeric values without bloating the parsed
-  :class:`~spindoctor.config.config.Config` object;
-  see :ref:`static-data-citations`.
-
-Numeric values are typed by YAML; downstream consumers convert with explicit
-casts where the section schema is mixed (e.g. the per-instrument
-``image_quality_thresholds`` block constructs a frozen
-:class:`~spindoctor.support.image_class.ImageQualityThresholds`
-dataclass).
-
 Path resolution
 ---------------
 
@@ -334,9 +328,8 @@ Schema
 
 Each body block in ``config_220_body_shape.yaml`` is wrapped in a top-level
 ``body_shape:`` mapping; each entry is keyed by upper-case SPICE body name and
-carries an optional sibling ``_sources`` mapping. Keys beginning with ``_``
-are stripped at config-load time so the documentation does not bloat the
-parsed ``Config`` — the citation lives in the file for human review only.
+carries an optional sibling ``_sources`` mapping. The loader drops it (see
+:ref:`config-merge`), so the citation lives in the file for human review only.
 
 .. code-block:: yaml
 
@@ -455,16 +448,6 @@ added to ``config_3N0_*_rings.yaml``. Existing ring-catalog values are
 grandfathered (they were curated by orbit-fitting astronomers and the
 catalogs document their pedigree in the file header) — only *new*
 additions need explicit ``_sources`` entries.
-
-Strip-rule guarantee
---------------------
-
-:func:`~spindoctor.schema.layers.read_layer` drops every mapping key whose
-name starts with ``_`` before merging, so ``_sources`` blocks never appear in
-the parsed :class:`~spindoctor.config.config.Config` object. The runtime accessors
-(``config.body_shape``, ``config.<camera>.mag_offset``, etc.) see only the
-value-bearing fields. Tests assert this behavior explicitly so the strip
-rule cannot regress silently.
 
 Adding a new tunable
 ====================

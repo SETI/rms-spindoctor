@@ -610,7 +610,7 @@ class Config:
 
         Each entry is keyed by SPICE body name (e.g. ``MIMAS``) and exposes
         ``radii_km``, ``ellipsoid_rms_residual_km``, ``crater_scale_km``,
-        ``albedo_mean``, ``albedo_variation``, and ``shape_class_hint``.
+        ``albedo_variation``, and ``shape_class_hint``.
         Missing-body lookups return ``None`` from ``AttrDict.get``; downstream
         code applies the conservative fallback (10% radius default,
         reliability cap 0.3).

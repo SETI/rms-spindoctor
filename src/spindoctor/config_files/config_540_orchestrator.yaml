@@ -115,8 +115,9 @@ orchestrator:
     # as a single correlated witness rather than two independent ones.
     # Matches the cohort-curation scattered-light prescan threshold.
     scattered_light_gradient_score: 5.0
-    # Confidence/sigma requirements per confidence tier.  A tier that
-    # leaves out max_sigma_px has no sigma requirement.
+    # Confidence/sigma requirements per confidence tier.  A key a tier leaves
+    # out keeps its built-in default; only the low tier's default for
+    # max_sigma_px is no sigma requirement.
     tier_thresholds:
       high: {min_confidence: 0.85, max_sigma_px: 0.5}
       medium: {min_confidence: 0.35, max_sigma_px: 2.0}

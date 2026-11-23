@@ -122,10 +122,11 @@ size-keyed table.
 **This block uses the** ``_sources`` **convention.** It carries a ``_sources``
 sub-block mirroring the shape of ``noise``, ``image_quality_thresholds`` and
 ``mag_offset``, with one string per value saying where that value came from and
-whether it is measured or still to be measured. ``Config._load_yaml`` strips
-every key beginning with ``_`` at load time, so the block has no runtime effect
-at all; it exists so a reviewer can trace a number's provenance and so a
-calibration pass has a checklist.
+whether it is measured or still to be measured. The configuration loader drops
+every key beginning with ``_`` as it reads each file (see
+:ref:`config-merge`), so the block has no runtime effect at all; it exists so a
+reviewer can trace a number's provenance and so a calibration pass has a
+checklist.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 ``full_well_dn``, ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
