@@ -218,8 +218,9 @@ registry beside it in :mod:`spindoctor.sim` (paths are relative to ``sim/``):
        modes, star zero point, plate scale, downlink tables, filter throughputs,
        and offered artifact modes.
    * - ``instruments/navigator_link.py``
-     - Finds the navigator block a sim instrument emulates, and reads a
-       rendered frame the way the navigator would (see
+     - Every read the simulator makes of the navigator's configuration: the
+       navigator block of a sim instrument, the matched PSF, the missing-data
+       marker, and the extended-FOV margin (see
        :ref:`Instruments <sim-instruments>`).
    * - ``artifact_modes.py``
      - The artifact-mode registry: each mode's stage, parameter schema, and
@@ -310,7 +311,9 @@ applies where. The *channel* is structural:
   ``instrument_config`` overrides merged over it, and is independent
   of the scene's ``noise`` block, so a scene that plants noise different from
   the published values gets a detection limit that does not match the scene's
-  noise. That is planted model error, exactly what such a scene is for. On a
+  noise. The saturation ceiling works the same way: ``detector.saturation_dn`` clips
+  the image, and the navigator masks at its own block's ``noise.saturation_dn``. That
+  is planted model error, exactly what such a scene is for. On a
   binned frame the limit reads the zero point and the read noise from that
   block's ``noise.by_binning`` entry for the frame's binning, which holds the
   navigator's own values for that readout mode in DN: the zero point, and the read
@@ -806,14 +809,26 @@ baseline, saved PNG, or any other image that leaves the editor uses the full ren
 
 .. _sim-instruments:
 
-**Instruments.** The ``instrument`` field selects which instrument entry
-(see :ref:`sim-instrument-files`) and which navigator block drive
-the detector model and PSF (:mod:`spindoctor.sim.instruments.navigator_link`). The
+**Instruments.** The ``instrument`` field selects an instrument entry
+(see :ref:`sim-instrument-files`) and the navigator block the entry points at. The
 recognized names are the entries' top-level keys, ``coiss_nac``, ``coiss_wac``,
 ``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, and ``vgiss``,
-plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults. A scene
-can pin or override individual instrument settings with ``instrument_config``
-(see :ref:`sim-instrument-config`).
+plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults.
+
+The entry is the only source of the camera's physics: the renderer takes the detector,
+the PSF, and the distortion from it. A scene's ``detector`` and ``noise`` blocks change
+that physics. The navigator block is what the navigator believes about the camera, and
+a scene changes it with ``instrument_config`` (see :ref:`sim-instrument-config`). So a
+scene can make the two differ. For example, ``detector.saturation_dn`` clips the image
+at a ceiling the navigator doesn't know about.
+
+A frame has to share a few values with the navigator, and the renderer reads those from
+the navigator's configuration, through
+:mod:`spindoctor.sim.instruments.navigator_link`. They are the missing-data marker that
+a lost pixel carries and the star PSF. The PSF is read for a scene that sets
+``optics.psf.match_navigator``, and as the star width behind the background sky's faint
+cutoff in a scene without a PSF. A static guard keeps every other read of the
+navigator's configuration out of the renderer.
 
 Each instrument renders into one of two unit classes, set by the ``data_units``
 key of its instrument entry (see :ref:`sim-instrument-files`). A scene can't change
@@ -825,7 +840,7 @@ shipped navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
 * ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` render calibrated I/F.
   The Cassini CALIB and Voyager GEOMED products these blocks describe fill lost
   pixels with zero, and GEOMED fills its resample border with zero as well.
-  ``vgiss`` also keeps a full well: its block's 255 DN ceiling sets an I/F
+  ``vgiss`` also keeps a full well: its entry's 255 DN full scale sets an I/F
   ceiling.
 
 The telemetry stage writes the marker the navigator applies to the same frame
@@ -884,16 +899,17 @@ on 0 (10.7 s at the NAC's default gain state). The inverse moves a pixel that
 lands exactly on a numeric marker to the next float above it, so no pixel the
 detector delivers reads as missing data. Only planted
 loss puts a calibrated pixel at the marker: the artifact modes and
-``noise.missing_data_rate``, which work on both classes.
+``detector.missing_data_rate``, which work on both classes.
 
 The editor's status bar shows a rendered frame's units and value range and the
-share of pixels at the marker (:func:`~spindoctor.sim.instruments.navigator_link.frame_units_summary`).
+share of pixels at the marker (``frame_units_summary`` in
+``src/spindoctor/ui/sim_editor/frame_status.py``).
 It reads the full render of the frame the navigator reads, with the planted offset
 applied, although the picture beside it is offset-free: the offset moves the scene
 within the frame, and can take a body near the edge out of it. When the navigator's image
 classifier would not call that frame clean, the status bar says why, in the
-classifier's order (:func:`~spindoctor.sim.instruments.navigator_link.read_frame_as_navigator`,
-which calls the navigator's own decision in :mod:`spindoctor.support.image_class`):
+classifier's order (``read_frame_as_navigator`` in the same module, which calls the
+navigator's own decision in :mod:`spindoctor.support.image_class`):
 a peak below the blank limit first, then the overexposed share, then a marker
 share above ``max_missing_frac_clean``. An empty ``coiss_calib_nac`` frame's sky
 residual is below the blank limit, so the navigator calls it blank; an empty
@@ -1194,7 +1210,7 @@ toggling one of those never changes another.
      - both
      - ``banding.py``
    * - Bias pedestal
-     - ``noise.bias_dn``
+     - ``detector.bias_dn``
      - both
      - ``chain.py``
    * - Bias structure
@@ -1322,16 +1338,16 @@ sky residual and keeps every pixel off a numeric marker (see
 :ref:`Instruments <sim-instruments>`).
 
 :func:`~spindoctor.sim.render.detector.params.resolve_detector_params`
-collapses the emulated instrument's navigator block, its detector defaults, the
+collapses the emulated instrument's detector defaults, the
 scene ``detector`` / ``noise`` blocks, and the
 ``artifacts.instrument_defaults`` switch into one flat
-:class:`~spindoctor.sim.render.detector.params.DetectorParams` view the chain
-reads. Resolution precedence, highest first: an explicit scene key (``detector``
-block, then ``noise`` block), then the detector default when ``instrument_defaults``
-is on, then the disabled floor -- the physical-chain artifacts default to zero,
-so an unconfigured scene renders a clean DN frame. A scene that selects a gain
-state the instrument does not catalog is a validation error, not a silent
-guess.
+:class:`~spindoctor.sim.render.detector.params.DetectorParams` view the chain and the
+telemetry stage read. A scene's ``detector`` key replaces the detector default, which
+applies whether or not ``instrument_defaults`` is on. A noise term takes the scene's
+``noise`` key if the scene sets one, then the detector default when
+``instrument_defaults`` is on, then the disabled floor -- the physical-chain artifacts
+default to zero, so an unconfigured scene renders a clean DN frame. A scene that selects
+a gain state the instrument does not catalog is a validation error.
 
 .. _sim-artifacts-catalog:
 
@@ -1449,13 +1465,14 @@ top-level value isn't a mapping. Within an entry, the load fails on:
 * an unknown key, a missing required key, or a value of the wrong type,
   including a number that YAML reads as a string, such as ``.5e3``;
 * a ``data_units`` other than ``raw_dn`` or ``calibrated_if``;
-* a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains,
-  the full well, the reference exposure, the plate scale, the star zero point,
-  the PSF radii, periods, filter throughputs, the native frame size, and the
-  dark-sky ceiling must be positive; noise amplitudes, rates, the bias, and the
-  truncation radius must be non-negative; fractions (the PSF wing fraction) lie in [0, 1];
-  gain states are non-negative integers and binnings positive ones; a shape
-  default's value must lie in its parameter's range, as a scene's must;
+* a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains, the full
+  well, the ADC ceiling, the signal scale, the reference exposure, the plate scale, the
+  star zero point, the PSF radii, periods, filter throughputs, the native frame size, and
+  the dark-sky ceiling must be positive; noise amplitudes, rates, the bias, and the
+  truncation radius must be non-negative; fractions (the PSF wing fraction and the
+  missing-data rate) lie in [0, 1]; gain states are non-negative integers and binnings
+  positive ones; a shape default's value must lie in
+  its parameter's range, as a scene's must;
 * a ``base`` that doesn't exist or that loops back on itself, an alias that is
   already an instrument's name or another entry's alias (the message gives the
   file that holds it), or a real cohort camera that two entries both claim (the
@@ -1579,9 +1596,9 @@ The keys of an entry, all directly under the instrument's top-level key:
    * - ``navigator``
      - yes
      - ``section`` (and ``detector`` for a block with one entry per camera):
-       the navigator block that the simulated frame takes its marker,
-       noise, PSF sigma, and thresholds from. The navigator reads the frame in
-       this block's units.
+       the navigator block that the navigator reads the simulated frame with. It
+       supplies the marker, the saturation ceiling, the star-limit noise, the PSF
+       sigma, and the thresholds. The navigator reads the frame in this block's units.
    * - ``detector_id``
      - no
      - The physical detector, which keys the fixed hot-pixel map and the
@@ -1589,9 +1606,14 @@ The keys of an entry, all directly under the instrument's top-level key:
        calibrated product's entry sets it to its raw camera.
    * - ``detector``
      - yes
-     - The detector chain that ``instrument_defaults`` turns on. Every entry states
+     - The detector chain. ``instrument_defaults`` turns its noise on; the rest applies
+       to every frame. Every entry states
        ``detector_model`` (``ccd`` or ``vidicon``), ``exposure_ref_sec``, ``bias_dn``,
-       ``quantization``, and ``cosmic_ray_events_per_pixel_per_sec``. A ``ccd`` entry also
+       ``saturation_dn`` (the ADC ceiling), ``full_well_dn``,
+       ``signal_full_scale_frac`` (the fraction of the well a signal of 1.0 fills),
+       ``missing_data_rate``, ``quantization``, and
+       ``cosmic_ray_events_per_pixel_per_sec``. ``full_well_dn`` is the DN full scale of
+       the vidicon chain. A ``ccd`` entry also
        states the electron chain (``full_well_e``, ``gain_e_per_dn_by_state``,
        ``default_gain_state``, ``read_noise_e``, and ``dark_current_e_per_sec``); a
        ``vidicon`` entry states the ``vidicon`` read-noise sub-map, which only a vidicon
@@ -4322,8 +4344,7 @@ Detector-noise block
 --------------------
 
 The optional ``noise`` dict (truth-side) pins the truth-side detector noise the
-scene plants. The detector stage consumes most of it; the missing-data markers
-are applied by the telemetry stage. Each field is off at the floor unless the
+scene plants. The detector stage consumes it. Each field is off at the floor unless the
 block sets it (or ``artifacts.instrument_defaults`` turns on the camera's
 physical chain); an explicit noise key always wins over the detector default. The
 validator checks the block against exactly this inventory, so an unknown noise key
@@ -4348,12 +4369,6 @@ fails loudly.
      - Gaussian read-noise sigma in DN (converted to electrons through the
        resolved gain). ``instrument_defaults`` supplies the detector
        defaults' value in electrons instead.
-   * - ``bias_dn``
-     - float
-     - instrument
-     - Additive bias pedestal; lifts dark sky off zero so it is not confused with
-       the missing-data marker. A calibrated frame subtracts it again in the
-       calibration inverse (see :ref:`Instruments <sim-instruments>`).
    * - ``cosmic_ray_events_per_pixel_per_sec``
      - float
      - 0.0
@@ -4381,15 +4396,6 @@ fails loudly.
      - Gaussian charge-diffusion sigma of each cosmic-ray event. The detector
        defaults state it in native pixels, so a binned frame sees it shrink by the
        binning; a scene value is the frame pixel's own.
-   * - ``missing_data_rate``
-     - float
-     - 0.0
-     - Fraction of pixels (0-1) set to the missing-data marker (telemetry
-       stage). Stays 0 under ``instrument_defaults``.
-   * - ``signal_full_scale_frac``
-     - float
-     - instrument
-     - Well fraction a signal of 1.0 fills at the reference exposure.
    * - ``dark_current_e_per_sec``
      - float
      - 0 (off)
@@ -4415,8 +4421,9 @@ fails loudly.
 
 The noise block holds no detector defects: those are artifact modes (see
 :ref:`sim-detector-modes`). Physical saturation caps the electron image at the full well
-before gain (with the ``bloom`` mode spreading the excess along the column); the ADC
-clip at ``saturation_dn`` applies after quantization.
+before gain (with the ``bloom`` mode spreading the excess along the column); the ADC clip
+at ``saturation_dn`` applies after quantization. Both limits are ``detector`` keys (see
+:ref:`sim-detector-block`).
 
 .. _sim-optics:
 
@@ -4520,17 +4527,65 @@ a scene that sets ``spk_error`` must give every body and ring a physical
 Detector block
 --------------
 
-The optional ``detector`` dict (truth-side) overrides the resolved detector
-chain: ``gain_state`` (the electron-chain gain state, which must be cataloged
-for the instrument), ``binning`` (the readout mode, below), ``detector_model``
-(``ccd`` electron chain or ``vidicon`` DN chain), ``exposure_ref_sec`` (the
-exposure the signal full-scale fraction references), ``filter`` (below),
-``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
-``sqrt_lut``, ``ls8b``, or ``contour_8bit``), ``downlink_table`` (the name
-of the downlink table that the ``sqrt_lut`` sub-mode decodes through), and
-``contour_step`` (the DN step ``contour_8bit`` posterizes to); see
-:ref:`sim-detector-stage` for when a scene may set the last two. Omitted keys fall back to
-the instrument's detector defaults.
+The optional ``detector`` dict (truth-side) overrides the detector defaults of the
+instrument entry. An omitted key keeps the instrument's own value.
+
+.. list-table::
+   :widths: 28 12 60
+   :header-rows: 1
+
+   * - Field
+     - Type
+     - Meaning
+   * - ``gain_state``
+     - int
+     - The electron-chain gain state, which must be cataloged for the instrument.
+   * - ``binning``
+     - int
+     - The readout mode, below.
+   * - ``detector_model``
+     - string
+     - ``ccd`` (the electron chain) or ``vidicon`` (the DN chain).
+   * - ``bias_dn``
+     - float
+     - Additive bias pedestal. It lifts dark sky off zero, the missing-data marker. A
+       calibrated frame subtracts it again in the calibration inverse (see
+       :ref:`Instruments <sim-instruments>`).
+   * - ``saturation_dn``
+     - float
+     - The ADC ceiling. The detector clips every pixel at it, and the wrong values that
+       garble and spikes write stay within it. The navigator still masks at its own
+       block's ``noise.saturation_dn``.
+   * - ``full_well_dn``
+     - float
+     - The full well of a native pixel, in DN. The CCD chain converts it to electrons
+       through the resolved gain, where it replaces the entry's ``full_well_e``. On the
+       vidicon chain it is the DN full scale. A signal of 1.0 fills a fraction of the
+       well, so a smaller well also makes the frame darker in DN.
+   * - ``signal_full_scale_frac``
+     - float
+     - The fraction of the well a signal of 1.0 fills at the reference exposure.
+   * - ``exposure_ref_sec``
+     - float
+     - The reference exposure, in seconds.
+   * - ``filter``
+     - string
+     - The filter combination, below.
+   * - ``quantization``
+     - string
+     - The ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``, ``sqrt_lut``, ``ls8b``,
+       or ``contour_8bit``.
+   * - ``downlink_table``
+     - string
+     - The downlink table that the ``sqrt_lut`` sub-mode decodes through (see
+       :ref:`sim-detector-stage` for when a scene may set it).
+   * - ``contour_step``
+     - int
+     - The DN step of the ``contour_8bit`` sub-mode, an integer from 1 to 255.
+   * - ``missing_data_rate``
+     - float
+     - The fraction of pixels (0-1) set to the missing-data marker. The telemetry stage
+       applies it.
 
 ``filter`` sets the filter combination the frame was shot through, written as
 the product label writes it (``CL1+CL2``). It sets how many electrons per second
@@ -4695,10 +4750,17 @@ everything. To fully self-specify, choose ``generic`` and override every key exc
 ``data_units``, which a scene can't set here. A frame's units come only from the
 instrument entry. Scene validation refuses the key, and so does
 :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` for a scene
-that skipped validation. For rendering, the top-level ``noise`` block wins over
-``instrument_config.noise``.
+that skipped validation.
 
-``instrument_config.noise`` must be a mapping. A scene leaves a key out to keep the
+The block changes what the navigator believes about the camera, and the frame keeps the
+instrument entry's physics. Two of its values reach the frame, because the frame has to
+match the navigator there. A lost pixel carries ``noise.marker_value``. A scene that sets
+``optics.psf.match_navigator`` is blurred at ``star_psf_sigma``, and in a scene without a
+PSF that width sets the faint cutoff of the background sky.
+
+``instrument_config.noise`` must be a mapping. It may set only the keys the navigator
+reads: ``saturation_dn``, ``marker_value``, ``read_noise_dn``,
+``star_flux_dn_per_s_vmag0``, and ``by_binning``. A scene leaves a key out to keep the
 navigator block's value, and a scene that wants lost lines marked with NaN sets
 ``marker_value`` to ``.nan``. On a binned frame the star limit reads its zero point and
 read noise from the ``noise.by_binning`` entry for the frame's binning. So a binned scene
@@ -4735,15 +4797,13 @@ truth-side ``noise.read_noise_dn`` lets the navigator's SNR model adapt to the
 planted noise, and the recovery looks better than it should. Nothing can stop an
 author from doing that, so the validator warns instead, with
 :class:`~spindoctor.sim.scene.truth_echo.SimSceneTruthEchoWarning`, which gives both
-sites. It compares each ``noise`` key, ``noise.vidicon`` included, with the
+sites. It compares each ``noise`` key and each ``detector`` key with the
 ``instrument_config.noise`` key of the same name, and ``optics.psf.sigma_v`` and
-``sigma_u`` with ``instrument_config.star_psf_sigma``. On a binned frame it also
+``sigma_u`` with ``instrument_config.star_psf_sigma``. The shared names are
+``noise.read_noise_dn`` and ``detector.saturation_dn``. On a binned frame it also
 compares each ``noise`` key with the same key under
 ``instrument_config.noise.by_binning.<b>`` for the frame's binning ``<b>``, which
-is the value the frame's star limit reads. The ``detector`` block
-doesn't share a key with the navigator block and isn't compared. The
-navigator doesn't read the vidicon keys, so a ``noise.vidicon`` warning says
-only that the published config carries the scene's realization. When the two
+is the value the frame's star limit reads. When the two
 are equal on purpose, the scene lists the truth paths in
 ``published_equals_truth``, which silences those warnings. A listed path whose
 values differ fails validation, so an opt-out can't outlive its reason. The
@@ -4897,24 +4957,21 @@ realism addition needs -- live in their own module:
      - Image size, planted offset and camera roll, exposure, seed, instrument
        selector, camera-rotation-fit override, midtime, closest planet.
    * - ``noise.py``
-     - Poisson, read noise, bias, cosmic-ray rate (events per pixel per second),
-       missing-data rate, and signal full-scale fraction (General tab). The validator
+     - Poisson, read noise, and the cosmic-ray rate (events per pixel per second), on
+       the General tab. The validator
        accepts every control everywhere, but on the vidicon detector the Poisson and
        read-noise controls change nothing (its DN-domain read noise comes from
-       ``noise.vidicon``), and on a calibrated frame the bias control changes nothing on
-       the Cassini cameras and only the pixels near the 8-bit ceiling on ``vgiss``,
-       because the calibration inverse subtracts the bias again. The cosmic-ray and
-       missing-data controls work everywhere.
+       ``noise.vidicon``). The cosmic-ray control works everywhere.
    * - ``optics_tab.py``
      - The Optics tab: PSF, motion smear, distortion, ghosts, the stray-light
        panel, oversample, and the spacecraft-ephemeris error group. Each
        optical sub-block is a checkable group under absent-key discipline.
    * - ``artifacts_tab.py``
      - The Artifacts tab: the instrument-defaults switch and the detector
-       override (gain state, binning, detector model, exposure reference,
-       quantization, downlink table, and contour step) under per-key discipline --
+       override (every ``detector`` key but the filter) under per-key discipline --
        an edit writes only its own key, so unedited keys keep tracking the
-       instrument catalog. The downlink table's first choice, ``camera default``,
+       instrument catalog. The downlink table's first choice, ``camera default``, the
+       full well's lowest value, ``camera default``,
        and the contour step's lowest value, ``default``, each remove their key. With
        the instrument defaults on, each mode's row shows the values the defaults
        give the mode.
@@ -4960,6 +5017,9 @@ realism addition needs -- live in their own module:
    * - ``full_render.py``
      - The full render of the picture, run on a worker thread once the editor is
        idle (see :ref:`sim-editor-verdict-thread`).
+   * - ``frame_status.py``
+     - The status text for a frame: its units, range, marker share, and the
+       navigator's verdict.
    * - ``verdict.py``
      - The navigated frame's verdict, rendered on a worker thread (see
        :ref:`sim-editor-verdict-thread`).
