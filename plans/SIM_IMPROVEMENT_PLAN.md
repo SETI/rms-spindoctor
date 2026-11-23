@@ -251,8 +251,9 @@ explained.
 
 The navigator config work resumed on 2026-11-23 (operator) and is tracked in
 `PROGRAM_PLAN.md`: the camera blocks (#1029), and every other section with the deletion of the
-keys nothing reads (#1032). The navigator config refuses null keys, as scenes do. No issue in this plan changes navigator code; #1023
-edits the navigator's config files only to delete the camera-block keys nothing reads.
+keys nothing reads (#1032). The operator ruled on 2026-11-23 that the navigator config will
+refuse null keys, as scenes do. No issue in this plan changes navigator code; #1023 edits the
+navigator's config files only to delete the camera-block keys nothing reads.
 
 | Issue | Subject | Why now |
 |---|---|---|
@@ -271,9 +272,9 @@ Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
 dark signal, hot pixels) is one effect or two.
 
-**Exit:** the issues above are closed, except #1029, which the navigator config work carries. No scene key is renamed or moved
-after this phase except by an issue that adds new physics. The simulator's instrument catalog is
-typed. Image-side detector physics has one source.
+**Exit:** the issues above are closed, except #1029, which the navigator config work carries. No
+scene key is renamed or moved after this phase except by an issue that adds new physics. The
+simulator's instrument catalog is typed. Image-side detector physics has one source.
 
 ## Phase 2b: realistic guard scenes
 
@@ -283,9 +284,10 @@ are the authorable parts of #904 and the ring-only part of #377:
 
 - every camera the simulator catalogs, at real frame sizes and real offsets, with twist;
   **Done (PR #TBD), apart from Voyager, which follows the four-camera split (#806, PR #1118):**
-  the `full_frame_cameras` class holds eight full-frame scenes on the Cassini NAC and WAC (raw
+  the `full_frame_cameras` class holds ten full-frame scenes on the Cassini NAC and WAC (raw
   and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
-  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`;
+  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
+  them are expected failures tied to #342, #785, and #TBD;
 - star fields with a body, and rings with a body;
 - dense ring profiles at real scale and low opening, with only catalog edges navigable and
   unmodeled structure beside them;
@@ -373,6 +375,7 @@ gap affects, from the critique's population counts.
 | Issue | Subject |
 |---|---|
 | #895 | Stars, bodies, and rings share no radiometric scale. **Carries #925's star-count criterion (operator, 2026-11-18):** the matched NAC star twins should give a star cutout count comparable to the real frames' 25; the 2026-11-17 record gives 9, because simulated NAC stars are about 3.5 mag fainter than real ones at the same catalog magnitude. |
+| #TBD | **Affects `coiss_nac_star_field`, which renders through the clear filter so its stars stay about as detectable as the real frame's.** Through CL1+IR3 the simulator draws the stars of N1530185128 about 50 times fainter than the real frame shows them: the real V 9.9 and 10.2 stars hold 2.3e7 to 2.5e7 electrons per second at V 0, against the simulator's 1.0e7 in the clear filter scaled by the filter's sunlight throughput, 0.045 |
 | #896 | No ring-body shadows; the planet's shadow is a fixed wedge |
 | #921 | Background star counts 3 to 10 times too sparse |
 | #899 | Navigator star limit: 30.0 on calibrated frames, filter ignored on raw ones (the Cassini part here; the Voyager part follows #907, and the Galileo, Voyager, and LORRI limits follow #342). **Carries #925's star-count criterion (operator, 2026-11-18):** the navigator on the NAC star twin N1459552012 should predict a number of stars comparable to the real frame's 4; in the 2026-11-17 record its star-field fit ranks 30, the most it takes. |
@@ -504,7 +507,8 @@ Those classes are eligible for retirement in Phase 7.
 | #1103 | **Affects the widest step of the PSF sweep.** The limb fit reports a confident answer a pixel wrong under a blur the navigator does not model (navigator work) |
 | #1146 | **Affects `coiss_nac_star_field`, where the other star techniques carry the answer.** StarFieldFromCatalogNav passes only its 30 brightest sources to the matcher, and on a raw frame hot pixels and cosmic rays take those places, so it returns spurious (navigator work) |
 | #1147 | **Affects `coiss_wac_disc`, held at low tier.** The disc correlation discards any answer within 2 px of its search limit, so with the WAC's 13 px window a correct answer past 11 px is thrown away (navigator work) |
-| #1148 | **Affects the Galileo guard scenes, which plant the measured sky noise to navigate.** A quantized 8-bit sky measures zero noise, and the star model then draws no stars (navigator work) |
+| #1148 | **Affects no current scene: the Galileo guard scenes plant the measured sky noise of #979, because real Galileo skies are that noisy.** A quantized 8-bit sky measures zero noise, and the star model then draws no stars. The Galileo star field at the real Pleiades frames' 0.1 s exposure and the catalog read noise reproduces it (navigator work) |
+| #TBD | **Affects `gossi_star_field_short_exposure`, held as an expected failure.** At the real Pleiades frames' 0.1 s the navigator predicts only the V 2.8 star of a simulated Galileo field, where the real frames lock on three stars: simulated Galileo stars are about 12 times fainter than real ones of the same magnitude (4e7 to 7e7 electrons per second at V 0 on the real frames against 4.0e6), and the simulated-frame star limit spreads that zero point over the 3.0 px placeholder blur (#342), reaching V 3.2 against V 7.8 on the real frames (simulator star brightness, and navigator work through #342) |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling
