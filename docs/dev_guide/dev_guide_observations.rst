@@ -387,7 +387,7 @@ Simulated-image instrument config: inherit / override / self-specify
 --------------------------------------------------------------------
 
 A simulated scene sets an ``instrument`` (``coiss_nac``, ``vgiss``, ...) so its
-rendered frame and its :class:`~spindoctor.obs.obs_inst_sim.ObsSim` go through
+:class:`~spindoctor.obs.obs_inst_sim.ObsSim` goes through
 the same per-instrument units, noise, saturation, and PSF the navigator applies
 to a real frame.
 :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` maps that
@@ -398,30 +398,28 @@ A scene may additionally carry an ``instrument_config`` mapping that is
 **deep-merged** over the resolved block (nested mappings merge key-by-key; scalars
 and lists replace). This gives three modes:
 
-- **Inherit** -- omit ``instrument_config``; every physical parameter tracks the
-  named instrument's config.
+- **Inherit** -- omit ``instrument_config``; every setting tracks the instrument's
+  config.
 - **Override** -- supply only the keys to change; those are pinned to the scene and
   the rest still track the instrument.
-- **Self-specify** -- name ``generic`` and override everything; the scene's config
+- **Self-specify** -- choose ``generic`` and override everything; the scene's config
   is fully its own.
 
 **Why it exists, and what breaks without it.** A sim scene used as a navigation
-fixture wants reproducible behavior. If every parameter is inherited live from a
+fixture wants reproducible behavior. If every setting is inherited live from a
 real camera's config, then editing that camera's ``star_psf_sigma`` (or noise,
-saturation, ...) silently shifts the rendered image and the recovered offset of
+saturation, ...) silently shifts the recovered offset of
 every sim scene that uses it -- re-blessing baselines for a change that had
 nothing to do with the simulator. Pinning a key via ``instrument_config``
 decouples it from the camera config: the merge produces a fresh dict, so a later
 camera-config edit cannot reach a pinned key. Full self-specification (generic +
-complete overrides) makes a scene immune to *all* instrument-config drift. The
-merge is applied identically in both consumers -- :meth:`ObsSim.from_file
-<spindoctor.obs.obs_inst_sim.ObsSim.from_file>` and
-:func:`~spindoctor.sim.render.driver.render_scene` -- so the rendered image
-and the navigator's instrument settings stay consistent. The one precedence
-subtlety: the top-level scene ``noise`` block (the primary noise control) still
-wins over ``instrument_config.noise`` for rendering, so ``instrument_config`` is
-the channel for the instrument parameters that have no dedicated scene field
-(star PSF sigma, saturation / full-well DN, extfov margin, ...). A scene can't
+complete overrides) makes a scene immune to *all* instrument-config drift.
+
+The block holds what the navigator believes about the camera. The image comes from the
+instrument's simulator config entry and the scene's own ``detector`` and ``noise``
+blocks, so overriding ``noise.saturation_dn`` here moves the level the navigator masks
+at and leaves the image alone. The image shares two values with the block, the
+missing-data marker and the matched PSF (see :doc:`dev_guide_simulator`). A scene can't
 set ``data_units`` there: a frame's units come only from the instrument's
 simulator config entry.
 
