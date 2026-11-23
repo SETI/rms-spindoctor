@@ -12,7 +12,13 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import (
+    disc_body,
+    frame_scene,
+    quiet_noise,
+    star_entry,
+    zero_bias,
+)
 
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, render_ellipsoid_body
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, TransitSpec
@@ -118,7 +124,13 @@ def _spot_scene(instrument: str, albedo_factor: float | None) -> dict[str, Any]:
                 }
             ],
         }
-    return frame_scene(instrument=instrument, size=64, noise=quiet_noise(), bodies=[body])
+    return frame_scene(
+        instrument=instrument,
+        size=64,
+        noise=quiet_noise(),
+        detector=zero_bias(),
+        bodies=[body],
+    )
 
 
 @pytest.mark.parametrize('instrument', ['coiss_nac', 'vgiss'])

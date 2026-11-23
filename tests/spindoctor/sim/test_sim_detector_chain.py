@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene
+from tests.spindoctor.sim.scenes import frame_scene, zero_bias
 
 from spindoctor.sim.render.detector import chain
 from spindoctor.sim.render.detector.params import resolve_detector_params
@@ -103,7 +103,8 @@ def test_vidicon_target_saturates_on_its_total_charge(
         artifacts: The artifact block, which adds the residual image.
     """
     scene = _disc('vgiss', artifacts=artifacts)
-    scene['noise'] = {'bias_dn': 0.0, 'vidicon': {'read_noise_pixel_dn': 3.0}}
+    scene['detector'] = zero_bias()
+    scene['noise'] = {'vidicon': {'read_noise_pixel_dn': 3.0}}
     frame = SimFrame(
         signal=np.full((64, 64), signal, dtype=np.float64),
         point_e=np.full((64, 64), point_dn, dtype=np.float64),
