@@ -50,12 +50,15 @@ Two rendering details make the simulated field faithful to a real one:
   point mass. A further ``(oversample - 1) / 2`` shift lands the deposit on the
   oversampled grid, so a star the model predicts at ``(v, u)`` centroids there after
   the box downsample, with no half-pixel bias in the recovered offset.
-- **Camera roll about the boresight.** A planted ``offset_rotation_deg`` rotates each
-  star about the frame's center ``(size_v / 2, size_u / 2)`` -- the same point the
-  bodies and the ring system turn about -- before the translation offset, while the
-  star record keeps its unrolled ``(v, u)``; the similarity fit in
+- **Camera roll about the boresight.** A planted ``offset_rotation_deg`` turns each
+  star about the boresight, which is the frame's center ``(size_v / 2, size_u / 2)``
+  after the planted offset has moved the camera. A star stated at ``x`` from the frame
+  center lands at ``R (x + d)``, where ``R`` is the roll and ``d`` the planted offset;
+  the bodies and the ring system turn about the same point. The star record keeps its
+  unrolled ``(v, u)``, and the similarity fit in
   :class:`~spindoctor.nav_technique.nav_technique_star_field.StarFieldFromCatalogNav` then
-  recovers the roll. See :doc:`dev_guide_rotation`.
+  recovers the roll. See :ref:`the planted roll <sim-planted-roll>` in the simulator
+  guide and :doc:`dev_guide_rotation`.
 
 Restrictions and assumptions
 ----------------------------

@@ -19,8 +19,8 @@ Code map
        registered under ``vgiss`` with a ``vgiss_pds3`` alias
    * - Config block
      - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, flat
-   * - Sim instrument key
-     - ``vgiss``
+   * - Sim instrument keys
+     - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Statistics key
      - ``vgiss``
    * - Log key
@@ -162,8 +162,8 @@ The departure from the common schema is a units mismatch that is worth
 understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
 ``image_quality_thresholds`` are correspondingly ``blank_max_if`` and
 ``noisy_threshold_if``. But the ``noise`` block is a raw-DN block:
-``saturation_dn: 255``, ``full_well_dn: 255``, ``expected_noise_dn``,
-``read_noise_dn`` and ``star_flux_dn_per_s_vmag0`` are all DN quantities. The
+``saturation_dn: 255``, ``read_noise_dn``, and ``star_flux_dn_per_s_vmag0`` are
+all DN quantities. The
 DN values describe the detector, which is real; the pipeline navigates the
 scaled I/F product, so ``NavOrchestrator._build_saturation_mask`` returns an
 empty mask for this instrument as for any ``calibrated_if`` input, and
@@ -173,8 +173,8 @@ on the presence of the key. There is no raw product this pipeline can navigate
 instead.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``expected_noise_dn``, ``read_noise_dn``, ``blank_max_if``,
-``noisy_threshold_if`` and the ``mag_offset_table`` entry. The ``_sources``
+``read_noise_dn``, ``blank_max_if``,
+``noisy_threshold_if``, and the ``mag_offset_table`` entry. The ``_sources``
 convention is not used in this file.
 
 ``fit_camera_rotation: false`` carries a three-line comment saying it is kept
@@ -362,12 +362,55 @@ segment reads no baseline at its record epochs.
 Simulator model
 ===============
 
-**Instrument key.** ``vgiss``, one key for two spacecraft and four cameras.
-That is the model's sharpest simplification, and the instrument entry
-says so. The entry sits under the ``vgiss`` key of
-``src/spindoctor/sim/instruments/configs/vgiss.yaml`` and holds the values below.
-It states ``data_units: calibrated_if``, the units of the GEOMED product and of
-the ``voyager_iss`` block, so a simulated frame is in I/F.
+**Instrument keys.** One key for each spacecraft and camera: ``vgiss_1_nac`` and
+``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2.
+The four entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``.
+Each entry states every value itself and none takes a value from another, because each
+vidicon and telescope is unique. The optical values (the PSF, the residual
+distortion, the plate scale, the star zero point, and the vidicon detector values)
+are per camera. They hold the same numbers in all four entries today, and a
+comment beside each says where the number comes from and that it is not yet
+measured for that camera. The values that do not describe a camera's optics (the
+data units, the navigator link, the readout modes, and the artifact-mode
+availability) are repeated in each entry as well, because a shared parent would
+have to be one of the cameras. Every analysis is per camera too: the realism match,
+the field-of-view distortion, and the rotation each use one camera's frames. No
+simulator entry holds a rotation value today. All four emulate the one ``voyager_iss``
+section of the navigator configuration. The realism match pairs the image
+library's two Voyager 1 wide angle frames with ``vgiss_1_wac`` and its one Voyager 2
+narrow angle frame with ``vgiss_2_nac``; the other two entries have no frame in the
+library. A library sidecar for a Voyager frame gives its spacecraft (``VG1`` or
+``VG2``) beside the mission and the camera, so the match can tell the four cameras
+apart. The entry states ``data_units: calibrated_if``, the units of the
+GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
+
+**Realism match.** The match compares each camera with its own library frames
+(the 2026-11-23 record in ``tests/integration/realism_results/``). The two
+entries without a library frame have no row.
+
+* ``vgiss_1_wac``, two Saturn frames. The simulated sky noise is 3.1e-3 I/F
+  against 1.7e-3 real (W1/IQR 3.8, over 485 simulated and 409 real sky patches),
+  the sky level above the floor is 7.6e-3 against 5.7e-3 I/F (W1/IQR 1.6), and
+  the noise at signal is 3.0e-3 against 2.1e-3 I/F (W1/IQR 2.5). One of the two
+  frames is filled by Saturn's cloud deck, so its darkest quarter of tiles is
+  cloud.
+* ``vgiss_2_nac``, one star field. The simulated sky noise is 3.1e-3 I/F against
+  6.9e-3 real (W1/IQR 2.7, over 241 simulated and 203 real sky patches), the sky
+  level above the floor is 7.3e-3 against 2.1e-2 I/F (W1/IQR 1.8), and the noise
+  at signal is 3.0e-3 against 9.0e-3 I/F (W1/IQR 4.4). The realism match's star
+  cutouts are its own, separate from the kernel fit's under PSF kernel below: the
+  real frame gives 6 (EE50 median 1.26 px), and its matched frame holds the
+  field's catalog stars, but none yields a usable simulated cutout, so the match
+  leaves the PSF unconstrained. On the real frame the star-field fit locks at
+  0.94 on 7 of 11 predicted stars. On the matched frame it predicts 5 and locks
+  at 0.6, a wide-offset lock on 3 inliers.
+
+The simulated values are nearly the same for both cameras, because their entries
+hold the same numbers. The real frames differ: the narrow angle frame's sky is
+about four times as noisy as the wide angle frames'. Neither sky comparison is
+like for like. The real frames are resampled, which correlates neighboring
+pixels, so the paired-difference estimate reads their noise about a third low,
+and the matched scenes don't turn on the simulator's resampling mode.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable
@@ -380,9 +423,9 @@ Voyager references publish no FWHM to fall back on.
 ``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
 is non-zero: the resampled vidicon geometry carries coherent tangential
 distortion that a radial polynomial cannot represent. The block is the
-Voyager 2 wide angle measurement, and the instrument entry says plainly that one key
-under-represents the spread across two spacecraft and two optics until
-per-camera keys and locked frames for each exist.
+Voyager 2 wide angle measurement. All four entries carry it, which
+under-represents the spread across the four cameras' optics until each camera
+has its own measurement from locked frames.
 
 **Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
@@ -401,22 +444,24 @@ The entry's shape defaults give ``edited_frame`` a centered band 550 pixels wide
 The edited modes downlink a centered band of 608, 440, 272, 160, or 80 of the 800
 samples in a raw line. The GEOMED resample spreads those 800 samples over 1000
 pixels, so the 440-sample band covers 550 pixels of the GEOMED frame. A scene that
-sets only a ``probability`` gets that band. The shape defaults give
+sets only a ``probability`` gets that band. ``instrument_defaults`` turns on
+``banding``, which draws the published coherent component as vertical bands of
+0.25 DN at 8 pixels. The shape defaults give
 ``reseau_scars`` 202 marks on a 59-pixel lattice. The camera's 202 reseau marks
 sit about 47 pixels apart in a raw frame, and the GEOMED resample stretches that
 to about 59 pixels.
 ``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
 match uses to tell a full frame from a subframe.
 
-**Units.** A ``vgiss`` frame is in I/F, with a ``0`` missing-data marker. The
-simulator reads the same configuration block as real navigation, so a simulated
-frame carries the units and marker of the GEOMED product: the product stores I/F
-as scaled integers and fills lost pixels and its resample border with zero, about
-10% of each frame. The calibrated Cassini instruments share the I/F units and the
-``0`` marker; ``vgiss`` alone also keeps a full well, the 255 DN clip that sets a
-1.85 I/F ceiling before the calibration inverse (see
-:ref:`Instruments <sim-instruments>`). An author should expect a frame to span
-about 0.012 to 1. A tool scaled for a DN frame shows a ``vgiss`` frame as black.
+**Units.** A frame from any of the four cameras is in I/F, with a ``0`` missing-data
+marker. The simulator reads the same configuration block as real navigation, so a
+simulated frame carries the units and marker of the GEOMED product: the product stores
+I/F as scaled integers and fills lost pixels and its resample border with zero, about
+10% of each frame. The calibrated Cassini instruments share the I/F units and the ``0``
+marker. The four Voyager entries keep a full well, the 255 DN clip that sets a 1.85 I/F
+ceiling before the calibration inverse (see :ref:`Instruments <sim-instruments>`). An
+author should expect a frame to span about 0.012 to 1. A tool scaled for a DN frame
+shows a Voyager frame as black.
 
 The calibration inverse subtracts the bias pedestal and then adds a calibrated
 sky residual of 1.5 DN, 0.0118 I/F, so the dark sky sits above the marker, as on
@@ -426,7 +471,7 @@ by 800 pixels sit on a positive calibration residual between 6.6e-4 and 3.2e-2
 I/F: the first percentile is above zero in every frame, and at most 0.03% of
 those pixels are exactly 0. Half a DN off the whole-DN grid, the simulated
 residual keeps every digitized pixel off 0. Under ``instrument_defaults`` the
-vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
+vidicon read noise and banding (0.40 DN rms) take a sky pixel below 0 only on a 1.5 DN
 excursion, about 7 pixels in 100,000, so the sky's first percentile stays
 positive.
 
@@ -514,16 +559,16 @@ Open items
   Saturn correction belong in the host once the host grows them, at which point
   this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
-  ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_if``,
-  ``noisy_threshold_if`` and the ``mag_offset_table`` entry.
+  ``read_noise_dn``, ``blank_max_if``,
+  ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
 * ``fit_camera_rotation`` is off for cost against a measurement that says it
   should be on. Revisiting it means both speeding the rotation search and
   accepting the loss of corrected C-kernels for this instrument, or recording
   the rotation pivot so the two can coexist.
 * Both limiting-magnitude anchors are nominal-optics derivations rather than
   measurements, and the cohort holds one star frame.
-* The simulator uses one distortion and PSF key for four cameras across two
-  spacecraft.
+* The four simulator cameras carry the same distortion block and PSF kernel
+  numbers, although each camera's optics are its own.
 * The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the
   real GEOMED sky level varies about 50x between frames.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of

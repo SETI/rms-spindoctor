@@ -336,9 +336,7 @@ class NavModelTitanSimulated(NavModelTitan):
                 and float(sibling_range) < float(own_range)
             )
             if nearer:
-                self._embed_data_mask(
-                    occluder_ext, predicted_silhouette(sibling, data_shape), margin_vu
-                )
+                occluder_ext |= predicted_silhouette(sibling, data_shape, margin_vu=margin_vu)
             self._paint_sibling_box(
                 contaminant_ext,
                 predicted_silhouette_bbox(sibling, data_shape, margin_vu=margin_vu),
@@ -364,18 +362,6 @@ class NavModelTitanSimulated(NavModelTitan):
             )
         fraction = occluded_disc_fraction(occluder_ext, center_vu, r_env_px)
         return (contaminant_ext if contaminant_ext.any() else None), fraction
-
-    @staticmethod
-    def _embed_data_mask(
-        target: NDArrayBoolType, local: NDArrayBoolType, margin_vu: tuple[int, int]
-    ) -> None:
-        """OR a data-coordinate mask into an extfov-shaped array at the margin."""
-        rows, cols = target.shape
-        v_hi = min(rows, margin_vu[0] + local.shape[0])
-        u_hi = min(cols, margin_vu[1] + local.shape[1])
-        target[margin_vu[0] : v_hi, margin_vu[1] : u_hi] |= local[
-            : v_hi - margin_vu[0], : u_hi - margin_vu[1]
-        ]
 
     @staticmethod
     def _paint_sibling_box(

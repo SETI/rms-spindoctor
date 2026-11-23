@@ -302,7 +302,7 @@ def test_an_unbinned_zero_point_of_zero_is_refused() -> None:
         validate_sim_params(scene, source='by_binning_probe')
 
 
-@pytest.mark.parametrize('instrument', ['coiss_nac', 'vgiss'])
+@pytest.mark.parametrize('instrument', ['coiss_nac', 'vgiss_1_nac'])
 def test_a_star_psf_sigma_of_zero_is_refused(instrument: str) -> None:
     """The PSF width must be positive on every camera, since other navigator code reads it.
 
@@ -542,10 +542,10 @@ def test_the_binned_star_limit_reads_the_pinned_mode_value() -> None:
 @pytest.mark.parametrize('key', ['read_noise_dn', 'star_flux_dn_per_s_vmag0'])
 def test_an_unbinned_noise_value_on_a_calibrated_unit_camera_is_refused(key: str) -> None:
     """A calibrated-unit camera's star limit is a constant that reads neither value."""
-    scene = _scene({'noise': {key: 5.0}}, instrument='vgiss', binning=1)
+    scene = _scene({'noise': {key: 5.0}}, instrument='vgiss_1_nac', binning=1)
     with pytest.raises(
         SimSceneValidationError,
-        match=rf"instrument_config\.noise\.{key} is never read: instrument 'vgiss' renders "
+        match=rf"instrument_config\.noise\.{key} is never read: instrument 'vgiss_1_nac' renders "
         r'calibrated_if frames, whose star limit reads no noise value\. Leave the key out\.$',
     ):
         validate_sim_params(scene, source='by_binning_probe')

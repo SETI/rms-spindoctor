@@ -1,31 +1,23 @@
 """Detector-noise panel for the General tab.
 
-Poisson shot noise, a Gaussian read-noise floor, cosmic-ray rate, missing-data
-rate, bias pedestal, saturation bloom, and signal full-scale fraction.  These
-write the ``sim_params['noise']`` block the renderer consumes;
-physical defaults otherwise come from the selected instrument.
+Poisson shot noise, a Gaussian read-noise floor, and the cosmic-ray rate.  These write
+the ``sim_params['noise']`` block the renderer consumes; physical defaults otherwise
+come from the selected instrument.
 
 The validator accepts every control on every instrument and detector model, but
 some change nothing on some detector paths.  On the vidicon detector (``vgiss``,
-or a detector model of ``vidicon``) the Poisson, read-noise, and bloom controls
-change nothing: the vidicon's DN-domain noise comes from the ``noise.vidicon``
-keys, and it has no electron well to bloom.  On a calibrated frame the bias
-control changes nothing on the Cassini cameras and only the pixels near the
-8-bit ceiling on ``vgiss``, because the calibration inverse subtracts the bias
-again.  The cosmic-ray and missing-data controls work everywhere.
+or a detector model of ``vidicon``) the Poisson and read-noise controls change
+nothing, because the vidicon's DN-domain read noise comes from the ``noise.vidicon``
+keys.  The cosmic-ray control works everywhere.
 """
 
 from typing import Any
 
-from PyQt6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout, QSpinBox
+from PyQt6.QtWidgets import QCheckBox, QDoubleSpinBox, QFormLayout
 
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
 _COSMIC_RAY_TOOLTIP = 'Expected cosmic-ray events per pixel per second of exposure.'
-_MISSING_DATA_TOOLTIP = (
-    "Fraction of pixels lost at random, each set to the instrument's missing-data "
-    'marker (0 on every shipped instrument).'
-)
 
 
 class NoiseMixin(SimEditorBase):
@@ -58,37 +50,6 @@ class NoiseMixin(SimEditorBase):
         self._cosmic_ray_spin.setToolTip(_COSMIC_RAY_TOOLTIP)
         self._cosmic_ray_spin.valueChanged.connect(self._on_cosmic_ray)
         gen_layout.addRow('Cosmic rays (/px/s):', self._cosmic_ray_spin)
-
-        self._missing_data_spin = QDoubleSpinBox()
-        self._missing_data_spin.setRange(0.0, 0.3)
-        self._missing_data_spin.setDecimals(3)
-        self._missing_data_spin.setSingleStep(0.005)
-        self._missing_data_spin.setToolTip(_MISSING_DATA_TOOLTIP)
-        self._missing_data_spin.valueChanged.connect(self._on_missing_data)
-        gen_layout.addRow('Missing data rate:', self._missing_data_spin)
-
-        self._bias_spin = QDoubleSpinBox()
-        self._bias_spin.setRange(0.0, 10000.0)
-        self._bias_spin.setDecimals(2)
-        self._bias_spin.setToolTip('Additive bias pedestal in DN (lifts dark sky off zero).')
-        self._bias_spin.valueChanged.connect(self._on_bias)
-        gen_layout.addRow('Bias (DN):', self._bias_spin)
-
-        self._bloom_spin = QSpinBox()
-        self._bloom_spin.setRange(0, 200)
-        self._bloom_spin.setToolTip('Saturation column-bloom half-length in pixels (0 = none).')
-        self._bloom_spin.valueChanged.connect(self._on_bloom)
-        gen_layout.addRow('Bloom length (px):', self._bloom_spin)
-
-        self._signal_frac_spin = QDoubleSpinBox()
-        self._signal_frac_spin.setRange(0.001, 1.0)
-        self._signal_frac_spin.setDecimals(3)
-        self._signal_frac_spin.setSingleStep(0.05)
-        self._signal_frac_spin.setToolTip(
-            'Signal of 1.0 maps to this fraction of the camera full well.'
-        )
-        self._signal_frac_spin.valueChanged.connect(self._on_signal_frac)
-        gen_layout.addRow('Signal full-scale frac:', self._signal_frac_spin)
         self._sync_noise_from_params()
 
     def _sync_noise_from_params(self) -> None:
@@ -97,17 +58,13 @@ class NoiseMixin(SimEditorBase):
         A key the block leaves out shows the control's default.  The
         controls' signals are blocked, so syncing writes nothing back to the scene.
         """
-        values: tuple[tuple[QCheckBox | QDoubleSpinBox | QSpinBox, Any], ...] = (
+        values: tuple[tuple[QCheckBox | QDoubleSpinBox, Any], ...] = (
             (self._poisson_check, bool(self._noise_value('poisson', True))),
             (self._read_noise_spin, float(self._noise_value('read_noise_dn', 4.0))),
             (
                 self._cosmic_ray_spin,
                 float(self._noise_value('cosmic_ray_events_per_pixel_per_sec', 0.0)),
             ),
-            (self._missing_data_spin, float(self._noise_value('missing_data_rate', 0.0))),
-            (self._bias_spin, float(self._noise_value('bias_dn', 20.0))),
-            (self._bloom_spin, int(self._noise_value('bloom_length', 0))),
-            (self._signal_frac_spin, float(self._noise_value('signal_full_scale_frac', 0.5))),
         )
         for widget, value in values:
             widget.blockSignals(True)
@@ -143,19 +100,3 @@ class NoiseMixin(SimEditorBase):
     def _on_cosmic_ray(self, value: float) -> None:
         """Set the expected cosmic-ray events per pixel per second."""
         self._set_noise('cosmic_ray_events_per_pixel_per_sec', float(value))
-
-    def _on_missing_data(self, value: float) -> None:
-        """Set the missing-data pixel fraction."""
-        self._set_noise('missing_data_rate', float(value))
-
-    def _on_bias(self, value: float) -> None:
-        """Set the additive bias pedestal in DN."""
-        self._set_noise('bias_dn', float(value))
-
-    def _on_bloom(self, value: int) -> None:
-        """Set the saturation column-bloom half-length."""
-        self._set_noise('bloom_length', int(value))
-
-    def _on_signal_frac(self, value: float) -> None:
-        """Set the signal full-scale fraction."""
-        self._set_noise('signal_full_scale_frac', float(value))

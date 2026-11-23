@@ -11,10 +11,12 @@ from scipy.ndimage import gaussian_filter, sobel
 
 from spindoctor.config import IMAGE_LOGGER, logged_section
 from spindoctor.support.correlate_subpixel import (
+    HIGHPASS_SIGMA_PX,
     NCC_QUADRATIC_MAX_SHIFT_PX,
     SUBPIXEL_REFINEMENTS,
     SubpixelRefinement,
     ncc_quadratic_vertex,
+    ncc_vertex_window_steps,
 )
 from spindoctor.support.image import crop_center, normalize_array, pad_top_left, real_ifft2
 from spindoctor.support.misc import mad_std
@@ -610,8 +612,9 @@ def nms_topk(
             ``|dU| < max_offset_vu[1]`` are eligible (strict inequality:
             peaks at the exact window boundary are excluded because they
             signal a clipped search and cannot be trusted; the pyramid
-            driver additionally marks any final result within 1 pixel of
-            the boundary as spurious). Signed offsets are derived from the
+            driver additionally marks a final peak one pixel inside the
+            boundary, and any final result within 2 pixels of it, as
+            spurious). Signed offsets are derived from the
             FFT-convention wrap-around used by :func:`int_to_signed`.
 
     The surface is circular, so the suppression distance is taken around its edges:
@@ -796,6 +799,7 @@ def refinement_cross_spectrum(
     mask_pad: NDArrayBoolType,
     *,
     lowpass_sigma_px: float = 0.0,
+    highpass_sigma_px: float = 0.0,
 ) -> NDArrayComplexType:
     """Cross-power spectrum that the sub-pixel refinement interpolates.
 
@@ -815,6 +819,10 @@ def refinement_cross_spectrum(
         mask_pad: Zero-padded model mask, the same shape as ``image_pad``.
         lowpass_sigma_px: Sigma in pixels of the Gaussian low-pass applied to the
             image and to the masked model before the transform; ``0.0`` applies none.
+        highpass_sigma_px: Sigma in pixels of the Gaussian blur subtracted from the
+            image and from the masked model after the low-pass, which leaves each
+            surface's edges and detail and removes its smooth brightness; ``0.0``
+            subtracts nothing.
 
     Returns:
         The complex cross-power spectrum, of the inputs' shape.
@@ -834,6 +842,15 @@ def refinement_cross_spectrum(
     if lowpass_sigma_px > 0.0:
         refine_image = gaussian_filter(refine_image, lowpass_sigma_px)
         refine_model_masked = gaussian_filter(refine_model_masked, lowpass_sigma_px)
+    # Subtracting each surface's own blur removes light that varies slowly across the
+    # body, such as stray light or a sloped background the model leaves out, which
+    # otherwise drags the cross-power maximum away from the edges that carry the
+    # alignment (#791).
+    if highpass_sigma_px > 0.0:
+        refine_image = refine_image - gaussian_filter(refine_image, highpass_sigma_px)
+        refine_model_masked = refine_model_masked - gaussian_filter(
+            refine_model_masked, highpass_sigma_px
+        )
     # Conjugate and multiply into the model's own transform rather than
     # building a conjugate and a product beside it: at the full-resolution
     # scale each of those is one of the largest arrays in the process, and
@@ -868,8 +885,8 @@ def evaluate_candidate(
     Parameters:
         corr: The correlation matrix.
         refine_spectrum: The cross-power spectrum from
-            :func:`refinement_cross_spectrum` that the ``'cross_power'`` refinement
-            interpolates, the same shape as ``corr``.  It may be ``None`` only with
+            :func:`refinement_cross_spectrum` that the two cross-power refinements
+            interpolate, the same shape as ``corr``.  It may be ``None`` only with
             the ``'ncc_quadratic'`` refinement, which does not read it.
         rc: The row and column of the candidate.
         upsample_factor: The upsample factor.
@@ -880,7 +897,13 @@ def evaluate_candidate(
         refinement: How the whole-pixel candidate becomes a sub-pixel offset.
             ``'cross_power'`` takes the maximum of the upsampled
             ``refine_spectrum`` within half a pixel of the candidate, on a grid of
-            ``1 / upsample_factor`` px.  ``'ncc_quadratic'`` takes the maximum of a
+            ``1 / upsample_factor`` px.  ``'highpass_cross_power'`` does the same within
+            half a pixel of the NCC quadratic fit's maximum rounded to that grid (see
+            :func:`~spindoctor.support.correlate_subpixel.ncc_vertex_window_steps`), or
+            of the candidate when that fit cannot place a maximum; its
+            ``refine_spectrum`` is the one :func:`refinement_cross_spectrum` builds with
+            ``highpass_sigma_px``, and like ``'cross_power'`` it raises ``ValueError``
+            without one.  ``'ncc_quadratic'`` takes the maximum of a
             quadratic fitted to the 3x3 block of ``corr`` around the candidate, as
             :func:`~spindoctor.support.correlate_subpixel.ncc_quadratic_vertex`
             computes it, at most one pixel from the candidate on each axis; when
@@ -898,7 +921,8 @@ def evaluate_candidate(
 
     Raises:
         ValueError: If ``refinement`` is not one of the names above, or when it is
-            ``'cross_power'`` and ``refine_spectrum`` is ``None``.
+            ``'cross_power'`` or ``'highpass_cross_power'`` and ``refine_spectrum`` is
+            ``None``.
     """
 
     if refinement not in SUBPIXEL_REFINEMENTS:
@@ -934,7 +958,7 @@ def evaluate_candidate(
         dx = dx_i + vertex[1]
     else:
         if refine_spectrum is None:
-            raise ValueError('the cross_power refinement needs a refine_spectrum')
+            raise ValueError(f'the {refinement} refinement needs a refine_spectrum')
         # Subpixel refinement: local upsampled DFT of the cross-power spectrum.
         # Center of the local upsampled DFT window should be the middle of the
         # evaluation region (e.g., 3x3 -> center index 1), not half the upsample
@@ -946,15 +970,26 @@ def evaluate_candidate(
         region_u = upsample_factor + 1
         oy = region_v // 2
         ox = region_u // 2
+        # The window's center, in steps of 1 / upsample_factor px.  The NCC picked the
+        # whole pixel; on a gradient surface, or when light the model leaves out moves
+        # the cross-power maximum, the true maximum can lie more than half a pixel
+        # from it, so the high-pass refinement centers on the NCC's own sub-pixel
+        # estimate instead (#791).
+        center_v = dy_i * upsample_factor
+        center_u = dx_i * upsample_factor
+        if refinement == 'highpass_cross_power':
+            steps_v, steps_u = ncc_vertex_window_steps(corr, (p, q), upsample_factor)
+            center_v += steps_v
+            center_u += steps_u
         Up = upsampled_dft(
             refine_spectrum,
             upsample_factor,
             (region_v, region_u),
-            (oy - dy_i * upsample_factor, ox - dx_i * upsample_factor),
+            (oy - center_v, ox - center_u),
         )
         upy, upx = np.unravel_index(np.argmax(np.abs(Up)), Up.shape)
-        dy = dy_i + (upy - oy) / upsample_factor
-        dx = dx_i + (upx - ox) / upsample_factor
+        dy = center_v / upsample_factor + (upy - oy) / upsample_factor
+        dx = center_u / upsample_factor + (upx - ox) / upsample_factor
 
     # Quality metric
     peak_val = corr[p, q]
@@ -1089,7 +1124,7 @@ def navigate_single_scale_kpeaks(
             or overflows the FOV, where the only unique-alignment signal is
             at the limb.
         refine_lowpass_sigma_px: Sigma in pixels of the Gaussian low-pass that
-            :func:`refinement_cross_spectrum` applies before the ``'cross_power'``
+            :func:`refinement_cross_spectrum` applies before either cross-power
             refinement; ``0.0`` applies none.
         refinement: The sub-pixel refinement every candidate receives; see
             :func:`evaluate_candidate`.  With ``'ncc_quadratic'`` the cross-power
@@ -1102,11 +1137,13 @@ def navigate_single_scale_kpeaks(
         A dictionary with the winning candidate's ``offset``, ``quality``,
         ``peak_val``, and ``rc`` (see :func:`evaluate_candidate`), and
         ``all_candidates``, every evaluated candidate with those four keys, sorted by
-        quality with the winner first.  With ``covariance`` True it also has ``cov``,
-        the winner's ``2x2`` covariance, and ``sigma_xy``, the square roots of its
-        diagonal; the other candidates carry no covariance.  When no peak survives,
-        the offset is ``(0.0, 0.0)``, the quality ``-inf``, ``all_candidates`` empty,
-        and the covariance (when requested) ``1e6`` on each axis.
+        quality with the winner first.  It also has ``peak_vu``, the winner's
+        whole-pixel peak as a signed ``(v, u)`` lag before refinement.  With
+        ``covariance`` True it also has ``cov``, the winner's ``2x2`` covariance, and
+        ``sigma_xy``, the square roots of its diagonal; the other candidates carry no
+        covariance.  When no peak survives, the offset is ``(0.0, 0.0)``, the quality
+        ``-inf``, ``peak_vu`` ``(0, 0)``, ``all_candidates`` empty, and the covariance
+        (when requested) ``1e6`` on each axis.
 
     Raises:
         ValueError: If the model is smaller than the image in either dimension (the
@@ -1169,6 +1206,7 @@ def navigate_single_scale_kpeaks(
             'quality': -np.inf,
             'peak_val': 0.0,
             'rc': (0, 0),
+            'peak_vu': (0, 0),
             'all_candidates': [],
         }
         if covariance:
@@ -1185,7 +1223,7 @@ def navigate_single_scale_kpeaks(
     # same arrays, so the refinement is unchanged.  The NCC quadratic refinement
     # reads only ``corr``, so it is spared the spectrum's two full-period transforms.
     refine_spectrum: NDArrayComplexType | None = None
-    if refinement == 'cross_power':
+    if refinement in ('cross_power', 'highpass_cross_power'):
         if use_gradient:
             refine_image_pad = pad_top_left(image_raw, padded_h, padded_w)
             refine_model_pad = pad_top_left(model_raw, padded_h, padded_w)
@@ -1197,6 +1235,7 @@ def navigate_single_scale_kpeaks(
             refine_model_pad,
             mask_pad[:padded_h, :padded_w],
             lowpass_sigma_px=refine_lowpass_sigma_px,
+            highpass_sigma_px=HIGHPASS_SIGMA_PX if refinement == 'highpass_cross_power' else 0.0,
         )
         del refine_image_pad, refine_model_pad
 
@@ -1243,6 +1282,13 @@ def navigate_single_scale_kpeaks(
     )
     result = dict(winner)
     result['all_candidates'] = sorted_candidates
+    # The winner's whole-pixel peak as a signed lag, before any sub-pixel refinement;
+    # the pyramid driver tests it against the search window's edge.
+    corr_v, corr_u = corr.shape
+    result['peak_vu'] = (
+        int_to_signed(winner['rc'][0], corr_v),
+        int_to_signed(winner['rc'][1], corr_u),
+    )
     if covariance:
         # The residual behind the covariance is measured for the winner alone: no
         # caller reads another candidate's covariance, and it is the most expensive
@@ -1672,13 +1718,20 @@ def navigate_with_pyramid_kpeaks(
 
     at_edge = False
     if max_offset_vu is not None:
-        # 2-pixel margin: the integer NMS argmax can land at |signed| = max - 1
-        # (one row inside the strict-inequality exclusion), and subpixel
-        # refinement can move the reported offset up to another 0.5 pixel (1 pixel
-        # with the NCC quadratic fit). Flag anything within 2 px of the boundary as
-        # an unreliable boundary peak.
+        # The integer NMS argmax can land at |signed| = max - 1, one row inside the
+        # strict-inequality exclusion: a boundary peak, which cannot be trusted.  The
+        # refinement then moves the reported offset from that whole pixel by up to
+        # 0.5 px with the raw cross-power, 1 px with the NCC quadratic fit, and 1.5 px
+        # with the high-pass cross-power, whose half-pixel window is centered up to
+        # 1 px from the whole pixel (#791).  So the whole-pixel peak itself is tested
+        # against the edge, and any reported offset within 2 px of the boundary is
+        # flagged as well.  For the two refinements that move at most 1 px, the offset
+        # test alone already catches every boundary peak.
+        peak_v, peak_u = result['peak_vu']
         at_edge = (
-            abs(result['offset'][0]) >= max_offset_vu[0] - 2.0
+            abs(peak_v) >= max_offset_vu[0] - 1
+            or abs(peak_u) >= max_offset_vu[1] - 1
+            or abs(result['offset'][0]) >= max_offset_vu[0] - 2.0
             or abs(result['offset'][1]) >= max_offset_vu[1] - 2.0
         )
     # Written so a NaN quality fails it: the PSR is NaN when every valid shift lies
@@ -1689,7 +1742,8 @@ def navigate_with_pyramid_kpeaks(
     spurious = (not quality_ok) or (consistency > consistency_tol) or at_edge
     if at_edge:
         logger.debug(
-            'Correlation peak within 2 pixels of max-offset window edge; marking result spurious'
+            'Correlation peak at the max-offset window edge, or within 2 pixels of it; '
+            'marking result spurious'
         )
 
     # Surface the per-peak telemetry from the final-pass single-scale

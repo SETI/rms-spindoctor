@@ -65,17 +65,12 @@ detector:
   default_gain_state: 0
   read_noise_e: 3.0
   bias_dn: 10.0
+  saturation_dn: 4095.0
+  full_well_dn: 4095.0
+  signal_full_scale_frac: 0.5
+  missing_data_rate: 0.0
   dark_current_e_per_sec: 0.0
-  hot_pixel_fraction: 0.0
-  hot_pixel_amplitude_e: 0.0
-  hot_pixel_column_factor: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
-  banding_amplitude_e: 0.0
-  banding_period_px: 64.0
-  bias_pedestal_sigma_dn: 0.0
-  bias_row_gradient_dn: 0.0
-  bias_col_gradient_dn: 0.0
-  bloom_length: 0
   quantization: exact
 readout_modes:
   1: {}
@@ -89,10 +84,7 @@ artifact_modes:
 """
 
 _OFFERED = 'offered: [missing_lines]'
-_VIDICON_BLOCK = (
-    '  vidicon: {read_noise_line_dn: 1.0, read_noise_pixel_dn: 1.0, '
-    'coherent_amplitude_dn: 1.0, coherent_period_px: 8.0}\n'
-)
+_VIDICON_BLOCK = '  vidicon: {read_noise_line_dn: 1.0, read_noise_pixel_dn: 1.0}\n'
 
 
 def _cam(entry: str) -> str:
@@ -137,8 +129,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'generic-without-data-units',
     ),
     (
-        {'cam.yaml': _cam(_with('bloom_length: 0', 'bloom_length: 0.5'))},
-        r'^cam\.yaml: cam: detector\.bloom_length: expected an integer, got float 0\.5',
+        {'cam.yaml': _cam(_with('default_gain_state: 0', 'default_gain_state: 0.5'))},
+        r'^cam\.yaml: cam: detector\.default_gain_state: expected an integer, got float 0\.5',
         'wrong-type',
     ),
     (
@@ -179,8 +171,14 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'dark-sky-ceiling-on-raw-dn',
     ),
     (
-        {'cam.yaml': _cam(_with('hot_pixel_fraction: 0.0', 'hot_pixel_fraction: 5.0'))},
-        r'^cam\.yaml: cam: detector\.hot_pixel_fraction: expected a number in \[0, 1\], got 5\.0',
+        {
+            'cam.yaml': _cam(
+                _with(_OFFERED, 'offered: [hot_pixels]')
+                + '  shape_defaults:\n    hot_pixels: {column_factor: 5.0}\n'
+            )
+        },
+        r'^cam\.yaml: cam: artifact_modes\.shape_defaults\.hot_pixels\.column_factor: expected a '
+        r'number in \[0, 1\], got 5\.0',
         'fraction-above-one',
     ),
     (
@@ -231,7 +229,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'null-removing-a-ccd-key',
     ),
     (
-        {'cam.yaml': _cam('base: vgiss\ndetector: {vidicon: null}\n')},
+        {'cam.yaml': _cam('base: vgiss_1_nac\ndetector: {vidicon: null}\n')},
         r"^cam\.yaml: cam: detector: a vidicon detector requires the keys \['vidicon'\]",
         'null-removing-the-vidicon-chain',
     ),
@@ -265,16 +263,6 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         r"^cam\.yaml: cam: artifact_modes\.shape_defaults\.dead_pixels\.count: 'count' turns "
         r'the mode on',
         'count-in-shape-defaults',
-    ),
-    (
-        {
-            'cam.yaml': _cam(
-                _with(_OFFERED, 'offered: [missing_lines, hot_pixels]')
-                + '  shape_defaults:\n    hot_pixels: {amplitude_e: 5.0}\n'
-            )
-        },
-        r"shape_defaults\.hot_pixels: a shape default for 'hot_pixels' does nothing",
-        'shape-default-the-renderer-ignores',
     ),
     (
         {
@@ -407,7 +395,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     (
         {
             'cam.yaml': _cam(
-                'base: vgiss\nfilters:\n  throughput_e_per_s_per_if: {CLEAR: 1.0}\n'
+                'base: vgiss_1_nac\nfilters:\n  throughput_e_per_s_per_if: {CLEAR: 1.0}\n'
                 + '  clear: CLEAR\n'
             )
         },
@@ -429,7 +417,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     (
         {
             'cam.yaml': _cam(
-                'base: vgiss\nstar_flux: {dn_per_s_vmag0: null, e_per_s_vmag0: 1.0e+5}\n'
+                'base: vgiss_1_nac\nstar_flux: {dn_per_s_vmag0: null, e_per_s_vmag0: 1.0e+5}\n'
             )
         },
         r'^cam\.yaml: cam: star_flux: a vidicon detector states dn_per_s_vmag0',
@@ -495,7 +483,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'readout-mode-gain-state-not-cataloged',
     ),
     (
-        {'cam.yaml': _cam('base: vgiss\nreadout_modes: {2: {}}\n')},
+        {'cam.yaml': _cam('base: vgiss_1_nac\nreadout_modes: {2: {}}\n')},
         r'^cam\.yaml: cam: readout_modes\.2: the vidicon DN chain has no binned readout',
         'binned-vidicon',
     ),
@@ -651,7 +639,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     ),
     (
         {'cam.yaml': _cam(_CAMERA + 'realism_cohort:\n  - {mission: COISS, camera: NAC}\n')},
-        r"^coiss\.yaml: coiss_calib_nac: realism_cohort\[0\]: \('COISS', 'NAC'\) is already "
+        r"^coiss\.yaml: coiss_calib_nac: realism_cohort\[0\]: \('COISS', None, 'NAC'\) is already "
         r'claimed by cam\.yaml: cam \(realism_cohort\[0\]\)',
         'realism-cohort-claimed-twice',
     ),
@@ -791,7 +779,8 @@ _BASE = keyed(
         (_AS_VIDICON_STARS, 'filters'),
         (_AS_VIDICON_STARS + 'filters: null\n', 'artifact_modes.offered'),
         (
-            'base: vgiss\n' + _CAMERA[_CAMERA.index('detector:') : _CAMERA.index('readout_modes:')],
+            'base: vgiss_1_nac\n'
+            + _CAMERA[_CAMERA.index('detector:') : _CAMERA.index('readout_modes:')],
             'detector.vidicon',
         ),
         (
@@ -825,7 +814,7 @@ _BASE = keyed(
         ),
         (
             'base: nhlorri\nartifact_modes: {offered: [missing_lines], shape_defaults: null}\n',
-            'artifact_modes.instrument_defaults.frame_transfer_smear',
+            'artifact_modes.instrument_defaults.banding',
         ),
         (
             'base: base_cam\nartifact_modes: {offered: [missing_lines, bloom]}\n',
@@ -1050,6 +1039,21 @@ def test_a_camera_added_as_an_entry_uses_its_gain_state(fictional_camera: str) -
     assert resolve_detector_params(_fictional_scene(fictional_camera)).gain_e_per_dn == 2.0
 
 
+def test_a_camera_added_as_an_entry_uses_its_detector_values(fictional_camera: str) -> None:
+    """The bias, ADC ceiling, full well, signal scale, and loss rate are the entry's own.
+
+    The entry's navigator block is the generic one, which sets a 4095 DN ceiling.
+    """
+    params = resolve_detector_params(_fictional_scene(fictional_camera))
+    assert (
+        params.bias_dn,
+        params.saturation_dn,
+        params.full_well_dn,
+        params.signal_full_scale_frac,
+        params.missing_data_rate,
+    ) == (10.0, 5000.0, 4500.0, 0.25, 0.125)
+
+
 def test_a_camera_added_as_an_entry_scales_its_signal_by_the_filter(
     fictional_camera: str,
 ) -> None:
@@ -1153,12 +1157,77 @@ def test_instrument_defaults_turning_on_a_mode_the_chain_ignores_fails() -> None
 def test_vgiss_states_why_it_has_no_fixed_pattern() -> None:
     """A vgiss scene that sets fixed_pattern fails with the reason the vgiss entry states."""
     scene = frame_scene(
-        instrument='vgiss', size=32, artifacts={'fixed_pattern': {'probability': 1.0}}
+        instrument='vgiss_1_nac', size=32, artifacts={'fixed_pattern': {'probability': 1.0}}
     )
     with pytest.raises(
         SimSceneValidationError, match=r'vidicon DN chain has no fixed-pattern stage'
     ):
         validate_sim_params(scene)
+
+
+_VOYAGER_CAMERAS = ('vgiss_1_nac', 'vgiss_1_wac', 'vgiss_2_nac', 'vgiss_2_wac')
+
+
+def test_each_voyager_camera_is_an_instrument() -> None:
+    """The four Voyager cameras are in the catalog, each with its own entry."""
+    names = set(load_instrument_catalog().instrument_names())
+    assert set(_VOYAGER_CAMERAS) <= names
+
+
+@pytest.mark.parametrize('name', _VOYAGER_CAMERAS)
+def test_each_voyager_camera_emulates_the_voyager_navigator_block(name: str) -> None:
+    """Every Voyager camera points at the one voyager_iss section, with no detector."""
+    navigator = load_instrument_catalog().entry(name).navigator
+    assert navigator.section == 'voyager_iss'
+    assert navigator.detector is None
+
+
+# The optical keys of a Voyager camera, as paths into its own entry: the PSF, the residual
+# distortion, the plate scale, the star zero point, and the vidicon values.
+_VOYAGER_OPTICAL_KEYS = (
+    ('psf', 'kernel'),
+    ('psf', 'truncation_px'),
+    ('distortion_residual',),
+    ('sky_pixel_scale_arcsec',),
+    ('star_flux', 'dn_per_s_vmag0'),
+    ('detector', 'vidicon', 'read_noise_line_dn'),
+    ('detector', 'vidicon', 'read_noise_pixel_dn'),
+    ('detector', 'exposure_ref_sec'),
+    ('detector', 'bias_dn'),
+    ('detector', 'saturation_dn'),
+    ('detector', 'full_well_dn'),
+    ('detector', 'signal_full_scale_frac'),
+    ('detector', 'quantization'),
+    ('detector', 'calibrated_sky_if'),
+    ('artifact_modes', 'shape_defaults', 'banding'),
+    ('artifact_modes', 'shape_defaults', 'beam_bend'),
+    ('artifact_modes', 'shape_defaults', 'residual_image'),
+    ('artifact_modes', 'shape_defaults', 'readout_dark'),
+    ('artifact_modes', 'shape_defaults', 'reseau_scars'),
+    ('artifact_modes', 'shape_defaults', 'resample_texture'),
+)
+
+
+@pytest.mark.parametrize('name', _VOYAGER_CAMERAS)
+def test_each_voyager_camera_states_every_optical_key_itself(name: str) -> None:
+    """A Voyager entry inherits nothing: it has no base and states each optical key."""
+    raw = YAML(typ='safe').load((INSTRUMENT_CONFIG_DIR / 'vgiss.yaml').read_text())
+    entry = raw[name]
+    assert 'base' not in entry
+    missing = []
+    for path in _VOYAGER_OPTICAL_KEYS:
+        node: Any = entry
+        for key in path:
+            node = node.get(key) if isinstance(node, dict) else None
+        if node is None:
+            missing.append('.'.join(path))
+    assert missing == []
+
+
+def test_the_bare_vgiss_name_is_not_an_instrument() -> None:
+    """A scene that writes the family name instead of a camera fails."""
+    with pytest.raises(ValueError, match=r'vgiss'):
+        load_instrument_catalog().entry('vgiss')
 
 
 def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:
@@ -1174,9 +1243,36 @@ def test_a_downlink_table_no_quantization_reads_fails() -> None:
     with pytest.raises(
         SimSceneValidationError,
         match=r"detector\.downlink_table 'table_12_to_8' has no effect: only the sqrt_lut "
-        r"quantization decodes through a downlink table, and this scene quantizes with 'exact'; "
-        r'set detector\.quantization: sqrt_lut, add the quantization_sqrt_lut artifact mode, or '
-        r'drop the key',
+        r"quantization reads it, and this scene quantizes with 'exact'; "
+        r'set detector\.quantization: sqrt_lut, or drop the key',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_the_quantization_ignores_fails() -> None:
+    """A scene may set the contour step only when its quantization is contour_8bit."""
+    scene = frame_scene(size=32, detector={'quantization': '8bit', 'contour_step': 4})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'detector\.contour_step 4 has no effect: only the contour_8bit quantization',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_below_one_fails() -> None:
+    """A contour step of 0 would divide by it, so validation refuses it."""
+    scene = frame_scene(size=32, detector={'quantization': 'contour_8bit', 'contour_step': 0})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.contour_step must be from 1 to 255; got 0'
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_above_the_8bit_top_code_fails() -> None:
+    """A step above 255 would posterize the 8-bit word to at most two levels."""
+    scene = frame_scene(size=32, detector={'quantization': 'contour_8bit', 'contour_step': 256})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.contour_step must be from 1 to 255; got 256'
     ):
         validate_sim_params(scene)
 
@@ -1216,3 +1312,32 @@ def test_a_table_decoding_above_the_adc_ceiling_fails(
         DetectorParamError, match=r'above the ADC ceiling \(saturation_dn\) of 4095 DN'
     ):
         resolve_detector_params(scene)
+
+
+def test_a_scene_ceiling_below_the_downlink_table_top_fails_validation() -> None:
+    """A scene whose ceiling the camera's table decodes above is refused before a render."""
+    scene = frame_scene(size=32, detector={'saturation_dn': 1000.0, 'quantization': 'sqrt_lut'})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'detector\.saturation_dn 1000: .*above the ADC ceiling',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_missing_data_rate_above_one_fails() -> None:
+    """The rate is a fraction of the pixels, so more than 1 is refused."""
+    scene = frame_scene(size=32, detector={'missing_data_rate': 1.5})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.missing_data_rate must be from 0 to 1; got 1\.5'
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_zero_signal_full_scale_frac_fails() -> None:
+    """A signal of 1.0 has to fill some of the well, so zero is refused."""
+    scene = frame_scene(size=32, detector={'signal_full_scale_frac': 0.0})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'detector\.signal_full_scale_frac must be a positive number',
+    ):
+        validate_sim_params(scene)

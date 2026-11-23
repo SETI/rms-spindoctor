@@ -1,21 +1,29 @@
 """Camera-roll rendering and the per-scene ``fit_camera_rotation`` override.
 
-A planted camera roll rotates the rendered scene about the boresight before the
-translation offset; the simulated star NavModel predicts the unrolled geometry,
-so a star technique recovers the roll.  These tests cover the renderer geometry
-(a star lands at its analytically rotated position; a ring system's rendered
-pattern turns with the roll, measured against a quarter turn of the array
-itself; a star, a ring and a body placed alike turn about one point, the
-frame's uv center) and the scene-level ``fit_camera_rotation`` override that
-lets a scene exercise the 3-DoF path on any emulated camera, independent of
-that camera's real rotation-fitting flag.
+A planted camera roll rotates the rendered scene about the boresight, the frame's
+uv center after the planted offset has moved the camera; the simulated star
+NavModel predicts the unrolled geometry, so a star technique recovers the roll.
+These tests cover the renderer geometry (a star lands at its analytically rotated
+position; a ring system's rendered pattern turns with the roll, measured against a
+quarter turn of the array itself; a star, a ring and a body placed alike turn about
+one point; under a roll and an offset each lands where a turn about the boresight
+puts it) and the scene-level ``fit_camera_rotation`` override that lets a scene
+exercise the 3-DoF path on any emulated camera, independent of that camera's real
+rotation-fitting flag.
 """
 
+import math
 from collections.abc import Callable
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, ring_system_block, star_entry
+from tests.spindoctor.sim.scenes import (
+    frame_scene,
+    quiet_noise,
+    ring_system_block,
+    star_entry,
+    zero_bias,
+)
 
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
@@ -34,6 +42,7 @@ def _noiseless_params(**overrides: object) -> dict[str, object]:
         offset_u=0.0,
         bodies=[],
         noise=quiet_noise(),
+        detector=zero_bias(),
     )
     params.update(overrides)
     return params
@@ -214,6 +223,94 @@ def test_roll_turns_stars_and_geometry_about_one_point(
     geometry_v, geometry_u = _centroid(geometry_img)
     assert abs(geometry_v - star_v) < _PIVOT_TOLERANCE_PX
     assert abs(geometry_u - star_u) < _PIVOT_TOLERANCE_PX
+
+
+# A roll and an offset large enough that a turn about the frame center before the
+# offset lands every object 2 * |d| * sin(roll / 2), about 14.8 px, from where a turn
+# about the boresight puts it.
+_BORESIGHT_ROLL_DEG = 25.0
+_BORESIGHT_OFFSET_V = 17.3
+_BORESIGHT_OFFSET_U = -29.6
+_BORESIGHT_PROBE_V = 52.5
+_BORESIGHT_PROBE_U = 80.5
+_BORESIGHT_TOLERANCE_PX = 0.05
+# A star off a pixel center deposits on a 2 x 2 patch, whose whole-DN centroid sits
+# up to 0.3 px off; a PSF spreads every object enough to centroid within 0.003 px.
+_BORESIGHT_OPTICS = {'psf': {'sigma_v': 1.5, 'sigma_u': 1.5, 'w': 0.0}}
+
+
+def _turned_about_the_boresight(v: float, u: float) -> tuple[float, float]:
+    """The pixel the roll and offset put a scene position ``(v, u)`` at the center of.
+
+    Measured from the frame center, a position ``x`` lands at ``R (x + d)``, ``R``
+    the roll and ``d`` the offset.  A scene position is a pixel corner, so the
+    pixel centric centroid sits half a pixel lower.
+    """
+    center = _SIZE / 2.0
+    rel_v = v - center + _BORESIGHT_OFFSET_V
+    rel_u = u - center + _BORESIGHT_OFFSET_U
+    roll = math.radians(_BORESIGHT_ROLL_DEG)
+    turned_v = math.cos(roll) * rel_v - math.sin(roll) * rel_u
+    turned_u = math.sin(roll) * rel_v + math.cos(roll) * rel_u
+    return center + turned_v - 0.5, center + turned_u - 0.5
+
+
+_BORESIGHT_FACTORIES: dict[str, Callable[[], dict[str, object]]] = {
+    'star': lambda: {
+        'stars': [star_entry(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U, 2.0, psf_sigma=2.0)]
+    },
+    'body': lambda: {'bodies': [_sphere_at(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U)]},
+    'ring': lambda: {'ring_system': _ring_system_at(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U)},
+    # A smear that applies to stars only, and no stars: the body goes through the
+    # per-class layer path instead of the plain composite.
+    'body_in_a_layer': lambda: {
+        'bodies': [_sphere_at(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U)],
+        'optics': {
+            **_BORESIGHT_OPTICS,
+            'smear': [{'dv_px': 3.0, 'du_px': 8.0, 'object_class': 'stars'}],
+        },
+    },
+    # A smear that applies to bodies only, and no bodies: the separately rendered
+    # star layer replaces the composite's star plane.
+    'star_in_a_layer': lambda: {
+        'stars': [star_entry(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U, 2.0, psf_sigma=2.0)],
+        'optics': {
+            **_BORESIGHT_OPTICS,
+            'smear': [{'dv_px': 3.0, 'du_px': 8.0, 'object_class': 'bodies'}],
+        },
+    },
+}
+
+
+@pytest.mark.parametrize(
+    'make_object', list(_BORESIGHT_FACTORIES.values()), ids=list(_BORESIGHT_FACTORIES)
+)
+def test_roll_turns_about_the_boresight_after_the_offset(
+    make_object: Callable[[], dict[str, object]],
+) -> None:
+    """Under a roll and a large offset, each object lands at ``R (x + d)``.
+
+    The boresight is the frame center after the offset has moved the camera, so the
+    roll turns a position ``x`` from the frame center to ``R (x + d)``.  Turning
+    about the frame center and then adding the offset, ``R x + d``, puts each object
+    about 14.8 px away.
+
+    Parameters:
+        make_object: Builds the scene keys placing the star, sphere, or ring, and
+            any optics the case needs in place of the default.
+    """
+    img, _meta = render_scene(
+        _noiseless_params(
+            offset_v=_BORESIGHT_OFFSET_V,
+            offset_u=_BORESIGHT_OFFSET_U,
+            offset_rotation_deg=_BORESIGHT_ROLL_DEG,
+            **{'optics': _BORESIGHT_OPTICS, **make_object()},
+        )
+    )
+    centroid_v, centroid_u = _centroid(img)
+    expected_v, expected_u = _turned_about_the_boresight(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U)
+    assert abs(centroid_v - expected_v) < _BORESIGHT_TOLERANCE_PX
+    assert abs(centroid_u - expected_u) < _BORESIGHT_TOLERANCE_PX
 
 
 def test_fit_camera_rotation_override_enables_3dof() -> None:

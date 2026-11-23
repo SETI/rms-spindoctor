@@ -73,17 +73,18 @@ companion's sep_px are differences between two positions.
 The planted offset_rotation_deg is a roll of the camera about its boresight.
 A scene describes what the camera would see unrolled, and the roll turns
 EVERYTHING in the field of view by the same angle, in the same direction,
-about ONE point in that same convention: the frame's center
-(size_v / 2, size_u / 2).  A positive roll turns from +v toward +u, carrying a
-point at (dv, du) from the center to
-(cos * dv - sin * du, sin * dv + cos * du).
+about ONE point: the boresight, which is the frame's center
+(size_v / 2, size_u / 2) in that same convention after the planted offset has
+moved the camera.  A positive roll turns from +v toward +u, carrying a point
+at (dv, du) from the center to (cos * dv - sin * du, sin * dv + cos * du).
 That is the rotation the navigator's star fit reports, so the rotation it
-recovers equals the planted roll.  The roll turns the scene first, and the
-planted offset_v / offset_u then moves the turned stars, bodies, and ring
-system.  The sky_counts background field turns with the roll but does not move
-with the offset.
+recovers equals the planted roll.  The planted offset_v / offset_u is the
+boresight's pointing error d, so a star, body, or ring system the scene puts
+at x from the frame center lands at R (x + d), R being the roll, and the
+offset stays the truth for the navigator's translation.  The sky_counts
+background field turns with the roll but does not move with the offset.
 
-So the roll turns star positions and body centers about the frame center, and
+So the roll turns star positions and body centers about the boresight, and
 turns each body about its own center by the same angle: its outline
 (rotation_z, or a mesh body's pose_euler_deg), the side its light comes from
 (illumination_angle), and everything drawn on it -- craters, relief, albedo
@@ -128,7 +129,8 @@ out.
   scene_name       (str, required)   must equal the filename stem
   instrument       (str, required)   a sim instrument (coiss_nac, coiss_wac,
                                      coiss_calib_nac, coiss_calib_wac, gossi,
-                                     nhlorri, vgiss) or 'generic'
+                                     nhlorri, vgiss_1_nac, vgiss_1_wac,
+                                     vgiss_2_nac, vgiss_2_wac) or 'generic'
   size_v, size_u   (int, required)   image height/width in pixels
   random_seed      (int, required)   scene seed (drives all sim randomness)
   exposure_sec     (float, opt)      exposure seconds (default 1.0)
@@ -187,18 +189,19 @@ out.
                                      status_reason); read only by the sim
                                      expected-outcome test machinery -- fed to
                                      neither the renderer nor the navigator
-  noise            (mapping, opt)    poisson, read_noise_dn, bias_dn,
+  noise            (mapping, opt)    poisson, read_noise_dn,
                                      cosmic_ray_events_per_pixel_per_sec (expected
                                      events per pixel per second of exposure),
-                                     missing_data_rate, bloom_length,
-                                     signal_full_scale_frac, dark_current_e_per_sec,
-                                     hot_pixel_fraction,
-                                     hot_pixel_amplitude_e, hot_pixel_column_factor,
-                                     banding_amplitude_e, banding_period_px,
-                                     bias_pedestal_sigma_dn, bias_row_gradient_dn,
-                                     bias_col_gradient_dn, vidicon {read_noise_line_dn,
-                                     read_noise_pixel_dn, coherent_amplitude_dn,
-                                     coherent_period_px}; unknown keys fail validation
+                                     cosmic_ray_readout_dwell_sec,
+                                     cosmic_ray_amplitude_e, cosmic_ray_spread_px,
+                                     dark_current_e_per_sec,
+                                     calibration_column_residual_e,
+                                     calibration_pixel_residual_e,
+                                     vidicon {read_noise_line_dn,
+                                     read_noise_pixel_dn}; unknown keys fail
+                                     validation.  Detector defects (banding, hot
+                                     pixels, readout dark, bias structure, bloom, ...)
+                                     are artifact modes, below
   oversample       (int, opt)        radiance oversampling factor (default 4 when a PSF
                                      is active, else 1)
   optics           (mapping, opt)    whole-scene optical effects: psf (sigma_v, sigma_u,
@@ -213,16 +216,30 @@ out.
                                      cataloged for the instrument), binning (a
                                      cataloged readout mode; each frame pixel sums
                                      a b-by-b native block), detector_model
-                                     (ccd | vidicon), exposure_ref_sec, quantization
+                                     (ccd | vidicon), bias_dn, saturation_dn (the
+                                     image's ADC ceiling; the navigator keeps its own),
+                                     full_well_dn (the well of a native pixel, in DN),
+                                     signal_full_scale_frac (the fraction of the well
+                                     a signal of 1.0 fills), exposure_ref_sec,
+                                     missing_data_rate (the fraction of pixels lost in
+                                     the downlink), quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut | ls8b |
                                      contour_8bit), downlink_table (the table, by
                                      name, sqrt_lut decodes through; one the
-                                     instrument's config lists); omitted keys track
-                                     the instrument catalog
+                                     instrument's config lists), contour_step (the DN
+                                     step contour_8bit posterizes to, 1 to 255,
+                                     default 8); omitted keys track the instrument
+                                     catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
-                                     (PSF, distortion residual, shot noise, dark / hot /
-                                     bloom / banding / bias); artifact modes stay off.
+                                     (PSF, distortion residual, shot, read, and dark
+                                     noise, cosmic rays) and to the artifact modes every
+                                     frame of the camera shows (on a raw Cassini camera
+                                     hot_pixels, banding, readout_dark, bias_structure,
+                                     and bloom); the other artifact modes stay off.  A
+                                     key a scene sets in one of those modes replaces
+                                     the camera's value for that key alone, and an
+                                     activation key of 0 turns the mode off.
                                      adversarial (bool): bias each mode's placement onto
                                      the navigation features.  Every other key is an
                                      artifact mode (missing_lines, hot_pixels, ...)
@@ -239,14 +256,17 @@ out.
                                      to the scene; choose 'generic' and override every
                                      key except data_units to fully self-specify so a
                                      later camera-config change cannot shift the
-                                     scene.  (The top-level noise block still wins
-                                     over instrument_config.noise for rendering.)  A
-                                     scene can't set data_units here; the instrument's
-                                     entry decides the frame's units.
+                                     scene.  The block is what the navigator believes
+                                     about the camera; the detector and noise blocks
+                                     set the image.  noise takes only the keys the
+                                     navigator reads (saturation_dn, marker_value,
+                                     read_noise_dn, star_flux_dn_per_s_vmag0,
+                                     by_binning).  A scene can't set data_units here;
+                                     the instrument's entry decides the frame's units.
   published_equals_truth (list, opt) truth paths (noise.read_noise_dn,
                                      optics.psf.sigma_v, ...) that instrument_config
                                      repeats on purpose.  Without it, a planted
-                                     noise or PSF value that instrument_config
+                                     noise, detector, or PSF value that instrument_config
                                      repeats warns, because instrument_config
                                      reaches the navigator as published knowledge;
                                      a listed path whose values differ fails
@@ -259,17 +279,18 @@ lost pixel with 0, as the real products do:
   coiss_nac, coiss_wac, gossi,      raw DN; the bias pedestal keeps the dark sky
   nhlorri, generic                  above the marker
   coiss_calib_nac,                  calibrated I/F, like the Cassini CALIB and
-  coiss_calib_wac, vgiss            Voyager GEOMED products; vgiss also keeps a
-                                    255 DN full well
+  coiss_calib_wac, vgiss_1_nac,     Voyager GEOMED products; the vgiss cameras
+  vgiss_1_wac, vgiss_2_nac,         also keep a 255 DN full well
+  vgiss_2_wac
 
-An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.85, a
+An I/F frame spans roughly 0 to 1 (a vgiss_1_nac frame tops out at 1.85, a
 coiss_calib_nac frame near 2.0), so a display or threshold scaled for DN shows it
 as black.  The calibration inverse adds a calibrated sky residual, so no
-noise-free dark sky reads exactly 0: vgiss sits at 0.0118 I/F (1.5 DN), above 0
+noise-free dark sky reads exactly 0: each vgiss camera sits at 0.0118 I/F (1.5 DN), above 0
 as the GEOMED sky does, and a calibrated Cassini frame at 4.0e-5 I/F, the median
 real CALIB sky.  Under instrument_defaults a coiss_calib_nac sky scatters around
 0, more than a quarter of a disc scene's pixels slightly below it, and a vgiss
-sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
+camera's sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
 next float above it, so only planted loss puts a pixel at the marker.  The scene
 editor's status bar shows each render's units, range, and marker share, counted
 on the frame the navigator reads (planted offset applied), and the navigator's
@@ -410,10 +431,9 @@ the key's name says what the number means:
                                      truth_window, embedded_header,
                                      compression_dct, reseau_scars,
                                      resample_texture, and the detector modes
-                                     (banding_coherent, bias_structure, dark_ramp,
-                                     bloom, frame_transfer_smear, serial_tail,
-                                     beam_bend, residual_image, quantization_sqrt_lut,
-                                     quantization_ls8b, quantization_contour_8bit,
+                                     (banding, bias_structure, readout_dark,
+                                     shutter_shading, bloom, frame_transfer_smear,
+                                     serial_tail, beam_bend, residual_image,
                                      fixed_pattern)
   pixel_fraction   (float in [0, 1]) hot_pixels only: the fraction of detector
                                      pixels that are hot

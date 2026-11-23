@@ -219,8 +219,7 @@ loader indexes the block by detector.
 common schema by **omission**: its ``noise`` block carries only
 ``marker_value: 0``, and its ``image_quality_thresholds`` carry only the two
 ``_if`` thresholds and the two fractions. It has no ``saturation_dn``, no
-``full_well_dn``, no ``expected_noise_dn``, no ``read_noise_dn``, no
-``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
+``read_noise_dn``, no ``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
 ``saturation_threshold_if``.
 
 That last omission is deliberate and is documented in the file. The calibration
@@ -233,7 +232,7 @@ disabled. Adding a threshold to this block would not restore the mask; the
 mask is gated on the units, not on the presence of the key.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
-``expected_noise_dn`` and ``read_noise_dn``, the calibrated block's
+``read_noise_dn``, the calibrated block's
 ``blank_max_if`` and ``noisy_threshold_if``, and both blocks'
 ``mag_offset_table`` entries. The ``_sources`` convention is not used in this
 file.
@@ -495,7 +494,8 @@ two frames are part of it.
 
 **Readout dark and cosmic rays.** The raw dark sky rises linearly from the
 first line to the last at every exposure, by 55 e- on the NAC and 33 e- on the
-WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted
+WAC. Each entry's ``readout_dark`` shape default catalogs that rise as the
+amplitude a native pixel of the last line collects. The cosmic-ray terms, fitted
 in closed loop to the NAC's 12-bit dark-sky frames and shared by the WAC, are a
 rate of 2.0e-5 events per pixel per second, a 6 s readout dwell, a 1,000 e-
 deposit scale, and 0.6 native pixels of diffusion; the simulator report's
@@ -530,7 +530,10 @@ radially symmetric, which is why the non-radial wander is zero.
 lists its modes, and the calibrated entries inherit the list. The simulator
 guide's mode tables (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`)
 give each mode's cameras. Both cameras' detector model is ``ccd``, and neither
-entry states an exclusion reason.
+entry states an exclusion reason. On a raw camera ``instrument_defaults`` turns on
+``hot_pixels``, ``banding``, ``readout_dark``, ``bias_structure``, and ``bloom``. The
+calibrated entries drop ``banding`` and ``bias_structure``, which CISSCAL removes, and
+lower the hot-pixel fraction to the 1.6e-5 the cohort measures.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
@@ -559,6 +562,20 @@ reconstructed kernel ``04002_04009ra.bc``.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.
+
+**Body disc refinement against star solutions.** The body disc technique refines its
+final pass on a high-pass surface (see :doc:`../dev_guide_techniques_body_disc`). That
+refinement was measured on 69 narrow-angle and 6 wide-angle frames with strong star
+solutions, each compared with a half-pixel window around the integer peak.
+
+- **Narrow-angle camera.** The median per-axis error of the disc answer falls from
+  0.29 / 0.30 px to 0.23 / 0.23 px. The median distance from the star solution moves from
+  0.467 to 0.470 px, the mean falls from 0.747 to 0.634 px, and the largest rises from
+  5.21 to 6.20 px. 42 frames improve by more than 0.05 px, and 15 get worse by as much.
+- **Wide-angle camera.** The high-pass refinement is worse overall: the median distance
+  from the star solution rises from 1.79 to 2.77 px. Two of the six frames are saturated,
+  with spill around the body, which is the structure the refinement handles worst:
+  W1568165771_2 goes from 1.70 to 2.80 px, and W1568166187_2 from 1.79 to 2.79 px.
 
 PDS4 hooks
 ==========
@@ -623,7 +640,7 @@ Open items
 ==========
 
 * Every value marked ``# PLACEHOLDER`` in ``config_400_inst_coiss.yaml``: the
-  raw block's ``expected_noise_dn`` and ``read_noise_dn``, the calibrated
+  raw block's ``read_noise_dn``, the calibrated
   block's ``blank_max_if`` and ``noisy_threshold_if``, and the magnitude-offset
   tables on all four detector entries.
 * ``from_file`` carries a TODO noting that the ``np.min`` / ``np.max`` debug

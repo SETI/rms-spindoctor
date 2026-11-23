@@ -48,8 +48,6 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
     resolve_detector_defaults,
@@ -76,7 +74,7 @@ from spindoctor.sim.render.radiance.stars import (
     render_stars,
 )
 from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_system
-from spindoctor.sim.render.roll import roll_body_params
+from spindoctor.sim.render.roll import boresight_shift, roll_body_params
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import default_body_range_km, scene_binning, scene_value
 from spindoctor.sim.seeds import derive_effect_seed
@@ -184,11 +182,13 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # the oversampled render grid alongside the other star pixel quantities.
     catalog_scatter_px = float(params.get('star_catalog_scatter_px', 0.0)) * os
 
-    offset_v = float(params.get('offset_v', 0.0)) * os
-    offset_u = float(params.get('offset_u', 0.0)) * os
-    # Camera roll about the boresight, part of the planted pointing error the
-    # navigator recovers; suppressed in GUI preview mode alongside the offset.
+    # Camera roll about the boresight (the frame center after the planted offset),
+    # suppressed in GUI preview mode alongside the offset.  Every star, body, and
+    # ring system turns about the frame center and then moves by this one shift,
+    # the offset turned by the roll, so none can take another order (#1157).
     offset_rotation_deg = float(params.get('offset_rotation_deg', 0.0))
+    planted = (float(params.get('offset_v', 0.0)) * os, float(params.get('offset_u', 0.0)) * os)
+    shift_v, shift_u = boresight_shift(*planted, roll_deg=offset_rotation_deg)
 
     # A planted spacecraft-ephemeris error displaces bodies and rings by
     # parallax (1/range), computed at full precision on the oversampled grid.
@@ -229,8 +229,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     point_e, sim_star_list, star_info = render_stars(
         point_e,
         stars_params_scaled,
-        offset_v,
-        offset_u=offset_u,
+        shift_v,
+        shift_u=shift_u,
         zero_point=zero_point,
         exposure_sec=exposure_sec,
         rendered_sigma=rendered_sigma,
@@ -266,12 +266,13 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # Process bodies: parse each into its typed spec (every default applied),
     # assign default ranges, apply parallax and the
     # camera roll, and scale centers and axes to the oversampled grid.  A roll
-    # rotates each body's center about the boresight and turns the body about
-    # its own center by the same angle (its orientation, the direction its
+    # rotates each body's center about the frame center (the renderer's shift
+    # then makes it a turn about the boresight) and turns the body about its own
+    # center by the same angle (its orientation, the direction its
     # light comes from, and everything placed on it), so the rolled body is the
     # unrolled one turned with the frame, as the stars are; the body NavModel
     # predicts the unrolled geometry.  Each body also keeps a scene mapping with
-    # the values it is drawn with for the render truth.
+    # the values it is drawn with (its center before the shift) for the truth.
     bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
     explicit_ranges: list[bool] = []
     for body_number, scene_body in enumerate(bodies_params):
@@ -299,8 +300,10 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             ru = cu - det_center_u
             cv = det_center_v + roll_cos * rv - roll_sin * ru
             cu = det_center_u + roll_sin * rv + roll_cos * ru
-        truth_params['center_v'] = cv * os
-        truth_params['center_u'] = cu * os
+        # The recorded center is where the body is drawn: its stated center turned
+        # about the frame center, then moved by the planted offset turned by the roll.
+        truth_params['center_v'] = cv * os + shift_v
+        truth_params['center_u'] = cu * os + shift_u
         for axis_key in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
             axis_val = body_params.get(axis_key)
             if axis_val is not None:
@@ -382,8 +385,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             det_center_v=det_center_v,
             det_center_u=det_center_u,
             # The margin moves the frame's first pixel into the planes.
-            offset_v=offset_v + margin,
-            offset_u=offset_u + margin,
+            shift_v=shift_v + margin,
+            shift_u=shift_u + margin,
             roll_deg=offset_rotation_deg,
             spk_shift=_spk_shift,
             time=time,
@@ -436,8 +439,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         body_mask, body_info = render_single_body(
             img,
             item_spec,
-            offset_v,
-            offset_u=offset_u,
+            shift_v,
+            shift_u=shift_u,
             body_streams_seed=body_streams_seed,
             body_index=orig_idx,
             oversample=os,
@@ -544,8 +547,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         render_stars(
             stars_layer,
             stars_params_scaled,
-            offset_v,
-            offset_u=offset_u,
+            shift_v,
+            shift_u=shift_u,
             zero_point=zero_point,
             exposure_sec=exposure_sec,
             rendered_sigma=rendered_sigma,
@@ -568,8 +571,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             (size_v, size_u),
             stack_steps,
             render_items,
-            offset_v=offset_v,
-            offset_u=offset_u,
+            shift_v=shift_v,
+            shift_u=shift_u,
             body_streams_seed=body_streams_seed,
             os=os,
             margin=margin,
@@ -629,8 +632,8 @@ def _bodies_and_rings_layers(
     stack_steps: list[ScreenOp | int],
     render_items: list[tuple[tuple[float, int], BodySpec, dict[str, Any], int, bool]],
     *,
-    offset_v: float,
-    offset_u: float,
+    shift_v: float,
+    shift_u: float,
     body_streams_seed: int,
     os: int,
     margin: int,
@@ -649,8 +652,8 @@ def _bodies_and_rings_layers(
         render_items: The bodies in render (far-to-near) order, as the radiance
             stage sorts them: sort key, render spec, truth, scene index, and
             whether the range is explicit.
-        offset_v: The planted pointing offset v on the render grid.
-        offset_u: The planted pointing offset u on the render grid.
+        shift_v: The planted offset v turned by the roll, on the render grid.
+        shift_u: The planted offset u turned by the roll, on the render grid.
         body_streams_seed: The scene's seed for every body's random streams.
         os: The oversampling factor.
         margin: How many pixels the layers extend past the frame on each side.
@@ -673,8 +676,8 @@ def _bodies_and_rings_layers(
         _mask, body_info = render_single_body(
             bodies_layer,
             item_spec,
-            offset_v,
-            offset_u=offset_u,
+            shift_v,
+            shift_u=shift_u,
             body_streams_seed=body_streams_seed,
             body_index=orig_idx,
             oversample=os,
@@ -695,8 +698,8 @@ def _resolve_ring_system_maps(
     *,
     det_center_v: float,
     det_center_u: float,
-    offset_v: float,
-    offset_u: float,
+    shift_v: float,
+    shift_u: float,
     roll_deg: float,
     spk_shift: Callable[[float], tuple[float, float]],
     time: float,
@@ -708,9 +711,9 @@ def _resolve_ring_system_maps(
 
     Resolves the block's sky placement the way the body loop does: the
     spacecraft-ephemeris parallax displaces the center by ``1/range_km``, a
-    camera roll rotates the center about the boresight and adds to the node
-    angle (rolling the whole projected pattern), and the planted pointing
-    offset translates it on the oversampled grid.
+    camera roll rotates the center about the frame center and adds to the node
+    angle (rolling the whole projected pattern), and the planted offset turned by
+    the roll translates it, which makes the roll a turn about the boresight.
 
     Parameters:
         ring_system: The validated scene ``ring_system`` mapping.
@@ -718,8 +721,8 @@ def _resolve_ring_system_maps(
         det_center_v: Detector-frame center v (the roll pivot and default
             ring center), in detector pixels.
         det_center_u: Detector-frame center u, in detector pixels.
-        offset_v: Planted pointing offset v on the oversampled grid.
-        offset_u: Planted pointing offset u on the oversampled grid.
+        shift_v: The planted offset v turned by the roll, on the oversampled grid.
+        shift_u: The planted offset u turned by the roll, on the oversampled grid.
         roll_deg: Planted camera-roll angle in degrees.
         spk_shift: The scene's parallax function (detector pixels per range).
         time: Scene time in TDB seconds.
@@ -736,9 +739,9 @@ def _resolve_ring_system_maps(
     node_deg = float(scene_value(geometry, 'node_deg', 0.0))
     range_km = ring_system.get('range_km')
     if range_km is not None:
-        shift_v, shift_u = spk_shift(float(range_km))
-        center_v += shift_v
-        center_u += shift_u
+        parallax_v, parallax_u = spk_shift(float(range_km))
+        center_v += parallax_v
+        center_u += parallax_u
     if roll_deg != 0.0:
         roll_cos = float(np.cos(np.radians(roll_deg)))
         roll_sin = float(np.sin(np.radians(roll_deg)))
@@ -750,8 +753,8 @@ def _resolve_ring_system_maps(
     return render_ring_system(
         shape,
         ring_system,
-        center_v=center_v * os + offset_v,
-        center_u=center_u * os + offset_u,
+        center_v=center_v * os + shift_v,
+        center_u=center_u * os + shift_u,
         node_deg=node_deg,
         time=time,
         epoch=epoch,
@@ -824,10 +827,10 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
     comes from the camera's star zero point, scaled by the scene filter's throughput,
     and the scene exposure.  The core's sigma is the wider axis of the scene's PSF
     (:func:`~spindoctor.sim.render.optics.stage.effective_psf`), or, for a scene
-    without one, the instrument's configured ``star_psf_sigma`` over the readout
-    binning; the core covers ``2 pi sigma**2`` pixels, and at least one.  The read noise
-    is the camera's published value for the scene's readout mode, whether or not the
-    scene enables read noise, and at least 1 (electron, or DN on the vidicon).
+    without one, zero, since the frame is unblurred, which gives the one-pixel core.  The
+    core covers ``2 pi sigma**2`` pixels, and at least one.  The read noise is the
+    camera's published value for the scene's readout mode, whether or not the scene
+    enables read noise, and at least 1 (electron, or DN on the vidicon).
 
     Parameters:
         params: The full scene mapping.
@@ -843,10 +846,8 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
         sigma_v_psf = float(scene_psf['sigma_v'])
         psf_sigma = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
     else:
-        inst_config = resolve_sim_inst_config(
-            DEFAULT_CONFIG, instrument, params.get('instrument_config')
-        )
-        psf_sigma = float(inst_config['star_psf_sigma']) / binning
+        # An unblurred frame deposits a star in one pixel: the one-pixel core.
+        psf_sigma = 0.0
     return faint_sky_cutoff_mag(
         zero_point=zero_point,
         exposure_sec=float(params.get('exposure_sec', 1.0)),

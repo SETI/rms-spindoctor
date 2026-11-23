@@ -4,9 +4,19 @@
 
 # -- Path setup --------------------------------------------------------------
 
+import functools
 import importlib.metadata
+import inspect
 import os
+import subprocess
 import sys
+from pathlib import Path
+from typing import Any
+
+from docutils import nodes
+from sphinx import addnodes
+from sphinx.application import Sphinx
+from sphinx.ext.autodoc.mock import ismock
 
 sys.path.insert(0, os.path.abspath('../src'))
 
@@ -27,7 +37,7 @@ except importlib.metadata.PackageNotFoundError:
 # Add any Sphinx extension module names here, as strings
 extensions = [
     'sphinx.ext.autodoc',
-    'sphinx.ext.viewcode',
+    'sphinx.ext.linkcode',
     'sphinx.ext.napoleon',
     'sphinx.ext.intersphinx',
     'sphinxcontrib.mermaid',
@@ -62,7 +72,9 @@ source_suffix = ['.rst', '.md']
 # The theme to use for HTML and HTML Help pages.
 html_theme = 'sphinx_rtd_theme'
 
-# Show every section level in the sidebar TOC, with all sub-trees expanded.
+# Show every section level in the sidebar, with the branch holding the current
+# page expanded and the others expandable in place. The Sidebar section below
+# keeps the API reference's entries out of it outside the API reference.
 html_theme_options = {
     'navigation_depth': -1,
     'collapse_navigation': False,
@@ -139,3 +151,141 @@ myst_enable_extensions = [
 # Mermaid settings: use default client-side rendering (no mmdc/Chromium) so docs
 # build in headless CI; diagrams render in the browser via mermaid.js.
 mermaid_d3_zoom = True
+
+# -- Sidebar -----------------------------------------------------------------
+
+# The sidebar lists every guide and report page, at full depth, on every page.
+# The API reference appears in it as one entry with no children, except on the
+# API reference's own pages, where its pages and their documented objects are
+# listed as well. The API reference holds thousands of entries, one per
+# documented class, function, and method, and writing them all into every page
+# made each page about 1 MB and the build several times slower.
+#
+# sphinx_rtd_theme draws the sidebar by calling the page context's ``toctree``
+# function. Outside the API reference, _sidebar_toctree replaces that function
+# with one that resolves the same global toctree while the API reference's
+# table of contents is swapped for a copy holding only its title, so Sphinx
+# never copies, resolves, or renders the API entries for that page. On an API
+# reference page the theme's own call is left in place.
+
+API_REFERENCE_DOC = 'api_reference'
+
+
+def _is_api_reference_page(pagename: str) -> bool:
+    """Return whether a page belongs to the API reference."""
+    return pagename == API_REFERENCE_DOC or pagename.startswith(f'{API_REFERENCE_DOC}/')
+
+
+def _title_only_toc(toc: nodes.Element) -> nodes.Element:
+    """Return a copy of a table of contents without its toctrees or empty lists."""
+    toc = toc.deepcopy()
+    for toctree_node in list(toc.findall(addnodes.toctree)):
+        toctree_node.parent.remove(toctree_node)
+    for bullet_list in reversed(list(toc.findall(nodes.bullet_list))):
+        if not bullet_list.children and bullet_list.parent is not None:
+            bullet_list.parent.remove(bullet_list)
+    return toc
+
+
+def _sidebar_toctree(
+    app: Sphinx,
+    pagename: str,
+    templatename: str,
+    context: dict[str, Any],
+    doctree: nodes.document | None,
+) -> None:
+    """Make the sidebar of a page outside the API reference omit the API entries."""
+    if _is_api_reference_page(pagename) or 'toctree' not in context:
+        return
+    builder = app.builder
+
+    def toctree(**kwargs: Any) -> str:
+        tocs = builder.env.tocs
+        full_toc = tocs[API_REFERENCE_DOC]
+        tocs[API_REFERENCE_DOC] = _title_only_toc(full_toc)
+        try:
+            # The same call the HTML builder's own toctree function makes.
+            return builder._get_local_toctree(pagename, **kwargs)
+        finally:
+            tocs[API_REFERENCE_DOC] = full_toc
+
+    context['toctree'] = toctree
+
+
+# -- Source links ------------------------------------------------------------
+
+# Each documented object links to its lines on GitHub at the commit being
+# built: Read the Docs supplies that commit, a local build asks git, and a
+# checkout git cannot read links to main. An object whose source cannot be
+# located exactly (a value, an attribute holding an object defined under
+# another name, or anything from a mocked module) gets no link.
+
+GITHUB_BLOB_URL = 'https://github.com/SETI/rms-spindoctor/blob'
+
+
+def _source_ref() -> str:
+    """Return the commit the links point at."""
+    commit = os.environ.get('READTHEDOCS_GIT_COMMIT_HASH')
+    if commit:
+        return commit
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=Path(__file__).resolve().parent,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return 'main'
+    return result.stdout.strip() or 'main'
+
+
+SOURCE_REF = _source_ref()
+
+
+def linkcode_resolve(domain: str, info: dict[str, str]) -> str | None:
+    """Return the GitHub URL of a documented object's source lines, or None."""
+    if domain != 'py':
+        return None
+    module = sys.modules.get(info.get('module', ''))
+    package = sys.modules.get('spindoctor')
+    if module is None or package is None or package.__file__ is None:
+        return None
+    obj: Any = module
+    for part in info['fullname'].split('.'):
+        try:
+            obj = getattr(obj, part)
+        except AttributeError:
+            return None
+    if ismock(obj):
+        return None
+    if isinstance(obj, property):
+        obj = obj.fget
+    elif isinstance(obj, functools.cached_property):
+        obj = obj.func
+    try:
+        obj = inspect.unwrap(obj)
+    except ValueError:
+        return None
+    # A value, or an attribute that holds something defined under another name.
+    if getattr(obj, '__name__', None) != info['fullname'].split('.')[-1]:
+        return None
+    try:
+        source_file = inspect.getsourcefile(obj)
+        lines, start = inspect.getsourcelines(obj)
+    except (OSError, TypeError):
+        return None
+    if source_file is None:
+        return None
+    try:
+        path = Path(source_file).resolve().relative_to(Path(package.__file__).resolve().parent)
+    except ValueError:
+        return None
+    end = start + len(lines) - 1
+    return f'{GITHUB_BLOB_URL}/{SOURCE_REF}/src/spindoctor/{path.as_posix()}#L{start}-L{end}'
+
+
+def setup(app: Sphinx) -> None:
+    """Connect the sidebar handler."""
+    app.connect('html-page-context', _sidebar_toctree)

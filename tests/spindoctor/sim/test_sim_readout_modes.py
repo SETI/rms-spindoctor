@@ -21,7 +21,7 @@ from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_psf_kernel,
 )
-from spindoctor.sim.render.detector.noise_stages import detector_hot_pixel_map
+from spindoctor.sim.render.detector.detector_maps import detector_hot_pixel_map
 from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
 from spindoctor.sim.render.optics.psf import binned_psf_kernel
@@ -49,7 +49,7 @@ def _scene(instrument: str, binning: int | None = None, **extra: Any) -> dict[st
         ('coiss_calib_wac', (1, 2, 4)),
         ('gossi', (1, 2)),
         ('nhlorri', (1, 4)),
-        ('vgiss', (1,)),
+        ('vgiss_1_nac', (1,)),
         (None, (1,)),
     ],
 )
@@ -67,7 +67,7 @@ def test_each_camera_catalogs_its_readout_modes(
         ('coiss_calib_nac', 512, 2),
         ('nhlorri', 256, 4),
         ('gossi', 800, 1),
-        ('vgiss', 1000, 1),
+        ('vgiss_1_nac', 1000, 1),
     ],
 )
 def test_a_full_frame_names_its_binning(instrument: str, size: int, binning: int) -> None:

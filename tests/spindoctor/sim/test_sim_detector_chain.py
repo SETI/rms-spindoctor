@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene
+from tests.spindoctor.sim.scenes import frame_scene, zero_bias
 
 from spindoctor.sim.render.detector import chain
 from spindoctor.sim.render.detector.params import resolve_detector_params
@@ -63,15 +63,15 @@ def test_calibrated_sky_sits_near_zero_if() -> None:
 
 def test_vidicon_floor_is_clean() -> None:
     """A vgiss scene with no noise block renders without vidicon noise (floor)."""
-    plain, _ = render_scene(_disc('vgiss'))
+    plain, _ = render_scene(_disc('vgiss_1_nac'))
     corner = plain[:4, :4]
     assert float(corner.std()) == 0.0
 
 
 def test_vidicon_defaults_add_dn_domain_noise() -> None:
     """instrument_defaults turns on the vidicon DN-domain noise model."""
-    plain, _ = render_scene(_disc('vgiss'))
-    noisy, _ = render_scene(_disc('vgiss', artifacts={'instrument_defaults': True}))
+    plain, _ = render_scene(_disc('vgiss_1_nac'))
+    noisy, _ = render_scene(_disc('vgiss_1_nac', artifacts={'instrument_defaults': True}))
     assert not np.array_equal(plain, noisy)
 
 
@@ -102,8 +102,9 @@ def test_vidicon_target_saturates_on_its_total_charge(
         point_dn: The uniform point-source charge in DN.
         artifacts: The artifact block, which adds the residual image.
     """
-    scene = _disc('vgiss', artifacts=artifacts)
-    scene['noise'] = {'bias_dn': 0.0, 'vidicon': {'read_noise_pixel_dn': 3.0}}
+    scene = _disc('vgiss_1_nac', artifacts=artifacts)
+    scene['detector'] = zero_bias()
+    scene['noise'] = {'vidicon': {'read_noise_pixel_dn': 3.0}}
     frame = SimFrame(
         signal=np.full((64, 64), signal, dtype=np.float64),
         point_e=np.full((64, 64), point_dn, dtype=np.float64),
@@ -121,7 +122,7 @@ def test_vidicon_calibrated_if_is_exposure_invariant() -> None:
     """
     peaks = []
     for exposure in (1.0, 2.0, 4.0):
-        img, _ = render_scene(_disc('vgiss', exposure_sec=exposure))
+        img, _ = render_scene(_disc('vgiss_1_nac', exposure_sec=exposure))
         peaks.append(float(img.max()))
     assert abs(peaks[1] - peaks[0]) < 0.01
     assert abs(peaks[2] - peaks[0]) < 0.01
@@ -159,12 +160,12 @@ def test_gain_state_selection_changes_dn_scale() -> None:
 
 
 def test_instrument_defaults_turns_on_poisson_and_catalog_bloom() -> None:
-    """The physical-chain opt-in resolves shot noise on and the catalog bloom."""
+    """The physical-chain opt-in resolves shot noise and the camera's bloom on."""
     from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('coiss_nac', artifacts={'instrument_defaults': True}))
     assert resolved.poisson is True
-    assert resolved.bloom_length == 4
+    assert resolved.detector_modes['bloom']['bloom_length'] == 4
 
 
 @pytest.mark.parametrize(
@@ -213,12 +214,12 @@ def test_cosmic_ray_retained_zero_for_lorri() -> None:
 
 
 def test_floor_resolves_poisson_off_and_no_bloom() -> None:
-    """Without artifacts or a noise block, shot noise and bloom stay disabled."""
+    """Without artifacts or a noise block, shot noise and every mode stay off."""
     from spindoctor.sim.render.detector.params import resolve_detector_params
 
     resolved = resolve_detector_params(_disc('coiss_nac'))
     assert resolved.poisson is False
-    assert resolved.bloom_length == 0
+    assert resolved.detector_modes == {}
     # No instrument_defaults: the catalog cosmic-ray rate does not activate.
     assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
 
@@ -231,11 +232,10 @@ def test_explicit_noise_override_beats_instrument_defaults() -> None:
         _disc(
             'coiss_nac',
             artifacts={'instrument_defaults': True},
-            noise={'poisson': False, 'bloom_length': 9},
+            noise={'poisson': False},
         )
     )
     assert resolved.poisson is False
-    assert resolved.bloom_length == 9
 
 
 def _flat_defaults_scene(**noise_extra: Any) -> dict[str, Any]:

@@ -44,15 +44,6 @@ _CCD_REQUIRED: tuple[str, ...] = (
     'default_gain_state',
     'read_noise_e',
     'dark_current_e_per_sec',
-    'hot_pixel_fraction',
-    'hot_pixel_amplitude_e',
-    'hot_pixel_column_factor',
-    'banding_amplitude_e',
-    'banding_period_px',
-    'bias_pedestal_sigma_dn',
-    'bias_row_gradient_dn',
-    'bias_col_gradient_dn',
-    'bloom_length',
 )
 
 # The detector keys a readout mode cannot change: a readout mode bins the same
@@ -112,32 +103,35 @@ class VidiconChain:
     Parameters:
         read_noise_line_dn: The per-line read noise, in DN.
         read_noise_pixel_dn: The per-pixel read noise, in DN.
-        coherent_amplitude_dn: The coherent noise's amplitude, in DN.
-        coherent_period_px: The coherent noise's period, in pixels.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
 
     read_noise_line_dn: NonNeg
     read_noise_pixel_dn: NonNeg
-    coherent_amplitude_dn: NonNeg
-    coherent_period_px: Positive
 
 
 @dataclass(frozen=True)
 class Detector:
     """An entry's detector block: the values of its detector chain.
 
-    Every entry states the first five keys.  A CCD entry also states its electron
-    chain: the full well, gain table, default gain state, read noise, dark current,
-    hot-pixel, banding, and bias-structure terms, and the bloom length.  A vidicon
-    entry states its ``vidicon`` chain.  The other keys are optional.
+    Every entry states the first nine keys.  A CCD entry also states its electron
+    chain: the full well, gain table, default gain state, read noise, and dark
+    current.  A vidicon entry states its ``vidicon`` chain.  The other keys are
+    optional.
 
     Parameters:
         detector_model: The chain the detector stage renders with.
         exposure_ref_sec: The reference exposure, in seconds, at which a signal of
             1.0 fills the scaled well.
         bias_dn: The bias pedestal, in DN.
+        saturation_dn: The ADC ceiling, in DN, at which the frame is clipped.
+        full_well_dn: The DN full scale of the vidicon chain.  A CCD entry repeats its
+            ADC ceiling here, which only a scene that renders the camera through the
+            vidicon chain reads.
+        signal_full_scale_frac: The fraction of the well that a signal of 1.0 fills at
+            the reference exposure.
+        missing_data_rate: The fraction of the pixels lost at random in the downlink.
         quantization: How the frame is quantized to DN.
         cosmic_ray_events_per_pixel_per_sec: The cosmic-ray rate.
         full_well_e: The full well, in electrons.
@@ -145,23 +139,11 @@ class Detector:
         default_gain_state: The gain state a scene gets when it sets none.
         read_noise_e: The read noise, in electrons.
         dark_current_e_per_sec: The dark current, in electrons per second.
-        readout_dark_e: The dark charge collected during readout, in electrons at
-            the last line.
-        hot_pixel_fraction: The fraction of pixels that are hot.
-        hot_pixel_amplitude_e: A hot pixel's charge, in electrons.
-        hot_pixel_column_factor: The share of hot pixels that line up in columns.
         cosmic_ray_readout_dwell_sec: The time, in seconds, the frame sits exposed
             to cosmic rays during readout.
         cosmic_ray_amplitude_e: The smallest charge a cosmic ray deposits, in
             electrons.
         cosmic_ray_spread_px: The sigma, in native pixels, of a hit's diffusion.
-        banding_amplitude_e: The banding amplitude, in electrons.
-        banding_period_px: The banding period, in pixels.
-        bias_pedestal_sigma_dn: The frame-to-frame jitter of the bias, in DN.
-        bias_row_gradient_dn: The bias gradient along the rows, in DN.
-        bias_col_gradient_dn: The bias gradient along the columns, in DN.
-        bloom_length: How many pixels charge above the full well spills along the
-            column.
         calibrated_sky_if: The calibrated sky residual, in I/F, of a calibrated
             frame.
         dark_sky_ceiling_if: The realism match's dark-sky ceiling, in I/F.
@@ -177,6 +159,10 @@ class Detector:
     detector_model: DetectorModel
     exposure_ref_sec: Positive
     bias_dn: NonNeg
+    saturation_dn: Positive
+    full_well_dn: Positive
+    signal_full_scale_frac: Positive
+    missing_data_rate: Unit
     quantization: QuantizationMode
     cosmic_ray_events_per_pixel_per_sec: NonNeg
     full_well_e: Positive | None = None
@@ -184,19 +170,9 @@ class Detector:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
-    readout_dark_e: NonNeg | None = None
-    hot_pixel_fraction: Unit | None = None
-    hot_pixel_amplitude_e: NonNeg | None = None
-    hot_pixel_column_factor: Unit | None = None
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
-    banding_amplitude_e: NonNeg | None = None
-    banding_period_px: Positive | None = None
-    bias_pedestal_sigma_dn: NonNeg | None = None
-    bias_row_gradient_dn: NonNeg | None = None
-    bias_col_gradient_dn: NonNeg | None = None
-    bloom_length: NonNegInt | None = None
     calibrated_sky_if: Float | None = None
     dark_sky_ceiling_if: Positive | None = None
     calibration_column_residual_e: NonNeg | None = None
@@ -257,6 +233,10 @@ class ReadoutMode:
         detector_model: Refused when set.
         exposure_ref_sec: As :class:`Detector`.
         bias_dn: As :class:`Detector`.
+        saturation_dn: As :class:`Detector`.
+        full_well_dn: As :class:`Detector`.
+        signal_full_scale_frac: As :class:`Detector`.
+        missing_data_rate: As :class:`Detector`.
         quantization: As :class:`Detector`.
         cosmic_ray_events_per_pixel_per_sec: As :class:`Detector`.
         full_well_e: As :class:`Detector`.
@@ -264,19 +244,9 @@ class ReadoutMode:
         default_gain_state: As :class:`Detector`.
         read_noise_e: As :class:`Detector`.
         dark_current_e_per_sec: As :class:`Detector`.
-        readout_dark_e: As :class:`Detector`.
-        hot_pixel_fraction: As :class:`Detector`.
-        hot_pixel_amplitude_e: As :class:`Detector`.
-        hot_pixel_column_factor: As :class:`Detector`.
         cosmic_ray_readout_dwell_sec: As :class:`Detector`.
         cosmic_ray_amplitude_e: As :class:`Detector`.
         cosmic_ray_spread_px: As :class:`Detector`.
-        banding_amplitude_e: As :class:`Detector`.
-        banding_period_px: As :class:`Detector`.
-        bias_pedestal_sigma_dn: As :class:`Detector`.
-        bias_row_gradient_dn: As :class:`Detector`.
-        bias_col_gradient_dn: As :class:`Detector`.
-        bloom_length: As :class:`Detector`.
         calibrated_sky_if: As :class:`Detector`.
         dark_sky_ceiling_if: Refused when set.
         calibration_column_residual_e: As :class:`Detector`.
@@ -289,6 +259,10 @@ class ReadoutMode:
     detector_model: DetectorModel | None = None
     exposure_ref_sec: Positive | None = None
     bias_dn: NonNeg | None = None
+    saturation_dn: Positive | None = None
+    full_well_dn: Positive | None = None
+    signal_full_scale_frac: Positive | None = None
+    missing_data_rate: Unit | None = None
     quantization: QuantizationMode | None = None
     cosmic_ray_events_per_pixel_per_sec: NonNeg | None = None
     full_well_e: Positive | None = None
@@ -296,19 +270,9 @@ class ReadoutMode:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
-    readout_dark_e: NonNeg | None = None
-    hot_pixel_fraction: Unit | None = None
-    hot_pixel_amplitude_e: NonNeg | None = None
-    hot_pixel_column_factor: Unit | None = None
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
-    banding_amplitude_e: NonNeg | None = None
-    banding_period_px: Positive | None = None
-    bias_pedestal_sigma_dn: NonNeg | None = None
-    bias_row_gradient_dn: NonNeg | None = None
-    bias_col_gradient_dn: NonNeg | None = None
-    bloom_length: NonNegInt | None = None
     calibrated_sky_if: Float | None = None
     dark_sky_ceiling_if: Positive | None = None
     calibration_column_residual_e: NonNeg | None = None

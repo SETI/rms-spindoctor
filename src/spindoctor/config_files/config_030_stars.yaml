@@ -5,7 +5,6 @@ stars:
   stellar_aberration: true
   proper_motion: true
   max_stars: 100
-  max_movement_steps: 50
   label_font: liberation2/LiberationMono-Bold.ttf
   label_font_size: 18
   label_font_color: [255, 0, 0]  # Red
@@ -14,7 +13,6 @@ stars:
   duplicate_vmag_threshold: 3  # Less than this - stars are true duplicates
   overlapping_vmag_threshold: 2  # Less than this - remove both stars when visually overlapping
 
-  min_confidence: 0.9
   max_smear: 100  # (px) smear length above which a star is dropped
   # Scales the predicted_snr entry of a star's reported reliability breakdown:
   # the entry reaches 1.0 at this effective SNR and is snr / min_predicted_snr

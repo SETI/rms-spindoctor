@@ -61,7 +61,7 @@ def _render(
         img,
         body_spec_from_params(shifted, index=0),
         0.0,
-        offset_u=0.0,
+        shift_u=0.0,
         body_streams_seed=11,
         oversample=oversample,
     )
@@ -229,7 +229,6 @@ def test_large_mesh_body_matches_the_unclipped_body() -> None:
         **disc_body(-28.3, 70.6, 56.0, **_SHADING),
         'shape_model': 'polyhedral_mesh',
         'mesh_lumpiness': 0.3,
-        'pose_euler_deg': [20.0, 35.0, -10.0],
     }
     img, _ = _render(body)
     reference, _ = _render(body, pad=_PAD)
@@ -249,7 +248,6 @@ def test_lumpy_mesh_body_reaching_past_its_semi_axes_matches_the_unclipped_body(
         'shape_model': 'polyhedral_mesh',
         'mesh_lumpiness': 0.6,
         'mesh_seed': 0,
-        'pose_euler_deg': [20.0, 35.0, -10.0],
     }
     img, _ = _render(body)
     reference, _ = _render(body, pad=_PAD)
@@ -369,7 +367,7 @@ def test_body_that_misses_the_frame_is_never_drawn(
     img = np.zeros((_SIZE, _SIZE))
     body = {**disc_body(-200.0, 32.0, 50.0, name='far'), **keys}
     mask, info = render_single_body(
-        img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0, body_streams_seed=7
+        img, body_spec_from_params(body, index=0), 0.0, shift_u=0.0, body_streams_seed=7
     )
     assert not mask.any()
     assert info['inventory']['v_max_unclipped'] == pytest.approx(-150.0)

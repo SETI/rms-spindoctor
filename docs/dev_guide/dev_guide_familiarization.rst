@@ -11,8 +11,8 @@ stages can be read more selectively once the core pipeline makes sense.
 The plan does not explain the code — it sequences it. Read each
 documentation page first, then look at the corresponding source. Every class,
 function, and module name below is a hyperlink into the API reference; click
-through to jump straight to the autodoc page (and from there to the
-``[source]`` link to the file itself).
+through to jump straight to the autodoc page (and from there through the
+``[source]`` link to the object's lines on GitHub).
 
 Stage 1 — Orientation
 =====================

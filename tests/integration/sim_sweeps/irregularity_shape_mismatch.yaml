@@ -9,24 +9,21 @@ sweep_name: irregularity_shape_mismatch
 #
 # This walk is one realization, the base scene's mesh_seed 4 (the median shape
 # mismatch of seeds 0 to 12, a rule fixed in advance; see the scene).  On it the
-# error grows 0.06, 0.67, 1.26, 1.89, 2.89, 2.89, 2.89, 5.25 px from L 0.0 to
-# 0.7; the confidence stays 0.99 through L 0.2, falls to 0.82, 0.79, 0.77, and
-# 0.74 at L 0.3 to 0.6, and ends 0.40 at L 0.7, where the disc and limb lock onto
-# the shape and the pose-free blob carries a success.  Every step is a success;
-# the shape-lock veto does not fire on this shape.  The error holds at 2.89 px
-# from L 0.4 to 0.6 (it falls by less than a millipixel at L 0.6) and rises at
-# each remaining step.
+# error grows 0.06, 0.79, 1.67, 2.55, 3.38, 3.57, 3.75, 8.27 px from L 0.0 to
+# 0.7; the confidence stays 0.99 through L 0.6 and ends 0.15 at L 0.7, where the
+# disc and limb lock onto the shape and the shape-lock veto declines the step as
+# conflicted.  Every other step is a success.
 #
-# Across mesh seeds 0 to 12 (2026-11-10): every walk starts sub-pixel and ends
-# 2.7 to 12.7 px off, but the error never falls between steps on only 6 of them
-# (seeds 2, 5, 7, 9, 10, 12); every walk but seed 7's dips at least 0.3 below the
-# clean confidence somewhere (seed 7 dips 0.10); at L 0.7 two of the 13 end
-# conflicted, seed 5 by the shape-lock veto and seed 2 because its disc and limb
-# disagree; and seed 10 ends a 0.91-confidence success 12.7 px off, a confident
-# wrong result the veto misses (#790).  These come from one noise draw.  Over 25
-# noise draws (2026-11-18) the veto fires on 0 to 3 of the 13 shapes per draw,
-# only ever on mesh seeds 0, 1, 5, and 12, and seed 10 is confidently wrong on 17
-# of the draws.  test_sim_sweeps asserts the single-seed walk as a tripwire, and
+# Across mesh seeds 0 to 12 (2026-11-23): every walk starts sub-pixel and ends
+# 2.7 to 23.2 px off, but the error never falls between steps on only 7 of them
+# (seeds 1, 2, 4, 6, 7, 9, 10); every walk but seed 7's dips at least 0.3 below the
+# clean confidence somewhere (seed 7 dips 0.29); at L 0.7 five of the 13 end
+# conflicted, seeds 1, 4, 6, 10, and 12, all by the shape-lock veto; and seed 9
+# ends a 0.61-confidence success 8.4 px off.  These come from one noise draw.  Over
+# 25 noise draws the veto fires on 3 to 7 of the 13 shapes per draw, on mesh seeds
+# 1, 4, 5, 6, 8, 10, 11, and 12, and seed 9 is a confident (0.9 or above) success
+# more than 5 px off on 7 of the draws, a wrong result the veto misses (#790).
+# test_sim_sweeps asserts the single-seed walk as a tripwire, and
 # test_sim_irregularity_population asserts the population's properties over the
 # 13 shapes on 5 noise draws.
 base_scene: algorithmic_invariants/planted_offset_shapemismatch.yaml

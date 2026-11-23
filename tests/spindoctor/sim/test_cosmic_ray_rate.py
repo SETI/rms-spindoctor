@@ -7,8 +7,8 @@ CCD electron chain and the vidicon DN chain both deposit the hits, with that
 same meaning, and the validator accepts a rate on every scene.  On the vidicon
 the hits land on the stored target image: after the prior frame's residual
 image, which this frame's hits don't reach, and before the readout.  Under
-``artifacts.instrument_defaults`` the catalog's rate applies, and below that the
-configuration's ``sim.noise`` floor.
+``artifacts.instrument_defaults`` the catalog's rate applies, and without it a scene
+that sets no rate has no hits.
 """
 
 import dataclasses
@@ -19,11 +19,10 @@ import pytest
 from scipy import ndimage
 from tests.spindoctor.sim.scenes import body_scene, frame_scene
 
-from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.catalog import load_instrument_catalog, sim_instrument_names
 from spindoctor.sim.render.detector import apply_detector, chain
-from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.detector.transients import add_cosmic_rays
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.validate import validate_sim_params
@@ -172,30 +171,6 @@ def test_scene_rate_reaches_the_stage_unscaled() -> None:
     assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(3.5e-4)
 
 
-# ---- The configuration floor ----
-
-
-def test_sim_config_floor_uses_the_per_pixel_key() -> None:
-    """The packaged sim config's noise floor is the per-pixel key, at zero."""
-    assert DEFAULT_CONFIG.category('sim')['noise'][_KEY] == 0.0
-
-
-def test_config_floor_rate_reaches_a_scene_that_leaves_it_unset(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A non-zero sim.noise floor is the rate of a scene that sets none."""
-    monkeypatch.setitem(DEFAULT_CONFIG.category('sim')['noise'], _KEY, 6.0e-4)
-    resolved = resolve_detector_params(_scene('coiss_nac', {}))
-    assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(6.0e-4)
-
-
-def test_config_floor_rate_gives_way_to_the_scene(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A scene's own rate wins over a non-zero sim.noise floor."""
-    monkeypatch.setitem(DEFAULT_CONFIG.category('sim')['noise'], _KEY, 6.0e-4)
-    resolved = resolve_detector_params(_scene('coiss_nac', {_KEY: 1.0e-5}))
-    assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(1.0e-5)
-
-
 # ---- Every detector path ----
 
 
@@ -229,7 +204,7 @@ def test_both_chains_give_the_stage_the_rate_and_exposure(
         calls.append((kwargs['events_per_pixel_per_sec'], kwargs['exposure_sec']))
 
     monkeypatch.setattr(chain, 'add_cosmic_rays', _record)
-    scene = _scene('vgiss', {_KEY: 3.0e-4}, detector={'detector_model': detector_model})
+    scene = _scene('vgiss_1_nac', {_KEY: 3.0e-4}, detector={'detector_model': detector_model})
     scene['exposure_sec'] = 2.5
     _detector_dn(scene)
     assert calls == [(3.0e-4, 2.5)]
@@ -243,7 +218,7 @@ def _vgiss_dn(noise: dict[str, Any], **extra: Any) -> np.ndarray:
     the calibration would give the same DN only while vgiss has no calibration
     residual.
     """
-    scene = _scene('vgiss', noise, **extra)
+    scene = _scene('vgiss_1_nac', noise, **extra)
     scene.update(size_v=64, size_u=64)
     frame = SimFrame(
         signal=np.zeros((64, 64), dtype=np.float64),
@@ -303,8 +278,10 @@ def test_a_vidicon_hit_core_holds_the_full_scale_under_the_readout_noise() -> No
     noise-free frame) reads 255 plus the noise, clipped at the ceiling, so some
     cores read below 255.  A hit added after the readout would read 255 always.
     """
-    clean = _vgiss_dn({_KEY: 0.01, 'bias_dn': 0.0})
-    noisy = _vgiss_dn({_KEY: 0.01, 'bias_dn': 0.0, 'vidicon': {'read_noise_pixel_dn': 3.0}})
+    clean = _vgiss_dn({_KEY: 0.01}, detector={'bias_dn': 0.0})
+    noisy = _vgiss_dn(
+        {_KEY: 0.01, 'vidicon': {'read_noise_pixel_dn': 3.0}}, detector={'bias_dn': 0.0}
+    )
     cores = clean == 255.0
     assert int(cores.sum()) > 0
     assert float(noisy[cores].min()) < 255.0
@@ -314,7 +291,7 @@ def _vgiss_bent_body(rate: float, seed: int) -> np.ndarray:
     """A 128 x 128 vgiss frame of a full-phase body with the beam bend on."""
     scene = body_scene(
         30.0,
-        instrument='vgiss',
+        instrument='vgiss_1_nac',
         size=128,
         seed=seed,
         noise={_KEY: rate},

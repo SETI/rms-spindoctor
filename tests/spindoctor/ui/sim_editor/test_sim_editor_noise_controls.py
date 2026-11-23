@@ -16,7 +16,7 @@ import pytest
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
-    from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QSpinBox, QWidget
+    from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QWidget
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6/QtWidgets not available: {exc}', allow_module_level=True)
 
@@ -29,10 +29,6 @@ _NOISE_CONTROLS = (
     '_poisson_check',
     '_read_noise_spin',
     '_cosmic_ray_spin',
-    '_missing_data_spin',
-    '_bias_spin',
-    '_bloom_spin',
-    '_signal_frac_spin',
 )
 _INSTRUMENTS = (*sim_instrument_names(), 'generic')
 
@@ -56,8 +52,6 @@ def _operate(widget: QWidget) -> None:
     if isinstance(widget, QCheckBox):
         widget.setChecked(not widget.isChecked())
         widget.setChecked(not widget.isChecked())
-    elif isinstance(widget, QSpinBox):
-        widget.setValue(int(widget.minimum() + (widget.maximum() - widget.minimum()) * 0.37))
     elif isinstance(widget, QDoubleSpinBox):
         widget.setValue(widget.minimum() + (widget.maximum() - widget.minimum()) * 0.37)
     else:
@@ -89,18 +83,14 @@ def test_operating_every_noise_control_keeps_the_scene_valid(
     for attr in _NOISE_CONTROLS:
         _operate(getattr(model, attr))
     validate_sim_params(copy.deepcopy(model.sim_params))
-    noise = model.sim_params['noise']
-    assert noise['cosmic_ray_events_per_pixel_per_sec'] > 0.0
-    assert noise['missing_data_rate'] > 0.0
+    assert model.sim_params['noise']['cosmic_ray_events_per_pixel_per_sec'] > 0.0
 
 
-@pytest.mark.parametrize('instrument', ['vgiss', 'coiss_calib_nac'])
+@pytest.mark.parametrize('instrument', ['vgiss_1_nac', 'coiss_calib_nac'])
 def test_a_rate_survives_a_switch_of_instrument(model: Any, instrument: str) -> None:
     """A rate set on coiss_nac stays in the scene after a switch to another instrument."""
     _set_scene(model, 'coiss_nac', None)
     model._cosmic_ray_spin.setValue(0.001)
-    model._missing_data_spin.setValue(0.05)
     _set_scene(model, instrument, None)
     noise = model.sim_params['noise']
     assert noise['cosmic_ray_events_per_pixel_per_sec'] == pytest.approx(0.001)
-    assert noise['missing_data_rate'] == pytest.approx(0.05)

@@ -74,7 +74,6 @@ settings for one part of the system:
 
    offset:
      correlation_fft_upsample_factor: 128
-     star_refinement_enabled: true
 
    bodies:
      min_bounding_box_area: 9
@@ -96,8 +95,8 @@ The sections are:
     :doc:`/user_guide/user_guide_logging`.
 
 ``offset``
-    The shared machinery every technique uses, including how finely the image correlation
-    is upsampled and whether star positions are refined after a first fit.
+    How finely the image correlation is upsampled, which sets how small a fraction of a
+    pixel it can resolve.
 
 ``stars``, ``bodies``, ``rings``, ``titan``
     What goes into the model of each kind of subject, and how the matching treats it:

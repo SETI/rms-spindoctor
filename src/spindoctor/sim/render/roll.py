@@ -5,15 +5,25 @@ the field of view turns by the roll angle in one direction about one point: body
 positions and orientations, the direction a body is lit from, stars, star smear,
 companions, the background sky, and the ring system.  The scene states all of it as
 the unrolled camera would see it, the navigator predicts that unrolled scene, and the
-renderer draws it rolled.  This module turns a body about its own center and turns
-any image-plane vector; the scene radiance stage turns body and ring centers about
-the frame center, and the star renderer and the optics smear turn the rest.
+renderer draws it rolled.  This module turns a body about its own center, turns any
+image-plane vector, and gives the translation that follows the turn; the scene
+radiance stage turns body and ring centers about the frame center, and the star
+renderer and the optics smear turn the rest.
 
 The roll angle runs from ``+v`` toward ``+u``: a positive roll carries a point at
 ``(dv, du)`` from the pivot to ``(cos * dv - sin * du, sin * dv + cos * du)``.  This
 is the rotation the navigator's star similarity fit reports, so the rotation it
-recovers equals the planted roll.  The pivot is the frame center, ``(size_v / 2,
-size_u / 2)`` in pixel corner coordinates.
+recovers equals the planted roll.
+
+The pivot is the boresight: the frame center, ``(size_v / 2, size_u / 2)`` in pixel
+corner coordinates, after the planted offset has moved the camera.  The offset ``d``
+is the boresight's pointing error, so a point the scene states at ``x`` from the
+frame center lands at ``R (x + d)`` from it, ``R`` being the roll.  The renderer
+writes that as ``R x + R d``: it turns the scene about the frame center and then
+moves everything by the offset turned by the roll, which :func:`boresight_shift`
+gives.  The radiance stage takes that shift once and moves every star, body, and
+ring system by it, so no object can apply the offset and the roll in another order.
+The planted offset itself stays the truth for the navigator's translation.
 
 Two of a body's angles run the other way.  ``rotation_z`` turns the grid an ellipsoid
 is sampled on, so the drawn outline turns by ``-rotation_z``, and
@@ -40,7 +50,7 @@ from typing import Any
 
 from spindoctor.sim.scene.fields import scene_value
 
-__all__ = ['roll_body_params', 'turn_vector']
+__all__ = ['boresight_shift', 'roll_body_params', 'turn_vector']
 
 
 def turn_vector(dv: float, du: float, *, roll_deg: float) -> tuple[float, float]:
@@ -58,6 +68,25 @@ def turn_vector(dv: float, du: float, *, roll_deg: float) -> tuple[float, float]
     cos_r = math.cos(roll)
     sin_r = math.sin(roll)
     return cos_r * dv - sin_r * du, sin_r * dv + cos_r * du
+
+
+def boresight_shift(offset_v: float, offset_u: float, *, roll_deg: float) -> tuple[float, float]:
+    """The translation that follows the roll's turn about the frame center.
+
+    The roll turns the frame about the boresight, which the planted offset ``d`` has
+    moved, so a point at ``x`` from the frame center lands at ``R (x + d)``.  That is
+    the point turned about the frame center, ``R x``, moved by ``R d``, which this
+    returns.  With no roll it is the offset itself, and with no offset it is zero.
+
+    Parameters:
+        offset_v: The planted offset's v component.
+        offset_u: The planted offset's u component.
+        roll_deg: The roll in degrees, from ``+v`` toward ``+u``.
+
+    Returns:
+        The shift ``(dv, du)``, in the offset's units.
+    """
+    return turn_vector(offset_v, offset_u, roll_deg=roll_deg)
 
 
 def _turned_offset_block(block: Any, *, roll_deg: float) -> Any:

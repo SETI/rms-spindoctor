@@ -51,7 +51,6 @@ from spindoctor.sim.artifact_modes import ARTIFACT_MODES, DETECTOR_MODE_ORDER, m
 from spindoctor.sim.instruments.schema_detector import Detector, ReadoutModes
 
 __all__ = [
-    'CATALOG_BLIND_MODES',
     'GENERIC_INSTRUMENT',
     'NON_INHERITED_KEYS',
     'OFFER_EVERY_MODE',
@@ -88,15 +87,6 @@ OFFER_EVERY_MODE = 'all'
 # alternative names, and the real cameras the realism match pairs with the entry,
 # each of which belongs to one entry only.
 NON_INHERITED_KEYS: frozenset[str] = frozenset({'aliases', 'realism_cohort'})
-
-# Modes whose shape the renderer takes from somewhere other than the per-instrument
-# shape defaults, so a shape default for one would do nothing.  Each maps to where
-# its shape comes from instead.
-CATALOG_BLIND_MODES: dict[str, str] = {
-    'hot_pixels': (
-        'its shape comes from detector.hot_pixel_amplitude_e and detector.hot_pixel_column_factor'
-    ),
-}
 
 # The key path of an entry's detector model, which several of its rules read.
 _MODEL_PATH: KeyPath = ('detector', 'detector_model')
@@ -462,29 +452,28 @@ class CohortCamera:
     Parameters:
         mission: The real cohort's mission, such as ``COISS``.
         camera: The camera within the mission, such as ``NAC``.
+        spacecraft: The spacecraft that carries the camera, such as ``VG1``, for a
+            mission whose cameras differ from one spacecraft to the next; omitted
+            for a mission whose cameras are matched by mission and camera alone.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
 
     mission: Str
     camera: Str
+    spacecraft: Str | None = None
 
 
 def _shape_default_rule(mode_name: str) -> AfterValidator:
     """The check of one mode's shape defaults.
 
     A shape default never turns a mode on, so it may carry neither the mode's
-    activation key nor its fixed count, and a mode whose shape the renderer takes
-    from elsewhere has no shape default at all.
+    activation key nor its fixed count.
     """
     mode = ARTIFACT_MODES[mode_name]
 
     def check(values: object) -> object:
         """Return the shape defaults if they could take effect."""
-        if mode_name in CATALOG_BLIND_MODES:
-            raise ValueError(
-                f'a shape default for {mode_name!r} does nothing: {CATALOG_BLIND_MODES[mode_name]}'
-            )
         for key in (mode.activation, mode.count_alternative):
             if key is not None and key in mode_scene_map(values):
                 raise RuleError(

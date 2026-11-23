@@ -130,16 +130,16 @@ reads 0, as it does in the real products.
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` frames are in
   raw counts (DN). The dark sky sits a little above 0.
-* ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` frames are in I/F, like the
-  calibrated Cassini products and the geometrically corrected Voyager products. The
-  dark sky never reads exactly 0: it sits at about 0.012 on a ``vgiss`` frame, and
-  at about 0.00004 on a calibrated Cassini frame.
+* ``coiss_calib_nac``, ``coiss_calib_wac``, and the four ``vgiss`` cameras' frames
+  are in I/F, like the calibrated Cassini products and the geometrically corrected
+  Voyager products. The dark sky never reads exactly 0: it sits at about 0.012 on a
+  Voyager frame, and at about 0.00004 on a calibrated Cassini frame.
 
 An I/F frame spans roughly 0 to 1, where a DN frame of the same scene can reach
 4095, so a display or threshold scaled for counts shows an I/F frame as black.
 With ``instrument_defaults`` on, read noise moves the dark sky about. On a
 calibrated Cassini frame it scatters around 0, and more than a quarter of the
-pixels of a disc scene sit slightly below 0, as on the real frames. On a ``vgiss``
+pixels of a disc scene sit slightly below 0, as on the real frames. On a Voyager
 frame it stays above 0 on all but about 7 pixels in 100,000, as the real Voyager
 sky stays above 0. The editor's status bar shows the units and value range of each
 render.
@@ -163,8 +163,12 @@ you cannot drag an object on the picture, because it shows the earlier scene;
 the object's tab still edits it. Once an edit makes the scene valid again, the preview
 redraws as usual.
 
-The random pixel loss (the missing-data rate) and the cosmic-ray rate work on every
-camera.
+The random pixel loss (the missing-data rate, in the Artifacts tab's detector override)
+and the cosmic-ray rate (on the General tab) work on every camera. The detector override
+also sets the image's saturation level. On a camera that delivers raw counts the
+navigator keeps using the camera's own level, so a scene can show how navigation copes
+with a detector that saturates early. A calibrated frame has no saturation level for the
+navigator to use.
 
 Planting defects in a scene
 ===========================
@@ -201,6 +205,13 @@ on through exactly one key. The key's name says what its number means.
 Dead pixels and dead columns can also be given as a fixed ``count`` in place of
 ``expected_events``. An entry sets one of the two keys, never both. Every key defaults
 to 0, and an entry whose key, or whose ``count``, is 0 doesn't plant anything.
+
+With ``instrument_defaults`` on, the defects that every frame of the camera shows are
+turned on for you: hot pixels, banding, the readout dark, the bias structure, and
+column bloom on a raw Cassini camera, for example. An entry such as ``hot_pixels: {}``
+then plants the camera's own hot pixels, and a value you set in the entry replaces the
+camera's value for that key alone. Setting the entry's key to 0, as in
+``banding: {probability: 0}``, turns that defect off.
 
 .. code-block:: yaml
 

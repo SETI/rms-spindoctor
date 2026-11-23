@@ -188,10 +188,42 @@ def test_cosmic_ray_spin_updates_noise(model: Any) -> None:
     assert model.sim_params['noise']['cosmic_ray_events_per_pixel_per_sec'] == 0.002
 
 
-def test_missing_data_spin_updates_noise(model: Any) -> None:
-    """The missing-data spin writes missing_data_rate into the noise block."""
-    model._missing_data_spin.setValue(0.1)
-    assert model.sim_params['noise']['missing_data_rate'] == 0.1
+@pytest.mark.parametrize(
+    ('key', 'value'),
+    [
+        ('bias_dn', 18.0),
+        ('saturation_dn', 2047.0),
+        ('signal_full_scale_frac', 0.6),
+        ('missing_data_rate', 0.1),
+    ],
+)
+def test_detector_value_spin_updates_the_detector_block(model: Any, key: str, value: float) -> None:
+    """A detector value's spin writes its own key, and only that key."""
+    model._detector_group.setChecked(True)
+    model._detector_value_spins[key].setValue(value)
+    assert model.sim_params['detector'] == {key: value}
+
+
+def test_detector_full_well_spin_writes_and_removes_its_key(model: Any) -> None:
+    """The full-well spin writes full_well_dn, and removes it at 'camera default'."""
+    model._detector_group.setChecked(True)
+    model._detector_full_well_spin.setValue(3000.0)
+    written = dict(model.sim_params['detector'])
+    model._detector_full_well_spin.setValue(0.0)
+    assert (written, model.sim_params['detector']) == ({'full_well_dn': 3000.0}, {})
+
+
+def test_detector_value_spins_show_the_cameras_values(model: Any) -> None:
+    """An unset detector value shows the camera's own value, read from its entry."""
+    model._instrument_combo.setCurrentText('nhlorri')
+    model._detector_group.setChecked(True)
+    shown = {key: spin.value() for key, spin in model._detector_value_spins.items()}
+    assert shown == {
+        'bias_dn': 545.0,
+        'saturation_dn': 4095.0,
+        'signal_full_scale_frac': 0.5,
+        'missing_data_rate': 0.0,
+    }
 
 
 def test_load_noise_block_syncs_widgets(
@@ -261,17 +293,17 @@ def test_saturation_dn_for_raw_instrument(model: Any) -> None:
     assert model._current_saturation_dn() == 4095.0
 
 
-def test_saturation_dn_follows_the_scene_instrument_config(model: Any) -> None:
-    """A scene's own saturation DN in ``instrument_config`` sets the overlay's level."""
+def test_saturation_dn_follows_the_scene_detector_block(model: Any) -> None:
+    """The overlay's level is the ceiling the frame is clipped at, the scene's own here."""
     model.sim_params['instrument'] = 'coiss_nac'
-    model.sim_params['instrument_config'] = {'noise': {'saturation_dn': 2047.0}}
+    model.sim_params['detector'] = {'saturation_dn': 2047.0}
     model._update_image()
     assert model._current_saturation_dn() == 2047.0
 
 
 def test_saturation_dn_none_for_calibrated_instrument(model: Any) -> None:
     """A calibrated-IF instrument has no saturation DN."""
-    model.sim_params['instrument'] = 'vgiss'
+    model.sim_params['instrument'] = 'vgiss_1_nac'
     model._update_image()
     assert model._current_saturation_dn() is None
 
@@ -293,7 +325,7 @@ def test_saturation_overlay_off_clears_status(model: Any) -> None:
     assert model._saturation_label.text() == ''
 
 
-@pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss', 'I/F')])
+@pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss_1_nac', 'I/F')])
 def test_units_label_names_the_rendered_units(model: Any, instrument: str, units: str) -> None:
     """The status bar names the rendered frame's units after the full render."""
     model.sim_params['instrument'] = instrument
@@ -332,7 +364,7 @@ def _set_body_scene(
 
 def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
     """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
-    _set_body_scene(model, instrument='vgiss', semi_px=43.0, center_u=64.0, offset_u=0.0)
+    _set_body_scene(model, instrument='vgiss_1_nac', semi_px=43.0, center_u=64.0, offset_u=0.0)
     render_fully(model)
     assert model._units_label.text() == 'I/F 0.01176 to 1.008'
 
@@ -448,9 +480,15 @@ def test_save_scene_writes_valid_yaml(
 def _declare_then_edit_read_noise(model: Any) -> None:
     """Give the model a declared read-noise coincidence, then edit the planted value."""
     model.sim_params['instrument'] = 'coiss_nac'
-    model.sim_params['noise'] = {'read_noise_dn': 5.0, 'bias_dn': 20.0}
-    model.sim_params['instrument_config'] = {'noise': {'read_noise_dn': 4.0, 'bias_dn': 20.0}}
-    model.sim_params['published_equals_truth'] = ['noise.bias_dn', 'noise.read_noise_dn']
+    model.sim_params['noise'] = {'read_noise_dn': 5.0}
+    model.sim_params['detector'] = {'saturation_dn': 4000.0}
+    model.sim_params['instrument_config'] = {
+        'noise': {'read_noise_dn': 4.0, 'saturation_dn': 4000.0}
+    }
+    model.sim_params['published_equals_truth'] = [
+        'detector.saturation_dn',
+        'noise.read_noise_dn',
+    ]
 
 
 def test_save_scene_removes_a_declaration_an_edit_made_stale(
@@ -466,7 +504,7 @@ def test_save_scene_removes_a_declaration_an_edit_made_stale(
     )
     _no_critical(monkeypatch)
     model._save_scene()
-    assert load_sim_scene(out)['published_equals_truth'] == ['noise.bias_dn']
+    assert load_sim_scene(out)['published_equals_truth'] == ['detector.saturation_dn']
 
 
 def test_save_scene_names_the_removed_declaration_in_the_status_bar(
@@ -499,7 +537,7 @@ def test_save_scene_that_removes_a_declaration_redraws_the_picture(
     _no_critical(monkeypatch)
     model._save_scene()
     process_until(lambda: model._displayed_params == model.sim_params)
-    assert model._displayed_params['published_equals_truth'] == ['noise.bias_dn']
+    assert model._displayed_params['published_equals_truth'] == ['detector.saturation_dn']
 
 
 def test_load_scene_populates_model(
@@ -576,14 +614,6 @@ def test_midtime_handler_omits_when_blank(model: Any) -> None:
     assert 'midtime_utc' not in model.sim_params
 
 
-def test_noise_bias_and_bloom_handlers(model: Any) -> None:
-    """The new noise spins write into the noise block."""
-    model._on_bias(18.0)
-    model._on_bloom(3)
-    assert model.sim_params['noise']['bias_dn'] == 18.0
-    assert model.sim_params['noise']['bloom_length'] == 3
-
-
 def test_stray_center_writes_only_while_enabled(model: Any) -> None:
     """A stray-light center spin writes its key only while the enable is on."""
     model._on_stray_center_v(40.0)
@@ -625,7 +655,8 @@ def test_full_parameter_round_trip(
             'noise_seed': 9,
             'midtime_utc': '2010-01-01T00:00:00Z',
             'fit_camera_rotation': True,
-            'noise': {'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 18.0, 'bloom_length': 3},
+            'noise': {'poisson': True, 'read_noise_dn': 4.0},
+            'detector': {'bias_dn': 18.0},
             'optics': {
                 'stray_light': {
                     'amplitude': 0.3,
@@ -688,8 +719,7 @@ def test_full_parameter_round_trip(
     assert model._noise_seed_spin.value() == 9
     assert p['midtime_utc'] == '2010-01-01T00:00:00Z'
     assert p['fit_camera_rotation'] is True
-    assert p['noise']['bias_dn'] == 18.0
-    assert p['noise']['bloom_length'] == 3
+    assert p['detector']['bias_dn'] == 18.0
     assert p['optics']['stray_light']['center_v'] == 40.0
     body = p['bodies'][0]
     assert body['mesh_n_lat'] == 20

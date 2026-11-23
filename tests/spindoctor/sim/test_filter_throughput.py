@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.instruments.resolvers import (
     FilterCatalogError,
@@ -37,9 +37,13 @@ def _scene(
     instrument: str, *, detector: dict[str, Any] | None = None, **extra: Any
 ) -> dict[str, Any]:
     """A noise-free 64 x 64 scene on ``instrument``."""
-    scene = frame_scene(instrument=instrument, seed=5, exposure_sec=0.01, noise=quiet_noise())
-    if detector is not None:
-        scene['detector'] = detector
+    scene = frame_scene(
+        instrument=instrument,
+        seed=5,
+        exposure_sec=0.01,
+        noise=quiet_noise(),
+        detector={**zero_bias(), **(detector or {})},
+    )
     scene.update(extra)
     return scene
 
@@ -164,7 +168,11 @@ def test_an_uncataloged_filter_is_refused_at_render() -> None:
     ('instrument', 'detector', 'message'),
     [
         ('coiss_nac', {'filter': 'CL1+XYZ'}, r"detector\.filter: filter 'CL1\+XYZ' is not"),
-        ('vgiss', {'filter': 'CLEAR'}, r"detector\.filter: sim instrument 'vgiss' has no"),
+        (
+            'vgiss_1_nac',
+            {'filter': 'CLEAR'},
+            r"detector\.filter: sim instrument 'vgiss_1_nac' has no",
+        ),
         ('coiss_nac', {'filter': 3}, r'detector\.filter must be a string'),
         (
             'coiss_nac',
