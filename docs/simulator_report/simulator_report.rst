@@ -963,8 +963,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_blob_crescent``
      - BodyBlobNav (120 deg)
      - (1.43, -0.61) px
-     - (1.21, -0.53) px
-     - 0.24 px
+     - (1.42, -0.60) px
+     - 0.01 px
    * - ``planted_offset_star_field``
      - StarField + UniqueMatch + Refine
      - (1.43, -0.61) px
@@ -973,8 +973,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_limb``
      - BodyLimbNav
      - (1.43, -0.61) px
-     - (1.53, -0.69) px
-     - 0.13 px
+     - (1.56, -0.76) px
+     - 0.20 px
    * - ``planted_offset_ring``
      - RingEdgeNav
      - (1.43, -0.61) px
@@ -996,13 +996,12 @@ Observations:
   0.03 deg. The disc correlation stops at the edge of its sub-pixel search
   window, so the disc scene's error is held to a band from 0.020 to 0.121 px.
   Every technique recovers inside its check.
-* At this phase (2026-10-31 measurement) the mesh disc recovers exactly, the
-  blob and the ring edge to ~0.01 px, the fused star field to ~0.04 px, the
-  disc to ~0.07 px, and the limb to ~0.13 px. The limb's own fix is the
-  loosest of the full-disc scenes; the full ensemble on the same scene fuses it
-  with the disc correlation and recovers (1.50, -0.60), 0.07 px off.
-* The high-phase blob crescent (~0.24 px at 120 deg) is the hardest case: only a
-  thin lit crescent constrains the centroid. It still recovers sub-pixel.
+* At this phase (2026-11-22 measurement) the mesh disc recovers exactly, the
+  blob to ~0.01 px, at 120 deg phase too, the ring edge to ~0.03 px, the fused star
+  field to ~0.04 px, the disc to ~0.07 px, and the limb to ~0.20 px. The limb fit
+  has only the lit half of the outline, and its inward bias there has nothing on
+  the other side to cancel it. The full ensemble on the same scene fuses it with
+  the disc correlation and recovers (1.51, -0.61), 0.08 px off.
 * These are single-phase samples, so a given technique can sit above or below its
   multi-offset median in the offset-accuracy section (e.g. the disc's ~0.07 px here
   versus its ~0.006 px sweep median); the table is a same-phase comparison and a
@@ -1251,9 +1250,11 @@ swept across the dense sub-pixel set and the wide range described under
      - 0.291
 
 This table and the two sweep figures in this section were measured before the
-simulator drew each limb pixel by how much of it the body covers, and they have not
-been regenerated since. A dense sweep run after that change puts the haze symmetry fit
-between 0.06 and 0.10 px, the range the text below quotes.
+simulator drew each limb pixel by how much of it the body covers, left night sides
+black, and fitted the limb on its lit part alone, and they have not been regenerated
+since. Sweeps run after those changes put the haze symmetry fit between 0.02 and
+0.07 px and the limb at a median of 0.22 px on the dense sweep (0.17 to 0.29 px) and
+0.21 px on the wide one, the values the text below quotes.
 
 The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
@@ -1262,11 +1263,11 @@ pixel; the distance-transform techniques carry a larger sub-pixel residual:
   to ~0.005 px -- the tightest. A zero shift between identical frames recovers
   the disc exactly at ``(0, 0)`` -- the self-consistency floor (not accuracy), a
   reproducibility bound rather than a real-frame result.
-- **The ring edge holds a ~0.03 px residual** and **the limb a ~0.09 px residual**
+- **The ring edge holds a ~0.03 px residual** and **the limb a ~0.22 px residual**
   across the dense sweep, both distance-transform effects that vary with the
   sub-pixel phase; they stay inside the scenes' truth tolerances. See
   :doc:`/dev_guide/dev_guide_techniques_body_limb` for the mechanism.
-- **The haze symmetry fit holds a 0.06 to 0.10 px residual** across the dense sweep, and
+- **The haze symmetry fit holds a 0.02 to 0.07 px residual** across the dense sweep, and
   it is a floor rather than a fraction-dependent wobble: the swept axis on the
   ``titan_haze`` scene is pure cross-track, and the scene deliberately renders a
   soft optical limb a few pixels above the solid radius, so the free-radius arc
@@ -1291,7 +1292,7 @@ The wide-range sweep confirms each technique recovers across the navigable range
    the body across the full window via its coarse acquisition.
 
 The disc, ring, limb, and star recover with the same accuracy out to their
-ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.06 to 0.10 px floor
+ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.02 to 0.07 px floor
 flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the
 method: the mirror-correlation scan searches the whole margin and the arc fit
 recentres once, so nothing degrades across the range. The **blob now holds across the navigable
@@ -1883,10 +1884,10 @@ Summary
 * The disc, blob, ring edge, and star field are quantization-free: they recover
   any offset -- whole, near-boundary, or arbitrary fraction -- to a few hundredths
   of a pixel. The disc and blob recover most tightly (~0.01 px). The limb holds a
-  ~0.09 px distance-transform residual and the ring a ~0.03 px residual.
+  ~0.22 px distance-transform residual and the ring a ~0.03 px residual.
 * The star field improves with SNR: a dim field recovers to ~0.02 px and a bright
   field to ~0.005 px, the tightest of any technique.
-* The haze symmetry fit recovers a hazy body to within 0.10 px across both the dense
+* The haze symmetry fit recovers a hazy body to within 0.07 px across both the dense
   sub-pixel sweep and the full navigable range, against a rendered haze limb that
   is deliberately not the circle it fits. Its randomized planted-truth campaign
   (700 scenes over offset, phase, size, noise, clouds, star fields,

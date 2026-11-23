@@ -2,7 +2,8 @@
 
 The relief contract at the rendered-image level: the silhouette radius at
 azimuth theta lands on the relief surface's outline,
-``r_ellipse * (1 + delta(theta))``, the relief normals shade the disc, the
+``r_ellipse * (1 + delta(theta))``, each pixel reads the terrain where its line
+of sight meets the surface, the relief normals shade the disc, the
 terminator grows ragged with every shadow inside the field's slope band and
 concentrated against the terminator, relief OFF reproduces the relief-free
 render bit-identically, and each body's terrain realization is seeded
@@ -16,10 +17,13 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
 
-from spindoctor.sim.render.bodies import ellipsoid as body_ellipsoid
-from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
+from spindoctor.sim.render.bodies import ellipsoid_relief
+from spindoctor.sim.render.bodies.ellipsoid import (
+    EllipsoidBodySpec,
+    create_ellipsoid_body,
+    render_ellipsoid_body,
+)
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
-from spindoctor.sim.render.bodies.photometry import DARK_SIDE_FLOOR
 from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.shared.ellipsoid import EllipsoidProjection, project_ellipsoid
@@ -27,13 +31,17 @@ from spindoctor.support.types import NDArrayFloatType
 
 _RMS = 0.02
 _CORR_DEG = 15.0
+# A pixel counts as lit above this brightness, and as night at or below the second
+# level, which leaves room for a pixel the anti-aliasing shares with the lit side.
+_LIT_LEVEL = 0.002
+_NIGHT_LEVEL = 0.0005
 
 
 def _limb_spec(*, rms: float, seed: int) -> EllipsoidBodySpec:
     """A fully lit sphere shaded flat (Lommel-Seeliger at phase 0).
 
-    The flat disc makes the rendered image a pure silhouette probe: every
-    interior pixel is bright, so the mask boundary is the limb.
+    The limb tests read the render's silhouette, so the boundary they measure is the
+    outline whatever the shading draws next to it.
     """
     return EllipsoidBodySpec(
         semi_a_px=80.0,
@@ -75,10 +83,12 @@ def test_limb_lands_on_the_relief_outline(rms: float) -> None:
     """
     seed = 42
     size = 256
-    img = create_ellipsoid_body(
-        (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=rms, seed=seed)
+    mask = (
+        render_ellipsoid_body(
+            (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=rms, seed=seed)
+        ).silhouette
+        > 0.0
     )
-    mask = img > 0.0
     field = synthesize_relief_field(rms, _CORR_DEG, seed)
 
     n_windows, rays_per_window = 16, 16
@@ -100,10 +110,12 @@ def test_rendered_limb_rms_tracks_the_commanded_value() -> None:
     """The pooled silhouette displacement RMS lands near rms * r_ellipse."""
     seed = 7
     size = 256
-    img = create_ellipsoid_body(
-        (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=_RMS, seed=seed)
+    mask = (
+        render_ellipsoid_body(
+            (size, size), (size / 2.0, size / 2.0), _limb_spec(rms=_RMS, seed=seed)
+        ).silhouette
+        > 0.0
     )
-    mask = img > 0.0
     angles = np.arange(256) * (2.0 * np.pi / 256)
     measured = np.array([_ray_edge_radius(mask, size / 2.0, a) for a in angles])
     commanded_px = _RMS * 80.0
@@ -128,7 +140,7 @@ def _terminator_spec(*, rms: float) -> EllipsoidBodySpec:
 def _band_elevation_deg(field_rms: float, seed: int) -> float:
     """The sun elevation, in degrees, above which a realization casts no shadow."""
     field = synthesize_relief_field(field_rms, _CORR_DEG, seed)
-    band = body_ellipsoid._SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
+    band = ellipsoid_relief._SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
     return math.degrees(math.atan(band))
 
 
@@ -141,15 +153,15 @@ def test_terminator_is_ragged_with_excursions_at_the_terminator() -> None:
     the smooth terminator (the shadowed fraction falls with elevation).
     """
     size = 320
-    smooth = create_ellipsoid_body(
+    smooth = render_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _terminator_spec(rms=0.0)
     )
-    ragged = create_ellipsoid_body(
+    ragged = render_ellipsoid_body(
         (size, size), (size / 2.0, size / 2.0), _terminator_spec(rms=_RMS)
     )
-    both = (smooth > 0.0) & (ragged > 0.0)
-    lit_smooth = both & (smooth > DARK_SIDE_FLOOR * 1.2)
-    dark_ragged = both & (ragged <= DARK_SIDE_FLOOR * 1.05)
+    both = (smooth.silhouette > 0.0) & (ragged.silhouette > 0.0)
+    lit_smooth = both & (smooth.intensity > _LIT_LEVEL)
+    dark_ragged = both & (ragged.intensity <= _NIGHT_LEVEL)
     newly_dark = lit_smooth & dark_ragged
     assert int(newly_dark.sum()) > 50
 
@@ -228,9 +240,22 @@ def test_relief_darkens_no_pixel_above_the_slope_band(seed: int) -> None:
     elevation = _sun_elevation_deg(size, semi_axes=(85.0, 84.0), spec=spec)
     v, u = np.mgrid[0:size, 0:size].astype(float) + 0.5 - size / 2.0
     inner = np.hypot(v / 85.0, u / 84.0) < 0.85
-    newly_dark = inner & (smooth > DARK_SIDE_FLOOR * 1.2) & (ragged <= DARK_SIDE_FLOOR * 1.05)
+    newly_dark = inner & (smooth > _LIT_LEVEL) & (ragged <= _NIGHT_LEVEL)
     assert int(newly_dark.sum()) > 0
     assert float(elevation[newly_dark].max()) <= _band_elevation_deg(_RMS, seed) + 0.5
+
+
+def _relief_shading(
+    grid: EllipsoidProjection, spec: EllipsoidBodySpec, field: ReliefField, near: Any
+) -> ellipsoid_relief.ReliefShading:
+    """The renderer's relief shading of ``near`` on ``grid``, lit as ``spec`` says."""
+    return ellipsoid_relief.relief_shading(
+        grid,
+        field,
+        near,
+        illumination_angle=spec.illumination_angle,
+        phase_angle=spec.phase_angle,
+    )
 
 
 def _surface_normals(field: ReliefField, points: NDArrayFloatType) -> NDArrayFloatType:
@@ -259,8 +284,45 @@ def _surface_normals(field: ReliefField, points: NDArrayFloatType) -> NDArrayFlo
     return cast(NDArrayFloatType, normals * np.sign(np.sum(normals * points, axis=-1))[:, None])
 
 
+def _first_surface_points(
+    field: ReliefField, x: NDArrayFloatType, y: NDArrayFloatType
+) -> NDArrayFloatType:
+    """Where each line of sight first meets the relief surface, found by brute force.
+
+    In parameter space each line of sight runs parallel to ``z``.  It is sampled every
+    1/32 of a field cell in latitude, from the highest the terrain reaches down to
+    where it must be inside the surface; the first sample inside and the one before
+    it are then bisected.  It shares only the field's samples with the renderer's
+    search.  A line of sight that misses the surface gets NaN.
+    """
+    rho = np.hypot(x, y)
+    phi = np.mod(np.arctan2(y, x), 2.0 * np.pi)
+    lat_top = np.arccos(np.minimum(rho / (1.0 + field.h_max), 1.0))
+    bottom = 1.0 + field.h_min
+    lat_low = np.where(rho < bottom, np.arccos(np.minimum(rho / bottom, 1.0)), -lat_top)
+    step = 2.0 * np.pi / field.grid.shape[0] / 32.0
+    lat = np.full(rho.size, np.nan)
+    for start in range(0, rho.size, 1000):
+        part = slice(start, start + 1000)
+        count = int(np.ceil(float((lat_top[part] - lat_low[part]).max()) / step)) + 2
+        lats = np.maximum(lat_top[part, None] - step * np.arange(count), lat_low[part, None])
+        phis = np.broadcast_to(phi[part, None], lats.shape)
+        inside = (1.0 + field.sample(lats, phis)) * np.cos(lats) >= rho[part, None]
+        first = np.argmax(inside, axis=1)
+        rows = np.arange(lats.shape[0])
+        low = lats[rows, first]
+        high = lats[rows, np.maximum(first - 1, 0)]
+        for _ in range(30):
+            mid = 0.5 * (low + high)
+            mid_inside = (1.0 + field.sample(mid, phi[part])) * np.cos(mid) >= rho[part]
+            low = np.where(mid_inside, mid, low)
+            high = np.where(mid_inside, high, mid)
+        lat[part] = np.where(inside.any(axis=1), 0.5 * (low + high), np.nan)
+    return np.stack([np.cos(lat) * np.cos(phi), np.cos(lat) * np.sin(phi), np.sin(lat)], axis=-1)
+
+
 def _lambert_relief_disc(
-    *, rms: float, corr_deg: float
+    *, rms: float, corr_deg: float, sub_observer_lat: float = 0.0
 ) -> tuple[EllipsoidBodySpec, EllipsoidProjection, ReliefField]:
     """A 75 px Lambert sphere with relief, shaded at the render grid, and its grid and field."""
     spec = EllipsoidBodySpec(
@@ -273,8 +335,16 @@ def _lambert_relief_disc(
         limb_relief_rms=rms,
         limb_relief_corr_deg=corr_deg,
         relief_seed=3,
+        sub_observer_lat=sub_observer_lat,
     )
-    grid = project_ellipsoid((200, 200), (100.0, 100.0), 75.0, semi_b_px=75.0, semi_c_px=75.0)
+    grid = project_ellipsoid(
+        (200, 200),
+        (100.0, 100.0),
+        75.0,
+        semi_b_px=75.0,
+        semi_c_px=75.0,
+        sub_observer_lat=sub_observer_lat,
+    )
     return spec, grid, synthesize_relief_field(rms, corr_deg, 3)
 
 
@@ -282,9 +352,10 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
     """On a Lambert disc the relief brightness is the relief surface's cosine of incidence.
 
     At oversample 1 without supersampling the shading grid is the render grid, so a
-    lit, unshadowed pixel renders at ``n . sun`` for the surface's own normal, to the
-    0.02 the two difference schemes differ by (a sign-flipped relief misses by about
-    0.5).  Where the relief moves a pixel by more than 0.03, it moves it the same way.
+    lit, unshadowed pixel renders at ``n . sun`` for the surface's own normal where its
+    line of sight meets the surface, to the 0.02 the two difference schemes differ by
+    (a sign-flipped relief misses by about 0.5).  Where the relief moves a pixel by
+    more than 0.03, it moves it the same way.
     """
     spec, grid, field = _lambert_relief_disc(rms=_RMS, corr_deg=_CORR_DEG)
     ragged = create_ellipsoid_body((200, 200), (100.0, 100.0), spec)
@@ -292,14 +363,7 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
         (200, 200), (100.0, 100.0), EllipsoidBodySpec(**{**spec.__dict__, 'limb_relief_rms': 0.0})
     )
     near = grid.ellipse_dist_sq < 0.8
-    points = np.stack(
-        [
-            grid.v_rot[near] / 75.0,
-            grid.u_rot[near] / 75.0,
-            np.sqrt(1.0 - grid.ellipse_dist_sq[near]),
-        ],
-        axis=-1,
-    )
+    points = _first_surface_points(field, grid.v_rot[near] / 75.0, grid.u_rot[near] / 75.0)
     sin_phase = math.sin(spec.phase_angle)
     sun = np.array(
         [
@@ -309,7 +373,7 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
         ]
     )
     cos_i = np.sum(_surface_normals(field, points) * sun, axis=-1)
-    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near)[3]
+    shadowed = _relief_shading(grid, spec, field, near).shadowed
     lit = (cos_i > 0.05) & ~shadowed[near]
     np.testing.assert_allclose(ragged[near][lit], cos_i[lit], rtol=0.0, atol=0.02)
     expected_change = cos_i[lit] - smooth[near][lit]
@@ -319,11 +383,47 @@ def test_relief_normals_shade_a_lambert_disc() -> None:
     np.testing.assert_array_equal(np.sign(rendered_change), np.sign(expected_change[moved]))
 
 
+def test_disc_terrain_is_read_where_the_line_of_sight_meets_it() -> None:
+    """Each pixel reads the terrain where its line of sight first meets the surface.
+
+    At 5% relief and a 15-degree correlation length, the smooth sphere's direction
+    under a pixel lies more than half a correlation length from the point the pixel
+    shows on about 12% of the disc.  The renderer's points lie that far from a brute
+    force search's on under 1% of it.
+    """
+    spec, grid, field = _lambert_relief_disc(rms=0.05, corr_deg=_CORR_DEG)
+    disc = grid.ellipse_dist_sq < 1.0
+    truth = _first_surface_points(field, grid.v_rot[disc] / 75.0, grid.u_rot[disc] / 75.0)
+    hit = np.isfinite(truth[:, 0])
+    seen = _relief_shading(grid, spec, field, disc).seen
+    smooth = np.stack(
+        [
+            grid.v_rot[disc] / 75.0,
+            grid.u_rot[disc] / 75.0,
+            np.sqrt(1.0 - grid.ellipse_dist_sq[disc]),
+        ],
+        axis=-1,
+    )
+    half_corr = math.radians(_CORR_DEG) / 2.0
+
+    def share_misread(points: NDArrayFloatType) -> float:
+        cosines = np.clip(np.sum(points[hit] * truth[hit], axis=-1), -1.0, 1.0)
+        return float(np.mean(np.arccos(cosines) > half_corr))
+
+    assert np.isfinite(seen[hit]).all()
+    assert share_misread(smooth) > 0.05
+    assert share_misread(seen) < 0.01
+
+
 def test_relief_normals_near_the_limb_face_the_observer() -> None:
-    """A slope tilted away from the observer near the limb is shaded as its mirror.
+    """The surface each pixel sees faces the observer, so no normal needs mirroring.
 
     Rough relief tilts some of the surface's own normals away from the observer
-    inside the outline; every normal the renderer shades has ``normal_z >= 0``.
+    inside the outline: at 2,470 of the 19,156 pixels there, the smooth sphere's
+    direction reads such a normal.  The surface the renderer reads, where each line of
+    sight first meets it, faces the observer at all but 2 of them, where the line of
+    sight grazes a ridge and the test's differences, half a field cell apart, tilt the
+    normal away.  The test allows 0.1% of the pixels inside the outline, 19 here.
     """
     spec, grid, field = _lambert_relief_disc(rms=0.035, corr_deg=5.0)
     reach = 1.0 + field.h_max + 2.0 / 75.0
@@ -340,8 +440,34 @@ def test_relief_normals_near_the_limb_face_the_observer() -> None:
     )
     away = inside & (_surface_normals(field, points)[:, 2] < -0.05)
     assert int(away.sum()) > 100
-    normal_z = body_ellipsoid._relief_shading(grid, spec, field, near)[2]
-    assert float(normal_z.min()) >= 0.0
+    seen = _relief_shading(grid, spec, field, near).seen
+    assert np.isfinite(seen[inside]).all()
+    facing_away = _surface_normals(field, seen[inside])[:, 2] < 0.0
+    assert int(facing_away.sum()) <= 0.001 * int(inside.sum())
+
+
+@pytest.mark.parametrize('lat_deg', [0.0, -60.0])
+def test_a_normal_leaning_away_is_laid_into_the_sky_plane(lat_deg: float) -> None:
+    """A relief normal leaning away from the observer is laid into the sky plane.
+
+    Where a line of sight grazes a ridge, the normal the field's differences give the
+    point it meets can lean away from the observer.  At 5% relief and a 2-degree
+    correlation length, some pixels on the disc read such a normal.  The renderer
+    gives each of them a toward-observer component of exactly 0, neither mirrored
+    toward the observer nor left leaning away.
+
+    Parameters:
+        lat_deg: The sub-observer latitude the sphere is seen from, degrees.
+    """
+    lat = math.radians(lat_deg)
+    spec, grid, field = _lambert_relief_disc(rms=0.05, corr_deg=2.0, sub_observer_lat=lat)
+    near = grid.ellipse_dist_sq < 1.0
+    shading = _relief_shading(grid, spec, field, near)
+    seen = shading.seen
+    normals = seen - field.surface_gradient(seen) / (1.0 + field.sample_points(seen))[:, None]
+    away = normals @ np.array([math.sin(lat), 0.0, math.cos(lat)]) < 0.0
+    assert int(away.sum()) > 0
+    assert float(np.abs(shading.normal_z[away]).max()) == 0.0
 
 
 def test_shadow_march_resolves_fine_relief_on_a_small_body(
@@ -368,7 +494,7 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
     grid = project_ellipsoid((80, 80), (40.0, 40.0), 30.0, semi_b_px=30.0, semi_c_px=30.0)
     field = synthesize_relief_field(0.03, 1.0, 3)
     near = grid.ellipse_dist_sq < (1.0 + field.h_max + 2.0 / 30.0) ** 2
-    shadowed = body_ellipsoid._relief_shading(grid, spec, field, near)[3]
+    shadowed = _relief_shading(grid, spec, field, near).shadowed
 
     cell = 2.0 * np.pi / field.grid.shape[0]
 
@@ -377,8 +503,8 @@ def test_shadow_march_resolves_fine_relief_on_a_small_body(
     ) -> Any:
         return cast_shadows(points, sun, relief, step=min(step, cell / 32.0))
 
-    monkeypatch.setattr(body_ellipsoid, 'cast_shadows', fine_march)
-    reference = body_ellipsoid._relief_shading(grid, spec, field, near)[3]
+    monkeypatch.setattr(ellipsoid_relief, 'cast_shadows', fine_march)
+    reference = _relief_shading(grid, spec, field, near).shadowed
     assert int(reference.sum()) > 100
     assert int((shadowed != reference).sum()) <= 0.01 * int(reference.sum())
 
@@ -469,12 +595,14 @@ def test_relief_terrain_is_stable_when_craters_toggle() -> None:
     Toggling craters must not reseed the limb: the silhouette (where only
     relief acts) stays identical while the disc shading changes.
     """
-    with_craters, _ = render_scene(
+    with_craters, with_meta = render_scene(
         _body_scene(oversample=None, body_extra={'limb_relief_rms': 0.02})
     )
     body_extra: dict[str, Any] = {'limb_relief_rms': 0.02, 'crater_fill': 0.0}
-    without_craters, _ = render_scene(_body_scene(oversample=None, body_extra=body_extra))
-    assert np.array_equal(with_craters > 0.0, without_craters > 0.0)
+    without_craters, without_meta = render_scene(
+        _body_scene(oversample=None, body_extra=body_extra)
+    )
+    assert np.array_equal(with_meta['body_mask_map']['B'], without_meta['body_mask_map']['B'])
     assert not np.array_equal(with_craters, without_craters)
 
 

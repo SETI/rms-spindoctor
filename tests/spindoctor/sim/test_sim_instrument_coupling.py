@@ -103,7 +103,7 @@ def _lit_body_scene(instrument: str, *, size: int = 64) -> dict[str, Any]:
 
 
 def test_raw_dn_render_is_in_dn() -> None:
-    """A raw_dn instrument render reaches DN well above the [0, 1] signal range."""
+    """A raw_dn instrument render reaches DN well above the normalized signal's range."""
     img, _ = render_scene(_lit_body_scene('coiss_nac'))
     assert float(img.max()) > 100.0
 

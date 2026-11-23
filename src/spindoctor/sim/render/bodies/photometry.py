@@ -14,31 +14,31 @@ All laws are normalized to 1 at disc center under head-on illumination
 surface normal's z component.  Forms:
 
 - ``lambert``: ``I = mu0``.
-- ``lommel_seeliger``: ``I = 2 * mu0 / (mu0 + mu)`` (reaches 2 toward the
-  limb; the [dark floor, 1] clip below caps it at the signal ceiling).
+- ``lommel_seeliger``: ``I = 2 * mu0 / (mu0 + mu)``, which rises toward the
+  sunlit limb and reaches 2 there.
 - ``minnaert``: ``I = mu0**k * mu**(k - 1)``; k = 1 is Lambert, k = 0.5
   is the classic limb-brightened lunar value.  The disc-center
-  normalization holds; near the limb the law diverges and is capped by the
-  [dark floor, 1] clip below.
+  normalization holds.  Below k = 1 the law grows without bound toward the
+  limb, so its value is capped at :data:`MINNAERT_CEILING`, the
+  Lommel-Seeliger law's own ceiling.  Without the cap the brightest limb
+  pixel would depend on the pixel size rather than on the surface.
 - ``lunar_lambert``: ``I = 2 * L(alpha) * mu0 / (mu0 + mu)
   + (1 - L(alpha)) * mu0`` with the McEwen (1991) cubic blend
   ``L(alpha) = 1 - 0.019 * a + 2.42e-4 * a**2 - 1.46e-6 * a**3``
   (a = phase in degrees), clipped to [0, 1]: pure Lommel-Seeliger at
   alpha = 0, pure Lambert once the cubic reaches 0 (~119 deg).
 
+A law's value may exceed 1, and the body stages carry it uncapped to the
+detector, which saturates at its full well as a real camera does.
+
 The opposition surge is a simple normalized exponential factor
 ``(1 + amplitude * exp(-alpha / width)) / (1 + amplitude)``: an interim
 knob for the realism match, planting the surge's brightness-versus-phase
-signature while keeping the normalized signal plane within [0, 1] (a scene
-at large phase renders darker by ``1 / (1 + amplitude)`` rather than the
-opposition frame clipping at the full scale).
+signature.  It is 1 at opposition, so a scene far from opposition renders
+darker by ``1 / (1 + amplitude)``.
 
-The dark-side floor keeps today's semantics: :func:`shade_surface` clips
-every visible-hemisphere pixel to [0.01, 1] (none of the supported laws
-defines a dark-side term, so geometric night renders at the floor), and
-the far hemisphere is 0.  The floor is a guarantee on the *shading stage's
-output only*: later multiplicative stages -- a transit's cast shadow in
-particular -- may darken lit-disc pixels below it.
+None of the laws has a night-side term, so the night side of the visible
+hemisphere renders black, as does the far hemisphere.
 """
 
 import math
@@ -50,7 +50,7 @@ from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'DARK_SIDE_FLOOR',
+    'MINNAERT_CEILING',
     'PHOTOMETRIC_LAWS',
     'incidence_cosines',
     'shade_surface',
@@ -62,11 +62,8 @@ PHOTOMETRIC_LAWS: frozenset[str] = frozenset(
     {'lambert', 'lommel_seeliger', 'minnaert', 'lunar_lambert'}
 )
 
-# Visible-hemisphere intensity floor, matching the Lambert renderer's
-# dark-side clamp: geometric night and terminator-march shadow render at
-# this level in the shading stage.  Downstream multiplicative stages
-# (transit shadows) may push lit-disc pixels below it.
-DARK_SIDE_FLOOR = 0.01
+MINNAERT_CEILING = 2.0
+"""The largest value the Minnaert law takes: the Lommel-Seeliger law's limb value."""
 
 # McEwen (1991) lunar-Lambert blend coefficients (phase in degrees).
 _LL_A = -0.019
@@ -144,8 +141,9 @@ def shade_surface(
         surge_width_deg: Opposition-surge angular width in degrees.
 
     Returns:
-        Brightness in [0, 1]: the law value times the surge factor, clipped
-        to [:data:`DARK_SIDE_FLOOR`, 1] on the visible hemisphere, 0 off it.
+        The law value times the surge factor on the visible hemisphere, and 0 off
+        it.  It is 0 on the night side and may exceed 1 toward a limb-brightened
+        law's sunlit limb.
 
     Raises:
         ValueError: On an unknown law name.
@@ -166,7 +164,7 @@ def shade_surface(
     elif law == 'minnaert':
         with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
             intensity = np.where(mu > 0.0, mu0**minnaert_k * mu ** (minnaert_k - 1.0), 0.0)
-        intensity = np.nan_to_num(intensity, nan=0.0, posinf=np.inf)
+        intensity = np.minimum(np.nan_to_num(intensity, nan=0.0), MINNAERT_CEILING)
     else:  # lunar_lambert
         blend = _lunar_lambert_blend(phase_angle)
         intensity = blend * _lommel_seeliger(mu0, mu) + (1.0 - blend) * mu0
@@ -174,10 +172,7 @@ def shade_surface(
     intensity = intensity * surge_factor(
         phase_angle, amplitude=surge_amplitude, width_deg=surge_width_deg
     )
-    return cast(
-        NDArrayFloatType,
-        np.where(visible, np.clip(intensity, DARK_SIDE_FLOOR, 1.0), 0.0),
-    )
+    return cast(NDArrayFloatType, np.where(visible, intensity, 0.0))
 
 
 def _lommel_seeliger(mu0: NDArrayFloatType, mu: NDArrayFloatType) -> NDArrayFloatType:

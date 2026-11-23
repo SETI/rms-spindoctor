@@ -1,8 +1,8 @@
 {
   "confidence": 0.4,
   "confidence_rank": "medium",
-  "offset_du_px": -0.49995544544182735,
-  "offset_dv_px": 1.4965085140011638,
+  "offset_du_px": -0.5016160251689428,
+  "offset_dv_px": 1.4989471194110706,
   "scene_name": "small_sphere_base",
   "status": "success"
 }

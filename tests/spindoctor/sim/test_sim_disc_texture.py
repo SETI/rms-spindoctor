@@ -36,9 +36,8 @@ def _spec(
     """A sphere at moderate phase with optional disc texture and transits.
 
     The opposition surge (amplitude 1 at phase ~57 deg) halves the whole
-    disc's shading, so mu0 -> 1 near the sub-solar limb stays well below the
-    signal ceiling and a multiplied texture can never clip: every ratio
-    probe below is exact.
+    disc's shading.  Nothing caps the shading, so every ratio probe below is
+    exact.
     """
     return EllipsoidBodySpec(
         semi_a_px=_RADIUS,
@@ -63,23 +62,30 @@ def _texture_ratio(spec: EllipsoidBodySpec) -> NDArrayFloatType:
     return np.divide(textured, smooth, out=np.ones_like(smooth), where=smooth > 0)
 
 
+def _lit_texture_ratio(spec: EllipsoidBodySpec) -> NDArrayFloatType:
+    """The textured/smooth ratio on the lit disc, NaN where the smooth body is black."""
+    smooth = _render(dataclasses.replace(spec, disc_texture=None, transits=()))
+    return np.where(smooth > 0, _texture_ratio(spec), np.nan)
+
+
 def test_bands_are_latitude_aligned_at_zero_rotation() -> None:
     """With the pole along +v, the band pattern is constant along each row."""
-    ratio = _texture_ratio(_spec(_BANDS))
-    # Central disc window, comfortably inside the limb.
+    ratio = _lit_texture_ratio(_spec(_BANDS))
+    # Central disc window, comfortably inside the limb.  Its lowest rows reach the
+    # black night side, which carries no texture.
     window = ratio[60:140, 60:140]
-    within_row_spread = float(np.std(window, axis=1).max())
-    across_rows_spread = float(np.std(window.mean(axis=1)))
+    within_row_spread = float(np.nanstd(window, axis=1).max())
+    across_rows_spread = float(np.nanstd(np.nanmean(window, axis=1)))
     assert within_row_spread < 0.02
     assert across_rows_spread > 0.1
 
 
 def test_bands_rotate_with_the_pose() -> None:
     """At rotation_z = 90 deg the bands run along columns instead of rows."""
-    ratio = _texture_ratio(_spec(_BANDS, rotation_z=math.pi / 2.0))
+    ratio = _lit_texture_ratio(_spec(_BANDS, rotation_z=math.pi / 2.0))
     window = ratio[60:140, 60:140]
-    within_col_spread = float(np.std(window, axis=0).max())
-    across_cols_spread = float(np.std(window.mean(axis=0)))
+    within_col_spread = float(np.nanstd(window, axis=0).max())
+    across_cols_spread = float(np.nanstd(np.nanmean(window, axis=0)))
     assert within_col_spread < 0.02
     assert across_cols_spread > 0.1
 
@@ -140,8 +146,11 @@ def test_transits_render_only_on_the_parent_disc() -> None:
 
 
 def test_a_transit_shadow_reaches_the_relief_outline() -> None:
-    """With limb relief, a shadow at the limb darkens the terrain past the smooth limb too."""
-    shadow = TransitSpec(shadow=(0.0, _RADIUS, 10.0, 0.8))
+    """With limb relief, a limb shadow darkens the terrain past the smooth limb too.
+
+    The shadow sits on the sunward limb, where the terrain past the smooth limb is lit.
+    """
+    shadow = TransitSpec(shadow=(-_RADIUS, 0.0, 10.0, 0.8))
     relief = dataclasses.replace(
         _spec(None), anti_aliasing=0.0, limb_relief_rms=0.03, limb_relief_corr_deg=15.0
     )
@@ -149,7 +158,7 @@ def test_a_transit_shadow_reaches_the_relief_outline() -> None:
     shadowed = _render(dataclasses.replace(relief, transits=(shadow,)))
     v, u = np.mgrid[0:_SIZE, 0:_SIZE] + 0.5
     past_limb = (v - _CENTER) ** 2 + (u - _CENTER) ** 2 > _RADIUS**2
-    under = (v - _CENTER) ** 2 + (u - _CENTER - _RADIUS) ** 2 <= 8.0**2
+    under = (v - _CENTER + _RADIUS) ** 2 + (u - _CENTER) ** 2 <= 8.0**2
     probe = past_limb & under & (lit > 0.0)
     assert int(probe.sum()) > 0
     np.testing.assert_allclose(shadowed[probe], 0.2 * lit[probe], rtol=1e-12)

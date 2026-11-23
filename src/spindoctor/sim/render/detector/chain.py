@@ -109,11 +109,12 @@ def _feature_pool(
 
 
 def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArrayFloatType:
-    """Convert the intensive [0, 1] signal to electrons through the exposure.
+    """Convert the intensive signal to electrons through the exposure.
 
     A signal of 1.0 fills ``signal_full_scale_frac`` of a native pixel's well at
     the reference exposure; a binned frame pixel sums ``binning**2`` native
-    pixels of it.
+    pixels of it.  A signal above 1 is converted in proportion, and the full-well
+    cap that follows saturates it.
     """
     scale = (
         dp.signal_full_scale_frac
@@ -121,7 +122,8 @@ def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArr
         * dp.binning**2
         * (dp.exposure_sec / dp.exposure_ref_sec if dp.exposure_ref_sec > 0.0 else 1.0)
     )
-    return np.clip(signal, 0.0, 1.0) * scale
+    # Radiance is never negative, so the conversion floors the signal at 0.
+    return np.maximum(signal, 0.0) * scale
 
 
 def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) -> None:
@@ -423,17 +425,20 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     """
     modes = dp.detector_modes
     records: dict[str, Any] = {}
-    signal_dn = np.clip(frame.signal, 0.0, 1.0) * dp.signal_full_scale_frac * dp.full_well_dn
+    signal_dn = np.maximum(frame.signal, 0.0) * dp.signal_full_scale_frac * dp.full_well_dn
     size_v, size_u = signal_dn.shape
     # Point sources on the vidicon are already DN (the vidicon has no electron
     # domain): add them onto the converted signal before the DN-domain noise, so
     # the read noise and the bands ride on the star cores as they do on the
-    # extended signal.  The optics PSF has already shaped them.
-    dn = signal_dn
-    dn += frame.point_e
+    # extended signal.  The optics PSF has already shaped them.  The shutter shades
+    # the exposure, and the photoconductive target stores at most its full-scale
+    # charge, so the exposure saturates there after the shading.
+    dn: NDArrayFloatType = signal_dn + frame.point_e
     if 'shutter_shading' in modes:
         records['shutter_shading'] = _apply_shutter_shading(dn, modes['shutter_shading'])
-    # The erase-cycle residual image is a pre-noise ghost of the prior frame.
+    np.minimum(dn, dp.full_well_dn, out=dn)
+    # The erase-cycle residual image is a pre-noise ghost of the prior frame, whose
+    # own charge the target capped at full scale too.
     if 'residual_image' in modes:
         cfg = modes['residual_image']
         offset = cfg.get('offset_px') or [5, 5]
@@ -452,10 +457,10 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         amplitude_e=dp.full_well_dn,
         rng=_stream_rng(dp, 'cosmic_rays'),
     )
-    # The target holds at most its full-scale charge, so a hit saturates the
-    # pixels it lands on.
-    hit = hits > 0.0
-    dn[hit] = np.minimum(dn[hit] + hits[hit], dp.full_well_dn)
+    # The charge the beam reads is the exposure, the residual image, and the hits
+    # together, and the target holds at most its full scale of it.  The readout noise
+    # rides on the saturated charge.
+    dn = np.minimum(dn + hits, dp.full_well_dn)
     vidicon = dp.vidicon
     line_sigma = float(vidicon.get('read_noise_line_dn', 0.0))
     pixel_sigma = float(vidicon.get('read_noise_pixel_dn', 0.0))

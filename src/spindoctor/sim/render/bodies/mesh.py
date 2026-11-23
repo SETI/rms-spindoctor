@@ -41,10 +41,10 @@ from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import (
     Mesh,
+    MeshBodyRender,
     MeshBodySpec,
-    PolyhedralBodyRender,
     make_irregular_mesh,
-    render_polyhedral_body_with_silhouette,
+    render_polyhedral_body,
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -119,15 +119,15 @@ def _render_mesh_shape(
     relief_rms: float,
     relief_corr_deg: float,
     relief_seed: int,
-) -> PolyhedralBodyRender:
-    """Draw an irregular mesh body shape and its silhouette at the reference center.
+) -> MeshBodyRender:
+    """Draw an irregular mesh body shape and its coverage at the reference center.
 
     The truth-side upgrades (shading mode, relief field) are part of the cache key
     of ``_render_mesh_shape_cached``; at their defaults ('flat', relief off) the
     intensity is exactly the shared ``render_mesh_body_image`` result the navigator
     predicts.
     """
-    return render_polyhedral_body_with_silhouette(
+    return render_polyhedral_body(
         size=shape,
         center=center,
         mesh=_body_mesh(
@@ -170,6 +170,7 @@ def render_single_mesh_body(
     body_streams_seed: int,
     oversample: int = 1,
     body_index: int = 0,
+    margin: int = 0,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render one polyhedral-mesh body into the image in place.
 
@@ -197,13 +198,15 @@ def render_single_mesh_body(
         oversample: The render grid's oversampling factor, to which the canvas edges
             are aligned.
         body_index: Stable index of this body in the scene's body list.
+        margin: How many pixels the image extends past the frame on each side.
 
     Returns:
         Tuple of (body_mask, body_info_dict) matching the ellipsoid path.
         When a pose scatter is drawn, the info also carries the drawn
         per-axis angles in degrees as ``pose_scatter_drawn_deg``.
     """
-    size_v, size_u = img.shape
+    size_v = img.shape[0] - 2 * margin
+    size_u = img.shape[1] - 2 * margin
     body_name = body.name.upper()
     streams = _draw_mesh_streams(body, body_streams_seed=body_streams_seed, body_index=body_index)
     # A mesh body's pose is an arbitrary 3D rotation, so fall back to the
@@ -227,10 +230,11 @@ def render_single_mesh_body(
         reach_v=reach,
         reach_u=reach,
         oversample=oversample,
+        frame_margin=margin,
     )
     if canvas.is_empty:
         mask, body_info = finish_unseen_body(
-            (size_v, size_u),
+            (img.shape[0], img.shape[1]),
             body_name=body_name,
             center_v=center_v,
             center_u=center_u,
@@ -240,7 +244,7 @@ def render_single_mesh_body(
         )
     else:
         draw = _render_mesh_shape_cached if canvas.on_frame else _render_partial_mesh_cached
-        drawing = draw(
+        body_render = draw(
             canvas.shape,
             canvas.center,
             semi_a_px,
@@ -257,8 +261,8 @@ def render_single_mesh_body(
         )
         mask, body_info = finish_single_body(
             img,
-            drawing.intensity,
-            drawing.silhouette,
+            body_render.intensity,
+            body_render.coverage,
             body_name=body_name,
             center_v=center_v,
             center_u=center_u,

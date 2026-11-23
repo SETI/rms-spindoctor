@@ -109,13 +109,16 @@ def test_a_turned_hazy_sphere_renders_as_it_does_equator_on() -> None:
 
 
 def test_the_image_and_the_navigators_prediction_share_the_turned_outline() -> None:
-    """A turned triaxial body covers the same pixels in the image and the prediction."""
+    """A turned triaxial body covers the same pixels in the image and the prediction.
+
+    Most of the disc is night at this phase, which both sides still count.
+    """
     body = disc_body(
         _CENTER,
         _CENTER,
         _RADIUS,
         illumination_angle=0.0,
-        phase_angle=0.0,
+        phase_angle=120.0,
         semi_a_px=25.0,
         semi_c_px=45.0,
         rotation_z=30.0,
@@ -126,9 +129,9 @@ def test_the_image_and_the_navigators_prediction_share_the_turned_outline() -> N
         img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0, body_streams_seed=7
     )
     predicted = render_predicted_body(
-        body, 0.0, shape_vu=(_SIZE, _SIZE), center_vu=(_CENTER, _CENTER)
+        body, math.radians(120.0), shape_vu=(_SIZE, _SIZE), center_vu=(_CENTER, _CENTER)
     )
-    np.testing.assert_array_equal(image_mask, predicted > 0.0)
+    np.testing.assert_array_equal(image_mask, predicted.silhouette)
 
 
 def test_the_haze_column_at_the_north_limb_lies_below_the_pole() -> None:

@@ -22,6 +22,7 @@ from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.shared.mesh import (
+    MeshBodyRender,
     make_irregular_mesh,
     render_polyhedral_body,
 )
@@ -32,7 +33,7 @@ _CENTER = 110.0
 _RADIUS = 80.0
 
 
-def _render_sphere_mesh(shading: str) -> NDArrayFloatType:
+def _render_sphere_mesh(shading: str) -> MeshBodyRender:
     """A coarse UV sphere (big facets) rendered in the given shading mode."""
     mesh = make_irregular_mesh(n_lat=12, n_lon=24, lumpiness=0.0, seed=1)
     return render_polyhedral_body(
@@ -47,9 +48,10 @@ def _render_sphere_mesh(shading: str) -> NDArrayFloatType:
     )
 
 
-def _facet_discontinuity(img: NDArrayFloatType) -> float:
+def _facet_discontinuity(render: MeshBodyRender) -> float:
     """Mean absolute second difference of the shading over the disc interior."""
-    interior: NDArrayBoolType = ndimage.binary_erosion(img > 0, iterations=3)
+    img = render.intensity
+    interior: NDArrayBoolType = ndimage.binary_erosion(render.coverage > 0, iterations=3)
     d2v = np.abs(img[2:, :] - 2.0 * img[1:-1, :] + img[:-2, :])
     d2u = np.abs(img[:, 2:] - 2.0 * img[:, 1:-1] + img[:, :-2])
     return float(d2v[interior[1:-1, :]].mean() + d2u[interior[:, 1:-1]].mean())
@@ -66,7 +68,7 @@ def test_gouraud_leaves_the_silhouette_unchanged() -> None:
     """Shading mode only re-shades: the rasterized silhouette is identical."""
     flat = _render_sphere_mesh('flat')
     gouraud = _render_sphere_mesh('gouraud')
-    assert np.array_equal(flat > 0.0, gouraud > 0.0)
+    assert np.array_equal(flat.coverage, gouraud.coverage)
 
 
 def test_unknown_shading_mode_is_rejected() -> None:
