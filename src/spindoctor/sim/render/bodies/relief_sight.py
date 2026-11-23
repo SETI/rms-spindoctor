@@ -4,7 +4,8 @@ The ellipsoid renderer shades a body with limb relief by the terrain each pixel
 shows.  On rough terrain that can lie far from where the line of sight meets the
 smooth body: near the limb, and on a ridge that hides the terrain behind it.
 :func:`visible_surface_directions` searches each line of sight for the first point
-it meets.
+it meets, and :func:`points_on_sight_lines` puts each point found on the line of
+sight that sees it.
 
 The search works in the body's parameter space, like the field it reads
 (:mod:`spindoctor.sim.render.bodies.relief`).
@@ -18,7 +19,7 @@ from spindoctor.sim.render.bodies.relief import ReliefField, directions_about_vi
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
-__all__ = ['visible_surface_directions']
+__all__ = ['points_on_sight_lines', 'visible_surface_directions']
 
 # The line-of-sight search (visible_surface_directions) steps down a meridian by
 # at least this fraction of a field grid cell, and then narrows the crossing step
@@ -372,3 +373,43 @@ def visible_surface_directions(
         hit[narrow] = a + (b - a) * (-ga / np.maximum(gb - ga, 1e-300))
 
     return lines.directions(hit, np.arange(rho.size)).reshape(*shape, 3)
+
+
+def points_on_sight_lines(
+    x: NDArrayFloatType,
+    y: NDArrayFloatType,
+    surface: NDArrayFloatType,
+    *,
+    view: tuple[float, float] = (0.0, 1.0),
+) -> NDArrayFloatType:
+    """Move surface points across the view onto the lines of sight that see them.
+
+    The surface point a line of sight meets, as :func:`visible_surface_directions`
+    finds it, lies on that line of sight only to the search's precision.  Each point
+    is moved perpendicular to the view onto its own line of sight, keeping its
+    distance toward the observer, so a ray from the point seen starts on the line of
+    sight that sees it.
+
+    Parameters:
+        x: Parameter-space coordinates of the lines of sight along the turned first
+            axis, as for :func:`visible_surface_directions`, one dimensional.
+        y: The coordinates along the second axis, the same shape.
+        surface: ``(N, 3)`` parameter-space positions of the surface points the lines
+            of sight see, in the field's frame.
+        view: The unit direction toward the observer, its ``x`` and ``z`` components
+            in the field's frame (its ``y`` component is 0).
+
+    Returns:
+        ``(N, 3)`` positions on the lines of sight, in the field's frame.
+    """
+    view_x, view_z = view
+    toward = surface[:, 0] * view_x + surface[:, 2] * view_z
+    x_arr = np.asarray(x, dtype=np.float64)
+    return np.stack(
+        [
+            x_arr * view_z + toward * view_x,
+            np.asarray(y, dtype=np.float64),
+            toward * view_z - x_arr * view_x,
+        ],
+        axis=-1,
+    )

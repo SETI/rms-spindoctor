@@ -2403,20 +2403,36 @@ slope facing the sun brightens and one facing away darkens, across the whole
 lit disc and not only at the terminator. The surface a line of sight meets first
 faces the observer. Where the line of sight grazes a ridge, though, the normal
 taken from the field's differences half a cell apart can lean away, by as much
-as -0.82 in its toward-observer component, and the renderer lays such a normal
-into the sky plane. On 75 px bodies over four seeds, that happens at up to 0.07%
-of the pixels inside the outline at a correlation length of 5 degrees or more and
-5% relief, 0.29% at 1 degree and 5% relief, and 0.30% at 2 degrees and 10%
-relief.
+as -0.82 in its toward-observer component. The renderer lays such a normal just
+in front of the sky plane, with a toward-observer component of one millionth, so
+it still faces the observer as the surface does. At phase 0 the Sun then lights
+it, as it lights all the terrain the camera sees; under any other light its
+incidence cosine moves by at most a millionth. On 75 px bodies over four seeds,
+such a normal turns up at up to 0.07% of the pixels inside the outline at a
+correlation length of 5 degrees or more and 5% relief, 0.29% at 1 degree and 5%
+relief, and 0.30% at 2 degrees and 10% relief.
 
 The terrain also casts shadows. The map from the body frame to parameter space
 is affine, and an affine map carries a ray to a ray and a surface to a surface,
 so a pixel's sun ray meets the terrain in parameter space exactly when it does
-on the body. Each candidate pixel's ray is marched from its surface point until
-it leaves the relief shell ``r <= 1 + h_max``, and the pixel is shadowed when a
-sample falls below the terrain. The march reads terrain on the far hemisphere
-as readily as on the near one, and the body's curvature is in the geometry
-rather than an approximation. A shadowed pixel renders as night. Which pixels
+on the body. Each candidate pixel's ray starts where the pixel's line of sight
+meets the terrain, on that line of sight, and is marched until it leaves the
+relief shell ``r <= 1 + h_max``. The pixel is shadowed when the ray, once it has
+risen above the terrain, falls below it again, so only terrain between the point
+the camera sees and the Sun casts a shadow there. The terrain the point lies on
+shades it through the point's own normal instead. The search finds the point
+only to within its precision, so a ray can start just inside the terrain, and
+counting those first samples would shadow terrain the camera sees wherever its
+line of sight grazes the surface. At phase 0, where the Sun ray runs back along
+the line of sight, that would draw black pixels inside a fully lit disc. The
+first step is sampled eight times more finely than the rest, so a wall close to
+the point still shows open sky between itself and the point. Against a
+brute-force truth on a 75 px body with 5% relief at 5 degrees seen at phase 35,
+among the pixels whose normal faces the Sun, the renderer shadows 3 pixels the
+truth leaves lit and misses 1 of the truth's 3,645 shadowed pixels; at phase 0
+it shadows none. The march reads terrain on the far hemisphere as readily as on
+the near one, and the body's curvature is in the geometry rather than an
+approximation. A shadowed pixel renders as night. Which pixels
 can be shadowed follows from the field's steepest slope ``s_max``: along a ray
 the terrain rises at most ``s_max / (1 + h_min)`` per unit of the ray's own
 rise. A pixel whose sun elevation has ``tan(elevation)`` at or above that bound
@@ -2426,7 +2442,7 @@ taken from the field grid's own differences. The steps are an eighth of a field
 grid cell, whatever the body's size in pixels. A step tied to the shading pixel
 would skip ridge tips on a small body with fine relief and leave their shadows
 lit. Against a march at a quarter of that step, the decisions differ on under
-0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
+0.5% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
 relief from 1 to 12 degrees across.
 
 On an oversampled or anti-aliased body, the relief's tilt is computed once per detector

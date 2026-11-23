@@ -36,9 +36,10 @@ space, where the smooth ellipsoid is the unit sphere and the relief surface is
 ``r = 1 + h(r_hat)``.  The map from the body frame to that space is affine, and
 an affine map carries a ray to a ray and a surface to a surface, so a ray from a
 surface point toward the sun meets the terrain in parameter space exactly when
-it does on the body.  A point is shadowed iff its sun ray dips below the terrain
-somewhere before it leaves the relief shell ``r <= 1 + h_max``.  Which points
-can be shadowed at all follows from the field's steepest slope ``s_max`` (per
+it does on the body.  A point is shadowed iff its sun ray, once it has risen above
+the terrain, dips below it again before it leaves the relief shell
+``r <= 1 + h_max``: only terrain between the point and the sun shadows it.  Which
+points can be shadowed at all follows from the field's steepest slope ``s_max`` (per
 radian of arc, :attr:`ReliefField.slope_max`): along the ray the terrain rises
 at most ``s_max / (1 + h_min)`` per unit of the ray's own rise, so a point whose
 sun elevation has ``tan(elevation) >= s_max / (1 + h_min)`` is never shadowed,
@@ -115,6 +116,10 @@ _BAND_LIMIT_FACTOR = 8.0
 # so a degenerate correlation length cannot demand an unbounded FFT.
 _MIN_GRID = 64
 _MAX_GRID = 8192
+# The cast-shadow march samples its first step this many times more finely, so a
+# terrain wall close to the point is still seen apart from the terrain the point
+# lies on (see cast_shadows).
+_FIRST_STEP_SPLIT = 8
 
 
 @dataclass(frozen=True)
@@ -596,19 +601,25 @@ def cast_shadows(
     *,
     step: float,
 ) -> NDArrayBoolType:
-    """Whether the relief shadows each surface point from the sun, by exact ray march.
+    """Whether terrain between each surface point and the sun shadows it, by ray march.
 
     Everything is in the body's parameter space (the smooth body is the unit
-    sphere, the field's poles on the ``z`` axis).  Each point sits on the
-    relief surface at ``(1 + h) * p_hat``; its ray ``P + t * sun`` is marched
-    from ``t = step`` until it leaves the relief shell ``|r| <= 1 + h_max``,
-    and the point is shadowed iff some sample lies below the terrain,
-    ``|r| < 1 + h(r_hat)``.  The test is exact up to the step and the bilinear
-    field, and it reads terrain on the far hemisphere as readily as on the
-    near one.
+    sphere, the field's poles on the ``z`` axis).  Each point's ray
+    ``P + t * sun`` is marched until it leaves the relief shell
+    ``|r| <= 1 + h_max``; a sample lies below the terrain where
+    ``|r| < 1 + h(r_hat)``.  The point is shadowed iff the ray, once it has risen
+    above the terrain, comes down below it again.  Terrain the ray is in before it
+    first rises is the terrain the point lies on, which the point's own normal
+    shades: a point found by a search lies on the surface only to the search's
+    precision, and its ray can start just inside the terrain.  The first step is
+    sampled :data:`_FIRST_STEP_SPLIT` times more finely than the rest, so the ray
+    still shows open sky between the point and a wall less than a step away.  The
+    test is exact up to the step and the bilinear field, and it reads terrain on
+    the far hemisphere as readily as on the near one.
 
     Parameters:
-        points: ``(N, 3)`` smooth-surface directions (normalized here).
+        points: ``(N, 3)`` parameter-space positions of the points, on the relief
+            surface or within a search's precision of it.
         sun: The unit sun direction in the same space, ``(3,)``.
         field: The relief realization.
         step: The ray step in parameter-space units (a fraction of the
@@ -623,26 +634,43 @@ def cast_shadows(
     """
     if not (math.isfinite(step) and step > 0.0):
         raise ValueError(f'cast_shadows step must be finite and positive, got {step!r}')
-    p_hat = np.asarray(points, dtype=np.float64)
-    p_hat = p_hat / np.maximum(np.linalg.norm(p_hat, axis=1, keepdims=True), 1e-300)
-    count = p_hat.shape[0]
+    start = np.asarray(points, dtype=np.float64)
+    count = start.shape[0]
     shadowed = np.zeros(count, dtype=np.bool_)
     if count == 0 or field.h_max <= field.h_min:
         return shadowed
     sun_hat = np.asarray(sun, dtype=np.float64) / float(np.linalg.norm(sun))
-    start = p_hat * (1.0 + field.sample_points(p_hat))[:, np.newaxis]
     # The ray leaves the shell at the positive root of |P + t s| = 1 + h_max.
     along = stable_matmul3(start, sun_hat)
     reach = -along + np.sqrt(
         np.maximum(along**2 - (np.sum(start**2, axis=1) - (1.0 + field.h_max) ** 2), 0.0)
     )
-    active = np.nonzero(reach > step)[0]
-    t = step
+    risen = np.zeros(count, dtype=np.bool_)
+    sample = 1
+    active = np.nonzero(reach > _march_distance(sample, step))[0]
     while active.size:
-        ray = start[active] + t * sun_hat
+        ray = start[active] + _march_distance(sample, step) * sun_hat
         radius = np.linalg.norm(ray, axis=1)
         below = radius < 1.0 + field.sample_points(ray)
-        shadowed[active[below]] = True
-        t += step
-        active = active[~below & (reach[active] > t)]
+        hit = below & risen[active]
+        shadowed[active[hit]] = True
+        risen[active[~below]] = True
+        sample += 1
+        active = active[~hit & (reach[active] > _march_distance(sample, step))]
     return shadowed
+
+
+def _march_distance(sample: int, step: float) -> float:
+    """How far along its ray the cast-shadow march takes a sample.
+
+    Parameters:
+        sample: The sample's number, counted from 1.
+        step: The march's step.
+
+    Returns:
+        The distance: the first :data:`_FIRST_STEP_SPLIT` samples divide the first
+        step evenly, and each later one lies a whole step beyond the one before.
+    """
+    if sample <= _FIRST_STEP_SPLIT:
+        return sample * step / _FIRST_STEP_SPLIT
+    return (sample - _FIRST_STEP_SPLIT + 1) * step

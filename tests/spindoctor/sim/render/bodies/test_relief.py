@@ -9,8 +9,9 @@ translation, degree 2 aliases ellipsoid shape error) or above the band
 limit, and distinct seeds are distinct terrains.  The outline envelope, the
 slope bound, and the surface gradient are pinned against brute-force
 evaluations of the same field, and the cast-shadow ray march against the
-exact geometry of a ray grazing a ridge.  A line of sight that misses the
-surface reads the outline point beside it.
+exact geometry of a ray grazing a ridge; the ground a point lies in casts it no
+shadow.  A line of sight that misses the surface reads the outline point beside
+it, and the point a line of sight sees moves onto that line of sight.
 """
 
 import functools
@@ -297,6 +298,22 @@ def test_a_line_of_sight_beyond_all_terrain_reads_the_turned_limb() -> None:
     np.testing.assert_allclose(seen, limb, rtol=0.0, atol=1e-12)
 
 
+def test_a_point_seen_moves_onto_its_own_line_of_sight() -> None:
+    """A point beside its line of sight moves across the view onto it.
+
+    It keeps its distance toward the observer, so it lands where the line of sight
+    lies at that distance.
+    """
+    view_x, view_z = _view_tilted(math.radians(50.0))
+    toward = np.array([view_x, 0.0, view_z])
+    x = np.array([0.3, -0.6])
+    y = np.array([-0.4, 0.1])
+    on_line = np.stack([x * view_z, y, -x * view_x], axis=-1) + 0.7 * toward
+    beside = on_line + np.array([0.01 * view_z, 0.02, -0.01 * view_x])
+    moved = relief_sight.points_on_sight_lines(x, y, beside, view=(view_x, view_z))
+    np.testing.assert_allclose(moved, on_line, rtol=0.0, atol=1e-15)
+
+
 def test_the_slope_bound_holds_along_a_turned_line_of_sight() -> None:
     """The terrain along a turned line of sight is nowhere steeper than its bound.
 
@@ -441,28 +458,43 @@ def test_sample_reads_one_surface_point_by_either_name() -> None:
 _RIDGE_GRID = 512
 
 
-def _ridge_field(height: float) -> ReliefField:
-    """Flat terrain with a ``height`` ridge from longitude 9 to 11 degrees."""
+def _ridge_field(height: float, *, lon_deg: tuple[float, float] = (9.0, 11.0)) -> ReliefField:
+    """Flat terrain with a ``height`` ridge between two longitudes, 9 and 11 degrees."""
     grid = np.zeros((_RIDGE_GRID, _RIDGE_GRID), dtype=np.float64)
     lon = np.arange(_RIDGE_GRID) * (360.0 / _RIDGE_GRID)
-    grid[:, (lon >= 9.0) & (lon <= 11.0)] = height
+    grid[:, (lon >= lon_deg[0]) & (lon <= lon_deg[1])] = height
     return ReliefField(
         grid=grid, rms=height, corr_deg=1.0, h_min=0.0, h_max=height, slope_max=100.0
     )
 
 
-def _equator_point_shadowed(height: float, elevation_deg: float) -> bool:
+def _equator_point_shadowed(
+    height: float,
+    elevation_deg: float,
+    *,
+    radius: float = 1.0,
+    lon_deg: tuple[float, float] = (9.0, 11.0),
+    step: float = 2.0 * np.pi / 8192,
+) -> bool:
     """Whether the ridge shadows the equator point at longitude 0, sun toward +lon.
 
     The point sits on flat ground, so its ray toward the sun is the line through
     ``(1, 0)`` at ``elevation_deg`` above the tangent; in polar form it lies at
     radius ``cos(e) / cos(lon + e)``, 1.0267 at the ridge's near edge for
     ``e`` = 5 degrees.
+
+    Parameters:
+        height: The ridge's height.
+        elevation_deg: The sun's elevation above the flat ground, degrees.
+        radius: The point's distance from the center; below 1 it lies inside the
+            ground.
+        lon_deg: The ridge's longitudes, degrees.
+        step: The march's step.
     """
     e = math.radians(elevation_deg)
     sun = np.array([math.sin(e), math.cos(e), 0.0])
     shadowed = cast_shadows(
-        np.array([[1.0, 0.0, 0.0]]), sun, _ridge_field(height), step=2.0 * np.pi / 8192
+        np.array([[radius, 0.0, 0.0]]), sun, _ridge_field(height, lon_deg=lon_deg), step=step
     )
     return bool(shadowed[0])
 
@@ -482,11 +514,32 @@ def test_a_higher_sun_clears_the_ridge() -> None:
     assert not _equator_point_shadowed(0.04, 15.0)
 
 
+def test_the_ground_a_point_lies_in_casts_no_shadow() -> None:
+    """A ray that starts inside the ground under the point is not shadowed by it.
+
+    A point found by a search lies on the surface only to the search's precision.
+    This one lies 1e-4 inside flat ground, and its ray rises above the ground only
+    after more than one sample; the ridge beyond stays under a 15-degree ray.
+    """
+    assert not _equator_point_shadowed(0.04, 15.0, radius=1.0 - 1e-4)
+
+
+def test_a_wall_within_one_step_casts_a_shadow() -> None:
+    """A wall nearer than one step still shows sky between itself and the point.
+
+    The step here is three field cells, and the wall begins one cell from the point,
+    so a sample a whole step out already lies inside the wall.  The first step's
+    finer samples see the ray rise off the ground before it meets the wall.
+    """
+    cell = 2.0 * np.pi / _RIDGE_GRID
+    assert _equator_point_shadowed(0.04, 5.0, lon_deg=(1.0, 6.0), step=3.0 * cell)
+
+
 def test_flat_terrain_casts_no_shadow() -> None:
     """A field with no height range shadows nothing."""
     flat = ReliefField(grid=np.full((64, 64), 0.01), rms=0.0, corr_deg=15.0, h_min=0.01, h_max=0.01)
     sun = np.array([0.1, 0.995, 0.0])
-    assert not cast_shadows(_random_directions(50, 3), sun, flat, step=0.01).any()
+    assert not cast_shadows(1.01 * _random_directions(50, 3), sun, flat, step=0.01).any()
 
 
 @pytest.mark.parametrize(
@@ -503,8 +556,9 @@ def test_cast_shadows_refuses_a_step_that_never_leaves_the_shell(step: float) ->
 def test_a_finer_step_changes_few_shadow_decisions() -> None:
     """Halving an eighth-cell step flips under 3% of a realization's cast shadows."""
     field = synthesize_relief_field(0.035, 12.0, 2)
-    points = _random_directions(20000, 4)
-    points[:, 2] = np.abs(points[:, 2])
+    directions = _random_directions(20000, 4)
+    directions[:, 2] = np.abs(directions[:, 2])
+    points = directions * (1.0 + field.sample_points(directions))[:, np.newaxis]
     sun = np.array([0.5, 0.2, 0.84])
     sun /= np.linalg.norm(sun)
     cell = 2.0 * np.pi / field.grid.shape[0]
