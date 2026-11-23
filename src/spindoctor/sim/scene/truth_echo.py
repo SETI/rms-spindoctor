@@ -12,8 +12,8 @@ optimistic recovery.
 :class:`SimSceneTruthEchoWarning`, naming both sites, for each truth value that
 the published config repeats exactly:
 
-- ``noise.<key>`` (and ``noise.vidicon.<key>``) against
-  ``instrument_config.noise.<key>``, which share their key names.
+- ``noise.<key>`` and ``detector.<key>`` against ``instrument_config.noise.<key>``,
+  which share their key names (the read noise and the ADC ceiling).
 - On a binned frame, ``noise.<key>`` against
   ``instrument_config.noise.by_binning.<b>.<key>`` for the frame's binning ``<b>``,
   the value the navigator's star limit reads on that frame in place of
@@ -46,19 +46,21 @@ class SimSceneTruthEchoWarning(UserWarning):
     """A scene's published ``instrument_config`` repeats one of its truth values."""
 
 
-def _noise_echoes(
-    truth: Mapping[str, Any], published: Mapping[str, Any], prefix: str
+def _block_echoes(
+    block: str, truth: Any, published: Mapping[str, Any]
 ) -> Iterator[tuple[str, str]]:
-    """Yield the ``(truth path, published path)`` pairs where two noise blocks agree."""
+    """Yield the ``(truth path, published path)`` pairs where a truth block repeats.
+
+    Parameters:
+        block: The truth block's key.
+        truth: The scene's truth block, None when it has none.
+        published: The scene's ``instrument_config.noise`` block.
+    """
+    if not isinstance(truth, Mapping):
+        return
     for key, value in truth.items():
-        if value is None or key not in published:
-            continue
-        other = published[key]
-        if isinstance(value, Mapping):
-            if isinstance(other, Mapping):
-                yield from _noise_echoes(value, other, f'{prefix}.{key}')
-        elif not isinstance(other, Mapping) and other == value:
-            yield f'noise{prefix}.{key}', f'instrument_config.noise{prefix}.{key}'
+        if key in published and published[key] == value:
+            yield f'{block}.{key}', f'instrument_config.noise.{key}'
 
 
 def _binned_mode_echoes(
@@ -95,8 +97,8 @@ def truth_echoes(sim_params: Mapping[str, Any]) -> list[tuple[str, str]]:
     Returns:
         ``(truth path, published path)`` pairs, such as
         ``('noise.read_noise_dn', 'instrument_config.noise.read_noise_dn')``, in
-        the order the noise block, the frame's binned mode, and then the PSF list
-        them.  Empty when the scene doesn't carry an ``instrument_config``.
+        the order the noise block, the detector block, the frame's binned mode, and then
+        the PSF list them.  Empty when the scene doesn't carry an ``instrument_config``.
     """
     published = sim_params.get('instrument_config')
     if not isinstance(published, Mapping):
@@ -104,9 +106,11 @@ def truth_echoes(sim_params: Mapping[str, Any]) -> list[tuple[str, str]]:
     echoes: list[tuple[str, str]] = []
     noise = sim_params.get('noise')
     published_noise = published.get('noise')
-    if isinstance(noise, Mapping) and isinstance(published_noise, Mapping):
-        echoes.extend(_noise_echoes(noise, published_noise, ''))
-        echoes.extend(_binned_mode_echoes(noise, published_noise, scene_binning(sim_params)))
+    if isinstance(published_noise, Mapping):
+        echoes.extend(_block_echoes('noise', noise, published_noise))
+        echoes.extend(_block_echoes('detector', sim_params.get('detector'), published_noise))
+        if isinstance(noise, Mapping):
+            echoes.extend(_binned_mode_echoes(noise, published_noise, scene_binning(sim_params)))
     optics = sim_params.get('optics')
     psf = optics.get('psf') if isinstance(optics, Mapping) else None
     sigma = published.get('star_psf_sigma')
@@ -154,21 +158,8 @@ def stale_truth_declarations(sim_params: Mapping[str, Any], *, source: str) -> l
     return sorted(set(declared) - {truth for truth, _ in truth_echoes(sim_params)})
 
 
-def _echo_consequence(truth: str) -> str:
-    """Say what a published copy of ``truth`` does, for the echo warning."""
-    # The navigator doesn't read the vidicon keys, so a vidicon echo only
-    # mislabels the published config; every other compared key feeds it.
-    if truth.startswith('noise.vidicon.'):
-        return "the published config carries the scene's realization instead of the camera's"
-    return 'the navigator reads the scene truth as published knowledge'
-
-
 def check_truth_echo(sim_params: Mapping[str, Any], *, source: str) -> None:
     """Warn for each truth value that ``instrument_config`` repeats unannounced.
-
-    A ``noise.vidicon`` echo's warning says the published config carries the
-    scene's realization; every other echo's warning says the navigator reads the
-    scene truth as published knowledge.
 
     Parameters:
         sim_params: A scene mapping whose block types have been validated.
@@ -190,8 +181,8 @@ def check_truth_echo(sim_params: Mapping[str, Any], *, source: str) -> None:
         if truth in declared:
             continue
         warnings.warn(
-            f'{source}: {published} repeats the planted {truth}, so '
-            f'{_echo_consequence(truth)}; list {truth!r} in '
+            f'{source}: {published} repeats the planted {truth}, so the navigator reads the '
+            f'scene truth as published knowledge; list {truth!r} in '
             f'published_equals_truth if they are equal on purpose',
             SimSceneTruthEchoWarning,
             stacklevel=3,
