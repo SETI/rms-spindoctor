@@ -360,7 +360,7 @@ def test_star_rotation_sweep_recovers_roll() -> None:
     The recovered roll is read from whichever technique reports it (the two-star
     path at +/-1 deg, the field matcher at the larger rolls), so the assertion is
     on the roll error, not the fused status.  A single-draw tripwire: over 9 noise
-    draws the worst roll error is 0.030 to 0.033 deg.
+    draws the worst roll error is 0.032 to 0.034 deg.
     """
     rows = _rows('star_rotation')
     for row in rows:

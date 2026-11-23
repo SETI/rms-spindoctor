@@ -53,7 +53,7 @@ def _render(**keys: Any) -> tuple[NDArrayFloatType, dict[str, Any]]:
     )
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     _mask, info = render_single_body(
-        img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0, body_streams_seed=7
+        img, body_spec_from_params(body, index=0), 0.0, shift_u=0.0, body_streams_seed=7
     )
     return img, info
 
@@ -126,7 +126,7 @@ def test_the_image_and_the_navigators_prediction_share_the_turned_outline() -> N
     )
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     image_mask, _info = render_single_body(
-        img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0, body_streams_seed=7
+        img, body_spec_from_params(body, index=0), 0.0, shift_u=0.0, body_streams_seed=7
     )
     predicted = render_predicted_body(
         body, math.radians(120.0), shape_vu=(_SIZE, _SIZE), center_vu=(_CENTER, _CENTER)
@@ -204,6 +204,6 @@ def _render_lit(**keys: Any) -> NDArrayFloatType:
     body = {**disc_body(_CENTER, _CENTER, _RADIUS), **keys}
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     render_single_body(
-        img, body_spec_from_params(body, index=0), 0.0, offset_u=0.0, body_streams_seed=7
+        img, body_spec_from_params(body, index=0), 0.0, shift_u=0.0, body_streams_seed=7
     )
     return img

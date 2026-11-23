@@ -2268,8 +2268,9 @@ own center (:func:`~spindoctor.sim.render.roll.roll_body_params`; see
 :ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
 ``roll_deg``, which turns the crater layout. The stage then shifts each center by the
 ephemeris parallax, turns it about the frame center by the roll, and scales the
-centers and axes to the render grid. The body
-renderer adds the planted translation when it draws the body. Both renderers read only the
+centers and axes to the render grid. The body renderer adds the planted offset,
+turned by the roll, when it draws the body, which makes the roll a turn about the
+boresight. Both renderers read only the
 spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
 the ``albedo_texture`` noise draws its seed from the body's identity. The renderer builds
@@ -3674,23 +3675,35 @@ The scene's displacements need no conversion: the planted ``offset_v`` /
 
 **The planted roll** is a roll of the camera about its boresight. A scene describes
 what the unrolled camera would see, and the roll turns everything in the field of
-view by the same angle, in the same direction, about **one** point in that same
-convention: the frame's center ``(size_v / 2, size_u / 2)``. A positive roll turns
-from ``+v`` toward ``+u``, carrying a point at ``(dv, du)`` from the center to
+view by the same angle, in the same direction, about **one** point: the boresight,
+which is the frame's center ``(size_v / 2, size_u / 2)`` in that same convention
+after the planted offset has moved the camera. A positive roll turns from ``+v``
+toward ``+u``, carrying a point at ``(dv, du)`` from the center to
 ``(cos * dv - sin * du, sin * dv + cos * du)``. That is the rotation the star fit
 ``similarity_transform_fit`` in ``nav_technique/_star_helpers.py`` reports and the
 rotation the edge fits apply to their model, so the rotation the navigator
-recovers equals the planted roll. The roll turns the scene first, and the planted
-``offset_v`` / ``offset_u`` then moves the turned stars, bodies, and ring system. The
+recovers equals the planted roll. The navigator never learns the roll:
+``offset_rotation_deg`` is a truth key, so the navigator's models predict the unrolled
+scene.
+
+The planted ``offset_v`` / ``offset_u`` is the boresight's pointing error ``d``, and
+it stays the truth for the navigator's translation. Measured from the frame center,
+an object the scene puts at ``x`` therefore lands at ``R (x + d)``, where ``R`` is the
+roll. The renderer computes this as ``R x + R d``: it turns each star, body, and the
+ring system about the frame center, then moves all of them by the offset turned by
+the roll (:func:`~spindoctor.sim.render.roll.boresight_shift`). The scene radiance
+stage computes that shift once and hands the same one to every object, so they all
+turn about the same point. Turning about the frame center and adding the offset
+unturned would put every object ``(R - I) d`` from where it belongs: the same shift
+for every object, ``2 |d| sin(theta / 2)`` long and nearly at right angles to the
+offset. The
 ``sky_counts`` background field turns with the roll but does not move with the offset:
-its stars are drawn where they land in the frame whatever the offset. The navigator
-never learns the roll: ``offset_rotation_deg`` is a truth key, so the navigator's
-models predict the unrolled scene.
+its stars are drawn where they land in the frame whatever the offset.
 
 The roll turns:
 
-- catalog star positions, body centers, and the ring system's center about the frame
-  center;
+- catalog star positions, body centers, and the ring system's center about the
+  boresight;
 - each body about its own center by the same angle: its outline, the side its light
   comes from, and everything drawn on it (craters, relief, albedo texture, bands and
   storms, transiting moons and their shadows, and the haze with its clouds);
@@ -3703,9 +3716,10 @@ The roll turns:
   direction in the field of view and turns with it;
 - a linear stray-light ramp. The ramp rises toward a bright source beyond the field
   of view, and rolling the camera turns that source's direction on the detector. The
-  rolled ramp is the unrolled ramp turned about the frame center, with the same slope
-  and the same value there. Where the turned frame reaches past the span the unrolled
-  ramp was scaled to, the ramp continues the same line, and where that line falls
+  ramp, like the sky field, does not move with the offset, so only its direction
+  turns: the rolled ramp is the unrolled ramp turned about the frame center, with the
+  same slope and the same value there. Where the turned frame reaches past the span
+  the unrolled ramp was scaled to, the ramp continues the same line, and where that line falls
   below zero it is clipped to zero, since light is never negative;
 - the ``sky_counts`` background field. The turned frame also shows sky beyond the
   unrolled frame's corners. The sky beyond the frame is drawn in fixed tiles at the
@@ -3811,8 +3825,8 @@ A scene either sets a key or leaves it out to take its default.
      - 0.0
      - truth
      - Planted boresight roll (deg, from ``+v`` toward ``+u``), turning
-       everything in the field of view about the frame's uv center
-       ``(size_v / 2, size_u / 2)`` (see
+       everything in the field of view about the boresight, the frame's uv
+       center ``(size_v / 2, size_u / 2)`` after the planted offset (see
        :ref:`the planted roll <sim-planted-roll>`).  That covers the positions
        of stars and bodies; each body's outline, lit side, and surface; the ring
        system; star smear, companions, and catalog errors; the optics motion

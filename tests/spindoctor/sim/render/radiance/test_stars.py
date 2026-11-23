@@ -17,7 +17,7 @@ def _fill_star_caches() -> None:
         np.zeros((32, 32)),
         [{'v': 16.0, 'u': 16.0, 'vmag': 8.0}],
         0.0,
-        offset_u=0.0,
+        shift_u=0.0,
         zero_point=1.0e7,
         exposure_sec=1.0,
         rendered_sigma=1.0,
