@@ -315,3 +315,17 @@ def test_instances_for_obs_wires_siblings() -> None:
         assert isinstance(model, NavModelBodySimulated)
         assert len(model._sibling_bodies) == 1
         assert model._sibling_bodies[0]['name'] != model._nav_body['name']
+
+
+def test_occluder_mask_covers_the_margin() -> None:
+    """A nearer sibling straddling the frame edge is drawn into the margin too."""
+    obs = limb_obs()
+    body = large_body(center_u=LIMB_SIZE / 2.0 - 40.0, range_km=1.0e6)
+    sibling = _near_sibling(center_u=0.5, center_v=LIMB_SIZE / 2.0, semi_a_px=20.0)
+    sibling.update(semi_b_px=20.0, semi_c_px=20.0)
+    model = NavModelBodySimulated('body', obs, body['name'], body, sibling_bodies=[sibling])
+    model.create_model()
+    mask = model._occluder_mask
+    assert mask is not None
+    margin_u = int(obs.extfov_margin_u)
+    assert bool(mask[:, :margin_u].any())
