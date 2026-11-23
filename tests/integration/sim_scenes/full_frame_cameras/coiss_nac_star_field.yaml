@@ -62,4 +62,4 @@ offset_rotation_deg: 0.0115
 # offset to 0.05 px.  The simulated hot pixels are overstrong (#906), so the
 # failure with hot pixels alone is partly the simulator's; the failure with cosmic
 # rays alone confirms #1146 as a navigator fault.  The single-star and refinement
-# techniques carry the answer, 0.03 to 0.29 px off over 16 seeds.
+# techniques carry the answer, 0.03 to 0.30 px off over 16 seeds.

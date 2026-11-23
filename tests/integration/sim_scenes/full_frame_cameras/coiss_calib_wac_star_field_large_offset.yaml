@@ -7,7 +7,7 @@ random_seed: 7
 exposure_sec: 26.0
 # coiss_calib_wac_star_field with the offset at the largest per-axis extent of
 # real WAC pointing errors, 12.38 px up.  Both star techniques find the
-# offset, 0.005 to 0.06 px off over 25 draws, but each answer lies within 1 px
+# offset, 0.007 to 0.06 px off over 25 draws, but each answer lies within 1 px
 # of the 13 px WAC search limit, so the margin test marks it at the edge and
 # zeroes its confidence, and the frame fails final_confidence_below_threshold
 # on every draw (#785).  The expected block holds the failure, so a fix to the

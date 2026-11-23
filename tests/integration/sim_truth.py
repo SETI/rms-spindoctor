@@ -210,22 +210,22 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # random_seed of the same value: random_seed reaches the noise and, apart from that,
     # only the fixed-pattern and sky streams, which change a few pixels of the render.
     # The unfit twist sets the larger errors on the star fields and the Galileo disc,
-    # since a translation follows the turned stars or disc it measures.  In
-    # gossi_star_field the roll turns the scene about the frame center before the 257 px
-    # offset moves it, so the -0.0526 deg twist moves the two bright stars in view by
-    # 0.22 and 0.50 px.  In nhlorri_star_field the +0.19 deg twist moves the four
-    # measured stars' mean position, about 290 px from the frame center, by about
-    # 0.95 px.  gossi_disc lands 0.30 px off with its twist and 0.04 px off without it.
-    # coiss_wac_disc's error is the limb fit's own: 0.16 px with the roll, 0.18 px
-    # without.  The three short-exposure and large-offset scenes fail as their expected
-    # blocks declare (#342, #785, #1153).
-    ('coiss_calib_nac_disc', FUSED): _t(0.092, 0.094, 0.010, 0.05),
-    ('coiss_calib_wac_star_field', FUSED): _t(0.014, 0.034, 0.028, 0.05),
-    ('coiss_nac_star_field', FUSED): _t(0.029, 0.289, 0.261, 0.06),
-    ('coiss_wac_disc', FUSED): _t(0.161, 0.173, 0.031, 0.05),
-    ('gossi_disc', FUSED): _t(0.299, 0.301, 0.183, 0.07),
-    ('gossi_star_field', FUSED): _t(0.271, 0.278, 0.022, 0.06),
-    ('nhlorri_star_field', FUSED): _t(0.949, 0.969, 0.042, 0.20),
+    # since a translation follows the turned stars or disc it measures.  The roll turns
+    # the scene about the boresight, the frame center after the offset.  In
+    # nhlorri_star_field the +0.19 deg twist moves the four measured stars' mean
+    # position, about 280 px from the boresight, by about 0.94 px.  gossi_star_field
+    # lands 0.05 px off with its twist and 0.02 px off without it, and gossi_disc
+    # 0.17 px off with its twist and 0.04 px off without it.  coiss_wac_disc's error is
+    # the limb fit's own: 0.16 px with the roll, 0.18 px without.  The three
+    # short-exposure and large-offset scenes fail as their expected blocks declare
+    # (#342, #785, #1153).
+    ('coiss_calib_nac_disc', FUSED): _t(0.097, 0.099, 0.009, 0.05),
+    ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
+    ('coiss_nac_star_field', FUSED): _t(0.030, 0.299, 0.270, 0.06),
+    ('coiss_wac_disc', FUSED): _t(0.161, 0.172, 0.033, 0.05),
+    ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
+    ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
+    ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks

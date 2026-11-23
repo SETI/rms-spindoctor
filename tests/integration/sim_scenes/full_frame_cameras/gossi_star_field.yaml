@@ -25,9 +25,9 @@ exposure_sec: 1.6
 #
 # The roll is the camera's measured twist, -0.0526 deg (0.5 px at the corner),
 # planted with roll fitting off as the camera ships.  The roll turns the scene
-# about the frame center before the offset moves it, so it moves the two bright
-# stars in view by 0.22 and 0.50 px, and the answer lands 0.26 to 0.28 px off
-# over 16 seeds.
+# about the boresight, the frame center after the offset, so it moves the two
+# bright stars in view by 0.02 and 0.34 px, and the answer lands 0.04 to
+# 0.06 px off over 16 seeds, against 0.02 px without the roll.
 artifacts:
   instrument_defaults: true
 noise:

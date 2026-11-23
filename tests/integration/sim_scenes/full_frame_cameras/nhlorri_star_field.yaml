@@ -18,9 +18,9 @@ exposure_sec: 5.0
 # the small real errors.  The roll is the camera's measured twist, +0.1912 deg
 # (2.4 px at the corner), planted with roll fitting off as the camera ships.  A
 # translation cannot undo a roll, so the answer lands where the turned stars it
-# measures moved: the four stars' mean position lies about 290 px from the
-# frame center, and the twist moves it about 0.95 px.  That is the error the
-# tolerance holds.
+# measures moved: the four stars' mean position lies about 280 px from the
+# boresight, the frame center after the offset, and the twist moves it about
+# 0.94 px.  That is the error the tolerance holds.
 artifacts:
   instrument_defaults: true
 sky_counts: {}

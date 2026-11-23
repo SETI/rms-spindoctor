@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8011041222199861,
+  "confidence": 0.8011480490968761,
   "confidence_rank": "medium",
-  "offset_du_px": 7.710849264579705,
-  "offset_dv_px": -9.366494862085958,
+  "offset_du_px": 7.712282855403741,
+  "offset_dv_px": -9.365002176860417,
   "scene_name": "coiss_calib_wac_star_field",
   "status": "success"
 }
