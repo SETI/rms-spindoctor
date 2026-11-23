@@ -17,7 +17,7 @@ def _render_body() -> None:
         img,
         body_spec_from_params(params, index=3),
         0.0,
-        offset_u=0.0,
+        shift_u=0.0,
         body_streams_seed=7,
         body_index=3,
         oversample=2,

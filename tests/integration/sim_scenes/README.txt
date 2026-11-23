@@ -73,17 +73,18 @@ companion's sep_px are differences between two positions.
 The planted offset_rotation_deg is a roll of the camera about its boresight.
 A scene describes what the camera would see unrolled, and the roll turns
 EVERYTHING in the field of view by the same angle, in the same direction,
-about ONE point in that same convention: the frame's center
-(size_v / 2, size_u / 2).  A positive roll turns from +v toward +u, carrying a
-point at (dv, du) from the center to
-(cos * dv - sin * du, sin * dv + cos * du).
+about ONE point: the boresight, which is the frame's center
+(size_v / 2, size_u / 2) in that same convention after the planted offset has
+moved the camera.  A positive roll turns from +v toward +u, carrying a point
+at (dv, du) from the center to (cos * dv - sin * du, sin * dv + cos * du).
 That is the rotation the navigator's star fit reports, so the rotation it
-recovers equals the planted roll.  The roll turns the scene first, and the
-planted offset_v / offset_u then moves the turned stars, bodies, and ring
-system.  The sky_counts background field turns with the roll but does not move
-with the offset.
+recovers equals the planted roll.  The planted offset_v / offset_u is the
+boresight's pointing error d, so a star, body, or ring system the scene puts
+at x from the frame center lands at R (x + d), R being the roll, and the
+offset stays the truth for the navigator's translation.  The sky_counts
+background field turns with the roll but does not move with the offset.
 
-So the roll turns star positions and body centers about the frame center, and
+So the roll turns star positions and body centers about the boresight, and
 turns each body about its own center by the same angle: its outline
 (rotation_z, or a mesh body's pose_euler_deg), the side its light comes from
 (illumination_angle), and everything drawn on it -- craters, relief, albedo
@@ -128,7 +129,8 @@ out.
   scene_name       (str, required)   must equal the filename stem
   instrument       (str, required)   a sim instrument (coiss_nac, coiss_wac,
                                      coiss_calib_nac, coiss_calib_wac, gossi,
-                                     nhlorri, vgiss) or 'generic'
+                                     nhlorri, vgiss_1_nac, vgiss_1_wac,
+                                     vgiss_2_nac, vgiss_2_wac) or 'generic'
   size_v, size_u   (int, required)   image height/width in pixels
   random_seed      (int, required)   scene seed (drives all sim randomness)
   exposure_sec     (float, opt)      exposure seconds (default 1.0)
@@ -277,17 +279,18 @@ lost pixel with 0, as the real products do:
   coiss_nac, coiss_wac, gossi,      raw DN; the bias pedestal keeps the dark sky
   nhlorri, generic                  above the marker
   coiss_calib_nac,                  calibrated I/F, like the Cassini CALIB and
-  coiss_calib_wac, vgiss            Voyager GEOMED products; vgiss also keeps a
-                                    255 DN full well
+  coiss_calib_wac, vgiss_1_nac,     Voyager GEOMED products; the vgiss cameras
+  vgiss_1_wac, vgiss_2_nac,         also keep a 255 DN full well
+  vgiss_2_wac
 
-An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.85, a
+An I/F frame spans roughly 0 to 1 (a vgiss_1_nac frame tops out at 1.85, a
 coiss_calib_nac frame near 2.0), so a display or threshold scaled for DN shows it
 as black.  The calibration inverse adds a calibrated sky residual, so no
-noise-free dark sky reads exactly 0: vgiss sits at 0.0118 I/F (1.5 DN), above 0
+noise-free dark sky reads exactly 0: each vgiss camera sits at 0.0118 I/F (1.5 DN), above 0
 as the GEOMED sky does, and a calibrated Cassini frame at 4.0e-5 I/F, the median
 real CALIB sky.  Under instrument_defaults a coiss_calib_nac sky scatters around
 0, more than a quarter of a disc scene's pixels slightly below it, and a vgiss
-sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
+camera's sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
 next float above it, so only planted loss puts a pixel at the marker.  The scene
 editor's status bar shows each render's units, range, and marker share, counted
 on the frame the navigator reads (planted offset applied), and the navigator's

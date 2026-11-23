@@ -122,7 +122,7 @@ def test_the_instrument_defaults_supply_the_measured_readout_dark() -> None:
 
 def test_a_calibrated_vidicon_frame_keeps_its_readout_dark() -> None:
     """The vidicon's readout dark is what its calibrated product keeps."""
-    scene = _readout_scene('vgiss', {'amplitude': 40.0}, detector={'quantization': 'exact'})
+    scene = _readout_scene('vgiss_1_nac', {'amplitude': 40.0}, detector={'quantization': 'exact'})
     img, _ = render_scene(scene)
     dp = resolve_detector_params(scene)
     rise_if = 40.0 / (dp.calibration_scale_dn_per_s_per_if * 0.1)

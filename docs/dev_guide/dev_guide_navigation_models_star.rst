@@ -289,8 +289,6 @@ The model's runtime knobs live in ``stars`` in
 - ``proper_motion`` — bool, default ``true``. Apply proper motion to predicted positions.
 - ``max_stars`` — int, default ``100``. Maximum number of predicted stars retained per
   observation.
-- ``max_movement_steps`` — int, default ``50``. Maximum sub-exposure steps used by the
-  smear-vector computation.
 - ``label_font`` — str. Font used for star labels in the summary PNG.
 - ``label_font_size`` — int, default ``18`` px. Label font size.
 - ``label_font_color`` — list[int], default ``[255, 0, 0]`` (RGB). Label font color.
@@ -302,8 +300,6 @@ The model's runtime knobs live in ``stars`` in
   duplicate detection step.
 - ``overlapping_vmag_threshold`` — float, default ``2`` mag. Below this magnitude
   difference, two visually-overlapping stars are dropped from both catalogs.
-- ``min_confidence`` — float, default ``0.9``. Minimum confidence level for the match to
-  succeed.
 - ``max_smear`` — float, default ``100`` (dimensionless). Maximum smear length above which
   a star is dropped from the emission set.
 - ``min_predicted_snr`` — float, default ``0.0`` (dimensionless). Effective SNR at which

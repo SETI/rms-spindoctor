@@ -266,7 +266,7 @@ def test_edited_frame_keeps_only_a_centered_band() -> None:
     """An edited frame keeps a centered vertical band and blanks the rest."""
     frame = _frame()
     record = _render(
-        frame, {'edited_frame': {'probability': 1.0, 'band_width_px': 20}}, instrument='vgiss'
+        frame, {'edited_frame': {'probability': 1.0, 'band_width_px': 20}}, instrument='vgiss_1_nac'
     )
     u0, u1 = record['edited_frame']['kept_band']
     assert np.all(frame.signal[:, u0:u1] == 1.0)
@@ -277,7 +277,7 @@ def test_edited_frame_keeps_only_a_centered_band() -> None:
 def test_edited_frame_bare_probability_keeps_the_default_band() -> None:
     """A bare probability renders the vgiss default band, 550 GEOMED pixels wide."""
     frame = _frame(size=1000)
-    record = _render(frame, {'edited_frame': {'probability': 1.0}}, instrument='vgiss')
+    record = _render(frame, {'edited_frame': {'probability': 1.0}}, instrument='vgiss_1_nac')
     u0, u1 = record['edited_frame']['kept_band']
     assert u1 - u0 == 550
     assert np.all(frame.signal[:, :u0] == 0.0)
@@ -291,7 +291,7 @@ def test_edited_frame_explicit_half_frame_wins_over_the_band_default() -> None:
     record = _render(
         frame,
         {'edited_frame': {'probability': 1.0, 'half_frame': True, 'half': 'bottom'}},
-        instrument='vgiss',
+        instrument='vgiss_1_nac',
     )
     assert record['edited_frame']['kept_rows'] == [_SIZE // 2, _SIZE]
     assert np.all(frame.signal[: _SIZE // 2] == 0.0)
@@ -304,7 +304,7 @@ def test_edited_frame_half_frame_keeps_one_half() -> None:
     record = _render(
         frame,
         {'edited_frame': {'probability': 1.0, 'half_frame': True, 'half': 'top'}},
-        instrument='vgiss',
+        instrument='vgiss_1_nac',
     )
     assert record['edited_frame']['kept_rows'] == [0, _SIZE // 2]
     assert np.all(frame.signal[: _SIZE // 2] == 1.0)
@@ -394,7 +394,7 @@ def test_truth_window_is_untouched_by_missing_blocks() -> None:
 def test_line_garble_replaces_with_nonmarker_values() -> None:
     """A garbled line carries garbage from a column, not the zero marker."""
     frame = _frame(fill=100.0)
-    record = _render(frame, {'line_garble': {'expected_events': 6.0}}, instrument='vgiss')
+    record = _render(frame, {'line_garble': {'expected_events': 6.0}}, instrument='vgiss_1_nac')
     garbled = record['line_garble']['lines']
     assert garbled
     entry = garbled[0]
@@ -406,7 +406,7 @@ def test_line_garble_replaces_with_nonmarker_values() -> None:
 def test_pixel_spikes_flip_pixels_without_zeroing() -> None:
     """A pixel spike changes a pixel to a wrong value, never zeroing it."""
     frame = _frame(fill=100.0)
-    record = _render(frame, {'pixel_spikes': {'expected_events': 10.0}}, instrument='vgiss')
+    record = _render(frame, {'pixel_spikes': {'expected_events': 10.0}}, instrument='vgiss_1_nac')
     pixels = record['pixel_spikes']['pixels']
     assert pixels
     for v, u in pixels:
@@ -416,7 +416,7 @@ def test_pixel_spikes_flip_pixels_without_zeroing() -> None:
 def _vgiss_calibration() -> CalibrationMap:
     """The DN-to-I/F map of a vgiss frame, which renders calibrated I/F."""
     calibration = calibration_map(
-        resolve_detector_params({'instrument': 'vgiss', 'random_seed': 42})
+        resolve_detector_params({'instrument': 'vgiss_1_nac', 'random_seed': 42})
     )
     assert calibration is not None
     return calibration
@@ -433,7 +433,7 @@ def test_pixel_spikes_bitflip_shifts_by_a_power_of_two() -> None:
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 20.0, 'amplitude': 'bitflip'}},
-        instrument='vgiss',
+        instrument='vgiss_1_nac',
     )
     v, u = record['pixel_spikes']['pixels'][0]
     delta = abs(round(float(_vgiss_calibration().to_dn(frame.signal[v, u]))) - 100)
@@ -444,7 +444,7 @@ def test_pixel_spikes_bitflip_shifts_by_a_power_of_two() -> None:
 def test_vgiss_pixel_spikes_stay_inside_the_8bit_word() -> None:
     """Voyager bit-flip spikes never exceed the I/F of the vidicon's 255 DN ceiling."""
     frame = _vgiss_frame(200.0)
-    record = _render(frame, {'pixel_spikes': {'expected_events': 50.0}}, instrument='vgiss')
+    record = _render(frame, {'pixel_spikes': {'expected_events': 50.0}}, instrument='vgiss_1_nac')
     assert record['pixel_spikes']['pixels']
     assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
@@ -456,7 +456,7 @@ def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
     record = _render(
         frame,
         {'pixel_spikes': {'expected_events': 50.0, 'amplitude': 'uniform'}},
-        instrument='vgiss',
+        instrument='vgiss_1_nac',
     )
     changed = [frame.signal[v, u] != initial[v, u] for v, u in record['pixel_spikes']['pixels']]
     assert any(changed)
@@ -466,7 +466,7 @@ def test_vgiss_uniform_spikes_stay_inside_the_8bit_word() -> None:
 def test_vgiss_line_garble_stays_inside_the_8bit_word() -> None:
     """Voyager garbage fills stay inside the I/F of the vidicon's 255 DN ceiling."""
     frame = _vgiss_frame(200.0)
-    record = _render(frame, {'line_garble': {'expected_events': 20.0}}, instrument='vgiss')
+    record = _render(frame, {'line_garble': {'expected_events': 20.0}}, instrument='vgiss_1_nac')
     assert record['line_garble']['lines']
     assert float(_vgiss_calibration().to_dn(frame.signal).max()) <= 255.0 + 1e-9
 
@@ -479,7 +479,7 @@ def _vgiss_render_with_garble_and_spikes(
     With ``corrupted`` False the scene leaves out its artifacts block.
     """
     scene = frame_scene(
-        instrument='vgiss',
+        instrument='vgiss_1_nac',
         size=128,
         seed=3,
         bodies=[disc_body(64.0, 64.0, 20.0, range_km=1.0)],

@@ -256,8 +256,8 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
-    ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.011, 5.071, 0.05, 4.961, 5.121),
-    ('planted_rotation_star_field', 'StarRefineNav'): _b(4.780, 4.870, 0.05, 4.730, 4.920),
+    ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.029, 5.088, 0.05, 4.979, 5.138),
+    ('planted_rotation_star_field', 'StarRefineNav'): _b(4.604, 4.695, 0.05, 4.554, 4.745),
 }
 
 # The rank-1 flat-ring scene misses its planted shift along the one observable axis, the
@@ -276,7 +276,7 @@ SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # The observable component misses by 0.46 px against a 0.095 px sigma (#873).
     'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
-    'planted_rotation_star_field': _b(16.428, 16.517, 0.1, 16.328, 16.617),
+    'planted_rotation_star_field': _b(16.333, 16.447, 0.1, 16.233, 16.547),
 }
 
 # The planted roll is recovered 0.018 to 0.020 deg short over the seeds; the margin is

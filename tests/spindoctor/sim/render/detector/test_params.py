@@ -66,7 +66,7 @@ def test_a_scene_full_well_replaces_the_ccd_well_through_the_gain() -> None:
 
 def test_a_scene_full_well_replaces_the_vidicon_full_scale() -> None:
     """On the vidicon chain the full well is the DN full scale."""
-    dp = resolve_detector_params(disc_scene('vgiss', detector={'full_well_dn': 200.0}))
+    dp = resolve_detector_params(disc_scene('vgiss_1_nac', detector={'full_well_dn': 200.0}))
     assert dp.full_well_dn == 200.0
 
 
@@ -191,7 +191,16 @@ _DEFAULT_MODES: dict[str, dict[str, dict[str, Any]]] = {
         },
         'bias_structure': {'pedestal_sigma_dn': 1.0, 'row_gradient_dn': 0.5},
     },
-    'vgiss': {
+    'vgiss_1_nac': {
+        'banding': {'amplitude': 0.25, 'orientation': 'vertical'},
+    },
+    'vgiss_1_wac': {
+        'banding': {'amplitude': 0.25, 'orientation': 'vertical'},
+    },
+    'vgiss_2_nac': {
+        'banding': {'amplitude': 0.25, 'orientation': 'vertical'},
+    },
+    'vgiss_2_wac': {
         'banding': {'amplitude': 0.25, 'orientation': 'vertical'},
     },
 }

@@ -2,6 +2,7 @@ schema_version: 1
 image_id: C1205021_GEOMED
 mission: VGISS
 camera: NA
+spacecraft: VG2
 filter_combo: UNKNOWN
 image_url: pds3://volumes/VGISS_8xxx/VGISS_8210/DATA/C12050XX/C1205021_GEOMED.IMG
 scene_tags:
