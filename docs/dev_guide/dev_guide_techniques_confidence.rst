@@ -141,13 +141,15 @@ shape is:
     as the raw value.
   - ``cap_at`` — float in :math:`[0, 1]`, optional. Upper bound on the normalized value.
     When given, the normalized value is clipped to the range from 0 to ``cap_at``. Leave
-    the key out for no cap, and the normalized value is used unclipped.
+    the key out for no cap, and the normalized value is used unclipped. An override file
+    can change a packaged ``cap_at`` but cannot remove it, because a null is refused.
 
 - ``hard_zero_if`` — mapping of str to bool, default empty. Keys must reference attributes
   the diagnostics object carries (or live on the technique's adapter object). When the
   attribute matches the demanded boolean, the calibrated confidence is forced to zero.
 - ``hard_cap`` — float in :math:`[0, 1]`, optional. Post-sigmoid clamp. Leave the key out
-  for no cap.
+  for no cap. An override file cannot remove a packaged ``hard_cap``, because a null is
+  refused, but ``hard_cap: 1.0`` has the same effect, since the sigmoid's output is below 1.
 
 This module exposes no module-level numeric constants of its own; the spec values come from
 YAML and the runtime constructors validate them.
