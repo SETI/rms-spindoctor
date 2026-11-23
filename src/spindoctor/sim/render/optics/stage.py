@@ -25,9 +25,17 @@ about the frame center (see :func:`apply_stray_light`).
 A stage whose scene block is absent contributes nothing.  Only the distortion
 non-radial field draws randomness, from its own stream ``optics/distortion``
 derived from the scene seed.
+
+The first four steps move light sideways, so a pixel at the frame edge receives light
+from beyond it.  They run on planes that extend past the frame by a margin as wide as
+the four reach together (:func:`optics_margin_px`), which the radiance stage fills with
+the scene beyond the frame edge.  Each step treats the planes as dark beyond the margin,
+which no light the frame receives comes from.  Stray light is defined over the frame and
+spread by nothing after it, so it is added to the frame alone.
 """
 
 import dataclasses
+import math
 from collections.abc import Mapping
 from typing import Any, cast
 
@@ -39,10 +47,10 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_psf_kernel,
     resolve_psf_truncation_px,
 )
-from spindoctor.sim.render.optics.distortion import apply_distortion
-from spindoctor.sim.render.optics.ghosts import apply_ghosts
+from spindoctor.sim.render.optics.distortion import apply_distortion, distortion_reach_px
+from spindoctor.sim.render.optics.ghosts import apply_ghosts, ghost_reach_px
 from spindoctor.sim.render.optics.psf import apply_psf, binned_psf_kernel
-from spindoctor.sim.render.optics.smear import apply_smear
+from spindoctor.sim.render.optics.smear import apply_smear, smear_reach_px
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import scene_binning, scene_value
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -54,6 +62,7 @@ __all__ = [
     'apply_stray_light',
     'effective_psf',
     'instrument_defaults_on',
+    'optics_margin_px',
 ]
 
 
@@ -131,6 +140,56 @@ def _effective_distortion(params: Mapping[str, Any]) -> dict[str, Any] | None:
         'k2': residual.k2,
         'nonradial_rms_px': residual.nonradial_rms_px / scene_binning(params),
     }
+
+
+def optics_margin_px(params: Mapping[str, Any], *, oversample: int, preview: bool = False) -> int:
+    """How far past the frame the optics stage reads light, in detector pixels.
+
+    Smear, distortion, the PSF, and ghosts each move light by up to a fixed reach,
+    and they run one after another, so light reaches a frame pixel from as far away
+    as the sum of their reaches.  The sum is rounded up to whole detector pixels.  A
+    scene whose optics move no light gets 0, and its render is unchanged by the
+    margin.
+
+    The PSF reaches its kernel's half-width, the instrument's ``truncation_px``.  A
+    smear reaches half its drift, turned by any planted roll, rounded up to a whole
+    pixel.  A ghost reaches its offset, rounded up, plus four sigmas of its
+    defocus blur.  The distortion reaches its largest displacement over the frame
+    widened by the other three reaches, which holds every pixel the stages after it
+    read, plus the two pixels its cubic spline reads.  Its spline also responds to
+    the plane's edge, so the distortion adds 27 render-grid pixels, across which that
+    response falls below 4e-16.  The scene editor's fast preview skips the
+    distortion, so its margin leaves the distortion out.
+
+    Parameters:
+        params: The full scene mapping.
+        oversample: The render-grid oversampling factor.
+        preview: Whether the render is the scene editor's fast preview.
+
+    Returns:
+        The margin, in detector pixels.
+    """
+    optics = params.get('optics') or {}
+    reach = 0
+    smear = optics.get('smear')
+    if smear:
+        reach += smear_reach_px(
+            smear, oversample=oversample, roll_deg=float(params.get('offset_rotation_deg', 0.0))
+        )
+    if effective_psf(params) is not None:
+        reach += resolve_psf_truncation_px(params.get('instrument')) * oversample
+    ghosts = optics.get('ghosts')
+    if ghosts:
+        reach += ghost_reach_px(ghosts, oversample=oversample)
+    if not preview:
+        reach += distortion_reach_px(
+            _effective_distortion(params),
+            params,
+            frame_shape=(int(params['size_v']) * oversample, int(params['size_u']) * oversample),
+            margin=reach,
+            oversample=oversample,
+        )
+    return math.ceil(reach / oversample)
 
 
 def apply_stray_light(
@@ -261,7 +320,8 @@ def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     fixed internal order documented at the module level.  A sub-stage whose
     block is absent from the scene ``optics`` mapping contributes nothing.  On the
     scene editor's fast preview frame (``frame.preview``), the distortion warp is
-    skipped.
+    skipped.  The first four sub-stages run over the frame's margin as well as the
+    frame, and stray light is added to the frame alone (see the module docstring).
 
     Parameters:
         frame: The frame whose signal and point-source planes are modified.
@@ -316,7 +376,7 @@ def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
         # planted roll turns it; the radial bump is centered by the optics and stays
         # put.
         apply_stray_light(
-            frame.signal,
+            frame.signal[frame.frame_box],
             amplitude=float(scene_value(stray, 'amplitude', 0.0)),
             direction_deg=float(scene_value(stray, 'direction_deg', 0.0)),
             model=str(scene_value(stray, 'model', 'linear')),
