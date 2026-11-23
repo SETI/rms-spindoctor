@@ -1,6 +1,6 @@
 """The per-pixel missing-data rate works on every frame.
 
-``noise.missing_data_rate`` drops random pixels to the missing-data marker in the
+``detector.missing_data_rate`` drops random pixels to the missing-data marker in the
 telemetry stage.  A lost pixel takes the marker the navigator applies to the frame,
 0 on every shipped instrument, and the validator accepts the rate everywhere.
 """
@@ -25,7 +25,7 @@ _RATE = 0.2
 
 
 def _scene(instrument: str, rate: float, *, marker: float | None = None) -> dict[str, Any]:
-    """A small disc scene on ``instrument`` carrying ``noise.missing_data_rate``.
+    """A small disc scene on ``instrument`` carrying ``detector.missing_data_rate``.
 
     ``marker``, when given, overrides the instrument block's missing-data marker
     through ``instrument_config``.
@@ -35,7 +35,7 @@ def _scene(instrument: str, rate: float, *, marker: float | None = None) -> dict
         instrument=instrument,
         seed=5,
         scene_name='missing_data_rate',
-        noise={'missing_data_rate': rate},
+        detector={'missing_data_rate': rate},
     )
     if marker is not None:
         scene['instrument_config'] = {'noise': {'marker_value': marker}}

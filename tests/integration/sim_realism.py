@@ -53,17 +53,16 @@ from typing import Any, cast
 
 import numpy as np
 
-from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.catalog import realism_cohort_instruments
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     resolve_calibrated_sky_if,
     resolve_dark_sky_ceiling_if,
     resolve_data_units,
+    resolve_detector_defaults_native,
 )
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
@@ -109,7 +108,7 @@ INSTRUMENT_FOR: dict[tuple[str, str], str] = realism_cohort_instruments()
 
 
 def saturation_level(instrument: str) -> float:
-    """The full-scale level in cohort units, from the navigator's instrument block.
+    """The full-scale level in cohort units, from the instrument entry.
 
     The level feeds the saturation statistics and the FOM 2 saturated-star filter.
 
@@ -117,12 +116,12 @@ def saturation_level(instrument: str) -> float:
         instrument: The sim instrument a cohort is matched against.
 
     Returns:
-        The block's ``noise.saturation_dn`` for a ``raw_dn`` product; NaN for a
+        The entry's ``detector.saturation_dn`` for a ``raw_dn`` product; NaN for a
         calibrated one, whose I/F units define no fixed level.
     """
     if resolve_data_units(instrument) != 'raw_dn':
         return math.nan
-    return float(resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['saturation_dn'])
+    return resolve_detector_defaults_native(instrument).saturation_dn
 
 
 # Scene classes -> NavModel globs for the feature FOMs (the sim-side models

@@ -74,6 +74,11 @@ coiss_nac:
     default_gain_state: 2
     read_noise_e: 12.0  # published (~12 e-)
     bias_dn: 20.0
+    saturation_dn: 4095.0  # 12-bit ADC
+    # The DN full scale of the vidicon chain, for a scene that selects it.
+    full_well_dn: 4095.0
+    signal_full_scale_frac: 0.5
+    missing_data_rate: 0.0
     dark_current_e_per_sec: 5.0  # estimated (dark dominated by residual bulk image)
     # Fitted 2026-11-06 in closed loop: dark raw NAC frames rendered at the
     # cohort's exposures and run through the FOM 6 spike detector match the
@@ -280,6 +285,11 @@ coiss_wac:
     default_gain_state: 2
     read_noise_e: 12.0  # published (~12 e-)
     bias_dn: 20.0
+    saturation_dn: 4095.0  # 12-bit ADC
+    # The DN full scale of the vidicon chain, for a scene that selects it.
+    full_well_dn: 4095.0
+    signal_full_scale_frac: 0.5
+    missing_data_rate: 0.0
     dark_current_e_per_sec: 5.0
     # The NAC's fitted cosmic-ray terms: the two cameras share the CCD and its
     # readout.  The WAC's one 12-bit dark frame (a 26 s star field) flags 1,817

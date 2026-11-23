@@ -65,6 +65,10 @@ detector:
   default_gain_state: 0
   read_noise_e: 3.0
   bias_dn: 10.0
+  saturation_dn: 4095.0
+  full_well_dn: 4095.0
+  signal_full_scale_frac: 0.5
+  missing_data_rate: 0.0
   dark_current_e_per_sec: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
   quantization: exact
@@ -1032,6 +1036,21 @@ def test_a_camera_added_as_an_entry_validates_and_renders(fictional_camera: str)
 def test_a_camera_added_as_an_entry_uses_its_gain_state(fictional_camera: str) -> None:
     """The scene's gain state 2 takes the entry's gain for that state, 2 e-/DN."""
     assert resolve_detector_params(_fictional_scene(fictional_camera)).gain_e_per_dn == 2.0
+
+
+def test_a_camera_added_as_an_entry_uses_its_detector_values(fictional_camera: str) -> None:
+    """The bias, ADC ceiling, full well, signal scale, and loss rate are the entry's own.
+
+    The entry's navigator block is the generic one, which sets a 4095 DN ceiling.
+    """
+    params = resolve_detector_params(_fictional_scene(fictional_camera))
+    assert (
+        params.bias_dn,
+        params.saturation_dn,
+        params.full_well_dn,
+        params.signal_full_scale_frac,
+        params.missing_data_rate,
+    ) == (10.0, 5000.0, 4500.0, 0.25, 0.125)
 
 
 def test_a_camera_added_as_an_entry_scales_its_signal_by_the_filter(

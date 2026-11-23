@@ -64,9 +64,6 @@ _FULL_SCENE: dict[str, Any] = {
         'poisson': True,
         'read_noise_dn': 6.0,
         'cosmic_ray_events_per_pixel_per_sec': 0.001,
-        'missing_data_rate': 0.01,
-        'bias_dn': 18.0,
-        'signal_full_scale_frac': 0.6,
     },
     'oversample': 2,
     'optics': {
@@ -95,8 +92,13 @@ _FULL_SCENE: dict[str, Any] = {
     'detector': {
         'gain_state': 2,
         'detector_model': 'ccd',
+        'bias_dn': 18.0,
+        'saturation_dn': 4000.0,
+        'full_well_dn': 3900.0,
+        'signal_full_scale_frac': 0.6,
         'exposure_ref_sec': 1.0,
         'quantization': 'exact',
+        'missing_data_rate': 0.01,
     },
     'artifacts': {
         'instrument_defaults': True,

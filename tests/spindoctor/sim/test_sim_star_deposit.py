@@ -17,7 +17,12 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy.signal import fftconvolve
-from tests.spindoctor.sim.scenes import frame_scene, quiet_instrument_defaults, star_entry
+from tests.spindoctor.sim.scenes import (
+    frame_scene,
+    quiet_instrument_defaults,
+    star_entry,
+    zero_bias,
+)
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
@@ -38,7 +43,6 @@ from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag, render_sk
 _QUIET_NOISE: dict[str, Any] = {
     'poisson': False,
     'read_noise_dn': 0.0,
-    'bias_dn': 0.0,
     'dark_current_e_per_sec': 0.0,
 }
 
@@ -53,6 +57,7 @@ def _star_scene(instrument: str, *, vmag: float = 4.0, **extra: Any) -> dict[str
         instrument=instrument,
         exposure_sec=1.0,
         noise=dict(_QUIET_NOISE),
+        detector=zero_bias(),
         stars=[star_entry(32.5, 32.5, vmag)],
     )
     scene.update(extra)
@@ -114,7 +119,7 @@ def _point_mass_conservation(oversample: int) -> tuple[float, float]:
     )
     img, meta = render_scene(scene)
     total_flux = float(meta['star_info'][0]['total_flux'])
-    # Generic detector: gain 1, bias 0 in _QUIET_NOISE, so DN == electrons.
+    # Generic detector: gain 1, bias 0 in the star scene, so DN == electrons.
     return float(img[20:45, 20:45].sum()), total_flux
 
 

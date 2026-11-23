@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene
+from tests.spindoctor.sim.scenes import frame_scene, zero_bias
 
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
@@ -24,8 +24,9 @@ _SIZE = 256
 
 
 def _scene(instrument: str, noise: dict[str, Any], **extra: Any) -> dict[str, Any]:
-    """A dark-sky scene on ``instrument`` with ``noise``."""
+    """A dark-sky scene on ``instrument`` with ``noise`` and no bias."""
     scene = frame_scene(instrument=instrument, size=_SIZE, seed=11, exposure_sec=0.1, noise=noise)
+    scene['detector'] = {**zero_bias(), **extra.pop('detector', {})}
     scene.update(extra)
     return scene
 
@@ -35,7 +36,6 @@ def _residual_only(column_e: float, pixel_e: float) -> dict[str, Any]:
     return {
         'poisson': False,
         'read_noise_dn': 0.0,
-        'bias_dn': 0.0,
         'calibration_column_residual_e': column_e,
         'calibration_pixel_residual_e': pixel_e,
     }

@@ -9,6 +9,6 @@ Each simulated instrument is an entry in one of the per-mission YAML files under
 - :mod:`spindoctor.sim.instruments.schema_detector`: the schema of an entry's
   detector block and readout modes.
 - :mod:`spindoctor.sim.instruments.resolvers`: every typed read of an entry.
-- :mod:`spindoctor.sim.instruments.navigator_link`: the navigator block and
-  detector an instrument emulates.
+- :mod:`spindoctor.sim.instruments.navigator_link`: every read of the navigator's
+  configuration.
 """

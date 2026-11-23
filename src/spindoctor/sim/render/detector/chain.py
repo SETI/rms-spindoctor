@@ -35,6 +35,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.instruments.navigator_link import navigator_marker
 from spindoctor.sim.render.detector.banding import add_banding
 from spindoctor.sim.render.detector.bias import add_bias_structure
 from spindoctor.sim.render.detector.dark import (
@@ -548,7 +549,7 @@ def _subtract_calibration_residual(dn: NDArrayFloatType, dp: DetectorParams) -> 
         dn -= rng.normal(0.0, pixel_e * b / dp.gain_e_per_dn, size=dn.shape)
 
 
-def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
+def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams, *, marker: float) -> None:
     """Invert the calibration transform: DN to I/F, bias and dark subtracted first.
 
     Matches the real pipeline: the bias pedestal and dark pedestal are subtracted
@@ -570,6 +571,12 @@ def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
     missing data: with the residual off, the calibrated values fall on a
     lattice, and for some exposures the subtracted dark pedestal puts a lattice
     point on the marker.
+
+    Parameters:
+        frame: The frame whose signal plane is calibrated in place.
+        dp: The resolved detector parameters.
+        marker: The missing-data marker the navigator applies to the frame, possibly
+            NaN.
     """
     calibration = calibration_map(dp)
     if calibration is None:
@@ -583,7 +590,7 @@ def _apply_calibration_inverse(frame: SimFrame, dp: DetectorParams) -> None:
         frame.signal -= profile[:, np.newaxis] / dp.gain_e_per_dn
     _subtract_calibration_residual(frame.signal, dp)
     calibrated = calibration.to_if(frame.signal)
-    keep_off_marker(calibrated, dp.marker_value)
+    keep_off_marker(calibrated, marker)
     frame.signal[:] = calibrated
 
 
@@ -618,4 +625,4 @@ def apply_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     else:
         _apply_ccd(frame, dp, rng)
     if dp.data_units != 'raw_dn':
-        _apply_calibration_inverse(frame, dp)
+        _apply_calibration_inverse(frame, dp, marker=navigator_marker(params))

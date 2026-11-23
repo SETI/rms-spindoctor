@@ -35,7 +35,7 @@ _TRUTH_SAMPLES: dict[str, Any] = {
     'offset_u': -1.5,
     'offset_rotation_deg': 0.4,
     'sky_counts': {'a': -3.1, 'b': 0.34, 'density_factor': 5.0, 'diffuse_e_per_px': 1.0},
-    'noise': {'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 12.0},
+    'noise': {'poisson': True, 'read_noise_dn': 4.0},
     'oversample': 4,
     'optics': {
         'psf': {'sigma_v': 0.6, 'sigma_u': 0.6, 'w': 0.02, 'r0': 2.0, 'n': 3.0},
@@ -47,8 +47,13 @@ _TRUTH_SAMPLES: dict[str, Any] = {
     'detector': {
         'gain_state': 2,
         'detector_model': 'ccd',
+        'bias_dn': 12.0,
+        'saturation_dn': 4000.0,
+        'full_well_dn': 3900.0,
+        'signal_full_scale_frac': 0.4,
         'exposure_ref_sec': 1.0,
         'quantization': 'exact',
+        'missing_data_rate': 0.01,
     },
     'artifacts': {
         'instrument_defaults': True,
@@ -447,7 +452,7 @@ def test_obs_sim_exposes_only_the_navigator_view() -> None:
 def test_star_limit_is_independent_of_scene_noise() -> None:
     """The star detection limit derives from published config, not scene noise.
 
-    Two observations differing only in the truth-side ``noise`` block must
+    Two observations differing only in the truth-side ``noise`` and ``detector`` blocks must
     report the same ``star_max_usable_vmag``: the navigator's limiting
     magnitude comes from the emulated instrument's published detector model,
     so the scene's planted noise cannot leak through this channel.  A scene
@@ -459,9 +464,8 @@ def test_star_limit_is_independent_of_scene_noise() -> None:
     scene_noisy['noise'] = {
         'poisson': False,
         'read_noise_dn': 250.0,
-        'bias_dn': 0.0,
-        'signal_full_scale_frac': 0.01,
     }
+    scene_noisy['detector'] = {'bias_dn': 0.0, 'signal_full_scale_frac': 0.01}
     obs_quiet = ObsSim.from_file('/tmp/boundary_probe.yaml', sim_params=scene_quiet)
     obs_noisy = ObsSim.from_file('/tmp/boundary_probe.yaml', sim_params=scene_noisy)
     assert obs_noisy.star_max_usable_vmag() == obs_quiet.star_max_usable_vmag()

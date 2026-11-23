@@ -95,7 +95,8 @@ def _rendered_scene_star(entry: dict[str, Any]) -> np.ndarray:
         'instrument': 'generic',
         'exposure_sec': 1.0,
         'optics': {'psf': {'sigma_v': _STAR_SIGMA_PX, 'sigma_u': _STAR_SIGMA_PX}},
-        'noise': {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0},
+        'noise': {'poisson': False, 'read_noise_dn': 0.0},
+        'detector': {'bias_dn': 0.0},
         'stars': [entry],
     }
     img, _meta = render_scene(scene)

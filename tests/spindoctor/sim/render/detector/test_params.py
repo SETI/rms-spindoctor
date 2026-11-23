@@ -1,16 +1,108 @@
-"""The artifact modes a render resolves, and the truth records they leave.
+"""The detector values and artifact modes a render resolves, and the truth records.
 
-A mode takes its parameters from the scene, then from what the camera's instrument
-defaults set, then from the camera's shape defaults.
+A detector value comes from the scene's ``detector`` block, then from the instrument
+entry, and never from the navigator's configuration.  A mode takes its parameters from
+the scene, then from what the camera's instrument defaults set, then from the camera's
+shape defaults.
 """
 
 from typing import Any
 
+import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_scene
+from tests.spindoctor.sim.scenes import disc_scene, frame_scene
 
+from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
+from spindoctor.obs.obs_inst_sim import ObsSim
+from spindoctor.sim.instruments.resolvers import resolve_calibrated_sky_if
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.validate import validate_sim_params
+
+
+def test_a_scene_ceiling_clips_the_image() -> None:
+    """The scene's detector.saturation_dn is the largest DN in the frame."""
+    img, _ = render_scene(disc_scene('coiss_nac', detector={'saturation_dn': 1000.0}))
+    assert float(img.max()) == 1000.0
+
+
+def test_a_scene_ceiling_stays_out_of_the_navigators_settings() -> None:
+    """The navigator keeps its own ceiling on a frame that clips lower."""
+    scene = disc_scene('coiss_nac', detector={'saturation_dn': 1000.0})
+    obs = ObsSim.from_file('/tmp/sim_planted_ceiling.json', sim_params=scene)
+    assert instrument_settings_from_obs(obs).saturation_dn == 4095.0
+
+
+def test_the_navigators_ceiling_leaves_the_image_alone() -> None:
+    """Overriding the ceiling the navigator believes changes no pixel."""
+    scene = disc_scene('coiss_nac')
+    believed = {**scene, 'instrument_config': {'noise': {'saturation_dn': 1000.0}}}
+    expected, _ = render_scene(scene)
+    img, _ = render_scene(believed)
+    np.testing.assert_array_equal(img, expected)
+
+
+def test_the_calibration_keeps_delivered_pixels_off_the_navigators_marker() -> None:
+    """A dark sky that lands on the navigator's marker moves off it.
+
+    The noise-free dark sky of a calibrated Cassini frame reads exactly the calibrated
+    sky residual, so a scene that makes the residual the navigator's marker puts every
+    sky pixel on it before the calibration moves them.
+    """
+    sky = resolve_calibrated_sky_if('coiss_calib_nac')
+    scene = frame_scene(
+        instrument='coiss_calib_nac', instrument_config={'noise': {'marker_value': sky}}
+    )
+    img, _ = render_scene(scene)
+    assert int((img == sky).sum()) == 0
+
+
+def test_a_scene_full_well_replaces_the_ccd_well_through_the_gain() -> None:
+    """On the CCD chain a full well of 3000 DN is 3000 gains of electrons."""
+    dp = resolve_detector_params(disc_scene('coiss_nac', detector={'full_well_dn': 3000.0}))
+    assert dp.full_well_e == 3000.0 * dp.gain_e_per_dn
+
+
+def test_a_scene_full_well_replaces_the_vidicon_full_scale() -> None:
+    """On the vidicon chain the full well is the DN full scale."""
+    dp = resolve_detector_params(disc_scene('vgiss', detector={'full_well_dn': 200.0}))
+    assert dp.full_well_dn == 200.0
+
+
+def test_the_loss_modes_write_no_value_above_a_scene_ceiling() -> None:
+    """A garbled line's wrong values stay within the scene's own ceiling."""
+    scene = disc_scene(
+        'gossi',
+        detector={'saturation_dn': 100.0},
+        artifacts={'line_garble': {'expected_events': 20.0}},
+    )
+    img, _ = render_scene(scene)
+    assert float(img.max()) <= 100.0
+
+
+@pytest.mark.parametrize('key', ['bias_dn', 'signal_full_scale_frac', 'missing_data_rate'])
+def test_a_detector_value_in_the_noise_block_is_refused(key: str) -> None:
+    """The noise block holds only noise, so a detector value there is an unknown key."""
+    scene = disc_scene('coiss_nac', noise={key: 0.1})
+    with pytest.raises(SimSceneValidationError, match=rf"noise: unknown keys: \['{key}'\]"):
+        validate_sim_params(scene)
+
+
+@pytest.mark.parametrize('key', ['saturation_dn', 'full_well_dn'])
+def test_a_zero_ceiling_or_well_is_refused(key: str) -> None:
+    """The ADC ceiling and the full well must be positive."""
+    scene = disc_scene('coiss_nac', detector={key: 0.0})
+    with pytest.raises(SimSceneValidationError, match=rf'detector\.{key} must be a positive'):
+        validate_sim_params(scene)
+
+
+def test_a_full_well_override_of_the_navigator_block_is_refused() -> None:
+    """The navigator reads no full well, so a scene can't set one in its block."""
+    scene = disc_scene('coiss_nac', instrument_config={'noise': {'full_well_dn': 3000.0}})
+    message = r"instrument_config\.noise: unknown keys: \['full_well_dn'\]"
+    with pytest.raises(SimSceneValidationError, match=message):
+        validate_sim_params(scene)
 
 
 def test_an_instrument_default_mode_renders_with_the_cameras_shape() -> None:

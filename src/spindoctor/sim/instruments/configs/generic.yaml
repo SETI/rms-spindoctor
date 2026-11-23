@@ -26,7 +26,13 @@ generic:
     gain_e_per_dn_by_state: {0: 1.0}
     default_gain_state: 0
     read_noise_e: 1.0
+    # The bias keeps a dark sky off 0, the missing-data marker.
     bias_dn: 20.0
+    saturation_dn: 4095.0  # 12-bit ADC
+    # The DN full scale of the vidicon chain, for a scene that selects it.
+    full_well_dn: 4095.0
+    signal_full_scale_frac: 0.5
+    missing_data_rate: 0.0
     dark_current_e_per_sec: 0.0
     # The generic block is an ideal detector with no environment, so there is
     # no cosmic-ray flux to measure; explicitly zero.

@@ -38,7 +38,7 @@ from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessag
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
-from spindoctor.sim.instruments.resolvers import resolve_data_units
+from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import default_body_name, scene_value
@@ -355,22 +355,9 @@ class RenderDisplayMixin(SimEditorBase):
         self._display_image()
 
     def _current_saturation_dn(self) -> float | None:
-        """Saturation DN of the displayed scene's instrument, or None if it has none.
-
-        A scene's ``instrument_config`` can set its own ``noise.saturation_dn``, which
-        the renderer clips at, so the overlay reads the same merged block.
-        """
-        shown = self._displayed_params
-        instrument = shown.get('instrument')
-        if resolve_data_units(instrument) != 'raw_dn':
-            return None
-        inst_config = resolve_sim_inst_config(
-            DEFAULT_CONFIG, instrument, shown.get('instrument_config')
-        )
-        noise = inst_config.get('noise') or {}
-        if 'saturation_dn' not in noise:
-            return None
-        return float(noise['saturation_dn'])
+        """The ADC ceiling the displayed frame was clipped at, or None if it is not in DN."""
+        dp = resolve_detector_params(self._displayed_params)
+        return dp.saturation_dn if dp.data_units == 'raw_dn' else None
 
     def _display_image(self) -> None:
         """Compose the displayed pixmap from the current DN image and redraw.

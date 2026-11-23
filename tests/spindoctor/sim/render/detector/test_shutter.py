@@ -4,7 +4,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, disc_scene, frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import disc_body, disc_scene, frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.detector.shutter import apply_frame_transfer_smear, apply_shutter_shading
@@ -29,6 +29,7 @@ def test_shutter_shading_leaves_the_dark_current_alone() -> None:
         seed=3,
         exposure_sec=1.0,
         noise={**quiet_noise(), 'dark_current_e_per_sec': 2.0e4},
+        detector=zero_bias(),
         artifacts={'shutter_shading': {'probability': 1.0}},
     )
     img, _ = render_scene(scene)
@@ -53,7 +54,7 @@ def _lit_frame(
         exposure_sec=0.15,
         bodies=[disc_body(32, 32, 300.0)],
         noise=noise,
-        detector={'quantization': 'exact'},
+        detector={'quantization': 'exact', **zero_bias()},
         artifacts=artifacts,
     )
     sky = resolve_detector_params(scene).calibrated_sky_if if instrument == 'vgiss' else 0.0

@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
@@ -32,6 +32,7 @@ def _body_scene(*, range_km: float, spk: dict[str, Any] | None) -> dict[str, Any
         size=60,
         seed=2,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[
             {
                 'name': 'B',
