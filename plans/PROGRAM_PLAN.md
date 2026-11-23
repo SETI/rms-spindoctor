@@ -54,7 +54,7 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 
 ## Issue count
 
-450 issues were open on 2026-11-22. 349 of them have a row here, and the other 101 are
+458 issues were open on 2026-11-23. 349 of them have a row here, and the other 109 are
 simulator work tracked separately. 5 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
@@ -80,7 +80,7 @@ The host session owns this phase.
 |---|---|---|---|---|
 | #240 | 4 Useful |  | **Done (PR #833)** | Library coverage-matrix invariant |
 | #820 | 2 Essential | yes | PR #1117 open | Dataset unit tests download from the live archive |
-| #832 | 3 Important | yes |  | CI jobs hang for six hours or segfault in Qt tests |
+| #832 | 3 Important | yes |  | CI jobs hang for six hours or segfault in Qt tests (the simulator's #1123 removed the segfault; the per-test timeout stays open) |
 | #744 | 3 Important | yes |  | Two Galileo truths record the rotation-fitted answer (operator decision) |
 | #867 | 3 Important | yes |  | Re-verify three truths the image stars contradict (operator check) |
 | #338 | 3 Important | yes |  | Highly-irregular exclusion discards a good terminator fit (operator decision) |
@@ -460,13 +460,13 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 
 ## Phase 15: validate configuration and give every program one interface
 
-#427, #1029, #1032, and #1001 are deferred by the operator (2026-11-17).
+#427, #1029, #1032, and #1001 were deferred by the operator (2026-11-17); the operator resumed this phase on 2026-11-23, starting with #1032.
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
-| #427 | 4 Useful | yes |  | Reorganize the config namespace (deferred by the operator) |
-| #1029 | 3 Important | yes |  | Type the navigator camera blocks (deferred by the operator; after the simulator's #1023 and #1024; also in the simulator plan) |
-| #1032 | 3 Important | yes |  | Type every navigator config section (deferred by the operator) |
+| #427 | 4 Useful | yes |  | Reorganize the config namespace (operator rulings on the new layout needed; after #1032) |
+| #1029 | 3 Important | yes |  | Type the navigator camera blocks (after the simulator's #1023 and #1024; also in the simulator plan) |
+| #1032 | 3 Important | yes | PR #1142 open | Type every navigator config section (PR 1 of 8 (the unread keys) open as #1142; PR 2 (null refused, loader on the schema core) open as #1151, stacked on it) |
 | #1001 | 4 Useful | yes |  | One rule for which keys the loader checks (closes with #1032) |
 | #118 | 3 Important | yes |  | Config validation system |
 | #735 | 4 Useful | yes |  | sd_create_ck and sd_stats_report image selection |
