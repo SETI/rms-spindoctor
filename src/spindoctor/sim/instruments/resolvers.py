@@ -364,9 +364,9 @@ def instrument_default_modes(instrument: str | None) -> dict[str, dict[str, Any]
 
     Returns:
         Each mode the entry's ``artifact_modes.instrument_defaults`` sets, with its
-        map as a scene writes it, which the detector resolver uses when the scene has
-        not set the mode itself.  Empty for an instrument that turns no mode on.  The
-        dicts, and the lists in them, are fresh.
+        map as a scene writes it.  A scene that sets a key of the mode replaces that
+        key alone (see :func:`resolve_mode_with_catalog`).  Empty for an instrument
+        that turns no mode on.  The dicts, and the lists in them, are fresh.
 
     Raises:
         ValueError: If the instrument is not in the catalog.
@@ -523,29 +523,37 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
 
 
 def resolve_mode_with_catalog(
-    mode_name: str, scene_cfg: Mapping[str, Any], instrument: str | None
+    mode_name: str,
+    scene_cfg: Mapping[str, Any],
+    instrument: str | None,
+    *,
+    instrument_defaults: bool = False,
 ) -> dict[str, Any]:
     """Resolve an artifact mode's parameters with the per-instrument catalog.
 
-    The resolution precedence for a mode's shape parameters is scene value, then
-    the instrument's shape default (``artifact_modes.shape_defaults`` in its
-    config), then the registry default.  A mode's activation key
-    (``expected_events``, ``expected_events_per_sec``, ``probability``, or
-    ``pixel_fraction``) and the fixed-count alternative ``count`` are never read
-    from the shape defaults: a mode activates only when a scene sets one (or, if
-    the instrument lists the mode in ``artifact_modes.instrument_defaults``, when
-    the detector resolver supplies it under ``instrument_defaults``).  The catalog
-    refuses a shape default that sets either key.
+    Each parameter takes the scene's value if the scene sets one.  Otherwise it takes,
+    in this order, the value in the instrument's ``artifact_modes.instrument_defaults``
+    map for the mode when ``instrument_defaults`` is on, the instrument's shape default
+    (``artifact_modes.shape_defaults``), or the registry default.  A mode's activation
+    key (``expected_events``, ``expected_events_per_sec``, ``probability``, or
+    ``pixel_fraction``) and the fixed-count alternative ``count`` are never read from
+    the shape defaults, and the catalog refuses a shape default that sets either.  A
+    mode is therefore active only when the scene sets its activation key, or when
+    ``instrument_defaults`` is on and the instrument lists the mode.
 
     Parameters:
         mode_name: A registered artifact-mode name.
-        scene_cfg: The scene's map for the mode (already validated).
+        scene_cfg: The scene's map for the mode (already validated), empty when the
+            scene does not set the mode.
         instrument: The sim instrument name, for the catalog lookup.
+        instrument_defaults: Whether the scene turns the instrument defaults on.
 
     Returns:
         A fresh dict carrying every parameter at its resolved value.
     """
-    catalog = instrument_entry(instrument).shape_default_map(mode_name)
+    catalog = dict(instrument_entry(instrument).shape_default_map(mode_name))
+    if instrument_defaults:
+        catalog.update(instrument_default_modes(instrument).get(mode_name, {}))
     resolved: dict[str, Any] = {}
     for param in ARTIFACT_MODES[mode_name].params:
         name = param.name

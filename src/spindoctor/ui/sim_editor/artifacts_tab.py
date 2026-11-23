@@ -115,9 +115,17 @@ class ArtifactsTabMixin(SimEditorBase):
         artifacts = self.sim_params.get('artifacts')
         return isinstance(artifacts, dict) and bool(artifacts.get('adversarial', False))
 
+    def _instrument_defaults_on(self) -> bool:
+        """Whether the scene turns the instrument defaults on."""
+        return instrument_defaults_on(self.sim_params)
+
     def _on_instrument_defaults(self, checked: bool) -> None:
-        """Set or clear the instrument-defaults switch, keeping other keys."""
+        """Set or clear the instrument-defaults switch, keeping other keys.
+
+        The mode rows show the values the switch supplies, so they are refreshed.
+        """
         self._set_artifacts_switch('instrument_defaults', checked)
+        self._refresh_artifact_mode_availability()
 
     def _on_adversarial(self, checked: bool) -> None:
         """Set or clear the adversarial switch, keeping other keys."""

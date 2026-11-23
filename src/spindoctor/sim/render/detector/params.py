@@ -407,13 +407,13 @@ def _resolve_detector_modes(
 ) -> dict[str, dict[str, Any]]:
     """Resolve the active detector-stage artifact modes for a render.
 
-    Each present, available, and active mode is resolved (scene value over the
-    instrument entry's shape default over the registry default) and returned keyed by
-    name.  Under ``instrument_defaults``, if the instrument entry lists a mode in
-    ``artifact_modes.instrument_defaults`` and the scene has not set that mode, the
-    mode gets the entry's scene map for it (for example a probability of 1), so
-    the instrument's defining physical-chain artifact renders with its shape
-    defaults.
+    A mode the scene sets, or one ``instrument_defaults`` turns on for the instrument,
+    is resolved by
+    :func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog` and
+    returned keyed by name if the instrument offers it and its activation key makes it
+    active.  A key the scene sets replaces the instrument's value for that key alone,
+    so a scene under ``instrument_defaults`` can change one parameter of a mode the
+    camera shows, or turn the mode off by setting its activation key to 0.
     """
     supplied = instrument_default_modes(instrument) if instrument_defaults else {}
     modes: dict[str, dict[str, Any]] = {}
@@ -422,10 +422,12 @@ def _resolve_detector_modes(
         if raw is None:
             if name not in supplied:
                 continue
-            raw = supplied[name]
+            raw = {}
         if not isinstance(raw, Mapping) or not mode_available(name, instrument):
             continue
-        cfg = resolve_mode_with_catalog(name, raw, instrument)
+        cfg = resolve_mode_with_catalog(
+            name, raw, instrument, instrument_defaults=instrument_defaults
+        )
         if not _mode_active(name, cfg, random_seed):
             continue
         modes[name] = cfg
