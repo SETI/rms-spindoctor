@@ -34,7 +34,7 @@ Apply these criteria to the documentation set. Map each finding to the rule file
 ### 1. Documentation system and build (`doc_python`)
 
 - **Single source tree:** All docs live under one `docs/` tree with one `conf.py`; build outputs are not committed.
-- **Sphinx config:** `conf.py` enables the expected extensions (autodoc, napoleon, viewcode, intersphinx, a diagram extension when diagrams are used, and a Markdown parser when Markdown is included). The source root is on `sys.path`; the version derives from package metadata; heavy/optional imports are mocked for autodoc.
+- **Sphinx config:** `conf.py` enables the expected extensions (autodoc, napoleon, linkcode, intersphinx, a diagram extension when diagrams are used, and a Markdown parser when Markdown is included). The source root is on `sys.path`; the version derives from package metadata; heavy/optional imports are mocked for autodoc.
 - **Build cleanliness:** The docs build clean under BOTH `sphinx-build -W` (warnings-as-errors) and `sphinx-build -n` (nitpicky). Note any warnings, broken `toctree` entries, documents not in any `toctree`, or unresolved cross-references. Note `nitpick_ignore` entries that suppress symbols the project actually owns.
 - **Prose conventions:** American spelling; one space after sentence-ending periods; terms defined on first use; **no time-anchored or migration framing** ("new", "legacy", "now", "recently", "backwards compatible"). No unicode smart quotes/em-dashes/arrows inside `.py` files.
 
