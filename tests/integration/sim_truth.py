@@ -76,6 +76,7 @@ VALIDATION_CLASSES: frozenset[str] = frozenset(
         'artifact_sweep',
         'atmosphere',
         'expected_fail',
+        'full_frame_cameras',
         'multi_body_geometry',
         'mutual_event',
         'regression',
@@ -84,6 +85,16 @@ VALIDATION_CLASSES: frozenset[str] = frozenset(
     }
 )
 """The scene classes that check accuracy on a frame.  The remaining classes are sweeps."""
+
+OWN_MODULE_CLASSES: frozenset[str] = frozenset()
+"""The validation classes that a test module of their own navigates.
+
+These classes hold full-frame scenes.  Each class's module, ``test_sim_<class>.py``,
+builds its tests with :func:`~tests.integration.sim_scene_checks.scene_class_tests`,
+which navigates every scene once and applies all of the scene's checks to that one
+result.  ``test_sim_truth_checks``, ``test_sim_expected``, and ``test_sim_baselines``
+leave these classes out of their navigation and keep their checks that need none.
+"""
 
 
 @dataclass(frozen=True)

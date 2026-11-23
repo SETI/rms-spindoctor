@@ -3608,11 +3608,10 @@ render the default scene.
 The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
-``star_confounder``, ``ring_system``, ``expected_fail``) scope what each scene
-is testing and are
-enforced by the structural test. The scene README at
-``tests/integration/sim_scenes/README.txt`` documents the schema alongside the
-code.
+``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``)
+scope what each scene is testing and are enforced by the structural test. The
+scene README at ``tests/integration/sim_scenes/README.txt`` documents the schema
+alongside the code.
 
 A complete YAML scene -- a noisy Cassini NAC frame with one irregular mesh body, a
 ring, a couple of stars, and a planted offset the navigator must recover -- reads:
@@ -4923,6 +4922,22 @@ change alters rendered output:
   A truth check compares the answer with the planted offset, not with a stored
   answer. If a regression is regenerated into the baselines, the truth check
   still fails.
+
+  A full-frame scene takes far longer to navigate than a small catalog scene,
+  so each class of full-frame scenes has a test module of its own,
+  ``test_sim_<class>.py``. These classes are listed in ``OWN_MODULE_CLASSES``
+  in ``sim_truth.py``. A class module is a few lines: it calls
+  ``scene_class_tests`` in ``sim_scene_checks.py``, which reads the class from
+  the module's file name and builds tests that navigate each scene once and
+  hold that one answer to every check: the truth tolerance or known-error band,
+  each tolerance or band on one technique's answer, the expected block, the
+  sigma check, and the regression baseline. The shared modules call the same
+  checks. When they navigate, they skip these classes. Their checks that need
+  no navigation still cover every scene. A structural
+  test in the default suite checks that each listed class is a declared
+  validation class with scenes and a module, and that each class module belongs
+  to a listed class. Because each class sits in a module of its own,
+  ``--dist=loadfile`` runs the classes on separate workers.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
   confidence rank, each offset axis within 0.02 px, and the confidence within 0.02

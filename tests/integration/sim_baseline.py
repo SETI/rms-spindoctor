@@ -39,9 +39,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from spindoctor.nav_model import build_models_for_obs
-from spindoctor.nav_orchestrator import NavOrchestrator
-from spindoctor.obs.obs_inst_sim import ObsSim
+from spindoctor.nav_orchestrator.nav_result import NavResult
+from tests.integration.sim_expected import navigate_scene
 
 OFFSET_TOLERANCE_PX: float = 0.02
 """The largest per-axis offset difference, in pixels, that still matches a baseline."""
@@ -182,10 +181,16 @@ def load_sim_baseline(path: Path) -> SimBaseline:
 
 def baseline_for_scene(scene: dict[str, Any]) -> SimBaseline:
     """Render and navigate the scene ``sim_params``, returning its baseline."""
-    obs = ObsSim.from_file('/tmp/sim_baseline.yaml', sim_params=scene)
-    result = NavOrchestrator(
-        build_models_for_obs(obs), only_models='*', only_techniques='*'
-    ).navigate(obs)
+    return baseline_from_result(scene, navigate_scene(scene))
+
+
+def baseline_from_result(scene: dict[str, Any], result: NavResult) -> SimBaseline:
+    """Return the baseline a navigation of the scene ``sim_params`` produced.
+
+    Parameters:
+        scene: The validated scene mapping that was navigated.
+        result: The orchestrator's fused result for that scene.
+    """
     return SimBaseline.from_run(
         scene_name=scene['scene_name'],
         status=str(result.status),
