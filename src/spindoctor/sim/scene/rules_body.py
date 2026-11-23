@@ -125,7 +125,7 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
             f'got {sub_observer_lat!r}'
         )
     _check_crater_shape_keys(obj, label=label, source=source)
-    for key in ('mesh_n_lat', 'mesh_n_lon', 'mesh_seed', 'seed'):
+    for key in ('mesh_n_lat', 'mesh_n_lon', 'mesh_seed'):
         if obj.get(key) is not None:
             _require_int(obj, key, source=f'{source}: {label}')
     _check_optional_nonnegative_int(

@@ -706,14 +706,13 @@ it would with ``noise_seed`` set to that value, whenever the value is in the ran
 The integration tests use the key to measure a check over several noise draws.
 
 Every random stream of one body (its craters, its relief terrain, its albedo noise,
-and a mesh body's pose scatter) derives from one identity seed, which
-:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` chooses. In a scene
-render that seed comes from the scene's ``random_seed``, mixed with the body's index
-and name, so two bodies of the same geometry get independent surfaces. The craters
-are seeded with the identity seed itself, and each other effect with a named stream
-of it. A body renderer called directly without a scene seed uses the body's own
-``seed`` if it has one, and otherwise falls back to a digest of the body's widths
-and its center (for the craters) or its index and name (for the other effects).
+and a mesh body's pose scatter) derives from one identity seed.
+:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` computes it from the
+scene's ``scene_radiance/craters`` stream, mixed with the body's index and name, so
+two bodies of the same geometry get independent surfaces. The craters are seeded with
+the identity seed itself, and each other effect with a named stream of it. Each body
+renderer requires the scene's stream seed as an argument, and a test or tool that
+calls a renderer directly passes a seed of its own.
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as
@@ -3822,10 +3821,6 @@ keys and the mesh extras. A non-null value of a key in a row marked
    * - ``pose_scatter``
      - ``{sigma_deg}`` -- a seeded per-frame Gaussian perturbation of the
        *rendered* mesh pose only; the navigator predicts the catalog pose.
-   * - ``seed``
-     - The body's own seed for its craters, texture, relief, and pose scatter. The
-       scene's ``random_seed`` comes first, so only a body renderer called directly
-       without a scene seed uses it (see :ref:`sim-stage-pipeline`).
    * - ``anti_aliasing``
      - Image-side rendering-fidelity knob; the predicted template always
        renders at full anti-aliasing.
