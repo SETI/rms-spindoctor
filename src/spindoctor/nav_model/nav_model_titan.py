@@ -54,7 +54,6 @@ from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import TitanHazeFlags
 from spindoctor.feature.geometry import TitanHazeGeometry
-from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_model.nav_model import NavModel
 from spindoctor.nav_model.nav_model_body import TITAN_BODY_NAME, bodies_in_extfov
 from spindoctor.nav_model.titan_geometry import TitanGeometryInputs, geometry_from_obs
@@ -617,10 +616,7 @@ class NavModelTitan(NavModel):
         """
         geometry = self.geometry_inputs
         feature = build_titan_feature(geometry, source_model=self.name, config=self._config)
-        gate = FeatureReliabilityGate.from_mapping(
-            self._config.orchestrator.get('reliability_gate')
-        )
-        kept, _gated = gate.apply([feature])
+        kept, _gated = self._config.orchestrator.reliability_gate.apply([feature])
         usable = len(kept) > 0
         arc_config = self._config.titan['navigation']['arc']
         annotation_config = self._config.titan['annotation']

@@ -247,7 +247,7 @@ def _apply_injection(injection: dict[str, Any]) -> list[tuple[Any, str, Any]]:
             kept: list[Any] = []
             gated: list[Any] = []
             for feature in features:
-                threshold = self.thresholds.get(feature.feature_type, 0.0) + depression
+                threshold = self.threshold(feature.feature_type) + depression
                 if feature.reliability < threshold:
                     gated.append(
                         GatedFeatureRecord(

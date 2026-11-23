@@ -39,6 +39,7 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.navigate_image_files import navigate_image_files
 from spindoctor.obs import ObsCassiniISS
 from spindoctor.support.status_reason import NavStatusReason
+from tests.orchestrator_section import packaged_tiers
 
 from .host_cassini import CASSINI_ISS, COISS_KERNELS, cassini_public_metadata, cassini_sclk_open
 from .shared import (
@@ -148,7 +149,9 @@ def cassini_star_and_limb() -> dict[str, Any]:
         offset_px=(3.25, -1.5),
         covariance_px2=covariance,
         confidence=0.91,
-        confidence_rank=derive_confidence_rank(confidence=0.91, sigma_px=(0.31, 0.28)),
+        confidence_rank=derive_confidence_rank(
+            confidence=0.91, sigma_px=(0.31, 0.28), tier_thresholds=packaged_tiers()
+        ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
         feature_inventory=inventory,
@@ -505,7 +508,9 @@ def cassini_suspect_offset() -> dict[str, Any]:
         offset_px=(59.5, -12.0),
         covariance_px2=np.diag([6.8142, 5.2015]),
         confidence=0.42,
-        confidence_rank=derive_confidence_rank(confidence=0.42, sigma_px=(2.6104, 2.2807)),
+        confidence_rank=derive_confidence_rank(
+            confidence=0.42, sigma_px=(2.6104, 2.2807), tier_thresholds=packaged_tiers()
+        ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
         feature_inventory=inventory,
@@ -608,7 +613,9 @@ def cassini_ring_edges() -> dict[str, Any]:
         offset_px=(0.35, -0.12),
         covariance_px2=np.diag([0.0961, 0.0784]),
         confidence=0.74,
-        confidence_rank=derive_confidence_rank(confidence=0.74, sigma_px=(0.31, 0.28)),
+        confidence_rank=derive_confidence_rank(
+            confidence=0.74, sigma_px=(0.31, 0.28), tier_thresholds=packaged_tiers()
+        ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
         feature_inventory=inventory,

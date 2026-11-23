@@ -1,10 +1,10 @@
 # Orchestrator-level acceptance parameters: the ensemble combine and the
 # per-feature-type reliability gate.
 #
-# Every value here mirrors the code default (DEFAULT_* constants in
-# spindoctor.nav_orchestrator.ensemble and
-# spindoctor.feature.reliability); the section exists so calibration
-# sweeps and user config files can override them without code changes.
+# The configuration parses this section into
+# spindoctor.config.sections.OrchestratorSection when it loads, so every
+# key is checked against its type and range there.  The values live here
+# only: the code holds no copy of them.
 #
 # The tier min_confidence boundaries are SIM-ANCHORED (calibrated
 # against simulated planted-truth recovery only, on the same campaign
@@ -55,9 +55,10 @@ orchestrator:
     # pair is judged by this alone.  Two results that found the same
     # detection agree to the centroid precision, and two that did not have
     # disagreed about which detection the feature is.  On the 1030 frames of
-    # ISS_006RI_LPHRLFMOV001_PRIME, correctly navigated pairs never sit more
-    # than 1.27 px apart (99th percentile 0.79 px) and a pair with a
-    # misidentified star at least 2.25 px apart.
+    # ISS_006RI_LPHRLFMOV001_PRIME, correctly navigated pairs (1607 pairs
+    # whose answers both lie within 2 px of the published F ring bundle)
+    # never sit more than 1.27 px apart (99th percentile 0.79 px) and a pair
+    # with a misidentified star at least 2.25 px apart.
     shared_feature_agreement_px: 1.5
     # Minimum summed-confidence gap between best and runner-up groups
     # before declaring a conflict.  Absolute when the runner-up has a
@@ -112,19 +113,18 @@ orchestrator:
     body_witness_agreement_sigma: 2.0
     # Background-gradient score at or above which a frame is treated as
     # scattered-light, so the disc and limb techniques on one body are fused
-    # as a single correlated witness rather than two independent ones.
+    # as a single correlated witness rather than two independent ones (#339).
     # Matches the cohort-curation scattered-light prescan threshold.
     scattered_light_gradient_score: 5.0
-    # Confidence/sigma requirements per confidence tier.  A key a tier leaves
-    # out keeps its built-in default; only the low tier's default for
-    # max_sigma_px is no sigma requirement.
+    # Confidence/sigma requirements per confidence tier.  A tier that leaves
+    # out max_sigma_px has no sigma requirement.
     tier_thresholds:
       high: {min_confidence: 0.85, max_sigma_px: 0.5}
       medium: {min_confidence: 0.35, max_sigma_px: 2.0}
       low: {min_confidence: 0.35}
   # Minimum reliability per feature type; features below their type's
-  # threshold are gated out before any technique runs.  Feature types
-  # not listed fall through with a 0.0 threshold (no gate).
+  # threshold are gated out before any technique runs.  Every feature
+  # type has a threshold.
   reliability_gate:
     STAR: 0.20
     LIMB_ARC: 0.30

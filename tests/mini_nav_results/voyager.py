@@ -18,6 +18,7 @@ from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.obs.obs_inst_voyager_iss import _published_sclk
 from spindoctor.support.status_reason import NavStatusReason
+from tests.orchestrator_section import packaged_tiers
 
 from .host_voyager import VGISS_KERNELS, VOYAGER_ISS, voyager_sclk_open
 from .shared import (
@@ -91,7 +92,9 @@ def voyager_ring_edges() -> dict[str, Any]:
         offset_px=(-2.75, 4.5),
         covariance_px2=np.diag([0.0961, 0.0784]),
         confidence=0.66,
-        confidence_rank=derive_confidence_rank(confidence=0.66, sigma_px=(0.31, 0.28)),
+        confidence_rank=derive_confidence_rank(
+            confidence=0.66, sigma_px=(0.31, 0.28), tier_thresholds=packaged_tiers()
+        ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
         feature_inventory=inventory,

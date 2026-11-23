@@ -21,14 +21,14 @@ def test_update_config_preserves_sibling_defaults(tmp_path: Path) -> None:
     """A user override of one leaf keeps unrelated sibling defaults."""
     config = Config()
     config.read_config()
-    agreement_sigma = config.orchestrator['ensemble']['agreement_sigma']
+    agreement_sigma = config.orchestrator.ensemble.agreement_sigma
 
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text('orchestrator:\n  ensemble:\n    min_confidence: 0.1\n', encoding='utf-8')
     config.update_config(user_path)
 
-    assert config.orchestrator['ensemble']['min_confidence'] == 0.1
-    assert config.orchestrator['ensemble']['agreement_sigma'] == agreement_sigma
+    assert config.orchestrator.ensemble.min_confidence == 0.1
+    assert config.orchestrator.ensemble.agreement_sigma == agreement_sigma
 
 
 def test_a_null_in_an_override_is_refused_naming_the_file_and_key(tmp_path: Path) -> None:
