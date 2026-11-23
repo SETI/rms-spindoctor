@@ -9,7 +9,7 @@ These cover the ``_load_scene`` YAML-load path, specifically that a
 import importlib
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from ruamel.yaml import YAML
@@ -24,27 +24,10 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
-        allow_module_level=True,
-    )
-
 from tests.spindoctor.ui.sim_editor.sim_editor_waits import process_until, render_fully
 
 # The driver is an importable module under the ``spindoctor.cli`` package.
 ncsi = importlib.import_module('spindoctor.cli.sd_create_simulated_image')
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture

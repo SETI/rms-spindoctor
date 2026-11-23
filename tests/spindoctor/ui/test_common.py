@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Callable
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -19,30 +19,12 @@ except (ImportError, OSError) as exc:
     )
 
 try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed (display/EGL/platform): {exc}',
-        allow_module_level=True,
-    )
-
-try:
     from spindoctor.ui.common import build_stretch_controls
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'spindoctor.ui.common import failed (Qt dependency): {exc}',
         allow_module_level=True,
     )
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """Ensure a ``QApplication`` exists for widget construction."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 def _stretch_callbacks() -> tuple[
