@@ -397,12 +397,13 @@ entries without a library frame have no row.
 * ``vgiss_2_nac``, one star field. The simulated sky noise is 3.1e-3 I/F against
   6.9e-3 real (W1/IQR 2.7, over 241 simulated and 203 real sky patches), the sky
   level above the floor is 7.3e-3 against 2.1e-2 I/F (W1/IQR 1.8), and the noise
-  at signal is 3.0e-3 against 9.0e-3 I/F (W1/IQR 4.4). The real frame gives 6
-  star cutouts (EE50 median 1.26 px). Its matched frame holds the field's catalog
-  stars, but none yields a usable simulated cutout, so the PSF comparison is
-  unconstrained, and the kernel rests on its published range alone. On the real
-  frame the star-field fit locks at 0.94 on 7 of 11 predicted stars. On the
-  matched frame it predicts 5 and locks at 0.6, a wide-offset lock on 3 inliers.
+  at signal is 3.0e-3 against 9.0e-3 I/F (W1/IQR 4.4). The realism match's star
+  cutouts are its own, separate from the kernel fit's under PSF kernel below: the
+  real frame gives 6 (EE50 median 1.26 px), and its matched frame holds the
+  field's catalog stars, but none yields a usable simulated cutout, so the match
+  leaves the PSF unconstrained. On the real frame the star-field fit locks at
+  0.94 on 7 of 11 predicted stars. On the matched frame it predicts 5 and locks
+  at 0.6, a wide-offset lock on 3 inliers.
 
 The simulated values are nearly the same for both cameras, because their entries
 hold the same numbers. The real frames differ: the narrow angle frame's sky is
