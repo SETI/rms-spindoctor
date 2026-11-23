@@ -621,11 +621,11 @@ pixels, banding, or bias structure. The detector always converts the composed
 signal to detector counts -- that is what makes a DN frame -- but the stochastic
 and structured effects activate only through a scene ``noise`` block (which pins
 the individual parameters, e.g. ``poisson: true`` with a ``read_noise_dn``), an
-artifact mode the scene sets, or the ``artifacts: {instrument_defaults: true}``
-opt-in (which turns on the emulated camera's physical signal chain -- including
-Poisson shot noise -- and the artifact modes every frame of the camera shows, at
-its catalog values). A scene with none of those
-blocks renders a clean DN frame: the self-consistency floor. A single-variable
+artifact mode the scene sets, or the ``artifacts: {instrument_defaults: true}`` opt-in
+(which turns on the emulated camera's physical signal chain -- including Poisson shot
+noise -- and the artifact modes every frame of the camera shows, at its catalog
+values). A scene with none of those blocks renders a clean DN frame: the
+self-consistency floor. A single-variable
 sweep therefore relies on every other block staying absent so it attributes
 error to the one effect it varies.
 
@@ -688,20 +688,21 @@ same stream. A stream name is part of the noise realization
 of every scene that uses it: renaming one reseeds those scenes and moves their
 committed renders, so a stream name must never change.
 
-A scene may also set ``noise_seed``, an integer from 0 to 2147483647, the range the scene
-editor offers. The detector's per-frame streams then derive from it in place of
-``random_seed``, under the same names. A real camera draws these again for every frame:
-the shot and read noise (``detector``), the cosmic rays, the banding, the bias structure,
-the calibrated product's per-pixel residual, the anti-blooming pairs, and the radiation
-transients. Everything else stays on ``random_seed``. That covers the scene itself (stars,
-surfaces, and spokes), the optics' distortion, the telemetry losses, and whether each
-artifact mode is active. It also covers the detector's fixed pattern, which a real camera
-shows in every frame: the hot pixels, the pattern the ``fixed_pattern`` mode draws, and
-the enhanced columns of the readout dark. A new ``noise_seed`` therefore renders the same
-scene on the same camera with a new draw of the noise. A scene that leaves the key out
-draws its noise from ``random_seed``. It renders exactly as it would with ``noise_seed``
-set to that value, whenever the value is in the range above. The integration tests use the
-key to measure a check over several noise draws.
+A scene may also set ``noise_seed``, an integer from 0 to 2147483647, the range the
+scene editor offers. The detector's per-frame streams then derive from it in place of
+``random_seed``, under the same names.
+A real camera draws these again for every frame: the shot and read noise (``detector``),
+the cosmic rays, the banding, the bias structure, the calibrated product's
+per-pixel residual, the anti-blooming pairs, and the
+radiation transients. Everything else stays on ``random_seed``. That covers the scene
+itself (stars, surfaces, and spokes), the optics' distortion, the telemetry losses, and
+whether each artifact mode is active. It also covers the detector's fixed pattern, which
+a real camera shows in every frame: the hot pixels, the pattern the ``fixed_pattern``
+mode draws, and the enhanced columns of the readout dark. A new ``noise_seed``
+therefore renders the same scene on the same camera with a new draw of the noise. A
+scene that leaves the key out draws its noise from ``random_seed``. It renders exactly as
+it would with ``noise_seed`` set to that value, whenever the value is in the range above.
+The integration tests use the key to measure a check over several noise draws.
 
 Every random stream of one body (its craters, its relief terrain, its albedo noise,
 and a mesh body's pose scatter) derives from one identity seed.
@@ -994,44 +995,47 @@ intensive signal passes through the electron unit chain in
    stars: for a CCD it is electrons, added after the intensive conversion and
    before Poisson so it never passes through the signal scale; for the Voyager
    vidicon it is DN, added onto the converted signal before the DN-domain
-   noise (see :ref:`sim-star-params`).
-   The shutter shading and the fixed-pattern response scale this light.
-3. **Dark signal, then Poisson.** The dark current accumulates over the exposure, the same
-   on every line. The readout dark is the charge each line collects while it waits to be
-   read: 0 at the first line, rising to the mode's ``amplitude`` at the last, whatever
-   the exposure. The amplitude is stated per native pixel, so a binned pixel sums its
-   native pixels' share. Both are added before the shot term, so the shot noise grows with
-   the dark signal. A calibrated CCD product subtracts the dark current and the readout
-   dark again, line by line, as a real pipeline's dark model does. It keeps their shot
-   noise and the readout dark's enhanced columns. The frame-transfer smear joins the
-   charge here too. Poisson shot noise then acts on the electron image, one pixel at a
-   time. The chain draws one uniform value per pixel and turns it into a count through
-   that pixel's own Poisson distribution
-   (:func:`~spindoctor.sim.render.detector.shot_noise.sample_poisson`). How the count is
-   found depends on the pixel's mean. Below 30 electrons it is the exact Poisson quantile,
-   found by adding up the chances of 0, 1, 2, and more counts until the total reaches the
-   uniform value. A pixel whose total lands within rounding distance of its uniform value
-   is settled again by a search on SciPy's distribution function, so rounding never picks
-   the count. From 30 electrons up it is the rounded Cornish-Fisher quantile. That differs
-   from the exact count on about 0.6% of pixels at 30 electrons and 0.03% at 10,000,
-   always by one count, against a spread of 5.5 counts or more, and its mean and variance
-   match the exact quantile's. The gain and the read noise then hide nearly all of those
-   differences: a 1024 by 1024 calibrated Cassini frame differed in 68 pixels from the
-   same frame made with the exact quantile at every mean. A NaN or infinite mean raises an
-   error. The sampler takes about 0.07 s for that frame. The exact quantile at every mean
-   takes 0.31 s, and NumPy's frame-wide sampler 0.03 s.
+   noise (see :ref:`sim-star-params`). The shutter shading and the fixed-pattern
+   response scale this light.
+3. **Dark signal, then Poisson.** The dark current accumulates over the exposure, the
+   same on every line. The readout dark is the charge each line collects while it
+   waits to be read: 0 at the first line, rising to the mode's ``amplitude`` at the
+   last, whatever the exposure. The amplitude is stated per native pixel, so a binned
+   pixel sums its native pixels' share. Both are added before the shot term, so the
+   shot noise grows with the dark signal. A calibrated CCD product subtracts the dark
+   current and the readout dark again, line by line, as a real pipeline's dark model
+   does. It keeps their shot noise and the readout dark's enhanced columns. The
+   frame-transfer smear joins the charge here too. Poisson shot noise then
+   acts on the electron image, one pixel at a time. The chain draws one uniform
+   value per pixel and turns it into a count through that pixel's own Poisson
+   distribution (:func:`~spindoctor.sim.render.detector.shot_noise.sample_poisson`).
+   How the count is found depends on the pixel's mean. Below 30 electrons it is
+   the exact Poisson quantile, found by adding up the chances of 0, 1, 2, and more
+   counts until the total reaches the uniform value. A pixel whose total lands
+   within rounding distance of its uniform value is settled again by a search on
+   SciPy's distribution function, so rounding never picks the count. From 30
+   electrons up it is the rounded Cornish-Fisher quantile. That differs from the
+   exact count on about 0.6% of pixels at 30 electrons and 0.03% at 10,000, always
+   by one count, against a spread of 5.5 counts or more, and its mean and variance
+   match the exact quantile's. The gain and the read noise then hide nearly all of
+   those differences: a 1024 by 1024 calibrated Cassini frame differed in 68
+   pixels from the same frame made with the exact quantile at every mean. A NaN
+   or infinite mean raises an error. The sampler takes about 0.07 s for that
+   frame. The exact quantile at every mean takes 0.31 s, and NumPy's frame-wide
+   sampler 0.03 s.
 4. **Pixel defects, radiation, and the full well.** The anti-blooming pairs, the hot
    pixels, and the radiation hits are added. Where the ``bloom`` mode is on, charge above
    ``full_well_e`` then spills along the column up to ``bloom_length`` pixels each way,
-   and the image is capped at the well. A camera's physical saturation therefore emerges
-   from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling for Cassini), not from the
-   ADC clip. The hot pixels belong to the detector: a pixel is hot when a draw keyed only
-   on the emulated detector and the pixel's coordinates falls below ``pixel_fraction``, so
-   every scene emulating that camera, whatever its seed, has the same hot pixels at the
-   same coordinates with the same amplitudes. A smaller frame sees the map's corner from
-   ``(0, 0)``, raising the fraction only adds pixels, and a calibrated Cassini product
-   shares its raw camera's map. A population the scene sets itself under the
-   adversarial switch is drawn onto the navigation features instead (see
+   and the image is capped at the well. A camera's physical saturation
+   therefore emerges from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling
+   for Cassini), not from the ADC clip. The hot pixels belong to the detector:
+   a pixel is hot when a draw keyed only on the emulated detector and the
+   pixel's coordinates falls below ``pixel_fraction``, so every scene
+   emulating that camera, whatever its seed, has the same hot pixels at the
+   same coordinates with the same amplitudes. A smaller frame sees the map's
+   corner from ``(0, 0)``, raising the fraction only adds pixels, and a
+   calibrated Cassini product shares its raw camera's map. A population the scene sets
+   itself under the adversarial switch is drawn onto the navigation features instead (see
    :ref:`sim-adversarial-placement`).
 5. **Cosmic rays and read noise.** Cosmic rays deposit after the bloom cap. The
    detector collects them during the exposure and while the frame waits to be
@@ -1043,10 +1047,10 @@ intensive signal passes through the electron unit chain in
    scale, so it reaches the ADC ceiling and lands on the orchestrator's masks;
    the fitted Cassini and Galileo hits are modest, as real ones are. Gaussian
    read noise is added in electrons.
-6. **Banding, gain to DN, bias structure.** Banding is added in electrons; the image
-   is divided by ``gain_e_per_dn`` and offset by the bias pedestal into DN; low-order
-   bias structure (per-image pedestal jitter, row and column gradients), the fixed
-   pattern's offsets, and the serial tail are added in DN.
+6. **Banding, gain to DN, bias structure.** Banding is added in
+   electrons; the image is divided by ``gain_e_per_dn`` and offset by the bias
+   pedestal into DN; low-order bias structure (per-image pedestal jitter, row and column
+   gradients), the fixed pattern's offsets, and the serial tail are added in DN.
 7. **Quantize and clip.** The DN image is quantized by the selected ADC sub-mode
    and clipped at ``saturation_dn``.
 
@@ -1197,11 +1201,12 @@ square-root curve over 256 codes, whose top code decodes to ``saturation_dn``:
 ``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
 kept.
 
-A scene may set ``detector.downlink_table`` only when it quantizes with ``sqrt_lut``,
-and ``detector.contour_step`` only when it quantizes with ``contour_8bit``. The
-scene's quantization is its own ``detector.quantization``, else the camera's default
-for the selected readout mode. Validation refuses either key in any other scene,
-because the render would ignore it.
+A scene may set ``detector.downlink_table`` only when it quantizes with ``sqrt_lut``, and
+``detector.contour_step`` only when it quantizes with ``contour_8bit``. The scene's
+quantization is its own ``detector.quantization``, else the camera's default for the
+selected readout mode.
+Validation refuses either key in any other scene, because the render would ignore
+it.
 
 The Cassini cameras' table and its measurement are on the Cassini page
 (:doc:`instruments/cassini_iss`).
@@ -1217,30 +1222,34 @@ electrons on the CCD chain and DN on this one. A ``vgiss`` scene that renders th
 the CCD chain reads the camera's values as electrons at a gain of 1 e- per DN, so it
 draws the same 0.25 DN bands and 6 DN readout dark.
 
-Cosmic rays work on the vidicon through the CCD's stage: the event count is a Poisson draw
-with mean ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count, with
-no readout dwell, and every hit is at the vidicon's full scale with no diffusion. A
-vidicon stores the image as charge on its photoconductive target until the electron beam
-scans it, and a charged particle crossing the target discharges it the way light does. So
-the hits join the stored image: after the stars and the erase-cycle residual image (a
-ghost of the prior frame, which this frame's hits never reach), and before the readout,
-whose read noise, readout dark, banding, and beam bend all act on them. Each hit deposits
-at least the DN full scale (``full_well_dn``) and the target saturates there, so a hit's
-core holds exactly the full scale and digitizes at the 8-bit ceiling. The beam bend reads
-local brightness against the charge a fully lit scene stores (signal 1.0), not against the
-frame's brightest spot, so a hit bends the beam only within about 10 px of itself. The
-real target also takes hits while it waits to be read; the stage counts the exposure
-alone, as on a CCD.
+Cosmic rays work on the vidicon through the CCD's stage: the event count is a
+Poisson draw with mean ``cosmic_ray_events_per_pixel_per_sec`` x
+``exposure_sec`` x pixel count, with no readout dwell, and every hit is at the
+vidicon's full scale with no diffusion. A vidicon stores the
+image as charge on its photoconductive target until the electron beam scans it,
+and a charged particle crossing the target discharges it the way light does. So
+the hits join the stored image: after the stars and the erase-cycle residual
+image (a ghost of the prior frame, which this frame's hits never reach), and
+before the readout, whose read noise, readout dark, banding,
+and beam bend all act on them. Each hit deposits at least the DN full scale
+(``full_well_dn``) and the target saturates there, so a hit's core holds exactly
+the full scale and digitizes at the 8-bit ceiling. The beam bend reads local
+brightness against the charge a fully lit scene stores (signal 1.0), not
+against the frame's brightest spot, so a hit bends the beam only within about
+10 px of itself. The real target
+also takes hits while it waits to be read; the stage counts the exposure alone,
+as on a CCD.
 
-**The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the CCD chain,
-``vgiss`` on the vidicon chain) renders through its DN chain and then inverts the
-calibration transform: the bias and dark pedestals are subtracted before the exposure
-divide (matching the real pipeline; the vidicon has no dark current, and its readout dark
-is cataloged as what its calibrated product keeps), so a calibrated frame carries no
-spurious 1/exposure pedestal and comes out in I/F units with propagated shot / read noise
-and quantization texture. The calibration scale is derived so a noise-free signal of 1.0
-at the reference exposure round-trips to I/F 1.0. The inverse then adds the calibrated sky
-residual and keeps every pixel off a numeric marker (see
+**The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the
+CCD chain, ``vgiss`` on the vidicon chain) renders through its DN chain and then
+inverts the calibration transform: the bias and dark pedestals are subtracted
+before the exposure divide (matching the real pipeline; the vidicon has no dark current,
+and its readout dark is cataloged as what its calibrated product keeps), so a calibrated
+frame carries no spurious 1/exposure pedestal and
+comes out in I/F units with propagated shot / read noise and quantization
+texture. The calibration scale is derived so a noise-free signal of 1.0 at the
+reference exposure round-trips to I/F 1.0. The inverse then adds the calibrated
+sky residual and keeps every pixel off a numeric marker (see
 :ref:`Instruments <sim-instruments>`).
 
 :func:`~spindoctor.sim.render.detector.params.resolve_detector_params`
@@ -1260,24 +1269,25 @@ guess.
 The instrument-defaults switch and the artifacts catalog
 ========================================================
 
-``artifacts: {instrument_defaults: true}`` opts the whole scene into the emulated camera's
-physical signal chain at its instrument entry's values: the whole-scene PSF kernel and the
-residual-distortion amplitude
+``artifacts: {instrument_defaults: true}`` opts the whole scene into the
+emulated camera's physical signal chain at its instrument entry's values: the
+whole-scene PSF kernel and the residual-distortion amplitude
 (:func:`~spindoctor.sim.render.optics.stage.instrument_defaults_on` gates the optics
-side), the detector chain's Poisson shot noise, read noise, dark current, and cosmic rays,
-and the artifact modes the camera's entry lists under
-``artifact_modes.instrument_defaults``, such as a raw Cassini camera's hot pixels, readout
-dark, bloom, banding, and bias structure (the detector side reads the same switch). The
-Cassini cameras and Galileo SSI carry cosmic-ray terms fitted to their cohorts' transient
-spikes; LORRI and Voyager keep a zero rate, each with its reason in the catalog. An
-explicit ``noise`` key still wins in either direction -- ``noise: {poisson: false}`` turns
-the shot term off under instrument defaults -- and so does a key of a mode:
+side), the detector chain's Poisson shot noise, read noise, dark
+current, and cosmic rays, and the artifact modes the camera's entry lists under
+``artifact_modes.instrument_defaults``, such as a raw Cassini camera's hot pixels,
+readout dark, bloom, banding, and bias structure (the detector side reads the same
+switch). The Cassini cameras and Galileo SSI
+carry cosmic-ray terms fitted to their cohorts' transient spikes; LORRI and
+Voyager keep a zero rate, each with its reason in the catalog. An explicit ``noise``
+key still wins in either direction -- ``noise: {poisson: false}`` turns the shot term
+off under instrument defaults -- and so does a key of a mode:
 ``banding: {probability: 0.0}`` turns the banding off, and
 ``banding: {amplitude: 60.0}`` changes its amplitude and leaves the rest as the camera
 has it. The switch turns on only what every frame of the camera shows. The other modes
-(whole-line telemetry loss, compression-block dropouts, radiation transients, and the
-like) keep their activation keys at zero, so a defaults scene is a clean-but-realistic
-frame, not a damaged one.
+(whole-line telemetry loss, compression-block dropouts, radiation transients, and
+the like) keep their activation keys at zero, so a defaults scene is a
+clean-but-realistic frame, not a damaged one.
 
 Each instrument entry is the single home for those per-instrument
 values (see :ref:`sim-instrument-files`): the PSF kernel, the residual
@@ -1289,16 +1299,15 @@ fixed-pattern components, and the rest. A mode's parameters resolve one by one, 
 ``instrument_defaults``, the entry's ``artifact_modes.instrument_defaults`` value,
 then the entry's shape default, then the registry default. So a scene that sets only
 a mode's activation key inherits the camera's shape. A shape default never holds an
-activation key, so choosing an instrument plants nothing by itself.
-
-Every value carries its provenance in a YAML comment beside it. Most are interim, sized
-from published FWHMs, gain tables, and documented residual-error bounds until the
-per-instrument measurement passes replace them, so the wing parameters and noise
-amplitudes are the first quantities the realism-match pass revisits. Each calibrated
+activation key, so choosing an instrument plants nothing by itself. Every value carries
+its provenance in a YAML comment beside it. Most are interim, sized from published
+FWHMs, gain tables, and documented residual-error bounds until the per-instrument
+measurement passes replace them, so the wing parameters and noise amplitudes
+are the first quantities the realism-match pass revisits. Each calibrated
 Cassini instrument's entry sets its raw camera as its ``base`` and states
-``data_units: calibrated_if`` in place of the raw camera's ``raw_dn``. ``generic`` (alias
-``sim``) is an instrument-agnostic ideal 12-bit detector whose electron well equals its DN
-depth at unit gain.
+``data_units: calibrated_if`` in place of the raw camera's ``raw_dn``. ``generic``
+(alias ``sim``) is an instrument-agnostic ideal 12-bit detector whose electron
+well equals its DN depth at unit gain.
 
 .. _sim-instrument-files:
 
@@ -1371,13 +1380,13 @@ top-level value isn't a mapping. Within an entry, the load fails on:
 * an unknown key, a missing required key, or a value of the wrong type,
   including a number that YAML reads as a string, such as ``.5e3``;
 * a ``data_units`` other than ``raw_dn`` or ``calibrated_if``;
-* a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains, the full
-  well, the reference exposure, the plate scale, the star zero point, the PSF radii,
-  periods, filter throughputs, the native frame size, and the dark-sky ceiling must be
-  positive; noise amplitudes, rates, the bias, and the truncation radius must be
-  non-negative; fractions (the PSF wing fraction) lie in [0, 1]; gain states are
-  non-negative integers and binnings positive ones; a shape default's value must lie in
-  its parameter's range, as a scene's must;
+* a number that isn't finite (``.nan``, ``.inf``) or is out of its range: gains,
+  the full well, the reference exposure, the plate scale, the star zero point,
+  the PSF radii, periods, filter throughputs, the native frame size, and the
+  dark-sky ceiling must be positive; noise amplitudes, rates, the bias, and the
+  truncation radius must be non-negative; fractions (the PSF wing fraction) lie in [0, 1];
+  gain states are non-negative integers and binnings positive ones; a shape
+  default's value must lie in its parameter's range, as a scene's must;
 * a ``base`` that doesn't exist or that loops back on itself, an alias that is
   already an instrument's name or another entry's alias (the message gives the
   file that holds it), or a real cohort camera that two entries both claim (the
@@ -1399,17 +1408,18 @@ top-level value isn't a mapping. Within an entry, the load fails on:
   table with ``whole_dn`` set counts its values after rounding), or an
   ``instrument_defaults`` mode that isn't a detector-stage mode;
 * a setting that would do nothing: an activation key (``probability``,
-  ``expected_events``, and the others) or ``count`` in ``shape_defaults``, which never
-  turns a mode on; an ``instrument_defaults`` entry without a positive activation key; a
-  mode the entry offers, gives shape defaults, or turns on although its detector model has
-  no stage for the mode (see the detector-stage modes below); an unavailability reason for
-  a mode the entry offers; a filter or polarizer spelled other than canonically; a filter
-  table key that contains a polarizer, which no scene can select because a scene's filter
-  folds each polarizer onto its wheel's clear element before lookup; a
-  ``dark_sky_ceiling_if`` on an entry whose ``data_units`` is ``raw_dn``, since the
-  realism match applies the ceiling only to calibrated frames; and a
-  ``dark_sky_ceiling_if`` in a readout mode, since the realism match reads the ceiling
-  from the ``detector`` block alone.
+  ``expected_events``, and the others) or ``count`` in ``shape_defaults``, which
+  never turns a mode on; an ``instrument_defaults`` entry
+  without a positive activation key; a mode the entry offers, gives shape
+  defaults, or turns on although its detector model has no stage for the mode
+  (see the detector-stage modes below); an unavailability reason for a mode the
+  entry offers; a filter or polarizer spelled other than canonically; a filter
+  table key that contains a polarizer, which no scene can select because a
+  scene's filter folds each polarizer onto its wheel's clear element before
+  lookup; a ``dark_sky_ceiling_if`` on an entry whose ``data_units`` is
+  ``raw_dn``, since the realism match applies the ceiling only to calibrated
+  frames; and a ``dark_sky_ceiling_if`` in a readout mode, since the realism
+  match reads the ceiling from the ``detector`` block alone.
 
 Three rules shape what an entry may state. **Canonical filter spelling:** a
 scene's ``detector.filter`` is read element by element, stripped of spaces and
@@ -1663,9 +1673,9 @@ quantity it holds. The registry records which key each mode takes
   a frame collects only the dwell's hits. The scene validator refuses a
   non-positive ``exposure_sec``, so only a direct caller of the detector stage
   can pass one.
-* **Probability** modes are commanded or periodic (a frame edit, a cutout, most detector
-  effects). Their key is ``probability``, the per-frame probability in [0, 1] that the
-  mode activates at all.
+* **Probability** modes are commanded or periodic (a frame edit, a cutout, most
+  detector effects). Their key is ``probability``, the per-frame probability in [0, 1]
+  that the mode activates at all.
 * **Density** mode ``hot_pixels`` takes ``pixel_fraction``, the fraction of
   detector pixels that are hot, in [0, 1].
 
@@ -1679,9 +1689,9 @@ count.
 
 The stage-activation rule reads the same for every key: a mode is a no-op when
 its activation key is 0, or its ``count`` where given is 0. The keys default to
-0, so listing a mode without its activation key, or its ``count`` where given,
-doesn't plant anything. Under ``instrument_defaults``, a mode the camera's entry
-turns on takes its activation key from the entry instead, unless the scene sets it.
+0, so listing a mode without its activation key, or its ``count`` where given, doesn't
+plant anything. Under ``instrument_defaults``, a mode the camera's entry turns on takes
+its activation key from the entry instead, unless the scene sets it.
 
 A mode's map accepts only that mode's parameters, so an unknown key in it fails
 validation. The sweep harness validates each step as a whole scene, so a sweep
@@ -1795,8 +1805,8 @@ commanded ``truth_window`` is resolved before the loop and passed to
 Detector-stage modes
 --------------------
 
-Applied inside the detector electron chain, each at the physically right point
-(the readout dark with the dark current, banding in electrons pre-DN, fixed-pattern
+Applied inside the detector electron chain, each at the physically right point (the
+readout dark with the dark current, banding in electrons pre-DN, fixed-pattern
 PRNU multiplicative pre-Poisson, serial tail as a post-gain DN undershoot). The
 :data:`~spindoctor.sim.artifact_modes.DETECTOR_MODE_ORDER` fixes only
 which mode's truth record is written first.
@@ -4249,8 +4259,8 @@ fails loudly.
 
 The noise block holds no detector defects: those are artifact modes (see
 :ref:`sim-detector-modes`). Physical saturation caps the electron image at the full well
-before gain (with the ``bloom`` mode spreading the excess along the column); the ADC clip
-at ``saturation_dn`` applies after quantization.
+before gain (with the ``bloom`` mode spreading the excess along the column); the ADC
+clip at ``saturation_dn`` applies after quantization.
 
 .. _sim-optics:
 
@@ -4474,20 +4484,20 @@ records its realized geometry into ``frame.truth['artifacts'][mode]`` for the
 later planted-versus-measured match.
 
 **Detector / electronics modes** render inside the detector stage at the
-physically right point in the unit chain (see :ref:`sim-detector-stage`):
-``banding`` (the Cassini 2 Hz / Galileo 42-px / LORRI striping / Voyager 2.4 kHz
-family, horizontal and/or vertical, with an optional mid-image frequency and
-dark-level step), ``bias_structure`` (per-image pedestal plus low-order gradients),
-``readout_dark`` (the charge each line collects while it waits to be read, with an
-optional set of enhanced columns), ``shutter_shading`` (a focal-plane shutter's
-line-dependent exposure), ``hot_pixels`` (the detector's fixed map of pixels that leak
-charge), ``bloom`` (electron-domain column bleed), ``radiation_transients`` (hits of a
+physically right point in the unit chain (see :ref:`sim-detector-stage`): ``banding`` (the
+Cassini 2 Hz / Galileo 42-px / LORRI striping / Voyager 2.4 kHz family,
+horizontal and/or vertical, with an optional mid-image frequency and dark-level
+step), ``bias_structure`` (per-image pedestal plus low-order gradients), ``readout_dark``
+(the charge each line collects while it waits to be read, with an optional set of enhanced
+columns), ``shutter_shading`` (a focal-plane shutter's line-dependent exposure),
+``hot_pixels`` (the detector's fixed map of pixels that leak charge),
+``bloom`` (electron-domain column bleed), ``radiation_transients`` (hits of a
 radiation environment, with its environment factor and readout dwell),
-``bright_dark_pairs`` (Cassini anti-blooming vertical pairs),
-``frame_transfer_smear`` and ``serial_tail`` (LORRI column pedestal and saturation
-undershoot tail), ``beam_bend`` and ``residual_image`` (Voyager brightness-dependent
-limb bias and erase-cycle ghost), and ``fixed_pattern`` (stitch combs, vignetting,
-dust donuts, jail bars, PRNU).
+``bright_dark_pairs`` (Cassini anti-blooming vertical
+pairs), ``frame_transfer_smear`` and ``serial_tail`` (LORRI column pedestal and
+saturation undershoot tail), ``beam_bend`` and ``residual_image`` (Voyager
+brightness-dependent limb bias and erase-cycle ghost), and ``fixed_pattern``
+(stitch combs, vignetting, dust donuts, jail bars, PRNU).
 
 **Telemetry-artifact modes** flank the structured loss loop in the telemetry
 stage (:mod:`spindoctor.sim.render.telemetry.artifacts`):
@@ -4501,11 +4511,11 @@ pipeline removed the reseau marks, on the camera's reseau lattice) then
 banding of the pipeline's geometric resample). :doc:`instruments/voyager_iss`
 gives the camera's lattice and product.
 
-**Adversarial placement.** With ``adversarial: true`` the stochastic modes place their
-events preferentially on the navigation features (a limb arc, a ring edge, a star) rather
-than uniformly, turning the artifact sweep from average-case into worst-case.
-Deterministic-shape modes (banding, fixed pattern, frame-transfer smear) are unaffected by
-the flag -- their shape does not depend on where the features are.
+**Adversarial placement.** With ``adversarial: true`` the stochastic modes place
+their events preferentially on the navigation features (a limb arc, a ring edge,
+a star) rather than uniformly, turning the artifact sweep from average-case into
+worst-case. Deterministic-shape modes (banding, fixed pattern, frame-transfer smear)
+are unaffected by the flag -- their shape does not depend on where the features are.
 
 Per-instrument shape defaults for every mode live in each instrument entry's
 ``artifact_modes.shape_defaults`` (see :ref:`sim-instrument-files`). If
