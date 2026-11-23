@@ -54,8 +54,8 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 
 ## Issue count
 
-457 issues were open on 2026-11-23. 349 of them have a row here, and the other 108 are
-simulator work tracked separately. 6 finished issues are kept as rows.
+456 issues were open on 2026-11-23. 348 of them have a row here, and the other 108 are
+simulator work tracked separately. 7 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
 
@@ -125,7 +125,7 @@ The host session owns this phase.
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
-| #791 | 2 Essential | yes | PR #1053 open | Disc refinement stops at its half-pixel window |
+| #791 | 2 Essential | yes | **Done (PR #1053)** | Disc refinement stops at its half-pixel window |
 | #483 | 3 Important | yes |  | Re-pin the frames moved by the shift-equivariance fix (operator decision; after #791) |
 | #1044 | 3 Important | yes |  | Auto mode prefers a pass that found no peak |
 | #1048 | 3 Important | yes |  | Gradient correlation reads the sensor margin |
@@ -466,7 +466,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 |---|---|---|---|---|
 | #427 | 4 Useful | yes |  | Reorganize the config namespace (after #1032, by operator decision of 2026-11-23 to type the sections first; needs operator rulings on the new layout) |
 | #1029 | 3 Important | yes |  | Type the navigator camera blocks (after the simulator's #1024 (#1023 merged 2026-11-23) and #1032's PR 2; also in the simulator plan) |
-| #1032 | 3 Important | yes | PR #1142 open | Type every navigator config section (PR 1 of 8 (the unread keys) open as #1142; PR 2 (null refused, loader on the schema core) open as #1151, stacked on it; PR 3 (the orchestrator section) open as #1158, stacked on #1151; sections typed under their current names) |
+| #1032 | 3 Important | yes | PR #1151 open | Type every navigator config section (PR 1 of 8 (the unread keys) merged 2026-11-23 as #1142; PR 2 (null refused, loader on the schema core) open as #1151; PR 3 (the orchestrator section) open as #1158, stacked on #1151; sections typed under their current names) |
 | #1001 | 4 Useful | yes |  | One rule for which keys the loader checks (closes with #1032) |
 | #118 | 3 Important | yes |  | Config validation system |
 | #735 | 4 Useful | yes |  | sd_create_ck and sd_stats_report image selection |
