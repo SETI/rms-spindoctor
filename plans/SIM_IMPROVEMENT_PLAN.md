@@ -288,7 +288,7 @@ are the authorable parts of #904 and the ring-only part of #377:
   and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
   measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
   them are expected failures tied to #342, #785, and #1153;
-- star fields with a body, and rings with a body; **Done (PR #TBD).** The `mixed_content` class
+- star fields with a body, and rings with a body; **Done (PR #1155).** The `mixed_content` class
   holds stars with a body 1.81 px off its predicted position (fused 0.30-1.31 px off, near the
   line between the two), stars with a crescent on a summed 512 px frame (fused 0.22-0.50 px off,
   the disc 0.01 px), a moon over a ring sheet, which conflicts because RingEdgeNav slides
