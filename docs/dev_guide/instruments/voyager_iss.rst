@@ -162,8 +162,8 @@ The departure from the common schema is a units mismatch that is worth
 understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
 ``image_quality_thresholds`` are correspondingly ``blank_max_if`` and
 ``noisy_threshold_if``. But the ``noise`` block is a raw-DN block:
-``saturation_dn: 255``, ``full_well_dn: 255``, ``expected_noise_dn``,
-``read_noise_dn`` and ``star_flux_dn_per_s_vmag0`` are all DN quantities. The
+``saturation_dn: 255``, ``read_noise_dn``, and ``star_flux_dn_per_s_vmag0`` are
+all DN quantities. The
 DN values describe the detector, which is real; the pipeline navigates the
 scaled I/F product, so ``NavOrchestrator._build_saturation_mask`` returns an
 empty mask for this instrument as for any ``calibrated_if`` input, and
@@ -173,8 +173,8 @@ on the presence of the key. There is no raw product this pipeline can navigate
 instead.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``expected_noise_dn``, ``read_noise_dn``, ``blank_max_if``,
-``noisy_threshold_if`` and the ``mag_offset_table`` entry. The ``_sources``
+``read_noise_dn``, ``blank_max_if``,
+``noisy_threshold_if``, and the ``mag_offset_table`` entry. The ``_sources``
 convention is not used in this file.
 
 ``fit_camera_rotation: false`` carries a three-line comment saying it is kept
@@ -401,7 +401,9 @@ The entry's shape defaults give ``edited_frame`` a centered band 550 pixels wide
 The edited modes downlink a centered band of 608, 440, 272, 160, or 80 of the 800
 samples in a raw line. The GEOMED resample spreads those 800 samples over 1000
 pixels, so the 440-sample band covers 550 pixels of the GEOMED frame. A scene that
-sets only a ``probability`` gets that band. The shape defaults give
+sets only a ``probability`` gets that band. ``instrument_defaults`` turns on
+``banding``, which draws the published coherent component as vertical bands of
+0.25 DN at 8 pixels. The shape defaults give
 ``reseau_scars`` 202 marks on a 59-pixel lattice. The camera's 202 reseau marks
 sit about 47 pixels apart in a raw frame, and the GEOMED resample stretches that
 to about 59 pixels.
@@ -426,7 +428,7 @@ by 800 pixels sit on a positive calibration residual between 6.6e-4 and 3.2e-2
 I/F: the first percentile is above zero in every frame, and at most 0.03% of
 those pixels are exactly 0. Half a DN off the whole-DN grid, the simulated
 residual keeps every digitized pixel off 0. Under ``instrument_defaults`` the
-vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
+vidicon read noise and banding (0.40 DN rms) take a sky pixel below 0 only on a 1.5 DN
 excursion, about 7 pixels in 100,000, so the sky's first percentile stays
 positive.
 
@@ -514,8 +516,8 @@ Open items
   Saturn correction belong in the host once the host grows them, at which point
   this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
-  ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_if``,
-  ``noisy_threshold_if`` and the ``mag_offset_table`` entry.
+  ``read_noise_dn``, ``blank_max_if``,
+  ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
 * ``fit_camera_rotation`` is off for cost against a measurement that says it
   should be on. Revisiting it means both speeding the rotation search and
   accepting the loss of corrected C-kernels for this instrument, or recording

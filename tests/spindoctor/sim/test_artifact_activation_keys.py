@@ -261,23 +261,27 @@ def test_detector_rate_mode_is_active_at_any_positive_rate(mode_name: str) -> No
 
 def test_detector_probability_mode_is_inactive_at_zero() -> None:
     """A detector probability mode at probability 0 is a no-op."""
-    dp = resolve_detector_params(
-        _scene({'banding_coherent': {'probability': 0.0}}, instrument='coiss_nac')
-    )
-    assert 'banding_coherent' not in dp.detector_modes
+    dp = resolve_detector_params(_scene({'banding': {'probability': 0.0}}, instrument='coiss_nac'))
+    assert 'banding' not in dp.detector_modes
 
 
 def test_detector_probability_mode_is_active_at_one() -> None:
     """A detector probability mode at probability 1 always activates."""
-    dp = resolve_detector_params(
-        _scene({'banding_coherent': {'probability': 1.0}}, instrument='coiss_nac')
-    )
-    assert 'banding_coherent' in dp.detector_modes
+    dp = resolve_detector_params(_scene({'banding': {'probability': 1.0}}, instrument='coiss_nac'))
+    assert 'banding' in dp.detector_modes
 
 
-def test_hot_pixels_pixel_fraction_sets_the_hot_pixel_fraction() -> None:
-    """The hot_pixels mode's pixel_fraction is the resolved hot-pixel density."""
+def test_hot_pixels_are_active_at_any_positive_fraction() -> None:
+    """A pixel fraction is a density, so it activates the mode without a probability draw."""
     dp = resolve_detector_params(
-        _scene({'hot_pixels': {'pixel_fraction': 0.004}}, instrument='coiss_nac')
+        _scene({'hot_pixels': {'pixel_fraction': 1.0e-9}}, instrument='coiss_nac')
     )
-    assert dp.hot_pixel_fraction == 0.004
+    assert dp.detector_modes['hot_pixels']['pixel_fraction'] == 1.0e-9
+
+
+def test_hot_pixels_are_inactive_at_zero() -> None:
+    """A pixel fraction of 0 turns the mode off."""
+    dp = resolve_detector_params(
+        _scene({'hot_pixels': {'pixel_fraction': 0.0}}, instrument='coiss_nac')
+    )
+    assert 'hot_pixels' not in dp.detector_modes

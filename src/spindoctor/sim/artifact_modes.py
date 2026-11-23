@@ -4,7 +4,7 @@ The ``artifacts`` scene block is keyed, besides ``instrument_defaults`` and
 ``adversarial``, by the artifact-mode names in this registry.  Each mode is
 described once here -- its rendering stage (``telemetry`` or ``detector``), its
 parameter schema, and whether it is implemented yet -- and every consumer (the
-scene validator, the telemetry stage, the detector hot-pixel routing) reads that
+scene validator, the detector stage, the telemetry stage) reads that
 description rather than carrying its own copy.  Registering a mode is therefore
 the whole job of adding one: a detector-stage mode that is unimplemented today
 drops in by flipping its ``implemented`` flag and adding its rendering code, with
@@ -41,12 +41,14 @@ says what quantity it holds, so a scene line reads the same way on every mode:
 * ``pixel_fraction`` (``hot_pixels`` alone): the fraction of detector pixels that
   are hot, a spatial density in [0, 1].
 
-The key defaults to 0, also under ``instrument_defaults``.  A mode renders as a
-no-op when its activation key is 0, or, on ``dead_pixels`` and ``dead_columns``,
-when its ``count`` is 0 where given (the stage-activation rule).  Those two modes
-accept ``count``, a fixed number of events in place of the Poisson draw, and
-``count`` and ``expected_events`` are mutually exclusive: a map may set one of
-them.  Each mode's
+The key defaults to 0.  Under ``instrument_defaults``, a mode that the camera's entry
+turns on takes its activation key from the entry unless the scene sets it, so
+``hot_pixels: {}`` plants the camera's hot pixels, and an activation key of 0 turns the
+mode off.  A mode renders as a no-op when its activation key is 0, or, on
+``dead_pixels`` and ``dead_columns``, when its ``count`` is 0 where given (the
+stage-activation rule).  Those two modes accept ``count``, a fixed number of events in
+place of the Poisson draw, and ``count`` and ``expected_events`` are mutually
+exclusive: a map may set one of them.  Each mode's
 :attr:`ArtifactMode.activation_semantics` says what its events are.
 
 **Parameter types.**  Each parameter's type is an annotation from the schema core
@@ -56,7 +58,8 @@ mode builds one frozen dataclass from its parameters when this module is importe
 against it.  Scene validation and the instrument catalog both check a mode's map
 this way.  Every field of the type is optional and defaults to None, which stands
 for a key the map leaves unset, so the type records which keys a map sets and leaves
-the registry defaults to :func:`resolve_mode_config`.
+the registry defaults to
+:func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog`.
 """
 
 from __future__ import annotations
@@ -64,7 +67,6 @@ from __future__ import annotations
 import copy
 import dataclasses
 import keyword
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal, get_args, get_origin
 
@@ -85,7 +87,6 @@ from spindoctor.schema import (
 __all__ = [
     'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
-    'COUNT_ACTIVATION_KEYS',
     'DETECTOR_MODELS',
     'DETECTOR_MODE_ORDER',
     'EXPECTED_EVENTS',
@@ -106,7 +107,6 @@ __all__ = [
     'int_list',
     'mode_scene_map',
     'parse_mode_params',
-    'resolve_mode_config',
 ]
 
 
@@ -228,10 +228,6 @@ PIXEL_FRACTION = 'pixel_fraction'
 ACTIVATION_KEYS: frozenset[str] = frozenset(
     {EXPECTED_EVENTS, EXPECTED_EVENTS_PER_SEC, PROBABILITY, PIXEL_FRACTION}
 )
-
-# The activation keys that hold a Poisson expectation: the mode's mechanic draws
-# the event count, so the mode is active whenever the key is positive.
-COUNT_ACTIVATION_KEYS: frozenset[str] = frozenset({EXPECTED_EVENTS, EXPECTED_EVENTS_PER_SEC})
 
 # The schema of each activation key, disabled at its default of 0.
 _ACTIVATION_PARAMS: dict[str, ModeParam] = {
@@ -426,7 +422,7 @@ def _detector_mode(
 # The registry.
 # ---------------------------------------------------------------------------
 
-_IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
+_TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
     _telemetry_mode(
         'missing_lines',
         ModeParam('contiguous_run', Bool, False),
@@ -533,46 +529,29 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         activation=PROBABILITY,
         activation_semantics='per-frame probability the commanded cut-out window is applied',
     ),
-    # hot_pixels is implemented, but on the DETECTOR stage: the registry routes
-    # its parameters to the detector hot-pixel population (params.py) rather
-    # than to a telemetry applier.  Its activation key is pixel_fraction, the
-    # fraction of pixels that are hot (a spatial density).
-    ArtifactMode(
-        name='hot_pixels',
-        stage='detector',
-        implemented=True,
-        params=(
-            _ACTIVATION_PARAMS[PIXEL_FRACTION],
-            ModeParam('amplitude_e', NonNeg, None),
-            ModeParam('column_factor', Unit, None),
-        ),
-        activation=PIXEL_FRACTION,
-        activation_semantics=(
-            'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
-        ),
-        # The vidicon DN chain has no hot-pixel stage.
-        detector_models=_CCD_ONLY,
-    ),
 )
 
 # Detector / electronics modes.  Each renders inside the detector stage at the
-# physically right point in the unit chain (dark and dark_ramp with the dark
-# pedestal, banding in electrons pre-DN, fixed_pattern PRNU multiplicative
+# physically right point in the unit chain (the readout dark with the dark
+# current, banding in electrons pre-DN, fixed_pattern PRNU multiplicative
 # pre-Poisson, serial_tail as a post-gain DN undershoot, and so on); the exact
 # placement is documented per stage in the detector chain.  A mode with a
 # per-instrument shape reads its shape parameters from the catalog when the
-# scene leaves them unset, and an explicit mode wins over the generic noise-block
-# knob for the same mechanic (the precedence hot_pixels already uses).
+# scene leaves them unset.
 _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     _detector_mode(
-        'banding_coherent',
-        ModeParam('amplitude_e', NonNeg, None),
+        'banding',
+        ModeParam('amplitude', NonNeg, None),
         ModeParam('period_px', NonNeg, None),
         ModeParam('orientation', Literal['horizontal', 'vertical', 'both'], 'horizontal'),
+        ModeParam('horizontal_pattern', Literal['periodic', 'random'], 'periodic'),
         ModeParam('freq_step_factor', NonNeg, 1.0),
         ModeParam('dark_step_dn', NonNeg, 0.0),
+        ModeParam('ringing_amplitude', NonNeg, 0.0),
+        ModeParam('ringing_period_px', NonNeg, 0.0),
+        ModeParam('ringing_decay_px', NonNeg, 0.0),
         activation=PROBABILITY,
-        activation_semantics='per-frame probability the coherent banding is active',
+        activation_semantics='per-frame probability the banding is active',
     ),
     _detector_mode(
         'bias_structure',
@@ -583,21 +562,36 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         activation_semantics='per-frame probability the bias pedestal / gradients are active',
     ),
     _detector_mode(
-        'dark_ramp',
-        ModeParam('kind', Literal['dark_gradient', 'exposure_shading'], 'dark_gradient'),
-        ModeParam('amplitude_e', NonNeg, None),
+        'readout_dark',
+        ModeParam('amplitude', NonNeg, None),
         ModeParam('nonlinear', NonNeg, 1.0),
         ModeParam('rbi_column_factor', Unit, 0.0),
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the readout dark is present',
+    ),
+    _detector_mode(
+        'shutter_shading',
         ModeParam('top_factor', NonNeg, None),
         ModeParam('bottom_factor', NonNeg, None),
         activation=PROBABILITY,
-        activation_semantics='per-frame probability the readout / shutter line ramp is active',
+        activation_semantics='per-frame probability the shutter shading is applied',
     ),
     _detector_mode(
         'bloom',
         ModeParam('bloom_length', PositiveInt, None),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the electron-domain column bloom is active',
+        detector_models=_CCD_ONLY,
+    ),
+    _detector_mode(
+        'hot_pixels',
+        ModeParam('amplitude_e', NonNeg, None),
+        ModeParam('column_factor', Unit, None),
+        activation=PIXEL_FRACTION,
+        activation_semantics=(
+            'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
+        ),
+        # The vidicon DN chain has no hot-pixel stage.
         detector_models=_CCD_ONLY,
     ),
     _detector_mode(
@@ -657,24 +651,6 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         detector_models=_VIDICON_ONLY,
     ),
     _detector_mode(
-        'quantization_sqrt_lut',
-        activation=PROBABILITY,
-        activation_semantics=(
-            "per-frame probability the frame is companded through the camera's sqrt_lut table"
-        ),
-    ),
-    _detector_mode(
-        'quantization_ls8b',
-        activation=PROBABILITY,
-        activation_semantics='per-frame probability the LS8B wraparound quantization is active',
-    ),
-    _detector_mode(
-        'quantization_contour_8bit',
-        ModeParam('step', PositiveInt, 8),
-        activation=PROBABILITY,
-        activation_semantics='per-frame probability the 8-bit contouring quantization is active',
-    ),
-    _detector_mode(
         'fixed_pattern',
         ModeParam('prnu_rms', Unit, None),
         ModeParam('vignetting_frac', Unit, None),
@@ -723,7 +699,8 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
 )
 
 ARTIFACT_MODES: dict[str, ArtifactMode] = {
-    mode.name: mode for mode in (*_IMPLEMENTED_MODES, *_DETECTOR_MODES, *_TELEMETRY_ARTIFACT_MODES)
+    mode.name: mode
+    for mode in (*_TELEMETRY_LOSS_MODES, *_DETECTOR_MODES, *_TELEMETRY_ARTIFACT_MODES)
 }
 
 # Pickle finds a class by its name in its module, so each registered mode's built class
@@ -738,8 +715,7 @@ MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
 # frame-level commanded shapes, then line losses, then block losses, then
 # garble, then per-pixel losses, then the row-0 header last.  ``truth_window``
 # is not here: it is a protective carve-out resolved before the loop and passed
-# to ``missing_blocks``, not a signal-mutating loss.  ``hot_pixels`` is not here
-# either: it is a detector-stage mode.
+# to ``missing_blocks``, not a signal-mutating loss.
 STRUCTURED_LOSS_ORDER: tuple[str, ...] = (
     'cutout_window',
     'edited_frame',
@@ -767,32 +743,17 @@ TELEMETRY_POST_LOSS_ORDER: tuple[str, ...] = ('reseau_scars', 'resample_texture'
 # them.  Placement inside the unit chain is per-mode (documented in the chain);
 # this order only fixes which mode's truth record is written first.
 DETECTOR_MODE_ORDER: tuple[str, ...] = (
+    'shutter_shading',
     'fixed_pattern',
     'residual_image',
-    'dark_ramp',
+    'readout_dark',
     'frame_transfer_smear',
     'bright_dark_pairs',
+    'hot_pixels',
     'radiation_transients',
     'bloom',
-    'banding_coherent',
+    'banding',
     'serial_tail',
     'bias_structure',
     'beam_bend',
-    'quantization_sqrt_lut',
-    'quantization_ls8b',
-    'quantization_contour_8bit',
 )
-
-
-def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[str, Any]:
-    """Fill a mode's scene map with its parameter defaults for rendering.
-
-    Parameters:
-        mode_name: A registered mode name.
-        raw_config: The scene's map for the mode (already validated).
-
-    Returns:
-        A fresh dict carrying every parameter, scene value overriding default.
-    """
-    mode = ARTIFACT_MODES[mode_name]
-    return {param.name: raw_config.get(param.name, param.default) for param in mode.params}

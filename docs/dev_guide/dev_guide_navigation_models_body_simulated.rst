@@ -261,8 +261,10 @@ Call path traced through
    internal state for downstream feature emission.
 8. Record the overflow fraction ``1 - in-sensor pixels / whole-silhouette pixels``: the
    SPICE-backed model's quantity, from this model's own predicted geometry. A body whose
-   bounding square lies inside the frame overflows by exactly 0 with no render. Any
-   other body's silhouette is rendered unclipped on a canvas larger than the body, with
+   bounding square lies inside the frame overflows by exactly 0 with no render. The
+   square reaches half again the longest semi-axis from the center, or for a mesh body
+   as far as its farthest projected vertex if that is more. Any other body's
+   silhouette is rendered unclipped on a canvas sized from the same reach, with
    its center on the same sub-pixel phase; a canvas over 2048 px on a side renders
    downsampled by a whole factor and its count is scaled back, so memory stays bounded.
 

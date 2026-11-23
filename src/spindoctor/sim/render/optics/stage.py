@@ -91,12 +91,7 @@ def effective_psf(params: Mapping[str, Any]) -> dict[str, Any] | None:
     explicit = optics.get('psf')
     if isinstance(explicit, dict):
         if explicit.get('match_navigator'):
-            # Import at call time keeps the config read out of module import.
-            from spindoctor.config import DEFAULT_CONFIG
-
-            return navigator_matched_psf(
-                DEFAULT_CONFIG, params.get('instrument'), params.get('instrument_config')
-            )
+            return navigator_matched_psf(params)
         return explicit
     if instrument_defaults_on(params):
         kernel = resolve_psf_kernel(params.get('instrument'))

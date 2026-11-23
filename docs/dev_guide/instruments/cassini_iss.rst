@@ -219,8 +219,7 @@ loader indexes the block by detector.
 common schema by **omission**: its ``noise`` block carries only
 ``marker_value: 0``, and its ``image_quality_thresholds`` carry only the two
 ``_if`` thresholds and the two fractions. It has no ``saturation_dn``, no
-``full_well_dn``, no ``expected_noise_dn``, no ``read_noise_dn``, no
-``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
+``read_noise_dn``, no ``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
 ``saturation_threshold_if``.
 
 That last omission is deliberate and is documented in the file. The calibration
@@ -233,7 +232,7 @@ disabled. Adding a threshold to this block would not restore the mask; the
 mask is gated on the units, not on the presence of the key.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
-``expected_noise_dn`` and ``read_noise_dn``, the calibrated block's
+``read_noise_dn``, the calibrated block's
 ``blank_max_if`` and ``noisy_threshold_if``, and both blocks'
 ``mag_offset_table`` entries. The ``_sources`` convention is not used in this
 file.
@@ -495,7 +494,8 @@ two frames are part of it.
 
 **Readout dark and cosmic rays.** The raw dark sky rises linearly from the
 first line to the last at every exposure, by 55 e- on the NAC and 33 e- on the
-WAC, and ``readout_dark_e`` catalogs those rises. The cosmic-ray terms, fitted
+WAC. Each entry's ``readout_dark`` shape default catalogs that rise as the
+amplitude a native pixel of the last line collects. The cosmic-ray terms, fitted
 in closed loop to the NAC's 12-bit dark-sky frames and shared by the WAC, are a
 rate of 2.0e-5 events per pixel per second, a 6 s readout dwell, a 1,000 e-
 deposit scale, and 0.6 native pixels of diffusion; the simulator report's
@@ -530,7 +530,10 @@ radially symmetric, which is why the non-radial wander is zero.
 lists its modes, and the calibrated entries inherit the list. The simulator
 guide's mode tables (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`)
 give each mode's cameras. Both cameras' detector model is ``ccd``, and neither
-entry states an exclusion reason.
+entry states an exclusion reason. On a raw camera ``instrument_defaults`` turns on
+``hot_pixels``, ``banding``, ``readout_dark``, ``bias_structure``, and ``bloom``. The
+calibrated entries drop ``banding`` and ``bias_structure``, which CISSCAL removes, and
+lower the hot-pixel fraction to the 1.6e-5 the cohort measures.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
@@ -623,7 +626,7 @@ Open items
 ==========
 
 * Every value marked ``# PLACEHOLDER`` in ``config_400_inst_coiss.yaml``: the
-  raw block's ``expected_noise_dn`` and ``read_noise_dn``, the calibrated
+  raw block's ``read_noise_dn``, the calibrated
   block's ``blank_max_if`` and ``noisy_threshold_if``, and the magnitude-offset
   tables on all four detector entries.
 * ``from_file`` carries a TODO noting that the ``np.min`` / ``np.max`` debug

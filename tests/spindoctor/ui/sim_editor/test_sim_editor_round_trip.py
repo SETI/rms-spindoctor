@@ -64,10 +64,6 @@ _FULL_SCENE: dict[str, Any] = {
         'poisson': True,
         'read_noise_dn': 6.0,
         'cosmic_ray_events_per_pixel_per_sec': 0.001,
-        'missing_data_rate': 0.01,
-        'bias_dn': 18.0,
-        'bloom_length': 4,
-        'signal_full_scale_frac': 0.6,
     },
     'oversample': 2,
     'optics': {
@@ -96,19 +92,23 @@ _FULL_SCENE: dict[str, Any] = {
     'detector': {
         'gain_state': 2,
         'detector_model': 'ccd',
+        'bias_dn': 18.0,
+        'saturation_dn': 4000.0,
+        'full_well_dn': 3900.0,
+        'signal_full_scale_frac': 0.6,
         'exposure_ref_sec': 1.0,
         'quantization': 'exact',
+        'missing_data_rate': 0.01,
     },
     'artifacts': {
         'instrument_defaults': True,
         'adversarial': True,
-        # One representative mode per stage family: a telemetry structured loss,
-        # a detector-electronics mode, and a routed quantization mode -- all
-        # available on coiss_nac -- so the round-trip exercises the generated
-        # mode rows, not only the two switches.
+        # One telemetry structured loss and two detector modes, all available on
+        # coiss_nac, so the round-trip exercises the generated mode rows, not only
+        # the two switches.
         'missing_lines': {'expected_events': 2.0, 'contiguous_run': True},
-        'banding_coherent': {'probability': 0.5, 'amplitude_e': 3.0},
-        'quantization_sqrt_lut': {'probability': 1.0},
+        'banding': {'probability': 0.5, 'amplitude': 3.0},
+        'bloom': {'probability': 1.0},
     },
     'instrument_config': {'inherit': 'coiss_nac'},
     # The full body key inventory is split across the two render paths it
@@ -669,8 +669,8 @@ def test_load_full_scene_syncs_mode_rows(
     model._load_scene()
     assert model._adversarial_check.isChecked() is True
     assert model._mode_rows['missing_lines'].group.isChecked() is True
-    assert model._mode_rows['banding_coherent'].group.isChecked() is True
-    assert model._mode_rows['quantization_sqrt_lut'].group.isChecked() is True
+    assert model._mode_rows['banding'].group.isChecked() is True
+    assert model._mode_rows['bloom'].group.isChecked() is True
     expected_events = model._mode_rows['missing_lines']._scalar_widgets['expected_events'].value()
     assert expected_events == 2.0
 
