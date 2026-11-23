@@ -374,8 +374,8 @@ def test_quarter_roll_turns_the_sky_field() -> None:
 def test_negligible_roll_leaves_the_sky_field() -> None:
     """A roll too small to carry a star across the frame edge leaves the sky as it was.
 
-    The stars drawn beyond the unrolled frame for the turn must not light the frame's
-    outermost pixels.
+    The stars drawn for the turn beyond what the unrolled render draws must not light
+    the frame's outermost pixels.
     """
     unrolled = _render(0.0, _dense_sky())
     rolled = _render(1e-9, _dense_sky())
