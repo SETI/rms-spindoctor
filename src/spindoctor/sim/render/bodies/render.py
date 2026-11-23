@@ -111,6 +111,7 @@ def render_single_body(
     body_streams_seed: int,
     body_index: int = 0,
     oversample: int = 1,
+    margin: int = 0,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render a single body and composite it over the image.
 
@@ -140,15 +141,20 @@ def render_single_body(
             on its working grid, the oversampled grid or, at factor 1, its
             anti-aliasing supersample grid (see
             :class:`~spindoctor.sim.render.bodies.ellipsoid.EllipsoidBodySpec`).
+        margin: How many pixels the image extends past the frame on each side.  The
+            body is painted across the margin as well as the frame; its center, its
+            inventory entry, and its drawing belong to the frame.
 
     Returns:
         Tuple of (body_mask, body_info_dict) where body_info_dict contains
-        the upper-cased name, the inventory item, the body's coverage on the frame
+        the upper-cased name, the inventory item, the body's coverage on the image
         under ``'coverage'``, a haze body's positioned halo under ``'halo'``, and,
         for a mesh body whose pose scatter drew a perturbation,
-        ``pose_scatter_drawn_deg``.
+        ``pose_scatter_drawn_deg``.  The mask and the coverage are on the image, the
+        frame and its margin.
     """
-    size_v, size_u = img.shape
+    size_v = img.shape[0] - 2 * margin
+    size_u = img.shape[1] - 2 * margin
     center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
     center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + offset_u
 
@@ -174,6 +180,7 @@ def render_single_body(
             oversample=oversample,
             body_streams_seed=body_streams_seed,
             body_index=body_index,
+            margin=margin,
         )
 
     return _render_single_ellipsoid_body(
@@ -184,6 +191,7 @@ def render_single_body(
         body_streams_seed=body_streams_seed,
         body_index=body_index,
         oversample=oversample,
+        margin=margin,
     )
 
 
@@ -196,6 +204,7 @@ def _render_single_ellipsoid_body(
     body_streams_seed: int,
     body_index: int,
     oversample: int,
+    margin: int,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render one ellipsoid body into the image in place.
 
@@ -210,11 +219,13 @@ def _render_single_ellipsoid_body(
         body_streams_seed: The scene's seed for every body's random streams.
         body_index: The body's position in the scene's body list.
         oversample: The render grid's oversampling factor.
+        margin: How many pixels the image extends past the frame on each side.
 
     Returns:
         Tuple of (body_mask, body_info_dict), as :func:`render_single_body` returns.
     """
-    size_v, size_u = img.shape
+    size_v = img.shape[0] - 2 * margin
+    size_u = img.shape[1] - 2 * margin
     seeds = _surface_seeds(spec, body_streams_seed=body_streams_seed, body_index=body_index)
     atmosphere_spec = atmosphere_spec_from_params(spec.atmosphere, oversample=int(oversample))
     reach_v, reach_u = _ellipsoid_reach(spec, atmosphere_spec, relief_seed=seeds.relief_seed)
@@ -225,11 +236,12 @@ def _render_single_ellipsoid_body(
         reach_v=reach_v,
         reach_u=reach_u,
         oversample=oversample,
+        frame_margin=margin,
     )
     half_extent_v, half_extent_u = _projected_half_extents(spec)
     if canvas.is_empty:
         return finish_unseen_body(
-            (size_v, size_u),
+            (img.shape[0], img.shape[1]),
             body_name=spec.name.upper(),
             center_v=center_v,
             center_u=center_u,

@@ -23,6 +23,13 @@ is drawn on the frame itself.  A larger one, which a frame-sized drawing would c
 off, is drawn on a canvas that holds the part of it that lands in the frame, so a
 planet larger than the frame shows its limb wherever its center lies, on the frame
 or off it.
+
+The image a body is painted into may extend past the frame by a margin on every
+side, which the optics stage spreads into the frame (see
+:mod:`spindoctor.sim.render.stages`).  The body is then painted across the margin
+too: a canvas past the frame holds the part of the body that lands in the frame or
+the margin.  The frame alone decides where the body is drawn and how its craters are
+laid out, so the margin changes no pixel of the frame.
 """
 
 import math
@@ -116,6 +123,9 @@ class BodyCanvas:
             surface whichever part of it is drawn.
         plane_cols: The columns of the same box.
         on_frame: Whether the canvas is the frame itself.
+        frame_margin: How many render-grid pixels the image the body is painted into
+            extends past the frame on each side; the image's first pixel is the
+            reference-plane pixel ``(-frame_margin, -frame_margin)``.
     """
 
     rows: slice
@@ -125,6 +135,7 @@ class BodyCanvas:
     plane_rows: slice
     plane_cols: slice
     on_frame: bool
+    frame_margin: int = 0
 
     @property
     def shape(self) -> tuple[int, int]:
@@ -155,6 +166,7 @@ def body_canvas(
     reach_v: float,
     reach_u: float,
     oversample: int,
+    frame_margin: int = 0,
 ) -> BodyCanvas:
     """The canvas a body is drawn on before it is translated into the frame.
 
@@ -163,22 +175,25 @@ def body_canvas(
     reads nothing beyond the drawing, so a body lighting the drawing's outermost
     pixels would lose part of their light there.  Any other body is drawn on the
     part of the reference plane where the body and the pixels the translation into
-    the frame reads overlap, each widened by 8 detector pixels, so the drawing never
-    ends inside the frame.  That part changes with the body's position, so such a
-    body is drawn again whenever it moves.  Every canvas edge lies on a detector
-    pixel boundary.
+    the frame and its margin reads overlap, each widened by 8 detector pixels, so the
+    drawing never ends inside the frame or the margin.  That part changes with the
+    body's position, so such a body is drawn again whenever it moves.  Every canvas
+    edge lies on a detector pixel boundary.
 
     Parameters:
-        frame_shape: The render grid's rows and columns.
+        frame_shape: The frame's rows and columns on the render grid.
         center_v: The body center v in the frame (offset already applied).
         center_u: The body center u in the frame (offset already applied).
         reach_v: How far the body, its relief, and its halo reach from its center
             along v, in render-grid pixels.
         reach_u: How far they reach along u.
         oversample: The render grid's oversampling factor.
+        frame_margin: How many render-grid pixels the image the body is painted into
+            extends past the frame on each side.
 
     Returns:
-        The body's canvas; an empty one when the body misses the frame.
+        The body's canvas; an empty one when the body misses the frame and its
+        margin.
     """
     size_v, size_u = frame_shape
     ref_v = size_v / 2.0
@@ -194,6 +209,7 @@ def body_canvas(
             plane_rows=frame_rows,
             plane_cols=frame_cols,
             on_frame=True,
+            frame_margin=frame_margin,
         )
     step = max(1, int(oversample))
     margin = _CANVAS_MARGIN_DETECTOR_PX * step
@@ -203,14 +219,17 @@ def body_canvas(
     body_cols = _aligned(
         math.floor(ref_u - reach_u) - margin, math.ceil(ref_u + reach_u) + margin, step
     )
+    read_rows = _read_span(center_v - ref_v, size_v, margin + frame_margin, step)
+    read_cols = _read_span(center_u - ref_u, size_u, margin + frame_margin, step)
     return BodyCanvas(
-        rows=_intersect(body_rows, _read_span(center_v - ref_v, size_v, margin, step)),
-        cols=_intersect(body_cols, _read_span(center_u - ref_u, size_u, margin, step)),
+        rows=_intersect(body_rows, read_rows),
+        cols=_intersect(body_cols, read_cols),
         ref_center_v=ref_v,
         ref_center_u=ref_u,
         plane_rows=_union(frame_rows, body_rows),
         plane_cols=_union(frame_cols, body_cols),
         on_frame=False,
+        frame_margin=frame_margin,
     )
 
 
@@ -303,7 +322,7 @@ def finish_single_body(
 
     Returns:
         Tuple of (body_mask, body_info_dict).  The info holds the name, the
-        inventory item, the body's :class:`BodyCoverage` on the frame under
+        inventory item, the body's :class:`BodyCoverage` on the image under
         ``'coverage'``, and, for a body that carries one, the positioned halo screen
         under ``'halo'``.
     """
@@ -369,7 +388,8 @@ def finish_unseen_body(
     """The mask and inventory entry of a body that lands wholly outside the frame.
 
     Parameters:
-        frame_shape: The render grid's rows and columns.
+        frame_shape: The rows and columns of the image the body would be painted
+            into, the frame and its margin.
         body_name: Upper-cased body name for the inventory keys.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
@@ -413,35 +433,56 @@ def _position_body(
         body_shape: Body intensity drawn on the canvas at the reference center.
         silhouette: The body's solid-outline coverage on the canvas.
         canvas: The canvas the body was drawn on.
-        frame_shape: The frame's rows and columns.
+        frame_shape: The rows and columns of the image the body is painted into,
+            the frame and its margin.
         dv: The translation along v, in pixels.
         du: The translation along u, in pixels.
 
     Returns:
-        The translated intensity and the translated outline on the frame, and the
-        frame box outside which both are 0.  For a body drawn on the frame at a zero
-        translation the two planes are the input arrays themselves, which the
-        caller only reads.
+        The translated intensity and the translated outline on the image, and the
+        image box outside which both are 0.  For a body drawn on a frame without a
+        margin at a zero translation the two planes are the input arrays themselves,
+        which the caller only reads.
     """
     lit_box = nonzero_box(body_shape, silhouette)
     # An exactly zero translation is the bitwise identity for the order-1
     # spline, so a body drawn on the frame at the reference center skips the
-    # interpolation (the shape is only read, never written).
-    if canvas.on_frame and dv == 0.0 and du == 0.0:
+    # interpolation (the shape is only read, never written).  An image with a
+    # margin is larger than the drawing, so the translation places it.
+    if canvas.on_frame and canvas.frame_margin == 0 and dv == 0.0 and du == 0.0:
         return body_shape, silhouette, lit_box
     # Only the box the body covers is resampled; see the translate module.
     box_v, box_u = _on_reference_plane(lit_box, canvas)
+    out_origin = (-canvas.frame_margin, -canvas.frame_margin)
     positioned_body = translate_box(
-        body_shape, dv, du, box_v, box_u, shape=frame_shape, origin=canvas.origin
+        body_shape,
+        dv,
+        du,
+        box_v,
+        box_u,
+        shape=frame_shape,
+        origin=canvas.origin,
+        out_origin=out_origin,
     )
     positioned_outline = translate_box(
-        silhouette, dv, du, box_v, box_u, shape=frame_shape, origin=canvas.origin
+        silhouette,
+        dv,
+        du,
+        box_v,
+        box_u,
+        shape=frame_shape,
+        origin=canvas.origin,
+        out_origin=out_origin,
     )
-    frame_box = (
-        shifted_box(box_v, dv, frame_shape[0]),
-        shifted_box(box_u, du, frame_shape[1]),
+    # The boxes are found on the reference plane and stated on the image.
+    first = -canvas.frame_margin
+    ref_box_v = shifted_box(box_v, dv, frame_shape[0], low=first)
+    ref_box_u = shifted_box(box_u, du, frame_shape[1], low=first)
+    image_box = (
+        slice(ref_box_v.start - first, ref_box_v.stop - first),
+        slice(ref_box_u.start - first, ref_box_u.stop - first),
     )
-    return positioned_body, positioned_outline, frame_box
+    return positioned_body, positioned_outline, image_box
 
 
 def _on_reference_plane(box: tuple[slice, slice], canvas: BodyCanvas) -> tuple[slice, slice]:
@@ -485,15 +526,23 @@ def _position_halo(
         du: The translation along u, in pixels.
 
     Returns:
-        The positioned halo screen (``halo`` itself for a body drawn on the frame at
-        a zero translation).
+        The positioned halo screen (``halo`` itself for a body drawn on a frame
+        without a margin at a zero translation).
     """
-    if canvas.on_frame and dv == 0.0 and du == 0.0:
+    if canvas.on_frame and canvas.frame_margin == 0 and dv == 0.0 and du == 0.0:
         return halo
     size_v, size_u = frame_shape
+    first = -canvas.frame_margin
     source_v, source_u = _on_reference_plane((halo.box_v, halo.box_u), canvas)
     emission = translate_box(
-        halo.emission, dv, du, source_v, source_u, shape=frame_shape, origin=canvas.origin
+        halo.emission,
+        dv,
+        du,
+        source_v,
+        source_u,
+        shape=frame_shape,
+        origin=canvas.origin,
+        out_origin=(first, first),
     )
     transmission = translate_box(
         halo.transmission,
@@ -504,9 +553,13 @@ def _position_halo(
         cval=1.0,
         shape=frame_shape,
         origin=canvas.origin,
+        out_origin=(first, first),
     )
-    box_v = shifted_box(source_v, dv, size_v)
-    box_u = shifted_box(source_u, du, size_u)
+    # The boxes are found on the reference plane and stated on the image.
+    ref_box_v = shifted_box(source_v, dv, size_v, low=first)
+    ref_box_u = shifted_box(source_u, du, size_u, low=first)
+    box_v = slice(ref_box_v.start - first, ref_box_v.stop - first)
+    box_u = slice(ref_box_u.start - first, ref_box_u.stop - first)
     emission_view = emission[box_v, box_u]
     transmission_view = transmission[box_v, box_u]
     halo_mask = (emission_view > 0.0) | (transmission_view < 1.0)

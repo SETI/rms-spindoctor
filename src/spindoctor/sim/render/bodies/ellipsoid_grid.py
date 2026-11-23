@@ -8,8 +8,9 @@ before it is interpolated onto the working grid.  The body is projected onto eac
 grid by :func:`~spindoctor.sim.shared.ellipsoid.project_ellipsoid`, the projection
 the navigator's predicted body uses too.  This module finds the box the body
 covers, carries values from one grid to the other, and marks the regions the
-renderer treats specially: the silhouette, the band along the limb, and the cells
-along the day-night edge.
+renderer treats specially: the silhouette, the band along the limb, the cells
+along the day-night edge, and the cells where the relief surface point a pixel
+sees pulls away from its neighbor's.
 """
 
 import math
@@ -35,7 +36,9 @@ __all__ = [
     'expand_to_working_grid',
     'limb_band',
     'neighboring_cells',
+    'relief_view',
     'silhouette_mask',
+    'stretched_sight_cells',
 ]
 
 # Cells by which the day-night edge of a supersampled relief body is widened before
@@ -49,6 +52,10 @@ _DAY_NIGHT_MARGIN_CELLS = 3
 # Detector cells kept around the silhouette when a body is cropped to its box; one
 # cell covers the bilinear interpolation's reach and one more the outline's.
 _BOX_MARGIN_CELLS = 2
+# The factor by which the points two neighboring detector cells see on the relief
+# surface may lie farther apart than the points they would see on the smooth
+# surface before the pair is shaded on the working grid.
+_SIGHT_STRETCH_LIMIT = 2.0
 
 
 @dataclass(frozen=True)
@@ -379,7 +386,7 @@ def expand_to_working_grid(cells: NDArrayBoolType, up_factor: int) -> NDArrayBoo
     return np.repeat(np.repeat(cells, up_factor, axis=0), up_factor, axis=1)
 
 
-def _relief_view(grid: EllipsoidProjection) -> tuple[float, float]:
+def relief_view(grid: EllipsoidProjection) -> tuple[float, float]:
     """The direction toward the observer in the relief field's frame.
 
     The field lives on the unit sphere the body's surface coordinates lie on, its
@@ -443,6 +450,39 @@ def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDA
             # Body-attached azimuth: the rotated-frame elliptical parametric
             # angle (identical to the image azimuth for a circular disc).
             phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a_outline)
-            delta = field.outline_delta(phi, view=_relief_view(grid))
+            delta = field.outline_delta(phi, view=relief_view(grid))
             mask[band] = e_band < 1.0 + delta
     return mask.astype(np.float64)
+
+
+def stretched_sight_cells(seen: NDArrayFloatType, smooth: NDArrayFloatType) -> NDArrayBoolType:
+    """The cells whose view of the relief surface pulls away from a neighbor's.
+
+    Two neighboring cells (sharing a side) are marked when the points they see on
+    the relief surface lie more than twice as far apart as the points they
+    would see on the smooth surface.  That happens where a ridge hides the terrain
+    behind it, so that the point seen jumps from the ridge to the terrain beyond, and
+    where a slope is seen nearly edge-on.
+
+    Parameters:
+        seen: The parameter-space directions the cells see on the relief surface,
+            grid shape plus ``(3,)``.
+        smooth: The directions they would see on the smooth surface, the same shape.
+
+    Returns:
+        The marked cells.
+    """
+    marked = np.zeros(seen.shape[:-1], dtype=np.bool_)
+    for axis in (0, 1):
+        if seen.shape[axis] < 2:
+            continue
+        apart = np.linalg.norm(np.diff(seen, axis=axis), axis=-1)
+        expected = np.linalg.norm(np.diff(smooth, axis=axis), axis=-1)
+        pulled = apart > _SIGHT_STRETCH_LIMIT * expected
+        if axis == 0:
+            marked[:-1] |= pulled
+            marked[1:] |= pulled
+        else:
+            marked[:, :-1] |= pulled
+            marked[:, 1:] |= pulled
+    return marked
