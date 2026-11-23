@@ -19,7 +19,7 @@ exposure_sec: 2.0
 # simulator dims each star by the filter's throughput for sunlight, 22 times
 # (3.4 mag).  The frame then fails at 2 s, and at 10 s it navigates only with
 # hot pixels and cosmic rays off, where the real frame navigates at medium
-# tier at 2 s (#TBD).  The real frame's V 9.9 and 10.2 stars hold 2.3e7 to
+# tier at 2 s (#895).  The real frame's V 9.9 and 10.2 stars hold 2.3e7 to
 # 2.5e7 electrons per second at V 0 through CL1+IR3, about 50 times the
 # simulator's value for that filter and about twice its clear-filter value,
 # 1.0e7, so the clear filter keeps the stars closer to the real frame's.

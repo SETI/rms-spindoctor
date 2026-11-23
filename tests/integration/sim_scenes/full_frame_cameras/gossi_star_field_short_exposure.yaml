@@ -8,7 +8,7 @@ exposure_sec: 0.1
 # gossi_star_field at 0.1 s, the exposure of the real Pleiades frames
 # C0059894800R and C0059899900R, which navigate by locking on three stars.
 # Here the navigator predicts only the V 2.8 star visible and the frame fails
-# all_techniques_spurious (#TBD).  Two things leave it short of the real
+# all_techniques_spurious (#1153).  Two things leave it short of the real
 # frames.  The simulated Galileo stars are about 12 times fainter than real
 # ones of the same magnitude: the real frames' V 6.3 to 7.3 stars, two of
 # which the real lock uses, hold 4e7 to 7e7 electrons per second at V 0,

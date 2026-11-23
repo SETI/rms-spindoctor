@@ -218,7 +218,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # 0.95 px.  gossi_disc lands 0.30 px off with its twist and 0.04 px off without it.
     # coiss_wac_disc's error is the limb fit's own: 0.16 px with the roll, 0.18 px
     # without.  The three short-exposure and large-offset scenes fail as their expected
-    # blocks declare (#342, #785, #TBD).
+    # blocks declare (#342, #785, #1153).
     ('coiss_calib_nac_disc', FUSED): _t(0.092, 0.094, 0.010, 0.05),
     ('coiss_calib_wac_star_field', FUSED): _t(0.014, 0.034, 0.028, 0.05),
     ('coiss_nac_star_field', FUSED): _t(0.029, 0.289, 0.261, 0.06),
