@@ -343,11 +343,12 @@ class RenderDisplayMixin(SimEditorBase):
         self._units_label.setText(f'verdict render failed: {_short_error(error)}')
 
     def closeEvent(self, event: QCloseEvent | None) -> None:
-        """Drop any render still on its way, then close the window.
+        """Drop any edit or render still on its way, then close the window.
 
         Parameters:
             event: The close event.
         """
+        self._updater.cancel()
         self._stop_full_renders()
         super().closeEvent(event)
 

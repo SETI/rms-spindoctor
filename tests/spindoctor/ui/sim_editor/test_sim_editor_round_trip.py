@@ -17,7 +17,7 @@ The per-tab widget-state tests (absent-key discipline, per-key edits) live in
 
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -28,15 +28,6 @@ try:
 except (ImportError, OSError) as exc:
     pytest.skip(
         f'PyQt6/QtWidgets not available: {exc}',
-        allow_module_level=True,
-    )
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
         allow_module_level=True,
     )
 
@@ -301,15 +292,6 @@ _FULL_SCENE: dict[str, Any] = {
         },
     ],
 }
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture

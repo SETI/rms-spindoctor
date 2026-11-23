@@ -501,8 +501,11 @@ retired and retained library classes.
 | #947 | **Closes with #1020 (Phase 3b).** The simulated-image editor shows 0 for parameters the renderer fills from the detector block or another key |
 | #967 | **Closes with #1020 (Phase 3b).** The simulated-image editor's controls can build scenes that validation refuses: ranges wider than the rules, conflicting settings, settings left behind by a camera switch, and duplicate names |
 | #956 | **Fixed by #1024 and #1026**: one default name, read on both sides. Unnamed simulated bodies get different default names in the renderer and the navigator |
-| #856 | The simulated-image editor segfaults intermittently (reopened after the fix in PR #917); recheck it against #1020's structure |
-| #1000 | The editor's null-keys test can see body controls that are pending deletion, so it fails intermittently in CI; collect the controls only after pending deletions run |
+| #856 | **Done (PR #1123).** The simulated-image editor segfaults intermittently (reopened after the fix in PR #917); recheck it against #1020's structure. The cause was in the tests: each destroyed its own Qt application, after which PyQt no longer notices Qt deleting its own objects (the segfaults), and some left windows whose timers fired in later tests (the aborts), so the UI tests now share one application and delete their windows, and the editor's debounce timer is deleted with its window. |
+| #1000 | **Done (PR #1123).** The editor's null-keys test can see body controls that are pending deletion, so it fails intermittently in CI; collect the controls only after pending deletions run. The cause was #856's: PyQt took a combo box's line edit for a deleted widget, so #856's fix removes it. |
+| #1119 | **Affects no current scene.** The editor never deletes replaced tab pages, so its memory grows with every rebuild |
+| #1120 | **Affects no current scene.** A scene refused only while it renders, such as overlapping bodies with no range, opens a modal dialog on each editor redraw |
+| #1122 | **Affects no scene; test scheduling.** With one Qt application per test session, the tests may no longer need `--dist=loadfile`; check on CI before dropping the rule |
 | #957 | **Done (PR #1046).** The `sqrt_lut` detector module has no entry in the simulator API reference; after #1005 its path is under `render/` |
 | #816 | The developer guide's detector quantization list omits `ls8b` and `contour_8bit` |
 | #1052 | **Affects the report only.** The simulator report describes the disc correlation's old half-pixel window and the bias a haze puts on it; rewrite it in the end-of-stack regeneration, after the disc refinement work (#791) lands |

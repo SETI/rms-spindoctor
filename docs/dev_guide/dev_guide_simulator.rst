@@ -4892,8 +4892,9 @@ thread. ``FullRenderRunner`` in ``full_render.py`` renders the offset-free pictu
   status bar, and prints a failure's traceback. Every Qt object is therefore created,
   used, and destroyed on the UI thread. A worker that outlives the window writes only
   into a job that nothing reads, because the poll timer is the runner's child and is
-  destroyed with the window. A worker that can't start reports the failure on the
-  status bar.
+  destroyed with the window. The debounce timer is also destroyed with the window, and
+  closing the window drops the redraw of an edit still waiting out the debounce. A worker
+  that can't start reports the failure on the status bar.
 - **Exit.** The worker is an ordinary, non-daemon thread, so the interpreter
   waits for it before it shuts down: quitting the editor mid-render waits for
   that render to finish. A daemon thread would be killed at shutdown in the
