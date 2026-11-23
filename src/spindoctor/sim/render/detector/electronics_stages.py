@@ -12,7 +12,7 @@ stage-activation rule).
 
 Domains follow the physics: fixed-pattern PRNU, vignetting, and dust donuts are
 multiplicative on the electron plane before Poisson (a per-pixel response, not
-an added signal); the dark ramp and frame-transfer smear add electrons; the
+an added signal); the readout dark and frame-transfer smear add electrons; the
 stitch combs, jail bars, and serial tail act in the DN domain after the gain
 divide (readout-chain and amplifier structure rides on the digitized signal);
 and the Voyager beam bend and residual image are geometric / pre-noise effects
@@ -32,14 +32,15 @@ from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 __all__ = [
     'add_banding',
     'add_bright_dark_pairs',
-    'add_dark_ramp',
     'add_fixed_pattern_dn',
     'add_fixed_pattern_response',
+    'add_readout_dark',
     'add_residual_image',
     'add_serial_tail',
     'apply_beam_bend',
-    'apply_exposure_shading',
     'apply_frame_transfer_smear',
+    'apply_shutter_shading',
+    'readout_dark_profile',
 ]
 
 
@@ -114,65 +115,81 @@ def add_banding(
     }
 
 
-def add_dark_ramp(
-    electrons: NDArrayFloatType,
-    *,
-    amplitude_e: float,
-    nonlinear: float,
-    rbi_column_factor: float,
-    hot_columns: NDArrayIntType | None,
-) -> dict[str, Any]:
-    """Add a dark signal growing with line number (readout gradient) in place.
+def readout_dark_profile(
+    size_v: int, *, amplitude_e: float, nonlinear: float, binning: int
+) -> NDArrayFloatType:
+    """The dark charge each line collects while it waits its turn to be read.
 
-    The dark ramp accumulates during the line-by-line readout, so it grows from
-    line 0 to the last line: ``amplitude_e`` is the extra dark charge at the
-    last line, and ``nonlinear`` bends the growth (an exponent != 1 gives the
-    vidicon's nonlinear wait-time dependence).  ``rbi_column_factor`` adds the
-    Cassini residual-bulk-image flavor: columns read out above a hot pixel carry
-    an enhanced ramp, so the listed ``hot_columns`` get an extra factor.  A zero
-    amplitude is a no-op.
+    The first line is read at once and the last one waits longest, so the charge grows
+    with line number whatever the exposure.
 
     Parameters:
-        electrons: The electron image, modified in place.
-        amplitude_e: Extra dark charge at the last line, in electrons.
-        nonlinear: Ramp exponent (1 = linear growth with line number).
-        rbi_column_factor: Extra ramp fraction on the enhanced columns.
-        hot_columns: Columns carrying the enhanced RBI ramp, or None.
+        size_v: The frame's line count.
+        amplitude_e: The charge a native pixel of the last line collects, in the
+            image's units.
+        nonlinear: The exponent of the growth with line number; 1 is linear.
+        binning: The readout mode's binning factor ``b``; a frame pixel sums the
+            charge of ``b**2`` native pixels.
 
     Returns:
-        The realized ramp geometry for the truth record.
+        The per-line charge of a frame pixel, zeros when ``amplitude_e`` is 0.
     """
     if amplitude_e <= 0.0:
-        return {'active': False}
-    size_v, _size_u = electrons.shape
+        return np.zeros(size_v, dtype=np.float64)
     exponent = nonlinear if nonlinear > 0.0 else 1.0
-    frac = np.linspace(0.0, 1.0, size_v) ** exponent
-    ramp = amplitude_e * frac
-    electrons += ramp[:, None]
+    result: NDArrayFloatType = amplitude_e * binning**2 * np.linspace(0.0, 1.0, size_v) ** exponent
+    return result
+
+
+def add_readout_dark(
+    plane: NDArrayFloatType,
+    profile: NDArrayFloatType,
+    *,
+    rbi_column_factor: float,
+    rbi_columns: NDArrayIntType,
+) -> dict[str, Any]:
+    """Add the readout dark in place.
+
+    The residual bulk image of a Cassini camera makes some columns collect more dark
+    charge than the rest, so each of the ``rbi_columns`` gets ``rbi_column_factor`` of
+    the profile on top of it.  A profile of zeros is a no-op.
+
+    Parameters:
+        plane: The image, modified in place: electrons on the CCD chain, DN on the
+            vidicon chain.
+        profile: The per-line charge (:func:`readout_dark_profile`).
+        rbi_column_factor: The extra fraction of the profile on the enhanced columns.
+        rbi_columns: The enhanced columns.
+
+    Returns:
+        The realized readout dark for the truth record.
+    """
+    peak = float(profile.max())
+    if peak <= 0.0:
+        return {'active': False}
+    plane += profile[:, None]
     enhanced: list[int] = []
-    if rbi_column_factor > 0.0 and hot_columns is not None and hot_columns.size > 0:
-        cols = np.unique(hot_columns)
-        electrons[:, cols] += (rbi_column_factor * ramp)[:, None]
+    if rbi_column_factor > 0.0 and rbi_columns.size > 0:
+        cols = np.unique(rbi_columns)
+        plane[:, cols] += (rbi_column_factor * profile)[:, None]
         enhanced = [int(c) for c in cols]
-    return {'active': True, 'peak_e': amplitude_e, 'enhanced_columns': enhanced}
+    return {'active': True, 'peak_e': peak, 'enhanced_columns': enhanced}
 
 
-def apply_exposure_shading(
-    electrons: NDArrayFloatType,
+def apply_shutter_shading(
+    signal: NDArrayFloatType,
     *,
     top_factor: float,
     bottom_factor: float,
 ) -> dict[str, Any]:
-    """Scale the signal by a line-dependent shutter exposure gradient in place.
+    """Scale the light by the shutter's line-dependent exposure in place.
 
     A focal-plane shutter opens and closes line by line, so the effective
     exposure varies from ``top_factor`` at line 0 to ``bottom_factor`` at the
-    last line (a camera's factors are its ``dark_ramp`` shape defaults).  Modeled as a
-    multiplicative gradient on the accumulated electrons.  Equal factors are a
-    no-op.
+    last line.  Equal factors are a no-op.
 
     Parameters:
-        electrons: The electron image, modified in place.
+        signal: The collected light, modified in place.
         top_factor: Exposure multiplier at line 0.
         bottom_factor: Exposure multiplier at the last line.
 
@@ -181,9 +198,9 @@ def apply_exposure_shading(
     """
     if top_factor <= 0.0 or bottom_factor <= 0.0 or top_factor == bottom_factor:
         return {'active': False}
-    size_v, _size_u = electrons.shape
+    size_v, _size_u = signal.shape
     gradient = np.linspace(top_factor, bottom_factor, size_v) / top_factor
-    electrons *= gradient[:, None]
+    signal *= gradient[:, None]
     return {'active': True, 'top_factor': top_factor, 'bottom_factor': bottom_factor}
 
 

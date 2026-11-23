@@ -299,7 +299,6 @@ _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
         'missing_data_rate',
         'signal_full_scale_frac',
         'dark_current_e_per_sec',
-        'readout_dark_e',
         'hot_pixel_fraction',
         'hot_pixel_amplitude_e',
         'hot_pixel_column_factor',

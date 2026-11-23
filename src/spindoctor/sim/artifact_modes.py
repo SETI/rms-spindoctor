@@ -556,8 +556,8 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
 )
 
 # Detector / electronics modes.  Each renders inside the detector stage at the
-# physically right point in the unit chain (dark and dark_ramp with the dark
-# pedestal, banding in electrons pre-DN, fixed_pattern PRNU multiplicative
+# physically right point in the unit chain (the readout dark with the dark
+# current, banding in electrons pre-DN, fixed_pattern PRNU multiplicative
 # pre-Poisson, serial_tail as a post-gain DN undershoot, and so on); the exact
 # placement is documented per stage in the detector chain.  A mode with a
 # per-instrument shape reads its shape parameters from the catalog when the
@@ -583,15 +583,19 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         activation_semantics='per-frame probability the bias pedestal / gradients are active',
     ),
     _detector_mode(
-        'dark_ramp',
-        ModeParam('kind', Literal['dark_gradient', 'exposure_shading'], 'dark_gradient'),
+        'readout_dark',
         ModeParam('amplitude_e', NonNeg, None),
         ModeParam('nonlinear', NonNeg, 1.0),
         ModeParam('rbi_column_factor', Unit, 0.0),
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability the readout dark is present',
+    ),
+    _detector_mode(
+        'shutter_shading',
         ModeParam('top_factor', NonNeg, None),
         ModeParam('bottom_factor', NonNeg, None),
         activation=PROBABILITY,
-        activation_semantics='per-frame probability the readout / shutter line ramp is active',
+        activation_semantics='per-frame probability the shutter shading is applied',
     ),
     _detector_mode(
         'bloom',
@@ -767,9 +771,10 @@ TELEMETRY_POST_LOSS_ORDER: tuple[str, ...] = ('reseau_scars', 'resample_texture'
 # them.  Placement inside the unit chain is per-mode (documented in the chain);
 # this order only fixes which mode's truth record is written first.
 DETECTOR_MODE_ORDER: tuple[str, ...] = (
+    'shutter_shading',
     'fixed_pattern',
     'residual_image',
-    'dark_ramp',
+    'readout_dark',
     'frame_transfer_smear',
     'bright_dark_pairs',
     'radiation_transients',

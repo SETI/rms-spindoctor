@@ -101,7 +101,8 @@ gossi:
       - hot_pixels
       - banding
       - bias_structure
-      - dark_ramp
+      - readout_dark
+      - shutter_shading
       - bloom
       - radiation_transients
       - quantization_contour_8bit
@@ -119,7 +120,7 @@ gossi:
       banding: {amplitude_e: 65.0, period_px: 42.0, orientation: vertical}
       bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
       # Shutter line-dependent exposure offset (~1.5 -> ~1.05 ms, line 1->800).
-      dark_ramp: {kind: exposure_shading, top_factor: 1.5, bottom_factor: 1.05}
+      shutter_shading: {top_factor: 1.5, bottom_factor: 1.05}
       bloom: {bloom_length: 6}
       # Ganymede-distance regime: ~1e4 spikes/frame scale in the readout,
       # amplitudes few DN steeply falling (near full well at the top).  A scene

@@ -88,7 +88,7 @@ nhlorri:
       - cutout_window
       - banding
       - bias_structure
-      - dark_ramp
+      - readout_dark
       - radiation_transients
       - frame_transfer_smear
       - serial_tail
@@ -97,6 +97,7 @@ nhlorri:
     # Why validation fails a scene that asks for one of these modes.
     unavailable_reasons:
       hot_pixels: explicitly disabled for LORRI, which has none
+      shutter_shading: not offered for LORRI, a frame-transfer camera with no shutter
       bloom: explicitly disabled for LORRI, an antiblooming CCD with no column bloom
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.

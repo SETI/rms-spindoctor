@@ -138,9 +138,6 @@ class DetectorParams:
             ``b**2`` here, and the chain scales the extended signal and the
             saturation well the same way.
         instrument_defaults: Whether the physical-chain opt-in is on.
-        readout_dark_e: Dark charge the last line collects during the readout,
-            in electrons per frame pixel, growing linearly from 0 at the first
-            line; 0 disables.
         calibration_column_residual_e: Sigma, in electrons per native pixel, of
             the calibrated product's fixed per-column residual; 0 disables.
         calibration_pixel_residual_e: Sigma, in electrons per native pixel, of
@@ -203,7 +200,6 @@ class DetectorParams:
     detector_id: str = 'generic'
     binning: int = 1
     instrument_defaults: bool = False
-    readout_dark_e: float = 0.0
     calibration_column_residual_e: float = 0.0
     calibration_pixel_residual_e: float = 0.0
     hot_pixel_adversarial: bool = False
@@ -610,14 +606,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
-    readout_dark = _default_or_zero(
-        scene_noise,
-        'readout_dark_e',
-        detector_defaults.readout_dark_e,
-        instrument_defaults=instrument_defaults,
-    )
-    if 'readout_dark_e' not in scene_noise:
-        readout_dark *= pixels_per_frame_pixel
     hot_pixel_fraction = _default_or_zero(
         scene_noise,
         'hot_pixel_fraction',
@@ -803,7 +791,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_id=resolve_detector_id(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,
-        readout_dark_e=readout_dark,
         calibration_column_residual_e=calibration_column_residual,
         calibration_pixel_residual_e=calibration_pixel_residual,
         hot_pixel_adversarial=hot_pixel_adversarial,

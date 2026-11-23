@@ -75,13 +75,6 @@ coiss_nac:
     read_noise_e: 12.0  # published (~12 e-)
     bias_dn: 20.0
     dark_current_e_per_sec: 5.0  # estimated (dark dominated by residual bulk image)
-    # Measured 2026-11-06: the dark sky of 12-bit full-frame raw NAC frames rises
-    # linearly from the first line to the last by a median 55 e- (1.8 DN at gain
-    # state 2 over 21 frames, 4.0 DN at gain state 3 over 3), the same from 60 ms
-    # to 2.6 s, so it accumulates during the readout, not the exposure.
-    # CISSCAL's dark model subtracts it from the CALIB product; its shot noise
-    # stays.
-    readout_dark_e: 55.0
     # Published: 0.15% of pixels in 2004, growing to ~0.28% by 2008-2009.
     hot_pixel_fraction: 2.0e-3
     hot_pixel_amplitude_e: 4.0e+4  # estimated (near the full well)
@@ -195,7 +188,8 @@ coiss_nac:
       - hot_pixels
       - banding
       - bias_structure
-      - dark_ramp
+      - readout_dark
+      - shutter_shading
       - bloom
       - radiation_transients
       - bright_dark_pairs
@@ -207,6 +201,7 @@ coiss_nac:
     # instrument_defaults turns on.
     instrument_defaults:
       banding: {probability: 1.0}
+      readout_dark: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     # An activation key is never cataloged: a mode activates only when a scene
     # sets it.  Shapes here are the values a scene inherits when it sets a mode
@@ -217,8 +212,13 @@ coiss_nac:
       banding: {amplitude_e: 30.0, period_px: 64.0, orientation: horizontal}
       # Per-image pedestal jitter plus readout-direction gradients.
       bias_structure: {pedestal_sigma_dn: 2.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
-      # RBI-dominated dark grows toward the last readout line.
-      dark_ramp: {kind: dark_gradient, amplitude_e: 150.0}
+      # Measured 2026-11-06: the dark sky of 12-bit full-frame raw NAC frames rises
+      # linearly from the first line to the last by a median 55 e- (1.8 DN at gain
+      # state 2 over 21 frames, 4.0 DN at gain state 3 over 3), the same from 60 ms
+      # to 2.6 s, so it accumulates during the readout, not the exposure.
+      # CISSCAL's dark model subtracts it from the CALIB product; its shot noise
+      # stays.
+      readout_dark: {amplitude_e: 55.0}
       bloom: {bloom_length: 4}
       # Anti-blooming vertical 2-px pairs in unsummed long exposures.
       bright_dark_pairs: {amplitude_e: 4.0e+3}
@@ -285,10 +285,6 @@ coiss_wac:
     read_noise_e: 12.0  # published (~12 e-)
     bias_dn: 20.0
     dark_current_e_per_sec: 5.0
-    # Measured 2026-11-06 on one 12-bit full-frame WAC star field (the other
-    # 12-bit full frames carry scene light down the frame): the dark sky rises
-    # 1.2 DN, 33 e-, from the first line to the last.
-    readout_dark_e: 33.0
     hot_pixel_fraction: 2.0e-3
     hot_pixel_amplitude_e: 3.5e+4
     hot_pixel_column_factor: 0.3
@@ -360,7 +356,8 @@ coiss_wac:
       - hot_pixels
       - banding
       - bias_structure
-      - dark_ramp
+      - readout_dark
+      - shutter_shading
       - bloom
       - radiation_transients
       - bright_dark_pairs
@@ -372,13 +369,17 @@ coiss_wac:
     # instrument_defaults turns on.
     instrument_defaults:
       banding: {probability: 1.0}
+      readout_dark: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
       # Published: ~6 e- horizontal bands at 4.0 Hz.  The period is the NAC's
       # estimate.
       banding: {amplitude_e: 6.0, period_px: 64.0, orientation: horizontal}
       bias_structure: {pedestal_sigma_dn: 2.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
-      dark_ramp: {kind: dark_gradient, amplitude_e: 150.0}
+      # Measured 2026-11-06 on one 12-bit full-frame WAC star field (the other
+      # 12-bit full frames carry scene light down the frame): the dark sky rises
+      # 1.2 DN, 33 e-, from the first line to the last.
+      readout_dark: {amplitude_e: 33.0}
       bloom: {bloom_length: 4}
       bright_dark_pairs: {amplitude_e: 3.5e+3}
       radiation_transients: {amplitude_e: 3.5e+4}

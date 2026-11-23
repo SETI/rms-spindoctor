@@ -15,19 +15,20 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
 
 from spindoctor.sim.render.detector.electronics_stages import (
     add_banding,
     add_bright_dark_pairs,
-    add_dark_ramp,
     add_fixed_pattern_dn,
     add_fixed_pattern_response,
+    add_readout_dark,
     add_residual_image,
     add_serial_tail,
     apply_beam_bend,
-    apply_exposure_shading,
     apply_frame_transfer_smear,
+    apply_shutter_shading,
+    readout_dark_profile,
 )
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt
@@ -113,50 +114,72 @@ def test_banding_disabled_at_zero_amplitude() -> None:
     assert np.all(electrons == 0.0)
 
 
-# --- dark_ramp --------------------------------------------------------------
+# --- readout_dark -----------------------------------------------------------
 
 
-def test_dark_ramp_grows_with_line_number() -> None:
-    """The additive dark ramp is zero at the top and peaks at the last line."""
-    electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    add_dark_ramp(
-        electrons, amplitude_e=100.0, nonlinear=1.0, rbi_column_factor=0.0, hot_columns=None
-    )
-    assert float(electrons[0].mean()) == pytest.approx(0.0)
-    assert float(electrons[-1].mean()) == pytest.approx(100.0)
-    assert float(electrons[_SIZE // 2].mean()) < float(electrons[-1].mean())
+def test_readout_dark_grows_with_line_number() -> None:
+    """The profile is zero at the first line and the amplitude at the last."""
+    profile = readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=1.0, binning=1)
+    assert profile[0] == 0.0
+    assert profile[-1] == pytest.approx(100.0)
+    assert profile[_SIZE // 2] == pytest.approx(100.0 * (_SIZE // 2) / (_SIZE - 1))
 
 
-def test_dark_ramp_rbi_enhances_named_columns() -> None:
-    """The RBI flavor adds an extra ramp on the enhanced columns."""
-    electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    add_dark_ramp(
-        electrons,
-        amplitude_e=100.0,
-        nonlinear=1.0,
+def test_a_nonlinear_readout_dark_grows_late() -> None:
+    """An exponent above 1 holds the profile below the linear one between the ends."""
+    linear = readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=1.0, binning=1)
+    bent = readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=2.0, binning=1)
+    assert np.all(bent[1:-1] < linear[1:-1])
+
+
+def test_readout_dark_enhances_the_rbi_columns() -> None:
+    """The RBI columns get the extra fraction of the profile, and the rest don't."""
+    plane = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    add_readout_dark(
+        plane,
+        readout_dark_profile(_SIZE, amplitude_e=100.0, nonlinear=1.0, binning=1),
         rbi_column_factor=0.5,
-        hot_columns=np.array([10, 20], dtype=np.int64),
+        rbi_columns=np.array([10, 20], dtype=np.int64),
     )
-    assert float(electrons[-1, 10]) > float(electrons[-1, 5])
-    assert float(electrons[-1, 10]) == pytest.approx(150.0)
+    assert float(plane[-1, 10]) == pytest.approx(150.0)
+    assert float(plane[-1, 5]) == pytest.approx(100.0)
 
 
-def test_dark_ramp_disabled_at_zero_amplitude() -> None:
-    """A zero ramp amplitude is a no-op."""
-    electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    record = add_dark_ramp(
-        electrons, amplitude_e=0.0, nonlinear=1.0, rbi_column_factor=0.0, hot_columns=None
+def test_readout_dark_disabled_at_zero_amplitude() -> None:
+    """A zero amplitude is a no-op."""
+    plane = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    record = add_readout_dark(
+        plane,
+        readout_dark_profile(_SIZE, amplitude_e=0.0, nonlinear=1.0, binning=1),
+        rbi_column_factor=0.5,
+        rbi_columns=np.array([10], dtype=np.int64),
     )
     assert record['active'] is False
-    assert np.all(electrons == 0.0)
+    assert np.all(plane == 0.0)
 
 
-def test_exposure_shading_scales_by_line() -> None:
+# --- shutter_shading --------------------------------------------------------
+
+
+def test_shutter_shading_scales_by_line() -> None:
     """The shutter shading scales line 0 by 1 and the last line by the ratio."""
     electrons = np.full((_SIZE, _SIZE), 10.0, dtype=np.float64)
-    apply_exposure_shading(electrons, top_factor=1.5, bottom_factor=1.05)
+    apply_shutter_shading(electrons, top_factor=1.5, bottom_factor=1.05)
     assert float(electrons[0].mean()) == pytest.approx(10.0)
     assert float(electrons[-1].mean()) == pytest.approx(10.0 * 1.05 / 1.5)
+
+
+def test_shutter_shading_leaves_the_dark_current_alone() -> None:
+    """The shutter shades the light, and dark charge builds up whether it is open or not."""
+    scene = frame_scene(
+        instrument='gossi',
+        seed=3,
+        exposure_sec=1.0,
+        noise={**quiet_noise(), 'dark_current_e_per_sec': 2.0e4},
+        artifacts={'shutter_shading': {'probability': 1.0}},
+    )
+    img, _ = render_scene(scene)
+    assert float(np.ptp(img)) == 0.0
 
 
 # --- frame_transfer_smear ---------------------------------------------------

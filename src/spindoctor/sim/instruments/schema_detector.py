@@ -139,8 +139,6 @@ class Detector:
         default_gain_state: The gain state a scene gets when it sets none.
         read_noise_e: The read noise, in electrons.
         dark_current_e_per_sec: The dark current, in electrons per second.
-        readout_dark_e: The dark charge collected during readout, in electrons at
-            the last line.
         hot_pixel_fraction: The fraction of pixels that are hot.
         hot_pixel_amplitude_e: A hot pixel's charge, in electrons.
         hot_pixel_column_factor: The share of hot pixels that line up in columns.
@@ -176,7 +174,6 @@ class Detector:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
-    readout_dark_e: NonNeg | None = None
     hot_pixel_fraction: Unit | None = None
     hot_pixel_amplitude_e: NonNeg | None = None
     hot_pixel_column_factor: Unit | None = None
@@ -254,7 +251,6 @@ class ReadoutMode:
         default_gain_state: As :class:`Detector`.
         read_noise_e: As :class:`Detector`.
         dark_current_e_per_sec: As :class:`Detector`.
-        readout_dark_e: As :class:`Detector`.
         hot_pixel_fraction: As :class:`Detector`.
         hot_pixel_amplitude_e: As :class:`Detector`.
         hot_pixel_column_factor: As :class:`Detector`.
@@ -284,7 +280,6 @@ class ReadoutMode:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
-    readout_dark_e: NonNeg | None = None
     hot_pixel_fraction: Unit | None = None
     hot_pixel_amplitude_e: NonNeg | None = None
     hot_pixel_column_factor: Unit | None = None
