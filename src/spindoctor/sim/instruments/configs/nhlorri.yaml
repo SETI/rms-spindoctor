@@ -105,10 +105,25 @@ nhlorri:
       frame_transfer_smear: {t_scrub_sec: 0.012, t_transfer_sec: 0.011}
       # Saturated compact sources undershoot up to ~12 DN along readout.
       serial_tail: {amplitude_dn: 12.0, length_px: 8, direction: right}
-      # Published: random horizontal striping of at most 1 DN, plus ~0.8 DN (~17 e-)
-      # vertical banding near low columns.  The bands are drawn horizontal at 17 e-;
-      # a scene adds a vertical set with orientation both.  The period is estimated.
-      banding: {amplitude: 17.0, period_px: 128.0, orientation: horizontal}
+      # Published (Weaver et al. 2020): random horizontal striping of at most 1 DN
+      # that moves from frame to frame.  Each row takes its own offset, uniform
+      # within 21 e- (1 DN at the 1x1 gain) of zero; the uniform spread is
+      # estimated.  Published (Cheng et al. 2008): amplifier ringing gives vertical
+      # banding near the low column numbers, at most ~0.8 DN peak to trough, the
+      # same in every frame, since it survives the average that makes the
+      # pipeline's bias frame.  Its period (103 native columns) and its decay (71
+      # native columns to fall by a factor of e) are estimated from that bias frame
+      # as Weaver et al. 2020 show it (Figure 8): a damped sine starting at column 0
+      # fits the figure's column profile to 0.02 DN.  The figure's first swing reads
+      # about 1.05 DN; the envelope of 15.8 e- gives the wave the published 0.8 DN
+      # first swing at the 1x1 gain.
+      banding:
+        amplitude: 21.0
+        orientation: horizontal
+        horizontal_pattern: random
+        ringing_amplitude: 15.8
+        ringing_period_px: 103.0
+        ringing_decay_px: 71.0
       bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 0.5, col_gradient_dn: 0.5}
       # ~4% corner vignetting, 0.9% PRNU, <=0.5 DN even/odd jail bars, ~1% dust
       # donuts.

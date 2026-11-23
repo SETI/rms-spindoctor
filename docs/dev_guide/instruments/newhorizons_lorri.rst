@@ -294,10 +294,16 @@ lists its modes, and the simulator guide's mode tables
 cameras. Its detector model is ``ccd``. The entry lists ``frame_transfer_smear``,
 ``banding``, and ``bias_structure`` under ``artifact_modes.instrument_defaults``, so
 ``instrument_defaults`` turns them on: the smear at its nominal scrub and transfer
-times, and the banding as horizontal bands of 17 e- every 128 rows. The camera also
-shows about 0.8 DN of vertical banding near its low column numbers. A scene can add
-vertical bands with ``orientation: both``, though they then cover the whole frame at
-the same amplitude. Its shape defaults give ``embedded_header`` a 34-pixel header, the binary housekeeping at the
+times, and the banding as the camera's two published patterns. The first is a
+random horizontal striping of at most 1 DN that moves from frame to frame (Weaver et
+al. 2020): each row takes its own offset, drawn evenly from within 21 e- of zero.
+The second is vertical banding near the low column numbers, which Cheng et al.
+(2008) trace to the amplifier ringing and put at about 0.8 DN from peak to trough.
+It is drawn as a damped wave that starts at the first column and is the same in
+every frame. Its period of 103 native columns and its decay to 1/e over 71 are read
+from the bias frame Weaver et al. show, so both are estimates. A binned frame
+column takes the mean of the wave over the native columns it holds. Its shape
+defaults give ``embedded_header`` a 34-pixel header, the binary housekeeping at the
 start of row 0 of every image.
 
 The entry states an explicit **exclusion reason** for three modes:

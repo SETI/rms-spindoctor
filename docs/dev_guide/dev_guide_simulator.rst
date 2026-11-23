@@ -1838,7 +1838,8 @@ on a mode that the scene's detector model never renders.
      - nac, wac, gossi
      - ``pixel_fraction``
    * - ``banding``
-     - coherent readout interference: bands along the rows, the columns, or both
+     - readout interference: bands along the rows, the columns, or both, and an
+       amplifier's ringing from the first column
      - all
      - ``probability``
    * - ``bias_structure``
@@ -4485,9 +4486,10 @@ later planted-versus-measured match.
 
 **Detector / electronics modes** render inside the detector stage at the
 physically right point in the unit chain (see :ref:`sim-detector-stage`): ``banding`` (the
-Cassini 2 Hz / Galileo 42-px / LORRI striping / Voyager 2.4 kHz family,
-horizontal and/or vertical, with an optional mid-image frequency and dark-level
-step), ``bias_structure`` (per-image pedestal plus low-order gradients), ``readout_dark``
+Cassini 2 Hz / Galileo 42-px / LORRI striping / Voyager 2.4 kHz family:
+periodic or random bands along the rows, periodic bands along the columns, an
+optional mid-image frequency and dark-level step, and an amplifier's damped ringing
+from the first column), ``bias_structure`` (per-image pedestal plus low-order gradients), ``readout_dark``
 (the charge each line collects while it waits to be read, with an optional set of enhanced
 columns), ``shutter_shading`` (a focal-plane shutter's line-dependent exposure),
 ``hot_pixels`` (the detector's fixed map of pixels that leak charge),

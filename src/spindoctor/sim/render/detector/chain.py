@@ -3,7 +3,7 @@
 This is the normative unit chain of the renderer.  For a CCD the composed
 intensive signal is converted to electrons through the exposure, the point-source
 electron plane is added, and the frame passes through Poisson shot noise,
-electron-domain full-well bloom, read noise, coherent banding, gain to DN, bias
+electron-domain full-well bloom, read noise, banding, gain to DN, bias
 structure, quantization, and the ADC clip.  A camera's physical saturation
 therefore emerges from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling for
 Cassini), not from the ADC clip.
@@ -255,8 +255,13 @@ def _apply_banding(
         amplitude=float(cfg['amplitude'] or 0.0),
         period_px=float(cfg['period_px'] or 0.0),
         orientation=str(cfg['orientation']),
+        horizontal_pattern=str(cfg['horizontal_pattern']),
         freq_step_factor=float(cfg['freq_step_factor']),
         dark_step_dn=float(cfg['dark_step_dn']),
+        ringing_amplitude=float(cfg['ringing_amplitude']),
+        ringing_period_px=float(cfg['ringing_period_px']),
+        ringing_decay_px=float(cfg['ringing_decay_px']),
+        binning=dp.binning,
         gain_e_per_dn=gain_e_per_dn,
         rng=_stream_rng(dp, 'banding'),
     )

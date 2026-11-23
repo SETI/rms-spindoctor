@@ -21,8 +21,12 @@ def test_an_instrument_default_mode_renders_with_the_cameras_shape() -> None:
         'amplitude': 65.0,
         'period_px': 42.0,
         'orientation': 'vertical',
+        'horizontal_pattern': 'periodic',
         'freq_step_factor': 1.0,
         'dark_step_dn': 0.0,
+        'ringing_amplitude': 0.0,
+        'ringing_period_px': 0.0,
+        'ringing_decay_px': 0.0,
     }
 
 
@@ -85,7 +89,14 @@ _DEFAULT_MODES: dict[str, dict[str, dict[str, Any]]] = {
     },
     'nhlorri': {
         'frame_transfer_smear': {},
-        'banding': {'orientation': 'horizontal'},
+        'banding': {
+            'amplitude': 21.0,
+            'orientation': 'horizontal',
+            'horizontal_pattern': 'random',
+            'ringing_amplitude': 15.8,
+            'ringing_period_px': 103.0,
+            'ringing_decay_px': 71.0,
+        },
         'bias_structure': {'pedestal_sigma_dn': 1.0, 'row_gradient_dn': 0.5},
     },
     'vgiss': {
