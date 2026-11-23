@@ -374,7 +374,7 @@ def test_detector_binning_is_authorable(model: Any) -> None:
 
 @pytest.mark.parametrize(
     ('instrument', 'choices'),
-    [('coiss_nac', ['1', '2', '4']), ('nhlorri', ['1', '4']), ('vgiss', ['1'])],
+    [('coiss_nac', ['1', '2', '4']), ('nhlorri', ['1', '4']), ('vgiss_1_nac', ['1'])],
 )
 def test_detector_binning_offers_the_instruments_cataloged_modes(
     model: Any, instrument: str, choices: list[str]
@@ -517,7 +517,7 @@ def test_choosing_the_camera_default_drops_an_unlisted_table(model: Any) -> None
     model._apply_params_dict(
         {'instrument': 'coiss_nac', 'detector': {'downlink_table': 'table_12_to_8'}}
     )
-    model._instrument_combo.setCurrentText('vgiss')
+    model._instrument_combo.setCurrentText('vgiss_1_nac')
     model._detector_downlink_combo.setCurrentIndex(0)
     combo = model._detector_downlink_combo
     assert [combo.itemText(i) for i in range(combo.count())] == ['camera default']
@@ -762,7 +762,7 @@ def test_setting_count_resets_the_expected_events_display(model: Any) -> None:
 
 def test_an_unset_mode_parameter_shows_the_cameras_shape_default(model: Any) -> None:
     """An unset key shows the camera's shape default, as the renderer resolves it."""
-    model._apply_params_dict({'instrument': 'vgiss', 'artifacts': {'edited_frame': {}}})
+    model._apply_params_dict({'instrument': 'vgiss_1_nac', 'artifacts': {'edited_frame': {}}})
     row = model._mode_rows['edited_frame']
     assert row._scalar_widgets['band_width_px'].value() == 550
 

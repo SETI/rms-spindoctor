@@ -264,7 +264,7 @@ def test_the_ccd_chain_converts_the_dark_step_through_the_gain() -> None:
 def test_the_vidicon_chain_adds_the_dark_step_in_dn() -> None:
     """On the vidicon chain the dark step is 10 DN, read through the calibration."""
     quiet = {'vidicon': {'read_noise_line_dn': 0.0, 'read_noise_pixel_dn': 0.0}}
-    scene = _dark_step_frame('vgiss', quiet)
+    scene = _dark_step_frame('vgiss_1_nac', quiet)
     img, _ = render_scene(scene)
     step_if = 10.0 / (resolve_detector_params(scene).calibration_scale_dn_per_s_per_if * 0.1)
     step = float(img[_SIZE // 2 :].mean() - img[: _SIZE // 2].mean())
@@ -331,10 +331,12 @@ def test_the_vidicon_bands_are_vertical() -> None:
     """The vidicon chain draws its camera's bands down the columns, in DN."""
     quiet = {'vidicon': {'read_noise_line_dn': 0.0, 'read_noise_pixel_dn': 0.0}}
     blocks: dict[str, Any] = {'noise': quiet, 'detector': {'quantization': 'exact'}}
-    on, _ = render_scene(disc_scene('vgiss', artifacts={'banding': {'probability': 1.0}}, **blocks))
+    on, _ = render_scene(
+        disc_scene('vgiss_1_nac', artifacts={'banding': {'probability': 1.0}}, **blocks)
+    )
     strong, truth = render_scene(
         disc_scene(
-            'vgiss', artifacts={'banding': {'probability': 1.0, 'amplitude': 20.0}}, **blocks
+            'vgiss_1_nac', artifacts={'banding': {'probability': 1.0, 'amplitude': 20.0}}, **blocks
         )
     )
     assert truth['artifacts']['banding']['orientation'] == 'vertical'
