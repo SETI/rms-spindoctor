@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_scene, frame_scene
+from tests.spindoctor.sim.scenes import disc_scene, frame_scene, quiet_noise
 
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.detector.saturation import add_serial_tail, apply_saturation
@@ -89,6 +89,21 @@ def test_render_saturates_at_physical_full_well() -> None:
     expected = round(_FULL_WELL_E / _NAC_GAIN + _NAC_BIAS)
     assert float(img.max()) == expected
     assert expected < 4095.0
+
+
+def test_the_bloom_mode_spreads_a_saturated_source_along_its_column() -> None:
+    """A rendered star above the full well saturates more of its column with the mode on."""
+    star = {'name': 'S', 'v': 48.5, 'u': 48.5, 'vmag': -1.0}
+    blocks: dict[str, Any] = {'instrument': 'coiss_nac', 'size': 96, 'noise': quiet_noise()}
+    off, _ = render_scene(frame_scene(stars=[star], **blocks))
+    on, truth = render_scene(
+        frame_scene(
+            stars=[star], artifacts={'bloom': {'probability': 1.0, 'bloom_length': 9}}, **blocks
+        )
+    )
+    ceiling = round(_FULL_WELL_E / _NAC_GAIN)
+    assert int((on[:, 48] >= ceiling).sum()) > int((off[:, 48] >= ceiling).sum()) > 0
+    assert truth['artifacts']['bloom'] == {'active': True, 'bloom_length': 9}
 
 
 def test_lorri_does_not_bloom_under_instrument_defaults() -> None:
