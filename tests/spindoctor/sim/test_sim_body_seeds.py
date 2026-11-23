@@ -9,7 +9,7 @@ distinct entries in the body shape cache instead of colliding on one.
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.bodies import render as body_render
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
@@ -33,6 +33,7 @@ def _twin_body_scene() -> dict[str, Any]:
         size=(96, 160),
         seed=42,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[
             {'name': 'ALPHA', 'center_v': 48.0, 'center_u': 44.0, **_BODY_GEOMETRY},
             {'name': 'BETA', 'center_v': 48.0, 'center_u': 116.0, **_BODY_GEOMETRY},

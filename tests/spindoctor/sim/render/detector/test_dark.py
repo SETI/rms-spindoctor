@@ -11,7 +11,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.detector.dark import (
     add_dark_current,
@@ -87,6 +87,7 @@ def _readout_scene(instrument: str, readout_dark: dict[str, Any], **extra: Any) 
         seed=3,
         exposure_sec=0.1,
         noise=quiet_noise(),
+        detector=zero_bias(),
         artifacts={'readout_dark': {'probability': 1.0, **readout_dark}},
     )
     scene.update(extra)

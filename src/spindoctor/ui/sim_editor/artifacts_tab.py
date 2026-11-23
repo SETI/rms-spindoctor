@@ -20,15 +20,15 @@ tooltip says why.  If the scene already includes such a mode, its row stays enab
 until the author turns the mode off.  The rows refresh when the instrument, the
 detector model, or the binning changes.
 
-The detector group is a checkable override for seven keys: the gain state, the
-binning, the detector model, the reference exposure, the quantization, the downlink
-table, and the contour step.  It too writes only the keys the author edits, so a vgiss
-scene stays vidicon without ever writing ``detector_model``.  Choosing 'camera
-default' for the downlink table removes the key, so the camera's default table
-applies, and stepping the contour step down to 'default' removes that key.
+The detector group is a checkable override for every ``detector`` key but the filter.
+It too writes only the keys the author edits, so a vgiss scene stays vidicon without
+ever writing ``detector_model``.  Choosing 'camera default' for the downlink table
+removes the key, so the camera's default table applies, and stepping the full well down
+to 'camera default' or the contour step down to 'default' removes that key.
 """
 
-from typing import Any
+from functools import partial
+from typing import Any, NamedTuple
 
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -63,6 +63,66 @@ _STAGE_TITLES: tuple[tuple[str, str], ...] = (
 
 # The downlink-table choice that leaves ``detector.downlink_table`` out of the scene.
 _CAMERA_DEFAULT_TABLE = 'camera default'
+
+
+class _ValueSpin(NamedTuple):
+    """One detector key a plain number box edits.
+
+    Parameters:
+        key: The ``detector`` key.
+        label: The row's label.
+        value_range: The smallest and largest value the box takes.
+        decimals: The decimals the box shows.
+        step: The box's step.
+        tooltip: What the key does.
+    """
+
+    key: str
+    label: str
+    value_range: tuple[float, float]
+    decimals: int
+    step: float
+    tooltip: str
+
+
+# The number boxes that show the scene's value, or else the camera's.
+_VALUE_SPINS: tuple[_ValueSpin, ...] = (
+    _ValueSpin(
+        key='bias_dn',
+        label='Bias (DN):',
+        value_range=(0.0, 10000.0),
+        decimals=2,
+        step=1.0,
+        tooltip='Additive bias pedestal in DN (lifts dark sky off zero). The calibration '
+        'of a calibrated frame subtracts it again.',
+    ),
+    _ValueSpin(
+        key='saturation_dn',
+        label='Saturation (DN):',
+        value_range=(1.0, 1.0e6),
+        decimals=2,
+        step=1.0,
+        tooltip="The ADC ceiling the frame is clipped at. The navigator still reads the camera's "
+        'own ceiling.',
+    ),
+    _ValueSpin(
+        key='signal_full_scale_frac',
+        label='Signal full-scale frac:',
+        value_range=(0.0, 10.0),
+        decimals=3,
+        step=0.05,
+        tooltip='Signal of 1.0 maps to this fraction of the full well.',
+    ),
+    _ValueSpin(
+        key='missing_data_rate',
+        label='Missing data rate:',
+        value_range=(0.0, 1.0),
+        decimals=3,
+        step=0.005,
+        tooltip="Fraction of pixels lost at random, each set to the instrument's missing-data "
+        'marker (0 on every shipped instrument).',
+    ),
+)
 
 
 class ArtifactsTabMixin(SimEditorBase):
@@ -285,6 +345,25 @@ class ArtifactsTabMixin(SimEditorBase):
         )
         form.addRow('Detector model:', self._detector_model_combo)
 
+        self._detector_value_spins = {}
+        for value_spin in _VALUE_SPINS:
+            spin = QDoubleSpinBox()
+            spin.setDecimals(value_spin.decimals)
+            spin.setRange(*value_spin.value_range)
+            spin.setSingleStep(value_spin.step)
+            spin.setToolTip(f'{value_spin.tooltip} Written to the scene only when edited.')
+            form.addRow(value_spin.label, spin)
+            self._detector_value_spins[value_spin.key] = spin
+
+        self._detector_full_well_spin = QDoubleSpinBox()
+        self._detector_full_well_spin.setRange(0.0, 1.0e6)
+        self._detector_full_well_spin.setDecimals(2)
+        self._detector_full_well_spin.setSpecialValueText('camera default')
+        self._detector_full_well_spin.setToolTip(
+            'The full well of a native pixel, in DN. Written to the scene only when edited.'
+        )
+        form.addRow('Full well (DN):', self._detector_full_well_spin)
+
         self._detector_exposure_ref_spin = QDoubleSpinBox()
         self._detector_exposure_ref_spin.setRange(0.001, 10000.0)
         self._detector_exposure_ref_spin.setDecimals(4)
@@ -325,6 +404,9 @@ class ArtifactsTabMixin(SimEditorBase):
         # Connect after the initial values so the build does not write.
         self._detector_gain_state_spin.valueChanged.connect(self._on_detector_gain_state)
         self._detector_binning_combo.currentTextChanged.connect(self._on_detector_binning)
+        for key, spin in self._detector_value_spins.items():
+            spin.valueChanged.connect(partial(self._on_detector_value, key))
+        self._detector_full_well_spin.valueChanged.connect(self._on_detector_full_well)
         self._detector_exposure_ref_spin.valueChanged.connect(self._on_detector_exposure_ref)
         self._detector_model_combo.currentTextChanged.connect(self._on_detector_model)
         self._detector_quantization_combo.currentTextChanged.connect(self._on_detector_quantization)
@@ -344,6 +426,9 @@ class ArtifactsTabMixin(SimEditorBase):
         self._set_binning_choices(binning)
         self._show_readout_mode_values(binning)
         self._set_downlink_table_choices()
+        self._detector_full_well_spin.setValue(
+            float(self._detector_block().get('full_well_dn', 0.0))
+        )
         self._detector_contour_step_spin.setValue(
             int(self._detector_block().get('contour_step', 0))
         )
@@ -367,6 +452,8 @@ class ArtifactsTabMixin(SimEditorBase):
         model_index = self._detector_model_combo.findText(model)
         if model_index >= 0:
             self._detector_model_combo.setCurrentIndex(model_index)
+        for key, spin in self._detector_value_spins.items():
+            spin.setValue(float(block.get(key, getattr(detector_defaults, key))))
         self._detector_exposure_ref_spin.setValue(
             float(block.get('exposure_ref_sec', detector_defaults.exposure_ref_sec))
         )
@@ -492,6 +579,17 @@ class ArtifactsTabMixin(SimEditorBase):
         finally:
             self._syncing = False
         self._refresh_artifact_mode_availability()
+
+    def _on_detector_value(self, key: str, value: float) -> None:
+        """Write a plain detector value on a spin edit."""
+        self._set_detector_key(key, float(value))
+
+    def _on_detector_full_well(self, value: float) -> None:
+        """Write the full well, or remove it at the spin's 'camera default' value."""
+        if value > 0.0:
+            self._set_detector_key('full_well_dn', float(value))
+        else:
+            self._remove_detector_key('full_well_dn')
 
     def _on_detector_exposure_ref(self, value: float) -> None:
         """Write the reference exposure on a spin edit."""

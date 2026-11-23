@@ -1,14 +1,18 @@
 """Resolved detector parameters for one scene render.
 
-:class:`DetectorParams` collapses the emulated instrument's navigator block, its
-detector defaults (:mod:`spindoctor.sim.instruments.resolvers`),
-the scene ``detector`` / ``noise`` blocks, and the ``artifacts.instrument_defaults``
-switch into one flat, resolved view the detector stage reads.
+:class:`DetectorParams` collapses the emulated instrument's detector defaults
+(:mod:`spindoctor.sim.instruments.resolvers`), the scene ``detector`` / ``noise``
+blocks, and the ``artifacts.instrument_defaults`` switch into one flat, resolved view
+the detector stage reads.  It reads nothing from the navigator's configuration, so a
+scene's frame follows the instrument entry and the scene alone, whatever the navigator
+believes about the camera.
 
-Resolution precedence, highest first: an explicit scene key (``detector`` block,
-then ``noise`` block), then the detector default when ``instrument_defaults`` is on,
-then the disabled floor (physical-chain artifacts default to zero so an
-unconfigured scene renders a clean DN frame, per the stage-activation rule).
+A scene's ``detector`` key replaces the instrument entry's value.  The entry's gain,
+bias, ADC ceiling, full well, signal scale, and missing-data rate apply whether or not
+``instrument_defaults`` is on.  The noise terms resolve in this order, highest first: an
+explicit scene ``noise`` key, then the detector default when ``instrument_defaults`` is
+on, then the disabled floor (physical-chain artifacts default to zero so an unconfigured
+scene renders a clean DN frame, per the stage-activation rule).
 ``instrument_defaults`` turns on the whole physical chain, including Poisson
 shot noise, the artifact modes the instrument entry lists under
 ``artifact_modes.instrument_defaults``, and the detector defaults'
@@ -21,9 +25,9 @@ and stay off.
 The ``noise.read_noise_dn`` key is a DN value, converted to electrons through
 the resolved gain, so a scene that pins a DN read-noise level gets exactly that
 DN-level behavior out of the electron chain.  ``signal_full_scale_frac`` is the
-well fraction a signal of 1.0 fills at the reference exposure; the image-side
-DN well is derived (``full_well_e / gain_e_per_dn``) and the navigator-side
-``full_well_dn`` config key is a separate published value.  A scene
+well fraction a signal of 1.0 fills at the reference exposure.  A scene
+``detector.full_well_dn`` sets the well of either chain in DN; the CCD chain converts it
+to electrons through the resolved gain.  A scene
 ``detector.filter`` replaces the reference exposure with the one the filter's
 measured throughput implies (:mod:`spindoctor.sim.instruments.resolvers`).
 """
@@ -37,13 +41,11 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     DETECTOR_MODE_ORDER,
     PROBABILITY,
 )
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     FilterCatalogError,
     cataloged_binnings,
@@ -67,7 +69,6 @@ from spindoctor.sim.render.detector.sqrt_lut import (
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
 from spindoctor.sim.scene.fields import scene_binning
 from spindoctor.sim.seeds import derive_effect_seed
-from spindoctor.support.image_class import missing_data_marker
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['CalibrationMap', 'DetectorParams', 'calibration_map', 'resolve_detector_params']
@@ -95,7 +96,7 @@ class DetectorParams:
         read_noise_e: Read-noise sigma in electrons (CCD path).
         bias_dn: Additive DN bias pedestal.
         saturation_dn: ADC clip ceiling in DN.
-        full_well_dn: Published ADC-referenced well (vidicon DN full scale).
+        full_well_dn: The vidicon chain's DN full scale.
         quantization: ADC quantization sub-mode.
         poisson: Whether shot noise is applied.
         cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel
@@ -115,9 +116,7 @@ class DetectorParams:
             I/F divide on a calibrated frame: the instrument's detector default,
             else the generic entry's (see
             :func:`~spindoctor.sim.instruments.resolvers.resolve_calibrated_sky_if`).
-        marker_value: The missing-data marker the navigator applies to the frame
-            (see :func:`~spindoctor.support.image_class.missing_data_marker`),
-            possibly NaN; the calibration inverse keeps every pixel off it.
+        missing_data_rate: The fraction of the pixels the downlink loses at random.
         random_seed: The scene seed for the detector's fixed-pattern streams and for
             each artifact mode's activation draw.
         noise_seed: The seed for the detector's per-frame random streams: the
@@ -175,7 +174,7 @@ class DetectorParams:
     calibration_scale_dn_per_s_per_if: float
     dark_dn: float
     calibrated_sky_if: float
-    marker_value: float
+    missing_data_rate: float
     random_seed: int
     noise_seed: int
     detector_id: str = 'generic'
@@ -427,7 +426,7 @@ def _filter_exposure_ref(
 
 
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
-    """Collapse the scene, navigator block, and detector defaults into one detector view.
+    """Collapse the scene and its instrument's detector defaults into one detector view.
 
     A scene ``noise``, ``noise.vidicon``, or ``detector`` key that the scene leaves out
     takes the detector default or the configuration default.
@@ -445,11 +444,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
             frame through a downlink table that decodes above the ADC ceiling.
     """
     instrument = params.get('instrument')
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, instrument, params.get('instrument_config')
-    )
-    inst_noise = inst_config.get('noise') or {}
-    sim_noise = DEFAULT_CONFIG.category('sim')['noise']
     detector_block = params.get('detector') or {}
     binning = _cataloged_binning(params, instrument=instrument)
     # The readout mode's published values replace the native ones it names.
@@ -475,21 +469,21 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     quantization = str(detector_block.get('quantization', detector_defaults.quantization))
 
     signal_full_scale_frac = float(
-        scene_noise.get(
-            'signal_full_scale_frac',
-            inst_noise.get('signal_full_scale_frac', sim_noise['signal_full_scale_frac']),
-        )
+        detector_block.get('signal_full_scale_frac', detector_defaults.signal_full_scale_frac)
     )
-    bias_dn = float(scene_noise.get('bias_dn', detector_defaults.bias_dn))
-    saturation_dn = float(inst_noise.get('saturation_dn', sim_noise['saturation_dn']))
-    full_well_dn = float(inst_noise.get('full_well_dn', sim_noise['full_well_dn']))
+    bias_dn = float(detector_block.get('bias_dn', detector_defaults.bias_dn))
+    saturation_dn = float(detector_block.get('saturation_dn', detector_defaults.saturation_dn))
+    full_well_dn = float(detector_block.get('full_well_dn', detector_defaults.full_well_dn))
+    missing_data_rate = float(
+        detector_block.get('missing_data_rate', detector_defaults.missing_data_rate)
+    )
 
     gain_e_per_dn = _resolve_gain(detector_defaults, detector_block, instrument=instrument)
-    full_well_e = (
-        full_well_dn * gain_e_per_dn
-        if detector_defaults.full_well_e is None
-        else detector_defaults.full_well_e
-    )
+    # A scene's well is in DN on both chains.  Without one, the CCD chain takes the
+    # entry's well in electrons, if it states one.
+    full_well_e = detector_defaults.full_well_e
+    if full_well_e is None or 'full_well_dn' in detector_block:
+        full_well_e = full_well_dn * gain_e_per_dn
     # The smallest cosmic-ray deposit: a scene value, else the detector default when
     # instrument_defaults is on, else the full well, so every hit clips.
     if 'cosmic_ray_amplitude_e' in scene_noise:
@@ -525,7 +519,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     else:
         poisson = instrument_defaults
     # Cosmic rays (expected events per pixel per second): scene value, else the
-    # detector defaults' rate when instrument_defaults is on, else the config floor.
+    # detector defaults' rate when instrument_defaults is on, else none.
     cr_key = 'cosmic_ray_events_per_pixel_per_sec'
     if cr_key in scene_noise:
         cosmic_ray_rate = float(scene_noise[cr_key])
@@ -533,7 +527,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         rate = detector_defaults.cosmic_ray_events_per_pixel_per_sec
         cosmic_ray_rate = rate * pixels_per_frame_pixel
     else:
-        cosmic_ray_rate = float(sim_noise.get(cr_key, 0.0))
+        cosmic_ray_rate = 0.0
     cosmic_ray_dwell = _default_or_zero(
         scene_noise,
         'cosmic_ray_readout_dwell_sec',
@@ -657,7 +651,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
             if detector_defaults.calibrated_sky_if is None
             else detector_defaults.calibrated_sky_if
         ),
-        marker_value=missing_data_marker(inst_config),
+        missing_data_rate=missing_data_rate,
         random_seed=int(params['random_seed']),
         noise_seed=int(noise_seed),
         detector_id=resolve_detector_id(instrument),

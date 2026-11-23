@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_scene, frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import disc_scene, frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.detector.saturation import add_serial_tail, apply_saturation
@@ -69,7 +69,7 @@ def _bright_scene(*, size: int = 64) -> dict[str, Any]:
     return frame_scene(
         size=size,
         exposure_sec=1.0,
-        noise={'signal_full_scale_frac': 2.0},
+        detector={'signal_full_scale_frac': 2.0},
         bodies=[
             {
                 'name': 'B',
@@ -94,7 +94,12 @@ def test_render_saturates_at_physical_full_well() -> None:
 def test_the_bloom_mode_spreads_a_saturated_source_along_its_column() -> None:
     """A rendered star above the full well saturates more of its column with the mode on."""
     star = {'name': 'S', 'v': 48.5, 'u': 48.5, 'vmag': -1.0}
-    blocks: dict[str, Any] = {'instrument': 'coiss_nac', 'size': 96, 'noise': quiet_noise()}
+    blocks: dict[str, Any] = {
+        'instrument': 'coiss_nac',
+        'size': 96,
+        'noise': quiet_noise(),
+        'detector': zero_bias(),
+    }
     off, _ = render_scene(frame_scene(stars=[star], **blocks))
     on, truth = render_scene(
         frame_scene(

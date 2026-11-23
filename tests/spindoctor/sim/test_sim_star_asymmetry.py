@@ -12,7 +12,7 @@ and the existing star deposit is byte-identical when the new keys default off.
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
 
@@ -25,6 +25,7 @@ def _scene(stars: list[dict[str, Any]], **extra: Any) -> dict[str, Any]:
         exposure_sec=1.0,
         optics={'psf': {'match_navigator': True}},
         noise=quiet_noise(),
+        detector=zero_bias(),
         stars=stars,
     )
     scene.update(extra)

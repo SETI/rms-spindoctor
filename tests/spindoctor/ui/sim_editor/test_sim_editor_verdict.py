@@ -217,7 +217,7 @@ def test_the_worker_gets_its_own_copy_of_the_scene(model: Any, gated: _GatedSumm
     _edit_offset(model, 5.0)
     model.sim_params['offset_u'] = 9.0
     model.sim_params['noise']['read_noise_dn'] = 77.0
-    model.sim_params['noise']['bias_dn'] = 3.0
+    model.sim_params['noise']['dark_current_e_per_sec'] = 3.0
     gated.release(0)
     _wait_for_verdict(model)
     worker_scene = gated.scenes[0]
@@ -226,7 +226,6 @@ def test_the_worker_gets_its_own_copy_of_the_scene(model: Any, gated: _GatedSumm
         'poisson': True,
         'read_noise_dn': 4.0,
         'cosmic_ray_events_per_pixel_per_sec': 0.0,
-        'missing_data_rate': 0.0,
     }
 
 

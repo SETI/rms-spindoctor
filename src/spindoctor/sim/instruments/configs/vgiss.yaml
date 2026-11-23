@@ -54,6 +54,10 @@ vgiss:
     # 8-bit DN full scale, then the DN-domain vidicon noise model applies.
     exposure_ref_sec: 1.0
     bias_dn: 20.0
+    saturation_dn: 255.0  # 8-bit ADC
+    full_well_dn: 255.0
+    signal_full_scale_frac: 0.5
+    missing_data_rate: 0.0
     quantization: 8bit
     # The calibrated sky residual in I/F, added after the calibration inverse
     # (the generic entry carries the value for an entry without its own).  Real
