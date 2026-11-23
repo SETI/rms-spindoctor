@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -50,7 +50,7 @@ def _scene() -> dict[str, Any]:
         'phase_angle': 0.0,
         'anti_aliasing': 0.0,
     }
-    return frame_scene(size=128, seed=3, noise=quiet_noise(), bodies=[body])
+    return frame_scene(size=128, seed=3, noise=quiet_noise(), detector=zero_bias(), bodies=[body])
 
 
 def _inventory() -> dict[str, float]:

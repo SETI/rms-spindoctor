@@ -11,7 +11,7 @@ moment measurement sees the whole profile.
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
@@ -34,6 +34,7 @@ def _render_one_star(sigma: float) -> np.ndarray:
         size=41,
         exposure_sec=1.0,
         noise=quiet_noise(),
+        detector=zero_bias(),
         optics={'psf': {'sigma_v': sigma, 'sigma_u': sigma, 'w': 0.0, 'r0': 2.0, 'n': 3.0}},
         stars=[star_entry(20.0, 20.0, 8.0, name='s')],
     )
@@ -68,6 +69,7 @@ def _match_navigator_star_scene(instrument: str, *, size: int = 41) -> dict[str,
         size=size,
         exposure_sec=1.0,
         noise=quiet_noise(),
+        detector=zero_bias(),
         optics={'psf': {'match_navigator': True}},
         # Bright enough to survive gossi's coarse gain, faint enough to stay
         # below the coiss_nac full well: both frames keep an unclipped profile.

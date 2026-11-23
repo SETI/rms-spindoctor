@@ -21,7 +21,6 @@ from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     STRUCTURED_LOSS_ORDER,
-    resolve_mode_config,
 )
 from spindoctor.sim.instruments.resolvers import mode_available
 from spindoctor.sim.render.detector.params import (
@@ -76,8 +75,8 @@ def _body_truth(v0: int, v1: int, u0: int, u1: int) -> dict[str, Any]:
 
 
 def test_registry_covers_every_mode_key() -> None:
-    """The registry holds exactly 31 mode keys."""
-    assert len(MODE_KEYS) == 31
+    """The registry holds exactly 29 mode keys."""
+    assert len(MODE_KEYS) == 29
 
 
 def test_structured_loss_order_covers_the_loss_modes() -> None:
@@ -734,7 +733,7 @@ def test_uniform_placement_ignores_features() -> None:
 
 def test_adversarial_hot_pixels_concentrate_on_features() -> None:
     """Adversarial hot pixels land on and beside the navigation features."""
-    from spindoctor.sim.render.detector.noise_stages import add_hot_pixels
+    from spindoctor.sim.render.detector.pixel_defects import add_hot_pixels
     from spindoctor.sim.render.feature_loci import dilated_pixels, extract_feature_loci
 
     truth = _body_truth(28, 36, 28, 36)
@@ -833,12 +832,6 @@ def test_adversarial_flag_is_a_boolean() -> None:
     scene = {**_base_scene(), 'artifacts': {'adversarial': 'yes'}}
     with pytest.raises(SimSceneValidationError, match='adversarial'):
         validate_sim_params(scene)
-
-
-def test_resolve_mode_config_fills_defaults() -> None:
-    """Resolving a mode config fills unset parameters with their defaults."""
-    resolved = resolve_mode_config('missing_lines', {'expected_events': 2.0})
-    assert resolved == {'expected_events': 2.0, 'contiguous_run': False}
 
 
 # --- telemetry-artifact modes: compression and GEOMED scars -----------------

@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy import ndimage
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, zero_bias
 
 from spindoctor.nav_model import build_models_for_obs
 from spindoctor.nav_model.simulated.body import NavModelBodySimulated
@@ -153,7 +153,7 @@ def _mesh_scene(**body: Any) -> dict[str, Any]:
         'mesh_seed': 2,
     }
     base.update(body)
-    return frame_scene(size=96, noise=quiet_noise(), bodies=[base])
+    return frame_scene(size=96, noise=quiet_noise(), detector=zero_bias(), bodies=[base])
 
 
 def test_scene_render_mesh_differs_from_ellipsoid() -> None:

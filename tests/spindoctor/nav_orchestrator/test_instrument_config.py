@@ -26,8 +26,6 @@ def _raw_dn_block() -> dict[str, Any]:
         'data_units': 'raw_dn',
         'noise': {
             'saturation_dn': 4095.0,
-            'full_well_dn': 4095.0,
-            'expected_noise_dn': 4.0,
             'marker_value': 0,
             'read_noise_dn': 4.0,
         },

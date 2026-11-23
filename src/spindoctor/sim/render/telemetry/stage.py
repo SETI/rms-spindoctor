@@ -22,7 +22,7 @@ grid.  It applies its sub-effects in the physical order of transmission:
    the frame onto a corrected geometry: ``reseau_scars`` (reseau-removal smudges
    on the lattice) then ``resample_texture`` (the resample warp, blank border, and
    missing-line interpolation banding).
-4. Missing-data markers: the generic per-pixel ``noise.missing_data_rate``
+4. Missing-data markers: the generic per-pixel ``detector.missing_data_rate``
    dropout knob (a worst-case stress knob, not an instrument artifact),
    which writes the instrument's marker.
 
@@ -41,13 +41,12 @@ from typing import Any
 
 import numpy as np
 
-from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.artifact_modes import (
     STRUCTURED_LOSS_ORDER,
     TELEMETRY_POST_LOSS_ORDER,
     TELEMETRY_PRE_LOSS_ORDER,
 )
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import navigator_marker
 from spindoctor.sim.instruments.resolvers import mode_available, resolve_mode_with_catalog
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.render.feature_loci import FeatureLoci, extract_feature_loci
@@ -59,7 +58,6 @@ from spindoctor.sim.render.telemetry.artifacts import (
 )
 from spindoctor.sim.render.telemetry.loss import LOSS_APPLIERS
 from spindoctor.sim.seeds import derive_effect_seed
-from spindoctor.support.image_class import missing_data_marker
 
 __all__ = ['apply_telemetry']
 
@@ -81,8 +79,8 @@ def apply_telemetry(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
             ``truth['artifacts']`` map receives each applied mode's realized
             geometry.  Must be at the detector grid (``oversample == 1``).
         params: The full scene mapping; reads the ``artifacts`` block (per-mode
-            maps plus ``adversarial``) and the ``noise`` block's
-            ``missing_data_rate``.
+            maps plus ``adversarial``) and the resolved detector's ADC ceiling,
+            missing-data rate, and calibration.
     """
     if frame.oversample != 1:
         raise AssertionError(
@@ -90,11 +88,11 @@ def apply_telemetry(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
             f'(oversample={frame.oversample})'
         )
     artifacts = params.get('artifacts') or {}
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, params.get('instrument'), params.get('instrument_config')
-    )
-    marker_dn = missing_data_marker(inst_config)
-    dn_ceiling = _saturation_value(inst_config)
+    dp = resolve_detector_params(params)
+    marker_dn = navigator_marker(params)
+    # The loss appliers bound the wrong values they write (garble fills, pixel spikes)
+    # by the ADC ceiling, so an 8-bit camera never carries an impossible DN.
+    dn_ceiling = dp.saturation_dn
     random_seed = int(params['random_seed'])
     adversarial = bool(artifacts.get('adversarial', False))
     loci = extract_feature_loci(frame.truth, frame.signal.shape) if adversarial else _EMPTY_LOCI
@@ -108,7 +106,7 @@ def apply_telemetry(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
     )
     # A calibrated frame holds I/F; the modes that act on the transmitted DN map
     # it back first (None on a raw-DN frame).
-    calibration = calibration_map(resolve_detector_params(params))
+    calibration = calibration_map(dp)
 
     # Sub-stage 1: lossy DCT compression, on the transmitted signal before any
     # packet loss (a lossy codec compresses, then packets drop).  A calibrated
@@ -160,21 +158,10 @@ def apply_telemetry(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
             records[mode_name] = apply_resample_texture(frame.signal, cfg, rng=mode_rng)
 
     # Sub-stage 4: the generic missing-data markers.
-    _apply_missing_data_markers(frame, params, marker_dn, random_seed)
+    _apply_missing_data_markers(frame, dp.missing_data_rate, marker_dn, random_seed)
 
     if records:
         frame.truth.setdefault('artifacts', {}).update(records)
-
-
-def _saturation_value(inst_config: Mapping[str, Any]) -> float:
-    """The emulated instrument's ADC ceiling in DN (255 for the 8-bit cameras).
-
-    The loss appliers bound the wrong values they write (garble fills, pixel
-    spikes) by this ceiling, so an 8-bit camera never carries an impossible DN.
-    """
-    inst_noise = inst_config.get('noise') or {}
-    sim_noise = DEFAULT_CONFIG.category('sim')['noise']
-    return float(inst_noise.get('saturation_dn', sim_noise['saturation_dn']))
 
 
 def _resolve_truth_window(
@@ -221,23 +208,18 @@ def _resolve_truth_window(
 
 def _apply_missing_data_markers(
     frame: SimFrame,
-    params: Mapping[str, Any],
+    missing_data_rate: float,
     marker_dn: float,
     random_seed: int,
 ) -> None:
     """Overwrite randomly lost pixels with the missing-data marker.
 
-    The generic per-pixel ``noise.missing_data_rate`` dropout is the worst-case
+    The generic per-pixel ``detector.missing_data_rate`` dropout is the worst-case
     stress knob: each pixel is lost independently with that probability and
     takes the marker the navigator applies to the frame (0 on every shipped
     instrument), as the structured loss modes do.  The losses draw from the
     stream ``telemetry``.
     """
-    sim_noise = DEFAULT_CONFIG.category('sim')['noise']
-    scene_noise = params.get('noise') or {}
-    missing_data_rate = float(
-        scene_noise.get('missing_data_rate', sim_noise.get('missing_data_rate', 0.0))
-    )
     if missing_data_rate <= 0.0:
         return
     # The stream carries the stage's own name and must never be renamed: it seeds the

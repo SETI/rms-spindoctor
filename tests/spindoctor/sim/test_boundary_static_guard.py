@@ -40,6 +40,11 @@ that renders the image and builds ``nav_params``.  It may import the renderer, b
 star limit is navigator-side, so it imports neither ``spindoctor.sim.instruments`` nor
 ``spindoctor.sim.artifact_modes`` except as ``_ALLOWED_IMAGE_SIDE_IMPORTS`` sanctions.
 
+A fifth scan covers the renderer (``sim/render/``), the image side.  It takes a camera's
+physics from the instrument entries, so it doesn't import ``spindoctor.config``, and from
+``navigator_link`` it imports only the matches of ``_NAVIGATOR_MATCHES``: the values a
+frame has to share with the navigator.
+
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
 one-line justification.  The allowlist is currently empty -- no navigator-side
@@ -119,6 +124,12 @@ _ALLOWED_IMAGE_SIDE_IMPORTS: dict[tuple[str, str], str] = {
         'it finds which navigator config section and detector to load for the instrument'
     ),
 }
+
+# What the renderer may import from navigator_link, with the module that reads the
+# navigator's configuration on its behalf.
+_NAVIGATOR_MATCHES: frozenset[str] = frozenset({'navigator_marker', 'navigator_matched_psf'})
+_NAVIGATOR_LINK = 'spindoctor.sim.instruments.navigator_link'
+_RENDER_DIR = 'sim/render'
 
 
 def _within(module: str, packages: tuple[str, ...]) -> bool:
@@ -446,3 +457,57 @@ def test_allowlist_entries_name_existing_modules() -> None:
     """Every allowlist entry points at a module that still exists."""
     for rel, _name in [*_ALLOWED_REFERENCES, *_ALLOWED_IMAGE_SIDE_IMPORTS]:
         assert (_PACKAGE_ROOT / rel).is_file(), f'stale allowlist entry: {rel}'
+
+
+def _navigator_config_imports(source: str, *, package: str) -> list[tuple[int, str]]:
+    """Return each import that lets a renderer module read the navigator's configuration.
+
+    Parameters:
+        source: Python source text to scan.
+        package: The dotted package the source's module belongs to, against which
+            a relative import resolves.
+
+    Returns:
+        List of ``(line number, module)`` tuples, one per imported name of
+        ``spindoctor.config``, and of ``navigator_link`` other than the matches.
+    """
+    allowed = {f'{_NAVIGATOR_LINK}.{name}' for name in _NAVIGATOR_MATCHES}
+    imports: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            targets = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            module = _imported_module(node, package=package)
+            targets = [f'{module}.{alias.name}' for alias in node.names]
+        else:
+            continue
+        imports.extend(
+            (node.lineno, target)
+            for target in targets
+            if _within(target, ('spindoctor.config', _NAVIGATOR_LINK)) and target not in allowed
+        )
+    return imports
+
+
+def test_the_renderer_reads_the_navigator_config_only_through_the_matches() -> None:
+    """No renderer module imports the navigator's config, except through the matches."""
+    violations = [
+        f'{path.relative_to(_PACKAGE_ROOT).as_posix()}:{lineno}: imports {module}'
+        for path in sorted((_PACKAGE_ROOT / _RENDER_DIR).rglob('*.py'))
+        for lineno, module in _navigator_config_imports(
+            path.read_text(encoding='utf-8'), package=_module_package(path)
+        )
+    ]
+    assert violations == []
+
+
+def test_the_navigator_config_scan_flags_the_block_and_passes_a_match() -> None:
+    """The scanner flags the block resolver and the config, and passes a match."""
+    source = (
+        f'from {_NAVIGATOR_LINK} import navigator_marker, resolve_sim_inst_config\n'
+        'from spindoctor.config import DEFAULT_CONFIG\n'
+    )
+    assert _navigator_config_imports(source, package='spindoctor.sim.render') == [
+        (1, f'{_NAVIGATOR_LINK}.resolve_sim_inst_config'),
+        (2, 'spindoctor.config.DEFAULT_CONFIG'),
+    ]

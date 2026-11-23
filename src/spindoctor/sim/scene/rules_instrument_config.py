@@ -34,6 +34,17 @@ from spindoctor.sim.scene.rules_common import _check_optional_mapping
 BY_BINNING_VALUE_KEYS = frozenset({'read_noise_dn', 'star_flux_dn_per_s_vmag0'})
 """The values every entry of a navigator block's ``noise.by_binning`` table states."""
 
+_NAVIGATOR_NOISE_KEYS = frozenset(
+    {
+        'saturation_dn',
+        'marker_value',
+        'read_noise_dn',
+        'star_flux_dn_per_s_vmag0',
+        'by_binning',
+    }
+)
+"""The keys of a navigator block's ``noise`` that the navigator reads."""
+
 _NOISE_PATH = 'instrument_config.noise'
 """The key path of the noise block these checks cover, for error messages."""
 
@@ -254,19 +265,23 @@ def _check_star_limit_values(override: Mapping[str, Any], *, source: str) -> Non
 def _check_noise_override(noise: Any, *, source: str) -> None:
     """Refuse a scene's ``instrument_config.noise`` block unless its form is sound.
 
-    The block must be a mapping.  Its binned-mode table, when set, must be a mapping
-    keyed under the rules of :func:`_check_binning_keys`.
+    The block must be a mapping that sets only keys the navigator reads.  Its binned-mode
+    table, when set, must be a mapping keyed under the rules of
+    :func:`_check_binning_keys`.
 
     Parameters:
         noise: The scene's ``instrument_config.noise`` value, as written.
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If the block or its table isn't a mapping, or a key of
-            the table is refused.
+        SimSceneValidationError: If the block or its table isn't a mapping, the block
+            sets a key the navigator doesn't read, or a key of the table is refused.
     """
     if not isinstance(noise, Mapping):
         raise SimSceneValidationError(f'{source}: {_NOISE_PATH} must be a mapping when present')
+    unknown = set(noise) - _NAVIGATOR_NOISE_KEYS
+    if unknown:
+        raise SimSceneValidationError(f'{source}: {_NOISE_PATH}: unknown keys: {sorted(unknown)}')
     if 'by_binning' not in noise:
         return
     table = noise['by_binning']
@@ -284,9 +299,11 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
     frame's units come only from the instrument entry; for other units, a
     scene uses another instrument.
 
-    When the block sets ``noise``, that must be a mapping.  As everywhere in a scene, a
-    null is refused before this check: a scene leaves a key out to keep the navigator
-    block's value.  The binned-mode table ``noise.by_binning`` may
+    When the block sets ``noise``, that must be a mapping of keys the navigator reads.  The
+    frame's own physics comes from the instrument entry and the scene's ``detector`` and
+    ``noise`` blocks.  As everywhere in a scene, a null is refused before this check: a
+    scene leaves a key out to keep the navigator block's value.  The binned-mode table
+    ``noise.by_binning`` may
     write a key only as an integer or as a string of ASCII digits, since a scene read
     through JSON carries every key as a string, and each binning only once and without a
     leading zero.  Each noise value the star limit reads must be one that a frame of the
@@ -309,13 +326,13 @@ def _check_instrument_config(value: Any, *, instrument: str, binning: int, sourc
 
     Raises:
         SimSceneValidationError: If the block isn't a mapping, it sets ``data_units``,
-            its ``noise`` isn't a mapping, its ``noise.by_binning`` table isn't a
-            mapping, holds a key that is neither an integer nor a string of ASCII
-            digits, spells a binning twice, or holds an entry no frame reads, the
-            block sets an unbinned noise value on a calibrated-unit block, a value the
-            star limit reads is out of range, a binned-mode entry sets another
-            key, or the block sets an unbinned noise value that a frame of this binning
-            reads from the table.
+            its ``noise`` isn't a mapping or sets a key the navigator doesn't read, its
+            ``noise.by_binning`` table isn't a mapping, holds a key that is neither an
+            integer nor a string of ASCII digits, spells a binning twice, or holds an
+            entry no frame reads, the block sets an unbinned noise value on a
+            calibrated-unit block, a value the star limit reads is out of range, a
+            binned-mode entry sets another key, or the block sets an unbinned noise
+            value that a frame of this binning reads from the table.
     """
     _check_optional_mapping(value, 'instrument_config', source=source)
     if value is None:

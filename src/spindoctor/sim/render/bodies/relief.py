@@ -36,9 +36,12 @@ space, where the smooth ellipsoid is the unit sphere and the relief surface is
 ``r = 1 + h(r_hat)``.  The map from the body frame to that space is affine, and
 an affine map carries a ray to a ray and a surface to a surface, so a ray from a
 surface point toward the sun meets the terrain in parameter space exactly when
-it does on the body.  A point is shadowed iff its sun ray dips below the terrain
-somewhere before it leaves the relief shell ``r <= 1 + h_max``.  Which points
-can be shadowed at all follows from the field's steepest slope ``s_max`` (per
+it does on the body.  A point is shadowed iff its sun ray, once it has risen above
+the terrain, dips below it again before it leaves the relief shell
+``r <= 1 + h_max``: only terrain between the point and the sun shadows it
+(:func:`cast_shadows`).  The terrain right at the point can also turn away from the
+sun, which :func:`turned_from_sun` tells from the bilinear field itself.  Which
+points can be shadowed at all follows from the field's steepest slope ``s_max`` (per
 radian of arc, :attr:`ReliefField.slope_max`): along the ray the terrain rises
 at most ``s_max / (1 + h_min)`` per unit of the ray's own rise, so a point whose
 sun elevation has ``tan(elevation) >= s_max / (1 + h_min)`` is never shadowed,
@@ -79,6 +82,7 @@ __all__ = [
     'directions_about_view',
     'synthesize_albedo_field',
     'synthesize_relief_field',
+    'turned_from_sun',
 ]
 
 # The largest limb-relief RMS (a fraction of the body radius) a scene may
@@ -115,6 +119,24 @@ _BAND_LIMIT_FACTOR = 8.0
 # so a degenerate correlation length cannot demand an unbounded FFT.
 _MIN_GRID = 64
 _MAX_GRID = 8192
+# The cast-shadow march samples its first step this many times more finely, so a
+# terrain wall close to the point is still seen apart from the terrain the point
+# lies on (see cast_shadows).
+_FIRST_STEP_SPLIT = 8
+# Before those, it takes this many samples whose distances double up to the finer
+# spacing, from 1/64 of it, so the ray is seen to rise off the ground before a wall
+# even nearer the point.  Against a brute-force march, a ray starting on the surface
+# that took only the evenly spaced samples missed walls within 1/64 of a cell.
+_LEAD_SAMPLES = 6
+# The length, in field grid cells, over which turned_from_sun differences the depth
+# below the terrain at a point seen: short enough to read the bilinear terrain the
+# point lies on, not the next cell's.
+_FACET_DIFFERENCE_CELLS = 1.0 / 4096.0
+# The least rate, per unit of distance, at which that depth must change for
+# turned_from_sun to count the terrain as turning away from the sun.  It lies far above
+# the depth's rounding over that length, so at phase 0, where the two differences
+# agree to rounding, one cannot exceed it while the other falls below its negative.
+_FACET_TOLERANCE = 1e-6
 
 
 @dataclass(frozen=True)
@@ -230,6 +252,19 @@ class ReliefField:
         lat = np.arcsin(np.clip(pts[..., 2] / norm, -1.0, 1.0))
         lon = np.mod(np.arctan2(pts[..., 1], pts[..., 0]), 2.0 * np.pi)
         return self.sample(lat, lon)
+
+    def depth_below(self, points: NDArrayFloatType) -> NDArrayFloatType:
+        """How far parameter-space positions lie below the relief surface.
+
+        Parameters:
+            points: ``(..., 3)`` positions in the field's frame.
+
+        Returns:
+            ``1 + h(r_hat) - |r|`` at each position: positive inside the terrain,
+            negative above it, shape ``points.shape[:-1]``.
+        """
+        pts = np.asarray(points, dtype=np.float64)
+        return np.asarray(1.0 + self.sample_points(pts) - np.linalg.norm(pts, axis=-1))
 
     def surface_gradient(self, points: NDArrayFloatType) -> NDArrayFloatType:
         """The field's surface gradient at unit-sphere directions, per radian of arc.
@@ -596,19 +631,26 @@ def cast_shadows(
     *,
     step: float,
 ) -> NDArrayBoolType:
-    """Whether the relief shadows each surface point from the sun, by exact ray march.
+    """Whether terrain between each surface point and the sun shadows it, by ray march.
 
     Everything is in the body's parameter space (the smooth body is the unit
-    sphere, the field's poles on the ``z`` axis).  Each point sits on the
-    relief surface at ``(1 + h) * p_hat``; its ray ``P + t * sun`` is marched
-    from ``t = step`` until it leaves the relief shell ``|r| <= 1 + h_max``,
-    and the point is shadowed iff some sample lies below the terrain,
-    ``|r| < 1 + h(r_hat)``.  The test is exact up to the step and the bilinear
-    field, and it reads terrain on the far hemisphere as readily as on the
-    near one.
+    sphere, the field's poles on the ``z`` axis).  Each point's ray
+    ``P + t * sun`` is marched until it leaves the relief shell
+    ``|r| <= 1 + h_max``; a sample lies below the terrain where
+    ``|r| < 1 + h(r_hat)``.  The point is shadowed iff the ray, once it has risen
+    above the terrain, comes down below it again.  Terrain the ray is in before it
+    first rises is the terrain the point lies on, which :func:`turned_from_sun`
+    judges instead: there the ray starts into the terrain because the ground turns
+    away from the sun, or because the point lies just inside it.  The first step is
+    sampled :data:`_FIRST_STEP_SPLIT` times more finely than the rest, after
+    :data:`_LEAD_SAMPLES` samples nearer still, so the ray still shows open sky
+    between the point and a wall less than a step away.  The
+    test is exact up to the step and the bilinear field, and it reads terrain on
+    the far hemisphere as readily as on the near one.
 
     Parameters:
-        points: ``(N, 3)`` smooth-surface directions (normalized here).
+        points: ``(N, 3)`` parameter-space positions of the points, on the relief
+            surface or within a search's precision of it.
         sun: The unit sun direction in the same space, ``(3,)``.
         field: The relief realization.
         step: The ray step in parameter-space units (a fraction of the
@@ -623,26 +665,91 @@ def cast_shadows(
     """
     if not (math.isfinite(step) and step > 0.0):
         raise ValueError(f'cast_shadows step must be finite and positive, got {step!r}')
-    p_hat = np.asarray(points, dtype=np.float64)
-    p_hat = p_hat / np.maximum(np.linalg.norm(p_hat, axis=1, keepdims=True), 1e-300)
-    count = p_hat.shape[0]
+    start = np.asarray(points, dtype=np.float64)
+    count = start.shape[0]
     shadowed = np.zeros(count, dtype=np.bool_)
     if count == 0 or field.h_max <= field.h_min:
         return shadowed
     sun_hat = np.asarray(sun, dtype=np.float64) / float(np.linalg.norm(sun))
-    start = p_hat * (1.0 + field.sample_points(p_hat))[:, np.newaxis]
     # The ray leaves the shell at the positive root of |P + t s| = 1 + h_max.
     along = stable_matmul3(start, sun_hat)
     reach = -along + np.sqrt(
         np.maximum(along**2 - (np.sum(start**2, axis=1) - (1.0 + field.h_max) ** 2), 0.0)
     )
-    active = np.nonzero(reach > step)[0]
-    t = step
+    risen = np.zeros(count, dtype=np.bool_)
+    sample = 1
+    active = np.nonzero(reach > _march_distance(sample, step))[0]
     while active.size:
-        ray = start[active] + t * sun_hat
+        ray = start[active] + _march_distance(sample, step) * sun_hat
         radius = np.linalg.norm(ray, axis=1)
         below = radius < 1.0 + field.sample_points(ray)
-        shadowed[active[below]] = True
-        t += step
-        active = active[~below & (reach[active] > t)]
+        hit = below & risen[active]
+        shadowed[active[hit]] = True
+        risen[active[~below]] = True
+        sample += 1
+        active = active[~hit & (reach[active] > _march_distance(sample, step))]
     return shadowed
+
+
+def turned_from_sun(
+    points: NDArrayFloatType,
+    sun: NDArrayFloatType,
+    view: NDArrayFloatType,
+    field: ReliefField,
+) -> NDArrayBoolType:
+    """Whether the terrain at each point the camera sees turns away from the sun.
+
+    Everything is in the body's parameter space.  Each point lies on the relief
+    surface, where a line of sight crosses it.  The depth below the terrain is
+    differenced over :data:`_FACET_DIFFERENCE_CELLS` of a field grid cell toward the
+    sun and toward the observer, so it reads the exact bilinear terrain there rather
+    than the smoothed normal the shading uses.  The terrain turns away from the sun
+    where the depth grows toward the sun and shrinks toward the observer, each faster
+    than :data:`_FACET_TOLERANCE` per unit of distance.  The second condition holds
+    wherever the line of sight crosses into the terrain, so it keeps out a point the
+    search has placed just past a crease, on terrain the camera does not see.  At
+    phase 0, where the sun lies toward the observer, the two conditions cannot hold
+    together, so the sun lights all the terrain the camera sees.
+
+    Parameters:
+        points: ``(N, 3)`` parameter-space positions on the relief surface.
+        sun: The unit sun direction in the same space, ``(3,)``.
+        view: The unit direction toward the observer in the same space, ``(3,)``.
+        field: The relief realization.
+
+    Returns:
+        ``(N,)`` booleans, True where the terrain at the point faces away from the
+        sun.
+    """
+    start = np.asarray(points, dtype=np.float64)
+    if start.shape[0] == 0 or field.h_max <= field.h_min:
+        return np.zeros(start.shape[0], dtype=np.bool_)
+    length = 2.0 * np.pi / field.grid.shape[0] * _FACET_DIFFERENCE_CELLS
+    here = field.depth_below(start)
+    sun_hat = np.asarray(sun, dtype=np.float64) / float(np.linalg.norm(sun))
+    view_hat = np.asarray(view, dtype=np.float64) / float(np.linalg.norm(view))
+    toward_sun = (field.depth_below(start + length * sun_hat) - here) / length
+    toward_view = (field.depth_below(start + length * view_hat) - here) / length
+    return np.asarray((toward_sun > _FACET_TOLERANCE) & (toward_view < -_FACET_TOLERANCE))
+
+
+def _march_distance(sample: int, step: float) -> float:
+    """How far along its ray the cast-shadow march takes a sample.
+
+    Parameters:
+        sample: The sample's number, counted from 1.
+        step: The march's step.
+
+    Returns:
+        The distance: the first :data:`_LEAD_SAMPLES` samples double in distance up
+        to the first step's finer spacing, the next :data:`_FIRST_STEP_SPLIT` divide
+        the first step evenly, and each later one lies a whole step beyond the one
+        before.
+    """
+    fine = step / _FIRST_STEP_SPLIT
+    if sample <= _LEAD_SAMPLES:
+        return fine * 2.0 ** (sample - _LEAD_SAMPLES - 1)
+    sample -= _LEAD_SAMPLES
+    if sample <= _FIRST_STEP_SPLIT:
+        return sample * fine
+    return (sample - _FIRST_STEP_SPLIT + 1) * step

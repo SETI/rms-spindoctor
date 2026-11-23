@@ -17,7 +17,13 @@ from collections.abc import Callable
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene, quiet_noise, ring_system_block, star_entry
+from tests.spindoctor.sim.scenes import (
+    frame_scene,
+    quiet_noise,
+    ring_system_block,
+    star_entry,
+    zero_bias,
+)
 
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
@@ -36,6 +42,7 @@ def _noiseless_params(**overrides: object) -> dict[str, object]:
         offset_u=0.0,
         bodies=[],
         noise=quiet_noise(),
+        detector=zero_bias(),
     )
     params.update(overrides)
     return params

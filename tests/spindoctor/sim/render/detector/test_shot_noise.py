@@ -231,19 +231,18 @@ _FRAME_SHAPE = (48, 48)
 _REGION = (slice(8, 16), slice(30, 40))
 
 
-def _detector_dn(signal: np.ndarray, *, noise: dict[str, float] | None = None) -> np.ndarray:
+def _detector_dn(signal: np.ndarray) -> np.ndarray:
     """Run the coiss_nac detector with shot and read noise over ``signal``.
 
     Parameters:
         signal: The signal plane.
-        noise: Extra scene noise keys, added to the shot and read noise.
     """
     frame = SimFrame(signal=signal.copy(), point_e=np.zeros_like(signal))
     params: dict[str, Any] = {
         'instrument': 'coiss_nac',
         'random_seed': _SEED,
         'exposure_sec': 1.0,
-        'noise': {'poisson': True, 'read_noise_dn': 5.0, **(noise or {})},
+        'noise': {'poisson': True, 'read_noise_dn': 5.0},
     }
     apply_detector(frame, params=params)
     return frame.signal
@@ -294,8 +293,5 @@ def test_a_psf_tail_on_an_empty_frame_adds_no_counts() -> None:
     sky = np.ones(_FRAME_SHAPE, dtype=bool)
     sky[17:32, 17:32] = False
     trimmed = np.where(sky, 0.0, blurred)
-    noise = {'dark_current_e_per_sec': 0.0, 'readout_dark_e': 0.0}
     assert np.count_nonzero(sky & (blurred > 0.0)) > 500
-    assert np.array_equal(
-        _detector_dn(blurred, noise=noise)[sky], _detector_dn(trimmed, noise=noise)[sky]
-    )
+    assert np.array_equal(_detector_dn(blurred)[sky], _detector_dn(trimmed)[sky])

@@ -523,12 +523,9 @@ def test_the_noise_panel_shows_the_defaults_for_absent_keys(qapp: QApplication) 
     shown = (
         model._poisson_check.isChecked(),
         model._read_noise_spin.value(),
-        model._bias_spin.value(),
-        model._signal_frac_spin.value(),
         model._cosmic_ray_spin.value(),
-        model._missing_data_spin.value(),
     )
-    assert shown == (True, 4.0, 20.0, 0.5, 0.0, 0.0)
+    assert shown == (True, 4.0, 0.0)
 
 
 def _atmosphere_widget(model: Any) -> Any:
