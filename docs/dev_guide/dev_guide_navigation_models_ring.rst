@@ -78,7 +78,7 @@ Curvature classification
 
 For each surviving polyline the model fits a best-fit straight line and measures the
 maximum perpendicular deviation. An edge whose deviation is at most
-:data:`~spindoctor.nav_model.nav_model_rings.FLAT_CURVATURE_THRESHOLD_PX` (1 px) is flagged
+``FLAT_CURVATURE_THRESHOLD_PX`` (1 px, in ``nav_model/ring_polyline.py``) is flagged
 :attr:`~spindoctor.feature.flags.RingEdgeFlags.is_straight_line`, and its per-edge
 constraint is rank-1 along the radial direction. Any other edge is curved. The
 :doc:`dev_guide_techniques_ring_edge` page describes how the downstream technique handles
