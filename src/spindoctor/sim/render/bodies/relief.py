@@ -16,15 +16,17 @@ Degrees below 3 are zeroed: the degree-1 content of a radius perturbation
 is, to first order, a *translation* of the body -- a planted, untruthed
 center offset no limb fit could distinguish from the pointing error -- and
 degree-2 content aliases ellipsoid shape error, which is its own scene knob.
-After zeroing, the field is rescaled so the *limb slice's* standard
-deviation equals the commanded RMS per-realization.  The RMS is a fraction
+After zeroing, the field is rescaled so the standard deviation of the *limb
+slice*, its equator, equals the commanded RMS per-realization.  The RMS is a fraction
 of the body radius (``h = H / R``), so a body of radius R pixels gets a limb
 displacement of ``rms * R`` pixels RMS.
 
-**Coordinate convention.**  The ellipsoid renderer puts the field's poles
-on the observer axis, so the sub-observer horizon circle (the limb) is the
-field's equator: latitude is elevation out of the limb plane toward the
-observer, longitude is azimuth around the limb.  The field is stored on a
+**Coordinate convention.**  The field's poles lie on the body's semi-axis c,
+which points at the observer when the body is seen equator-on.  The limb is then
+the field's equator: latitude is elevation out of the limb plane toward the
+observer, longitude is azimuth around the limb.  The field turns with the body, so
+from any other sub-observer latitude the limb is another great circle of the field
+(:func:`directions_about_view`).  The field is stored on a
 ``(lat, lon)`` grid covering the torus ``[-pi, pi) x [0, 2*pi)``, the sphere
 twice over (``h(lat, lon) = h(pi - lat, lon + pi)``), so bilinear sampling
 wraps through the poles and the date line with no seam.
@@ -44,12 +46,16 @@ and one with ``tan(elevation) <= -s_max / (1 + h_min)`` always is.
 
 The relief also tilts the surface normal: the relief surface's normal in
 parameter space is ``r_hat - grad h / (1 + h)``, with ``grad h`` the field's
-surface gradient (:meth:`ReliefField.surface_gradient`).
+surface gradient (:meth:`ReliefField.surface_gradient`).  A pixel shows the
+point where its line of sight first meets the relief surface, which
+:func:`~spindoctor.sim.render.bodies.relief_sight.visible_surface_directions`
+finds.  Near the limb that point can lie well away from where the line of sight
+meets the smooth sphere, and behind a ridge the terrain is hidden altogether.
 
-The limb is the relief surface's own outline.  With the field's poles on the
-observer axis, a surface point at ``(lat, lon)`` projects to azimuth ``lon`` at
-radius ``(1 + h) cos(lat)``, so the outline at azimuth ``phi`` sits at the
-envelope ``max over lat of (1 + h(lat, phi)) cos(lat)``
+The limb is the relief surface's own outline.  With latitude and longitude taken
+about the direction toward the observer, a surface point at ``(lat, lon)`` projects
+to azimuth ``lon`` at radius ``(1 + h) cos(lat)``.  So the outline at azimuth ``phi``
+sits at the envelope ``max over lat of (1 + h(lat, phi)) cos(lat)``
 (:meth:`ReliefField.outline_delta`).
 """
 
@@ -70,29 +76,23 @@ __all__ = [
     'ReliefField',
     'cast_shadows',
     'clear_relief_caches',
+    'directions_about_view',
     'synthesize_albedo_field',
     'synthesize_relief_field',
 ]
 
 # The largest limb-relief RMS (a fraction of the body radius) a scene may
-# command.  The bound comes from the ellipsoid renderer, which draws the
-# relief surface's own outline but reads the terrain under each disc pixel at
-# the smooth sphere's direction: the relief surface's point under a pixel at
-# elevation lat lies h * cot(lat) radians from the one the renderer reads.
-# That error grows with the RMS and shrinks with the correlation length.
-# Averaged over 64 seeds at the default 15-degree correlation length, the
-# renderer reads the terrain under 2.5%, 12%, and 28% of the disc more than
-# half a correlation length from the point the pixel shows at RMS 0.02, 0.05,
-# and 0.1.  0.05 is a conservative bound set by that disc share, about one
-# pixel in eight at 15 degrees.  The share grows at shorter correlation
-# lengths, and this bound does not follow it: at 10 degrees and an RMS of 0.05
-# it is 20%.  The validator holds mesh bodies to the same bound; their relief
-# displaces the mesh's vertices in 3-D, so their disc shows the displaced
-# surface itself.
-MAX_LIMB_RELIEF_RMS = 0.05
+# command, a limit of the scene format.  At 0.1 the surface stays about half the
+# radius out from the center: over 16 seeds at each of 1, 2, 5, 15, and 30 degrees
+# of correlation length, the deepest point lies 0.5004 of the radius below the
+# smooth surface.  At 0.2 it reaches the center (h_min -1.0 over 8 seeds).  The
+# ellipsoid renderer reads the terrain where each line of sight meets the relief
+# surface; at 0.1 and 2 to 30 degrees, a brute-force search puts its point more
+# than half a correlation length off on at most 0.025% of the disc.  The validator
+# holds mesh bodies to the same bound.
+MAX_LIMB_RELIEF_RMS = 0.1
 # The shortest relief correlation length (degrees of arc) a scene may command.
-# It bounds cost.  It is not a validity bound: validity is already poor at
-# 2 degrees (above).  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
+# It bounds cost.  Synthesis costs about (1 / corr)**3: 0.5 s and 0.2 GB at
 # 1 degree, 3.1 s and 0.5 GB at 0.5 degrees, and 26 s and 1.7 GB at
 # 0.25 degrees.  A realization is cached by (corr, seed) and rescaled to the
 # RMS, so a render, or the scene editor, pays that cost again only when the
@@ -409,8 +409,11 @@ def _unit_relief_slope(corr_deg: float, seed: int) -> float:
 # is located to an eighth of a row, and in longitude the envelope is stored at
 # eight nodes per column, because between two columns the maximizing latitude
 # can jump and the envelope bends where a straight line between the columns'
-# values would not.  Together they hold the stored outline within 5e-4 of the
-# bilinear field's exact envelope (0.04 px on an 80 px radius) at 5% relief.
+# values would not.  Together they hold the outline within 7e-4 of the bilinear
+# field's exact envelope (0.06 px on an 80 px radius) on 99.9% of the azimuths at 5%
+# relief and 1.4e-3 at 10%, and within 2e-3 and 4e-3 everywhere, at a 15-degree
+# correlation length over 8 seeds and sub-observer latitudes of 0, 30, -60, and 89
+# degrees.
 # The longitudes are evaluated in chunks so the sample grid stays bounded.
 _OUTLINE_SAMPLES_PER_ROW = 8.0
 _OUTLINE_NODES_PER_COLUMN = 8
@@ -453,6 +456,39 @@ def _outline_envelope(corr_deg: float, seed: int, rms: float) -> NDArrayFloatTyp
     return envelope - 1.0
 
 
+def directions_about_view(
+    lat: NDArrayFloatType, lon: NDArrayFloatType, view: tuple[float, float]
+) -> NDArrayFloatType:
+    """Unit directions in the field's frame, at latitudes and longitudes about a view.
+
+    Latitude is measured from the plane perpendicular to the line of sight, toward
+    the observer.  Longitude runs around that plane, 0 along the ``x`` axis turned
+    with the view and ``pi / 2`` along ``y``.
+
+    Parameters:
+        lat: Latitudes in radians.
+        lon: Longitudes in radians, broadcastable with ``lat``.
+        view: The unit direction toward the observer, its ``x`` and ``z``
+            components in the field's frame (its ``y`` component is 0).
+
+    Returns:
+        The directions, the broadcast shape plus ``(3,)``.
+    """
+    view_x, view_z = view
+    cos_lat = np.cos(lat)
+    sin_lat = np.sin(lat)
+    turned_x = cos_lat * np.cos(lon)
+    turned_y = cos_lat * np.sin(lon)
+    return np.stack(
+        [
+            turned_x * view_z + sin_lat * view_x,
+            turned_y,
+            sin_lat * view_z - turned_x * view_x,
+        ],
+        axis=-1,
+    )
+
+
 def _turned_outline_envelope(
     field: ReliefField, view: tuple[float, float]
 ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
@@ -471,28 +507,17 @@ def _turned_outline_envelope(
         The longitudes ``0 .. 2*pi`` inclusive around the turned limb, and the
         envelope less 1 at each.
     """
-    view_x, view_z = view
     n = field.grid.shape[0]
     lat_cap = math.acos(min(1.0, (1.0 + field.h_min) / (1.0 + field.h_max)))
     half_count = math.ceil(lat_cap / (2.0 * np.pi / n) * _OUTLINE_SAMPLES_PER_ROW)
     lats = np.linspace(-lat_cap, lat_cap, 2 * half_count + 1)
     lons = np.linspace(0.0, 2.0 * np.pi, _OUTLINE_NODES_PER_COLUMN * n + 1)
-    # The limb circle's axes: the turned x axis (perpendicular to the view in the
-    # x-z plane) and y, with the view direction as its pole.
-    first = np.array([view_z, 0.0, -view_x])
-    second = np.array([0.0, 1.0, 0.0])
-    pole = np.array([view_x, 0.0, view_z])
     cos_lat = np.cos(lats)[:, np.newaxis]
-    sin_lat = np.sin(lats)[:, np.newaxis]
     envelope = np.empty(lons.size, dtype=np.float64)
     chunk = max(1, _OUTLINE_CHUNK_SAMPLES // lats.size)
     for start in range(0, lons.size, chunk):
         lon = lons[start : start + chunk][np.newaxis, :]
-        points = (
-            (cos_lat * np.cos(lon))[..., np.newaxis] * first
-            + (cos_lat * np.sin(lon))[..., np.newaxis] * second
-            + np.broadcast_to(sin_lat, (lats.size, lon.size))[..., np.newaxis] * pole
-        )
+        points = directions_about_view(lats[:, np.newaxis], lon, view)
         radius = (1.0 + field.sample_points(points)) * cos_lat
         envelope[start : start + chunk] = radius.max(axis=0)
     return lons, envelope - 1.0
