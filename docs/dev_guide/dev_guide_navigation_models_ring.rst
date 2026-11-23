@@ -77,11 +77,12 @@ Curvature classification
 ------------------------
 
 For each surviving polyline the model fits a best-fit straight line and measures the
-maximum perpendicular deviation. An edge whose deviation exceeds
-``curvature_threshold_pixels`` (or the configured fraction of the edge's length) is flagged
-``is_curved``; otherwise the edge is straight-line and the per-edge constraint is rank-1
-along the radial direction. The :doc:`dev_guide_techniques_ring_edge` page describes how
-the downstream technique handles the all-straight case.
+maximum perpendicular deviation. An edge whose deviation is at most
+``FLAT_CURVATURE_THRESHOLD_PX`` (1 px, in ``nav_model/ring_polyline.py``) is flagged
+:attr:`~spindoctor.feature.flags.RingEdgeFlags.is_straight_line`, and its per-edge
+constraint is rank-1 along the radial direction. Any other edge is curved. The
+:doc:`dev_guide_techniques_ring_edge` page describes how the downstream technique handles
+the all-straight case.
 
 Per-vertex covariance
 ---------------------
