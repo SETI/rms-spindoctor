@@ -323,18 +323,24 @@ def _first_surface_points(
     return np.stack([np.cos(lat) * np.cos(phi), np.cos(lat) * np.sin(phi), np.sin(lat)], axis=-1)
 
 
-def _shadowed_by_terrain_between(
+def _unlit_by_terrain(
     field: ReliefField, starts: NDArrayFloatType, sun: NDArrayFloatType
 ) -> NDArrayBoolType:
-    """Whether terrain between each point and the sun shadows it, by a fine march.
+    """Whether the terrain shadows each point or turns it from the sun, by a fine march.
 
-    Each ray is sampled every 1/64 of a field cell until it leaves the relief shell,
-    and a point is shadowed when its ray falls below the terrain after it has risen
-    above it.  It shares only the field's samples with the renderer's march.
+    Each ray is sampled every 1/4096 of a field cell over its first 1/1024 of a cell,
+    where a sample below the terrain means the ground at the point turns away from
+    the sun.  Beyond, it is sampled every 1/64 of a cell until it leaves the relief
+    shell, and a point is shadowed when its ray falls below the terrain after it has
+    risen above it.  It shares only the field's samples with the renderer.
     """
-    step = 2.0 * np.pi / field.grid.shape[0] / 64.0
-    risen = np.zeros(starts.shape[0], dtype=np.bool_)
+    cell = 2.0 * np.pi / field.grid.shape[0]
     shadowed = np.zeros(starts.shape[0], dtype=np.bool_)
+    for count in range(1, 5):
+        ray = starts + count * cell / 4096.0 * sun
+        shadowed |= np.linalg.norm(ray, axis=1) < 1.0 + field.sample_points(ray)
+    step = cell / 64.0
+    risen = np.zeros(starts.shape[0], dtype=np.bool_)
     for count in range(1, math.ceil(2.0 * (1.0 + field.h_max) / step) + 1):
         ray = starts + count * step * sun
         radius = np.linalg.norm(ray, axis=1)
@@ -533,16 +539,17 @@ def test_no_terrain_the_camera_sees_is_shadowed_at_phase_0() -> None:
     assert int(shading.shadowed.sum()) == 0
 
 
-def test_cast_shadows_fall_only_where_terrain_lies_between_the_point_and_the_sun() -> None:
-    """Every cast shadow on terrain the sun faces comes from terrain between it and the sun.
+def test_shadows_fall_where_terrain_lies_between_the_point_and_the_sun() -> None:
+    """Terrain the sun faces is shadowed by terrain between it and the sun, or its own.
 
     At phase 35 on a 75 px sphere with 5% relief at a 5-degree correlation length,
-    the truth starts at a brute-force search's point on each line of sight and
+    the truth starts at a brute-force search's point on each line of sight.  It
     counts the terrain its sun ray meets after it rises above the ground there,
-    sampled every 1/64 of a field cell.  On the pixels whose relief normal faces the
-    sun, the renderer's shadows agree with it on all but 0.5% of its 3,645 shadowed
-    pixels each way.  A march from the radial surface point counting every sample
-    below the terrain shadowed 61 of these pixels that the truth leaves lit.
+    sampled every 1/64 of a field cell, and the ground at the point where the ray
+    starts into it, sampled every 1/4096 of a cell.  On the pixels whose relief
+    normal faces the sun, the renderer's shadows agree with it on all but 1 of its
+    3,712 shadowed pixels each way, and the test allows 0.5% each way.  Counting only
+    the terrain the ray meets after it rises leaves 65 of the truth's pixels lit.
     """
     spec, grid, field = _lambert_relief_disc(rms=0.05, corr_deg=5.0)
     covered = silhouette_mask(grid, field) > 0.5
@@ -565,7 +572,7 @@ def test_cast_shadows_fall_only_where_terrain_lies_between_the_point_and_the_sun
             illumination_angle=spec.illumination_angle, phase_angle=spec.phase_angle
         )
     )
-    truth = _shadowed_by_terrain_between(field, on_line[hit], sun)
+    truth = _unlit_by_terrain(field, on_line[hit], sun)
     rendered = shading.shadowed[covered][hit]
     assert int(truth.sum()) > 1000
     assert int((rendered & ~truth).sum()) <= 0.005 * int(truth.sum())

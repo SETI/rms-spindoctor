@@ -2416,34 +2416,49 @@ The terrain also casts shadows. The map from the body frame to parameter space
 is affine, and an affine map carries a ray to a ray and a surface to a surface,
 so a pixel's sun ray meets the terrain in parameter space exactly when it does
 on the body. Each candidate pixel's ray starts where the pixel's line of sight
-meets the terrain, on that line of sight, and is marched until it leaves the
-relief shell ``r <= 1 + h_max``. The pixel is shadowed when the ray, once it has
-risen above the terrain, falls below it again, so only terrain between the point
-the camera sees and the Sun casts a shadow there. The terrain the point lies on
-shades it through the point's own normal instead. The search finds the point
-only to within its precision, so a ray can start just inside the terrain, and
-counting those first samples would shadow terrain the camera sees wherever its
-line of sight grazes the surface. At phase 0, where the Sun ray runs back along
-the line of sight, that would draw black pixels inside a fully lit disc. The
-first step is sampled eight times more finely than the rest, so a wall close to
-the point still shows open sky between itself and the point. Against a
-brute-force truth on a 75 px body with 5% relief at 5 degrees seen at phase 35,
-among the pixels whose normal faces the Sun, the renderer shadows 3 pixels the
-truth leaves lit and misses 1 of the truth's 3,645 shadowed pixels; at phase 0
-it shadows none. The march reads terrain on the far hemisphere as readily as on
-the near one, and the body's curvature is in the geometry rather than an
-approximation. A shadowed pixel renders as night. Which pixels
-can be shadowed follows from the field's steepest slope ``s_max``: along a ray
-the terrain rises at most ``s_max / (1 + h_min)`` per unit of the ray's own
-rise. A pixel whose sun elevation has ``tan(elevation)`` at or above that bound
-is never shadowed, and one at or below its negative always is. The march
-visits the pixels inside that band, widened by half again because ``s_max`` is
-taken from the field grid's own differences. Of those, it visits only the ones
-whose normal faces the Sun. A pixel facing away is night by its own normal, and
-it is marked shadowed all the same, so craters, which tilt the normals
-afterward, cannot light it. The steps are an eighth of a field
-grid cell, whatever the body's size in pixels. A step tied to the shading pixel
-would skip ridge tips on a small body with fine relief and leave their shadows
+crosses the terrain, on that line of sight. The search places that point only to
+within its precision, as much as a field cell inside or outside the terrain, so
+the point is first moved along the line of sight onto the surface, by steps that
+double until one crosses it and are then halved. The ray is marched until it
+leaves the relief shell ``r <= 1 + h_max``. The pixel is shadowed when the ray,
+once it has risen above the terrain, falls below it again, so only terrain
+between the point the camera sees and the Sun casts a shadow there. At phase 0,
+where the Sun ray runs back along the line of sight, no terrain lies in its way,
+so the march shadows nothing inside a fully lit disc. The first step is sampled
+eight times more finely than the rest, after six samples nearer still whose
+distances double up to that spacing, so a wall close to the point still shows
+open sky between itself and the point. The march reads terrain on the far
+hemisphere as readily as on the near one, and the body's curvature is in the
+geometry rather than an approximation.
+
+The terrain right at the point can also turn away from the Sun while the shading
+normal still faces it, because that normal is taken from differences half a cell
+apart. So the renderer also differences the depth below the terrain over 1/4096
+of a cell, toward the Sun and toward the observer, and shadows the pixel where the
+depth grows toward the Sun and shrinks toward the observer, each faster than a
+millionth per unit of distance. The second condition holds wherever a line of
+sight crosses into the terrain. It keeps a point placed just past a crease, on
+terrain the camera does not see, from being darkened, and at phase 0, where the
+Sun lies toward the observer, the two conditions cannot both hold.
+
+Against a brute-force truth on 18 bodies from 60 to 150 px in radius, with relief
+from 2% to 8% and seen at phases from 0 to 150 degrees, the renderer lights none
+of the pixels whose terrain turns away from the Sun and shadows none that the
+truth leaves lit. Of the truth's 24,245 cast-shadowed pixels whose normal faces
+the Sun, it misses 19, and at phase 0 every pixel it covers is lit. A pixel whose
+normal faces away from the Sun is always marked shadowed. It is night by its own
+normal anyway, and the mark keeps craters, which tilt the normals afterward, from
+lighting it. A shadowed pixel renders as night.
+
+Which pixels can be shadowed follows from the field's steepest slope ``s_max``:
+along a ray the terrain rises at most ``s_max / (1 + h_min)`` per unit of the
+ray's own rise. A pixel whose sun elevation has ``tan(elevation)`` at or above
+that bound is never shadowed, and one at or below its negative always is. The
+march visits the pixels inside that band, widened by half again because
+``s_max`` is taken from the field grid's own differences, and of those only the
+ones whose normal faces the Sun. The steps are an eighth of a field grid cell,
+whatever the body's size in pixels. A step tied to the shading pixel would skip
+ridge tips on a small body with fine relief and leave their shadows
 lit. Against a march at a quarter of that step, the decisions differ on under
 0.3% of the shadowed pixels, for bodies from 30 to 300 pixels in radius with
 relief from 1 to 12 degrees across.

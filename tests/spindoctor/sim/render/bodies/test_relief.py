@@ -10,8 +10,10 @@ limit, and distinct seeds are distinct terrains.  The outline envelope, the
 slope bound, and the surface gradient are pinned against brute-force
 evaluations of the same field, and the cast-shadow ray march against the
 exact geometry of a ray grazing a ridge; the ground a point lies in casts it no
-shadow.  A line of sight that misses the surface reads the outline point beside
-it, and the point a line of sight sees moves onto that line of sight.
+shadow, and ground that slopes away from a low sun turns from it where the camera
+sees it.  A line of sight that misses the surface reads the outline point beside
+it, and the point a line of sight sees moves onto that line of sight and along it
+onto the surface.
 """
 
 import functools
@@ -23,7 +25,12 @@ from scipy import special
 
 from spindoctor.sim.render.bodies import relief_sight
 from spindoctor.sim.render.bodies.ellipsoid_grid import silhouette_mask
-from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, synthesize_relief_field
+from spindoctor.sim.render.bodies.relief import (
+    ReliefField,
+    cast_shadows,
+    synthesize_relief_field,
+    turned_from_sun,
+)
 from spindoctor.sim.render.bodies.relief_sight import visible_surface_directions
 from spindoctor.sim.shared.ellipsoid import project_ellipsoid
 from spindoctor.support.types import NDArrayComplexType
@@ -535,11 +542,80 @@ def test_a_wall_within_one_step_casts_a_shadow() -> None:
     assert _equator_point_shadowed(0.04, 5.0, lon_deg=(1.0, 6.0), step=3.0 * cell)
 
 
+def test_a_wall_nearer_than_the_finer_spacing_casts_a_shadow() -> None:
+    """A wall nearer than the first step's finer spacing still casts a shadow.
+
+    The step here is 16 field cells, so the first step's even samples lie 2 cells
+    apart, and the wall rises from flat ground between 1 and 2 cells from the point.
+    The samples nearer the point see the ray rise off the ground before it meets the
+    wall.
+    """
+    cell = 2.0 * np.pi / _RIDGE_GRID
+    assert _equator_point_shadowed(0.04, 5.0, lon_deg=(1.0, 6.0), step=16.0 * cell)
+
+
 def test_flat_terrain_casts_no_shadow() -> None:
     """A field with no height range shadows nothing."""
     flat = ReliefField(grid=np.full((64, 64), 0.01), rms=0.0, corr_deg=15.0, h_min=0.01, h_max=0.01)
     sun = np.array([0.1, 0.995, 0.0])
     assert not cast_shadows(1.01 * _random_directions(50, 3), sun, flat, step=0.01).any()
+
+
+@pytest.mark.parametrize(
+    ('sun_deg', 'view_deg', 'turned'),
+    [(0.5, 90.0, True), (3.0, 90.0, False), (0.5, 0.5, False)],
+    ids=['low-sun', 'higher-sun', 'unseen-slope'],
+)
+def test_ground_turned_from_the_sun(sun_deg: float, view_deg: float, turned: bool) -> None:
+    """Ground that slopes away from a low sun, seen by the camera, turns from the sun.
+
+    The terrain rises along the equator toward the sun at a slope of 0.02, about 1.15
+    degrees, so a sun 0.5 degrees above the smooth ground lies below the slope and one
+    at 3 degrees lies above it.  Seen from 0.5 degrees above the ground on the sun's
+    side, the slope faces away from the camera too, and there the camera cannot see
+    it, so it is not counted.
+
+    Parameters:
+        sun_deg: The sun's elevation above the smooth ground toward the rise, degrees.
+        view_deg: The camera's elevation above the smooth ground on the same side.
+        turned: Whether the ground counts as turned from the sun.
+    """
+    lon = np.arange(_RIDGE_GRID) * (2.0 * np.pi / _RIDGE_GRID)
+    grid = np.broadcast_to(0.02 * np.sin(lon), (_RIDGE_GRID, _RIDGE_GRID)).copy()
+    field = ReliefField(grid=grid, rms=0.014, corr_deg=1.0, h_min=-0.02, h_max=0.02)
+
+    def toward(elevation_deg: float) -> np.ndarray:
+        e = math.radians(elevation_deg)
+        return np.array([math.sin(e), math.cos(e), 0.0])
+
+    result = turned_from_sun(np.array([[1.0, 0.0, 0.0]]), toward(sun_deg), toward(view_deg), field)
+    assert bool(result[0]) is turned
+
+
+def test_a_point_on_its_line_of_sight_settles_onto_the_surface() -> None:
+    """A point inside or outside the terrain moves along its line of sight to the surface.
+
+    Points a third of a field cell off the surface on their lines of sight, both ways,
+    end just outside it, their depth below it within 1/4096 of a cell of 0.
+    """
+    field = synthesize_relief_field(0.05, _CORR_DEG, 9)
+    view = _view_tilted(math.radians(50.0))
+    toward = np.array([view[0], 0.0, view[1]])
+    rng = np.random.default_rng(5)
+    rho = np.sqrt(rng.uniform(0.0, 0.9, 400))
+    phi = rng.uniform(0.0, 2.0 * np.pi, 400)
+    x, y = rho * np.cos(phi), rho * np.sin(phi)
+    seen = visible_surface_directions(x, y, field, view=view)
+    surface = seen * (1.0 + field.sample_points(seen))[:, np.newaxis]
+    on_line = relief_sight.points_on_sight_lines(x, y, surface, view=view)
+    cell = 2.0 * np.pi / field.grid.shape[0]
+    offset = np.where(np.arange(400) % 2 == 0, cell / 3.0, -cell / 3.0)
+    settled = relief_sight.settle_on_surface(
+        on_line + offset[:, np.newaxis] * toward, field, view=view
+    )
+    depth = field.depth_below(settled)
+    assert float(depth.max()) <= 0.0
+    assert float(depth.min()) > -cell / 4096.0
 
 
 @pytest.mark.parametrize(

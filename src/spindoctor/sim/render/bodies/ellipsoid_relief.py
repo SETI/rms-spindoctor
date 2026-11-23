@@ -28,9 +28,10 @@ from spindoctor.sim.render.bodies.ellipsoid_grid import (
     stretched_sight_cells,
 )
 from spindoctor.sim.render.bodies.photometry import incidence_cosines
-from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows
+from spindoctor.sim.render.bodies.relief import ReliefField, cast_shadows, turned_from_sun
 from spindoctor.sim.render.bodies.relief_sight import (
     points_on_sight_lines,
+    settle_on_surface,
     visible_surface_directions,
 )
 from spindoctor.sim.shared.ellipsoid import EllipsoidProjection, ellipsoid_image_normals
@@ -85,7 +86,8 @@ class ReliefShading:
         seen: ``(N, 3)`` parameter-space directions of the surface points the pixels
             see.
         shadowed: The grid mask of the pixels the sun does not light: those whose
-            normal faces away from it and those in a cast shadow.
+            normal faces away from it, those on terrain that turns away from it, and
+            those in a cast shadow.
     """
 
     near: NDArrayBoolType
@@ -264,8 +266,11 @@ def relief_shading(
     by the same affine map, where
     :func:`~spindoctor.sim.render.bodies.relief.cast_shadows` marches the pixels whose
     normal faces the sun and whose sun elevation lies within the field's slope band,
-    from the point each pixel's line of sight meets the surface, so only terrain
-    between that point and the sun can shadow it.  A pixel below the band, or one
+    from the point where each pixel's line of sight crosses the surface, so only
+    terrain between that point and the sun can shadow it.  The normal is smoothed over
+    half a field cell, so the same pixels are also shadowed where
+    :func:`~spindoctor.sim.render.bodies.relief.turned_from_sun` finds the terrain
+    right at that point turned away from the sun.  A pixel below the band, or one
     whose normal faces away from the sun, is always shadowed; the second is night by
     its own normal anyway, and marking it keeps craters, which tilt the normals
     afterward, from lighting it.  A normal that leans away from the observer is laid
@@ -338,19 +343,26 @@ def relief_shading(
     shadowed_near = on_body & ((tan_elevation <= -band) | ~facing)
     marched = on_body & facing & (np.abs(tan_elevation) < band)
     if marched.any():
-        # The march starts on the pixel's own line of sight, so only terrain between
-        # the point that line of sight meets and the sun can shadow it.  At phase 0
-        # the sun ray retraces the line of sight, which meets no terrain before it.
-        seen_points = points_on_sight_lines(
-            sight_x[marched],
-            sight_y[marched],
-            p[marched] * (1.0 + h[marched])[:, np.newaxis],
+        # The march starts on the pixel's own line of sight, where it crosses the
+        # surface, so only terrain between that point and the sun can shadow it.  At
+        # phase 0 the sun ray retraces the line of sight, which meets no terrain
+        # before it.  The normal is smoothed over half a cell, so the terrain right
+        # at the point can still turn away from the sun; that is night too.
+        seen_points = settle_on_surface(
+            points_on_sight_lines(
+                sight_x[marched],
+                sight_y[marched],
+                p[marched] * (1.0 + h[marched])[:, np.newaxis],
+                view=view,
+            ),
+            field,
             view=view,
         )
         cell = 2.0 * np.pi / field.grid.shape[0]
+        toward = np.array([view[0], 0.0, view[1]])
         shadowed_near[marched] = cast_shadows(
             seen_points, sun, field, step=cell / _MARCH_SAMPLES_PER_CELL
-        )
+        ) | turned_from_sun(seen_points, sun, toward, field)
     shadowed = np.zeros(grid.ellipse_dist_sq.shape, dtype=np.bool_)
     shadowed[near] = shadowed_near
     return ReliefShading(
