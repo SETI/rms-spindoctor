@@ -35,42 +35,43 @@ from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
-from scipy import ndimage
 
-from spindoctor.sim.render.detector.electronics_stages import (
-    add_banding,
-    add_bright_dark_pairs,
-    add_fixed_pattern_dn,
-    add_fixed_pattern_response,
+from spindoctor.sim.render.detector.banding import add_banding
+from spindoctor.sim.render.detector.bias import add_bias_structure
+from spindoctor.sim.render.detector.dark import (
+    add_dark_current,
     add_readout_dark,
-    add_residual_image,
-    add_serial_tail,
-    apply_beam_bend,
-    apply_frame_transfer_smear,
-    apply_shutter_shading,
     readout_dark_profile,
 )
-from spindoctor.sim.render.detector.noise_stages import (
-    add_bias_structure,
-    add_cosmic_rays,
-    add_dark_current,
-    add_hot_pixels,
-    deposit_morphological_events,
-    detector_column_map,
+from spindoctor.sim.render.detector.detector_maps import detector_column_map
+from spindoctor.sim.render.detector.fixed_pattern import (
+    add_fixed_pattern_dn,
+    add_fixed_pattern_response,
 )
 from spindoctor.sim.render.detector.params import (
     DetectorParams,
     calibration_map,
     resolve_detector_params,
 )
+from spindoctor.sim.render.detector.pixel_defects import add_bright_dark_pairs, add_hot_pixels
 from spindoctor.sim.render.detector.quantization import quantize_dn
+from spindoctor.sim.render.detector.saturation import add_serial_tail, apply_saturation
 from spindoctor.sim.render.detector.shot_noise import sample_poisson
+from spindoctor.sim.render.detector.shutter import (
+    apply_frame_transfer_smear,
+    apply_shutter_shading,
+)
+from spindoctor.sim.render.detector.transients import (
+    add_cosmic_rays,
+    deposit_morphological_events,
+)
+from spindoctor.sim.render.detector.vidicon import add_residual_image, apply_beam_bend
 from spindoctor.sim.render.feature_loci import dilated_pixels, extract_feature_loci
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
-__all__ = ['apply_detector', 'apply_saturation', 'keep_off_marker']
+__all__ = ['apply_detector', 'keep_off_marker']
 
 
 # The detector streams that hold a property of the camera rather than of one frame.
@@ -98,36 +99,6 @@ def _feature_pool(frame: SimFrame) -> tuple[NDArrayIntType, NDArrayIntType]:
     """The dilated navigation-feature pixel pool for adversarial placement."""
     loci = extract_feature_loci(frame.truth, frame.signal.shape)
     return dilated_pixels(loci, radius=3, shape=frame.signal.shape)
-
-
-def apply_saturation(
-    electrons: NDArrayFloatType,
-    *,
-    full_well_e: float,
-    bloom_length: int = 0,
-) -> None:
-    """Cap the electron image at the full well, optionally blooming along columns.
-
-    Charge above ``full_well_e`` spills along the column (the v axis) up to
-    ``bloom_length`` pixels each way, conserving the total excess, before every
-    pixel is capped at the full well.  A saturated star therefore blooms into a
-    vertical streak the way it does on cameras with column bleed, and the capped
-    pixels read ``full_well_e / gain`` DN after conversion (below the ADC clip on
-    an antiblooming-free camera such as Cassini's NAC).
-
-    Parameters:
-        electrons: The electron image, modified in place.
-        full_well_e: The full-well ceiling in electrons.
-        bloom_length: Column-bloom half-length in pixels; 0 disables bloom.
-    """
-    if bloom_length > 0:
-        excess = np.maximum(electrons - full_well_e, 0.0)
-        if float(excess.max()) > 0.0:
-            width = 2 * bloom_length + 1
-            spread = ndimage.uniform_filter1d(excess, size=width, axis=0, mode='constant')
-            np.minimum(electrons, full_well_e, out=electrons)
-            electrons += spread
-    np.minimum(electrons, full_well_e, out=electrons)
 
 
 def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArrayFloatType:
@@ -532,7 +503,7 @@ def _subtract_calibration_residual(dn: NDArrayFloatType, dp: DetectorParams) -> 
     models' mismatch leaves structure the raw frame does not carry.  Two terms
     reproduce it, both in electrons per native pixel and converted by the gain:
     a column pattern fixed per detector
-    (:func:`~spindoctor.sim.render.detector.noise_stages.detector_column_map`),
+    (:func:`~spindoctor.sim.render.detector.detector_maps.detector_column_map`),
     with sigma ``calibration_column_residual_e``, and a per-frame Gaussian per
     pixel, with sigma ``calibration_pixel_residual_e``.  A binned pixel sums its
     native pixels: the ``b`` rows of a column add coherently and the ``b``

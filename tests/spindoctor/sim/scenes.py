@@ -20,6 +20,7 @@ from spindoctor.sim.scene.validate import CURRENT_SCHEMA_VERSION
 __all__ = [
     'body_scene',
     'disc_body',
+    'disc_scene',
     'frame_scene',
     'quiet_instrument_defaults',
     'quiet_noise',
@@ -113,6 +114,35 @@ def disc_body(
         'semi_c_px': radius,
         **copy.deepcopy(keys),
     }
+
+
+def disc_scene(instrument: str, **blocks: Any) -> dict[str, Any]:
+    """A 96 by 96 frame of a centered lit disc, about 30 pixels across.
+
+    Parameters:
+        instrument: The scene's instrument.
+        **blocks: Further top-level scene keys, as :func:`frame_scene` takes them.
+
+    Returns:
+        A fresh scene mapping.
+    """
+    return frame_scene(
+        instrument=instrument,
+        size=96,
+        seed=3,
+        exposure_sec=1.0,
+        bodies=[
+            {
+                'name': 'B',
+                'center_v': 48,
+                'center_u': 48,
+                'semi_a_px': 15.0,
+                'semi_b_px': 14.0,
+                'semi_c_px': 14.0,
+            }
+        ],
+        **blocks,
+    )
 
 
 def body_scene(

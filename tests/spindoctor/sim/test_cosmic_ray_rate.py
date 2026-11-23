@@ -22,8 +22,8 @@ from tests.spindoctor.sim.scenes import body_scene, frame_scene
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.catalog import load_instrument_catalog, sim_instrument_names
 from spindoctor.sim.render.detector import apply_detector, chain
-from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.detector.transients import add_cosmic_rays
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.validate import validate_sim_params

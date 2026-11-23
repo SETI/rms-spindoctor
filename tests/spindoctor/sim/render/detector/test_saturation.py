@@ -1,19 +1,20 @@
-"""Electron-domain full-well bloom and the physical saturation level.
+"""The full well, the column bloom above it, and the serial tail.
 
-``apply_saturation`` now caps and blooms in electrons against the full well, so a
-Cassini scene saturates at ``full_well_e / gain`` DN (below the ADC ceiling), the
-antiblooming-free CCD behavior.  These tests drive the bloom mechanics directly
-and render a bright scene end-to-end.
+A Cassini scene saturates at ``full_well_e / gain`` DN, below the ADC ceiling.  The
+bloom and the tail are driven directly, and a bright scene is rendered end to end.
 """
 
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import frame_scene
+import pytest
+from tests.spindoctor.sim.scenes import disc_scene, frame_scene
 
-from spindoctor.sim.render.detector import apply_saturation
+from spindoctor.sim.render.detector.params import resolve_detector_params
+from spindoctor.sim.render.detector.saturation import add_serial_tail, apply_saturation
 from spindoctor.sim.render.driver import render_scene
 
+_SIZE = 64
 _FULL_WELL_E = 110.0e3
 _NAC_GAIN = 30.0
 _NAC_BIAS = 20.0
@@ -88,3 +89,59 @@ def test_render_saturates_at_physical_full_well() -> None:
     expected = round(_FULL_WELL_E / _NAC_GAIN + _NAC_BIAS)
     assert float(img.max()) == expected
     assert expected < 4095.0
+
+
+def test_lorri_does_not_bloom_under_instrument_defaults() -> None:
+    """LORRI's CCD drains the charge above the well, so its defaults turn no bloom on."""
+    dp = resolve_detector_params(disc_scene('nhlorri', artifacts={'instrument_defaults': True}))
+    assert 'bloom' not in dp.detector_modes
+
+
+def test_serial_tail_writes_a_horizontal_tail_off_saturation() -> None:
+    """A saturated pixel seeds a bright-then-dark tail in the readout direction."""
+    dn = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    dn[32, 20] = 4095.0
+    add_serial_tail(
+        dn,
+        saturation_dn=4095.0,
+        saturation_frac=0.99,
+        amplitude_dn=12.0,
+        length_px=6,
+        direction='right',
+    )
+    assert float(dn[32, 21]) > 0.0  # bright overshoot just right of the source
+    assert float(dn[32, 24]) < 0.0  # dark undershoot further along
+    assert float(dn[32, 19]) == pytest.approx(0.0)  # nothing to the left
+
+
+def test_serial_tail_disabled_without_saturation() -> None:
+    """With no saturated pixel the serial tail is a no-op."""
+    dn = np.full((_SIZE, _SIZE), 100.0, dtype=np.float64)
+    before = dn.copy()
+    record = add_serial_tail(
+        dn,
+        saturation_dn=4095.0,
+        saturation_frac=0.99,
+        amplitude_dn=12.0,
+        length_px=6,
+        direction='right',
+    )
+    assert record['sources'] == 0
+    assert np.array_equal(dn, before)
+
+
+def test_serial_tail_length_one_renders() -> None:
+    """A 1-px tail renders without error; there is nothing past the source to write."""
+    dn = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    dn[32, 20] = 4095.0
+    record = add_serial_tail(
+        dn,
+        saturation_dn=4095.0,
+        saturation_frac=0.99,
+        amplitude_dn=12.0,
+        length_px=1,
+        direction='right',
+    )
+    assert record['active'] is True
+    assert record['sources'] == 1
+    assert float(dn[32, 21]) == pytest.approx(0.0)

@@ -733,7 +733,7 @@ def test_uniform_placement_ignores_features() -> None:
 
 def test_adversarial_hot_pixels_concentrate_on_features() -> None:
     """Adversarial hot pixels land on and beside the navigation features."""
-    from spindoctor.sim.render.detector.noise_stages import add_hot_pixels
+    from spindoctor.sim.render.detector.pixel_defects import add_hot_pixels
     from spindoctor.sim.render.feature_loci import dilated_pixels, extract_feature_loci
 
     truth = _body_truth(28, 36, 28, 36)
