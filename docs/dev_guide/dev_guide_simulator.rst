@@ -5630,7 +5630,7 @@ in ``tests/integration/realism_regression.py`` is the same rule in code.
 The table stores each value to six significant digits and each spread rounded up to
 three, and each band is computed from those stored numbers.  Because the spread is
 rounded up, no band is narrower than 3 times the spread measured.  In the LORRI
-measurement of 2026-11-11, all 19 held statistics came out identical in all 10 runs.
+measurement of 2026-11-22, all 19 held statistics came out identical in all 10 runs.
 So every band is the 2% floor, and a statistic whose value is 0, such as the fraction
 of lost lines, is held to exactly 0.  A table is refused when it is empty or when an
 instrument's entry is empty, because a check over either would pass without checking
@@ -5698,8 +5698,8 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run takes 36 to 39 minutes on a workstation with local
-holdings.  The committed record of 2026-11-17 took 36 minutes (2,161 seconds).
+The full-cohort run takes 32 to 39 minutes on a workstation with local
+holdings.  The committed record of 2026-11-22 took 32 minutes (1,894 seconds).
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on
 W1580760393).  The cost is

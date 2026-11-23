@@ -199,8 +199,8 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``ea3c5442`` on
-2026-11-17.
+code that made it.  The current record was made at commit ``87bd9d68`` on
+2026-11-22.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -208,7 +208,7 @@ the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (2026-11-17 record, 75 frames).  A label counts the frames that
+Cohort support (2026-11-22 record, 75 frames).  A label counts the frames that
 contribute to the figure of merit on each side, real and simulated, and the
 smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 *supported* for 8 or more.
@@ -354,7 +354,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-17; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-22; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -372,19 +372,19 @@ real IQR):
      - 10.0
      - 0.73 [#table]_
      - 4502
-     - 7332
+     - 7333
    * - sky level above floor (FOM 1)
      - 3.2e-4 I/F
      - 13.9
      - 1.64 [#tail]_
      - 4502
-     - 7332
+     - 7333
    * - noise at signal (FOM 1)
      - 2.8e-4 I/F
      - 13.8
      - 1.53
      - 15700
-     - 33791
+     - 33800
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
@@ -406,9 +406,9 @@ real IQR):
    * - ring-edge rise width (FOM 4)
      - 3.36 px
      - 0.47
-     - 0.49
+     - 0.50
      - 3163
-     - 21945
+     - 21962
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
@@ -465,7 +465,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-17; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-22; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -544,7 +544,7 @@ like-for-like pool (co-populated-strata medians 2.539 sim vs 2.540 px
 real, W1/IQR 0.12) with per-stratum divergences from 0.27 to 2.66, worst
 at high phase, where the simulated crescent limb measures *wider* than
 the real one (2.36-2.53 px vs 1.71-1.75 px medians).  Ring-edge widths
-differ by 0.9 px (2.47 sim vs 3.36 px real, W1/IQR 0.49).  The sky-noise
+differ by 1.0 px (2.41 sim vs 3.36 px real, W1/IQR 0.50).  The sky-noise
 distribution matches closer than in the 2026-11-07 record (W1/IQR 0.73,
 from 1.44), with the simulated median below the real one (1.7e-4 vs
 1.9e-4 I/F).  Only patches on dark sky enter it now, and the split by
@@ -693,8 +693,8 @@ hot-pixel fraction, and the real transient fraction, 1.2e-4 of pixels,
 meets 1.6e-4 from the catalog's fitted cosmic-ray terms (spike-fraction
 W1/IQR 0.44; the measured-transients known gap) -- and FOM 1.  Every frame
 pair contributes sky patches, and the matched frames have about a quarter
-of the real sky noise: 0.22 DN against 0.96 DN, over 435 simulated and 822
-real sky patches (W1/IQR 8.2).  The real frames also carry an extended
+of the real sky noise: 0.19 DN against 0.96 DN, over 355 simulated and 822
+real sky patches (W1/IQR 8.5).  The real frames also carry an extended
 background glow the matched sky frames do not model (see the known gaps).
 
 **Voyager ISS** (3 frames, limited).  The GEOMED star frame gives 6 real
@@ -704,7 +704,7 @@ vgiss PSF comparison is *unconstrained*: the retained interim sigma
 stands on its published-range provenance alone, not on cohort evidence.
 The vidicon read noise was tuned down from its high-gain interim value
 (see the catalog).  The simulated sky noise is 3.1e-3 I/F against 1.8e-3
-real (W1/IQR 0.45, over 737 simulated and 612 real patches), but the
+real (W1/IQR 0.45, over 726 simulated and 612 real patches), but the
 comparison is not like for like.  The real frames are resampled, which
 correlates neighboring pixels, so the paired-difference estimate reads
 their noise about a third low.  The matched scenes don't turn on the
@@ -718,12 +718,12 @@ star fields, and the matched frames render through the 4x4 readout mode,
 where the catalog's native kernel is rescaled to binned pixels.  Each
 matched frame holds its field's catalog stars, and the two sides give 16
 star cutouts each.  The simulated stars are narrower than the real ones
-at both radii (EE50 0.38 sim vs 0.59 px real, EE80 0.67 vs 1.23 px;
-normalized W1 2.0 and 2.3), and the wing falls further short: the real
+at both radii (EE50 0.42 sim vs 0.59 px real, EE80 0.72 vs 1.23 px;
+normalized W1 1.3 and 2.4), and the wing falls further short: the real
 profile carries far more energy between the two radii than the kernel's
 interim 1.2% wing allows, the signature the NAC kernel showed before its
 wing was tuned.  The frames' bright tail is short by the same mechanism
-(p99 - p50 stretch 3.5 vs 26.8 DN).  The 4x4 frames
+(p99 - p50 stretch 4.0 vs 26.8 DN).  The 4x4 frames
 test the native kernel only through the rescaling, and say its wing is too
 weak; they say nothing separate about a 1x1 frame.  The sky statistics are
 pedestal-invariant by construction (the sci products are bias-subtracted;
@@ -736,24 +736,25 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-17 pairs:
+2026-11-22 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
   WAC and LORRI star pairs, with the simulated inlier residuals tighter
-  than the real ones (0.02-0.12 px vs 0.06-0.32 px) -- the sim errs
+  than the real ones (0.02-0.14 px vs 0.06-0.32 px) -- the sim errs
   optimistic on star sharpness.
 - The Cassini ring pair separates on residual texture: ``RingEdgeNav``
   reports 0.71 on the real frame versus 0.94 on its matched render.
   The real frame's ring structure the renderer does not model leaves a
-  ~28 px mean per-edge DT residual (the matched render fits to ~1.5 px),
+  ~28 px mean per-edge DT residual (the matched render fits to ~1.1 px),
   and the ring-vocabulary calibration prices that residual, so the sim
   errs optimistic on ring-scene sharpness.
 - Both limb pairs succeed on both sides.  On the NAC pair (0.77 real vs
   0.66 sim) the simulated DT residual is three times the real one.  On
   the WAC pair (0.76 real vs 0.81 sim) the simulated fit is the tighter
   (DT RMS 0.43 vs 0.62 px).
-- The NAC and Voyager star pairs fail on the simulated side.  The NAC
+- The NAC and Voyager star pairs lock weakly or not at all on the simulated
+  side.  The NAC
   frame, an H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks
   at only 0.6, a wide-offset lock on 3 inliers (a known caveat of that
   cohort frame).  Its matched render holds the field's catalog stars, and
@@ -762,8 +763,8 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   takes, because its star prediction ignores the filter and uses a
   placeholder star limit on a simulated calibrated frame.  The fit finds 2
   inliers and doesn't lock.  The Voyager frame locks at 0.94 on 7 of 11
-  predicted stars, while its matched render predicts 5, finds no inliers,
-  and doesn't lock.
+  predicted stars, while its matched render predicts 5 and locks at only
+  0.6, a wide-offset lock on 3 inliers.
 
 These rows are the evidence a human reads to judge whether the techniques
 *behave* comparably on matched frames.  They were not consulted during
