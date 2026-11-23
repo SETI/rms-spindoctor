@@ -48,8 +48,7 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import navigator_matched_psf
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
     resolve_detector_defaults,
@@ -843,10 +842,7 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
         sigma_v_psf = float(scene_psf['sigma_v'])
         psf_sigma = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
     else:
-        inst_config = resolve_sim_inst_config(
-            DEFAULT_CONFIG, instrument, params.get('instrument_config')
-        )
-        psf_sigma = float(inst_config['star_psf_sigma']) / binning
+        psf_sigma = navigator_matched_psf(params)['sigma_v'] / binning
     return faint_sky_cutoff_mag(
         zero_point=zero_point,
         exposure_sec=float(params.get('exposure_sec', 1.0)),

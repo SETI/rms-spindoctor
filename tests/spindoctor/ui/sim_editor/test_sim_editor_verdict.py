@@ -41,11 +41,12 @@ from tests.spindoctor.ui.sim_editor.sim_editor_waits import (
 )
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import frame_units_summary, resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 from spindoctor.ui.sim_editor import verdict as verdict_module
 from spindoctor.ui.sim_editor import worker as worker_module
+from spindoctor.ui.sim_editor.frame_status import frame_units_summary
 
 
 @pytest.fixture
