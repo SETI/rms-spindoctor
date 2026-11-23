@@ -501,7 +501,6 @@ def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] |
 
     The scene's own ``detector.detector_model`` wins; otherwise the camera's
     default in the scene's readout mode (the mode's values over the native ones).
-    A null key reads as absent, as it does everywhere in the detector resolver.
 
     Parameters:
         instrument: The sim instrument name, an alias, or ``None``.
@@ -550,7 +549,7 @@ def resolve_mode_with_catalog(
     resolved: dict[str, Any] = {}
     for param in ARTIFACT_MODES[mode_name].params:
         name = param.name
-        if name in scene_cfg and scene_cfg[name] is not None:
+        if name in scene_cfg:
             resolved[name] = scene_cfg[name]
         elif name in catalog:
             resolved[name] = catalog[name]

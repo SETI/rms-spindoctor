@@ -241,11 +241,9 @@ class ArtifactsTabMixin(SimEditorBase):
         return resolve_detector_defaults(self.sim_params.get('instrument'), binning)
 
     def _detector_block(self) -> dict[str, Any]:
-        """The scene's detector keys that carry a value; a null reads as absent."""
+        """The scene's ``detector`` block, or an empty mapping when the scene has none."""
         detector = self.sim_params.get('detector')
-        if not isinstance(detector, dict):
-            return {}
-        return {key: value for key, value in detector.items() if value is not None}
+        return dict(detector) if isinstance(detector, dict) else {}
 
     def _build_detector_group(self) -> QGroupBox:
         """Build the detector-override group (per-key discipline)."""

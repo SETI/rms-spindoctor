@@ -1,6 +1,6 @@
 """Keep each body inside the keys the scene validator accepts for its shape model.
 
-The scene validator refuses a non-null value of every key in
+The scene validator refuses every key in
 :data:`spindoctor.sim.scene.fields.MESH_UNSUPPORTED_KEYS` on a
 ``shape_model: polyhedral_mesh`` body, and of every key in
 :data:`spindoctor.sim.scene.fields.ELLIPSOID_UNSUPPORTED_KEYS` on an ellipsoid

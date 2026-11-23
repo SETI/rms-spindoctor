@@ -46,7 +46,7 @@ no-op when its activation key is 0, or, on ``dead_pixels`` and ``dead_columns``,
 when its ``count`` is 0 where given (the stage-activation rule).  Those two modes
 accept ``count``, a fixed number of events in place of the Poisson draw, and
 ``count`` and ``expected_events`` are mutually exclusive: a map may set one of
-them (a key set to null counts as unset).  Each mode's
+them.  Each mode's
 :attr:`ArtifactMode.activation_semantics` says what its events are.
 
 **Parameter types.**  Each parameter's type is an annotation from the schema core
@@ -299,8 +299,7 @@ class ArtifactMode:
         """The fixed-count key that replaces ``expected_events``, or None.
 
         Only ``dead_pixels`` and ``dead_columns`` carry one (``count``); the
-        validator refuses a scene map that sets both keys to a value (a key
-        set to null counts as unset).
+        validator refuses a scene map that sets both keys.
         """
         return _COUNT.name if _COUNT.name in self.param_map else None
 
@@ -794,12 +793,6 @@ def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[s
 
     Returns:
         A fresh dict carrying every parameter, scene value overriding default.
-        A key set to ``None`` reads as unset and takes the default, as in
-        :func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog`.
     """
     mode = ARTIFACT_MODES[mode_name]
-    resolved: dict[str, Any] = {}
-    for param in mode.params:
-        value = raw_config.get(param.name)
-        resolved[param.name] = param.default if value is None else value
-    return resolved
+    return {param.name: raw_config.get(param.name, param.default) for param in mode.params}

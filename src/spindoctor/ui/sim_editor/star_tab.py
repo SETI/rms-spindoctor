@@ -21,8 +21,8 @@ The position spin boxes write the scene's ``v`` / ``u`` unchanged, so they
 carry the scene's own convention: every position in a scene is a pixel corner,
 and the center of pixel ``N`` is ``N + 0.5``.  The row labels name that
 convention rather than leaving the reader to infer it from a rendered star.  If a
-star's ``v`` or ``u`` is absent or null, its spin box shows the frame center,
-because the renderer reads it that way.
+star leaves out ``v`` or ``u``, its spin box shows the frame center, because the
+renderer reads it that way.
 
 The PSF-window size is stored as a two-element list, never a tuple: the safe
 YAML dumper is not guaranteed to accept tuples, and a tuple never compares
@@ -66,7 +66,7 @@ class StarTabMixin(SimEditorBase):
     ) -> tuple[float, float]:
         """A scene star's catalog position, read as the renderer reads it.
 
-        An absent or null ``v`` or ``u`` reads as the center of the star's own scene
+        An absent ``v`` or ``u`` reads as the center of the star's own scene
         frame.  A planted catalog error moves the drawn star off this position.  The
         star tab, the preview's star marks, and a star drag all start from this
         position.

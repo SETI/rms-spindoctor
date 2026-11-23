@@ -56,7 +56,7 @@ def as_map(value: Any) -> dict[str, Any]:
 
     Parameters:
         value: A scene value that should be a map, such as a block that may be
-            absent or null.
+            absent.
 
     Returns:
         ``value`` itself when it is a dict, otherwise a fresh empty dict.
@@ -84,44 +84,33 @@ def frame_center_px(sim_params: Mapping[str, Any]) -> tuple[float, float]:
 
 
 def kept_or_shown(
-    spins: Mapping[str, QDoubleSpinBox],
-    removed: Mapping[str, Any],
-    *,
-    null_shows: Mapping[str, float] | None = None,
-) -> dict[str, float | None]:
+    spins: Mapping[str, QDoubleSpinBox], removed: Mapping[str, Any]
+) -> dict[str, float]:
     """Return each spin's key with its value from a removed map, or from the spin.
 
     A group that is turned off keeps the map it removed, and turning it back on
     rebuilds the map from its spins.  A spin rounds to its displayed decimals and
     stops at its range, so each key takes the removed map's exact value while the
-    spin still shows that value, and the spin's own value once it was edited.  A
-    key in ``null_shows`` may be null in the removed map, and stays null while its
-    spin still shows the value given there.
+    spin still shows that value, and the spin's own value once it was edited.
 
     Parameters:
         spins: The group's spin boxes by map key.
         removed: The map the group removed when it was turned off, or an empty
             mapping when it never was.
-        null_shows: The value each spin shows for a null key, by map key.
 
     Returns:
         The rebuilt values by map key.
     """
-    values: dict[str, float | None] = {}
+    values: dict[str, float] = {}
     for key, spin in spins.items():
         shown = float(spin.value())
         kept = removed.get(key)
-        kept_value: float | None
-        if isinstance(kept, (int, float)):
-            kept_value, kept_shows = float(kept), float(kept)
-        elif kept is None and key in removed and null_shows is not None and key in null_shows:
-            kept_value, kept_shows = None, null_shows[key]
-        else:
+        if not isinstance(kept, (int, float)):
             values[key] = shown
             continue
         # Compare as the spin displays both: Qt rounds an exact tie half-up, round() to even.
-        still_shown = spin.textFromValue(kept_shows) == spin.textFromValue(shown)
-        values[key] = kept_value if still_shown else shown
+        still_shown = spin.textFromValue(float(kept)) == spin.textFromValue(shown)
+        values[key] = float(kept) if still_shown else shown
     return values
 
 

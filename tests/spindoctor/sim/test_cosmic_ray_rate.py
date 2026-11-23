@@ -8,8 +8,7 @@ same meaning, and the validator accepts a rate on every scene.  On the vidicon
 the hits land on the stored target image: after the prior frame's residual
 image, which this frame's hits don't reach, and before the readout.  Under
 ``artifacts.instrument_defaults`` the catalog's rate applies, and below that the
-configuration's ``sim.noise`` floor.  An explicit null ``detector.detector_model``
-means the instrument's default model.
+configuration's ``sim.noise`` floor.
 """
 
 import dataclasses
@@ -22,7 +21,6 @@ from tests.spindoctor.sim.scenes import body_scene, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.catalog import load_instrument_catalog, sim_instrument_names
-from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.detector import apply_detector, chain
 from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
 from spindoctor.sim.render.detector.params import resolve_detector_params
@@ -32,9 +30,8 @@ from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.seeds import derive_effect_seed
 
 _KEY = 'cosmic_ray_events_per_pixel_per_sec'
-# The detector block a property case uses: absent, an explicit null (which the
-# validator and the renderer must both read as the instrument's default), or a
-# named model.
+# The detector block a property case uses: absent, which takes the instrument's
+# default model, or a named model.
 _ABSENT = 'absent'
 _INSTRUMENTS = (*sim_instrument_names(), 'generic')
 
@@ -203,10 +200,8 @@ def test_config_floor_rate_gives_way_to_the_scene(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.parametrize('instrument', _INSTRUMENTS)
-@pytest.mark.parametrize(
-    'model', [_ABSENT, None, 'ccd', 'vidicon'], ids=['default', 'null', 'ccd', 'vidicon']
-)
-def test_a_rate_deposits_hits_on_every_detector_path(instrument: str, model: str | None) -> None:
+@pytest.mark.parametrize('model', [_ABSENT, 'ccd', 'vidicon'], ids=['default', 'ccd', 'vidicon'])
+def test_a_rate_deposits_hits_on_every_detector_path(instrument: str, model: str) -> None:
     """A positive rate changes the detector output on every instrument and model."""
     extra = {} if model == _ABSENT else {'detector': {'detector_model': model}}
     without = _detector_dn(_scene(instrument, {_KEY: 0.0}, **extra))
@@ -215,10 +210,8 @@ def test_a_rate_deposits_hits_on_every_detector_path(instrument: str, model: str
 
 
 @pytest.mark.parametrize('instrument', _INSTRUMENTS)
-@pytest.mark.parametrize(
-    'model', [_ABSENT, None, 'ccd', 'vidicon'], ids=['default', 'null', 'ccd', 'vidicon']
-)
-def test_the_validator_accepts_a_rate_on_every_path(instrument: str, model: str | None) -> None:
+@pytest.mark.parametrize('model', [_ABSENT, 'ccd', 'vidicon'], ids=['default', 'ccd', 'vidicon'])
+def test_the_validator_accepts_a_rate_on_every_path(instrument: str, model: str) -> None:
     """A positive rate validates on every instrument and detector model."""
     extra = {} if model == _ABSENT else {'detector': {'detector_model': model}}
     scene = _scene(instrument, {_KEY: 0.05}, **extra)
@@ -343,22 +336,6 @@ def test_a_vidicon_hit_bends_the_beam_only_near_itself(seed: int) -> None:
     near = ndimage.binary_dilation(hit > base + 0.5, iterations=10)
     assert int((hit > base + 0.5).sum()) > 0
     assert float(np.abs(hit - base)[~near].max()) == 0.0
-
-
-@pytest.mark.parametrize('instrument', _INSTRUMENTS)
-def test_null_detector_model_resolves_to_the_catalog_model(instrument: str) -> None:
-    """An explicit null detector model renders through the instrument's default model."""
-    scene = _scene(instrument, {}, detector={'detector_model': None})
-    expected = resolve_detector_defaults_native(instrument).detector_model
-    assert resolve_detector_params(scene).detector_model == expected
-
-
-def test_null_detector_keys_resolve_like_absent_ones() -> None:
-    """Every detector key set to null resolves exactly as if the block omitted it."""
-    nulls = dict.fromkeys(('gain_state', 'detector_model', 'exposure_ref_sec', 'quantization'))
-    scene = _scene('coiss_nac', {}, detector=nulls)
-    assert validate_sim_params(scene) is scene
-    assert resolve_detector_params(scene) == resolve_detector_params(_scene('coiss_nac', {}))
 
 
 # ---- instrument_defaults ----

@@ -1,18 +1,17 @@
 """The typed, frozen form of one scene ``bodies`` entry.
 
-Every key of a scene body is optional, and the validator reads a key written as
-null as if it were left out.  :func:`body_spec_from_params` parses a body mapping
-once into a :class:`BodySpec`.  Every default is applied there, and a null takes
-the same default an absent key takes, so the renderer reads typed fields and never
-meets a null.
+Every key of a scene body is optional, and the validator refuses a key written as
+null, so a scene leaves a key out to take its default.  :func:`body_spec_from_params`
+parses a body mapping once into a :class:`BodySpec`.  Every default is applied there,
+so the renderer reads typed fields.
 
 Two sub-blocks stay as their validated mappings: ``atmosphere``, whose pixel
 lengths scale with the render grid's oversampling, and ``albedo_texture``, whose
 noise field draws its seed from the body's identity.  The renderer builds their
 specs once it knows the oversampling factor and the body's identity seed, through
 :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_params` and
-:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which read
-a null key as absent too.  The renderer does not read ``km_per_pixel``, which
+:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which apply
+the defaults of those blocks.  The renderer does not read ``km_per_pixel``, which
 describes the body to the navigator, or ``nav_override``, which holds the values
 the navigator is given in place of the truth, so the spec leaves both out.
 
@@ -172,7 +171,7 @@ class BodySpec:
 
 
 def _optional_float(block: Mapping[str, Any], key: str) -> float | None:
-    """The key's value as a float, or None when it is absent or null."""
+    """The key's value as a float, or None when it is absent."""
     value = block.get(key)
     return None if value is None else float(value)
 
@@ -180,7 +179,7 @@ def _optional_float(block: Mapping[str, Any], key: str) -> float | None:
 def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> BodySpec:
     """Parse one validated scene body into a :class:`BodySpec`.
 
-    A key that is absent or null takes its default.  The mapping is only read.
+    A key that the entry leaves out takes its default.  The mapping is only read.
 
     Parameters:
         body_params: One entry of the scene's ``bodies`` list.

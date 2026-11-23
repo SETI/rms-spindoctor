@@ -359,7 +359,7 @@ class ModeRow:
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
         """Show one scalar parameter's scene value, or its default.
 
-        If the key is absent or set to null, the widget shows the camera's shape
+        If the key is absent, the widget shows the camera's shape
         default if its config has one, else the registry default.  A key with no
         default at all shows 0, or the spin box's minimum, though the renderer may
         take its value from the detector block instead.

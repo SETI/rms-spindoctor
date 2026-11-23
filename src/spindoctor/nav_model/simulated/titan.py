@@ -156,8 +156,8 @@ class NavModelTitanSimulated(NavModelTitan):
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict):
             return []
-        bodies = [bp for bp in nav_params.get('bodies', []) or [] if isinstance(bp, dict)]
-        stars = [sp for sp in nav_params.get('stars', []) or [] if isinstance(sp, dict)]
+        bodies = [bp for bp in nav_params.get('bodies', []) if isinstance(bp, dict)]
+        stars = [sp for sp in nav_params.get('stars', []) if isinstance(sp, dict)]
         out: list[NavModel] = []
         for index, body_params in enumerate(bodies):
             if str(body_params.get('name', '')).upper() != TITAN_BODY_NAME:
