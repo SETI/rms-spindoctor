@@ -226,6 +226,7 @@ one. This phase's exit asks for that check.
 | #1094 | **Affects no current scene.** A ring ramp under a density wave renders about 35 times slower than without it (69 s against 1.9 s for a 300 px ramp at 1,024 px and oversample 4), because every band pixel takes the 32-cell curved path |
 | #1057 | **Affects no current scene.** A Henyey-Greenstein asymmetry within rounding of 1 or -1 divides by zero in the ring renderer; cap it in the ring and haze rules |
 | #1115 | **Affects no current scene.** The outline of a relief body seen at a latitude is rebuilt on every render (5.9 s at a 1-degree correlation length); cache it by view |
+| #1127 | **Affects the relief scene and every relief sweep by render time only.** A body with relief takes far too long to render (17 s for a 150 px rough body, over 3 minutes for fine relief) |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
