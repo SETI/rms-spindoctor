@@ -324,16 +324,6 @@ class BodyTabMixin(SimEditorBase):
         w.anti_aliasing_slider = aa_slider  # type: ignore[attr-defined]
         w.anti_aliasing_spin = aa_spin  # type: ignore[attr-defined]
 
-        # Crater seed: -1 ("Auto") omits the key so the renderer hashes the
-        # geometry; any other value pins the crater pattern.
-        crater_seed = QSpinBox()
-        crater_seed.setRange(-1, 2147483647)
-        crater_seed.setSpecialValueText('Auto')
-        crater_seed.setValue(-1 if spec.seed is None else spec.seed)
-        crater_seed.setToolTip('Crater RNG seed; Auto hashes the body geometry.')
-        crater_seed.valueChanged.connect(lambda v, i=idx: self._on_body_seed(i, v))
-        fl.addRow('Crater seed:', crater_seed)
-
         km_pp = QDoubleSpinBox()
         km_pp.setRange(0.0, 1.0e9)
         km_pp.setDecimals(4)
@@ -628,15 +618,6 @@ class BodyTabMixin(SimEditorBase):
                 if tab_w is not None:
                     self._sync_body_mesh_enabled(tab_w, text == 'polyhedral_mesh')
             self._refresh_body_override_controls(idx)
-            self._updater.request_update()
-
-    def _on_body_seed(self, idx: int, value: int) -> None:
-        """Set an integer crater seed, or remove it (Auto) when value is -1."""
-        if 0 <= idx < len(self.sim_params['bodies']):
-            if value < 0:
-                self.sim_params['bodies'][idx].pop('seed', None)
-            else:
-                self.sim_params['bodies'][idx]['seed'] = int(value)
             self._updater.request_update()
 
     def _on_body_pose(self, idx: int, axis: int, value: float) -> None:

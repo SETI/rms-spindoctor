@@ -113,6 +113,7 @@ def _render_body(
         body_spec_from_params(body_params, index=0),
         0.0,
         offset_u=0.0,
+        body_streams_seed=7,
     )
     return img, body_info.get('halo')
 

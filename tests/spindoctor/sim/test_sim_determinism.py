@@ -16,14 +16,13 @@ from spindoctor.sim.render.detector import chain, resolve_detector_params
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.render.telemetry.stage import apply_telemetry
-from spindoctor.sim.seeds import derive_effect_seed, stable_param_seed
+from spindoctor.sim.seeds import derive_effect_seed
 
 # Pinned values guard against an accidental switch to a salted hash (e.g. the
 # built-in ``hash``): a salted derivation would not reproduce these constants.
 _EXPECTED_NOISE_SEED = 2193400513
 _EXPECTED_BACKGROUND_STARS_SEED = 2528068292
 _EXPECTED_CRATERS_SEED = 4259976418
-_EXPECTED_PARAM_SEED = 3733498255
 
 _SEED_CEILING = 2**32
 
@@ -78,16 +77,6 @@ def test_pinned_effect_seeds_match() -> None:
     """All three effect sub-seeds match their pinned values."""
     assert derive_effect_seed(42, 'background_stars') == _EXPECTED_BACKGROUND_STARS_SEED
     assert derive_effect_seed(42, 'craters') == _EXPECTED_CRATERS_SEED
-
-
-def test_stable_param_seed_is_process_stable() -> None:
-    """The geometry fallback seed matches its pinned, salt-free value."""
-    assert stable_param_seed(1.0, 2.0, 3.0, (4.0, 5.0)) == _EXPECTED_PARAM_SEED
-
-
-def test_stable_param_seed_in_randomstate_range() -> None:
-    """The fallback seed stays within the RandomState-accepted range."""
-    assert 0 <= stable_param_seed(1.0, 2.0, 3.0, (4.0, 5.0)) < _SEED_CEILING
 
 
 def test_render_is_byte_identical_across_cache_clears() -> None:

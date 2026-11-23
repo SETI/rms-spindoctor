@@ -102,7 +102,6 @@ def _ellipsoid_body() -> dict[str, Any]:
             'tau_ref': 0.5,
             'cloud_blobs': [{'center_vu': [1.0, -1.0], 'sigma_px': 2.0, 'amplitude': 0.2}],
         },
-        'seed': 11,
         'nav_override': {'center_v': 15.5},
     }
 
@@ -128,7 +127,6 @@ def _mesh_body() -> dict[str, Any]:
         'shading': 'gouraud',
         'pose_scatter': {'sigma_deg': 2.0},
         'limb_relief_rms': 0.01,
-        'seed': 5,
     }
 
 
