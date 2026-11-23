@@ -1182,6 +1182,48 @@ def test_each_voyager_camera_emulates_the_voyager_navigator_block(name: str) -> 
     assert navigator.detector is None
 
 
+# The optical keys of a Voyager camera, as paths into its own entry: the PSF, the residual
+# distortion, the plate scale, the star zero point, and the vidicon values.
+_VOYAGER_OPTICAL_KEYS = (
+    ('psf', 'kernel'),
+    ('psf', 'truncation_px'),
+    ('distortion_residual',),
+    ('sky_pixel_scale_arcsec',),
+    ('star_flux', 'dn_per_s_vmag0'),
+    ('detector', 'vidicon', 'read_noise_line_dn'),
+    ('detector', 'vidicon', 'read_noise_pixel_dn'),
+    ('detector', 'exposure_ref_sec'),
+    ('detector', 'bias_dn'),
+    ('detector', 'saturation_dn'),
+    ('detector', 'full_well_dn'),
+    ('detector', 'signal_full_scale_frac'),
+    ('detector', 'quantization'),
+    ('detector', 'calibrated_sky_if'),
+    ('artifact_modes', 'shape_defaults', 'banding'),
+    ('artifact_modes', 'shape_defaults', 'beam_bend'),
+    ('artifact_modes', 'shape_defaults', 'residual_image'),
+    ('artifact_modes', 'shape_defaults', 'readout_dark'),
+    ('artifact_modes', 'shape_defaults', 'reseau_scars'),
+    ('artifact_modes', 'shape_defaults', 'resample_texture'),
+)
+
+
+@pytest.mark.parametrize('name', _VOYAGER_CAMERAS)
+def test_each_voyager_camera_states_every_optical_key_itself(name: str) -> None:
+    """A Voyager entry inherits nothing: it has no base and states each optical key."""
+    raw = YAML(typ='safe').load((INSTRUMENT_CONFIG_DIR / 'vgiss.yaml').read_text())
+    entry = raw[name]
+    assert 'base' not in entry
+    missing = []
+    for path in _VOYAGER_OPTICAL_KEYS:
+        node: Any = entry
+        for key in path:
+            node = node.get(key) if isinstance(node, dict) else None
+        if node is None:
+            missing.append('.'.join(path))
+    assert missing == []
+
+
 def test_the_bare_vgiss_name_is_not_an_instrument() -> None:
     """A scene that writes the family name instead of a camera fails."""
     with pytest.raises(ValueError, match=r'vgiss'):

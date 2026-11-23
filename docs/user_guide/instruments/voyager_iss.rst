@@ -333,9 +333,9 @@ Known limitations
   enough that the numbers themselves are of low confidence.
 * The Voyager 1 cameras have no twist or distortion measurement at all: the
   cohort holds no Voyager 1 frame that locked.
-* The four simulator cameras share one distortion parameter set, taken
+* The four simulator cameras carry the same distortion parameters, taken
   from the Voyager 2 wide angle measurement, which under-represents the spread
-  between two spacecraft and two optics.
+  between the four cameras' optics.
 * PDS4 bundles are not generated.
 
 References

@@ -365,8 +365,17 @@ Simulator model
 **Instrument keys.** One key for each spacecraft and camera: ``vgiss_1_nac`` and
 ``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2.
 The four entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``.
-``vgiss_1_nac`` holds the values below, and the other three take every value from
-it, so the four cameras render alike. All four emulate the one ``voyager_iss``
+Each entry states every value itself and none takes a value from another, because each
+vidicon and telescope is unique. The optical values (the PSF, the residual
+distortion, the plate scale, the star zero point, and the vidicon detector values)
+are per camera. They hold the same numbers in all four entries today, and a
+comment beside each says where the number comes from and that it is not yet
+measured for that camera. The values that do not describe a camera's optics (the
+data units, the navigator link, the readout modes, and the artifact-mode
+availability) are repeated in each entry as well, because a shared parent would
+have to be one of the cameras. Rotation is grouped by spacecraft, since the twist
+belongs to the scan platform that carries both cameras. No simulator entry holds a
+rotation value today. All four emulate the one ``voyager_iss``
 section of the navigator configuration. The realism match pairs the image
 library's Voyager frames with ``vgiss_1_wac`` alone. A library sidecar records the
 mission and the camera but not the spacecraft, and the match compares the three
@@ -385,7 +394,7 @@ Voyager references publish no FWHM to fall back on.
 is non-zero: the resampled vidicon geometry carries coherent tangential
 distortion that a radial polynomial cannot represent. The block is the
 Voyager 2 wide angle measurement. All four entries carry it, which
-under-represents the spread across two spacecraft and two optics until each camera
+under-represents the spread across the four cameras' optics until each camera
 has its own measurement from locked frames.
 
 **Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
@@ -528,8 +537,8 @@ Open items
   the rotation pivot so the two can coexist.
 * Both limiting-magnitude anchors are nominal-optics derivations rather than
   measurements, and the cohort holds one star frame.
-* The four simulator cameras share one distortion block and one PSF kernel, across
-  two spacecraft and two optics.
+* The four simulator cameras carry the same distortion block and PSF kernel
+  numbers, although each camera's optics are its own.
 * The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the
   real GEOMED sky level varies about 50x between frames.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of
