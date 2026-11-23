@@ -34,8 +34,9 @@ from spindoctor.nav_model.simulated.body_arcs import (
 )
 from spindoctor.nav_model.simulated.predicted_body import (
     PredictedBody,
+    predicted_canvas_px,
     predicted_center_vu,
-    predicted_semi_axes_px,
+    predicted_reach_px,
     predicted_silhouette,
     render_predicted_body,
 )
@@ -405,8 +406,8 @@ class NavModelBodySimulated(NavModelBodyBase):
     ) -> float:
         """The fraction of the whole predicted silhouette outside the sensor.
 
-        A body whose bounding square (half again its longest axis, as mesh
-        relief can push past the ellipsoid bound) lies inside the frame
+        A body whose bounding square (its reach: half again its longest axis, or
+        for a mesh as far as its farthest projected vertex) lies inside the frame
         overflows by exactly 0, with no render.  Otherwise the silhouette is
         rendered unclipped on a canvas comfortably larger than the body, with
         the body's center on the same sub-pixel phase it has in the frame.  A
@@ -427,11 +428,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             cover a pixel.
         """
         p = self._nav_body
-        max_semi = max(predicted_semi_axes_px(p))
-        # Half again the longest semi-axis (mesh relief can push past the
-        # ellipsoid bound), and a canvas of half again the longest diameter plus
-        # a fixed margin, as the arc fractions use.
-        reach = max_semi * 1.5
+        reach = predicted_reach_px(p)
         if (
             center_v - reach >= 0.0
             and center_u - reach >= 0.0
@@ -439,7 +436,7 @@ class NavModelBodySimulated(NavModelBodyBase):
             and center_u + reach <= float(self.obs.data_shape_u)
         ):
             return 0.0
-        canvas = math.ceil(max_semi * 3.0) + 16
+        canvas = predicted_canvas_px(p)
         factor = max(1, math.ceil(canvas / _OVERFLOW_CANVAS_MAX_PX))
         if factor == 1:
             half = canvas // 2
@@ -591,18 +588,17 @@ class NavModelBodySimulated(NavModelBodyBase):
             return None
         data_size_v = int(self.obs.data_shape_v)
         data_size_u = int(self.obs.data_shape_u)
-        mask = np.zeros((data_size_v, data_size_u), dtype=np.bool_)
-        for sibling in occluders:
-            mask |= predicted_silhouette(sibling, (data_size_v, data_size_u))
-        if not mask.any():
-            return None
         ext_margin_v = int(self.obs.extfov_margin_v)
         ext_margin_u = int(self.obs.extfov_margin_u)
         mask_full = self.obs.make_extfov_false()
-        mask_full[
-            ext_margin_v : ext_margin_v + data_size_v,
-            ext_margin_u : ext_margin_u + data_size_u,
-        ] = mask
+        for sibling in occluders:
+            mask_full |= predicted_silhouette(
+                sibling,
+                (data_size_v, data_size_u),
+                margin_vu=(ext_margin_v, ext_margin_u),
+            )
+        if not mask_full.any():
+            return None
         return mask_full
 
     def to_annotations(self, context: NavContext) -> Annotations:
