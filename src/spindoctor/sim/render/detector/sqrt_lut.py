@@ -11,13 +11,11 @@ entry and sets one as the default, and a scene may select another with
 square-root curve scaled to its ADC ceiling.
 """
 
-import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.instruments.schema import DownlinkTable
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -86,28 +84,20 @@ class LUTTabulated:
 DownlinkCurve = LUTSqrt | LUTTabulated
 
 
-def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -> DownlinkCurve:
+def resolve_sqrt_lut(table: DownlinkTable | None, *, saturation_dn: float) -> DownlinkCurve:
     """The companding curve of a downlink table, or the plain square-root curve.
 
     Parameters:
-        entry: A downlink table from the instrument's config: a parametric table
-            with the keys ``codes``, ``linear_dn``, ``quadratic_dn``, and
-            ``whole_dn``, or a tabulated one with ``decoded_dn``; None for an
-            instrument that lists no table.
-        saturation_dn: The ADC ceiling.  Without an entry, the curve is a pure
-            square root over 256 codes whose top code decodes to it:
-            ``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``,
-            fractional DN kept.
+        table: A downlink table from the instrument's entry, parametric or tabulated;
+            None for an instrument that lists no table.
+        saturation_dn: The ADC ceiling.  Without a table, the curve is a pure square
+            root over 256 codes whose top code decodes to it: ``linear_dn`` 0,
+            ``quadratic_dn`` ``saturation_dn / 255**2``, fractional DN kept.
 
     Returns:
         The resolved curve.
-
-    Raises:
-        KeyError: If a parametric ``entry`` lacks one of the four keys.
-        ValueError: If ``codes`` isn't a whole number of at least 2, or if
-            ``linear_dn`` or ``quadratic_dn`` isn't finite.
     """
-    if entry is None:
+    if table is None:
         top_code = DEFAULT_SQRT_LUT_CODES - 1
         return LUTSqrt(
             codes=DEFAULT_SQRT_LUT_CODES,
@@ -115,27 +105,18 @@ def resolve_sqrt_lut(entry: Mapping[str, Any] | None, *, saturation_dn: float) -
             quadratic_dn=saturation_dn / top_code**2,
             whole_dn=False,
         )
-    if 'decoded_dn' in entry:
-        return LUTTabulated(decoded_dn=tuple(float(dn) for dn in entry['decoded_dn']))
-    raw_codes = float(entry['codes'])
-    if not raw_codes.is_integer():
-        raise ValueError(f'sqrt_lut codes must be a whole number, got {raw_codes}')
-    codes = int(raw_codes)
-    if codes < 2:
-        raise ValueError(f'sqrt_lut codes must be at least 2, got {codes}')
-    linear_dn = float(entry['linear_dn'])
-    quadratic_dn = float(entry['quadratic_dn'])
-    # A NaN coefficient would turn every finite pixel the table snaps into NaN.
-    if not (math.isfinite(linear_dn) and math.isfinite(quadratic_dn)):
-        raise ValueError(
-            f'sqrt_lut coefficients must be finite, got linear_dn {linear_dn} '
-            f'and quadratic_dn {quadratic_dn}'
-        )
+    if table.decoded_dn is not None:
+        return LUTTabulated(decoded_dn=tuple(table.decoded_dn))
+    # The catalog requires all four keys of a table that is not tabulated.
+    assert table.codes is not None
+    assert table.linear_dn is not None
+    assert table.quadratic_dn is not None
+    assert table.whole_dn is not None
     return LUTSqrt(
-        codes=codes,
-        linear_dn=linear_dn,
-        quadratic_dn=quadratic_dn,
-        whole_dn=bool(entry['whole_dn']),
+        codes=table.codes,
+        linear_dn=table.linear_dn,
+        quadratic_dn=table.quadratic_dn,
+        whole_dn=table.whole_dn,
     )
 
 

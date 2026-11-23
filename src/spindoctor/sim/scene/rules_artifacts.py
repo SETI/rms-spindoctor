@@ -4,10 +4,11 @@ The ``artifacts`` block holds two switches (``instrument_defaults`` and
 ``adversarial``) and one map per artifact mode, keyed by exactly the mode
 registry.  Its checkers live here, beside the block's key inventory: each mode the
 scene sets must be implemented, offered by the scene's instrument, and rendered by
-the scene's detector chain, and each parameter is type-checked against its registry
-schema; ``instrument_defaults`` must not turn on a mode that the scene's detector
-chain never renders.  The scalar primitives they share with the other block checkers
-stay in :mod:`spindoctor.sim.scene.rules_common`, which also documents the overall
+the scene's detector chain, and its map is checked against the mode's parameter
+types (:func:`~spindoctor.sim.artifact_modes.parse_mode_params`);
+``instrument_defaults`` must not turn on a mode that the scene's detector chain
+never renders.  The scalar primitives they share with the other block checkers stay
+in :mod:`spindoctor.sim.scene.rules_common`, which also documents the overall
 validation contract (unknown keys fail, every violation raises
 :class:`spindoctor.sim.scene.errors.SimSceneValidationError`).
 
@@ -19,11 +20,12 @@ from __future__ import annotations
 
 from typing import Any
 
+from spindoctor.schema import SchemaError
 from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     ArtifactMode,
-    ModeParam,
+    parse_mode_params,
 )
 from spindoctor.sim.instruments.resolvers import (
     instrument_default_modes,
@@ -32,13 +34,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_model,
 )
 from spindoctor.sim.scene.errors import SimSceneValidationError
-from spindoctor.sim.scene.rules_common import (
-    _check_optional_bool,
-    _check_optional_nonnegative_int,
-    _check_optional_nonnegative_number,
-    _check_optional_number,
-    _check_optional_positive_int,
-)
+from spindoctor.sim.scene.rules_common import _check_optional_bool
 
 # The artifacts block: the two switches (the physical-chain opt-in and the
 # adversarial-placement flag) plus one map per artifact mode, keyed by exactly
@@ -128,11 +124,11 @@ def _check_artifact_mode(
 ) -> None:
     """Validate one artifact-mode map: availability, implementation, chain, and params.
 
-    An unknown key fails, and a map that sets both ``count`` and
-    ``expected_events`` to a value (``dead_pixels``, ``dead_columns``) fails as
-    ambiguous; a key set to null counts as unset.  The ``probability`` and
-    ``pixel_fraction`` keys must lie in [0, 1], and
-    ``expected_events`` and ``expected_events_per_sec`` must be non-negative.
+    The map is checked against the mode's parameter types, so an unknown key or a
+    value of the wrong type or range fails, and the message lists every such problem.
+    A map that sets both ``count`` and ``expected_events`` to a value
+    (``dead_pixels``, ``dead_columns``) fails as ambiguous; a key set to null counts
+    as unset.
     """
     label = f'artifacts.{mode_name}'
     if not isinstance(config, dict):
@@ -152,10 +148,16 @@ def _check_artifact_mode(
             f'{_chain_names(mode)} detector chain; this scene renders with detector_model '
             f'{model}'
         )
-    param_map = mode.param_map
-    unknown = set(config) - set(param_map)
-    if unknown:
-        raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
+    try:
+        parse_mode_params(mode_name, config, source=source)
+    except SchemaError as exc:
+        lines = [
+            f'{source}: {label}.{issue.path}: {issue.message}'
+            if issue.path
+            else f'{source}: {label}: {issue.message}'
+            for issue in exc.issues
+        ]
+        raise SimSceneValidationError('\n'.join(lines)) from exc
     count_key = mode.count_alternative
     if (
         count_key is not None
@@ -166,49 +168,4 @@ def _check_artifact_mode(
             f'{source}: {label}: {count_key!r} (a fixed event count) and '
             f'{mode.activation!r} (a Poisson expected event count) are mutually exclusive; '
             'give one'
-        )
-    for name, param in param_map.items():
-        if name in config:
-            _check_mode_param(config[name], param, key=f'{label}.{name}', source=source)
-
-
-def _check_mode_param(value: Any, param: ModeParam, *, key: str, source: str) -> None:
-    """Type-check one artifact-mode parameter value against its schema kind."""
-    kind = param.kind
-    if kind == 'bool':
-        _check_optional_bool(value, key, source=source)
-    elif kind == 'nonneg_number':
-        _check_optional_nonnegative_number(value, key, source=source)
-    elif kind == 'unit_interval':
-        _check_optional_nonnegative_number(value, key, source=source)
-        if value is not None and float(value) > 1.0:
-            raise SimSceneValidationError(f'{source}: {key} must lie in [0, 1]; got {value!r}')
-    elif kind == 'int':
-        _check_optional_number(value, key, source=source)
-        if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
-            raise SimSceneValidationError(f'{source}: {key} must be an integer when present')
-    elif kind == 'nonneg_int':
-        _check_optional_nonnegative_int(value, key, source=source)
-    elif kind == 'positive_int':
-        _check_optional_positive_int(value, key, source=source)
-    elif kind == 'enum':
-        # A null value is unset, as for every other kind, and takes the default.
-        if value is not None and param.choices is not None and value not in param.choices:
-            raise SimSceneValidationError(
-                f'{source}: {key} must be one of {list(param.choices)}; got {value!r}'
-            )
-    elif kind == 'int_list':
-        _check_int_list(value, param.length, key=key, source=source)
-    else:  # pragma: no cover - guards a registry authoring mistake
-        raise SimSceneValidationError(f'{source}: {key} has unknown parameter kind {kind!r}')
-
-
-def _check_int_list(value: Any, length: int | None, *, key: str, source: str) -> None:
-    """Fail validation unless ``value`` is a list of ``length`` integers."""
-    if value is None:
-        return
-    valid = isinstance(value, (list, tuple)) and (length is None or len(value) == length)
-    if not valid or any(isinstance(x, bool) or not isinstance(x, int) for x in value):
-        raise SimSceneValidationError(
-            f'{source}: {key} must be a list of {length} integers when present'
         )

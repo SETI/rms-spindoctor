@@ -82,12 +82,13 @@ def _cassini_coincidences(instrument: str) -> list[tuple[int, float]]:
     at ``k * gain / (dark_current - residual * frac * full_well)`` seconds.
     """
     catalog = resolve_detector_defaults_native(instrument)
-    per_sec = float(catalog['dark_current_e_per_sec']) - 4.0e-5 * 0.5 * float(
-        catalog['full_well_e']
-    )
+    assert catalog.dark_current_e_per_sec is not None
+    assert catalog.full_well_e is not None
+    assert catalog.gain_e_per_dn_by_state is not None
+    per_sec = catalog.dark_current_e_per_sec - 4.0e-5 * 0.5 * catalog.full_well_e
     return [
         (state, k * gain / per_sec)
-        for state, gain in catalog['gain_e_per_dn_by_state'].items()
+        for state, gain in catalog.gain_e_per_dn_by_state.items()
         for k in (1, 2)
     ]
 
