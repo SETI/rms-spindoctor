@@ -114,7 +114,7 @@ def roll_body_params(body_params: Mapping[str, Any], *, roll_deg: float) -> dict
     ``pose_euler_deg`` for a mesh) and ``illumination_angle`` take the roll with the
     sign each runs in, and a transit's moon and shadow and an atmosphere's clouds,
     which the scene places by their offset from the body center, have that offset
-    turned.  A key the scene leaves out or writes as null turns from its default.
+    turned.  A key the scene leaves out turns from its default.
     The body's relief, albedo texture, and disc texture are fixed to its surface and
     turn with its orientation.  Its craters are drawn on the image grid, so the
     renderer turns their layout itself (see

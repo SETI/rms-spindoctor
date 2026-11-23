@@ -402,13 +402,8 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
     states its readout mode, so a real pipeline always knows it.  Nothing else in the
     block crosses.
 
-    Where validation accepts a null, the null means the key is absent, and this view
-    reads it that way.  For a key set to null inside ``nav_override``, the navigator
-    sees the scene's own value.  After the overlay, a body or star key that is still
-    null is left out of the entry, and so is a null key of the ring system or of a
-    ring feature, so every navigator reader sees exactly what it sees for an absent
-    key.  Dropping keys can only take information away, so this
-    cannot let truth across the boundary.
+    The scene has been validated, so it holds no null at any depth.  A key that
+    ``nav_override`` leaves out keeps the body's own value.
 
     Parameters:
         sim_params: The full scene mapping (the renderer's input).
@@ -443,9 +438,9 @@ def build_nav_params(sim_params: dict[str, Any]) -> dict[str, Any]:
             if block == 'bodies':
                 override = merged.pop('nav_override', None)
                 if isinstance(override, dict):
-                    merged.update({k: v for k, v in override.items() if v is not None})
+                    merged.update(override)
             filtered_objects.append(
-                {k: copy.deepcopy(v) for k, v in merged.items() if k in idealized and v is not None}
+                {k: copy.deepcopy(v) for k, v in merged.items() if k in idealized}
             )
         nav[block] = filtered_objects
     return nav
@@ -464,10 +459,6 @@ def _filter_ring_system(ring_system: dict[str, Any]) -> dict[str, Any]:
     phase_g) or the planted ``orbit_error`` -- the navigator knows the error
     bars, never the drawn error values.
 
-    A block-level or feature key set to null is left out, as a body or star key
-    is, so the navigator's ring model reads it as an absent key.  A feature whose
-    name is null, for example, takes the model's positional default name.
-
     Parameters:
         ring_system: The full ``ring_system`` mapping (renderer input).
 
@@ -477,18 +468,14 @@ def _filter_ring_system(ring_system: dict[str, Any]) -> dict[str, Any]:
     filtered: dict[str, Any] = {
         key: copy.deepcopy(value)
         for key, value in ring_system.items()
-        if key in _RING_SYSTEM_IDEALIZED_KEYS and key != 'features' and value is not None
+        if key in _RING_SYSTEM_IDEALIZED_KEYS and key != 'features'
     }
     features: list[dict[str, Any]] = []
     for feature in ring_system.get('features') or []:
         if not isinstance(feature, dict) or feature.get('navigable') is not True:
             continue
         features.append(
-            {
-                k: copy.deepcopy(v)
-                for k, v in feature.items()
-                if k in _RING_FEATURE_IDEALIZED_KEYS and v is not None
-            }
+            {k: copy.deepcopy(v) for k, v in feature.items() if k in _RING_FEATURE_IDEALIZED_KEYS}
         )
     filtered['features'] = features
     return filtered

@@ -23,12 +23,12 @@ from spindoctor.sim.scene.fields import scene_value
 from spindoctor.ui.sim_editor.base import SimEditorBase
 from spindoctor.ui.sim_editor.widgets import as_map, kept_or_shown, make_dspin
 
-_NULL_SHOWS: dict[str, float] = {
+_ABSENT_SHOWS: dict[str, float] = {
     'ref_altitude_px': 0.0,
     'g': 0.0,
     'albedo': DEFAULT_HAZE_ALBEDO,
 }
-"""The value the renderer reads for each atmosphere key a scene may leave null."""
+"""The value the renderer reads for each optional atmosphere key a scene leaves out."""
 
 _DETACHED_ENABLE_PX = 8.0
 """The altitude the detached-shell spin shows until the scene sets one.
@@ -38,9 +38,9 @@ key has no renderer default.  Turning the shell on writes this value."""
 
 
 def _shown(atmosphere: dict[str, Any], key: str) -> float:
-    """Return the value a spin shows for a null-able key: the stated one, or the default."""
+    """Return the value a spin shows for an optional key: the stated one, or the default."""
     value = atmosphere.get(key)
-    return _NULL_SHOWS[key] if value is None else float(value)
+    return _ABSENT_SHOWS[key] if value is None else float(value)
 
 
 class BodyAtmosphereMixin(SimEditorBase):
@@ -143,7 +143,7 @@ class BodyAtmosphereMixin(SimEditorBase):
         Removing the map keeps it on the tab.  Re-enabling the group restores its
         keys without spins, such as the haze structure, and the exact value of
         every key whose spin still shows it, so turning the group off and on
-        leaves a loaded scene's values unrounded and its null keys null.  A key
+        leaves a loaded scene's values unrounded.  A key
         whose spin was edited in between takes the spin's value.
         """
         body = self._body(idx)
@@ -173,7 +173,7 @@ class BodyAtmosphereMixin(SimEditorBase):
                 for key, value in removed.items()
                 if key not in spins and key != 'detached_px'
             }
-            body['atmosphere'] = restored | kept_or_shown(spins, removed, null_shows=_NULL_SHOWS)
+            body['atmosphere'] = restored | kept_or_shown(spins, removed)
         else:
             body['atmosphere'] = {
                 'scale_height_px': 8.0,

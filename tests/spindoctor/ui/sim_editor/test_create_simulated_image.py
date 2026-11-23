@@ -1,8 +1,8 @@
 """GUI smoke tests for ``spindoctor.cli.sd_create_simulated_image``.
 
 These cover the ``_load_scene`` YAML-load path, specifically that a
-``ring_system`` block round-trips into the data model, and that a missing or
-null ``closest_planet`` falls back to ``SATURN`` without raising
+``ring_system`` block round-trips into the data model, and that a missing
+``closest_planet`` falls back to ``SATURN`` without raising
 (``QComboBox.findText(None)`` would otherwise raise ``TypeError``).
 """
 
@@ -120,14 +120,6 @@ def test_load_missing_closest_planet_defaults_to_saturn(
 ) -> None:
     """A scene with no ``closest_planet`` key falls back to ``SATURN``."""
     _load_scene_with(monkeypatch, model, tmp_path, {})
-    assert model.sim_params['closest_planet'] == 'SATURN'
-
-
-def test_load_null_closest_planet_defaults_to_saturn(
-    monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
-) -> None:
-    """An explicit ``closest_planet: null`` falls back to ``SATURN`` without raising."""
-    _load_scene_with(monkeypatch, model, tmp_path, {'closest_planet': None})
     assert model.sim_params['closest_planet'] == 'SATURN'
 
 

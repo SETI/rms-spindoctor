@@ -277,12 +277,11 @@ class GlobalFieldsMixin(SimEditorBase):
         self._updater.request_update()
 
     def _on_closest_planet(self, text: str) -> None:
-        """Update the closest-planet ring reference (uppercased, or None)."""
-        # Store as None if empty, otherwise store the text (uppercase)
+        """Set the closest-planet ring reference, uppercased; empty text removes the key."""
         if text.strip():
             self.sim_params['closest_planet'] = text.strip().upper()
         else:
-            self.sim_params['closest_planet'] = None
+            self.sim_params.pop('closest_planet', None)
         self._updater.request_update()
 
     def _on_time(self, value: float) -> None:

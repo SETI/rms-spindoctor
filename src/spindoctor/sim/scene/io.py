@@ -24,6 +24,7 @@ from ruamel.yaml import YAML
 
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.rules_common import (
+    _refuse_nulls,
     _require_int,
     _require_str,
 )
@@ -99,6 +100,7 @@ def load_sim_scene(path: Path) -> dict[str, Any]:
         raise SimSceneValidationError(f'{path}: cannot parse YAML: {exc}') from exc
     if not isinstance(raw, dict):
         raise SimSceneValidationError(f'{path}: top-level YAML must be a mapping')
+    _refuse_nulls(raw, '', source=str(path))
     _require_int(raw, 'schema_version', source=str(path))
     scene_name = _require_str(raw, 'scene_name', source=str(path))
     if scene_name != path.stem:

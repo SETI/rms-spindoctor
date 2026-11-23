@@ -99,7 +99,7 @@ offset misses the planted one by 0.46 px across the edges.
 The scene can also declare how well its catalog knows
 each orbit, with ``declared_orbit_sigma``: :math:`\sigma_a` (``sigma_a_px``),
 :math:`\sigma_{ae}` (``sigma_ae_px``), and :math:`\sigma_\varpi` (``sigma_long_peri_deg``,
-converted to radians). A key the scene omits or sets to null counts as zero. These are the
+converted to radians). A key the scene omits counts as zero. These are the
 catalog's error bars, which a navigator is entitled to know. The values the scene drew from
 them stay behind the boundary.
 

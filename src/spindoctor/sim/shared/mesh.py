@@ -616,7 +616,7 @@ def mesh_spec_from_params(body_params: Mapping[str, Any]) -> MeshBodySpec:
 
     The mesh seed and pose are explicit body parameters (not the scene's noise
     seed), so the same body params reproduce the same shape on both the render
-    and prediction sides.  A key that is absent or null takes its default.
+    and prediction sides.  A key that the mapping leaves out takes its default.
 
     Parameters:
         body_params: A body parameter mapping.

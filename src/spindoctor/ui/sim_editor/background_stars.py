@@ -47,9 +47,9 @@ class BackgroundStarsMixin(SimEditorBase):
     def _sky_value(self, key: str) -> float:
         """Return the value a sky_counts control shows.
 
-        If the scene sets the key, the control shows the scene's value.  If the key is
-        absent or null, or the scene leaves the block out, the control shows the
-        renderer's default.  Turning the block on writes that same default.
+        If the scene sets the key, the control shows the scene's value.  If the scene
+        leaves the key or the block out, the control shows the renderer's default.
+        Turning the block on writes that same default.
 
         Parameters:
             key: The ``sky_counts`` key.

@@ -2,8 +2,8 @@
 
 The renderer, the validator, the scene editor, and the navigator-side simulated
 models all read scene keys through these helpers, so they agree on what a key
-means: :func:`scene_value` reads an optional key and treats an explicit null as
-unset, :func:`scene_binning` reads the readout binning, and
+means: :func:`scene_value` reads an optional key or its default,
+:func:`scene_binning` reads the readout binning, and
 :func:`default_body_name` and :func:`default_body_range_km` give the name and range
 a body takes when its entry leaves them out.  The tables here say which shape keys
 each ring feature kind takes (:data:`RING_KIND_SHAPE_KEYS`) and which side an edge
@@ -26,9 +26,9 @@ from typing import Any
 # arbitrary Euler pose and lumpy limb do not follow), and the ellipsoid's
 # sub-observer latitude (a mesh body is turned by its Euler pose instead).  A mesh body giving one
 # of these a value would silently render without it, so the validator refuses
-# a non-null value of any of them (a null reads as an absent key); a mesh
-# body's appearance vocabulary is shading, limb_relief_*,
-# mesh_detail_octaves, and pose_scatter.  The sim editor reads this table too:
+# all of them on a mesh body.  A mesh body's appearance vocabulary is shading,
+# limb_relief_*, mesh_detail_octaves, and pose_scatter.  The sim editor reads this
+# table too:
 # a mesh body disables every control that writes one of these keys.
 MESH_UNSUPPORTED_KEYS: tuple[str, ...] = (
     'atmosphere',
@@ -52,7 +52,7 @@ def mesh_unsupported_message(keys: Iterable[str]) -> str:
 
     The scene validator raises it, prefixed with the scene source and the body's
     label, when a ``polyhedral_mesh`` body gives keys from
-    :data:`MESH_UNSUPPORTED_KEYS` a non-null value; the sim editor shows it as the
+    :data:`MESH_UNSUPPORTED_KEYS` a value; the sim editor shows it as the
     tooltip of each control it disables on a mesh body, and of every control
     inside one, so the two say the same thing.
 
@@ -73,8 +73,8 @@ def mesh_unsupported_message(keys: Iterable[str]) -> str:
 # Body keys only the polyhedral-mesh render path consumes: the rasterizer's
 # smooth-shading mode, the higher-degree relief bands added to the mesh, and the
 # per-frame pose error.  The ellipsoid renderer never reads them, so the
-# validator refuses a non-null value of any of them on an ellipsoid body (a body
-# without a shape_model is one).  The navigator's own mesh, when a nav_override
+# validator refuses all of them on an ellipsoid body (a body without a
+# shape_model is one).  The navigator's own mesh, when a nav_override
 # makes it one, takes its geometry from that override.  The sim editor reads
 # this table too: switching a body to an ellipsoid moves these keys out of the
 # scene.
@@ -90,7 +90,7 @@ def ellipsoid_unsupported_message(keys: Iterable[str]) -> str:
 
     The scene validator raises it, prefixed with the scene source and the body's
     label, when an ellipsoid body gives keys from
-    :data:`ELLIPSOID_UNSUPPORTED_KEYS` a non-null value.
+    :data:`ELLIPSOID_UNSUPPORTED_KEYS` a value.
 
     Parameters:
         keys: The refused keys to name; the sentence lists them sorted.
@@ -126,11 +126,10 @@ RING_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
 
 
 def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:
-    """Read an optional scene key, treating an explicit null as unset.
+    """Read an optional scene key, or its default when the scene leaves it out.
 
-    The validator accepts null for every optional key and reads it as absent, so
-    a reader must too: ``float(block.get(key, default))`` would raise on a null
-    the validator passed.  The ring readers (renderer, navigator-side orbit
+    The validator refuses a null at any depth of a scene, so an absent key is the
+    only unset key a reader meets.  The ring readers (renderer, navigator-side orbit
     parser, validator bounds, and sim editor) read their optional keys here.
 
     Parameters:
@@ -139,14 +138,14 @@ def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:
         default: The value an absent key takes.
 
     Returns:
-        ``block[key]``, or ``default`` when the key is absent or null.
+        ``block[key]``, or ``default`` when the key is absent.
     """
     value = block.get(key)
     return default if value is None else value
 
 
 def default_body_name(index: int) -> str:
-    """The name a scene body takes when its entry leaves ``name`` absent or null.
+    """The name a scene body takes when its entry leaves ``name`` out.
 
     The renderer keys a body's truth records by this name, the validator refuses two
     bodies that share one, and the scene editor finds a body's truth records by it.
@@ -161,7 +160,7 @@ def default_body_name(index: int) -> str:
 
 
 def default_body_range_km(index: int) -> float:
-    """The range a scene body takes when its entry leaves ``range_km`` absent or null.
+    """The range a scene body takes when its entry leaves ``range_km`` out.
 
     The renderer orders bodies by this range and records it in the render truth.  The
     scene editor shows it, and counts it when it picks a range for an added body and
@@ -184,7 +183,7 @@ def scene_binning(params: Mapping[str, Any]) -> int:
 
     Returns:
         The stated ``detector.binning``, or 1 when the scene leaves the block or the
-        key out or sets either to null.
+        key out.
 
     Raises:
         ValueError: If ``detector.binning`` is set to anything but an integer (a bool
