@@ -126,11 +126,13 @@ def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) ->
     """
     detector_defaults = resolve_detector_defaults(instrument, binning)
     if domain == 'dn':
-        vidicon = detector_defaults.get('vidicon') or {}
-        line = float(vidicon.get('read_noise_line_dn', 1.0))
-        pixel = float(vidicon.get('read_noise_pixel_dn', 1.0))
-        return float(stable_hypot(line, pixel))
-    return float(detector_defaults.get('read_noise_e', 1.0))
+        vidicon = detector_defaults.vidicon
+        # A DN zero point is a vidicon's, and the catalog requires a vidicon's chain.
+        assert vidicon is not None
+        return float(stable_hypot(vidicon.read_noise_line_dn, vidicon.read_noise_pixel_dn))
+    # An electron zero point is a CCD's, and the catalog requires a CCD's read noise.
+    assert detector_defaults.read_noise_e is not None
+    return detector_defaults.read_noise_e
 
 
 def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> None:

@@ -121,7 +121,7 @@ def test_gossi_scales_to_8bit_well() -> None:
 def test_calibrated_if_render_stays_in_if_range() -> None:
     """A calibrated_if render stays in I/F: at most 1 above the calibrated sky residual."""
     img, _ = render_scene(_lit_body_scene('vgiss'))
-    residual = float(resolve_detector_defaults_native('vgiss')['calibrated_sky_if'])
+    residual = resolve_detector_defaults_native('vgiss').calibrated_sky_if or 0.0
     assert float(img.max()) <= 1.0 + residual
 
 

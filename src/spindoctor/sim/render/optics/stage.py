@@ -34,6 +34,7 @@ which no light the frame receives comes from.  Stray light is defined over the f
 spread by nothing after it, so it is added to the frame alone.
 """
 
+import dataclasses
 import math
 from collections.abc import Mapping
 from typing import Any, cast
@@ -101,7 +102,7 @@ def effective_psf(params: Mapping[str, Any]) -> dict[str, Any] | None:
         kernel = resolve_psf_kernel(params.get('instrument'))
         if kernel is not None:
             # The catalog kernel is native; a binned frame's pixels are larger.
-            return binned_psf_kernel(kernel, scene_binning(params))
+            return binned_psf_kernel(dataclasses.asdict(kernel), scene_binning(params))
     return None
 
 
@@ -134,10 +135,11 @@ def _effective_distortion(params: Mapping[str, Any]) -> dict[str, Any] | None:
         return None
     # k1 and k2 act on the radius normalized to the frame, so a full binned
     # frame keeps them; the non-radial wander is in native pixels.
-    residual['nonradial_rms_px'] = float(residual.get('nonradial_rms_px', 0.0)) / scene_binning(
-        params
-    )
-    return residual
+    return {
+        'k1': residual.k1,
+        'k2': residual.k2,
+        'nonradial_rms_px': residual.nonradial_rms_px / scene_binning(params),
+    }
 
 
 def optics_margin_px(params: Mapping[str, Any], *, oversample: int, preview: bool = False) -> int:

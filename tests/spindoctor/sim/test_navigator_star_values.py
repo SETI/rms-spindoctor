@@ -86,8 +86,8 @@ def _written_step(instrument: str, *keys: str | int) -> float:
     Returns:
         The place value of the value's last written digit.
     """
-    navigator = load_instrument_catalog().entry(instrument)['navigator']
-    path = [navigator['section'], navigator.get('detector'), *keys]
+    navigator = load_instrument_catalog().entry(instrument).navigator
+    path = [navigator.section, navigator.detector, *keys]
     text = None
     for config_file in sorted(_CONFIG_FILES_DIR.glob('*.yaml')):
         node: Node | None = YAML().compose(config_file.read_text(encoding='utf-8'))

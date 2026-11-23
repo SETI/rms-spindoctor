@@ -130,7 +130,10 @@ def test_plain_resolver_reads_a_null_parameter_as_unset(mode_name: str) -> None:
 def test_probability_and_pixel_fraction_above_one_are_refused(mode_name: str) -> None:
     """A probability or pixel fraction above 1 fails validation."""
     key = _expected_key(mode_name)
-    with pytest.raises(SimSceneValidationError, match=rf'{mode_name}\.{key} must lie in \[0, 1\]'):
+    with pytest.raises(
+        SimSceneValidationError,
+        match=rf'artifacts\.{mode_name}\.{key}: expected a number in \[0, 1\], got 1\.5',
+    ):
         validate_sim_params(_scene_for(mode_name, {mode_name: {key: 1.5}}))
 
 
@@ -150,7 +153,10 @@ def test_expected_events_above_one_validate(mode_name: str) -> None:
 def test_negative_expected_events_are_refused(mode_name: str) -> None:
     """A negative expected event count fails validation."""
     key = _expected_key(mode_name)
-    with pytest.raises(SimSceneValidationError, match=rf'{mode_name}\.{key} '):
+    with pytest.raises(
+        SimSceneValidationError,
+        match=rf'artifacts\.{mode_name}\.{key}: expected a non-negative number, got -1\.0',
+    ):
         validate_sim_params(_scene({mode_name: {key: -1.0}}))
 
 
