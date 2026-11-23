@@ -127,8 +127,8 @@ table. ``extfov_margin_vu`` is a bare ``[350, 350]`` rather than a size-keyed
 table.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
-``noisy_threshold_dn`` and the ``mag_offset_table`` entry. Only
+``read_noise_dn``, ``blank_max_dn``,
+``noisy_threshold_dn``, and the ``mag_offset_table`` entry. Only
 ``saturation_dn`` and ``saturation_threshold_dn`` (255, the 8-bit ADC ceiling)
 and ``marker_value`` are hard facts. The ``_sources`` convention is not used in
 this file.
@@ -356,8 +356,8 @@ Open items
 ==========
 
 * Every value marked ``# PLACEHOLDER`` in ``config_410_inst_gossi.yaml``:
-  ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_dn``,
-  ``noisy_threshold_dn`` and the ``mag_offset_table`` entry.
+  ``read_noise_dn``, ``blank_max_dn``,
+  ``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
 * The limiting-magnitude anchor is a nominal-optics derivation, not a
   measurement.
 * ``from_file`` carries a TODO saying the extended-FOV margin branch belongs

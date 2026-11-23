@@ -162,8 +162,8 @@ The departure from the common schema is a units mismatch that is worth
 understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
 ``image_quality_thresholds`` are correspondingly ``blank_max_if`` and
 ``noisy_threshold_if``. But the ``noise`` block is a raw-DN block:
-``saturation_dn: 255``, ``full_well_dn: 255``, ``expected_noise_dn``,
-``read_noise_dn`` and ``star_flux_dn_per_s_vmag0`` are all DN quantities. The
+``saturation_dn: 255``, ``read_noise_dn``, and ``star_flux_dn_per_s_vmag0`` are
+all DN quantities. The
 DN values describe the detector, which is real; the pipeline navigates the
 scaled I/F product, so ``NavOrchestrator._build_saturation_mask`` returns an
 empty mask for this instrument as for any ``calibrated_if`` input, and
@@ -173,8 +173,8 @@ on the presence of the key. There is no raw product this pipeline can navigate
 instead.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``expected_noise_dn``, ``read_noise_dn``, ``blank_max_if``,
-``noisy_threshold_if`` and the ``mag_offset_table`` entry. The ``_sources``
+``read_noise_dn``, ``blank_max_if``,
+``noisy_threshold_if``, and the ``mag_offset_table`` entry. The ``_sources``
 convention is not used in this file.
 
 ``fit_camera_rotation: false`` carries a three-line comment saying it is kept
@@ -516,8 +516,8 @@ Open items
   Saturn correction belong in the host once the host grows them, at which point
   this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
-  ``expected_noise_dn``, ``read_noise_dn``, ``blank_max_if``,
-  ``noisy_threshold_if`` and the ``mag_offset_table`` entry.
+  ``read_noise_dn``, ``blank_max_if``,
+  ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
 * ``fit_camera_rotation`` is off for cost against a measurement that says it
   should be on. Revisiting it means both speeding the rotation search and
   accepting the loss of corrected C-kernels for this instrument, or recording
