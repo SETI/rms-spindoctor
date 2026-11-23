@@ -180,7 +180,7 @@ def test_detector_noise_draws_from_the_detector_stream() -> None:
 def test_vidicon_noise_draws_from_the_detector_stream() -> None:
     """The vidicon chain's line and pixel read noise come from the stream ``detector``."""
     params: dict[str, Any] = {
-        'instrument': 'vgiss',
+        'instrument': 'vgiss_1_nac',
         'random_seed': 11,
         'exposure_sec': 1.0,
         'noise': {'vidicon': {'read_noise_line_dn': 1.5, 'read_noise_pixel_dn': 3.0}},

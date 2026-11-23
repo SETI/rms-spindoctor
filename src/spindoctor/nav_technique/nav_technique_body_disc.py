@@ -48,12 +48,26 @@ from spindoctor.support.correlate import (
     peak_to_runner_up_ratio,
     quality_rank_key,
 )
+from spindoctor.support.correlate_subpixel import SubpixelRefinement
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = ['BodyDiscCorrelateNav']
+
+# Measured against strong star solutions on 76 real disc frames, 69 of them Cassini
+# narrow-angle, the high-pass refinement lowered the narrow-angle median per-axis error of
+# this technique's offset from 0.29 / 0.30 px to 0.23 / 0.23 px, and the share of answers
+# whose surface still rises past the window edge from 61% to 7%.  The narrow-angle median
+# distance from the star solution hardly moved (0.467 to 0.470 px); its mean fell from 0.747
+# to 0.634 px, its maximum rose from 5.21 to 6.20 px, and 42 frames improved by more than
+# 0.05 px while 15 got worse.  It is more easily pulled than the raw cross-power by bright
+# structure the template leaves out beside a limb: on the 10 frames with such structure the
+# median distance rose from 1.64 to 2.03 px, and on the other 66 from 0.47 to 0.49 px (#791,
+# #1050).
+_FINAL_REFINEMENT: SubpixelRefinement = 'highpass_cross_power'
+"""Sub-pixel refinement of the correlation's final full-resolution pass."""
 
 
 def _filter_disc_features(features: list[NavFeature]) -> list[NavFeature]:
@@ -418,6 +432,7 @@ class BodyDiscCorrelateNav(NavTechnique):
                     data_mask=context.sensor_mask_ext,
                     use_gradient='auto',
                     refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+                    final_refinement=_FINAL_REFINEMENT,
                     localization_uncertainty_scale=(
                         self._cov_tuning.localization_uncertainty_scale
                     ),
@@ -827,6 +842,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             data_mask=data_mask,
             use_gradient='auto',
             refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+            final_refinement=_FINAL_REFINEMENT,
             localization_uncertainty_scale=self._cov_tuning.localization_uncertainty_scale,
             logger=self.logger,
         )

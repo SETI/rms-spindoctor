@@ -40,7 +40,7 @@ def test_resolver_maps_coiss_nac_saturation() -> None:
 
 def test_resolver_maps_vgiss_to_calibrated_if() -> None:
     """The vgiss name resolves to a calibrated-IF block."""
-    cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss')
+    cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac')
     assert cfg['data_units'] == 'calibrated_if'
 
 
@@ -70,7 +70,7 @@ def test_settings_gossi_does_not_fit_rotation() -> None:
 
 def test_settings_vgiss_is_calibrated_if() -> None:
     """A vgiss obs reports calibrated-IF units with no saturation gate."""
-    settings = instrument_settings_from_obs(_obs('vgiss'))
+    settings = instrument_settings_from_obs(_obs('vgiss_1_nac'))
     assert settings.data_units == 'calibrated_if'
     assert settings.saturation_dn is None
 
@@ -119,8 +119,8 @@ def test_gossi_scales_to_8bit_well() -> None:
 
 def test_calibrated_if_render_stays_in_if_range() -> None:
     """A calibrated_if render stays in I/F: at most 1 above the calibrated sky residual."""
-    img, _ = render_scene(_lit_body_scene('vgiss'))
-    residual = resolve_detector_defaults_native('vgiss').calibrated_sky_if or 0.0
+    img, _ = render_scene(_lit_body_scene('vgiss_1_nac'))
+    residual = resolve_detector_defaults_native('vgiss_1_nac').calibrated_sky_if or 0.0
     assert float(img.max()) <= 1.0 + residual
 
 
@@ -166,7 +166,7 @@ def test_overrides_cannot_set_data_units() -> None:
         r'entry renders the units you want\.'
     )
     with pytest.raises(ValueError, match=message):
-        resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss', {'data_units': 'raw_dn'})
+        resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac', {'data_units': 'raw_dn'})
 
 
 def test_no_overrides_returns_the_live_block() -> None:

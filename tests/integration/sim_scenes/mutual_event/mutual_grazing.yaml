@@ -13,18 +13,16 @@ exposure_sec: 1.0
 # hidden behind NEAR and reports visible_arc_fraction 0.74 of its lit limb
 # (reliability 0.74), so the fit never sees the interlocked arc, and the limb
 # fit lands 0.32 to 0.34 px from the planted offset.  The disc correlation
-# answers (2.5, -1.5), 0.177 px off, at the corner of its +-0.5 px refinement
-# window (#791), on 14 of 16 seeds; on the other two it answers
-# (2.38, -1.55), 0.074 px off.  The composite disc template paints the near
-# body over the far one by a yes-or-no mask, so it keeps a dark outline at
-# the near body's limb that the image no longer has, and the correlation
-# stops at the window's edge (#1099).  Drawn by coverage, without that
-# outline, the template brings the disc correlation to 0.006 px on every
-# seed tried.
+# answers (2.39, -1.50), 0.12 to 0.13 px off, the maximum of its high-pass
+# refinement surface.  The composite disc template paints the near body over
+# the far one by a yes-or-no mask, so it keeps a dark outline at the near
+# body's limb that the image does not have, and the outline pulls that
+# maximum (#1099).  Drawn by coverage, without that outline, the template
+# brings the disc correlation to 0.017 px on every seed tried.
 # Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 0.066 to 0.175 px (spread 0.109 px).  Each end of
+# the fused error runs 0.105 to 0.112 px (spread 0.007 px).  Each end of
 # the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [0.015, 0.225] px.  test_sim_mutual_event (in the default
+# outside, giving [0.054, 0.162] px.  test_sim_mutual_event (in the default
 # suite) and test_sim_expected hold the fused answer to it.
 bodies:
   - name: FAR
@@ -56,5 +54,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.12
-  known_offset_error_tol_px: 0.105
+  known_offset_error_px: 0.108
+  known_offset_error_tol_px: 0.054

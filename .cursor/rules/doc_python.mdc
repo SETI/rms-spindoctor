@@ -70,7 +70,9 @@ A single `conf.py` configures the whole tree. It MUST:
 - Enable, at minimum, these extensions:
     - `sphinx.ext.autodoc` — pull API docs from docstrings.
     - `sphinx.ext.napoleon` — parse Google-style docstrings.
-    - `sphinx.ext.viewcode` — link API docs to highlighted source.
+    - `sphinx.ext.linkcode` — link each documented object to its source lines
+      in the hosted repository, at the commit being built, through a
+      `linkcode_resolve` function in `conf.py`.
     - `sphinx.ext.intersphinx` — cross-link to the docs of Python and key
       third-party dependencies; populate `intersphinx_mapping` accordingly.
     - `myst_parser` — include Markdown files (the `README`).

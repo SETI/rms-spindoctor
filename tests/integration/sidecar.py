@@ -82,6 +82,9 @@ ALLOWED_CAMERAS: frozenset[str] = frozenset(
     }
 )
 
+ALLOWED_SPACECRAFT: frozenset[str] = frozenset({'VG1', 'VG2'})
+"""Spacecraft codes accepted by the optional ``Sidecar.spacecraft``."""
+
 ALLOWED_STATUSES: frozenset[str] = frozenset({'success', 'failed', 'conflicted'})
 # 'conflicted' mirrors :data:`spindoctor.nav_orchestrator.nav_result.ConfidenceRank` —
 # the orchestrator hard-sets the rank to 'conflicted' whenever it returns a
@@ -205,6 +208,7 @@ class Sidecar:
     exposure_time_sec: float | None = None
     image_datetime_utc: str | None = None
     camera_rotation_expected: CameraRotationExpected | None = None
+    spacecraft: str | None = None
 
     @property
     def primary_scene_tag(self) -> str:
@@ -254,6 +258,14 @@ def _validate_sidecar(raw: dict[str, Any], *, path: Path) -> Sidecar:
     image_id = _require_str(raw, 'image_id', path=path)
     mission = _require_enum(raw, 'mission', ALLOWED_MISSIONS, path=path)
     camera = _require_enum(raw, 'camera', ALLOWED_CAMERAS, path=path)
+    spacecraft = raw.get('spacecraft')
+    if spacecraft is not None and (
+        not isinstance(spacecraft, str) or spacecraft not in ALLOWED_SPACECRAFT
+    ):
+        raise SidecarValidationError(
+            f'{path}: spacecraft must be one of {sorted(ALLOWED_SPACECRAFT)} when present, '
+            f'got {spacecraft!r}'
+        )
     filter_combo = _require_str(raw, 'filter_combo', path=path)
     image_url = _require_str(raw, 'image_url', path=path)
 
@@ -290,6 +302,7 @@ def _validate_sidecar(raw: dict[str, Any], *, path: Path) -> Sidecar:
         exposure_time_sec=exposure_time_sec,
         image_datetime_utc=image_datetime_utc,
         camera_rotation_expected=camera_rotation_expected,
+        spacecraft=spacecraft,
     )
 
 
