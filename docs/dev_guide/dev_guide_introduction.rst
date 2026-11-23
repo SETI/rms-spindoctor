@@ -271,9 +271,9 @@ commit the documentation was built from.
 
 The sidebar lists every guide and report page on every page. The API reference
 appears in it as one entry, and its pages and documented objects are listed
-only on the API reference's own pages. Writing those thousands of entries into
-every page made the build too slow for Read the Docs' time limit. Both the
-source links and the sidebar are set up in ``docs/conf.py``.
+only on the API reference's own pages, which keeps the thousands of API entries
+out of every other page and the build within Read the Docs' time limit. Both
+the source links and the sidebar are set up in ``docs/conf.py``.
 
 CI / CD pipeline
 ================
