@@ -315,7 +315,23 @@ building anything. When nothing in front of the body was in view either, the
 navigation records ``body_fills_fov`` as its reason, which is what lets a
 statistics report omit the image as one that could not have been navigated.
 
-The ring model's pre-check is the same idea: a 16 x 16 evaluation rules out the two
-common cases -- no ring-plane intersection anywhere in the frame, and a visible radial range
-entirely outside the catalog's outermost feature -- without paying for a dense
-backplane.
+The ring model's pre-check asks the same kind of question of the ring plane: can any of
+it inside the catalog's outermost radius appear in the extended frame? That part of the
+plane is a disc around the planet. Seen from the spacecraft, the disc covers one
+connected patch of sky. If that patch overlaps the frame, either it crosses the frame's
+boundary or it lies wholly inside the frame, and then it holds the planet center.
+:func:`~spindoctor.nav_model.ring_visibility.ring_disc_view` therefore reads the ring
+radius at every pixel center along the boundary of the extended frame, in one
+backplane, and projects the planet center into the frame. The model declines only when
+the center falls outside the frame and every boundary pixel either misses the ring
+plane or meets it beyond the outermost radius.
+
+The test holds for any viewing geometry. A distant ring system a few pixels across has
+its center in the frame. A thin band seen nearly edge-on crosses the boundary. A frame
+that looks down on the rings from above them has ring radii inside the catalog all
+along its boundary. The one case it can miss is a band thinner than a pixel where it
+crosses the boundary, and the whole-frame backplane's pixel centers can miss that band
+too. A planet center that cannot be projected counts as inside the frame, so any doubt
+sends the frame to the whole-frame backplane, which is slower but always correct. The
+boundary backplane costs tens of milliseconds, against several seconds for the
+whole-frame ring backplane it avoids.

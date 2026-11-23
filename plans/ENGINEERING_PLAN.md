@@ -776,7 +776,9 @@ where they differ).
 - **#239** — implement the sub-5 px body policy the operator settled on
   (expected-failure curation); the open work is the targeted diameter-
   filtered cohort scan for a qualifying single-body frame.
-- **#591** — `NavModelRings._render`'s cheap 16x16 visibility pre-check can
+- **#591** (done: the pre-check reads the ring radius along the extended
+  frame's boundary and projects the planet center, 2026-11-23) —
+  `NavModelRings._render`'s cheap 16x16 visibility pre-check can
   skip the whole ring model on a frame whose rings fall between its samples,
   so a navigable ring frame silently offers no ring feature.
 - **#577** — `compute_smear_vector_px` calls `obs.boresight_ra()` and
