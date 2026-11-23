@@ -236,6 +236,12 @@ tests need none of the archive environment above.
      - Saturn's rings at real scale on full-size frames, with structure the
        navigator doesn't know about beside the cataloged edges,
        navigated once per run and held to the same checks as the camera guards.
+   * - Mixed-defect guards (``test_sim_mixed_defects.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Realistic frames that carry several detector, readout, and downlink
+       defects at once, as real frames do. Each scene is navigated once per
+       run and held to the same checks as the other guard classes.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing

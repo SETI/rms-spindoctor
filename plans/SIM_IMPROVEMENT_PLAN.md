@@ -302,7 +302,11 @@ are the authorable parts of #904 and the ring-only part of #377:
   saturated B ring), each held to a known-error band (#755 for the Keeler gap, #1143 for the
   unfit twist, #1152 for the low opening, #1144 for the hidden eccentricity, where the frame
   conflicts, #1145 for the saturated edge);
-- interleaved defect modes on one frame.
+- interleaved defect modes on one frame. **Done (PR #TBD).** The `mixed_defects` class holds a
+  lossy table NAC moon, a NAC stars-and-moon frame with lost and truncated lines and 2 px of
+  smear, a Galileo moon with compression and lost 8-line slices, and a raw LORRI moon with
+  frame-transfer smear; all four navigate within 0.40 px over 24 draws, the LORRI frame on the
+  limb fit alone at low tier because its disc correlation rejects every shift (#997).
 
 Each scene asserts against its planted truth (#905). Scenes that expose a navigator failure are
 committed as expected failures with the issue they reproduce.

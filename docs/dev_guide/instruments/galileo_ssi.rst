@@ -370,6 +370,19 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
 - ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
+**Mixed-defect guard scene.** ``gossi_ict_moon`` in the ``mixed_defects`` scene
+class (see :ref:`sim-mixed-defects`) is a full frame of a moon 400 px across with
+the camera's chain and its fitted cosmic rays on, lossy compression, and lost
+8-line compression slices, as most tour frames carry. In the metadata indexes of
+GO_0017, GO_0019, and GO_0023, 1,318 of 1,865 frames use the camera's lossy
+codec, at a median compression ratio of 9.5. The simulator has no model of that
+codec, so the scene uses the generic one with a step of 4 DN, which leaves block
+edges no sharper than the inside of the blocks, as on the real frame the disc
+follows. The scene plants a 260 px offset and the camera's twist. The fused
+answer lands 0.27 to 0.33 px off over 24 draws. The twist sets that error: without
+it the frame lands 0.07 to 0.09 px off, and the compression and the lost slices
+each move the answer by less than 0.05 px. The blob technique lands up to 4 px
+off without flagging it when a lost slice crosses the disc.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
