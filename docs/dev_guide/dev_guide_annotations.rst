@@ -105,7 +105,7 @@ The :mod:`spindoctor.annotation` subsystem itself consumes no YAML
 configuration. The label / color knobs live in the per-:class:`~spindoctor.nav_model.nav_model.NavModel`
 config blocks instead:
 
-- ``bodies.label_*``, ``bodies.outline_thicken``, ``bodies.min_text_area``
+- ``bodies.label_*`` and ``bodies.outline_thicken``
   in ``src/spindoctor/config_files/config_040_bodies.yaml`` (consumed via
   :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`).
 - ``rings.label_*`` in ``src/spindoctor/config_files/config_050_rings.yaml``
