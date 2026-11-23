@@ -9,17 +9,9 @@ import pytest
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
-    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtGui import QImage
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6 not available: {exc}', allow_module_level=True)
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(f'QApplication failed: {exc}', allow_module_level=True)
-
-from PyQt6.QtGui import QImage
 
 from spindoctor.ui.mosaic_viewer.sphere_render import render_to_image
 from spindoctor.ui.mosaic_viewer.tiled_image_widget import _body_sphere_lon_bin_to_dc_map

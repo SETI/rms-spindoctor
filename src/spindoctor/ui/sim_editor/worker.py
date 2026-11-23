@@ -37,12 +37,15 @@ from typing import Any
 
 from PyQt6.QtCore import QObject, QTimer, pyqtSignal
 
-__all__ = ['POLL_INTERVAL_MS', 'LatestRequestRunner']
+__all__ = ['POLL_INTERVAL_MS', 'RENDER_THREAD_NAME', 'LatestRequestRunner']
 
 # How often the UI thread looks for a finished render while one runs.  Short enough
 # that the result follows the render without a visible lag, long enough that the poll
 # costs nothing next to the render.
 POLL_INTERVAL_MS = 25
+
+# The name of every worker thread.
+RENDER_THREAD_NAME = 'sim-editor-render'
 
 
 @dataclass
@@ -163,7 +166,7 @@ class LatestRequestRunner(QObject):
             return
         # Non-daemon: the interpreter joins it at exit, where a daemon thread would
         # be killed mid-render and abort the process (see the module docstring).
-        thread = threading.Thread(target=job.run, name='sim-editor-render')
+        thread = threading.Thread(target=job.run, name=RENDER_THREAD_NAME)
         try:
             thread.start()
         except RuntimeError as exc:

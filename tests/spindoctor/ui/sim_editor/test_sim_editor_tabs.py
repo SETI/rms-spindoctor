@@ -27,15 +27,6 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
-        allow_module_level=True,
-    )
-
 from tests.spindoctor.sim.fictional_camera import (
     FICTIONAL_CAMERA,
     FICTIONAL_CAMERA_NAME,
@@ -49,15 +40,6 @@ from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 from spindoctor.ui.sim_editor.artifact_mode_rows import ModeRow
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture

@@ -166,13 +166,15 @@ class ParameterUpdater(QObject):
 
     update_requested = pyqtSignal()
 
-    def __init__(self, delay_ms: int) -> None:
+    def __init__(self, delay_ms: int, parent: QObject | None) -> None:
         """Create the debounce timer.
 
         Parameters:
             delay_ms: Idle delay in milliseconds before an update fires.
+            parent: The owning Qt object (the editor window); its deletion takes the
+                debounce timer with it, so the redraw of an edit still waiting is never drawn.
         """
-        super().__init__()
+        super().__init__(parent)
         self._timer = QTimer(self)
         self._timer.setInterval(delay_ms)
         self._timer.setSingleShot(True)
@@ -186,6 +188,10 @@ class ParameterUpdater(QObject):
         """Cancel any pending debounce and emit the update now."""
         self._timer.stop()
         self.update_requested.emit()
+
+    def cancel(self) -> None:
+        """Drop the redraw of an edit that is still waiting out the debounce."""
+        self._timer.stop()
 
     def _emit_update(self) -> None:
         """Emit the update signal when the debounce timer fires."""

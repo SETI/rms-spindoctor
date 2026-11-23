@@ -10,7 +10,6 @@ Qt runs headless (offscreen platform).
 """
 
 import os
-from typing import cast
 
 import numpy as np
 import numpy.ma as ma
@@ -22,12 +21,6 @@ try:
     from PyQt6.QtWidgets import QApplication
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6 not available: {exc}', allow_module_level=True)
-
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(f'QApplication failed: {exc}', allow_module_level=True)
 
 from spindoctor.ui.mosaic_viewer.tiled_image_widget import TiledImageWidget
 
@@ -47,15 +40,6 @@ _RAD_MID = _RAD_INNER + (_N_ROWS - 1) / 2.0 * _RAD_RES
 _BODY_RES = 45.0
 _BODY_N_LAT = 5
 _BODY_N_LON = 9
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    """The shared (or freshly created) headless Qt application."""
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture
