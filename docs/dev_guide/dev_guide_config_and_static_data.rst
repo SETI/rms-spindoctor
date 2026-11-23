@@ -71,7 +71,8 @@ removal. The shipping sections:
 - ``general`` — global settings shared across programs.
 - ``logging`` — logger defaults, per-module levels, and per-program
   overrides.
-- ``offset`` — correlation and star-refinement parameters.
+- ``offset`` — the FFT upsample factor of the image correlation
+  (``correlation_fft_upsample_factor``).
 - ``stars`` — star-model and ring-occlusion parameters; see
   :doc:`dev_guide_navigation_models_star`.
 - ``bodies`` — body rendering parameters; see
@@ -166,7 +167,7 @@ Each shipping file and what it holds:
 - ``config_010_general`` — general settings shared across programs.
 - ``config_015_logging`` — logging defaults, per-module levels, and
   per-program overrides.
-- ``config_020_offset`` — offset-finding and star-refinement parameters.
+- ``config_020_offset`` — the image correlation's FFT upsample factor.
 - ``config_030_stars`` — star-model and ring-occlusion parameters.
 - ``config_040_bodies`` — body (planet / moon) rendering parameters.
 - ``config_050_rings`` — ring-model parameters.
