@@ -92,6 +92,29 @@ def test_offset_sky_with_a_margin_is_the_unplanted_sky_moved() -> None:
     assert np.allclose(planted, _unplanted_moved(4), rtol=0.0, atol=1e-9)
 
 
+def test_tiny_offset_moves_the_sky_a_tiny_way_edges_included() -> None:
+    """A frame with no margin or roll changes by a tiny offset's translation alone.
+
+    A star less than a pixel outside the frame lights its edge pixels with no offset as
+    with one, so the edge rows and columns change no more than the interior does.  At
+    this density the frame's brightest pixel holds about 36 units of flux, and a move of
+    1e-6 px changes no pixel by as much as 1e-4.
+    """
+    still = _plane(0)
+    nudged = _plane(0, offset=(1e-6, -1e-6))
+    assert np.abs(nudged - still).max() < 1e-3
+
+
+def test_stars_beyond_an_empty_frame_light_its_edge() -> None:
+    """A frame whose own sky draw is empty still shows the edge light of stars past it."""
+    clear_star_caches()
+    plane = np.zeros((8, 8), dtype=np.float64)
+    # On an 8-pixel frame, seed 34 draws no star inside the frame and one star less than
+    # a pixel outside it.
+    render_sky_counts(plane, seed=34, oversample=1, margin=0, **_SKY)
+    assert float(plane.sum()) > 0.0
+
+
 def _deposited_stars(
     monkeypatch: pytest.MonkeyPatch, margin: int, offset: tuple[float, float]
 ) -> set[tuple[float, float, float]]:

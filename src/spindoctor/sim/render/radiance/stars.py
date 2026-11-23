@@ -478,8 +478,6 @@ def _render_sky_counts_cached(
         return plane
     rng = np.random.default_rng(seed)
     n_stars = int(rng.poisson(n_expected))
-    if n_stars <= 0 and rotation_deg == 0.0 and margin == 0 and not (offset_v or offset_u):
-        return plane
     # The draw is a uniform pixel corner position over the frame of this grid,
     # which spans ``[0, size]`` there; the deposit reads a pixel centric
     # position, where the same frame spans ``[-half, size - half]``, so half a
@@ -498,19 +496,22 @@ def _render_sky_counts_cached(
     )
     vs -= PIXEL_CENTER_TO_CORNER_PX
     us -= PIXEL_CENTER_TO_CORNER_PX
-    if rotation_deg != 0.0 or margin > 0 or offset_v != 0.0 or offset_u != 0.0:
-        mags, vs, us = _sky_beyond_the_frame(
-            (mags, vs, us),
-            (size_v, size_u),
-            seed=seed,
-            star_density=n_expected / ((size_v / oversample) * (size_u / oversample)),
-            b=b,
-            faint_cutoff_mag=faint_cutoff_mag,
-            rotation_deg=rotation_deg,
-            oversample=oversample,
-            margin=margin,
-            offset=(offset_v, offset_u),
-        )
+    # A star less than a pixel outside the frame lights its edge pixels, so the stars
+    # beyond the frame are drawn at every roll, margin, and offset, zero included.
+    # The field is then continuous in each: a tiny offset moves the same stars a tiny
+    # way, edges included.
+    mags, vs, us = _sky_beyond_the_frame(
+        (mags, vs, us),
+        (size_v, size_u),
+        seed=seed,
+        star_density=n_expected / ((size_v / oversample) * (size_u / oversample)),
+        b=b,
+        faint_cutoff_mag=faint_cutoff_mag,
+        rotation_deg=rotation_deg,
+        oversample=oversample,
+        margin=margin,
+        offset=(offset_v, offset_u),
+    )
     for mag, v, u in zip(mags.tolist(), vs.tolist(), us.tolist(), strict=True):
         total = total_flux_for_vmag(float(mag), zero_point=zero_point, exposure_sec=exposure_sec)
         _deposit_point_mass(plane, v, u, total=total * oversample**2, margin=margin)

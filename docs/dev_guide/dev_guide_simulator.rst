@@ -1047,8 +1047,9 @@ where each body is drawn and its craters are laid out. The non-radial distortion
 wander is defined over the frame and repeats its edge value across the margin. Stray
 light is added to the frame alone, because no later step spreads it.
 
-The margin therefore changes none of the frame's radiance before the optics, apart
-from the share of a margin sky star that lands on an edge pixel. It changes only the
+The margin therefore changes none of the frame's radiance before the optics. A sky
+star less than a pixel past the frame lights the edge pixels whether the frame has a
+margin or not, so even the edge pixels are the same. The margin changes only the
 light the optics carry across the frame edge. That light includes the light of the
 sky stars in the margin. A star counts when its light lands on any pixel of the margin,
 including a star less than a pixel past the outermost one, whose share on that pixel
