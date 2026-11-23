@@ -409,6 +409,23 @@ then the lexicographically greatest basename, then the greatest path. The
 overlapping reconstructed, gapfill and predicted sets in this mission's
 holdings make multiple reproducing candidates ordinary rather than exceptional.
 
+Body disc refinement on real frames
+===================================
+
+The body disc technique refines its final pass on a high-pass surface (see
+:doc:`../dev_guide_techniques_body_disc`). That refinement was measured against strong
+star solutions on 69 narrow-angle and 6 wide-angle frames, each compared with a half-pixel
+window around the integer peak.
+
+- **Narrow-angle camera.** The median per-axis error of the disc answer falls from
+  0.29 / 0.30 px to 0.23 / 0.23 px. The median distance from the star solution moves from
+  0.467 to 0.470 px, the mean falls from 0.747 to 0.634 px, and the largest rises from
+  5.21 to 6.20 px. 42 frames improve by more than 0.05 px, and 15 get worse by as much.
+- **Wide-angle camera.** The high-pass refinement is worse overall: the median distance
+  from the star solution rises from 1.79 to 2.77 px. Two of the six frames are saturated,
+  with spill around the body, which is the structure the refinement handles worst:
+  W1568165771_2 goes from 1.70 to 2.80 px, and W1568166187_2 from 1.79 to 2.79 px.
+
 Simulator model
 ===============
 

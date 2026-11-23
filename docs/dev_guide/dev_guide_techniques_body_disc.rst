@@ -139,12 +139,11 @@ offset is 1.43 px: the gradient NCC peaks at 2, the window spans 1.5 to 2.5, and
 answer is 1.5. Centering the window on the NCC's sub-pixel estimate usually puts the true
 maximum inside it.
 
-On the 69 Cassini narrow-angle frames among them, the high-pass refinement gives a median
-per-axis error of 0.23 / 0.23 px against the stars, where the half-pixel window around the
-integer peak gives 0.29 / 0.30 px. The median distance from the star solution hardly
-changes, from 0.467 to 0.470 px. The mean distance falls from 0.747 to 0.634 px, the
-largest distance rises from 5.21 to 6.20 px, and 42 frames improve by more than 0.05 px
-while 15 get worse by as much. Over all 76 frames, 7% of the high-pass answers still stop at the
+On those 76 frames, the high-pass refinement gives a median per-axis error of
+0.24 / 0.24 px against the stars, where the half-pixel window around the integer peak gives
+0.32 / 0.31 px. The median distance from the star solution hardly changes, from 0.507 to
+0.509 px. The mean distance falls from 0.923 to 0.851 px, and 43 frames improve by more
+than 0.05 px while 19 get worse by as much. 7% of the high-pass answers still stop at the
 window edge with the surface still rising, and nothing marks them.
 
 That half-pixel window is unrelated to the result's ``at_edge`` flag, which marks a peak
@@ -162,20 +161,18 @@ spill around an overexposed body. On the 10 real frames with such structure, the
 high-pass refinement is better on 5 and worse on 3, but the median distance from the star
 solution rises from 1.64 to 2.03 px. The three that get worse are all saturated and more
 than 1.7 px off with either refinement. On the other 66 frames the median distance moves
-from 0.47 to 0.49 px. On the six Cassini wide-angle frames in the measurement the high-pass
-refinement is worse overall, because two of them are such saturated frames.
+from 0.47 to 0.49 px.
 
 **Cost.** The high-pass spectrum replaces the raw one on the final pass, so the added work
 per correlation is two Gaussian filters of the padded surfaces and one 3x3 quadratic fit
 per candidate peak: about 0.14 s per final pass on a 1100 px extended frame, where the
 whole correlation takes about 8.5 s. In ``auto`` mode both the raw and the gradient
-pyramids run a final pass, so the estimate is about 0.27 s per image. Rotation fitting,
-which no camera turns on by default, scores its trial angles with a single correlation
-each, which refines nothing and builds no high-pass spectrum (see "Rotation-aware
-schedule"). Only its full pyramids run a final pass: the one on the unrotated template,
-and the one at the best angle when that angle is not zero. Each runs in both modes, so
-rotation fitting adds about 0.27 s more per image of that size, and nothing when the best
-angle is zero.
+pyramids run a final pass, so the estimate is about 0.27 s per image. Rotation fitting
+scores its trial angles with a single correlation each, which neither refines nor builds a
+high-pass spectrum (see "Rotation-aware schedule"). Only its full pyramids run a final
+pass: the one on the unrotated template, and the one at the best angle when that angle is
+not zero. Each runs in both modes, so rotation fitting adds about 0.27 s more per image of
+that size, and nothing when the best angle is zero.
 
 Mode selection (auto / raw / gradient)
 --------------------------------------
