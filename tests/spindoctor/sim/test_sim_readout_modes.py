@@ -9,6 +9,7 @@ pixels, the instrument PSF kernel shrinks by ``b``, and an uncataloged mode is a
 validation error.
 """
 
+import dataclasses
 from typing import Any
 
 import numpy as np
@@ -212,7 +213,7 @@ def test_the_instrument_psf_shrinks_with_the_binning() -> None:
     scene = _scene('nhlorri', 4, artifacts={'instrument_defaults': True})
     native = resolve_psf_kernel('nhlorri')
     assert native is not None
-    assert effective_psf(scene) == binned_psf_kernel(native, 4)
+    assert effective_psf(scene) == binned_psf_kernel(dataclasses.asdict(native), 4)
 
 
 def test_binned_psf_kernel_scales_only_the_radii() -> None:

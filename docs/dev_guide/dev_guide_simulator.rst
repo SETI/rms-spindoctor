@@ -201,14 +201,14 @@ registry beside it in :mod:`spindoctor.sim` (paths are relative to ``sim/``):
    * - Module
      - Role
    * - ``instruments/catalog.py``
-     - Reads the instrument files, merges their entries, resolves each
-       entry's ``base``, and checks the result (see :ref:`sim-instrument-files`).
+     - Reads the instrument files, merges each entry over its ``base``, parses
+       the result, and runs the checks that span entries (see
+       :ref:`sim-instrument-files`).
    * - ``instruments/schema.py``
-     - The key inventory of an entry: each key's type and range, and which keys
-       an entry must carry.
-   * - ``instruments/checks.py``
-     - The checks of how the parts of one entry fit together, and the checks
-       that span entries.
+     - The typed schema of an entry: each key's type and range, which keys an
+       entry must carry, and the rules that tie its parts together.
+   * - ``instruments/schema_detector.py``
+     - The typed schema of an entry's detector block and readout modes.
    * - ``instruments/resolvers.py``
      - The functions the rest of the simulator calls to read an entry: the PSF
        and its truncation radius, distortion residual, detector chain, readout
@@ -1247,23 +1247,40 @@ doesn't have, so the load fails with a message that gives the key. That includes
 a key nested under a mapping the base lacks, such as a polarizer in a ``filters``
 block the base doesn't state. A null list item fails too: a list replaces the
 base's whole list, so an item has nothing to remove. ``aliases`` and
-``realism_cohort`` belong to one entry only. A base doesn't pass them on, and a
-null for either fails.
+``realism_cohort`` belong to one entry only. A base doesn't pass them on, so a
+null for either removes nothing and fails. The merge is the schema package's layer
+merge, under its rule that a null removes a value (see :doc:`dev_guide_schema`).
 
 :func:`~spindoctor.sim.instruments.catalog.load_instrument_catalog` reads every
 file once per directory (the result is cached) and merges the top-level keys of
-all of them. It checks each entry against the schema in
-:mod:`spindoctor.sim.instruments.schema` and the cross-checks in
-:mod:`spindoctor.sim.instruments.checks`. Every message about an entry gives the
-file, the entry, and the key path, as in ``coiss.yaml: coiss_calib_nac:
-detector.gain_e_per_dn_by_state: ...``. A message about a whole file gives the
-file, and a message about the directory, such as a stray file or a missing
-``generic`` entry, gives the directory. The directory may hold only ``.yaml``
-files: a ``.yml`` file, or any other entry in the directory, fails the load rather
-than being skipped. A file also fails the load if it isn't valid YAML, writes a
-key twice, or doesn't hold a mapping of instrument names to entries. An instrument
-name must be a string, so a name that YAML reads as a number, a boolean, or a date,
-such as a bare ``123``, fails.
+all of them. It parses each merged entry into an
+:class:`~spindoctor.sim.instruments.schema.InstrumentEntry`, a frozen dataclass
+whose parts are typed too (the detector block is a
+:class:`~spindoctor.sim.instruments.schema_detector.Detector`, each readout mode a
+:class:`~spindoctor.sim.instruments.schema_detector.ReadoutMode`, and so on). A
+rule that ties one part of an entry to another is a ``__post_init__`` method of the
+type that holds both parts. A shape default or an ``instrument_defaults`` map is
+typed as its mode's parameters, as the artifact-mode registry declares them (see
+:ref:`sim-artifact-framework`).
+
+The load reports every problem it finds at once, in one
+:class:`~spindoctor.schema.errors.SchemaError` with one line per problem. Each line
+gives the file and entry that set the value, and the key path, as in
+``coiss.yaml: coiss_calib_nac: detector.gain_e_per_dn_by_state: ...``. If an entry
+removes a required key with a null, the line gives that entry. When two keys don't fit
+together, the line gives the entry that set one of them last. For example, if an entry
+sets a ``native_frame_size_px`` that its base's binnings don't divide, the line gives
+that entry, although the binnings come from the base. A problem in an entry that other
+entries inherit is reported once.
+
+A message about a whole file gives the file, and a message about the directory, such as
+a stray file or a missing ``generic`` entry, gives the directory. The directory may hold
+only ``.yaml`` files: a ``.yml`` file, or any other entry in the directory, fails the
+load rather than being skipped. A file also fails the load if it isn't valid YAML,
+writes a key twice, is empty, or doesn't hold a mapping of instrument names to entries.
+An instrument name must be a string, so a name that YAML reads as a number, a boolean,
+or a date, such as a bare ``123``, fails.
+
 The load fails if two files define the same instrument, or if an instrument's
 top-level value isn't a mapping. Within an entry, the load fails on:
 
@@ -1339,9 +1356,10 @@ PSF kernel and truncation radius, distortion residual, detector identity,
 calibrated sky, downlink tables, filters, and artifact-mode availability and shape
 defaults. The navigator block an entry points at is read by
 :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config`. Each of these
-raises :class:`ValueError` for an instrument that no entry defines. Scene
-validation's allowed names, the scene editor's instrument list, and the realism
-match's cohort map all come from the catalog.
+raises :class:`ValueError` for an instrument that no entry defines. Every caller shares
+one catalog, so a resolver that returns a list or a mapping, such as a gain table,
+returns a copy of it. Scene validation's allowed names, the scene editor's instrument
+list, and the realism match's cohort map all come from the catalog.
 
 An entry's ``data_units`` must match the ``data_units`` of the navigator block it
 points at. Otherwise the navigator would read a calibrated frame as DN, or a DN
@@ -1515,9 +1533,15 @@ detector-electronics effect, an archive-processing scar) the operator opts into
 one at a time. The modes are registered once in
 :mod:`spindoctor.sim.artifact_modes` -- the ``ARTIFACT_MODES`` registry
 is their single source of truth. Each :class:`~spindoctor.sim.artifact_modes.ArtifactMode`
-fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), the
-:class:`~spindoctor.sim.artifact_modes.ModeParam` schema of its
+fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), its
 parameters, and its activation key with that key's meaning for the mode. Each
+:class:`~spindoctor.sim.artifact_modes.ModeParam` gives a parameter's type as a
+schema annotation, such as ``NonNeg``, ``Unit``, or ``Literal['drop', 'keep']``
+(see :doc:`dev_guide_schema`). From those the mode builds one frozen dataclass,
+:attr:`~spindoctor.sim.artifact_modes.ArtifactMode.params_type`, and
+:func:`~spindoctor.sim.artifact_modes.parse_mode_params` checks a mode's map
+against it. The scene validator and the instrument catalog both check a mode's
+map this way, so a scene and a shape default are refused with the same words. Each
 instrument entry's ``artifact_modes`` list says which modes that
 instrument offers (see :ref:`sim-instrument-files`). Every consumer reads that
 description rather than carrying its own copy: the scene validator

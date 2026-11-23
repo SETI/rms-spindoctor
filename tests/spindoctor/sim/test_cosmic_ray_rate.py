@@ -12,6 +12,7 @@ configuration's ``sim.noise`` floor.  An explicit null ``detector.detector_model
 means the instrument's default model.
 """
 
+import dataclasses
 from typing import Any, cast
 
 import numpy as np
@@ -20,7 +21,7 @@ from scipy import ndimage
 from tests.spindoctor.sim.scenes import body_scene, frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.catalog import instrument_entry, sim_instrument_names
+from spindoctor.sim.instruments.catalog import load_instrument_catalog, sim_instrument_names
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.detector import apply_detector, chain
 from spindoctor.sim.render.detector.noise_stages import add_cosmic_rays
@@ -348,7 +349,7 @@ def test_a_vidicon_hit_bends_the_beam_only_near_itself(seed: int) -> None:
 def test_null_detector_model_resolves_to_the_catalog_model(instrument: str) -> None:
     """An explicit null detector model renders through the instrument's default model."""
     scene = _scene(instrument, {}, detector={'detector_model': None})
-    expected = resolve_detector_defaults_native(instrument)['detector_model']
+    expected = resolve_detector_defaults_native(instrument).detector_model
     assert resolve_detector_params(scene).detector_model == expected
 
 
@@ -363,9 +364,17 @@ def test_null_detector_keys_resolve_like_absent_ones() -> None:
 # ---- instrument_defaults ----
 
 
+def _set_catalog_rate(monkeypatch: pytest.MonkeyPatch, rate: float) -> None:
+    """Give coiss_nac's catalog entry a cosmic-ray rate for the rest of the test."""
+    entries = load_instrument_catalog().entries
+    entry = entries['coiss_nac']
+    detector = dataclasses.replace(entry.detector, cosmic_ray_events_per_pixel_per_sec=rate)
+    monkeypatch.setitem(entries, 'coiss_nac', dataclasses.replace(entry, detector=detector))
+
+
 def test_instrument_defaults_applies_the_catalog_rate(monkeypatch: pytest.MonkeyPatch) -> None:
     """Under instrument_defaults the catalog's rate applies (every entry holds 0.0 today)."""
-    monkeypatch.setitem(instrument_entry('coiss_nac')['detector'], _KEY, 2.0e-4)
+    _set_catalog_rate(monkeypatch, 2.0e-4)
     scene = _scene('coiss_nac', {}, artifacts={'instrument_defaults': True})
     resolved = resolve_detector_params(scene)
     assert resolved.cosmic_ray_events_per_pixel_per_sec == pytest.approx(2.0e-4)
@@ -375,6 +384,6 @@ def test_catalog_rate_stays_off_without_instrument_defaults(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Without instrument_defaults the catalog's rate does not apply."""
-    monkeypatch.setitem(instrument_entry('coiss_nac')['detector'], _KEY, 2.0e-4)
+    _set_catalog_rate(monkeypatch, 2.0e-4)
     resolved = resolve_detector_params(_scene('coiss_nac', {}))
     assert resolved.cosmic_ray_events_per_pixel_per_sec == 0.0
