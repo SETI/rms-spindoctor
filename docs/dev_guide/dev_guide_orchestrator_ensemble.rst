@@ -388,8 +388,8 @@ a regression test, and each also shows where the veto's coverage ends:
   each other, and the veto plays no part. On the remaining shapes the blob
   either carries the result itself at low confidence or is displaced together
   with the lock, so the disagreement the veto reads never appears. One shape
-  ends a success 12.8 px off, carried by the disc correlation, on 24 of 25 noise
-  draws, at 0.89 confidence. That wrong result is a known gap, held by a strict
+  ends a success 8.1 px off, carried by the limb fit, on 7 of 25 noise draws, at
+  0.92 confidence. That wrong result is a known gap, held by a strict
   expected-failure test until the veto catches it. The sweep's own walk uses a
   typical shape (``mesh_seed`` 4, chosen by its silhouette mismatch): on the
   scene's own draw the veto declines its extreme step. Over 25 noise draws it

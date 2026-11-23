@@ -88,28 +88,24 @@ def test_irregularity_population_veto_rate_at_extreme_mismatch() -> None:
 
 
 # A disc- or limb-carried success this far off has locked onto the mismatched shape: the
-# farthest such success on any other mesh seed is 8.4 px (seed 9).
+# farthest such success on any mesh seed is 8.4 px (seed 9).
 _SHAPE_LOCK_WRONG_PX = 10.0
+# A success at or above this confidence counts as confident.
+_CONFIDENT = 0.9
+# A confident success this far off is wrong: the farthest confident success on any
+# mesh seed other than seed 9 is 2.6 px (seed 3).
+_CONFIDENT_WRONG_PX = 5.0
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason='#790: the shape-lock veto misses shape-dependent locks on irregular mesh '
-    'bodies; mesh seed 10 ends a disc-carried success 12.8 px off at lumpiness 0.7, '
-    'at 0.89 confidence',
-)
 def test_irregularity_population_never_locks_far_off() -> None:
     """No mesh shape at lumpiness 0.7 ends a disc- or limb-carried success over 10 px off.
 
     A frame whose shape-dependent fit has locked onto the mismatched shape must not
-    report a success.  Mesh seed 10 does on 24 of 25 noise draws: a success 12.8 px
-    off carried by the disc correlation, at 0.889 to 0.893 confidence (0.902 to 0.913
-    while the night side glowed), just under the 0.9 at which a success counts as
-    confident.  Its blob is displaced together with the disc lock, so the
-    body-witness disagreement the veto reads never appears.  The check reads the
-    population, which shows it on every one of its 5 draws.  No frame of the 325
-    reaches 0.9 confidence more than 5 px off.
+    report a success.  Mesh seed 10 used to, on 24 of 25 noise draws: a success
+    12.8 px off carried by the disc correlation, at 0.89 confidence.  The disc
+    correlation now refines on the high-pass surface, and the shape-lock veto declines
+    seed 10 on all 25 draws.  The farthest disc- or limb-carried success on the 325
+    frames is 8.4 px (seed 9).
     """
     locked = [
         int(row.value)
@@ -120,3 +116,28 @@ def test_irregularity_population_never_locks_far_off() -> None:
         and row.offset_error_px > _SHAPE_LOCK_WRONG_PX
     ]
     assert locked == []
+
+
+@pytest.mark.xfail(
+    strict=True,
+    raises=AssertionError,
+    reason='#790: the shape-lock veto misses shape-dependent locks on irregular mesh '
+    'bodies; mesh seed 9 ends a success 8.1 px off at lumpiness 0.7, at 0.92 confidence',
+)
+def test_irregularity_population_never_confidently_wrong() -> None:
+    """No mesh shape at lumpiness 0.7 ends a success over 5 px off at 0.9 confidence.
+
+    Mesh seed 9 does on 7 of 25 noise draws: a success 8.1 to 8.2 px off at 0.918 to
+    0.922 confidence, carried by the limb fit.  Its blob is displaced together with
+    the lock, so the body-witness disagreement the veto reads never appears.  The
+    population shows it on one of its 5 draws, noise seed 101.
+    """
+    wrong = [
+        int(row.value)
+        for row in _population()
+        if row.status == 'success'
+        and row.confidence >= _CONFIDENT
+        and row.offset_error_px is not None
+        and row.offset_error_px > _CONFIDENT_WRONG_PX
+    ]
+    assert wrong == []

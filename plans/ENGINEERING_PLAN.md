@@ -817,8 +817,10 @@ where they differ).
     24 of 25 noise draws. With this change the shape-lock veto declines
     mesh seed 10 on all 25 draws, so that expectation no longer fails;
     mesh seed 9 instead ends a 0.92-confidence success 8.1 to 8.2 px off
-    on 7 of 25 draws, one of them among the 5 the check reads. What the
-    expectation should hold now is open (operator); a sturdier
+    on 7 of 25 draws, one of them among the 5 the check reads. By
+    operator decision (2026-11-23) the 10 px check is now a plain test,
+    and a new strict #790 expectation holds that no success reaches 0.9
+    confidence more than 5 px off, which mesh seed 9 breaks; a sturdier
     reproduction is #1062. The
     refinement's pull toward bright structure
     the template leaves out is #1050, which also carries the wide-angle
