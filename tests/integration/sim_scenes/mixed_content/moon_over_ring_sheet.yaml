@@ -1,0 +1,72 @@
+schema_version: 2
+scene_name: moon_over_ring_sheet
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 1.0
+# A moon in front of a ring sheet on a full Cassini NAC frame, modeled on the image
+# library's ring_plus_body frames (moons 50 to 90 px across over a ring sheet with a
+# gap, such as Pan in the Encke gap or Mimas over the Huygens region).  The sheet's
+# two edges and a 40 px gap cross the whole frame as gently curved arcs, 14 to 19 px
+# of sag from end to end, and the moon, 68 px across and nearer than the rings, sits
+# over the gap and hides part of both its edges.  The ring edges fix the offset
+# across the arcs, and only their slight curvature fixes it along them; the moon
+# fixes it in both directions.
+#
+# RingEdgeNav slides 8.6 to 9.5 px along the arcs on every draw (the across-arc error
+# stays under 0.1 px) and reports a sigma along them of about 0.1 px, at confidence
+# 0.75, the along-edge failure of #755.  BodyDiscCorrelateNav lands 0.18 px from the
+# truth.  The ensemble sees the two disagree and returns conflicted, which is the
+# correct outcome while RingEdgeNav claims a precision it does not have; a fix to
+# #755 should let the two agree and the scene succeed.  BodyBlobNav lands 0.86 to
+# 1.59 px off and does not flag it (#975).  RingAnnulusNav flags its answer spurious
+# on every draw.
+#
+# The planet is left out of this frame, since the simulator draws no shadow between
+# rings and planet (#896).  saturn_rings_wac holds a distant planet with its rings,
+# where the missing shadow covers a smaller share of the frame.
+#
+# The pointing error is the size real NAC frames carry, pointing down and to the left,
+# and the twist is the NAC's measured 0.0115 degrees, unfit, as the camera ships.
+artifacts:
+  instrument_defaults: true
+bodies:
+  - name: MIMAS
+    center_v: 450.0
+    center_u: 330.0
+    semi_a_px: 34.0
+    semi_b_px: 34.0
+    semi_c_px: 34.0
+    illumination_angle: 70.0
+    phase_angle: 40.0
+    range_km: 400000.0
+ring_system:
+  range_km: 600000.0
+  km_per_pixel: 3.6
+  phase_deg: 40.0
+  geometry:
+    center_v: -1500.0
+    center_u: 640.0
+    opening_deg_obs: 25.0
+    opening_deg_sun: 20.0
+    node_deg: 0.0
+  features:
+    - name: SHEET
+      kind: ringlet
+      tau: 1.0
+      width_px: 1500.0
+      navigable: true
+      orbit: {a_px: 4250.0, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+    - name: GAP
+      kind: gap
+      tau: 1.0
+      width_px: 40.0
+      navigable: true
+      orbit: {a_px: 4600.0, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+offset_v: 14.37
+offset_u: -9.83
+offset_rotation_deg: 0.0115
+expected:
+  status: conflicted
+  status_reason: conflicted_techniques

@@ -224,6 +224,12 @@ tests need none of the archive environment above.
        navigated once per run. The one answer meets every check the
        truth-check, expected-outcome, and baseline modules apply to the smaller
        scenes, and those modules skip the class when they navigate.
+   * - Mixed-content guards (``test_sim_mixed_content.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Realistic frames that put two kinds of content in view, such as stars
+       with a body or a moon in front of a ring sheet, navigated once per run
+       and held to the same checks as the other guard classes.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing

@@ -288,7 +288,13 @@ are the authorable parts of #904 and the ring-only part of #377:
   and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
   measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
   them are expected failures tied to #342, #785, and #1153;
-- star fields with a body, and rings with a body;
+- star fields with a body, and rings with a body; **Done (PR #TBD).** The `mixed_content` class
+  holds stars with a body 1.81 px off its predicted position (fused 0.30-1.31 px off, near the
+  line between the two), stars with a crescent on a summed 512 px frame (fused 0.22-0.50 px off,
+  the disc 0.01 px), a moon over a ring sheet, which conflicts because RingEdgeNav slides
+  8.6-9.5 px along the arcs at a 0.1 px sigma (#755), and a distant Saturn with its rings on the
+  WAC (fused 0.15-0.23 px off at 3.4-5.1 reported sigmas, mostly from the simulated hot pixels,
+  #906 and #1149); a nearer planet with rings waits on #896;
 - dense ring profiles at real scale and low opening, with only catalog edges navigable and
   unmodeled structure beside them;
 - interleaved defect modes on one frame.
@@ -509,6 +515,8 @@ Those classes are eligible for retirement in Phase 7.
 | #1146 | **Affects `coiss_nac_star_field`, where the other star techniques carry the answer.** StarFieldFromCatalogNav passes only its 30 brightest sources to the matcher, and on a raw frame cosmic rays take those places, so it returns spurious (navigator work) |
 | #1147 | **Affects `coiss_wac_disc`, held at low tier.** The disc correlation discards any answer within 2 px of its search limit, so with the WAC's 13 px window a correct answer past 11 px is thrown away (navigator work) |
 | #1148 | **Affects no current scene: the Galileo guard scenes plant the measured sky noise of #979, because real Galileo skies are that noisy.** A quantized 8-bit sky measures zero noise, and the star model then draws no stars. The Galileo star field at the real Pleiades frames' 0.1 s exposure and the catalog read noise reproduces it (navigator work) |
+| #1149 | **Affects `saturn_rings_wac`, held to a sigma band.** On a whole-system WAC frame RingEdgeNav answers 0.15 to 0.23 px off at a sigma of about 0.04 px, 3 to 5 sigma. Most of the error is the simulated hot pixels (#906): with them off the scene sits at 1.1 to 2.5 sigma. What remains is an edge fit with no defense against single-pixel outliers, and the planet in view, which raises the median error about 1.7 times with or without hot pixels; re-measure once #906 scales hot pixels with exposure |
+| #1150 | **Affects `stars_body_ephemeris_error` on one draw, which the ensemble leaves out.** StarUniqueMatchNav answers 114 px off at 0.70 confidence and does not flag it (navigator work) |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling

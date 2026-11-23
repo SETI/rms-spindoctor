@@ -1,0 +1,82 @@
+schema_version: 2
+scene_name: saturn_rings_wac
+instrument: coiss_wac
+size_v: 512
+size_u: 512
+random_seed: 7
+exposure_sec: 0.3
+# A whole-system frame on the Cassini WAC read out summed 2 by 2 (SUM2): Saturn 178 px
+# across, flattened to its real 0.902 polar ratio, with its C, B, and A rings at their
+# real radii relative to the planet, seen at a 20 degree opening.  The planet hides
+# the rings' far side and the rings cross in front of its near side.  The B and A
+# rings' edges are navigable; the faint C ring is not.  This is the distant,
+# correctly sized planet of the whole-system frames, so the shadows the simulator
+# does not draw between rings and planet (#896) would cover only a small part of it.
+#
+# RingEdgeNav carries the fused answer and lands 0.15 to 0.23 px off over the 16
+# draws, almost all of it along +v, while it reports a sigma of 0.04 px; the fused
+# error is 3.4 to 5.1 of its reported sigmas (#1149, #906).  Most of that error comes
+# from the simulated hot pixels, which sit near full well whatever the exposure
+# (#906).  With hot pixels off and the rest of the detector chain on, the ring error is
+# 0.04 to 0.10 px and the fused error 1.1 to 2.5 sigmas over the 16 draws; on the
+# committed seed the ring error drops from 0.17 to 0.10 px and the fused error from 3.8
+# to 2.5 sigmas.  With the whole chain off the committed seed's ring error is 0.05 px.
+# Masking the predicted edges behind or inside the planet does not help (0.20 and
+# 0.18 px).  The planet adds to the error with or without hot pixels: removing it
+# lowers the median ring error from 0.17 to 0.10 px with hot pixels on, and from 0.06
+# to 0.04 px with them off.  It doubles the error only on the committed seed with hot
+# pixels on (0.17 against 0.08 px).  The simulated rings are also about 4 times too
+# faint against Saturn (#895).
+#
+# BodyLimbNav lands 0.12 to 0.39 px off and BodyDiscCorrelateNav 0.30 px off, both
+# with wider sigmas.  BodyBlobNav lands 7.26 to 7.30 px off at confidence 0 and does
+# not flag it (#975), and RingAnnulusNav flags its answer spurious on every draw.
+#
+# The pointing error is a WAC-sized one, pointing up and to the right, and the twist
+# is the WAC's measured -0.0115 degrees, unfit, as the camera ships.
+artifacts:
+  instrument_defaults: true
+detector:
+  binning: 2
+bodies:
+  - name: SATURN
+    center_v: 270.0
+    center_u: 250.0
+    semi_a_px: 80.3
+    semi_b_px: 89.0
+    semi_c_px: 89.0
+    sub_observer_lat_deg: -20.0
+    illumination_angle: 200.0
+    phase_angle: 30.0
+    range_km: 5600000.0
+ring_system:
+  range_km: 5600000.0
+  km_per_pixel: 677.0
+  phase_deg: 30.0
+  geometry:
+    center_v: 270.0
+    center_u: 250.0
+    opening_deg_obs: 20.0
+    opening_deg_sun: 18.0
+    node_deg: 0.0
+  features:
+    - name: C_RING
+      kind: ringlet
+      tau: 0.1
+      width_px: 25.2
+      orbit: {a_px: 123.5, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+    - name: B_RING
+      kind: ringlet
+      tau: 1.5
+      width_px: 37.7
+      navigable: true
+      orbit: {a_px: 154.8, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+    - name: A_RING
+      kind: ringlet
+      tau: 0.6
+      width_px: 21.8
+      navigable: true
+      orbit: {a_px: 191.1, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+offset_v: -1.21
+offset_u: 1.73
+offset_rotation_deg: -0.0115

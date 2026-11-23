@@ -62,6 +62,18 @@ Scene classes
                                 twist with roll fitting off as the cameras ship;
                                 its own test module navigates each scene once
                                 and applies all of its checks
+  mixed_content               - two kinds of navigable content on one realistic
+                                frame, whose answers the navigator has to
+                                reconcile: stars with a body whose predicted
+                                position is wrong, stars with a crescent, a moon
+                                in front of a ring sheet, and a distant Saturn
+                                with its rings; each uses its camera's real
+                                frame size or a real binned readout, its
+                                detector chain, a pointing error the size real
+                                frames carry, and the camera's measured twist
+                                with roll fitting off; test_sim_mixed_content.py
+                                navigates each scene once and applies all of its
+                                checks
 
 Pixel convention
 ----------------

@@ -3661,10 +3661,18 @@ render the default scene.
 The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
-``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``)
-scope what each scene is testing and are enforced by the structural test. The
-scene README at ``tests/integration/sim_scenes/README.txt`` documents the schema
-alongside the code.
+``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``,
+``mixed_content``) scope what each scene is testing and are enforced by the
+structural test. The scene README at ``tests/integration/sim_scenes/README.txt``
+documents the schema alongside the code.
+
+The ``mixed_content`` scenes put two kinds of content in one realistic frame, as
+many real frames do: stars with a body whose predicted position is wrong, stars
+with a crescent, a moon in front of a ring sheet, and a distant Saturn with its
+rings. Each kind of content gets its own answer from its own techniques, and the
+navigator then has to reconcile those answers. Reconciling answers from different
+kinds of content is the main job of the step that combines the techniques'
+results.
 
 A complete YAML scene -- a noisy Cassini NAC frame with one irregular mesh body, a
 ring, a couple of stars, and a planted offset the navigator must recover -- reads:
