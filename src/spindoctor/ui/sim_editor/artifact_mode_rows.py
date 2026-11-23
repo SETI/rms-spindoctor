@@ -52,6 +52,7 @@ from spindoctor.sim.artifact_modes import (
     ModeParam,
 )
 from spindoctor.sim.instruments.resolvers import (
+    instrument_default_modes,
     mode_available,
     mode_unavailable_message,
     resolve_mode_with_catalog,
@@ -76,6 +77,9 @@ class ArtifactModeController(Protocol):
 
     def _mode_map(self, mode_name: str) -> dict[str, Any] | None:
         """Return the mode's scene map, or None when the mode key is absent."""
+
+    def _instrument_defaults_on(self) -> bool:
+        """Whether the scene turns the instrument defaults on."""
 
     def _set_mode_enabled(self, mode_name: str, on: bool) -> None:
         """Insert an empty mode map, or remove the mode key entirely."""
@@ -336,9 +340,10 @@ class ModeRow:
         """Set the row's checked state and widget values from a mode map.
 
         Signals are blocked, so syncing never writes to the scene.  A key the scene
-        leaves unset shows the camera's shape default if its config has one, else the
-        registry default.  A key with no default at all shows 0, though the renderer
-        may take its value from the detector block instead.
+        leaves unset shows the value the renderer gives it: the camera's value, when
+        the instrument defaults turn the mode on or the camera's config has a shape
+        default for the key, else the registry default.  A key that has no default at
+        all shows 0.
         """
         enabled = mode_map is not None
         self.group.blockSignals(True)
@@ -359,15 +364,18 @@ class ModeRow:
     def _sync_scalar(self, param: ModeParam, current: dict[str, Any]) -> None:
         """Show one scalar parameter's scene value, or its default.
 
-        If the key is absent, the widget shows the camera's shape
-        default if its config has one, else the registry default.  A key with no
-        default at all shows 0, or the spin box's minimum, though the renderer may
-        take its value from the detector block instead.
+        If the key is absent, the widget shows the value the renderer resolves for it.
+        A key that has no default at all shows 0, or the spin box's minimum.
         """
         widget = self._scalar_widgets[param.name]
         value = current.get(param.name)
         if value is None:
-            value = resolve_mode_with_catalog(self.mode.name, {}, self._instrument)[param.name]
+            value = resolve_mode_with_catalog(
+                self.mode.name,
+                {},
+                self._instrument,
+                instrument_defaults=self._controller._instrument_defaults_on(),
+            )[param.name]
         widget.blockSignals(True)
         if isinstance(widget, QCheckBox):
             widget.setChecked(bool(value))
@@ -403,11 +411,11 @@ class ModeRow:
         If the instrument doesn't offer the mode, the row is disabled, and its
         tooltip gives the instrument's reason.  If the scene's detector chain can't
         render the mode, the row is disabled, and its tooltip says why.  Otherwise
-        the row is enabled, and its tooltip gives its activation key's semantics.
+        the row is enabled, and its tooltip gives its activation key's semantics and
+        says whether the instrument defaults turn the mode on.
         If the scene already includes an unavailable mode, the mode's row stays
         enabled, with the reason in its tooltip, so the author can turn the mode off.
-        The row also shows the instrument's shape defaults for the keys the scene
-        leaves unset.
+        The row also shows the instrument's values for the keys the scene leaves unset.
 
         Parameters:
             instrument: The scene's instrument name.
@@ -428,6 +436,16 @@ class ModeRow:
         self._unavailable_reason = reason
         self.group.setEnabled(reason is None or self.group.isChecked())
         if reason is None:
-            self.group.setToolTip(f'{self.mode.activation}: {self.mode.activation_semantics}')
+            tip = f'{self.mode.activation}: {self.mode.activation_semantics}'
+            if (
+                self._controller._instrument_defaults_on()
+                and self.mode.name in instrument_default_modes(instrument)
+            ):
+                tip += (
+                    '\nThe instrument defaults turn this mode on. Each key set here '
+                    f"replaces the camera's value for that key, and {self.mode.activation} "
+                    '0 turns the mode off.'
+                )
+            self.group.setToolTip(tip)
         else:
             self.group.setToolTip(reason)

@@ -17,10 +17,13 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy.signal import fftconvolve
-from tests.spindoctor.sim.scenes import frame_scene, star_entry
+from tests.spindoctor.sim.scenes import (
+    frame_scene,
+    quiet_instrument_defaults,
+    star_entry,
+    zero_bias,
+)
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
     resolve_psf_kernel,
@@ -38,14 +41,7 @@ from spindoctor.sim.render.radiance.stars import faint_sky_cutoff_mag, render_sk
 _QUIET_NOISE: dict[str, Any] = {
     'poisson': False,
     'read_noise_dn': 0.0,
-    'bias_dn': 0.0,
     'dark_current_e_per_sec': 0.0,
-    'readout_dark_e': 0.0,
-    'hot_pixel_fraction': 0.0,
-    'banding_amplitude_e': 0.0,
-    'bias_pedestal_sigma_dn': 0.0,
-    'bias_row_gradient_dn': 0.0,
-    'bias_col_gradient_dn': 0.0,
 }
 
 
@@ -59,6 +55,7 @@ def _star_scene(instrument: str, *, vmag: float = 4.0, **extra: Any) -> dict[str
         instrument=instrument,
         exposure_sec=1.0,
         noise=dict(_QUIET_NOISE),
+        detector=zero_bias(),
         stars=[star_entry(32.5, 32.5, vmag)],
     )
     scene.update(extra)
@@ -120,7 +117,7 @@ def _point_mass_conservation(oversample: int) -> tuple[float, float]:
     )
     img, meta = render_scene(scene)
     total_flux = float(meta['star_info'][0]['total_flux'])
-    # Generic detector: gain 1, bias 0 in _QUIET_NOISE, so DN == electrons.
+    # Generic detector: gain 1, bias 0 in the star scene, so DN == electrons.
     return float(img[20:45, 20:45].sum()), total_flux
 
 
@@ -194,7 +191,7 @@ def test_instrument_defaults_star_reproduces_the_catalog_kernel() -> None:
     scene = _star_scene(
         'coiss_nac',
         vmag=8.0,
-        artifacts={'instrument_defaults': True},
+        artifacts=quiet_instrument_defaults('coiss_nac'),
         # A no-op distortion block disables the catalog residual so the
         # profile comparison sees only the PSF.
         optics={'distortion': {'k1': 0.0, 'k2': 0.0, 'nonradial_rms_px': 0.0}},
@@ -391,17 +388,12 @@ def _cutoff_from_formula(
     return 2.5 * math.log10(zero_point * exposure_sec / (read_noise * math.sqrt(core_area_px)))
 
 
-def test_the_sky_cutoff_without_a_psf_narrows_the_star_sigma_by_the_binning() -> None:
-    """A binned scene without a PSF takes the configured star sigma in binned pixels.
-
-    Galileo's configured star sigma is 3 native pixels, so a 2x2 summed frame's core
-    sigma is 1.5 of its pixels.
-    """
+def test_the_sky_cutoff_without_a_psf_counts_a_one_pixel_core() -> None:
+    """A scene without a PSF is unblurred, so its core is one pixel at any binning."""
     scene = {'instrument': 'gossi', 'exposure_sec': 2.0, 'detector': {'binning': 2}}
     zero_point, domain = resolve_star_flux_zero_point('gossi')
-    sigma = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'gossi')['star_psf_sigma']) / 2
     read_noise = _nominal_read_noise('gossi', domain, binning=2)
-    expected = _cutoff_from_formula(zero_point, 2.0, read_noise, sigma)
+    expected = _cutoff_from_formula(zero_point, 2.0, read_noise, 1.0 / math.sqrt(2.0 * math.pi))
     assert sky_star_faint_cutoff_mag(scene) == pytest.approx(expected, abs=1e-9)
 
 
@@ -427,9 +419,8 @@ def test_the_sky_cutoff_dims_the_zero_point_by_the_scene_filter() -> None:
     scene = {'instrument': 'coiss_nac', 'exposure_sec': 1.0, 'detector': {'filter': 'HAL+CL2'}}
     clear_zero_point, domain = resolve_star_flux_zero_point('coiss_nac')
     zero_point = clear_zero_point * filter_star_flux_scale('coiss_nac', 'HAL+CL2')
-    sigma = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
     read_noise = _nominal_read_noise('coiss_nac', domain, binning=1)
-    expected = _cutoff_from_formula(zero_point, 1.0, read_noise, sigma)
+    expected = _cutoff_from_formula(zero_point, 1.0, read_noise, 1.0 / math.sqrt(2.0 * math.pi))
     assert sky_star_faint_cutoff_mag(scene) == pytest.approx(expected, abs=1e-9)
 
 
@@ -464,3 +455,10 @@ def test_render_caches_cleared_between_sky_renders() -> None:
     clear_render_caches()
     second, _ = render_scene(scene)
     assert np.array_equal(first, second)
+
+
+def test_the_sky_cutoff_without_a_psf_ignores_the_navigator_star_sigma() -> None:
+    """What the navigator believes about the star width does not move the image."""
+    scene = {'instrument': 'coiss_nac', 'exposure_sec': 10.0}
+    believed = {**scene, 'instrument_config': {'star_psf_sigma': 4.0}}
+    assert sky_star_faint_cutoff_mag(believed) == sky_star_faint_cutoff_mag(scene)

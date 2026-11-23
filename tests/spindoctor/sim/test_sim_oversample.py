@@ -17,7 +17,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.render.bodies.ellipsoid import EllipsoidBodySpec, create_ellipsoid_body
 from spindoctor.sim.render.bodies.texture import AlbedoTextureSpec, DiscTextureSpec, TransitSpec
@@ -70,6 +70,7 @@ def _body_scene(*, oversample: int | None) -> dict[str, Any]:
         size=60,
         seed=3,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[disc_body(30.0, 30.0, 12.0, phase_angle=0.0)],
     )
     if oversample is not None:
@@ -323,6 +324,7 @@ def test_oversample_star_records_are_detector_scale() -> None:
         offset_v=2.0,
         offset_u=-1.0,
         noise=quiet_noise(),
+        detector=zero_bias(),
         stars=[star_entry(20.5, 24.5, 5.0, move_v=2.0, move_u=-4.0, psf_size=[11, 11])],
     )
     _, meta = render_scene(scene)
@@ -359,6 +361,7 @@ def test_oversample_defaulted_psf_size_survives_the_round_trip() -> None:
         seed=3,
         oversample=4,
         noise=quiet_noise(),
+        detector=zero_bias(),
         stars=[star_entry(20.5, 24.5, 5.0)],
     )
     _, meta = render_scene(scene)

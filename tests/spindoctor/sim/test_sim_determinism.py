@@ -10,8 +10,9 @@ pixels even after the render caches are cleared.
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry, zero_bias
 
+from spindoctor.sim.instruments.navigator_link import navigator_marker
 from spindoctor.sim.render.detector import chain, resolve_detector_params
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
 from spindoctor.sim.render.stages import SimFrame
@@ -114,7 +115,7 @@ def _full_stack_scene() -> dict[str, Any]:
         size=96,
         seed=5,
         exposure_sec=1.0,
-        artifacts={'instrument_defaults': True},
+        artifacts={'instrument_defaults': True, 'bloom': {'bloom_length': 2}},
         optics={
             'psf': {'sigma_v': 0.6, 'sigma_u': 0.6, 'w': 0.02, 'r0': 2.0, 'n': 3.0},
             'smear': [{'dv_px': 1.0, 'du_px': 0.5, 'object_class': 'all'}],
@@ -123,7 +124,6 @@ def _full_stack_scene() -> dict[str, Any]:
             'poisson': True,
             'read_noise_dn': 4.0,
             'cosmic_ray_events_per_pixel_per_sec': 0.001,
-            'bloom_length': 2,
         },
         bodies=[
             {
@@ -191,7 +191,7 @@ def test_vidicon_noise_draws_from_the_detector_stream() -> None:
     expected = _flat_frame(0.3)
     chain._apply_vidicon(expected, dp, np.random.default_rng(derive_effect_seed(11, 'detector')))
     # vgiss renders calibrated I/F, so the stage ends with the calibration inverse.
-    chain._apply_calibration_inverse(expected, dp)
+    chain._apply_calibration_inverse(expected, dp, marker=navigator_marker(params))
     assert np.array_equal(staged.signal, expected.signal)
 
 
@@ -201,7 +201,11 @@ def test_missing_data_losses_draw_from_the_telemetry_stream() -> None:
     frame = _flat_frame(50.0)
     apply_telemetry(
         frame,
-        params={'instrument': 'generic', 'random_seed': 11, 'noise': {'missing_data_rate': rate}},
+        params={
+            'instrument': 'generic',
+            'random_seed': 11,
+            'detector': {'missing_data_rate': rate},
+        },
     )
     draws = np.random.default_rng(derive_effect_seed(11, 'telemetry')).random(size=(48, 48))
     assert np.array_equal(frame.signal != 50.0, draws < rate)
@@ -221,7 +225,7 @@ def test_noise_seed_redraws_the_noise_and_nothing_before_the_detector() -> None:
     detector noise turned off the frame is the same with or without the key.
     """
     noisy = {**_scene(), 'noise': {'poisson': True, 'read_noise_dn': 5.0}}
-    quiet = {**_scene(), 'noise': quiet_noise()}
+    quiet = {**_scene(), 'noise': quiet_noise(), 'detector': zero_bias()}
     assert not np.array_equal(_render(noisy), _render({**noisy, 'noise_seed': 23}))
     assert np.array_equal(_render(quiet), _render({**quiet, 'noise_seed': 23}))
 
@@ -254,15 +258,13 @@ _PER_FRAME_STREAMS = frozenset(
         'cosmic_rays',
         'calibration_residual',
         'banding',
-        'banding_coherent',
         'bias_structure',
-        'vidicon_coherent',
         'bright_dark_pairs',
         'radiation_transients',
     }
 )
 _FIXED_PATTERN_STREAMS = frozenset(
-    {'hot_pixels', 'fixed_pattern', 'fixed_pattern_dn', 'dark_ramp_columns'}
+    {'hot_pixels', 'fixed_pattern', 'fixed_pattern_dn', 'readout_dark_columns'}
 )
 
 
@@ -298,6 +300,7 @@ def _camera_scene(**extra: Any) -> dict[str, Any]:
         size=96,
         seed=3,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[disc_body(48.0, 48.0, 15.0)],
         artifacts={
             'adversarial': True,
@@ -308,7 +311,7 @@ def _camera_scene(**extra: Any) -> dict[str, Any]:
                 'dust_donut_count': 2,
                 'jail_bar_dn': 2.0,
             },
-            'dark_ramp': {'probability': 1.0, 'amplitude_e': 200.0, 'rbi_column_factor': 0.5},
+            'readout_dark': {'probability': 1.0, 'amplitude': 200.0, 'rbi_column_factor': 0.5},
         },
         **extra,
     )
@@ -332,7 +335,7 @@ def test_noise_seed_leaves_each_mode_activation_in_place() -> None:
     """
     modes = {
         name: {'probability': 0.5}
-        for name in ('fixed_pattern', 'dark_ramp', 'banding_coherent', 'bias_structure', 'bloom')
+        for name in ('fixed_pattern', 'readout_dark', 'banding', 'bias_structure', 'bloom')
     }
     scene = frame_scene(seed=3, artifacts=modes)
     reseeded = resolve_detector_params({**scene, 'noise_seed': 23})

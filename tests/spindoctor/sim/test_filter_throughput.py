@@ -12,7 +12,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry, zero_bias
 
 from spindoctor.sim.instruments.resolvers import (
     FilterCatalogError,
@@ -37,9 +37,13 @@ def _scene(
     instrument: str, *, detector: dict[str, Any] | None = None, **extra: Any
 ) -> dict[str, Any]:
     """A noise-free 64 x 64 scene on ``instrument``."""
-    scene = frame_scene(instrument=instrument, seed=5, exposure_sec=0.01, noise=quiet_noise())
-    if detector is not None:
-        scene['detector'] = detector
+    scene = frame_scene(
+        instrument=instrument,
+        seed=5,
+        exposure_sec=0.01,
+        noise=quiet_noise(),
+        detector={**zero_bias(), **(detector or {})},
+    )
     scene.update(extra)
     return scene
 

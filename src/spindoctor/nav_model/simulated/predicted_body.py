@@ -40,12 +40,18 @@ from spindoctor.sim.shared.ellipsoid import (
     project_ellipsoid,
     render_lambert_ellipsoid,
 )
-from spindoctor.sim.shared.mesh import mesh_spec_from_params, render_mesh_body_image
+from spindoctor.sim.shared.mesh import (
+    mesh_projected_reach_px,
+    mesh_spec_from_params,
+    render_mesh_body_image,
+)
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'PredictedBody',
+    'predicted_canvas_px',
     'predicted_center_vu',
+    'predicted_reach_px',
     'predicted_semi_axes_px',
     'predicted_silhouette',
     'predicted_silhouette_bbox',
@@ -104,6 +110,38 @@ def predicted_semi_axes_px(nav_body: Mapping[str, Any]) -> tuple[float, float, f
     semi_b_px = float(nav_body.get('semi_b_px', 0.0))
     semi_c_px = float(nav_body.get('semi_c_px', min(semi_a_px, semi_b_px)))
     return semi_a_px, semi_b_px, semi_c_px
+
+
+def predicted_reach_px(nav_body: Mapping[str, Any]) -> float:
+    """Return how far a body can reach from its center in the image plane.
+
+    Half again the longest semi-axis, which an ellipsoid of any pose stays inside; a
+    mesh body also reaches as far as its farthest projected vertex, which a very lumpy
+    mesh puts past that.
+
+    Parameters:
+        nav_body: The body's entry in the navigator view.
+
+    Returns:
+        The reach in pixels.
+    """
+    semi_axes_px = predicted_semi_axes_px(nav_body)
+    reach = 1.5 * max(semi_axes_px)
+    if str(nav_body.get('shape_model', 'ellipsoid')) == 'polyhedral_mesh':
+        reach = max(reach, mesh_projected_reach_px(semi_axes_px, mesh_spec_from_params(nav_body)))
+    return reach
+
+
+def predicted_canvas_px(nav_body: Mapping[str, Any]) -> int:
+    """Return the side of a square canvas that holds a body's whole silhouette.
+
+    Parameters:
+        nav_body: The body's entry in the navigator view.
+
+    Returns:
+        Twice the body's reach plus a fixed margin, in pixels.
+    """
+    return math.ceil(2.0 * predicted_reach_px(nav_body)) + 16
 
 
 def render_predicted_body(

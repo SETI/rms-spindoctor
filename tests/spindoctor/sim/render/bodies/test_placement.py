@@ -229,7 +229,6 @@ def test_large_mesh_body_matches_the_unclipped_body() -> None:
         **disc_body(-28.3, 70.6, 56.0, **_SHADING),
         'shape_model': 'polyhedral_mesh',
         'mesh_lumpiness': 0.3,
-        'pose_euler_deg': [20.0, 35.0, -10.0],
     }
     img, _ = _render(body)
     reference, _ = _render(body, pad=_PAD)
@@ -249,7 +248,6 @@ def test_lumpy_mesh_body_reaching_past_its_semi_axes_matches_the_unclipped_body(
         'shape_model': 'polyhedral_mesh',
         'mesh_lumpiness': 0.6,
         'mesh_seed': 0,
-        'pose_euler_deg': [20.0, 35.0, -10.0],
     }
     img, _ = _render(body)
     reference, _ = _render(body, pad=_PAD)

@@ -92,13 +92,12 @@ def _psf_detector_scene(size: int) -> dict[str, Any]:
         'random_seed': 1,
         'instrument': 'coiss_nac',
         'exposure_sec': 1.0,
-        'artifacts': {'instrument_defaults': True},
+        'artifacts': {'instrument_defaults': True, 'bloom': {'bloom_length': 2}},
         'optics': {'psf': {'sigma_v': 0.55, 'sigma_u': 0.55, 'w': 0.025, 'r0': 2.0, 'n': 3.0}},
         'noise': {
             'poisson': True,
             'read_noise_dn': 4.0,
             'cosmic_ray_events_per_pixel_per_sec': 0.001,
-            'bloom_length': 2,
         },
         'sky_counts': {'density_factor': 200.0},
     }

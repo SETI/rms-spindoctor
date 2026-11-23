@@ -21,7 +21,7 @@ from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_psf_kernel,
 )
-from spindoctor.sim.render.detector.noise_stages import detector_hot_pixel_map
+from spindoctor.sim.render.detector.detector_maps import detector_hot_pixel_map
 from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
 from spindoctor.sim.render.optics.psf import binned_psf_kernel
