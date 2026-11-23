@@ -27,6 +27,7 @@ from typing import Any
 from spindoctor.sim.scene.fields import scene_binning
 
 __all__ = [
+    'PLANTED_POINTING_KEYS',
     'TOP_LEVEL_IDEALIZED_KEYS',
     'TOP_LEVEL_TEST_ONLY_KEYS',
     'TOP_LEVEL_TRUTH_KEYS',
@@ -105,6 +106,10 @@ TOP_LEVEL_IDEALIZED_KEYS: frozenset[str] = frozenset(
         'fit_camera_rotation',
     }
 )
+
+# The planted pointing keys: the navigated frame applies them, and an offset-free
+# render zeroes them and leaves them out of its cache key.
+PLANTED_POINTING_KEYS: tuple[str, ...] = ('offset_v', 'offset_u', 'offset_rotation_deg')
 
 # Top-level truth keys: the planted pointing error the navigator must recover,
 # the RNG realizations, and the contaminant / noise fields.  One value inside the

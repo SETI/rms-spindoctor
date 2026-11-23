@@ -37,7 +37,6 @@ import json
 from functools import lru_cache
 from typing import Any
 
-from spindoctor.sim.instruments.navigator_link import PLANTED_POINTING_KEYS
 from spindoctor.sim.render.bodies.mesh import clear_mesh_shape_caches
 from spindoctor.sim.render.bodies.relief import clear_relief_caches
 from spindoctor.sim.render.bodies.render import clear_ellipsoid_shape_caches
@@ -47,6 +46,7 @@ from spindoctor.sim.render.optics.stage import effective_psf, optics_margin_px
 from spindoctor.sim.render.pipeline import run_pipeline
 from spindoctor.sim.render.radiance.stars import clear_star_caches
 from spindoctor.sim.render.stages import new_sim_frame
+from spindoctor.sim.scene.boundary import PLANTED_POINTING_KEYS
 from spindoctor.sim.scene.validate import clear_validation_cache, validate_scene
 from spindoctor.support.types import NDArrayFloatType
 

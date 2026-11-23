@@ -37,11 +37,7 @@ from PyQt6.QtGui import QCloseEvent, QColor, QImage, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessageBox, QVBoxLayout
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import (
-    frame_units_name,
-    has_planted_offset,
-    resolve_sim_inst_config,
-)
+from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import resolve_data_units
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
@@ -49,6 +45,7 @@ from spindoctor.sim.scene.fields import default_body_name, scene_value
 from spindoctor.sim.scene.validate import validate_scene
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.ui.sim_editor.base import SimEditorBase
+from spindoctor.ui.sim_editor.frame_status import frame_units_name, has_planted_offset
 from spindoctor.ui.sim_editor.full_render import FullRender, render_full_frame
 
 # The status bar's words for the image on screen.
