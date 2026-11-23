@@ -1,0 +1,45 @@
+schema_version: 2
+scene_name: nhlorri_star_field_short_exposure
+instrument: nhlorri
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 1.0
+# nhlorri_star_field at 1 s instead of 5 s.  The brightest star, V 10.5, still
+# peaks about 20 times the sky noise, but the navigator predicts every star too
+# faint to detect and draws no star features, so navigation fails.  The
+# navigator's LORRI star blur, star_psf_sigma, is a 3.0 px placeholder against
+# a published core near 1 px (#342), and the wide blur spreads each predicted
+# star over about nine times the pixels, which drops its predicted signal to
+# noise below the cut.  With star_psf_sigma at 1.0 px the same frame emits 7
+# star features and navigates.  The expected block holds the failure, so a fix
+# to the blur fails this scene until the block is retired.
+artifacts:
+  instrument_defaults: true
+sky_counts: {}
+bodies: []
+stars:
+  - {name: S1, v: 562.58, u: 1009.30, vmag: 10.54}
+  - {name: S2, v: 414.31, u: 545.57, vmag: 10.88}
+  - {name: S3, v: 206.34, u: 415.38, vmag: 11.07}
+  - {name: S4, v: 88.84, u: 923.52, vmag: 11.39}
+  - {name: S5, v: 608.50, u: 354.68, vmag: 11.66}
+  - {name: S6, v: 824.11, u: 628.46, vmag: 11.68}
+  - {name: S7, v: 301.69, u: 766.70, vmag: 11.81}
+  - {name: S8, v: 905.05, u: 891.72, vmag: 12.38}
+  - {name: S9, v: 605.66, u: 745.50, vmag: 12.49}
+  - {name: S10, v: 1006.39, u: 704.20, vmag: 12.51}
+  - {name: S11, v: 200.66, u: 363.82, vmag: 12.52}
+  - {name: S12, v: 806.08, u: 84.27, vmag: 12.54}
+  - {name: S13, v: 586.98, u: 489.27, vmag: 12.65}
+  - {name: S14, v: 118.24, u: 530.36, vmag: 12.68}
+  - {name: S15, v: 731.42, u: 925.91, vmag: 12.71}
+  - {name: S16, v: 299.23, u: 664.94, vmag: 12.87}
+  - {name: S17, v: 68.90, u: 678.21, vmag: 12.95}
+  - {name: S18, v: 384.36, u: 927.23, vmag: 13.00}
+offset_v: -17.83
+offset_u: -26.29
+offset_rotation_deg: 0.1912
+expected:
+  status: failed
+  confidence_tier: failed

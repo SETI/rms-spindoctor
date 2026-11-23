@@ -1,0 +1,63 @@
+schema_version: 2
+scene_name: coiss_calib_wac_star_field
+instrument: coiss_calib_wac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 26.0
+# A calibrated Cassini WAC star field at full frame, modeled on the library
+# frame W1580760393 (CL1+CL2, 26 s).  Thirty-six catalog stars, V 7.4 to 9.5,
+# drawn uniformly over the frame with the count rising 0.45 dex per magnitude:
+# the brightest stars of a 12 square degree field, the part of it a catalog
+# would offer the navigator.  The long exposure collects about 670 cosmic rays
+# over the frame.  instrument_defaults turns on the CALIB chain: shot, read,
+# and readout-dark noise, the calibration residual, cosmic rays, the calibrated
+# hot-pixel population, and the fitted PSF and distortion residual.
+#
+# Real WAC pointing errors stay within about 12 px on each axis, and the
+# camera's search window is 13 px, so the planted offset is 12 px.  The roll is
+# the camera's measured twist, -0.0115 deg, planted with roll fitting off as
+# the camera ships.
+artifacts:
+  instrument_defaults: true
+bodies: []
+stars:
+  - {name: S1, v: 210.59, u: 299.24, vmag: 7.45}
+  - {name: S2, v: 475.74, u: 846.23, vmag: 7.59}
+  - {name: S3, v: 645.15, u: 758.57, vmag: 7.65}
+  - {name: S4, v: 578.84, u: 690.36, vmag: 7.71}
+  - {name: S5, v: 99.46, u: 230.11, vmag: 7.74}
+  - {name: S6, v: 294.10, u: 678.01, vmag: 7.83}
+  - {name: S7, v: 706.59, u: 752.88, vmag: 7.95}
+  - {name: S8, v: 54.22, u: 815.01, vmag: 7.96}
+  - {name: S9, v: 904.88, u: 246.88, vmag: 7.97}
+  - {name: S10, v: 986.74, u: 246.62, vmag: 8.12}
+  - {name: S11, v: 605.11, u: 780.56, vmag: 8.30}
+  - {name: S12, v: 811.33, u: 675.51, vmag: 8.32}
+  - {name: S13, v: 786.93, u: 426.96, vmag: 8.39}
+  - {name: S14, v: 876.38, u: 243.37, vmag: 8.45}
+  - {name: S15, v: 878.84, u: 275.36, vmag: 8.49}
+  - {name: S16, v: 393.78, u: 244.37, vmag: 8.59}
+  - {name: S17, v: 454.73, u: 749.36, vmag: 8.64}
+  - {name: S18, v: 172.18, u: 133.72, vmag: 8.80}
+  - {name: S19, v: 618.52, u: 30.25, vmag: 8.89}
+  - {name: S20, v: 901.96, u: 776.48, vmag: 8.94}
+  - {name: S21, v: 882.28, u: 766.53, vmag: 8.95}
+  - {name: S22, v: 451.14, u: 708.18, vmag: 9.05}
+  - {name: S23, v: 9.10, u: 779.91, vmag: 9.07}
+  - {name: S24, v: 263.30, u: 284.13, vmag: 9.11}
+  - {name: S25, v: 919.45, u: 631.02, vmag: 9.12}
+  - {name: S26, v: 92.88, u: 37.28, vmag: 9.17}
+  - {name: S27, v: 103.80, u: 100.32, vmag: 9.19}
+  - {name: S28, v: 90.64, u: 561.75, vmag: 9.21}
+  - {name: S29, v: 258.07, u: 230.99, vmag: 9.21}
+  - {name: S30, v: 900.51, u: 152.55, vmag: 9.22}
+  - {name: S31, v: 509.02, u: 861.47, vmag: 9.33}
+  - {name: S32, v: 31.59, u: 974.64, vmag: 9.34}
+  - {name: S33, v: 186.80, u: 251.73, vmag: 9.38}
+  - {name: S34, v: 370.91, u: 841.12, vmag: 9.38}
+  - {name: S35, v: 433.21, u: 596.07, vmag: 9.44}
+  - {name: S36, v: 717.34, u: 367.79, vmag: 9.47}
+offset_v: -9.38
+offset_u: 7.71
+offset_rotation_deg: -0.0115

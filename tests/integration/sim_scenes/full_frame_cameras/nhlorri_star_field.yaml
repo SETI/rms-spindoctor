@@ -1,0 +1,46 @@
+schema_version: 2
+scene_name: nhlorri_star_field
+instrument: nhlorri
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 5.0
+# A New Horizons LORRI star field at the full 1x1 frame.  Eighteen catalog
+# stars, V 10.5 to 13.0, drawn uniformly over the frame with the count rising
+# 0.45 dex per magnitude; the sky_counts field adds the faint stars no catalog
+# lists.  instrument_defaults turns on the camera's whole chain.  At 5 s the
+# navigator expects to see the four brightest stars.
+#
+# The planted offset, 32 px, sits inside the camera's 60 px search window.  The
+# roll is the camera's measured twist, +0.1912 deg (2.4 px at the corner),
+# planted with roll fitting off as the camera ships.  A translation cannot
+# undo a roll, so the answer lands where the turned stars it measures moved:
+# the four stars' mean position lies about 290 px from the frame center, and
+# the twist moves it about 0.95 px.  That is the error the tolerance holds.
+# Carrying the static twist in a kernel correction is tracked in #435.
+artifacts:
+  instrument_defaults: true
+sky_counts: {}
+bodies: []
+stars:
+  - {name: S1, v: 562.58, u: 1009.30, vmag: 10.54}
+  - {name: S2, v: 414.31, u: 545.57, vmag: 10.88}
+  - {name: S3, v: 206.34, u: 415.38, vmag: 11.07}
+  - {name: S4, v: 88.84, u: 923.52, vmag: 11.39}
+  - {name: S5, v: 608.50, u: 354.68, vmag: 11.66}
+  - {name: S6, v: 824.11, u: 628.46, vmag: 11.68}
+  - {name: S7, v: 301.69, u: 766.70, vmag: 11.81}
+  - {name: S8, v: 905.05, u: 891.72, vmag: 12.38}
+  - {name: S9, v: 605.66, u: 745.50, vmag: 12.49}
+  - {name: S10, v: 1006.39, u: 704.20, vmag: 12.51}
+  - {name: S11, v: 200.66, u: 363.82, vmag: 12.52}
+  - {name: S12, v: 806.08, u: 84.27, vmag: 12.54}
+  - {name: S13, v: 586.98, u: 489.27, vmag: 12.65}
+  - {name: S14, v: 118.24, u: 530.36, vmag: 12.68}
+  - {name: S15, v: 731.42, u: 925.91, vmag: 12.71}
+  - {name: S16, v: 299.23, u: 664.94, vmag: 12.87}
+  - {name: S17, v: 68.90, u: 678.21, vmag: 12.95}
+  - {name: S18, v: 384.36, u: 927.23, vmag: 13.00}
+offset_v: -17.83
+offset_u: -26.29
+offset_rotation_deg: 0.1912

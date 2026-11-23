@@ -1,0 +1,52 @@
+schema_version: 2
+scene_name: coiss_nac_star_field
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 2.0
+# A raw Cassini NAC star field at full frame.  Eighteen catalog stars, V 8.7 to
+# 11.4, drawn uniformly over the frame with the count rising 0.45 dex per
+# magnitude, as for a field near the galactic plane.  The exposure and the
+# magnitudes follow the library frame N1530185128 (2.0 s, stars V 9.2 to 11.3,
+# 17 detectable).  The sky_counts field adds the faint stars no catalog lists.
+# instrument_defaults turns on the camera's whole raw chain: shot, read, and
+# readout-dark noise, hot pixels, cosmic rays, banding, bias structure, bloom,
+# and the fitted PSF and distortion residual.
+#
+# The planted offset is about the size of a median operator-verified NAC offset
+# (16 px median, 35 px 90th percentile), inside the camera's 50 by 140 px search
+# window.  The roll is the camera's measured twist, +0.0115 deg (0.15 px at the
+# corner), planted with roll fitting off as the camera ships.
+artifacts:
+  instrument_defaults: true
+sky_counts: {}
+bodies: []
+stars:
+  - {name: S1, v: 956.23, u: 895.26, vmag: 8.73}
+  - {name: S2, v: 445.62, u: 256.79, vmag: 9.13}
+  - {name: S3, v: 124.16, u: 369.12, vmag: 9.27}
+  - {name: S4, v: 687.77, u: 574.67, vmag: 9.35}
+  - {name: S5, v: 444.28, u: 384.49, vmag: 9.52}
+  - {name: S6, v: 243.05, u: 503.62, vmag: 10.80}
+  - {name: S7, v: 149.32, u: 917.18, vmag: 10.85}
+  - {name: S8, v: 432.85, u: 471.07, vmag: 10.85}
+  - {name: S9, v: 556.56, u: 634.66, vmag: 10.94}
+  - {name: S10, v: 869.49, u: 1002.21, vmag: 11.11}
+  - {name: S11, v: 110.75, u: 730.92, vmag: 11.12}
+  - {name: S12, v: 645.27, u: 202.79, vmag: 11.12}
+  - {name: S13, v: 796.54, u: 68.44, vmag: 11.16}
+  - {name: S14, v: 329.94, u: 749.89, vmag: 11.31}
+  - {name: S15, v: 728.63, u: 960.48, vmag: 11.36}
+  - {name: S16, v: 698.24, u: 961.71, vmag: 11.39}
+  - {name: S17, v: 78.32, u: 924.06, vmag: 11.39}
+  - {name: S18, v: 148.81, u: 927.96, vmag: 11.40}
+offset_v: -23.37
+offset_u: 31.81
+offset_rotation_deg: 0.0115
+# The star-field technique returns spurious on every draw, with 1 inlier where it
+# needs 6 (#TBD).  It matches the catalog against the 30 brightest sources it
+# detects, and the raw frame's hot pixels and cosmic rays crowd the stars out of
+# that list: with either one off it still fails, and with both off it finds the
+# offset to 0.05 px.  The single-star and refinement techniques carry the answer,
+# 0.03 to 0.29 px off over 16 seeds.

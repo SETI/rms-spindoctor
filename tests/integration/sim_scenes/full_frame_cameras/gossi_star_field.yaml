@@ -1,0 +1,53 @@
+schema_version: 2
+scene_name: gossi_star_field
+instrument: gossi
+size_v: 800
+size_u: 800
+random_seed: 7
+exposure_sec: 1.6
+# A Galileo SSI star field at full frame and a pointing error of 257 px, the
+# size of the library's scattered-light frames C0059894800R and C0059899900R
+# (257 and 286 px).  Like those Pleiades frames, the field holds two bright
+# stars, V 2.8 and 4.2, among fourteen of V 5.7 to 8.0.  The stars sit across
+# the camera's 350 px search window, and the offset brings a different part of
+# it into view.  At 1.6 s the navigator expects to see four of them, enough for
+# the star-field technique's wide-offset lock, the path the real frames take.
+# The brightest star saturates and blooms.
+#
+# instrument_defaults turns on the camera's whole chain.  The catalog's read
+# noise leaves the 8-bit sky below one DN, so nearly every sky pixel reads the
+# same value and the navigator measures zero noise and draws no star features.
+# Real Galileo skies are about four times noisier (#979: 0.96 DN against 0.22
+# DN on 8 frames each), and the scene plants that measured 0.96 DN.
+#
+# The roll is the camera's measured twist, -0.0526 deg (0.5 px at the corner),
+# planted with roll fitting off as the camera ships.  The roll turns the scene
+# about the frame center before the offset moves it, so it moves the two bright
+# stars in view by 0.22 and 0.50 px, and the answer lands 0.26 to 0.28 px off
+# over 16 seeds.
+artifacts:
+  instrument_defaults: true
+noise:
+  read_noise_dn: 0.96
+sky_counts: {}
+bodies: []
+stars:
+  - {name: A1, v: 512.37, u: 610.52, vmag: 2.84}
+  - {name: A2, v: 318.64, u: 941.27, vmag: 4.21}
+  - {name: S1, v: 775.10, u: 544.16, vmag: 5.69}
+  - {name: S2, v: 200.94, u: 440.10, vmag: 6.04}
+  - {name: S3, v: 623.31, u: 996.12, vmag: 6.46}
+  - {name: S4, v: 221.09, u: 819.79, vmag: 6.49}
+  - {name: S5, v: 534.29, u: 220.19, vmag: 6.59}
+  - {name: S6, v: 605.71, u: 881.91, vmag: 7.32}
+  - {name: S7, v: 608.19, u: 119.80, vmag: 7.33}
+  - {name: S8, v: 647.10, u: 206.69, vmag: 7.38}
+  - {name: S9, v: 348.09, u: 868.69, vmag: 7.49}
+  - {name: S10, v: 835.71, u: 580.24, vmag: 7.66}
+  - {name: S11, v: 201.27, u: 489.50, vmag: 7.85}
+  - {name: S12, v: 759.22, u: 762.61, vmag: 7.88}
+  - {name: S13, v: -13.22, u: 879.24, vmag: 7.88}
+  - {name: S14, v: 61.94, u: -80.59, vmag: 7.95}
+offset_v: -121.63
+offset_u: -226.41
+offset_rotation_deg: -0.0526

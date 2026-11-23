@@ -1,0 +1,44 @@
+schema_version: 2
+scene_name: coiss_wac_disc
+instrument: coiss_wac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 0.005
+# A raw Cassini WAC frame of a moon 128 px across, at a phase of 50 deg.  The
+# CL1+CL2 filter at the camera's shortest exposures puts the disc near I/F
+# 0.6 to 0.9, under the full well.  instrument_defaults turns on the camera's
+# whole raw chain: shot, read, and readout-dark noise, hot pixels, cosmic rays,
+# banding, bias structure, bloom, and the fitted PSF and distortion residual.
+#
+# Real WAC pointing errors stay within about 12 px on each axis, and the
+# camera's search window is 13 px.  The planted offset, 6.8 px down and 11.3 px
+# left, sits inside that window.  The roll is the camera's measured twist,
+# -0.0115 deg, planted with roll fitting off as the camera ships.
+artifacts:
+  instrument_defaults: true
+detector:
+  filter: CL1+CL2
+bodies:
+  - name: RHEA
+    center_v: 560.0
+    center_u: 440.0
+    semi_a_px: 64.0
+    semi_b_px: 64.0
+    semi_c_px: 64.0
+    illumination_angle: 300.0
+    phase_angle: 50.0
+offset_v: 6.83
+offset_u: -11.29
+offset_rotation_deg: -0.0115
+# The disc correlation finds the offset to 0.012 px but discards it on every draw
+# (#TBD).  The correlation marks any answer within 2 px of its search window's edge
+# spurious, and the WAC window is 13 px, so every answer past 11 px on an axis is
+# thrown away; real WAC errors reach 12.4 px.  The limb fit carries the frame alone,
+# 0.14 to 0.17 px off over 16 seeds, at low tier with a 2.6 px sigma.  The block holds
+# the low tier, so a fix that keeps the disc answer fails here until the block is
+# retired.  The star techniques' margin test has the same effect on WAC star frames
+# (#785).
+expected:
+  status: success
+  confidence_tier: low

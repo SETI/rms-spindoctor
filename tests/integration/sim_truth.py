@@ -86,7 +86,7 @@ VALIDATION_CLASSES: frozenset[str] = frozenset(
 )
 """The scene classes that check accuracy on a frame.  The remaining classes are sweeps."""
 
-OWN_MODULE_CLASSES: frozenset[str] = frozenset()
+OWN_MODULE_CLASSES: frozenset[str] = frozenset({'full_frame_cameras'})
 """The validation classes that a test module of their own navigates.
 
 These classes hold full-frame scenes.  Each class's module, ``test_sim_<class>.py``,
@@ -206,6 +206,22 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # expected blocks instead (#1050).
     ('titan_haze', FUSED): _t(0.046, 0.063, 0.020, 0.05),
     ('titan_haze_limb', FUSED): _t(0.008, 0.014, 0.006, 0.05),
+    # full_frame_cameras.  These scenes draw nothing from random_seed but the noise, so
+    # their 16 seeds and their 9 noise draws give the same numbers draw for draw.  The
+    # unfit twist sets the larger errors, since a translation follows the turned stars
+    # or limb it measures.  In gossi_star_field the roll turns the scene about the frame
+    # center before the 257 px offset moves it, so the -0.0526 deg twist moves the two
+    # bright stars in view by 0.22 and 0.50 px.  In nhlorri_star_field the +0.19 deg
+    # twist moves the four measured stars' mean position, about 290 px from the frame
+    # center, by about 0.95 px.  nhlorri_star_field_short_exposure fails as its expected
+    # block declares (#342).
+    ('coiss_calib_nac_disc', FUSED): _t(0.092, 0.094, 0.010, 0.05),
+    ('coiss_calib_wac_star_field', FUSED): _t(0.021, 0.031, 0.024, 0.05),
+    ('coiss_nac_star_field', FUSED): _t(0.029, 0.289, 0.261, 0.06),
+    ('coiss_wac_disc', FUSED): _t(0.161, 0.173, 0.031, 0.05),
+    ('gossi_disc', FUSED): _t(0.299, 0.301, 0.183, 0.07),
+    ('gossi_star_field', FUSED): _t(0.271, 0.278, 0.022, 0.06),
+    ('nhlorri_star_field', FUSED): _t(0.949, 0.969, 0.042, 0.20),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
