@@ -48,8 +48,6 @@ from typing import Any
 import numpy as np
 from scipy import ndimage
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
     resolve_detector_defaults,
@@ -824,10 +822,10 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
     comes from the camera's star zero point, scaled by the scene filter's throughput,
     and the scene exposure.  The core's sigma is the wider axis of the scene's PSF
     (:func:`~spindoctor.sim.render.optics.stage.effective_psf`), or, for a scene
-    without one, the instrument's configured ``star_psf_sigma`` over the readout
-    binning; the core covers ``2 pi sigma**2`` pixels, and at least one.  The read noise
-    is the camera's published value for the scene's readout mode, whether or not the
-    scene enables read noise, and at least 1 (electron, or DN on the vidicon).
+    without one, zero, since the frame is unblurred, which gives the one-pixel core.  The
+    core covers ``2 pi sigma**2`` pixels, and at least one.  The read noise is the
+    camera's published value for the scene's readout mode, whether or not the scene
+    enables read noise, and at least 1 (electron, or DN on the vidicon).
 
     Parameters:
         params: The full scene mapping.
@@ -843,10 +841,8 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
         sigma_v_psf = float(scene_psf['sigma_v'])
         psf_sigma = max(sigma_v_psf, float(scene_value(scene_psf, 'sigma_u', sigma_v_psf)))
     else:
-        inst_config = resolve_sim_inst_config(
-            DEFAULT_CONFIG, instrument, params.get('instrument_config')
-        )
-        psf_sigma = float(inst_config['star_psf_sigma']) / binning
+        # An unblurred frame deposits a star in one pixel: the one-pixel core.
+        psf_sigma = 0.0
     return faint_sky_cutoff_mag(
         zero_point=zero_point,
         exposure_sec=float(params.get('exposure_sec', 1.0)),

@@ -406,9 +406,9 @@ def _apply_law(
     """Shade incidence cosines under the spec's photometric law and surge.
 
     The clamped-depth parametrization has no far hemisphere, and relief normals
-    face the observer or lie in the sky plane (``normal_z >= 0`` everywhere; night is
-    still black through ``mu0 <= 0``), so the emission cosine is kept strictly
-    positive: the visibility gate must not zero a relief normal that lies in the
+    face the observer, some of them only just (``normal_z >= 0`` everywhere; night
+    is still black through ``mu0 <= 0``), so the emission cosine is kept strictly
+    positive: the visibility gate must not zero a relief normal that lies at the
     sky plane.  A smooth body's normals lie in the sky plane only on and past its
     limb, which its silhouette leaves out, so the clamp lights none of its pixels.
 

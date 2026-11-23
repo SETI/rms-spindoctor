@@ -31,7 +31,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
-from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
+from spindoctor.sim.instruments.resolvers import (
+    instrument_default_modes,
+    resolve_detector_defaults_native,
+)
 from spindoctor.support.types import NDArrayFloatType
 from tests.integration.sim_realism import (
     InstrumentComparison,
@@ -362,6 +365,13 @@ def _figure_dynrange(comparison: InstrumentComparison, out: Path) -> bool:
     return True
 
 
+def _default_hot_pixel_fraction(instrument: str) -> float:
+    """The hot-pixel fraction an instrument's defaults turn on, 0 when they turn none on."""
+    return float(
+        instrument_default_modes(instrument).get('hot_pixels', {}).get('pixel_fraction', 0)
+    )
+
+
 def _figure_artifacts(comparison: InstrumentComparison, out: Path) -> bool:
     """FOM 6 figure: measured artifact rates with catalog-default markers."""
     fig, axes = plt.subplots(1, 2, figsize=(8.5, 3.6))
@@ -380,15 +390,14 @@ def _figure_artifacts(comparison: InstrumentComparison, out: Path) -> bool:
         xlabel='fraction of pixels',
         log_x=True,
     )
-    defaults = resolve_detector_defaults_native(comparison.instrument)
-    hot_default = defaults.hot_pixel_fraction or 0.0
+    hot_default = _default_hot_pixel_fraction(comparison.instrument)
     if hot_default > 0.0:
         axes[1].axvline(
             hot_default,
             color='#444444',
             ls='--',
             lw=1.0,
-            label=f'catalog hot_pixel_fraction {hot_default:g}',
+            label=f'catalog hot-pixel fraction {hot_default:g}',
         )
         axes[1].legend(fontsize=7, loc='best')
     fig.suptitle(f'{comparison.instrument}: FOM 6 artifact rates', fontsize=11)
@@ -632,7 +641,7 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
                 _round(comparison.spike_split_sim[1]),
             ],
             'catalog_defaults': {
-                'hot_pixel_fraction': defaults.hot_pixel_fraction or 0.0,
+                'hot_pixel_fraction': _default_hot_pixel_fraction(comparison.instrument),
                 'cosmic_ray_events_per_pixel_per_sec': defaults.cosmic_ray_events_per_pixel_per_sec,
                 'read_noise_e': defaults.read_noise_e,
             },
