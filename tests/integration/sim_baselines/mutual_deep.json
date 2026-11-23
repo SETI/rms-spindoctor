@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8302088679783293,
+  "confidence": 0.8302190671190192,
   "confidence_rank": "medium",
-  "offset_du_px": -2.3046875000000004,
-  "offset_dv_px": 1.9531250000000004,
+  "offset_du_px": -2.2968750000000004,
+  "offset_dv_px": 1.9609375000000007,
   "scene_name": "mutual_deep",
   "status": "success"
 }

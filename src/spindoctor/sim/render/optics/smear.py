@@ -163,7 +163,8 @@ def apply_smear(
         signal_result += layer
     # No clip: the signal plane is unclipped through the optics stage on both
     # smear paths (point-mass star deposits legitimately exceed 1.0 before the
-    # PSF spreads them); the detector conversion clips after the downsample.
+    # PSF spreads them); the detector conversion floors it at 0 after the
+    # downsample, and the full well saturates it.
     frame.signal[:] = signal_result
 
     star_layer = np.asarray(layers[_POINT_LAYER_CLASS], dtype=np.float64).copy()

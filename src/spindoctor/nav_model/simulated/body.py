@@ -33,6 +33,7 @@ from spindoctor.nav_model.simulated.body_arcs import (
     build_terminator_arc_feature,
 )
 from spindoctor.nav_model.simulated.predicted_body import (
+    PredictedBody,
     predicted_center_vu,
     predicted_semi_axes_px,
     predicted_silhouette,
@@ -128,8 +129,8 @@ class NavModelBodySimulated(NavModelBodyBase):
             Measurement callers (the realism match) set this to ``False``:
             the silhouette geometry exists regardless of whether a limb fit
             would be reliable, so the gates-off path skips those gates and
-            emits the silhouette boundary of a phase-0 render, lit and unlit
-            vertices alike.
+            emits the silhouette boundary of a phase-0 render, kept where the
+            body is lit at its own phase.
 
     Parameters:
         name: Name of this model instance.
@@ -273,15 +274,15 @@ class NavModelBodySimulated(NavModelBodyBase):
         self._metadata['end_time'] = end_time.isoformat()
         self._metadata['elapsed_time_sec'] = (end_time - start_time).total_seconds()
 
-    def _render_body_image(
+    def _render_prediction(
         self,
         phase_angle_rad: float,
         *,
         size: tuple[int, int] | None = None,
         center: tuple[float, float] | None = None,
         params: dict[str, Any] | None = None,
-    ) -> NDArrayFloatType:
-        """Render a body's data-coordinate image at the given phase angle.
+    ) -> PredictedBody:
+        """Render a body's data-coordinate image and silhouette at the given phase angle.
 
         The predicted shape is read from this model's own params, which need
         not match what was rendered into the image: an irregular body can be
@@ -305,7 +306,7 @@ class NavModelBodySimulated(NavModelBodyBase):
                 downscaled copy of the body through this.
 
         Returns:
-            The rendered image on the requested canvas.
+            The predicted image and silhouette on the requested canvas.
         """
         p = self._nav_body if params is None else params
         data_shape_vu = (int(self.obs.data_shape_v), int(self.obs.data_shape_u))
@@ -325,17 +326,20 @@ class NavModelBodySimulated(NavModelBodyBase):
         ext_margin_u = int(self.obs.extfov_margin_u)
         phase_angle_rad = float(np.radians(p.get('phase_angle', 0.0)))
         center_v, center_u = predicted_center_vu(p, (data_size_v, data_size_u))
-        sim_img = self._render_body_image(phase_angle_rad)
-        body_mask = sim_img > 0.0
+        prediction = self._render_prediction(phase_angle_rad)
+        sim_img = prediction.image
+        body_mask = prediction.silhouette
         limb_mask = self._compute_limb_mask_from_body_mask(body_mask)
         model_img_full = self.obs.make_extfov_zeros()
         limb_mask_full = self.obs.make_extfov_false()
         body_mask_full = self.obs.make_extfov_false()
+        lit_mask_full = self.obs.make_extfov_false()
         slice_v = slice(ext_margin_v, ext_margin_v + data_size_v)
         slice_u = slice(ext_margin_u, ext_margin_u + data_size_u)
         model_img_full[slice_v, slice_u] = sim_img
         limb_mask_full[slice_v, slice_u] = limb_mask
         body_mask_full[slice_v, slice_u] = body_mask
+        lit_mask_full[slice_v, slice_u] = prediction.lit
         self._model_img = model_img_full
         self._body_mask = body_mask_full
         # The scene states the body's center in pixel corner coordinates,
@@ -385,13 +389,14 @@ class NavModelBodySimulated(NavModelBodyBase):
             source_model=self.name,
             model_img=model_img_full,
             body_mask=body_mask_full,
+            lit_mask=lit_mask_full,
             limb_mask=limb_mask_full,
             occluder_mask=self._occluder_mask,
             bbox_extfov_vu=self._bbox_extfov_vu,
             subject_range_km=self._subject_range_km,
             predicted_diameter_px=self._predicted_diameter_px,
             phase_angle_deg=phase_angle_deg,
-            render=self._render_body_image,
+            render=self._render_prediction,
             silhouette_boundary=self._compute_limb_mask_from_body_mask,
         )
 
@@ -438,7 +443,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         factor = max(1, math.ceil(canvas / _OVERFLOW_CANVAS_MAX_PX))
         if factor == 1:
             half = canvas // 2
-            full_img = self._render_body_image(
+            full = self._render_prediction(
                 phase_angle_rad,
                 size=(canvas, canvas),
                 center=(
@@ -446,20 +451,20 @@ class NavModelBodySimulated(NavModelBodyBase):
                     half + center_u - math.floor(center_u),
                 ),
             )
-            total = float(np.count_nonzero(full_img > 0.0))
+            total = float(np.count_nonzero(full.silhouette))
         else:
             small = math.ceil(canvas / factor)
             scaled = dict(p)
             for axis in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
                 if axis in scaled:
                     scaled[axis] = float(scaled[axis]) / factor
-            small_img = self._render_body_image(
+            small_render = self._render_prediction(
                 phase_angle_rad,
                 size=(small, small),
                 center=(small / 2.0, small / 2.0),
                 params=scaled,
             )
-            total = float(np.count_nonzero(small_img > 0.0)) * factor * factor
+            total = float(np.count_nonzero(small_render.silhouette)) * factor * factor
         return max(0.0, 1.0 - in_sensor_pixels / max(total, 1.0))
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
@@ -566,9 +571,8 @@ class NavModelBodySimulated(NavModelBodyBase):
         the sibling's is strictly smaller -- the navigator-side mirror of the
         renderer's rule that overlapping bodies must all carry an explicit
         ``range_km`` before their stacking means anything.  Each occluder's
-        silhouette is its own predicted render (``> 0`` covers the whole
-        visible disc: the shading floors the unlit hemisphere above zero, and
-        a solid body occludes with its full silhouette, lit or not).
+        silhouette is its own predicted silhouette, the pixels its outline
+        touches: a solid body occludes with its full silhouette, lit or not.
 
         Returns:
             The extfov-shape boolean mask, or ``None`` when no sibling

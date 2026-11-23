@@ -9,24 +9,24 @@ exposure_sec: 1.0
 # 15 px off the far body's center hides almost all of it.  Rendered truth
 # (body_occlusion): FAR visible_fraction ~0.09, occluded limb arc ~206 deg
 # (over half the limb circle); NEAR fully visible.  Measured ensemble
-# behavior (2026-07-18, occlusion-aware sim limb): the navigator drops
+# behavior (2026-11-22, occlusion-aware lit sim limb): the navigator drops
 # FAR's hidden arc from the predicted polyline -- its idealized view knows
 # NEAR's geometry and explicit nearer range_km -- so FAR's LIMB_ARC
-# reports visible_arc_fraction 0.41 (reliability 0.64) instead of
-# claiming 1.0, and the joint limb fit runs on arcs that exist in the
+# reports visible_arc_fraction 0.31 of its lit limb (reliability 0.56) instead
+# of claiming 1.0, and the joint limb fit runs on arcs that exist in the
 # image.  FAR's residual terminator arc is occlusion-reduced too
-# (fraction 0.27) and stays below the 0.30 reliability gate.  FAR is left
+# (fraction 0.28) and stays below the 0.30 reliability gate.  FAR is left
 # out of the disc template, and its crescent beside NEAR's limb, which the
-# template doesn't carry, pulls the disc correlation to (1.95, -2.30),
-# 0.80 px from the planted offset (#1050).  On the committed draw the limb
-# fit stops unconverged with polarity rejection and flags itself spurious,
-# so the disc correlation alone sets the medium-tier success; on draws
-# where the limb fit survives, the two fuse about 0.73 px off.
+# template doesn't carry, pulls the disc correlation to (1.96, -2.30),
+# 0.79 px from the planted offset (#1050).  The limb fit lands 0.14 to
+# 0.17 px off but flags itself spurious on every draw (on the committed one
+# it stops unconverged with polarity rejection), so the disc correlation
+# alone sets the medium-tier success.
 # Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 0.730 to 0.802 px (spread 0.072 px).  Each end of
+# the fused error runs 0.784 to 0.791 px (spread 0.007 px).  Each end of
 # the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [0.680, 0.852] px.  A worse miss fails, and so does a
-# fix that brings the error under 0.680 px.
+# outside, giving [0.734, 0.841] px.  A worse miss fails, and so does a
+# fix that brings the error under 0.734 px.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -57,5 +57,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.766
-  known_offset_error_tol_px: 0.086
+  known_offset_error_px: 0.7875
+  known_offset_error_tol_px: 0.0535

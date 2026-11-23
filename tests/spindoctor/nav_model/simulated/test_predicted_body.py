@@ -45,15 +45,12 @@ def test_extended_silhouette_keeps_the_sub_pixel_center() -> None:
     pixel changes which edge pixels the body touches.
     """
     body = _mesh_body(center_v=90.5, center_u=130.5)
-    expected = (
-        render_predicted_body(
-            body,
-            math.radians(45.0),
-            shape_vu=(_SHAPE_VU[0] + 2 * _MARGIN_VU[0], _SHAPE_VU[1] + 2 * _MARGIN_VU[1]),
-            center_vu=(90.5 + _MARGIN_VU[0], 130.5 + _MARGIN_VU[1]),
-        )
-        > 0.0
-    )
+    expected = render_predicted_body(
+        body,
+        math.radians(45.0),
+        shape_vu=(_SHAPE_VU[0] + 2 * _MARGIN_VU[0], _SHAPE_VU[1] + 2 * _MARGIN_VU[1]),
+        center_vu=(90.5 + _MARGIN_VU[0], 130.5 + _MARGIN_VU[1]),
+    ).silhouette
     got = predicted_silhouette(body, _SHAPE_VU, margin_vu=_MARGIN_VU)
     assert np.array_equal(got, expected)
 
@@ -92,3 +89,17 @@ def test_bbox_of_a_planet_beside_the_frame_stops_at_the_extended_frame() -> None
     }
     bbox = predicted_silhouette_bbox(planet, _SHAPE_VU, margin_vu=_MARGIN_VU)
     assert bbox == (-_MARGIN_VU[0], _SHAPE_VU[0] + _MARGIN_VU[0] - 1, -_MARGIN_VU[1], 99)
+
+
+def test_silhouette_covers_the_night_side() -> None:
+    """At 150 deg phase the predicted silhouette is the outline a face-on light shows.
+
+    The predicted night side renders 0, so the silhouette must come from the outline.
+    """
+    body = _mesh_body(shape_model='ellipsoid')
+    center_vu = (90.7, 130.3)
+    crescent = render_predicted_body(
+        body, math.radians(150.0), shape_vu=_SHAPE_VU, center_vu=center_vu
+    )
+    face_on = render_predicted_body(body, 0.0, shape_vu=_SHAPE_VU, center_vu=center_vu)
+    assert np.array_equal(crescent.silhouette, face_on.image > 0.0)
