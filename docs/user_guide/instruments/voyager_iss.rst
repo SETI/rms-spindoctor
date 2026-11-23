@@ -25,8 +25,8 @@ Pipeline support
 * **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
   label template directory, but the remaining hooks are unimplemented and the
   configuration entry is a commented-out stub.
-* **Simulator** -- supported, under four instrument keys, one for each spacecraft and camera: ``vgiss_1_nac``,
-  ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``.
+* **Simulator** -- supported, under four instrument keys, one for each spacecraft and
+  camera: ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``.
 * **Statistics** -- supported.
 
 Datasets and image selection

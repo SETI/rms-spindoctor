@@ -370,8 +370,8 @@ it, so the four cameras render alike. All four emulate the one ``voyager_iss``
 section of the navigator configuration. The realism match pairs the image
 library's Voyager frames with ``vgiss_1_wac`` alone. A library sidecar records the
 mission and the camera but not the spacecraft, and the match compares the three
-frames as one group. The entry states ``data_units: calibrated_if``, the units of the GEOMED product and of
-the ``voyager_iss`` block, so a simulated frame is in I/F.
+frames as one group. The entry states ``data_units: calibrated_if``, the units of the
+GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable
@@ -414,15 +414,15 @@ to about 59 pixels.
 ``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
 match uses to tell a full frame from a subframe.
 
-**Units.** A frame from any of the four cameras is in I/F, with a ``0`` missing-data marker. The
-simulator reads the same configuration block as real navigation, so a simulated
-frame carries the units and marker of the GEOMED product: the product stores I/F
-as scaled integers and fills lost pixels and its resample border with zero, about
-10% of each frame. The calibrated Cassini instruments share the I/F units and the
-``0`` marker. The four Voyager entries keep a full well, the 255 DN clip that sets a
-1.85 I/F ceiling before the calibration inverse (see
-:ref:`Instruments <sim-instruments>`). An author should expect a frame to span
-about 0.012 to 1. A tool scaled for a DN frame shows a Voyager frame as black.
+**Units.** A frame from any of the four cameras is in I/F, with a ``0`` missing-data
+marker. The simulator reads the same configuration block as real navigation, so a
+simulated frame carries the units and marker of the GEOMED product: the product stores
+I/F as scaled integers and fills lost pixels and its resample border with zero, about
+10% of each frame. The calibrated Cassini instruments share the I/F units and the ``0``
+marker. The four Voyager entries keep a full well, the 255 DN clip that sets a 1.85 I/F
+ceiling before the calibration inverse (see :ref:`Instruments <sim-instruments>`). An
+author should expect a frame to span about 0.012 to 1. A tool scaled for a DN frame
+shows a Voyager frame as black.
 
 The calibration inverse subtracts the bias pedestal and then adds a calibrated
 sky residual of 1.5 DN, 0.0118 I/F, so the dark sky sits above the marker, as on

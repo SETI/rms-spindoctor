@@ -36,10 +36,9 @@ vgiss_1_nac:
   # The residual geometric distortion left after the navigator's distortion
   # model, from the star-field FOV distortion analysis: the GEOMED products
   # carry several tenths of a pixel of both radial and non-radial distortion.
-  # The block is the Voyager 2 WAC measurement; the two Voyager missions and
-  # their narrow- and wide-angle cameras have distinct optics, so a single entry
-  # under-represents that spread until per-camera entries and locked frames for
-  # each are available.
+  # The block is the Voyager 2 WAC measurement.  The four cameras have distinct
+  # optics, so one block under-represents their spread until each camera has its
+  # own measurement from locked frames.
   distortion_residual: {k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}
 
   # The vidicon has no electron domain, so its zero point is DN a magnitude-0

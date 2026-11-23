@@ -814,7 +814,8 @@ baseline, saved PNG, or any other image that leaves the editor uses the full ren
 (see :ref:`sim-instrument-files`) and the navigator block the entry points at. The
 recognized names are the entries' top-level keys, ``coiss_nac``, ``coiss_wac``,
 ``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, ``vgiss_1_nac``,
-``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``, plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults.
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``, plus ``generic`` (alias ``sim``)
+for the instrument-agnostic defaults.
 
 The entry is the only source of the camera's physics: the renderer takes the detector,
 the PSF, and the distortion from it. A scene's ``detector`` and ``noise`` blocks change
@@ -857,11 +858,12 @@ value. The navigator applies no saturation test to an I/F
 frame of either kind. The telemetry modes that act on transmitted DN work the same
 way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
 map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
-spike is capped at the ADC word, 255 DN on the ``vgiss`` cameras, so it calibrates to at most the I/F ceiling. A garbled line and a uniform spike draw anywhere in the ADC word. The
-codec doesn't clip what it rebuilds, so a saturated block can come back above the
-word, but a garbled line or a uniform spike drawn after it stays inside the word.
-A calibrated value that lands exactly on the 0 I/F marker moves to the next float
-above it, as the calibration inverse does.
+spike is capped at the ADC word, 255 DN on the ``vgiss`` cameras, so it calibrates to at
+most the I/F ceiling. A garbled line and a uniform spike draw anywhere in the ADC word.
+The codec doesn't clip what it rebuilds, so a saturated block can come back above the
+word, but a garbled line or a uniform spike drawn after it stays inside the word. A
+calibrated value that lands exactly on the 0 I/F marker moves to the next float above
+it, as the calibration inverse does.
 
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
@@ -1407,12 +1409,12 @@ writing that key in ``instrument``; the file's name plays no part. ``coiss.yaml`
 holds four instruments (``coiss_nac``, ``coiss_wac``, ``coiss_calib_nac``, and
 ``coiss_calib_wac``), ``vgiss.yaml`` holds the four Voyager cameras (``vgiss_1_nac``,
 ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``), and ``gossi.yaml``,
-``nhlorri.yaml``, and ``generic.yaml`` hold one each. The ``generic`` entry is the instrument-agnostic
-one: a scene renders through it when it doesn't set ``instrument`` or sets it to
-``generic`` or ``sim``. The directory sits outside ``config_files/``, so the
-navigator's :class:`~spindoctor.config.config.Config` never loads a simulator
-value. What the navigator knows about a camera stays in its own ``config_4N0``
-block, and the sim entry points at that block.
+``nhlorri.yaml``, and ``generic.yaml`` hold one each. The ``generic`` entry is the
+instrument-agnostic one: a scene renders through it when it doesn't set ``instrument``
+or sets it to ``generic`` or ``sim``. The directory sits outside ``config_files/``, so
+the navigator's :class:`~spindoctor.config.config.Config` never loads a simulator value.
+What the navigator knows about a camera stays in its own ``config_4N0`` block, and the
+sim entry points at that block.
 
 An entry may set another instrument as its ``base``, and then inherits that
 instrument's entry. The base's entry is merged under the entry's own keys:

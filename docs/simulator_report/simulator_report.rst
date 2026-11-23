@@ -1696,11 +1696,11 @@ calibrated cohorts.
 
 Every calibrated instrument marks a lost pixel with ``0``, as the Cassini CALIB
 and Voyager GEOMED products do, and the calibration inverse adds a calibrated sky
-residual so a dark sky never reads as missing data: 0.0118 I/F on the four ``vgiss`` cameras,
-above 0 as the GEOMED sky is, and 4.0e-5 I/F on the calibrated Cassini cameras,
+residual so a dark sky never reads as missing data: 0.0118 I/F on the four ``vgiss``
+cameras, above 0 as the GEOMED sky is, and 4.0e-5 I/F on the calibrated Cassini cameras,
 whose real sky scatters around 0. The disc scene with a planted (3, -2) px offset
-recovers it on ``coiss_nac``, ``coiss_calib_nac``, and ``vgiss_1_nac`` alike: exactly
-on the noise-free floor, and to within 0.07 px under ``instrument_defaults`` (see
+recovers it on ``coiss_nac``, ``coiss_calib_nac``, and ``vgiss_1_nac`` alike: exactly on
+the noise-free floor, and to within 0.07 px under ``instrument_defaults`` (see
 :doc:`/dev_guide/instruments/voyager_iss`).
 
 Model-mismatch sensitivity
