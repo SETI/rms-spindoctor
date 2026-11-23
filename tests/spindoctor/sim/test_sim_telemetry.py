@@ -21,7 +21,6 @@ from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
     MODE_KEYS,
     STRUCTURED_LOSS_ORDER,
-    resolve_mode_config,
 )
 from spindoctor.sim.instruments.resolvers import mode_available
 from spindoctor.sim.render.detector.params import (
@@ -833,12 +832,6 @@ def test_adversarial_flag_is_a_boolean() -> None:
     scene = {**_base_scene(), 'artifacts': {'adversarial': 'yes'}}
     with pytest.raises(SimSceneValidationError, match='adversarial'):
         validate_sim_params(scene)
-
-
-def test_resolve_mode_config_fills_defaults() -> None:
-    """Resolving a mode config fills unset parameters with their defaults."""
-    resolved = resolve_mode_config('missing_lines', {'expected_events': 2.0})
-    assert resolved == {'expected_events': 2.0, 'contiguous_run': False}
 
 
 # --- telemetry-artifact modes: compression and GEOMED scars -----------------

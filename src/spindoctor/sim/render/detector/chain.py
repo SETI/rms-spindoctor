@@ -100,20 +100,6 @@ def _feature_pool(frame: SimFrame) -> tuple[NDArrayIntType, NDArrayIntType]:
     return dilated_pixels(loci, radius=3, shape=frame.signal.shape)
 
 
-def _hot_pixel_pool(
-    frame: SimFrame, dp: DetectorParams
-) -> tuple[NDArrayIntType, NDArrayIntType] | None:
-    """The adversarial hot-pixel placement pool, or None for uniform placement.
-
-    When the hot_pixels artifact mode requests adversarial placement, the
-    population is biased onto the pixels on and beside the navigation features
-    (limb / ring-edge arcs and star positions, dilated by a few pixels).
-    """
-    if not dp.hot_pixel_adversarial:
-        return None
-    return _feature_pool(frame)
-
-
 def _record_routed_modes(dp: DetectorParams, records: dict[str, Any]) -> None:
     """Record the routed-only detector modes (bias, bloom, quantization) as active.
 
@@ -309,21 +295,8 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         records['bright_dark_pairs'] = _apply_bright_dark_pairs(
             electrons, modes['bright_dark_pairs'], frame, dp
         )
-    hot_record = add_hot_pixels(
-        electrons,
-        fraction=dp.hot_pixel_fraction,
-        amplitude_e=dp.hot_pixel_amplitude_e,
-        column_factor=dp.hot_pixel_column_factor,
-        detector_id=dp.detector_id,
-        rng=_stream_rng(dp, 'hot_pixels'),
-        candidate_pool=_hot_pixel_pool(frame, dp),
-        binning=dp.binning,
-    )
-    # The hot_pixels artifact mode is routed through the resolver's flat knobs,
-    # so the chain records its realized population here; the generic noise-block
-    # stress path stays unrecorded like the other generic knobs.
-    if dp.hot_pixel_mode_active:
-        records['hot_pixels'] = hot_record
+    if 'hot_pixels' in modes:
+        records['hot_pixels'] = _apply_hot_pixels(electrons, modes['hot_pixels'], frame, dp)
     if 'radiation_transients' in modes:
         records['radiation_transients'] = _apply_radiation_transients(
             electrons, modes['radiation_transients'], dp
@@ -472,6 +445,27 @@ def _apply_bright_dark_pairs(
         amplitude_e=float(cfg.get('amplitude_e') or 0.0),
         rng=rng,
         candidate_pool=pool,
+    )
+
+
+def _apply_hot_pixels(
+    electrons: NDArrayFloatType, cfg: dict[str, Any], frame: SimFrame, dp: DetectorParams
+) -> dict[str, Any]:
+    """Apply the hot_pixels mode: the detector's fixed map, or an adversarial draw.
+
+    Under the scene's adversarial switch the population is drawn onto the pixels on and
+    beside the navigation features (limb and ring-edge arcs and star positions, dilated
+    by a few pixels).
+    """
+    return add_hot_pixels(
+        electrons,
+        fraction=float(cfg['pixel_fraction']),
+        amplitude_e=float(cfg['amplitude_e'] or 0.0),
+        column_factor=float(cfg['column_factor'] or 0.0),
+        detector_id=dp.detector_id,
+        rng=_stream_rng(dp, 'hot_pixels'),
+        candidate_pool=_feature_pool(frame) if dp.artifacts_adversarial else None,
+        binning=dp.binning,
     )
 
 

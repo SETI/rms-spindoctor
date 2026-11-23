@@ -39,9 +39,8 @@ import numpy as np
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
-    COUNT_ACTIVATION_KEYS,
     DETECTOR_MODE_ORDER,
-    resolve_mode_config,
+    PROBABILITY,
 )
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
@@ -108,9 +107,6 @@ class DetectorParams:
         cosmic_ray_spread_px: Cosmic-ray charge-diffusion sigma in frame pixels;
             0 keeps each deposit where it lands.
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
-        hot_pixel_fraction: Fraction of pixels that are hot; 0 disables.
-        hot_pixel_amplitude_e: Hot-pixel amplitude scale in electrons.
-        hot_pixel_column_factor: Warm-column fraction bled from a hot pixel.
         bias_pedestal_sigma_dn: Per-image bias-pedestal jitter (DN); 0 disables.
         bias_row_gradient_dn: Low-order row bias gradient span (DN).
         bias_col_gradient_dn: Low-order column bias gradient span (DN).
@@ -142,13 +138,6 @@ class DetectorParams:
             the calibrated product's fixed per-column residual; 0 disables.
         calibration_pixel_residual_e: Sigma, in electrons per native pixel, of
             the calibrated product's per-frame per-pixel residual; 0 disables.
-        hot_pixel_adversarial: Whether the hot-pixel population is placed
-            adversarially (biased onto the navigation features) rather than
-            uniformly.
-        hot_pixel_mode_active: Whether the ``hot_pixels`` artifact mode drove
-            the hot-pixel knobs (in which case the chain records the realized
-            population in the frame truth), as opposed to the generic
-            noise-block / instrument_defaults path.
         quantization_contour_step: The DN posterization step for the
             ``contour_8bit`` quantization sub-mode.
         sqrt_lut: The companding curve of the ``sqrt_lut`` quantization
@@ -184,9 +173,6 @@ class DetectorParams:
     cosmic_ray_amplitude_e: float
     cosmic_ray_spread_px: float
     dark_current_e_per_sec: float
-    hot_pixel_fraction: float
-    hot_pixel_amplitude_e: float
-    hot_pixel_column_factor: float
     bias_pedestal_sigma_dn: float
     bias_row_gradient_dn: float
     bias_col_gradient_dn: float
@@ -202,8 +188,6 @@ class DetectorParams:
     instrument_defaults: bool = False
     calibration_column_residual_e: float = 0.0
     calibration_pixel_residual_e: float = 0.0
-    hot_pixel_adversarial: bool = False
-    hot_pixel_mode_active: bool = False
     quantization_contour_step: int = 8
     sqrt_lut: DownlinkCurve | None = None
     artifacts_adversarial: bool = False
@@ -370,17 +354,16 @@ _ROUTED_ONLY_MODES: frozenset[str] = frozenset(
 def _mode_active(mode_name: str, cfg: Mapping[str, Any], random_seed: int) -> bool:
     """Whether a detector artifact mode is active this frame.
 
-    The registry names each mode's activation key.  A count mode
-    (``expected_events`` or ``expected_events_per_sec``) is active whenever its
-    expected count is positive (the mechanic draws the event count); a
-    deterministic-shape mode activates with per-frame ``probability``, drawn from
-    the mode's own seeded stream so toggling one never perturbs another.
+    A mode whose activation key is ``probability`` activates with that probability,
+    drawn from the mode's own seeded stream so toggling one never perturbs another.
+    Any other activation key (an expected event count or a fraction of the pixels) says
+    how much of the mode the frame shows, so the mode is active whenever it is positive.
     """
     activation = ARTIFACT_MODES[mode_name].activation
     value = float(cfg.get(activation) or 0.0)
     if value <= 0.0:
         return False
-    if activation in COUNT_ACTIVATION_KEYS:
+    if activation != PROBABILITY:
         return True
     rng = np.random.default_rng(derive_effect_seed(random_seed, f'detector/{mode_name}/activate'))
     return bool(rng.random() < value)
@@ -606,12 +589,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
-    hot_pixel_fraction = _default_or_zero(
-        scene_noise,
-        'hot_pixel_fraction',
-        detector_defaults.hot_pixel_fraction,
-        instrument_defaults=instrument_defaults,
-    )
     bias_pedestal_sigma = _default_or_zero(
         scene_noise,
         'bias_pedestal_sigma_dn',
@@ -642,41 +619,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_defaults.calibration_pixel_residual_e,
         instrument_defaults=instrument_defaults,
     )
-    # Shape parameters (the amplitude scale and the column factor) track the detector
-    # defaults; they never activate a stage on their own (the fraction gate does that).
-    default_hot_amplitude = detector_defaults.hot_pixel_amplitude_e or 0.0
-    default_hot_column_factor = detector_defaults.hot_pixel_column_factor or 0.0
-    hot_pixel_amplitude = float(scene_noise.get('hot_pixel_amplitude_e', default_hot_amplitude))
-    hot_pixel_column_factor = float(
-        scene_noise.get('hot_pixel_column_factor', default_hot_column_factor)
-    )
-
-    # The hot_pixels artifact mode (routed here from the registry) wins over the
-    # noise-block / instrument_defaults hot-pixel knobs: an explicit mode is a
-    # deliberate placement, so it overrides the generic stress path.  Its
-    # pixel_fraction is the hot-pixel fraction; amplitude and column factor
-    # fall back to the detector defaults when the mode leaves them unset.  The mode is
-    # honored only where it is available (validation already rejects it
-    # elsewhere, e.g. LORRI).
-    hot_pixel_adversarial = False
-    hot_pixel_mode_active = False
-    hot_cfg = artifacts.get('hot_pixels') if isinstance(artifacts, Mapping) else None
-    if isinstance(hot_cfg, Mapping) and mode_available('hot_pixels', instrument):
-        hot_pixel_mode_active = True
-        resolved = resolve_mode_config('hot_pixels', hot_cfg)
-        hot_pixel_fraction = float(resolved['pixel_fraction'])
-        mode_amplitude = resolved.get('amplitude_e')
-        if mode_amplitude is not None:
-            hot_pixel_amplitude = float(mode_amplitude)
-        elif hot_pixel_amplitude <= 0.0:
-            hot_pixel_amplitude = default_hot_amplitude
-        mode_column_factor = resolved.get('column_factor')
-        if mode_column_factor is not None:
-            hot_pixel_column_factor = float(mode_column_factor)
-        elif hot_pixel_column_factor <= 0.0:
-            hot_pixel_column_factor = default_hot_column_factor
-        hot_pixel_adversarial = bool(artifacts.get('adversarial', False))
-
     # The vidicon DN-noise sub-parameters activate on the vidicon path only, and
     # like every physical-chain artifact stay disabled until instrument_defaults
     # is on or the scene sets them explicitly (the stage-activation floor).
@@ -708,9 +650,8 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     dark_dn = 0.0 if detector_model == 'vidicon' else dark_current * exposure_sec / gain_e_per_dn
 
     # Detector-stage artifact modes.  An explicit mode wins over the generic
-    # noise-block / instrument_defaults knob for the same mechanic (the
-    # precedence hot_pixels already uses): the routed modes fold their override
-    # into the flat field here.
+    # noise-block / instrument_defaults knob for the same mechanic: the routed
+    # modes fold their override into the flat field here.
     artifacts_adversarial = bool(artifacts.get('adversarial', False))
     detector_modes = _resolve_detector_modes(
         artifacts,
@@ -771,9 +712,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         cosmic_ray_amplitude_e=cosmic_ray_amplitude,
         cosmic_ray_spread_px=cosmic_ray_spread,
         dark_current_e_per_sec=dark_current,
-        hot_pixel_fraction=hot_pixel_fraction,
-        hot_pixel_amplitude_e=hot_pixel_amplitude,
-        hot_pixel_column_factor=hot_pixel_column_factor,
         bias_pedestal_sigma_dn=bias_pedestal_sigma,
         bias_row_gradient_dn=bias_row_gradient,
         bias_col_gradient_dn=bias_col_gradient,
@@ -793,8 +731,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         instrument_defaults=instrument_defaults,
         calibration_column_residual_e=calibration_column_residual,
         calibration_pixel_residual_e=calibration_pixel_residual,
-        hot_pixel_adversarial=hot_pixel_adversarial,
-        hot_pixel_mode_active=hot_pixel_mode_active,
         quantization_contour_step=contour_step,
         sqrt_lut=sqrt_lut,
         artifacts_adversarial=artifacts_adversarial,

@@ -75,12 +75,6 @@ coiss_nac:
     read_noise_e: 12.0  # published (~12 e-)
     bias_dn: 20.0
     dark_current_e_per_sec: 5.0  # estimated (dark dominated by residual bulk image)
-    # Published: 0.15% of pixels in 2004, growing to ~0.28% by 2008-2009.
-    hot_pixel_fraction: 2.0e-3
-    hot_pixel_amplitude_e: 4.0e+4  # estimated (near the full well)
-    # Estimated: total-charge fraction bled into the warm column above a hot
-    # pixel (the streak integral, not a per-pixel amplitude).
-    hot_pixel_column_factor: 0.3
     # Fitted 2026-11-06 in closed loop: dark raw NAC frames rendered at the
     # cohort's exposures and run through the FOM 6 spike detector match the
     # 12-bit dark-sky cohort frames.  Those frames flag about 120-270 spikes per
@@ -200,6 +194,8 @@ coiss_nac:
     # The modes every raw frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
+      # Published: 0.15% of pixels in 2004, growing to ~0.28% by 2008-2009.
+      hot_pixels: {pixel_fraction: 2.0e-3}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
@@ -207,6 +203,9 @@ coiss_nac:
     # sets it.  Shapes here are the values a scene inherits when it sets a mode
     # without spelling out every parameter.
     shape_defaults:
+      # Estimated: an amplitude near the full well, and the fraction of a hot
+      # pixel's total charge bled into the warm column above it.
+      hot_pixels: {amplitude_e: 4.0e+4, column_factor: 0.3}
       # Published: ~30 e- horizontal bands (2.1 and 2.5 Hz beating).  The period is
       # estimated; the line readout rate sets it.
       banding: {amplitude_e: 30.0, period_px: 64.0, orientation: horizontal}
@@ -285,9 +284,6 @@ coiss_wac:
     read_noise_e: 12.0  # published (~12 e-)
     bias_dn: 20.0
     dark_current_e_per_sec: 5.0
-    hot_pixel_fraction: 2.0e-3
-    hot_pixel_amplitude_e: 3.5e+4
-    hot_pixel_column_factor: 0.3
     # The NAC's fitted cosmic-ray terms: the two cameras share the CCD and its
     # readout.  The WAC's one 12-bit dark frame (a 26 s star field) flags 1,817
     # spikes per megapixel, above the ~640 these terms deposit, with its stars
@@ -368,10 +364,12 @@ coiss_wac:
     # The modes every raw frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
+      hot_pixels: {pixel_fraction: 2.0e-3}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
+      hot_pixels: {amplitude_e: 3.5e+4, column_factor: 0.3}
       # Published: ~6 e- horizontal bands at 4.0 Hz.  The period is the NAC's
       # estimate.
       banding: {amplitude_e: 6.0, period_px: 64.0, orientation: horizontal}
@@ -406,12 +404,6 @@ coiss_calib_nac:
   detector_id: coiss_nac
 
   detector:
-    # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
-    # image-library cohort: the measured stationary spike fraction 1.6e-5
-    # (single-pixel spikes recurring at fixed positions across the 58-frame NAC
-    # cohort; the raw camera's estimated 2e-3 overstated the calibrated products
-    # by ~100x and dominated their p99 signal percentile).
-    hot_pixel_fraction: 1.6e-5
     # CISSCAL subtracts the full 2-D bias structure, not just the constant
     # pedestal the calibration inverse already removes.
     bias_pedestal_sigma_dn: 0.0
@@ -461,6 +453,12 @@ coiss_calib_nac:
 
   artifact_modes:
     instrument_defaults:
+      # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
+      # image-library cohort: the measured stationary spike fraction 1.6e-5
+      # (single-pixel spikes recurring at fixed positions across the 58-frame NAC
+      # cohort; the raw camera's estimated 2e-3 overstated the calibrated products
+      # by ~100x and dominated their p99 signal percentile).
+      hot_pixels: {pixel_fraction: 1.6e-5}
       # CISSCAL's 2-Hz noise removal strips the banding, and the cohort sky floor
       # sits below the level at which the raw chain's 30 e- bands would register.
       banding: null
@@ -491,10 +489,6 @@ coiss_calib_wac:
   detector_id: coiss_wac
 
   detector:
-    # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
-    # image-library cohort; the stationary spike fraction 1.6e-5 measured on the
-    # NAC cohort stands for both cameras (see the coiss_calib_nac entry).
-    hot_pixel_fraction: 1.6e-5
     # CISSCAL subtracts the full 2-D bias structure, not just the constant
     # pedestal the calibration inverse already removes.
     bias_pedestal_sigma_dn: 0.0
@@ -517,6 +511,10 @@ coiss_calib_wac:
 
   artifact_modes:
     instrument_defaults:
+      # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
+      # image-library cohort; the stationary spike fraction 1.6e-5 measured on the
+      # NAC cohort stands for both cameras (see the coiss_calib_nac entry).
+      hot_pixels: {pixel_fraction: 1.6e-5}
       # CISSCAL's 2-Hz noise removal strips the banding.
       banding: null
 

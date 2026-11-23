@@ -48,9 +48,6 @@ detector:
   read_noise_e: 3.0
   bias_dn: 10.0
   dark_current_e_per_sec: 0.0
-  hot_pixel_fraction: 0.0
-  hot_pixel_amplitude_e: 0.0
-  hot_pixel_column_factor: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
   bias_pedestal_sigma_dn: 0.0
   bias_row_gradient_dn: 0.0

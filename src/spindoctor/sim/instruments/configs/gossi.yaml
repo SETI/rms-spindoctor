@@ -51,16 +51,6 @@ gossi:
     read_noise_e: 31.0  # published (full resolution; 44 e- in summation mode)
     bias_dn: 20.0
     dark_current_e_per_sec: 10.0  # estimated (dark spikes from RTG neutrons)
-    # TUNED 2026-11-01 by the realism match: the 8-frame Galileo REDR cohort's
-    # stationary spike fraction (single-pixel spikes recurring at fixed
-    # positions) is 1.4e-6 -- the REDR blemish correction removes most hot
-    # pixels.  The simulated hot pixels are a fixed per-detector map, so this
-    # fraction is the stationary population alone; the cohort's transient
-    # spikes are carried by the cosmic-ray rate below.
-    hot_pixel_fraction: 1.4e-6
-    hot_pixel_amplitude_e: 4.0e+4
-    # Estimated: nine low-full-well columns bloom early; total-charge fraction.
-    hot_pixel_column_factor: 0.5
     # Fitted 2026-11-06 in closed loop against the cohort's transient spikes
     # (all negative cases, so no scene point sources contaminate the split):
     # 57-129 per 800x800 frame at 50-100 ms, peaking at 33/58/150 DN
@@ -111,9 +101,19 @@ gossi:
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
+      # TUNED 2026-11-01 by the realism match: the 8-frame Galileo REDR cohort's
+      # stationary spike fraction (single-pixel spikes recurring at fixed
+      # positions) is 1.4e-6 -- the REDR blemish correction removes most hot
+      # pixels.  The simulated hot pixels are a fixed per-detector map, so this
+      # fraction is the stationary population alone; the cohort's transient
+      # spikes are carried by the cosmic-ray rate.
+      hot_pixels: {pixel_fraction: 1.4e-6}
       banding: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
+      # Estimated: nine low-full-well columns bloom early, so half of a hot pixel's
+      # total charge bleeds into its warm column.
+      hot_pixels: {amplitude_e: 4.0e+4, column_factor: 0.5}
       # Published: vertical bands every 42 px from the 2400 Hz supply (~0.35 DN raw
       # at gain state 2, ~65 e-).  In high gain the camera also shows a horizontal
       # component below 8 Hz, which a scene adds with orientation both.

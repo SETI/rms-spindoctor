@@ -24,7 +24,6 @@ from spindoctor.schema import (
     NonNegInt,
     Positive,
     RuleError,
-    Unit,
 )
 from spindoctor.schema.errors import RangeError
 from spindoctor.sim.artifact_modes import DetectorModel, QuantizationMode
@@ -44,9 +43,6 @@ _CCD_REQUIRED: tuple[str, ...] = (
     'default_gain_state',
     'read_noise_e',
     'dark_current_e_per_sec',
-    'hot_pixel_fraction',
-    'hot_pixel_amplitude_e',
-    'hot_pixel_column_factor',
     'bias_pedestal_sigma_dn',
     'bias_row_gradient_dn',
     'bias_col_gradient_dn',
@@ -124,7 +120,7 @@ class Detector:
 
     Every entry states the first five keys.  A CCD entry also states its electron
     chain: the full well, gain table, default gain state, read noise, dark current,
-    hot-pixel and bias-structure terms, and the bloom length.  A vidicon
+    bias-structure terms, and the bloom length.  A vidicon
     entry states its ``vidicon`` chain.  The other keys are optional.
 
     Parameters:
@@ -139,9 +135,6 @@ class Detector:
         default_gain_state: The gain state a scene gets when it sets none.
         read_noise_e: The read noise, in electrons.
         dark_current_e_per_sec: The dark current, in electrons per second.
-        hot_pixel_fraction: The fraction of pixels that are hot.
-        hot_pixel_amplitude_e: A hot pixel's charge, in electrons.
-        hot_pixel_column_factor: The share of hot pixels that line up in columns.
         cosmic_ray_readout_dwell_sec: The time, in seconds, the frame sits exposed
             to cosmic rays during readout.
         cosmic_ray_amplitude_e: The smallest charge a cosmic ray deposits, in
@@ -174,9 +167,6 @@ class Detector:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
-    hot_pixel_fraction: Unit | None = None
-    hot_pixel_amplitude_e: NonNeg | None = None
-    hot_pixel_column_factor: Unit | None = None
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
@@ -251,9 +241,6 @@ class ReadoutMode:
         default_gain_state: As :class:`Detector`.
         read_noise_e: As :class:`Detector`.
         dark_current_e_per_sec: As :class:`Detector`.
-        hot_pixel_fraction: As :class:`Detector`.
-        hot_pixel_amplitude_e: As :class:`Detector`.
-        hot_pixel_column_factor: As :class:`Detector`.
         cosmic_ray_readout_dwell_sec: As :class:`Detector`.
         cosmic_ray_amplitude_e: As :class:`Detector`.
         cosmic_ray_spread_px: As :class:`Detector`.
@@ -280,9 +267,6 @@ class ReadoutMode:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
-    hot_pixel_fraction: Unit | None = None
-    hot_pixel_amplitude_e: NonNeg | None = None
-    hot_pixel_column_factor: Unit | None = None
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None

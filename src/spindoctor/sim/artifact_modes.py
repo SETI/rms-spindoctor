@@ -4,7 +4,7 @@ The ``artifacts`` scene block is keyed, besides ``instrument_defaults`` and
 ``adversarial``, by the artifact-mode names in this registry.  Each mode is
 described once here -- its rendering stage (``telemetry`` or ``detector``), its
 parameter schema, and whether it is implemented yet -- and every consumer (the
-scene validator, the telemetry stage, the detector hot-pixel routing) reads that
+scene validator, the detector stage, the telemetry stage) reads that
 description rather than carrying its own copy.  Registering a mode is therefore
 the whole job of adding one: a detector-stage mode that is unimplemented today
 drops in by flipping its ``implemented`` flag and adding its rendering code, with
@@ -56,7 +56,8 @@ mode builds one frozen dataclass from its parameters when this module is importe
 against it.  Scene validation and the instrument catalog both check a mode's map
 this way.  Every field of the type is optional and defaults to None, which stands
 for a key the map leaves unset, so the type records which keys a map sets and leaves
-the registry defaults to :func:`resolve_mode_config`.
+the registry defaults to
+:func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog`.
 """
 
 from __future__ import annotations
@@ -64,7 +65,6 @@ from __future__ import annotations
 import copy
 import dataclasses
 import keyword
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal, get_args, get_origin
 
@@ -85,7 +85,6 @@ from spindoctor.schema import (
 __all__ = [
     'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
-    'COUNT_ACTIVATION_KEYS',
     'DETECTOR_MODELS',
     'DETECTOR_MODE_ORDER',
     'EXPECTED_EVENTS',
@@ -106,7 +105,6 @@ __all__ = [
     'int_list',
     'mode_scene_map',
     'parse_mode_params',
-    'resolve_mode_config',
 ]
 
 
@@ -228,10 +226,6 @@ PIXEL_FRACTION = 'pixel_fraction'
 ACTIVATION_KEYS: frozenset[str] = frozenset(
     {EXPECTED_EVENTS, EXPECTED_EVENTS_PER_SEC, PROBABILITY, PIXEL_FRACTION}
 )
-
-# The activation keys that hold a Poisson expectation: the mode's mechanic draws
-# the event count, so the mode is active whenever the key is positive.
-COUNT_ACTIVATION_KEYS: frozenset[str] = frozenset({EXPECTED_EVENTS, EXPECTED_EVENTS_PER_SEC})
 
 # The schema of each activation key, disabled at its default of 0.
 _ACTIVATION_PARAMS: dict[str, ModeParam] = {
@@ -426,7 +420,7 @@ def _detector_mode(
 # The registry.
 # ---------------------------------------------------------------------------
 
-_IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
+_TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
     _telemetry_mode(
         'missing_lines',
         ModeParam('contiguous_run', Bool, False),
@@ -533,26 +527,6 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
         activation=PROBABILITY,
         activation_semantics='per-frame probability the commanded cut-out window is applied',
     ),
-    # hot_pixels is implemented, but on the DETECTOR stage: the registry routes
-    # its parameters to the detector hot-pixel population (params.py) rather
-    # than to a telemetry applier.  Its activation key is pixel_fraction, the
-    # fraction of pixels that are hot (a spatial density).
-    ArtifactMode(
-        name='hot_pixels',
-        stage='detector',
-        implemented=True,
-        params=(
-            _ACTIVATION_PARAMS[PIXEL_FRACTION],
-            ModeParam('amplitude_e', NonNeg, None),
-            ModeParam('column_factor', Unit, None),
-        ),
-        activation=PIXEL_FRACTION,
-        activation_semantics=(
-            'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
-        ),
-        # The vidicon DN chain has no hot-pixel stage.
-        detector_models=_CCD_ONLY,
-    ),
 )
 
 # Detector / electronics modes.  Each renders inside the detector stage at the
@@ -561,8 +535,7 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
 # pre-Poisson, serial_tail as a post-gain DN undershoot, and so on); the exact
 # placement is documented per stage in the detector chain.  A mode with a
 # per-instrument shape reads its shape parameters from the catalog when the
-# scene leaves them unset, and an explicit mode wins over the generic noise-block
-# knob for the same mechanic (the precedence hot_pixels already uses).
+# scene leaves them unset.
 _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     _detector_mode(
         'banding',
@@ -602,6 +575,17 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('bloom_length', PositiveInt, None),
         activation=PROBABILITY,
         activation_semantics='per-frame probability the electron-domain column bloom is active',
+        detector_models=_CCD_ONLY,
+    ),
+    _detector_mode(
+        'hot_pixels',
+        ModeParam('amplitude_e', NonNeg, None),
+        ModeParam('column_factor', Unit, None),
+        activation=PIXEL_FRACTION,
+        activation_semantics=(
+            'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
+        ),
+        # The vidicon DN chain has no hot-pixel stage.
         detector_models=_CCD_ONLY,
     ),
     _detector_mode(
@@ -727,7 +711,8 @@ _TELEMETRY_ARTIFACT_MODES: tuple[ArtifactMode, ...] = (
 )
 
 ARTIFACT_MODES: dict[str, ArtifactMode] = {
-    mode.name: mode for mode in (*_IMPLEMENTED_MODES, *_DETECTOR_MODES, *_TELEMETRY_ARTIFACT_MODES)
+    mode.name: mode
+    for mode in (*_TELEMETRY_LOSS_MODES, *_DETECTOR_MODES, *_TELEMETRY_ARTIFACT_MODES)
 }
 
 # Pickle finds a class by its name in its module, so each registered mode's built class
@@ -742,8 +727,7 @@ MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
 # frame-level commanded shapes, then line losses, then block losses, then
 # garble, then per-pixel losses, then the row-0 header last.  ``truth_window``
 # is not here: it is a protective carve-out resolved before the loop and passed
-# to ``missing_blocks``, not a signal-mutating loss.  ``hot_pixels`` is not here
-# either: it is a detector-stage mode.
+# to ``missing_blocks``, not a signal-mutating loss.
 STRUCTURED_LOSS_ORDER: tuple[str, ...] = (
     'cutout_window',
     'edited_frame',
@@ -777,6 +761,7 @@ DETECTOR_MODE_ORDER: tuple[str, ...] = (
     'readout_dark',
     'frame_transfer_smear',
     'bright_dark_pairs',
+    'hot_pixels',
     'radiation_transients',
     'bloom',
     'banding',
@@ -787,17 +772,3 @@ DETECTOR_MODE_ORDER: tuple[str, ...] = (
     'quantization_ls8b',
     'quantization_contour_8bit',
 )
-
-
-def resolve_mode_config(mode_name: str, raw_config: Mapping[str, Any]) -> dict[str, Any]:
-    """Fill a mode's scene map with its parameter defaults for rendering.
-
-    Parameters:
-        mode_name: A registered mode name.
-        raw_config: The scene's map for the mode (already validated).
-
-    Returns:
-        A fresh dict carrying every parameter, scene value overriding default.
-    """
-    mode = ARTIFACT_MODES[mode_name]
-    return {param.name: raw_config.get(param.name, param.default) for param in mode.params}

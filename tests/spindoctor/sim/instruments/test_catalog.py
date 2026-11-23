@@ -66,9 +66,6 @@ detector:
   read_noise_e: 3.0
   bias_dn: 10.0
   dark_current_e_per_sec: 0.0
-  hot_pixel_fraction: 0.0
-  hot_pixel_amplitude_e: 0.0
-  hot_pixel_column_factor: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
   bias_pedestal_sigma_dn: 0.0
   bias_row_gradient_dn: 0.0
@@ -174,8 +171,14 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'dark-sky-ceiling-on-raw-dn',
     ),
     (
-        {'cam.yaml': _cam(_with('hot_pixel_fraction: 0.0', 'hot_pixel_fraction: 5.0'))},
-        r'^cam\.yaml: cam: detector\.hot_pixel_fraction: expected a number in \[0, 1\], got 5\.0',
+        {
+            'cam.yaml': _cam(
+                _with(_OFFERED, 'offered: [hot_pixels]')
+                + '  shape_defaults:\n    hot_pixels: {column_factor: 5.0}\n'
+            )
+        },
+        r'^cam\.yaml: cam: artifact_modes\.shape_defaults\.hot_pixels\.column_factor: expected a '
+        r'number in \[0, 1\], got 5\.0',
         'fraction-above-one',
     ),
     (
@@ -260,16 +263,6 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         r"^cam\.yaml: cam: artifact_modes\.shape_defaults\.dead_pixels\.count: 'count' turns "
         r'the mode on',
         'count-in-shape-defaults',
-    ),
-    (
-        {
-            'cam.yaml': _cam(
-                _with(_OFFERED, 'offered: [missing_lines, hot_pixels]')
-                + '  shape_defaults:\n    hot_pixels: {amplitude_e: 5.0}\n'
-            )
-        },
-        r"shape_defaults\.hot_pixels: a shape default for 'hot_pixels' does nothing",
-        'shape-default-the-renderer-ignores',
     ),
     (
         {

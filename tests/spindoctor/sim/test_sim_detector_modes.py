@@ -30,6 +30,7 @@ from spindoctor.sim.render.detector.electronics_stages import (
     apply_shutter_shading,
     readout_dark_profile,
 )
+from spindoctor.sim.render.detector.noise_stages import detector_hot_pixel_map
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt
 from spindoctor.sim.render.driver import render_scene
@@ -747,10 +748,23 @@ def test_a_calibrated_product_shares_its_cameras_hot_pixels() -> None:
     assert _hot_pixels_of('coiss_calib_nac', 1) == _hot_pixels_of('coiss_nac', 5)
 
 
-def test_generic_hot_pixel_knob_records_no_truth() -> None:
-    """The instrument_defaults hot-pixel path stays unrecorded (not an explicit mode)."""
+def test_the_instrument_defaults_record_their_hot_pixels() -> None:
+    """The hot pixels a camera's instrument defaults plant are in the truth."""
     _img, truth = render_scene(_disc('coiss_nac', artifacts={'instrument_defaults': True}))
-    assert 'hot_pixels' not in truth.get('artifacts', {})
+    vs, us, _amps = detector_hot_pixel_map((96, 96), fraction=2.0e-3, detector_id='coiss_nac')
+    expected = [[int(v), int(u)] for v, u in zip(vs, us, strict=True)]
+    assert expected
+    assert truth['artifacts']['hot_pixels']['pixels'] == expected
+
+
+def test_hot_pixels_of_the_defaults_follow_the_adversarial_switch() -> None:
+    """Under the adversarial switch the defaults' hot pixels land on the features."""
+    defaults = {'instrument_defaults': True}
+    _img, uniform = render_scene(_disc('coiss_nac', artifacts=defaults))
+    _img, adversarial = render_scene(
+        _disc('coiss_nac', artifacts={**defaults, 'adversarial': True})
+    )
+    assert uniform['artifacts']['hot_pixels'] != adversarial['artifacts']['hot_pixels']
 
 
 def test_floor_scene_records_no_detector_artifacts() -> None:
