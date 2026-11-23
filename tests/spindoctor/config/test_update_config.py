@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from spindoctor.config import Config
+from spindoctor.nav_technique import BodyDiscCorrelateNav
 
 
 def test_update_config_preserves_sibling_defaults(tmp_path: Path) -> None:
@@ -48,6 +49,30 @@ def test_a_section_given_as_a_scalar_is_refused(tmp_path: Path) -> None:
     expected = f'{user_path}: orchestrator: expected a mapping'
     with pytest.raises(ValueError, match=re.escape(expected)):
         config.update_config(user_path)
+
+
+def test_an_override_refused_by_validation_changes_nothing(tmp_path: Path) -> None:
+    """A refused merged result keeps the config, its overrides, and technique tuning."""
+    config = Config()
+    config.read_config()
+    fraction = config.bodies['blob_max_overflow_fraction']
+    tuning = dict(BodyDiscCorrelateNav.tuning)
+    refused = tmp_path / 'refused.yaml'
+    refused.write_text(
+        'techniques:\n  BodyDiscCorrelateNav:\n    tuning:\n'
+        '      rotation_at_edge_fraction: 0.5\n'
+        'bodies:\n  blob_max_overflow_fraction: 5\n',
+        encoding='utf-8',
+    )
+    valid = tmp_path / 'valid.yaml'
+    valid.write_text('orchestrator:\n  ensemble:\n    min_confidence: 0.1\n', encoding='utf-8')
+    with pytest.raises(ValueError, match='blob_max_overflow_fraction must be finite'):
+        config.update_config(refused)
+    assert config.bodies['blob_max_overflow_fraction'] == fraction
+    assert not config.override_paths
+    assert BodyDiscCorrelateNav.tuning == tuning
+    config.update_config(valid)
+    assert config.override_paths == (str(valid),)
 
 
 def test_category_returns_cached_instance() -> None:

@@ -177,8 +177,7 @@ class Config:
 
         self._config_dict: dict[str, Any] = {}
         self._category_cache: dict[str, AttrDict] = {}
-        self._packaged_layers: list[Layer] = []
-        self._override_layers: list[Layer] = []
+        self._override_paths: list[str] = []
         self._config_environment: dict[str, Any] = AttrDict({})
         self._config_general: dict[str, Any] = AttrDict({})
         self._config_logging: dict[str, Any] = AttrDict({})
@@ -232,29 +231,38 @@ class Config:
         self._config_orchestrator = AttrDict(self._config_dict.get('orchestrator', {}))
         self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
 
-    def _merge_layers(self, overrides: list[Layer]) -> None:
-        """Merge the packaged layers and then ``overrides`` into the configuration.
+    def _install(self, candidate: dict[str, Any], override_paths: list[str]) -> None:
+        """Validate a merged configuration and keep it only if it passes.
 
-        Every key beginning with an underscore was dropped when its file was read, so a
-        file can carry notes, such as ``_sources`` citations, beside its values.  A
-        merge that raises leaves the configuration as it was.
+        A refused candidate leaves the configuration and :attr:`override_paths` as
+        they were.
 
         Parameters:
-            overrides: Every override to apply, in order.
+            candidate: The merged configuration to keep.
+            override_paths: The override files it includes, in order.
 
         Raises:
-            SchemaError: Naming the file and key path of every null in any layer.
+            ValueError: If the candidate fails :meth:`_validate`.
         """
-        merged = merge([*self._packaged_layers, *overrides], nulls=NullPolicy.REFUSE)
-        self._config_dict = merged.data
-        self._override_layers = overrides
+        try:
+            self._validate(candidate)
+        except Exception:
+            # Validation assigns each technique's spec and tuning as it goes, so the
+            # techniques it reached are given back the ones the kept configuration sets.
+            if self._config_dict:
+                self._validate(self._config_dict)
+            raise
+        self._config_dict = candidate
+        self._override_paths = override_paths
         self._update_attrdicts()
 
     def read_config(self, *, reread: bool = False) -> None:
         """Read the packaged configuration files, unless they have been read already.
 
-        The files merge in filename order.  A reread starts again from the packaged
-        files alone, so it drops every override applied since.
+        The files merge in filename order.  Every key beginning with an underscore is
+        dropped as its file is read, so a file can carry notes, such as ``_sources``
+        citations, beside its values.  A reread starts again from the packaged files
+        alone, so it drops every override applied since.
 
         Parameters:
             reread: Whether to read the files again if the configuration is loaded.
@@ -271,24 +279,26 @@ class Config:
         if not reread and self._config_dict:
             return
 
-        self._packaged_layers = [
-            read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))
-        ]
-        self._merge_layers([])
-        self._validate()
+        layers = [read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))]
+        self._install(merge(layers, nulls=NullPolicy.REFUSE).data, [])
 
-    def _validate(self) -> None:
-        """Apply every load-time check to the merged configuration.
+    @staticmethod
+    def _validate(config_dict: dict[str, Any]) -> None:
+        """Apply every load-time check to a merged configuration.
 
         Both paths that load a configuration (:meth:`read_config` and
         :meth:`update_config`) call this one method, so neither can skip a check the
         other applies.
-        """
-        self._validate_registered_techniques()
-        self._validate_bodies_block()
-        self._validate_camera_blocks()
 
-    def _validate_bodies_block(self) -> None:
+        Parameters:
+            config_dict: The merged configuration.
+        """
+        Config._validate_registered_techniques(config_dict)
+        Config._validate_bodies_block(config_dict)
+        Config._validate_camera_blocks(config_dict)
+
+    @staticmethod
+    def _validate_bodies_block(config_dict: dict[str, Any]) -> None:
         """Reject a ``bodies.blob_max_overflow_fraction`` that is not a fraction.
 
         The value is the overflow limit above which a body emits no ``BODY_BLOB``.
@@ -296,11 +306,14 @@ class Config:
         invert that limit, so it is refused when the configuration is loaded.  A
         configuration that carries no such key is left to fail where the key is read.
 
+        Parameters:
+            config_dict: The merged configuration.
+
         Raises:
             ValueError: If the value is not a finite number within ``[0, 1]``; the
                 message names the key and the offending value.
         """
-        bodies = self._config_dict.get('bodies')
+        bodies = config_dict.get('bodies')
         if not isinstance(bodies, dict) or _BLOB_MAX_OVERFLOW_KEY not in bodies:
             return
         value = bodies[_BLOB_MAX_OVERFLOW_KEY]
@@ -311,7 +324,8 @@ class Config:
                 f'bodies.{_BLOB_MAX_OVERFLOW_KEY} must be finite and within [0, 1]; got {value!r}'
             )
 
-    def _validate_camera_blocks(self) -> None:
+    @staticmethod
+    def _validate_camera_blocks(config_dict: dict[str, Any]) -> None:
         """Require every camera block to set a lone-star ellipse fraction in ``(0, 1]``.
 
         ``one_star_ellipse_fraction`` is a property of the camera, so no technique-level
@@ -319,11 +333,14 @@ class Config:
         lone star's offset and one above 1 would reach past the offset window, so a
         fraction outside ``(0, 1]`` is refused when the configuration is loaded.
 
+        Parameters:
+            config_dict: The merged configuration.
+
         Raises:
             ValueError: If a camera block sets no fraction, or one that is not a number
                 within ``(0, 1]``; the message names the block and the key.
         """
-        for path, block in _camera_blocks(self._config_dict):
+        for path, block in _camera_blocks(config_dict):
             if _ONE_STAR_ELLIPSE_KEY not in block:
                 raise ValueError(f'{path} sets no {_ONE_STAR_ELLIPSE_KEY}')
             value = block[_ONE_STAR_ELLIPSE_KEY]
@@ -334,7 +351,8 @@ class Config:
                     f'{path}.{_ONE_STAR_ELLIPSE_KEY} must lie in (0, 1]; got {value!r}'
                 )
 
-    def _validate_registered_techniques(self) -> None:
+    @staticmethod
+    def _validate_registered_techniques(config_dict: dict[str, Any]) -> None:
         """Load + validate every registered NavTechnique's confidence spec.
 
         Builds each technique's :class:`ConfidenceSpec` from the
@@ -353,6 +371,9 @@ class Config:
         partially initialized module 'spindoctor.config'``.  This lazy-import
         site is the minimum cycle break — the other modules can keep
         their top-of-file imports.
+
+        Parameters:
+            config_dict: The merged configuration.
         """
         from spindoctor.nav_technique.confidence_config import (
             ConfidenceConfigError,
@@ -364,7 +385,7 @@ class Config:
             validate_registered_confidence_specs,
         )
 
-        techniques_block = dict(self._config_dict.get('techniques', {}))
+        techniques_block = dict(config_dict.get('techniques', {}))
         for cls in NavTechnique._registry:
             try:
                 cls.confidence_spec = load_confidence_spec(techniques_block, cls.name)
@@ -383,7 +404,8 @@ class Config:
         The packaged files are read first if they have not been.  The merged
         configuration is then validated again against every registered
         :class:`NavTechnique`, so per-technique overrides (``confidence_spec`` and
-        ``tuning``) take effect.
+        ``tuning``) take effect.  A refused override, whatever the reason, leaves the
+        configuration and :attr:`override_paths` as they were.
 
         Parameters:
             config_path: The override file.  Error messages and :attr:`override_paths`
@@ -401,8 +423,13 @@ class Config:
         self.read_config()
         layer = read_layer(Path(config_path), label=str(config_path))
         _refuse_replaced_sections(self._config_dict, layer)
-        self._merge_layers([*self._override_layers, layer])
-        self._validate()
+        # Only the sections the override names are merged again, and the candidate
+        # shares the rest with the configuration as it stands, so the cost follows the
+        # size of the override and never the number of overrides before it.
+        named = {key: self._config_dict[key] for key in layer.data if key in self._config_dict}
+        merged = merge([Layer(named, 'the merged configuration'), layer], nulls=NullPolicy.REFUSE)
+        candidate = {**self._config_dict, **merged.data}
+        self._install(candidate, [*self._override_paths, str(config_path)])
 
     @property
     def override_paths(self) -> tuple[str, ...]:
@@ -412,7 +439,7 @@ class Config:
         given as it was passed to :meth:`update_config`.
         """
 
-        return tuple(layer.label for layer in self._override_layers)
+        return tuple(self._override_paths)
 
     def resolved_config_hash(self) -> str:
         """Return a stable sha256 hex digest of the fully-resolved config.
