@@ -239,7 +239,7 @@ class NavModelBodySimulated(NavModelBodyBase):
         nav_params = getattr(obs, 'nav_params', None)
         if not isinstance(nav_params, dict):
             return []
-        bodies = [bp for bp in nav_params.get('bodies', []) or [] if isinstance(bp, dict)]
+        bodies = [bp for bp in nav_params.get('bodies', []) if isinstance(bp, dict)]
         out: list[NavModel] = []
         for index, body_params in enumerate(bodies):
             body_name = str(body_params.get('name', 'SIM-BODY'))

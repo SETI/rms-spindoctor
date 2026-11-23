@@ -42,6 +42,7 @@ from spindoctor.sim.scene.rules_common import (
     _check_spk_error,
     _check_star_catalog_scatter,
     _check_star_object,
+    _refuse_nulls,
     _require_int,
     _require_positive_int,
     _require_ranges_for_spk_error,
@@ -59,20 +60,6 @@ __all__ = [
 ]
 
 CURRENT_SCHEMA_VERSION: int = 2
-
-# Top-level numbers every consumer reads with ``float(sim_params.get(key,
-# default))``, so a key present as null would reach float() as None.  A block or
-# a list set to null reads as unset, but these refuse null: the author leaves the
-# key out to take its default.
-_NON_NULL_TOP_LEVEL_NUMBERS: tuple[str, ...] = (
-    'exposure_sec',
-    'offset_v',
-    'offset_u',
-    'offset_rotation_deg',
-    'time',
-    'ring_epoch',
-    'star_catalog_scatter_px',
-)
 
 # The largest noise_seed the scene editor's control can show and save.
 _NOISE_SEED_MAX = 2**31 - 1
@@ -137,6 +124,11 @@ def validate_sim_params(
     rather than files.  ``schema_version`` and ``scene_name`` are optional here (a
     dict author has no filename); when present, the version must be current.
 
+    A scene either sets a key or leaves it out to take its default.  A null is
+    refused at any depth, as a key of the scene, of a block, or of a mapping in a
+    list, and as a list entry, and the message gives the full key path, such as
+    ``bodies[1].nav_override.mesh_lumpiness``.
+
     Validation never rewrites the scene: ``optics.psf: {match_navigator: true}``
     stays in its authored form (the renderer resolves it into the navigator's
     concrete Gaussian when it builds the kernel), so an editor's live mapping
@@ -156,8 +148,10 @@ def validate_sim_params(
         ``sim_params``, unchanged, for call-chaining.
 
     Raises:
-        SimSceneValidationError: On any unknown or invalid field.
+        SimSceneValidationError: On any unknown or invalid field, or a null at any
+            depth.
     """
+    _refuse_nulls(sim_params, '', source=source)
     unknown = set(sim_params) - _ALLOWED_KEYS
     if unknown:
         raise SimSceneValidationError(f'{source}: unknown scene keys: {sorted(unknown)}')
@@ -190,15 +184,6 @@ def validate_sim_params(
         raise SimSceneValidationError(
             f'{source}: noise_seed must be an integer from 0 to {_NOISE_SEED_MAX}'
         )
-    null_numbers = [
-        key for key in _NON_NULL_TOP_LEVEL_NUMBERS if key in sim_params and sim_params[key] is None
-    ]
-    if null_numbers:
-        raise SimSceneValidationError(
-            f'{source}: {null_numbers} must be numbers when present; leave a key out '
-            f'to take its default'
-        )
-
     _check_optional_positive_number(sim_params.get('exposure_sec'), 'exposure_sec', source=source)
     _check_optional_number(sim_params.get('offset_v'), 'offset_v', source=source)
     _check_optional_number(sim_params.get('offset_u'), 'offset_u', source=source)

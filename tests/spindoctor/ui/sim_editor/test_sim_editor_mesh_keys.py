@@ -1,6 +1,6 @@
 """The sim editor cannot author a mesh body its scene validator refuses.
 
-The validator refuses a non-null value of every key in the schema's
+The validator refuses every key in the schema's
 ``MESH_UNSUPPORTED_KEYS`` on a ``shape_model: polyhedral_mesh`` body.  The editor
 reads the same table: switching a body to a mesh disables every control that
 writes one of those keys, gives each (and every control inside it) the

@@ -42,7 +42,6 @@ from spindoctor.sim.scene.rules_common import (
     _check_optional_number,
     _check_optional_positive_number,
     _check_optional_str,
-    _require_int,
 )
 
 
@@ -53,7 +52,9 @@ def _check_body_names_unique(bodies: list[dict[str, Any]], *, source: str) -> No
     render order) by each body's upper-cased name, defaulting an unnamed
     entry to its positional ``SIM-BODY-<index + 1>`` name.  Two entries that
     resolve to the same key would silently overwrite each other's truth
-    records, so the collision fails here instead.
+    records, so the collision fails here instead.  The navigator keys its predicted
+    bodies by the name its view carries, where a ``nav_override`` ``name`` replaces
+    the body's own, so the same rule holds for those names.
 
     Parameters:
         bodies: The scene's ``bodies`` list (entries already type-checked).
@@ -61,26 +62,87 @@ def _check_body_names_unique(bodies: list[dict[str, Any]], *, source: str) -> No
 
     Raises:
         SimSceneValidationError: If two entries share an effective name
-            (case-insensitive, positional defaults included; a null name takes
-            the positional default).
+            (case-insensitive, positional defaults included).
     """
-    seen: dict[str, int] = {}
-    for index, obj in enumerate(bodies):
-        effective = str(scene_value(obj, 'name', default_body_name(index))).upper()
-        if effective in seen:
-            raise SimSceneValidationError(
-                f'{source}: bodies[{seen[effective]}] and bodies[{index}] share the '
-                f'effective name {effective!r} (names are case-insensitive and an '
-                f'unnamed body defaults to its positional SIM-BODY-<n> name); '
-                f'name-keyed truth records would collide, so give each body a '
-                f'unique name'
-            )
-        seen[effective] = index
+    for navigator_side in (False, True):
+        seen: dict[str, int] = {}
+        for index, obj in enumerate(bodies):
+            name_source = obj
+            override = obj.get('nav_override')
+            if navigator_side and isinstance(override, dict) and 'name' in override:
+                name_source = override
+            effective = str(scene_value(name_source, 'name', default_body_name(index))).upper()
+            if effective in seen:
+                side = 'navigator-side ' if navigator_side else ''
+                raise SimSceneValidationError(
+                    f'{source}: bodies[{seen[effective]}] and bodies[{index}] share the '
+                    f'{side}effective name {effective!r} (names are case-insensitive and an '
+                    f'unnamed body defaults to its positional SIM-BODY-<n> name); '
+                    f'name-keyed truth records would collide, so give each body a '
+                    f'unique name'
+                )
+            seen[effective] = index
 
 
-def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
-    """Validate one ``bodies`` entry's field types."""
-    label = f'bodies[{index}]'
+# The idealized body keys that hold a number, and those that hold an integer.  A
+# nav_override may set any idealized key, so its values get these same checks.
+_IDEALIZED_NUMBER_KEYS: tuple[str, ...] = (
+    'center_v',
+    'center_u',
+    'semi_a_px',
+    'semi_b_px',
+    'semi_c_px',
+    'rotation_z',
+    'sub_observer_lat_deg',
+    'illumination_angle',
+    'phase_angle',
+    'range_km',
+    'km_per_pixel',
+    'mesh_lumpiness',
+)
+_IDEALIZED_INT_KEYS: tuple[str, ...] = ('mesh_n_lat', 'mesh_n_lon', 'mesh_seed')
+_IDEALIZED_OTHER_KEYS: tuple[str, ...] = (
+    'name',
+    'shape_model',
+    'mesh_detail_octaves',
+    'pose_euler_deg',
+)
+# Every idealized key `_check_idealized_body_values` checks; a test holds this set equal
+# to the keys the navigator's view treats as idealized.
+_IDEALIZED_CHECKED_KEYS: frozenset[str] = frozenset(
+    (*_IDEALIZED_NUMBER_KEYS, *_IDEALIZED_INT_KEYS, *_IDEALIZED_OTHER_KEYS)
+)
+
+
+def _check_int_key(obj: dict[str, Any], key: str, *, label: str, source: str) -> None:
+    """Fail validation if ``obj[key]`` is present and isn't an integer (bools rejected)."""
+    if key not in obj:
+        return
+    value = obj[key]
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise SimSceneValidationError(f'{source}: {label}.{key} must be an integer')
+
+
+def _check_idealized_body_values(obj: dict[str, Any], *, label: str, source: str) -> None:
+    """Validate the values of the idealized keys a body entry or its override sets.
+
+    These are the keys a ``nav_override`` may set, so a body's own values and its
+    override's values pass the same checks.  Each check reads one key alone; the rules
+    that compare keys with each other apply to the body entry only.
+
+    Parameters:
+        obj: The body entry, or its ``nav_override`` mapping.
+        label: The mapping's key path for error messages, such as ``bodies[0]`` or
+            ``bodies[0].nav_override``.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If ``name`` isn't a string, ``shape_model`` isn't
+            ``ellipsoid`` or ``polyhedral_mesh``, a number key isn't a finite number,
+            ``sub_observer_lat_deg`` lies outside [-90, 90], a mesh integer key isn't an
+            integer, ``mesh_detail_octaves`` isn't a non-negative integer, or
+            ``pose_euler_deg`` isn't a list of 3 numbers.
+    """
     _check_optional_str(obj.get('name'), f'{label}.name', source=source)
     shape_model = obj.get('shape_model')
     if shape_model is not None and shape_model not in ('ellipsoid', 'polyhedral_mesh'):
@@ -88,6 +150,33 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
             f"{source}: {label}.shape_model must be 'ellipsoid' or 'polyhedral_mesh' "
             f'when present; got {shape_model!r}'
         )
+    for key in _IDEALIZED_NUMBER_KEYS:
+        _check_optional_number(obj.get(key), f'{label}.{key}', source=source)
+    sub_observer_lat = obj.get('sub_observer_lat_deg')
+    if sub_observer_lat is not None and not -90.0 <= float(sub_observer_lat) <= 90.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.sub_observer_lat_deg must lie in [-90, 90] degrees; '
+            f'got {sub_observer_lat!r}'
+        )
+    for key in _IDEALIZED_INT_KEYS:
+        _check_int_key(obj, key, label=label, source=source)
+    _check_optional_nonnegative_int(
+        obj.get('mesh_detail_octaves'), f'{label}.mesh_detail_octaves', source=source
+    )
+    pose = obj.get('pose_euler_deg')
+    if pose is not None:
+        if not isinstance(pose, (list, tuple)) or len(pose) != 3:
+            raise SimSceneValidationError(
+                f'{source}: {label}.pose_euler_deg must be a list of 3 angles when present'
+            )
+        _check_number_list(pose, f'{label}.pose_euler_deg', source=source)
+
+
+def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
+    """Validate one ``bodies`` entry's field types."""
+    label = f'bodies[{index}]'
+    _check_idealized_body_values(obj, label=label, source=source)
+    shape_model = obj.get('shape_model')
     if shape_model == 'polyhedral_mesh':
         unsupported = [key for key in MESH_UNSUPPORTED_KEYS if obj.get(key) is not None]
         if unsupported:
@@ -100,37 +189,9 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
             raise SimSceneValidationError(
                 f'{source}: {label}: {ellipsoid_unsupported_message(unsupported)}'
             )
-    for key in (
-        'center_v',
-        'center_u',
-        'semi_a_px',
-        'semi_b_px',
-        'semi_c_px',
-        'rotation_z',
-        'sub_observer_lat_deg',
-        'illumination_angle',
-        'phase_angle',
-        'range_km',
-        'km_per_pixel',
-        'mesh_lumpiness',
-        'crater_fill',
-        'crater_relief_scale',
-        'anti_aliasing',
-    ):
+    for key in ('crater_fill', 'crater_relief_scale', 'anti_aliasing'):
         _check_optional_number(obj.get(key), f'{label}.{key}', source=source)
-    sub_observer_lat = obj.get('sub_observer_lat_deg')
-    if sub_observer_lat is not None and not -90.0 <= float(sub_observer_lat) <= 90.0:
-        raise SimSceneValidationError(
-            f'{source}: {label}.sub_observer_lat_deg must lie in [-90, 90] degrees; '
-            f'got {sub_observer_lat!r}'
-        )
     _check_crater_shape_keys(obj, label=label, source=source)
-    for key in ('mesh_n_lat', 'mesh_n_lon', 'mesh_seed'):
-        if obj.get(key) is not None:
-            _require_int(obj, key, source=f'{source}: {label}')
-    _check_optional_nonnegative_int(
-        obj.get('mesh_detail_octaves'), f'{label}.mesh_detail_octaves', source=source
-    )
     shading = obj.get('shading')
     if shading is not None and shading not in ('flat', 'gouraud'):
         raise SimSceneValidationError(
@@ -142,13 +203,6 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
     _check_disc_texture(obj.get('disc_texture'), label=label, source=source)
     _check_transits(obj.get('transits'), label=label, source=source)
     _check_atmosphere(obj.get('atmosphere'), label=label, source=source)
-    pose = obj.get('pose_euler_deg')
-    if pose is not None:
-        if not isinstance(pose, (list, tuple)) or len(pose) != 3:
-            raise SimSceneValidationError(
-                f'{source}: {label}.pose_euler_deg must be a list of 3 angles when present'
-            )
-        _check_number_list(pose, f'{label}.pose_euler_deg', source=source)
     override = obj.get('nav_override')
     if override is not None:
         if not isinstance(override, dict):
@@ -163,13 +217,13 @@ def _check_body_object(obj: dict[str, Any], *, index: int, source: str) -> None:
                 f'{source}: {label}.nav_override may only override idealized body '
                 f'keys; got {sorted(bad)}'
             )
+        # The navigator reads an override value in place of the body's, so it
+        # passes the check the body's own value does.
+        _check_idealized_body_values(override, label=f'{label}.nav_override', source=source)
 
 
 def _check_number_list(values: Any, key: str, *, source: str) -> None:
     """Validate that every entry of a fixed-length list is a number.
-
-    A list entry can't fall back on a default, so a null entry is refused
-    rather than read as absent.
 
     Parameters:
         values: The list or tuple, already checked for its length.
@@ -177,11 +231,9 @@ def _check_number_list(values: Any, key: str, *, source: str) -> None:
         source: Label used in error messages.
 
     Raises:
-        SimSceneValidationError: If an entry is null or not a number.
+        SimSceneValidationError: If an entry is not a number.
     """
     for value in values:
-        if value is None:
-            raise SimSceneValidationError(f'{source}: {key} entries must be numbers; got null')
         _check_optional_number(value, f'{key}[]', source=source)
 
 

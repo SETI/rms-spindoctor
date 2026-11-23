@@ -289,11 +289,8 @@ applies where. The *channel* is structural:
   (the filter is default-deny -- an unclassified or unknown key stays behind),
   a body's ``nav_override`` mapping is overlaid onto its idealized view and
   then dropped (the navigator sees what it *believes*, never the true values
-  underneath), and all values are deep copies. A null reads as absent here too:
-  a key set to null inside ``nav_override`` leaves the idealized value in place, and
-  a body or star key that is still null after the overlay is left out, as is a
-  null key of the ring system or of one of its features. Leaving a key out can
-  only take information away, so neither rule lets truth across.
+  underneath), and all values are deep copies. A key that ``nav_override`` leaves
+  out keeps the body's own idealized value.
   One value inside the truth-side ``detector`` block is published: the readout
   binning, which the view carries as a top-level ``binning`` key (1 when the
   scene sets none). A real frame's label states its readout mode, so a real
@@ -1598,8 +1595,7 @@ quantity it holds. The registry records which key each mode takes
 ``dead_pixels`` and ``dead_columns`` also accept ``count``, a fixed number of
 dead pixels or columns in place of the Poisson draw. A static detector defect
 has a definite count, so ``count`` is the usual choice there. The two keys are
-mutually exclusive, and the validator refuses a map that sets both. A key set
-to null counts as unset, so ``{count: null, expected_events: 3}`` is valid. The
+mutually exclusive, and the validator refuses a map that sets both. The
 sim editor keeps the two exclusive too: ``count`` carries a "set" box, setting
 it removes ``expected_events``, and editing ``expected_events`` removes the
 count.
@@ -1915,8 +1911,8 @@ The expected-outcome block
 
 A scene may carry a scene-level ``expected`` block declaring the outcome the
 navigator should produce: a required ``status`` (``success`` / ``failed`` /
-``conflicted``), a ``confidence_tier`` (one of the five navigation ranks, or
-null to assert the status only), an optional ``status_reason`` token, and an
+``conflicted``), an optional ``confidence_tier`` (one of the five navigation ranks;
+leave it out to assert the status only), an optional ``status_reason`` token, and an
 optional ``known_offset_error_px`` / ``known_offset_error_tol_px`` pair (the
 known-error check, below). It is
 a **test-only** key -- read by the assertion machinery in
@@ -2083,9 +2079,8 @@ placement. No body module imports the dispatcher.
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
 frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
 (:func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`). Every default is
-applied there, and a key set to null gets the same default as an absent key. Under a
-planted roll the stage first turns the entry about the body's own center
-(:func:`~spindoctor.sim.render.roll.roll_body_params`; see
+applied there. Under a planted roll the stage first turns the entry about the body's
+own center (:func:`~spindoctor.sim.render.roll.roll_body_params`; see
 :ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
 ``roll_deg``, which turns the crater layout. The stage then shifts each center by the
 ephemeris parallax, turns it about the frame center by the roll, and scales the
@@ -2095,14 +2090,13 @@ spec. Two sub-blocks stay as their validated mappings, because their specs depen
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
 the ``albedo_texture`` noise draws its seed from the body's identity. The renderer builds
 them with :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_params` and
-:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which read a null
-key as absent too.
+:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which apply the
+defaults of those blocks.
 
 The stage also writes each body's entry in the render truth. The entry starts as a
-copy of the scene entry, leaving out any key the scene sets to null, so the truth reads
-a null key as an absent one. Under a planted roll the entry is the turned one, and the
+copy of the scene entry. Under a planted roll the entry is the turned one, and the
 angles the roll turns (``illumination_angle``, and ``rotation_z`` or
-``pose_euler_deg``) are always present: one the scene leaves out or sets to null
+``pose_euler_deg``) are always present: one the scene leaves out
 carries its default turned by the roll. The stage then puts in the render-grid centers
 and axes, fills in the name and range when the scene leaves them out, and, for a mesh
 body, adds the pose scatter it drew.
@@ -2596,13 +2590,13 @@ prediction consumes:
 The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
-pose-scatter keys. The scene validator *rejects* a non-null value of any of
-thirteen ellipsoid-only keys on a ``polyhedral_mesh`` body: the appearance keys
-``atmosphere``, ``photometric_law``, ``minnaert_k``, ``opposition_surge``,
-``albedo_texture``, ``disc_texture``, ``transits``, ``crater_fill``,
-``crater_min_radius``, ``crater_max_radius``, ``crater_power_law_exponent``, and
-``crater_relief_scale``, and ``sub_observer_lat_deg``, since a mesh body is turned
-by its ``pose_euler_deg`` instead. A null value reads as an absent key. The mesh renderer
+pose-scatter keys. The scene validator *rejects* each of thirteen ellipsoid-only
+keys on a ``polyhedral_mesh`` body: the appearance keys ``atmosphere``,
+``photometric_law``, ``minnaert_k``, ``opposition_surge``, ``albedo_texture``,
+``disc_texture``, ``transits``, ``crater_fill``, ``crater_min_radius``,
+``crater_max_radius``, ``crater_power_law_exponent``, and ``crater_relief_scale``,
+and ``sub_observer_lat_deg``, since a mesh body is turned by its ``pose_euler_deg``
+instead. The mesh renderer
 would silently ignore these keys, and a scene that asks for an effect must render
 it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
 :mod:`spindoctor.sim.scene.fields`, and ``mesh_unsupported_message`` there
@@ -2611,7 +2605,7 @@ control that writes one of these keys, and it shows the refusal as the tooltip
 of that control and of every control and label inside it, so hovering any of
 them explains why it is disabled (see :ref:`sim-gui`).
 
-The reverse rule holds too. The validator rejects a non-null value of the three
+The reverse rule holds too. The validator rejects the three
 mesh-only appearance keys, ``shading``, ``mesh_detail_octaves``, and
 ``pose_scatter``, on an ellipsoid body, including a body that doesn't state a
 ``shape_model``. The ellipsoid renderer would silently ignore them. That list is
@@ -3503,19 +3497,7 @@ Scene parameter reference
 Top-level fields
 ----------------
 
-A top-level number (``exposure_sec``, ``offset_v``, ``offset_u``,
-``offset_rotation_deg``, ``time``, ``ring_epoch``, and ``star_catalog_scatter_px``)
-can't be null: the validator refuses it, and the author leaves the key out to take its
-default. A top-level block or list set to null reads as unset. Inside the ``bodies``,
-``stars``, ``optics``, ``sky_counts``, ``spk_error``, ``noise``, ``detector``,
-``artifacts``, and ``ring_system`` blocks, an optional key that validation accepts as
-null renders exactly as an absent key does. The navigator reads it as absent too:
-:func:`~spindoctor.sim.scene.boundary.build_nav_params` leaves a null body, star, or ring key
-out of the navigator view. For a key set to null inside ``nav_override``, the navigator
-sees the scene's own value. Validation refuses null on a few optional keys, which the
-author leaves out instead: ``optics.psf.match_navigator``, an ``optics.smear`` entry's
-``object_class``, and the map of an artifact mode inside ``artifacts``. A parameter
-inside a mode's map may be null and takes its default.
+A scene either sets a key or leaves it out to take its default.
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -3702,13 +3684,10 @@ Body parameters
 Each entry of ``bodies`` is a dict. The geometry, pose, lighting, and physical
 scale are idealized (the published shape model of a body is catalog knowledge;
 a scene plants shape error through ``nav_override``, not by hiding the mesh).
-Every body key, and every optional key inside a body's sub-blocks, may be null. A
-null key renders exactly as an absent key does (see the body spec in
-:ref:`sim-body-renderer`), gives the same render truth, and is left out of the
-navigator view. For a key set to null inside ``nav_override``, the navigator sees
-the scene's own value. An entry of a
-fixed-length list, such as ``pose_euler_deg`` or a cloud's ``center_vu``, can't be
-null. Common fields:
+A ``nav_override`` may set only the idealized keys, and each value it sets passes the
+same check as the body's own value for that key, so a two-angle ``pose_euler_deg`` or a
+center that isn't finite is refused there with the override's key path. Common
+fields:
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -3788,8 +3767,8 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 The truth-side body keys never reach the navigator, which predicts each body as
 described in :ref:`sim-body-renderer`. The ellipsoid renderer consumes the relief,
 photometry, texture, and transit keys, and the mesh renderer consumes the relief
-keys and the mesh extras. A non-null value of a key in a row marked
-*ellipsoid only*, or of the ``atmosphere`` block, is refused on a
+keys and the mesh extras. A key in a row marked
+*ellipsoid only*, or the ``atmosphere`` block, is refused on a
 ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. list-table::
@@ -3919,11 +3898,10 @@ the tooltips read their descriptions from it. Every mapping in the block,
 down to each orbit, m-mode, edge wave, modulation, spokes, and moonlet entry,
 accepts only its own keys, so an unknown key anywhere in it fails validation.
 
-**Null keys.** An optional key set to null anywhere in the block counts as unset:
-the validator, the renderer, the orbit parser the navigator-side model shares
-(``ring_orbit_from_mapping``), and the sim editor all read it as the absent key,
-through ``scene_value`` in :mod:`spindoctor.sim.scene.fields`. A required key
-set to null is refused as missing.
+**Unset keys.** An optional key that the block leaves out takes its default: the
+validator, the renderer, the orbit parser the navigator-side model shares
+(``ring_orbit_from_mapping``), and the sim editor all read it through ``scene_value``
+in :mod:`spindoctor.sim.scene.fields`.
 
 **Features.** Each entry of ``features`` carries ``name``, ``kind``, ``tau``
 (the normal optical depth), kind-specific shape keys, a catalog ``orbit``,
@@ -3948,7 +3926,7 @@ editor's kind switch follows. The switch grays out a widget the kind rejects,
 and the widget's tooltip says why. Each widget the kind takes shows the value
 the renderer will use: the stored value, or for an absent ``side`` the kind's
 default from ``RING_SIDE_DEFAULTS``, which the editor shows without writing it.
-When a switch makes a shape key required and the key is absent or null, the
+When a switch makes a shape key required and the key is absent, the
 switch writes the starting value for that key. A rejected key fails validation.
 
 ===========================  ========  ========  ========  ========  ========
@@ -4111,11 +4089,9 @@ The optional ``noise`` dict (truth-side) pins the truth-side detector noise the
 scene plants. The detector stage consumes most of it; the missing-data markers
 are applied by the telemetry stage. Each field is off at the floor unless the
 block sets it (or ``artifacts.instrument_defaults`` turns on the camera's
-physical chain); an explicit noise key always wins over the detector default. A key set to
-null, here or in ``noise.vidicon``, counts as unset and resolves as if it were
-absent, as a null ``detector`` key does, so ``noise: {poisson: null}`` keeps the
-shot noise ``instrument_defaults`` turns on. The validator checks the block
-against exactly this inventory, so an unknown noise key fails loudly.
+physical chain); an explicit noise key always wins over the detector default. The
+validator checks the block against exactly this inventory, so an unknown noise key
+fails loudly.
 
 .. list-table::
    :widths: 30 12 12 46
@@ -4354,8 +4330,8 @@ exposure the signal full-scale fraction references), ``filter`` (below),
 ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
 ``sqrt_lut``, ``ls8b``, or ``contour_8bit``), and ``downlink_table`` (the name
 of the downlink table that the ``sqrt_lut`` sub-mode decodes through; see
-:ref:`sim-detector-stage` for when a scene may set it). Omitted keys, and keys
-set to null, fall back to the instrument's detector defaults.
+:ref:`sim-detector-stage` for when a scene may set it). Omitted keys fall back to
+the instrument's detector defaults.
 
 ``filter`` sets the filter combination the frame was shot through, written as
 the product label writes it (``CL1+CL2``). It sets how many electrons per second
@@ -4527,14 +4503,11 @@ instrument entry. Scene validation refuses the key, and so does
 that skipped validation. For rendering, the top-level ``noise`` block wins over
 ``instrument_config.noise``.
 
-``instrument_config.noise`` must be a mapping. A null navigator key there keeps the
-navigator's meaning where it has one, so a null ``marker_value`` marks lost lines
-with NaN. The values the faint-star limit reads have no null meaning, and neither
-has the binned-mode table ``noise.by_binning``. Validation refuses a null for any
-of those values and anywhere in the table, with a message that gives the key's path
-and tells the author to leave the key out to take its default. On a binned frame
-the star limit reads its zero point and read noise from the ``noise.by_binning``
-entry for the frame's binning. So a binned scene that pins
+``instrument_config.noise`` must be a mapping. A scene leaves a key out to keep the
+navigator block's value, and a scene that wants lost lines marked with NaN sets
+``marker_value`` to ``.nan``. On a binned frame the star limit reads its zero point and
+read noise from the ``noise.by_binning`` entry for the frame's binning. So a binned scene
+that pins
 ``instrument_config.noise.read_noise_dn`` or
 ``instrument_config.noise.star_flux_dn_per_s_vmag0`` must also pin the same key
 under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning, and
@@ -4817,8 +4790,8 @@ The editor and the renderer read the same scene. The renderer draws the preview,
 the editor's controls show the author what the scene holds. Each control shows the
 value the renderer draws with:
 
-* **Unset and null keys.** Leaving a key out and setting it to null both mean "use the
-  default", and the control shows the renderer's default. The tabs take every
+* **Unset keys.** Leaving a key out means "use the default", and the control shows
+  the renderer's default. The tabs take every
   default from the renderer. They read each optional key through
   :func:`~spindoctor.sim.scene.fields.scene_value` with the renderer's default, or read
   the spec the renderer builds: the body tab and its appearance groups use
@@ -4840,7 +4813,7 @@ value the renderer draws with:
   when it picks a range for an added body and when it warns that two bodies share a
   range.
 * **The navigation override.** The renderer ignores a body's ``nav_override``, and for
-  an override key that is absent or null the navigator uses the body's own value.
+  an override key that is absent the navigator uses the body's own value.
   Turning the group on writes an empty override, so the navigator predicts the body
   with its own shape model, mesh lumpiness, and pose until the author edits one of the
   group's controls. An edit writes only that control's key, so a key the author has not
@@ -4851,7 +4824,7 @@ value the renderer draws with:
   controls update when the author edits a semi-axis or changes the frame size. Neither key is
   written to the scene until the author edits its own control.
 * **On/off groups.** A group starts turned off when its block, or the key that turns it
-  on, is absent or null, because the renderer then draws none of it. An empty ring
+  on, is absent, because the renderer then draws none of it. An empty ring
   azimuthal sub-block also starts turned off. While a group is off, its controls show
   the values the editor writes when the group is turned on.
 * **Groups whose default is 0.** The renderer's defaults for the opposition surge's

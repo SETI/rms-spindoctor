@@ -50,6 +50,9 @@ directly, so it has none of the holdings-based selection options -- there is no
 ``--volumes`` and no image-number filtering -- and it does not support PDS4 bundle
 generation.
 
+Most scene settings are optional. To use a setting's default, leave the setting out of
+the file.
+
 The scene editor
 ================
 
@@ -111,12 +114,12 @@ status bar lists them. Switching back puts them back during the same session. A 
 saved in between doesn't carry them.
 
 Each control shows the value the simulator draws the frame with. If the scene leaves a
-setting out or sets it to ``null``, its control shows the default. Some controls sit in a
-group that turns on and off as a whole, such as a body's atmosphere or opposition surge.
-If the scene leaves out such a group, or sets it to ``null``, the group starts turned
-off. If the scene does not set a body's name, the editor shows the name the simulator
-gives it, such as ``SIM-BODY-1`` for the first body in the list. If the scene does not
-set a body's center, the editor shows the center of the frame.
+setting out, its control shows the default. Some controls sit in a group that turns on
+and off as a whole, such as a body's atmosphere or opposition surge. If the scene leaves
+out such a group, the group starts turned off. If the scene does not set a body's name,
+the editor shows the name the simulator gives it, such as ``SIM-BODY-1`` for the first
+body in the list. If the scene does not set a body's center, the editor shows the center
+of the frame.
 
 Units of a simulated frame
 ==========================
@@ -275,8 +278,7 @@ An edge fills every radius on one side of its orbit, by default everything inwar
 as the stretch where the optical depth doubles. Draw a band as a ringlet, or cut it into a
 sheet as a gap.
 
-An unknown ring key is refused when the scene is loaded. An optional ring key set to
-``null`` counts as unset: it takes the value it has when it is left out.
+An unknown ring key is refused when the scene is loaded.
 The developer guide's :doc:`/dev_guide/dev_guide_simulator` chapter lists every ring key
 and tabulates which kind takes which key.
 

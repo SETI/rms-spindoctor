@@ -156,7 +156,7 @@ def albedo_spec_from_params(
 ) -> AlbedoTextureSpec | None:
     """Build an :class:`AlbedoTextureSpec` from a body's ``albedo_texture`` block.
 
-    A key that is absent or null takes its default.
+    A key that the block leaves out takes its default.
 
     Parameters:
         block: One body's ``albedo_texture`` mapping, or None.
@@ -178,7 +178,7 @@ def albedo_spec_from_params(
 def disc_texture_spec_from_params(body_params: Mapping[str, Any]) -> DiscTextureSpec | None:
     """Build a :class:`DiscTextureSpec` from a body mapping, or None.
 
-    A key that is absent or null takes its default.
+    A key that the block leaves out takes its default.
 
     Parameters:
         body_params: One scene body entry.
@@ -200,7 +200,7 @@ def disc_texture_spec_from_params(body_params: Mapping[str, Any]) -> DiscTexture
 def transit_specs_from_params(body_params: Mapping[str, Any]) -> tuple[TransitSpec, ...]:
     """Build the body's :class:`TransitSpec` tuple (empty without ``transits``).
 
-    A key that is absent or null takes its default.
+    A key that an entry leaves out takes its default.
 
     Parameters:
         body_params: One scene body entry.

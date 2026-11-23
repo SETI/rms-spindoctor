@@ -36,7 +36,6 @@ from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.compose import compose_scene_radiance
 from spindoctor.sim.render.stages import new_sim_frame
 from spindoctor.sim.scene.errors import SimSceneValidationError
-from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -322,19 +321,6 @@ def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
     spec = atmosphere_spec_from_params({'scale_height_px': 4.0, 'tau_ref': 1.2}, oversample=1)
     assert spec is not None
     assert spec.albedo == DEFAULT_HAZE_ALBEDO
-
-
-@pytest.mark.parametrize('key', sorted(ATMOSPHERE_KEYS - {'scale_height_px', 'tau_ref'}))
-def test_a_null_atmosphere_key_reads_as_omitted(key: str) -> None:
-    """An optional key written as null builds the same spec as leaving it out.
-
-    A structure key written as null leaves the structure off, as leaving it out
-    does.
-    """
-    block = {'scale_height_px': 4.0, 'tau_ref': 1.2}
-    stated = atmosphere_spec_from_params({**block, key: None}, oversample=2)
-    omitted = atmosphere_spec_from_params(block, oversample=2)
-    assert stated == omitted
 
 
 def test_the_halo_glow_scales_with_the_haze_albedo() -> None:

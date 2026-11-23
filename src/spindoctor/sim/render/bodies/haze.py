@@ -305,8 +305,8 @@ def haze_structure_from_params(
 ) -> HazeStructure | None:
     """Build a :class:`HazeStructure` from a body's ``atmosphere`` block.
 
-    Returns None when every key of :data:`HAZE_STRUCTURE_KEYS` is absent or null,
-    so a plain haze renders as an unstructured haze.  A key that is absent or null
+    Returns None when the block leaves out every key of :data:`HAZE_STRUCTURE_KEYS`,
+    so a plain haze renders as an unstructured haze.  A key that the block leaves out
     takes its default.  Pixel lengths are scaled to the render grid by
     ``oversample`` exactly as the body's axes are; the amplitudes, ratios, and
     angles are dimensionless and are not.

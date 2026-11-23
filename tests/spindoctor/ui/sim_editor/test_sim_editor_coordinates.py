@@ -189,18 +189,18 @@ def test_dragging_a_star_without_a_position_starts_at_the_frame_center(model: An
     assert model.sim_params['stars'][0]['u'] == pytest.approx(_SIZE / 2.0 + 2.0)
 
 
-def test_a_star_tab_shows_a_null_position_at_the_frame_center(model: Any) -> None:
-    """The star tab's V box shows the frame center for a star whose ``v`` is null."""
-    model.sim_params['stars'] = [{'v': None, 'u': None}]
+def test_a_star_tab_shows_a_missing_position_at_the_frame_center(model: Any) -> None:
+    """The star tab's V box shows the frame center for a star whose ``v`` is absent."""
+    model.sim_params['stars'] = [{}]
     tab = model._build_star_tab(0)
     assert tab.v_spin.value() == pytest.approx(_SIZE / 2.0)
 
 
-def test_a_star_with_a_null_position_is_marked_at_the_frame_center(model: Any) -> None:
-    """The preview marks a star whose ``v`` and ``u`` are null at the frame center."""
+def test_a_star_without_a_position_is_marked_at_the_frame_center(model: Any) -> None:
+    """The preview marks a star that leaves out ``v`` and ``u`` at the frame center."""
     model.sim_params['bodies'] = []
-    model.sim_params['ring_system'] = None
-    model.sim_params['stars'] = [{'v': None, 'u': None}]
+    model.sim_params.pop('ring_system', None)
+    model.sim_params['stars'] = [{}]
     model._current_image = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     model._show_visual_aids = True
     model._display_image()
@@ -210,11 +210,11 @@ def test_a_star_with_a_null_position_is_marked_at_the_frame_center(model: Any) -
     assert pixel.green() > 0
 
 
-def test_a_null_star_mark_follows_the_displayed_frame_size(model: Any) -> None:
-    """A null-position star mark keeps to the displayed frame while an edit is refused."""
+def test_a_positionless_star_mark_follows_the_displayed_frame_size(model: Any) -> None:
+    """A positionless star mark keeps to the displayed frame while an edit is refused."""
     model.sim_params['bodies'] = []
-    model.sim_params['ring_system'] = None
-    model.sim_params['stars'] = [{'v': None, 'u': None}]
+    model.sim_params.pop('ring_system', None)
+    model.sim_params['stars'] = [{}]
     model._current_image = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     model._displayed_params = copy.deepcopy(model.sim_params)
     model.sim_params['size_v'] = _SIZE // 2
