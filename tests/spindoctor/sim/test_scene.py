@@ -324,10 +324,7 @@ def test_validate_sim_params_accepts_the_full_noise_inventory() -> None:
     params['noise'] = {
         'poisson': True,
         'read_noise_dn': 4.0,
-        'bias_dn': 20.0,
         'cosmic_ray_events_per_pixel_per_sec': 0.001,
-        'missing_data_rate': 0.01,
-        'signal_full_scale_frac': 0.5,
         'dark_current_e_per_sec': 5.0,
         'vidicon': {
             'read_noise_line_dn': 1.8,

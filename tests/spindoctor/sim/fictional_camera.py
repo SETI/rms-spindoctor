@@ -47,6 +47,10 @@ detector:
   default_gain_state: 1
   read_noise_e: 3.0
   bias_dn: 10.0
+  saturation_dn: 5000.0
+  full_well_dn: 4500.0
+  signal_full_scale_frac: 0.25
+  missing_data_rate: 0.125
   dark_current_e_per_sec: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
   quantization: exact

@@ -24,6 +24,7 @@ from spindoctor.schema import (
     NonNegInt,
     Positive,
     RuleError,
+    Unit,
 )
 from spindoctor.schema.errors import RangeError
 from spindoctor.sim.artifact_modes import DetectorModel, QuantizationMode
@@ -114,7 +115,7 @@ class VidiconChain:
 class Detector:
     """An entry's detector block: the values of its detector chain.
 
-    Every entry states the first five keys.  A CCD entry also states its electron
+    Every entry states the first nine keys.  A CCD entry also states its electron
     chain: the full well, gain table, default gain state, read noise, and dark
     current.  A vidicon entry states its ``vidicon`` chain.  The other keys are
     optional.
@@ -124,6 +125,13 @@ class Detector:
         exposure_ref_sec: The reference exposure, in seconds, at which a signal of
             1.0 fills the scaled well.
         bias_dn: The bias pedestal, in DN.
+        saturation_dn: The ADC ceiling, in DN, at which the frame is clipped.
+        full_well_dn: The DN full scale of the vidicon chain.  A CCD entry repeats its
+            ADC ceiling here, which only a scene that renders the camera through the
+            vidicon chain reads.
+        signal_full_scale_frac: The fraction of the well that a signal of 1.0 fills at
+            the reference exposure.
+        missing_data_rate: The fraction of the pixels lost at random in the downlink.
         quantization: How the frame is quantized to DN.
         cosmic_ray_events_per_pixel_per_sec: The cosmic-ray rate.
         full_well_e: The full well, in electrons.
@@ -151,6 +159,10 @@ class Detector:
     detector_model: DetectorModel
     exposure_ref_sec: Positive
     bias_dn: NonNeg
+    saturation_dn: Positive
+    full_well_dn: Positive
+    signal_full_scale_frac: Positive
+    missing_data_rate: Unit
     quantization: QuantizationMode
     cosmic_ray_events_per_pixel_per_sec: NonNeg
     full_well_e: Positive | None = None
@@ -221,6 +233,10 @@ class ReadoutMode:
         detector_model: Refused when set.
         exposure_ref_sec: As :class:`Detector`.
         bias_dn: As :class:`Detector`.
+        saturation_dn: As :class:`Detector`.
+        full_well_dn: As :class:`Detector`.
+        signal_full_scale_frac: As :class:`Detector`.
+        missing_data_rate: As :class:`Detector`.
         quantization: As :class:`Detector`.
         cosmic_ray_events_per_pixel_per_sec: As :class:`Detector`.
         full_well_e: As :class:`Detector`.
@@ -243,6 +259,10 @@ class ReadoutMode:
     detector_model: DetectorModel | None = None
     exposure_ref_sec: Positive | None = None
     bias_dn: NonNeg | None = None
+    saturation_dn: Positive | None = None
+    full_well_dn: Positive | None = None
+    signal_full_scale_frac: Positive | None = None
+    missing_data_rate: Unit | None = None
     quantization: QuantizationMode | None = None
     cosmic_ray_events_per_pixel_per_sec: NonNeg | None = None
     full_well_e: Positive | None = None

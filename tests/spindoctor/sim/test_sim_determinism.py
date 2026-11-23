@@ -10,8 +10,9 @@ pixels even after the render caches are cleared.
 from typing import Any
 
 import numpy as np
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, star_entry, zero_bias
 
+from spindoctor.sim.instruments.navigator_link import navigator_marker
 from spindoctor.sim.render.detector import chain, resolve_detector_params
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
 from spindoctor.sim.render.stages import SimFrame
@@ -190,7 +191,7 @@ def test_vidicon_noise_draws_from_the_detector_stream() -> None:
     expected = _flat_frame(0.3)
     chain._apply_vidicon(expected, dp, np.random.default_rng(derive_effect_seed(11, 'detector')))
     # vgiss renders calibrated I/F, so the stage ends with the calibration inverse.
-    chain._apply_calibration_inverse(expected, dp)
+    chain._apply_calibration_inverse(expected, dp, marker=navigator_marker(params))
     assert np.array_equal(staged.signal, expected.signal)
 
 
@@ -200,7 +201,11 @@ def test_missing_data_losses_draw_from_the_telemetry_stream() -> None:
     frame = _flat_frame(50.0)
     apply_telemetry(
         frame,
-        params={'instrument': 'generic', 'random_seed': 11, 'noise': {'missing_data_rate': rate}},
+        params={
+            'instrument': 'generic',
+            'random_seed': 11,
+            'detector': {'missing_data_rate': rate},
+        },
     )
     draws = np.random.default_rng(derive_effect_seed(11, 'telemetry')).random(size=(48, 48))
     assert np.array_equal(frame.signal != 50.0, draws < rate)
@@ -220,7 +225,7 @@ def test_noise_seed_redraws_the_noise_and_nothing_before_the_detector() -> None:
     detector noise turned off the frame is the same with or without the key.
     """
     noisy = {**_scene(), 'noise': {'poisson': True, 'read_noise_dn': 5.0}}
-    quiet = {**_scene(), 'noise': quiet_noise()}
+    quiet = {**_scene(), 'noise': quiet_noise(), 'detector': zero_bias()}
     assert not np.array_equal(_render(noisy), _render({**noisy, 'noise_seed': 23}))
     assert np.array_equal(_render(quiet), _render({**quiet, 'noise_seed': 23}))
 
@@ -295,6 +300,7 @@ def _camera_scene(**extra: Any) -> dict[str, Any]:
         size=96,
         seed=3,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[disc_body(48.0, 48.0, 15.0)],
         artifacts={
             'adversarial': True,

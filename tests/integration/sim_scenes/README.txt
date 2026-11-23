@@ -187,12 +187,11 @@ out.
                                      status_reason); read only by the sim
                                      expected-outcome test machinery -- fed to
                                      neither the renderer nor the navigator
-  noise            (mapping, opt)    poisson, read_noise_dn, bias_dn,
+  noise            (mapping, opt)    poisson, read_noise_dn,
                                      cosmic_ray_events_per_pixel_per_sec (expected
                                      events per pixel per second of exposure),
                                      cosmic_ray_readout_dwell_sec,
                                      cosmic_ray_amplitude_e, cosmic_ray_spread_px,
-                                     missing_data_rate, signal_full_scale_frac,
                                      dark_current_e_per_sec,
                                      calibration_column_residual_e,
                                      calibration_pixel_residual_e,
@@ -215,7 +214,13 @@ out.
                                      cataloged for the instrument), binning (a
                                      cataloged readout mode; each frame pixel sums
                                      a b-by-b native block), detector_model
-                                     (ccd | vidicon), exposure_ref_sec, quantization
+                                     (ccd | vidicon), bias_dn, saturation_dn (the
+                                     image's ADC ceiling; the navigator keeps its own),
+                                     full_well_dn (the well of a native pixel, in DN),
+                                     signal_full_scale_frac (the fraction of the well
+                                     a signal of 1.0 fills), exposure_ref_sec,
+                                     missing_data_rate (the fraction of pixels lost in
+                                     the downlink), quantization
                                      (exact | 8bit | uneven_12bit | sqrt_lut | ls8b |
                                      contour_8bit), downlink_table (the table, by
                                      name, sqrt_lut decodes through; one the
@@ -249,14 +254,17 @@ out.
                                      to the scene; choose 'generic' and override every
                                      key except data_units to fully self-specify so a
                                      later camera-config change cannot shift the
-                                     scene.  (The top-level noise block still wins
-                                     over instrument_config.noise for rendering.)  A
-                                     scene can't set data_units here; the instrument's
-                                     entry decides the frame's units.
+                                     scene.  The block is what the navigator believes
+                                     about the camera; the detector and noise blocks
+                                     set the image.  noise takes only the keys the
+                                     navigator reads (saturation_dn, marker_value,
+                                     read_noise_dn, star_flux_dn_per_s_vmag0,
+                                     by_binning).  A scene can't set data_units here;
+                                     the instrument's entry decides the frame's units.
   published_equals_truth (list, opt) truth paths (noise.read_noise_dn,
                                      optics.psf.sigma_v, ...) that instrument_config
                                      repeats on purpose.  Without it, a planted
-                                     noise or PSF value that instrument_config
+                                     noise, detector, or PSF value that instrument_config
                                      repeats warns, because instrument_config
                                      reaches the navigator as published knowledge;
                                      a listed path whose values differ fails

@@ -13,6 +13,7 @@ from tests.spindoctor.sim.scenes import (
     quiet_noise,
     ring_system_block,
     star_entry,
+    zero_bias,
 )
 
 from spindoctor.sim.scene.validate import validate_sim_params
@@ -27,7 +28,9 @@ _RINGLET = {
 
 # Each block helper inside the frame it is used in.
 _BLOCK_SCENES: dict[str, Callable[[], dict[str, Any]]] = {
-    'named_quiet': lambda: frame_scene(scene_name='probe', noise=quiet_noise()),
+    'named_quiet': lambda: frame_scene(
+        scene_name='probe', noise=quiet_noise(), detector=zero_bias()
+    ),
     'disc_body': lambda: frame_scene(bodies=[disc_body(20.0, 40.0, 6.0, range_km=1.0e6)]),
     'star_entry': lambda: frame_scene(stars=[star_entry(32.5, 32.5, 6.0, psf_sigma=1.5)]),
     'ring_system_block': lambda: frame_scene(

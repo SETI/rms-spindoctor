@@ -65,6 +65,10 @@ detector:
   default_gain_state: 0
   read_noise_e: 3.0
   bias_dn: 10.0
+  saturation_dn: 4095.0
+  full_well_dn: 4095.0
+  signal_full_scale_frac: 0.5
+  missing_data_rate: 0.0
   dark_current_e_per_sec: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
   quantization: exact
@@ -1034,6 +1038,21 @@ def test_a_camera_added_as_an_entry_uses_its_gain_state(fictional_camera: str) -
     assert resolve_detector_params(_fictional_scene(fictional_camera)).gain_e_per_dn == 2.0
 
 
+def test_a_camera_added_as_an_entry_uses_its_detector_values(fictional_camera: str) -> None:
+    """The bias, ADC ceiling, full well, signal scale, and loss rate are the entry's own.
+
+    The entry's navigator block is the generic one, which sets a 4095 DN ceiling.
+    """
+    params = resolve_detector_params(_fictional_scene(fictional_camera))
+    assert (
+        params.bias_dn,
+        params.saturation_dn,
+        params.full_well_dn,
+        params.signal_full_scale_frac,
+        params.missing_data_rate,
+    ) == (10.0, 5000.0, 4500.0, 0.25, 0.125)
+
+
 def test_a_camera_added_as_an_entry_scales_its_signal_by_the_filter(
     fictional_camera: str,
 ) -> None:
@@ -1227,3 +1246,32 @@ def test_a_table_decoding_above_the_adc_ceiling_fails(
         DetectorParamError, match=r'above the ADC ceiling \(saturation_dn\) of 4095 DN'
     ):
         resolve_detector_params(scene)
+
+
+def test_a_scene_ceiling_below_the_downlink_table_top_fails_validation() -> None:
+    """A scene whose ceiling the camera's table decodes above is refused before a render."""
+    scene = frame_scene(size=32, detector={'saturation_dn': 1000.0, 'quantization': 'sqrt_lut'})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'detector\.saturation_dn 1000: .*above the ADC ceiling',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_missing_data_rate_above_one_fails() -> None:
+    """The rate is a fraction of the pixels, so more than 1 is refused."""
+    scene = frame_scene(size=32, detector={'missing_data_rate': 1.5})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.missing_data_rate must be from 0 to 1; got 1\.5'
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_zero_signal_full_scale_frac_fails() -> None:
+    """A signal of 1.0 has to fill some of the well, so zero is refused."""
+    scene = frame_scene(size=32, detector={'signal_full_scale_frac': 0.0})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'detector\.signal_full_scale_frac must be a positive number',
+    ):
+        validate_sim_params(scene)

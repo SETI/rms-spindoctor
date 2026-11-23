@@ -250,7 +250,7 @@ def test_a_rendered_hot_pixel_bleeds_its_column_factor_up_the_column() -> None:
     scene = frame_scene(
         noise=quiet_noise(),
         exposure_sec=0.1,
-        detector={'quantization': 'exact'},
+        detector={'quantization': 'exact', 'bias_dn': 0.0},
         artifacts={'hot_pixels': hot},
     )
     img, truth = render_scene(scene)

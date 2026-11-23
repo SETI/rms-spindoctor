@@ -15,7 +15,7 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise
+from tests.spindoctor.sim.scenes import disc_body, frame_scene, quiet_noise, zero_bias
 
 from spindoctor.sim.render.bodies import ellipsoid_relief
 from spindoctor.sim.render.bodies.ellipsoid import (
@@ -673,7 +673,7 @@ def _body_scene(*, oversample: int | None, body_extra: dict[str, Any]) -> dict[s
         'crater_max_radius': 0.2,
     }
     body.update(body_extra)
-    scene = frame_scene(size=80, seed=11, noise=quiet_noise(), bodies=[body])
+    scene = frame_scene(size=80, seed=11, noise=quiet_noise(), detector=zero_bias(), bodies=[body])
     if oversample is not None:
         scene['oversample'] = oversample
     return scene
@@ -761,6 +761,7 @@ def test_two_identical_bodies_get_independent_terrains() -> None:
         size=120,
         seed=11,
         noise=quiet_noise(),
+        detector=zero_bias(),
         bodies=[
             disc_body(30.0, 30.0, 20.0, name='FIRST', limb_relief_rms=0.03, range_km=1.0),
             disc_body(88.0, 88.0, 20.0, name='SECOND', limb_relief_rms=0.03, range_km=2.0),

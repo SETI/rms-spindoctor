@@ -30,8 +30,10 @@ from spindoctor.sim.instruments.resolvers import (
     downlink_table_names,
     resolve_detector_defaults,
     resolve_detector_defaults_native,
+    resolve_downlink_table,
     resolve_filter_throughput,
 )
+from spindoctor.sim.render.detector.sqrt_lut import check_curve_ceiling, resolve_sqrt_lut
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -280,8 +282,7 @@ def _check_stray_light_block(value: Any, *, source: str) -> None:
 
 
 # The complete inventory of the truth-side noise block: the detector's shot, read,
-# dark, and cosmic-ray noise and calibration residual, plus the telemetry stage's
-# missing-data rate.
+# dark, and cosmic-ray noise and calibration residual.
 # Unknown noise keys fail validation, so a typo cannot silently render the
 # clean floor.  'poisson' is the only boolean; 'vidicon' is a sub-mapping with its
 # own inventory; everything else is a non-negative number.
@@ -289,13 +290,10 @@ _NOISE_BOOL_KEYS: frozenset[str] = frozenset({'poisson'})
 _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
     {
         'read_noise_dn',
-        'bias_dn',
         'cosmic_ray_events_per_pixel_per_sec',
         'cosmic_ray_readout_dwell_sec',
         'cosmic_ray_amplitude_e',
         'cosmic_ray_spread_px',
-        'missing_data_rate',
-        'signal_full_scale_frac',
         'dark_current_e_per_sec',
         'calibration_column_residual_e',
         'calibration_pixel_residual_e',
@@ -311,12 +309,13 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
 
 # The detector block selects the electron-chain gain state, the readout
 # mode's binning, the detector model (CCD electron chain or vidicon DN path),
-# the exposure the well fraction references (or the filter whose measured
+# the bias, the ADC ceiling, the full well, the fraction of the well a signal of 1.0
+# fills, the exposure that fraction references (or the filter whose measured
 # throughput sets it), the quantization sub-mode, the downlink table the sqrt_lut
-# quantization decodes through, and the step of the contour_8bit quantization.
-# Per-instrument defaults, filter throughputs, and downlink tables come from the
-# instrument entry; scene keys override them.  The largest contour step is the
-# top code of the 8-bit word it posterizes.
+# quantization decodes through, the step of the contour_8bit quantization, and the
+# fraction of the pixels lost in the downlink.  Per-instrument defaults, filter
+# throughputs, and downlink tables come from the instrument entry; scene keys override
+# them.  The largest contour step is the top code of the 8-bit word it posterizes.
 _CONTOUR_STEP_MAX = 255
 
 _DETECTOR_KEYS: frozenset[str] = frozenset(
@@ -324,11 +323,16 @@ _DETECTOR_KEYS: frozenset[str] = frozenset(
         'gain_state',
         'binning',
         'detector_model',
+        'bias_dn',
+        'saturation_dn',
+        'full_well_dn',
+        'signal_full_scale_frac',
         'exposure_ref_sec',
         'filter',
         'quantization',
         'downlink_table',
         'contour_step',
+        'missing_data_rate',
     }
 )
 
@@ -423,8 +427,11 @@ def _check_detector(value: Any, *, instrument: str, source: str) -> None:
             f'{source}: detector.detector_model must be one of {sorted(DETECTOR_MODELS)}; '
             f'got {model!r}'
         )
-    _check_optional_positive_number(
-        value.get('exposure_ref_sec'), 'detector.exposure_ref_sec', source=source
+    for key in ('saturation_dn', 'full_well_dn', 'exposure_ref_sec', 'signal_full_scale_frac'):
+        _check_optional_positive_number(value.get(key), f'detector.{key}', source=source)
+    _check_optional_nonnegative_number(value.get('bias_dn'), 'detector.bias_dn', source=source)
+    _check_optional_fraction(
+        value.get('missing_data_rate'), 'detector.missing_data_rate', source=source
     )
     _check_detector_filter(value, instrument=instrument, source=source)
     quantization = value.get('quantization')
@@ -507,6 +514,40 @@ def _check_quantization_keys_used(detector: Any, *, instrument: str, source: str
                 f'quantization reads it, and this scene quantizes with {quantization!r}; set '
                 f'detector.quantization: {sub_mode}, or drop the key'
             )
+
+
+def _check_downlink_table_ceiling(detector: Any, *, instrument: str, source: str) -> None:
+    """Refuse a companded frame whose downlink table decodes above the ADC ceiling.
+
+    The ceiling is the scene's ``detector.saturation_dn``, else the camera's.  Only the
+    ``sqrt_lut`` quantization decodes through a table.  Run after
+    :func:`_check_detector`, so the block is a well-formed mapping or None.
+
+    Parameters:
+        detector: The scene ``detector`` block, or None when absent.
+        instrument: The scene's (already validated) instrument name.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If the table's top decoded value exceeds the ceiling.
+    """
+    detector = detector or {}
+    binning = detector.get('binning')
+    defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
+    if detector.get('quantization', defaults.quantization) != 'sqrt_lut':
+        return
+    table = resolve_downlink_table(instrument, detector.get('downlink_table'))
+    if table is None:
+        return
+    saturation_dn = float(detector.get('saturation_dn', defaults.saturation_dn))
+    curve = resolve_sqrt_lut(table, saturation_dn=saturation_dn)
+    try:
+        check_curve_ceiling(curve, saturation_dn=saturation_dn)
+    except ValueError as exc:
+        raise SimSceneValidationError(
+            f'{source}: detector.saturation_dn {saturation_dn:g}: {exc}; raise the ceiling '
+            f'or choose another downlink table'
+        ) from exc
 
 
 def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: str) -> None:
@@ -829,6 +870,16 @@ def _check_optional_nonnegative_number(value: Any, key: str, *, source: str) -> 
         raise SimSceneValidationError(f'{source}: {key} must be a non-negative number when present')
     if not math.isfinite(float(value)):
         raise SimSceneValidationError(f'{source}: {key} must be finite; got {value!r}')
+
+
+def _check_optional_fraction(value: Any, key: str, *, source: str) -> None:
+    """Fail validation unless ``value`` is None or a finite number from 0 to 1."""
+    if value is None:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise SimSceneValidationError(f'{source}: {key} must be a number when present')
+    if not math.isfinite(float(value)) or not 0.0 <= value <= 1.0:
+        raise SimSceneValidationError(f'{source}: {key} must be from 0 to 1; got {value!r}')
 
 
 def _check_optional_str(value: Any, key: str, *, source: str) -> None:

@@ -26,16 +26,26 @@ __all__ = [
     'quiet_noise',
     'ring_system_block',
     'star_entry',
+    'zero_bias',
 ]
 
 
 def quiet_noise() -> dict[str, Any]:
-    """A ``noise`` block that turns off shot noise, read noise, and the bias pedestal.
+    """A ``noise`` block that turns off shot noise and read noise.
 
     Returns:
         A fresh ``noise`` mapping.
     """
-    return {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0}
+    return {'poisson': False, 'read_noise_dn': 0.0}
+
+
+def zero_bias() -> dict[str, Any]:
+    """A ``detector`` block that turns off the bias pedestal.
+
+    Returns:
+        A fresh ``detector`` mapping.
+    """
+    return {'bias_dn': 0.0}
 
 
 def quiet_instrument_defaults(instrument: str) -> dict[str, Any]:

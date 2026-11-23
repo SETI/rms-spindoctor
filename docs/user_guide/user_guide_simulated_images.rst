@@ -163,8 +163,12 @@ you cannot drag an object on the picture, because it shows the earlier scene;
 the object's tab still edits it. Once an edit makes the scene valid again, the preview
 redraws as usual.
 
-The random pixel loss (the missing-data rate) and the cosmic-ray rate work on every
-camera.
+The random pixel loss (the missing-data rate, in the Artifacts tab's detector override)
+and the cosmic-ray rate (on the General tab) work on every camera. The detector override
+also sets the image's saturation level. On a camera that delivers raw counts the
+navigator keeps using the camera's own level, so a scene can show how navigation copes
+with a detector that saturates early. A calibrated frame has no saturation level for the
+navigator to use.
 
 Planting defects in a scene
 ===========================
