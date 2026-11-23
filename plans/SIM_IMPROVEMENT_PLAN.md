@@ -391,6 +391,12 @@ model does not gain them.
 | #1121 | **Affects no current scene.** Galileo's shutter shading scales the light at every exposure, where the shutter adds a fixed exposure time that differs across the frame |
 | #1125 | **Affects no current scene.** The vidicon residual image is shifted with wraparound, so a source at one edge puts its ghost on the opposite edge |
 | #1126 | **Affects no current scene; the truth record only.** The frame-transfer smear records the mean of both pedestals where each pixel receives one |
+| #1131 | **Affects no current scene.** The banding mode skips its dark step whenever the band amplitudes are zero, so a scene asking for the step alone gets nothing |
+| #1132 | **Affects every frame drawn with the Cassini or Galileo camera defaults.** A hot pixel's warm streak sits on the side of the column read before it and is strongest at line 0, where the readout puts it on the other side; which process it models needs a ruling first |
+| #1133 | **Affects no current scene.** Simulated bright and dark pixel pairs are placed independently, so two pairs can overlap and cancel while the truth record lists both |
+| #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
+| #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
+| #1136 | **Affects no render; the code and its description disagree.** A cosmic-ray streak or splatter deposits the sampled charge on every pixel of its footprint, where the docstrings and the guide call it the charge per event, and the catalog amplitudes were fitted with the per-pixel behavior |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |
