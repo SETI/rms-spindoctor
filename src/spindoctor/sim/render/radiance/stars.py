@@ -183,8 +183,8 @@ def _render_stars_cached(
     size_u: int,
     stars_params_json: str,
     *,
-    offset_v: float,
-    offset_u: float,
+    shift_v: float,
+    shift_u: float,
     zero_point: float,
     exposure_sec: float,
     rendered_sigma: float,
@@ -205,9 +205,10 @@ def _render_stars_cached(
     star_info: list[dict[str, Any]] = []
 
     # A camera roll rotates the whole frame about the boresight, the uv center
-    # of the frame.  The rendered star position is the catalog position rotated
-    # by ``rotation_deg`` about that center, then translated by the planted
-    # offset.  The star record keeps its unrotated catalog (v, u) so the NavModel
+    # of the frame after the planted offset.  The rendered star position is the
+    # catalog position rotated by ``rotation_deg`` about the frame center, then
+    # translated by the offset turned by the roll, which together turn it about
+    # the boresight.  The star record keeps its unrotated catalog (v, u) so the NavModel
     # predicts the unshifted geometry and a star technique recovers BOTH the
     # rotation and the translation.  The rotation matrix matches the navigator's
     # ``similarity_transform_fit`` convention (maps catalog -> detection in
@@ -284,8 +285,8 @@ def _render_stars_cached(
             err_v += float(scatter_rng.normal(0.0, catalog_scatter_px))
             err_u += float(scatter_rng.normal(0.0, catalog_scatter_px))
         err_v, err_u = turn(err_v, err_u)
-        star_offset_v = roll_center_v + rot_v + offset_v + err_v
-        star_offset_u = roll_center_u + rot_u + offset_u + err_u
+        star_offset_v = roll_center_v + rot_v + shift_v + err_v
+        star_offset_u = roll_center_u + rot_u + shift_u + err_u
         move_v, move_u = turn(star.move_v, star.move_u)
 
         # A variable star renders at a brightness delta_mag off its catalog vmag
@@ -363,9 +364,9 @@ def _render_stars_cached(
 def render_stars(
     point_plane: NDArrayFloatType,
     stars_params: list[dict[str, Any]],
-    offset_v: float,
+    shift_v: float,
     *,
-    offset_u: float,
+    shift_u: float,
     zero_point: float,
     exposure_sec: float,
     rendered_sigma: float,
@@ -389,15 +390,19 @@ def render_stars(
         point_plane: The (oversampled) point-source plane, deposited into in
             place (electrons for a CCD, DN for the vidicon).
         stars_params: Per-star parameter dictionaries.
-        offset_v: V offset (oversampled units) applied to every star.
-        offset_u: U offset (oversampled units) applied to every star.
+        shift_v: V shift (oversampled units) applied to every star after the roll.
+            The radiance stage passes the planted offset turned by the roll, R d (see
+            :func:`~spindoctor.sim.render.roll.boresight_shift`), so the roll turns
+            the stars about the boresight.
+        shift_u: U shift (oversampled units) applied to every star after the roll, the
+            u component of the same R d.
         zero_point: Flux a magnitude-0 star deposits per second.
         exposure_sec: The scene exposure in seconds.
         rendered_sigma: The scene PSF core sigma the stars render at (oversampled
             units), recorded in the hit-test metadata.
-        rotation_deg: Camera-roll angle (degrees) applied before the translation
-            offset, modeling a pointing rotation the star techniques recover.
-            The pivot is the frame's center, ``(size_v / 2, size_u / 2)`` in
+        rotation_deg: Camera-roll angle (degrees) applied before the shift,
+            modeling a pointing rotation the star techniques recover.  It turns
+            the stars about the frame's center, ``(size_v / 2, size_u / 2)`` in
             pixel corner coordinates, which is the point the body and ring
             geometry turns about.  A star's smear track, its companion's offset,
             and its catalog error turn by the same angle.
@@ -417,8 +422,8 @@ def render_stars(
         size_v,
         size_u,
         stars_params_json,
-        offset_v=offset_v,
-        offset_u=offset_u,
+        shift_v=shift_v,
+        shift_u=shift_u,
         zero_point=zero_point,
         exposure_sec=exposure_sec,
         rendered_sigma=rendered_sigma,

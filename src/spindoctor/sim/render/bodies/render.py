@@ -105,9 +105,9 @@ def clear_ellipsoid_shape_caches() -> None:
 def render_single_body(
     img: NDArrayFloatType,
     spec: BodySpec,
-    offset_v: float,
+    shift_v: float,
     *,
-    offset_u: float,
+    shift_u: float,
     body_streams_seed: int,
     body_index: int = 0,
     oversample: int = 1,
@@ -127,8 +127,9 @@ def render_single_body(
             atmosphere's pixel lengths are scaled here, by ``oversample``.  Its
             surface texture and transit lengths stay in detector pixels, the grid
             the ellipsoid renderer lays surface detail out on.
-        offset_v: V offset to apply.
-        offset_u: U offset to apply.
+        shift_v: The v component of the planted offset turned by the roll (R d), on the
+            render grid, added to the body's center.
+        shift_u: The u component of the planted offset turned by the roll, likewise.
         body_streams_seed: The scene's seed for every body's random streams.  Each
             body mixes its index and name into it to get its own identity seed (see
             :func:`~spindoctor.sim.render.bodies.spec.body_identity_seed`).  Its
@@ -155,8 +156,8 @@ def render_single_body(
     """
     size_v = img.shape[0] - 2 * margin
     size_u = img.shape[1] - 2 * margin
-    center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + offset_v
-    center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + offset_u
+    center_v = (size_v / 2.0 if spec.center_v is None else spec.center_v) + shift_v
+    center_u = (size_u / 2.0 if spec.center_u is None else spec.center_u) + shift_u
 
     # An irregular body renders from a polyhedral mesh at a scene-supplied pose;
     # every other body is an ellipsoid.

@@ -287,7 +287,7 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
         img,
         body_spec_from_params(body_params, index=0),
         0.0,
-        offset_u=0.0,
+        shift_u=0.0,
         body_streams_seed=7,
     )
     img_os = np.zeros((128, 128), dtype=np.float64)
@@ -298,7 +298,7 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
         img_os,
         body_spec_from_params(scaled, index=0),
         0.0,
-        offset_u=0.0,
+        shift_u=0.0,
         body_streams_seed=7,
         oversample=2,
     )

@@ -73,17 +73,18 @@ companion's sep_px are differences between two positions.
 The planted offset_rotation_deg is a roll of the camera about its boresight.
 A scene describes what the camera would see unrolled, and the roll turns
 EVERYTHING in the field of view by the same angle, in the same direction,
-about ONE point in that same convention: the frame's center
-(size_v / 2, size_u / 2).  A positive roll turns from +v toward +u, carrying a
-point at (dv, du) from the center to
-(cos * dv - sin * du, sin * dv + cos * du).
+about ONE point: the boresight, which is the frame's center
+(size_v / 2, size_u / 2) in that same convention after the planted offset has
+moved the camera.  A positive roll turns from +v toward +u, carrying a point
+at (dv, du) from the center to (cos * dv - sin * du, sin * dv + cos * du).
 That is the rotation the navigator's star fit reports, so the rotation it
-recovers equals the planted roll.  The roll turns the scene first, and the
-planted offset_v / offset_u then moves the turned stars, bodies, and ring
-system.  The sky_counts background field turns with the roll but does not move
-with the offset.
+recovers equals the planted roll.  The planted offset_v / offset_u is the
+boresight's pointing error d, so a star, body, or ring system the scene puts
+at x from the frame center lands at R (x + d), R being the roll, and the
+offset stays the truth for the navigator's translation.  The sky_counts
+background field turns with the roll but does not move with the offset.
 
-So the roll turns star positions and body centers about the frame center, and
+So the roll turns star positions and body centers about the boresight, and
 turns each body about its own center by the same angle: its outline
 (rotation_z, or a mesh body's pose_euler_deg), the side its light comes from
 (illumination_angle), and everything drawn on it -- craters, relief, albedo
