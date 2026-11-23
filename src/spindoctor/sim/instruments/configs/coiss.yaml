@@ -185,7 +185,7 @@ coiss_nac:
       - bright_dark_pairs
       - fixed_pattern
       - compression_dct
-    # The modes every raw frame of the camera shows, which a scene's
+    # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
       # Published: 0.15% of pixels in 2004, growing to ~0.28% by 2008-2009.
@@ -352,7 +352,7 @@ coiss_wac:
       - bright_dark_pairs
       - fixed_pattern
       - compression_dct
-    # The modes every raw frame of the camera shows, which a scene's
+    # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
       hot_pixels: {pixel_fraction: 2.0e-3}

@@ -285,7 +285,12 @@ carry valid data on every 2nd or every 4th line only. ``missing_blocks``
 defaults to 8-line blocks, the height of a lost compression slice, and
 ``truth_window`` to a 96-pixel square, the losslessly coded window. The entry
 states no band width for ``edited_frame``, so that mode takes the registry's
-generic fallback. The entry states no exclusion reason.
+generic fallback. ``instrument_defaults`` turns on ``hot_pixels``, ``banding``,
+``bias_structure``, and ``bloom``. The banding is the published supply noise, vertical
+bands of 65 e- every 42 pixels; a high-gain scene adds the camera's horizontal
+component with ``orientation: both``. ``shutter_shading`` defaults to the shutter's exposure,
+which falls from 1.5 ms at the first line to 1.05 ms at the last. The entry doesn't
+state an exclusion reason.
 
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.

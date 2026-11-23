@@ -291,21 +291,28 @@ twist, not the distortion.
 **Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. Its detector model is ``ccd``. The entry lists
-``frame_transfer_smear`` under ``artifact_modes.instrument_defaults``, so
-``instrument_defaults`` turns the smear on at its nominal scrub and transfer
-times. Its shape defaults give ``embedded_header`` a 34-pixel header, the
-binary housekeeping at the start of row 0 of every image.
+cameras. Its detector model is ``ccd``. The entry lists ``frame_transfer_smear``,
+``banding``, and ``bias_structure`` under ``artifact_modes.instrument_defaults``, so
+``instrument_defaults`` turns them on: the smear at its nominal scrub and transfer
+times, and the banding as horizontal bands of 17 e- every 128 rows. The camera also
+shows about 0.8 DN of vertical banding near its low column numbers. A scene can add
+vertical bands with ``orientation: both``, though they then cover the whole frame at
+the same amplitude. Its shape defaults give ``embedded_header`` a 34-pixel header, the binary housekeeping at the
+start of row 0 of every image.
 
-The entry states an explicit **exclusion reason** for two modes:
+The entry states an explicit **exclusion reason** for three modes:
 
 * ``hot_pixels`` -- "explicitly disabled for LORRI, which has none".
+* ``shutter_shading`` -- "not offered for LORRI, a frame-transfer camera with no
+  shutter".
 * ``bloom`` -- "explicitly disabled for LORRI, an antiblooming CCD with no
-  column bloom".
+  column bloom". A saturated LORRI source therefore never bleeds along its column,
+  also under ``instrument_defaults``; its ``serial_tail`` mode draws the
+  undershoot along the line instead.
 
 Those are physical statements rather than gaps in coverage, which is why they
 are recorded as reasons rather than as absences from the list. A
-scene that asks for either mode on this instrument is refused with the reason
+scene that asks for one of these modes on this instrument is refused with the reason
 quoted back.
 
 **Cosmic rays.** The catalog rate is a retained zero. The cohort's measured

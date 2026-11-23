@@ -351,17 +351,62 @@ spindoctor.sim.render.detector
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.render.detector.noise_stages
+.. automodule:: spindoctor.sim.render.detector.dark
    :members:
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.sim.render.detector.electronics_stages
+.. automodule:: spindoctor.sim.render.detector.bias
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.banding
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.pixel_defects
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.fixed_pattern
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.transients
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.saturation
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.shutter
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.vidicon
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.quantization
    :members:
    :undoc-members:
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.detector.sqrt_lut
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.detector.detector_maps
    :members:
    :undoc-members:
    :show-inheritance:

@@ -17,10 +17,9 @@ changing the signal in one pixel changes the noise drawn for that pixel alone.
 The Voyager vidicon skips the electron conversion and applies its noise directly
 in DN (line-correlated read noise plus any banding); its point sources (stars) and
 its cosmic-ray hits are already DN and are added onto the converted signal before
-that DN noise.  A calibrated
-(I/F) scene renders through the full DN chain and then inverts the calibration
-transform, so calibrated products carry propagated shot/read noise and
-quantization texture in I/F units.
+that DN noise.  A calibrated (I/F) scene renders through the full DN chain and then
+inverts the calibration transform, so calibrated products carry propagated shot/read
+noise and quantization texture in I/F units.
 
 The deterministic conversion (signal to DN) always runs -- it is what makes a DN
 frame -- while the stochastic and structured sub-effects (shot noise, read noise,

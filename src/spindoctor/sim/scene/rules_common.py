@@ -279,8 +279,9 @@ def _check_stray_light_block(value: Any, *, source: str) -> None:
         )
 
 
-# The complete inventory of the truth-side noise block: the detector stage's
-# stochastic / structured knobs plus the telemetry stage's missing-data rate.
+# The complete inventory of the truth-side noise block: the detector's shot, read,
+# dark, and cosmic-ray noise and calibration residual, plus the telemetry stage's
+# missing-data rate.
 # Unknown noise keys fail validation, so a typo cannot silently render the
 # clean floor.  'poisson' is the only boolean; 'vidicon' is a sub-mapping with its
 # own inventory; everything else is a non-negative number.

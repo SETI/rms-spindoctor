@@ -292,7 +292,7 @@ instrument's value and where it comes from.
    :widths: 16 18 20 46
 
    * - Instrument
-     - hot_pixel_fraction
+     - hot-pixel fraction
      - cosmic_ray_events_per_pixel_per_sec
      - Provenance
    * - ``coiss_calib_nac``
@@ -792,7 +792,7 @@ cannot close, it is recorded here rather than force-fitted:
      0.06 to 110 on the NAC cohort, so the pooled agreement was a
      cancellation, and the WAC's pooled shortfall is a mix of frames (see
      the WAC subsection);
-   - the readout dark (``readout_dark_e``): the raw dark sky rises
+   - the readout dark (``readout_dark``): the raw dark sky rises
      linearly by 55 e- from the first line to the last at every exposure,
      and CISSCAL's dark model removes the ramp but not its shot noise;
    - the calibration residual (``calibration_column_residual_e`` and

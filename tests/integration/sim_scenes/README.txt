@@ -190,15 +190,17 @@ out.
   noise            (mapping, opt)    poisson, read_noise_dn, bias_dn,
                                      cosmic_ray_events_per_pixel_per_sec (expected
                                      events per pixel per second of exposure),
-                                     missing_data_rate, bloom_length,
-                                     signal_full_scale_frac, dark_current_e_per_sec,
-                                     hot_pixel_fraction,
-                                     hot_pixel_amplitude_e, hot_pixel_column_factor,
-                                     banding_amplitude_e, banding_period_px,
-                                     bias_pedestal_sigma_dn, bias_row_gradient_dn,
-                                     bias_col_gradient_dn, vidicon {read_noise_line_dn,
-                                     read_noise_pixel_dn, coherent_amplitude_dn,
-                                     coherent_period_px}; unknown keys fail validation
+                                     cosmic_ray_readout_dwell_sec,
+                                     cosmic_ray_amplitude_e, cosmic_ray_spread_px,
+                                     missing_data_rate, signal_full_scale_frac,
+                                     dark_current_e_per_sec,
+                                     calibration_column_residual_e,
+                                     calibration_pixel_residual_e,
+                                     vidicon {read_noise_line_dn,
+                                     read_noise_pixel_dn}; unknown keys fail
+                                     validation.  Detector defects (banding, hot
+                                     pixels, readout dark, bias structure, bloom, ...)
+                                     are artifact modes, below
   oversample       (int, opt)        radiance oversampling factor (default 4 when a PSF
                                      is active, else 1)
   optics           (mapping, opt)    whole-scene optical effects: psf (sigma_v, sigma_u,
@@ -217,12 +219,19 @@ out.
                                      (exact | 8bit | uneven_12bit | sqrt_lut | ls8b |
                                      contour_8bit), downlink_table (the table, by
                                      name, sqrt_lut decodes through; one the
-                                     instrument's config lists); omitted keys track
-                                     the instrument catalog
+                                     instrument's config lists), contour_step (the DN
+                                     step contour_8bit posterizes to, default 8);
+                                     omitted keys track the instrument catalog
   artifacts        (mapping, opt)    instrument_defaults (bool): opt into the emulated
                                      camera's physical signal chain at catalog values
-                                     (PSF, distortion residual, shot noise, dark / hot /
-                                     bloom / banding / bias); artifact modes stay off.
+                                     (PSF, distortion residual, shot, read, and dark
+                                     noise, cosmic rays) and to the artifact modes every
+                                     frame of the camera shows (on a raw Cassini camera
+                                     hot_pixels, banding, readout_dark, bias_structure,
+                                     and bloom); the other artifact modes stay off.  A
+                                     key a scene sets in one of those modes replaces
+                                     the camera's value for that key alone, and an
+                                     activation key of 0 turns the mode off.
                                      adversarial (bool): bias each mode's placement onto
                                      the navigation features.  Every other key is an
                                      artifact mode (missing_lines, hot_pixels, ...)
@@ -410,10 +419,9 @@ the key's name says what the number means:
                                      truth_window, embedded_header,
                                      compression_dct, reseau_scars,
                                      resample_texture, and the detector modes
-                                     (banding_coherent, bias_structure, dark_ramp,
-                                     bloom, frame_transfer_smear, serial_tail,
-                                     beam_bend, residual_image, quantization_sqrt_lut,
-                                     quantization_ls8b, quantization_contour_8bit,
+                                     (banding, bias_structure, readout_dark,
+                                     shutter_shading, bloom, frame_transfer_smear,
+                                     serial_tail, beam_bend, residual_image,
                                      fixed_pattern)
   pixel_fraction   (float in [0, 1]) hot_pixels only: the fraction of detector
                                      pixels that are hot
