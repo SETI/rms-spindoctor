@@ -121,17 +121,18 @@ def disc_scene(instrument: str, **blocks: Any) -> dict[str, Any]:
 
     Parameters:
         instrument: The scene's instrument.
-        **blocks: Further top-level scene keys, as :func:`frame_scene` takes them.
+        **blocks: Further keyword arguments of :func:`frame_scene`.  Each one replaces
+            the default of the same name (``size``, ``seed``, ``exposure_sec``, or
+            ``bodies``) or adds a top-level scene key.
 
     Returns:
         A fresh scene mapping.
     """
-    return frame_scene(
-        instrument=instrument,
-        size=96,
-        seed=3,
-        exposure_sec=1.0,
-        bodies=[
+    defaults: dict[str, Any] = {
+        'size': 96,
+        'seed': 3,
+        'exposure_sec': 1.0,
+        'bodies': [
             {
                 'name': 'B',
                 'center_v': 48,
@@ -141,8 +142,8 @@ def disc_scene(instrument: str, **blocks: Any) -> dict[str, Any]:
                 'semi_c_px': 14.0,
             }
         ],
-        **blocks,
-    )
+    }
+    return frame_scene(instrument=instrument, **(defaults | blocks))
 
 
 def body_scene(
