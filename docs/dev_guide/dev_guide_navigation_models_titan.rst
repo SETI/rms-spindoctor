@@ -258,9 +258,7 @@ with the technique that reads them, at :doc:`dev_guide_techniques_titan_haze`.
      - Half-length of the cross drawn at the disc center.
 
 The per-type reliability threshold the emitted feature is gated against is the ``TITAN_LIMB``
-entry under ``reliability_gate`` in ``config_540_orchestrator.yaml``, mirrored in
-:data:`~spindoctor.feature.reliability.DEFAULT_RELIABILITY_THRESHOLDS`; the two must stay in
-sync.
+entry under ``reliability_gate`` in ``config_540_orchestrator.yaml``.
 
 Implementation
 ==============

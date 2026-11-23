@@ -292,6 +292,10 @@ Two settings in the ``orchestrator`` section decide that:
     largest pointing uncertainty, in pixels, that an answer may have, and an answer must
     satisfy both to earn one of them. The low tier sets no maximum uncertainty.
 
+Every setting in the ``orchestrator`` section is checked when your file is read. A
+setting that navigation does not know, or a value it cannot use, such as a confidence
+above 1, is refused, and the message gives the file and the setting.
+
 Lowering these makes more frames report an answer and makes those answers less
 trustworthy, so change them only when you know why the evidence in your frames is weaker
 than the defaults assume. The confidence and the tier that navigation settled on for each

@@ -1527,7 +1527,12 @@ asserts the generated half matches the registries.
     ring-feature `name`/`inner_data`/`outer_data`, and the low tier's
     `max_sigma_px` left out; `_deep_merge` deleted, and a null in any
     file, a user override included, is refused with its file and key path)
-  - [ ] the orchestrator section
+  - [x] the orchestrator section (done: `ensemble` and
+    `reliability_gate` parsed at load into `EnsembleConfig` and
+    `FeatureReliabilityGate`, held by `OrchestratorSection`; both
+    `from_mapping` methods and the 18 `DEFAULT_*` copies deleted, the 16
+    ensemble scalars, `DEFAULT_TIER_THRESHOLDS`, and
+    `DEFAULT_RELIABILITY_THRESHOLDS`)
   - [ ] technique confidence and tuning, two or three PRs by family
     (decide #411's snake_case rename first)
   - [ ] the logging section
