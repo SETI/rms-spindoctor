@@ -592,7 +592,7 @@ def test_vgiss_scene_stays_vidicon_through_an_edit(
 ) -> None:
     """Editing a vgiss detector spin never backfills a ccd detector_model."""
     scene = {
-        'instrument': 'vgiss',
+        'instrument': 'vgiss_1_nac',
         'size_v': 64,
         'size_u': 64,
         'random_seed': 1,

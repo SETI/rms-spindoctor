@@ -303,7 +303,7 @@ def test_saturation_dn_follows_the_scene_detector_block(model: Any) -> None:
 
 def test_saturation_dn_none_for_calibrated_instrument(model: Any) -> None:
     """A calibrated-IF instrument has no saturation DN."""
-    model.sim_params['instrument'] = 'vgiss'
+    model.sim_params['instrument'] = 'vgiss_1_nac'
     model._update_image()
     assert model._current_saturation_dn() is None
 
@@ -325,7 +325,7 @@ def test_saturation_overlay_off_clears_status(model: Any) -> None:
     assert model._saturation_label.text() == ''
 
 
-@pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss', 'I/F')])
+@pytest.mark.parametrize(('instrument', 'units'), [('coiss_nac', 'DN'), ('vgiss_1_nac', 'I/F')])
 def test_units_label_names_the_rendered_units(model: Any, instrument: str, units: str) -> None:
     """The status bar names the rendered frame's units after the full render."""
     model.sim_params['instrument'] = instrument
@@ -364,7 +364,7 @@ def _set_body_scene(
 
 def test_units_label_leaves_the_vgiss_sky_out_of_the_marker_count(model: Any) -> None:
     """A vgiss frame's dark sky sits above the 0 marker, and the label stays quiet."""
-    _set_body_scene(model, instrument='vgiss', semi_px=43.0, center_u=64.0, offset_u=0.0)
+    _set_body_scene(model, instrument='vgiss_1_nac', semi_px=43.0, center_u=64.0, offset_u=0.0)
     render_fully(model)
     assert model._units_label.text() == 'I/F 0.01176 to 1.008'
 

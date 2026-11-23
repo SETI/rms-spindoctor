@@ -2,8 +2,6 @@
 # so navigable scenes produce a proposed offset for operator review.
 # NOT for production navigation - confidence values are meaningless
 # under these settings; only the offsets (verified by eye) matter.
-stars:
-  min_confidence: 0.4
 techniques:
   BodyDiscCorrelateNav:
     alpha0: 0.5

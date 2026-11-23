@@ -25,7 +25,8 @@ Pipeline support
 * **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
   label template directory, but the remaining hooks are unimplemented and the
   configuration entry is a commented-out stub.
-* **Simulator** -- supported, under the single instrument key ``vgiss``.
+* **Simulator** -- supported, under four instrument keys, one for each spacecraft and
+  camera: ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``.
 * **Statistics** -- supported.
 
 Datasets and image selection
@@ -332,9 +333,9 @@ Known limitations
   enough that the numbers themselves are of low confidence.
 * The Voyager 1 cameras have no twist or distortion measurement at all: the
   cohort holds no Voyager 1 frame that locked.
-* The simulator uses one distortion parameter set for all four cameras, taken
+* The four simulator cameras carry the same distortion parameters, taken
   from the Voyager 2 wide angle measurement, which under-represents the spread
-  between two spacecraft and two optics.
+  between the four cameras' optics.
 * PDS4 bundles are not generated.
 
 References

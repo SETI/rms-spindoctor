@@ -168,7 +168,11 @@ def test_an_uncataloged_filter_is_refused_at_render() -> None:
     ('instrument', 'detector', 'message'),
     [
         ('coiss_nac', {'filter': 'CL1+XYZ'}, r"detector\.filter: filter 'CL1\+XYZ' is not"),
-        ('vgiss', {'filter': 'CLEAR'}, r"detector\.filter: sim instrument 'vgiss' has no"),
+        (
+            'vgiss_1_nac',
+            {'filter': 'CLEAR'},
+            r"detector\.filter: sim instrument 'vgiss_1_nac' has no",
+        ),
         ('coiss_nac', {'filter': 3}, r'detector\.filter must be a string'),
         (
             'coiss_nac',

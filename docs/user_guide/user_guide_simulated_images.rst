@@ -130,16 +130,16 @@ reads 0, as it does in the real products.
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` frames are in
   raw counts (DN). The dark sky sits a little above 0.
-* ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` frames are in I/F, like the
-  calibrated Cassini products and the geometrically corrected Voyager products. The
-  dark sky never reads exactly 0: it sits at about 0.012 on a ``vgiss`` frame, and
-  at about 0.00004 on a calibrated Cassini frame.
+* ``coiss_calib_nac``, ``coiss_calib_wac``, and the four ``vgiss`` cameras' frames
+  are in I/F, like the calibrated Cassini products and the geometrically corrected
+  Voyager products. The dark sky never reads exactly 0: it sits at about 0.012 on a
+  Voyager frame, and at about 0.00004 on a calibrated Cassini frame.
 
 An I/F frame spans roughly 0 to 1, where a DN frame of the same scene can reach
 4095, so a display or threshold scaled for counts shows an I/F frame as black.
 With ``instrument_defaults`` on, read noise moves the dark sky about. On a
 calibrated Cassini frame it scatters around 0, and more than a quarter of the
-pixels of a disc scene sit slightly below 0, as on the real frames. On a ``vgiss``
+pixels of a disc scene sit slightly below 0, as on the real frames. On a Voyager
 frame it stays above 0 on all but about 7 pixels in 100,000, as the real Voyager
 sky stays above 0. The editor's status bar shows the units and value range of each
 render.

@@ -129,7 +129,8 @@ out.
   scene_name       (str, required)   must equal the filename stem
   instrument       (str, required)   a sim instrument (coiss_nac, coiss_wac,
                                      coiss_calib_nac, coiss_calib_wac, gossi,
-                                     nhlorri, vgiss) or 'generic'
+                                     nhlorri, vgiss_1_nac, vgiss_1_wac,
+                                     vgiss_2_nac, vgiss_2_wac) or 'generic'
   size_v, size_u   (int, required)   image height/width in pixels
   random_seed      (int, required)   scene seed (drives all sim randomness)
   exposure_sec     (float, opt)      exposure seconds (default 1.0)
@@ -278,17 +279,18 @@ lost pixel with 0, as the real products do:
   coiss_nac, coiss_wac, gossi,      raw DN; the bias pedestal keeps the dark sky
   nhlorri, generic                  above the marker
   coiss_calib_nac,                  calibrated I/F, like the Cassini CALIB and
-  coiss_calib_wac, vgiss            Voyager GEOMED products; vgiss also keeps a
-                                    255 DN full well
+  coiss_calib_wac, vgiss_1_nac,     Voyager GEOMED products; the vgiss cameras
+  vgiss_1_wac, vgiss_2_nac,         also keep a 255 DN full well
+  vgiss_2_wac
 
-An I/F frame spans roughly 0 to 1 (a vgiss frame tops out at 1.85, a
+An I/F frame spans roughly 0 to 1 (a vgiss_1_nac frame tops out at 1.85, a
 coiss_calib_nac frame near 2.0), so a display or threshold scaled for DN shows it
 as black.  The calibration inverse adds a calibrated sky residual, so no
-noise-free dark sky reads exactly 0: vgiss sits at 0.0118 I/F (1.5 DN), above 0
+noise-free dark sky reads exactly 0: each vgiss camera sits at 0.0118 I/F (1.5 DN), above 0
 as the GEOMED sky does, and a calibrated Cassini frame at 4.0e-5 I/F, the median
 real CALIB sky.  Under instrument_defaults a coiss_calib_nac sky scatters around
 0, more than a quarter of a disc scene's pixels slightly below it, and a vgiss
-sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
+camera's sky stays above 0 on all but about 7 pixels in 100,000.  A pixel that still lands exactly on the marker moves to the
 next float above it, so only planted loss puts a pixel at the marker.  The scene
 editor's status bar shows each render's units, range, and marker share, counted
 on the frame the navigator reads (planted offset applied), and the navigator's
