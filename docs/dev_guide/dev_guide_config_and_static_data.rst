@@ -84,7 +84,6 @@ removal. The shipping sections:
   reliability floors and mask settings, and the two blocks of fit tunables the haze
   technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``). See
   :doc:`dev_guide_navigation_models_titan` and :doc:`dev_guide_techniques_titan_haze`.
-- ``bootstrap`` — bootstrap navigation parameters.
 - ``backplanes`` — the list of body and ring backplanes to generate; see
   :doc:`dev_guide_backplanes`.
 - ``pds4`` — per-dataset PDS4 template directories and bundle names; see
@@ -134,8 +133,7 @@ ranges are conventional, not enforced by the loader:
      - Global / model-shared
      - ``config_010_general``, ``config_015_logging``, ``config_020_offset``,
        ``config_030_stars``,
-       ``config_040_bodies``, ``config_050_rings``, ``config_060_titan``,
-       ``config_070_bootstrap``
+       ``config_040_bodies``, ``config_050_rings``, ``config_060_titan``
    * - ``1xx``
      - Catalogs
      - ``config_100_satellites``
@@ -172,7 +170,6 @@ Each shipping file and what it holds:
 - ``config_040_bodies`` — body (planet / moon) rendering parameters.
 - ``config_050_rings`` — ring-model parameters.
 - ``config_060_titan`` — Titan-specific navigation parameters.
-- ``config_070_bootstrap`` — bootstrap navigation parameters (angles in degrees).
 - ``config_100_satellites`` — satellite definitions for each planet.
 - ``config_220_body_shape`` — per-body shape table (radii, ellipsoid residual,
   crater scale, albedo) consumed by the body NavModel and feature extractors;
