@@ -8,9 +8,10 @@ from typing import cast
 
 import numpy as np
 import pytest
-from tests.spindoctor.sim.scenes import disc_scene
+from tests.spindoctor.sim.scenes import disc_scene, frame_scene, quiet_noise
 
 from spindoctor.sim.render.detector.detector_maps import detector_hot_pixel_map
+from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.detector.pixel_defects import add_bright_dark_pairs, add_hot_pixels
 from spindoctor.sim.render.driver import render_scene
 
@@ -226,3 +227,40 @@ def test_bright_dark_pairs_adversarial_land_on_the_pool() -> None:
     )
     for v, _u in record['pairs']:
         assert 28 <= v <= 35
+
+
+def test_a_binned_frame_plants_the_binned_map() -> None:
+    """A SUM2 frame's hot pixels are the detector's map read through the binning."""
+    scene = frame_scene(
+        detector={'binning': 2},
+        noise=quiet_noise(),
+        artifacts={'hot_pixels': {'pixel_fraction': 0.01}},
+    )
+    _img, truth = render_scene(scene)
+    vs, us, _amps = detector_hot_pixel_map(
+        (64, 64), fraction=0.01, detector_id='coiss_nac', binning=2
+    )
+    expected = [[int(v), int(u)] for v, u in zip(vs, us, strict=True)]
+    assert truth['artifacts']['hot_pixels']['pixels'] == expected
+
+
+def test_a_rendered_hot_pixel_bleeds_its_column_factor_up_the_column() -> None:
+    """The column above a lone hot pixel holds column_factor of its charge."""
+    hot = {'pixel_fraction': 0.002, 'amplitude_e': 1.0e4, 'column_factor': 0.5}
+    scene = frame_scene(
+        noise=quiet_noise(),
+        exposure_sec=0.1,
+        detector={'quantization': 'exact'},
+        artifacts={'hot_pixels': hot},
+    )
+    img, truth = render_scene(scene)
+    record = truth['artifacts']['hot_pixels']
+    columns = [u for _v, u in record['pixels']]
+    (v, u), amp = next(
+        (pixel, amp)
+        for pixel, amp in zip(record['pixels'], record['amplitudes_e'], strict=True)
+        if columns.count(pixel[1]) == 1 and pixel[0] > 0
+    )
+    gain = resolve_detector_params(scene).gain_e_per_dn
+    # Each pixel of the column rounds to a whole DN.
+    assert float(img[:v, u].sum()) == pytest.approx(0.5 * amp / gain, abs=0.5 * v + 1.0)

@@ -1,5 +1,7 @@
 """The bias structure: its pedestal, its gradients, and the cameras that show it."""
 
+from typing import Any
+
 import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_scene, frame_scene, quiet_noise
@@ -55,3 +57,47 @@ def test_a_calibrated_cassini_product_has_no_bias_structure() -> None:
         disc_scene('coiss_calib_nac', artifacts={'instrument_defaults': True})
     )
     assert 'bias_structure' not in dp.detector_modes
+
+
+def _gradient_frame(instrument: str, noise: dict[str, Any], **gradients: float) -> dict[str, Any]:
+    """A quiet empty frame whose bias structure is the given gradients alone."""
+    bias = {'probability': 1.0, 'pedestal_sigma_dn': 0.0, **gradients}
+    return frame_scene(
+        instrument=instrument,
+        exposure_sec=0.1,
+        noise=noise,
+        detector={'quantization': 'exact'},
+        artifacts={'bias_structure': bias},
+    )
+
+
+# A quiet CCD frame on a bias high enough that a falling gradient stays above 0 DN.
+_QUIET_CCD = {**quiet_noise(), 'bias_dn': 100.0}
+
+
+def test_the_row_gradient_rises_down_the_frame() -> None:
+    """A 20 DN row gradient raises the last line 20 DN above the first."""
+    img, _ = render_scene(
+        _gradient_frame('coiss_nac', _QUIET_CCD, row_gradient_dn=20.0, col_gradient_dn=0.0)
+    )
+    rows = img.mean(axis=1)
+    assert float(rows[-1] - rows[0]) == pytest.approx(20.0)
+
+
+def test_the_column_gradient_rises_across_the_frame() -> None:
+    """A 20 DN column gradient raises the last column 20 DN above the first."""
+    img, _ = render_scene(
+        _gradient_frame('coiss_nac', _QUIET_CCD, row_gradient_dn=0.0, col_gradient_dn=20.0)
+    )
+    columns = img.mean(axis=0)
+    assert float(columns[-1] - columns[0]) == pytest.approx(20.0)
+
+
+def test_the_vidicon_chain_draws_the_bias_structure() -> None:
+    """On the vidicon chain a 20 DN row gradient reads through the calibration."""
+    quiet = {'vidicon': {'read_noise_line_dn': 0.0, 'read_noise_pixel_dn': 0.0}}
+    scene = _gradient_frame('vgiss', quiet, row_gradient_dn=20.0, col_gradient_dn=0.0)
+    img, _ = render_scene(scene)
+    rise_if = 20.0 / (resolve_detector_params(scene).calibration_scale_dn_per_s_per_if * 0.1)
+    rows = img.mean(axis=1)
+    assert float(rows[-1] - rows[0]) == pytest.approx(rise_if)

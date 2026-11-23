@@ -494,6 +494,13 @@ def test_the_contour_step_spin_writes_and_removes_the_key(model: Any) -> None:
     assert model.sim_params['detector'] == {}
 
 
+def test_loading_a_scene_shows_its_contour_step(model: Any) -> None:
+    """A loaded scene's detector.contour_step shows in the contour-step spin."""
+    detector = {'quantization': 'contour_8bit', 'contour_step': 16}
+    model._apply_params_dict({'instrument': 'gossi', 'detector': detector})
+    assert model._detector_contour_step_spin.value() == 16
+
+
 def test_choosing_a_downlink_table_writes_the_key(model: Any) -> None:
     """The downlink-table combo writes the detector.downlink_table key."""
     model._instrument_combo.setCurrentText('coiss_nac')
@@ -616,6 +623,13 @@ def test_instrument_defaults_fill_a_default_modes_row(model: Any) -> None:
     assert before == 0.0
     assert row._scalar_widgets['probability'].value() == 1.0
     assert 'instrument defaults turn this mode on' in row.group.toolTip()
+
+
+def test_a_default_modes_tooltip_waits_for_the_instrument_defaults(model: Any) -> None:
+    """With the instrument defaults off, a mode's tooltip doesn't say they turn it on."""
+    model.sim_params['instrument'] = 'gossi'
+    model._refresh_artifact_mode_availability()
+    assert 'instrument defaults' not in model._mode_rows['banding'].group.toolTip()
 
 
 def test_mode_availability_disables_unavailable_row(model: Any) -> None:
