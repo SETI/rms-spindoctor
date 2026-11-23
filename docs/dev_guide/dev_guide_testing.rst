@@ -107,6 +107,16 @@ is reported at the test that made it: had the file stayed, every later test in
 that worker would have read it as its configuration. Move to a directory of your
 own with ``monkeypatch.chdir`` before writing anything.
 
+**A UI test takes its Qt application from a fixture.** The ``qapp`` fixture in
+``tests/spindoctor/ui/conftest.py`` gives every test of a process the same application
+and deletes the test's windows when the test ends. Every test that builds a widget
+takes it. A test must never build a ``QApplication`` of its own in the test process, and a
+test module must never build one at import. Once PyQt has destroyed an application, it no
+longer notices when Qt deletes an object that Qt made itself, such as a spin box's line
+edit. Qt soon builds something else at the same address, PyQt takes it for the deleted object, and a
+later test sees the wrong widget or crashes. A window that stays open causes trouble
+too, because its timers fire in any later test that runs the event loop.
+
 Archive-backed tests additionally require the holdings and catalog environment.
 CI leaves it unset and these tests skip there, so run them locally, against local
 copies of the trees (see :doc:`dev_guide_introduction`):

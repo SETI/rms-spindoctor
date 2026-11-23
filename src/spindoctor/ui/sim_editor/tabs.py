@@ -234,8 +234,6 @@ class TabsMixin(SimEditorBase):
 
     def _add_ring_tab(self, params: dict[str, Any] | None = None) -> None:
         """Append a ring_system feature (creating the block) and select its tab."""
-        # A block or feature list set to null reads as absent, so it is replaced
-        # the same way a missing one is installed.
         ring_system = self.sim_params.get('ring_system')
         if ring_system is None:
             ring_system = {

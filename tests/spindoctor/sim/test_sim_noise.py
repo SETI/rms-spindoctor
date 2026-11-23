@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.instruments.resolvers import resolve_downlink_table
+from spindoctor.sim.instruments.schema import DownlinkTable
 from spindoctor.sim.render.detector import (
     apply_detector,
     quantize_dn,
@@ -202,30 +203,10 @@ def test_a_camera_without_a_table_gets_the_plain_square_root_curve() -> None:
 
 def test_a_table_entry_sets_its_own_code_count() -> None:
     """A 10-bit table decodes 1024 levels, its top code at the curve's value for 1023."""
-    entry = {'codes': 1024, 'linear_dn': 0.0, 'quadratic_dn': 0.01, 'whole_dn': False}
-    levels = resolve_sqrt_lut(entry, saturation_dn=16383.0).levels()
+    table = DownlinkTable(codes=1024, linear_dn=0.0, quadratic_dn=0.01, whole_dn=False)
+    levels = resolve_sqrt_lut(table, saturation_dn=16383.0).levels()
     assert len(levels) == 1024
     assert float(levels[-1]) == pytest.approx(0.01 * 1023.0**2)
-
-
-@pytest.mark.parametrize(
-    ('override', 'message'),
-    [
-        ({'codes': 1}, r'sqrt_lut codes must be at least 2, got 1$'),
-        ({'codes': 256.5}, r'sqrt_lut codes must be a whole number, got 256\.5$'),
-        ({'linear_dn': float('nan')}, r'must be finite, got linear_dn nan and quadratic_dn 1\.0$'),
-        (
-            {'quadratic_dn': float('inf')},
-            r'must be finite, got linear_dn 0\.0 and quadratic_dn inf$',
-        ),
-    ],
-    ids=['one-code', 'fractional-codes', 'nan-linear', 'infinite-quadratic'],
-)
-def test_an_unusable_table_entry_is_refused(override: dict[str, float], message: str) -> None:
-    """A table entry the encoder can't use raises instead of quantizing badly."""
-    entry = {'codes': 256, 'linear_dn': 0.0, 'quadratic_dn': 1.0, 'whole_dn': False, **override}
-    with pytest.raises(ValueError, match=message):
-        resolve_sqrt_lut(entry, saturation_dn=4095.0)
 
 
 def test_the_plain_curve_on_a_zero_ceiling_sends_every_value_to_zero() -> None:

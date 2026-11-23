@@ -1,15 +1,15 @@
 """GUI smoke tests for ``spindoctor.cli.sd_create_simulated_image``.
 
 These cover the ``_load_scene`` YAML-load path, specifically that a
-``ring_system`` block round-trips into the data model, and that a missing or
-null ``closest_planet`` falls back to ``SATURN`` without raising
+``ring_system`` block round-trips into the data model, and that a missing
+``closest_planet`` falls back to ``SATURN`` without raising
 (``QComboBox.findText(None)`` would otherwise raise ``TypeError``).
 """
 
 import importlib
 import os
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from ruamel.yaml import YAML
@@ -24,27 +24,10 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-try:
-    if QApplication.instance() is None:
-        QApplication([])
-except Exception as exc:
-    pytest.skip(
-        f'PyQt6 QApplication init failed: {exc}',
-        allow_module_level=True,
-    )
-
 from tests.spindoctor.ui.sim_editor.sim_editor_waits import process_until, render_fully
 
 # The driver is an importable module under the ``spindoctor.cli`` package.
 ncsi = importlib.import_module('spindoctor.cli.sd_create_simulated_image')
-
-
-@pytest.fixture
-def qapp() -> QApplication:
-    existing = QApplication.instance()
-    if existing is None:
-        return QApplication([])
-    return cast(QApplication, existing)
 
 
 @pytest.fixture
@@ -120,14 +103,6 @@ def test_load_missing_closest_planet_defaults_to_saturn(
 ) -> None:
     """A scene with no ``closest_planet`` key falls back to ``SATURN``."""
     _load_scene_with(monkeypatch, model, tmp_path, {})
-    assert model.sim_params['closest_planet'] == 'SATURN'
-
-
-def test_load_null_closest_planet_defaults_to_saturn(
-    monkeypatch: pytest.MonkeyPatch, model: Any, tmp_path: Path
-) -> None:
-    """An explicit ``closest_planet: null`` falls back to ``SATURN`` without raising."""
-    _load_scene_with(monkeypatch, model, tmp_path, {'closest_planet': None})
     assert model.sim_params['closest_planet'] == 'SATURN'
 
 
@@ -634,15 +609,6 @@ def test_scene_without_noise_seed_shows_random_seed(model: Any) -> None:
     assert model._noise_seed_spin.text() == 'Random seed'
 
 
-def test_body_seed_auto_omits(model: Any) -> None:
-    """A crater seed of -1 (Auto) removes the key; a value sets it."""
-    model.sim_params['bodies'] = [{'name': 'B'}]
-    model._on_body_seed(0, 11)
-    assert model.sim_params['bodies'][0]['seed'] == 11
-    model._on_body_seed(0, -1)
-    assert 'seed' not in model.sim_params['bodies'][0]
-
-
 def test_full_parameter_round_trip(
     model: Any, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -683,7 +649,6 @@ def test_full_parameter_round_trip(
                     'mesh_n_lat': 20,
                     'mesh_n_lon': 40,
                     'pose_euler_deg': [10.0, 35.0, 0.0],
-                    'seed': 11,
                     'km_per_pixel': 5.0,
                     'nav_override': {
                         'shape_model': 'ellipsoid',
@@ -729,7 +694,6 @@ def test_full_parameter_round_trip(
     body = p['bodies'][0]
     assert body['mesh_n_lat'] == 20
     assert body['mesh_n_lon'] == 40
-    assert body['seed'] == 11
     assert body['km_per_pixel'] == 5.0
     assert body['nav_override']['shape_model'] == 'ellipsoid'
     star = p['stars'][0]

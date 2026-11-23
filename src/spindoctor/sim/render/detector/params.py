@@ -29,6 +29,7 @@ measured throughput implies (:mod:`spindoctor.sim.instruments.resolvers`).
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -56,6 +57,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_filter_throughput,
     resolve_mode_with_catalog,
 )
+from spindoctor.sim.instruments.schema_detector import Detector
 from spindoctor.sim.render.detector.sqrt_lut import (
     DownlinkCurve,
     check_curve_ceiling,
@@ -68,6 +70,10 @@ from spindoctor.support.image_class import missing_data_marker
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['CalibrationMap', 'DetectorParams', 'calibration_map', 'resolve_detector_params']
+
+# The banding period, in pixels, of a detector whose entry states none (a vidicon,
+# whose chain has no electron-domain banding).
+_DEFAULT_BANDING_PERIOD_PX = 64.0
 
 
 class DetectorParamError(ValueError):
@@ -274,16 +280,26 @@ def calibration_map(dp: DetectorParams) -> CalibrationMap | None:
 
 def _default_or_zero(
     scene_noise: Mapping[str, Any],
-    detector_defaults: Mapping[str, Any],
     key: str,
+    default: float | None,
     *,
     instrument_defaults: bool,
 ) -> float:
-    """A physical-chain knob: scene override, else detector default (if on), else 0."""
+    """A physical-chain knob: scene override, else detector default (if on), else 0.
+
+    Parameters:
+        scene_noise: The scene's ``noise`` keys that carry a value.
+        key: The knob's key in ``scene_noise``.
+        default: The detector default, or None when the entry states none.
+        instrument_defaults: Whether the scene turns the detector defaults on.
+
+    Returns:
+        The knob's value.
+    """
     if key in scene_noise:
         return float(scene_noise[key])
-    if instrument_defaults:
-        return float(detector_defaults.get(key, 0.0))
+    if instrument_defaults and default is not None:
+        return float(default)
     return 0.0
 
 
@@ -316,7 +332,7 @@ def _cataloged_binning(params: Mapping[str, Any], *, instrument: str | None) -> 
 
 
 def _resolve_gain(
-    detector_defaults: Mapping[str, Any],
+    detector_defaults: Detector,
     detector_block: Mapping[str, Any],
     *,
     instrument: str | None,
@@ -336,10 +352,11 @@ def _resolve_gain(
     Raises:
         DetectorParamError: If the selected state has no catalog entry.
     """
-    table = detector_defaults.get('gain_e_per_dn_by_state') or {0: 1.0}
+    # A vidicon states no gain table: its chain is in DN, at unit gain.
+    table = detector_defaults.gain_e_per_dn_by_state or {0: 1.0}
     state = detector_block.get('gain_state')
     if state is None:
-        state = int(detector_defaults.get('default_gain_state', 0))
+        state = detector_defaults.default_gain_state or 0
     state = int(state)
     if state not in table:
         raise DetectorParamError(
@@ -456,43 +473,11 @@ def _filter_exposure_ref(
     return well_e / throughput
 
 
-def _set_keys(block: Mapping[str, Any]) -> dict[str, Any]:
-    """Return a scene block's keys that carry a value, dropping every explicit null.
-
-    A null scene key reads as absent everywhere in the resolver, as a null
-    ``detector`` key does (see :func:`_scene_or_default`), so it falls through to
-    the detector default or the configuration default instead of reaching ``float()`` or
-    ``bool()``.
-    """
-    return {key: value for key, value in block.items() if value is not None}
-
-
-def _scene_or_default(block: Mapping[str, Any], key: str, default: Any) -> Any:
-    """Read a scene ``detector`` key, treating an explicit null as absent.
-
-    The validator accepts ``detector_model: null`` (and the other detector keys
-    at null) as "use the instrument's default", so the resolver must read it
-    the same way; ``str(None)`` would otherwise select a model named ``'None'``
-    and fall through to the CCD chain.
-
-    Parameters:
-        block: The scene ``detector`` mapping.
-        key: The detector key to read.
-        default: The detector default used when the key is absent or null.
-
-    Returns:
-        The scene's value, or ``default`` when the scene leaves it unset or null.
-    """
-    value = block.get(key)
-    return default if value is None else value
-
-
 def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     """Collapse the scene, navigator block, and detector defaults into one detector view.
 
-    A scene ``noise`` or ``noise.vidicon`` key set to null reads as absent, as a
-    null ``detector`` key does: it resolves to the value the scene would get
-    without the key.
+    A scene ``noise``, ``noise.vidicon``, or ``detector`` key that the scene leaves out
+    takes the detector default or the configuration default.
 
     Parameters:
         params: The scene.
@@ -519,15 +504,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     # A binned pixel collects the charge of its binning**2 native pixels.
     pixels_per_frame_pixel = float(binning * binning)
 
-    # A null noise key reads as absent: it takes the detector default or the
-    # configuration default, so noise: {poisson: null} keeps the instrument_defaults shot noise.
-    scene_noise = _set_keys(params.get('noise') or {})
+    scene_noise = params.get('noise') or {}
     artifacts = params.get('artifacts') or {}
     instrument_defaults = instrument_defaults_on(params)
 
-    detector_model = str(
-        _scene_or_default(detector_block, 'detector_model', detector_defaults['detector_model'])
-    )
+    detector_model = str(detector_block.get('detector_model', detector_defaults.detector_model))
     if detector_model == 'vidicon' and binning != 1:
         raise DetectorParamError(
             f'sim instrument {instrument!r} cannot use detector_model vidicon with '
@@ -536,15 +517,9 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     data_units = resolve_data_units(instrument)
     exposure_sec = float(params.get('exposure_sec', 1.0))
     exposure_ref_sec = float(
-        _scene_or_default(
-            detector_block, 'exposure_ref_sec', detector_defaults.get('exposure_ref_sec', 1.0)
-        )
+        detector_block.get('exposure_ref_sec', detector_defaults.exposure_ref_sec)
     )
-    quantization = str(
-        _scene_or_default(
-            detector_block, 'quantization', detector_defaults.get('quantization', 'exact')
-        )
-    )
+    quantization = str(detector_block.get('quantization', detector_defaults.quantization))
 
     signal_full_scale_frac = float(
         scene_noise.get(
@@ -552,20 +527,22 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
             inst_noise.get('signal_full_scale_frac', sim_noise['signal_full_scale_frac']),
         )
     )
-    bias_dn = float(
-        scene_noise.get('bias_dn', detector_defaults.get('bias_dn', sim_noise.get('bias_dn', 0.0)))
-    )
+    bias_dn = float(scene_noise.get('bias_dn', detector_defaults.bias_dn))
     saturation_dn = float(inst_noise.get('saturation_dn', sim_noise['saturation_dn']))
     full_well_dn = float(inst_noise.get('full_well_dn', sim_noise['full_well_dn']))
 
     gain_e_per_dn = _resolve_gain(detector_defaults, detector_block, instrument=instrument)
-    full_well_e = float(detector_defaults.get('full_well_e', full_well_dn * gain_e_per_dn))
+    full_well_e = (
+        full_well_dn * gain_e_per_dn
+        if detector_defaults.full_well_e is None
+        else detector_defaults.full_well_e
+    )
     # The smallest cosmic-ray deposit: a scene value, else the detector default when
     # instrument_defaults is on, else the full well, so every hit clips.
     if 'cosmic_ray_amplitude_e' in scene_noise:
         cosmic_ray_amplitude = float(scene_noise['cosmic_ray_amplitude_e'])
-    elif instrument_defaults and 'cosmic_ray_amplitude_e' in detector_defaults:
-        cosmic_ray_amplitude = float(detector_defaults['cosmic_ray_amplitude_e'])
+    elif instrument_defaults and detector_defaults.cosmic_ray_amplitude_e is not None:
+        cosmic_ray_amplitude = detector_defaults.cosmic_ray_amplitude_e
     else:
         cosmic_ray_amplitude = full_well_e
     filter_name = detector_block.get('filter')
@@ -583,7 +560,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     if 'read_noise_dn' in scene_noise:
         read_noise_e = float(scene_noise['read_noise_dn']) * gain_e_per_dn
     elif instrument_defaults:
-        read_noise_e = float(detector_defaults.get('read_noise_e', 0.0))
+        read_noise_e = detector_defaults.read_noise_e or 0.0
     else:
         read_noise_e = 0.0
 
@@ -600,7 +577,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     if 'bloom_length' in scene_noise:
         bloom_length = int(scene_noise['bloom_length'])
     elif instrument_defaults:
-        bloom_length = int(detector_defaults.get('bloom_length', 0))
+        bloom_length = detector_defaults.bloom_length or 0
     else:
         bloom_length = int(sim_noise.get('bloom_length', 0))
     # Cosmic rays (expected events per pixel per second): scene value, else the
@@ -608,20 +585,21 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     cr_key = 'cosmic_ray_events_per_pixel_per_sec'
     if cr_key in scene_noise:
         cosmic_ray_rate = float(scene_noise[cr_key])
-    elif instrument_defaults and cr_key in detector_defaults:
-        cosmic_ray_rate = float(detector_defaults[cr_key]) * pixels_per_frame_pixel
+    elif instrument_defaults:
+        rate = detector_defaults.cosmic_ray_events_per_pixel_per_sec
+        cosmic_ray_rate = rate * pixels_per_frame_pixel
     else:
         cosmic_ray_rate = float(sim_noise.get(cr_key, 0.0))
     cosmic_ray_dwell = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'cosmic_ray_readout_dwell_sec',
+        detector_defaults.cosmic_ray_readout_dwell_sec,
         instrument_defaults=instrument_defaults,
     )
     cosmic_ray_spread = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'cosmic_ray_spread_px',
+        detector_defaults.cosmic_ray_spread_px,
         instrument_defaults=instrument_defaults,
     )
     # The detector defaults state the spread in native pixels, so a binned pixel sees
@@ -632,74 +610,76 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
 
     dark_current = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'dark_current_e_per_sec',
+        detector_defaults.dark_current_e_per_sec,
         instrument_defaults=instrument_defaults,
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
     readout_dark = _default_or_zero(
-        scene_noise, detector_defaults, 'readout_dark_e', instrument_defaults=instrument_defaults
+        scene_noise,
+        'readout_dark_e',
+        detector_defaults.readout_dark_e,
+        instrument_defaults=instrument_defaults,
     )
     if 'readout_dark_e' not in scene_noise:
         readout_dark *= pixels_per_frame_pixel
     hot_pixel_fraction = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'hot_pixel_fraction',
+        detector_defaults.hot_pixel_fraction,
         instrument_defaults=instrument_defaults,
     )
     banding_amplitude = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'banding_amplitude_e',
+        detector_defaults.banding_amplitude_e,
         instrument_defaults=instrument_defaults,
     )
     bias_pedestal_sigma = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'bias_pedestal_sigma_dn',
+        detector_defaults.bias_pedestal_sigma_dn,
         instrument_defaults=instrument_defaults,
     )
     bias_row_gradient = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'bias_row_gradient_dn',
+        detector_defaults.bias_row_gradient_dn,
         instrument_defaults=instrument_defaults,
     )
     bias_col_gradient = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'bias_col_gradient_dn',
+        detector_defaults.bias_col_gradient_dn,
         instrument_defaults=instrument_defaults,
     )
     calibration_column_residual = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'calibration_column_residual_e',
+        detector_defaults.calibration_column_residual_e,
         instrument_defaults=instrument_defaults,
     )
     calibration_pixel_residual = _default_or_zero(
         scene_noise,
-        detector_defaults,
         'calibration_pixel_residual_e',
+        detector_defaults.calibration_pixel_residual_e,
         instrument_defaults=instrument_defaults,
     )
     # Shape parameters (period, amplitude scales) track the detector defaults; they never
     # activate a stage on their own (the amplitude/fraction gate does that).
-    hot_pixel_amplitude = float(
-        scene_noise.get(
-            'hot_pixel_amplitude_e', detector_defaults.get('hot_pixel_amplitude_e', 0.0)
-        )
-    )
+    default_hot_amplitude = detector_defaults.hot_pixel_amplitude_e or 0.0
+    default_hot_column_factor = detector_defaults.hot_pixel_column_factor or 0.0
+    hot_pixel_amplitude = float(scene_noise.get('hot_pixel_amplitude_e', default_hot_amplitude))
     hot_pixel_column_factor = float(
-        scene_noise.get(
-            'hot_pixel_column_factor', detector_defaults.get('hot_pixel_column_factor', 0.0)
-        )
+        scene_noise.get('hot_pixel_column_factor', default_hot_column_factor)
     )
-    banding_period_px = float(
-        scene_noise.get('banding_period_px', detector_defaults.get('banding_period_px', 64.0))
+    default_banding_period = (
+        _DEFAULT_BANDING_PERIOD_PX
+        if detector_defaults.banding_period_px is None
+        else detector_defaults.banding_period_px
     )
+    banding_period_px = float(scene_noise.get('banding_period_px', default_banding_period))
 
     # The hot_pixels artifact mode (routed here from the registry) wins over the
     # noise-block / instrument_defaults hot-pixel knobs: an explicit mode is a
@@ -719,19 +699,23 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         if mode_amplitude is not None:
             hot_pixel_amplitude = float(mode_amplitude)
         elif hot_pixel_amplitude <= 0.0:
-            hot_pixel_amplitude = float(detector_defaults.get('hot_pixel_amplitude_e', 0.0))
+            hot_pixel_amplitude = default_hot_amplitude
         mode_column_factor = resolved.get('column_factor')
         if mode_column_factor is not None:
             hot_pixel_column_factor = float(mode_column_factor)
         elif hot_pixel_column_factor <= 0.0:
-            hot_pixel_column_factor = float(detector_defaults.get('hot_pixel_column_factor', 0.0))
+            hot_pixel_column_factor = default_hot_column_factor
         hot_pixel_adversarial = bool(artifacts.get('adversarial', False))
 
     # The vidicon DN-noise sub-parameters activate on the vidicon path only, and
     # like every physical-chain artifact stay disabled until instrument_defaults
     # is on or the scene sets them explicitly (the stage-activation floor).
-    default_vidicon = dict(detector_defaults.get('vidicon') or {}) if instrument_defaults else {}
-    scene_vidicon = _set_keys(scene_noise.get('vidicon') or {})
+    default_vidicon = (
+        dataclasses.asdict(detector_defaults.vidicon)
+        if instrument_defaults and detector_defaults.vidicon is not None
+        else {}
+    )
+    scene_vidicon = scene_noise.get('vidicon') or {}
     vidicon = {**default_vidicon, **{k: float(v) for k, v in scene_vidicon.items()}}
 
     # Derived I/F calibration scale: a noise-free signal of 1.0 round-trips
@@ -767,9 +751,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     contour_step = 8
     try:
-        downlink_table = resolve_downlink_table(
-            instrument, _scene_or_default(detector_block, 'downlink_table', None)
-        )
+        downlink_table = resolve_downlink_table(instrument, detector_block.get('downlink_table'))
     except ValueError as exc:
         raise DetectorParamError(str(exc)) from exc
     if 'banding_coherent' in detector_modes:
@@ -833,8 +815,10 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         vidicon=vidicon,
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,
-        calibrated_sky_if=float(
-            detector_defaults.get('calibrated_sky_if', resolve_calibrated_sky_if(instrument))
+        calibrated_sky_if=(
+            resolve_calibrated_sky_if(instrument)
+            if detector_defaults.calibrated_sky_if is None
+            else detector_defaults.calibrated_sky_if
         ),
         marker_value=missing_data_marker(inst_config),
         random_seed=int(params['random_seed']),

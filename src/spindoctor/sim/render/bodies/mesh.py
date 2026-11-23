@@ -41,10 +41,10 @@ from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.mesh import (
     Mesh,
+    MeshBodyRender,
     MeshBodySpec,
-    PolyhedralBodyRender,
     make_irregular_mesh,
-    render_polyhedral_body_with_silhouette,
+    render_polyhedral_body,
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -119,15 +119,15 @@ def _render_mesh_shape(
     relief_rms: float,
     relief_corr_deg: float,
     relief_seed: int,
-) -> PolyhedralBodyRender:
-    """Draw an irregular mesh body shape and its silhouette at the reference center.
+) -> MeshBodyRender:
+    """Draw an irregular mesh body shape and its coverage at the reference center.
 
     The truth-side upgrades (shading mode, relief field) are part of the cache key
     of ``_render_mesh_shape_cached``; at their defaults ('flat', relief off) the
     intensity is exactly the shared ``render_mesh_body_image`` result the navigator
     predicts.
     """
-    return render_polyhedral_body_with_silhouette(
+    return render_polyhedral_body(
         size=shape,
         center=center,
         mesh=_body_mesh(
@@ -167,8 +167,8 @@ def render_single_mesh_body(
     illumination_angle: float,
     phase_angle: float,
     anti_aliasing: float,
+    body_streams_seed: int,
     oversample: int = 1,
-    body_streams_seed: int | None = None,
     body_index: int = 0,
 ) -> tuple[NDArrayBoolType, dict[str, Any]]:
     """Render one polyhedral-mesh body into the image in place.
@@ -191,11 +191,11 @@ def render_single_mesh_body(
         illumination_angle: Image-plane light azimuth in radians.
         phase_angle: Phase angle in radians.
         anti_aliasing: Limb supersampling control.
-        oversample: The render grid's oversampling factor, to which the canvas edges
-            are aligned.
         body_streams_seed: The scene's seed for every body's random streams; this
             body's relief and pose-scatter streams derive from it, mixed with the
             body's index and name.
+        oversample: The render grid's oversampling factor, to which the canvas edges
+            are aligned.
         body_index: Stable index of this body in the scene's body list.
 
     Returns:
@@ -205,12 +205,7 @@ def render_single_mesh_body(
     """
     size_v, size_u = img.shape
     body_name = body.name.upper()
-    streams = _draw_mesh_streams(
-        body,
-        body_streams_seed=body_streams_seed,
-        body_index=body_index,
-        widths=(2.0 * semi_a_px, 2.0 * semi_b_px, 2.0 * semi_c_px),
-    )
+    streams = _draw_mesh_streams(body, body_streams_seed=body_streams_seed, body_index=body_index)
     # A mesh body's pose is an arbitrary 3D rotation, so fall back to the
     # bounding sphere of the ellipsoidal envelope for both image axes.
     mesh_half_extent = max(semi_a_px, semi_b_px, semi_c_px)
@@ -245,7 +240,7 @@ def render_single_mesh_body(
         )
     else:
         draw = _render_mesh_shape_cached if canvas.on_frame else _render_partial_mesh_cached
-        drawing = draw(
+        body_render = draw(
             canvas.shape,
             canvas.center,
             semi_a_px,
@@ -262,8 +257,8 @@ def render_single_mesh_body(
         )
         mask, body_info = finish_single_body(
             img,
-            drawing.intensity,
-            drawing.silhouette,
+            body_render.intensity,
+            body_render.coverage,
             body_name=body_name,
             center_v=center_v,
             center_u=center_u,
@@ -294,13 +289,7 @@ class _MeshStreams:
     drawn_deg: list[float] | None
 
 
-def _draw_mesh_streams(
-    body: BodySpec,
-    *,
-    body_streams_seed: int | None,
-    body_index: int,
-    widths: tuple[float, float, float],
-) -> _MeshStreams:
+def _draw_mesh_streams(body: BodySpec, *, body_streams_seed: int, body_index: int) -> _MeshStreams:
     """Seed a mesh body's relief terrain and draw its pose scatter.
 
     The relief terrain and the pose scatter each draw from their own named stream
@@ -309,11 +298,9 @@ def _draw_mesh_streams(
     through the returned body info.
 
     Parameters:
-        body: The body (its name, mesh, relief, pose scatter, and seed are read).
-        body_streams_seed: The scene's seed for every body's random streams, or None.
+        body: The body (its name, mesh, relief, and pose scatter are read).
+        body_streams_seed: The scene's seed for every body's random streams.
         body_index: The body's position in the scene's body list.
-        widths: The full widths of the ellipsoidal envelope, twice its semi-axes, in
-            pixels.
 
     Returns:
         The mesh spec to render, with the drawn pose scatter added to its pose, the
@@ -322,13 +309,7 @@ def _draw_mesh_streams(
     mesh = body.mesh
     if body.limb_relief_rms <= 0.0 and body.pose_scatter_sigma_deg <= 0.0:
         return _MeshStreams(mesh=mesh, relief_seed=0, drawn_deg=None)
-    # The fallback digest hashes the full widths, twice the semi-axes (#913).
-    identity_seed = body_identity_seed(
-        body_streams_seed,
-        body,
-        body_index,
-        fallback_key=(*widths, body_index, body.name.upper()),
-    )
+    identity_seed = body_identity_seed(body_streams_seed, body, body_index)
     relief_seed = 0
     if body.limb_relief_rms > 0.0:
         relief_seed = derive_effect_seed(identity_seed, 'relief')

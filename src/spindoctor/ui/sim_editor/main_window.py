@@ -146,7 +146,7 @@ class CreateSimulatedImageModel(
         self._zoom_sharp = True
         self._syncing = False
 
-        self._updater = ParameterUpdater(140)
+        self._updater = ParameterUpdater(140, self)
         self._updater.update_requested.connect(self._update_image)
         # The navigated frame's verdict renders off the UI thread (see verdict.py).
         self._verdict_runner = VerdictRunner(self)

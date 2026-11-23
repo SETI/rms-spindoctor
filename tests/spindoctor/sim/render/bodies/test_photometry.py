@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.render.bodies.photometry import (
-    DARK_SIDE_FLOOR,
+    MINNAERT_CEILING,
     incidence_cosines,
     shade_surface,
     surge_factor,
@@ -35,6 +35,12 @@ def test_lommel_seeliger_point_value() -> None:
     """Lommel-Seeliger: I = 2 * mu0 / (mu0 + mu)."""
     out = shade_surface(_one(0.6), _one(0.8), law='lommel_seeliger')
     assert float(out[0]) == pytest.approx(2.0 * 0.6 / 1.4, abs=1e-12)
+
+
+def test_lommel_seeliger_passes_one_toward_the_sunlit_limb() -> None:
+    """Lommel-Seeliger is carried above 1 where the sun is higher than the camera."""
+    out = shade_surface(_one(0.9), _one(0.1), law='lommel_seeliger')
+    assert float(out[0]) == pytest.approx(1.8, abs=1e-12)
 
 
 def test_lommel_seeliger_is_flat_at_zero_phase() -> None:
@@ -69,9 +75,15 @@ def test_minnaert_k_one_is_lambert() -> None:
 
 
 def test_minnaert_limb_divergence_is_capped() -> None:
-    """The k < 1 limb divergence is capped at the unit signal ceiling."""
+    """The k < 1 limb divergence is capped at the Lommel-Seeliger ceiling of 2."""
     out = shade_surface(_one(0.5), _one(1e-6), law='minnaert', minnaert_k=0.5)
-    assert float(out[0]) == pytest.approx(1.0, abs=1e-12)
+    assert float(out[0]) == MINNAERT_CEILING
+
+
+def test_minnaert_below_the_ceiling_passes_one() -> None:
+    """A k < 1 Minnaert value between 1 and the ceiling is carried uncapped."""
+    out = shade_surface(_one(0.8), _one(0.25), law='minnaert', minnaert_k=0.5)
+    assert float(out[0]) == pytest.approx(math.sqrt(0.8) / math.sqrt(0.25), abs=1e-12)
 
 
 def test_lunar_lambert_zero_phase_endpoint_is_lommel_seeliger() -> None:
@@ -115,7 +127,7 @@ def test_surge_factor_form() -> None:
 
 
 def test_surge_scales_the_law() -> None:
-    """shade_surface multiplies the law by the surge factor before the clip."""
+    """shade_surface multiplies the law by the surge factor."""
     alpha = math.radians(40.0)
     plain = shade_surface(_one(0.5), _one(0.9), law='lambert', phase_angle=alpha)
     surged = shade_surface(
@@ -130,11 +142,17 @@ def test_surge_scales_the_law() -> None:
     assert float(surged[0]) == pytest.approx(float(plain[0]) * factor, abs=1e-12)
 
 
-def test_dark_floor_applies_on_the_visible_hemisphere_only() -> None:
-    """Geometric night on the visible disc floors at 0.01; the far side is 0."""
-    out = shade_surface(np.array([-0.3, -0.3]), np.array([0.5, -0.5]), law='lambert')
-    assert float(out[0]) == pytest.approx(DARK_SIDE_FLOOR, abs=1e-12)
-    assert float(out[1]) == 0.0
+@pytest.mark.parametrize('law', ['lambert', 'lommel_seeliger', 'minnaert', 'lunar_lambert'])
+def test_night_side_is_black(law: str) -> None:
+    """Geometric night on the visible disc renders 0 under every law."""
+    out = shade_surface(_one(-0.3), _one(0.5), law=law, phase_angle=math.radians(60.0))
+    assert float(out[0]) == 0.0
+
+
+def test_far_hemisphere_is_black() -> None:
+    """A sunlit point on the far hemisphere renders 0."""
+    out = shade_surface(_one(0.6), _one(-0.5), law='lambert')
+    assert float(out[0]) == 0.0
 
 
 def test_unknown_law_is_rejected() -> None:
@@ -146,8 +164,8 @@ def test_unknown_law_is_rejected() -> None:
 def test_incidence_cosines_match_the_lambert_renderer() -> None:
     """The cos(incidence) helper reproduces lambert_from_normals' interior values.
 
-    Away from the clip band (cos_i in (0.01, 1)), the Lambert renderer's
-    output IS the incidence cosine, so the two paths must agree exactly.
+    Inside (0, 1) the Lambert renderer's output IS the incidence cosine, so the
+    two paths must agree exactly.
     """
     from spindoctor.sim.shared.ellipsoid import lambert_from_normals
 

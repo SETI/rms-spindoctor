@@ -126,11 +126,13 @@ def _nominal_read_noise(instrument: str | None, domain: str, *, binning: int) ->
     """
     detector_defaults = resolve_detector_defaults(instrument, binning)
     if domain == 'dn':
-        vidicon = detector_defaults.get('vidicon') or {}
-        line = float(vidicon.get('read_noise_line_dn', 1.0))
-        pixel = float(vidicon.get('read_noise_pixel_dn', 1.0))
-        return float(stable_hypot(line, pixel))
-    return float(detector_defaults.get('read_noise_e', 1.0))
+        vidicon = detector_defaults.vidicon
+        # A DN zero point is a vidicon's, and the catalog requires a vidicon's chain.
+        assert vidicon is not None
+        return float(stable_hypot(vidicon.read_noise_line_dn, vidicon.read_noise_pixel_dn))
+    # An electron zero point is a CCD's, and the catalog requires a CCD's read noise.
+    assert detector_defaults.read_noise_e is not None
+    return detector_defaults.read_noise_e
 
 
 def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
@@ -206,8 +208,8 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     zero_point, flux_domain = _star_zero_point(params)
     exposure_sec = float(params.get('exposure_sec', 1.0))
 
-    stars_params = params.get('stars', []) or []
-    bodies_params = params.get('bodies', []) or []
+    stars_params = params.get('stars', [])
+    bodies_params = params.get('bodies', [])
 
     # Star positions and smear vectors are pixel-space, so they scale with the
     # oversampling factor for rendering; at os == 1 the copy is numerically
@@ -252,17 +254,15 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         factor = spk_ref_range / range_km
         return spk_dv * factor, spk_du * factor
 
-    # Process bodies: parse each into its typed spec (every default applied,
-    # a null key read as absent), assign default ranges, apply parallax and the
+    # Process bodies: parse each into its typed spec (every default applied),
+    # assign default ranges, apply parallax and the
     # camera roll, and scale centers and axes to the oversampled grid.  A roll
     # rotates each body's center about the boresight and turns the body about
     # its own center by the same angle (its orientation, the direction its
     # light comes from, and everything placed on it), so the rolled body is the
     # unrolled one turned with the frame, as the stars are; the body NavModel
     # predicts the unrolled geometry.  Each body also keeps a scene mapping with
-    # the values it is drawn with for the render truth.  If the scene sets a key
-    # to null, that mapping leaves the key out, so a null key and an absent one
-    # give the same truth.
+    # the values it is drawn with for the render truth.
     bodies_with_ranges: list[tuple[BodySpec, dict[str, Any]]] = []
     explicit_ranges: list[bool] = []
     for body_number, scene_body in enumerate(bodies_params):
@@ -277,7 +277,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         # every name-keyed consumer (render order, masks, inventory) sees the
         # same identity and two unnamed bodies cannot collide.
         range_km = default_body_range_km(body_number) if spec.range_km is None else spec.range_km
-        truth_params = {key: value for key, value in body_params.items() if value is not None}
+        truth_params = dict(body_params)
         truth_params['name'] = spec.name
         truth_params['range_km'] = range_km
         cv = det_center_v if spec.center_v is None else spec.center_v

@@ -343,11 +343,12 @@ class RenderDisplayMixin(SimEditorBase):
         self._units_label.setText(f'verdict render failed: {_short_error(error)}')
 
     def closeEvent(self, event: QCloseEvent | None) -> None:
-        """Drop any render still on its way, then close the window.
+        """Drop any edit or render still on its way, then close the window.
 
         Parameters:
             event: The close event.
         """
+        self._updater.cancel()
         self._stop_full_renders()
         super().closeEvent(event)
 
@@ -448,8 +449,7 @@ class RenderDisplayMixin(SimEditorBase):
                 pen = QPen(QColor(0, 255, 255), 2)
                 painter.setPen(pen)
                 geometry = ring_system.get('geometry') or {}
-                # An absent or null center is the detector center, as the renderer
-                # reads it.
+                # An absent center is the detector center, as the renderer reads it.
                 center_u = float(scene_value(geometry, 'center_u', shown['size_u'] / 2.0))
                 center_v = float(scene_value(geometry, 'center_v', shown['size_v'] / 2.0))
                 painter.drawEllipse(QRectF(center_u - 4.0, center_v - 4.0, 8.0, 8.0))

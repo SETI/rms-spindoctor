@@ -129,8 +129,8 @@ class TransitSpec:
     Parameters:
         moon: ``(dv_px, du_px, radius_px, albedo_factor)`` -- the moon disc's
             offset from the parent body center, its radius, and its brightness
-            as a factor of the local smooth-law shading (bright moon > 1 is
-            clipped at the signal ceiling; dark moon < 1).  None for a
+            as a factor of the local smooth-law shading (above 1 for a moon
+            brighter than its parent, below 1 for a darker one).  None for a
             shadow-only entry.
         shadow: ``(dv_px, du_px, radius_px, darkness)`` -- the cast shadow
             disc; the textured shading inside it is multiplied by
@@ -156,7 +156,7 @@ def albedo_spec_from_params(
 ) -> AlbedoTextureSpec | None:
     """Build an :class:`AlbedoTextureSpec` from a body's ``albedo_texture`` block.
 
-    A key that is absent or null takes its default.
+    A key that the block leaves out takes its default.
 
     Parameters:
         block: One body's ``albedo_texture`` mapping, or None.
@@ -178,7 +178,7 @@ def albedo_spec_from_params(
 def disc_texture_spec_from_params(body_params: Mapping[str, Any]) -> DiscTextureSpec | None:
     """Build a :class:`DiscTextureSpec` from a body mapping, or None.
 
-    A key that is absent or null takes its default.
+    A key that the block leaves out takes its default.
 
     Parameters:
         body_params: One scene body entry.
@@ -200,7 +200,7 @@ def disc_texture_spec_from_params(body_params: Mapping[str, Any]) -> DiscTexture
 def transit_specs_from_params(body_params: Mapping[str, Any]) -> tuple[TransitSpec, ...]:
     """Build the body's :class:`TransitSpec` tuple (empty without ``transits``).
 
-    A key that is absent or null takes its default.
+    A key that an entry leaves out takes its default.
 
     Parameters:
         body_params: One scene body entry.
@@ -366,4 +366,4 @@ def apply_transits(
         if transit.moon is not None:
             dv, du, radius, albedo_factor = transit.moon
             inside = disc_mask & ((v_ctr - dv) ** 2 + (u_ctr - du) ** 2 <= radius * radius)
-            intensity[inside] = np.clip(base_intensity[inside] * albedo_factor, 0.0, 1.0)
+            intensity[inside] = base_intensity[inside] * albedo_factor

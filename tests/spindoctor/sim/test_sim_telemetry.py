@@ -821,18 +821,11 @@ def test_enum_param_rejects_bad_value() -> None:
         **_base_scene('coiss_nac'),
         'artifacts': {'alternating_lines': {'probability': 1.0, 'period': 3}},
     }
-    with pytest.raises(SimSceneValidationError, match='must be one of'):
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'artifacts\.alternating_lines\.period: 3 is not one of \[2, 4\]',
+    ):
         validate_sim_params(scene)
-
-
-def test_enum_param_accepts_null() -> None:
-    """A null enum value is unset, so it passes validation and stays null."""
-    scene = {
-        **_base_scene('coiss_nac'),
-        'artifacts': {'alternating_lines': {'probability': 1.0, 'period': None}},
-    }
-    validated = validate_sim_params(scene)
-    assert validated['artifacts']['alternating_lines']['period'] is None
 
 
 def test_adversarial_flag_is_a_boolean() -> None:

@@ -201,14 +201,14 @@ registry beside it in :mod:`spindoctor.sim` (paths are relative to ``sim/``):
    * - Module
      - Role
    * - ``instruments/catalog.py``
-     - Reads the instrument files, merges their entries, resolves each
-       entry's ``base``, and checks the result (see :ref:`sim-instrument-files`).
+     - Reads the instrument files, merges each entry over its ``base``, parses
+       the result, and runs the checks that span entries (see
+       :ref:`sim-instrument-files`).
    * - ``instruments/schema.py``
-     - The key inventory of an entry: each key's type and range, and which keys
-       an entry must carry.
-   * - ``instruments/checks.py``
-     - The checks of how the parts of one entry fit together, and the checks
-       that span entries.
+     - The typed schema of an entry: each key's type and range, which keys an
+       entry must carry, and the rules that tie its parts together.
+   * - ``instruments/schema_detector.py``
+     - The typed schema of an entry's detector block and readout modes.
    * - ``instruments/resolvers.py``
      - The functions the rest of the simulator calls to read an entry: the PSF
        and its truncation radius, distortion residual, detector chain, readout
@@ -289,11 +289,8 @@ applies where. The *channel* is structural:
   (the filter is default-deny -- an unclassified or unknown key stays behind),
   a body's ``nav_override`` mapping is overlaid onto its idealized view and
   then dropped (the navigator sees what it *believes*, never the true values
-  underneath), and all values are deep copies. A null reads as absent here too:
-  a key set to null inside ``nav_override`` leaves the idealized value in place, and
-  a body or star key that is still null after the overlay is left out, as is a
-  null key of the ring system or of one of its features. Leaving a key out can
-  only take information away, so neither rule lets truth across.
+  underneath), and all values are deep copies. A key that ``nav_override`` leaves
+  out keeps the body's own idealized value.
   One value inside the truth-side ``detector`` block is published: the readout
   binning, which the view carries as a top-level ``binning`` key (1 when the
   scene sets none). A real frame's label states its readout mode, so a real
@@ -601,7 +598,7 @@ scene (:mod:`spindoctor.sim.render.pipeline`):
        with no PSF the factor is 1 and this is a no-op.
    * - Detector
      - :func:`~spindoctor.sim.render.detector.apply_detector`
-     - Runs the electron unit chain: converts the composed [0, 1] signal to
+     - Runs the electron unit chain: converts the composed signal to
        electrons through the exposure, applies Poisson shot noise, full-well
        bloom, read noise, banding, gain to DN, bias structure, quantization, and
        the ADC clip (see :ref:`sim-detector-stage`). The Voyager vidicon takes
@@ -633,9 +630,10 @@ error to the one effect it varies.
 ``SimFrame`` carries the mutable image state between stages:
 
 - ``signal`` -- the ``(V*os, U*os)`` float64 image. It holds normalized
-  [0, ~1] intensive scene units through the radiance and optics stages (a
-  point-mass star deposit may legitimately spike above 1.0 on the oversampled
-  grid before the PSF spreads it); the detector stage converts it to electrons
+  intensive scene units through the radiance and optics stages, where 1 is a
+  white disc lit face-on. A limb-brightened law, a bright albedo spot, or a haze
+  can carry it above 1, and so can a point-mass star deposit on the oversampled
+  grid before the PSF spreads it. The detector stage converts it to electrons
   through the exposure and digitizes it to DN in place (the electron unit
   chain).
 - ``point_e`` -- a same-shaped plane reserved for electron-unit point sources.
@@ -706,14 +704,13 @@ it would with ``noise_seed`` set to that value, whenever the value is in the ran
 The integration tests use the key to measure a check over several noise draws.
 
 Every random stream of one body (its craters, its relief terrain, its albedo noise,
-and a mesh body's pose scatter) derives from one identity seed, which
-:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` chooses. In a scene
-render that seed comes from the scene's ``random_seed``, mixed with the body's index
-and name, so two bodies of the same geometry get independent surfaces. The craters
-are seeded with the identity seed itself, and each other effect with a named stream
-of it. A body renderer called directly without a scene seed uses the body's own
-``seed`` if it has one, and otherwise falls back to a digest of the body's widths
-and its center (for the craters) or its index and name (for the other effects).
+and a mesh body's pose scatter) derives from one identity seed.
+:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` computes it from the
+scene's ``scene_radiance/craters`` stream, mixed with the body's index and name, so
+two bodies of the same geometry get independent surfaces. The craters are seeded with
+the identity seed itself, and each other effect with a named stream of it. Each body
+renderer requires the scene's stream seed as an argument, and a test or tool that
+calls a renderer directly passes a seed of its own.
 
 **The driver.** :func:`spindoctor.sim.render.driver.render_scene` takes a
 scene and returns ``(image, metadata)``. It encodes the scene as
@@ -988,9 +985,11 @@ normative unit chain of the renderer. For a CCD instrument the composed
 intensive signal passes through the electron unit chain in
 :func:`~spindoctor.sim.render.detector.chain.apply_detector`:
 
-1. **Signal to electrons.** The intensive [0, 1] signal is scaled to electrons
+1. **Signal to electrons.** The intensive signal is scaled to electrons
    through ``signal_full_scale_frac * full_well_e * (exposure_sec /
-   exposure_ref_sec)``. A scene that sets a filter (see
+   exposure_ref_sec)``. The signal is not capped first: a limb-brightened law or
+   a bright albedo spot can carry it above 1, and the full well in step 4
+   saturates it as a real camera does. A scene that sets a filter (see
    :ref:`sim-detector-block`) sets ``exposure_ref_sec`` from the filter's
    measured throughput, so a signal of 1.0 collects that filter's electrons.
 2. **Point sources.** The point-source plane (``frame.point_e``) carries the
@@ -1129,7 +1128,9 @@ seeded stream and a no-op when its activation key is 0.
 **The vidicon path.** The Voyager vidicon
 (:func:`~spindoctor.sim.render.detector.chain.apply_detector`, vidicon branch)
 is not photon-noise dominated, so it skips the electron conversion: the signal
-maps straight to the 8-bit DN full scale and the noise is applied in DN -- a
+maps straight to the 8-bit DN full scale, the target saturates where the charge
+stored on it (the signal, the stars, the residual image, and the cosmic-ray hits
+together) passes its full scale (``full_well_dn``), and the noise is applied in DN -- a
 line-correlated read-noise term (a per-line offset plus a within-line white
 component) and a faint vertical coherent periodic component -- then 8-bit
 quantization.
@@ -1248,23 +1249,40 @@ doesn't have, so the load fails with a message that gives the key. That includes
 a key nested under a mapping the base lacks, such as a polarizer in a ``filters``
 block the base doesn't state. A null list item fails too: a list replaces the
 base's whole list, so an item has nothing to remove. ``aliases`` and
-``realism_cohort`` belong to one entry only. A base doesn't pass them on, and a
-null for either fails.
+``realism_cohort`` belong to one entry only. A base doesn't pass them on, so a
+null for either removes nothing and fails. The merge is the schema package's layer
+merge, under its rule that a null removes a value (see :doc:`dev_guide_schema`).
 
 :func:`~spindoctor.sim.instruments.catalog.load_instrument_catalog` reads every
 file once per directory (the result is cached) and merges the top-level keys of
-all of them. It checks each entry against the schema in
-:mod:`spindoctor.sim.instruments.schema` and the cross-checks in
-:mod:`spindoctor.sim.instruments.checks`. Every message about an entry gives the
-file, the entry, and the key path, as in ``coiss.yaml: coiss_calib_nac:
-detector.gain_e_per_dn_by_state: ...``. A message about a whole file gives the
-file, and a message about the directory, such as a stray file or a missing
-``generic`` entry, gives the directory. The directory may hold only ``.yaml``
-files: a ``.yml`` file, or any other entry in the directory, fails the load rather
-than being skipped. A file also fails the load if it isn't valid YAML, writes a
-key twice, or doesn't hold a mapping of instrument names to entries. An instrument
-name must be a string, so a name that YAML reads as a number, a boolean, or a date,
-such as a bare ``123``, fails.
+all of them. It parses each merged entry into an
+:class:`~spindoctor.sim.instruments.schema.InstrumentEntry`, a frozen dataclass
+whose parts are typed too (the detector block is a
+:class:`~spindoctor.sim.instruments.schema_detector.Detector`, each readout mode a
+:class:`~spindoctor.sim.instruments.schema_detector.ReadoutMode`, and so on). A
+rule that ties one part of an entry to another is a ``__post_init__`` method of the
+type that holds both parts. A shape default or an ``instrument_defaults`` map is
+typed as its mode's parameters, as the artifact-mode registry declares them (see
+:ref:`sim-artifact-framework`).
+
+The load reports every problem it finds at once, in one
+:class:`~spindoctor.schema.errors.SchemaError` with one line per problem. Each line
+gives the file and entry that set the value, and the key path, as in
+``coiss.yaml: coiss_calib_nac: detector.gain_e_per_dn_by_state: ...``. If an entry
+removes a required key with a null, the line gives that entry. When two keys don't fit
+together, the line gives the entry that set one of them last. For example, if an entry
+sets a ``native_frame_size_px`` that its base's binnings don't divide, the line gives
+that entry, although the binnings come from the base. A problem in an entry that other
+entries inherit is reported once.
+
+A message about a whole file gives the file, and a message about the directory, such as
+a stray file or a missing ``generic`` entry, gives the directory. The directory may hold
+only ``.yaml`` files: a ``.yml`` file, or any other entry in the directory, fails the
+load rather than being skipped. A file also fails the load if it isn't valid YAML,
+writes a key twice, is empty, or doesn't hold a mapping of instrument names to entries.
+An instrument name must be a string, so a name that YAML reads as a number, a boolean,
+or a date, such as a bare ``123``, fails.
+
 The load fails if two files define the same instrument, or if an instrument's
 top-level value isn't a mapping. Within an entry, the load fails on:
 
@@ -1340,9 +1358,10 @@ PSF kernel and truncation radius, distortion residual, detector identity,
 calibrated sky, downlink tables, filters, and artifact-mode availability and shape
 defaults. The navigator block an entry points at is read by
 :func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config`. Each of these
-raises :class:`ValueError` for an instrument that no entry defines. Scene
-validation's allowed names, the scene editor's instrument list, and the realism
-match's cohort map all come from the catalog.
+raises :class:`ValueError` for an instrument that no entry defines. Every caller shares
+one catalog, so a resolver that returns a list or a mapping, such as a gain table,
+returns a copy of it. Scene validation's allowed names, the scene editor's instrument
+list, and the realism match's cohort map all come from the catalog.
 
 An entry's ``data_units`` must match the ``data_units`` of the navigator block it
 points at. Otherwise the navigator would read a calibrated frame as DN, or a DN
@@ -1516,9 +1535,15 @@ detector-electronics effect, an archive-processing scar) the operator opts into
 one at a time. The modes are registered once in
 :mod:`spindoctor.sim.artifact_modes` -- the ``ARTIFACT_MODES`` registry
 is their single source of truth. Each :class:`~spindoctor.sim.artifact_modes.ArtifactMode`
-fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), the
-:class:`~spindoctor.sim.artifact_modes.ModeParam` schema of its
+fixes the mode's name, its rendering stage (``telemetry`` or ``detector``), its
 parameters, and its activation key with that key's meaning for the mode. Each
+:class:`~spindoctor.sim.artifact_modes.ModeParam` gives a parameter's type as a
+schema annotation, such as ``NonNeg``, ``Unit``, or ``Literal['drop', 'keep']``
+(see :doc:`dev_guide_schema`). From those the mode builds one frozen dataclass,
+:attr:`~spindoctor.sim.artifact_modes.ArtifactMode.params_type`, and
+:func:`~spindoctor.sim.artifact_modes.parse_mode_params` checks a mode's map
+against it. The scene validator and the instrument catalog both check a mode's
+map this way, so a scene and a shape default are refused with the same words. Each
 instrument entry's ``artifact_modes`` list says which modes that
 instrument offers (see :ref:`sim-instrument-files`). Every consumer reads that
 description rather than carrying its own copy: the scene validator
@@ -1570,8 +1595,7 @@ quantity it holds. The registry records which key each mode takes
 ``dead_pixels`` and ``dead_columns`` also accept ``count``, a fixed number of
 dead pixels or columns in place of the Poisson draw. A static detector defect
 has a definite count, so ``count`` is the usual choice there. The two keys are
-mutually exclusive, and the validator refuses a map that sets both. A key set
-to null counts as unset, so ``{count: null, expected_events: 3}`` is valid. The
+mutually exclusive, and the validator refuses a map that sets both. The
 sim editor keeps the two exclusive too: ``count`` carries a "set" box, setting
 it removes ``expected_events``, and editing ``expected_events`` removes the
 count.
@@ -1887,8 +1911,8 @@ The expected-outcome block
 
 A scene may carry a scene-level ``expected`` block declaring the outcome the
 navigator should produce: a required ``status`` (``success`` / ``failed`` /
-``conflicted``), a ``confidence_tier`` (one of the five navigation ranks, or
-null to assert the status only), an optional ``status_reason`` token, and an
+``conflicted``), an optional ``confidence_tier`` (one of the five navigation ranks;
+leave it out to assert the status only), an optional ``status_reason`` token, and an
 optional ``known_offset_error_px`` / ``known_offset_error_tol_px`` pair (the
 known-error check, below). It is
 a **test-only** key -- read by the assertion machinery in
@@ -1908,7 +1932,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are three:
+not yet fixed. There are eight:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -1916,6 +1940,12 @@ not yet fixed. There are three:
   sub-pixel search window.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
+- In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
+  pulls the disc correlation, which carries a low-tier success 1.84 px wrong.
+- In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
+  outline that the image doesn't have, and the disc correlation stops at the
+  edge of its sub-pixel search window.
+- In ``mutual_deep``, the far body's crescent pulls the disc correlation.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
 answer as correct behavior. So the scene also declares ``known_offset_error_px``
@@ -1930,10 +1960,7 @@ also fails loudly, which prompts a deliberate re-measurement of the known error,
 or retirement of the check, instead of a silent behavior change. The success the
 check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
-(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family. The
-``titan_crescent_horns`` scenes hold a low-confidence success 5.74 px wrong this
-way: the disc correlation, pulled by the haze's ring of light, sets it on every
-seed.
+(:doc:`dev_guide_orchestrator_ensemble`) describes the failure family.
 
 .. _sim-floor:
 
@@ -1990,10 +2017,10 @@ boundary filter strips, so the navigator keeps its default belief while the
 render departs from it. The sweeps and their floors:
 
 - ``psf_limb_mismatch`` -- rendered PSF sigma broadened above the navigator's
-  Gaussian; the softened limb edge biases the distance-transform fit and, past a
-  few pixels of blur, washes the edge out (a navigability cliff).
+  Gaussian; the softened limb edge biases the distance-transform fit, and at a
+  4 px sigma the lit limb still navigates, 1.2 to 1.5 px off.
 - ``photometric_minnaert_mismatch`` -- Minnaert ``k`` walked below 1; the
-  limb-darkened disc departs from the Lambert template.
+  limb-brightened disc departs from the Lambert template.
 - ``spk_parallax_error`` -- a spacecraft-position error parallax-shifts the body
   while the navigator predicts the catalog geometry; the recovery absorbs the
   shift almost one-for-one.
@@ -2052,9 +2079,8 @@ placement. No body module imports the dispatcher.
 **The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
 frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
 (:func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`). Every default is
-applied there, and a key set to null gets the same default as an absent key. Under a
-planted roll the stage first turns the entry about the body's own center
-(:func:`~spindoctor.sim.render.roll.roll_body_params`; see
+applied there. Under a planted roll the stage first turns the entry about the body's
+own center (:func:`~spindoctor.sim.render.roll.roll_body_params`; see
 :ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
 ``roll_deg``, which turns the crater layout. The stage then shifts each center by the
 ephemeris parallax, turns it about the frame center by the roll, and scales the
@@ -2064,14 +2090,13 @@ spec. Two sub-blocks stay as their validated mappings, because their specs depen
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
 the ``albedo_texture`` noise draws its seed from the body's identity. The renderer builds
 them with :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_params` and
-:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which read a null
-key as absent too.
+:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which apply the
+defaults of those blocks.
 
 The stage also writes each body's entry in the render truth. The entry starts as a
-copy of the scene entry, leaving out any key the scene sets to null, so the truth reads
-a null key as an absent one. Under a planted roll the entry is the turned one, and the
+copy of the scene entry. Under a planted roll the entry is the turned one, and the
 angles the roll turns (``illumination_angle``, and ``rotation_z`` or
-``pose_euler_deg``) are always present: one the scene leaves out or sets to null
+``pose_euler_deg``) are always present: one the scene leaves out
 carries its default turned by the roll. The stage then puts in the render-grid centers
 and axes, fills in the name and range when the scene leaves them out, and, for a mesh
 body, adds the pose scatter it drew.
@@ -2418,12 +2443,14 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
      - ``I = mu0`` (the navigator's own template law).
    * - ``lommel_seeliger``
      - truth
-     - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, clipped at the signal
-       ceiling.
+     - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, rising to 2 at the sunlit
+       limb.
    * - ``minnaert``
      - truth
      - ``I = mu0**k mu**(k - 1)`` with ``minnaert_k``; ``k = 1`` is Lambert,
-       ``k = 0.5`` the classic lunar value.
+       ``k = 0.5`` the classic lunar value. Below ``k = 1`` the law grows without
+       bound toward the limb, so it is capped at 2, the Lommel-Seeliger limb value.
+       Without the cap the brightest limb pixel would depend on the pixel size.
    * - ``lunar_lambert``
      - truth
      - ``2 L(a) mu0 / (mu0 + mu) + (1 - L(a)) mu0`` with the McEwen (1991)
@@ -2433,10 +2460,16 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
 An optional ``opposition_surge`` (truth) multiplies the law by a normalized
 exponential ``(1 + amplitude exp(-a / width)) / (1 + amplitude)`` -- 1 at exact
 opposition, ``1 / (1 + amplitude)`` far from it -- so it plants the
-brightness-versus-phase surge signature while keeping the normalized signal
-plane within [0, 1]. Because the navigator always shades Lambert, any non-Lambert
-law or surge moves the terminator and the limb-darkening profile by a known
-amount.
+brightness-versus-phase surge signature. Because the navigator always shades
+Lambert, any non-Lambert law or surge moves the terminator and the limb-darkening
+profile by a known amount.
+
+No law is capped at 1. The body stages carry the brightness uncapped to the
+detector, which saturates at its full well. A scene's albedo spot brighter than 1
+brightens everywhere it lies, until the detector saturates. None of the laws has a
+night-side term, so a body's night side renders black, as a real airless body's
+does; the body's silhouette is drawn separately, so a black pixel inside the body
+still occludes what lies behind it.
 
 Surface texture and transits
 -----------------------------
@@ -2557,13 +2590,13 @@ prediction consumes:
 The non-Lambert photometric laws, opposition surge, crater carving, the
 surface-texture and transit families, and the atmosphere halo are
 ellipsoid-path features; a mesh body carries the relief, shading, detail, and
-pose-scatter keys. The scene validator *rejects* a non-null value of any of
-thirteen ellipsoid-only keys on a ``polyhedral_mesh`` body: the appearance keys
-``atmosphere``, ``photometric_law``, ``minnaert_k``, ``opposition_surge``,
-``albedo_texture``, ``disc_texture``, ``transits``, ``crater_fill``,
-``crater_min_radius``, ``crater_max_radius``, ``crater_power_law_exponent``, and
-``crater_relief_scale``, and ``sub_observer_lat_deg``, since a mesh body is turned
-by its ``pose_euler_deg`` instead. A null value reads as an absent key. The mesh renderer
+pose-scatter keys. The scene validator *rejects* each of thirteen ellipsoid-only
+keys on a ``polyhedral_mesh`` body: the appearance keys ``atmosphere``,
+``photometric_law``, ``minnaert_k``, ``opposition_surge``, ``albedo_texture``,
+``disc_texture``, ``transits``, ``crater_fill``, ``crater_min_radius``,
+``crater_max_radius``, ``crater_power_law_exponent``, and ``crater_relief_scale``,
+and ``sub_observer_lat_deg``, since a mesh body is turned by its ``pose_euler_deg``
+instead. The mesh renderer
 would silently ignore these keys, and a scene that asks for an effect must render
 it or fail loudly. The list is ``MESH_UNSUPPORTED_KEYS`` in
 :mod:`spindoctor.sim.scene.fields`, and ``mesh_unsupported_message`` there
@@ -2572,7 +2605,7 @@ control that writes one of these keys, and it shows the refusal as the tooltip
 of that control and of every control and label inside it, so hovering any of
 them explains why it is disabled (see :ref:`sim-gui`).
 
-The reverse rule holds too. The validator rejects a non-null value of the three
+The reverse rule holds too. The validator rejects the three
 mesh-only appearance keys, ``shading``, ``mesh_detail_octaves``, and
 ``pose_scatter``, on an ellipsoid body, including a body that doesn't state a
 ``shape_model``. The ellipsoid renderer would silently ignore them. That list is
@@ -2609,14 +2642,14 @@ and the disc correlator scores only against disc brightness the image carries.
 Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
-On grazing and half overlap the limb fit lands within 0.2 px of each scene's planted
-offset over 16 noise seeds. The disc correlation does worse: it stops at the edge of its
-half-pixel refinement window, 0.18 px off on grazing overlap and 0.34 px on half
-overlap. Its composite template paints the near body over the far one wherever the near
-body touches a pixel, even partly, so the template keeps a dark outline at the near
-body's limb that the image no longer shows. With the template drawn by coverage, the
-same correlation lands within 0.01 px. Both
-scenes hold their fused errors, 0.15 to 0.18 px and 0.32 to 0.33 px, to bands. That is a
+Over 16 noise seeds the limb fit lands 0.32 to 0.34 px from the planted offset on
+grazing overlap and 0.23 to 0.25 px on half overlap. The disc correlation stops at the
+edge of its half-pixel refinement window, 0.18 px off on grazing overlap (on 14 of the
+16 seeds) and 0.34 to 0.35 px on half overlap. Its composite template paints the near
+body over the far one wherever the near body touches a pixel, even partly, so the
+template keeps a dark outline at the near body's limb that the image no longer shows.
+With the template drawn by coverage, the same correlation lands within 0.01 px. Both
+scenes hold their fused errors, 0.07 to 0.17 px and 0.31 to 0.32 px, to bands. That is a
 statement about these simulated scenes, not a certification of real-frame accuracy: the
 sim renders an idealized occlusion the true optics only approximate. On the deep scene
 the far body's disc is over 90 percent hidden, so its ``visible_lit_fraction`` collapses
@@ -2624,9 +2657,9 @@ and its disc feature is dropped for low reliability. The far body's crescent sti
 beside the near body's limb, and the disc template, which holds only the near body,
 leaves it out, so the crescent pulls the disc correlation about 0.8 px off. The limb fit
 runs on arcs the image actually shows -- the robust Tukey biweight loss is a second line
-of defense against a stray vertex, not the mechanism that carries the result -- but on 6
-of the 16 seeds it stops unconverged and flags itself spurious, and the disc correlation
-alone sets the answer. The deep scene holds that 0.73 to 0.80 px error to a band. No
+of defense against a stray vertex, not the mechanism that carries the result -- and lands
+0.14 to 0.17 px off, but it flags itself spurious on every seed, and the disc correlation
+alone sets the answer. The deep scene holds that 0.78 to 0.79 px error to a band. No
 double-counting conflict arises. The mutual-event scenes pin the arc fractions and
 offsets so a regression toward hidden-arc lock-on fails loudly.
 
@@ -2755,16 +2788,10 @@ the scaled half stays below saturation. Inside the band the multiplier is
 ``1 + (ratio - 1) * w`` or ``1 + amplitude * w`` for the weight ``w``, so a
 ratio of one or an amplitude of zero leaves the haze untouched.
 
-The render clips the signal at 1, so a positive amplitude flattens the bright
-crescent wherever the base brightness times ``1 + amplitude`` would pass 1, and
-there the two halves differ by the clip instead of a scaling, poleward of the
-band or not. Over 26 of the 40 clean Titan truth scenes that navigate both with
-and without an ``ns_asymmetry_amplitude`` of +0.35, the amplitude shifts the
-recovered cross-track position by 0.063 pixels on average with a switch at the
-equator and 0.065 pixels with the 10 degree band, about four times what an
-amplitude of -0.35 costs with the band (below). Nearly all of that cost is there
-with a switch too, where an amplitude of -0.35, which darkens and so never
-reaches the clip, costs 0.004 pixels, so the clip sets it and the band does not.
+The render carries the brightness uncapped to the detector. A positive amplitude
+therefore flattens the bright crescent only where the scaled brightness passes
+the detector's full well, and there the two halves differ by the saturation
+instead of a scaling, poleward of the band or not.
 
 Inside the band ``ns_asymmetry_amplitude`` is not an affine control, and no
 continuous blend can make it one. The mirror about the hemispheric split maps
@@ -2815,22 +2842,23 @@ to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the predicted
+outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light is
+brighter than a white disc lit face-on and saturates the detector. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
 ``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
-30 px off in ``du``. The ring of light, which the disc correlation's
-hard-limbed template leaves out, also pulls the correlation 5.74 px off, and the
+25 px off in ``du``. The ring of light, which the disc correlation's
+hard-limbed template leaves out, also pulls the correlation 1.84 px off, and the
 correlation does not flag that answer spurious. So the body-witness veto (see
 :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
 nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its 5.74 px error to a band. The noiseless sibling
+scene holds its 1.84 px error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
 and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near 28.9, and the same 5.74 px disc correlation error), so the
-ring of light alone, not the noise, drives them. The haze evaluation
+blob centroid near -26.0, and the same 1.84 px disc correlation error), so the
+ring of light alone drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
 that box rather than the frame, and a body without an ``atmosphere`` block
@@ -3469,19 +3497,7 @@ Scene parameter reference
 Top-level fields
 ----------------
 
-A top-level number (``exposure_sec``, ``offset_v``, ``offset_u``,
-``offset_rotation_deg``, ``time``, ``ring_epoch``, and ``star_catalog_scatter_px``)
-can't be null: the validator refuses it, and the author leaves the key out to take its
-default. A top-level block or list set to null reads as unset. Inside the ``bodies``,
-``stars``, ``optics``, ``sky_counts``, ``spk_error``, ``noise``, ``detector``,
-``artifacts``, and ``ring_system`` blocks, an optional key that validation accepts as
-null renders exactly as an absent key does. The navigator reads it as absent too:
-:func:`~spindoctor.sim.scene.boundary.build_nav_params` leaves a null body, star, or ring key
-out of the navigator view. For a key set to null inside ``nav_override``, the navigator
-sees the scene's own value. Validation refuses null on a few optional keys, which the
-author leaves out instead: ``optics.psf.match_navigator``, an ``optics.smear`` entry's
-``object_class``, and the map of an artifact mode inside ``artifacts``. A parameter
-inside a mode's map may be null and takes its default.
+A scene either sets a key or leaves it out to take its default.
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -3668,13 +3684,10 @@ Body parameters
 Each entry of ``bodies`` is a dict. The geometry, pose, lighting, and physical
 scale are idealized (the published shape model of a body is catalog knowledge;
 a scene plants shape error through ``nav_override``, not by hiding the mesh).
-Every body key, and every optional key inside a body's sub-blocks, may be null. A
-null key renders exactly as an absent key does (see the body spec in
-:ref:`sim-body-renderer`), gives the same render truth, and is left out of the
-navigator view. For a key set to null inside ``nav_override``, the navigator sees
-the scene's own value. An entry of a
-fixed-length list, such as ``pose_euler_deg`` or a cloud's ``center_vu``, can't be
-null. Common fields:
+A ``nav_override`` may set only the idealized keys, and each value it sets passes the
+same check as the body's own value for that key, so a two-angle ``pose_euler_deg`` or a
+center that isn't finite is refused there with the override's key path. Common
+fields:
 
 .. list-table::
    :widths: 22 11 11 10 46
@@ -3754,8 +3767,8 @@ resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
 The truth-side body keys never reach the navigator, which predicts each body as
 described in :ref:`sim-body-renderer`. The ellipsoid renderer consumes the relief,
 photometry, texture, and transit keys, and the mesh renderer consumes the relief
-keys and the mesh extras. A non-null value of a key in a row marked
-*ellipsoid only*, or of the ``atmosphere`` block, is refused on a
+keys and the mesh extras. A key in a row marked
+*ellipsoid only*, or the ``atmosphere`` block, is refused on a
 ``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
 
 .. list-table::
@@ -3798,10 +3811,6 @@ keys and the mesh extras. A non-null value of a key in a row marked
    * - ``pose_scatter``
      - ``{sigma_deg}`` -- a seeded per-frame Gaussian perturbation of the
        *rendered* mesh pose only; the navigator predicts the catalog pose.
-   * - ``seed``
-     - The body's own seed for its craters, texture, relief, and pose scatter. The
-       scene's ``random_seed`` comes first, so only a body renderer called directly
-       without a scene seed uses it (see :ref:`sim-stage-pipeline`).
    * - ``anti_aliasing``
      - Image-side rendering-fidelity knob; the predicted template always
        renders at full anti-aliasing.
@@ -3889,11 +3898,10 @@ the tooltips read their descriptions from it. Every mapping in the block,
 down to each orbit, m-mode, edge wave, modulation, spokes, and moonlet entry,
 accepts only its own keys, so an unknown key anywhere in it fails validation.
 
-**Null keys.** An optional key set to null anywhere in the block counts as unset:
-the validator, the renderer, the orbit parser the navigator-side model shares
-(``ring_orbit_from_mapping``), and the sim editor all read it as the absent key,
-through ``scene_value`` in :mod:`spindoctor.sim.scene.fields`. A required key
-set to null is refused as missing.
+**Unset keys.** An optional key that the block leaves out takes its default: the
+validator, the renderer, the orbit parser the navigator-side model shares
+(``ring_orbit_from_mapping``), and the sim editor all read it through ``scene_value``
+in :mod:`spindoctor.sim.scene.fields`.
 
 **Features.** Each entry of ``features`` carries ``name``, ``kind``, ``tau``
 (the normal optical depth), kind-specific shape keys, a catalog ``orbit``,
@@ -3918,7 +3926,7 @@ editor's kind switch follows. The switch grays out a widget the kind rejects,
 and the widget's tooltip says why. Each widget the kind takes shows the value
 the renderer will use: the stored value, or for an absent ``side`` the kind's
 default from ``RING_SIDE_DEFAULTS``, which the editor shows without writing it.
-When a switch makes a shape key required and the key is absent or null, the
+When a switch makes a shape key required and the key is absent, the
 switch writes the starting value for that key. A rejected key fails validation.
 
 ===========================  ========  ========  ========  ========  ========
@@ -4081,11 +4089,9 @@ The optional ``noise`` dict (truth-side) pins the truth-side detector noise the
 scene plants. The detector stage consumes most of it; the missing-data markers
 are applied by the telemetry stage. Each field is off at the floor unless the
 block sets it (or ``artifacts.instrument_defaults`` turns on the camera's
-physical chain); an explicit noise key always wins over the detector default. A key set to
-null, here or in ``noise.vidicon``, counts as unset and resolves as if it were
-absent, as a null ``detector`` key does, so ``noise: {poisson: null}`` keeps the
-shot noise ``instrument_defaults`` turns on. The validator checks the block
-against exactly this inventory, so an unknown noise key fails loudly.
+physical chain); an explicit noise key always wins over the detector default. The
+validator checks the block against exactly this inventory, so an unknown noise key
+fails loudly.
 
 .. list-table::
    :widths: 30 12 12 46
@@ -4324,8 +4330,8 @@ exposure the signal full-scale fraction references), ``filter`` (below),
 ``quantization`` (the ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``,
 ``sqrt_lut``, ``ls8b``, or ``contour_8bit``), and ``downlink_table`` (the name
 of the downlink table that the ``sqrt_lut`` sub-mode decodes through; see
-:ref:`sim-detector-stage` for when a scene may set it). Omitted keys, and keys
-set to null, fall back to the instrument's detector defaults.
+:ref:`sim-detector-stage` for when a scene may set it). Omitted keys fall back to
+the instrument's detector defaults.
 
 ``filter`` sets the filter combination the frame was shot through, written as
 the product label writes it (``CL1+CL2``). It sets how many electrons per second
@@ -4497,14 +4503,11 @@ instrument entry. Scene validation refuses the key, and so does
 that skipped validation. For rendering, the top-level ``noise`` block wins over
 ``instrument_config.noise``.
 
-``instrument_config.noise`` must be a mapping. A null navigator key there keeps the
-navigator's meaning where it has one, so a null ``marker_value`` marks lost lines
-with NaN. The values the faint-star limit reads have no null meaning, and neither
-has the binned-mode table ``noise.by_binning``. Validation refuses a null for any
-of those values and anywhere in the table, with a message that gives the key's path
-and tells the author to leave the key out to take its default. On a binned frame
-the star limit reads its zero point and read noise from the ``noise.by_binning``
-entry for the frame's binning. So a binned scene that pins
+``instrument_config.noise`` must be a mapping. A scene leaves a key out to keep the
+navigator block's value, and a scene that wants lost lines marked with NaN sets
+``marker_value`` to ``.nan``. On a binned frame the star limit reads its zero point and
+read noise from the ``noise.by_binning`` entry for the frame's binning. So a binned scene
+that pins
 ``instrument_config.noise.read_noise_dn`` or
 ``instrument_config.noise.star_flux_dn_per_s_vmag0`` must also pin the same key
 under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning, and
@@ -4787,8 +4790,8 @@ The editor and the renderer read the same scene. The renderer draws the preview,
 the editor's controls show the author what the scene holds. Each control shows the
 value the renderer draws with:
 
-* **Unset and null keys.** Leaving a key out and setting it to null both mean "use the
-  default", and the control shows the renderer's default. The tabs take every
+* **Unset keys.** Leaving a key out means "use the default", and the control shows
+  the renderer's default. The tabs take every
   default from the renderer. They read each optional key through
   :func:`~spindoctor.sim.scene.fields.scene_value` with the renderer's default, or read
   the spec the renderer builds: the body tab and its appearance groups use
@@ -4810,7 +4813,7 @@ value the renderer draws with:
   when it picks a range for an added body and when it warns that two bodies share a
   range.
 * **The navigation override.** The renderer ignores a body's ``nav_override``, and for
-  an override key that is absent or null the navigator uses the body's own value.
+  an override key that is absent the navigator uses the body's own value.
   Turning the group on writes an empty override, so the navigator predicts the body
   with its own shape model, mesh lumpiness, and pose until the author edits one of the
   group's controls. An edit writes only that control's key, so a key the author has not
@@ -4821,7 +4824,7 @@ value the renderer draws with:
   controls update when the author edits a semi-axis or changes the frame size. Neither key is
   written to the scene until the author edits its own control.
 * **On/off groups.** A group starts turned off when its block, or the key that turns it
-  on, is absent or null, because the renderer then draws none of it. An empty ring
+  on, is absent, because the renderer then draws none of it. An empty ring
   azimuthal sub-block also starts turned off. While a group is off, its controls show
   the values the editor writes when the group is turned on.
 * **Groups whose default is 0.** The renderer's defaults for the opposition surge's
@@ -4900,8 +4903,9 @@ thread. ``FullRenderRunner`` in ``full_render.py`` renders the offset-free pictu
   status bar, and prints a failure's traceback. Every Qt object is therefore created,
   used, and destroyed on the UI thread. A worker that outlives the window writes only
   into a job that nothing reads, because the poll timer is the runner's child and is
-  destroyed with the window. A worker that can't start reports the failure on the
-  status bar.
+  destroyed with the window. The debounce timer is also destroyed with the window, and
+  closing the window drops the redraw of an edit still waiting out the debounce. A worker
+  that can't start reports the failure on the status bar.
 - **Exit.** The worker is an ordinary, non-daemon thread, so the interpreter
   waits for it before it shuts down: quitting the editor mid-render waits for
   that render to finish. A daemon thread would be killed at shutdown in the

@@ -27,6 +27,7 @@ non-radial field draws randomness, from its own stream ``optics/distortion``
 derived from the scene seed.
 """
 
+import dataclasses
 from collections.abc import Mapping
 from typing import Any, cast
 
@@ -92,7 +93,7 @@ def effective_psf(params: Mapping[str, Any]) -> dict[str, Any] | None:
         kernel = resolve_psf_kernel(params.get('instrument'))
         if kernel is not None:
             # The catalog kernel is native; a binned frame's pixels are larger.
-            return binned_psf_kernel(kernel, scene_binning(params))
+            return binned_psf_kernel(dataclasses.asdict(kernel), scene_binning(params))
     return None
 
 
@@ -125,10 +126,11 @@ def _effective_distortion(params: Mapping[str, Any]) -> dict[str, Any] | None:
         return None
     # k1 and k2 act on the radius normalized to the frame, so a full binned
     # frame keeps them; the non-radial wander is in native pixels.
-    residual['nonradial_rms_px'] = float(residual.get('nonradial_rms_px', 0.0)) / scene_binning(
-        params
-    )
-    return residual
+    return {
+        'k1': residual.k1,
+        'k2': residual.k2,
+        'nonradial_rms_px': residual.nonradial_rms_px / scene_binning(params),
+    }
 
 
 def apply_stray_light(
@@ -147,8 +149,8 @@ def apply_stray_light(
     navigator's BANDPASS_DOG source-image filter is meant to remove it.  The
     field is additive, so it brightens dark sky as well as lit features (a
     multiplicative field would leave the dark sky -- where the gradient most
-    needs suppressing -- untouched).  It is applied to the noise-free signal in
-    [0, 1] before the detector stage.
+    needs suppressing -- untouched).  It is applied to the noise-free signal
+    before the detector stage.
 
     A linear ramp rises toward a bright source beyond the field of view, so a
     planted camera roll turns it: the rolled ramp is the unrolled one turned about
@@ -159,7 +161,7 @@ def apply_stray_light(
     by the camera's optics, so a roll leaves it alone.
 
     Parameters:
-        img: Normalized [0, 1] signal image, modified in place.
+        img: Normalized signal image, modified in place.
         amplitude: Peak stray-light level added, in normalized signal units.
         direction_deg: Ramp direction for the 'linear' model, in degrees.
         model: 'linear' (a ramp spanning [0, amplitude] over the unrolled frame)
