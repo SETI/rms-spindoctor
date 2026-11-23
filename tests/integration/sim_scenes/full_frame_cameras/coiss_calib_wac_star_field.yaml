@@ -6,18 +6,24 @@ size_u: 1024
 random_seed: 7
 exposure_sec: 26.0
 # A calibrated Cassini WAC star field at full frame, modeled on the library
-# frame W1580760393 (CL1+CL2, 26 s).  Thirty-six catalog stars, V 7.4 to 9.5,
-# drawn uniformly over the frame with the count rising 0.45 dex per magnitude:
-# the brightest stars of a 12 square degree field, the part of it a catalog
-# would offer the navigator.  The long exposure collects about 670 cosmic rays
-# over the frame.  instrument_defaults turns on the CALIB chain: shot, read,
-# and readout-dark noise, the calibration residual, cosmic rays, the calibrated
-# hot-pixel population, and the fitted PSF and distortion residual.
+# frame W1580760393 (CL1+CL2, 26 s).  Ninety-five catalog stars, V 7.4 to 10.4,
+# as many as the navigator refines on that frame, drawn uniformly over the
+# frame with the count rising 0.45 dex per magnitude.  On a calibrated
+# simulated frame the navigator predicts every listed star (#899), so the list
+# sets the count.  The long exposure collects about 670 cosmic rays over the
+# frame.
+# instrument_defaults turns on the CALIB chain: shot, read, and readout-dark
+# noise, the calibration residual, cosmic rays, the calibrated hot-pixel
+# population, and the fitted PSF and distortion residual.
 #
-# Real WAC pointing errors stay within about 12 px on each axis, and the
-# camera's search window is 13 px, so the planted offset is 12 px.  The roll is
-# the camera's measured twist, -0.0115 deg, planted with roll fitting off as
-# the camera ships.
+# Real WAC pointing errors reach about 12.4 px on one axis (#785).  The planted
+# offset, 9.4 px up and 7.7 px right (12.1 px in all), stays below 12 px on
+# each axis, where the star techniques' margin test leaves it alone: an answer
+# within 1 px of the 13 px WAC search limit on either axis has its confidence
+# zeroed (#785).  coiss_calib_wac_star_field_large_offset plants the real
+# per-axis extent and fails for that reason.  The roll is the camera's
+# measured twist, -0.0115 deg, planted with roll fitting off as the camera
+# ships.
 artifacts:
   instrument_defaults: true
 bodies: []
@@ -58,6 +64,65 @@ stars:
   - {name: S34, v: 370.91, u: 841.12, vmag: 9.38}
   - {name: S35, v: 433.21, u: 596.07, vmag: 9.44}
   - {name: S36, v: 717.34, u: 367.79, vmag: 9.47}
+  - {name: S37, v: 176.81, u: 625.64, vmag: 9.53}
+  - {name: S38, v: 25.18, u: 237.22, vmag: 9.54}
+  - {name: S39, v: 859.26, u: 39.57, vmag: 9.55}
+  - {name: S40, v: 477.49, u: 118.00, vmag: 9.55}
+  - {name: S41, v: 130.26, u: 568.59, vmag: 9.58}
+  - {name: S42, v: 756.99, u: 652.27, vmag: 9.61}
+  - {name: S43, v: 200.35, u: 332.60, vmag: 9.62}
+  - {name: S44, v: 63.41, u: 658.90, vmag: 9.63}
+  - {name: S45, v: 612.75, u: 360.52, vmag: 9.69}
+  - {name: S46, v: 917.26, u: 133.79, vmag: 9.69}
+  - {name: S47, v: 27.59, u: 322.78, vmag: 9.69}
+  - {name: S48, v: 824.46, u: 404.75, vmag: 9.70}
+  - {name: S49, v: 194.73, u: 934.54, vmag: 9.71}
+  - {name: S50, v: 95.13, u: 118.44, vmag: 9.71}
+  - {name: S51, v: 18.39, u: 88.23, vmag: 9.73}
+  - {name: S52, v: 300.01, u: 574.98, vmag: 9.78}
+  - {name: S53, v: 744.56, u: 986.51, vmag: 9.78}
+  - {name: S54, v: 505.02, u: 929.03, vmag: 9.78}
+  - {name: S55, v: 873.39, u: 717.05, vmag: 9.80}
+  - {name: S56, v: 222.42, u: 68.35, vmag: 9.82}
+  - {name: S57, v: 322.75, u: 825.76, vmag: 9.86}
+  - {name: S58, v: 264.34, u: 699.78, vmag: 9.86}
+  - {name: S59, v: 1001.78, u: 147.38, vmag: 9.90}
+  - {name: S60, v: 963.59, u: 476.10, vmag: 9.91}
+  - {name: S61, v: 348.86, u: 50.51, vmag: 9.93}
+  - {name: S62, v: 446.47, u: 821.12, vmag: 9.94}
+  - {name: S63, v: 321.86, u: 735.88, vmag: 9.94}
+  - {name: S64, v: 764.43, u: 823.94, vmag: 9.96}
+  - {name: S65, v: 40.97, u: 778.67, vmag: 10.02}
+  - {name: S66, v: 69.06, u: 273.67, vmag: 10.04}
+  - {name: S67, v: 413.73, u: 808.69, vmag: 10.05}
+  - {name: S68, v: 250.98, u: 255.15, vmag: 10.05}
+  - {name: S69, v: 865.51, u: 141.20, vmag: 10.07}
+  - {name: S70, v: 759.61, u: 399.76, vmag: 10.08}
+  - {name: S71, v: 558.89, u: 509.79, vmag: 10.09}
+  - {name: S72, v: 677.35, u: 292.68, vmag: 10.09}
+  - {name: S73, v: 708.89, u: 620.32, vmag: 10.12}
+  - {name: S74, v: 799.80, u: 616.96, vmag: 10.13}
+  - {name: S75, v: 949.76, u: 245.57, vmag: 10.15}
+  - {name: S76, v: 153.33, u: 637.51, vmag: 10.16}
+  - {name: S77, v: 641.16, u: 365.83, vmag: 10.16}
+  - {name: S78, v: 147.07, u: 752.32, vmag: 10.18}
+  - {name: S79, v: 453.77, u: 297.39, vmag: 10.21}
+  - {name: S80, v: 805.16, u: 817.96, vmag: 10.22}
+  - {name: S81, v: 916.17, u: 425.07, vmag: 10.22}
+  - {name: S82, v: 777.45, u: 566.52, vmag: 10.23}
+  - {name: S83, v: 36.26, u: 689.51, vmag: 10.24}
+  - {name: S84, v: 368.04, u: 530.82, vmag: 10.30}
+  - {name: S85, v: 166.97, u: 263.80, vmag: 10.31}
+  - {name: S86, v: 1022.77, u: 1002.89, vmag: 10.32}
+  - {name: S87, v: 147.47, u: 98.36, vmag: 10.34}
+  - {name: S88, v: 250.18, u: 332.72, vmag: 10.36}
+  - {name: S89, v: 365.79, u: 562.29, vmag: 10.38}
+  - {name: S90, v: 62.35, u: 29.39, vmag: 10.38}
+  - {name: S91, v: 891.27, u: 158.63, vmag: 10.38}
+  - {name: S92, v: 651.63, u: 818.45, vmag: 10.40}
+  - {name: S93, v: 163.58, u: 802.63, vmag: 10.41}
+  - {name: S94, v: 510.23, u: 652.25, vmag: 10.43}
+  - {name: S95, v: 80.56, u: 923.44, vmag: 10.44}
 offset_v: -9.38
 offset_u: 7.71
 offset_rotation_deg: -0.0115

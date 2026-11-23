@@ -206,17 +206,21 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # expected blocks instead (#1050).
     ('titan_haze', FUSED): _t(0.046, 0.063, 0.020, 0.05),
     ('titan_haze_limb', FUSED): _t(0.008, 0.014, 0.006, 0.05),
-    # full_frame_cameras.  These scenes draw nothing from random_seed but the noise, so
-    # their 16 seeds and their 9 noise draws give the same numbers draw for draw.  The
-    # unfit twist sets the larger errors, since a translation follows the turned stars
-    # or limb it measures.  In gossi_star_field the roll turns the scene about the frame
-    # center before the 257 px offset moves it, so the -0.0526 deg twist moves the two
-    # bright stars in view by 0.22 and 0.50 px.  In nhlorri_star_field the +0.19 deg
-    # twist moves the four measured stars' mean position, about 290 px from the frame
-    # center, by about 0.95 px.  nhlorri_star_field_short_exposure fails as its expected
-    # block declares (#342).
+    # full_frame_cameras.  On these scenes a noise_seed draw gives the same answer as the
+    # random_seed of the same value: random_seed reaches the noise and, apart from that,
+    # only the fixed-pattern and sky streams, which change a few pixels of the render.
+    # The unfit twist sets the larger errors on the star fields and the Galileo disc,
+    # since a translation follows the turned stars or disc it measures.  In
+    # gossi_star_field the roll turns the scene about the frame center before the 257 px
+    # offset moves it, so the -0.0526 deg twist moves the two bright stars in view by
+    # 0.22 and 0.50 px.  In nhlorri_star_field the +0.19 deg twist moves the four
+    # measured stars' mean position, about 290 px from the frame center, by about
+    # 0.95 px.  gossi_disc lands 0.30 px off with its twist and 0.04 px off without it.
+    # coiss_wac_disc's error is the limb fit's own: 0.16 px with the roll, 0.18 px
+    # without.  The three short-exposure and large-offset scenes fail as their expected
+    # blocks declare (#342, #785, #TBD).
     ('coiss_calib_nac_disc', FUSED): _t(0.092, 0.094, 0.010, 0.05),
-    ('coiss_calib_wac_star_field', FUSED): _t(0.021, 0.031, 0.024, 0.05),
+    ('coiss_calib_wac_star_field', FUSED): _t(0.014, 0.034, 0.028, 0.05),
     ('coiss_nac_star_field', FUSED): _t(0.029, 0.289, 0.261, 0.06),
     ('coiss_wac_disc', FUSED): _t(0.161, 0.173, 0.031, 0.05),
     ('gossi_disc', FUSED): _t(0.299, 0.301, 0.183, 0.07),

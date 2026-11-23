@@ -14,8 +14,19 @@ exposure_sec: 2.0
 # readout-dark noise, hot pixels, cosmic rays, banding, bias structure, bloom,
 # and the fitted PSF and distortion residual.
 #
-# The planted offset is about the size of a median operator-verified NAC offset
-# (16 px median, 35 px 90th percentile), inside the camera's 50 by 140 px search
+# N1530185128 was taken through CL1+IR3, and the scene sets no filter, so its
+# stars render at the camera's clear-filter brightness.  Through CL1+IR3 the
+# simulator dims each star by the filter's throughput for sunlight, 22 times
+# (3.4 mag).  The frame then fails at 2 s, and at 10 s it navigates only with
+# hot pixels and cosmic rays off, where the real frame navigates at medium
+# tier at 2 s (#TBD).  The real frame's V 9.9 and 10.2 stars hold 2.3e7 to
+# 2.5e7 electrons per second at V 0 through CL1+IR3, about 50 times the
+# simulator's value for that filter and about twice its clear-filter value,
+# 1.0e7, so the clear filter keeps the stars closer to the real frame's.
+#
+# The planted offset, 39.5 px, lies above the 90th percentile of the
+# operator-verified NAC offsets in the image library (median 15.9 px, 90th
+# percentile 33.9 px, largest 60.3 px), inside the camera's 50 by 140 px search
 # window.  The roll is the camera's measured twist, +0.0115 deg (0.15 px at the
 # corner), planted with roll fitting off as the camera ships.
 artifacts:
@@ -48,5 +59,7 @@ offset_rotation_deg: 0.0115
 # needs 6 (#1146).  It matches the catalog against the 30 brightest sources it
 # detects, and the raw frame's hot pixels and cosmic rays crowd the stars out of
 # that list: with either one off it still fails, and with both off it finds the
-# offset to 0.05 px.  The single-star and refinement techniques carry the answer,
-# 0.03 to 0.29 px off over 16 seeds.
+# offset to 0.05 px.  The simulated hot pixels are overstrong (#906), so the
+# failure with hot pixels alone is partly the simulator's; the failure with cosmic
+# rays alone confirms #1146 as a navigator fault.  The single-star and refinement
+# techniques carry the answer, 0.03 to 0.29 px off over 16 seeds.

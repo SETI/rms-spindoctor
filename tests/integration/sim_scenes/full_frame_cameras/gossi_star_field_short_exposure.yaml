@@ -1,0 +1,57 @@
+schema_version: 2
+scene_name: gossi_star_field_short_exposure
+instrument: gossi
+size_v: 800
+size_u: 800
+random_seed: 7
+exposure_sec: 0.1
+# gossi_star_field at 0.1 s, the exposure of the real Pleiades frames
+# C0059894800R and C0059899900R, which navigate by locking on three stars.
+# Here the navigator predicts only the V 2.8 star visible and the frame fails
+# all_techniques_spurious (#TBD).  Two things leave it short of the real
+# frames.  The simulated Galileo stars are about 12 times fainter than real
+# ones of the same magnitude: the real frames' V 6.3 to 7.3 stars, two of
+# which the real lock uses, hold 4e7 to 7e7 electrons per second at V 0,
+# against the simulator's 4.0e6, so the scene's V 5.7 to 8.0 stars lie at or
+# below the sky noise.  And on a simulated frame the navigator's star limit
+# divides that zero point over the 3.0 px placeholder star blur (#342), which
+# gives V 3.2 at 0.1 s, where the real frames' limit is V 7.8.  With the blur
+# at the published 0.8 px the navigator predicts four stars and still finds no
+# match.  The real frames ran at gain 10K (39 electrons per DN) and the scene
+# at the catalog's 187; at the higher gain it fails the same way.
+#
+# On 3 of 25 draws (random_seed 505 and 1313, noise_seed 505) the single-star
+# technique returns an unflagged answer 130 to 221 px off at zero confidence,
+# and the frame fails final_confidence_below_threshold instead.  The committed
+# draw fails as the block declares, so a fix fails this scene until the block
+# is retired.
+artifacts:
+  instrument_defaults: true
+noise:
+  read_noise_dn: 0.96
+sky_counts: {}
+bodies: []
+stars:
+  - {name: A1, v: 512.37, u: 610.52, vmag: 2.84}
+  - {name: A2, v: 318.64, u: 941.27, vmag: 4.21}
+  - {name: S1, v: 775.10, u: 544.16, vmag: 5.69}
+  - {name: S2, v: 200.94, u: 440.10, vmag: 6.04}
+  - {name: S3, v: 623.31, u: 996.12, vmag: 6.46}
+  - {name: S4, v: 221.09, u: 819.79, vmag: 6.49}
+  - {name: S5, v: 534.29, u: 220.19, vmag: 6.59}
+  - {name: S6, v: 605.71, u: 881.91, vmag: 7.32}
+  - {name: S7, v: 608.19, u: 119.80, vmag: 7.33}
+  - {name: S8, v: 647.10, u: 206.69, vmag: 7.38}
+  - {name: S9, v: 348.09, u: 868.69, vmag: 7.49}
+  - {name: S10, v: 835.71, u: 580.24, vmag: 7.66}
+  - {name: S11, v: 201.27, u: 489.50, vmag: 7.85}
+  - {name: S12, v: 759.22, u: 762.61, vmag: 7.88}
+  - {name: S13, v: -13.22, u: 879.24, vmag: 7.88}
+  - {name: S14, v: 61.94, u: -80.59, vmag: 7.95}
+offset_v: -121.63
+offset_u: -226.41
+offset_rotation_deg: -0.0526
+expected:
+  status: failed
+  confidence_tier: failed
+  status_reason: all_techniques_spurious

@@ -43,3 +43,4 @@ offset_rotation_deg: 0.1912
 expected:
   status: failed
   confidence_tier: failed
+  status_reason: no_features_extracted

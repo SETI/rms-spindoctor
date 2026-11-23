@@ -12,7 +12,8 @@ exposure_sec: 0.1
 #
 # instrument_defaults turns on the camera's whole chain.  The scene plants the
 # measured Galileo sky noise, 0.96 DN, in place of the catalog's read noise,
-# which leaves the 8-bit sky below one DN (#979; see gossi_star_field).
+# because simulated Galileo skies are about four times quieter than real ones
+# (#979).
 #
 # The roll is the camera's measured twist, -0.0526 deg, planted with roll
 # fitting off as the camera ships.

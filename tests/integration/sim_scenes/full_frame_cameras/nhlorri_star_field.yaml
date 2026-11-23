@@ -11,13 +11,16 @@ exposure_sec: 5.0
 # lists.  instrument_defaults turns on the camera's whole chain.  At 5 s the
 # navigator expects to see the four brightest stars.
 #
-# The planted offset, 32 px, sits inside the camera's 60 px search window.  The
-# roll is the camera's measured twist, +0.1912 deg (2.4 px at the corner),
-# planted with roll fitting off as the camera ships.  A translation cannot
-# undo a roll, so the answer lands where the turned stars it measures moved:
-# the four stars' mean position lies about 290 px from the frame center, and
-# the twist moves it about 0.95 px.  That is the error the tolerance holds.
-# Carrying the static twist in a kernel correction is tracked in #435.
+# The planted offset, 32 px, has no measured LORRI counterpart: the image
+# library's two LORRI frames are each about 1.2 px off, and no larger
+# operator-verified LORRI offset is on record.  It reaches about half the
+# camera's 60 px search window, so the scene exercises the search well past
+# the small real errors.  The roll is the camera's measured twist, +0.1912 deg
+# (2.4 px at the corner), planted with roll fitting off as the camera ships.  A
+# translation cannot undo a roll, so the answer lands where the turned stars it
+# measures moved: the four stars' mean position lies about 290 px from the
+# frame center, and the twist moves it about 0.95 px.  That is the error the
+# tolerance holds.
 artifacts:
   instrument_defaults: true
 sky_counts: {}

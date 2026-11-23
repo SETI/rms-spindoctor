@@ -10,16 +10,18 @@ exposure_sec: 1.6
 # (257 and 286 px).  Like those Pleiades frames, the field holds two bright
 # stars, V 2.8 and 4.2, among fourteen of V 5.7 to 8.0.  The stars sit across
 # the camera's 350 px search window, and the offset brings a different part of
-# it into view.  At 1.6 s the navigator expects to see four of them, enough for
-# the star-field technique's wide-offset lock, the path the real frames take.
-# The brightest star saturates and blooms.
+# it into view.  The brightest star saturates and blooms.
 #
-# instrument_defaults turns on the camera's whole chain.  The catalog's read
-# noise leaves the 8-bit sky below one DN, so nearly every sky pixel reads the
-# same value and the navigator measures zero noise and draws no star features
-# (#1148).
-# Real Galileo skies are about four times noisier (#979: 0.96 DN against 0.22
-# DN on 8 frames each), and the scene plants that measured 0.96 DN.
+# The real frames ran 0.1 s and lock on three stars.  At 0.1 s this field
+# fails: the navigator predicts only the V 2.8 star visible
+# (gossi_star_field_short_exposure, #TBD).  At 1.6 s it predicts four, enough
+# for the star-field technique's wide-offset lock, the path the real frames
+# take, so this scene runs at 1.6 s.
+#
+# instrument_defaults turns on the camera's whole chain.  The scene plants the
+# measured Galileo sky noise, 0.96 DN, in place of the catalog's read noise,
+# because simulated Galileo skies are about four times quieter than real ones
+# (#979: 0.96 DN against 0.22 DN on 8 frames each).
 #
 # The roll is the camera's measured twist, -0.0526 deg (0.5 px at the corner),
 # planted with roll fitting off as the camera ships.  The roll turns the scene
