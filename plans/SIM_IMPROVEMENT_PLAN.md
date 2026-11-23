@@ -296,7 +296,7 @@ are the authorable parts of #904 and the ring-only part of #377:
   with its rings on the WAC (fused 0.03-0.10 px off, within 2.6 reported sigmas); a nearer
   planet with rings waits on #896;
 - dense ring profiles at real scale and low opening, with only catalog edges navigable and
-  unmodeled structure beside them; **Done (PR #TBD).** The `dense_rings` class holds five
+  unmodeled structure beside them; **Done (PR #1156).** The `dense_rings` class holds five
   full-size NAC scenes (a navigated Keeler-gap profile, the F ring beside the A ring's edge,
   the same rings at an opening of 2.5 degrees, a hidden Maxwell-ringlet eccentricity, a
   saturated B ring), each held to a known-error band (#755 for the Keeler gap, #1143 for the
