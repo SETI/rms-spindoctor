@@ -49,10 +49,6 @@ detector:
   bias_dn: 10.0
   dark_current_e_per_sec: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
-  bias_pedestal_sigma_dn: 0.0
-  bias_row_gradient_dn: 0.0
-  bias_col_gradient_dn: 0.0
-  bloom_length: 0
   quantization: exact
 readout_modes:
   1: {}

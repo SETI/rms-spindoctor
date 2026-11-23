@@ -43,10 +43,6 @@ _CCD_REQUIRED: tuple[str, ...] = (
     'default_gain_state',
     'read_noise_e',
     'dark_current_e_per_sec',
-    'bias_pedestal_sigma_dn',
-    'bias_row_gradient_dn',
-    'bias_col_gradient_dn',
-    'bloom_length',
 )
 
 # The detector keys a readout mode cannot change: a readout mode bins the same
@@ -119,9 +115,9 @@ class Detector:
     """An entry's detector block: the values of its detector chain.
 
     Every entry states the first five keys.  A CCD entry also states its electron
-    chain: the full well, gain table, default gain state, read noise, dark current,
-    bias-structure terms, and the bloom length.  A vidicon
-    entry states its ``vidicon`` chain.  The other keys are optional.
+    chain: the full well, gain table, default gain state, read noise, and dark
+    current.  A vidicon entry states its ``vidicon`` chain.  The other keys are
+    optional.
 
     Parameters:
         detector_model: The chain the detector stage renders with.
@@ -140,11 +136,6 @@ class Detector:
         cosmic_ray_amplitude_e: The smallest charge a cosmic ray deposits, in
             electrons.
         cosmic_ray_spread_px: The sigma, in native pixels, of a hit's diffusion.
-        bias_pedestal_sigma_dn: The frame-to-frame jitter of the bias, in DN.
-        bias_row_gradient_dn: The bias gradient along the rows, in DN.
-        bias_col_gradient_dn: The bias gradient along the columns, in DN.
-        bloom_length: How many pixels charge above the full well spills along the
-            column.
         calibrated_sky_if: The calibrated sky residual, in I/F, of a calibrated
             frame.
         dark_sky_ceiling_if: The realism match's dark-sky ceiling, in I/F.
@@ -170,10 +161,6 @@ class Detector:
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
-    bias_pedestal_sigma_dn: NonNeg | None = None
-    bias_row_gradient_dn: NonNeg | None = None
-    bias_col_gradient_dn: NonNeg | None = None
-    bloom_length: NonNegInt | None = None
     calibrated_sky_if: Float | None = None
     dark_sky_ceiling_if: Positive | None = None
     calibration_column_residual_e: NonNeg | None = None
@@ -244,10 +231,6 @@ class ReadoutMode:
         cosmic_ray_readout_dwell_sec: As :class:`Detector`.
         cosmic_ray_amplitude_e: As :class:`Detector`.
         cosmic_ray_spread_px: As :class:`Detector`.
-        bias_pedestal_sigma_dn: As :class:`Detector`.
-        bias_row_gradient_dn: As :class:`Detector`.
-        bias_col_gradient_dn: As :class:`Detector`.
-        bloom_length: As :class:`Detector`.
         calibrated_sky_if: As :class:`Detector`.
         dark_sky_ceiling_if: Refused when set.
         calibration_column_residual_e: As :class:`Detector`.
@@ -270,10 +253,6 @@ class ReadoutMode:
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
-    bias_pedestal_sigma_dn: NonNeg | None = None
-    bias_row_gradient_dn: NonNeg | None = None
-    bias_col_gradient_dn: NonNeg | None = None
-    bloom_length: NonNegInt | None = None
     calibrated_sky_if: Float | None = None
     dark_sky_ceiling_if: Positive | None = None
     calibration_column_residual_e: NonNeg | None = None

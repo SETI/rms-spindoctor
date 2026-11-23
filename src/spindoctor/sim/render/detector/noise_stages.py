@@ -245,7 +245,7 @@ def add_bias_structure(
     row_gradient_dn: float,
     col_gradient_dn: float,
     rng: np.random.Generator,
-) -> None:
+) -> dict[str, Any]:
     """Add a bias pedestal offset and low-order bias gradients (DN) in place.
 
     A per-image pedestal offset (a single seeded draw) rides on the flat bias
@@ -257,19 +257,30 @@ def add_bias_structure(
         pedestal_sigma_dn: Standard deviation of the per-image pedestal (DN).
         row_gradient_dn: Peak-to-peak row (v-axis) bias gradient (DN).
         col_gradient_dn: Peak-to-peak column (u-axis) bias gradient (DN).
-        rng: The stage's seeded generator.
+        rng: The effect's seeded generator.
+
+    Returns:
+        The realized pedestal offset and gradients for the truth record.
     """
     if pedestal_sigma_dn <= 0.0 and row_gradient_dn <= 0.0 and col_gradient_dn <= 0.0:
-        return
+        return {'active': False}
     size_v, size_u = dn.shape
+    pedestal_dn = 0.0
     if pedestal_sigma_dn > 0.0:
-        dn += float(rng.normal(0.0, pedestal_sigma_dn))
+        pedestal_dn = float(rng.normal(0.0, pedestal_sigma_dn))
+        dn += pedestal_dn
     if row_gradient_dn > 0.0:
         row_ramp = np.linspace(-0.5 * row_gradient_dn, 0.5 * row_gradient_dn, size_v)
         dn += row_ramp[:, None]
     if col_gradient_dn > 0.0:
         col_ramp = np.linspace(-0.5 * col_gradient_dn, 0.5 * col_gradient_dn, size_u)
         dn += col_ramp[None, :]
+    return {
+        'active': True,
+        'pedestal_dn': pedestal_dn,
+        'row_gradient_dn': row_gradient_dn,
+        'col_gradient_dn': col_gradient_dn,
+    }
 
 
 def add_cosmic_rays(

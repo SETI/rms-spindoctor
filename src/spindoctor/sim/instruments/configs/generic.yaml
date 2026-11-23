@@ -31,10 +31,6 @@ generic:
     # The generic block is an ideal detector with no environment, so there is
     # no cosmic-ray flux to measure; explicitly zero.
     cosmic_ray_events_per_pixel_per_sec: 0.0
-    bias_pedestal_sigma_dn: 0.0
-    bias_row_gradient_dn: 0.0
-    bias_col_gradient_dn: 0.0
-    bloom_length: 0
     quantization: exact
     # The calibrated sky residual (I/F) of every calibrated frame whose own entry
     # doesn't set one: the calibrated Cassini cameras, and any instrument a scene

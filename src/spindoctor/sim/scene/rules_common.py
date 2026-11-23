@@ -283,11 +283,9 @@ def _check_stray_light_block(value: Any, *, source: str) -> None:
 # The complete inventory of the truth-side noise block: the detector stage's
 # stochastic / structured knobs plus the telemetry stage's missing-data rate.
 # Unknown noise keys fail validation, so a typo cannot silently render the
-# clean floor.  'poisson' is the only boolean; 'bloom_length' is an integer;
-# 'vidicon' is a sub-mapping with its own inventory; everything else is a
-# non-negative number.
+# clean floor.  'poisson' is the only boolean; 'vidicon' is a sub-mapping with its
+# own inventory; everything else is a non-negative number.
 _NOISE_BOOL_KEYS: frozenset[str] = frozenset({'poisson'})
-_NOISE_INT_KEYS: frozenset[str] = frozenset({'bloom_length'})
 _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
     {
         'read_noise_dn',
@@ -299,16 +297,11 @@ _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
         'missing_data_rate',
         'signal_full_scale_frac',
         'dark_current_e_per_sec',
-        'bias_pedestal_sigma_dn',
-        'bias_row_gradient_dn',
-        'bias_col_gradient_dn',
         'calibration_column_residual_e',
         'calibration_pixel_residual_e',
     }
 )
-_NOISE_KEYS: frozenset[str] = (
-    _NOISE_BOOL_KEYS | _NOISE_INT_KEYS | _NOISE_NUMBER_KEYS | frozenset({'vidicon'})
-)
+_NOISE_KEYS: frozenset[str] = _NOISE_BOOL_KEYS | _NOISE_NUMBER_KEYS | frozenset({'vidicon'})
 _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
     {
         'read_noise_line_dn',
@@ -355,8 +348,6 @@ def _check_noise(value: Any, *, source: str) -> None:
         raise SimSceneValidationError(f'{source}: noise: unknown keys: {sorted(unknown)}')
     for key in _NOISE_BOOL_KEYS:
         _check_optional_bool(value.get(key), f'noise.{key}', source=source)
-    for key in _NOISE_INT_KEYS:
-        _check_optional_nonnegative_int(value.get(key), f'noise.{key}', source=source)
     for key in _NOISE_NUMBER_KEYS:
         _check_optional_nonnegative_number(value.get(key), f'noise.{key}', source=source)
     vidicon = value.get('vidicon')

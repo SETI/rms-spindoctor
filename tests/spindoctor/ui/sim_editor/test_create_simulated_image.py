@@ -593,12 +593,10 @@ def test_midtime_handler_omits_when_blank(model: Any) -> None:
     assert 'midtime_utc' not in model.sim_params
 
 
-def test_noise_bias_and_bloom_handlers(model: Any) -> None:
-    """The new noise spins write into the noise block."""
+def test_noise_bias_handler(model: Any) -> None:
+    """The bias spin writes into the noise block."""
     model._on_bias(18.0)
-    model._on_bloom(3)
     assert model.sim_params['noise']['bias_dn'] == 18.0
-    assert model.sim_params['noise']['bloom_length'] == 3
 
 
 def test_stray_center_writes_only_while_enabled(model: Any) -> None:
@@ -642,7 +640,7 @@ def test_full_parameter_round_trip(
             'noise_seed': 9,
             'midtime_utc': '2010-01-01T00:00:00Z',
             'fit_camera_rotation': True,
-            'noise': {'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 18.0, 'bloom_length': 3},
+            'noise': {'poisson': True, 'read_noise_dn': 4.0, 'bias_dn': 18.0},
             'optics': {
                 'stray_light': {
                     'amplitude': 0.3,
@@ -706,7 +704,6 @@ def test_full_parameter_round_trip(
     assert p['midtime_utc'] == '2010-01-01T00:00:00Z'
     assert p['fit_camera_rotation'] is True
     assert p['noise']['bias_dn'] == 18.0
-    assert p['noise']['bloom_length'] == 3
     assert p['optics']['stray_light']['center_v'] == 40.0
     body = p['bodies'][0]
     assert body['mesh_n_lat'] == 20

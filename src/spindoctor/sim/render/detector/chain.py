@@ -101,15 +101,12 @@ def _feature_pool(frame: SimFrame) -> tuple[NDArrayIntType, NDArrayIntType]:
 
 
 def _record_routed_modes(dp: DetectorParams, records: dict[str, Any]) -> None:
-    """Record the routed-only detector modes (bias, bloom, quantization) as active.
+    """Record the quantization modes as active.
 
-    These fold their override into a flat DetectorParams field in the resolver,
-    so the chain applies them through the generic mechanic; their truth record
-    is the resolved config, marked active.
+    These fold their override into a flat DetectorParams field in the resolver, so
+    their truth record is the resolved config, marked active.
     """
     for name in (
-        'bias_structure',
-        'bloom',
         'quantization_sqrt_lut',
         'quantization_ls8b',
         'quantization_contour_8bit',
@@ -303,8 +300,12 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         )
     # A binned pixel holds its block's binning**2 native wells, the charge the
     # signal scale and the I/F calibration both assume.
+    bloom_length = 0
+    if 'bloom' in modes:
+        bloom_length = int(modes['bloom']['bloom_length'] or 0)
+        records['bloom'] = {'active': bloom_length > 0, 'bloom_length': bloom_length}
     apply_saturation(
-        electrons, full_well_e=dp.full_well_e * dp.binning**2, bloom_length=dp.bloom_length
+        electrons, full_well_e=dp.full_well_e * dp.binning**2, bloom_length=bloom_length
     )
     # Cosmic rays deposit AFTER the bloom cap, so a full-well-scale hit reaches
     # the ADC ceiling and lands on the orchestrator's masks; a modest hit stays
@@ -325,13 +326,8 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             electrons, modes['banding'], dp, gain_e_per_dn=dp.gain_e_per_dn
         )
     dn = electrons / dp.gain_e_per_dn + dp.bias_dn
-    add_bias_structure(
-        dn,
-        pedestal_sigma_dn=dp.bias_pedestal_sigma_dn,
-        row_gradient_dn=dp.bias_row_gradient_dn,
-        col_gradient_dn=dp.bias_col_gradient_dn,
-        rng=_stream_rng(dp, 'bias_structure'),
-    )
+    if 'bias_structure' in modes:
+        records['bias_structure'] = _apply_bias_structure(dn, modes['bias_structure'], dp)
     if 'fixed_pattern' in modes:
         cfg = modes['fixed_pattern']
         dn_record = add_fixed_pattern_dn(
@@ -379,6 +375,19 @@ def _apply_banding(
         dark_step_dn=float(cfg['dark_step_dn']),
         gain_e_per_dn=gain_e_per_dn,
         rng=_stream_rng(dp, 'banding'),
+    )
+
+
+def _apply_bias_structure(
+    dn: NDArrayFloatType, cfg: dict[str, Any], dp: DetectorParams
+) -> dict[str, Any]:
+    """Apply the bias_structure mode to the DN image."""
+    return add_bias_structure(
+        dn,
+        pedestal_sigma_dn=float(cfg['pedestal_sigma_dn'] or 0.0),
+        row_gradient_dn=float(cfg['row_gradient_dn'] or 0.0),
+        col_gradient_dn=float(cfg['col_gradient_dn'] or 0.0),
+        rng=_stream_rng(dp, 'bias_structure'),
     )
 
 
@@ -570,13 +579,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     if 'banding' in modes:
         records['banding'] = _apply_banding(dn, modes['banding'], dp, gain_e_per_dn=1.0)
     if 'bias_structure' in modes:
-        add_bias_structure(
-            dn,
-            pedestal_sigma_dn=dp.bias_pedestal_sigma_dn,
-            row_gradient_dn=dp.bias_row_gradient_dn,
-            col_gradient_dn=dp.bias_col_gradient_dn,
-            rng=_stream_rng(dp, 'bias_structure'),
-        )
+        records['bias_structure'] = _apply_bias_structure(dn, modes['bias_structure'], dp)
     # The brightness-dependent beam bend warps the formed image before digitizing.
     if 'beam_bend' in modes:
         records['beam_bend'] = apply_beam_bend(

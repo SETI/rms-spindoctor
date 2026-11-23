@@ -10,7 +10,8 @@ then ``noise`` block), then the detector default when ``instrument_defaults`` is
 then the disabled floor (physical-chain artifacts default to zero so an
 unconfigured scene renders a clean DN frame, per the stage-activation rule).
 ``instrument_defaults`` turns on the whole physical chain, including Poisson
-shot noise, the detector defaults' electron-domain full-well bloom, and their
+shot noise, the artifact modes the instrument entry lists under
+``artifact_modes.instrument_defaults``, and the detector defaults'
 ``cosmic_ray_events_per_pixel_per_sec`` (radiation on the detector is physics
 of the environment, not a transmission defect; every CCD entry records either a
 cohort-measured rate or a retained zero); the
@@ -96,7 +97,6 @@ class DetectorParams:
         full_well_dn: Published ADC-referenced well (vidicon DN full scale).
         quantization: ADC quantization sub-mode.
         poisson: Whether shot noise is applied.
-        bloom_length: Electron-domain full-well bloom half-length (0 disables).
         cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel
             per second the detector collects.
         cosmic_ray_readout_dwell_sec: Effective seconds the detector collects
@@ -107,9 +107,6 @@ class DetectorParams:
         cosmic_ray_spread_px: Cosmic-ray charge-diffusion sigma in frame pixels;
             0 keeps each deposit where it lands.
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
-        bias_pedestal_sigma_dn: Per-image bias-pedestal jitter (DN); 0 disables.
-        bias_row_gradient_dn: Low-order row bias gradient span (DN).
-        bias_col_gradient_dn: Low-order column bias gradient span (DN).
         vidicon: The vidicon DN-noise sub-parameters (vidicon path only).
         calibration_scale_dn_per_s_per_if: Derived I/F calibration scale.
         dark_dn: Dark pedestal in DN subtracted before the I/F divide.
@@ -150,7 +147,7 @@ class DetectorParams:
         detector_modes: The resolved config of every active detector-stage
             artifact mode (registry defaults filled from the catalog), keyed by
             mode name; the chain applies each at its physical point and records
-            it.  Routed modes (bias, bloom, quantization) also appear here for
+            it.  The quantization modes also appear here for
             the truth record, their override already folded into the flat fields.
     """
 
@@ -167,15 +164,11 @@ class DetectorParams:
     full_well_dn: float
     quantization: str
     poisson: bool
-    bloom_length: int
     cosmic_ray_events_per_pixel_per_sec: float
     cosmic_ray_readout_dwell_sec: float
     cosmic_ray_amplitude_e: float
     cosmic_ray_spread_px: float
     dark_current_e_per_sec: float
-    bias_pedestal_sigma_dn: float
-    bias_row_gradient_dn: float
-    bias_col_gradient_dn: float
     vidicon: dict[str, float]
     calibration_scale_dn_per_s_per_if: float
     dark_dn: float
@@ -336,19 +329,6 @@ def _resolve_gain(
             f'available states: {sorted(table)}'
         )
     return float(table[state])
-
-
-# Detector modes routed to an existing generic mechanic by overriding a flat
-# DetectorParams field rather than by a dedicated chain call.
-_ROUTED_ONLY_MODES: frozenset[str] = frozenset(
-    {
-        'bias_structure',
-        'bloom',
-        'quantization_sqrt_lut',
-        'quantization_ls8b',
-        'quantization_contour_8bit',
-    }
-)
 
 
 def _mode_active(mode_name: str, cfg: Mapping[str, Any], random_seed: int) -> bool:
@@ -544,15 +524,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         poisson = bool(scene_noise['poisson'])
     else:
         poisson = instrument_defaults
-    # Full-well bloom follows the same precedence: explicit scene value, else
-    # the detector defaults' electron-domain bloom when instrument_defaults is on, else
-    # the disabled floor.
-    if 'bloom_length' in scene_noise:
-        bloom_length = int(scene_noise['bloom_length'])
-    elif instrument_defaults:
-        bloom_length = detector_defaults.bloom_length or 0
-    else:
-        bloom_length = int(sim_noise.get('bloom_length', 0))
     # Cosmic rays (expected events per pixel per second): scene value, else the
     # detector defaults' rate when instrument_defaults is on, else the config floor.
     cr_key = 'cosmic_ray_events_per_pixel_per_sec'
@@ -589,24 +560,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
-    bias_pedestal_sigma = _default_or_zero(
-        scene_noise,
-        'bias_pedestal_sigma_dn',
-        detector_defaults.bias_pedestal_sigma_dn,
-        instrument_defaults=instrument_defaults,
-    )
-    bias_row_gradient = _default_or_zero(
-        scene_noise,
-        'bias_row_gradient_dn',
-        detector_defaults.bias_row_gradient_dn,
-        instrument_defaults=instrument_defaults,
-    )
-    bias_col_gradient = _default_or_zero(
-        scene_noise,
-        'bias_col_gradient_dn',
-        detector_defaults.bias_col_gradient_dn,
-        instrument_defaults=instrument_defaults,
-    )
     calibration_column_residual = _default_or_zero(
         scene_noise,
         'calibration_column_residual_e',
@@ -649,9 +602,8 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         )
     dark_dn = 0.0 if detector_model == 'vidicon' else dark_current * exposure_sec / gain_e_per_dn
 
-    # Detector-stage artifact modes.  An explicit mode wins over the generic
-    # noise-block / instrument_defaults knob for the same mechanic: the routed
-    # modes fold their override into the flat field here.
+    # Detector-stage artifact modes.  An active quantization mode replaces the
+    # quantization key's sub-mode.
     artifacts_adversarial = bool(artifacts.get('adversarial', False))
     detector_modes = _resolve_detector_modes(
         artifacts,
@@ -664,18 +616,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         downlink_table = resolve_downlink_table(instrument, detector_block.get('downlink_table'))
     except ValueError as exc:
         raise DetectorParamError(str(exc)) from exc
-    if 'bias_structure' in detector_modes:
-        bias_mode = detector_modes['bias_structure']
-        if bias_mode.get('pedestal_sigma_dn') is not None:
-            bias_pedestal_sigma = float(bias_mode['pedestal_sigma_dn'])
-        if bias_mode.get('row_gradient_dn') is not None:
-            bias_row_gradient = float(bias_mode['row_gradient_dn'])
-        if bias_mode.get('col_gradient_dn') is not None:
-            bias_col_gradient = float(bias_mode['col_gradient_dn'])
-    if 'bloom' in detector_modes:
-        bloom_override = detector_modes['bloom'].get('bloom_length')
-        if bloom_override is not None:
-            bloom_length = int(bloom_override)
     if 'quantization_sqrt_lut' in detector_modes:
         quantization = 'sqrt_lut'
     if 'quantization_ls8b' in detector_modes:
@@ -706,15 +646,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         full_well_dn=full_well_dn,
         quantization=quantization,
         poisson=poisson,
-        bloom_length=bloom_length,
         cosmic_ray_events_per_pixel_per_sec=cosmic_ray_rate,
         cosmic_ray_readout_dwell_sec=cosmic_ray_dwell,
         cosmic_ray_amplitude_e=cosmic_ray_amplitude,
         cosmic_ray_spread_px=cosmic_ray_spread,
         dark_current_e_per_sec=dark_current,
-        bias_pedestal_sigma_dn=bias_pedestal_sigma,
-        bias_row_gradient_dn=bias_row_gradient,
-        bias_col_gradient_dn=bias_col_gradient,
         vidicon=vidicon,
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,

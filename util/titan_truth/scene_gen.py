@@ -277,10 +277,10 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
 
     Returns:
         ``(artifacts_block, noise_extras)``: the instrument defect population
-        plus an explicit hot-pixel ``pixel_fraction``, and the cosmic-ray rate the
-        noise block carries.
+        plus an explicit hot-pixel ``pixel_fraction`` and bloom length, and the
+        cosmic-ray rate the noise block carries.
     """
-    artifacts = {
+    artifacts: dict[str, Any] = {
         'instrument_defaults': True,
         'hot_pixels': {
             'pixel_fraction': round(rng.uniform(2.0e-4, 2.0e-3), 6),
@@ -289,8 +289,14 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
     }
     noise_extras = {
         'cosmic_ray_events_per_pixel_per_sec': round(rng.uniform(5.0e-4, 5.0e-3), 6),
-        'bloom_length': rng.randint(0, 3),
     }
+    # A length of 0 is no bloom, which the mode spells as a probability of 0.
+    bloom_length = rng.randint(0, 3)
+    artifacts['bloom'] = (
+        {'probability': 1.0, 'bloom_length': bloom_length}
+        if bloom_length > 0
+        else {'probability': 0.0}
+    )
     return artifacts, noise_extras
 
 

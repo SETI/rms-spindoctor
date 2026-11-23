@@ -67,10 +67,6 @@ detector:
   bias_dn: 10.0
   dark_current_e_per_sec: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
-  bias_pedestal_sigma_dn: 0.0
-  bias_row_gradient_dn: 0.0
-  bias_col_gradient_dn: 0.0
-  bloom_length: 0
   quantization: exact
 readout_modes:
   1: {}
@@ -129,8 +125,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'generic-without-data-units',
     ),
     (
-        {'cam.yaml': _cam(_with('bloom_length: 0', 'bloom_length: 0.5'))},
-        r'^cam\.yaml: cam: detector\.bloom_length: expected an integer, got float 0\.5',
+        {'cam.yaml': _cam(_with('default_gain_state: 0', 'default_gain_state: 0.5'))},
+        r'^cam\.yaml: cam: detector\.default_gain_state: expected an integer, got float 0\.5',
         'wrong-type',
     ),
     (

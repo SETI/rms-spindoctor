@@ -89,10 +89,6 @@ coiss_nac:
     cosmic_ray_readout_dwell_sec: 6.0
     cosmic_ray_amplitude_e: 1000.0
     cosmic_ray_spread_px: 0.6
-    bias_pedestal_sigma_dn: 2.0  # estimated (per-image pedestal jitter)
-    bias_row_gradient_dn: 1.0  # estimated (readout-direction gradient)
-    bias_col_gradient_dn: 0.5  # estimated
-    bloom_length: 4  # estimated (no antiblooming; column bleed above the well)
     quantization: exact
 
   # The downlink tables the sqrt_lut quantization decodes through.  The camera has
@@ -198,6 +194,8 @@ coiss_nac:
       hot_pixels: {pixel_fraction: 2.0e-3}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
+      bias_structure: {probability: 1.0}
+      bloom: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     # An activation key is never cataloged: a mode activates only when a scene
     # sets it.  Shapes here are the values a scene inherits when it sets a mode
@@ -209,7 +207,7 @@ coiss_nac:
       # Published: ~30 e- horizontal bands (2.1 and 2.5 Hz beating).  The period is
       # estimated; the line readout rate sets it.
       banding: {amplitude_e: 30.0, period_px: 64.0, orientation: horizontal}
-      # Per-image pedestal jitter plus readout-direction gradients.
+      # Estimated: per-image pedestal jitter plus readout-direction gradients.
       bias_structure: {pedestal_sigma_dn: 2.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
       # Measured 2026-11-06: the dark sky of 12-bit full-frame raw NAC frames rises
       # linearly from the first line to the last by a median 55 e- (1.8 DN at gain
@@ -218,6 +216,7 @@ coiss_nac:
       # CISSCAL's dark model subtracts it from the CALIB product; its shot noise
       # stays.
       readout_dark: {amplitude_e: 55.0}
+      # Estimated (no antiblooming; column bleed above the well).
       bloom: {bloom_length: 4}
       # Anti-blooming vertical 2-px pairs in unsummed long exposures.
       bright_dark_pairs: {amplitude_e: 4.0e+3}
@@ -292,10 +291,6 @@ coiss_wac:
     cosmic_ray_readout_dwell_sec: 6.0
     cosmic_ray_amplitude_e: 1000.0
     cosmic_ray_spread_px: 0.6
-    bias_pedestal_sigma_dn: 2.0
-    bias_row_gradient_dn: 1.0
-    bias_col_gradient_dn: 0.5
-    bloom_length: 4  # estimated (no antiblooming; column bleed above the well)
     quantization: exact
 
   # The 12-to-8-bit downlink table the NAC and WAC share; its measurement is
@@ -367,6 +362,8 @@ coiss_wac:
       hot_pixels: {pixel_fraction: 2.0e-3}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
+      bias_structure: {probability: 1.0}
+      bloom: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
       hot_pixels: {amplitude_e: 3.5e+4, column_factor: 0.3}
@@ -404,11 +401,6 @@ coiss_calib_nac:
   detector_id: coiss_nac
 
   detector:
-    # CISSCAL subtracts the full 2-D bias structure, not just the constant
-    # pedestal the calibration inverse already removes.
-    bias_pedestal_sigma_dn: 0.0
-    bias_row_gradient_dn: 0.0
-    bias_col_gradient_dn: 0.0
     # The calibration residual: what CISSCAL's per-pixel corrections leave in a
     # CALIB product that the raw frame does not carry.  Measured 2026-11-06 as
     # the CALIB-minus-raw difference over sky pixels of 12-bit raw/CALIB pairs,
@@ -462,6 +454,9 @@ coiss_calib_nac:
       # CISSCAL's 2-Hz noise removal strips the banding, and the cohort sky floor
       # sits below the level at which the raw chain's 30 e- bands would register.
       banding: null
+      # CISSCAL subtracts the full 2-D bias structure, not just the constant
+      # pedestal the calibration inverse already removes.
+      bias_structure: null
 
   # The image library's CALIB frames from this camera are matched against this
   # instrument by the realism match.
@@ -489,11 +484,6 @@ coiss_calib_wac:
   detector_id: coiss_wac
 
   detector:
-    # CISSCAL subtracts the full 2-D bias structure, not just the constant
-    # pedestal the calibration inverse already removes.
-    bias_pedestal_sigma_dn: 0.0
-    bias_row_gradient_dn: 0.0
-    bias_col_gradient_dn: 0.0
     # The calibration residual CISSCAL leaves in a CALIB product, measured
     # 2026-11-06 as described in the coiss_calib_nac entry: a fixed column pattern of
     # 30 e- rms (2 frames, both long exposures, frame-to-frame correlation 0.74)
@@ -517,6 +507,9 @@ coiss_calib_wac:
       hot_pixels: {pixel_fraction: 1.6e-5}
       # CISSCAL's 2-Hz noise removal strips the banding.
       banding: null
+      # CISSCAL subtracts the full 2-D bias structure, not just the constant
+      # pedestal the calibration inverse already removes.
+      bias_structure: null
 
   # The image library's CALIB frames from this camera are matched against this
   # instrument by the realism match.

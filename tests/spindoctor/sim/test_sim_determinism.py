@@ -114,7 +114,7 @@ def _full_stack_scene() -> dict[str, Any]:
         size=96,
         seed=5,
         exposure_sec=1.0,
-        artifacts={'instrument_defaults': True},
+        artifacts={'instrument_defaults': True, 'bloom': {'bloom_length': 2}},
         optics={
             'psf': {'sigma_v': 0.6, 'sigma_u': 0.6, 'w': 0.02, 'r0': 2.0, 'n': 3.0},
             'smear': [{'dv_px': 1.0, 'du_px': 0.5, 'object_class': 'all'}],
@@ -123,7 +123,6 @@ def _full_stack_scene() -> dict[str, Any]:
             'poisson': True,
             'read_noise_dn': 4.0,
             'cosmic_ray_events_per_pixel_per_sec': 0.001,
-            'bloom_length': 2,
         },
         bodies=[
             {

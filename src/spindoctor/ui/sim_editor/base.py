@@ -106,7 +106,6 @@ class SimEditorBase(QMainWindow):
     _cosmic_ray_spin: QDoubleSpinBox
     _missing_data_spin: QDoubleSpinBox
     _bias_spin: QDoubleSpinBox
-    _bloom_spin: QSpinBox
     _signal_frac_spin: QDoubleSpinBox
 
     # ---- Optics tab: stray-light panel ----

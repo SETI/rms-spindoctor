@@ -75,7 +75,6 @@ _FULL_SCENE: dict[str, Any] = {
         'cosmic_ray_events_per_pixel_per_sec': 0.001,
         'missing_data_rate': 0.01,
         'bias_dn': 18.0,
-        'bloom_length': 4,
         'signal_full_scale_frac': 0.6,
     },
     'oversample': 2,

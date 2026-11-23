@@ -37,6 +37,9 @@ from spindoctor.sim.render.driver import render_scene
 
 _SIZE = 64
 
+# A bias structure of the pedestal alone.
+_FLAT_BIAS = {'row_gradient_dn': 0.0, 'col_gradient_dn': 0.0}
+
 
 def _rng(seed: int = 0) -> np.random.Generator:
     """A seeded generator for the mechanics under test."""
@@ -456,14 +459,6 @@ def _disc(instrument: str, **extra: Any) -> dict[str, Any]:
     return scene
 
 
-def test_bloom_mode_overrides_bloom_length() -> None:
-    """An explicit bloom mode sets the bloom length over the generic knob."""
-    dp = resolve_detector_params(
-        _disc('coiss_nac', artifacts={'bloom': {'probability': 1.0, 'bloom_length': 9}})
-    )
-    assert dp.bloom_length == 9
-
-
 def test_quantization_ls8b_mode_routes_to_the_ls8b_submode() -> None:
     """The quantization_ls8b mode selects the LS8B ADC sub-mode."""
     dp = resolve_detector_params(
@@ -484,29 +479,27 @@ def test_quantization_sqrt_lut_mode_routes_to_the_cassini_table(instrument: str)
     assert dp.sqrt_lut == LUTSqrt(codes=256, linear_dn=2.0, quadratic_dn=0.055, whole_dn=True)
 
 
-def test_bias_structure_mode_overrides_the_generic_knob() -> None:
-    """An active bias_structure mode's parameters win over the noise-block knob."""
-    dp = resolve_detector_params(
-        _disc(
-            'coiss_nac',
-            noise={'bias_pedestal_sigma_dn': 5.0},
-            artifacts={'bias_structure': {'probability': 1.0, 'pedestal_sigma_dn': 2.0}},
-        )
+def test_bias_structure_records_the_pedestal_it_draws() -> None:
+    """The rendered frame sits off the flat bias by the recorded pedestal."""
+    modes = {'bias_structure': {'probability': 1.0, 'pedestal_sigma_dn': 50.0, **_FLAT_BIAS}}
+    img, truth = render_scene(
+        frame_scene(seed=3, noise={**quiet_noise(), 'bias_dn': 500.0}, artifacts=modes)
     )
-    assert dp.bias_pedestal_sigma_dn == 2.0
+    pedestal = truth['artifacts']['bias_structure']['pedestal_dn']
+    assert float(img.mean()) == pytest.approx(500.0 + pedestal, abs=0.5)
+    assert abs(pedestal) > 1.0
 
 
-def test_bias_structure_mode_gates_on_its_probability() -> None:
-    """An inactive bias_structure mode leaves the generic noise-block knob in force."""
-    dp = resolve_detector_params(
-        _disc(
-            'coiss_nac',
-            noise={'bias_pedestal_sigma_dn': 5.0},
-            artifacts={'bias_structure': {'probability': 0.0, 'pedestal_sigma_dn': 2.0}},
-        )
-    )
+def test_a_calibrated_cassini_product_has_no_bias_structure() -> None:
+    """The instrument defaults of a calibrated Cassini camera leave the bias structure off."""
+    dp = resolve_detector_params(_disc('coiss_calib_nac', artifacts={'instrument_defaults': True}))
     assert 'bias_structure' not in dp.detector_modes
-    assert dp.bias_pedestal_sigma_dn == 5.0
+
+
+def test_lorri_does_not_bloom_under_instrument_defaults() -> None:
+    """LORRI's CCD drains the charge above the well, so its defaults turn no bloom on."""
+    dp = resolve_detector_params(_disc('nhlorri', artifacts={'instrument_defaults': True}))
+    assert 'bloom' not in dp.detector_modes
 
 
 def test_an_instrument_default_mode_renders_with_the_cameras_shape() -> None:

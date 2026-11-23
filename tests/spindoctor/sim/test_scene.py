@@ -331,10 +331,6 @@ def test_validate_sim_params_accepts_the_full_noise_inventory() -> None:
         'missing_data_rate': 0.01,
         'signal_full_scale_frac': 0.5,
         'dark_current_e_per_sec': 5.0,
-        'bias_pedestal_sigma_dn': 2.0,
-        'bias_row_gradient_dn': 1.0,
-        'bias_col_gradient_dn': 0.5,
-        'bloom_length': 4,
         'vidicon': {
             'read_noise_line_dn': 1.8,
             'read_noise_pixel_dn': 1.8,

@@ -63,12 +63,6 @@ gossi:
     cosmic_ray_readout_dwell_sec: 4.33
     cosmic_ray_amplitude_e: 6000.0
     cosmic_ray_spread_px: 0.4
-    bias_pedestal_sigma_dn: 1.0
-    # Estimated amplitude of the published left-to-right shading ramp that
-    # summation mode adds.
-    bias_row_gradient_dn: 1.0
-    bias_col_gradient_dn: 0.5
-    bloom_length: 6  # estimated (early-blooming columns)
     quantization: exact
 
   # The 2x2 summation mode reads 44 e- (published; 31 e- at full resolution).
@@ -109,6 +103,8 @@ gossi:
       # spikes are carried by the cosmic-ray rate.
       hot_pixels: {pixel_fraction: 1.4e-6}
       banding: {probability: 1.0}
+      bias_structure: {probability: 1.0}
+      bloom: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
       # Estimated: nine low-full-well columns bloom early, so half of a hot pixel's
@@ -118,9 +114,12 @@ gossi:
       # at gain state 2, ~65 e-).  In high gain the camera also shows a horizontal
       # component below 8 Hz, which a scene adds with orientation both.
       banding: {amplitude_e: 65.0, period_px: 42.0, orientation: vertical}
+      # The row gradient is an estimated amplitude of the published left-to-right
+      # shading ramp that summation mode adds.
       bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
       # Shutter line-dependent exposure offset (~1.5 -> ~1.05 ms, line 1->800).
       shutter_shading: {top_factor: 1.5, bottom_factor: 1.05}
+      # Estimated (early-blooming columns).
       bloom: {bloom_length: 6}
       # Ganymede-distance regime: ~1e4 spikes/frame scale in the readout,
       # amplitudes few DN steeply falling (near full well at the top).  A scene

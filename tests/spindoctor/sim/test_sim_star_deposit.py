@@ -40,9 +40,6 @@ _QUIET_NOISE: dict[str, Any] = {
     'read_noise_dn': 0.0,
     'bias_dn': 0.0,
     'dark_current_e_per_sec': 0.0,
-    'bias_pedestal_sigma_dn': 0.0,
-    'bias_row_gradient_dn': 0.0,
-    'bias_col_gradient_dn': 0.0,
 }
 
 
