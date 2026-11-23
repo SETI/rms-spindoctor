@@ -66,16 +66,7 @@ detector:
   read_noise_e: 3.0
   bias_dn: 10.0
   dark_current_e_per_sec: 0.0
-  hot_pixel_fraction: 0.0
-  hot_pixel_amplitude_e: 0.0
-  hot_pixel_column_factor: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
-  banding_amplitude_e: 0.0
-  banding_period_px: 64.0
-  bias_pedestal_sigma_dn: 0.0
-  bias_row_gradient_dn: 0.0
-  bias_col_gradient_dn: 0.0
-  bloom_length: 0
   quantization: exact
 readout_modes:
   1: {}
@@ -89,10 +80,7 @@ artifact_modes:
 """
 
 _OFFERED = 'offered: [missing_lines]'
-_VIDICON_BLOCK = (
-    '  vidicon: {read_noise_line_dn: 1.0, read_noise_pixel_dn: 1.0, '
-    'coherent_amplitude_dn: 1.0, coherent_period_px: 8.0}\n'
-)
+_VIDICON_BLOCK = '  vidicon: {read_noise_line_dn: 1.0, read_noise_pixel_dn: 1.0}\n'
 
 
 def _cam(entry: str) -> str:
@@ -137,8 +125,8 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'generic-without-data-units',
     ),
     (
-        {'cam.yaml': _cam(_with('bloom_length: 0', 'bloom_length: 0.5'))},
-        r'^cam\.yaml: cam: detector\.bloom_length: expected an integer, got float 0\.5',
+        {'cam.yaml': _cam(_with('default_gain_state: 0', 'default_gain_state: 0.5'))},
+        r'^cam\.yaml: cam: detector\.default_gain_state: expected an integer, got float 0\.5',
         'wrong-type',
     ),
     (
@@ -179,8 +167,14 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'dark-sky-ceiling-on-raw-dn',
     ),
     (
-        {'cam.yaml': _cam(_with('hot_pixel_fraction: 0.0', 'hot_pixel_fraction: 5.0'))},
-        r'^cam\.yaml: cam: detector\.hot_pixel_fraction: expected a number in \[0, 1\], got 5\.0',
+        {
+            'cam.yaml': _cam(
+                _with(_OFFERED, 'offered: [hot_pixels]')
+                + '  shape_defaults:\n    hot_pixels: {column_factor: 5.0}\n'
+            )
+        },
+        r'^cam\.yaml: cam: artifact_modes\.shape_defaults\.hot_pixels\.column_factor: expected a '
+        r'number in \[0, 1\], got 5\.0',
         'fraction-above-one',
     ),
     (
@@ -265,16 +259,6 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         r"^cam\.yaml: cam: artifact_modes\.shape_defaults\.dead_pixels\.count: 'count' turns "
         r'the mode on',
         'count-in-shape-defaults',
-    ),
-    (
-        {
-            'cam.yaml': _cam(
-                _with(_OFFERED, 'offered: [missing_lines, hot_pixels]')
-                + '  shape_defaults:\n    hot_pixels: {amplitude_e: 5.0}\n'
-            )
-        },
-        r"shape_defaults\.hot_pixels: a shape default for 'hot_pixels' does nothing",
-        'shape-default-the-renderer-ignores',
     ),
     (
         {
@@ -825,7 +809,7 @@ _BASE = keyed(
         ),
         (
             'base: nhlorri\nartifact_modes: {offered: [missing_lines], shape_defaults: null}\n',
-            'artifact_modes.instrument_defaults.frame_transfer_smear',
+            'artifact_modes.instrument_defaults.banding',
         ),
         (
             'base: base_cam\nartifact_modes: {offered: [missing_lines, bloom]}\n',
@@ -1174,9 +1158,36 @@ def test_a_downlink_table_no_quantization_reads_fails() -> None:
     with pytest.raises(
         SimSceneValidationError,
         match=r"detector\.downlink_table 'table_12_to_8' has no effect: only the sqrt_lut "
-        r"quantization decodes through a downlink table, and this scene quantizes with 'exact'; "
-        r'set detector\.quantization: sqrt_lut, add the quantization_sqrt_lut artifact mode, or '
-        r'drop the key',
+        r"quantization reads it, and this scene quantizes with 'exact'; "
+        r'set detector\.quantization: sqrt_lut, or drop the key',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_the_quantization_ignores_fails() -> None:
+    """A scene may set the contour step only when its quantization is contour_8bit."""
+    scene = frame_scene(size=32, detector={'quantization': '8bit', 'contour_step': 4})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'detector\.contour_step 4 has no effect: only the contour_8bit quantization',
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_below_one_fails() -> None:
+    """A contour step of 0 would divide by it, so validation refuses it."""
+    scene = frame_scene(size=32, detector={'quantization': 'contour_8bit', 'contour_step': 0})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.contour_step must be from 1 to 255; got 0'
+    ):
+        validate_sim_params(scene)
+
+
+def test_a_contour_step_above_the_8bit_top_code_fails() -> None:
+    """A step above 255 would posterize the 8-bit word to at most two levels."""
+    scene = frame_scene(size=32, detector={'quantization': 'contour_8bit', 'contour_step': 256})
+    with pytest.raises(
+        SimSceneValidationError, match=r'detector\.contour_step must be from 1 to 255; got 256'
     ):
         validate_sim_params(scene)
 

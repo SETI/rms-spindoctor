@@ -106,7 +106,6 @@ class SimEditorBase(QMainWindow):
     _cosmic_ray_spin: QDoubleSpinBox
     _missing_data_spin: QDoubleSpinBox
     _bias_spin: QDoubleSpinBox
-    _bloom_spin: QSpinBox
     _signal_frac_spin: QDoubleSpinBox
 
     # ---- Optics tab: stray-light panel ----
@@ -156,6 +155,7 @@ class SimEditorBase(QMainWindow):
     _detector_model_combo: QComboBox
     _detector_exposure_ref_spin: QDoubleSpinBox
     _detector_quantization_combo: QComboBox
+    _detector_contour_step_spin: QSpinBox
     _mode_rows: dict[str, Any]
 
     # ---- General tab: PSF preview ----

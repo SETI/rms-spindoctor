@@ -8,6 +8,7 @@ import pytest
 from tests.spindoctor.sim.scenes import (
     body_scene,
     disc_body,
+    disc_scene,
     frame_scene,
     quiet_noise,
     ring_system_block,
@@ -68,3 +69,8 @@ def test_a_built_mapping_keeps_no_reference_to_its_inputs(name: str) -> None:
     expected = copy.deepcopy(built)
     given['inner']['value'] = 2.0
     assert built == expected
+
+
+def test_a_disc_scene_argument_replaces_its_default() -> None:
+    """An exposure handed to the disc scene replaces the one it sets by default."""
+    assert disc_scene('coiss_nac', exposure_sec=2.0)['exposure_sec'] == 2.0

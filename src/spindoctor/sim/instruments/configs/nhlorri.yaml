@@ -55,11 +55,6 @@ nhlorri:
     # columns.
     bias_dn: 545.0
     dark_current_e_per_sec: 0.04  # published (negligible dark current)
-    # LORRI has no hot pixels (the PDS hot- and dead-pixel maps are all zeroes);
-    # disabled.
-    hot_pixel_fraction: 0.0
-    hot_pixel_amplitude_e: 0.0
-    hot_pixel_column_factor: 0.0
     # Kept at zero 2026-07-17: the realism match measured a 3.36e-4 per-frame
     # transient spike fraction (two 5 s frames), but both cohort frames are
     # 4x4-binned star fields and a binned faint star is indistinguishable from a
@@ -68,12 +63,6 @@ nhlorri:
     # adoptable.  Unblocked by any non-star LORRI frame entering the library;
     # scenes can still plant the radiation_transients mode explicitly.
     cosmic_ray_events_per_pixel_per_sec: 0.0
-    banding_amplitude_e: 17.0  # published (~0.8 DN vertical banding)
-    banding_period_px: 128.0  # estimated
-    bias_pedestal_sigma_dn: 1.0
-    bias_row_gradient_dn: 0.5
-    bias_col_gradient_dn: 0.5
-    bloom_length: 2  # estimated (short column bleed)
     quantization: exact
 
   # The 4x4 binned mode reads about 19.4 e-/DN (published; 21 at 1x1).
@@ -88,35 +77,54 @@ nhlorri:
       - dead_columns
       - embedded_header
       - cutout_window
-      - banding_coherent
+      - banding
       - bias_structure
-      - dark_ramp
+      - readout_dark
       - radiation_transients
       - frame_transfer_smear
       - serial_tail
       - fixed_pattern
       - compression_dct
-    # Why validation fails a scene that asks for one of these modes.
+    # Why validation fails a scene that asks for one of these modes.  The PDS hot-
+    # and dead-pixel maps are all zeroes.
     unavailable_reasons:
       hot_pixels: explicitly disabled for LORRI, which has none
+      shutter_shading: not offered for LORRI, a frame-transfer camera with no shutter
       bloom: explicitly disabled for LORRI, an antiblooming CCD with no column bloom
-    # The frame-transfer smear is the defining LORRI artifact (vertical
-    # full-column pedestals through bright targets, about 10% of the column at
-    # the nominal 100 ms exposure), so it is the one mode instrument_defaults
-    # turns on: a scene that has not set it gets it at probability 1 with the
-    # shape defaults' nominal scrub and transfer times.  Every other mode stays
-    # off until a scene sets its activation key.
+    # The modes every frame of the camera shows, which a scene's
+    # instrument_defaults turns on.
     instrument_defaults:
+      # The defining LORRI artifact: vertical full-column pedestals through bright
+      # targets, about 10% of the column at the nominal 100 ms exposure.
       frame_transfer_smear: {probability: 1.0}
+      banding: {probability: 1.0}
+      bias_structure: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
       # ~12 ms pre-exposure scrub, ~11 ms post-exposure transfer.
       frame_transfer_smear: {t_scrub_sec: 0.012, t_transfer_sec: 0.011}
       # Saturated compact sources undershoot up to ~12 DN along readout.
       serial_tail: {amplitude_dn: 12.0, length_px: 8, direction: right}
-      # <=1 DN horizontal striping plus ~0.8 DN vertical banding near low columns
-      # (~17 e-); orientation both approximates the two families.
-      banding_coherent: {amplitude_e: 17.0, period_px: 128.0, orientation: both}
+      # Published (Weaver et al. 2020): random horizontal striping of at most 1 DN
+      # that moves from frame to frame.  Each row takes its own offset, uniform
+      # within 21 e- (1 DN at the 1x1 gain) of zero; the uniform spread is
+      # estimated.  Published (Cheng et al. 2008): amplifier ringing gives vertical
+      # banding near the low column numbers, at most ~0.8 DN peak to trough, the
+      # same in every frame, since it survives the average that makes the
+      # pipeline's bias frame.  Its period (103 native columns) and its decay (71
+      # native columns to fall by a factor of e) are estimated from that bias frame
+      # as Weaver et al. 2020 show it (Figure 8): a damped sine starting at column 0
+      # fits the figure's column profile to 0.02 DN.  The figure's first swing reads
+      # about 1.05 DN; the envelope of 15.8 e- gives the wave the published 0.8 DN
+      # first swing at the 1x1 gain.
+      banding:
+        amplitude: 21.0
+        orientation: horizontal
+        horizontal_pattern: random
+        ringing_amplitude: 15.8
+        ringing_period_px: 103.0
+        ringing_decay_px: 71.0
+      bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 0.5, col_gradient_dn: 0.5}
       # ~4% corner vignetting, 0.9% PRNU, <=0.5 DN even/odd jail bars, ~1% dust
       # donuts.
       fixed_pattern:

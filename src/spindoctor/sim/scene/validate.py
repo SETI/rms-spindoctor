@@ -28,7 +28,6 @@ from spindoctor.sim.scene.rules_artifacts import _check_artifacts
 from spindoctor.sim.scene.rules_body import _check_body_names_unique, _check_body_object
 from spindoctor.sim.scene.rules_common import (
     _check_detector,
-    _check_downlink_table_used,
     _check_expected,
     _check_noise,
     _check_optics,
@@ -38,6 +37,7 @@ from spindoctor.sim.scene.rules_common import (
     _check_optional_positive_int,
     _check_optional_positive_number,
     _check_optional_str,
+    _check_quantization_keys_used,
     _check_sky_counts,
     _check_spk_error,
     _check_star_catalog_scatter,
@@ -214,12 +214,7 @@ def validate_sim_params(
         detector=sim_params.get('detector'),
         source=source,
     )
-    _check_downlink_table_used(
-        sim_params.get('detector'),
-        sim_params.get('artifacts'),
-        instrument=instrument,
-        source=source,
-    )
+    _check_quantization_keys_used(sim_params.get('detector'), instrument=instrument, source=source)
     _check_spk_error(sim_params.get('spk_error'), source=source)
     _check_sky_counts(sim_params.get('sky_counts'), source=source)
     _check_star_catalog_scatter(sim_params.get('star_catalog_scatter_px'), source=source)

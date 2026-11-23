@@ -202,6 +202,13 @@ Dead pixels and dead columns can also be given as a fixed ``count`` in place of
 ``expected_events``. An entry sets one of the two keys, never both. Every key defaults
 to 0, and an entry whose key, or whose ``count``, is 0 doesn't plant anything.
 
+With ``instrument_defaults`` on, the defects that every frame of the camera shows are
+turned on for you: hot pixels, banding, the readout dark, the bias structure, and
+column bloom on a raw Cassini camera, for example. An entry such as ``hot_pixels: {}``
+then plants the camera's own hot pixels, and a value you set in the entry replaces the
+camera's value for that key alone. Setting the entry's key to 0, as in
+``banding: {probability: 0}``, turns that defect off.
+
 .. code-block:: yaml
 
    artifacts:

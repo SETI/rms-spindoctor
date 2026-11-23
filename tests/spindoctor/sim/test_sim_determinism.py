@@ -114,7 +114,7 @@ def _full_stack_scene() -> dict[str, Any]:
         size=96,
         seed=5,
         exposure_sec=1.0,
-        artifacts={'instrument_defaults': True},
+        artifacts={'instrument_defaults': True, 'bloom': {'bloom_length': 2}},
         optics={
             'psf': {'sigma_v': 0.6, 'sigma_u': 0.6, 'w': 0.02, 'r0': 2.0, 'n': 3.0},
             'smear': [{'dv_px': 1.0, 'du_px': 0.5, 'object_class': 'all'}],
@@ -123,7 +123,6 @@ def _full_stack_scene() -> dict[str, Any]:
             'poisson': True,
             'read_noise_dn': 4.0,
             'cosmic_ray_events_per_pixel_per_sec': 0.001,
-            'bloom_length': 2,
         },
         bodies=[
             {
@@ -254,15 +253,13 @@ _PER_FRAME_STREAMS = frozenset(
         'cosmic_rays',
         'calibration_residual',
         'banding',
-        'banding_coherent',
         'bias_structure',
-        'vidicon_coherent',
         'bright_dark_pairs',
         'radiation_transients',
     }
 )
 _FIXED_PATTERN_STREAMS = frozenset(
-    {'hot_pixels', 'fixed_pattern', 'fixed_pattern_dn', 'dark_ramp_columns'}
+    {'hot_pixels', 'fixed_pattern', 'fixed_pattern_dn', 'readout_dark_columns'}
 )
 
 
@@ -308,7 +305,7 @@ def _camera_scene(**extra: Any) -> dict[str, Any]:
                 'dust_donut_count': 2,
                 'jail_bar_dn': 2.0,
             },
-            'dark_ramp': {'probability': 1.0, 'amplitude_e': 200.0, 'rbi_column_factor': 0.5},
+            'readout_dark': {'probability': 1.0, 'amplitude': 200.0, 'rbi_column_factor': 0.5},
         },
         **extra,
     )
@@ -332,7 +329,7 @@ def test_noise_seed_leaves_each_mode_activation_in_place() -> None:
     """
     modes = {
         name: {'probability': 0.5}
-        for name in ('fixed_pattern', 'dark_ramp', 'banding_coherent', 'bias_structure', 'bloom')
+        for name in ('fixed_pattern', 'readout_dark', 'banding', 'bias_structure', 'bloom')
     }
     scene = frame_scene(seed=3, artifacts=modes)
     reseeded = resolve_detector_params({**scene, 'noise_seed': 23})

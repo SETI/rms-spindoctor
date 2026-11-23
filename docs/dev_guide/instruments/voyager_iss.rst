@@ -401,7 +401,9 @@ The entry's shape defaults give ``edited_frame`` a centered band 550 pixels wide
 The edited modes downlink a centered band of 608, 440, 272, 160, or 80 of the 800
 samples in a raw line. The GEOMED resample spreads those 800 samples over 1000
 pixels, so the 440-sample band covers 550 pixels of the GEOMED frame. A scene that
-sets only a ``probability`` gets that band. The shape defaults give
+sets only a ``probability`` gets that band. ``instrument_defaults`` turns on
+``banding``, which draws the published coherent component as vertical bands of
+0.25 DN at 8 pixels. The shape defaults give
 ``reseau_scars`` 202 marks on a 59-pixel lattice. The camera's 202 reseau marks
 sit about 47 pixels apart in a raw frame, and the GEOMED resample stretches that
 to about 59 pixels.
@@ -426,7 +428,7 @@ by 800 pixels sit on a positive calibration residual between 6.6e-4 and 3.2e-2
 I/F: the first percentile is above zero in every frame, and at most 0.03% of
 those pixels are exactly 0. Half a DN off the whole-DN grid, the simulated
 residual keeps every digitized pixel off 0. Under ``instrument_defaults`` the
-vidicon read noise (0.40 DN rms) takes a sky pixel below 0 only on a 1.5 DN
+vidicon read noise and banding (0.40 DN rms) take a sky pixel below 0 only on a 1.5 DN
 excursion, about 7 pixels in 100,000, so the sky's first percentile stays
 positive.
 

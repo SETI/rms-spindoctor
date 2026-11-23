@@ -65,8 +65,9 @@ vgiss:
     # (signal_full_scale_frac 0.5 of the 255 DN full scale), so this value is
     # 1.5 / 127.5, 1.5 DN: half a DN off the integer DN grid, so no digitized
     # pixel lands on exactly 0, and one and a half steps up, so the
-    # instrument_defaults noise (0.40 DN rms from the three vidicon terms below)
-    # takes a -1.5 DN excursion (3.8 sigma, about 7e-5 of the pixels) to put a
+    # instrument_defaults noise (0.40 DN rms from the two vidicon read-noise terms
+    # below and the banding) takes a -1.5 DN excursion (3.8 sigma, about 7e-5 of
+    # the pixels) to put a
     # sky pixel below 0.  0.5 DN (3.9e-3 I/F, nearer the cohort median) would
     # put about 10% of the noisy sky one step below 0.  The value sits inside
     # the cohort's range, 2.3x its median.
@@ -91,10 +92,6 @@ vgiss:
       # as VGISS frames land.
       read_noise_line_dn: 0.25
       read_noise_pixel_dn: 0.25
-      # Published: a faint coherent periodic component (2.4 kHz vertical, ~0.5
-      # DN peak-to-peak).
-      coherent_amplitude_dn: 0.25
-      coherent_period_px: 8.0
 
   # The vidicon has no binned readout.
   readout_modes:
@@ -107,21 +104,25 @@ vgiss:
       - edited_frame
       - line_garble
       - pixel_spikes
-      - banding_coherent
+      - banding
       - bias_structure
-      - dark_ramp
+      - readout_dark
+      - shutter_shading
       - beam_bend
       - residual_image
-      - quantization_contour_8bit
       - reseau_scars
       - resample_texture
     # Why validation fails a scene that asks for one of these modes.  The vidicon DN
     # chain has no fixed-pattern stage, so the mode would render nothing (#935).
     unavailable_reasons:
       fixed_pattern: not rendered for vgiss, whose vidicon DN chain has no fixed-pattern stage
+    # The modes every frame of the camera shows, which a scene's
+    # instrument_defaults turns on.
+    instrument_defaults:
+      banding: {probability: 1.0}
     # Per-mode shape defaults, estimated, all GEOMED-level: the beam-bend limb
     # bias that survives reseau-anchored correction, the shortened erase-cycle
-    # residual image, the readout dark-current line ramp, the reseau-removal
+    # residual image, the readout dark, the reseau-removal
     # scars on the ~59-px lattice, and the GEOMED resample texture (blank border
     # + missing-line interpolation banding).
     shape_defaults:
@@ -131,11 +132,13 @@ vgiss:
       # over 1000 pixels, so the 440-sample band is 550 GEOMED pixels wide.  A
       # scene that sets only a probability gets that band.
       edited_frame: {band_width_px: 550}
+      # Published: a faint coherent periodic component (2.4 kHz vertical, ~0.5
+      # DN peak-to-peak).  The vidicon chain works in DN, so the amplitude is in DN.
+      banding: {amplitude: 0.25, period_px: 8.0, orientation: vertical}
       beam_bend: {amplitude_px: 1.0}
       residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}
       # 48 x n s readout ramp, nonlinear in wait time.
-      dark_ramp: {kind: dark_gradient, amplitude_e: 6.0, nonlinear: 1.5}
-      quantization_contour_8bit: {step: 8}
+      readout_dark: {amplitude: 6.0, nonlinear: 1.5}
       # 202 reseau marks per camera on a triangular lattice (Benesh and Jepsen
       # 1978).  Measured 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
       # median nearest-neighbor distance 47.25 raw pixels.  The GEOMED resample

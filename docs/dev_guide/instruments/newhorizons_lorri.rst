@@ -291,21 +291,34 @@ twist, not the distortion.
 **Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
-cameras. Its detector model is ``ccd``. The entry lists
-``frame_transfer_smear`` under ``artifact_modes.instrument_defaults``, so
-``instrument_defaults`` turns the smear on at its nominal scrub and transfer
-times. Its shape defaults give ``embedded_header`` a 34-pixel header, the
-binary housekeeping at the start of row 0 of every image.
+cameras. Its detector model is ``ccd``. The entry lists ``frame_transfer_smear``,
+``banding``, and ``bias_structure`` under ``artifact_modes.instrument_defaults``, so
+``instrument_defaults`` turns them on: the smear at its nominal scrub and transfer
+times, and the banding as the camera's two published patterns. The first is a
+random horizontal striping of at most 1 DN that moves from frame to frame (Weaver et
+al. 2020): each row takes its own offset, drawn evenly from within 21 e- of zero.
+The second is vertical banding near the low column numbers, which Cheng et al.
+(2008) trace to an oscillation of the amplifier and put at about 0.8 DN from peak to
+trough. It is drawn as a damped wave that starts at the first column and is the same
+in every frame. Its period of 103 native columns and its decay to 1/e over 71 are read
+from the bias frame Weaver et al. show, so both are estimates. A binned frame
+column takes the mean of the wave over the native columns it holds. The entry's
+shape defaults give ``embedded_header`` a 34-pixel header, the binary housekeeping at the
+start of row 0 of every image.
 
-The entry states an explicit **exclusion reason** for two modes:
+The entry states an explicit **exclusion reason** for three modes:
 
 * ``hot_pixels`` -- "explicitly disabled for LORRI, which has none".
+* ``shutter_shading`` -- "not offered for LORRI, a frame-transfer camera with no
+  shutter".
 * ``bloom`` -- "explicitly disabled for LORRI, an antiblooming CCD with no
-  column bloom".
+  column bloom". A saturated LORRI source therefore never bleeds along its column,
+  also under ``instrument_defaults``; its ``serial_tail`` mode draws the
+  undershoot along the line instead.
 
 Those are physical statements rather than gaps in coverage, which is why they
 are recorded as reasons rather than as absences from the list. A
-scene that asks for either mode on this instrument is refused with the reason
+scene that asks for one of these modes on this instrument is refused with the reason
 quoted back.
 
 **Cosmic rays.** The catalog rate is a retained zero. The cohort's measured

@@ -16,7 +16,7 @@ import pytest
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
 
 try:
-    from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QSpinBox, QWidget
+    from PyQt6.QtWidgets import QApplication, QCheckBox, QDoubleSpinBox, QWidget
 except (ImportError, OSError) as exc:
     pytest.skip(f'PyQt6/QtWidgets not available: {exc}', allow_module_level=True)
 
@@ -31,7 +31,6 @@ _NOISE_CONTROLS = (
     '_cosmic_ray_spin',
     '_missing_data_spin',
     '_bias_spin',
-    '_bloom_spin',
     '_signal_frac_spin',
 )
 _INSTRUMENTS = (*sim_instrument_names(), 'generic')
@@ -56,8 +55,6 @@ def _operate(widget: QWidget) -> None:
     if isinstance(widget, QCheckBox):
         widget.setChecked(not widget.isChecked())
         widget.setChecked(not widget.isChecked())
-    elif isinstance(widget, QSpinBox):
-        widget.setValue(int(widget.minimum() + (widget.maximum() - widget.minimum()) * 0.37))
     elif isinstance(widget, QDoubleSpinBox):
         widget.setValue(widget.minimum() + (widget.maximum() - widget.minimum()) * 0.37)
     else:

@@ -10,7 +10,8 @@ then ``noise`` block), then the detector default when ``instrument_defaults`` is
 then the disabled floor (physical-chain artifacts default to zero so an
 unconfigured scene renders a clean DN frame, per the stage-activation rule).
 ``instrument_defaults`` turns on the whole physical chain, including Poisson
-shot noise, the detector defaults' electron-domain full-well bloom, and their
+shot noise, the artifact modes the instrument entry lists under
+``artifact_modes.instrument_defaults``, and the detector defaults'
 ``cosmic_ray_events_per_pixel_per_sec`` (radiation on the detector is physics
 of the environment, not a transmission defect; every CCD entry records either a
 cohort-measured rate or a retained zero); the
@@ -39,9 +40,8 @@ import numpy as np
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.artifact_modes import (
     ARTIFACT_MODES,
-    COUNT_ACTIVATION_KEYS,
     DETECTOR_MODE_ORDER,
-    resolve_mode_config,
+    PROBABILITY,
 )
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
 from spindoctor.sim.instruments.resolvers import (
@@ -58,6 +58,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_mode_with_catalog,
 )
 from spindoctor.sim.instruments.schema_detector import Detector
+from spindoctor.sim.render.detector.quantization import DEFAULT_CONTOUR_STEP
 from spindoctor.sim.render.detector.sqrt_lut import (
     DownlinkCurve,
     check_curve_ceiling,
@@ -70,10 +71,6 @@ from spindoctor.support.image_class import missing_data_marker
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['CalibrationMap', 'DetectorParams', 'calibration_map', 'resolve_detector_params']
-
-# The banding period, in pixels, of a detector whose entry states none (a vidicon,
-# whose chain has no electron-domain banding).
-_DEFAULT_BANDING_PERIOD_PX = 64.0
 
 
 class DetectorParamError(ValueError):
@@ -101,7 +98,6 @@ class DetectorParams:
         full_well_dn: Published ADC-referenced well (vidicon DN full scale).
         quantization: ADC quantization sub-mode.
         poisson: Whether shot noise is applied.
-        bloom_length: Electron-domain full-well bloom half-length (0 disables).
         cosmic_ray_events_per_pixel_per_sec: Expected cosmic-ray events per pixel
             per second the detector collects.
         cosmic_ray_readout_dwell_sec: Effective seconds the detector collects
@@ -112,14 +108,6 @@ class DetectorParams:
         cosmic_ray_spread_px: Cosmic-ray charge-diffusion sigma in frame pixels;
             0 keeps each deposit where it lands.
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
-        hot_pixel_fraction: Fraction of pixels that are hot; 0 disables.
-        hot_pixel_amplitude_e: Hot-pixel amplitude scale in electrons.
-        hot_pixel_column_factor: Warm-column fraction bled from a hot pixel.
-        banding_amplitude_e: Coherent-banding amplitude in electrons; 0 disables.
-        banding_period_px: Coherent-banding spatial period in pixels.
-        bias_pedestal_sigma_dn: Per-image bias-pedestal jitter (DN); 0 disables.
-        bias_row_gradient_dn: Low-order row bias gradient span (DN).
-        bias_col_gradient_dn: Low-order column bias gradient span (DN).
         vidicon: The vidicon DN-noise sub-parameters (vidicon path only).
         calibration_scale_dn_per_s_per_if: Derived I/F calibration scale.
         dark_dn: Dark pedestal in DN subtracted before the I/F divide.
@@ -144,20 +132,10 @@ class DetectorParams:
             ``b**2`` here, and the chain scales the extended signal and the
             saturation well the same way.
         instrument_defaults: Whether the physical-chain opt-in is on.
-        readout_dark_e: Dark charge the last line collects during the readout,
-            in electrons per frame pixel, growing linearly from 0 at the first
-            line; 0 disables.
         calibration_column_residual_e: Sigma, in electrons per native pixel, of
             the calibrated product's fixed per-column residual; 0 disables.
         calibration_pixel_residual_e: Sigma, in electrons per native pixel, of
             the calibrated product's per-frame per-pixel residual; 0 disables.
-        hot_pixel_adversarial: Whether the hot-pixel population is placed
-            adversarially (biased onto the navigation features) rather than
-            uniformly.
-        hot_pixel_mode_active: Whether the ``hot_pixels`` artifact mode drove
-            the hot-pixel knobs (in which case the chain records the realized
-            population in the frame truth), as opposed to the generic
-            noise-block / instrument_defaults path.
         quantization_contour_step: The DN posterization step for the
             ``contour_8bit`` quantization sub-mode.
         sqrt_lut: The companding curve of the ``sqrt_lut`` quantization
@@ -165,13 +143,14 @@ class DetectorParams:
             selects, else the instrument's default table, else (for an instrument
             that lists none) the plain square-root curve scaled to
             ``saturation_dn``; None selects that plain curve.
-        artifacts_adversarial: Whether stochastic detector artifact modes place
-            their events adversarially onto the navigation features.
+        adversarial_modes: The active detector modes that place their events on the
+            navigation features.  Under the scene's ``adversarial`` switch these are
+            the modes whose activation key the scene itself sets.  A mode that only
+            the instrument defaults turn on keeps the camera's own placement, so the
+            camera's hot pixels stay on its fixed map.
         detector_modes: The resolved config of every active detector-stage
             artifact mode (registry defaults filled from the catalog), keyed by
-            mode name; the chain applies each at its physical point and records
-            it.  Routed modes (bias, bloom, quantization) also appear here for
-            the truth record, their override already folded into the flat fields.
+            mode name; the chain applies each at its physical point and records it.
     """
 
     detector_model: str
@@ -187,20 +166,11 @@ class DetectorParams:
     full_well_dn: float
     quantization: str
     poisson: bool
-    bloom_length: int
     cosmic_ray_events_per_pixel_per_sec: float
     cosmic_ray_readout_dwell_sec: float
     cosmic_ray_amplitude_e: float
     cosmic_ray_spread_px: float
     dark_current_e_per_sec: float
-    hot_pixel_fraction: float
-    hot_pixel_amplitude_e: float
-    hot_pixel_column_factor: float
-    banding_amplitude_e: float
-    banding_period_px: float
-    bias_pedestal_sigma_dn: float
-    bias_row_gradient_dn: float
-    bias_col_gradient_dn: float
     vidicon: dict[str, float]
     calibration_scale_dn_per_s_per_if: float
     dark_dn: float
@@ -211,14 +181,11 @@ class DetectorParams:
     detector_id: str = 'generic'
     binning: int = 1
     instrument_defaults: bool = False
-    readout_dark_e: float = 0.0
     calibration_column_residual_e: float = 0.0
     calibration_pixel_residual_e: float = 0.0
-    hot_pixel_adversarial: bool = False
-    hot_pixel_mode_active: bool = False
-    quantization_contour_step: int = 8
+    quantization_contour_step: int = DEFAULT_CONTOUR_STEP
     sqrt_lut: DownlinkCurve | None = None
-    artifacts_adversarial: bool = False
+    adversarial_modes: frozenset[str] = frozenset()
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
 
 
@@ -366,33 +333,19 @@ def _resolve_gain(
     return float(table[state])
 
 
-# Detector modes routed to an existing generic mechanic by overriding a flat
-# DetectorParams field rather than by a dedicated chain call.
-_ROUTED_ONLY_MODES: frozenset[str] = frozenset(
-    {
-        'bias_structure',
-        'bloom',
-        'quantization_sqrt_lut',
-        'quantization_ls8b',
-        'quantization_contour_8bit',
-    }
-)
-
-
 def _mode_active(mode_name: str, cfg: Mapping[str, Any], random_seed: int) -> bool:
     """Whether a detector artifact mode is active this frame.
 
-    The registry names each mode's activation key.  A count mode
-    (``expected_events`` or ``expected_events_per_sec``) is active whenever its
-    expected count is positive (the mechanic draws the event count); a
-    deterministic-shape mode activates with per-frame ``probability``, drawn from
-    the mode's own seeded stream so toggling one never perturbs another.
+    A mode whose activation key is ``probability`` activates with that probability,
+    drawn from the mode's own seeded stream so toggling one never perturbs another.
+    Any other activation key (an expected event count or a fraction of the pixels) says
+    how much of the mode the frame shows, so the mode is active whenever it is positive.
     """
     activation = ARTIFACT_MODES[mode_name].activation
     value = float(cfg.get(activation) or 0.0)
     if value <= 0.0:
         return False
-    if activation in COUNT_ACTIVATION_KEYS:
+    if activation != PROBABILITY:
         return True
     rng = np.random.default_rng(derive_effect_seed(random_seed, f'detector/{mode_name}/activate'))
     return bool(rng.random() < value)
@@ -407,25 +360,25 @@ def _resolve_detector_modes(
 ) -> dict[str, dict[str, Any]]:
     """Resolve the active detector-stage artifact modes for a render.
 
-    Each present, available, and active mode is resolved (scene value over the
-    instrument entry's shape default over the registry default) and returned keyed by
-    name.  Under ``instrument_defaults``, if the instrument entry lists a mode in
-    ``artifact_modes.instrument_defaults`` and the scene has not set that mode, the
-    mode gets the entry's scene map for it (for example a probability of 1), so
-    the instrument's defining physical-chain artifact renders with its shape
-    defaults.
+    A mode the scene sets, or one ``instrument_defaults`` turns on for the instrument,
+    is resolved by
+    :func:`~spindoctor.sim.instruments.resolvers.resolve_mode_with_catalog` and
+    returned keyed by name if the instrument offers it and its activation key makes it
+    active.  A key the scene sets replaces the instrument's value for that key alone,
+    so a scene under ``instrument_defaults`` can change one parameter of a mode the
+    camera shows, or turn the mode off by setting its activation key to 0.
     """
     supplied = instrument_default_modes(instrument) if instrument_defaults else {}
     modes: dict[str, dict[str, Any]] = {}
     for name in DETECTOR_MODE_ORDER:
-        raw = artifacts.get(name)
-        if raw is None:
-            if name not in supplied:
-                continue
-            raw = supplied[name]
+        if name not in artifacts and name not in supplied:
+            continue
+        raw = artifacts.get(name, {})
         if not isinstance(raw, Mapping) or not mode_available(name, instrument):
             continue
-        cfg = resolve_mode_with_catalog(name, raw, instrument)
+        cfg = resolve_mode_with_catalog(
+            name, raw, instrument, instrument_defaults=instrument_defaults
+        )
         if not _mode_active(name, cfg, random_seed):
             continue
         modes[name] = cfg
@@ -571,15 +524,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         poisson = bool(scene_noise['poisson'])
     else:
         poisson = instrument_defaults
-    # Full-well bloom follows the same precedence: explicit scene value, else
-    # the detector defaults' electron-domain bloom when instrument_defaults is on, else
-    # the disabled floor.
-    if 'bloom_length' in scene_noise:
-        bloom_length = int(scene_noise['bloom_length'])
-    elif instrument_defaults:
-        bloom_length = detector_defaults.bloom_length or 0
-    else:
-        bloom_length = int(sim_noise.get('bloom_length', 0))
     # Cosmic rays (expected events per pixel per second): scene value, else the
     # detector defaults' rate when instrument_defaults is on, else the config floor.
     cr_key = 'cosmic_ray_events_per_pixel_per_sec'
@@ -616,44 +560,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     )
     if 'dark_current_e_per_sec' not in scene_noise:
         dark_current *= pixels_per_frame_pixel
-    readout_dark = _default_or_zero(
-        scene_noise,
-        'readout_dark_e',
-        detector_defaults.readout_dark_e,
-        instrument_defaults=instrument_defaults,
-    )
-    if 'readout_dark_e' not in scene_noise:
-        readout_dark *= pixels_per_frame_pixel
-    hot_pixel_fraction = _default_or_zero(
-        scene_noise,
-        'hot_pixel_fraction',
-        detector_defaults.hot_pixel_fraction,
-        instrument_defaults=instrument_defaults,
-    )
-    banding_amplitude = _default_or_zero(
-        scene_noise,
-        'banding_amplitude_e',
-        detector_defaults.banding_amplitude_e,
-        instrument_defaults=instrument_defaults,
-    )
-    bias_pedestal_sigma = _default_or_zero(
-        scene_noise,
-        'bias_pedestal_sigma_dn',
-        detector_defaults.bias_pedestal_sigma_dn,
-        instrument_defaults=instrument_defaults,
-    )
-    bias_row_gradient = _default_or_zero(
-        scene_noise,
-        'bias_row_gradient_dn',
-        detector_defaults.bias_row_gradient_dn,
-        instrument_defaults=instrument_defaults,
-    )
-    bias_col_gradient = _default_or_zero(
-        scene_noise,
-        'bias_col_gradient_dn',
-        detector_defaults.bias_col_gradient_dn,
-        instrument_defaults=instrument_defaults,
-    )
     calibration_column_residual = _default_or_zero(
         scene_noise,
         'calibration_column_residual_e',
@@ -666,47 +572,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_defaults.calibration_pixel_residual_e,
         instrument_defaults=instrument_defaults,
     )
-    # Shape parameters (period, amplitude scales) track the detector defaults; they never
-    # activate a stage on their own (the amplitude/fraction gate does that).
-    default_hot_amplitude = detector_defaults.hot_pixel_amplitude_e or 0.0
-    default_hot_column_factor = detector_defaults.hot_pixel_column_factor or 0.0
-    hot_pixel_amplitude = float(scene_noise.get('hot_pixel_amplitude_e', default_hot_amplitude))
-    hot_pixel_column_factor = float(
-        scene_noise.get('hot_pixel_column_factor', default_hot_column_factor)
-    )
-    default_banding_period = (
-        _DEFAULT_BANDING_PERIOD_PX
-        if detector_defaults.banding_period_px is None
-        else detector_defaults.banding_period_px
-    )
-    banding_period_px = float(scene_noise.get('banding_period_px', default_banding_period))
-
-    # The hot_pixels artifact mode (routed here from the registry) wins over the
-    # noise-block / instrument_defaults hot-pixel knobs: an explicit mode is a
-    # deliberate placement, so it overrides the generic stress path.  Its
-    # pixel_fraction is the hot-pixel fraction; amplitude and column factor
-    # fall back to the detector defaults when the mode leaves them unset.  The mode is
-    # honored only where it is available (validation already rejects it
-    # elsewhere, e.g. LORRI).
-    hot_pixel_adversarial = False
-    hot_pixel_mode_active = False
-    hot_cfg = artifacts.get('hot_pixels') if isinstance(artifacts, Mapping) else None
-    if isinstance(hot_cfg, Mapping) and mode_available('hot_pixels', instrument):
-        hot_pixel_mode_active = True
-        resolved = resolve_mode_config('hot_pixels', hot_cfg)
-        hot_pixel_fraction = float(resolved['pixel_fraction'])
-        mode_amplitude = resolved.get('amplitude_e')
-        if mode_amplitude is not None:
-            hot_pixel_amplitude = float(mode_amplitude)
-        elif hot_pixel_amplitude <= 0.0:
-            hot_pixel_amplitude = default_hot_amplitude
-        mode_column_factor = resolved.get('column_factor')
-        if mode_column_factor is not None:
-            hot_pixel_column_factor = float(mode_column_factor)
-        elif hot_pixel_column_factor <= 0.0:
-            hot_pixel_column_factor = default_hot_column_factor
-        hot_pixel_adversarial = bool(artifacts.get('adversarial', False))
-
     # The vidicon DN-noise sub-parameters activate on the vidicon path only, and
     # like every physical-chain artifact stay disabled until instrument_defaults
     # is on or the scene sets them explicitly (the stage-activation floor).
@@ -737,44 +602,25 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         )
     dark_dn = 0.0 if detector_model == 'vidicon' else dark_current * exposure_sec / gain_e_per_dn
 
-    # Detector-stage artifact modes.  An explicit mode wins over the generic
-    # noise-block / instrument_defaults knob for the same mechanic (the
-    # precedence hot_pixels already uses): the routed modes fold their override
-    # into the flat field here, and banding_coherent silences the generic
-    # banding so only the explicit family renders.
-    artifacts_adversarial = bool(artifacts.get('adversarial', False))
     detector_modes = _resolve_detector_modes(
         artifacts,
         instrument,
         int(params['random_seed']),
         instrument_defaults=instrument_defaults,
     )
-    contour_step = 8
+    adversarial_modes = (
+        frozenset(
+            name
+            for name in detector_modes
+            if ARTIFACT_MODES[name].activation in artifacts.get(name, {})
+        )
+        if artifacts.get('adversarial', False)
+        else frozenset()
+    )
     try:
         downlink_table = resolve_downlink_table(instrument, detector_block.get('downlink_table'))
     except ValueError as exc:
         raise DetectorParamError(str(exc)) from exc
-    if 'banding_coherent' in detector_modes:
-        banding_amplitude = 0.0
-    if 'bias_structure' in detector_modes:
-        bias_mode = detector_modes['bias_structure']
-        if bias_mode.get('pedestal_sigma_dn') is not None:
-            bias_pedestal_sigma = float(bias_mode['pedestal_sigma_dn'])
-        if bias_mode.get('row_gradient_dn') is not None:
-            bias_row_gradient = float(bias_mode['row_gradient_dn'])
-        if bias_mode.get('col_gradient_dn') is not None:
-            bias_col_gradient = float(bias_mode['col_gradient_dn'])
-    if 'bloom' in detector_modes:
-        bloom_override = detector_modes['bloom'].get('bloom_length')
-        if bloom_override is not None:
-            bloom_length = int(bloom_override)
-    if 'quantization_sqrt_lut' in detector_modes:
-        quantization = 'sqrt_lut'
-    if 'quantization_ls8b' in detector_modes:
-        quantization = 'ls8b'
-    if 'quantization_contour_8bit' in detector_modes:
-        quantization = 'contour_8bit'
-        contour_step = int(detector_modes['quantization_contour_8bit'].get('step', 8))
     sqrt_lut = resolve_sqrt_lut(downlink_table, saturation_dn=saturation_dn)
     if quantization == 'sqrt_lut' and downlink_table is not None:
         try:
@@ -798,20 +644,11 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         full_well_dn=full_well_dn,
         quantization=quantization,
         poisson=poisson,
-        bloom_length=bloom_length,
         cosmic_ray_events_per_pixel_per_sec=cosmic_ray_rate,
         cosmic_ray_readout_dwell_sec=cosmic_ray_dwell,
         cosmic_ray_amplitude_e=cosmic_ray_amplitude,
         cosmic_ray_spread_px=cosmic_ray_spread,
         dark_current_e_per_sec=dark_current,
-        hot_pixel_fraction=hot_pixel_fraction,
-        hot_pixel_amplitude_e=hot_pixel_amplitude,
-        hot_pixel_column_factor=hot_pixel_column_factor,
-        banding_amplitude_e=banding_amplitude,
-        banding_period_px=banding_period_px,
-        bias_pedestal_sigma_dn=bias_pedestal_sigma,
-        bias_row_gradient_dn=bias_row_gradient,
-        bias_col_gradient_dn=bias_col_gradient,
         vidicon=vidicon,
         calibration_scale_dn_per_s_per_if=calibration_scale,
         dark_dn=dark_dn,
@@ -826,13 +663,10 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_id=resolve_detector_id(instrument),
         binning=binning,
         instrument_defaults=instrument_defaults,
-        readout_dark_e=readout_dark,
         calibration_column_residual_e=calibration_column_residual,
         calibration_pixel_residual_e=calibration_pixel_residual,
-        hot_pixel_adversarial=hot_pixel_adversarial,
-        hot_pixel_mode_active=hot_pixel_mode_active,
-        quantization_contour_step=contour_step,
+        quantization_contour_step=int(detector_block.get('contour_step', DEFAULT_CONTOUR_STEP)),
         sqrt_lut=sqrt_lut,
-        artifacts_adversarial=artifacts_adversarial,
+        adversarial_modes=adversarial_modes,
         detector_modes=detector_modes,
     )

@@ -51,16 +51,6 @@ gossi:
     read_noise_e: 31.0  # published (full resolution; 44 e- in summation mode)
     bias_dn: 20.0
     dark_current_e_per_sec: 10.0  # estimated (dark spikes from RTG neutrons)
-    # TUNED 2026-11-01 by the realism match: the 8-frame Galileo REDR cohort's
-    # stationary spike fraction (single-pixel spikes recurring at fixed
-    # positions) is 1.4e-6 -- the REDR blemish correction removes most hot
-    # pixels.  The simulated hot pixels are a fixed per-detector map, so this
-    # fraction is the stationary population alone; the cohort's transient
-    # spikes are carried by the cosmic-ray rate below.
-    hot_pixel_fraction: 1.4e-6
-    hot_pixel_amplitude_e: 4.0e+4
-    # Estimated: nine low-full-well columns bloom early; total-charge fraction.
-    hot_pixel_column_factor: 0.5
     # Fitted 2026-11-06 in closed loop against the cohort's transient spikes
     # (all negative cases, so no scene point sources contaminate the split):
     # 57-129 per 800x800 frame at 50-100 ms, peaking at 33/58/150 DN
@@ -73,14 +63,8 @@ gossi:
     cosmic_ray_readout_dwell_sec: 4.33
     cosmic_ray_amplitude_e: 6000.0
     cosmic_ray_spread_px: 0.4
-    banding_amplitude_e: 65.0  # published (~0.35 DN raw at gain state 2, ~65 e-)
-    banding_period_px: 42.0  # published (2400 Hz supply noise, bands every 42 px)
-    bias_pedestal_sigma_dn: 1.0
-    # Estimated amplitude of the published left-to-right shading ramp that
-    # summation mode adds.
-    bias_row_gradient_dn: 1.0
-    bias_col_gradient_dn: 0.5
-    bloom_length: 6  # estimated (early-blooming columns)
+    # The 8-bit ADC contours worst at DN multiples of 8, which a scene gets from the
+    # contour_8bit quantization at its default step.
     quantization: exact
 
   # The 2x2 summation mode reads 44 e- (published; 31 e- at full resolution).
@@ -101,35 +85,53 @@ gossi:
       - truth_window
       - cutout_window
       - hot_pixels
-      - banding_coherent
+      - banding
       - bias_structure
-      - dark_ramp
+      - readout_dark
+      - shutter_shading
       - bloom
       - radiation_transients
-      - quantization_contour_8bit
       - fixed_pattern
       - compression_dct
+    # The modes every frame of the camera shows, which a scene's
+    # instrument_defaults turns on.
+    instrument_defaults:
+      # TUNED 2026-11-01 by the realism match: the 8-frame Galileo REDR cohort's
+      # stationary spike fraction (single-pixel spikes recurring at fixed
+      # positions) is 1.4e-6 -- the REDR blemish correction removes most hot
+      # pixels.  The simulated hot pixels are a fixed per-detector map, so this
+      # fraction is the stationary population alone; the cohort's transient
+      # spikes are carried by the cosmic-ray rate.
+      hot_pixels: {pixel_fraction: 1.4e-6}
+      banding: {probability: 1.0}
+      bias_structure: {probability: 1.0}
+      bloom: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
-      # 42-px vertical supply-noise comb (~0.35 DN at gain 2 -> ~65 e-), plus a
-      # <8 Hz horizontal component in high gain (orientation both).
-      banding_coherent: {amplitude_e: 65.0, period_px: 42.0, orientation: both}
+      # Estimated: nine low-full-well columns bloom early, so half of a hot pixel's
+      # total charge bleeds into its warm column.
+      hot_pixels: {amplitude_e: 4.0e+4, column_factor: 0.5}
+      # Published: vertical bands every 42 px from the 2400 Hz supply (~0.35 DN raw
+      # at gain state 2, ~65 e-).  In high gain the camera also shows a horizontal
+      # component below 8 Hz, which a scene adds with orientation both.
+      banding: {amplitude: 65.0, period_px: 42.0, orientation: vertical}
+      # The row gradient is an estimated amplitude of the published left-to-right
+      # shading ramp that summation mode adds.
       bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
       # Shutter line-dependent exposure offset (~1.5 -> ~1.05 ms, line 1->800).
-      dark_ramp: {kind: exposure_shading, top_factor: 1.5, bottom_factor: 1.05}
+      shutter_shading: {top_factor: 1.5, bottom_factor: 1.05}
+      # Estimated (early-blooming columns).
       bloom: {bloom_length: 6}
       # Ganymede-distance regime: ~1e4 spikes/frame scale in the readout,
       # amplitudes few DN steeply falling (near full well at the top).  A scene
       # plants the hits as a rate, with expected_events_per_sec.
       radiation_transients: {amplitude_e: 4.0e+4}
-      # 33-px photolithography stitch comb plus corner vignetting; the 8-bit ADC
-      # contours worst at DN multiples of 8.
+      # 33-px photolithography stitch comb plus corner vignetting.
       fixed_pattern:
         stitch_period_px: 33
         stitch_amplitude_dn: 1.0
         vignetting_frac: 0.03
         dust_donut_count: 4
-      quantization_contour_8bit: {step: 8}
       # The HMA and HCA telemetry formats decimate vertically, with valid data on
       # every 2nd or every 4th line only, so the periodic-line default is 'keep'.
       alternating_lines: {mode: keep}

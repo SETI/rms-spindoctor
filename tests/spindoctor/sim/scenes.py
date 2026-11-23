@@ -13,12 +13,16 @@ prefer them.
 import copy
 from typing import Any
 
+from spindoctor.sim.artifact_modes import ARTIFACT_MODES
+from spindoctor.sim.instruments.resolvers import instrument_default_modes
 from spindoctor.sim.scene.validate import CURRENT_SCHEMA_VERSION
 
 __all__ = [
     'body_scene',
     'disc_body',
+    'disc_scene',
     'frame_scene',
+    'quiet_instrument_defaults',
     'quiet_noise',
     'ring_system_block',
     'star_entry',
@@ -32,6 +36,22 @@ def quiet_noise() -> dict[str, Any]:
         A fresh ``noise`` mapping.
     """
     return {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0}
+
+
+def quiet_instrument_defaults(instrument: str) -> dict[str, Any]:
+    """An ``artifacts`` block: instrument defaults on, and every mode they turn on off.
+
+    Parameters:
+        instrument: The scene's instrument.
+
+    Returns:
+        A fresh ``artifacts`` mapping.
+    """
+    off = {
+        name: {ARTIFACT_MODES[name].activation: 0.0}
+        for name in instrument_default_modes(instrument)
+    }
+    return {'instrument_defaults': True, **off}
 
 
 def frame_scene(
@@ -94,6 +114,36 @@ def disc_body(
         'semi_c_px': radius,
         **copy.deepcopy(keys),
     }
+
+
+def disc_scene(instrument: str, **blocks: Any) -> dict[str, Any]:
+    """A 96 by 96 frame of a centered lit disc, about 30 pixels across.
+
+    Parameters:
+        instrument: The scene's instrument.
+        **blocks: Further keyword arguments of :func:`frame_scene`.  Each one replaces
+            the default of the same name (``size``, ``seed``, ``exposure_sec``, or
+            ``bodies``) or adds a top-level scene key.
+
+    Returns:
+        A fresh scene mapping.
+    """
+    defaults: dict[str, Any] = {
+        'size': 96,
+        'seed': 3,
+        'exposure_sec': 1.0,
+        'bodies': [
+            {
+                'name': 'B',
+                'center_v': 48,
+                'center_u': 48,
+                'semi_a_px': 15.0,
+                'semi_b_px': 14.0,
+                'semi_c_px': 14.0,
+            }
+        ],
+    }
+    return frame_scene(instrument=instrument, **(defaults | blocks))
 
 
 def body_scene(

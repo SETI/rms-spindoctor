@@ -20,11 +20,12 @@ tooltip says why.  If the scene already includes such a mode, its row stays enab
 until the author turns the mode off.  The rows refresh when the instrument, the
 detector model, or the binning changes.
 
-The detector group is a checkable override for six keys: the gain state, the
-binning, the detector model, the reference exposure, the quantization, and the
-downlink table.  It too writes only the keys the author edits, so a vgiss scene
-stays vidicon without ever writing ``detector_model``.  Choosing 'camera default'
-for the downlink table removes the key, so the camera's default table applies.
+The detector group is a checkable override for seven keys: the gain state, the
+binning, the detector model, the reference exposure, the quantization, the downlink
+table, and the contour step.  It too writes only the keys the author edits, so a vgiss
+scene stays vidicon without ever writing ``detector_model``.  Choosing 'camera
+default' for the downlink table removes the key, so the camera's default table
+applies, and stepping the contour step down to 'default' removes that key.
 """
 
 from typing import Any
@@ -49,6 +50,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_model,
 )
 from spindoctor.sim.instruments.schema_detector import Detector
+from spindoctor.sim.render.detector.quantization import DEFAULT_CONTOUR_STEP
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
 from spindoctor.ui.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.ui.sim_editor.base import SimEditorBase
@@ -115,9 +117,17 @@ class ArtifactsTabMixin(SimEditorBase):
         artifacts = self.sim_params.get('artifacts')
         return isinstance(artifacts, dict) and bool(artifacts.get('adversarial', False))
 
+    def _instrument_defaults_on(self) -> bool:
+        """Whether the scene turns the instrument defaults on."""
+        return instrument_defaults_on(self.sim_params)
+
     def _on_instrument_defaults(self, checked: bool) -> None:
-        """Set or clear the instrument-defaults switch, keeping other keys."""
+        """Set or clear the instrument-defaults switch, keeping other keys.
+
+        The mode rows show the values the switch supplies, so they are refreshed.
+        """
         self._set_artifacts_switch('instrument_defaults', checked)
+        self._refresh_artifact_mode_availability()
 
     def _on_adversarial(self, checked: bool) -> None:
         """Set or clear the adversarial switch, keeping other keys."""
@@ -300,6 +310,15 @@ class ArtifactsTabMixin(SimEditorBase):
         )
         form.addRow('Downlink table:', self._detector_downlink_combo)
 
+        self._detector_contour_step_spin = QSpinBox()
+        self._detector_contour_step_spin.setRange(0, 255)
+        self._detector_contour_step_spin.setSpecialValueText(f'default ({DEFAULT_CONTOUR_STEP})')
+        self._detector_contour_step_spin.setToolTip(
+            'The DN step the contour_8bit quantization posterizes to. '
+            'Written to the scene only when edited.'
+        )
+        form.addRow('Contour step (DN):', self._detector_contour_step_spin)
+
         self._detector_group = group
         self._set_detector_widget_values()
         group.setChecked(isinstance(detector, dict))
@@ -310,6 +329,7 @@ class ArtifactsTabMixin(SimEditorBase):
         self._detector_model_combo.currentTextChanged.connect(self._on_detector_model)
         self._detector_quantization_combo.currentTextChanged.connect(self._on_detector_quantization)
         self._detector_downlink_combo.currentIndexChanged.connect(self._on_detector_downlink_table)
+        self._detector_contour_step_spin.valueChanged.connect(self._on_detector_contour_step)
         group.toggled.connect(self._on_detector_group_toggled)
         return group
 
@@ -324,6 +344,9 @@ class ArtifactsTabMixin(SimEditorBase):
         self._set_binning_choices(binning)
         self._show_readout_mode_values(binning)
         self._set_downlink_table_choices()
+        self._detector_contour_step_spin.setValue(
+            int(self._detector_block().get('contour_step', 0))
+        )
 
     def _show_readout_mode_values(self, binning: int) -> None:
         """Show each detector key other than the binning, under one readout mode.
@@ -506,6 +529,13 @@ class ArtifactsTabMixin(SimEditorBase):
                 self._syncing = False
         else:
             self._set_detector_key('downlink_table', self._detector_downlink_combo.itemText(index))
+
+    def _on_detector_contour_step(self, value: int) -> None:
+        """Write the contour step, or remove it at the spin's 'default' value."""
+        if value > 0:
+            self._set_detector_key('contour_step', int(value))
+        else:
+            self._remove_detector_key('contour_step')
 
     # ---- Scene-load sync ----
 
