@@ -462,6 +462,8 @@ def _render_sky_counts_cached(
     oversample: int,
     rotation_deg: float,
     margin: int,
+    offset_v: float,
+    offset_u: float,
 ) -> NDArrayFloatType:
     """Internal cached function to compute the background-sky star field.
 
@@ -476,7 +478,7 @@ def _render_sky_counts_cached(
         return plane
     rng = np.random.default_rng(seed)
     n_stars = int(rng.poisson(n_expected))
-    if n_stars <= 0 and rotation_deg == 0.0 and margin == 0:
+    if n_stars <= 0 and rotation_deg == 0.0 and margin == 0 and not (offset_v or offset_u):
         return plane
     # The draw is a uniform pixel corner position over the frame of this grid,
     # which spans ``[0, size]`` there; the deposit reads a pixel centric
@@ -496,7 +498,7 @@ def _render_sky_counts_cached(
     )
     vs -= PIXEL_CENTER_TO_CORNER_PX
     us -= PIXEL_CENTER_TO_CORNER_PX
-    if rotation_deg != 0.0 or margin > 0:
+    if rotation_deg != 0.0 or margin > 0 or offset_v != 0.0 or offset_u != 0.0:
         mags, vs, us = _sky_beyond_the_frame(
             (mags, vs, us),
             (size_v, size_u),
@@ -507,6 +509,7 @@ def _render_sky_counts_cached(
             rotation_deg=rotation_deg,
             oversample=oversample,
             margin=margin,
+            offset=(offset_v, offset_u),
         )
     for mag, v, u in zip(mags.tolist(), vs.tolist(), us.tolist(), strict=True):
         total = total_flux_for_vmag(float(mag), zero_point=zero_point, exposure_sec=exposure_sec)
@@ -566,8 +569,9 @@ def _sky_beyond_the_frame(
     rotation_deg: float,
     oversample: int,
     margin: int,
+    offset: tuple[float, float],
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """The sky field with the stars beyond the frame, turned by the roll.
+    """The sky field with the stars beyond the frame, turned by the roll and offset.
 
     The frame's own stars are the sky the unrolled frame shows.  The sky beyond it is
     laid out in square tiles of 32 detector pixels, counted from the frame's first
@@ -581,11 +585,14 @@ def _sky_beyond_the_frame(
     pixel centers, because the deposit shares its flux among the pixels on either side
     of the position.  Such a star lights the frame's edge through the optics, and a
     wider margin keeps the same star and more.  The tiles drawn are those that meet
-    that range, or, under a roll, those that meet a square about the frame center wide
-    enough to hold it at any angle.  Every star then turns about the frame center, so
-    the rolled sky is the unrolled sky turned with the frame.  A roll too small to
-    carry any star across the plane's edge draws the stars the unrolled plane holds
-    and no others, each moved by the roll alone.
+    that range carried back by the planted offset, or, under a roll, those that meet
+    a square about the frame center wide enough to hold it at any angle and offset.
+    Every star then turns about the frame center, so the rolled sky is the unrolled
+    sky turned with the frame, and the planted offset then moves it.  The draw does
+    not depend on the roll or the offset, which decide only where each star lands
+    and so whether it is kept.  A roll too small to carry any star across the plane's
+    edge draws the stars the unrolled plane holds and no others, each moved by the
+    roll alone.
 
     Parameters:
         frame_stars: The frame's stars, as magnitudes and pixel centric v and u
@@ -598,6 +605,7 @@ def _sky_beyond_the_frame(
         rotation_deg: The roll in degrees, from ``+v`` toward ``+u``.
         oversample: The render-grid oversampling factor.
         margin: How many render-grid pixels the plane extends past the frame.
+        offset: The planted pointing offset ``(v, u)`` on the render grid.
 
     Returns:
         The magnitudes and pixel centric v and u positions, measured from the
@@ -610,11 +618,20 @@ def _sky_beyond_the_frame(
     plane_u = size_u + 2 * margin
     # A deposit reaches the plane from a pixel past each edge, so the tiles that matter
     # extend one pixel beyond the plane.
+    # The planted offset then carries each star by (dv, du), so the stars that land on
+    # the plane are those drawn that far the other way.
+    offset_v, offset_u = offset
     if rotation_deg == 0.0:
-        reach_v: tuple[float, float] = (-margin - 1.0, size_v + margin + 1.0)
-        reach_u: tuple[float, float] = (-margin - 1.0, size_u + margin + 1.0)
+        reach_v: tuple[float, float] = (
+            -margin - 1.0 - offset_v,
+            size_v + margin + 1.0 - offset_v,
+        )
+        reach_u: tuple[float, float] = (
+            -margin - 1.0 - offset_u,
+            size_u + margin + 1.0 - offset_u,
+        )
     else:
-        side = math.hypot(plane_v + 2, plane_u + 2)
+        side = math.hypot(plane_v + 2, plane_u + 2) + 2.0 * math.hypot(offset_v, offset_u)
         reach_v = ((size_v - side) / 2.0, (size_v + side) / 2.0)
         reach_u = ((size_u - side) / 2.0, (size_u + side) / 2.0)
     mag_parts = [frame_stars[0]]
@@ -654,6 +671,9 @@ def _sky_beyond_the_frame(
         sin_r = math.sin(roll)
         turned_v = pivot_v + cos_r * rel_v - sin_r * rel_u
         turned_u = pivot_u + sin_r * rel_v + cos_r * rel_u
+    # The planted offset moves the turned field as it moves the scene's other objects.
+    turned_v = turned_v + offset_v
+    turned_u = turned_u + offset_u
     # The plane's pixel centers span ``[-margin, size + margin)`` pixel centric, and a
     # deposit at ``p`` shares its flux between the pixels ``floor(p)`` and
     # ``floor(p) + 1``, so it reaches the plane when ``-margin - 1 < p < size + margin``.
@@ -681,6 +701,8 @@ def render_sky_counts(
     oversample: int,
     rotation_deg: float = 0.0,
     margin: int = 0,
+    offset_v: float = 0.0,
+    offset_u: float = 0.0,
 ) -> None:
     """Render the background-sky star field (and optional diffuse floor) in place.
 
@@ -714,6 +736,8 @@ def render_sky_counts(
         oversample: The render-grid oversampling factor.
         rotation_deg: Camera-roll angle in degrees, from ``+v`` toward ``+u``.
         margin: How many pixels the plane extends past the frame on each side.
+        offset_v: The planted pointing offset v on the render grid.
+        offset_u: The planted pointing offset u on the render grid.
     """
     size_v = point_plane.shape[0] - 2 * margin
     size_u = point_plane.shape[1] - 2 * margin
@@ -735,6 +759,8 @@ def render_sky_counts(
         oversample=int(oversample),
         rotation_deg=float(rotation_deg),
         margin=int(margin),
+        offset_v=float(offset_v),
+        offset_u=float(offset_u),
     )
     point_plane += plane
     if diffuse_flux_per_px > 0.0:

@@ -3689,16 +3689,17 @@ scene.
 The planted ``offset_v`` / ``offset_u`` is the boresight's pointing error ``d``, and
 it stays the truth for the navigator's translation. Measured from the frame center,
 an object the scene puts at ``x`` therefore lands at ``R (x + d)``, where ``R`` is the
-roll. The renderer computes this as ``R x + R d``: it turns each star, body, and the
-ring system about the frame center, then moves all of them by the offset turned by
-the roll (:func:`~spindoctor.sim.render.roll.boresight_shift`). The scene radiance
-stage computes that shift once and hands the same one to every object, so they all
-turn about the same point. Turning about the frame center and adding the offset
-unturned would put every object ``(R - I) d`` from where it belongs: the same shift
-for every object, ``2 |d| sin(theta / 2)`` long and nearly at right angles to the
-offset. The
-``sky_counts`` background field turns with the roll but does not move with the offset:
-its stars are drawn where they land in the frame whatever the offset.
+roll. The renderer computes this as ``R x + R d``: it turns each star, body, the
+ring system, and the ``sky_counts`` background field about the frame center, then
+moves all of them by the offset turned by the roll
+(:func:`~spindoctor.sim.render.roll.boresight_shift`). The scene radiance stage
+computes that shift once and hands the same one to every object, so they all turn
+about the same point. Turning about the frame center and adding the offset unturned
+would put every object ``(R - I) d`` from where it belongs: the same shift for every
+object, ``2 |d| sin(theta / 2)`` long and nearly at right angles to the offset. The
+sky's random draw does not depend on the roll or the offset, so the same stars move,
+and a star the shift carries into or out of the frame or its margin is kept or
+dropped by where it lands.
 
 The roll turns:
 
@@ -3716,7 +3717,7 @@ The roll turns:
   direction in the field of view and turns with it;
 - a linear stray-light ramp. The ramp rises toward a bright source beyond the field
   of view, and rolling the camera turns that source's direction on the detector. The
-  ramp, like the sky field, does not move with the offset, so only its direction
+  ramp does not move with the offset, so only its direction
   turns: the rolled ramp is the unrolled ramp turned about the frame center, with the
   same slope and the same value there. Where the turned frame reaches past the span
   the unrolled ramp was scaled to, the ramp continues the same line, and where that line falls
@@ -3727,7 +3728,9 @@ The roll turns:
   turned with the frame. A star is drawn when its light lands on a pixel of the frame
   or of the margin the optics stage reads (see :ref:`sim-frame-margin`), rolled or
   not, so a roll too small to carry a star across the margin's outer edge draws the
-  same stars as no roll.
+  same stars as no roll. The offset turned by the roll then moves each star, as it
+  moves every other object, and the tiles drawn are those that hold the stars it
+  carries onto the frame or margin.
 
 :mod:`spindoctor.sim.render.roll` does the turning for bodies. Three body angles run
 against the roll, so the roll subtracts from them. ``rotation_z`` turns the grid an
