@@ -389,6 +389,8 @@ model does not gain them.
 | #995 | On a binned simulated frame the navigator's star blur, star box sizes, and per-pixel thresholds stay in unbinned pixels, and a `match_navigator` PSF is not divided by the binning. #993 (done) fixed only the faint-star limit, so none of these is covered yet. No committed scene or sweep sets binning; the realism twins do, with the catalog kernel |
 | #920 | WAC and Galileo gain states, Galileo ICT, and LORRI frame-transfer smear and calibrated mode |
 | #1121 | **Affects no current scene.** Galileo's shutter shading scales the light at every exposure, where the shutter adds a fixed exposure time that differs across the frame |
+| #1125 | **Affects no current scene.** The vidicon residual image is shifted with wraparound, so a source at one edge puts its ghost on the opposite edge |
+| #1126 | **Affects no current scene; the truth record only.** The frame-transfer smear records the mean of both pedestals where each pixel receives one |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |
