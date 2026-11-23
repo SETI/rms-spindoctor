@@ -1552,10 +1552,13 @@ asserts the generated half matches the registries.
     deletes the camera blocks' dead keys) (done: 56 deleted, 27 of the
     28 `offset` keys, 13 `bodies` keys, 2 `stars` keys, and all 14
     `bootstrap` keys with the section)
-  - [ ] the loader on the core: delete the 62 packaged nulls and the
+  - [x] the loader on the core: delete the 62 packaged nulls and the
     one in `util/cohort_curation/rescue_config.yaml` (an absent key means
     not set; for a tier's `max_sigma_px`, no sigma bound) and move the
-    merge onto `layers.merge` under REFUSE
+    merge onto `layers.merge` under REFUSE (done: 31 `albedo_mean`, 30
+    ring-feature `name`/`inner_data`/`outer_data`, and the low tier's
+    `max_sigma_px` left out; `_deep_merge` deleted, and a null in any
+    file, a user override included, is refused with its file and key path)
   - [ ] the orchestrator section
   - [ ] technique confidence and tuning, two or three PRs by family
     (decide #411's snake_case rename first)

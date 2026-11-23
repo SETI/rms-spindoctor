@@ -45,11 +45,6 @@ def test_ensemble_from_mapping_partial_tier_keeps_other_tiers() -> None:
     assert cfg.tier_thresholds['high'] == EnsembleConfig().tier_thresholds['high']
 
 
-def test_ensemble_from_mapping_tier_none_sigma_allowed() -> None:
-    cfg = EnsembleConfig.from_mapping({'tier_thresholds': {'medium': {'max_sigma_px': None}}})
-    assert cfg.tier_thresholds['medium']['max_sigma_px'] is None
-
-
 def test_ensemble_from_mapping_unknown_key_raises() -> None:
     with pytest.raises(ValueError, match=r'Unknown orchestrator\.ensemble config keys'):
         EnsembleConfig.from_mapping({'not_a_field': 1.0})

@@ -552,8 +552,9 @@ constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleCon
   ``rank -> {min_confidence, max_sigma_px}``; default thresholds give ``'high'`` for
   confidence at or above 0.85 with sigma at most 0.5 px, ``'medium'`` for confidence at
   or above 0.35 with sigma at most 2.0 px, and ``'low'`` for confidence at or above 0.35
-  with no sigma cap. Each tier boundary is the smallest confidence at which the tier's
-  sigma-gated subset achieves a 0.9 success rate against the tier's own error budget on
+  with no sigma cap (its entry leaves out ``max_sigma_px``). Each tier boundary is the
+  smallest confidence at which the tier's sigma-gated subset achieves a 0.9 success rate
+  against the tier's own error budget on
   the calibration campaign (the ``max_sigma_px`` values are the tier definitions, not
   fitted); the high boundary sits at 0.85 because the campaign's ring family plants
   per-feature orbit errors that produce tight-sigma, confidently-wrong locks in the

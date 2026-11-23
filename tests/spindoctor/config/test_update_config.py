@@ -1,51 +1,78 @@
-"""Tests for nested merging behavior of :meth:`Config.update_config`.
+"""Tests for how :meth:`Config.update_config` merges a user override.
 
-A user override of one nested key must combine key-by-key with the bundled
-defaults so sibling keys under the same sub-block survive (CODE-CFG-1).
+A user override of one nested key must combine key-by-key with the packaged
+defaults so sibling keys under the same sub-block survive (CODE-CFG-1).  The merge
+itself is :func:`spindoctor.schema.layers.merge`, tested beside it; what is tested
+here is what the loader adds to it.
 """
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
+import pytest
+
 from spindoctor.config import Config
-from spindoctor.config.config import _deep_merge
+from spindoctor.nav_technique import BodyDiscCorrelateNav
 
 
 def test_update_config_preserves_sibling_defaults(tmp_path: Path) -> None:
     """A user override of one leaf keeps unrelated sibling defaults."""
     config = Config()
-    config._config_dict = {'bodies': {'MIMAS': {'radii_km': [1], 'albedo': 2}}}
-    config._update_attrdicts()
+    config.read_config()
+    agreement_sigma = config.orchestrator['ensemble']['agreement_sigma']
 
     user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text('bodies:\n  MIMAS:\n    albedo: 9\n', encoding='utf-8')
-    config.update_config(user_path, read_default=False)
+    user_path.write_text('orchestrator:\n  ensemble:\n    min_confidence: 0.1\n', encoding='utf-8')
+    config.update_config(user_path)
 
-    assert config.bodies['MIMAS']['radii_km'] == [1]
-    assert config.bodies['MIMAS']['albedo'] == 9
-
-
-def test_deep_merge_recurses_into_nested_mappings() -> None:
-    """Nested mappings combine key-by-key with overlay leaves winning."""
-    base = {'MIMAS': {'radii_km': [1], 'albedo': 2}}
-    overlay = {'MIMAS': {'albedo': 9}}
-    assert _deep_merge(base, overlay) == {'MIMAS': {'radii_km': [1], 'albedo': 9}}
+    assert config.orchestrator['ensemble']['min_confidence'] == 0.1
+    assert config.orchestrator['ensemble']['agreement_sigma'] == agreement_sigma
 
 
-def test_deep_merge_overlay_replaces_non_mapping() -> None:
-    """When either side is not a mapping, the overlay value replaces it."""
-    base = {'k': [1, 2]}
-    overlay = {'k': [3]}
-    assert _deep_merge(base, overlay) == {'k': [3]}
+def test_a_null_in_an_override_is_refused_naming_the_file_and_key(tmp_path: Path) -> None:
+    """A null in a user override is refused at load, with its file and key path."""
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text('orchestrator:\n  ensemble:\n    min_confidence: null\n', encoding='utf-8')
+    config = Config()
+    expected = f'{user_path}: orchestrator.ensemble.min_confidence: null is refused'
+    with pytest.raises(ValueError, match=re.escape(expected)):
+        config.update_config(user_path)
 
 
-def test_deep_merge_does_not_mutate_inputs() -> None:
-    """The inputs are left unchanged after merging."""
-    base = {'a': {'x': 1}}
-    overlay = {'a': {'y': 2}}
-    _deep_merge(base, overlay)
-    assert base == {'a': {'x': 1}}
+def test_a_section_given_as_a_scalar_is_refused(tmp_path: Path) -> None:
+    """An override cannot replace a whole section with a value that is not a mapping."""
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text('orchestrator: 3\n', encoding='utf-8')
+    config = Config()
+    expected = f'{user_path}: orchestrator: expected a mapping'
+    with pytest.raises(ValueError, match=re.escape(expected)):
+        config.update_config(user_path)
+
+
+def test_an_override_refused_by_validation_changes_nothing(tmp_path: Path) -> None:
+    """A refused merged result keeps the config, its overrides, and technique tuning."""
+    config = Config()
+    config.read_config()
+    fraction = config.bodies['blob_max_overflow_fraction']
+    tuning = dict(BodyDiscCorrelateNav.tuning)
+    refused = tmp_path / 'refused.yaml'
+    refused.write_text(
+        'techniques:\n  BodyDiscCorrelateNav:\n    tuning:\n'
+        '      rotation_at_edge_fraction: 0.5\n'
+        'bodies:\n  blob_max_overflow_fraction: 5\n',
+        encoding='utf-8',
+    )
+    valid = tmp_path / 'valid.yaml'
+    valid.write_text('orchestrator:\n  ensemble:\n    min_confidence: 0.1\n', encoding='utf-8')
+    with pytest.raises(ValueError, match='blob_max_overflow_fraction must be finite'):
+        config.update_config(refused)
+    assert config.bodies['blob_max_overflow_fraction'] == fraction
+    assert not config.override_paths
+    assert BodyDiscCorrelateNav.tuning == tuning
+    config.update_config(valid)
+    assert config.override_paths == (str(valid),)
 
 
 def test_category_returns_cached_instance() -> None:
@@ -72,11 +99,11 @@ def test_category_cache_rebuilt_on_reload() -> None:
 
 
 def test_reread_no_path_drops_removed_keys() -> None:
-    """CODE-CFG-2: a no-path reread starts from an empty dict (no stale keys)."""
+    """CODE-CFG-2: a reread starts again from the packaged files (no stale keys)."""
     config = Config()
     # Simulate a prior load that contains a key the bundled YAML does not.
     config._config_dict = {'general': {'stale_only_key': 123}}
     config._update_attrdicts()
-    # Reread from the bundled config_files glob.
+    # Reread from the packaged config_files glob.
     config.read_config(reread=True)
     assert 'stale_only_key' not in config._config_dict.get('general', {})

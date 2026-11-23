@@ -603,11 +603,11 @@ covariance and emission gates:
 
 The public entry point is :func:`~spindoctor.nav_model.body_shape.load_body_shape`,
 which resolves the operator-curated YAML entry (via the private ``_yaml_entry_for``
-helper), overlays its non-null fields onto the hard-coded baseline, and returns the
+helper), overlays the fields it sets onto the hard-coded baseline, and returns the
 merged :class:`~spindoctor.nav_model.body_shape.BodyShape`. Priority order:
 
-1. Operator-curated YAML (``config_220_body_shape.yaml``) — each non-null field overrides
-   the baseline.
+1. Operator-curated YAML (``config_220_body_shape.yaml``) — each field the entry sets
+   overrides the baseline.
 2. Hard-coded :data:`~spindoctor.nav_model.body_shape.BODY_SHAPE_TABLE` profile for the body
    (Saturn-moon, irregular-moon, or gas-giant).
 3. :data:`~spindoctor.nav_model.body_shape.DEFAULT_BODY_SHAPE` for entirely unknown bodies.

@@ -766,7 +766,7 @@ def test_load_malformed_user_default_raises(
     monkeypatch.chdir(tmp_path)
     (tmp_path / 'nav_default_config.yaml').write_text('- not\n- a\n- mapping\n', encoding='utf-8')
     config = Config()
-    with pytest.raises(ValueError, match='did not parse to a dictionary mapping'):
+    with pytest.raises(ValueError, match='expected a mapping at the top level'):
         load_default_and_user_config(argparse.Namespace(), config)
 
 

@@ -1,12 +1,12 @@
 # Per-body shape parameters consumed by the body NavModel and feature
 # extractors.  Schema:
 #
-#   <BODY_NAME>:
-#     radii_km: [a, b, c] | null      # tri-axial ellipsoid (km)
-#     ellipsoid_rms_residual_km: float | null
-#     crater_scale_km: float | null
-#     albedo_mean: float | null
-#     albedo_variation: float | null  # relative albedo std on visible hemisphere
+#   <BODY_NAME>:                     # every field is optional; leave out what is not known
+#     radii_km: [a, b, c]             # tri-axial ellipsoid (km)
+#     ellipsoid_rms_residual_km: float
+#     crater_scale_km: float
+#     albedo_mean: float
+#     albedo_variation: float         # relative albedo std on visible hemisphere
 #     shape_class_hint: regular | irregular | highly_irregular | unknown
 #     _sources:                       # documentation-only; loader ignores `_` keys
 #       <field>: 'citation string'
@@ -38,9 +38,9 @@
 #   feed sigma/reliability terms (not science products) and whose
 #   runtime fallbacks are themselves per-class estimates.
 #
-# albedo_mean is null throughout: it has no runtime consumer.  Populate
-# it with cited values when a consumer materializes, following the
-# developers-guide procedure.
+# albedo_mean is left out throughout: it has no runtime consumer.  Each
+# body's _sources entry for it says so.  Populate it with cited values
+# when a consumer materializes, following the developers-guide procedure.
 
 body_shape:
   # ---------------------------------------------------------------- Saturn
@@ -48,7 +48,6 @@ body_shape:
     radii_km: [207.8, 196.7, 190.6]
     ellipsoid_rms_residual_km: 0.74
     crater_scale_km: 1.0
-    albedo_mean: null
     albedo_variation: 0.06
     shape_class_hint: regular
     _sources:
@@ -63,7 +62,6 @@ body_shape:
     radii_km: [256.6, 251.4, 248.3]
     ellipsoid_rms_residual_km: 0.4
     crater_scale_km: 0.5
-    albedo_mean: null
     albedo_variation: 0.05
     shape_class_hint: regular
     _sources:
@@ -78,7 +76,6 @@ body_shape:
     radii_km: [538.4, 528.3, 526.3]
     ellipsoid_rms_residual_km: 1.2
     crater_scale_km: 1.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: regular
     _sources:
@@ -93,7 +90,6 @@ body_shape:
     radii_km: [563.4, 561.3, 559.6]
     ellipsoid_rms_residual_km: 0.5
     crater_scale_km: 0.5
-    albedo_mean: null
     albedo_variation: 0.15
     shape_class_hint: regular
     _sources:
@@ -108,7 +104,6 @@ body_shape:
     radii_km: [765.0, 763.1, 762.4]
     ellipsoid_rms_residual_km: 0.9
     crater_scale_km: 1.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: regular
     _sources:
@@ -123,7 +118,6 @@ body_shape:
     radii_km: [2575.15, 2574.78, 2574.47]
     ellipsoid_rms_residual_km: 0.26
     crater_scale_km: 0.3
-    albedo_mean: null
     albedo_variation: 0.03
     shape_class_hint: regular
     _sources:
@@ -138,7 +132,6 @@ body_shape:
     radii_km: [180.1, 133.0, 102.7]
     ellipsoid_rms_residual_km: 10.0
     crater_scale_km: 8.0
-    albedo_mean: null
     albedo_variation: 0.20
     shape_class_hint: highly_irregular
     _sources:
@@ -153,7 +146,6 @@ body_shape:
     radii_km: [745.7, 745.7, 712.1]
     ellipsoid_rms_residual_km: 4.1
     crater_scale_km: 3.0
-    albedo_mean: null
     albedo_variation: 0.60
     shape_class_hint: regular
     _sources:
@@ -168,7 +160,6 @@ body_shape:
     radii_km: [109.4, 108.5, 101.8]
     ellipsoid_rms_residual_km: 2.3
     crater_scale_km: 5.0
-    albedo_mean: null
     albedo_variation: 0.25
     shape_class_hint: irregular
     _sources:
@@ -183,7 +174,6 @@ body_shape:
     radii_km: [101.5, 92.5, 76.3]
     ellipsoid_rms_residual_km: 3.5
     crater_scale_km: 3.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: irregular
     _sources:
@@ -198,7 +188,6 @@ body_shape:
     radii_km: [64.9, 57.0, 53.1]
     ellipsoid_rms_residual_km: 2.9
     crater_scale_km: 3.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: irregular
     _sources:
@@ -213,7 +202,6 @@ body_shape:
     radii_km: [67.8, 39.7, 29.7]
     ellipsoid_rms_residual_km: 2.6
     crater_scale_km: 2.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: highly_irregular
     _sources:
@@ -228,7 +216,6 @@ body_shape:
     radii_km: [52.0, 40.5, 32.0]
     ellipsoid_rms_residual_km: 2.4
     crater_scale_km: 2.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: highly_irregular
     _sources:
@@ -243,7 +230,6 @@ body_shape:
     radii_km: [60268.0, 60268.0, 54364.0]
     ellipsoid_rms_residual_km: 50.0
     crater_scale_km: 0.0
-    albedo_mean: null
     albedo_variation: 0.05
     shape_class_hint: regular
     _sources:
@@ -259,7 +245,6 @@ body_shape:
     radii_km: [1829.4, 1819.4, 1815.7]
     ellipsoid_rms_residual_km: 1.4
     crater_scale_km: 1.5
-    albedo_mean: null
     albedo_variation: 0.25
     shape_class_hint: regular
     _sources:
@@ -274,7 +259,6 @@ body_shape:
     radii_km: [1562.6, 1560.3, 1559.5]
     ellipsoid_rms_residual_km: 0.32
     crater_scale_km: 0.3
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: regular
     _sources:
@@ -289,7 +273,6 @@ body_shape:
     radii_km: [2631.2, 2631.2, 2631.2]
     ellipsoid_rms_residual_km: 0.6
     crater_scale_km: 0.7
-    albedo_mean: null
     albedo_variation: 0.15
     shape_class_hint: regular
     _sources:
@@ -304,7 +287,6 @@ body_shape:
     radii_km: [2410.3, 2410.3, 2410.3]
     ellipsoid_rms_residual_km: 0.6
     crater_scale_km: 0.7
-    albedo_mean: null
     albedo_variation: 0.15
     shape_class_hint: regular
     _sources:
@@ -319,7 +301,6 @@ body_shape:
     radii_km: [125.0, 73.0, 64.0]
     ellipsoid_rms_residual_km: 3.2
     crater_scale_km: 3.0
-    albedo_mean: null
     albedo_variation: 0.20
     shape_class_hint: highly_irregular
     _sources:
@@ -334,7 +315,6 @@ body_shape:
     radii_km: [71492.0, 71492.0, 66854.0]
     ellipsoid_rms_residual_km: 30.0
     crater_scale_km: 0.0
-    albedo_mean: null
     albedo_variation: 0.15
     shape_class_hint: regular
     _sources:
@@ -350,7 +330,6 @@ body_shape:
     radii_km: [240.4, 234.2, 232.9]
     ellipsoid_rms_residual_km: 1.6
     crater_scale_km: 2.0
-    albedo_mean: null
     albedo_variation: 0.15
     shape_class_hint: regular
     _sources:
@@ -365,7 +344,6 @@ body_shape:
     radii_km: [581.1, 577.9, 577.7]
     ellipsoid_rms_residual_km: 0.9
     crater_scale_km: 1.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: regular
     _sources:
@@ -380,7 +358,6 @@ body_shape:
     radii_km: [584.7, 584.7, 584.7]
     ellipsoid_rms_residual_km: 2.6
     crater_scale_km: 1.5
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: regular
     _sources:
@@ -395,7 +372,6 @@ body_shape:
     radii_km: [788.9, 788.9, 788.9]
     ellipsoid_rms_residual_km: 1.3
     crater_scale_km: 1.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: regular
     _sources:
@@ -410,7 +386,6 @@ body_shape:
     radii_km: [761.4, 761.4, 761.4]
     ellipsoid_rms_residual_km: 1.5
     crater_scale_km: 1.5
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: regular
     _sources:
@@ -425,7 +400,6 @@ body_shape:
     radii_km: [25559.0, 25559.0, 24973.0]
     ellipsoid_rms_residual_km: 30.0
     crater_scale_km: 0.0
-    albedo_mean: null
     albedo_variation: 0.02
     shape_class_hint: regular
     _sources:
@@ -441,7 +415,6 @@ body_shape:
     radii_km: [1352.6, 1352.6, 1352.6]
     ellipsoid_rms_residual_km: 1.0
     crater_scale_km: 0.5
-    albedo_mean: null
     albedo_variation: 0.15
     shape_class_hint: regular
     _sources:
@@ -456,7 +429,6 @@ body_shape:
     radii_km: [218.0, 208.0, 201.0]
     ellipsoid_rms_residual_km: 7.9
     crater_scale_km: 5.0
-    albedo_mean: null
     albedo_variation: 0.10
     shape_class_hint: highly_irregular
     _sources:
@@ -471,7 +443,6 @@ body_shape:
     radii_km: [24764.0, 24764.0, 24341.0]
     ellipsoid_rms_residual_km: 30.0
     crater_scale_km: 0.0
-    albedo_mean: null
     albedo_variation: 0.05
     shape_class_hint: regular
     _sources:
@@ -487,7 +458,6 @@ body_shape:
     radii_km: [1188.3, 1188.3, 1188.3]
     ellipsoid_rms_residual_km: 1.0
     crater_scale_km: 1.5
-    albedo_mean: null
     albedo_variation: 0.35
     shape_class_hint: regular
     _sources:
@@ -502,7 +472,6 @@ body_shape:
     radii_km: [606.0, 606.0, 606.0]
     ellipsoid_rms_residual_km: 1.5
     crater_scale_km: 2.0
-    albedo_mean: null
     albedo_variation: 0.15
     shape_class_hint: regular
     _sources:
