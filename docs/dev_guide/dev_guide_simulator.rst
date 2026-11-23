@@ -1328,8 +1328,8 @@ also takes hits while it waits to be read; the stage counts the exposure alone,
 as on a CCD.
 
 **The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the
-CCD chain, the ``vgiss`` cameras on the vidicon chain) renders through its DN chain and then
-inverts the calibration transform: the bias and dark pedestals are subtracted
+CCD chain, the ``vgiss`` cameras on the vidicon chain) renders through its DN chain
+and then inverts the calibration transform: the bias and dark pedestals are subtracted
 before the exposure divide (matching the real pipeline; the vidicon has no dark current,
 and its readout dark is cataloged as what its calibrated product keeps), so a calibrated
 frame carries no spurious 1/exposure pedestal and
