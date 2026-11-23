@@ -125,6 +125,7 @@ orchestrator:
   # Minimum reliability per feature type; features below their type's
   # threshold are gated out before any technique runs.  Every feature
   # type has a threshold.
+  # The thresholds are placeholders, subject to empirical calibration.
   reliability_gate:
     STAR: 0.20
     LIMB_ARC: 0.30

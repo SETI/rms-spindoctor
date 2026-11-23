@@ -736,8 +736,8 @@ class Config:
         """
 
         self.read_config()
-        # read_config installs a configuration, and installing one parses its sections.
-        assert self._sections is not None
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but holds no parsed sections')
         return self._sections.orchestrator
 
     @property

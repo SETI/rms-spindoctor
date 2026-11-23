@@ -481,8 +481,9 @@ Configuration
 Tunables live on :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`, which is the
 ``orchestrator.ensemble`` configuration section. The configuration parses the section into
 this type when it loads (see :ref:`config-typed-sections`), so a value of the wrong type or
-out of range is refused there. No field has a default in code: every value lives in
-``config_540_orchestrator.yaml``, and the values given below are the packaged ones. The
+out of range is refused there. No tunable has a default in code: every value lives in
+``config_540_orchestrator.yaml``, and the values given below are the packaged ones. A
+tier's sigma bound is optional, and a tier that leaves it out has no bound. The
 orchestrator takes the section from the configuration it is given, and a test that needs
 other values builds a variant with :func:`dataclasses.replace`.
 

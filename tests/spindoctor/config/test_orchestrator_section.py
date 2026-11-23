@@ -23,15 +23,15 @@ def test_packaged_orchestrator_section_parses() -> None:
 
 
 def test_an_inverted_body_witness_phase_window_is_refused(tmp_path: Path) -> None:
-    """The shape-lock phase ceiling must be below the collapse phase floor."""
+    """The shape-lock phase ceiling must be below the collapse phase floor, not equal to it."""
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text(
-        'orchestrator:\n  ensemble:\n    body_witness_shape_lock_max_phase_deg: 95\n',
+        'orchestrator:\n  ensemble:\n    body_witness_shape_lock_max_phase_deg: 90\n',
         encoding='utf-8',
     )
     expected = (
         f'{user_path}: orchestrator.ensemble.body_witness_shape_lock_max_phase_deg: '
-        'must be below body_witness_collapse_min_phase_deg (90), got 95'
+        'must be below body_witness_collapse_min_phase_deg (90), got 90'
     )
     with pytest.raises(SchemaError, match=re.escape(expected)):
         Config().update_config(user_path)
@@ -69,3 +69,19 @@ def test_a_bad_override_is_refused_and_changes_nothing(
         config.update_config(user_path)
     assert config.orchestrator is section
     assert config.override_paths == ()
+
+
+def test_an_override_refused_by_validation_keeps_the_section(tmp_path: Path) -> None:
+    """An override whose section parses but fails the load-time checks changes nothing."""
+    config = Config()
+    section = config.orchestrator
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text(
+        'orchestrator:\n  ensemble:\n    min_confidence: 0.1\n'
+        'bodies:\n  blob_max_overflow_fraction: 5\n',
+        encoding='utf-8',
+    )
+    with pytest.raises(ValueError, match='blob_max_overflow_fraction must be finite'):
+        config.update_config(user_path)
+    assert config.orchestrator is section
+    assert not config.override_paths
