@@ -303,8 +303,6 @@ _NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
         'hot_pixel_fraction',
         'hot_pixel_amplitude_e',
         'hot_pixel_column_factor',
-        'banding_amplitude_e',
-        'banding_period_px',
         'bias_pedestal_sigma_dn',
         'bias_row_gradient_dn',
         'bias_col_gradient_dn',
@@ -319,8 +317,6 @@ _VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
     {
         'read_noise_line_dn',
         'read_noise_pixel_dn',
-        'coherent_amplitude_dn',
-        'coherent_period_px',
     }
 )
 

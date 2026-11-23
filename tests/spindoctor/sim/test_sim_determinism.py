@@ -254,9 +254,7 @@ _PER_FRAME_STREAMS = frozenset(
         'cosmic_rays',
         'calibration_residual',
         'banding',
-        'banding_coherent',
         'bias_structure',
-        'vidicon_coherent',
         'bright_dark_pairs',
         'radiation_transients',
     }
@@ -332,7 +330,7 @@ def test_noise_seed_leaves_each_mode_activation_in_place() -> None:
     """
     modes = {
         name: {'probability': 0.5}
-        for name in ('fixed_pattern', 'dark_ramp', 'banding_coherent', 'bias_structure', 'bloom')
+        for name in ('fixed_pattern', 'dark_ramp', 'banding', 'bias_structure', 'bloom')
     }
     scene = frame_scene(seed=3, artifacts=modes)
     reseeded = resolve_detector_params({**scene, 'noise_seed': 23})

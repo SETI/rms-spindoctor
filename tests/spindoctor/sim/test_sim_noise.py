@@ -18,7 +18,6 @@ from spindoctor.sim.render.detector import (
     resolve_detector_params,
 )
 from spindoctor.sim.render.detector.noise_stages import (
-    add_banding,
     add_bias_structure,
     add_cosmic_rays,
     add_dark_current,
@@ -391,23 +390,6 @@ def test_the_detector_map_amplitudes_average_one() -> None:
     """The relative amplitudes are exponential with mean 1 (within 10 percent on ~1000)."""
     _v, _u, amps = detector_hot_pixel_map((1024, 1024), fraction=1.0e-3, detector_id='gossi')
     assert float(amps.mean()) == pytest.approx(1.0, rel=0.1)
-
-
-def test_banding_is_row_correlated() -> None:
-    """Coherent banding is constant along a row and varies between rows."""
-    electrons = np.zeros((64, 64), dtype=np.float64)
-    add_banding(electrons, amplitude_e=100.0, period_px=16.0, rng=np.random.default_rng(5))
-    row_spread = float(np.ptp(electrons, axis=1).max())
-    col_spread = float(np.ptp(electrons, axis=0).max())
-    assert row_spread < 1e-9
-    assert col_spread > 1.0
-
-
-def test_banding_disabled_at_zero_amplitude() -> None:
-    """A zero banding amplitude is a no-op."""
-    electrons = np.zeros((64, 64), dtype=np.float64)
-    add_banding(electrons, amplitude_e=0.0, period_px=16.0, rng=np.random.default_rng(5))
-    assert np.all(electrons == 0.0)
 
 
 def test_bias_structure_adds_a_pedestal_and_gradients() -> None:

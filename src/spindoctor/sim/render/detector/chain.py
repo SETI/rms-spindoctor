@@ -15,9 +15,9 @@ random draw in the chain takes a number of values that depends on the signal, so
 changing the signal in one pixel changes the noise drawn for that pixel alone.
 
 The Voyager vidicon skips the electron conversion and applies its noise directly
-in DN (line-correlated read noise plus a faint coherent component); its point
-sources (stars) and its cosmic-ray hits are already DN and are added onto the
-converted signal before that DN noise.  A calibrated
+in DN (line-correlated read noise plus any banding); its point sources (stars) and
+its cosmic-ray hits are already DN and are added onto the converted signal before
+that DN noise.  A calibrated
 (I/F) scene renders through the full DN chain and then inverts the calibration
 transform, so calibrated products carry propagated shot/read noise and
 quantization texture in I/F units.
@@ -38,8 +38,8 @@ import numpy as np
 from scipy import ndimage
 
 from spindoctor.sim.render.detector.electronics_stages import (
+    add_banding,
     add_bright_dark_pairs,
-    add_coherent_banding,
     add_dark_ramp,
     add_fixed_pattern_dn,
     add_fixed_pattern_response,
@@ -50,7 +50,6 @@ from spindoctor.sim.render.detector.electronics_stages import (
     apply_frame_transfer_smear,
 )
 from spindoctor.sim.render.detector.noise_stages import (
-    add_banding,
     add_bias_structure,
     add_cosmic_rays,
     add_dark_current,
@@ -263,7 +262,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     chain: the fixed-pattern response and the dark ramp are per-pixel / dark
     structure before Poisson; the frame-transfer smear is integrated charge
     before Poisson; the anti-blooming pairs, radiation transients, and column
-    bloom follow the shot term; coherent banding is added in electrons before the
+    bloom follow the shot term; banding is added in electrons before the
     gain divide; and the additive fixed pattern and the saturation serial tail
     ride on the digitized DN before quantization.
     """
@@ -346,24 +345,9 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     )
     if dp.read_noise_e > 0.0:
         electrons += rng.normal(0.0, dp.read_noise_e, size=electrons.shape)
-    if 'banding_coherent' in modes:
-        cfg = modes['banding_coherent']
-        records['banding_coherent'] = add_coherent_banding(
-            electrons,
-            amplitude_e=float(cfg.get('amplitude_e') or 0.0),
-            period_px=float(cfg.get('period_px') or 0.0),
-            orientation=str(cfg.get('orientation', 'horizontal')),
-            freq_step_factor=float(cfg.get('freq_step_factor', 1.0)),
-            dark_step_dn=float(cfg.get('dark_step_dn', 0.0)),
-            gain_e_per_dn=dp.gain_e_per_dn,
-            rng=_stream_rng(dp, 'banding_coherent'),
-        )
-    else:
-        add_banding(
-            electrons,
-            amplitude_e=dp.banding_amplitude_e,
-            period_px=dp.banding_period_px,
-            rng=_stream_rng(dp, 'banding'),
+    if 'banding' in modes:
+        records['banding'] = _apply_banding(
+            electrons, modes['banding'], dp, gain_e_per_dn=dp.gain_e_per_dn
         )
     dn = electrons / dp.gain_e_per_dn + dp.bias_dn
     add_bias_structure(
@@ -405,6 +389,22 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     _record_routed_modes(dp, records)
     if records:
         frame.truth.setdefault('artifacts', {}).update(records)
+
+
+def _apply_banding(
+    plane: NDArrayFloatType, cfg: dict[str, Any], dp: DetectorParams, *, gain_e_per_dn: float
+) -> dict[str, Any]:
+    """Apply the banding mode to a plane that holds ``gain_e_per_dn`` units per DN."""
+    return add_banding(
+        plane,
+        amplitude_e=float(cfg['amplitude_e'] or 0.0),
+        period_px=float(cfg['period_px'] or 0.0),
+        orientation=str(cfg['orientation']),
+        freq_step_factor=float(cfg['freq_step_factor']),
+        dark_step_dn=float(cfg['dark_step_dn']),
+        gain_e_per_dn=gain_e_per_dn,
+        rng=_stream_rng(dp, 'banding'),
+    )
 
 
 def _apply_dark_ramp(
@@ -495,8 +495,8 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
 
     The vidicon is not photon-noise dominated, so its signal maps straight to
     the 8-bit DN full scale and the noise is applied in DN: a line-correlated
-    read-noise term (a per-line offset plus a within-line white component) and a
-    faint vertical coherent periodic component, then 8-bit quantization.
+    read-noise term (a per-line offset plus a within-line white component) and the
+    banding mode's bands, then 8-bit quantization.
 
     Cosmic rays (``noise.cosmic_ray_events_per_pixel_per_sec``, with the CCD
     chain's meaning: expected events per pixel per second of exposure) land on
@@ -504,8 +504,8 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     electron beam reads it.  A charged particle crossing the target discharges it
     the way light does, so a hit joins the stored image: after the erase-cycle
     residual (a ghost of the prior frame, which this frame's hits don't reach)
-    and before the readout, so the beam's read noise, coherent component, dark
-    ramp, banding, and bend all act on it.  Each hit deposits at least the DN full
+    and before the readout, so the beam's read noise, dark ramp, banding, and bend
+    all act on it.  Each hit deposits at least the DN full
     scale (``full_well_dn``) and the target saturates there, so the core of a hit
     holds exactly the full scale and digitizes at the ADC ceiling, as a CCD hit
     does.
@@ -516,7 +516,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     size_v, size_u = signal_dn.shape
     # Point sources on the vidicon are already DN (the vidicon has no electron
     # domain): add them onto the converted signal before the DN-domain noise, so
-    # the read-noise and coherent terms ride on the star cores as they do on the
+    # the read noise and the bands ride on the star cores as they do on the
     # extended signal.  The optics PSF has already shaped them.
     dn = signal_dn
     dn += frame.point_e
@@ -550,29 +550,11 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
         dn = dn + rng.normal(0.0, line_sigma, size=(size_v,))[:, None]
     if pixel_sigma > 0.0:
         dn = dn + rng.normal(0.0, pixel_sigma, size=(size_v, size_u))
-    coherent_amp = float(vidicon.get('coherent_amplitude_dn', 0.0))
-    coherent_period = float(vidicon.get('coherent_period_px', 0.0))
-    if coherent_amp > 0.0 and coherent_period > 0.0:
-        phase = float(_stream_rng(dp, 'vidicon_coherent').uniform(0.0, 2.0 * np.pi))
-        cols = np.arange(size_u, dtype=np.float64)
-        coherent = coherent_amp * np.sin(2.0 * np.pi * cols / coherent_period + phase)
-        dn = dn + coherent[None, :]
     # The readout dark-current line ramp accumulates down the frame (DN domain).
     if 'dark_ramp' in modes:
         records['dark_ramp'] = _apply_dark_ramp(dn, modes['dark_ramp'], dp)
-    # Explicit coherent banding rides on the DN signal (gain 1 in the DN domain).
-    if 'banding_coherent' in modes:
-        cfg = modes['banding_coherent']
-        records['banding_coherent'] = add_coherent_banding(
-            dn,
-            amplitude_e=float(cfg.get('amplitude_e') or 0.0),
-            period_px=float(cfg.get('period_px') or 0.0),
-            orientation=str(cfg.get('orientation', 'horizontal')),
-            freq_step_factor=float(cfg.get('freq_step_factor', 1.0)),
-            dark_step_dn=float(cfg.get('dark_step_dn', 0.0)),
-            gain_e_per_dn=1.0,
-            rng=_stream_rng(dp, 'banding_coherent'),
-        )
+    if 'banding' in modes:
+        records['banding'] = _apply_banding(dn, modes['banding'], dp, gain_e_per_dn=1.0)
     if 'bias_structure' in modes:
         add_bias_structure(
             dn,

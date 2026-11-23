@@ -71,10 +71,6 @@ from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['CalibrationMap', 'DetectorParams', 'calibration_map', 'resolve_detector_params']
 
-# The banding period, in pixels, of a detector whose entry states none (a vidicon,
-# whose chain has no electron-domain banding).
-_DEFAULT_BANDING_PERIOD_PX = 64.0
-
 
 class DetectorParamError(ValueError):
     """Raised when a scene selects an unavailable detector configuration."""
@@ -115,8 +111,6 @@ class DetectorParams:
         hot_pixel_fraction: Fraction of pixels that are hot; 0 disables.
         hot_pixel_amplitude_e: Hot-pixel amplitude scale in electrons.
         hot_pixel_column_factor: Warm-column fraction bled from a hot pixel.
-        banding_amplitude_e: Coherent-banding amplitude in electrons; 0 disables.
-        banding_period_px: Coherent-banding spatial period in pixels.
         bias_pedestal_sigma_dn: Per-image bias-pedestal jitter (DN); 0 disables.
         bias_row_gradient_dn: Low-order row bias gradient span (DN).
         bias_col_gradient_dn: Low-order column bias gradient span (DN).
@@ -196,8 +190,6 @@ class DetectorParams:
     hot_pixel_fraction: float
     hot_pixel_amplitude_e: float
     hot_pixel_column_factor: float
-    banding_amplitude_e: float
-    banding_period_px: float
     bias_pedestal_sigma_dn: float
     bias_row_gradient_dn: float
     bias_col_gradient_dn: float
@@ -632,12 +624,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_defaults.hot_pixel_fraction,
         instrument_defaults=instrument_defaults,
     )
-    banding_amplitude = _default_or_zero(
-        scene_noise,
-        'banding_amplitude_e',
-        detector_defaults.banding_amplitude_e,
-        instrument_defaults=instrument_defaults,
-    )
     bias_pedestal_sigma = _default_or_zero(
         scene_noise,
         'bias_pedestal_sigma_dn',
@@ -668,20 +654,14 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         detector_defaults.calibration_pixel_residual_e,
         instrument_defaults=instrument_defaults,
     )
-    # Shape parameters (period, amplitude scales) track the detector defaults; they never
-    # activate a stage on their own (the amplitude/fraction gate does that).
+    # Shape parameters (the amplitude scale and the column factor) track the detector
+    # defaults; they never activate a stage on their own (the fraction gate does that).
     default_hot_amplitude = detector_defaults.hot_pixel_amplitude_e or 0.0
     default_hot_column_factor = detector_defaults.hot_pixel_column_factor or 0.0
     hot_pixel_amplitude = float(scene_noise.get('hot_pixel_amplitude_e', default_hot_amplitude))
     hot_pixel_column_factor = float(
         scene_noise.get('hot_pixel_column_factor', default_hot_column_factor)
     )
-    default_banding_period = (
-        _DEFAULT_BANDING_PERIOD_PX
-        if detector_defaults.banding_period_px is None
-        else detector_defaults.banding_period_px
-    )
-    banding_period_px = float(scene_noise.get('banding_period_px', default_banding_period))
 
     # The hot_pixels artifact mode (routed here from the registry) wins over the
     # noise-block / instrument_defaults hot-pixel knobs: an explicit mode is a
@@ -742,8 +722,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     # Detector-stage artifact modes.  An explicit mode wins over the generic
     # noise-block / instrument_defaults knob for the same mechanic (the
     # precedence hot_pixels already uses): the routed modes fold their override
-    # into the flat field here, and banding_coherent silences the generic
-    # banding so only the explicit family renders.
+    # into the flat field here.
     artifacts_adversarial = bool(artifacts.get('adversarial', False))
     detector_modes = _resolve_detector_modes(
         artifacts,
@@ -756,8 +735,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         downlink_table = resolve_downlink_table(instrument, detector_block.get('downlink_table'))
     except ValueError as exc:
         raise DetectorParamError(str(exc)) from exc
-    if 'banding_coherent' in detector_modes:
-        banding_amplitude = 0.0
     if 'bias_structure' in detector_modes:
         bias_mode = detector_modes['bias_structure']
         if bias_mode.get('pedestal_sigma_dn') is not None:
@@ -809,8 +786,6 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         hot_pixel_fraction=hot_pixel_fraction,
         hot_pixel_amplitude_e=hot_pixel_amplitude,
         hot_pixel_column_factor=hot_pixel_column_factor,
-        banding_amplitude_e=banding_amplitude,
-        banding_period_px=banding_period_px,
         bias_pedestal_sigma_dn=bias_pedestal_sigma,
         bias_row_gradient_dn=bias_row_gradient,
         bias_col_gradient_dn=bias_col_gradient,

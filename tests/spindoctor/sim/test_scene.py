@@ -334,8 +334,6 @@ def test_validate_sim_params_accepts_the_full_noise_inventory() -> None:
         'hot_pixel_fraction': 0.002,
         'hot_pixel_amplitude_e': 4.0e4,
         'hot_pixel_column_factor': 0.3,
-        'banding_amplitude_e': 30.0,
-        'banding_period_px': 64.0,
         'bias_pedestal_sigma_dn': 2.0,
         'bias_row_gradient_dn': 1.0,
         'bias_col_gradient_dn': 0.5,
@@ -343,8 +341,6 @@ def test_validate_sim_params_accepts_the_full_noise_inventory() -> None:
         'vidicon': {
             'read_noise_line_dn': 1.8,
             'read_noise_pixel_dn': 1.8,
-            'coherent_amplitude_dn': 0.25,
-            'coherent_period_px': 8.0,
         },
     }
     assert validate_sim_params(params) is params

@@ -70,8 +70,6 @@ detector:
   hot_pixel_amplitude_e: 0.0
   hot_pixel_column_factor: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
-  banding_amplitude_e: 0.0
-  banding_period_px: 64.0
   bias_pedestal_sigma_dn: 0.0
   bias_row_gradient_dn: 0.0
   bias_col_gradient_dn: 0.0
@@ -89,10 +87,7 @@ artifact_modes:
 """
 
 _OFFERED = 'offered: [missing_lines]'
-_VIDICON_BLOCK = (
-    '  vidicon: {read_noise_line_dn: 1.0, read_noise_pixel_dn: 1.0, '
-    'coherent_amplitude_dn: 1.0, coherent_period_px: 8.0}\n'
-)
+_VIDICON_BLOCK = '  vidicon: {read_noise_line_dn: 1.0, read_noise_pixel_dn: 1.0}\n'
 
 
 def _cam(entry: str) -> str:
@@ -825,7 +820,7 @@ _BASE = keyed(
         ),
         (
             'base: nhlorri\nartifact_modes: {offered: [missing_lines], shape_defaults: null}\n',
-            'artifact_modes.instrument_defaults.frame_transfer_smear',
+            'artifact_modes.instrument_defaults.banding',
         ),
         (
             'base: base_cam\nartifact_modes: {offered: [missing_lines, bloom]}\n',

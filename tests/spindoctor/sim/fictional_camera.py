@@ -52,8 +52,6 @@ detector:
   hot_pixel_amplitude_e: 0.0
   hot_pixel_column_factor: 0.0
   cosmic_ray_events_per_pixel_per_sec: 0.0
-  banding_amplitude_e: 0.0
-  banding_period_px: 64.0
   bias_pedestal_sigma_dn: 0.0
   bias_row_gradient_dn: 0.0
   bias_col_gradient_dn: 0.0

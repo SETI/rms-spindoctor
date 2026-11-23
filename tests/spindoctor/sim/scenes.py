@@ -13,12 +13,15 @@ prefer them.
 import copy
 from typing import Any
 
+from spindoctor.sim.artifact_modes import ARTIFACT_MODES
+from spindoctor.sim.instruments.resolvers import instrument_default_modes
 from spindoctor.sim.scene.validate import CURRENT_SCHEMA_VERSION
 
 __all__ = [
     'body_scene',
     'disc_body',
     'frame_scene',
+    'quiet_instrument_defaults',
     'quiet_noise',
     'ring_system_block',
     'star_entry',
@@ -32,6 +35,22 @@ def quiet_noise() -> dict[str, Any]:
         A fresh ``noise`` mapping.
     """
     return {'poisson': False, 'read_noise_dn': 0.0, 'bias_dn': 0.0}
+
+
+def quiet_instrument_defaults(instrument: str) -> dict[str, Any]:
+    """An ``artifacts`` block: instrument defaults on, and every mode they turn on off.
+
+    Parameters:
+        instrument: The scene's instrument.
+
+    Returns:
+        A fresh ``artifacts`` mapping.
+    """
+    off = {
+        name: {ARTIFACT_MODES[name].activation: 0.0}
+        for name in instrument_default_modes(instrument)
+    }
+    return {'instrument_defaults': True, **off}
 
 
 def frame_scene(

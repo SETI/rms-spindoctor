@@ -596,6 +596,18 @@ def test_switches_and_modes_coexist_in_block(model: Any) -> None:
     }
 
 
+def test_instrument_defaults_fill_a_default_modes_row(model: Any) -> None:
+    """Turning the instrument defaults on shows the values they give a mode's unset keys."""
+    model.sim_params['instrument'] = 'gossi'
+    model._refresh_artifact_mode_availability()
+    row = model._mode_rows['banding']
+    before = row._scalar_widgets['probability'].value()
+    model._instrument_defaults_check.setChecked(True)
+    assert before == 0.0
+    assert row._scalar_widgets['probability'].value() == 1.0
+    assert 'instrument defaults turn this mode on' in row.group.toolTip()
+
+
 def test_mode_availability_disables_unavailable_row(model: Any) -> None:
     """A mode unavailable on the instrument is disabled with the registry reason."""
     model.sim_params['instrument'] = 'nhlorri'

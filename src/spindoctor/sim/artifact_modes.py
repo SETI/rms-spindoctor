@@ -565,7 +565,7 @@ _IMPLEMENTED_MODES: tuple[ArtifactMode, ...] = (
 # knob for the same mechanic (the precedence hot_pixels already uses).
 _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     _detector_mode(
-        'banding_coherent',
+        'banding',
         ModeParam('amplitude_e', NonNeg, None),
         ModeParam('period_px', NonNeg, None),
         ModeParam('orientation', Literal['horizontal', 'vertical', 'both'], 'horizontal'),
@@ -774,7 +774,7 @@ DETECTOR_MODE_ORDER: tuple[str, ...] = (
     'bright_dark_pairs',
     'radiation_transients',
     'bloom',
-    'banding_coherent',
+    'banding',
     'serial_tail',
     'bias_structure',
     'beam_bend',

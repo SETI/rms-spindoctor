@@ -18,8 +18,8 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render.detector.electronics_stages import (
+    add_banding,
     add_bright_dark_pairs,
-    add_coherent_banding,
     add_dark_ramp,
     add_fixed_pattern_dn,
     add_fixed_pattern_response,
@@ -41,13 +41,13 @@ def _rng(seed: int = 0) -> np.random.Generator:
     return np.random.default_rng(seed)
 
 
-# --- banding_coherent -------------------------------------------------------
+# --- banding ----------------------------------------------------------------
 
 
 def test_banding_horizontal_is_row_correlated() -> None:
     """Horizontal banding is constant along a row and varies between rows."""
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    add_coherent_banding(
+    add_banding(
         electrons,
         amplitude_e=100.0,
         period_px=16.0,
@@ -64,7 +64,7 @@ def test_banding_horizontal_is_row_correlated() -> None:
 def test_banding_vertical_is_column_correlated() -> None:
     """Vertical banding is constant down a column and varies between columns."""
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    add_coherent_banding(
+    add_banding(
         electrons,
         amplitude_e=100.0,
         period_px=8.0,
@@ -81,7 +81,7 @@ def test_banding_vertical_is_column_correlated() -> None:
 def test_banding_dark_step_lifts_the_lower_half() -> None:
     """A dark-level step raises the mean of the rows below the mid-line."""
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    add_coherent_banding(
+    add_banding(
         electrons,
         amplitude_e=10.0,
         period_px=16.0,
@@ -99,7 +99,7 @@ def test_banding_dark_step_lifts_the_lower_half() -> None:
 def test_banding_disabled_at_zero_amplitude() -> None:
     """A zero banding amplitude is a no-op."""
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
-    record = add_coherent_banding(
+    record = add_banding(
         electrons,
         amplitude_e=0.0,
         period_px=16.0,
@@ -485,16 +485,54 @@ def test_bias_structure_mode_gates_on_its_probability() -> None:
     assert dp.bias_pedestal_sigma_dn == 5.0
 
 
-def test_banding_mode_silences_the_generic_banding() -> None:
-    """banding_coherent yields the generic banding to the explicit mode."""
+def test_an_instrument_default_mode_renders_with_the_cameras_shape() -> None:
+    """A mode the instrument defaults turn on takes the camera's shape defaults."""
+    dp = resolve_detector_params(_disc('gossi', artifacts={'instrument_defaults': True}))
+    assert dp.detector_modes['banding'] == {
+        'probability': 1.0,
+        'amplitude_e': 65.0,
+        'period_px': 42.0,
+        'orientation': 'vertical',
+        'freq_step_factor': 1.0,
+        'dark_step_dn': 0.0,
+    }
+
+
+def test_a_scene_changes_one_key_of_an_instrument_default_mode() -> None:
+    """A key the scene sets replaces the camera's value and leaves the mode on."""
     dp = resolve_detector_params(
-        _disc(
-            'coiss_nac',
-            artifacts={'instrument_defaults': True, 'banding_coherent': {'probability': 1.0}},
-        )
+        _disc('gossi', artifacts={'instrument_defaults': True, 'banding': {'amplitude_e': 9.0}})
     )
-    assert dp.banding_amplitude_e == 0.0
-    assert 'banding_coherent' in dp.detector_modes
+    cfg = dp.detector_modes['banding']
+    assert (cfg['amplitude_e'], cfg['period_px']) == (9.0, 42.0)
+
+
+def test_a_scene_turns_an_instrument_default_mode_off() -> None:
+    """An activation key of 0 turns off a mode the instrument defaults turn on."""
+    dp = resolve_detector_params(
+        _disc('gossi', artifacts={'instrument_defaults': True, 'banding': {'probability': 0.0}})
+    )
+    assert 'banding' not in dp.detector_modes
+
+
+def test_the_calibrated_cassini_products_show_no_banding() -> None:
+    """The instrument defaults of a calibrated Cassini camera leave banding off."""
+    dp = resolve_detector_params(_disc('coiss_calib_nac', artifacts={'instrument_defaults': True}))
+    assert 'banding' not in dp.detector_modes
+
+
+def test_the_vidicon_bands_are_vertical() -> None:
+    """The vidicon chain draws its camera's bands down the columns, in DN."""
+    quiet = {'vidicon': {'read_noise_line_dn': 0.0, 'read_noise_pixel_dn': 0.0}}
+    blocks: dict[str, Any] = {'noise': quiet, 'detector': {'quantization': 'exact'}}
+    on, _ = render_scene(_disc('vgiss', artifacts={'banding': {'probability': 1.0}}, **blocks))
+    strong, truth = render_scene(
+        _disc('vgiss', artifacts={'banding': {'probability': 1.0, 'amplitude_e': 20.0}}, **blocks)
+    )
+    assert truth['artifacts']['banding']['orientation'] == 'vertical'
+    sky = strong[:8]
+    assert float(np.ptp(sky, axis=0).max()) == 0.0
+    assert float(np.ptp(sky)) > 10.0 * float(np.ptp(on[:8]))
 
 
 def test_detector_mode_records_truth() -> None:

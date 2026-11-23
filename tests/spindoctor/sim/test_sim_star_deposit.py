@@ -17,7 +17,7 @@ from typing import Any
 import numpy as np
 import pytest
 from scipy.signal import fftconvolve
-from tests.spindoctor.sim.scenes import frame_scene, star_entry
+from tests.spindoctor.sim.scenes import frame_scene, quiet_instrument_defaults, star_entry
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
@@ -42,7 +42,6 @@ _QUIET_NOISE: dict[str, Any] = {
     'dark_current_e_per_sec': 0.0,
     'readout_dark_e': 0.0,
     'hot_pixel_fraction': 0.0,
-    'banding_amplitude_e': 0.0,
     'bias_pedestal_sigma_dn': 0.0,
     'bias_row_gradient_dn': 0.0,
     'bias_col_gradient_dn': 0.0,
@@ -194,7 +193,7 @@ def test_instrument_defaults_star_reproduces_the_catalog_kernel() -> None:
     scene = _star_scene(
         'coiss_nac',
         vmag=8.0,
-        artifacts={'instrument_defaults': True},
+        artifacts=quiet_instrument_defaults('coiss_nac'),
         # A no-op distortion block disables the catalog residual so the
         # profile comparison sees only the PSF.
         optics={'distortion': {'k1': 0.0, 'k2': 0.0, 'nonradial_rms_px': 0.0}},

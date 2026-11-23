@@ -47,8 +47,6 @@ _CCD_REQUIRED: tuple[str, ...] = (
     'hot_pixel_fraction',
     'hot_pixel_amplitude_e',
     'hot_pixel_column_factor',
-    'banding_amplitude_e',
-    'banding_period_px',
     'bias_pedestal_sigma_dn',
     'bias_row_gradient_dn',
     'bias_col_gradient_dn',
@@ -112,16 +110,12 @@ class VidiconChain:
     Parameters:
         read_noise_line_dn: The per-line read noise, in DN.
         read_noise_pixel_dn: The per-pixel read noise, in DN.
-        coherent_amplitude_dn: The coherent noise's amplitude, in DN.
-        coherent_period_px: The coherent noise's period, in pixels.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
 
     read_noise_line_dn: NonNeg
     read_noise_pixel_dn: NonNeg
-    coherent_amplitude_dn: NonNeg
-    coherent_period_px: Positive
 
 
 @dataclass(frozen=True)
@@ -130,7 +124,7 @@ class Detector:
 
     Every entry states the first five keys.  A CCD entry also states its electron
     chain: the full well, gain table, default gain state, read noise, dark current,
-    hot-pixel, banding, and bias-structure terms, and the bloom length.  A vidicon
+    hot-pixel and bias-structure terms, and the bloom length.  A vidicon
     entry states its ``vidicon`` chain.  The other keys are optional.
 
     Parameters:
@@ -155,8 +149,6 @@ class Detector:
         cosmic_ray_amplitude_e: The smallest charge a cosmic ray deposits, in
             electrons.
         cosmic_ray_spread_px: The sigma, in native pixels, of a hit's diffusion.
-        banding_amplitude_e: The banding amplitude, in electrons.
-        banding_period_px: The banding period, in pixels.
         bias_pedestal_sigma_dn: The frame-to-frame jitter of the bias, in DN.
         bias_row_gradient_dn: The bias gradient along the rows, in DN.
         bias_col_gradient_dn: The bias gradient along the columns, in DN.
@@ -191,8 +183,6 @@ class Detector:
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
-    banding_amplitude_e: NonNeg | None = None
-    banding_period_px: Positive | None = None
     bias_pedestal_sigma_dn: NonNeg | None = None
     bias_row_gradient_dn: NonNeg | None = None
     bias_col_gradient_dn: NonNeg | None = None
@@ -271,8 +261,6 @@ class ReadoutMode:
         cosmic_ray_readout_dwell_sec: As :class:`Detector`.
         cosmic_ray_amplitude_e: As :class:`Detector`.
         cosmic_ray_spread_px: As :class:`Detector`.
-        banding_amplitude_e: As :class:`Detector`.
-        banding_period_px: As :class:`Detector`.
         bias_pedestal_sigma_dn: As :class:`Detector`.
         bias_row_gradient_dn: As :class:`Detector`.
         bias_col_gradient_dn: As :class:`Detector`.
@@ -303,8 +291,6 @@ class ReadoutMode:
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
-    banding_amplitude_e: NonNeg | None = None
-    banding_period_px: Positive | None = None
     bias_pedestal_sigma_dn: NonNeg | None = None
     bias_row_gradient_dn: NonNeg | None = None
     bias_col_gradient_dn: NonNeg | None = None

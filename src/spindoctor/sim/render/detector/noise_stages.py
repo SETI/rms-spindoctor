@@ -1,8 +1,7 @@
 """Stochastic and structured detector-noise stages (generic mechanics).
 
 Each function here is a self-contained detector sub-effect: dark current and hot
-pixels, coherent horizontal banding, low-order bias structure, and the
-morphological cosmic-ray model.  The chain orchestrator
+pixels, low-order bias structure, and the morphological cosmic-ray model.  The chain orchestrator
 (:mod:`spindoctor.sim.render.detector.chain`) draws each one an independent RNG
 via ``derive_effect_seed(<seed>, 'detector/<effect>')`` so toggling one
 never perturbs another's realization, and each stage is a no-op when its gating
@@ -12,7 +11,7 @@ the scene: it is a fixed map keyed on the emulated detector
 (:func:`detector_hot_pixel_map`), so the same pixels recur in every scene that
 emulates that camera.
 
-Dark current, hot pixels, banding, and cosmic rays act in the electron domain
+Dark current, hot pixels, and cosmic rays act in the electron domain
 (the vidicon chain, which has no electron domain, deposits its cosmic rays in DN);
 bias structure acts in the DN domain (the amplifier pedestal and the read-out
 row/column gradients ride on the digitized signal).  Each instrument
@@ -30,7 +29,6 @@ import scipy.ndimage
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
 __all__ = [
-    'add_banding',
     'add_bias_structure',
     'add_cosmic_rays',
     'add_dark_current',
@@ -238,49 +236,6 @@ def add_hot_pixels(
         weights /= weights.sum()
         electrons[:v, u] += column_factor * amp * weights
     return record
-
-
-def add_banding(
-    electrons: NDArrayFloatType,
-    *,
-    amplitude_e: float,
-    period_px: float,
-    rng: np.random.Generator,
-    freq_step_factor: float = 1.0,
-) -> None:
-    """Add horizontal coherent + random-phase banding (electrons) in place.
-
-    The banding is line-correlated (constant along a row, varying with row
-    index): a coherent sinusoid at ``period_px`` with a per-seed random phase,
-    plus a smaller per-row random-phase component.  When ``freq_step_factor``
-    differs from 1, the sinusoid's period changes across the image mid-line, the
-    readout-pause frequency step some cameras show.  A zero amplitude or
-    non-positive period is a no-op.
-
-    Parameters:
-        electrons: The electron image, modified in place.
-        amplitude_e: Coherent-banding amplitude in electrons.
-        period_px: Sinusoid spatial period along the row axis, in pixels.
-        rng: The stage's seeded generator.
-        freq_step_factor: Period multiplier below the image mid-line (1 = none).
-    """
-    if amplitude_e <= 0.0 or period_px <= 0.0:
-        return
-    size_v = electrons.shape[0]
-    phase = float(rng.uniform(0.0, 2.0 * np.pi))
-    freq = 2.0 * np.pi / period_px
-    # A mid-image readout pause steps the spatial frequency; keep the sinusoid
-    # phase-continuous across the step so the band does not jump.
-    mid = size_v // 2
-    freqs = np.full(size_v, freq, dtype=np.float64)
-    if freq_step_factor != 1.0 and freq_step_factor > 0.0:
-        freqs[mid:] = freq * freq_step_factor
-    argument = np.zeros(size_v, dtype=np.float64)
-    argument[1:] = np.cumsum(freqs[:-1])
-    coherent = amplitude_e * np.sin(argument + phase)
-    random_phase = 0.3 * amplitude_e * rng.standard_normal(size_v)
-    band = coherent + random_phase
-    electrons += band[:, None]
 
 
 def add_bias_structure(
