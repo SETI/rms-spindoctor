@@ -262,11 +262,12 @@ def relief_shading(
     into the image like the smooth normals.  The sun direction goes to parameter space
     by the same affine map, where
     :func:`~spindoctor.sim.render.bodies.relief.cast_shadows` marches the pixels whose
-    sun elevation lies within the field's slope band, from the point each pixel's line
-    of sight meets the surface, so only terrain between that point and the sun can
-    shadow it; a pixel below the band always lies in shadow.  A normal that leans away
-    from the observer is laid just in front of the sky plane, so every returned
-    ``normal_z`` is above 0.
+    normal faces the sun and whose sun elevation lies within the field's slope band,
+    from the point each pixel's line of sight meets the surface, so only terrain
+    between that point and the sun can shadow it; a pixel below the band always lies
+    in shadow, and one facing away from the sun is night by its own normal.  A normal
+    that leans away from the observer is laid just in front of the sky plane, so every
+    returned ``normal_z`` is above 0.
 
     Parameters:
         grid: The shading-resolution geometry.
@@ -328,7 +329,10 @@ def relief_shading(
     tan_elevation = cos_beta / np.sqrt(np.maximum(1.0 - cos_beta**2, 1e-24))
     band = _SLOPE_BAND_MARGIN * field.slope_max / (1.0 + field.h_min)
     shadowed_near = on_body & (tan_elevation <= -band)
-    marched = on_body & (np.abs(tan_elevation) < band)
+    # A pixel whose normal faces away from the sun is night by its own normal, so
+    # only the pixels facing it are marched.
+    facing = normal_v * illum_v + normal_u * illum_u + normal_z * illum_z > 0.0
+    marched = on_body & facing & (np.abs(tan_elevation) < band)
     if marched.any():
         # The march starts on the pixel's own line of sight, so only terrain between
         # the point that line of sight meets and the sun can shadow it.  At phase 0
