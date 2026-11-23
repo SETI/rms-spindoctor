@@ -17,16 +17,17 @@ exposure_sec: 1.0
 # image.  FAR's residual terminator arc is occlusion-reduced too
 # (fraction 0.28) and stays below the 0.30 reliability gate.  FAR is left
 # out of the disc template, and its crescent beside NEAR's limb, which the
-# template doesn't carry, pulls the disc correlation to (1.96, -2.30),
-# 0.79 px from the planted offset (#1050).  The limb fit lands 0.14 to
-# 0.17 px off but flags itself spurious on every draw (on the committed one
-# it stops unconverged with polarity rejection), so the disc correlation
-# alone sets the medium-tier success.
+# template doesn't carry, pulls the disc correlation's high-pass refinement
+# to (2.40, -1.38), 0.25 px from the planted offset (#1050).  Without FAR in
+# the scene the disc correlation lands within 0.012 px.  The limb fit lands
+# 0.14 to 0.17 px off but flags itself spurious on every draw (on the
+# committed one it stops unconverged with polarity rejection), so the disc
+# correlation alone sets the medium-tier success.
 # Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 0.784 to 0.791 px (spread 0.007 px).  Each end of
+# the fused error runs 0.239 to 0.255 px (spread 0.017 px).  Each end of
 # the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [0.734, 0.841] px.  A worse miss fails, and so does a
-# fix that brings the error under 0.734 px.
+# outside, giving [0.188, 0.306] px.  A worse miss fails, and so does a
+# fix that brings the error under 0.188 px.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -57,5 +58,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.7875
-  known_offset_error_tol_px: 0.0535
+  known_offset_error_px: 0.247
+  known_offset_error_tol_px: 0.059

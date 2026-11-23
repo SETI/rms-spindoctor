@@ -5,9 +5,9 @@ sweep_name: atmosphere_haze
 # navigator-matched PSF, so that point is a true self-consistency floor with no
 # hidden PSF mismatch (the floor convention the other model-mismatch bases pin).
 # The sweep walks the reference optical depth up; the haze lifts and blurs the
-# limb, growing the recovered-offset error.  Fused result; the limb DT fit
-# (BodyLimbNav) is the highest-confidence technique at every step, with the disc
-# correlation agreeing on the same haze-lifted limb.
+# limb.  Fused result; the disc correlation is the highest-confidence technique at
+# every step, and its high-pass refinement weakens the haze's smooth glow, so the
+# error grows from 0.02 px at the floor to 0.06 px at the thickest haze or less.
 base_scene: model_mismatch/haze_limb_base.yaml
 parameters: [bodies.0.atmosphere.tau_ref]
 values: [0.0, 1.0, 2.0, 4.0, 6.0]

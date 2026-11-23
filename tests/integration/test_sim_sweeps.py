@@ -27,13 +27,11 @@ step navigate nothing and run with the unit suite, in
 
 import copy
 import functools
-import itertools
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from spindoctor.sim.render.bodies.atmosphere import DEFAULT_HAZE_ALBEDO
 from spindoctor.sim.render.driver import render_scene
 from tests.integration.sim_sweep import (
     SweepRow,
@@ -113,7 +111,7 @@ def test_noise_sweep_degrades_to_failure() -> None:
 def test_noise_sweep_low_noise_all_succeed() -> None:
     """Every below-cliff step recovers within tolerance.
 
-    A single-draw tripwire: over 9 noise draws the worst error is 0 to 0.018 px.
+    A single-draw tripwire: over 9 noise draws the worst error is 0 to 0.022 px.
     """
     rows = _rows('noise_read_noise')
     for row in rows:
@@ -129,7 +127,7 @@ def test_calibrated_noise_sweep_recovers_at_every_read_noise() -> None:
     The calibrated base renders through the full instrument chain, and its disc
     carries a charge comparable to the raw base's, yet the raw sweep's cliff at
     64 DN does not appear: every step recovers.  A single-draw tripwire: over 9 noise
-    draws the worst error is 0 to 0.056 px.
+    draws the worst error is 0.016 to 0.067 px.
     """
     rows = _rows('noise_read_noise_calib')
     assert [row.value for row in rows] == _sweep_values('noise_read_noise_calib')
@@ -160,7 +158,7 @@ def test_calibrated_noise_sweep_raises_the_rendered_sky_noise_at_every_step() ->
 def test_calibrated_exposure_sweep_starts_clean() -> None:
     """At the base exposure the CALIB product recovers the planted offset.
 
-    A single-draw tripwire: on each of 25 noise draws the error is below 1e-15 px.
+    A single-draw tripwire: over 25 noise draws the error is 0 to 0.008 px.
     """
     rows = _rows('noise_exposure_calib')
     assert rows[0].status == 'success'
@@ -169,7 +167,7 @@ def test_calibrated_exposure_sweep_starts_clean() -> None:
 
 
 # Measured on 25 noise draws.  At 30 us the frame fails on 24; on noise seed 707 it is a
-# 0.63-confidence success 46.6 px off.
+# 0.61-confidence success 47.3 px off.
 _EXPOSURE_SHORTEST_MIN_FAILED = 4
 
 
@@ -192,12 +190,10 @@ def test_calibrated_exposure_sweep_degrades_to_failure() -> None:
 
 
 # The exposure cliff over 25 noise draws.  At 0.1 s and 10 ms every draw recovers
-# within 0.01 px, and at 0.1 ms every draw fails.  At 1 ms 23 draws recover; the
-# other two succeed 1.11 and 0.71 px off at 0.40 confidence.  At 0.3 ms 22 draws
-# fail; noise seeds 606 and 707 recover, and noise seed 2323 succeeds 0.60 px off at
-# 0.74 confidence.  The 1 ms count below holds for every choice of 5 of the 25
-# draws.  The 0.3 ms count holds for every choice except those that take all three
-# of noise seeds 606, 707, and 2323, where only 2 of the 5 fail.
+# within 0.02 px, and at 0.1 ms every draw fails.  At 1 ms 23 draws recover; the
+# other two succeed 1.11 and 0.71 px off at 0.40 confidence.  At 0.3 ms 23 draws
+# fail; noise seeds 707 and 2323 recover.  The minimum counts below hold for every
+# choice of 5 of the 25 draws.
 _EXPOSURE_ALWAYS_RECOVERS = (0.1, 0.01)
 _EXPOSURE_ALWAYS_FAILS = 0.0001
 _EXPOSURE_1_MS_MIN_RECOVERED = 2
@@ -222,22 +218,19 @@ def test_calibrated_exposure_sweep_cliff_lies_between_10_ms_and_0_1_ms() -> None
     assert failed_0_3_ms >= _EXPOSURE_0_3_MS_MIN_FAILED
 
 
-# The calibrated disc's steady sub-pixel error, and the bump it carries at offsets
-# of 0.31, 0.382, and 0.45 px.  The steady bound sits above the measured maximum
-# of 0.0062 px over 8 seeds x 23 steps, the raw twin's own level, and of 0.0070 px
-# over 9 noise draws.  Each bump offset
-# has its own bound above its measured error, which is the same on every seed:
-# 0.190 and 0.118 px at 0.31 and 0.382 (16 seeds), 0.050 px at 0.45.  The bump is
-# the correlation's sub-pixel refinement window, which spans half a pixel either
-# side of the integer peak (#929).
+# The calibrated disc's sub-pixel error.  The bound sits above the measured maximum
+# of 0.0078 px over 9 noise draws x 23 steps, one step of the 1/128 px refinement
+# grid, which the high-pass refinement shows at whole-pixel and quarter-pixel offsets.
+# The offsets of 0.31, 0.382, and 0.45 px, past the reach of a half-pixel window around
+# the integer peak, read 0.0025, 0.0008, and 0.0031 px on each of the 9 draws
+# (#929, #791).
 _CALIB_DISC_STEADY_BIAS_PX = 0.008
-_CALIB_DISC_BUMP_BOUNDS_PX = {0.31: 0.25, 0.382: 0.25, 0.45: 0.06}
 
 
 def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
     """The disc correlation recovers every sub-pixel offset on the CALIB product.
 
-    A single-draw tripwire: on each of 9 noise draws the worst error is 0.190 px.
+    A single-draw tripwire: over 9 noise draws the worst error is 0.004 to 0.008 px.
     """
     rows = _rows('disc_offset_fine_calib')
     assert [row.value for row in rows] == _sweep_values('disc_offset_fine_calib')
@@ -248,15 +241,15 @@ def test_calibrated_disc_offset_sweep_recovers_every_offset() -> None:
 
 
 def test_calibrated_disc_offset_sweep_holds_its_bias() -> None:
-    """Outside the 0.31-0.45 px bump the error stays below a hundredth of a pixel.
+    """At every offset the error stays below a hundredth of a pixel.
 
-    A single-draw tripwire: over 9 noise draws the steady error is 0.0036 to 0.0070 px,
-    and each bump's error is the same on every draw.
+    A single-draw tripwire: over 9 noise draws the worst error is 0.0036 to 0.0078 px.
+    On two further draws, noise seeds 1414 and 2424, it is 0.0084 and 0.0086 px, above
+    the bound.
     """
     for row in _rows('disc_offset_fine_calib'):
         assert row.offset_error_px is not None
-        bound = _CALIB_DISC_BUMP_BOUNDS_PX.get(row.value, _CALIB_DISC_STEADY_BIAS_PX)
-        assert row.offset_error_px < bound, row.value
+        assert row.offset_error_px < _CALIB_DISC_STEADY_BIAS_PX, row.value
 
 
 def test_phase_sweep_navigates_every_phase() -> None:
@@ -377,8 +370,8 @@ def test_star_rotation_sweep_recovers_roll() -> None:
 _CONFIDENT = 0.9
 # Twelve of the 13 mesh seeds 0 to 12 dip at least this far below the clean
 # step's confidence somewhere on their walks (the smallest of those dips is seed
-# 10's, 0.31).  Seed 7 dips only 0.28, to 0.71 at lumpiness 0.5.  Measured
-# 2026-11-22.
+# 2's, 0.34).  Seed 7 dips only 0.29, to 0.70 at lumpiness 0.5.  Measured
+# 2026-11-23.
 _IRREGULARITY_MIN_CONFIDENCE_DROP = 0.3
 
 
@@ -386,14 +379,14 @@ _IRREGULARITY_MIN_CONFIDENCE_DROP = 0.3
 def test_irregularity_sweep_starts_matched() -> None:
     """At zero relief the fused recovery stays sub-half-pixel.
 
-    The fused offset precision-weights the disc correlation (0.07 px off
+    The fused offset precision-weights the disc correlation (0.007 px off
     here) against the limb DT fit (which carries the documented gradient-peak/model
     offset and, fitting only the lit limb, is 0.39 px off here).  With the per-technique
     model-error floors, both report comparable sigmas, so the fused
     value is their blend rather than whichever technique used to claim the
     tighter covariance; the bound reflects that blend, not a single
     technique's floor.  A single-draw tripwire: over 9 noise draws the error is
-    0.045 to 0.108 px.
+    0.044 to 0.057 px.
     """
     rows = _rows('irregularity_shape_mismatch')
     assert rows[0].offset_error_px is not None
@@ -423,9 +416,9 @@ def test_irregularity_sweep_confidence_drops() -> None:
 
     Somewhere on the walk the confidence falls at least 0.3 below the clean
     (zero-relief) step's 0.99.  That holds on 12 of the 13 mesh seeds 0 to 12
-    (seed 7 dips only 0.28), but it is asserted on this realization only, so the
+    (seed 7 dips only 0.29), but it is asserted on this realization only, so the
     test is a tripwire on this walk rather than a check of the population.  The
-    bound sits below the smallest of those 12 dips (seed 10's, 0.31); on the scene's
+    bound sits below the smallest of those 12 dips (seed 2's, 0.34); on the scene's
     own draw this walk dips 0.84, to 0.15 at lumpiness 0.7, where the shape-lock veto
     declines the step, so a failure here means the walk changed, and the population
     is what to measure next.  Over 9 noise draws the dip is 0.84 on the 2 draws where
@@ -793,8 +786,8 @@ def test_photometric_mismatch_floor_recovers() -> None:
 def test_photometric_mismatch_biases_recovery() -> None:
     """Walking off Lambert grows the disc-correlation centroid bias.
 
-    A single-draw tripwire: the largest error is 1.035 px above the floor's on each of
-    9 noise draws.
+    A single-draw tripwire: over 9 noise draws the largest error is 0.640 to 0.647 px
+    above the floor's.
     """
     rows = _rows('photometric_minnaert_mismatch')
     assert rows[0].offset_error_px is not None
@@ -892,16 +885,24 @@ def test_atmosphere_haze_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-def test_atmosphere_haze_biases_limb() -> None:
-    """A thickening haze lifts and blurs the limb, biasing the recovery.
+# The fused answer is the disc correlation's, whose high-pass refinement weakens the
+# haze's smooth glow, so the haze barely biases it (#791).  Over 25 noise draws the
+# thickest haze's largest rise above the bare limb's error is 0.025 px, and a brighter
+# haze never raises the error above it.  The rows record only the error's size, so
+# these tests bound how much the error grows.
+_HAZE_FUSED_RISE_BOUND_PX = 0.1
 
-    A single-draw tripwire: over 9 noise draws the last step is 0.313 to 0.318 px
-    further off than the floor.
+
+def test_atmosphere_haze_barely_raises_the_fused_error() -> None:
+    """The thickest haze raises the fused error less than 0.1 px above the bare limb's.
+
+    A single-draw tripwire: over 9 noise draws the last step's error runs from 0.005 px
+    below the floor's to 0.007 px above it.
     """
     rows = _rows('atmosphere_haze')
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None
-    assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
+    assert rows[-1].offset_error_px < rows[0].offset_error_px + _HAZE_FUSED_RISE_BOUND_PX
 
 
 def test_atmosphere_haze_albedo_floor_recovers() -> None:
@@ -916,44 +917,16 @@ def test_atmosphere_haze_albedo_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-def test_atmosphere_haze_albedo_biases_limb() -> None:
-    """A brighter haze of the same column lifts the limb, biasing the recovery.
+def test_atmosphere_haze_albedo_barely_raises_the_fused_error() -> None:
+    """The brightest haze raises the fused error less than 0.1 px above the bare limb's.
 
-    A single-draw tripwire: over 9 noise draws the last step is 0.268 to 0.271 px
-    further off than the floor.
+    A single-draw tripwire: over 9 noise draws the last step is 0.023 to 0.031 px
+    closer than the floor.
     """
     rows = _rows('atmosphere_haze_albedo')
     assert rows[0].offset_error_px is not None
     assert rows[-1].offset_error_px is not None
-    assert rows[-1].offset_error_px > rows[0].offset_error_px + 0.1
-
-
-# The smallest rise in recovered-offset error between successive albedo steps up
-# to the scene default.  Over 25 noise draws the three rises measure 0.044 to
-# 0.052 px, 0.107 to 0.116 px, and 0.160 to 0.168 px, so every draw clears the
-# bound with at least 0.024 px to spare.  (The first rise measured 0.077 to 0.123 px
-# while the haze and the night side were capped and floored, under a bound of 0.05.)
-_ALBEDO_STEP_RISE_PX = 0.02
-
-
-def test_atmosphere_haze_albedo_bias_grows_up_to_the_default_albedo() -> None:
-    """Each brighter haze up to the default albedo lifts the limb farther.
-
-    Past the default the error falls back (0.36 px at 0.6, 0.30 px at 1.0), so
-    the brighter rows are left unordered.  A single-draw tripwire: on the scene's
-    own draw the rises are 0.050, 0.112, and 0.166 px, and the smallest rise is
-    above the bound on each of 25 noise draws.
-    """
-    rows = [row for row in _rows('atmosphere_haze_albedo') if row.value <= DEFAULT_HAZE_ALBEDO]
-    errors = [row.offset_error_px for row in rows]
-    assert [row.value for row in rows] == [0.0, 0.15, 0.3, 0.6]
-    rises = [
-        later - earlier
-        for earlier, later in itertools.pairwise(errors)
-        if earlier is not None and later is not None
-    ]
-    assert len(rises) == len(rows) - 1
-    assert min(rises) > _ALBEDO_STEP_RISE_PX
+    assert rows[-1].offset_error_px < rows[0].offset_error_px + _HAZE_FUSED_RISE_BOUND_PX
 
 
 # The per-technique dense and wide offset sweeps (``*_offset_fine`` /

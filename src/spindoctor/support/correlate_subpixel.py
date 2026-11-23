@@ -1,20 +1,29 @@
-"""Sub-pixel refinement of a correlation peak by a quadratic fit to the NCC surface.
+"""Sub-pixel refinement of a correlation peak: the NCC quadratic fit and its uses.
 
 :func:`~spindoctor.support.correlate.evaluate_candidate` turns a whole-pixel correlation
-peak into a sub-pixel offset in one of two ways; :data:`SubpixelRefinement` lists their
+peak into a sub-pixel offset in one of three ways; :data:`SubpixelRefinement` lists their
 names:
 
 - ``'cross_power'`` interpolates the raw cross-power of image and model with a localized
   upsampled DFT, within half a pixel of the whole-pixel peak, on a grid of
   ``1 / upsample_factor`` px.
+- ``'highpass_cross_power'`` interpolates the cross-power of the high-passed image and
+  model (each minus its Gaussian blur of sigma :data:`HIGHPASS_SIGMA_PX`) the same way,
+  within half a pixel of the NCC quadratic fit's maximum rounded to that grid
+  (:func:`ncc_vertex_window_steps`).
 - ``'ncc_quadratic'`` fits a quadratic surface to the 3x3 block of NCC values centered on
   the whole-pixel peak and moves to the fitted surface's maximum.  This module holds that
   fit.
 
-The two answers differ when the raw cross-power and the NCC peak in different places.  The
+The answers differ when the raw cross-power and the NCC peak in different places.  The
 NCC normalizes away the image variance under the shifted mask; the raw cross-power does
 not, so its maximum can lie more than half a pixel from the NCC peak, and the cross-power
-answer then stops at the edge of its half-pixel window.
+answer then stops at the edge of its half-pixel window.  Smooth light the model leaves
+out, such as stray light or a sloped background, moves the raw cross-power maximum too.
+The high-pass refinement weakens that smooth light in both surfaces and centers its
+window on the NCC's own estimate, so it can reach a maximum the raw window cannot.  It does
+not guarantee the maximum lies inside its own window either: an answer can still stop at
+that window's edge.
 """
 
 from typing import Literal, TypeAlias
@@ -23,11 +32,22 @@ import numpy as np
 
 from spindoctor.support.types import NDArrayFloatType
 
-SubpixelRefinement: TypeAlias = Literal['cross_power', 'ncc_quadratic']
+SubpixelRefinement: TypeAlias = Literal['cross_power', 'highpass_cross_power', 'ncc_quadratic']
 """The name of a sub-pixel refinement method; see the module docstring."""
 
-SUBPIXEL_REFINEMENTS: tuple[SubpixelRefinement, ...] = ('cross_power', 'ncc_quadratic')
+SUBPIXEL_REFINEMENTS: tuple[SubpixelRefinement, ...] = (
+    'cross_power',
+    'highpass_cross_power',
+    'ncc_quadratic',
+)
 """Every accepted :data:`SubpixelRefinement` value."""
+
+HIGHPASS_SIGMA_PX: float = 3.0
+"""Sigma in pixels of the Gaussian blur the ``'highpass_cross_power'`` refinement subtracts.
+
+Each surface minus its blur keeps limbs, terminators, and surface detail, and drops
+brightness that varies over more than a few pixels.
+"""
 
 NCC_QUADRATIC_MAX_SHIFT_PX: float = 1.0
 """Largest distance, per axis, the quadratic fit may move the offset from the whole pixel.
@@ -83,3 +103,27 @@ def ncc_quadratic_vertex(corr: NDArrayFloatType, rc: tuple[int, int]) -> tuple[f
     du = -(hess_vv * grad_u - hess_vu * grad_v) / det
     limit = NCC_QUADRATIC_MAX_SHIFT_PX
     return float(np.clip(dv, -limit, limit)), float(np.clip(du, -limit, limit))
+
+
+def ncc_vertex_window_steps(
+    corr: NDArrayFloatType, rc: tuple[int, int], upsample_factor: int
+) -> tuple[int, int]:
+    """Return the NCC quadratic fit's maximum as a whole number of upsampled-grid steps.
+
+    The maximum is :func:`ncc_quadratic_vertex` of ``corr`` at ``rc``, and each axis is
+    rounded to the nearest multiple of ``1 / upsample_factor`` px, so a window centered
+    there samples the same grid as a window centered on the whole pixel.
+
+    Parameters:
+        corr: The circular NCC surface.  It must be at least 3 cells along each axis.
+        rc: Row and column of the whole-pixel peak.
+        upsample_factor: Number of grid steps per pixel.
+
+    Returns:
+        ``(steps_v, steps_u)``, the maximum's position relative to ``rc`` in steps of
+        ``1 / upsample_factor`` px; ``(0, 0)`` when the fit cannot place a maximum.
+    """
+    vertex = ncc_quadratic_vertex(corr, rc)
+    if vertex is None:
+        return 0, 0
+    return round(vertex[0] * upsample_factor), round(vertex[1] * upsample_factor)
