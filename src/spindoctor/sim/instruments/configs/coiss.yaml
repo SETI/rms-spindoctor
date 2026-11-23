@@ -204,7 +204,7 @@ coiss_nac:
       hot_pixels: {amplitude_e: 4.0e+4, column_factor: 0.3}
       # Published: ~30 e- horizontal bands (2.1 and 2.5 Hz beating).  The period is
       # estimated; the line readout rate sets it.
-      banding: {amplitude_e: 30.0, period_px: 64.0, orientation: horizontal}
+      banding: {amplitude: 30.0, period_px: 64.0, orientation: horizontal}
       # Estimated: per-image pedestal jitter plus readout-direction gradients.
       bias_structure: {pedestal_sigma_dn: 2.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
       # Measured 2026-11-06: the dark sky of 12-bit full-frame raw NAC frames rises
@@ -365,7 +365,7 @@ coiss_wac:
       hot_pixels: {amplitude_e: 3.5e+4, column_factor: 0.3}
       # Published: ~6 e- horizontal bands at 4.0 Hz.  The period is the NAC's
       # estimate.
-      banding: {amplitude_e: 6.0, period_px: 64.0, orientation: horizontal}
+      banding: {amplitude: 6.0, period_px: 64.0, orientation: horizontal}
       bias_structure: {pedestal_sigma_dn: 2.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}
       # Measured 2026-11-06 on one 12-bit full-frame WAC star field (the other
       # 12-bit full frames carry scene light down the frame): the dark sky rises

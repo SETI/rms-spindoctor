@@ -114,7 +114,7 @@ gossi:
       # Published: vertical bands every 42 px from the 2400 Hz supply (~0.35 DN raw
       # at gain state 2, ~65 e-).  In high gain the camera also shows a horizontal
       # component below 8 Hz, which a scene adds with orientation both.
-      banding: {amplitude_e: 65.0, period_px: 42.0, orientation: vertical}
+      banding: {amplitude: 65.0, period_px: 42.0, orientation: vertical}
       # The row gradient is an estimated amplitude of the published left-to-right
       # shading ramp that summation mode adds.
       bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 1.0, col_gradient_dn: 0.5}

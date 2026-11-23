@@ -539,7 +539,7 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
 _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     _detector_mode(
         'banding',
-        ModeParam('amplitude_e', NonNeg, None),
+        ModeParam('amplitude', NonNeg, None),
         ModeParam('period_px', NonNeg, None),
         ModeParam('orientation', Literal['horizontal', 'vertical', 'both'], 'horizontal'),
         ModeParam('freq_step_factor', NonNeg, 1.0),

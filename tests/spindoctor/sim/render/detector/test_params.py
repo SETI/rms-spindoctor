@@ -15,7 +15,7 @@ def test_an_instrument_default_mode_renders_with_the_cameras_shape() -> None:
     dp = resolve_detector_params(disc_scene('gossi', artifacts={'instrument_defaults': True}))
     assert dp.detector_modes['banding'] == {
         'probability': 1.0,
-        'amplitude_e': 65.0,
+        'amplitude': 65.0,
         'period_px': 42.0,
         'orientation': 'vertical',
         'freq_step_factor': 1.0,
@@ -26,12 +26,10 @@ def test_an_instrument_default_mode_renders_with_the_cameras_shape() -> None:
 def test_a_scene_changes_one_key_of_an_instrument_default_mode() -> None:
     """A key the scene sets replaces the camera's value and leaves the mode on."""
     dp = resolve_detector_params(
-        disc_scene(
-            'gossi', artifacts={'instrument_defaults': True, 'banding': {'amplitude_e': 9.0}}
-        )
+        disc_scene('gossi', artifacts={'instrument_defaults': True, 'banding': {'amplitude': 9.0}})
     )
     cfg = dp.detector_modes['banding']
-    assert (cfg['amplitude_e'], cfg['period_px']) == (9.0, 42.0)
+    assert (cfg['amplitude'], cfg['period_px']) == (9.0, 42.0)
 
 
 def test_a_scene_turns_an_instrument_default_mode_off() -> None:

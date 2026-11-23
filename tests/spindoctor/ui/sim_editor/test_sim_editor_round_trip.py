@@ -114,7 +114,7 @@ _FULL_SCENE: dict[str, Any] = {
         # coiss_nac, so the round-trip exercises the generated mode rows, not only
         # the two switches.
         'missing_lines': {'expected_events': 2.0, 'contiguous_run': True},
-        'banding': {'probability': 0.5, 'amplitude_e': 3.0},
+        'banding': {'probability': 0.5, 'amplitude': 3.0},
         'bloom': {'probability': 1.0},
     },
     'instrument_config': {'inherit': 'coiss_nac'},

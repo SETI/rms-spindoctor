@@ -252,7 +252,7 @@ def _apply_banding(
     """Apply the banding mode to a plane that holds ``gain_e_per_dn`` units per DN."""
     return add_banding(
         plane,
-        amplitude_e=float(cfg['amplitude_e'] or 0.0),
+        amplitude=float(cfg['amplitude'] or 0.0),
         period_px=float(cfg['period_px'] or 0.0),
         orientation=str(cfg['orientation']),
         freq_step_factor=float(cfg['freq_step_factor']),

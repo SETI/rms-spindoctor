@@ -134,7 +134,7 @@ vgiss:
       edited_frame: {band_width_px: 550}
       # Published: a faint coherent periodic component (2.4 kHz vertical, ~0.5
       # DN peak-to-peak).  The vidicon chain works in DN, so the amplitude is in DN.
-      banding: {amplitude_e: 0.25, period_px: 8.0, orientation: vertical}
+      banding: {amplitude: 0.25, period_px: 8.0, orientation: vertical}
       beam_bend: {amplitude_px: 1.0}
       residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}
       # 48 x n s readout ramp, nonlinear in wait time.

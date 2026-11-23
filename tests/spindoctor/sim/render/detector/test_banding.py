@@ -23,7 +23,7 @@ def test_banding_horizontal_is_row_correlated() -> None:
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     add_banding(
         electrons,
-        amplitude_e=100.0,
+        amplitude=100.0,
         period_px=16.0,
         orientation='horizontal',
         freq_step_factor=1.0,
@@ -40,7 +40,7 @@ def test_banding_vertical_is_column_correlated() -> None:
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     add_banding(
         electrons,
-        amplitude_e=100.0,
+        amplitude=100.0,
         period_px=8.0,
         orientation='vertical',
         freq_step_factor=1.0,
@@ -57,7 +57,7 @@ def test_banding_dark_step_lifts_the_lower_half() -> None:
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     add_banding(
         electrons,
-        amplitude_e=10.0,
+        amplitude=10.0,
         period_px=16.0,
         orientation='horizontal',
         freq_step_factor=1.0,
@@ -75,7 +75,7 @@ def test_banding_disabled_at_zero_amplitude() -> None:
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     record = add_banding(
         electrons,
-        amplitude_e=0.0,
+        amplitude=0.0,
         period_px=16.0,
         orientation='both',
         freq_step_factor=1.0,
@@ -102,7 +102,7 @@ def test_the_vidicon_bands_are_vertical() -> None:
     on, _ = render_scene(disc_scene('vgiss', artifacts={'banding': {'probability': 1.0}}, **blocks))
     strong, truth = render_scene(
         disc_scene(
-            'vgiss', artifacts={'banding': {'probability': 1.0, 'amplitude_e': 20.0}}, **blocks
+            'vgiss', artifacts={'banding': {'probability': 1.0, 'amplitude': 20.0}}, **blocks
         )
     )
     assert truth['artifacts']['banding']['orientation'] == 'vertical'

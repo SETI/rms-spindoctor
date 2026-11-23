@@ -14,7 +14,7 @@ __all__ = ['add_banding']
 def add_banding(
     plane: NDArrayFloatType,
     *,
-    amplitude_e: float,
+    amplitude: float,
     period_px: float,
     orientation: str,
     freq_step_factor: float,
@@ -37,7 +37,8 @@ def add_banding(
     Parameters:
         plane: The image, modified in place: electrons on the CCD chain, DN on the
             vidicon chain.
-        amplitude_e: The bands' amplitude, in the image's units.
+        amplitude: The bands' amplitude, in the image's units: electrons on the CCD
+            chain, DN on the vidicon chain.
         period_px: The bands' spatial period, in pixels.
         orientation: 'horizontal', 'vertical', or 'both'.
         freq_step_factor: Spatial-frequency factor of the horizontal bands below the
@@ -50,7 +51,7 @@ def add_banding(
     Returns:
         The realized banding geometry for the truth record.
     """
-    if amplitude_e <= 0.0 or period_px <= 0.0:
+    if amplitude <= 0.0 or period_px <= 0.0:
         return {'active': False}
     size_v, size_u = plane.shape
     mid = size_v // 2
@@ -64,13 +65,13 @@ def add_banding(
         argument = np.zeros(size_v, dtype=np.float64)
         argument[1:] = np.cumsum(freqs[:-1])
         phase = float(rng.uniform(0.0, 2.0 * np.pi))
-        band = amplitude_e * np.sin(argument + phase)
-        band += 0.3 * amplitude_e * rng.standard_normal(size_v)
+        band = amplitude * np.sin(argument + phase)
+        band += 0.3 * amplitude * rng.standard_normal(size_v)
         plane += band[:, None]
     if orientation in ('vertical', 'both'):
         phase = float(rng.uniform(0.0, 2.0 * np.pi))
         cols = np.arange(size_u, dtype=np.float64)
-        comb = amplitude_e * np.sin(2.0 * np.pi * cols / period_px + phase)
+        comb = amplitude * np.sin(2.0 * np.pi * cols / period_px + phase)
         plane += comb[None, :]
     if dark_step_dn > 0.0 and gain_e_per_dn > 0.0:
         plane[mid:, :] += dark_step_dn * gain_e_per_dn

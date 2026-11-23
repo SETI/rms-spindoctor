@@ -108,7 +108,7 @@ nhlorri:
       # Published: random horizontal striping of at most 1 DN, plus ~0.8 DN (~17 e-)
       # vertical banding near low columns.  The bands are drawn horizontal at 17 e-;
       # a scene adds a vertical set with orientation both.  The period is estimated.
-      banding: {amplitude_e: 17.0, period_px: 128.0, orientation: horizontal}
+      banding: {amplitude: 17.0, period_px: 128.0, orientation: horizontal}
       bias_structure: {pedestal_sigma_dn: 1.0, row_gradient_dn: 0.5, col_gradient_dn: 0.5}
       # ~4% corner vignetting, 0.9% PRNU, <=0.5 DN even/odd jail bars, ~1% dust
       # donuts.

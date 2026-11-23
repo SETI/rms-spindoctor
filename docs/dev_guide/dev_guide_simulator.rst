@@ -1209,8 +1209,8 @@ The Cassini cameras' table and its measurement are on the Cassini page
 is not photon-noise dominated, so it skips the electron conversion: the signal
 maps straight to the 8-bit DN full scale and the noise is applied in DN -- a
 line-correlated read-noise term (a per-line offset plus a within-line white
-component) and the banding -- then 8-bit quantization. The ``amplitude_e`` of a mode
-that acts on this chain (``banding`` and ``readout_dark``) is in DN.
+component) and the banding -- then 8-bit quantization. On this chain the banding's
+``amplitude`` and the readout dark's ``amplitude_e`` are in DN.
 
 Cosmic rays work on the vidicon through the CCD's stage: the event count is a Poisson draw
 with mean ``cosmic_ray_events_per_pixel_per_sec`` x ``exposure_sec`` x pixel count, with
@@ -1268,7 +1268,7 @@ spikes; LORRI and Voyager keep a zero rate, each with its reason in the catalog.
 explicit ``noise`` key still wins in either direction -- ``noise: {poisson: false}`` turns
 the shot term off under instrument defaults -- and so does a key of a mode:
 ``banding: {probability: 0.0}`` turns the banding off, and
-``banding: {amplitude_e: 60.0}`` changes its amplitude and leaves the rest as the camera
+``banding: {amplitude: 60.0}`` changes its amplitude and leaves the rest as the camera
 has it. The switch turns on only what every frame of the camera shows. The other modes
 (whole-line telemetry loss, compression-block dropouts, radiation transients, and the
 like) keep their activation keys at zero, so a defaults scene is a clean-but-realistic
