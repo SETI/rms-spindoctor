@@ -813,8 +813,8 @@ baseline, saved PNG, or any other image that leaves the editor uses the full ren
 **Instruments.** The ``instrument`` field selects an instrument entry
 (see :ref:`sim-instrument-files`) and the navigator block the entry points at. The
 recognized names are the entries' top-level keys, ``coiss_nac``, ``coiss_wac``,
-``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, and ``vgiss``,
-plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults.
+``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, ``vgiss_1_nac``,
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``, plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults.
 
 The entry is the only source of the camera's physics: the renderer takes the detector,
 the PSF, and the distortion from it. A scene's ``detector`` and ``noise`` blocks change
@@ -837,11 +837,12 @@ shipped navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render raw
   DN. The bias pedestal keeps the dark sky above the marker.
-* ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` render calibrated I/F.
+* ``coiss_calib_nac``, ``coiss_calib_wac``, and the four ``vgiss`` entries render
+  calibrated I/F.
   The Cassini CALIB and Voyager GEOMED products these blocks describe fill lost
   pixels with zero, and GEOMED fills its resample border with zero as well.
-  ``vgiss`` also keeps a full well: its entry's 255 DN full scale sets an I/F
-  ceiling.
+  The ``vgiss`` entries also keep a full well: each entry's 255 DN full scale sets an
+  I/F ceiling.
 
 The telemetry stage writes the marker the navigator applies to the same frame
 (:func:`~spindoctor.support.image_class.missing_data_marker`), so a lost line
@@ -856,8 +857,7 @@ value. The navigator applies no saturation test to an I/F
 frame of either kind. The telemetry modes that act on transmitted DN work the same
 way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
 map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
-spike is capped at the ADC word, 255 DN on ``vgiss``, so it calibrates to at most
-the I/F ceiling. A garbled line and a uniform spike draw anywhere in the ADC word. The
+spike is capped at the ADC word, 255 DN on the ``vgiss`` cameras, so it calibrates to at most the I/F ceiling. A garbled line and a uniform spike draw anywhere in the ADC word. The
 codec doesn't clip what it rebuilds, so a saturated block can come back above the
 word, but a garbled line or a uniform spike drawn after it stays inside the word.
 A calibrated value that lands exactly on the 0 I/F marker moves to the next float
@@ -873,7 +873,7 @@ the entry sets none, as when a scene pins a raw camera to ``calibrated_if``, the
 generic entry's value applies. The generic value is the Cassini CALIB cameras'
 value. Each camera's value, and
 the real sky measurements behind it, are on its instrument page: the Voyager
-page for ``vgiss`` and the Cassini page for the CALIB cameras.
+page for the ``vgiss`` cameras and the Cassini page for the CALIB cameras.
 
 Before the divide, the inverse subtracts the calibration residual: the
 structure a real pipeline's per-pixel corrections leave in its product. A real
@@ -1326,7 +1326,7 @@ also takes hits while it waits to be read; the stage counts the exposure alone,
 as on a CCD.
 
 **The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the
-CCD chain, ``vgiss`` on the vidicon chain) renders through its DN chain and then
+CCD chain, the ``vgiss`` cameras on the vidicon chain) renders through its DN chain and then
 inverts the calibration transform: the bias and dark pedestals are subtracted
 before the exposure divide (matching the real pipeline; the vidicon has no dark current,
 and its readout dark is cataloged as what its calibrated product keeps), so a calibrated
@@ -1405,8 +1405,9 @@ a mission's instrument blocks. Each
 top-level key of a file holds one instrument entry, and a scene selects it by
 writing that key in ``instrument``; the file's name plays no part. ``coiss.yaml``
 holds four instruments (``coiss_nac``, ``coiss_wac``, ``coiss_calib_nac``, and
-``coiss_calib_wac``), and ``gossi.yaml``, ``nhlorri.yaml``, ``vgiss.yaml``, and
-``generic.yaml`` hold one each. The ``generic`` entry is the instrument-agnostic
+``coiss_calib_wac``), ``vgiss.yaml`` holds the four Voyager cameras (``vgiss_1_nac``,
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``), and ``gossi.yaml``,
+``nhlorri.yaml``, and ``generic.yaml`` hold one each. The ``generic`` entry is the instrument-agnostic
 one: a scene renders through it when it doesn't set ``instrument`` or sets it to
 ``generic`` or ``sim``. The directory sits outside ``config_files/``, so the
 navigator's :class:`~spindoctor.config.config.Config` never loads a simulator
@@ -1799,7 +1800,8 @@ Applied at the detector grid after readout, in the physical order of
 transmission (see :data:`~spindoctor.sim.artifact_modes.STRUCTURED_LOSS_ORDER`).
 Loss modes write the instrument's missing-data marker, its ``noise.marker_value``:
 0 on every shipped instrument. Garble and spikes write *wrong*
-values instead.
+values instead. In the Availability column, ``vgiss_*`` stands for the four Voyager
+entries.
 
 .. list-table::
    :header-rows: 1
@@ -1815,7 +1817,7 @@ values instead.
      - ``expected_events``
    * - ``partial_lines``
      - a line truncated from a column to its end, or a middle segment lost
-     - nac, wac, vgiss
+     - nac, wac, vgiss_*
      - ``expected_events``
    * - ``alternating_lines``
      - every Nth line dropped, or (``mode: keep``) only every Nth line kept, the
@@ -1826,7 +1828,7 @@ values instead.
    * - ``edited_frame``
      - only a centered column band of the camera's default width, or the top or
        bottom half of the frame, kept
-     - gossi, vgiss
+     - gossi, vgiss_*
      - ``probability``
    * - ``truncated_frame``
      - a clean full-width band of lines (a quarter frame by default) cut from
@@ -1839,11 +1841,11 @@ values instead.
      - ``expected_events``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
-     - gossi, vgiss
+     - gossi, vgiss_*
      - ``expected_events``
    * - ``pixel_spikes``
      - isolated pixels flipped to a wrong DN (a bit-flip or a uniform draw)
-     - vgiss
+     - vgiss_*
      - ``expected_events``
    * - ``dead_pixels``
      - singleton pixels held at a low response
@@ -1872,12 +1874,12 @@ values instead.
      - ``probability``
    * - ``reseau_scars``
      - reseau-removal smudges on the vidicon lattice (archive processing)
-     - vgiss
+     - vgiss_*
      - ``probability``
    * - ``resample_texture``
      - geometric resample warp, blank border, and missing-line interpolation
        (archive processing)
-     - vgiss
+     - vgiss_*
      - ``probability``
 
 The telemetry sub-stage order is fixed: lossy compression runs first (a codec
@@ -1914,7 +1916,8 @@ asks for a mode that its detector model never renders, scene validation refuses
 it. The scene's detector model is its own ``detector.detector_model``, else its
 camera's default in the scene's readout mode. Validation also refuses
 ``instrument_defaults`` in a scene if the camera's ``instrument_defaults`` turns
-on a mode that the scene's detector model never renders.
+on a mode that the scene's detector model never renders. In the Availability
+column, ``vgiss_*`` stands for the four Voyager entries.
 
 .. list-table::
    :header-rows: 1
@@ -1943,7 +1946,7 @@ on a mode that the scene's detector model never renders.
      - ``probability``
    * - ``shutter_shading``
      - a focal-plane shutter's line-dependent exposure
-     - nac, wac, gossi, vgiss
+     - nac, wac, gossi, vgiss_*
      - ``probability``
    * - ``bloom``
      - electron-domain column bleed from saturated wells
@@ -1967,11 +1970,11 @@ on a mode that the scene's detector model never renders.
      - ``probability``
    * - ``beam_bend``
      - a brightness-dependent vidicon limb bend
-     - vgiss
+     - vgiss_*
      - ``probability``
    * - ``residual_image``
      - a prior-frame ghost from incomplete erasure
-     - vgiss
+     - vgiss_*
      - ``probability``
    * - ``fixed_pattern``
      - a static PRNU / vignetting / stitch / jail-bar / dust composite
@@ -4632,7 +4635,7 @@ is a validation error:
    * - ``nhlorri``
      - 1, 4
      - The 4x4 readout mode reads about 19.4 e-/DN (21 at 1x1).
-   * - ``vgiss``
+   * - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, ``vgiss_2_wac``
      - 1
      - The vidicon has no binned readout.
 

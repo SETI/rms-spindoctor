@@ -325,7 +325,7 @@ instrument's value and where it comes from.
        readout), a 6,000 e- deposit scale, and 0.4 px of diffusion.  The
        rendered frames' saturated fraction stays at 3e-6; full-well deposits
        had pushed it to 2.3e-4 against 1.3e-5 real.
-   * - ``vgiss``
+   * - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, ``vgiss_2_wac``
      - n/a (vidicon path)
      - 0.0
      - The vidicon chain carries no hot-pixel stage, so hot pixels are absent
@@ -700,7 +700,7 @@ background glow the matched sky frames do not model (see the known gaps).
 **Voyager ISS** (3 frames, limited).  The GEOMED star frame gives 6 real
 star cutouts (EE50 median 1.26 px).  Its matched frame holds the field's
 catalog stars, and none of them yields a usable simulated cutout, so the
-vgiss PSF comparison is *unconstrained*: the retained interim sigma
+Voyager PSF comparison is *unconstrained*: the retained interim sigma
 stands on its published-range provenance alone, not on cohort evidence.
 The vidicon read noise was tuned down from its high-gain interim value
 (see the catalog).  The simulated sky noise is 3.1e-3 I/F against 1.8e-3
@@ -1696,10 +1696,10 @@ calibrated cohorts.
 
 Every calibrated instrument marks a lost pixel with ``0``, as the Cassini CALIB
 and Voyager GEOMED products do, and the calibration inverse adds a calibrated sky
-residual so a dark sky never reads as missing data: 0.0118 I/F on ``vgiss``,
+residual so a dark sky never reads as missing data: 0.0118 I/F on the four ``vgiss`` cameras,
 above 0 as the GEOMED sky is, and 4.0e-5 I/F on the calibrated Cassini cameras,
 whose real sky scatters around 0. The disc scene with a planted (3, -2) px offset
-recovers it on ``coiss_nac``, ``coiss_calib_nac``, and ``vgiss`` alike: exactly
+recovers it on ``coiss_nac``, ``coiss_calib_nac``, and ``vgiss_1_nac`` alike: exactly
 on the noise-free floor, and to within 0.07 px under ``instrument_defaults`` (see
 :doc:`/dev_guide/instruments/voyager_iss`).
 

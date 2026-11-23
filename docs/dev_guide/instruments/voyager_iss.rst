@@ -19,8 +19,8 @@ Code map
        registered under ``vgiss`` with a ``vgiss_pds3`` alias
    * - Config block
      - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, flat
-   * - Sim instrument key
-     - ``vgiss``
+   * - Sim instrument keys
+     - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Statistics key
      - ``vgiss``
    * - Log key
@@ -362,11 +362,15 @@ segment reads no baseline at its record epochs.
 Simulator model
 ===============
 
-**Instrument key.** ``vgiss``, one key for two spacecraft and four cameras.
-That is the model's sharpest simplification, and the instrument entry
-says so. The entry sits under the ``vgiss`` key of
-``src/spindoctor/sim/instruments/configs/vgiss.yaml`` and holds the values below.
-It states ``data_units: calibrated_if``, the units of the GEOMED product and of
+**Instrument keys.** One key for each spacecraft and camera: ``vgiss_1_nac`` and
+``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2.
+The four entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``.
+``vgiss_1_nac`` holds the values below, and the other three take every value from
+it, so the four cameras render alike. All four emulate the one ``voyager_iss``
+section of the navigator configuration. The realism match pairs the image
+library's Voyager frames with ``vgiss_1_wac`` alone. A library sidecar records the
+mission and the camera but not the spacecraft, and the match compares the three
+frames as one group. The entry states ``data_units: calibrated_if``, the units of the GEOMED product and of
 the ``voyager_iss`` block, so a simulated frame is in I/F.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
@@ -380,9 +384,9 @@ Voyager references publish no FWHM to fall back on.
 ``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
 is non-zero: the resampled vidicon geometry carries coherent tangential
 distortion that a radial polynomial cannot represent. The block is the
-Voyager 2 wide angle measurement, and the instrument entry says plainly that one key
-under-represents the spread across two spacecraft and two optics until
-per-camera keys and locked frames for each exist.
+Voyager 2 wide angle measurement. All four entries carry it, which
+under-represents the spread across two spacecraft and two optics until each camera
+has its own measurement from locked frames.
 
 **Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
@@ -410,15 +414,15 @@ to about 59 pixels.
 ``native_frame_size_px`` is 1000, the GEOMED product's size, which the realism
 match uses to tell a full frame from a subframe.
 
-**Units.** A ``vgiss`` frame is in I/F, with a ``0`` missing-data marker. The
+**Units.** A frame from any of the four cameras is in I/F, with a ``0`` missing-data marker. The
 simulator reads the same configuration block as real navigation, so a simulated
 frame carries the units and marker of the GEOMED product: the product stores I/F
 as scaled integers and fills lost pixels and its resample border with zero, about
 10% of each frame. The calibrated Cassini instruments share the I/F units and the
-``0`` marker; ``vgiss`` alone also keeps a full well, the 255 DN clip that sets a
+``0`` marker. The four Voyager entries keep a full well, the 255 DN clip that sets a
 1.85 I/F ceiling before the calibration inverse (see
 :ref:`Instruments <sim-instruments>`). An author should expect a frame to span
-about 0.012 to 1. A tool scaled for a DN frame shows a ``vgiss`` frame as black.
+about 0.012 to 1. A tool scaled for a DN frame shows a Voyager frame as black.
 
 The calibration inverse subtracts the bias pedestal and then adds a calibrated
 sky residual of 1.5 DN, 0.0118 I/F, so the dark sky sits above the marker, as on
@@ -524,8 +528,8 @@ Open items
   the rotation pivot so the two can coexist.
 * Both limiting-magnitude anchors are nominal-optics derivations rather than
   measurements, and the cohort holds one star frame.
-* The simulator uses one distortion and PSF key for four cameras across two
-  spacecraft.
+* The four simulator cameras share one distortion block and one PSF kernel, across
+  two spacecraft and two optics.
 * The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the
   real GEOMED sky level varies about 50x between frames.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of

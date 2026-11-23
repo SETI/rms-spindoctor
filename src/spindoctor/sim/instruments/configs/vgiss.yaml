@@ -1,4 +1,8 @@
-# Voyager ISS vidicon, calibrated (GEOMED, I/F) products.
+# Voyager ISS vidicon cameras, calibrated (GEOMED, I/F) products: the narrow-angle
+# and wide-angle cameras of Voyager 1 and Voyager 2.  The vgiss_1_nac entry holds
+# every value the four cameras share, and the other three state only their own
+# realism cohort.  Where a comment says "the camera", the value stands for all
+# four until a camera-specific measurement exists.
 #
 # A value marked "published" comes from Benesh and Jepsen 1978 (Voyager
 # Imaging Science Subsystem Calibration Report, JPL 618-802), the PDS
@@ -8,7 +12,7 @@
 # without a figure.  Neither has been fitted to flight frames; a measured or
 # fitted value says so, with the date and the frames.  The keys are described in
 # the simulator chapter of the developer guide.
-vgiss:
+vgiss_1_nac:
   # A GEOMED product is in I/F, which is what the navigator block below expects.
   data_units: calibrated_if
 
@@ -119,7 +123,7 @@ vgiss:
     # Why validation fails a scene that asks for one of these modes.  The vidicon DN
     # chain has no fixed-pattern stage, so the mode would render nothing (#935).
     unavailable_reasons:
-      fixed_pattern: not rendered for vgiss, whose vidicon DN chain has no fixed-pattern stage
+      fixed_pattern: not rendered for the Voyager ISS cameras, whose vidicon DN chain has no fixed-pattern stage
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
@@ -151,8 +155,25 @@ vgiss:
       reseau_scars: {spacing_px: 59, patch_radius_px: 4, mark_count: 202}
       resample_texture: {warp_amp_px: 0.3, blank_border_px: 2, missing_line_interp: false}
 
-  # The image library's GEOMED frames from both cameras are matched against this
-  # instrument by the realism match.
+  # The image library holds no Voyager 1 narrow-angle frame, so this entry has no
+  # realism cohort.
+
+# Voyager 1 wide-angle camera.  Every key not stated here is vgiss_1_nac's.  The
+# image library's GEOMED frames from both cameras (two Voyager 1 wide-angle frames
+# and one Voyager 2 narrow-angle frame) are matched against this entry by the
+# realism match, because a library sidecar names the mission and camera but not the
+# spacecraft, and the match compares the three frames as one group.
+vgiss_1_wac:
+  base: vgiss_1_nac
+
   realism_cohort:
     - {mission: VGISS, camera: NA}
     - {mission: VGISS, camera: WA}
+
+# Voyager 2 narrow-angle camera.  Every key not stated here is vgiss_1_nac's.
+vgiss_2_nac:
+  base: vgiss_1_nac
+
+# Voyager 2 wide-angle camera.  Every key not stated here is vgiss_1_nac's.
+vgiss_2_wac:
+  base: vgiss_1_nac

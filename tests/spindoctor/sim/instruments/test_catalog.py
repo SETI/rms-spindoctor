@@ -229,7 +229,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'null-removing-a-ccd-key',
     ),
     (
-        {'cam.yaml': _cam('base: vgiss\ndetector: {vidicon: null}\n')},
+        {'cam.yaml': _cam('base: vgiss_1_nac\ndetector: {vidicon: null}\n')},
         r"^cam\.yaml: cam: detector: a vidicon detector requires the keys \['vidicon'\]",
         'null-removing-the-vidicon-chain',
     ),
@@ -395,7 +395,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     (
         {
             'cam.yaml': _cam(
-                'base: vgiss\nfilters:\n  throughput_e_per_s_per_if: {CLEAR: 1.0}\n'
+                'base: vgiss_1_nac\nfilters:\n  throughput_e_per_s_per_if: {CLEAR: 1.0}\n'
                 + '  clear: CLEAR\n'
             )
         },
@@ -417,7 +417,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     (
         {
             'cam.yaml': _cam(
-                'base: vgiss\nstar_flux: {dn_per_s_vmag0: null, e_per_s_vmag0: 1.0e+5}\n'
+                'base: vgiss_1_nac\nstar_flux: {dn_per_s_vmag0: null, e_per_s_vmag0: 1.0e+5}\n'
             )
         },
         r'^cam\.yaml: cam: star_flux: a vidicon detector states dn_per_s_vmag0',
@@ -483,7 +483,7 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'readout-mode-gain-state-not-cataloged',
     ),
     (
-        {'cam.yaml': _cam('base: vgiss\nreadout_modes: {2: {}}\n')},
+        {'cam.yaml': _cam('base: vgiss_1_nac\nreadout_modes: {2: {}}\n')},
         r'^cam\.yaml: cam: readout_modes\.2: the vidicon DN chain has no binned readout',
         'binned-vidicon',
     ),
@@ -779,7 +779,8 @@ _BASE = keyed(
         (_AS_VIDICON_STARS, 'filters'),
         (_AS_VIDICON_STARS + 'filters: null\n', 'artifact_modes.offered'),
         (
-            'base: vgiss\n' + _CAMERA[_CAMERA.index('detector:') : _CAMERA.index('readout_modes:')],
+            'base: vgiss_1_nac\n'
+            + _CAMERA[_CAMERA.index('detector:') : _CAMERA.index('readout_modes:')],
             'detector.vidicon',
         ),
         (
@@ -1156,12 +1157,35 @@ def test_instrument_defaults_turning_on_a_mode_the_chain_ignores_fails() -> None
 def test_vgiss_states_why_it_has_no_fixed_pattern() -> None:
     """A vgiss scene that sets fixed_pattern fails with the reason the vgiss entry states."""
     scene = frame_scene(
-        instrument='vgiss', size=32, artifacts={'fixed_pattern': {'probability': 1.0}}
+        instrument='vgiss_1_nac', size=32, artifacts={'fixed_pattern': {'probability': 1.0}}
     )
     with pytest.raises(
         SimSceneValidationError, match=r'vidicon DN chain has no fixed-pattern stage'
     ):
         validate_sim_params(scene)
+
+
+_VOYAGER_CAMERAS = ('vgiss_1_nac', 'vgiss_1_wac', 'vgiss_2_nac', 'vgiss_2_wac')
+
+
+def test_each_voyager_camera_is_an_instrument() -> None:
+    """The four Voyager cameras are in the catalog, each with its own entry."""
+    names = set(load_instrument_catalog().instrument_names())
+    assert set(_VOYAGER_CAMERAS) <= names
+
+
+@pytest.mark.parametrize('name', _VOYAGER_CAMERAS)
+def test_each_voyager_camera_emulates_the_voyager_navigator_block(name: str) -> None:
+    """Every Voyager camera points at the one voyager_iss section, with no detector."""
+    navigator = load_instrument_catalog().entry(name).navigator
+    assert navigator.section == 'voyager_iss'
+    assert navigator.detector is None
+
+
+def test_the_bare_vgiss_name_is_not_an_instrument() -> None:
+    """A scene that writes the family name instead of a camera fails."""
+    with pytest.raises(ValueError, match=r'vgiss'):
+        load_instrument_catalog().entry('vgiss')
 
 
 def test_a_scene_naming_an_unlisted_downlink_table_fails() -> None:

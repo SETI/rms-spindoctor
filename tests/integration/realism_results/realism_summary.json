@@ -2742,7 +2742,7 @@
         0.000106812
       ]
     },
-    "vgiss": {
+    "vgiss_1_wac": {
       "catalog_defaults": {
         "cosmic_ray_events_per_pixel_per_sec": 0.0,
         "hot_pixel_fraction": 0.0,
@@ -2922,7 +2922,7 @@
         {
           "confidence": 0.9372289333636777,
           "image_id": "C1205021_GEOMED",
-          "instrument": "vgiss",
+          "instrument": "vgiss_1_wac",
           "median_residual_px": 0.3714317495952096,
           "n_catalog_predicted": 11,
           "n_detected_sources": 30,
@@ -2939,7 +2939,7 @@
           "confidence": 0.8,
           "detection_peak_ratio": 0.0,
           "image_id": "C1205021_GEOMED",
-          "instrument": "vgiss",
+          "instrument": "vgiss_1_wac",
           "predicted_snr": 229.30754812277135,
           "residual_px": 0.20177282688044862,
           "side": "real",
@@ -2948,7 +2948,7 @@
         {
           "confidence": 0.9396101971028825,
           "image_id": "C1205021_GEOMED",
-          "instrument": "vgiss",
+          "instrument": "vgiss_1_wac",
           "median_pos_err_px": 0.34364834463650473,
           "n_stars_used": 7,
           "residual_scatter_px": 0.3274672252286728,
@@ -2958,7 +2958,7 @@
         {
           "confidence": 0.6,
           "image_id": "C1205021_GEOMED",
-          "instrument": "vgiss",
+          "instrument": "vgiss_1_wac",
           "median_residual_px": 0.5788901970882069,
           "n_catalog_predicted": 5,
           "n_detected_sources": 30,
@@ -2975,7 +2975,7 @@
           "confidence": 0.8,
           "detection_peak_ratio": 0.0,
           "image_id": "C1205021_GEOMED",
-          "instrument": "vgiss",
+          "instrument": "vgiss_1_wac",
           "predicted_snr": 228877577215.29315,
           "residual_px": 0.1464091747875877,
           "side": "sim",
@@ -2984,7 +2984,7 @@
         {
           "confidence": 0.9205724186105302,
           "image_id": "C1205021_GEOMED",
-          "instrument": "vgiss",
+          "instrument": "vgiss_1_wac",
           "median_pos_err_px": 0.7072222344371342,
           "n_stars_used": 5,
           "residual_scatter_px": 0.9935321049911562,
