@@ -21,7 +21,7 @@ from spindoctor.schema import RuleError
     ],
 )
 def test_a_round_smaller_than_its_pool_is_refused(pool: str, work: str) -> None:
-    """Threads with nothing to do are idle at every setting, so it is said early.
+    """A round smaller than its pool would leave threads idle, so it is refused.
 
     Parameters:
         pool: The thread-count setting.

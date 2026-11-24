@@ -605,7 +605,7 @@ def test_ring_annulus_correlation_reads_the_configured_upsample_factor(
     make_nav_context: NavContextFactory,
     upsample_override_config: Config,
 ) -> None:
-    """The correlation runs at the upsample factor the configuration names."""
+    """The correlation runs at the upsample factor the configuration sets."""
     seen: list[int] = []
 
     def _record(**kwargs: Any) -> Any:

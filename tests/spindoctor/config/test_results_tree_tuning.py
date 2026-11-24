@@ -25,7 +25,7 @@ def test_packaged_results_tree_section_parses() -> None:
 
 
 def test_the_loader_refuses_a_section_no_pass_can_run_at(tmp_path: Path) -> None:
-    """A round smaller than its pool is refused at load, on the round's key."""
+    """A round smaller than its pool is refused at load, and the error gives its key."""
     override = tmp_path / 'override.yaml'
     override.write_text('results_tree:\n  retrieve_threads: 64\n  retrieve_batch_size: 8\n')
     arguments = argparse.Namespace(config_file=[str(override)])

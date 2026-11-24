@@ -62,7 +62,7 @@ any useful factor, so it never clips a real setting.
 
 @dataclass(frozen=True)
 class GeneralSection:
-    """The ``general`` section: settings that belong to no one part of the pipeline.
+    """The ``general`` section: settings that no single part of the pipeline owns.
 
     Parameters:
         truetype_font_dir: The directory searched for the TrueType fonts that annotation
@@ -78,8 +78,8 @@ class GeneralSection:
 class EnvironmentSection:
     """The ``environment`` section: where a deployment keeps its files.
 
-    The packaged file sets no key, so every key is optional and an absent key reads as
-    None.  A reader resolves each location from its command line, from here, and from
+    Every key is optional, and a key left out reads as None; the packaged file leaves
+    them all unset.  A reader resolves each location from its command line, from here, and from
     an environment variable.  Each reader applies its own order, and the helpers in
     :mod:`spindoctor.config.config_helper` define the usual one: command line, then this
     section, then the environment variable.
@@ -91,8 +91,8 @@ class EnvironmentSection:
         backplane_results_root: The root directory or URL backplanes are written to.
         bundle_results_root: The root directory or URL PDS4 bundles are written to.
         log_root: The root directory or URL logs are written to.
-        results_index_db: The connection URL of the results index, or ``none`` to name
-            no index.
+        results_index_db: The connection URL of the results index, or ``none`` for no
+            results index.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -165,8 +165,8 @@ class TypedSections:
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
         general: The ``general`` section.
-        environment: The ``environment`` section; the packaged file sets no
-            location.
+        environment: The ``environment`` section.  The packaged file leaves its
+            locations unset.
         offset: The ``offset`` section.
         results_tree: The ``results_tree`` section.
     """

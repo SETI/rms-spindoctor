@@ -194,10 +194,10 @@ def get_results_index_db_url(arguments: argparse.Namespace, config: Config) -> s
         ValueError: If a level supplied a value that is empty or nothing but
             spaces.
     """
-    # Absence is the ordinary case on the command line -- most programs define no
-    # --results-index-db argument -- so the namespace is asked for the key rather than
-    # made to raise for it, which would also hide an AttributeError raised by something
-    # other than the lookup.
+    # Absence is the ordinary case on the command line, since most programs do not
+    # define --results-index-db.  So the namespace is asked for the key rather than made
+    # to raise for it, which would also hide an AttributeError raised by something other
+    # than the lookup.
     named_by = '--results-index-db'
     results_index_db_str = vars(arguments).get('results_index_db')
     if results_index_db_str is None:

@@ -486,7 +486,7 @@ class Config:
 
     @property
     def general(self) -> GeneralSection:
-        """Returns the general section, the settings no one part of the pipeline owns."""
+        """Returns the general section: settings no single part of the pipeline owns."""
 
         return self._typed_sections().general
 
@@ -494,10 +494,11 @@ class Config:
     def environment(self) -> EnvironmentSection:
         """Returns the environment section, which says where a deployment keeps its files.
 
-        The packaged file sets no location, so one no override names is None.  The helpers
-        in :mod:`spindoctor.config.config_helper` define the usual order for a location:
-        the command line, then here, then an environment variable.  A reader may apply
-        its own order; each takes its location from those three places.
+        The packaged file leaves every location unset, so a location is None unless an
+        override sets it.  The helpers in :mod:`spindoctor.config.config_helper` define
+        the usual order for a location: the command line, then here, then an environment
+        variable.  A reader may apply its own order, but each takes its location from one
+        of those three places.
         """
 
         return self._typed_sections().environment
@@ -626,9 +627,9 @@ class Config:
     def results_tree(self) -> spindoctor.nav_records.TreeTuning:
         """Returns how much of a pass over a results tree runs at once.
 
-        No command-line option or environment variable names these settings, because
-        they describe a machine rather than a run.  A program reads the section once
-        and passes it to whatever reads the tree.
+        These settings have no command-line option or environment variable, because they
+        describe a machine rather than a run.  A program reads the section once and
+        passes it to whatever reads the tree.
         """
 
         return self._typed_sections().results_tree

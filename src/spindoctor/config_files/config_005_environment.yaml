@@ -1,11 +1,11 @@
 # Where a deployment keeps its files.
 #
-# Nothing is set here: each location is optional, and one that is not set reads as
-# unset.  Each location can also be given by a command-line flag or an environment
-# variable.  To set one for every run, write it in a configuration file named with
-# --config-file, as a line "environment:" with each location indented below it, written
-# as the commented lines below are.  Leave out the "{}" this file has: it makes the section
-# an empty mapping, and a location indented under it fails to load.
+# Every location is optional, and this file leaves them all unset.  A location can
+# also come from a command-line flag or an environment variable.  To set one for every
+# run, put it in a configuration file you pass with --config-file: write a line
+# "environment:" and indent each location below it, as in the commented lines below.
+# Do not copy the "{}" from this file.  It makes the section an empty mapping, and a
+# location indented under it then fails to load.
 environment: {}
 # The root directory or URL of the PDS3 holdings that images are read from.
 #   pds3_holdings_root: /path/to/holdings
@@ -17,5 +17,5 @@ environment: {}
 #   bundle_results_root: /path/to/bundles
 # The root directory or URL logs are written to.
 #   log_root: /path/to/logs
-# The connection URL of the results index, or none to name no index.
+# The connection URL of the results index, or none for no results index.
 #   results_index_db: sqlite:////path/to/index.sqlite3

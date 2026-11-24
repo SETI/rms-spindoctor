@@ -332,7 +332,7 @@ def ingest_tree(
 
 
 OVERRIDDEN_UPSAMPLE_FACTOR = 256
-"""The upsample factor ``upsample_override_config`` sets; not the packaged 128."""
+"""The upsample factor ``upsample_override_config`` sets, which differs from the packaged 128."""
 
 
 @pytest.fixture

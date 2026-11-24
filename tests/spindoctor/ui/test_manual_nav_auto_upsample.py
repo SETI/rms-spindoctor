@@ -28,7 +28,7 @@ def test_auto_match_reads_the_configured_upsample_factor(
     monkeypatch: pytest.MonkeyPatch,
     upsample_override_config: Config,
 ) -> None:
-    """The automatic match correlates at the upsample factor the configuration names."""
+    """The automatic match correlates at the upsample factor the configuration sets."""
     seen: list[int] = []
 
     def _record(**kwargs: Any) -> dict[str, Any]:

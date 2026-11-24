@@ -58,7 +58,8 @@ def packaged_sections() -> TypedSections:
     """Return the typed sections of the packaged configuration.
 
     The packaged files are read once per process, into a configuration of their own,
-    so no override another test applies to the shared configuration reaches it.  The
+    so an override that another test applies to the shared configuration does not
+    reach it.  The
     load leaves the technique classes' settings as it found them.
     """
     with preserved_technique_settings():

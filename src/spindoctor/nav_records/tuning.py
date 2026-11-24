@@ -13,8 +13,8 @@ service will do concurrently, not to this program, so they are configuration:
 the ``results_tree`` section carries them, and the configuration parses that
 section into a :class:`TreeTuning` when it loads.  Every value lives in the
 packaged YAML, so the type has no defaults.  A program reads the parsed section
-once, as ``config.results_tree``, and passes it down.  This package reads no
-configuration itself.
+once, as ``config.results_tree``, and passes it down.  This package does not read
+the configuration itself.
 """
 
 from dataclasses import dataclass
@@ -48,8 +48,8 @@ class TreeTuning:
         RuleError: If a round of work is smaller than the pool it feeds:
             ``walk_directories_at_once`` below ``walk_threads``, or
             ``retrieve_batch_size`` below ``retrieve_threads``.  Threads would then
-            be idle at every setting rather than running slowly.  The problem is
-            put on the round's key.
+            be idle at every setting rather than running slowly.  The error is
+            reported against the round's setting.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
