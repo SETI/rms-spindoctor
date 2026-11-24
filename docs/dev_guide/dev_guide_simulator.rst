@@ -2157,7 +2157,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are twelve:
+not yet fixed. There are thirteen:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -2168,8 +2168,10 @@ not yet fixed. There are twelve:
   of the extended field of view rather than the frame center.
 - In ``titan_crescent_horns`` and its noiseless twin, the disc correlation,
   whose template leaves the haze's ring of light out, carries a success 2.40 px
-  wrong on the coarse-grid point (0.5, 1.5) on most seeds and 10.2 px wrong,
-  reading the haze edge as the limb, on the rest.
+  wrong on the coarse-grid point (0.5, 1.5).
+- In ``titan_haze_limb``, the disc correlation reads the edge of a haze the
+  navigator does not model as the limb and carries a medium-confidence success
+  7.3 to 7.6 px wrong.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
   outline that the image doesn't have, and the disc correlation lands on the
   maximum of its high-pass surface, pulled by that outline.
@@ -2300,7 +2302,9 @@ render departs from it. The sweeps and their floors:
   solar-symmetry fit has its own base scene and offset sweeps.
 - ``atmosphere_haze_albedo`` -- the same haze column at ``tau_ref`` 4 with the
   haze ``albedo`` walked up from 0, where the haze adds no light but still dims
-  the surface, so a dim haze and a brighter one can be compared at one thickness.
+  the surface. From albedo 0 to 0.6 the error stays at 0.94 to 1.01 px, set by
+  the dimmed surface, so over that range the sweep does not measure the haze's
+  brightness; only the albedo 1.0 step responds to it.
 
 The remaining Section 8 axes are covered by pre-existing sweeps
 (``noise_read_noise`` and its calibrated twin ``noise_read_noise_calib``, the
@@ -3137,8 +3141,9 @@ falls off with the thinning tangent column.
 transmission ``exp(-tau_vert * (1 / mu + 1 / mu0))`` of the sunlight coming in
 and the light going out, with ``mu`` and ``mu0`` the effective cosines at the
 surface. A haze one or two optical depths thick dims the surface, and one several
-optical depths thick hides it. The haze is as bright just inside the solid limb
-as just outside it, so the solid limb does not show.
+optical depths thick hides it. Over a haze that thick, the haze is as bright just
+inside the solid limb as just outside it, so the solid limb does not show. Through
+a thinner haze the surface shows, and its limb with it.
 
 ``albedo`` is the haze's single-scattering albedo: it defaults to 0.6 and lies in
 [0, 1]. It sets how bright the haze is against the disc and the sky,
@@ -3155,12 +3160,26 @@ that at high phase the near side of a thick tangent path, which real sunlight
 reaches only through the deep atmosphere behind the limb, is lit as fully as the
 tangent point.
 
+The reflectance is an approximation, and its error was measured against a Monte
+Carlo simulation (``util/titan_haze/check_multiple_scattering.py``). For a
+semi-infinite layer of Titan's haze at 650 nm lit from straight above, it runs
+about 22% low: 0.162 against 0.207 seen at an emission cosine of 0.475, and 0.149
+against 0.186 at 0.975. The light scattered once is exact, so the shortfall is in
+the light scattered more than once: the similarity relations and an isotropic
+redistribution return less of it than a strongly forward-scattering haze does.
+With isotropic scattering the same check runs 1 to 5% low, the error
+of the closed-form H-function. For layers of vertical optical depth 0.3 to 3 the
+reflectance runs 4 to 17% low, so the scaling by the column adds little to the
+shortfall of the semi-infinite layer.
+
 Compared with real frames of Titan, the rendered disc comes out darker at low and
 moderate phase, by an amount that depends on the filter, and the forward ring of
-light is fainter at high phase: light scattered forward more than once along the
-limb path is not carried forward by an isotropic multiple-scattering term. The
-instrument chapters give the comparison for their cameras, and the published
-parameters are not adjusted to close it.
+light is fainter at high phase. The likely main cause of the dark disc is the
+shortfall in the multiply scattered light above, since at those phases most of
+the disc's light has scattered more than once. The likely cause of the faint ring
+is light scattered forward more than once along the limb path, which an isotropic
+multiple-scattering term does not carry forward. The instrument chapters give the comparison for their
+cameras, and the published parameters are not adjusted to close it.
 
 Four consequences follow:
 
@@ -3190,7 +3209,9 @@ Four consequences follow:
   band at that altitude. The shell exists only above the limb: the on-disc
   haze column is shell-blind (a geometrically thin shell projected against
   the disc adds negligible slant contrast), so the shell appears solely in
-  the tangent glow.
+  the tangent glow. The shell's depth follows ``tau_ref``, so validation refuses
+  a shell beside ``haze_model``: on Titan's haze it would be about 15 tangent
+  optical depths deep, where Titan's own detached layer is far thinner.
 
 **Symmetry-breaking structure.** The layer above is exactly mirror-symmetric
 about the image-plane line through the body center and the sub-solar direction:
@@ -3301,10 +3322,15 @@ toward the sunlit limb whose size tracks the height of that edge above the solid
 radius -- the ``atmosphere`` catalog scenes measure that bias and pin the
 measured value. With Titan's haze the edge stands about 9 px above the 90 px
 radius of the low-phase ``titan_haze_limb`` scene. There the disc correlation
-and the limb DT fit both land 7.9 to 8.7 px off toward the sun and the blob
-centroid 1.3 px off, so on 14 of its 24 measured draws the ensemble reports the
-frame conflicted; on the other 10 it returns a medium-tier success 7.9 px off
-against a sigma of 1.17 px.
+lands 7.35 px off toward the sun, the limb DT fit 8.5 px off, and the blob
+centroid 1.4 px off. On every one of its 16 distinct draws the ensemble returns a
+medium-tier success 7.35 to 7.54 px off against a sigma of 1.07 to 1.17 px, an
+error of 6 to 7 sigma, and the scene holds that error to a band.
+
+The Titan scenes are exposed so that the haze's peak fills as much of the
+detector's range as it does on real frames at a similar phase, and they carry
+the camera's own read noise. The instrument chapters give the frames and the
+levels.
 
 Everything in this paragraph is about *body* navigation against a haze the
 navigator does not model. The scenes that measure it carry a body named
@@ -3312,7 +3338,7 @@ navigator does not model. The scenes that measure it carry a body named
 to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
-is the one that drives that technique; with Titan's haze it lands 0.27 to 0.60 px
+is the one that drives that technique; with Titan's haze it lands 0.41 to 0.46 px
 off along the sun axis, toward the night side, an error that grows with the
 rendered scale height. At high phase the haze is outright hostile: in
 ``titan_crescent_horns`` (155 deg) the haze hides the surface and the only light
@@ -3321,18 +3347,17 @@ above the solid limb. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.24 against the 0.30
-``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands 16 to
-19 px off. The disc correlation, whose hard-limbed template leaves the ring of
-light out, answers on 16 of 24 draws the point (0.5, 1.5) of its half-pixel coarse
-grid, 2.40 px off, a low-tier success, and on the other 8 reads the haze edge as
-the limb, 10.2 px off, a medium-tier success; it does not flag either answer
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands 16.5 to
+18.8 px off. The disc correlation, whose hard-limbed template leaves the ring of
+light out, answers on every draw the point (0.5, 1.5) of its half-pixel coarse
+grid, 2.40 px off, a low-tier success, and it does not flag that answer
 spurious. So the body-witness veto
 (see :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
 nothing to read. The disc correlation sets a low-confidence success, and the
 scene holds its error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
-and phase geometry -- pins both biases deterministically (blob centroid 16.5 px
+and phase geometry -- pins both biases deterministically (blob centroid 17.2 px
 off, disc correlation 2.40 px off), so the ring of light alone drives them. The
 haze evaluation is restricted to the bounding box of the body plus its halo (out
 to a detached shell's reach), so its cost scales with that box rather than the

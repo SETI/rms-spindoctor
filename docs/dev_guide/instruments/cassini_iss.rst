@@ -729,8 +729,22 @@ the real frames and its peak sits up to 48 km lower, and at 149 deg no light
 reaches the anti-sunward side, where the real frame shows 0.028. The likely cause
 of the faint ring is light scattered forward more than once along the long limb
 path, which the renderer's isotropic multiple-scattering term cannot carry
-forward; the dark disc follows from the published albedo above 144 km, 0.92 to
-0.93 in the red, to which the multiply scattered light is sensitive.
+forward. The likely main cause of the dark disc is the multiple-scattering term
+itself: for a semi-infinite layer of the haze at 650 nm lit from straight above,
+the renderer's reflectance runs about 22% below a Monte Carlo simulation's (0.162
+against 0.207 seen at an emission cosine of 0.475, and 0.149 against 0.186 at
+0.975), and at these phases most of the disc's light has scattered more than
+once.
+
+The Titan scenes are exposed from these frames. The haze's peak stands 1933,
+2150, and 2696 DN above the sky on the three frames at 60.6 to 63.1 deg
+(W1552216646, W1552216540, and W1822132529), a median of 2150 DN, and 2787 DN
+above it on W1721822901 at 149.2 deg, the cohort frame nearest 155 deg. The
+low-phase scenes ``titan_haze`` (60 deg) and ``titan_haze_limb`` (40 deg) take
+7.3 s and 7.5 s, which put their haze's peak 2117 and 2114 DN above the sky, and
+``titan_crescent_horns`` and its noiseless twin (155 deg) take 4.1 s, which puts
+the ring of light 2775 DN above it. The noisy scenes carry the narrow angle
+camera's read noise, 12 e-, which is 0.4 DN at the 30 e-/DN of gain state 2.
 
 Image library and test coverage
 ===============================
