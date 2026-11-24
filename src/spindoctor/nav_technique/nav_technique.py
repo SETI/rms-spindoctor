@@ -292,9 +292,19 @@ class NavTechnique(NavBase, ABC):
     confidence_attributes: ClassVar[frozenset[str]] = frozenset()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Auto-register concrete subclasses."""
+        """Auto-register concrete subclasses.
+
+        Raises:
+            TypeError: If a concrete technique declares no ``Tuning``, since the
+                configuration loader could not parse its block.
+        """
         super().__init_subclass__(**kwargs)
         if not cls.__dict__.get('_abstract', False):
+            if not hasattr(cls, 'Tuning'):
+                raise TypeError(
+                    f'{cls.__name__} is registered for autonomous navigation but declares '
+                    'no Tuning, the schema dataclass of its tuning keys'
+                )
             NavTechnique._registry.append(cls)
 
     @abstractmethod

@@ -95,10 +95,10 @@ NavFeatureFactory = Callable[..., NavFeature]
 """Signature of the ``make_*_feature`` factory fixtures (kwargs-flexible)."""
 
 DrawGaussianStarFactory = Callable[..., None]
+"""Signature of the ``draw_gaussian_star`` factory fixture (kwargs-flexible)."""
 
 #: ``retune(technique_class, **changes)``: see the ``retune`` fixture.
 RetuneFactory = Callable[..., None]
-"""Signature of the ``draw_gaussian_star`` factory fixture (kwargs-flexible)."""
 
 
 class FakeObs:

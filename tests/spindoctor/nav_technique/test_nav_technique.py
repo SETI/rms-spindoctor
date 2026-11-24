@@ -15,6 +15,7 @@ from spindoctor.nav_technique.nav_technique import (
     add_size_scaled_model_error,
     filter_technique_names,
 )
+from spindoctor.nav_technique.star_tuning import StarTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 
 
@@ -53,11 +54,23 @@ def test_navtechnique_registry_records_subclass() -> None:
     class _RegistrationProbe(_ConcreteTechniqueForTest):
         name = '_RegistrationProbe'
         _abstract = False
+        Tuning = StarTuning
 
     try:
         assert _RegistrationProbe in NavTechnique._registry
     finally:
         NavTechnique._registry.remove(_RegistrationProbe)
+
+
+def test_registering_a_technique_without_tuning_is_refused() -> None:
+    """A concrete technique that declares no ``Tuning`` fails at its class statement."""
+    with pytest.raises(TypeError, match=r'_NoTuningProbe .* declares no Tuning'):
+
+        class _NoTuningProbe(_ConcreteTechniqueForTest):
+            name = '_NoTuningProbe'
+            _abstract = False
+
+    assert not [cls for cls in NavTechnique._registry if cls.__name__ == '_NoTuningProbe']
 
 
 def test_navtechnique_abstract_subclass_stays_out_of_registry() -> None:
