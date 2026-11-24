@@ -295,8 +295,8 @@ The technique's ``tuning`` keys live in ``techniques.star_field_from_catalog.tun
 ``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
 the schema core parses them into
 :class:`~spindoctor.nav_technique.star_tuning.StarFieldTuning` and refuses a value of the
-wrong type or out of range. Each value lives in the YAML only; the values given below
-are the packaged ones.
+wrong type or out of range. None of them has a default in the code, so the values below
+are the ones in the packaged file.
 
 - ``max_sources`` — int, packaged value ``30`` (count). Maximum number of brightest
   detected sources / brightest catalog stars per side feeding the matcher. Triplet count

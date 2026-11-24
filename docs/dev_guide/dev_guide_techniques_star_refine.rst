@@ -145,8 +145,8 @@ The technique's ``tuning`` keys live in ``techniques.star_refine.tuning`` in
 ``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
 the schema core parses them into
 :class:`~spindoctor.nav_technique.star_tuning.StarRefineTuning` and refuses a value of the
-wrong type or out of range. Each value lives in the YAML only; the values given below
-are the packaged ones.
+wrong type or out of range. None of them has a default in the code, so the values below
+are the ones in the packaged file.
 
 - ``refine_window_px`` — float, packaged value ``6.0`` px. Half-width of the per-star
   refinement window centered on each shifted prediction. Tighter than the unique-match
@@ -176,8 +176,8 @@ are the packaged ones.
   absolute distance from any search-window axis bound falls within this tolerance.
 - ``single_inlier_confidence_cap`` — float, packaged value ``0.5`` (dimensionless).
   Post-sigmoid confidence cap when the refine fit had only one inlier. A 1-star refine
-  carries no independent cross-check beyond the prior it was handed; the cap keeps the
-  technique from outranking a 1-star unique-match on the same observation.
+  has nothing to check itself against except the prior it was handed, and the cap keeps
+  the technique from outranking a 1-star unique-match on the same observation.
 - ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). Fraction
   of :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` at which
   the converged rotation magnitude trips

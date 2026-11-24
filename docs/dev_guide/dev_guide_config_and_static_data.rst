@@ -205,13 +205,13 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
     :class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which in turn holds the keys
     of the shared fit-quality gates
     (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`).
-  - The keys of the model-error terms in a correlation technique's covariance are
-    :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning`: the
-    ring-annulus technique's tuning is that type, and the body-disc technique's type
-    extends it.
+  - :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning` holds the
+    model-error terms of a correlation technique's covariance. The ring-annulus
+    technique's tuning is that type, and the body-disc technique's type extends it.
   - The star techniques' types share
-    :class:`~spindoctor.nav_technique.star_tuning.StarTuning`, the keys of the
-    detection kernel, the centroid box, the detection threshold, and the at-edge tests.
+    :class:`~spindoctor.nav_technique.star_tuning.StarTuning`, which holds the keys of
+    the detection kernel, the centroid box, the detection threshold, and the at-edge
+    tests.
 
 - A technique whose covariance carries a model-error floor declares
   ``model_error_floor_px`` in its tuning, and passes it to
@@ -219,8 +219,8 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
   number for every camera.
 - Each block is keyed by the technique's snake_case key, the one ``logging.techniques``
   uses (:func:`~spindoctor.config.logging_keys.log_key_for`), such as ``body_limb``,
-  ``star_field_from_catalog``, or ``titan_haze``. The technique's ``name``, which
-  results and metadata carry, does not change.
+  ``star_field_from_catalog``, or ``titan_haze``. Results and metadata still identify
+  the technique by its ``name``.
 - The ``terms`` and the ``hard_zero_if`` keys of a block may refer only to the
   diagnostic attributes its technique declares in ``confidence_attributes``. Any other
   attribute is refused at load with the file and key path, as in

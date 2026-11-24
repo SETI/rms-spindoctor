@@ -488,8 +488,8 @@ The technique's ``tuning`` keys live in ``techniques.star_unique_match.tuning`` 
 ``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
 the schema core parses them into
 :class:`~spindoctor.nav_technique.star_tuning.StarUniqueMatchTuning` and refuses a value of the
-wrong type or out of range. Each value lives in the YAML only; the values given below
-are the packaged ones.
+wrong type or out of range. None of them has a default in the code, so the values below
+are the ones in the packaged file.
 
 - ``brightness_margin_to_next_catalog_star_mag`` — float, packaged value ``1.5`` (mag).
   Another usable star within this many magnitudes of a lone star, whose window holds the
@@ -549,7 +549,8 @@ are the packaged ones.
   ``ambiguous_detection`` reason. Values below 1 are invalid.
 - ``one_star_max_peak_sharpness`` — float, packaged value ``7.0``, finite and at least 1.
   Largest ratio of a lone star's brightest-pixel excess to the mean excess of its four
-  edge neighbors, allowing nothing for noise; a sharper source is no lone star.
+  edge neighbors, allowing nothing for noise; a sharper source is not taken for a lone
+  star.
 - ``one_star_absent_stars`` — int, packaged value ``1``, at least 1. A lone star's offset
   is refuted when at least this many other usable stars lie on clear sky in the image
   where it puts them and show nothing there.
