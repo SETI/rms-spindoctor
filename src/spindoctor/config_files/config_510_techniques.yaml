@@ -1120,7 +1120,7 @@ techniques:
       # brightness-anchored trials (rather than the RANSAC's thousands of
       # triplet trials) is what makes a three-inlier lock trustworthy: the
       # trial count, not the inlier count alone, sets the false-lock rate.
-      # false runs the strong-tier RANSAC only.
+      # Set it to false to run the strong-tier RANSAC only.
       wide_offset_enabled: true
       # Minimum inlier count for a wide-offset lock.  Hard floor of 3: two
       # stars cannot cross-check a rigid translation (any single pair
@@ -1167,10 +1167,10 @@ techniques:
       # uniquely bright by a large margin.  A glare field routinely produces
       # peaks brighter than a real faint star, so a frame whose brightest
       # detection is not uniquely dominant (e.g. 1694 vs 1240 DN) correctly
-      # fails this gate and stays unlocked.  Off: the capability is
-      # validated on the sim scenes but held off pending an image-library
-      # false-lock sweep (which needs SPICE holdings the unit suite does not
-      # reach).
+      # fails this gate and stays unlocked.  It is off: the capability is
+      # validated on the sim scenes, but an image-library false-lock sweep
+      # (which needs SPICE holdings the unit suite does not reach) has not
+      # been run.
       wide_offset_one_star_enabled: false
       # Minimum predicted-brightness margin (mag) of the catalog anchor over
       # the next-brightest predictable catalog star for a one-star lock.  A
@@ -1225,7 +1225,7 @@ techniques:
       # once a star is bright enough for the moment's noise to fall below
       # it, so the refinement is applied per star only below an
       # integrated-SNR ceiling; brighter detections keep the moment.
-      # false keeps the moment centroid everywhere.
+      # Set it to false to keep the moment centroid everywhere.
       psf_refine_enabled: true
       # Square box side (px, odd) for the PSF fit and the integrated-SNR
       # estimate around each inlier.
