@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.render.detector.detector_maps import detector_column_map, detector_hot_pixel_map
-from spindoctor.sim.render.detector.pixel_defects import add_hot_pixels
+from spindoctor.sim.render.detector.pixel_defects import HotPixelPopulation, add_hot_pixels
 
 
 def _hot_set(shape: tuple[int, int], fraction: float, detector_id: str) -> set[tuple[int, int]]:
@@ -20,9 +20,8 @@ def test_the_detector_map_ignores_the_scene_seed() -> None:
         electrons = np.zeros((256, 256), dtype=np.float64)
         add_hot_pixels(
             electrons,
-            fraction=0.002,
-            amplitude_e=1.0e4,
-            column_factor=0.0,
+            HotPixelPopulation(fraction=0.002, rate_e_per_sec=1.0e4),
+            exposure_sec=1.0,
             detector_id='gossi',
             rng=np.random.default_rng(seed),
         )
