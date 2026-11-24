@@ -9,11 +9,11 @@ Five top-level sections of the navigator configuration are parsed here:
 - ``titan`` (:class:`TitanSection`): the haze envelope of a body whose atmosphere hides
   its surface, the reliability its feature reports, and the haze fit's tunables.
 - ``satellites``: each planet's satellites, keyed by the planet's SPICE name.
+- ``feature_emission`` (:class:`FeatureEmissionSection`): when the ring model emits one
+  annulus in place of the edges it would trace.
 
 A mapping keyed by planet must name only planets of the ``planets`` section.  That rule
 reads two sections, so :class:`~spindoctor.config.sections.TypedSections` checks it.
-- ``feature_emission`` (:class:`FeatureEmissionSection`): when the ring model emits one
-  annulus in place of the edges it would trace.
 
 Every field without a default is a key whose value lives in the packaged YAML only.
 """
