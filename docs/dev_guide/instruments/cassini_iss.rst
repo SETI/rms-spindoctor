@@ -501,6 +501,41 @@ rate of 2.0e-5 events per pixel per second, a 6 s readout dwell, a 1,000 e-
 deposit scale, and 0.6 native pixels of diffusion; the simulator report's
 artifact-rate table gives the fit's evidence.
 
+**Hot pixels.** The hot-pixel values are fitted on raw 12-bit full-frame dark
+frames, taken with the shutter disabled, at exposures of 0, 10, 32, 100, 320, 560,
+and 1200 s. Each exposure has five to seven frames, and their median removes the
+cosmic rays. The NAC has four such series: COISS_2019 (January 2006), COISS_2041
+(January 2008), COISS_2069 (July 2011), and COISS_2114 (June 2017). The WAC has
+the first two.
+
+* A hot pixel's charge grows in proportion to the exposure from 10 to 1200 s, to
+  within 3%. A frame of zero exposure still holds the charge the hot pixel collects
+  in 0.09 s on the NAC and in 0.10 s on the WAC.
+* The number of pixels hotter than a given rate falls about as one over the rate
+  from 1 to 200 e-/s. That holds for both cameras in every series. The number
+  grows over the mission. On the NAC, 9.6e-4 of the pixels are hotter than 10 e-/s
+  in 2006, 1.4e-3 in 2008, 2.1e-3 in 2011, and 3.0e-3 in 2017. On the WAC the 2006
+  and 2008 figures are 7.3e-4 and 9.9e-4. The published 0.15% of pixels in 2004 and about
+  0.28% by 2008 match the dark frames' count of pixels hotter than about 4 e-/s.
+* The simulated amplitudes are exponentially distributed. The exponential that best
+  fits the 2008 counts from 7.5 to 750 e-/s has a fraction of 6.0e-4 and a mean
+  rate of 143 e-/s on the NAC, and 4.0e-4 and 146 e-/s on the WAC. Those are the
+  rates a 75 e- detection threshold picks out at exposures from 0.1 to 10 s. The
+  fit stays within a factor of 3 of the real counts there. It has too few pixels
+  below 30 e-/s and too many from 75 to 300 e-/s.
+* ``readout_e`` is the mean rate times the zero-exposure time: 13 e- on the NAC
+  and 15 e- on the WAC.
+* The rows read after a hot pixel carry a flat streak. Each charge packet that
+  passes through the hot pixel picks up the charge the hot pixel collects in
+  0.0146 s on the NAC and in 0.0142 s on the WAC, at every exposure, so a full
+  frame takes about 15 s to read. The rows read before a hot pixel carry nothing. ``streak_e`` is the mean
+  rate times that time, 2.1 e- on both cameras.
+* The first three rows after a hot pixel also carry a short trail that grows about
+  as the square root of the hot pixel's charge: 2.5% of the charge on the first
+  row at 1,000 e-, and 0.4% at 70,000 e-. The simulator leaves it out.
+
+The calibrated entries share these values and keep their own ``pixel_fraction``.
+
 **PSF kernels.** ``coiss_nac`` is
 ``{sigma_v: 0.70, sigma_u: 0.70, w: 0.12, r0: 3.0, n: 4.0}``, tuned against the
 image-library cohort's eleven contributing narrow angle star frames: the cohort

@@ -275,6 +275,31 @@ second, a 4.33 s readout dwell (half the full-frame readout), a 6,000 e-
 deposit scale, and 0.4 native pixels of diffusion. The simulator report's
 artifact-rate table gives the fit's evidence.
 
+**Hot pixels.** The hot-pixel values are fitted on raw frames at the 10K gain
+state, 39 e-/DN. A pixel that spikes in at least three frames of a set counts as a
+hot pixel.
+
+* Nine dark frames of zero exposure from volumes GO_0002 and GO_0006 were taken
+  late in 1990 in the 60 2/3 s frame mode, which most of the image-library frames
+  use. Of the 640,000 pixels, 8 hold 300 e- or more, 2 hold 500 e-, and 1
+  holds 1,000 e-. That is an exponential population with a fraction of 9e-5 and a
+  mean of 150 e-, the ``pixel_fraction`` and ``readout_e`` the entry catalogs.
+* 47 dark-sky frames from volumes GO_0007 and GO_0008 were taken on 3 December
+  1992 in the 8 2/3 s frame mode, at exposures from 0.1 to 0.8 s. Their counts are
+  the same at every exposure: 435 pixels at 300 e- or more, 89 at 500 e-, and 6 at
+  1,000 e-. The charge therefore does not come from the exposure, and its mean is
+  about 150 e- here too. A dark rate above 8 e-/s at relative amplitude 1 would have raised the
+  500 e- count by a tenth from 0.1 to 0.8 s, so ``rate_e_per_sec`` is 0. These
+  frames hold about 50 times the hot pixels of the 60 2/3 s frames, a difference
+  the simulator does not model.
+* Longer exposures in these sets use the extended-exposure mode. Its longer frame
+  cycle is not modeled, so those frames are not used.
+* The rows read after a hot pixel carry a flat streak of 1.15% of its charge per
+  row, measured on the 8 2/3 s frames, and the rows read before it carry nothing.
+  ``streak_e`` is 1.15% of 150 e-, which is 1.7 e-.
+* The pixel to the right of a strong hot pixel holds up to a tenth of its charge,
+  a trail along the row that the simulator leaves out.
+
 **Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
