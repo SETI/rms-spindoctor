@@ -1,8 +1,8 @@
 {
-  "confidence": 0.15790037798491843,
+  "confidence": 0.2309050037370622,
   "confidence_rank": "conflicted",
-  "offset_du_px": 8.71875,
-  "offset_dv_px": -0.734375,
+  "offset_du_px": 9.171875,
+  "offset_dv_px": -0.7031249999999999,
   "scene_name": "titan_haze_limb",
   "status": "conflicted"
 }

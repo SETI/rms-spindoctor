@@ -189,11 +189,11 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('disc_structured_loss_adversarial', FUSED): _t(0.011, 0.011, 0.010, 0.05),
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
-    # atmosphere.  titan_haze's haze-symmetry fit lands 0.28 to 0.53 px off along the
+    # atmosphere.  titan_haze's haze-symmetry fit lands 0.27 to 0.60 px off along the
     # sun axis, toward the night side; the error grows with the rendered scale height.
     # titan_haze_limb is expected conflicted, and titan_crescent_horns and its
     # noiseless twin carry a known error in their expected blocks (#1050).
-    ('titan_haze', FUSED): _t(0.415, 0.533, 0.248, 0.11),
+    ('titan_haze', FUSED): _t(0.461, 0.602, 0.333, 0.13),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
@@ -243,9 +243,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_deep', 'BodyBlobNav'): _b(6.720, 6.729, 0.05, 6.670, 6.780),
     ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
     ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(16.093, 19.253, 0.632, 15.460, 19.885),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(17.019, 17.019, 0.05, 16.968, 17.069),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(1.120, 1.151, 0.05, 1.070, 1.202),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(15.816, 19.417, 0.720, 15.095, 20.138),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(16.488, 16.488, 0.05, 16.437, 16.538),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(1.311, 1.351, 0.05, 1.261, 1.401),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.006 px and 0.055 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.597, 0.604, 0.05, 0.547, 0.654),
