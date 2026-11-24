@@ -58,9 +58,10 @@ class EnvironmentSection:
     """The ``environment`` section: where a deployment keeps its files.
 
     No packaged file sets this section, so every key is optional and an absent key reads
-    as None.  A program resolves each location from its command line first, then from
-    here, then from an environment variable; the helpers in
-    :mod:`spindoctor.config.config_helper` apply that order.
+    as None.  A reader resolves each location from its command line, from here, and from
+    an environment variable.  Each reader applies its own order, and the helpers in
+    :mod:`spindoctor.config.config_helper` define the usual one: command line, then this
+    section, then the environment variable.
 
     Parameters:
         pds3_holdings_root: The root directory or URL of the PDS3 holdings that images

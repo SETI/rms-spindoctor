@@ -606,8 +606,9 @@ class Config:
         """Returns the environment section, which says where a deployment keeps its files.
 
         No packaged file sets it, so a location no override names is None.  The helpers
-        in :mod:`spindoctor.config.config_helper` resolve each location from the command
-        line, then from here, then from an environment variable.
+        in :mod:`spindoctor.config.config_helper` define the usual order for a location:
+        the command line, then here, then an environment variable.  A reader may apply
+        its own order; each takes its location from those three places.
         """
 
         return self._parsed().environment
@@ -698,7 +699,7 @@ class Config:
 
     @property
     def offset(self) -> OffsetSection:
-        """Returns the offset section, which sets how finely a correlation resolves its peak."""
+        """Returns the offset section, which sets how finely a correlation resolves a peak."""
 
         return self._parsed().offset
 

@@ -151,9 +151,9 @@ class TreeRecordSource:
             must not acquire a voice its own caller did not configure has none
             to lend.
         tuning: How much of a pass over the documents runs at once, as the
-            program read it from its configuration.  Over a remote root it is held down to what the
-            open-file limit allows, which bounds how large a batch may be
-            retrieved; over local roots alone it is used as given.
+            program read it from its configuration.  Over a remote root it is held
+            down to what the open-file limit allows, which bounds how large a batch
+            may be retrieved; over local roots alone it is used as given.
 
     Raises:
         ValueError: If no root is given, or if one of them is not a location.
