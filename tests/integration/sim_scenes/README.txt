@@ -54,7 +54,8 @@ Scene classes
                                 star scattered off catalog, or a lone star drowned
                                 in clutter); each carries an ``expected`` block
                                 asserted by the sim expected-outcome machinery
-  full_frame_cameras          - one realistic frame per cataloged camera: the
+  full_frame_cameras          - one realistic frame per camera it covers (not
+                                every cataloged camera has one): the
                                 camera's real frame size, its detector chain on,
                                 a realistic exposure, a pointing error the size
                                 real frames carry, and the camera's measured
