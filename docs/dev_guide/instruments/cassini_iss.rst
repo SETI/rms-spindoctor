@@ -647,6 +647,83 @@ kernels and do not depend on this instrument's holdings, but the
 angular-velocity measurement quoted above was made against the real
 reconstructed kernel ``04002_04009ra.bc``.
 
+**Simulator guard scenes.** The ``full_frame_cameras`` scene class (see
+:ref:`sim-full-frame-cameras`) holds five scenes of this instrument, each at the
+full 1024 px frame. The offsets lie within the range of real pointing errors on
+each camera, most of them near its upper end. The narrow angle scenes plant the
+measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
+
+- ``coiss_nac_star_field``: a raw narrow angle star field, 18 stars of V 8.7 to
+  11.4 at 2 s, offset 39 px. The star-field technique matches the catalog
+  against the 30 brightest sources it detects. The frame's cosmic rays crowd
+  the stars out of that list, so the technique finds one match where it needs
+  six and returns spurious. With the cosmic rays turned off it finds the offset
+  to 0.02 px, hot pixels and all. The single-star and refinement techniques
+  carry the answer, 0.01 to 0.23 px off over 16 seeds.
+
+  The scene renders its stars through the clear filter, though the real frame
+  it follows was taken through CL1+IR3. Through CL1+IR3 the simulator dims each
+  star by the filter's throughput for sunlight, 22 times, and the frame fails at
+  2 s, where the real frame navigates. The real frame's stars are about 50 times
+  brighter than the simulator draws them through that filter, and about twice
+  as bright as it draws them through the clear filter.
+- ``coiss_calib_nac_disc``: a calibrated narrow angle frame of a moon 280 px
+  across, offset 57 px. The answer lands 0.09 to 0.10 px off.
+- ``coiss_wac_disc``: a raw wide angle frame of a moon 128 px across, offset
+  13 px. The disc correlation finds the offset to 0.09 px but marks it
+  spurious, because it lies within 2 px of the edge of the 13 px search window.
+  The limb fit carries the frame at low confidence, 0.13 to 0.17 px off, and
+  the scene's expected block holds the low tier.
+- ``coiss_calib_wac_star_field``: a calibrated wide angle star field, 95 stars
+  of V 7.4 to 10.4 at 26 s, offset 12 px. The answer lands 0.01 to 0.03 px off.
+- ``coiss_calib_wac_star_field_large_offset``: the same field with the offset at
+  the largest real per-axis extent, 12.4 px. Both star techniques find the
+  offset to within 0.06 px, but an answer within 1 px of the 13 px search limit
+  has its confidence set to zero, so the frame is refused. The scene's expected
+  block holds the failure.
+
+**Simulator ring guard scenes.** The ``dense_rings`` scene class (see
+:ref:`sim-dense-rings`) holds five full-size narrow angle frames of the main
+rings. Each has a pointing error of 27 to 34 px and the camera's measured twist
+of 0.0115 degrees, with roll fitting off as the camera ships.
+
+- ``keeler_gap_unlit_ansa`` draws the Keeler gap at 0.338 km/px on the unlit face,
+  near the ansa, beside 453 one-kilometer bins of a radial profile measured on a
+  library frame. The edge fit lands about 3.5 px off along the nearly straight
+  edges and reports a sigma near 0.1 px. With one uniform sheet in place of the
+  profile it lands about 1.2 px off, so the profile carries most of the error.
+- ``a_ring_edge_f_ring`` draws the outer A ring at 10 km/px with the F ring 345 px
+  outside the A ring's edge and the Encke gap's central ringlet inside the gap.
+  Neither pulls the fit.
+- ``a_ring_low_opening`` draws the same rings at a ring opening of 2.5 degrees.
+  The edges become nested hairpins about the ansa, and along their arms the
+  rings' radial direction is squeezed to about a twentieth of its length. The
+  Keeler gap, 3.7 px wide at the ansa, is under a pixel wide over most of its arc,
+  and fitting both of its edges puts the answer 0.84 px off at a sigma under
+  0.06 px.
+- ``maxwell_hidden_eccentricity`` draws the Maxwell ringlet with its measured
+  eccentricity while the navigator's orbit for it is circular. The fit follows the
+  drawn ringlet, about 5 px inward of the circular orbit, and ends 6.8 px off at a
+  sigma under 0.1 px. The annulus correlation, pulled by the same ringlet, lands
+  11.8 px off without flagging it. The two answers disagree, and the frame is
+  returned as conflicted.
+- In ``b_ring_saturated_plateau`` a 12 s exposure saturates the B ring into a flat
+  plateau beside the Huygens gap, with the Herschel and Russell gaps in the
+  Cassini Division beyond it. The saturated edge pulls the answer 0.06 px farther
+  out across the edges than the same frame unsaturated, which is five times the
+  reported sigma.
+
+Turning a frame about the boresight slides a curved ring edge along itself by
+about the twist angle times the edge's radius of curvature on the sky. For the A
+ring at 10 km/px that is about 0.26 px, and the navigator's reported sigma leaves
+it out: with the twist removed, ``a_ring_edge_f_ring`` lands 0.039 px off. The
+twist is not what puts the other scenes above three sigma. Without it they still
+sit at 5.5 sigma (the saturated B ring), 25 sigma (the Keeler gap), 17 sigma (the
+low opening), and 144 sigma (the hidden eccentricity). Where the along-edge answer
+is weakly determined, as at the Keeler gap, the twist moves it by more than a
+slide would, in a direction that depends on the twist's sign. Rendering and
+navigating one of these frames takes 6 to 40 seconds.
+
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.
 

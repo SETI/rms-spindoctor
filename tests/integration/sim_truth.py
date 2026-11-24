@@ -27,8 +27,10 @@ The two rules.
   jitter between machines; the proportional part covers seeds the measurement did not
   sample.  An entry in :data:`TRUTH_TOLERANCES` records the error on the committed seed,
   the largest error, the spread (largest minus smallest), and the margin.
-* **A known wrong answer** is wrong for a reason an issue explains.  It is held to a band
-  around its known error, so a fix shows up as a deliberate change.  A known error is a
+* **A known wrong answer** is wrong for a reason an issue explains, or by design, where
+  the scene plants an error the technique cannot see, such as a wrong body ephemeris.
+  It is held to a band around its known error, so a fix, or a scene that loses its
+  planted error, shows up as a deliberate change.  A known error is a
   bias, and its spread over the seeds is its noise, so the margin scales with the spread.
   The margin is max(0.05 px, a fifth of the spread).  The band runs from the smallest
   error minus the margin to the largest error plus the margin, with each end rounded
@@ -75,7 +77,10 @@ VALIDATION_CLASSES: frozenset[str] = frozenset(
         'algorithmic_invariants',
         'artifact_sweep',
         'atmosphere',
+        'dense_rings',
         'expected_fail',
+        'full_frame_cameras',
+        'mixed_content',
         'multi_body_geometry',
         'mutual_event',
         'regression',
@@ -84,6 +89,18 @@ VALIDATION_CLASSES: frozenset[str] = frozenset(
     }
 )
 """The scene classes that check accuracy on a frame.  The remaining classes are sweeps."""
+
+OWN_MODULE_CLASSES: frozenset[str] = frozenset(
+    {'dense_rings', 'full_frame_cameras', 'mixed_content'}
+)
+"""The validation classes that a test module of their own navigates.
+
+These classes hold full-frame scenes.  Each class's module, ``test_sim_<class>.py``,
+builds its tests with :func:`~tests.integration.sim_scene_checks.scene_class_tests`,
+which navigates every scene once and applies all of the scene's checks to that one
+result.  ``test_sim_truth_checks``, ``test_sim_expected``, and ``test_sim_baselines``
+leave these classes out of their navigation and keep their checks that need none.
+"""
 
 
 @dataclass(frozen=True)
@@ -195,6 +212,42 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # expected blocks instead (#1050).
     ('titan_haze', FUSED): _t(0.046, 0.063, 0.020, 0.05),
     ('titan_haze_limb', FUSED): _t(0.008, 0.014, 0.006, 0.05),
+    # full_frame_cameras.  On these scenes a noise_seed draw gives the same answer as the
+    # random_seed of the same value: random_seed reaches the noise and, apart from that,
+    # only the fixed-pattern and sky streams, which change a few pixels of the render.
+    # The unfit twist sets the larger errors on the star fields and the Galileo disc,
+    # since a translation follows the turned stars or disc it measures.  The roll turns
+    # the scene about the boresight, the frame center after the offset.  In
+    # nhlorri_star_field the +0.19 deg twist moves the four measured stars' mean
+    # position, about 280 px from the boresight, by about 0.94 px.  gossi_star_field
+    # lands 0.05 px off with its twist and 0.02 px off without it, and gossi_disc
+    # 0.17 px off with its twist and 0.04 px off without it.  coiss_wac_disc's error is
+    # the limb fit's own: 0.16 px with the roll, 0.17 px without.  The three
+    # short-exposure and large-offset scenes fail as their expected blocks declare
+    # (#342, #785, #1153).
+    ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
+    ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
+    ('coiss_nac_star_field', FUSED): _t(0.017, 0.231, 0.220, 0.05),
+    ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
+    ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
+    ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
+    ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),
+    # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
+    # stars put it, and the fused answer lies between the two, 0.16 to 0.26 px from the
+    # truth toward the body; the tolerance stays well below the body's own 1.81 px
+    # error.  In crescent_stars the fused answer follows the stars, a little off the
+    # disc's 0.01 px.  moon_over_ring_sheet is expected to conflict (#755).
+    # saturn_rings_wac follows its ring edges.
+    ('crescent_stars', FUSED): _t(0.013, 0.179, 0.166, 0.05),
+    ('saturn_rings_wac', FUSED): _t(0.101, 0.101, 0.070, 0.05),
+    ('stars_body_ephemeris_error', FUSED): _t(0.220, 0.258, 0.100, 0.06),
+    # mixed_content, one technique read from the fused run.  StarRefineNav starts from
+    # the body's pass-1 answer, which carries the planted 1.81 px error, and still lands
+    # within 0.12 px of the truth, with the same answer on every draw as with the planted
+    # error removed.  This row holds the star side of the scene: a refinement that
+    # followed its start would land near 1.8 px off and fail here, while the fused
+    # tolerance alone would pass one that followed it part way.
+    ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.023, 0.113, 0.107, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
@@ -247,13 +300,34 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('titan_crescent_horns', 'BodyBlobNav'): _b(25.091, 25.123, 0.05, 25.041, 25.174),
     ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.151, 25.151, 0.05, 25.100, 25.201),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.474, 1.482, 0.05, 1.424, 1.532),
+    ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.942, 1.543, 0.1202, 0.821, 1.664),
+    ('saturn_rings_wac', 'BodyBlobNav'): _b(6.863, 6.879, 0.05, 6.812, 6.929),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.006 px and 0.055 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.597, 0.604, 0.05, 0.547, 0.654),
     ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.794, 1.850, 0.05, 1.744, 1.900),
+    # The annulus correlation lands 0.58 px off on the saturated B ring, unflagged; the
+    # saturated edge (#1145) and the unfit twist (#1143) share the edge fit's error.
+    ('b_ring_saturated_plateau', 'RingAnnulusNav'): _b(0.573, 0.579, 0.05, 0.522, 0.629),
+    # The edge fit follows a ringlet drawn eccentric while the navigator's orbit is
+    # circular, 6.8 px off at a sigma near 0.06 px (#1144).  The annulus correlation,
+    # pulled by the same ringlet, lands 11.8 px off and does not flag it, so the
+    # two disagree and the frame conflicts.
+    ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
+    ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
+    # RingEdgeNav slides 8.4 to 9.3 px along gently curved arcs, with a sigma along them
+    # near 0.1 px (#755).
+    ('moon_over_ring_sheet', 'RingEdgeNav'): _b(8.432, 9.252, 0.1641, 8.267, 9.417),
+    # These two are wrong by design.  The scene plants a spacecraft-ephemeris error
+    # (spk_error) that moves the body 1.81 px from where the pointing puts it, and the
+    # body techniques answer the pointing plus that error.  The bands hold the planted
+    # error, so the scene fails if it stops reaching the body techniques: without it
+    # they land 0.03 px and 0.09 to 0.10 px off.
+    ('stars_body_ephemeris_error', 'BodyDiscCorrelateNav'): _b(1.811, 1.811, 0.05, 1.761, 1.862),
+    ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(1.831, 1.836, 0.05, 1.781, 1.887),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
     ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.029, 5.088, 0.05, 4.979, 5.138),
@@ -277,6 +351,16 @@ SIGMA_BANDS: dict[str, KnownErrorBand] = {
     'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
     'planted_rotation_star_field': _b(16.333, 16.447, 0.1, 16.233, 16.547),
+    # dense_rings.  RingEdgeNav lands about 3.4 px off along nearly straight edges at a
+    # sigma of 0.033 to 0.12 px (#755).
+    'keeler_gap_unlit_ansa': _b(27.066, 32.797, 1.1461, 25.920, 33.943),
+    # The saturated edge reads farther out than the same edge unsaturated, and the
+    # reported sigma does not cover it (#1145).
+    'b_ring_saturated_plateau': _b(5.353, 5.384, 0.1, 5.253, 5.485),
+    # At a ring opening of 2.5 degrees the Keeler gap is resolved only near the ansa,
+    # and fitting its two edges puts the answer 0.84 px off at a sigma of 0.023 to
+    # 0.051 px (#1152).
+    'a_ring_low_opening': _b(15.877, 17.969, 0.4185, 15.458, 18.388),
 }
 
 # The planted roll is recovered 0.018 to 0.020 deg short over the seeds; the margin is
