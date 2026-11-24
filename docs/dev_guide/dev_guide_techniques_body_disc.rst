@@ -318,13 +318,13 @@ Configuration
 =============
 
 All tunables for this technique live in ``techniques.body_disc_correlate.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``. The schema core parses them
-into :class:`~spindoctor.nav_technique.correlation_tuning.BodyDiscTuning` when the
-configuration loads, so each value's type and range are checked there, and the technique
-reads them as ``self.tuning.<key>``. The last three keys below are the covariance terms
-every correlation technique holds
-(:class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning`). Each value lives in
-the YAML only; the values given below are the packaged ones.
+``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
+the schema core parses them into
+:class:`~spindoctor.nav_technique.correlation_tuning.BodyDiscTuning`, which checks each
+value's type and range. The technique reads them as ``self.tuning.<key>``. The last three
+keys below are the covariance terms this technique shares with the ring-annulus technique
+(:class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning`). None of them
+has a default in the code, so the values below are the ones in the packaged file.
 
 - ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). When
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true, the

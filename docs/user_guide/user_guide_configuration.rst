@@ -147,6 +147,10 @@ A setting you do not want to change is left out of your file. A setting written 
 value, or as ``null``, is refused when the file is read, and the message gives the file
 and the setting. Your file cannot unset a default. It can only give it another value.
 
+When your file is read, a setting that SpinDoctor does not know, or a value it cannot
+use, such as a fraction above 1 or a star count of 0, is refused too, and the message
+gives the file and the setting.
+
 Writing your own default file
 =============================
 
@@ -274,9 +278,8 @@ equivalent. All the rest correspond to a key in the ``logging`` section.
 names, the keys of the ``logging`` section, and which setting wins when two of them set
 the same component.
 
-Every setting in the ``logging`` section is checked when your file is read. An unknown
-setting, component, or program, or a level that is not one of the six, is refused, and
-the message gives the file and the setting.
+In the ``logging`` section, a component or program that SpinDoctor does not know, or a
+level that is not one of the six, is refused.
 
 Acceptance thresholds
 =====================
@@ -307,15 +310,10 @@ than the defaults assume. The confidence and the tier that navigation settled on
 image are recorded in that image's metadata document; see
 :doc:`/user_guide/user_guide_metadata`.
 
-Every setting in the ``orchestrator`` section is checked when your file is read, and so is
-every setting in the ``body_blob``, ``body_disc_correlate``, ``body_limb``,
-``body_terminator``, ``ring_annulus``, and ``ring_edge`` blocks of the ``techniques``
-section. A setting that navigation does not know, or a value it cannot use, such as a
-confidence above 1, is refused, and the message gives the file and the setting. In the
-other technique blocks, the settings inside ``tuning`` are checked only for being numbers,
-so a misspelled one there is not refused; every other setting is checked. A technique
-block whose key navigation does not know is refused too. Spell each block key as the
-``techniques`` entry above gives it.
+Spell each technique block's key as the ``techniques`` entry above gives it. In the
+blocks other than ``body_blob``, ``body_disc_correlate``, ``body_limb``,
+``body_terminator``, ``ring_annulus``, and ``ring_edge``, a setting inside ``tuning`` must
+be a number, but a misspelled one is not refused.
 
 What a run records about its own configuration
 ==============================================

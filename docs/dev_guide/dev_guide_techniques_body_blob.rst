@@ -208,11 +208,11 @@ Configuration
 =============
 
 All tunables for this technique live in ``techniques.body_blob.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``. The schema core parses them
-into :class:`~spindoctor.nav_technique.correlation_tuning.BodyBlobTuning` when the
-configuration loads, so each value's type and range are checked there, and the technique
-reads them as ``self.tuning.<key>``. Each value lives in the YAML only; the values given
-below are the packaged ones.
+``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
+the schema core parses them into
+:class:`~spindoctor.nav_technique.correlation_tuning.BodyBlobTuning`, which checks each
+value's type and range. The technique reads them as ``self.tuning.<key>``. None of them
+has a default in the code, so the values below are the ones in the packaged file.
 
 - ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. A converged offset whose
   absolute distance from any search-window axis bound falls within this tolerance is
