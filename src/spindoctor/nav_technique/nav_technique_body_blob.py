@@ -30,6 +30,7 @@ from spindoctor.feature.feature import NavFeature, body_names_from_features
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyBlobGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
+from spindoctor.nav_technique.correlation_tuning import BodyBlobTuning
 from spindoctor.nav_technique.diagnostics import BodyBlobDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
@@ -41,7 +42,6 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.schema import SCHEMA_CONFIG, NonNeg
 from spindoctor.support.noise_estimate import (
     NOISE_CLIP_SIGMA,
     estimate_background_and_sky_sigma,
@@ -51,7 +51,7 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['BodyBlobNav', 'BodyBlobTuning']
+__all__ = ['BodyBlobNav']
 
 
 @dataclass(frozen=True)
@@ -682,27 +682,6 @@ def _joint_covariance(
     var_v = max(chi2_nu_v / total_weight, floor) + model_error
     var_u = max(chi2_nu_u / total_weight, floor) + model_error
     return np.diag([var_v, var_u]).astype(np.float64)
-
-
-@dataclass(frozen=True)
-class BodyBlobTuning:
-    """The tuning keys of :class:`BodyBlobNav`.
-
-    Parameters:
-        at_edge_tolerance_px: Pixels of slack around the search-window bounds for the
-            at-edge test.
-        model_error_size_frac: The bias of the brightness-weighted centroid (lit
-            hemisphere, irregular shape), which the photon-only per-blob CRLB cannot
-            see, as a fraction of the body radius.
-        model_error_floor_px: The model-error floor in pixels, added in quadrature to
-            the joint translation covariance.
-    """
-
-    __pydantic_config__ = SCHEMA_CONFIG
-
-    at_edge_tolerance_px: NonNeg
-    model_error_size_frac: NonNeg
-    model_error_floor_px: NonNeg
 
 
 class BodyBlobNav(NavTechnique):

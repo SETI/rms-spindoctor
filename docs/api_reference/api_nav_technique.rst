@@ -56,6 +56,11 @@ spindoctor.nav_technique
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_technique.correlation_tuning
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_technique.nav_technique_body_disc
    :members:
    :undoc-members:

@@ -307,15 +307,15 @@ than the defaults assume. The confidence and the tier that navigation settled on
 image are recorded in that image's metadata document; see
 :doc:`/user_guide/user_guide_metadata`.
 
-Every setting in the ``orchestrator`` section is checked when your file is read, and so
-is every setting in the ``body_blob``, ``body_disc_correlate``, ``body_limb``,
+Every setting in the ``orchestrator`` section is checked when your file is read, and so is
+every setting in the ``body_blob``, ``body_disc_correlate``, ``body_limb``,
 ``body_terminator``, ``ring_annulus``, and ``ring_edge`` blocks of the ``techniques``
-section. A setting that navigation does not know, or a value it cannot
-use, such as a confidence above 1, is refused, and the message gives the file and the
-setting. In the other technique blocks, the settings inside ``tuning`` are checked only
-for being numbers, so a misspelled one there is not refused; every other setting is
-checked. A technique block whose key navigation does not know is refused too. Spell each
-block key as the ``techniques`` entry above gives it.
+section. A setting that navigation does not know, or a value it cannot use, such as a
+confidence above 1, is refused, and the message gives the file and the setting. In the
+other technique blocks, the settings inside ``tuning`` are checked only for being numbers,
+so a misspelled one there is not refused; every other setting is checked. A technique
+block whose key navigation does not know is refused too. Spell each block key as the
+``techniques`` entry above gives it.
 
 What a run records about its own configuration
 ==============================================

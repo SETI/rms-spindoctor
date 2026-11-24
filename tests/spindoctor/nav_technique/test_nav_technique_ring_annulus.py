@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import numpy as np
@@ -13,8 +14,8 @@ from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import RingAnnulusFlags
 from spindoctor.feature.geometry import RingAnnulusGeometry
+from spindoctor.nav_technique.correlation_tuning import NCCCovarianceTuning
 from spindoctor.nav_technique.diagnostics import RingAnnulusDiagnostics
-from spindoctor.nav_technique.nav_technique import NCCCovarianceTuning
 from spindoctor.nav_technique.nav_technique_ring_annulus import (
     RingAnnulusNav,
     _annulus_orbit_channel,
@@ -507,6 +508,40 @@ def test_ring_annulus_model_error_floor_inflates_covariance(
     cov_floored = RingAnnulusNav().navigate([feature], context).covariance_px2
     for axis in (0, 1):
         assert cov_floored[axis, axis] == pytest.approx(cov_bare[axis, axis] + 1.5**2, rel=1e-9)
+
+
+def test_ring_annulus_passes_the_localization_scale_to_the_correlator(
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tuning's localization scale reaches the correlator that adds the term.
+
+    The correlator adds ``(scale * consistency)**2`` to the translation diagonal, so
+    a scale the technique drops would leave that term out of the covariance.
+    """
+    shape = (180, 180)
+    image_center = (90.0, 90.0)
+    image = _render_annulus_image(shape, image_center, 14.0, 28.0)
+    feature = _make_annulus_feature(
+        'SATURN',
+        extfov_shape=shape,
+        image_center_vu=image_center,
+        inner_radius=14.0,
+        outer_radius=28.0,
+        planted_offset_vu=(2.0, -3.0),
+    )
+    scales: list[float] = []
+
+    def _spy(*args: Any, **kwargs: Any) -> Any:
+        scales.append(kwargs['localization_uncertainty_scale'])
+        return navigate_with_pyramid_kpeaks(*args, **kwargs)
+
+    technique = RingAnnulusNav()
+    tuning = dataclasses.replace(technique.tuning, localization_uncertainty_scale=1.7)
+    monkeypatch.setattr(RingAnnulusNav, 'tuning', tuning)
+    monkeypatch.setattr(annulus_module, 'navigate_with_pyramid_kpeaks', _spy)
+    technique.navigate([feature], make_nav_context(image, extfov_margin_vu=(16, 16)))
+    assert scales == [1.7]
 
 
 def _closed_ring_normals(count: int) -> NDArrayFloatType:

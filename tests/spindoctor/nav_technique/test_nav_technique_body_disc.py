@@ -404,6 +404,43 @@ def _navigate_with_cov_terms(
     return np.asarray(BodyDiscCorrelateNav().navigate([feature], context).covariance_px2)
 
 
+def _consistency_tol(monkeypatch: pytest.MonkeyPatch, *, fraction: float, max_px: float) -> float:
+    """Return the consistency cap for a 56 px disc under the given tuning.
+
+    Parameters:
+        monkeypatch: Installs the tuning on :class:`BodyDiscCorrelateNav`.
+        fraction: The migration allowed per pixel of body extent.
+        max_px: The least cap in pixels.
+
+    Returns:
+        The cap in pixels.
+    """
+    tuning = dataclasses.replace(
+        BodyDiscCorrelateNav().tuning,
+        consistency_max_fraction_of_diameter=fraction,
+        consistency_max_px=max_px,
+    )
+    monkeypatch.setattr(BodyDiscCorrelateNav, 'tuning', tuning)
+    feature = _make_disc_feature(
+        'moonA', extfov_shape=(160, 160), image_center_vu=(80.0, 80.0), radius=20.0
+    )
+    return BodyDiscCorrelateNav()._consistency_tol_for([feature])
+
+
+def test_consistency_tol_takes_the_scaled_cap_when_it_is_larger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A large body's cap is its extent times the fraction, above the least cap."""
+    assert _consistency_tol(monkeypatch, fraction=0.1, max_px=5.0) == pytest.approx(5.6)
+
+
+def test_consistency_tol_takes_the_least_cap_when_it_is_larger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A small body's cap is the least cap, above its extent times the fraction."""
+    assert _consistency_tol(monkeypatch, fraction=0.01, max_px=5.0) == pytest.approx(5.0)
+
+
 def test_body_disc_model_error_floor_inflates_covariance(
     disc_image: DiscImageFactory,
     make_nav_context: NavContextFactory,

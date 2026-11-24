@@ -739,7 +739,8 @@ also yields a useful quality signal: if the winning position moves as the resolu
 improves, the answer is genuinely less well localized, and the reported uncertainty is
 widened accordingly. How far the position may move between scales before the answer is
 called inconsistent is the larger of
-``techniques.body_disc_correlate.tuning.consistency_max_px``, 4 pixels by default, and
+``techniques.body_disc_correlate.tuning.consistency_max_px``, which is 4 pixels in the
+packaged settings, and
 ``techniques.body_disc_correlate.tuning.consistency_max_fraction_of_diameter`` times the
 body's diameter in pixels. The technique also chooses for itself, per image,
 whether to correlate raw brightness or brightness gradients, running both and keeping the

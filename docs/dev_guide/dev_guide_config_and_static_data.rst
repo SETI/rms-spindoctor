@@ -139,7 +139,7 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
   the shared fit-quality gates
   (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`). The keys of the
   model-error terms in a correlation technique's covariance are
-  :class:`~spindoctor.nav_technique.nav_technique.NCCCovarianceTuning`: the ring-annulus
+  :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning`: the ring-annulus
   technique's tuning is that type, and the body-disc technique's type extends it.
 - The block of a technique that declares ``Tuning`` is keyed by the technique's
   snake_case key, the one ``logging.techniques`` uses

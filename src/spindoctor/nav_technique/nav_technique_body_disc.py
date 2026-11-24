@@ -30,18 +30,17 @@ from spindoctor.feature.feature import NavFeature, body_names_from_features
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyDiscGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
+from spindoctor.nav_technique.correlation_tuning import BodyDiscTuning
 from spindoctor.nav_technique.diagnostics import BodyDiscDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     ROTATION_UNOBSERVABLE_VARIANCE,
     NavTechnique,
-    NCCCovarianceTuning,
     add_size_scaled_model_error,
     log_confidence_breakdown,
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Unit
 from spindoctor.support.correlate import (
     gradient_magnitude,
     navigate_with_pyramid_kpeaks,
@@ -55,7 +54,7 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['BodyDiscCorrelateNav', 'BodyDiscTuning']
+__all__ = ['BodyDiscCorrelateNav']
 
 # Measured against strong star solutions on 76 real disc frames, 69 of them Cassini
 # narrow-angle, the high-pass refinement lowered the narrow-angle median per-axis error of
@@ -300,31 +299,6 @@ def _composite_pivot_vu(features: list[NavFeature]) -> tuple[float, float]:
     return float(cv), float(cu)
 
 
-@dataclass(frozen=True)
-class BodyDiscTuning(NCCCovarianceTuning):
-    """The tuning keys of :class:`BodyDiscCorrelateNav`, beyond its covariance terms.
-
-    Parameters:
-        rotation_at_edge_fraction: The fraction of the largest allowed rotation at
-            which the best rotation candidate trips the at-edge flag.
-        consistency_max_fraction_of_diameter: The inter-pyramid peak migration
-            allowed per pixel of the largest body's extent before the result is
-            spurious.
-        consistency_max_px: The least migration cap in pixels, whatever the body's
-            size.
-        refine_lowpass_sigma_px: The sigma in pixels of the Gaussian low-pass applied
-            to both surfaces in the full-resolution sub-pixel refinement; 0 disables
-            it.
-    """
-
-    __pydantic_config__ = SCHEMA_CONFIG
-
-    rotation_at_edge_fraction: Unit
-    consistency_max_fraction_of_diameter: NonNeg
-    consistency_max_px: NonNeg
-    refine_lowpass_sigma_px: NonNeg
-
-
 class BodyDiscCorrelateNav(NavTechnique):
     """Body-disc full-disc NCC translation fit (multi-body, Z-buffer paint).
 
@@ -460,7 +434,7 @@ class BodyDiscCorrelateNav(NavTechnique):
                     use_gradient='auto',
                     refine_lowpass_sigma_px=self.tuning.refine_lowpass_sigma_px,
                     final_refinement=_FINAL_REFINEMENT,
-                    localization_uncertainty_scale=(self.tuning.localization_uncertainty_scale),
+                    localization_uncertainty_scale=self.tuning.localization_uncertainty_scale,
                     logger=self.logger,
                 )
             dv = float(ncc_result['offset'][0])

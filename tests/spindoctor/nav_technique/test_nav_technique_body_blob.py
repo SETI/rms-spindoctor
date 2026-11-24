@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import Any, cast
 
@@ -32,6 +33,7 @@ from spindoctor.nav_technique.nav_technique_body_blob import (
     _shift_bbox,
 )
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
+from spindoctor.support.types import NDArrayFloatType
 
 
 def _make_blob_feature(
@@ -152,6 +154,49 @@ def test_body_blob_recovers_planted_offset_single_blob(
     # Hard cap at 0.4 — the technique cannot dominate the ensemble
     # even with perfect inputs.
     assert result.confidence <= 0.4 + 1e-12
+
+
+def _blob_covariance(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    floor_px: float,
+) -> NDArrayFloatType:
+    """Navigate one blob with the given model-error floor and no size term.
+
+    Parameters:
+        disc_image: Renders the disc.
+        make_nav_context: Builds the navigation context.
+        monkeypatch: Installs the tuning on :class:`BodyBlobNav`.
+        floor_px: The model-error floor in pixels.
+
+    Returns:
+        The result's covariance.
+    """
+    image = disc_image((200, 200), (100.0, 100.0), 8.0)
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(98.0, 103.0), predicted_diameter_px=16.0
+    )
+    # The technique is built first, so the tuning the test replaces is the class's own.
+    tuning = dataclasses.replace(
+        BodyBlobNav().tuning, model_error_size_frac=0.0, model_error_floor_px=floor_px
+    )
+    monkeypatch.setattr(BodyBlobNav, 'tuning', tuning)
+    result = BodyBlobNav().navigate([feature], make_nav_context(image))
+    return np.asarray(result.covariance_px2)
+
+
+def test_body_blob_model_error_floor_inflates_covariance(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tuning's floor, not its size fraction, adds its square to the diagonal."""
+    cov_bare = _blob_covariance(disc_image, make_nav_context, monkeypatch, floor_px=0.0)
+    cov_floored = _blob_covariance(disc_image, make_nav_context, monkeypatch, floor_px=1.5)
+    for axis in (0, 1):
+        assert cov_floored[axis, axis] == pytest.approx(cov_bare[axis, axis] + 1.5**2, rel=1e-9)
 
 
 def test_body_blob_multi_body_least_squares_average(

@@ -12,7 +12,6 @@ from __future__ import annotations
 import fnmatch
 import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 import numpy as np
@@ -23,7 +22,6 @@ from spindoctor.nav_technique.confidence import ConfidenceBreakdown, ConfidenceS
 from spindoctor.nav_technique.diagnostics import NavTechniqueDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.schema import SCHEMA_CONFIG, NonNeg
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.nav_base import NavBase
 from spindoctor.support.types import NDArrayFloatType
@@ -32,9 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = [
-    'ROTATION_AT_EDGE_FRACTION',
     'ROTATION_UNOBSERVABLE_VARIANCE',
-    'NCCCovarianceTuning',
     'NavTechnique',
     'add_model_error_floor',
     'add_size_scaled_model_error',
@@ -61,25 +57,6 @@ technique contributes no rotation constraint to the precision-weighted
 merge.  A literal ``+inf`` would break covariance validation
 (``np.linalg.eigvalsh`` returns NaN for non-finite matrices), so this
 finite sentinel is preferred.
-"""
-
-
-ROTATION_AT_EDGE_FRACTION: float = 0.95
-"""Default fraction of ``max_rotation_deg`` at which the rotation
-parameter trips the technique's ``at_edge`` flag.
-
-When the converged ``|theta|`` exceeds
-``rotation_at_edge_fraction * max_rotation_deg`` the LM (or Procrustes /
-NCC pyramid) is reporting a rotation right against the configured cap,
-which usually signals that the cap is too tight or the geometry is
-unobservable in the rotation direction.
-
-Each 3-DoF technique reads its threshold from
-``config_510_techniques.yaml`` under
-``techniques.<key>.tuning.rotation_at_edge_fraction``; this constant
-is the documented default that ships in the YAML.  Re-exported so
-tests and downstream tools can reference the canonical default
-without re-reading the YAML.
 """
 
 
@@ -457,44 +434,6 @@ def add_model_error_floor(covariance: NDArrayFloatType, floor_px: float) -> NDAr
     out[0, 0] += floor_px**2
     out[1, 1] += floor_px**2
     return out
-
-
-@dataclass(frozen=True)
-class NCCCovarianceTuning:
-    """The tuning keys of the model-error terms folded into an NCC covariance.
-
-    The bare peak-curvature (matched-filter) covariance measures only the
-    statistical precision at the correlation peak.  On a well-matched
-    template that precision is far smaller than the true registration error,
-    which is dominated by silhouette / photometric model error and by
-    localization ambiguity.  Three quadrature terms restore calibration:
-
-    - ``localization_uncertainty_scale`` multiplies the inter-pyramid-level
-      peak migration (applied inside the correlator, carried here for
-      completeness of the covariance model).
-    - ``model_error_size_frac`` scales a body / template size in pixels into
-      a size-proportional silhouette-error sigma (a coherent shape mismatch
-      displaces the peak by a roughly fixed *fraction* of the extent).
-    - ``model_error_floor_px`` is a size-independent absolute floor
-      (pointing, camera distortion, sub-pixel interpolation).
-
-    The schema core parses these keys out of a correlation technique's ``tuning``
-    block when the configuration loads; a technique whose tuning holds more keys
-    extends this type.
-
-    Parameters:
-        localization_uncertainty_scale: Multiplier on the correlator
-            ``consistency`` (px); ``0.0`` disables it.
-        model_error_size_frac: Fraction of the template extent (px) taken as
-            the silhouette-error sigma; ``0.0`` disables it.
-        model_error_floor_px: Absolute floor (px); ``0.0`` disables it.
-    """
-
-    __pydantic_config__ = SCHEMA_CONFIG
-
-    localization_uncertainty_scale: NonNeg
-    model_error_size_frac: NonNeg
-    model_error_floor_px: NonNeg
 
 
 def add_size_scaled_model_error(

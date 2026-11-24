@@ -209,7 +209,7 @@ Configuration
 
 All tunables for this technique live in ``techniques.body_blob.tuning`` in
 ``src/spindoctor/config_files/config_510_techniques.yaml``. The schema core parses them
-into :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobTuning` when the
+into :class:`~spindoctor.nav_technique.correlation_tuning.BodyBlobTuning` when the
 configuration loads, so each value's type and range are checked there, and the technique
 reads them as ``self.tuning.<key>``. Each value lives in the YAML only; the values given
 below are the packaged ones.

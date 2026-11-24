@@ -32,11 +32,11 @@ from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import RingAnnulusGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
+from spindoctor.nav_technique.correlation_tuning import NCCCovarianceTuning
 from spindoctor.nav_technique.diagnostics import RingAnnulusDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
-    NCCCovarianceTuning,
     add_size_scaled_model_error,
     embed_rotation_unobservable,
     log_confidence_breakdown,
