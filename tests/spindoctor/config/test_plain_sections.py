@@ -30,7 +30,7 @@ def test_packaged_offset_section_parses() -> None:
 
 
 def test_packaged_environment_section_names_no_location() -> None:
-    """No packaged file sets the section, so every location reads as None."""
+    """The packaged file sets no location, so every location reads as None."""
     assert Config().environment == EnvironmentSection()
 
 

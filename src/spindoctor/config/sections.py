@@ -11,7 +11,7 @@ configuration package, so :mod:`spindoctor.config.config` imports this module on
 when it installs a configuration.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Annotated
 
 from annotated_types import Le
@@ -57,8 +57,8 @@ class GeneralSection:
 class EnvironmentSection:
     """The ``environment`` section: where a deployment keeps its files.
 
-    No packaged file sets this section, so every key is optional and an absent key reads
-    as None.  A reader resolves each location from its command line, from here, and from
+    The packaged file sets no key, so every key is optional and an absent key reads as
+    None.  A reader resolves each location from its command line, from here, and from
     an environment variable.  Each reader applies its own order, and the helpers in
     :mod:`spindoctor.config.config_helper` define the usual one: command line, then this
     section, then the environment variable.
@@ -127,8 +127,8 @@ class TypedSections:
     Parameters:
         orchestrator: The ``orchestrator`` section.
         general: The ``general`` section.
-        environment: The ``environment`` section, which no packaged file sets; absent,
-            it holds no locations.
+        environment: The ``environment`` section; the packaged file sets no
+            location.
         offset: The ``offset`` section.
         results_tree: The ``results_tree`` section.
     """
@@ -139,4 +139,4 @@ class TypedSections:
     general: GeneralSection
     offset: OffsetSection
     results_tree: TreeTuning
-    environment: EnvironmentSection = field(default_factory=EnvironmentSection)
+    environment: EnvironmentSection

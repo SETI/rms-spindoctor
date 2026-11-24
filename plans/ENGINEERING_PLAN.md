@@ -1573,7 +1573,7 @@ asserts the generated half matches the registries.
     and `feature_emission`
   - [x] `general`, `environment`, `offset`, and `results_tree` (done:
     parsed at load into `GeneralSection`, `EnvironmentSection` (every key
-    optional, none packaged), `OffsetSection`, and `TreeTuning`;
+    optional, a packaged file that sets none), `OffsetSection`, and `TreeTuning`;
     `get_results_tree_tuning`, its unknown-key check, `TreeTuning`'s five
     defaults, and the literal copies of the upsample factor 128 in three
     modules deleted; the tree readers take the tuning as a required

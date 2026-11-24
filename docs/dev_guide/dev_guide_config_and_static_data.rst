@@ -120,10 +120,11 @@ returns the typed object:
   rule refuses a round of work smaller than the thread pool it feeds.
 - ``environment`` — :class:`~spindoctor.config.sections.EnvironmentSection`: deployment
   locations (``pds3_holdings_root``, ``nav_results_root``, ``backplane_results_root``,
-  ``bundle_results_root``, ``log_root``, and ``results_index_db``). No packaged file sets
-  this section, so every key is optional and an absent one reads as None. Resolving a
-  location from the command line, then this section, then an environment variable is
-  precedence rather than schema, and stays in the helpers of
+  ``bundle_results_root``, ``log_root``, and ``results_index_db``). The packaged file
+  (``config_005_environment.yaml``) sets no key and lists each as a commented-out line,
+  so every key is optional and an absent one reads as None. Which of the command line,
+  this section, and an environment variable wins is precedence rather than schema; each
+  reader applies its own order, and the usual one lives in the helpers of
   :mod:`spindoctor.config.config_helper`.
 
 The rules for a typed section:
