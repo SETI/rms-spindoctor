@@ -318,7 +318,9 @@ def render_ellipsoid_body(
         # body is shaded with, so it renders exactly as the smooth body.
         shading_spec = _without_inert_surface(spec, crater_count=craters.count)
 
-    mask = silhouette_mask(work_grid, field)
+    # Only the boolean silhouette is held through the shading; the float mask is
+    # built after it, which keeps the shading's peak memory down.
+    inside = silhouette_mask(work_grid, field) > 0.0
     if up_factor > 1 and _lays_detail_on_detector_grid(shading_spec, field):
         intensity_work = _shade_disc_with_detector_detail(
             work_grid,
@@ -327,7 +329,7 @@ def render_ellipsoid_body(
             field,
             up_factor=up_factor,
             craters=craters,
-            inside=mask > 0.0,
+            inside=inside,
         )
     else:
         intensity_work = _shade_disc(
@@ -337,8 +339,9 @@ def render_ellipsoid_body(
             detector_grid=detector_grid,
             scale=up_factor,
             craters=craters,
-            inside=mask > 0.0,
+            inside=inside,
         )
+    mask = inside.astype(np.float64)
     intensity_work *= mask
 
     if aa_scale > 1:
