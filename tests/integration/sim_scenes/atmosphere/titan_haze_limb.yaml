@@ -4,7 +4,12 @@ instrument: coiss_nac
 size_v: 260
 size_u: 260
 random_seed: 7
-exposure_sec: 1.0
+exposure_sec: 7.5
+# The exposure puts the haze's peak 2114 DN above the sky, 52% of the 12-bit
+# range, where the cohort frames nearest this phase put it: W1552216540 (CL1+RED),
+# W1552216646 (CL1+VIO), and W1822132529 (CL1+BL1), at 60.6 to 63.1 deg, peak
+# 2150, 1933, and 2696 DN above their sky, a median of 2150 DN.  The read noise is
+# the camera's own, 12 e- at the 30 e-/DN of gain state 2, which is 0.4 DN.
 # The body is named HAZEMOON, not TITAN, deliberately: this scene is a
 # body-navigation fidelity record for a haze-BLIND navigator -- what the
 # ellipsoid limb / disc / blob techniques do when a soft haze limb sits above
@@ -15,12 +20,21 @@ exposure_sec: 1.0
 # The body takes Titan's published haze by name, the 90 px radius standing for
 # Titan's 2575 km (28.6 km/px): see titan_haze.  It hides the surface, and the
 # haze disc reaches about 9 px past the solid limb the navigator predicts.  The
-# disc correlation and the limb fit both read that haze edge as the limb and land
-# 7.9 to 8.7 px off toward the sun; the blob centroid lands 1.3 px off.  On 14 of
-# 24 draws (the committed seed, random_seed 101 to 1515, and noise_seed 101 to
-# 808) the ensemble reports the disagreement and the frame is conflicted, the
-# committed draw among them; on the other 10 it returns a medium-tier success
-# 7.93 to 7.98 px off against a 1.17 px sigma.
+# disc correlation and the limb fit both read that haze edge as the limb: the disc
+# correlation lands 7.35 px off toward the sun on every draw, and the limb fit
+# 8.47 to 8.51 px off.  The blob centroid lands 1.43 px off and is dropped as a
+# fallback.  Over the 16 distinct draws (the committed seed and random_seed 101 to
+# 1515; with no random content but the detector noise, noise_seed 101 to 808
+# repeat random_seed draws) the frame is a medium-tier success every time.  On 14
+# the limb fit flags its answer spurious and the disc correlation alone sets the
+# answer, 7.349 px off; on random_seed 505 and 606 the limb fit's answer joins it
+# and the answer lands 7.538 px off.  The reported sigma, 1.07 to 1.17 px, puts
+# that error at 6.3 to 7.1 sigma: a haze-blind navigator is confidently wrong under
+# an unmodeled thick haze (#1190).  The status and tier asserted below hold that
+# hazard in view; they do not endorse it.
+# Known error: over the 16 draws the fused error runs 7.349 to 7.538 px (spread
+# 0.189 px); each end of the band sits a margin of max(0.05 px, a fifth of the
+# spread) = 0.05 px outside, giving [7.299, 7.589] px.
 bodies:
   - name: HAZEMOON
     shape_model: ellipsoid
@@ -35,9 +49,12 @@ bodies:
       haze_model: titan
 noise:
   poisson: true
-  read_noise_dn: 4.0
+  read_noise_dn: 0.4
 offset_v: -0.74
 offset_u: 1.19
 offset_rotation_deg: 0.0
 expected:
-  status: conflicted
+  status: success
+  confidence_tier: medium
+  known_offset_error_px: 7.444
+  known_offset_error_tol_px: 0.145

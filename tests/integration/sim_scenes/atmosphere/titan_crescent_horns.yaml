@@ -4,7 +4,11 @@ instrument: coiss_nac
 size_v: 260
 size_u: 260
 random_seed: 7
-exposure_sec: 1.0
+exposure_sec: 4.1
+# The exposure puts the ring of light 2775 DN above the sky, 68% of the 12-bit
+# range, where the cohort frame nearest this phase puts it: W1721822901 (CL1+CL2,
+# 149.2 deg) peaks 2787 DN above its sky.  The read noise is the camera's own,
+# 12 e- at the 30 e-/DN of gain state 2, which is 0.4 DN.
 # The body is named HAZEMOON, not TITAN, deliberately: this scene is a
 # body-navigation fidelity record for a haze-BLIND navigator.  A body named
 # TITAN routes to the haze model and its symmetry technique instead, which
@@ -23,7 +27,7 @@ bodies:
       haze_model: titan
 noise:
   poisson: true
-  read_noise_dn: 4.0
+  read_noise_dn: 0.4
 offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
@@ -32,25 +36,24 @@ offset_rotation_deg: 0.0
 # light is the haze's own, and at 155 deg phase that is the ring of light, which
 # peaks at 0.37 of a white disc lit face-on about 7 px above the solid limb.
 # At this phase the haze defeats every body technique.  The ring of light drags
-# the lit-weighted blob centroid 16 to 19 px from the planted offset.  The
+# the lit-weighted blob centroid 16.5 to 18.8 px from the planted offset.  The
 # predicted TERMINATOR_ARC is emitted but never fitted: with its reliability
 # computed as the SPICE-backed model does (visible-arc fraction ~1.0, the albedo
 # penalty, and the sin(155 deg) = 0.42 phase cap), it scores 0.26 against the
 # 0.30 TERMINATOR_ARC reliability gate.
 # The disc correlation's hard-limbed template leaves the ring of light out
-# (#1050).  On 16 of 24 draws it answers the point (0.5, 1.5) of its half-pixel
-# coarse grid, 2.40 px from the planted offset, a low-tier success; on the other 8
-# it reads the haze edge as the limb and answers (1.2, 9.4), 10.2 px off, a
-# medium-tier success.  It does not flag either answer spurious, so the
-# body-witness veto has nothing to read, the blob is dropped as a fallback, and
-# the disc correlation alone sets the answer.  The status: success asserted below
-# is a hazard held in view, not an endorsement.
-# Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 2.404 to 10.245 px (spread 7.841 px), the two answers
-# above.  Each end of the band sits a margin of max(0.05 px, a fifth of the
-# spread) = 1.568 px outside, giving [0.835, 11.814] px.
+# (#1050).  On all 16 distinct draws (the committed seed and random_seed 101 to
+# 1515; with no random content but the detector noise, noise_seed 101 to 808
+# repeat random_seed draws) it answers the point (0.5, 1.5) of its half-pixel
+# coarse grid, 2.404 px from the planted offset, a low-tier success, as the
+# noiseless twin does.  It does not flag that answer spurious, so the body-witness
+# veto has nothing to read, the blob is dropped as a fallback, and the disc
+# correlation alone sets the answer.  The status: success asserted below is a
+# hazard held in view, not an endorsement.
+# Known error: 2.404 px on every draw, giving the band [2.354, 2.455] px with the
+# 0.05 px margin.
 expected:
   status: success
   confidence_tier: low
-  known_offset_error_px: 6.3245
-  known_offset_error_tol_px: 5.4895
+  known_offset_error_px: 2.4045
+  known_offset_error_tol_px: 0.0505

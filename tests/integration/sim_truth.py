@@ -16,8 +16,10 @@ confounder stars of ``lock_single_dense``, and the catalog scatter of ``wrong_ca
 ``textured_moon_offset`` and ``relief_psf_stray_light`` were measured on 16 draws of the
 detector noise alone instead: the committed draw and the scene key ``noise_seed`` at 101,
 202, ..., 1515.  Those draws keep the albedo texture and the limb relief the test
-renders, which a new ``random_seed`` would redraw.  Every check also holds on 9 draws of
-the detector noise alone, ``noise_seed`` at 101 to 808.
+renders, which a new ``random_seed`` would redraw.  Every check also holds on 8 draws of
+the detector noise alone, ``noise_seed`` at 101 to 808.  On a scene whose only random
+content is the detector noise, those draws repeat the ``random_seed`` draws of the same
+values, so they add no distinct draws.
 
 The two rules.
 
@@ -206,11 +208,11 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('disc_structured_loss_adversarial', FUSED): _t(0.011, 0.011, 0.010, 0.05),
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
-    # atmosphere.  titan_haze's haze-symmetry fit lands 0.27 to 0.60 px off along the
+    # atmosphere.  titan_haze's haze-symmetry fit lands 0.41 to 0.46 px off along the
     # sun axis, toward the night side; the error grows with the rendered scale height.
-    # titan_haze_limb is expected conflicted, and titan_crescent_horns and its
-    # noiseless twin carry a known error in their expected blocks (#1050).
-    ('titan_haze', FUSED): _t(0.461, 0.602, 0.333, 0.13),
+    # titan_haze_limb (#1190), titan_crescent_horns, and its noiseless twin (#1050)
+    # carry a known error in their expected blocks.
+    ('titan_haze', FUSED): _t(0.434, 0.457, 0.050, 0.10),
     # full_frame_cameras.  On these scenes a noise_seed draw gives the same answer as the
     # random_seed of the same value: random_seed reaches the noise and, apart from that,
     # only the fixed-pattern and sky streams, which change a few pixels of the render.
@@ -296,9 +298,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_deep', 'BodyBlobNav'): _b(6.720, 6.729, 0.05, 6.670, 6.780),
     ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
     ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(15.816, 19.417, 0.720, 15.095, 20.138),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(16.488, 16.488, 0.05, 16.437, 16.538),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(1.311, 1.351, 0.05, 1.261, 1.401),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(16.502, 18.750, 0.4496, 16.052, 19.200),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(17.196, 17.196, 0.05, 17.145, 17.246),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(1.426, 1.429, 0.05, 1.375, 1.480),
     ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.942, 1.543, 0.1202, 0.821, 1.664),
     ('saturn_rings_wac', 'BodyBlobNav'): _b(6.863, 6.879, 0.05, 6.812, 6.929),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
@@ -360,6 +362,9 @@ SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # and fitting its two edges puts the answer 0.84 px off at a sigma of 0.023 to
     # 0.051 px (#1152).
     'a_ring_low_opening': _b(15.877, 17.969, 0.4185, 15.458, 18.388),
+    # atmosphere.  A haze-blind navigator reads the edge of an unmodeled thick haze as
+    # the limb and lands 7.35 to 7.54 px off at a sigma of 1.07 to 1.17 px (#1190).
+    'titan_haze_limb': _b(6.296, 7.077, 0.1562, 6.140, 7.234),
 }
 
 # The planted roll is recovered 0.018 to 0.020 deg short over the seeds; the margin is

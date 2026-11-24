@@ -4,7 +4,8 @@ instrument: coiss_nac
 size_v: 260
 size_u: 260
 random_seed: 7
-exposure_sec: 1.0
+exposure_sec: 4.1
+# The exposure is titan_crescent_horns', set from the real frame cited there.
 # The body is named HAZEMOON, not TITAN, deliberately: this scene is a
 # body-navigation fidelity record for a haze-BLIND navigator.  A body named
 # TITAN routes to the haze model and its symmetry technique instead, which
@@ -28,7 +29,7 @@ offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
 # See titan_crescent_horns: the body takes Titan's published haze, the ring of
-# light drags the blob centroid 16.5 px, the terminator feature is dropped by the
+# light drags the blob centroid 17.2 px, the terminator feature is dropped by the
 # reliability gate (0.26 vs the 0.30 threshold, the sin(155 deg) phase cap doing
 # most of the capping), and the disc correlation, whose template leaves the ring
 # of light out (#1050), answers the coarse-grid point (0.5, 1.5) without flagging
