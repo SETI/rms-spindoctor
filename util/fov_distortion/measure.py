@@ -208,6 +208,12 @@ class _StarCapConfig:
     """
 
     def __init__(self, config: Config, *, max_stars: int) -> None:
+        """Wrap a configuration with a cap on the stars its reduction keeps.
+
+        Parameters:
+            config: The configuration every other setting is read from.
+            max_stars: The most stars the star reduction keeps.
+        """
         self._config = config
         self._stars = dataclasses.replace(config.stars, max_stars=max_stars)
 
@@ -282,6 +288,8 @@ def measure_frame(
     center = ((h - 1) / 2.0, (w - 1) / 2.0)
     rho_ref = 0.5 * math.hypot(h, w)
 
+    # The models take a Config and read many of its sections, so the view is cast to
+    # one; it answers every attribute through the wrapped Config.
     models = build_models_for_obs(
         obs, config=cast(Config, _StarCapConfig(config, max_stars=params.max_stars))
     )
