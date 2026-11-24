@@ -19,6 +19,7 @@ import dataclasses
 import functools
 from dataclasses import dataclass
 
+from spindoctor.config.logging_keys import LoggingSection
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig
 from spindoctor.nav_technique.confidence_config import (
@@ -66,6 +67,7 @@ class TypedSections:
 
     Parameters:
         orchestrator: The ``orchestrator`` section.
+        logging: The ``logging`` section.
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
     """
@@ -73,6 +75,7 @@ class TypedSections:
     __pydantic_config__ = SCHEMA_CONFIG
 
     orchestrator: OrchestratorSection
+    logging: LoggingSection
     techniques: TechniquesSection
 
 

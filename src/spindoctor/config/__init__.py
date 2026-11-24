@@ -46,7 +46,7 @@ from .logging_config import (
     set_log_levels,
     sinks_from_arguments,
 )
-from .logging_keys import log_key_for, validate_logging_config
+from .logging_keys import log_key_for
 
 __all__ = [
     'BACKEND_NAMES',
@@ -93,5 +93,4 @@ __all__ = [
     'sinks_from_arguments',
     'strict_scope',
     'strict_scope_override',
-    'validate_logging_config',
 ]

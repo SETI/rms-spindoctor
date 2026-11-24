@@ -273,6 +273,10 @@ equivalent. All the rest correspond to a key in the ``logging`` section.
 names, the keys of the ``logging`` section, and which setting wins when two of them set
 the same component.
 
+Every setting in the ``logging`` section is checked when your file is read. An unknown
+setting, component, or program, or a level that is not one of the six, is refused, and
+the message gives the file and the setting.
+
 Acceptance thresholds
 =====================
 

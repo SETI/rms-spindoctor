@@ -92,8 +92,8 @@ def test_the_oops_walk_writes_nothing() -> None:
     oops builds a Backplane from an observation, and the observation holds the
     shared Config, whose sections are these mappings.  Without the marker the
     walk reaches them and every section gains a ``_MUTABLE_info`` key that no
-    configuration file declares, which the logging-config validator then
-    rejects.
+    configuration file declares, so a section read back differs from the file
+    that defined it.
     """
     section = AttrDict({'planet': 'SATURN'})
     wrote = oops_mutability_walk(section, honor_marker=True)

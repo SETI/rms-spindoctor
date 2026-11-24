@@ -1186,22 +1186,6 @@ def test_the_shipped_defaults_are_unchanged(tmp_path: Path) -> None:
     assert (sinks.main_console, sinks.image_console) == (True, False)
 
 
-def test_there_is_no_configuration_key_for_a_file_sink(tmp_path: Path) -> None:
-    """``image_file`` is not a setting, and writing it says so.
-
-    Whether a log file is written is command-line only, being inseparable from
-    where the file goes.  Someone who has just seen ``image_console`` will
-    reasonably try ``image_file`` next; the point of this test is that the
-    attempt is an error naming the key, rather than a line that sits in the
-    configuration looking effective and doing nothing.
-    """
-    from spindoctor.config.logging_keys import validate_logging_config
-
-    config = _config(tmp_path, '  image_file: false\n')
-    with pytest.raises(ValueError, match='not a known logging key'):
-        validate_logging_config(config)
-
-
 # ---------------------------------------------------------------------------
 # What one timestamp groups
 # ---------------------------------------------------------------------------

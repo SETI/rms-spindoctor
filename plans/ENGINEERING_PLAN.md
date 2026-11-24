@@ -1592,7 +1592,11 @@ asserts the generated half matches the registries.
       `BodyBlobNav`, `RingAnnulusNav`), with `load_ncc_covariance_tuning`
     - [ ] the star family and `TitanHazeNav`; `load_model_error_floor`
       and the mapping form of a technique's tuning go with the last family
-  - [ ] the logging section
+  - [x] the logging section (done: parsed at load into `LoggingSection`,
+    with each `programs` block a `ProgramLogging`; module keys checked
+    against the technique and model registries and `OTHER_LOG_KEYS`,
+    program keys against `PROGRAM_NAMES`; `validate_logging_config`,
+    its helpers, and `LOGGER_KEYS` and `CONSOLE_KEYS` deleted)
   - [ ] `bodies`, `stars`, `titan`, `rings`, `body_shape`, `satellites`,
     and `feature_emission`
   - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
