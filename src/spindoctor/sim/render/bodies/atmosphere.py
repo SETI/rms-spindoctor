@@ -3,8 +3,9 @@
 A body carrying an ``atmosphere`` block gains an exponential haze layer above
 its surface, evaluated by :func:`apply_atmosphere` after the disc is shaded.
 The haze splits into two compositing components (:class:`AtmosphereLayers`):
-the on-disc haze joins the body's opaque paint (the disc is opaque anyway,
-so the painted silhouette stays exactly the no-atmosphere silhouette), while
+the on-disc haze joins the body's opaque paint, which it dims (the disc is
+opaque anyway, so the painted silhouette stays exactly the no-atmosphere
+silhouette), while
 the above-limb glow is a translucent :class:`HaloScreen` -- an emission map
 plus a per-pixel transmission ``exp(-tau)`` -- that the radiance stage
 composites over the background exactly as the ring system's transmission
@@ -28,37 +29,58 @@ optical depth
 so ``tau_ref`` is the tangent optical depth at ``ref_altitude_px``.  An
 optional detached haze shell adds a Gaussian bump in ``tau`` centered at
 ``detached_px`` above the surface.  The shell exists only in this above-limb
-tangent depth: the on-disc excess column is shell-blind (a geometrically
+tangent depth: the on-disc column is shell-blind (a geometrically
 thin shell projected against the disc adds negligible slant contrast), so
 the shell renders solely as a second band in the tangent glow.
 
-**Single scattering.**  The emergent haze brightness is a source term times
-an opacity term.  The source is ``albedo * P / 4``: the block's single-scattering
-``albedo`` (:data:`DEFAULT_HAZE_ALBEDO` when the scene leaves it out) times a
-Henyey-Greenstein phase factor ``P`` (forward-scattering when ``g`` > 0, which
-brightens the limb at high phase and, in the limit, produces the ring of
-light past phase 150 deg), over 4, scaled by a wrapped illumination weight.
-The image is in I/F, where a white Lambert disc lit face-on is 1, and ``P``
-averages 1 over the sphere, so a thin layer of slant optical depth ``tau``
-reflects ``albedo * P * tau / 4``, the standard single-scattering result.
-The illumination weight stays
-positive past the terminator over the horizon-dip angle ``sqrt(2 * H / R)``
-of arc -- the solar depression at which a column one scale height up loses
-direct sunlight -- floored at 0.05 rad so a razor-thin atmosphere still
-wraps resolvably (so the terminator brightens past 90 deg incidence instead
-of cutting off).  The
-opacity is ``1 - exp(-tau)``: above the limb ``tau`` is the tangent optical
-depth, so the limb becomes a soft exponential ramp whose apparent radius
-grows with the haze brightness (hence with phase); on the disc the slant
-optical depth grows toward the limb as ``1 / cos(emission)``, so the haze
-concentrates at the limb and stays faint at disc center.  The disc-side
-column scales from the physical vertical depth
+**Scattering.**  The haze reflects sunlight as a layer of finite optical depth,
+single and multiple scattering together, by the reflectance of
+:mod:`spindoctor.sim.render.bodies.haze_scattering` (Hapke's isotropic
+multiple-scattering approximation, scaled for a finite column).  It takes the
+block's single-scattering ``albedo`` (:data:`DEFAULT_HAZE_ALBEDO` when the scene
+leaves it out) and a Henyey-Greenstein phase factor ``P`` (forward-scattering when
+``g`` > 0, which brightens the limb at high phase and, in the limit, produces the
+ring of light past phase 150 deg), with an optional second term (``g2`` with the
+share ``g2_fraction``) for a two-term phase function such as the fit to Titan's
+haze described in that module.  The image is in I/F, where a white Lambert disc
+lit face-on is 1, so a thin column of optical depth ``tau`` along the line of
+sight reflects ``albedo * P * tau / 4``, the single-scattering result, and a thick
+one reflects what a semi-infinite haze would.  Past the terminator the haze fades
+over the horizon-dip angle ``sqrt(2 * H / R)`` of solar depression -- the
+depression at which a column one scale height up loses direct sunlight -- floored
+at 0.05 rad so a razor-thin atmosphere still wraps resolvably (so the terminator
+brightens past 90 deg incidence instead of cutting off).
+
+The column a line of sight crosses depends on where it goes.  Above the limb it
+is the tangent optical depth, so the limb becomes a soft exponential ramp whose
+apparent radius grows with the haze brightness (hence with phase).  On the disc
+it is the slant column from the top of the haze down to the surface, the
+vertical depth
 
     ``tau_vert = tau_ref * exp(ref_altitude_px / H) / sqrt(2 * pi * R / H)``
 
-(the surface tangent depth divided by the grazing enhancement, ``R`` the
-mean radius and ``H`` the scale height in pixels), so the two sides of the
-limb describe one atmosphere at any reference altitude.
+(the surface tangent depth divided by the grazing enhancement, ``R`` the mean
+radius and ``H`` the scale height in pixels) over the effective emission cosine,
+which is half the surface tangent depth at the limb.  The surface beneath is
+seen through the haze: its brightness is multiplied by the direct transmission
+``exp(-tau_vert * (1 / mu + 1 / mu0))`` of the sunlight coming in and the light
+going out, with ``mu`` and ``mu0`` the effective emission and incidence cosines.
+So a thin haze adds light over the disc that grows toward the limb, and a haze
+several optical depths thick hides the surface altogether: the disc and its edge
+are then haze, and the solid limb does not show, because a thick column
+reflects the same light just inside the limb and just outside it.  Both sides
+describe one atmosphere at any reference altitude.
+
+The haze reflects from the level where the tangent optical depth is 1 (the
+surface, when the column is thinner): the emission and incidence cosines of its
+reflectance are those of the body scaled out to that level, and a line of sight
+that misses the scaled body grazes it.  A thick haze therefore looks like a
+sphere that much larger, its brightness varying across the solid limb as
+smoothly as anywhere else, and a thin one reflects from the surface.  Each
+column is evaluated at one point rather than integrated along its curved path,
+so at high phase the near side of a thick tangent path, which real sunlight
+reaches only through the atmosphere behind the limb, is lit as fully as the
+tangent point.
 
 **Symmetry-breaking structure.**  The column described above is exactly
 mirror-symmetric about the sunward axis, which would make it useless for
@@ -88,15 +110,25 @@ from spindoctor.sim.render.bodies.haze import (
     apply_hemispheric_scaling,
     haze_structure_from_params,
     hemisphere_weight,
-    latitude_sine,
     scale_height_field,
     tilted_illumination_2d,
+)
+from spindoctor.sim.render.bodies.haze_geometry import (
+    band_bbox,
+    column_latitude_sine,
+    disc_incidence,
+)
+from spindoctor.sim.render.bodies.haze_scattering import (
+    chandrasekhar_h,
+    effective_cosine,
+    grazing_constant,
+    haze_reflectance,
+    mean_cosine,
+    twilight_weight,
 )
 from spindoctor.sim.shared.ellipsoid import (
     EllipsoidGeometry,
     outline_semi_a,
-    surface_normals,
-    surface_unit_coords,
 )
 from spindoctor.sim.shared.lighting import henyey_greenstein_phase, illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -132,10 +164,6 @@ _SHELL_AMPLITUDE = 1.0
 # emergent intensity by F.
 _SINGLE_SCATTERING_FACTOR = 0.25
 
-# The grazing-excess optical depth below which the on-disc haze is treated as
-# absent: it sets how deep into the disc the haze annulus reaches.
-_TAU_EPS = 1e-3
-
 # The faintest glow, and the faintest dimming of a full-scale background, the
 # halo carries before it ends.  It bounds the rendered halo to a limb band
 # several scale heights deep (the bounding box the haze cost scales with)
@@ -149,13 +177,9 @@ _HALO_EPS = 1e-5
 # finite and the halo bounded instead of dividing by zero.
 _HG_DENOMINATOR_FLOOR = 1e-12  # See #1057.
 
-# Floor on cos(emission) for the on-disc slant path, so the limb (where the
-# emergent-cosine vanishes) saturates smoothly instead of dividing by zero.
-_MU_FLOOR = 1e-3
-
 # Largest exponent the column arithmetic evaluates.  Every optical depth below
-# reaches the image only through ``1 - exp(-tau)``, which saturates at 1 long
-# before this, so clipping the exponent changes no rendered value while
+# reaches the image only through ``exp(-tau)``, which vanishes long before
+# this, so clipping the exponent changes no rendered value while
 # keeping a very short falloff length (a structured haze at the far side of
 # the disc) from overflowing to infinity.
 _MAX_EXP_ARG = 700.0
@@ -236,8 +260,12 @@ class AtmosphereSpec:
             atmosphere that adds no haze).
         ref_altitude_px: Altitude above the reference radius at which the
             tangent optical depth equals ``tau_ref``, in pixels.
-        g: Henyey-Greenstein asymmetry parameter in (-1, 1); positive is
-            forward-scattering (bright limb at high phase).
+        g: Henyey-Greenstein asymmetry parameter in (-1, 1) of the phase
+            function's first term; positive is forward-scattering (bright limb
+            at high phase).
+        g2: Asymmetry parameter in (-1, 1) of the phase function's second term.
+        g2_fraction: The share of the scattered light in the second term, in
+            [0, 1]; 0 is a one-term Henyey-Greenstein phase function.
         detached_px: Altitude of an optional detached haze shell above the
             surface, in pixels; None for no shell.
         albedo: The haze's single-scattering albedo (at least 0); 0 is a purely
@@ -253,6 +281,8 @@ class AtmosphereSpec:
     tau_ref: float
     ref_altitude_px: float = 0.0
     g: float = 0.0
+    g2: float = 0.0
+    g2_fraction: float = 0.0
     detached_px: float | None = None
     albedo: float = DEFAULT_HAZE_ALBEDO
     structure: HazeStructure | None = None
@@ -281,12 +311,16 @@ def atmosphere_spec_from_params(
     detached = atmosphere.get('detached_px')
     ref_altitude = atmosphere.get('ref_altitude_px')
     g = atmosphere.get('g')
+    g2 = atmosphere.get('g2')
+    g2_fraction = atmosphere.get('g2_fraction')
     albedo = atmosphere.get('albedo')
     return AtmosphereSpec(
         scale_height_px=float(atmosphere['scale_height_px']) * os_factor,
         tau_ref=float(atmosphere['tau_ref']),
         ref_altitude_px=(0.0 if ref_altitude is None else float(ref_altitude)) * os_factor,
         g=0.0 if g is None else float(g),
+        g2=0.0 if g2 is None else float(g2),
+        g2_fraction=0.0 if g2_fraction is None else float(g2_fraction),
         detached_px=(float(detached) * os_factor if detached is not None else None),
         albedo=DEFAULT_HAZE_ALBEDO if albedo is None else float(albedo),
         structure=haze_structure_from_params(atmosphere, oversample=os_factor),
@@ -367,9 +401,8 @@ def _outer_altitude(spec: AtmosphereSpec, *, peak_glow: float) -> float:
 
     Parameters:
         spec: The haze spec.
-        peak_glow: The largest single-scattering source the halo can carry:
-            the source scale (:func:`_source_scale`) times any hemispheric
-            brightening.
+        peak_glow: The brightest glow the halo can carry: the bound of
+            :func:`_source_scale` times any hemispheric brightening.
 
     Returns:
         The bounding tangent altitude in pixels.
@@ -384,17 +417,42 @@ def _outer_altitude(spec: AtmosphereSpec, *, peak_glow: float) -> float:
     return max(reach, scale_height)
 
 
-def _source_scale(spec: AtmosphereSpec, hg: float) -> float:
-    """The single-scattering source of a fully lit haze column, ``albedo * P / 4``.
+def _phase_factor(spec: AtmosphereSpec, phase_angle: float) -> float:
+    """The haze's phase function at the scene's phase angle, one or two terms.
 
     Parameters:
         spec: The haze spec.
-        hg: The Henyey-Greenstein phase factor at the scene's phase angle.
+        phase_angle: Phase angle in radians.
 
     Returns:
-        The source in I/F per unit of opacity, before the illumination weight.
+        ``(1 - f) * HG(g) + f * HG(g2)``, ``f`` being ``g2_fraction``.
     """
-    return spec.albedo * hg * _SINGLE_SCATTERING_FACTOR
+    first = henyey_greenstein_phase(spec.g, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
+    if spec.g2_fraction == 0.0:
+        return first
+    second = henyey_greenstein_phase(spec.g2, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
+    return (1.0 - spec.g2_fraction) * first + spec.g2_fraction * second
+
+
+def _source_scale(spec: AtmosphereSpec, hg: float) -> float:
+    """An upper bound on the I/F of a fully lit haze column.
+
+    The single-scattering source ``albedo * P / 4`` plus the most the multiple
+    scattering adds, ``albedo * (H(1)**2 - 1) / 4`` at the similarity albedo (see
+    :func:`~spindoctor.sim.render.bodies.haze_scattering.haze_reflectance`); the
+    geometric factor ``mu0 / (mu0 + mu)`` stays below 1.
+
+    Parameters:
+        spec: The haze spec.
+        hg: The phase function at the scene's phase angle.
+
+    Returns:
+        The bound in I/F.
+    """
+    g_mean = mean_cosine(spec.g, spec.g2, spec.g2_fraction)
+    similar_albedo = spec.albedo * (1.0 - g_mean) / max(1.0 - spec.albedo * g_mean, 1e-12)
+    h_overhead = float(chandrasekhar_h(np.array(1.0), similar_albedo))
+    return spec.albedo * (hg + h_overhead * h_overhead - 1.0) * _SINGLE_SCATTERING_FACTOR
 
 
 def _outer_scale(spec: AtmosphereSpec, *, hg: float, r_mean: float) -> float:
@@ -402,7 +460,7 @@ def _outer_scale(spec: AtmosphereSpec, *, hg: float, r_mean: float) -> float:
 
     Parameters:
         spec: The haze spec.
-        hg: The Henyey-Greenstein phase factor at the scene's phase angle.
+        hg: The phase function at the scene's phase angle.
         r_mean: Mean apparent body radius in grid pixels.
 
     Returns:
@@ -444,7 +502,7 @@ def halo_reach(
     """
     semi_a = max(semi_a, 1e-6)
     semi_b = max(semi_b, 1e-6)
-    hg = henyey_greenstein_phase(spec.g, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
+    hg = _phase_factor(spec, phase_angle)
     e_outer = _outer_scale(spec, hg=hg, r_mean=0.5 * (semi_a + semi_b))
     reach_a = e_outer * outline_semi_a(semi_a, semi_c, sub_observer_lat)
     reach_b = e_outer * semi_b
@@ -480,52 +538,6 @@ def _vertical_optical_depth(
     return cast(NDArrayFloatType, tau_surface / np.maximum(geom, 1e-6))
 
 
-def _band_bbox(
-    shape: tuple[int, int],
-    *,
-    center_v: float,
-    center_u: float,
-    reach_a: float,
-    reach_b: float,
-    cos_rz: float,
-    sin_rz: float,
-) -> tuple[slice, slice] | None:
-    """Grid slices bounding the outer band ellipse of the haze.
-
-    The band's outer boundary in centered pixel coordinates satisfies
-    ``|v*cos_rz - u*sin_rz| <= reach_a`` and ``|v*sin_rz + u*cos_rz| <=
-    reach_b`` (the rotated-frame extents of the ellipse, with the tilt's
-    foreshortening already divided out of ``reach_a``), so its axis-aligned
-    bounding box follows by rotating those extents back.  One pixel of slack
-    absorbs the half pixel between the coordinates the extents are stated in
-    and the cells the slices name; every pixel outside the returned slices lies
-    strictly outside the band.
-
-    Parameters:
-        shape: The render-grid shape ``(V, U)``.
-        center_v: Body center v in grid pixels.
-        center_u: Body center u in grid pixels.
-        reach_a: Rotated-frame half-extent along semi-axis a, in pixels.
-        reach_b: Rotated-frame half-extent along semi-axis b, in pixels.
-        cos_rz: Cosine of the in-plane rotation.
-        sin_rz: Sine of the in-plane rotation.
-
-    Returns:
-        ``(v_slice, u_slice)`` into the grid, or None when the box misses
-        the grid entirely (the haze contributes nothing).
-    """
-    size_v, size_u = shape
-    reach_v = reach_a * abs(cos_rz) + reach_b * abs(sin_rz)
-    reach_u = reach_a * abs(sin_rz) + reach_b * abs(cos_rz)
-    v0 = max(math.floor(center_v - reach_v) - 1, 0)
-    v1 = min(math.ceil(center_v + reach_v) + 1, size_v)
-    u0 = max(math.floor(center_u - reach_u) - 1, 0)
-    u1 = min(math.ceil(center_u + reach_u) + 1, size_u)
-    if v0 >= v1 or u0 >= u1:
-        return None
-    return slice(v0, v1), slice(u0, u1)
-
-
 def apply_atmosphere(
     body_shape: NDArrayFloatType,
     spec: AtmosphereSpec,
@@ -543,9 +555,10 @@ def apply_atmosphere(
 ) -> AtmosphereLayers:
     """Evaluate the haze layer over a reference-centered body radiance.
 
-    The haze is evaluated over a limb band a few scale heights deep and split
-    by compositing role.  The on-disc haze is added to the disc radiance at every
-    band pixel the outline covers, weighted by its coverage.  The above-limb glow
+    The haze is evaluated over the disc and a band a few scale heights deep above
+    the limb, and split by compositing role.  At every pixel the outline covers,
+    the disc radiance is dimmed by the haze column's direct transmission and the
+    haze's own light is added, weighted by the coverage.  The above-limb glow
     becomes the translucent :class:`HaloScreen` wherever the outline leaves any of
     a pixel open, and also on the wholly covered pixels next to those.  The radiance
     stage composites the body over its own screen by coverage, so a limb pixel shows
@@ -607,40 +620,19 @@ def apply_atmosphere(
     )
     semi_a_outline = outline_semi_a(semi_a, semi_c, sub_observer_lat)
 
-    # Restrict all heavy work to a limb band: a halo out to where the tangent
-    # glow vanishes, and, on the disc, an annulus in from the limb to where the
-    # grazing-excess column drops below _TAU_EPS.  Deep disc interior carries
-    # no haze (the on-disc opacity is the excess of the slant path over the
-    # nadir path, zero at disc center), though for a thick haze the annulus
-    # can span most of the disc; the guaranteed cost bound is the bounding
-    # box computed below.
-    #
-    # tau_vert (see _vertical_optical_depth) is the physical vertical column
-    # depth the on-disc slant paths scale from.  Both band edges are sized
-    # from the extreme falloff lengths the spec produces -- the longest for
-    # the outer reach, the deepest column for the inner edge -- so a
-    # structured haze's hemispheres are bounded, never clipped.
-    height_min, height_max = _scale_height_bounds(spec)
-    tau_vert_max = max(
-        float(_vertical_optical_depth(spec, r_mean, height_min)),
-        float(_vertical_optical_depth(spec, r_mean, height_max)),
-    )
     structure = spec.structure
-    hg = henyey_greenstein_phase(spec.g, phase_angle, denominator_floor=_HG_DENOMINATOR_FLOOR)
+    hg = _phase_factor(spec, phase_angle)
     e_outer = _outer_scale(spec, hg=hg, r_mean=r_mean)
-    # Inside, the excess column tau_vert * (1 / mu - 1) drops below _TAU_EPS
-    # once cos(emission) exceeds mu_cut; that sets the inner edge of the band.
-    mu_cut = 1.0 / (1.0 + _TAU_EPS / max(tau_vert_max, 1e-12))
-    e_inner2 = max(0.0, 1.0 - mu_cut * mu_cut)
 
-    # Coordinate grids and every per-pixel term below are built only inside
+    # The whole disc carries haze, the column down to the surface never being
+    # zero.  Coordinate grids and every per-pixel term below are built only inside
     # the axis-aligned bounding box of the outer band ellipse (e2 <=
     # e_outer**2, the body plus its halo out to the detached shell's reach),
     # so the grid-build cost scales with that box, not the frame.  The box is
     # conservative -- every pixel outside it has e2 > e_outer**2 -- so
     # restricting the band mask to it is exact.
     size_v, size_u = out.shape
-    box = _band_bbox(
+    box = band_bbox(
         (size_v, size_u),
         center_v=center_v,
         center_u=center_u,
@@ -671,21 +663,21 @@ def apply_atmosphere(
     out_box = out[box_v, box_u]
     outline_box = silhouette[box_v, box_u]
 
-    # The band splits into the on-disc annulus and the above-limb band, each
-    # evaluated on its own gathered pixels.  The disc radiance is weighted by the
-    # outline's coverage, so a covered pixel takes its coverage times the haze.
-    # The above-limb band is the tangent column, evaluated for two uses.  A
-    # covered pixel whose center lies outside the reference ellipse (relief
-    # standing above it) takes it as on-disc haze.  The halo screen takes it
-    # wherever the outline leaves any of a pixel open, a notch where the limb
-    # relief dips below the ellipse included, and on the wholly covered pixels
-    # beside those.  The body covers its own screen when the two are
-    # composited, so a pixel shows the glow in the fraction the outline leaves
-    # open, and the wholly covered pixels give the glow a value inside the limb
-    # for the translation into place to blend with.
-    inside = (e2 >= e_inner2) & (e2 < 1.0)
+    # The band splits into the disc and the above-limb band, each evaluated on
+    # its own gathered pixels.  The disc radiance is weighted by the outline's
+    # coverage, so a covered pixel takes its coverage times the haze.  The
+    # above-limb band is the tangent column, evaluated for two uses.  A covered
+    # pixel whose center lies outside the reference ellipse (relief standing
+    # above it) is surface seen through the near half of that column.  The halo
+    # screen takes the whole column wherever the outline leaves any of a pixel
+    # open, a notch where the limb relief dips below the ellipse included, and
+    # on the wholly covered pixels beside those.  The body covers its own
+    # screen when the two are composited, so a pixel shows the glow in the
+    # fraction the outline leaves open, and the wholly covered pixels give the
+    # glow a value inside the limb for the translation into place to blend
+    # with.
     covered = outline_box > 0.0
-    band_in = inside & covered
+    band_in = (e2 < 1.0) & covered
     within_outer = e2 <= e_outer * e_outer
     solid_out = (e2 >= 1.0) & within_outer & covered
     halo_mask = within_outer & ndimage.binary_dilation(outline_box < 1.0, structure=_NEIGHBORS)
@@ -701,7 +693,7 @@ def apply_atmosphere(
     # of the haze column each pixel sees.  Only those two terms read the
     # weight, so every other haze skips building it.
     weight = (
-        hemisphere_weight(_column_latitude_sine(v_rot, u_rot, e2, geometry=geometry))
+        hemisphere_weight(column_latitude_sine(v_rot, u_rot, e2, geometry=geometry))
         if structure is not None and structure.splits_hemispheres
         else None
     )
@@ -722,33 +714,89 @@ def apply_atmosphere(
     # the column's shadowing), floored at 0.05 rad so a razor-thin
     # atmosphere still brightens resolvably past the terminator.
     delta_wrap = max(math.sqrt(2.0 * scale_height / r_mean), 0.05)
-    source_scale = _source_scale(spec, hg)
 
-    def _source(mu0: NDArrayFloatType) -> NDArrayFloatType:
-        """The single-scattering source from the solar elevation weight."""
-        elevation = np.arcsin(np.clip(mu0, -1.0, 1.0))
-        illum_weight = 0.5 * (1.0 + np.tanh(elevation / delta_wrap))
-        return cast(NDArrayFloatType, source_scale * illum_weight)
+    def _column(
+        tau_los: NDArrayFloatType,
+        cosines: tuple[NDArrayFloatType, NDArrayFloatType],
+        surface: tuple[NDArrayFloatType, NDArrayFloatType],
+        height: float | NDArrayFloatType,
+    ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+        """The haze's I/F over a column and the column's direct transmission.
 
-    # On-disc annulus: the solar elevation comes from the surface incidence,
-    # and the opacity is the grazing EXCESS over the nadir column:
-    # tau_vert * (1 / mu - 1), zero at disc center and diverging toward the
-    # limb, so the haze concentrates in a limb band.  The haze joins the
-    # opaque paint (the disc is opaque anyway), weighted by the coverage.
-    if band_in.any():
-        e2_in = e2[band_in]
-        mu0_in = _disc_incidence(
-            v_rot[band_in],
-            u_rot[band_in],
-            e2_in,
-            geometry=geometry,
-            cos_rz=cos_rz,
-            sin_rz=sin_rz,
-            illum_v=illum_v,
-            illum_u=illum_u,
-            illum_z=illum_z,
+        ``cosines`` are the emission and incidence cosines at the level the haze
+        reflects from and ``surface`` those at the solid surface beneath; each
+        enters through the effective cosine the column's curvature gives.
+        """
+        c = grazing_constant(height, r_mean)
+        mu_eff = effective_cosine(cosines[0], c)
+        mu0_eff = effective_cosine(cosines[1], c)
+        tau = np.minimum(tau_los, _MAX_EXP_ARG)
+        haze = haze_reflectance(
+            tau,
+            mu_eff,
+            mu0_eff,
+            albedo=spec.albedo,
+            g=mean_cosine(spec.g, spec.g2, spec.g2_fraction),
+            phase_function=hg,
+        ) * twilight_weight(cosines[1], delta_wrap)
+        mu_surface = effective_cosine(surface[0], c)
+        mu0_surface = effective_cosine(surface[1], c)
+        direct = np.exp(-np.minimum(tau * (1.0 + mu_surface / mu0_surface), _MAX_EXP_ARG))
+        return cast(NDArrayFloatType, haze), cast(NDArrayFloatType, direct)
+
+    def _incidence(
+        pixels: NDArrayBoolType, scale: float | NDArrayFloatType
+    ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+        """The emission and incidence cosines on the body scaled by ``scale``.
+
+        A pixel the scaled outline covers takes them from the scaled surface, whose
+        normal at an image point is the body's own normal at that point divided by
+        the scale.  A pixel outside it is a grazing line of sight (emission cosine
+        0) whose incidence is that of the limb at the pixel's azimuth, the column
+        standing above the limb there.
+        """
+        v_px = np.broadcast_to(v_ctr, e2.shape)[pixels]
+        u_px = np.broadcast_to(u_ctr, e2.shape)[pixels]
+        rho = np.maximum(stable_hypot(v_px, u_px), 1e-9)
+        mu0 = (v_px * illum_v + u_px * illum_u) / rho
+        mu = np.zeros_like(mu0)
+        e2_scaled = e2[pixels] / (np.asarray(scale) ** 2)
+        on_disc = e2_scaled < 1.0
+        if on_disc.any():
+            scale_on = np.broadcast_to(np.asarray(scale, dtype=np.float64), mu0.shape)[on_disc]
+            mu[on_disc] = np.sqrt(1.0 - e2_scaled[on_disc])
+            mu0[on_disc] = disc_incidence(
+                v_rot[pixels][on_disc] / scale_on,
+                u_rot[pixels][on_disc] / scale_on,
+                e2_scaled[on_disc],
+                geometry=geometry,
+                cos_rz=cos_rz,
+                sin_rz=sin_rz,
+                illum_v=illum_v,
+                illum_u=illum_u,
+                illum_z=illum_z,
+            )
+        return mu, mu0
+
+    def _reflecting_scale(height: float | NDArrayFloatType) -> float | NDArrayFloatType:
+        """The size of the level the haze reflects from, relative to the body.
+
+        The level where the tangent optical depth is 1, or the surface when the
+        column is thinner than that.
+        """
+        altitude = np.maximum(
+            spec.ref_altitude_px + np.asarray(height) * math.log(max(spec.tau_ref, 1e-300)), 0.0
         )
-        mu_emit = np.sqrt(np.maximum(1.0 - e2_in, 0.0))
+        return cast(float | NDArrayFloatType, 1.0 + altitude / r_mean)
+
+    # The disc: the column runs from the top of the haze down to the surface,
+    # the vertical depth over the effective emission cosine.  The haze reflects
+    # from the level where the tangent column is 1 (the surface, for a thinner
+    # haze), so a thick haze looks like a sphere that size and the solid limb
+    # does not show.  The surface shows through the column's direct
+    # transmission, and the haze's own light joins it, weighted by the
+    # coverage.
+    if band_in.any():
         height_in = scale_height_field(
             structure,
             scale_height,
@@ -758,24 +806,23 @@ def apply_atmosphere(
             illum_v=axis_v,
             illum_u=axis_u,
         )
+        surface_in = _incidence(band_in, 1.0)
         tau_vert_in = _vertical_optical_depth(spec, r_mean, height_in)
-        excess = tau_vert_in * (1.0 / np.maximum(mu_emit, _MU_FLOOR) - 1.0)
-        haze_in = _source(mu0_in) * (1.0 - np.exp(-excess))
+        tau_in = tau_vert_in / effective_cosine(surface_in[0], grazing_constant(height_in, r_mean))
+        haze_in, direct_in = _column(
+            tau_in, _incidence(band_in, _reflecting_scale(height_in)), surface_in, height_in
+        )
+        out_box[band_in] *= direct_in
         _add_covered_haze(out_box, outline_box, band_in, haze_in)
 
-    # Above-limb band: the solar elevation comes from the limb-azimuth
-    # incidence (there is no surface, only the atmospheric column standing
-    # above the limb at that azimuth) and the opacity from the tangent
-    # column.  Covered pixels outside the ellipse join the opaque paint by
-    # their coverage, so the painted silhouette is exactly the no-atmosphere
-    # one.  The halo pixels become the translucent screen the radiance stage
-    # composites behind the body, over whatever lies behind it.
+    # Above-limb band: the line of sight grazes the column at the tangent
+    # altitude.  The halo pixels take the whole tangent column and become the
+    # translucent screen the radiance stage composites behind the body, over
+    # whatever lies behind it.  Covered pixels outside the ellipse are surface
+    # seen through the near half of the column, which is what the disc's column
+    # reaches at the limb, and join the opaque paint by their coverage, so the
+    # painted silhouette is exactly the no-atmosphere one.
     if band_out.any():
-        v_out = np.broadcast_to(v_ctr, e2.shape)[band_out]
-        u_out = np.broadcast_to(u_ctr, e2.shape)[band_out]
-        rho = stable_hypot(v_out, u_out)
-        rho = np.maximum(rho, 1e-9)
-        mu0_out = (v_out * illum_v + u_out * illum_u) / rho
         h_out = (np.sqrt(e2[band_out]) - 1.0) * r_mean
         # The halo on a pixel the outline covers is seen only through the part
         # the outline leaves open, which lies above the limb, so it takes the
@@ -785,20 +832,35 @@ def apply_atmosphere(
             structure,
             scale_height,
             weight=None if weight is None else weight[band_out],
-            v_ctr=v_out,
-            u_ctr=u_out,
+            v_ctr=np.broadcast_to(v_ctr, e2.shape)[band_out],
+            u_ctr=np.broadcast_to(u_ctr, e2.shape)[band_out],
             illum_v=axis_v,
             illum_u=axis_u,
         )
-        opacity_out = 1.0 - np.exp(-tangent_optical_depth(h_out, spec, scale_height=height_out))
-        haze_out = _source(mu0_out) * opacity_out
+        tau_out = tangent_optical_depth(h_out, spec, scale_height=height_out)
+        height_each = np.broadcast_to(np.asarray(height_out, dtype=np.float64), tau_out.shape)
 
-        _add_covered_haze(out_box, outline_box, solid_out, haze_out[solid_out[band_out]])
+        solid = solid_out[band_out]
+        if solid.any():
+            haze_solid, direct_solid = _column(
+                0.5 * tau_out[solid],
+                _incidence(solid_out, _reflecting_scale(height_each[solid])),
+                _incidence(solid_out, 1.0),
+                height_each[solid],
+            )
+            out_box[solid_out] *= direct_solid
+            _add_covered_haze(out_box, outline_box, solid_out, haze_solid)
+
         halo = halo_mask[band_out]
-        emission[box_v, box_u][halo_mask] = haze_out[halo]
-        # The screen's opacity is 1 - exp(-tau) of the tangent column, so its
-        # transmission is the complement.
-        transmission[box_v, box_u][halo_mask] = 1.0 - opacity_out[halo]
+        haze_halo, _direct = _column(
+            tau_out[halo],
+            _incidence(halo_mask, _reflecting_scale(height_each[halo])),
+            _incidence(halo_mask, 1.0),
+            height_each[halo],
+        )
+        emission[box_v, box_u][halo_mask] = haze_halo
+        # The screen's transmission is exp(-tau) of the tangent column.
+        transmission[box_v, box_u][halo_mask] = np.exp(-np.minimum(tau_out[halo], _MAX_EXP_ARG))
 
     # The disc-side structure rides on top of the composited haze: an axial
     # brightness ramp and any clouds, both confined to the painted
@@ -857,71 +919,3 @@ def _add_covered_haze(
         haze: The haze brightness at each of those pixels, in their array order.
     """
     out_box[pixels] += coverage[pixels] * haze
-
-
-def _column_latitude_sine(
-    v_rot: NDArrayFloatType,
-    u_rot: NDArrayFloatType,
-    e2: NDArrayFloatType,
-    *,
-    geometry: EllipsoidGeometry,
-) -> NDArrayFloatType:
-    """The sine of the latitude of the haze column each pixel sees.
-
-    On the disc it is the latitude of the surface point under the pixel.  Above the
-    limb it is the latitude of the limb point at the pixel's azimuth on the outline,
-    where the column the line of sight grazes stands.  For a body seen equator-on
-    this is :func:`~spindoctor.sim.render.bodies.haze.latitude_sine`.
-
-    Parameters:
-        v_rot: Each pixel's coordinate along the rotated first axis.
-        u_rot: Each pixel's coordinate along the rotated second axis.
-        e2: Each pixel's squared normalized outline distance.
-        geometry: The body's shape and orientation.
-
-    Returns:
-        The sine of latitude per pixel, in [-1, 1].
-    """
-    if geometry.sin_lat == 0.0:
-        return latitude_sine(v_rot, e2, semi_a=geometry.semi_a)
-    x, _y, _z = surface_unit_coords(v_rot, u_rot, e2, geometry=geometry)
-    sin_latitude: NDArrayFloatType = np.clip(x, -1.0, 1.0)
-    return sin_latitude
-
-
-def _disc_incidence(
-    v_rot: NDArrayFloatType,
-    u_rot: NDArrayFloatType,
-    e2: NDArrayFloatType,
-    *,
-    geometry: EllipsoidGeometry,
-    cos_rz: float,
-    sin_rz: float,
-    illum_v: float,
-    illum_u: float,
-    illum_z: float,
-) -> NDArrayFloatType:
-    """Cosine of the surface incidence angle at on-disc haze pixels.
-
-    The shared projection's surface normal in image coordinates
-    (:func:`~spindoctor.sim.shared.ellipsoid.surface_normals`) dotted with the
-    illumination direction, so the haze stays aligned with the disc shading.
-
-    Parameters:
-        v_rot: Rotated-frame first-axis coordinate of each pixel.
-        u_rot: Rotated-frame second-axis coordinate of each pixel.
-        e2: Squared normalized outline distance at each pixel.
-        geometry: The body's shape and orientation.
-        cos_rz: Cosine of the in-plane rotation.
-        sin_rz: Sine of the in-plane rotation.
-        illum_v: V component of the unit illumination direction.
-        illum_u: U component of the unit illumination direction.
-        illum_z: Z component of the unit illumination direction.
-
-    Returns:
-        ``cos(incidence)`` per pixel (negative on the night side).
-    """
-    normal_v, normal_u, normal_z = surface_normals(
-        v_rot, u_rot, e2, geometry=geometry, cos_rz=cos_rz, sin_rz=sin_rz
-    )
-    return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)

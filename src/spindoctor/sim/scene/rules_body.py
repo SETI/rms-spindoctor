@@ -364,13 +364,25 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
 # reference-altitude tangent optical depth (required, non-negative; zero is a
 # clear atmosphere that leaves the limb hard) define the column; the
 # reference altitude, the Henyey-Greenstein asymmetry (forward-scattering
-# when positive), an optional detached-shell altitude, and the haze's
+# when positive) and an optional second term's asymmetry and share, an
+# optional detached-shell altitude, and the haze's
 # single-scattering albedo (in [0, 1]) are optional.  The
 # structure keys folded in from the renderer break the column's mirror
 # symmetry (axis tilt, hemispheric and azimuthal falloff scaling, hemispheric
 # brightness, an axial interior ramp, and clouds); all are optional.
 ATMOSPHERE_KEYS: frozenset[str] = (
-    frozenset({'scale_height_px', 'tau_ref', 'ref_altitude_px', 'g', 'detached_px', 'albedo'})
+    frozenset(
+        {
+            'scale_height_px',
+            'tau_ref',
+            'ref_altitude_px',
+            'g',
+            'g2',
+            'g2_fraction',
+            'detached_px',
+            'albedo',
+        }
+    )
     | HAZE_STRUCTURE_KEYS
 )
 """Every key one body's ``atmosphere`` block may carry.
@@ -431,7 +443,35 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
         raise SimSceneValidationError(
             f'{source}: {label}.atmosphere.g must lie in (-1, 1); got {g!r}'
         )
+    _check_second_phase_term(value, label=label, source=source)
     _check_haze_structure(value, label=label, source=source)
+
+
+def _check_second_phase_term(value: dict[str, Any], *, label: str, source: str) -> None:
+    """Validate the second term of a two-term Henyey-Greenstein phase function.
+
+    ``g2`` and ``g2_fraction`` come together or not at all: one without the other
+    states half a phase function.
+    """
+    g2 = value.get('g2')
+    fraction = value.get('g2_fraction')
+    if (g2 is None) != (fraction is None):
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.g2 and {label}.atmosphere.g2_fraction '
+            'must be given together'
+        )
+    if g2 is None:
+        return
+    _check_optional_number(g2, f'{label}.atmosphere.g2', source=source)
+    if not -1.0 < float(g2) < 1.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.g2 must lie in (-1, 1); got {g2!r}'
+        )
+    _check_optional_nonnegative_number(fraction, f'{label}.atmosphere.g2_fraction', source=source)
+    if fraction is not None and float(fraction) > 1.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.g2_fraction must lie in [0, 1]; got {fraction!r}'
+        )
 
 
 def _check_haze_structure(value: dict[str, Any], *, label: str, source: str) -> None:

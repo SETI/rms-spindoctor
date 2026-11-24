@@ -14,7 +14,7 @@ import pytest
 from tests.spindoctor.sim.scenes import disc_body
 
 from spindoctor.nav_model.simulated.predicted_body import render_predicted_body
-from spindoctor.sim.render.bodies import atmosphere
+from spindoctor.sim.render.bodies import haze_geometry
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.shared.ellipsoid import (
@@ -144,7 +144,7 @@ def test_the_haze_column_at_the_north_limb_lies_below_the_pole() -> None:
     geometry = EllipsoidGeometry(
         semi_a=20.0, semi_b=20.0, semi_c=20.0, cos_lat=math.cos(tilt), sin_lat=math.sin(tilt)
     )
-    sin_latitude = atmosphere._column_latitude_sine(
+    sin_latitude = haze_geometry.column_latitude_sine(
         np.array([24.0]), np.array([0.0]), np.array([(24.0 / 20.0) ** 2]), geometry=geometry
     )
     assert float(sin_latitude[0]) == pytest.approx(math.cos(tilt), abs=1e-12)
@@ -157,7 +157,7 @@ def test_the_on_disc_haze_reads_the_turned_surfaces_incidence() -> None:
     )
     on_disc = projection.ellipse_dist_sq < 0.9
     light_v, light_u, light_z = illumination_vector(illumination_angle=0.4, phase_angle=0.7)
-    incidence = atmosphere._disc_incidence(
+    incidence = haze_geometry.disc_incidence(
         projection.v_rot[on_disc],
         projection.u_rot[on_disc],
         projection.ellipse_dist_sq[on_disc],

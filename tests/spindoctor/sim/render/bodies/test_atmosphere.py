@@ -324,11 +324,11 @@ def test_atmosphere_spec_defaults_the_haze_albedo() -> None:
 
 
 def test_the_halo_glow_scales_with_the_haze_albedo() -> None:
-    """Halving the albedo halves the glow above the limb, below saturation."""
+    """Halving the albedo halves the glow of a thin halo, which single scattering sets."""
     probe = (int(_CENTER), int(_CENTER + _RADIUS + 3))
-    bright = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.4))
-    dim = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.2))
-    assert dim.halo.emission[probe] == pytest.approx(0.5 * bright.halo.emission[probe], rel=1e-12)
+    bright = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1e-3, albedo=0.4))
+    dim = _centered_layers(AtmosphereSpec(scale_height_px=8.0, tau_ref=1e-3, albedo=0.2))
+    assert dim.halo.emission[probe] == pytest.approx(0.5 * bright.halo.emission[probe], rel=1e-3)
 
 
 def test_a_zero_albedo_haze_adds_no_light() -> None:
@@ -363,6 +363,53 @@ def test_a_haze_albedo_outside_the_unit_interval_is_refused(albedo: float) -> No
     """A haze albedo below 0 or above 1 fails validation and names the key."""
     with pytest.raises(SimSceneValidationError, match=r'atmosphere\.albedo'):
         validate_sim_params(_albedo_scene(albedo))
+
+
+def _second_term_scene(**keys: float) -> dict[str, Any]:
+    """A minimal scene whose one atmospheric body states the given phase keys."""
+    body = _compose_body()
+    body['atmosphere'].update(keys)
+    return frame_scene(size=_C_SIZE, seed=3, exposure_sec=1.0, bodies=[body])
+
+
+def test_a_second_phase_term_validates() -> None:
+    """A second Henyey-Greenstein term with its share validates and is kept."""
+    scene = validate_sim_params(_second_term_scene(g2=-0.2, g2_fraction=0.1))
+    assert scene['bodies'][0]['atmosphere']['g2_fraction'] == 0.1
+
+
+def test_a_second_phase_term_without_its_share_is_refused() -> None:
+    """``g2`` without ``g2_fraction`` fails validation and names both keys."""
+    with pytest.raises(SimSceneValidationError, match=r'g2 and .*g2_fraction'):
+        validate_sim_params(_second_term_scene(g2=-0.2))
+
+
+def test_a_second_phase_term_share_above_one_is_refused() -> None:
+    """A second-term share above 1 fails validation and names the key."""
+    with pytest.raises(SimSceneValidationError, match=r'atmosphere\.g2_fraction'):
+        validate_sim_params(_second_term_scene(g2=-0.2, g2_fraction=1.5))
+
+
+def test_a_thin_halo_takes_the_two_term_phase_function() -> None:
+    """A thin column of a two-term haze glows at albedo * P / 4 with P mixing both terms."""
+    albedo = 0.8
+    g, g2, share = 0.886, -0.164, 0.091
+    spec = AtmosphereSpec(
+        scale_height_px=0.5, tau_ref=0.01, g=g, g2=g2, g2_fraction=share, albedo=albedo
+    )
+    layers = _centered_layers(spec, phase_deg=135.0)
+    probe = (int(_CENTER), int(_CENTER + _RADIUS + 2))
+    tau = -math.log(float(layers.halo.transmission[probe]))
+    cos_phase = math.cos(math.radians(135.0))
+
+    def hg(asymmetry: float) -> float:
+        """One Henyey-Greenstein term at the probe's phase angle."""
+        denominator = (1.0 + asymmetry * asymmetry + 2.0 * asymmetry * cos_phase) ** 1.5
+        return float((1.0 - asymmetry * asymmetry) / denominator)
+
+    phase_function = (1.0 - share) * hg(g) + share * hg(g2)
+    expected = albedo * phase_function * tau / 4.0
+    assert float(layers.halo.emission[probe]) == pytest.approx(expected, rel=1e-3)
 
 
 def test_apply_atmosphere_does_not_mutate_input() -> None:
@@ -573,6 +620,142 @@ def test_on_disc_haze_is_continuous_across_the_limb() -> None:
     assert outside > 0.0
     assert inside > outside / 3.0
     assert inside < outside * 3.0
+
+
+# A haze several optical depths thick at every pixel of the disc: H = 3 px with a
+# 60-optical-depth tangent column at the surface gives a vertical depth of 7.7.
+_THICK = AtmosphereSpec(scale_height_px=3.0, tau_ref=60.0, g=0.6, albedo=0.95)
+
+
+def _shifted_layers(spec: AtmosphereSpec, body: float, *, shift_u: float, phase_deg: float) -> Any:
+    """The haze layers of a sphere of radius ``_RADIUS`` moved ``shift_u`` px along u.
+
+    Parameters:
+        spec: The haze spec.
+        body: The uniform brightness the sphere is painted with, under its haze.
+        shift_u: How far the sphere moves from ``_CENTER`` along u, in pixels.
+        phase_deg: The phase angle in degrees.
+
+    Returns:
+        The ``AtmosphereLayers`` ``apply_atmosphere`` produces for it.
+    """
+    center_u = _CENTER + shift_u
+    offsets_v = np.arange(_SIZE, dtype=np.float64) + (PIXEL_CENTER_TO_CORNER_PX - _CENTER)
+    offsets_u = np.arange(_SIZE, dtype=np.float64) + (PIXEL_CENTER_TO_CORNER_PX - center_u)
+    radius2 = offsets_v[:, None] ** 2 + offsets_u[None, :] ** 2
+    outline = (radius2 < _RADIUS * _RADIUS).astype(np.float64)
+    return apply_atmosphere(
+        body * outline,
+        spec,
+        center_v=_CENTER,
+        center_u=center_u,
+        semi_a=_RADIUS,
+        semi_b=_RADIUS,
+        semi_c=_RADIUS,
+        rotation_z=0.0,
+        sub_observer_lat=0.0,
+        illumination_angle=math.radians(90.0),
+        phase_angle=math.radians(phase_deg),
+        silhouette=outline,
+    )
+
+
+def test_a_thick_haze_hides_the_solid_limb() -> None:
+    """A thick haze is as bright just inside the solid limb as just outside it.
+
+    One pixel is put 1e-6 px inside the limb, where it is disc, and then 1e-6 px
+    outside it, where it is halo.  The disc side sees the near half of the tangent
+    column and the halo the whole of it; both are opaque, so they reflect alike and
+    the limb of the bright surface beneath does not show.
+    """
+    pixel = (int(_CENTER), int(_CENTER + _RADIUS))
+    pixel_u = pixel[1] + PIXEL_CENTER_TO_CORNER_PX - _CENTER
+
+    def shift_to(radius: float) -> float:
+        """The shift along u that puts the pixel's center at ``radius``."""
+        return pixel_u - math.sqrt(radius * radius - PIXEL_CENTER_TO_CORNER_PX**2)
+
+    inside = _shifted_layers(_THICK, 0.9, shift_u=shift_to(_RADIUS - 1e-6), phase_deg=155.0)
+    outside = _shifted_layers(_THICK, 0.9, shift_u=shift_to(_RADIUS + 1e-6), phase_deg=155.0)
+    assert float(inside.disc[pixel]) == pytest.approx(float(outside.halo.emission[pixel]), rel=1e-3)
+
+
+def test_a_thick_haze_dims_smoothly_across_the_solid_limb() -> None:
+    """A thick haze is within 5% as bright 1.5 px outside the solid limb as 1.5 px inside.
+
+    The haze reflects from the level where its tangent depth is 1, about 12 px above
+    the limb here, so the solid limb is an ordinary place on that larger disc.  Were
+    the haze to take the solid body's emission angles, the brightness would fall by a
+    fifth across those three pixels.
+    """
+    layers = _shifted_layers(_THICK, 0.9, shift_u=0.0, phase_deg=30.0)
+    row = int(_CENTER)
+    inside = float(layers.disc[row, int(_CENTER + _RADIUS) - 2])
+    outside = float(layers.halo.emission[row, int(_CENTER + _RADIUS) + 1])
+    assert outside > 0.95 * inside
+
+
+def test_a_thick_haze_hides_the_surface() -> None:
+    """Under a thick haze a bright surface and a black one render the same disc."""
+    bright = _shifted_layers(_THICK, 0.9, shift_u=0.0, phase_deg=30.0)
+    black = _shifted_layers(_THICK, 0.0, shift_u=0.0, phase_deg=30.0)
+    assert float(np.abs(bright.disc - black.disc).max()) < 1e-3
+
+
+def _disc_center_cosines(spec: AtmosphereSpec, phase_deg: float) -> tuple[float, float]:
+    """The effective emission and incidence cosines at the disc-center pixel.
+
+    Parameters:
+        spec: The haze spec, whose scale height sets the grazing constant.
+        phase_deg: The phase angle in degrees; the sun lies along +u.
+
+    Returns:
+        ``(mu, mu0)``, each ``sqrt(cos**2 (1 - c) + c)`` with ``c = 2 H / (pi R)``.
+    """
+    offset = PIXEL_CENTER_TO_CORNER_PX
+    illum_v, illum_u, illum_z = illumination_vector(
+        illumination_angle=math.radians(90.0), phase_angle=math.radians(phase_deg)
+    )
+    cos_emission = math.sqrt(1.0 - 2.0 * (offset / _RADIUS) ** 2)
+    cos_incidence = (offset * illum_v + offset * illum_u) / _RADIUS + cos_emission * illum_z
+    c = 2.0 * spec.scale_height_px / (math.pi * _RADIUS)
+    return (
+        math.sqrt(cos_emission**2 * (1.0 - c) + c),
+        math.sqrt(cos_incidence**2 * (1.0 - c) + c),
+    )
+
+
+def _vertical_depth(spec: AtmosphereSpec) -> float:
+    """The vertical optical depth of a spec referenced at the surface."""
+    return spec.tau_ref / math.sqrt(2.0 * math.pi * _RADIUS / spec.scale_height_px)
+
+
+def test_the_surface_is_dimmed_by_the_haze_column_both_ways() -> None:
+    """At disc center the surface shows through exp(-tau_vert (1 / mu + 1 / mu0))."""
+    spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, albedo=0.0)
+    layers = _shifted_layers(spec, 1.0, shift_u=0.0, phase_deg=30.0)
+    mu, mu0 = _disc_center_cosines(spec, 30.0)
+    expected = math.exp(-_vertical_depth(spec) * (1.0 / mu + 1.0 / mu0))
+    pixel = (int(_CENTER), int(_CENTER))
+    assert float(layers.disc[pixel]) == pytest.approx(expected, rel=1e-9)
+
+
+def test_a_thin_haze_lights_disc_center_by_its_whole_column() -> None:
+    """At disc center a thin haze reflects albedo * P * tau_vert / (4 mu).
+
+    The column the line of sight crosses runs from the top of the haze down to the
+    surface, so the haze is not zero where that column is shortest.
+    """
+    albedo = 0.8
+    g = 0.5
+    spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=1e-3, g=g, albedo=albedo)
+    layers = _shifted_layers(spec, 0.0, shift_u=0.0, phase_deg=30.0)
+    mu, _mu0 = _disc_center_cosines(spec, 30.0)
+    cos_phase = math.cos(math.radians(30.0))
+    phase_function = (1.0 - g * g) / (1.0 + g * g + 2.0 * g * cos_phase) ** 1.5
+    expected = albedo * phase_function * _vertical_depth(spec) / (4.0 * mu)
+    pixel = (int(_CENTER), int(_CENTER))
+    assert float(layers.disc[pixel]) == pytest.approx(expected, rel=1e-3)
 
 
 # ---------------------------------------------------------------------------
@@ -804,27 +987,6 @@ def test_ring_over_only_the_halo_still_needs_ranges() -> None:
         _compose_scene(bodies=[_compose_body()], ring_system=ring)
 
 
-def test_on_disc_haze_adds_light_past_one() -> None:
-    """Haze over a bright disc carries the disc radiance above 1, uncapped."""
-    outline = _sphere_outline()
-    body = 0.99 * outline
-    layers = apply_atmosphere(
-        body,
-        AtmosphereSpec(scale_height_px=8.0, tau_ref=1.5, g=0.6),
-        center_v=_CENTER,
-        center_u=_CENTER,
-        semi_a=_RADIUS,
-        semi_b=_RADIUS,
-        semi_c=_RADIUS,
-        rotation_z=0.0,
-        sub_observer_lat=0.0,
-        illumination_angle=math.radians(90.0),
-        phase_angle=math.radians(30.0),
-        silhouette=outline,
-    )
-    assert float(layers.disc.max()) > 1.0
-
-
 def _forward_scattering_layers(
     outline: NDArrayFloatType, *, structure: HazeStructure | None = None
 ) -> Any:
@@ -843,6 +1005,13 @@ def _forward_scattering_layers(
         phase_angle=math.radians(170.0),
         silhouette=outline,
     )
+
+
+def test_on_disc_haze_adds_light_past_one() -> None:
+    """Inside the ellipse a strong forward-scattering haze carries the disc past 1."""
+    outline = _sphere_outline()
+    layers = _forward_scattering_layers(outline)
+    assert float(layers.disc[outline > 0.0].max()) > 1.0
 
 
 def test_forward_scattering_halo_glows_past_one() -> None:

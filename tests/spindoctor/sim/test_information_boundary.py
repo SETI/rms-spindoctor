@@ -100,6 +100,8 @@ _TRUTH_SAMPLES: dict[str, Any] = {
         'tau_ref': 1.5,
         'ref_altitude_px': 1.0,
         'g': 0.6,
+        'g2': -0.2,
+        'g2_fraction': 0.1,
         'detached_px': 5.0,
         'albedo': 0.4,
         'interior_ramp_amplitude': 0.2,
