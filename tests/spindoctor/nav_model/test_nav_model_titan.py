@@ -910,7 +910,7 @@ def test_every_titan_backplane_stays_within_the_sample_cap(
     scene.ring_radius_at_u = None
     calls = _recorded_boxes(monkeypatch)
     config = _titan_only_config(tmp_path)
-    cap = int(config.titan['navigation']['backplane_max_samples'])
+    cap = config.titan.navigation.backplane_max_samples
     _geometry(
         _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0), config
     )

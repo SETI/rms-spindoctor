@@ -403,7 +403,9 @@ bodies block
 
 Every key under ``bodies`` is listed below, with the class that reads it. Several keys
 are read by classes other than
-:class:`~spindoctor.nav_model.nav_model_body.NavModelBody`. The grep
+:class:`~spindoctor.nav_model.nav_model_body.NavModelBody`. The section is parsed at load
+into :class:`~spindoctor.config.sections_models.BodiesSection`. Its fields give each key's
+type and range, and a key it does not declare is refused. The grep
 ``grep -c '^  [a-z_]\+:' src/spindoctor/config_files/config_040_bodies.yaml``
 returns 18 keys, which matches the 18 bullets here.
 
@@ -425,10 +427,11 @@ returns 18 keys, which matches the 18 bullets here.
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB`, whether as its only
   feature or as the witness beside the limb. The value is where the centroid displacement
   that clipping alone produces reaches the centroid bias budget in the blob covariance
-  (see `Feature emission gates`_). Validated at load as a finite number within
-  ``[0, 1]``. Consumed by :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
+  (see `Feature emission gates`_). A value outside ``[0, 1]`` is refused at load. Consumed
+  by :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
 - ``geometric_albedo`` — dict[str, float], per-body table (dimensionless). Per-body
-  geometric albedo applied to the rendered brightness image when ``use_albedo`` is enabled.
+  geometric albedo applied to the rendered brightness image when ``use_albedo`` is enabled,
+  keyed by the body's SPICE name in upper case; a key in lower case is refused at load.
   Entries default to bright icy moons (0.6-1.0); Phoebe (0.08), Iapetus (0.275), and Saturn
   (0.342) are the notable dark exceptions. Consumed by
   :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.

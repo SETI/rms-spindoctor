@@ -123,6 +123,7 @@ def relief_normals(
     *,
     illumination_angle: float,
     phase_angle: float,
+    inside: NDArrayBoolType | None = None,
 ) -> ReliefShading:
     """Replace the smooth normals with the relief surface's, and cast its shadows.
 
@@ -133,10 +134,13 @@ def relief_normals(
             where the relief reaches.
         illumination_angle: In-plane light direction, radians (0 = top).
         phase_angle: Phase angle in radians.
+        inside: The grid's pixels inside the body's silhouette, when nothing but
+            the shading there is wanted.  The relief is then computed at those
+            pixels alone.  None computes it at every pixel the relief reaches.
 
     Returns:
         The relief's shading at the pixels it reaches, which include every pixel
-        inside its outline.
+        inside its outline (inside ``inside``, when given).
     """
     normal_v, normal_u, normal_z = normals
     # Relief reaches only pixels inside its outline, plus the pixel an
@@ -144,6 +148,8 @@ def relief_normals(
     # the continuity and the silhouette masks them.
     reach = 1.0 + max(field.h_max, 0.0) + 2.0 / max(min(grid.semi_a_outline, grid.semi_b), 1.0)
     near = grid.ellipse_dist_sq < reach * reach
+    if inside is not None:
+        near &= inside
     shading = relief_shading(
         grid, field, near, illumination_angle=illumination_angle, phase_angle=phase_angle
     )
@@ -162,6 +168,7 @@ def add_detector_relief(
     up_factor: int,
     illumination_angle: float,
     phase_angle: float,
+    inside: NDArrayBoolType,
 ) -> NDArrayBoolType:
     """Tilt the working grid's smooth normals by the relief, and cast its shadows.
 
@@ -171,7 +178,8 @@ def add_detector_relief(
     :data:`_LIMB_BAND_PX` detector pixels of the limb, along the relief's own
     day-night edge, in every cell its cast shadows reach, and in the cells
     :func:`~spindoctor.sim.render.bodies.ellipsoid_grid.stretched_sight_cells` marks,
-    with their neighbors.
+    with their neighbors.  Of those, only the pixels inside the silhouette are
+    computed on the working grid.
 
     Parameters:
         work_grid: The working-grid geometry, cropped to the body.
@@ -181,6 +189,7 @@ def add_detector_relief(
         up_factor: Pixels of the working grid per detector pixel.
         illumination_angle: In-plane light direction, radians (0 = top).
         phase_angle: Phase angle in radians.
+        inside: The working grid's pixels inside the body's silhouette.
 
     Returns:
         The relief's cast-shadow mask on the working grid.
@@ -232,6 +241,7 @@ def add_detector_relief(
     band |= expand_to_working_grid(
         neighboring_cells(stretched_sight_cells(seen, smooth)), up_factor
     )
+    band &= inside
     shading = relief_shading(
         work_grid,
         field,

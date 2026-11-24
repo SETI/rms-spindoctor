@@ -18,9 +18,16 @@ when it installs a configuration.
 
 import dataclasses
 import functools
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from spindoctor.config.logging_keys import LoggingSection
+from spindoctor.config.sections_models import (
+    BodiesSection,
+    FeatureEmissionSection,
+    StarsSection,
+    TitanSection,
+)
 from spindoctor.config.sections_products import BackplanesSection, Pds4Section, pds4_section_type
 from spindoctor.dataset import pds4_config_keys
 from spindoctor.feature.reliability import FeatureReliabilityGate
@@ -31,7 +38,7 @@ from spindoctor.nav_technique.confidence_config import (
     techniques_section_type,
 )
 from spindoctor.nav_technique.nav_technique import NavTechnique
-from spindoctor.schema import SCHEMA_CONFIG
+from spindoctor.schema import SCHEMA_CONFIG, RuleError, Str
 
 __all__ = [
     'OrchestratorSection',
@@ -64,12 +71,23 @@ class TypedSections:
     of a problem found while parsing starts at the section's name, as in
     ``orchestrator.ensemble.min_confidence``.
 
+    A mapping keyed by planet must name only planets of the ``planets`` section, as
+    SPICE spells them, so a key in lower case or misspelled is refused rather than
+    left unread.
+
     The ``techniques`` and ``pds4`` fields are declared here by their base types, which
     have no fields, so this class is never parsed itself: :func:`typed_sections_type`
-    returns the type to parse.
+    returns the type to parse. That type is a subclass, so it inherits the planet-key
+    rule below.
 
     Parameters:
+        planets: The SPICE names of the planets the navigator knows.
         orchestrator: The ``orchestrator`` section.
+        bodies: The ``bodies`` section.
+        stars: The ``stars`` section.
+        titan: The ``titan`` section.
+        satellites: Each planet's satellites, keyed by the planet's SPICE name.
+        feature_emission: The ``feature_emission`` section.
         logging: The ``logging`` section.
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
@@ -80,11 +98,57 @@ class TypedSections:
 
     __pydantic_config__ = SCHEMA_CONFIG
 
+    planets: tuple[Str, ...]
     orchestrator: OrchestratorSection
+    bodies: BodiesSection
+    stars: StarsSection
+    titan: TitanSection
+    satellites: dict[Str, tuple[Str, ...]]
+    feature_emission: FeatureEmissionSection
     logging: LoggingSection
     techniques: TechniquesSection
     backplanes: BackplanesSection
     pds4: Pds4Section
+
+    def __post_init__(self) -> None:
+        """Refuse a planet or satellite name that is not in upper case, and a planet key
+        that names no planet of ``planets``.
+
+        Every reader looks a planet up by its upper-case SPICE name, so a lower-case name
+        would be accepted and never read, even where ``planets`` lists it the same way.
+        """
+        for index, name in enumerate(self.planets):
+            if name != name.upper():
+                raise RuleError(
+                    f'{name!r} is not in upper case; a planet is written in upper case, as '
+                    'SPICE spells it',
+                    at=('planets', index),
+                )
+        keyed_by_planet: tuple[tuple[tuple[str, ...], Iterable[str]], ...] = (
+            (('satellites',), self.satellites),
+            (('stars', 'ring_occlusion_radii_km'), self.stars.ring_occlusion_radii_km),
+            (
+                ('feature_emission', 'ring_annulus', 'planets'),
+                self.feature_emission.ring_annulus.planets,
+            ),
+        )
+        for at, planets in keyed_by_planet:
+            for planet in planets:
+                if planet not in self.planets:
+                    raise RuleError(
+                        f'{planet!r} is not a planet of the planets section; a planet is '
+                        'written in upper case, as SPICE spells it',
+                        at=(*at, planet),
+                        reads=((*at, planet), ('planets',)),
+                    )
+        for planet, moons in self.satellites.items():
+            for index, moon in enumerate(moons):
+                if moon != moon.upper():
+                    raise RuleError(
+                        f'{moon!r} is not in upper case; a body is written in upper case, as '
+                        'SPICE spells it',
+                        at=('satellites', planet, index),
+                    )
 
 
 @functools.cache

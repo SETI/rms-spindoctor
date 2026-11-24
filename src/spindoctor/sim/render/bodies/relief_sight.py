@@ -12,9 +12,11 @@ The search works in the body's parameter space, like the field it reads
 (:mod:`spindoctor.sim.render.bodies.relief`).
 """
 
+import math
 from dataclasses import dataclass
 
 import numpy as np
+from scipy import ndimage
 
 from spindoctor.sim.render.bodies.relief import ReliefField, directions_about_view
 from spindoctor.support.stable_math import stable_hypot
@@ -37,6 +39,13 @@ _SIGHT_REFINEMENTS = 1
 _SIGHT_SLIVER_CELLS = 1.0 / 256.0
 # Steps whose slivers are searched together, which bounds the search's memory.
 _SIGHT_SLIVER_CHUNK = 1 << 12
+# Off the field's pole, the sliver search bounds the slope by the field cells near
+# each step (_nearby_cell_slopes).  That bound is raised by this fraction and this
+# much more, so a step it rules out falls short of the surface by far more than the
+# rounding of the samples, and the search finds the crossings it found with the
+# field's steepest slope anywhere.
+_NEARBY_SLOPE_MARGIN = 1e-6
+_NEARBY_SLOPE_FLOOR = 1e-6
 # settle_on_surface moves a point along its line of sight onto the surface by steps
 # that start at this fraction of a field grid cell and double, and then halves the
 # step that crosses the surface this many times.  The steps stop at a whole cell, so
@@ -78,9 +87,16 @@ class _SightLines:
         # Seen along the field's own pole, the meridians are the field's own.  There
         # the slope along a stretch is bounded by the row differences beside it.
         self._along_pole = view[0] == 0.0
-        self._row_slope = np.abs(np.roll(field.grid, -1, axis=0) - field.grid) * (
-            field.grid.shape[0] / (2.0 * np.pi)
-        )
+        # The larger of the row slopes in each grid column and the next, which is what
+        # slope_bound reads.
+        self._pair_slope: NDArrayFloatType | None = None
+        # Off the pole, the steepest slope near each field cell, built when first read.
+        self._nearby_slope: NDArrayFloatType | None = None
+        if self._along_pole:
+            row_slope = np.abs(np.roll(field.grid, -1, axis=0) - field.grid) * (
+                field.grid.shape[0] / (2.0 * np.pi)
+            )
+            self._pair_slope = np.maximum(row_slope, np.roll(row_slope, -1, axis=1))
 
     def directions(self, lat: NDArrayFloatType, index: NDArrayIntType) -> NDArrayFloatType:
         """The field-frame unit directions at latitudes along the lines of sight.
@@ -104,12 +120,30 @@ class _SightLines:
         Returns:
             ``(1 + h) cos(lat) - rho``, positive inside the surface.
         """
+        return self.gap_along(lat, self.rho[index], self.phi[index])
+
+    def gap_along(
+        self, lat: NDArrayFloatType, rho: NDArrayFloatType, phi: NDArrayFloatType
+    ) -> NDArrayFloatType:
+        """How far inside the relief surface lines of sight lie, given their positions.
+
+        The same as :meth:`gap`, for a caller that holds the lines of sight's ``rho``
+        and ``phi`` itself.
+
+        Parameters:
+            lat: One latitude for each line of sight.
+            rho: The lines of sight's distances from the axis through the body center.
+            phi: Their longitudes about the view.
+
+        Returns:
+            ``(1 + h) cos(lat) - rho``, positive inside the surface.
+        """
         height = (
-            self.field.sample(lat, self.phi[index])
+            self.field.sample(lat, phi)
             if self._along_pole
-            else self.field.sample_points(self.directions(lat, index))
+            else self.field.sample_points(directions_about_view(lat, phi, self._view))
         )
-        return np.asarray((1.0 + height) * np.cos(lat) - self.rho[index], dtype=np.float64)
+        return np.asarray((1.0 + height) * np.cos(lat) - rho, dtype=np.float64)
 
     def slope_bound(
         self, ends: tuple[NDArrayFloatType, NDArrayFloatType], index: NDArrayIntType
@@ -121,7 +155,7 @@ class _SightLines:
         stretch no longer than a grid cell touches at most two row gaps, so the
         largest of the four slopes there bounds the field's slope along it.  Any
         other meridian crosses the columns too, and takes the bound on the field's
-        surface slope anywhere.
+        surface slope near the stretch (:meth:`_turned_slope_bound`).
 
         Parameters:
             ends: The stretches' upper and lower latitudes, at most a grid cell apart.
@@ -130,16 +164,168 @@ class _SightLines:
         Returns:
             The bound for each stretch, per radian of latitude.
         """
-        if not self._along_pole:
-            return np.full(index.size, self.field.slope_max)
+        if self._pair_slope is None:
+            return self._turned_slope_bound(ends[0], index)
         n = self.field.grid.shape[0]
         scale = n / (2.0 * np.pi)
         col = np.floor(self.phi[index] * scale).astype(np.intp) % n
-        col_next = (col + 1) % n
-        rows = [np.floor((lat + np.pi) * scale).astype(np.intp) % n for lat in ends]
+        upper, lower = (np.floor((lat + np.pi) * scale).astype(np.intp) % n for lat in ends)
         return np.asarray(
-            np.max([self._row_slope[row, c] for row in rows for c in (col, col_next)], axis=0),
+            np.maximum(self._pair_slope[upper, col], self._pair_slope[lower, col]),
             dtype=np.float64,
+        )
+
+    def _turned_slope_bound(
+        self, upper: NDArrayFloatType, index: NDArrayIntType
+    ) -> NDArrayFloatType:
+        """The slope bound of :meth:`slope_bound` for lines of sight off the field's pole.
+
+        The bound is the steepest slope of the field cells within a grid cell of arc
+        of each stretch's upper end (:func:`_nearby_cell_slopes`), raised far beyond
+        its rounding so that a stretch it rules out holds no sample inside the
+        surface, and never above :attr:`ReliefField.slope_max`.
+
+        Parameters:
+            upper: The stretches' upper latitudes.
+            index: The stretches' lines of sight.
+
+        Returns:
+            The bound for each stretch, per radian of latitude.
+        """
+        if self._nearby_slope is None:
+            self._nearby_slope = _nearby_cell_slopes(self.field.grid)
+        n = self.field.grid.shape[0]
+        scale = n / (2.0 * np.pi)
+        point = self.directions(upper, index)
+        lat = np.arcsin(np.clip(point[:, 2], -1.0, 1.0))
+        lon = np.mod(np.arctan2(point[:, 1], point[:, 0]), 2.0 * np.pi)
+        row = np.clip(
+            np.floor((lat + np.pi) * scale).astype(np.intp) - n // 4,
+            0,
+            self._nearby_slope.shape[0] - 1,
+        )
+        col = np.floor(lon * scale).astype(np.intp) % n
+        nearby = self._nearby_slope[row, col] * (1.0 + _NEARBY_SLOPE_MARGIN) + _NEARBY_SLOPE_FLOOR
+        return np.asarray(np.minimum(nearby, self.field.slope_max), dtype=np.float64)
+
+
+def _nearby_cell_slopes(grid: NDArrayFloatType) -> NDArrayFloatType:
+    """For each field cell, the steepest slope of the cells within a cell of arc of it.
+
+    In a cell between grid rows ``i`` and ``i + 1`` and columns ``j`` and ``j + 1``,
+    the bilinear field's slope along latitude lies between the row differences in
+    its two columns, and its slope along longitude, divided by ``cos(lat)``, is at
+    most the larger of the two rows' column differences over their own ``cos(lat)``,
+    because ``cos`` is concave.  The two combine in quadrature into a bound on the
+    surface slope anywhere in the cell.  The pole rows are single points, so their
+    column differences carry no slope.
+
+    A point within a cell of arc of a cell lies in the rows next to it, at a
+    longitude at most ``2 asin(sin(d / 2) / cos(lat))`` away, with ``d`` the cell
+    and ``lat`` the latitude farthest from the equator in those rows.  Each cell
+    takes the largest bound over those cells, its column reach rounded up to a power
+    of two.  Within two cells of a pole, where such a point can lie across the pole,
+    each cell takes the largest bound over all cells that near the pole.
+
+    Parameters:
+        grid: The field's ``(n, n)`` torus grid.
+
+    Returns:
+        ``(n // 2, n)`` slopes per radian of arc: row ``k`` holds the cells between
+        grid rows ``n // 4 + k`` and ``n // 4 + k + 1``, which span latitudes
+        ``-pi / 2`` to ``pi / 2``.
+    """
+    n = grid.shape[0]
+    cell = 2.0 * np.pi / n
+    rows = np.arange(n // 4, 3 * n // 4)
+    lat = -np.pi + cell * np.arange(n + 2)
+    lower, upper = grid[rows], grid[rows + 1]
+    lower_next, upper_next = np.roll(lower, -1, axis=1), np.roll(upper, -1, axis=1)
+    along_lat = np.maximum(np.abs(upper - lower), np.abs(upper_next - lower_next))
+    pole_below = (rows == n // 4)[:, np.newaxis]
+    pole_above = (rows + 1 == 3 * n // 4)[:, np.newaxis]
+    cos_lower = np.cos(lat[rows])[:, np.newaxis]
+    cos_upper = np.cos(lat[rows + 1])[:, np.newaxis]
+    along_lon = np.maximum(
+        np.where(
+            pole_below, 0.0, np.abs(lower_next - lower) / np.where(pole_below, 1.0, cos_lower)
+        ),
+        np.where(
+            pole_above, 0.0, np.abs(upper_next - upper) / np.where(pole_above, 1.0, cos_upper)
+        ),
+    )
+    slopes = stable_hypot(along_lat, along_lon) / cell
+
+    count = rows.size
+    nearby = np.empty_like(slopes)
+    farthest = np.maximum(np.abs(lat[rows - 1]), np.abs(lat[rows + 2]))
+    reach_sin = math.sin(cell / 2.0) / np.maximum(np.cos(farthest), 1e-300)
+    columns = np.where(
+        reach_sin < 1.0,
+        np.ceil(2.0 * np.arcsin(np.minimum(reach_sin, 1.0)) / cell) + 1.0,
+        float(n),
+    )
+    columns = 2.0 ** np.ceil(np.log2(columns))
+    inner = np.arange(count)
+    inner = inner[(inner >= 2) & (inner <= count - 3)]
+    for width in np.unique(columns[inner]):
+        if 2 * width + 1 >= n:
+            spread = np.broadcast_to(slopes.max(axis=1, keepdims=True), slopes.shape)
+        else:
+            spread = ndimage.maximum_filter1d(slopes, size=int(2 * width + 1), axis=1, mode='wrap')
+        which = inner[columns[inner] == width]
+        nearby[which] = np.maximum(np.maximum(spread[which - 1], spread[which]), spread[which + 1])
+    nearby[:2] = slopes[:3].max()
+    nearby[count - 2 :] = slopes[count - 3 :].max()
+    return np.asarray(nearby, dtype=np.float64)
+
+
+@dataclass
+class _Walk:
+    """The lines of sight still walking down their meridians, one entry each.
+
+    Parameters:
+        lat: The latitude each is to sample next.
+        lat_low: The lowest latitude each walks to.
+        rho: Each one's distance from the axis through the body center.
+        phi: Each one's longitude about the view.
+        hi: The last latitude each sampled outside the surface.
+        g_hi: The gap (:meth:`_SightLines.gap`) there, ``-inf`` before the first
+            sample.
+        best_lat: The latitude of each one's sample nearest the surface so far.
+        best_g: The gap there.
+        forced: Whether the step to ``lat`` is longer than the slope bound allows.
+    """
+
+    lat: NDArrayFloatType
+    lat_low: NDArrayFloatType
+    rho: NDArrayFloatType
+    phi: NDArrayFloatType
+    hi: NDArrayFloatType
+    g_hi: NDArrayFloatType
+    best_lat: NDArrayFloatType
+    best_g: NDArrayFloatType
+    forced: NDArrayBoolType
+
+    def keep(self, which: NDArrayBoolType) -> '_Walk':
+        """The entries of the lines of sight that go on walking.
+
+        Parameters:
+            which: True for each line of sight to keep.
+
+        Returns:
+            A walk holding those lines of sight alone.
+        """
+        return _Walk(
+            lat=self.lat[which],
+            lat_low=self.lat_low[which],
+            rho=self.rho[which],
+            phi=self.phi[which],
+            hi=self.hi[which],
+            g_hi=self.g_hi[which],
+            best_lat=self.best_lat[which],
+            best_g=self.best_g[which],
+            forced=self.forced[which],
         )
 
 
@@ -180,9 +366,9 @@ def _first_crossing_between(
     least 0.  An interval that passes this test is halved at a
     sample.  A midpoint inside the surface brackets a crossing with the upper end;
     otherwise both halves are tested again, down to pieces narrower than
-    ``min_width``, and the highest bracket found is kept.  The intervals are searched
-    in chunks of :data:`_SIGHT_SLIVER_CHUNK`, which bounds the memory the search
-    takes.
+    ``min_width``, and the highest bracket found is kept.  The intervals that pass
+    the first test are searched in chunks of :data:`_SIGHT_SLIVER_CHUNK`, which
+    bounds the memory the search takes.
 
     Parameters:
         lines: The lines of sight.
@@ -203,8 +389,12 @@ def _first_crossing_between(
     g_upper = np.zeros(count)
     g_lower = np.zeros(count)
     top = 1.0 + lines.field.h_max
-    for start in range(0, count, _SIGHT_SLIVER_CHUNK):
-        which = np.arange(start, min(start + _SIGHT_SLIVER_CHUNK, count))
+    # Most intervals fail the test whole; they are dropped before the chunks.
+    width = ends[0] - ends[1]
+    bound = slope + top * np.maximum(np.abs(np.sin(ends[0])), np.abs(np.sin(ends[1])))
+    candidates = np.nonzero((width >= min_width) & (gaps[0] + gaps[1] + bound * width >= 0.0))[0]
+    for start in range(0, candidates.size, _SIGHT_SLIVER_CHUNK):
+        which = candidates[start : start + _SIGHT_SLIVER_CHUNK]
         a, b = ends[0][which], ends[1][which]
         g_a, g_b = gaps[0][which], gaps[1][which]
         while which.size:
@@ -310,54 +500,70 @@ def visible_surface_directions(
     g_lo = np.zeros(rho.size)
     found = np.zeros(rho.size, dtype=np.bool_)
     best_lat = np.zeros(rho.size)
-    best_g = np.full(rho.size, -np.inf)
-    lat = lat_top.copy()
-    # Whether the step that led to each line of sight's current sample was longer
-    # than the slope bound allows, and so could have passed over a sliver.
-    forced = np.zeros(rho.size, dtype=np.bool_)
     sliver_width = cell * _SIGHT_SLIVER_CELLS
+    # The walk carries the lines of sight still walking in arrays that shrink with
+    # them, and writes each one's result back when it stops.
     active = np.arange(rho.size)
+    walk = _Walk(
+        lat=lat_top.copy(),
+        lat_low=lat_low,
+        rho=rho,
+        phi=lines.phi,
+        hi=lat_top.copy(),
+        g_hi=g_hi.copy(),
+        best_lat=np.zeros(rho.size),
+        best_g=np.full(rho.size, -np.inf),
+        # Whether the step that led to each line of sight's current sample was longer
+        # than the slope bound allows, and so could have passed over a sliver.
+        forced=np.zeros(rho.size, dtype=np.bool_),
+    )
     while active.size:
-        lat_a = lat[active]
-        g = lines.gap(lat_a, active)
-        closer = g > best_g[active]
-        best_g[active[closer]] = g[closer]
-        best_lat[active[closer]] = lat_a[closer]
+        lat_a = walk.lat
+        g = lines.gap_along(lat_a, walk.rho, walk.phi)
+        closer = g > walk.best_g
+        walk.best_g[closer] = g[closer]
+        walk.best_lat[closer] = lat_a[closer]
         crossed = g >= 0.0
         found[active[crossed]] = True
         lo[active[crossed]] = lat_a[crossed]
         g_lo[active[crossed]] = g[crossed]
         # A forced step that ends outside the surface may have passed over a sliver.
-        suspect = np.nonzero(~crossed & forced[active])[0]
+        suspect = np.nonzero(~crossed & walk.forced)[0]
+        sliver: _Crossing | None = None
         if suspect.size:
             pix = active[suspect]
-            ends = (hi[pix], lat_a[suspect])
+            ends = (walk.hi[suspect], lat_a[suspect])
             sliver = _first_crossing_between(
                 lines,
                 pix,
                 ends,
-                (g_hi[pix], g[suspect]),
+                (walk.g_hi[suspect], g[suspect]),
                 slope=lines.slope_bound(ends, pix),
                 min_width=sliver_width,
             )
-            inner = pix[sliver.found]
             crossed[suspect[sliver.found]] = True
+        walking = ~crossed & (lat_a > walk.lat_low)
+        stopped = ~walking
+        best_lat[active[stopped]] = walk.best_lat[stopped]
+        hi[active[stopped]] = walk.hi[stopped]
+        g_hi[active[stopped]] = walk.g_hi[stopped]
+        if sliver is not None:
+            inner = active[suspect[sliver.found]]
             found[inner] = True
             hi[inner] = sliver.upper[sliver.found]
             g_hi[inner] = sliver.g_upper[sliver.found]
             lo[inner] = sliver.lower[sliver.found]
             g_lo[inner] = sliver.g_lower[sliver.found]
-        walking = ~crossed & (lat_a > lat_low[active])
-        moving = active[walking]
-        hi[moving] = lat_a[walking]
-        g_hi[moving] = g[walking]
+        active = active[walking]
+        walk = walk.keep(walking)
+        walk.hi = walk.lat.copy()
+        walk.g_hi = g[walking]
         # Going down the meridian g rises by at most slope_max + (1 + h_max) sin(lat)
         # per radian, so a step of -g over that bound cannot pass a crossing.
-        bound = field.slope_max + top * np.maximum(np.sin(lat_a[walking]), 0.0)
-        safe = -g[walking] / np.maximum(bound, 1e-300)
-        lat[moving] = np.maximum(lat_a[walking] - np.maximum(safe, min_step), lat_low[moving])
-        forced[moving] = lat_a[walking] - lat[moving] > safe
-        active = moving
+        bound = field.slope_max + top * np.maximum(np.sin(walk.hi), 0.0)
+        safe = -walk.g_hi / np.maximum(bound, 1e-300)
+        walk.lat = np.maximum(walk.hi - np.maximum(safe, min_step), walk.lat_low)
+        walk.forced = walk.hi - walk.lat > safe
 
     hit = np.where(found, lo, best_lat)
     # A crossing found at lat_top itself needs no narrowing; elsewhere g goes from
