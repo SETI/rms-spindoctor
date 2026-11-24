@@ -135,15 +135,15 @@ returns the typed object:
   and its tuning (see :ref:`config-techniques-section`).
 - ``backplanes`` — :class:`~spindoctor.config.sections_products.BackplanesSection`,
   holding the body and ring planes, the ring incidence angle, the masked value, and
-  ``target_lids``; see :doc:`dev_guide_backplanes`. ``target_lids`` gives the PDS4
-  target of each body, keyed by its SPICE name, and of each ring system. A key not in
-  upper case is refused at load.
+  ``target_lids``; see :doc:`dev_guide_backplanes`. ``target_lids`` maps each body
+  and ring system to its PDS4 target. Its keys are SPICE names in upper case, and the
+  loader refuses a key that is not.
 - ``pds4`` — one :class:`~spindoctor.config.sections_products.Pds4Bundle` per bundle.
-  Like the ``techniques`` section's, its type is built from a registry: it has one
-  optional field per key a registered dataset class gives as its ``PDS4_CONFIG_KEY``,
-  so an entry under any other key is refused. The section's
-  :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` method gives one
-  bundle's entry; see :doc:`dev_guide_pds4`.
+  As with the ``techniques`` section, its type is built from a registry. Each
+  registered dataset class that sets ``PDS4_CONFIG_KEY`` adds one optional field under
+  that key, and the loader refuses an entry under any other key.
+  :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` returns one bundle's
+  entry; see :doc:`dev_guide_pds4`.
 
 Three mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
 and ``feature_emission.ring_annulus.planets``. Each of their keys must be a planet of
@@ -255,8 +255,8 @@ removal. The shipping sections:
   technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``); a typed
   section. See :doc:`dev_guide_navigation_models_titan` and
   :doc:`dev_guide_techniques_titan_haze`.
-- ``backplanes`` — the body and ring backplanes to generate, and the PDS4 targets they
-  are named as; a typed section (see :ref:`config-typed-sections`).
+- ``backplanes`` — the body and ring backplanes to generate, and the PDS4 target of
+  each body and ring system; a typed section (see :ref:`config-typed-sections`).
 - ``pds4`` — each bundle's template directory, name, version, and schemas; a typed
   section (see :ref:`config-typed-sections`).
 - ``environment`` — deployment locations (``pds3_holdings_root``,

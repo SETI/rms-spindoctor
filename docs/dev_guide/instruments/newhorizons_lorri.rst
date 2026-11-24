@@ -369,14 +369,19 @@ the image.
 PDS4 hooks
 ==========
 
-Not supported. Every hook raises ``NotImplementedError``, and the dataset gives no
-``PDS4_CONFIG_KEY``, so the configuration's ``pds4`` section accepts no entry for it.
+Not supported. The dataset leaves ``PDS4_CONFIG_KEY`` as None, so
+``sd_create_bundle`` refuses it before it runs a pass, and the loader refuses a ``pds4``
+entry written for it. Every PDS4 hook raises ``NotImplementedError``.
 
-Making bundles work here means giving the dataset a ``PDS4_CONFIG_KEY`` and a ``pds4``
-entry under it, implementing the hooks that read that entry and
-``pds4_bundle_path_for_image``, ``pds4_path_stub``, ``pds4_lid_part_to_image_name``,
-the four LID and LIDVID builders and ``pds4_template_variables``, and adding a
-template directory.
+To make bundles here:
+
+* add a template directory;
+* set ``PDS4_CONFIG_KEY``, and add a ``pds4`` entry under that key;
+* implement ``pds4_bundle_template_dir``, ``pds4_bundle_name``, ``pds4_bundle_version``,
+  ``pds4_information_model_version``, and ``pds4_schemas``, which read the entry; and
+* implement ``pds4_bundle_path_for_image``, ``pds4_path_stub``,
+  ``pds4_lid_part_to_image_name``, the four LID and LIDVID builders, and
+  ``pds4_template_variables``.
 
 Backplanes, mosaics, and statistics
 ===================================

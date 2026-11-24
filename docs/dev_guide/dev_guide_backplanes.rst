@@ -341,19 +341,19 @@ Configuration
 
 The configurable backplane list lives in
 ``src/spindoctor/config_files/config_900_backplanes.yaml`` under the ``backplanes``
-section, which is parsed when the configuration loads into a
-:class:`~spindoctor.config.sections_products.BackplanesSection` (exposed as
-``config.backplanes``). Each plane is a
-:class:`~spindoctor.config.sections_products.PlaneEntry`, and an entry missing its
-``name``, ``method``, ``units``, or ``index`` is refused then. The full YAML schema and
+section. When the configuration loads, the section is parsed into a
+:class:`~spindoctor.config.sections_products.BackplanesSection`, exposed as
+``config.backplanes``, and each plane into a
+:class:`~spindoctor.config.sections_products.PlaneEntry`. The loader refuses a plane
+that lacks a ``name``, ``method``, ``units``, or ``index``. The full YAML schema and
 the shipping defaults are documented at :doc:`/user_guide/user_guide_backplanes`; this
 section covers the developer-facing parts of the contract.
 
 - ``method`` resolves against :class:`oops.backplane.Backplane` by name at
-  evaluation time. The loader checks that it is a string, and nothing more; a typo
-  surfaces only when the body or rings step calls the missing method on a real image.
-  A test holds every shipped method to a method of the class, so confirm a new name
-  against the ``oops`` source before adding an entry.
+  evaluation time. The loader checks only that it is a string, so a misspelled method
+  goes unnoticed until the body or rings step calls it on a real image. A test confirms
+  that every shipped ``method`` is a method of the class. Check a new one against the
+  ``oops`` source before you add it.
 - The body / rings dispatch is a hard split: ``backplanes.bodies`` entries
   are evaluated against the per-body meshgrid and merged with body
   ``distance``; ``backplanes.rings`` entries are evaluated against the

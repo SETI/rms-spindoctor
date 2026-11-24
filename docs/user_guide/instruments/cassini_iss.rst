@@ -19,13 +19,13 @@ Pipeline support
   (see :doc:`/user_guide/user_guide_ck_kernels`).
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
-* **PDS4 bundles** -- supported for the Saturn dataset. The dataset class
-  implements every PDS4 hook, and the shipped label templates and configuration
-  entry cover ``coiss_saturn``. The cruise dataset has no bundle configuration,
-  so a bundle cannot be made for it yet. The Saturn bundle's labels identify Saturn, each satellite the
-  configuration lists for it, and Saturn's main rings, whose PDS4 context
-  product is ``Saturn Rings``; the shipped targets table has an entry for every
-  one. A data label states no ring geometry: for the rings it gives only the
+* **PDS4 bundles** -- supported for the Saturn dataset, ``coiss_saturn``, whose label
+  templates and bundle configuration ship with the package. The package ships neither
+  for the cruise dataset; to bundle it, you supply both (see
+  :doc:`/user_guide/user_guide_pds4_bundle`). The Saturn bundle's labels identify
+  Saturn, each satellite the configuration lists for it, and Saturn's main rings, whose
+  PDS4 context product is ``Saturn Rings``; the shipped targets table has an entry for
+  every one. A data label states no ring geometry: for the rings it gives only the
   target, and the image's ring ranges are in the global rings index table. A
   Saturn image whose backplanes cover none of these is left out of the bundle:
   a frame of stars alone, of a satellite the configuration does not list, or of
@@ -647,8 +647,8 @@ Known limitations
   the blank and noisy classifications are provisional.
 * A BOTSIM wide angle frame receives no corrected segment whenever its narrow
   angle partner writes one. Its pixel offset in the metadata is unaffected.
-* PDS4 bundles are shipped for the Saturn dataset only; the cruise dataset
-  has no bundle configuration, so a bundle cannot be made for it yet.
+* The package ships PDS4 label templates and bundle configuration for the Saturn
+  dataset only. To bundle the cruise dataset, you supply both.
 
 References
 ==========
