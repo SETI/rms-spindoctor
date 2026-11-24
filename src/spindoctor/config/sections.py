@@ -102,8 +102,8 @@ class TypedSections:
     techniques: TechniquesSection
 
     def __post_init__(self) -> None:
-        """Refuse a planet name that is not in upper case, and a planet key that names no
-        planet of ``planets``.
+        """Refuse a planet or satellite name that is not in upper case, and a planet key
+        that names no planet of ``planets``.
 
         Every reader looks a planet up by its upper-case SPICE name, so a lower-case name
         would be accepted and never read, even where ``planets`` lists it the same way.
@@ -131,6 +131,14 @@ class TypedSections:
                         'written in upper case, as SPICE spells it',
                         at=(*at, planet),
                         reads=((*at, planet), ('planets',)),
+                    )
+        for planet, moons in self.satellites.items():
+            for index, moon in enumerate(moons):
+                if moon != moon.upper():
+                    raise RuleError(
+                        f'{moon!r} is not in upper case; a body is written in upper case, as '
+                        'SPICE spells it',
+                        at=('satellites', planet, index),
                     )
 
 

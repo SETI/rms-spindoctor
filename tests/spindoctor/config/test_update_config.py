@@ -75,6 +75,26 @@ def test_an_override_refused_by_validation_changes_nothing(tmp_path: Path) -> No
     assert config.override_paths == (str(valid),)
 
 
+def test_an_override_refused_by_a_typed_section_changes_nothing(tmp_path: Path) -> None:
+    """A typed section refusing an override keeps the config, its overrides, and tuning."""
+    config = Config()
+    config.read_config()
+    bodies = config.bodies
+    tuning = RingEdgeNav.tuning
+    refused = tmp_path / 'refused.yaml'
+    refused.write_text(
+        'techniques:\n  ring_edge:\n    tuning:\n'
+        '      rotation_at_edge_fraction: 0.5\n'
+        'bodies:\n  not_a_bodies_key: 1\n',
+        encoding='utf-8',
+    )
+    with pytest.raises(ValueError, match='not_a_bodies_key'):
+        config.update_config(refused)
+    assert config.bodies is bodies
+    assert not config.override_paths
+    assert RingEdgeNav.tuning is tuning
+
+
 def test_category_returns_cached_instance() -> None:
     """CODE-CFG-3: category() returns the same cached AttrDict across calls."""
     config = Config()

@@ -121,7 +121,8 @@ returns the typed object:
   :class:`~spindoctor.nav_technique.titan_fitting.ArcFitParams`, and its opaque ring
   annulus follows the same rule as the star one.
 - ``satellites`` — a list of satellites for each planet, keyed by the planet's SPICE
-  name and read through :meth:`~spindoctor.config.config.Config.satellites`.
+  name and read through :meth:`~spindoctor.config.config.Config.satellites`. Each
+  satellite is its SPICE name and must be in upper case.
 - ``feature_emission`` — :class:`~spindoctor.config.sections_models.FeatureEmissionSection`.
   A planet's entry under ``ring_annulus.planets`` may leave a key out, and that key
   keeps the ``default`` entry's value.

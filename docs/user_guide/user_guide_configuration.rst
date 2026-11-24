@@ -158,9 +158,9 @@ the setting.
 
 Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
 or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
-ones listed in ``planets``, and the bodies in a setting kept per body, such as
-``bodies.geometric_albedo``, must be in upper case. Any other planet or body is refused
-the same way.
+ones listed in ``planets``. The bodies in a setting kept per body, such as
+``bodies.geometric_albedo``, and the moons listed for each planet in ``satellites`` must
+be in upper case. Any other planet or body is refused the same way.
 
 Writing your own default file
 =============================
