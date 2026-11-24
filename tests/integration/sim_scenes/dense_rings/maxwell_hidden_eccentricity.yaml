@@ -55,7 +55,7 @@ exposure_sec: 2.0
 # eccentricity carries the error, and the reported sigma does not cover it
 # (#1144).  With only the twist removed it is 6.48 px off at 144 sigma.
 # RingAnnulusNav answers 11.80 px off at confidence 0.86 on every draw and
-# does not flag it (#TBD).  The ensemble sees the two disagree and returns
+# does not flag it (#1144).  The ensemble sees the two disagree and returns
 # conflicted.  The annulus error also comes from the hidden eccentricity:
 # with the ringlet drawn circular the annulus answer is 0.40 px off and
 # flagged, and with only the twist removed it is 6.62 px off and flagged,

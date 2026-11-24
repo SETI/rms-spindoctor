@@ -309,7 +309,7 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('b_ring_saturated_plateau', 'RingAnnulusNav'): _b(0.573, 0.579, 0.05, 0.522, 0.629),
     # The edge fit follows a ringlet drawn eccentric while the navigator's orbit is
     # circular, 6.8 px off at a sigma near 0.06 px (#1144).  The annulus correlation,
-    # pulled by the same ringlet, lands 11.8 px off and does not flag it (#TBD), so the
+    # pulled by the same ringlet, lands 11.8 px off and does not flag it, so the
     # two disagree and the frame conflicts.
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
