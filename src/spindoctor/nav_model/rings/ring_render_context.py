@@ -83,8 +83,6 @@ class RingsRenderContext:
             raise ValueError('RingsRenderContext.ring_target must be a non-empty string')
         if isinstance(self.epoch, bool) or not isinstance(self.epoch, (int, float)):
             raise TypeError('RingsRenderContext.epoch must be int or float')
-        if not math.isfinite(float(self.epoch)):
-            raise ValueError(f'RingsRenderContext.epoch must be finite, got {self.epoch!r}')
 
         if not isinstance(self.resolutions, np.ndarray):
             raise TypeError('RingsRenderContext.resolutions must be a numpy ndarray')

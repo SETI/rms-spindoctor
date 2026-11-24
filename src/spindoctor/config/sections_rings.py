@@ -145,6 +145,13 @@ class RingModeEntry:
                     at=('mode',),
                     reads=(('mode',), ('a',)),
                 )
+        elif any(getattr(self, key) is not None for key in _BASE_ORBIT_KEYS):
+            raise RuleError(
+                f'this entry mixes the two kinds: it leaves out a but sets a key of a base '
+                f'orbit; a base orbit sets {_listed(_BASE_ORBIT_KEYS)}, and a perturbation sets '
+                f'{_listed(_PERTURBATION_KEYS)}',
+                at=(),
+            )
         missing = [key for key in own if getattr(self, key) is None]
         if missing:
             raise RuleError(
@@ -208,8 +215,7 @@ class RingFeatureEntry:
     end_date: UtcTime | None = None
 
     def __post_init__(self) -> None:
-        """Refuse a feature with no edge, an edge without one base orbit, or dates out of
-        order."""
+        """Refuse a feature with no edge, a bad edge, or dates out of order."""
         if self.inner_data is None and self.outer_data is None:
             raise RuleError(
                 'a feature has an inner edge, an outer edge, or both; set inner_data, '
@@ -329,8 +335,7 @@ class RingCatalog:
                 if _overlap(first, second):
                     raise RuleError(
                         f'{first_key!r} and {second_key!r} cover overlapping radii over '
-                        'overlapping dates; give features at the same radii dates that do '
-                        'not overlap',
+                        'overlapping dates; change the dates so that they do not overlap',
                         at=('features', second_key),
                         reads=(('features', first_key), ('features', second_key)),
                     )

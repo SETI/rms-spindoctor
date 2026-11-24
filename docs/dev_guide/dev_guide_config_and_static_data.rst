@@ -142,9 +142,9 @@ Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_
 ``feature_emission.ring_annulus.planets``, and ``rings.ring_features``. Each of their
 keys must be a planet of ``planets``, written in upper case as SPICE spells it. Every
 reader looks a planet up by its upper-case name, and would never read a key that is
-misspelled or in lower case, so such a key is refused at load. That rule reads two sections, so
-:class:`~spindoctor.config.sections.TypedSections` checks it. The message gives the key
-and the file that last set either it or ``planets``.
+misspelled or in lower case, so such a key is refused at load. That rule reads two
+sections, so :class:`~spindoctor.config.sections.TypedSections` checks it. The message
+gives the key and the file that last set either it or ``planets``.
 
 Keys come in two kinds, and each kind has its own spelling. A key for a setting,
 such as ``use_albedo`` or ``body_limb``, is a name the package chose, and it is in

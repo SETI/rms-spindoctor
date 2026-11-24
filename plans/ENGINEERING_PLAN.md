@@ -1611,7 +1611,7 @@ asserts the generated half matches the registries.
   - [x] `rings` with the ring catalogs (done: step 6b, split from
     `body_shape`; parsed at load into `RingsSection`, each planet's
     catalog a `RingCatalog` of `RingFeatureEntry` features whose edges
-    are lists of `RingModeEntry`; an entry that sets `a` is the base
+    are tuples of `RingModeEntry`; an entry that sets `a` is the base
     orbit and any other is a perturbation, since the Saturn catalog holds
     a mode-1 perturbation and `mode` alone cannot tag them;
     `RingFeature.from_config` (now `from_entry`), its parsing helpers,

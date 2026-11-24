@@ -270,8 +270,7 @@ Per-planet ring catalog
 
 Each ``config_3N0_<planet>_rings.yaml`` file holds one planet's catalog, as the
 ``rings.ring_features.<PLANET>`` mapping keyed by upper-case SPICE planet name. There is
-one file for each of Jupiter, Saturn, Uranus, and Neptune; only the Saturn file holds a
-catalog, and the other three are empty. The catalog values are measured orbits from
+one file for each of Jupiter, Saturn, Uranus, and Neptune. The catalog values are measured orbits from
 published fits, and they are entered as published. Each per-planet entry sets:
 
 - ``epoch`` — str (UTC, ISO 8601). Reference epoch for every ring solution under this
@@ -280,9 +279,8 @@ published fits, and they are entered as published. Each per-planet entry sets:
   brightness profile used by the rendered annulus template; controls how many pixels
   the catalog brightness fades into the background.
 - ``min_allowed_fade_width_pix`` — positive float (px), no more than
-  ``fade_width_pix``. Floor on the per-edge fade width applied after per-image scaling;
-  prevents the rendered template from collapsing to a single-pixel ring at high subject
-  distances.
+  ``fade_width_pix``. The fade width below which the per-image filter drops an edge
+  whose fade a neighboring edge cuts short.
 - ``min_feature_pixels`` — positive float (px). Minimum per-feature pixel extent below
   which the per-image filter drops the feature.
 - ``features`` — per-feature entries keyed by feature name, each a
@@ -296,8 +294,8 @@ published fits, and they are entered as published. Each per-planet entry sets:
   ``a`` is the edge's base orbit, which is mode 1 and also sets ``rms``, ``ae``,
   ``long_peri``, and ``rate_peri``. Every other entry is a perturbation of its mode
   number and sets ``amplitude``, ``phase``, and ``pattern_speed``. The mode number alone
-  does not tell the two apart, because the Saturn catalog has a mode-1 perturbation as
-  well as mode-1 base orbits. The ring model builds a
+  does not tell the two apart, because some features have a mode-1 perturbation besides
+  the mode-1 base orbit. The ring model builds a
   :class:`~spindoctor.nav_model.rings.ring_feature.RingFeature` from each entry with
   :meth:`~spindoctor.nav_model.rings.ring_feature.RingFeature.from_entry`.
 

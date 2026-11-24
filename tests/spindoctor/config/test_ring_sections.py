@@ -111,8 +111,14 @@ def test_a_base_orbit_entry_is_mode_one() -> None:
             'inner_data[0]: a base-orbit entry sets only a, rms, ae, long_peri, and rate_peri, '
             'but this one also sets phase',
         ),
+        (
+            [{'mode': 1, 'rms': 0.5, 'amplitude': 1.0, 'phase': 0.0, 'pattern_speed': 0.0}],
+            'inner_data[0]: this entry mixes the two kinds: it leaves out a but sets a key of a '
+            'base orbit; a base orbit sets a, rms, ae, long_peri, and rate_peri, and a '
+            'perturbation sets amplitude, phase, and pattern_speed',
+        ),
     ],
-    ids=['missing', 'stray'],
+    ids=['missing', 'stray', 'mixed'],
 )
 def test_a_mode_entry_sets_the_keys_of_its_kind(modes: list[dict[str, Any]], expected: str) -> None:
     """A mode entry sets every key of its kind and no key of the other kind.
@@ -163,6 +169,16 @@ def test_a_feature_starts_before_it_ends() -> None:
     )
 
 
+def test_a_feature_cannot_start_when_it_ends() -> None:
+    """A feature whose start date equals its end date is refused."""
+    feature = _ringlet(1000.0, 1001.0, start_date='2009-01-01', end_date='2009-01-01')
+    _refused(
+        RingFeatureEntry,
+        feature,
+        'end_date: start_date (2009-01-01) must be before end_date (2009-01-01)',
+    )
+
+
 def test_a_time_that_cannot_be_read_is_refused() -> None:
     """A catalog's epoch must be a UTC time in ISO 8601 form."""
     _refused(
@@ -182,11 +198,35 @@ def test_the_least_fade_is_no_wider_than_the_fade() -> None:
     )
 
 
+def test_the_least_fade_may_equal_the_fade() -> None:
+    """``min_allowed_fade_width_pix`` may be as wide as ``fade_width_pix``."""
+    catalog = parse(
+        RingCatalog,
+        _catalog({}, fade_width_pix=5.0, min_allowed_fade_width_pix=5.0),
+        source=_SOURCE,
+    )
+    assert catalog.min_allowed_fade_width_pix == catalog.fade_width_pix
+
+
 def test_two_features_at_the_same_radii_and_time_are_refused() -> None:
     """Two features whose radii and dates overlap are refused, naming both."""
     features = {
         'alpha': _ringlet(1000.0, 1010.0, start_date='2008-01-01', end_date='2011-01-01'),
         'beta': _ringlet(1005.0, 1015.0, start_date='2009-01-01'),
+    }
+    _refused(
+        RingCatalog,
+        _catalog(features),
+        "features.beta: 'alpha' and 'beta' cover overlapping radii over overlapping dates; "
+        'change the dates so that they do not overlap',
+    )
+
+
+def test_features_whose_radii_touch_are_refused() -> None:
+    """Features whose radial extents share one radius overlap in radius."""
+    features = {
+        'alpha': _ringlet(1000.0, 1010.0, start_date='2008-01-01'),
+        'beta': _ringlet(1010.0, 1020.0, start_date='2009-01-01'),
     }
     _refused(
         RingCatalog,
@@ -207,11 +247,15 @@ def test_two_features_at_the_same_radii_and_time_are_refused() -> None:
             'alpha': _ringlet(1000.0, 1010.0, start_date='2008-01-01'),
             'beta': _ringlet(2000.0, 2010.0, start_date='2008-01-01'),
         },
+        {
+            'alpha': _ringlet(1000.0, 1010.0),
+            'beta': _ringlet(1000.0, 1010.0, start_date='2008-01-01'),
+        },
     ],
-    ids=['undated', 'consecutive_dates', 'apart'],
+    ids=['undated', 'consecutive_dates', 'apart', 'undated_beside_dated'],
 )
 def test_features_that_do_not_overlap_are_accepted(features: dict[str, Any]) -> None:
-    """Undated features, consecutive dates, and separate radii do not overlap.
+    """Undated features, consecutive dates, separate radii, and an undated feature do not clash.
 
     Parameters:
         features: The catalog's features.

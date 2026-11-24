@@ -158,8 +158,8 @@ the setting.
 
 A ring catalog is also checked as a whole. Each gap or ringlet in it needs at least one
 edge, and each edge needs exactly one base orbit, the entry that gives its semi-major
-axis. A gap or ringlet with dates must start before it ends, and two at the same radii
-cannot have dates that overlap.
+axis. A gap or ringlet with dates must start before it ends, and two whose radii
+overlap cannot have dates that overlap.
 
 Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
 or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
