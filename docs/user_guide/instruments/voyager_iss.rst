@@ -23,7 +23,7 @@ Pipeline support
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- not supported. This camera does not produce PDS4 bundles yet,
-  and ``sd_create_bundle`` says so and stops.
+  and ``sd_create_bundle`` (:doc:`/user_guide/user_guide_pds4_bundle`) says so and stops.
 * **Simulator** -- supported, under four instrument keys, one for each spacecraft and
   camera: ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``.
 * **Statistics** -- supported.

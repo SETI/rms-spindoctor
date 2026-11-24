@@ -375,9 +375,15 @@ def main_labels() -> None:
 
     assert DATASET is not None
 
+    try:
+        bundle_name = DATASET.pds4_bundle_name()
+    except Pds4BundleEntryError as err:
+        MAIN_LOGGER.error('%s, so no bundle can be made', err)
+        sys.exit(1)
+
     _exit_on_missing_templates(DATASET, 'labels')
 
-    bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
+    bundle_root = bundle_results_root / bundle_name
     if _bundle_root_holds_anything(bundle_root):
         MAIN_LOGGER.error(
             'The bundle root %s already holds files; a bundle is written into an empty '

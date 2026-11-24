@@ -2,8 +2,8 @@
 
 Two datasets cannot be bundled: one that makes no PDS4 bundle, and one that names a
 bundle the configuration gives no entry.  Every pass ends the same way for each, with
-one line on stdout and exit status 1, and these drive the program's entry point to show
-it.
+one line and exit status 1 (the labels pass writes its line through the run logger), and
+these drive the program's entry point to show it.
 """
 
 from pathlib import Path
@@ -46,8 +46,8 @@ def test_a_dataset_that_makes_no_bundle_is_refused_by_every_pass(
     assert capsys.readouterr().out == 'The dataset vgiss does not produce PDS4 bundles\n'
 
 
-@pytest.mark.parametrize('subcommand', ['labels', 'summary', 'check'])
-def test_a_bundle_with_no_configuration_entry_is_refused_by_every_pass(
+@pytest.mark.parametrize('subcommand', ['summary', 'check'])
+def test_a_bundle_with_no_configuration_entry_is_refused_by_the_quiet_passes(
     subcommand: str,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -61,3 +61,34 @@ def test_a_bundle_with_no_configuration_entry_is_refused_by_every_pass(
         "the pds4 section holds no entry for the bundle 'coiss_cruise', so no bundle can be made"
     )
     assert capsys.readouterr().out.strip().endswith(expected)
+
+
+def test_the_labels_run_log_records_the_missing_entry_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The labels pass writes the missing-entry refusal into its run log and exits 1."""
+    root = tmp_path.as_posix()
+    log_root = tmp_path / 'logs'
+    monkeypatch.setattr(
+        'sys.argv',
+        [
+            'sd_create_bundle',
+            'labels',
+            'coiss_cruise',
+            '--bundle-results-root',
+            root,
+            '--nav-results-root',
+            root,
+            '--backplane-results-root',
+            root,
+            '--log-root',
+            log_root.as_posix(),
+        ],
+    )
+    with pytest.raises(SystemExit) as raised:
+        sd_create_bundle.main()
+    assert raised.value.code == 1
+    refusal = "holds no entry for the bundle 'coiss_cruise', so no bundle can be made"
+    logs = sorted(log_root.rglob('main_*.log'))
+    assert len(logs) == 1
+    assert refusal in logs[0].read_text()
