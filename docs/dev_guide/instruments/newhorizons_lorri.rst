@@ -358,6 +358,7 @@ instead reaches half the camera's search window.
   star blur for this camera is a 3.0 px placeholder against a published core
   near 1 px, so at 1 s it predicts every star too faint to see and draws no star
   features. The frame fails, and the scene's expected block holds the failure.
+
 **Mixed-defect guard scene.** ``nhlorri_moon_raw`` in the ``mixed_defects`` scene
 class (see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px
 across, following a real Jupiter-flyby frame taken at 5 ms. It carries the
@@ -370,10 +371,10 @@ carry 0.26 of the disc's level, against 0.24 on the real frame, and about 16 hit
 land in the frame. The simulated header holds values up to 255, where the real
 one reaches 4,038 DN.
 
-The fused answer lands 0.29 to 0.30 px off over 24 draws, at medium confidence,
+The fused answer lands 0.10 to 0.11 px off over 24 draws, at medium confidence,
 from the disc correlation and the limb fit together. The disc correlation lands
-0.42 to 0.43 px off without flagging its answer; without the smear it lands
-0.35 px off, and without the twist 0.28 px. The blob technique lands 4.7 to 5.1 px
+0.18 to 0.19 px off without flagging its answer, with the smear or without it.
+Without the twist it lands 0.004 to 0.005 px off. The blob technique lands 4.7 to 5.1 px
 off without flagging it, pulled by the smear columns, and 0.17 to 0.19 px off
 without the smear. The simulated smear is a step at each column's centroid, where
 the real smear builds up along the column, so part of that pull may be the
