@@ -55,7 +55,7 @@ Phases 2b to 6, Track C is spread over Phases 2 and 14, Track D is Phases 11 to 
 ## Issue count
 
 456 issues were open on 2026-11-23. 348 of them have a row here, and the other 108 are
-simulator work tracked separately. 7 finished issues are kept as rows.
+simulator work tracked separately. 8 finished issues are kept as rows.
 
 ## Phase 0: read every frame at the right time, pointing, and brightness
 
@@ -79,7 +79,8 @@ The host session owns this phase.
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
 | #240 | 4 Useful |  | **Done (PR #833)** | Library coverage-matrix invariant |
-| #820 | 2 Essential | yes | PR #1117 open | Dataset unit tests download from the live archive |
+| #820 | 2 Essential | yes | **Done (PR #1117)** | Dataset unit tests download from the live archive |
+| #1165 | 5 Minor |  |  | Run the dataset tests in CI again once a reliable holdings source exists (after #1117; needs a holdings source more reliable than the live archive) |
 | #832 | 3 Important | yes |  | CI jobs hang for six hours or segfault in Qt tests (the simulator's #1123 removed the segfault; the per-test timeout stays open) |
 | #744 | 3 Important | yes |  | Two Galileo truths record the rotation-fitted answer (operator decision) |
 | #867 | 3 Important | yes |  | Re-verify three truths the image stars contradict (operator check) |
@@ -109,7 +110,7 @@ The host session owns this phase.
 
 | Issue | Priority | Exit | Status | Subject |
 |---|---|---|---|---|
-| #591 | 3 Important | yes |  | Sparse ring pre-check can skip a frame with rings (started 2026-11-23 at the operator's request) |
+| #591 | 3 Important | yes | PR #1167 open | Sparse ring pre-check can skip a frame with rings (started 2026-11-23 at the operator's request; PR open as #1167) |
 | #787 | 3 Important | yes |  | Star model emits nothing when its noise estimate is zero |
 | #400 | 2 Essential | yes |  | Ensemble merge and tiers on anisotropic covariances |
 | #994 | 4 Useful |  |  | Catalog lists a star on a magnitude-bin edge twice |
@@ -466,7 +467,7 @@ Phases 4a to 4c hold the seven PRs frozen on 2026-11-06 (#766, #773, #774, #779,
 |---|---|---|---|---|
 | #427 | 4 Useful | yes |  | Reorganize the config namespace (after #1032, by operator decision of 2026-11-23 to type the sections first; needs operator rulings on the new layout) |
 | #1029 | 3 Important | yes |  | Type the navigator camera blocks (after the simulator's #1024 (#1023 merged 2026-11-23) and #1032's PR 2; also in the simulator plan) |
-| #1032 | 3 Important | yes | PR #1151 open | Type every navigator config section (PR 1 of 8 (the unread keys) merged 2026-11-23 as #1142; PR 2 (null refused, loader on the schema core) open as #1151; PR 3 (the orchestrator section) open as #1158, stacked on #1151; sections typed under their current names) |
+| #1032 | 3 Important | yes |  | Type every navigator config section (PRs 1 to 3 of 8 merged 2026-11-23 (#1142 unread keys, #1151 null refused and loader on the schema core, #1158 the orchestrator section); PR 4 (technique confidence and tuning, with #411's rename) next; sections typed under their current names) |
 | #1001 | 4 Useful | yes |  | One rule for which keys the loader checks (closes with #1032) |
 | #118 | 3 Important | yes |  | Config validation system |
 | #735 | 4 Useful | yes |  | sd_create_ck and sd_stats_report image selection |
