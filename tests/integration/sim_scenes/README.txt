@@ -79,10 +79,11 @@ moved the camera.  A positive roll turns from +v toward +u, carrying a point
 at (dv, du) from the center to (cos * dv - sin * du, sin * dv + cos * du).
 That is the rotation the navigator's star fit reports, so the rotation it
 recovers equals the planted roll.  The planted offset_v / offset_u is the
-boresight's pointing error d, so a star, body, or ring system the scene puts
-at x from the frame center lands at R (x + d), R being the roll, and the
-offset stays the truth for the navigator's translation.  The sky_counts
-background field turns with the roll but does not move with the offset.
+boresight's pointing error d, so a star, body, ring system, or sky_counts
+background star the scene puts at x from the frame center lands at R (x + d),
+R being the roll, and the offset stays the truth for the navigator's
+translation.  The offset decides which sky stars land in the frame, never
+which stars are drawn.
 
 So the roll turns star positions and body centers about the boresight, and
 turns each body about its own center by the same angle: its outline

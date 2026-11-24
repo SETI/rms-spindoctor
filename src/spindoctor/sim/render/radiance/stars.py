@@ -462,6 +462,8 @@ def _render_sky_counts_cached(
     oversample: int,
     rotation_deg: float,
     margin: int,
+    shift_v: float,
+    shift_u: float,
 ) -> NDArrayFloatType:
     """Internal cached function to compute the background-sky star field.
 
@@ -476,8 +478,6 @@ def _render_sky_counts_cached(
         return plane
     rng = np.random.default_rng(seed)
     n_stars = int(rng.poisson(n_expected))
-    if n_stars <= 0 and rotation_deg == 0.0 and margin == 0:
-        return plane
     # The draw is a uniform pixel corner position over the frame of this grid,
     # which spans ``[0, size]`` there; the deposit reads a pixel centric
     # position, where the same frame spans ``[-half, size - half]``, so half a
@@ -496,18 +496,22 @@ def _render_sky_counts_cached(
     )
     vs -= PIXEL_CENTER_TO_CORNER_PX
     us -= PIXEL_CENTER_TO_CORNER_PX
-    if rotation_deg != 0.0 or margin > 0:
-        mags, vs, us = _sky_beyond_the_frame(
-            (mags, vs, us),
-            (size_v, size_u),
-            seed=seed,
-            star_density=n_expected / ((size_v / oversample) * (size_u / oversample)),
-            b=b,
-            faint_cutoff_mag=faint_cutoff_mag,
-            rotation_deg=rotation_deg,
-            oversample=oversample,
-            margin=margin,
-        )
+    # A star less than a pixel outside the frame lights its edge pixels, so the stars
+    # beyond the frame are drawn at every roll, margin, and shift, zero included.
+    # The field is then continuous in each: a tiny shift moves the same stars a tiny
+    # way, edges included.
+    mags, vs, us = _sky_beyond_the_frame(
+        (mags, vs, us),
+        (size_v, size_u),
+        seed=seed,
+        star_density=n_expected / ((size_v / oversample) * (size_u / oversample)),
+        b=b,
+        faint_cutoff_mag=faint_cutoff_mag,
+        rotation_deg=rotation_deg,
+        oversample=oversample,
+        margin=margin,
+        shift=(shift_v, shift_u),
+    )
     for mag, v, u in zip(mags.tolist(), vs.tolist(), us.tolist(), strict=True):
         total = total_flux_for_vmag(float(mag), zero_point=zero_point, exposure_sec=exposure_sec)
         _deposit_point_mass(plane, v, u, total=total * oversample**2, margin=margin)
@@ -566,8 +570,9 @@ def _sky_beyond_the_frame(
     rotation_deg: float,
     oversample: int,
     margin: int,
+    shift: tuple[float, float],
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
-    """The sky field with the stars beyond the frame, turned by the roll.
+    """The sky field with the stars beyond the frame, turned by the roll and shifted.
 
     The frame's own stars are the sky the unrolled frame shows.  The sky beyond it is
     laid out in square tiles of 32 detector pixels, counted from the frame's first
@@ -581,11 +586,15 @@ def _sky_beyond_the_frame(
     pixel centers, because the deposit shares its flux among the pixels on either side
     of the position.  Such a star lights the frame's edge through the optics, and a
     wider margin keeps the same star and more.  The tiles drawn are those that meet
-    that range, or, under a roll, those that meet a square about the frame center wide
-    enough to hold it at any angle.  Every star then turns about the frame center, so
-    the rolled sky is the unrolled sky turned with the frame.  A roll too small to
-    carry any star across the plane's edge draws the stars the unrolled plane holds
-    and no others, each moved by the roll alone.
+    that range carried back by the shift, or, under a roll, those that meet a square
+    about the frame center wide enough to hold it at any angle and shift.  Every star
+    turns about the frame center and then moves by the shift, so the rolled sky is
+    the unrolled sky turned with the frame, and with the shift the radiance stage
+    passes, the planted offset turned by the roll, it turns about the boresight.
+    The draw does not depend on the roll or the shift, which decide only where each
+    star lands and so whether it is kept.  A roll too small to carry any star across
+    the plane's edge draws the stars the unrolled plane holds and no others, each
+    moved by the roll alone.
 
     Parameters:
         frame_stars: The frame's stars, as magnitudes and pixel centric v and u
@@ -598,6 +607,8 @@ def _sky_beyond_the_frame(
         rotation_deg: The roll in degrees, from ``+v`` toward ``+u``.
         oversample: The render-grid oversampling factor.
         margin: How many render-grid pixels the plane extends past the frame.
+        shift: The ``(v, u)`` shift applied to every star after the roll, on the
+            render grid.
 
     Returns:
         The magnitudes and pixel centric v and u positions, measured from the
@@ -610,11 +621,20 @@ def _sky_beyond_the_frame(
     plane_u = size_u + 2 * margin
     # A deposit reaches the plane from a pixel past each edge, so the tiles that matter
     # extend one pixel beyond the plane.
+    # The shift then carries each star by (dv, du), so the stars that land on the
+    # plane are those drawn that far the other way.
+    shift_v, shift_u = shift
     if rotation_deg == 0.0:
-        reach_v: tuple[float, float] = (-margin - 1.0, size_v + margin + 1.0)
-        reach_u: tuple[float, float] = (-margin - 1.0, size_u + margin + 1.0)
+        reach_v: tuple[float, float] = (
+            -margin - 1.0 - shift_v,
+            size_v + margin + 1.0 - shift_v,
+        )
+        reach_u: tuple[float, float] = (
+            -margin - 1.0 - shift_u,
+            size_u + margin + 1.0 - shift_u,
+        )
     else:
-        side = math.hypot(plane_v + 2, plane_u + 2)
+        side = math.hypot(plane_v + 2, plane_u + 2) + 2.0 * math.hypot(shift_v, shift_u)
         reach_v = ((size_v - side) / 2.0, (size_v + side) / 2.0)
         reach_u = ((size_u - side) / 2.0, (size_u + side) / 2.0)
     mag_parts = [frame_stars[0]]
@@ -654,6 +674,9 @@ def _sky_beyond_the_frame(
         sin_r = math.sin(roll)
         turned_v = pivot_v + cos_r * rel_v - sin_r * rel_u
         turned_u = pivot_u + sin_r * rel_v + cos_r * rel_u
+    # The shift moves the turned field as it moves the scene's other objects.
+    turned_v = turned_v + shift_v
+    turned_u = turned_u + shift_u
     # The plane's pixel centers span ``[-margin, size + margin)`` pixel centric, and a
     # deposit at ``p`` shares its flux between the pixels ``floor(p)`` and
     # ``floor(p) + 1``, so it reaches the plane when ``-margin - 1 < p < size + margin``.
@@ -681,6 +704,8 @@ def render_sky_counts(
     oversample: int,
     rotation_deg: float = 0.0,
     margin: int = 0,
+    shift_v: float = 0.0,
+    shift_u: float = 0.0,
 ) -> None:
     """Render the background-sky star field (and optional diffuse floor) in place.
 
@@ -692,7 +717,7 @@ def render_sky_counts(
     a flat pedestal (the box-mean downsample leaves a constant unchanged, so it
     is a per-detector-pixel level).  A camera roll turns the field about the frame
     center, filling the corners the turn brings into view from beyond the unrolled
-    frame.
+    frame, and the shift then moves every star.
 
     A plane with a margin past the frame gets sky there too, at the same density
     and with the same floor.  The stars beyond the frame come from fixed tiles, each
@@ -714,6 +739,12 @@ def render_sky_counts(
         oversample: The render-grid oversampling factor.
         rotation_deg: Camera-roll angle in degrees, from ``+v`` toward ``+u``.
         margin: How many pixels the plane extends past the frame on each side.
+        shift_v: V shift (render-grid units) applied to every star after the roll.
+            The radiance stage passes the planted offset turned by the roll, R d
+            (see :func:`~spindoctor.sim.render.roll.boresight_shift`), so the roll
+            turns the field about the boresight.
+        shift_u: U shift (render-grid units) applied to every star after the roll,
+            the u component of the same R d.
     """
     size_v = point_plane.shape[0] - 2 * margin
     size_u = point_plane.shape[1] - 2 * margin
@@ -735,6 +766,8 @@ def render_sky_counts(
         oversample=int(oversample),
         rotation_deg=float(rotation_deg),
         margin=int(margin),
+        shift_v=float(shift_v),
+        shift_u=float(shift_u),
     )
     point_plane += plane
     if diffuse_flux_per_px > 0.0:
