@@ -304,7 +304,7 @@ def _camera_scene(**extra: Any) -> dict[str, Any]:
         bodies=[disc_body(48.0, 48.0, 15.0)],
         artifacts={
             'adversarial': True,
-            'hot_pixels': {'pixel_fraction': 0.002, 'amplitude_e': 4.0e4},
+            'hot_pixels': {'pixel_fraction': 0.002, 'rate_e_per_sec': 4.0e4},
             'fixed_pattern': {
                 'probability': 1.0,
                 'prnu_rms': 0.02,

@@ -393,7 +393,7 @@ model does not gain them.
 
 | Issue | Subject |
 |---|---|
-| #906 | Hot pixels ignore exposure; bloom discards charge; LORRI bloom contradiction |
+| #906 | **Hot-pixel part done (PR #1168): raw Cassini hot pixels scale with exposure and follow the truncated power law of the 2008 dark frames, Galileo's are per-mode constants, and calibrated Cassini products carry their own residual population fitted to the cohort's stationary spikes; the bloom, anti-blooming, and LORRI parts remain.** Hot pixels ignore exposure; bloom discards charge; LORRI bloom contradiction |
 | #977 | Simulated Cassini TABLE-downlink skies are about a third as noisy as real ones (NAC median ratio 0.37 against 0.88 at 12 bits) and lack the real skies' offset; split from #925 |
 | #979 | Simulated Galileo SSI skies are about a quarter as noisy as real ones (0.22 DN against 0.96 DN on 8 frames each), measured with #903's quantized-noise fit; the Voyager comparison waits on modeling the GEOMED resampling in the twins |
 | #995 | On a binned simulated frame the navigator's star blur, star box sizes, and per-pixel thresholds stay in unbinned pixels, and a `match_navigator` PSF is not divided by the binning. #993 (done) fixed only the faint-star limit, so none of these is covered yet. No committed scene or sweep sets binning; the realism twins do, with the catalog kernel |
@@ -402,7 +402,11 @@ model does not gain them.
 | #1125 | **Affects no current scene.** The vidicon residual image is shifted with wraparound, so a source at one edge puts its ghost on the opposite edge |
 | #1126 | **Affects no current scene; the truth record only.** The frame-transfer smear records the mean of both pedestals where each pixel receives one |
 | #1131 | **Affects no current scene.** The banding mode skips its dark step whenever the band amplitudes are zero, so a scene asking for the step alone gets nothing |
-| #1132 | **Affects every frame drawn with the Cassini or Galileo camera defaults.** A hot pixel's warm streak sits on the side of the column read before it and is strongest at line 0, where the readout puts it on the other side; which process it models needs a ruling first |
+| #1132 | **Done (PR #1168): the streak is flat on the rows read after the hot pixel, as raw Cassini and Galileo frames show: on Cassini the pixel's rate times its 0.0146 s per-row dwell, on Galileo a per-mode constant.** **Affects every frame drawn with the Cassini or Galileo camera defaults.** A hot pixel's warm streak sits on the side of the column read before it and is strongest at line 0, where the readout puts it on the other side; which process it models needs a ruling first |
+| #1169 | Simulated Galileo hot pixels ignore the camera's frame mode and the date: real 10K darks hold about 8x more hot pixels in 1992 than 1990 in the same mode, and about 6x more in the 8 2/3 s mode than the 60 2/3 s mode |
+| #1170 | Simulated raw Cassini dark current, 5 e-/s, is about 20 times what real dark frames show (at most 0.1-0.26 e-/s) |
+| #1177 | Simulated calibrated Cassini frames lack the dark pits calibration leaves at raw hot pixels (real calibrated frames sit 0.2 to 1.3 times the raw charge below their neighbors there) |
+| #1178 | The realism match counts a cluster shared by two calibrated NAC frames (192 of 957 stationary spikes, in rows and columns 512 to 767) as hot pixels, inflating the real-side target the simulated calibrated hot pixels are fitted on |
 | #1133 | **Affects no current scene.** Simulated bright and dark pixel pairs are placed independently, so two pairs can overlap and cancel while the truth record lists both |
 | #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
 | #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
@@ -531,6 +535,7 @@ retired and retained library classes.
 | #1052 | **Affects the report only.** The simulator report describes the disc correlation's old half-pixel window and the bias a haze puts on it; rewrite it in the end-of-stack regeneration, after the disc refinement work (#791) lands |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference page is generated from the typed scene's field metadata by #1024. |
 | #310 | **Moved to Phase 3b.** Advanced by #1005 (package-level import guard) and #1026 (the navigator view as types); its own change moves the truth attributes off `ObsSim`. Structural information-boundary guard |
+| #1184 | **Done (PR #1185).** Committed baselines and contact sheets drifted from main's own output by up to 0.008 px (below the 0.02 px check); regenerated |
 
 Each phase updates the docs for what it changes, with per-camera values on the instrument pages
 after #924 (done). This phase finishes the guide split once the schema has settled. The

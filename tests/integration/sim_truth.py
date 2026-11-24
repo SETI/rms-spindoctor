@@ -230,7 +230,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('lock_single', FUSED): _t(0.029, 0.030, 0.003, 0.05),
     ('lock_single_dense', FUSED): _t(0.055, 0.056, 0.006, 0.05),
     ('lock_triangle', FUSED): _t(0.055, 0.056, 0.003, 0.05),
-    ('saturated_star', FUSED): _t(0.019, 0.021, 0.003, 0.05),
+    ('saturated_star', FUSED): _t(0.033, 0.035, 0.003, 0.05),
 }
 
 # Columns: smallest and largest error over the seeds, margin, band low, and band high,
