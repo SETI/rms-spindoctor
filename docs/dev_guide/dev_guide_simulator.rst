@@ -3452,8 +3452,10 @@ realistic pointing error, and the camera's measured twist, with roll fitting
 off as the cameras ship. A radial profile comes from a library frame after its
 operator-verified pointing was applied, because a profile read from an
 unnavigated frame carries that frame's pointing error. The scene's comments say
-where every radius comes from and give its measured outcome, and each scene's
-answer is held to its known-error band (see :ref:`sim-expected`).
+where every radius comes from and give its measured outcome. A scene that
+navigates holds its answer to its known-error band; a scene whose techniques
+disagree is returned as conflicted, and each technique's answer is held to its
+own band instead (see :ref:`sim-expected`).
 
 The instrument chapters list each camera's ring scenes and their measured
 outcomes.
