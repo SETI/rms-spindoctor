@@ -150,6 +150,10 @@ _TRUTH_SAMPLES: dict[str, Any] = {
 }
 
 # The true (rendered) values nav_override hides from the navigator.
+# The atmosphere block that names a published haze instead of stating its column;
+# the explicit sample above cannot carry it, since a block may not do both.
+_NAMED_HAZE_SAMPLE: dict[str, Any] = {'haze_model': 'titan'}
+
 _TRUE_MESH_LUMPINESS = 0.4
 
 
@@ -324,7 +328,18 @@ def test_atmosphere_sample_covers_every_key() -> None:
     nothing and would sit un-probed for leakage.  This is the check that
     turns the block's own inventory into the completeness requirement.
     """
-    assert set(_TRUTH_SAMPLES['bodies.atmosphere']) == set(ATMOSPHERE_KEYS)
+    sampled = set(_TRUTH_SAMPLES['bodies.atmosphere']) | set(_NAMED_HAZE_SAMPLE)
+    assert sampled == set(ATMOSPHERE_KEYS)
+
+
+def test_a_named_haze_model_is_unreachable_through_nav_params() -> None:
+    """A body that takes Titan's haze by name shows the navigator no atmosphere."""
+    scene = _truth_exercising_scene()
+    for body in scene['bodies']:
+        if 'atmosphere' in body:
+            body['atmosphere'] = dict(_NAMED_HAZE_SAMPLE)
+    nav = build_nav_params(scene)
+    assert [body for body in nav['bodies'] if 'atmosphere' in body] == []
 
 
 @pytest.mark.parametrize('key', sorted(ATMOSPHERE_KEYS))

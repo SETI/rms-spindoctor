@@ -58,6 +58,7 @@ from spindoctor.sim.render.bodies.atmosphere import HaloScreen
 from spindoctor.sim.render.bodies.placement import BodyCoverage
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import BodySpec, body_spec_from_params
+from spindoctor.sim.render.bodies.titan_haze import resolve_model_atmosphere
 from spindoctor.sim.render.optics.stage import effective_psf
 from spindoctor.sim.render.radiance.compositing import (
     ScreenOp,
@@ -219,6 +220,9 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
 
     stars_params = params.get('stars', [])
     bodies_params = params.get('bodies', [])
+    instrument_name = params.get('instrument')
+    detector_filter = (params.get('detector') or {}).get('filter')
+    filter_name = None if detector_filter is None else str(detector_filter)
 
     # Star positions and smear vectors are pixel-space, so they scale with the
     # oversampling factor for rendering; at os == 1 the copy is numerically
@@ -288,6 +292,11 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             scene_body
             if offset_rotation_deg == 0.0
             else roll_body_params(scene_body, roll_deg=offset_rotation_deg)
+        )
+        # A body that takes Titan's haze by name gets it in explicit keys, evaluated
+        # over the scene filter's passband.
+        body_params = resolve_model_atmosphere(
+            body_params, instrument=instrument_name, filter_name=filter_name
         )
         spec = body_spec_from_params(body_params, index=body_number)
         explicit_ranges.append(spec.range_km is not None)

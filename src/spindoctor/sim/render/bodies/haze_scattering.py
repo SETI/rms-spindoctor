@@ -49,19 +49,17 @@ that crosses the column unscattered and is seen only through the same direct bea
 the multiple-scattered light is isotropic; and the column is evaluated at the point
 where the line of sight meets it, not integrated along a curved path.
 
-**Titan's phase function.**  The scenes that render Titan's haze use a two-term
-Henyey-Greenstein phase function, ``(1 - f) HG(g) + f HG(g2)``, fitted to the haze
-phase function the Huygens DISR instrument measured above 80 km (Tomasko et al. 2008,
-Planet. Space Sci. 56, 669, its tabulated phase functions for 80-200 km).  The
-tabulation at 599.9 and 713.1 nm was interpolated linearly in wavelength to 650 nm,
-the Cassini ISS clear band; normalized to average 1 over the sphere (a factor of
-1.008); and fitted by least squares in the logarithm of the phase function, each
-tabulated scattering angle weighted by the span of angle it stands for.  The fit is
-``g`` = 0.886, ``g2`` = -0.164, and ``f`` = 0.091, so the mean cosine is 0.790 (the
-tabulation's own is 0.787).  It matches the tabulation within 20% from 20 to 180 deg
-of scattering angle, the phase angles 0 to 160 deg; nearer the forward direction it
-runs up to 1.6 times high at 10 deg and 2.5 times low at 0 deg, because two terms
-cannot follow the aggregates' narrow forward peak.
+**Titan's phase function.**  Titan's haze
+(:mod:`spindoctor.sim.render.bodies.titan_haze`) uses a two-term Henyey-Greenstein phase
+function, ``(1 - f) HG(g) + f HG(g2)``, fitted at each DISR wavelength from 430 to 1078
+nm to the haze phase function the Huygens probe measured between 80 and 200 km (Tomasko
+et al. 2008, Planet. Space Sci. 56, 669).  ``util/titan_haze/build_table.py`` normalizes
+each tabulated function to average 1 over the sphere and fits it by least squares in its
+logarithm, each scattering angle weighted by the span of angle it stands for.  From 491
+to 1078 nm the fits follow the tabulation within 20% from 20 to 180 deg of scattering
+angle (phase angles 0 to 160 deg); at 430 nm they fall up to 44% below it.  Nearer the
+forward direction two terms cannot follow the aggregates' narrow peak: the fits run 1.2
+to 1.8 times high at 10 deg and 2 to 4 times low at 0 deg.
 """
 
 import math

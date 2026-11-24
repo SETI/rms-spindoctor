@@ -744,6 +744,19 @@ def apply_atmosphere(
         direct = np.exp(-np.minimum(tau * (1.0 + mu_surface / mu0_surface), _MAX_EXP_ARG))
         return cast(NDArrayFloatType, haze), cast(NDArrayFloatType, direct)
 
+    gathered: dict[int, tuple[NDArrayFloatType, ...]] = {}
+
+    def _gather(pixels: NDArrayBoolType) -> tuple[NDArrayFloatType, ...]:
+        """The rotated coordinates, ``e2``, and limb incidence of some pixels, once."""
+        key = id(pixels)
+        if key not in gathered:
+            v_px = np.broadcast_to(v_ctr, e2.shape)[pixels]
+            u_px = np.broadcast_to(u_ctr, e2.shape)[pixels]
+            rho = np.maximum(stable_hypot(v_px, u_px), 1e-9)
+            limb_mu0 = (v_px * illum_v + u_px * illum_u) / rho
+            gathered[key] = (v_rot[pixels], u_rot[pixels], e2[pixels], limb_mu0)
+        return gathered[key]
+
     def _incidence(
         pixels: NDArrayBoolType, scale: float | NDArrayFloatType
     ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
@@ -755,27 +768,33 @@ def apply_atmosphere(
         0) whose incidence is that of the limb at the pixel's azimuth, the column
         standing above the limb there.
         """
-        v_px = np.broadcast_to(v_ctr, e2.shape)[pixels]
-        u_px = np.broadcast_to(u_ctr, e2.shape)[pixels]
-        rho = np.maximum(stable_hypot(v_px, u_px), 1e-9)
-        mu0 = (v_px * illum_v + u_px * illum_u) / rho
-        mu = np.zeros_like(mu0)
-        e2_scaled = e2[pixels] / (np.asarray(scale) ** 2)
+        v_rot_px, u_rot_px, e2_px, limb_mu0 = _gather(pixels)
+        scale_px = np.asarray(scale, dtype=np.float64)
+        e2_scaled = e2_px / (scale_px * scale_px)
         on_disc = e2_scaled < 1.0
-        if on_disc.any():
-            scale_on = np.broadcast_to(np.asarray(scale, dtype=np.float64), mu0.shape)[on_disc]
-            mu[on_disc] = np.sqrt(1.0 - e2_scaled[on_disc])
-            mu0[on_disc] = disc_incidence(
-                v_rot[pixels][on_disc] / scale_on,
-                u_rot[pixels][on_disc] / scale_on,
-                e2_scaled[on_disc],
-                geometry=geometry,
-                cos_rz=cos_rz,
-                sin_rz=sin_rz,
-                illum_v=illum_v,
-                illum_u=illum_u,
-                illum_z=illum_z,
-            )
+        mu = np.sqrt(np.maximum(1.0 - e2_scaled, 0.0))
+        if not on_disc.any():
+            return mu, limb_mu0.copy()
+        if scale_px.ndim:
+            scale_on = scale_px if on_disc.all() else scale_px[on_disc]
+        else:
+            scale_on = scale_px
+        everywhere = bool(on_disc.all())
+        disc_mu0 = disc_incidence(
+            (v_rot_px if everywhere else v_rot_px[on_disc]) / scale_on,
+            (u_rot_px if everywhere else u_rot_px[on_disc]) / scale_on,
+            e2_scaled if everywhere else e2_scaled[on_disc],
+            geometry=geometry,
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+            illum_v=illum_v,
+            illum_u=illum_u,
+            illum_z=illum_z,
+        )
+        if everywhere:
+            return mu, disc_mu0
+        mu0 = limb_mu0.copy()
+        mu0[on_disc] = disc_mu0
         return mu, mu0
 
     def _reflecting_scale(height: float | NDArrayFloatType) -> float | NDArrayFloatType:
