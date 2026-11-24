@@ -519,17 +519,14 @@ leading units with no midtime count, read from the PDS3 label beside the image.
 PDS4 hooks
 ==========
 
-Not supported. Two hooks are implemented --
-``pds4_bundle_template_dir``, which falls back to ``voyager_iss_1.0``, and
-``pds4_bundle_name``, which falls back to
-``voyager_iss_backplanes_rsfrench2027`` -- and every remaining hook raises
-``NotImplementedError``. Neither the template directory nor a ``pds4.vgiss``
-configuration entry is shipped; the configuration file carries the entry as a
-commented-out stub.
+Not supported. Every hook raises ``NotImplementedError``, and the dataset gives no
+``PDS4_CONFIG_KEY``, so the configuration's ``pds4`` section accepts no entry for it.
 
-Making bundles work here means implementing ``pds4_bundle_path_for_image``,
-``pds4_path_stub``, ``pds4_lid_part_to_image_name``, the four LID and LIDVID
-builders and ``pds4_template_variables``, and adding a template directory. It
+Making bundles work here means giving the dataset a ``PDS4_CONFIG_KEY`` and a ``pds4``
+entry under it, implementing the hooks that read that entry and
+``pds4_bundle_path_for_image``, ``pds4_path_stub``, ``pds4_lid_part_to_image_name``,
+the four LID and LIDVID builders and ``pds4_template_variables``, and adding a
+template directory. It
 also means deciding whether one bundle covers both spacecraft or each gets its
 own.
 

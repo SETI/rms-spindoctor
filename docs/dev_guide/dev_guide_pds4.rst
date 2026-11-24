@@ -293,29 +293,33 @@ extension points as non-abstract methods that raise ``NotImplementedError`` —
 a dataset that does not need PDS4 support can simply not override them, and
 the bundle drivers refuse to run.
 
+A dataset that bundles sets the key of its entry in the ``pds4`` config block as the
+class attribute :attr:`~spindoctor.dataset.dataset.DataSet.PDS4_CONFIG_KEY`, and the
+hooks that read the configuration read that entry, written ``<key>`` below.
+
 The full extension-point set:
 
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir` — absolute
   path to the directory of ``pdstemplate`` ``.lblx`` files this dataset uses.
-  Lookups consult ``config.pds4.<dataset_name>.template_dir`` first; relative
-  paths resolve under ``src/spindoctor/cli/pds4/templates/``. The reference Cassini ISS
-  Saturn dataset uses ``cassini_iss_saturn_1.0/``.
+  Lookups consult ``config.pds4.<key>.template_dir``; relative paths resolve under
+  ``src/spindoctor/cli/pds4/templates/``. The reference Cassini ISS Saturn dataset
+  uses ``cassini_iss_saturn_1.0/``.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_name` — the bundle's
   external name (for example
   ``cassini_iss_saturn_backplanes_rsfrench2027``). The bundle root is
   ``<bundle_results_root>/<bundle_name>/``. Lookups consult
-  ``config.pds4.<dataset_name>.bundle_name``.
+  ``config.pds4.<key>.bundle_name``.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_version` — the bundle's
   version.  The bundle, each of its collections, and each product it writes state it as
   their ``version_id``, and every LIDVID that refers to one of them carries it.  Lookups
-  consult ``config.pds4.<dataset_name>.bundle_version``, which has no default.
+  consult ``config.pds4.<key>.bundle_version``.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_information_model_version` and
   :meth:`~spindoctor.dataset.dataset.DataSet.pds4_schemas` — the PDS4 information model
   the labels are written against, and the schema of each dictionary they declare, a
-  :class:`~spindoctor.dataset.dataset.Pds4Schema` by the prefix its namespace takes in a
-  label: its location less the extension, and the LIDVID the XML schema collection lists
-  it by.  Lookups consult ``config.pds4.<dataset_name>.information_model_version`` and
-  ``config.pds4.<dataset_name>.schemas``, which have no default.
+  :class:`~spindoctor.config.sections_products.Pds4Schema` by the prefix its namespace
+  takes in a label: its location less the extension, and the LIDVID the XML schema
+  collection lists it by.  Lookups consult ``config.pds4.<key>.information_model_version``
+  and ``config.pds4.<key>.schemas``.
 - :meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` — the
   file names one pass takes from that directory, the templates it renders and the
   files it copies: ``labels`` for the per-image pass and ``summary`` for the pass
@@ -405,11 +409,15 @@ dictionary schemas its labels are written against (``information_model_version``
 `The bundle's variables`_), so a new bundle version, a new name or a dictionary moving
 to another version is one edit of this entry.  The dictionary schemas are the bundle's
 beside its name, since each bundle's labels are checked against the dictionaries its
-own templates were written for.  The name, the version, the information model version
-and the schemas have no default, and the shipped configuration is held to the shipped
-templates by tests rather than checked when it is loaded.  The tests check that it
-gives the bundle's name and version, a schema for exactly the dictionaries the templates
-declare, and the ``pds`` schema of the build the information model version identifies.
+own templates were written for.
+
+The block is parsed when the configuration is loaded.  It takes an entry only under a
+key some registered dataset class gives as its ``PDS4_CONFIG_KEY``, and each entry needs
+every key above, so a misspelled bundle, an entry missing a key, and a version written
+as a number are all refused then, and the message gives the file and the key.  Whether
+the values match the shipped templates is held by tests: they check that the entry
+gives a schema for exactly the dictionaries the templates declare, and the ``pds``
+schema of the build the information model version identifies.
 The bundle check fetches each schema by its URL (see `Checking a bundle`_), and its
 tests read local copies, so a schema listed here needs a copy in
 ``tests/spindoctor/cli/pds4/check/schemas/``, which a test holds the shipped
@@ -421,10 +429,11 @@ a moved schema there would read as a change of that data.  No ``9xx`` file is ha
 way.  See :doc:`dev_guide_config_and_static_data` for the loader contract; the file is
 loaded by the standard numeric-prefix order at the ``9xx`` "downstream products" tier.
 
-The entry another dataset would need, once its templates and its PDS4 hooks exist, is
-one of these, in a file of its own named as ``coiss_saturn``'s is, each with every
-other key the ``coiss_saturn`` entry has -- the information model version and the
-schemas of the dictionaries its templates declare:
+The entry another dataset would need, once its templates exist, its PDS4 hooks are
+written, and its class gives the entry's key as its ``PDS4_CONFIG_KEY``, is one of
+these, in a file of its own named as ``coiss_saturn``'s is, each with every other key the
+``coiss_saturn`` entry has -- the information model version and the schemas of the
+dictionaries its templates declare:
 
 .. code-block:: yaml
 
@@ -1325,7 +1334,8 @@ The end-to-end checklist:
    guide when it exists. Copy from ``cassini_iss_saturn_1.0/`` and adapt the field
    set.  Refer to the bundle, its version, and each schema through the bundle's
    variables (see `The bundle's variables`_) rather than spelling them.
-3. Add an entry under ``pds4.<dataset_name>:`` in a configuration file of its own,
+3. Give the dataset class a ``PDS4_CONFIG_KEY``, and add an entry under that key in
+   the ``pds4`` block, in a configuration file of its own,
    named for its mission and target as ``config_951_pds4_coiss_saturn.yaml`` is (see
    the ``pds4`` config block above), that points at the new template directory and
    sets the bundle's name and version, the information model version, and the schema

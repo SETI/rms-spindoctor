@@ -1603,6 +1603,16 @@ asserts the generated half matches the registries.
     and `pds4`
   - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;
     no earlier step waits for it
+  - [x] `backplanes` and `pds4`, the second half of the step above (done:
+    parsed at load into `BackplanesSection` and a `Pds4Section` whose
+    fields come from each registered dataset class's `PDS4_CONFIG_KEY`, in
+    `config/sections_products.py`; a lower-case `target_lids` key, a
+    wrapped index range given one end, and a `pds4` entry under a key no
+    dataset gives are refused at load; the read-site `method`/`units`
+    checks, the getattr-with-default reads, the `str()`/`float()` casts,
+    Cassini's `_dataset_name_for_pds4_config` and
+    `_default_pds4_template_dir`, and the Voyager, Galileo, and LORRI
+    `pds4_bundle_template_dir`/`pds4_bundle_name` fallbacks deleted)
   - [ ] `load_nav_config`, `AttrDict` off the config path, and one test
     fixture for config overrides; #118 and #1001 close here
 

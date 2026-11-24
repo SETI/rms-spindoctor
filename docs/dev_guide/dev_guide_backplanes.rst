@@ -341,15 +341,19 @@ Configuration
 
 The configurable backplane list lives in
 ``src/spindoctor/config_files/config_900_backplanes.yaml`` under the ``backplanes``
-section (exposed as ``config.backplanes``). The full YAML schema and the
-shipping defaults are documented at :doc:`/user_guide/user_guide_backplanes`; this
+section, which is parsed when the configuration loads into a
+:class:`~spindoctor.config.sections_products.BackplanesSection` (exposed as
+``config.backplanes``). Each plane is a
+:class:`~spindoctor.config.sections_products.PlaneEntry`, and an entry missing its
+``name``, ``method``, ``units``, or ``index`` is refused then. The full YAML schema and
+the shipping defaults are documented at :doc:`/user_guide/user_guide_backplanes`; this
 section covers the developer-facing parts of the contract.
 
 - ``method`` resolves against :class:`oops.backplane.Backplane` by name at
-  evaluation time. There is no compile-time check on the YAML; a typo
-  surfaces only when the body or rings step calls the missing method on a
-  real image. Confirm method names against the ``oops`` source before
-  adding an entry.
+  evaluation time. The loader checks that it is a string, and nothing more; a typo
+  surfaces only when the body or rings step calls the missing method on a real image.
+  A test holds every shipped method to a method of the class, so confirm a new name
+  against the ``oops`` source before adding an entry.
 - The body / rings dispatch is a hard split: ``backplanes.bodies`` entries
   are evaluated against the per-body meshgrid and merged with body
   ``distance``; ``backplanes.rings`` entries are evaluated against the
@@ -393,8 +397,8 @@ Adding a backplane
 
 1. Pick the source (body or rings) and the corresponding ``oops``
    :class:`~oops.backplane.Backplane` method to call. Verify the
-   method exists by reading the ``oops`` source — there is no
-   compile-time check on the YAML name.
+   method exists by reading the ``oops`` source; the loader does not check
+   the name against the class.
 2. Append a ``{name, method, units, index}`` entry to the matching list in
    ``config_900_backplanes.yaml``. Pick a ``name`` that scans well as a FITS HDU name
    (uppercase or snake_case, no spaces). ``units`` describes the array, which for an

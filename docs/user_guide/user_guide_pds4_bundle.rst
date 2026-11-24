@@ -793,15 +793,20 @@ Configuration Options
   template declaring one with no entry is not written, and an entry no template
   declares is still listed by the XML schema collection.
 
-``bundle_name``, ``bundle_version``, ``information_model_version``, and ``schemas``
-have no default, so an entry for a dataset that is bundled gives all four.
+None of these has a default. An override of an entry that ships with the package gives
+only the keys it changes, but a new entry, such as one for ``coiss_cruise``, gives all
+five. The configuration is refused when it loads if a new entry leaves a key out, if a
+version is written as a number rather than in quotes, or if an entry is for a dataset
+that cannot be bundled.
 
 Targets
 -------
 
 The targets a label lists come from the ``backplanes.target_lids`` configuration
 setting, one entry per target, keyed by the name the backplane metadata gives it: a body
-by its name, and the rings by the ring target their backplanes are computed for.
+by its SPICE name in upper case, such as ``SATURN``, and the rings by the ring target
+their backplanes are computed for. A key in lower case is refused when the configuration
+loads.
 :doc:`user_guide_configuration` says where the values that ship with the package live
 and how to override them. Each entry gives the logical identifier of the target's PDS4
 context product, the version of that product, and the name and type the product gives

@@ -115,6 +115,17 @@ returns the typed object:
   accepts is known only when the program runs; see :doc:`dev_guide_logging`.
 - ``techniques`` — one block per technique the package ships: its confidence formula
   and its tuning (see :ref:`config-techniques-section`).
+- ``backplanes`` — :class:`~spindoctor.config.sections_products.BackplanesSection`,
+  holding the body and ring planes, the ring incidence angle, the masked value, and
+  ``target_lids``; see :doc:`dev_guide_backplanes`. ``target_lids`` gives the PDS4
+  target of each body, keyed by its SPICE name, and of each ring system. A key not in
+  upper case is refused at load.
+- ``pds4`` — one :class:`~spindoctor.config.sections_products.Pds4Bundle` per bundle.
+  Like the ``techniques`` section's, its type is built from a registry: it has one
+  optional field per key a registered dataset class gives as its ``PDS4_CONFIG_KEY``,
+  so an entry under any other key is refused. The section's
+  :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` method gives one
+  bundle's entry; see :doc:`dev_guide_pds4`.
 
 .. _config-techniques-section:
 
@@ -207,10 +218,10 @@ removal. The shipping sections:
   reliability floors and mask settings, and the two blocks of fit tunables the haze
   technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``). See
   :doc:`dev_guide_navigation_models_titan` and :doc:`dev_guide_techniques_titan_haze`.
-- ``backplanes`` — the list of body and ring backplanes to generate; see
-  :doc:`dev_guide_backplanes`.
-- ``pds4`` — per-dataset PDS4 template directories and bundle names; see
-  :doc:`dev_guide_pds4`.
+- ``backplanes`` — the body and ring backplanes to generate, and the PDS4 targets they
+  are named as; a typed section (see :ref:`config-typed-sections`).
+- ``pds4`` — each bundle's template directory, name, version, and schemas; a typed
+  section (see :ref:`config-typed-sections`).
 - ``environment`` — deployment locations (``pds3_holdings_root``,
   ``nav_results_root``, ``backplane_results_root``, ``bundle_results_root``,
   ``results_index_db``).

@@ -315,6 +315,10 @@ for being numbers, so a misspelled one there is not refused; every other setting
 checked. A technique block whose key navigation does not know is refused too. Spell each
 block key as the ``techniques`` entry above gives it.
 
+Every setting in the ``backplanes`` and ``pds4`` sections is checked the same way when
+your file is read. :doc:`/user_guide/user_guide_pds4_bundle` describes what each one
+holds.
+
 What a run records about its own configuration
 ==============================================
 

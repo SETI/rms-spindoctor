@@ -42,3 +42,8 @@ spindoctor.config
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: spindoctor.config.sections_products
+   :members:
+   :undoc-members:
+   :show-inheritance:
