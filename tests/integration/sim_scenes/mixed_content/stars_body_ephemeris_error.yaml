@@ -14,32 +14,22 @@ exposure_sec: 1.2
 # frames of this class show body and star answers 0.8 to 1.8 px apart, and the
 # result-combining step has to reconcile them.
 #
-# BodyDiscCorrelateNav and BodyLimbNav land 1.82 to 1.84 px off on every draw, which
+# BodyDiscCorrelateNav and BodyLimbNav land 1.81 to 1.84 px off on every draw, which
 # is the planted error, and are held to bands on it, so the scene fails if the error
-# stops reaching them.  With spk_error removed they land 0.03 to 0.04 px and 0.08 to
-# 0.09 px off.
+# stops reaching them.  With spk_error removed they land 0.03 px and 0.09 to 0.10 px
+# off.
 #
-# The stars cannot navigate on their own.  They stand 4.7 to 24 sigma above the sky,
-# and the detector chain's hot pixels and cosmic rays leave about 3,550 sky pixels
-# above 20 sigma, the hot pixels near full well whatever the exposure (#906).
-# StarFieldFromCatalogNav loses its sources among them and finds too few stars on
-# every draw (#1146), and with the body removed the frame fails.  Turning the chain off
-# does not separate these causes, since it removes every star technique: a frame
-# without noise gives the star model no features (#1148).  The star answer is
-# StarRefineNav's, which starts from the body's pass-1 answer and lands 0.11 to 0.81 px
-# off.  On 12 of the 16 draws it gives the same answer with spk_error removed.  On two
-# of the other four it follows its start part way, 0.80 and 0.81 px off against 0.33
-# and 0.24 px, with a sigma of 1.4 and 1.7 px along u; these are the two draws where
-# the fused answer is worst.
+# The stars navigate on their own.  StarFieldFromCatalogNav finds too few stars on
+# every draw (#1146), but StarUniqueMatchNav answers on 13 of the 16 draws, 0.04 to
+# 0.24 px off, and StarRefineNav, which starts from the body's pass-1 answer, lands
+# 0.01 to 0.11 px off and gives the same answer on every draw with spk_error removed.
+# With the body removed the committed draw navigates on the stars alone, 0.02 px off.
 #
-# The fused answer lies near the line between the body's answer and the truth, 0.30 to
-# 1.31 px from the truth over the 16 draws, within 1.7 of its reported sigmas.  It sits
-# up to 0.65 px off that line, which comes from StarRefineNav's own 0.1 to 0.8 px
-# error.  The tolerance, 1.58 px, sits below the 1.82 px of a body-only answer, so a
-# fused answer that drops the stars fails.
-#
-# On one draw of the 16 (random_seed 909), StarUniqueMatchNav answers 113.7 px off at
-# confidence 0.70 without flagging it, and the ensemble leaves it out (#1150).
+# The fused answer combines the star answers with the body's, so it lands between
+# them, 0.16 to 0.26 px from the truth over the 16 draws in the direction of the
+# body's error, within 0.9 of its reported sigmas.  With spk_error removed it lands
+# 0.01 to 0.10 px off.  The tolerance, 0.32 px, sits far below the 1.81 px of a
+# body-only answer, so a fused answer that drops the stars fails.
 #
 # The pointing error is the size real NAC frames carry, pointing up and to the right,
 # and the twist is the NAC's measured 0.0115 degrees, unfit, as the camera ships.

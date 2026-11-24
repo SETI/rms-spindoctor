@@ -230,23 +230,21 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
     ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
-    # stars put it, and the fused answer lies near the line between the two; the
-    # tolerance stays below the body's own 1.82 px error.  In crescent_stars the stars
-    # refined from the disc pull the fused answer part way off the disc's 0.01 px.
-    # moon_over_ring_sheet is expected to conflict (#755).  saturn_rings_wac follows its
-    # ring edges, which miss along v.
-    ('crescent_stars', FUSED): _t(0.447, 0.496, 0.276, 0.10),
-    ('saturn_rings_wac', FUSED): _t(0.171, 0.229, 0.078, 0.05),
-    ('stars_body_ephemeris_error', FUSED): _t(0.504, 1.307, 1.009, 0.27),
+    # stars put it, and the fused answer lies between the two, 0.16 to 0.26 px from the
+    # truth toward the body; the tolerance stays well below the body's own 1.81 px
+    # error.  In crescent_stars the fused answer follows the stars, a little off the
+    # disc's 0.01 px.  moon_over_ring_sheet is expected to conflict (#755).
+    # saturn_rings_wac follows its ring edges.
+    ('crescent_stars', FUSED): _t(0.013, 0.179, 0.166, 0.05),
+    ('saturn_rings_wac', FUSED): _t(0.101, 0.101, 0.070, 0.05),
+    ('stars_body_ephemeris_error', FUSED): _t(0.220, 0.258, 0.100, 0.06),
     # mixed_content, one technique read from the fused run.  StarRefineNav starts from
-    # the body's pass-1 answer, which carries the planted 1.82 px error, and still lands
-    # within 0.81 px of the truth.  On 12 of the 16 draws it gives the same answer with
-    # the planted error removed; on two of the other four it follows its start part
-    # way, 0.80 and 0.81 px off against 0.33 and 0.24 px, and reports a sigma of 1.4 and
-    # 1.7 px along u.  This row holds the star side of the scene: a refinement that
+    # the body's pass-1 answer, which carries the planted 1.81 px error, and still lands
+    # within 0.12 px of the truth, with the same answer on every draw as with the planted
+    # error removed.  This row holds the star side of the scene: a refinement that
     # followed its start would land near 1.8 px off and fail here, while the fused
-    # tolerance alone would pass one that followed it further part way.
-    ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.243, 0.809, 0.704, 0.17),
+    # tolerance alone would pass one that followed it part way.
+    ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.023, 0.113, 0.107, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
@@ -299,9 +297,8 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('titan_crescent_horns', 'BodyBlobNav'): _b(25.091, 25.123, 0.05, 25.041, 25.174),
     ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.151, 25.151, 0.05, 25.100, 25.201),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.474, 1.482, 0.05, 1.424, 1.532),
-    ('crescent_stars', 'BodyBlobNav'): _b(5.198, 5.258, 0.05, 5.148, 5.309),
-    ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.858, 1.587, 0.1459, 0.712, 1.734),
-    ('saturn_rings_wac', 'BodyBlobNav'): _b(7.257, 7.300, 0.05, 7.206, 7.351),
+    ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.942, 1.543, 0.1202, 0.821, 1.664),
+    ('saturn_rings_wac', 'BodyBlobNav'): _b(6.863, 6.879, 0.05, 6.812, 6.929),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.006 px and 0.055 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.597, 0.604, 0.05, 0.547, 0.654),
@@ -309,16 +306,16 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
-    # RingEdgeNav slides 8.6 to 9.5 px along gently curved arcs, with a sigma along them
+    # RingEdgeNav slides 8.4 to 9.3 px along gently curved arcs, with a sigma along them
     # near 0.1 px (#755).
-    ('moon_over_ring_sheet', 'RingEdgeNav'): _b(8.594, 9.513, 0.1840, 8.409, 9.698),
+    ('moon_over_ring_sheet', 'RingEdgeNav'): _b(8.432, 9.252, 0.1641, 8.267, 9.417),
     # These two are wrong by design.  The scene plants a spacecraft-ephemeris error
     # (spk_error) that moves the body 1.81 px from where the pointing puts it, and the
     # body techniques answer the pointing plus that error.  The bands hold the planted
     # error, so the scene fails if it stops reaching the body techniques: without it
-    # they land 0.03 to 0.04 px and 0.08 to 0.09 px off.
-    ('stars_body_ephemeris_error', 'BodyDiscCorrelateNav'): _b(1.822, 1.827, 0.05, 1.772, 1.878),
-    ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(1.822, 1.835, 0.05, 1.771, 1.886),
+    # they land 0.03 px and 0.09 to 0.10 px off.
+    ('stars_body_ephemeris_error', 'BodyDiscCorrelateNav'): _b(1.811, 1.811, 0.05, 1.761, 1.862),
+    ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(1.831, 1.836, 0.05, 1.781, 1.887),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
     ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.029, 5.088, 0.05, 4.979, 5.138),
@@ -342,10 +339,6 @@ SIGMA_BANDS: dict[str, KnownErrorBand] = {
     'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
     'planted_rotation_star_field': _b(16.333, 16.447, 0.1, 16.233, 16.547),
-    # The ring edges miss by 0.15 to 0.23 px along v against a 0.04 px sigma (#1149).
-    # Most of the miss comes from the simulated hot pixels, which sit near full well
-    # whatever the exposure (#906): with them off the scene sits at 1.06 to 2.53 sigma.
-    'saturn_rings_wac': _b(3.430, 5.117, 0.3373, 3.092, 5.455),
 }
 
 # The planted roll is recovered 0.018 to 0.020 deg short over the seeds; the margin is

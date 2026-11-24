@@ -1,8 +1,8 @@
 {
-  "confidence": 0.9387775289898711,
+  "confidence": 0.9367554574901654,
   "confidence_rank": "high",
-  "offset_du_px": 1.7320489172792823,
-  "offset_dv_px": -1.0392022845638023,
+  "offset_du_px": 1.8068279278824597,
+  "offset_dv_px": -1.144036134056439,
   "scene_name": "saturn_rings_wac",
   "status": "success"
 }
