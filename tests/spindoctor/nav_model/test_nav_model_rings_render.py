@@ -37,6 +37,7 @@ import numpy as np
 import polymath
 import pytest
 from tests.shims import FakeBackplane, FakeObs, RingBackplaneData, bare_nav_context
+from tests.shims.backplane import RingEdgeBackplane, edge_meshgrid
 
 import spindoctor.nav_model.nav_model_rings as nav_model_rings_module
 import spindoctor.nav_model.ring_visibility as ring_visibility_module
@@ -112,12 +113,10 @@ class _FakeMeshgrid:
 
 
 class _DelegatingBackplane:
-    """Backplane stand-in for the visibility pre-check and the striped evaluations.
+    """Backplane stand-in for the striped evaluations.
 
-    Delegates every query to the observation's dense ``ext_bp``, so the
-    pre-check reads the whole dense radius field the test wired, its verdict
-    always matches the dense data, and a strip's answer is that strip's rows of
-    the same dense arrays.
+    Delegates every query to the observation's dense ``ext_bp``, so a strip's
+    answer is that strip's rows of the same dense arrays.
 
     Parameters:
         obs: Observation carrying the fake ``ext_bp``.
@@ -344,11 +343,6 @@ def _make_obs(ring_data: RingBackplaneData, *, shape: tuple[int, int] = _SHAPE) 
     )
 
 
-def _edge_meshgrid(fov: Any, uv: Any) -> None:
-    """Stand in for the pre-check's boundary meshgrid; the backplane ignores it."""
-    del fov, uv
-
-
 def _make_model(
     monkeypatch: pytest.MonkeyPatch,
     ring_data: RingBackplaneData,
@@ -366,8 +360,8 @@ def _make_model(
     obs = _make_obs(ring_data)
     monkeypatch.setattr(nav_model_rings_module, 'Meshgrid', _FakeMeshgrid)
     monkeypatch.setattr(nav_model_rings_module, 'Backplane', _DelegatingBackplane)
-    monkeypatch.setattr(ring_visibility_module, 'Meshgrid', _edge_meshgrid)
-    monkeypatch.setattr(ring_visibility_module, 'Backplane', _DelegatingBackplane)
+    monkeypatch.setattr(ring_visibility_module, 'Meshgrid', edge_meshgrid)
+    monkeypatch.setattr(ring_visibility_module, 'Backplane', RingEdgeBackplane)
     model = NavModelRings('rings:SATURN', cast(Any, obs), config=config)
     return model, obs
 

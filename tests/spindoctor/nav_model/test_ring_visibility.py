@@ -15,6 +15,8 @@ must be seen place the rings between those samples.
 
 from __future__ import annotations
 
+import dataclasses
+import math
 from dataclasses import dataclass
 from typing import Any, cast
 
@@ -25,7 +27,12 @@ from tests.shims import FakeObs
 
 import spindoctor.nav_model.ring_visibility as ring_visibility_module
 from spindoctor.nav_model.nav_model_rings import NavModelRings
-from spindoctor.nav_model.ring_visibility import frame_edge_uv, ring_disc_view
+from spindoctor.nav_model.ring_visibility import (
+    boundary_closest_approach_km,
+    frame_edge_sides,
+    frame_edge_uv,
+    ring_disc_view,
+)
 
 _TARGET = 'saturn:ring'
 _PLANET = 'SATURN'
@@ -37,20 +44,26 @@ class _PinholeRingScene:
     """A pinhole camera looking at the unbounded ring plane ``z = 0``.
 
     The planet sits at the origin of the ring frame, the ring plane is ``z = 0``, and
-    pixel ``(u, v)`` looks along ``boresight + (u - u0) * ifov * right + (v - v0) * ifov *
-    down``, where ``(u0, v0)`` is where the boresight lands.
+    pixel ``(u, v)`` looks along ``boresight + du * ifov * right + dv * ifov * down``,
+    where ``(du, dv)`` is ``(u - u0, v - v0)`` turned by the camera's roll about the
+    boresight and ``(u0, v0)`` is where the boresight lands.
 
     Parameters:
         observer_km: Observer position in the ring frame, in km.
         target_km: Point the boresight passes through, in km.
         ifov_rad: Angular size of one pixel, in radians.
         boresight_uv: ``(u, v)`` where the boresight lands, in geometry coordinates.
+        roll_rad: Camera roll about the boresight, in radians.
+        nan_misses: True to report a ray that misses the plane as an unmasked NaN
+            instead of a masked value.
     """
 
     observer_km: tuple[float, float, float]
     target_km: tuple[float, float, float]
     ifov_rad: float
     boresight_uv: tuple[float, float] = (50.0, 50.0)
+    roll_rad: float = 0.0
+    nan_misses: bool = False
 
     def _axes(self) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
         """Return the unit boresight, right, and down vectors."""
@@ -64,37 +77,66 @@ class _PinholeRingScene:
         down = np.cross(boresight, right)
         return boresight, right, down
 
-    def ring_radius(self, uv: np.ndarray) -> polymath.Scalar:
-        """Ring-plane radius at each ``(u, v)``, masked where the ray misses the plane.
+    def _intercepts(self, uv: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Return the ring-plane ``(x, y)`` of each ray and where the rays miss the plane.
 
         Parameters:
             uv: Array of shape ``(..., 2)`` of pixel coordinates.
         """
         boresight, right, down = self._axes()
-        du = (uv[..., 0] - self.boresight_uv[0]) * self.ifov_rad
-        dv = (uv[..., 1] - self.boresight_uv[1]) * self.ifov_rad
+        du0 = uv[..., 0] - self.boresight_uv[0]
+        dv0 = uv[..., 1] - self.boresight_uv[1]
+        cos_roll, sin_roll = np.cos(self.roll_rad), np.sin(self.roll_rad)
+        du = (cos_roll * du0 - sin_roll * dv0) * self.ifov_rad
+        dv = (sin_roll * du0 + cos_roll * dv0) * self.ifov_rad
         rays = boresight + du[..., None] * right + dv[..., None] * down
         observer = np.asarray(self.observer_km)
         with np.errstate(divide='ignore', invalid='ignore'):
             t = -observer[2] / rays[..., 2]
         misses = ~(t > 0.0)
         hit = observer + np.where(misses, 0.0, t)[..., None] * rays
-        radius = np.hypot(hit[..., 0], hit[..., 1])
-        return polymath.Scalar(radius, misses)
+        return hit[..., :2], misses
+
+    def _scalar(self, vals: np.ndarray, misses: np.ndarray) -> polymath.Scalar:
+        """Wrap per-ray values, marking misses as masked or as NaN."""
+        if self.nan_misses:
+            return polymath.Scalar(np.where(misses, np.nan, vals))
+        return polymath.Scalar(vals, misses)
+
+    def ring_radius(self, uv: np.ndarray) -> polymath.Scalar:
+        """Ring-plane radius at each ``(u, v)``, marked where the ray misses the plane.
+
+        Parameters:
+            uv: Array of shape ``(..., 2)`` of pixel coordinates.
+        """
+        xy, misses = self._intercepts(uv)
+        return self._scalar(np.hypot(xy[..., 0], xy[..., 1]), misses)
+
+    def ring_longitude(self, uv: np.ndarray) -> polymath.Scalar:
+        """Ring-plane longitude at each ``(u, v)``, marked where the ray misses the plane.
+
+        Parameters:
+            uv: Array of shape ``(..., 2)`` of pixel coordinates.
+        """
+        xy, misses = self._intercepts(uv)
+        return self._scalar(np.arctan2(xy[..., 1], xy[..., 0]), misses)
 
     def planet_uv(self) -> tuple[float, float]:
         """Return where the planet center projects, in geometry coordinates."""
         boresight, right, down = self._axes()
         to_planet = -np.asarray(self.observer_km)
         depth = float(to_planet @ boresight)
+        du = float(to_planet @ right) / depth / self.ifov_rad
+        dv = float(to_planet @ down) / depth / self.ifov_rad
+        cos_roll, sin_roll = np.cos(self.roll_rad), np.sin(self.roll_rad)
         return (
-            self.boresight_uv[0] + float(to_planet @ right) / depth / self.ifov_rad,
-            self.boresight_uv[1] + float(to_planet @ down) / depth / self.ifov_rad,
+            self.boresight_uv[0] + float(cos_roll * du + sin_roll * dv),
+            self.boresight_uv[1] + float(-sin_roll * du + cos_roll * dv),
         )
 
 
 class _SceneBackplane:
-    """Backplane stand-in answering ``ring_radius`` from a pinhole scene.
+    """Backplane stand-in answering ``ring_radius`` and ``ring_longitude`` from a scene.
 
     Parameters:
         scene: The scene to evaluate.
@@ -109,6 +151,11 @@ class _SceneBackplane:
         """Return the scene's ring radius at the meshgrid's pixel coordinates."""
         del ring_target
         return self._scene.ring_radius(self._uv)
+
+    def ring_longitude(self, ring_target: str) -> polymath.Scalar:
+        """Return the scene's ring longitude at the meshgrid's pixel coordinates."""
+        del ring_target
+        return self._scene.ring_longitude(self._uv)
 
 
 def _obs(
@@ -160,6 +207,18 @@ _EDGE_ON_BAND = _PinholeRingScene(
     boresight_uv=(50.0, 52.5),
 )
 
+# From 150 km above the ring plane, rolled 0.2 rad, the rings at the ansa are a tilted
+# band thinner than a pixel. It crosses the frame's boundary between two neighboring
+# boundary pixel centers, so no boundary pixel center lies on it, though dozens of
+# interior pixel centers do.
+_SUBPIXEL_TILTED_BAND = _PinholeRingScene(
+    observer_km=(-1.0e6, 0.0, 150.0),
+    target_km=(0.0, 100_000.0, 0.0),
+    ifov_rad=5.0e-5,
+    boresight_uv=(50.0, 52.0),
+    roll_rad=0.2,
+)
+
 # The frame looks at the ring plane 600,000 km from the planet.
 _BEYOND_THE_RINGS = _PinholeRingScene(
     observer_km=(-1.0e6, 0.0, 300_000.0),
@@ -191,6 +250,22 @@ def test_frame_edge_uv_is_every_boundary_pixel_center() -> None:
     vs = np.arange(-1, 5) + 0.5
     expected = {(u, v) for u in us for v in vs if u in (us[0], us[-1]) or v in (vs[0], vs[-1])}
     assert sorted(map(tuple, uv.tolist())) == sorted(expected)
+    steps = np.abs(np.diff(uv, axis=0, append=uv[:1])).sum(axis=-1)
+    assert steps.tolist() == [1.0] * len(uv)
+
+
+def test_frame_edge_sides_run_corner_to_corner() -> None:
+    """Each side lists its samples in order from one corner to the next."""
+    obs = FakeObs(data=np.zeros((4, 3), dtype=np.float64), extfov_margin_vu=(1, 2))
+    uv = frame_edge_uv(cast(Any, obs))
+    sides = frame_edge_sides(7, 6)
+    corners = [(uv[side[0]].tolist(), uv[side[-1]].tolist()) for side in sides]
+    assert corners == [
+        ([-1.5, -0.5], [4.5, -0.5]),
+        ([4.5, -0.5], [4.5, 4.5]),
+        ([4.5, 4.5], [-1.5, 4.5]),
+        ([-1.5, 4.5], [-1.5, -0.5]),
+    ]
 
 
 def test_distant_system_between_grid_samples_is_seen(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -203,6 +278,15 @@ def test_distant_system_between_grid_samples_is_seen(monkeypatch: pytest.MonkeyP
 def test_edge_on_band_between_grid_rows_is_seen(monkeypatch: pytest.MonkeyPatch) -> None:
     """A thin near edge-on band crossing the frame is not skipped."""
     obs = _obs(monkeypatch, _EDGE_ON_BAND)
+    view = ring_disc_view(cast(Any, obs), _TARGET, _PLANET, _OUTER_RADIUS_KM)
+    assert view.disc_outside_frame is False
+
+
+def test_subpixel_band_between_boundary_pixels_is_seen(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A band crossing the boundary between two boundary pixel centers is not skipped."""
+    obs = _obs(monkeypatch, _SUBPIXEL_TILTED_BAND)
     view = ring_disc_view(cast(Any, obs), _TARGET, _PLANET, _OUTER_RADIUS_KM)
     assert view.disc_outside_frame is False
 
@@ -242,6 +326,24 @@ def test_planet_center_past_the_margin_is_outside(monkeypatch: pytest.MonkeyPatc
     assert view.center_in_frame is False
 
 
+@pytest.mark.parametrize('planet_uv', [(105.4, 50.0), (50.0, 105.4)])
+def test_planet_center_inside_the_far_margin_is_in_frame(
+    monkeypatch: pytest.MonkeyPatch, planet_uv: tuple[float, float]
+) -> None:
+    """A planet center just inside the margin past the last column or row is in the frame."""
+    obs = _obs(monkeypatch, _BEYOND_THE_RINGS, planet_uv=planet_uv)
+    view = ring_disc_view(cast(Any, obs), _TARGET, _PLANET, _OUTER_RADIUS_KM)
+    assert view.center_in_frame is True
+
+
+def test_unmasked_nan_boundary_samples_miss_the_plane(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Boundary samples that come back as unmasked NaN count as missing the plane."""
+    scene = dataclasses.replace(_ABOVE_THE_HORIZON, nan_misses=True)
+    obs = _obs(monkeypatch, scene)
+    view = ring_disc_view(cast(Any, obs), _TARGET, _PLANET, _OUTER_RADIUS_KM)
+    assert view.edge_meets_plane is False
+
+
 def test_unprojectable_planet_center_keeps_the_dense_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -271,3 +373,51 @@ def test_model_logs_a_frame_off_the_ring_plane(
     assert model._ring_disc_outside_frame(_TARGET, _PLANET, _OUTER_RADIUS_KM) is True
     logged = capsys.readouterr().out
     assert 'so the frame does not see the ring plane' in logged
+
+
+# The trace tests below follow one side of the frame, five samples long, whose
+# intercepts lie on the line y = 5 km, so a ray running along the line passes 5 km from
+# the ring center while every sample is more than 11 km from it.
+_NAN = math.nan
+_ONE_SIDE = [np.arange(5)]
+
+
+def _trace(*points: tuple[float, float]) -> np.ndarray:
+    """Return ring-plane intercepts as an ``(N, 2)`` array."""
+    return np.array(points, dtype=np.float64)
+
+
+def test_trace_follows_the_horizon_past_the_last_hit() -> None:
+    """Hits followed by misses run out along the line through the last two hits."""
+    xy = _trace((-30.0, 5.0), (-20.0, 5.0), (-11.0, 5.0), (_NAN, _NAN), (_NAN, _NAN))
+    assert boundary_closest_approach_km(xy, _ONE_SIDE) == pytest.approx(5.0)
+
+
+def test_trace_follows_the_horizon_before_the_first_hit() -> None:
+    """Misses followed by hits run out along the line through the first two hits."""
+    xy = _trace((_NAN, _NAN), (_NAN, _NAN), (-11.0, 5.0), (-20.0, 5.0), (-30.0, 5.0))
+    assert boundary_closest_approach_km(xy, _ONE_SIDE) == pytest.approx(5.0)
+
+
+def test_trace_receding_from_the_center_is_nearest_at_its_first_hit() -> None:
+    """A trace heading away from the ring center comes closest at its nearest sample."""
+    xy = _trace((11.0, 5.0), (20.0, 5.0), (30.0, 5.0), (_NAN, _NAN), (_NAN, _NAN))
+    assert boundary_closest_approach_km(xy, _ONE_SIDE) == pytest.approx(math.hypot(11.0, 5.0))
+
+
+def test_trace_bridges_masked_samples_between_hits() -> None:
+    """Masked samples between two hits on a side are bridged by the segment joining them."""
+    xy = _trace((-20.0, 5.0), (_NAN, _NAN), (_NAN, _NAN), (20.0, 5.0), (30.0, 5.0))
+    assert boundary_closest_approach_km(xy, _ONE_SIDE) == pytest.approx(5.0)
+
+
+def test_trace_with_a_lone_hit_at_an_opening_corner_is_unbounded() -> None:
+    """A lone hit at the corner that starts its side leaves the trace's direction unknown."""
+    xy = _trace((-20.0, 5.0), (_NAN, _NAN), (_NAN, _NAN), (_NAN, _NAN), (_NAN, _NAN))
+    assert boundary_closest_approach_km(xy, _ONE_SIDE) == 0.0
+
+
+def test_trace_with_a_lone_hit_at_a_closing_corner_is_unbounded() -> None:
+    """A lone hit at the corner that ends its side leaves the trace's direction unknown."""
+    xy = _trace((_NAN, _NAN), (_NAN, _NAN), (_NAN, _NAN), (_NAN, _NAN), (-20.0, 5.0))
+    assert boundary_closest_approach_km(xy, _ONE_SIDE) == 0.0

@@ -715,13 +715,13 @@ class NavModelRings(NavModelRingsBase):
     ) -> bool:
         """Decide whether the ring plane out to the catalog's edge lies outside the frame.
 
-        Asks :func:`~spindoctor.nav_model.ring_visibility.ring_disc_view` for the ring
-        radius along the extended frame's boundary and the planet center's place in the
-        frame, and logs what it established when it decides to skip.  The answer is
-        ``True`` only when the planet center projects outside the frame and every
-        boundary pixel either misses the ring plane or meets it beyond
-        ``max_feature_extent``, in which case no radius inside the catalog can appear
-        anywhere in the extended frame.
+        Asks :func:`~spindoctor.nav_model.ring_visibility.ring_disc_view` for the
+        extended frame's boundary traced on the ring plane and the planet center's place
+        in the frame, and logs what it established when it decides to skip.  The answer
+        is ``True`` only when the planet center projects outside the frame and the
+        boundary's trace stays farther than ``max_feature_extent`` from the planet, in
+        which case no radius inside the catalog can appear anywhere in the extended
+        frame.
 
         Parameters:
             ring_target: ``'<planet>:ring'`` target string.
@@ -745,9 +745,11 @@ class NavModelRings(NavModelRingsBase):
             return True
         self._logger.info(
             'Ring visibility pre-check: the ring plane out to the catalog max extent of '
-            '%.0f km lies wholly outside the extended frame (radii on the frame boundary '
-            'span [%.0f, %.0f] km and the planet center is outside the frame)',
+            '%.0f km lies wholly outside the extended frame (the frame boundary traced on '
+            'the ring plane comes no closer than %.0f km to the planet, radii at its pixel '
+            'centers span [%.0f, %.0f] km, and the planet center is outside the frame)',
             max_feature_extent,
+            view.edge_closest_km,
             float(view.edge_radii_km.min()),
             float(view.edge_radii_km.max()),
         )
