@@ -114,7 +114,11 @@ The sections are:
 
 ``techniques``
     Per-technique settings: how much work each technique does, and how it turns what it
-    measured into a confidence.
+    measured into a confidence. Each technique has its own block. The blocks of the
+    body-limb, body-terminator, and ring-edge techniques are ``body_limb``,
+    ``body_terminator``, and ``ring_edge``, the same keys the ``logging`` section uses
+    for them. Every other technique's block is named after the technique, as in
+    ``BodyBlobNav``.
 
 ``orchestrator``
     How the per-technique answers are combined into the one offset reported for the image,
@@ -285,6 +289,10 @@ equivalent. All the rest correspond to a key in the ``logging`` section.
 names, the keys of the ``logging`` section, and which setting wins when two of them set
 the same component.
 
+Every setting in the ``logging`` section is checked when your file is read. An unknown
+setting, component, or program, or a level that is not one of the six, is refused, and
+the message gives the file and the setting.
+
 Acceptance thresholds
 =====================
 
@@ -314,9 +322,14 @@ than the defaults assume. The confidence and the tier that navigation settled on
 image are recorded in that image's metadata document; see
 :doc:`/user_guide/user_guide_metadata`.
 
-Every setting in the ``orchestrator`` section is checked when your file is read. A
-setting that navigation does not know, or a value it cannot use, such as a confidence
-above 1, is refused, and the message gives the file and the setting.
+Every setting in the ``orchestrator`` section is checked when your file is read, and so
+is every setting in the ``body_limb``, ``body_terminator``, and ``ring_edge`` blocks of
+the ``techniques`` section. A setting that navigation does not know, or a value it cannot
+use, such as a confidence above 1, is refused, and the message gives the file and the
+setting. In the other technique blocks, the settings inside ``tuning`` are checked only
+for being numbers, so a misspelled one there is not refused; every other setting is
+checked. A technique block whose key navigation does not know is refused too. Spell each
+block key as the ``techniques`` entry above gives it.
 
 What a run records about its own configuration
 ==============================================

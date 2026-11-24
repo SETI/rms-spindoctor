@@ -162,8 +162,9 @@ reported sigma. Three shared corrections restore calibration:
     :func:`~spindoctor.nav_technique.nav_technique.add_model_error_floor`
     adds a configured ``model_error_floor_px**2`` to the translation
     diagonal in quadrature. Each technique reads its own floor from its
-    ``tuning`` block
-    (:func:`~spindoctor.nav_technique.nav_technique.load_model_error_floor`);
+    ``tuning`` block: a technique whose tuning is typed declares
+    ``model_error_floor_px`` as a field of its tuning type, and the others read
+    it with :func:`~spindoctor.nav_technique.nav_technique.load_model_error_floor`;
     the shipped values were fitted so that the 2-sigma coverage of the
     reported sigmas matches planted-truth recovery on the simulation
     campaign (the provenance notes live alongside the values in

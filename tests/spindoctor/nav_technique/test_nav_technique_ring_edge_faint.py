@@ -138,7 +138,7 @@ def test_ring_edge_nav_edge_strength_floor_is_inclusive(
     make_nav_context: NavContextFactory,
 ) -> None:
     """A fraction exactly at the configured floor passes; just below it is spurious."""
-    floor = RingEdgeNav()._spurious_min_edge_strength_fraction
+    floor = RingEdgeNav().tuning.spurious_min_edge_strength_fraction
     fraction = floor if at_floor else float(np.nextafter(floor, 0.0))
     monkeypatch.setattr(
         nav_technique_ring_edge,
@@ -240,18 +240,6 @@ def test_ring_edge_nav_measures_the_matched_edge_against_the_sensor_interior(
         [feature], dataclasses.replace(context, sensor_mask_ext=rows < 130.0)
     )
     assert result.spurious is False
-
-
-@pytest.mark.parametrize('floor', [-0.1, 1.5])
-def test_ring_edge_nav_rejects_an_edge_strength_floor_outside_unit_range(
-    floor: float, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An edge-strength floor outside [0, 1] fails at construction."""
-    bad_tuning = dict(RingEdgeNav.tuning)
-    bad_tuning['spurious_min_edge_strength_fraction'] = floor
-    monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='spurious_min_edge_strength_fraction must lie in'):
-        RingEdgeNav()
 
 
 def test_ring_edge_nav_reads_edge_strength_on_the_rotated_fit(

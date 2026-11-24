@@ -10,19 +10,19 @@ techniques:
       consistency_max_fraction_of_diameter: 0.25
   BodyBlobNav:
     alpha0: 0.5
-  BodyLimbNav:
+  body_limb:
     tuning:
       spurious_dt_rms_factor: 50.0
       spurious_dt_floor_px: 30.0
       spurious_min_inliers: 3
       spurious_min_inlier_fraction: 0.05
-  BodyTerminatorNav:
+  body_terminator:
     tuning:
       spurious_dt_rms_factor: 50.0
       spurious_dt_floor_px: 30.0
       spurious_min_inliers: 3
       spurious_min_inlier_fraction: 0.05
-  RingEdgeNav:
+  ring_edge:
     tuning:
       spurious_dt_rms_factor: 50.0
       spurious_dt_floor_px: 30.0

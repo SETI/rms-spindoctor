@@ -341,23 +341,28 @@ flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``.
+All tunables for this technique live in ``techniques.ring_edge.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. The schema core parses them
+into :class:`~spindoctor.nav_technique.nav_technique_ring_edge.RingEdgeTuning` when the
+configuration loads, so each value's type and range are checked there, and the technique
+reads them as ``self.tuning.<key>``. Each value lives in the YAML only; the values given
+below are the packaged ones.
 
-- ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
-  distance from any search-window axis bound falls within this tolerance is flagged
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Matches the
-  bilinear-DT half-cell width.
-- ``spurious_dt_rms_factor`` — float, default ``5.0`` (dimensionless). Final DT residual
-  exceeding this many radial-sigmas marks the result spurious.
-- ``spurious_dt_floor_px`` — float, default ``3.0`` px. Floor of the spurious-detection
-  threshold; the threshold is the larger of the floor and the per-feature sigma multiple.
-- ``spurious_min_inliers`` — int, default ``6`` (count). Below this Tukey-inlier count the
-  M-estimator covariance is uninformative; the result is flagged spurious.
-- ``spurious_min_inlier_fraction`` — float, default ``0.5`` (dimensionless). A Tukey inlier
-  fraction (inliers over aggregated model vertices) below this marks the result spurious.
-  It catches a fit that explains almost none of its model: one anchored on a handful of
-  vertices while the rest sit nowhere near a detected edge.
+- ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. A converged offset whose
+  absolute distance from any search-window axis bound falls within this tolerance is
+  flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
+  Matches the bilinear-DT half-cell width.
+- ``spurious_dt_rms_factor`` — float, packaged value ``5.0`` (dimensionless). Final DT
+  residual exceeding this many radial-sigmas marks the result spurious.
+- ``spurious_dt_floor_px`` — float, packaged value ``3.0`` px. Floor of the
+  spurious-detection threshold; the threshold is the larger of the floor and the
+  per-feature sigma multiple.
+- ``spurious_min_inliers`` — int, packaged value ``6`` (count). Below this Tukey-inlier
+  count the M-estimator covariance is uninformative; the result is flagged spurious.
+- ``spurious_min_inlier_fraction`` — float, packaged value ``0.5`` (dimensionless). A
+  Tukey inlier fraction (inliers over aggregated model vertices) below this marks the
+  result spurious. It catches a fit that explains almost none of its model: one anchored
+  on a handful of vertices while the rest sit nowhere near a detected edge.
 
   It does not separate a correct fit from one locked onto the wrong member of a
   concentric family. Measured over 71 Cassini B-ring frames with independently published
@@ -385,35 +390,34 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   is full-rank; and at least two edges were consumed (a single-edge fit is never waived).
   A waived fit receives a sigma floor added in quadrature so it lands at the ``'low'`` tier
   and cannot outweigh a full-support result.
-- ``spurious_waiver_min_well_fit_edges`` — int, default ``1`` (count). Minimum number of
-  edges that must each independently meet the inlier-fraction and inlier-count minimums for
-  the absent-edge waiver to apply.
-- ``spurious_waiver_absent_median_px`` — float, default ``5.0`` px. A non-well-fit edge
-  whose per-edge median DT residual is at least this large counts as *absent* (waivable)
-  rather than *misaligned* (a genuine mis-convergence).
-- ``spurious_waiver_sigma_floor_px`` — float, default ``3.0`` px. Sigma floor added in
-  quadrature to the translation covariance whenever the absent-edge waiver fires. A waived
-  fit is carried by a minority of its model in a scene whose parallel ringlet structure
-  can offer alias alignments the DT cannot rule out; the floor sits above the medium
-  tier's 2 px sigma cap so a waived fit surfaces as a low-tier result and cannot outweigh
-  a full-support fit in the ensemble.
-- ``edge_localization_sigma_px`` — float, default ``0.5`` px. Localization sigma of the
-  image edge the fit measures against, combined in quadrature with each vertex's catalog
-  sigma to form the residual scale the robust fit uses. Half a pixel is the half-cell of
-  the binary edge mask's own quantization. See `The residual scale`_ for why a ring's
-  catalog sigma alone is not a usable scale. Must be a finite number greater than zero;
-  construction raises otherwise.
-- ``spurious_max_lm_displacement_px`` — float, default ``4.0`` px. If the LM moves more
-  than this many pixels from the integer coarse seed, flag spurious. Defensive: with
+- ``spurious_waiver_min_well_fit_edges`` — int, packaged value ``1`` (count). Minimum
+  number of edges that must each independently meet the inlier-fraction and inlier-count
+  minimums for the absent-edge waiver to apply.
+- ``spurious_waiver_absent_median_px`` — float, packaged value ``5.0`` px. A non-well-fit
+  edge whose per-edge median DT residual is at least this large counts as *absent*
+  (waivable) rather than *misaligned* (a genuine mis-convergence).
+- ``spurious_waiver_sigma_floor_px`` — float, packaged value ``3.0`` px. Sigma floor added
+  in quadrature to the translation covariance whenever the absent-edge waiver fires. A
+  waived fit is carried by a minority of its model in a scene whose parallel ringlet
+  structure can offer alias alignments the DT cannot rule out; the floor sits above the
+  medium tier's 2 px sigma cap so a waived fit surfaces as a low-tier result and cannot
+  outweigh a full-support fit in the ensemble.
+- ``edge_localization_sigma_px`` — float, packaged value ``0.5`` px. Localization sigma of
+  the image edge the fit measures against, combined in quadrature with each vertex's
+  catalog sigma to form the residual scale the robust fit uses. Half a pixel is the
+  half-cell of the binary edge mask's own quantization. See `The residual scale`_ for why
+  a ring's catalog sigma alone is not a usable scale. Must be greater than zero.
+- ``spurious_max_lm_displacement_px`` — float, packaged value ``4.0`` px. If the LM moves
+  more than this many pixels from the integer coarse seed, flag spurious. Defensive: with
   the trust region below the LM cannot leave the coarse basin, so this guard normally
   never fires; it catches any future regression that bypasses the trust region.
-- ``lm_trust_region_px`` — float, default ``1.0`` px. Maximum LM displacement from the
-  integer coarse seed; the LM rejects any trial step that would land outside this
+- ``lm_trust_region_px`` — float, packaged value ``1.0`` px. Maximum LM displacement from
+  the integer coarse seed; the LM rejects any trial step that would land outside this
   radius. See :doc:`dev_guide_techniques_dt_fitting`.
-- ``lm_tikhonov_alpha`` — float, default ``0.0`` (dimensionless). Tikhonov anchor strength
-  toward the coarse seed; 0 disables the anchor (the trust region is the harder
+- ``lm_tikhonov_alpha`` — float, packaged value ``0.0`` (dimensionless). Tikhonov anchor
+  strength toward the coarse seed; 0 disables the anchor (the trust region is the harder
   bound).
-- ``gradient_ridge_refine`` — int flag, default ``1`` (ON). Final continuous
+- ``gradient_ridge_refine`` — boolean, packaged value ``true``. Final continuous
   gradient-ridge sub-pixel refinement after the DT LM converges. The binary edge mask
   quantizes detected edges to the integer pixel grid, so on dense real ring scenes many
   model vertices land exactly on edge pixels, where the DT is zero and carries no
@@ -421,24 +425,24 @@ All numeric tunables for this technique live in ``techniques.RingEdgeNav.tuning`
   magnitude, recovering the sub-pixel offset the quantized DT discards. The pass shares
   the fit's residual scale, so it moves nothing while that scale is below the mask's own
   localization -- see `The residual scale`_.
-- ``rotation_at_edge_fraction`` — float, default ``0.95`` (dimensionless). When
-  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true, the
-  converged rotation magnitude trips
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it crosses
-  this fraction of the per-image
+- ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). When
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true,
+  the converged rotation magnitude trips
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it
+  crosses this fraction of the per-image
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` cap.
-- ``coarse_strength_keep_ratio`` — float, default ``0.8``. The overlap seed is kept when
-  the edge-strength score under it is at least this fraction of the strongest alignment in
-  the search window; otherwise the strongest alignment seeds the fit (see
-  `The coarse seed`_). Must lie in ``[0, 1]``; construction raises otherwise.
-- ``coarse_sensor_margin_px`` — int, default ``5`` px. Detected edges within this many
-  pixels of the sensor boundary are left out of the edge-strength scores (see
-  `The coarse seed`_). Five pixels covers the reach of the 1.2 px gradient smoothing into
-  the frame. Must be a non-negative integer; construction raises otherwise.
-- ``spurious_min_edge_strength_fraction`` — float, default ``0.005``. A converged fit
-  whose matched edges have a median projected gradient below this fraction of the frame's
-  99.9th-percentile gradient magnitude is marked spurious (see `The coarse seed`_). Must
-  lie in ``[0, 1]``; construction raises otherwise.
+- ``coarse_strength_keep_ratio`` — float, packaged value ``0.8``. The overlap seed is kept
+  when the edge-strength score under it is at least this fraction of the strongest
+  alignment in the search window; otherwise the strongest alignment seeds the fit (see
+  `The coarse seed`_). Must lie in ``[0, 1]``.
+- ``coarse_sensor_margin_px`` — int, packaged value ``5`` px. Detected edges within this
+  many pixels of the sensor boundary are left out of the edge-strength scores (see `The
+  coarse seed`_). Five pixels covers the reach of the 1.2 px gradient smoothing into the
+  frame. Must be a non-negative integer.
+- ``spurious_min_edge_strength_fraction`` — float, packaged value ``0.005``. A converged
+  fit whose matched edges have a median projected gradient below this fraction of the
+  frame's 99.9th-percentile gradient magnitude is marked spurious (see `The coarse
+  seed`_). Must lie in ``[0, 1]``.
 - ``lm_unconverged_confidence_cap``, ``spurious_max_polarity_rejection_fraction``,
   ``spurious_unconverged_polarity_rejection_fraction``,
   ``spurious_min_coarse_peak_fraction`` — the shared DT fit-quality gate thresholds,
@@ -456,7 +460,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared
 sigmoid combination; see :doc:`dev_guide_techniques_confidence`. The formula spec is
-``techniques.RingEdgeNav`` and consumes attributes off
+``techniques.ring_edge`` and consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.RingEdgeDiagnostics` plus
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
 

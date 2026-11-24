@@ -121,10 +121,7 @@ def strict_scope() -> bool:
         return _strict_scope_override
     from .config import DEFAULT_CONFIG
 
-    try:
-        return bool(DEFAULT_CONFIG.logging.get('strict_scope', False))
-    except (AttributeError, KeyError):  # pragma: no cover - config always loads
-        return False
+    return DEFAULT_CONFIG.logging.strict_scope
 
 
 def image_scope_is_open() -> bool:

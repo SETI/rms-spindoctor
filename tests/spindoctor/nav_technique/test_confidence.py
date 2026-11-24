@@ -10,6 +10,7 @@ from spindoctor.nav_technique.confidence import (
     evaluate_sigmoid_combination,
 )
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
+from spindoctor.schema import RuleError
 
 
 def test_evaluate_returns_in_unit_interval() -> None:
@@ -126,3 +127,15 @@ def test_evaluate_unknown_hard_zero_attribute_raises() -> None:
     diag = BodyLimbDiagnostics()
     with pytest.raises(ValueError, match='not_a_field'):
         evaluate_sigmoid_combination(spec, diag)
+
+
+def test_a_blank_term_feature_is_refused() -> None:
+    """A confidence term must name a diagnostic attribute."""
+    with pytest.raises(RuleError, match='expected the name of a diagnostic attribute'):
+        ConfidenceTerm(feature='  ', alpha=1.0)
+
+
+def test_a_zero_term_divisor_is_refused() -> None:
+    """A confidence term cannot divide by zero."""
+    with pytest.raises(RuleError, match='expected a non-zero divisor'):
+        ConfidenceTerm(feature='dt_fit_rms_px', alpha=1.0, divisor=0.0)

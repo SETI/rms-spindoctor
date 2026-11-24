@@ -160,6 +160,31 @@ Adding a technique or model therefore adds a configuration key automatically.
 Adding a function-shaped component means adding its key to ``OTHER_LOG_KEYS``
 in :mod:`spindoctor.config.logging_keys`, or the configuration will reject it.
 
+The ``logging`` section is a typed section of the configuration (see
+:ref:`config-typed-sections`). It is parsed into a
+:class:`~spindoctor.config.logging_keys.LoggingSection` each time a configuration
+loads, and each program's block under ``programs`` into a
+:class:`~spindoctor.config.logging_keys.ProgramLogging`, whose keys are all
+optional. A key in a category is checked against the keys of that category's
+components: the registered techniques, the registered models, or ``OTHER_LOG_KEYS``.
+A key under ``programs`` is checked against the program identities. A level is read
+in any case and kept in upper case. An unknown key or level, in the packaged files
+or in an override, is refused as the file loads, with the file and the key path, as
+in ``override.yaml: logging.techniques.titan_hazey: ...``.
+
+The two registries fill up as the technique and model packages are imported. The
+section imports both packages itself when it checks a module key, and no module loads
+the configuration while it is being imported, so both registries are complete by
+the time a key is checked. A program does not have to import either package before
+it loads its configuration.
+
+Code that needs the settings for one program calls
+:meth:`~spindoctor.config.logging_keys.LoggingSection.for_program`, which lays that
+program's block over the top-level settings. A key the block sets wins, and a category
+the block sets is merged with the top-level category one key at a time.
+The ``strict_scope`` setting is global, and program blocks do not nest, so a block
+that names either is refused as an unknown key.
+
 Every dispatch module that has a logger declares ``PROGRAM_NAME`` from
 :mod:`spindoctor.config.program_names`. ``PROGRAM_NAME`` gives the program's
 main log directory its name and selects the program's block under

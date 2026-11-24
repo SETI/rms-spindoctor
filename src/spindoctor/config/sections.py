@@ -6,14 +6,21 @@ the schema core (:func:`spindoctor.schema.parse`).  A section here is a frozen
 dataclass, and each of its fields gives a key's type and range.  A key that has no
 default is required, and its value lives in the packaged YAML files only.
 
+The ``techniques`` section's fields come from the technique registry
+(:mod:`spindoctor.nav_technique.confidence_config`), so the type to parse is
+:func:`typed_sections_type`, which adds them.
+
 The module imports the types of the sections it holds, and those import the
 configuration package, so :mod:`spindoctor.config.config` imports this module only
 when it installs a configuration.
 """
 
+import dataclasses
+import functools
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from spindoctor.config.logging_keys import LoggingSection
 from spindoctor.config.sections_models import (
     BodiesSection,
     FeatureEmissionSection,
@@ -22,11 +29,18 @@ from spindoctor.config.sections_models import (
 )
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig
+from spindoctor.nav_technique.confidence_config import (
+    TechniquesSection,
+    shipped_techniques,
+    techniques_section_type,
+)
+from spindoctor.nav_technique.nav_technique import NavTechnique
 from spindoctor.schema import SCHEMA_CONFIG, RuleError, Str
 
 __all__ = [
     'OrchestratorSection',
     'TypedSections',
+    'typed_sections_type',
 ]
 
 
@@ -58,6 +72,10 @@ class TypedSections:
     SPICE spells them, so a key in lower case or misspelled is refused rather than
     left unread.
 
+    The ``techniques`` field is declared here by its base type, which has no fields,
+    so this class is never parsed itself: :func:`typed_sections_type` returns the type
+    to parse.  That type is a subclass, so it inherits the planet-key rule below.
+
     Parameters:
         planets: The SPICE names of the planets the navigator knows.
         orchestrator: The ``orchestrator`` section.
@@ -66,6 +84,9 @@ class TypedSections:
         titan: The ``titan`` section.
         satellites: Each planet's satellites, keyed by the planet's SPICE name.
         feature_emission: The ``feature_emission`` section.
+        logging: The ``logging`` section.
+        techniques: The ``techniques`` section: each technique's confidence formula and
+            tuning.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -77,6 +98,8 @@ class TypedSections:
     titan: TitanSection
     satellites: dict[Str, tuple[Str, ...]]
     feature_emission: FeatureEmissionSection
+    logging: LoggingSection
+    techniques: TechniquesSection
 
     def __post_init__(self) -> None:
         """Refuse a key of a mapping keyed by planet that names no planet of ``planets``."""
@@ -97,3 +120,41 @@ class TypedSections:
                         at=(*at, planet),
                         reads=((*at, planet), ('planets',)),
                     )
+
+
+@functools.cache
+def _typed_sections_type(
+    techniques: tuple[type[NavTechnique], ...],
+) -> type[TypedSections]:
+    """Return the type to parse for a set of shipped techniques.
+
+    The result is cached, so one set of techniques always gets the same type.
+
+    Parameters:
+        techniques: The shipped technique classes, in registry order.
+
+    Returns:
+        A subclass of :class:`TypedSections` whose ``techniques`` field has the section
+        type for ``techniques``.
+    """
+    sections_type: type[TypedSections] = dataclasses.make_dataclass(
+        'TypedSections',
+        [('techniques', techniques_section_type(techniques))],
+        bases=(TypedSections,),
+        frozen=True,
+        namespace={'__pydantic_config__': SCHEMA_CONFIG},
+    )
+    return sections_type
+
+
+def typed_sections_type() -> type[TypedSections]:
+    """Return the type the typed sections are parsed into.
+
+    It is :class:`TypedSections` with the ``techniques`` field typed by the section
+    type of the shipped techniques
+    (:func:`~spindoctor.nav_technique.confidence_config.techniques_section_type`).
+
+    Returns:
+        A subclass of :class:`TypedSections`.
+    """
+    return _typed_sections_type(shipped_techniques())

@@ -33,6 +33,7 @@ from spindoctor.schema import (
 from spindoctor.support.attrdict import AttrDict
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from spindoctor.config.logging_keys import LoggingSection
     from spindoctor.config.sections import OrchestratorSection, TypedSections
     from spindoctor.config.sections_models import (
         BodiesSection,
@@ -40,6 +41,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         StarsSection,
         TitanSection,
     )
+    from spindoctor.nav_technique.confidence_config import TechniquesSection
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
 """The directory of the packaged configuration files, merged in filename order."""
@@ -64,11 +66,25 @@ def _typed_sections_type() -> type[TypedSections]:
     until a configuration is installed, by which time this package has loaded.
 
     Returns:
-        :class:`~spindoctor.config.sections.TypedSections`.
+        The type :func:`~spindoctor.config.sections.typed_sections_type` returns.
     """
-    from spindoctor.config.sections import TypedSections
+    from spindoctor.config.sections import typed_sections_type
 
-    return TypedSections
+    return typed_sections_type()
+
+
+def _configure_techniques(sections: TypedSections) -> None:
+    """Assign each shipped technique class its confidence formula and tuning.
+
+    Parameters:
+        sections: The typed sections of the configuration being installed.
+    """
+    from spindoctor.nav_technique.confidence_config import shipped_techniques
+
+    for technique in shipped_techniques():
+        block = sections.techniques.block(technique)
+        technique.confidence_spec = block.confidence_spec()
+        technique.tuning = block.technique_tuning()
 
 
 def _parse_typed_sections(
@@ -215,7 +231,6 @@ class Config:
         self._typed_origins: dict[KeyPath, str] = {}
         self._config_environment: dict[str, Any] = AttrDict({})
         self._config_general: dict[str, Any] = AttrDict({})
-        self._config_logging: dict[str, Any] = AttrDict({})
         self._config_offset: dict[str, Any] = AttrDict({})
         self._config_body_shape: dict[str, Any] = AttrDict({})
         self._config_rings: dict[str, Any] = AttrDict({})
@@ -250,7 +265,6 @@ class Config:
         self._category_cache = {}
         self._config_environment = AttrDict(self._config_dict.get('environment', {}))
         self._config_general = AttrDict(self._config_dict.get('general', {}))
-        self._config_logging = AttrDict(self._config_dict.get('logging', {}))
         self._config_offset = AttrDict(self._config_dict.get('offset', {}))
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
         self._config_rings = AttrDict(self._config_dict.get('rings', {}))
@@ -284,19 +298,13 @@ class Config:
             ValueError: If the candidate fails :meth:`_validate`.
         """
         sections, typed_origins = _parse_typed_sections(candidate, origins, source=source)
-        try:
-            self._validate(candidate)
-        except Exception:
-            # Validation assigns each technique's spec and tuning as it goes, so the
-            # techniques it reached are given back the ones the kept configuration sets.
-            if self._config_dict:
-                self._validate(self._config_dict)
-            raise
+        self._validate(candidate)
         self._config_dict = candidate
         self._override_paths = override_paths
         self._sections = sections
         self._typed_origins = typed_origins
         self._update_attrdicts()
+        _configure_techniques(sections)
 
     def read_config(self, *, reread: bool = False) -> None:
         """Read the packaged configuration files, unless they have been read already.
@@ -311,11 +319,10 @@ class Config:
 
         Raises:
             SchemaError: If a file is not a YAML mapping, or holds a null, or if a
-                typed section breaks its schema.
-            ValueError: If any registered NavTechnique's confidence spec
-                references an attribute the technique does not declare, or if a camera
-                block sets no ``one_star_ellipse_fraction`` within ``(0, 1]``.
-                Validation runs once per ``read_config`` invocation.
+                typed section breaks its schema, as with a technique block that names
+                a diagnostic attribute its technique does not declare.
+            ValueError: If a camera block sets no ``one_star_ellipse_fraction`` within
+                ``(0, 1]``.  Validation runs once per ``read_config`` invocation.
         """
 
         if not reread and self._config_dict:
@@ -336,7 +343,6 @@ class Config:
         Parameters:
             config_dict: The merged configuration.
         """
-        Config._validate_registered_techniques(config_dict)
         Config._validate_camera_blocks(config_dict)
 
     @staticmethod
@@ -366,61 +372,15 @@ class Config:
                     f'{path}.{_ONE_STAR_ELLIPSE_KEY} must lie in (0, 1]; got {value!r}'
                 )
 
-    @staticmethod
-    def _validate_registered_techniques(config_dict: dict[str, Any]) -> None:
-        """Load + validate every registered NavTechnique's confidence spec.
-
-        Builds each technique's :class:`ConfidenceSpec` from the
-        ``techniques.<technique_name>`` block in
-        ``config_510_techniques.yaml`` and assigns it to the class
-        attribute, then asserts every term references an attribute the
-        technique has declared in ``confidence_attributes``.  Test-only
-        registry entries whose ``name`` starts with ``_`` are exempt
-        from the YAML requirement (the test fixture supplies its own
-        spec or uses ``None`` to opt out of confidence evaluation).
-
-        Imported inside the method because ``spindoctor.nav_technique.nav_technique``
-        imports ``spindoctor.support.nav_base`` which imports ``spindoctor.config``;
-        promoting these imports to the module top would fail with
-        ``ImportError: cannot import name 'DEFAULT_CONFIG' from
-        partially initialized module 'spindoctor.config'``.  This lazy-import
-        site is the minimum cycle break — the other modules can keep
-        their top-of-file imports.
-
-        Parameters:
-            config_dict: The merged configuration.
-        """
-        from spindoctor.nav_technique.confidence_config import (
-            ConfidenceConfigError,
-            load_confidence_spec,
-            load_technique_tuning,
-        )
-        from spindoctor.nav_technique.nav_technique import (
-            NavTechnique,
-            validate_registered_confidence_specs,
-        )
-
-        techniques_block = dict(config_dict.get('techniques', {}))
-        for cls in NavTechnique._registry:
-            try:
-                cls.confidence_spec = load_confidence_spec(techniques_block, cls.name)
-            except ConfidenceConfigError:
-                if not cls.name.startswith('_'):
-                    raise
-                # Test-only technique: leave spec as inherited (None)
-                # so the test fixture controls it.  Tuning still resets
-                # below so a stale fixture value cannot leak across reloads.
-            cls.tuning = load_technique_tuning(techniques_block, cls.name)
-        validate_registered_confidence_specs()
-
     def update_config(self, config_path: str | Path) -> None:
         """Merge a user override file over the configuration.
 
         The packaged files are read first if they have not been.  The merged
-        configuration is then validated again against every registered
-        :class:`NavTechnique`, so per-technique overrides (``confidence_spec`` and
-        ``tuning``) take effect.  A refused override, whatever the reason, leaves the
-        configuration and :attr:`override_paths` as they were.
+        configuration is then parsed and validated again, and each shipped technique is
+        assigned the confidence formula and tuning it sets, so per-technique overrides
+        take effect.  A refused override, whatever the reason, leaves the
+        configuration, the techniques' settings, and :attr:`override_paths` as they
+        were.
 
         Parameters:
             config_path: The override file.  Error messages and :attr:`override_paths`
@@ -537,18 +497,17 @@ class Config:
         return self._config_environment
 
     @property
-    def logging(self) -> Any:
-        """Returns the logging configuration settings.
+    def logging(self) -> LoggingSection:
+        """Returns the logging section: the levels and terminal sinks of the two loggers.
 
         Holds the per-logger defaults (``main``, ``image``), the per-module
         override categories (``techniques``, ``models``, ``other``), the
         ``strict_scope`` switch, and per-program overrides under ``programs``.
-        See :func:`spindoctor.config.logging_keys.validate_logging_config` for
-        the accepted keys.
+        The section is parsed when the configuration is installed, so every key and
+        level has been checked.
         """
 
-        self.read_config()
-        return self._config_logging
+        return self._typed_sections().logging
 
     @property
     def planets(self) -> list[str]:
@@ -646,6 +605,17 @@ class Config:
         if self._sections is None:
             raise RuntimeError('the configuration is read but holds no parsed sections')
         return self._sections
+
+    @property
+    def techniques(self) -> TechniquesSection:
+        """Returns the techniques section: each technique's confidence formula and tuning.
+
+        The section is parsed when the configuration is installed.  Its
+        :meth:`~spindoctor.nav_technique.confidence_config.TechniquesSection.block`
+        method gives one technique's block.
+        """
+
+        return self._typed_sections().techniques
 
     @property
     def results_tree(self) -> Any:

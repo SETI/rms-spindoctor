@@ -1477,9 +1477,16 @@ asserts the generated half matches the registries.
   log comparable against other timestamped records.
 - **#411** — migrate the technique config keys to snake_case, so the
   configuration spells component names the way `log_key_for` and the rest
-  of the config system already do. Deferred with #427: decide it before
-  #1032's first technique-tuning PR, which does the rename if it is wanted,
-  so the keys are typed once under their final names.
+  of the config system already do. The operator chose the rename on
+  2026-11-23: each technique block is renamed to the technique's
+  `logging.techniques` key, looked up with `log_key_for`, in the #1032 PR
+  that types its family, so the keys are typed once under their final
+  names. `NavTechnique.name` and every name in results and metadata stay
+  as they are, and no rename shim is kept: an old block name in an
+  override is refused as an unknown key. Applied for the DT family
+  (`body_limb`, `body_terminator`, `ring_edge`); the correlation and
+  centroid family and the star and haze family follow with their #1032
+  PRs, and #411 closes with the last of them.
 - **#427** — the config top-level namespace mixes domain objects, pipeline
   stages, instruments, output products, and infrastructure on no stated
   axis, with `general` as the catch-all. Lifting `logging` out of `general`
@@ -1566,9 +1573,30 @@ asserts the generated half matches the registries.
     `from_mapping` methods and the 18 `DEFAULT_*` copies deleted, the 16
     ensemble scalars, `DEFAULT_TIER_THRESHOLDS`, and
     `DEFAULT_RELIABILITY_THRESHOLDS`)
-  - [ ] technique confidence and tuning, two or three PRs by family
-    (decide #411's snake_case rename first)
-  - [ ] the logging section
+  - [ ] technique confidence and tuning, two or three PRs by family,
+    each renaming its families' blocks to snake_case (#411; operator,
+    2026-11-23)
+    - [x] the shared machinery and the DT family (done: the `techniques`
+      section is parsed at load, its type built from the technique
+      registry; each block's confidence keys parse into `ConfidenceSpec`,
+      and a block that refers to an attribute its technique does not
+      declare is refused with file and key path; `BodyLimbNav`,
+      `BodyTerminatorNav`, and `RingEdgeNav` declare `Tuning` types on a
+      shared `DTTuning`, which holds `DTFitGateConfig`'s gate keys; their
+      blocks are `body_limb`, `body_terminator`, and `ring_edge`;
+      `DTFitGateConfig.from_tuning`, `load_confidence_spec`,
+      `load_technique_tuning`, and `validate_registered_confidence_specs`
+      deleted; the families not yet typed keep their class-named blocks
+      and a mapping of numbers for their tuning)
+    - [ ] the correlation and centroid family (`BodyDiscCorrelateNav`,
+      `BodyBlobNav`, `RingAnnulusNav`), with `load_ncc_covariance_tuning`
+    - [ ] the star family and `TitanHazeNav`; `load_model_error_floor`
+      and the mapping form of a technique's tuning go with the last family
+  - [x] the logging section (done: parsed at load into `LoggingSection`,
+    with each `programs` block a `ProgramLogging`; module keys checked
+    against the technique and model registries and `OTHER_LOG_KEYS`,
+    program keys against `PROGRAM_NAMES`; `validate_logging_config`,
+    its helpers, and `LOGGER_KEYS` and `CONSOLE_KEYS` deleted)
   - [x] `bodies`, `stars`, `titan`, `satellites`, and `feature_emission`
     (done: step 6a; parsed at load into `BodiesSection`, `StarsSection`,
     `TitanSection`, a planet-to-satellites mapping, and

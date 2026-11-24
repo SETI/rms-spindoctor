@@ -683,7 +683,7 @@ puts all their vertices into one set, and solves for the single shift that best 
 combined curve onto the brightness edges in the image, using the coarse search,
 refinement, and reweighting described above. It is feasible when at least one limb arc has
 30 or more surviving vertices, which is set by
-``techniques.BodyLimbNav.tuning.min_arc_vertices``.
+``techniques.body_limb.tuning.min_arc_vertices``.
 
 Fitting several bodies at once is better than fitting one. A single shift is solved for
 all of them, and because the bodies are in fixed positions relative to one another, a
@@ -696,7 +696,7 @@ the Cassini ISS views of Mimas, Enceladus, Tethys, Dione, and Rhea are the typic
 One thing to expect from the reported uncertainty: a limb's predicted position carries
 2.61 pixels of unavoidable model error, from surface relief, albedo markings, and shading
 that a smooth predicted outline cannot capture. That figure is
-``techniques.BodyLimbNav.tuning.model_error_floor_px``, and it is added to every limb
+``techniques.body_limb.tuning.model_error_floor_px``, and it is added to every limb
 result, so an image navigated on a limb alone usually lands in the ``low`` confidence tier
 however cleanly the curve fit. Corroboration from a star field or a disc correlation is
 what lifts it.
@@ -789,7 +789,7 @@ brightness crosses a threshold, not where the body's outline is. It can settle o
 wrong contour on a textured surface with nothing in the fit itself to reveal the mistake,
 and measurements against known truth put its typical error at 5.2 pixels. The model error
 added to every terminator result is accordingly
-``techniques.BodyTerminatorNav.tuning.model_error_floor_px``, 4.32 pixels, which is large
+``techniques.body_terminator.tuning.model_error_floor_px``, 4.32 pixels, which is large
 enough that a terminator answer cannot carry an image by itself. It is treated as a
 fallback and is set aside whenever a limb fit or a disc correlation on the same body
 produced a result that was not flagged spurious. Its value is in covering a body that
@@ -798,7 +798,7 @@ offers nothing else.
 Because it is prone to settling on the wrong contour, this technique also asks a question
 the others do not: after converging, it scans the rest of the search window for a rival
 position that fits nearly as well. When a rival's cost is less than
-``techniques.BodyTerminatorNav.tuning.basin_cost_ratio_threshold`` times the winner's, 1.2
+``techniques.body_terminator.tuning.basin_cost_ratio_threshold`` times the winner's, 1.2
 times by default, the answer is not distinctive and is marked spurious.
 
 Ring Techniques
