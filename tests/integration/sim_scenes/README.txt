@@ -74,6 +74,20 @@ Scene classes
                                 with roll fitting off; test_sim_mixed_content.py
                                 navigates each scene once and applies all of its
                                 checks
+  dense_rings                 - Saturn's main rings at real scale on full-size
+                                narrow-angle frames: the cataloged edges at
+                                their measured radii, the navigator told only
+                                about those, and structure it doesn't know
+                                about drawn beside them (a radial profile
+                                measured on a navigated frame, the F ring and
+                                the Encke gap ringlet, a ringlet drawn
+                                eccentric while the navigator's orbit is
+                                circular, a ring sheet that saturates the
+                                detector), one scene at a ring opening of 2.5
+                                degrees; each scene's comments say where its
+                                radii come from; its own test module
+                                navigates each scene once and applies all of
+                                its checks
 
 Pixel convention
 ----------------

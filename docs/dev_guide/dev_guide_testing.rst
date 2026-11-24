@@ -230,6 +230,12 @@ tests need none of the archive environment above.
      - Realistic frames that put two kinds of content in view, such as stars
        with a body or a moon in front of a ring sheet, navigated once per run
        and held to the same checks as the other guard classes.
+   * - Dense ring guards (``test_sim_dense_rings.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Saturn's rings at real scale on full-size frames, with structure the
+       navigator doesn't know about beside the cataloged edges,
+       navigated once per run and held to the same checks as the camera guards.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing

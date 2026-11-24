@@ -2143,7 +2143,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are eight:
+not yet fixed. There are twelve:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -2160,6 +2160,13 @@ not yet fixed. There are eight:
   outline that the image doesn't have, and the disc correlation lands on the
   maximum of its high-pass surface, pulled by that outline.
 - In ``mutual_deep``, the far body's crescent pulls the disc correlation.
+- In ``keeler_gap_unlit_ansa``, the edge fit slides along nearly straight edges.
+- In ``a_ring_edge_f_ring``, the unfit camera twist slides the curved edges along
+  themselves.
+- In ``b_ring_saturated_plateau``, the saturated edge reads farther out than the
+  same edge unsaturated, and the twist slides the edges along themselves.
+- In ``a_ring_low_opening``, the fit uses both edges of a narrow gap that the
+  image resolves only near the ansa.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
 answer as correct behavior. So the scene also declares ``known_offset_error_px``
@@ -3430,6 +3437,33 @@ non-navigable gap plus a bright propeller moonlet at its center) both
 recover the planted offset from the catalog edges alone, with the clutter
 present and unmodeled.
 
+.. _sim-dense-rings:
+
+Saturn's rings at real scale
+----------------------------
+
+The ``ring_system`` scenes are small and clean: one or two features on black sky.
+The ``dense_rings`` class draws Saturn's main rings the way a full-size frame
+shows them. Each cataloged edge sits at its radius in the navigator's ring
+catalog, converted to pixels at the scene's scale. The navigator is told only
+about those edges, and structure it doesn't know about is drawn beside them.
+Every scene renders with the camera's detector chain, a realistic exposure, a
+realistic pointing error, and the camera's measured twist, with roll fitting
+off as the cameras ship. A radial profile comes from a library frame after its
+operator-verified pointing was applied, because a profile read from an
+unnavigated frame carries that frame's pointing error. The scene's comments say
+where every radius comes from and give its measured outcome. A scene that
+navigates holds its answer to its known-error band; a scene whose techniques
+disagree is returned as conflicted, and each technique's answer is held to its
+own band instead (see :ref:`sim-expected`).
+
+The instrument chapters list each camera's ring scenes and their measured
+outcomes.
+
+These frames take longer to render and navigate than the rest of the catalog,
+most of it in the ring renderer at the oversampling the detector chain's blur
+selects, so the class has its own test module, ``test_sim_dense_rings.py``.
+
 .. _sim-perf-budget:
 
 The render performance budget
@@ -3662,9 +3696,10 @@ The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
 ``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``,
-``mixed_content``) scope what each scene is testing and are enforced by the
-structural test. The scene README at ``tests/integration/sim_scenes/README.txt``
-documents the schema alongside the code.
+``mixed_content``, ``dense_rings``) scope what each scene is testing and are
+enforced by the structural test. The scene README at
+``tests/integration/sim_scenes/README.txt`` documents the schema alongside the
+code.
 
 The ``mixed_content`` scenes put two kinds of content in one realistic frame, as
 many real frames do: stars with a body whose predicted position is wrong, stars
