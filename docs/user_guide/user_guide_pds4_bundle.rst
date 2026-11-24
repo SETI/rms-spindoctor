@@ -796,8 +796,8 @@ Configuration Options
 None of these has a default. An override of an entry that ships with the package gives
 only the keys it changes, but a new entry, such as one for ``coiss_cruise``, gives all
 five. The configuration is refused when it loads if a new entry leaves a key out, if a
-version is written as a number rather than in quotes, or if an entry is for a dataset
-that cannot be bundled.
+version is written as a number rather than in quotes, or if an entry is under a key that is
+not a bundle's key.
 
 Targets
 -------

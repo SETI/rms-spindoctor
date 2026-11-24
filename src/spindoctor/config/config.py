@@ -740,7 +740,7 @@ class Config:
 
     @property
     def pds4(self) -> Pds4Section:
-        """Returns the pds4 section: each PDS4 bundle's settings, keyed by its dataset.
+        """Returns the pds4 section: each PDS4 bundle's settings, keyed by its bundle key.
 
         Its :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` method gives
         one bundle's entry.

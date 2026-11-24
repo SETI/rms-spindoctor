@@ -427,7 +427,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
 
         Raises:
             NotImplementedError: If the dataset makes no bundle.
-            KeyError: If the configuration gives the dataset's bundle no entry.
+            Pds4BundleEntryError: If the configuration gives the dataset's bundle no entry.
         """
         if self.PDS4_CONFIG_KEY is None:
             raise NotImplementedError('PDS4 bundle generation not supported for this dataset')

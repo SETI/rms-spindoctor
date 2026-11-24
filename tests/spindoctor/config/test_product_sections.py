@@ -14,6 +14,7 @@ import pytest
 from spindoctor.config import Config
 from spindoctor.config.sections_products import (
     BackplanesSection,
+    Pds4BundleEntryError,
     Pds4Section,
     PlaneIndex,
     pds4_section_type,
@@ -50,15 +51,29 @@ def test_a_pds4_key_no_dataset_names_is_refused_at_load(tmp_path: Path) -> None:
         Config().update_config(user_path)
 
 
-def test_a_bundle_with_no_entry_is_a_key_error() -> None:
+def test_the_pds4_section_accepts_exactly_the_bundle_keys_of_the_datasets() -> None:
+    """The keys are the ones the datasets that make bundles name, and no others."""
+    assert set(pds4_config_keys()) == {'coiss_cruise', 'coiss_saturn'}
+
+
+def test_an_entry_for_a_dataset_that_has_no_bundle_is_refused_at_load(tmp_path: Path) -> None:
+    """An entry under a key that is no bundle's key, such as vgiss, is refused."""
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text('pds4:\n  vgiss:\n    bundle_name: x\n', encoding='utf-8')
+    expected = f"{user_path}: pds4: unknown keys: ['vgiss']"
+    with pytest.raises(SchemaError, match=re.escape(expected)):
+        Config().update_config(user_path)
+
+
+def test_a_bundle_with_no_entry_is_refused() -> None:
     """Looking up a bundle the files give no entry raises, naming the bundle."""
     section = pds4_section_type(('a_bundle',))()
-    with pytest.raises(KeyError, match="no entry for the bundle 'a_bundle'"):
+    with pytest.raises(Pds4BundleEntryError, match="no entry for the bundle 'a_bundle'"):
         section.bundle('a_bundle')
 
 
 def test_a_lower_case_target_key_is_refused_at_load(tmp_path: Path) -> None:
-    """A target key is a body's SPICE name, so one not in upper case is refused."""
+    """A target key is a SPICE name, so one not in upper case is refused."""
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text(
         'backplanes:\n'
@@ -70,7 +85,10 @@ def test_a_lower_case_target_key_is_refused_at_load(tmp_path: Path) -> None:
         '      type: Planet\n',
         encoding='utf-8',
     )
-    expected = f"{user_path}: backplanes.target_lids.saturn: 'saturn' is not in upper case"
+    expected = (
+        f"{user_path}: backplanes.target_lids.saturn: 'saturn' is not in upper case; "
+        'a target is written in upper case, as SPICE and the PDS spell it'
+    )
     with pytest.raises(SchemaError, match=re.escape(expected)):
         Config().update_config(user_path)
 

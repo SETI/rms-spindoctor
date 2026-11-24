@@ -15,7 +15,10 @@ import pytest
 from tests.spindoctor.cli.pds4.conftest import make_image_file, navigated_document
 
 from spindoctor.config import DEFAULT_CONFIG, Config
-from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
+from spindoctor.dataset.dataset_pds3_cassini_iss import (
+    DataSetPDS3CassiniISS,
+    DataSetPDS3CassiniISSSaturn,
+)
 
 # ---------------------------------------------------------------------------
 # Real Cassini dataset: LID/LIDVID construction and template tree
@@ -310,3 +313,9 @@ def test_cassini_lid_charset_is_pds4_legal(tmp_path: Path) -> None:
     lid = dataset.pds4_image_name_to_data_lid('N1454725799_1.IMG')
     assert lid == lid.lower()
     assert re.fullmatch(r'urn:nasa:pds(:[a-z0-9_-]+)+', lid) is not None
+
+
+def test_the_undivided_cassini_dataset_makes_no_bundle() -> None:
+    """The dataset covering no one division of the mission has no bundle to name."""
+    with pytest.raises(NotImplementedError, match='not supported for this dataset'):
+        DataSetPDS3CassiniISS().pds4_bundle_name()

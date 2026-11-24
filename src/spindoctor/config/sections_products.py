@@ -194,7 +194,7 @@ class BackplanesSection:
             is recorded once per image rather than as a plane.
         masked_value: The value a plane holds where it has no valid measurement.
         target_lids: The PDS4 target each body and ring system is identified as, keyed
-            by the name the backplane metadata gives it.  A body is keyed by its SPICE
+            by the name the backplane metadata gives it.  A target is keyed by its SPICE
             name in upper case.
     """
 
@@ -211,8 +211,8 @@ class BackplanesSection:
         for key in self.target_lids:
             if key != key.upper():
                 raise RuleError(
-                    f'{key!r} is not in upper case; a body is written in upper case, as '
-                    'SPICE spells it',
+                    f'{key!r} is not in upper case; a target is written in upper case, as '
+                    'SPICE and the PDS spell it',
                     at=('target_lids', key),
                 )
 
@@ -274,6 +274,10 @@ class Pds4Bundle:
     schemas: dict[Str, Pds4Schema]
 
 
+class Pds4BundleEntryError(LookupError):
+    """The ``pds4`` section holds no entry for a bundle key a dataset class names."""
+
+
 @dataclass(frozen=True)
 class Pds4Section:
     """The base of the ``pds4`` section's type.
@@ -294,11 +298,11 @@ class Pds4Section:
             The bundle's entry.
 
         Raises:
-            KeyError: If the section holds no entry for the bundle.
+            Pds4BundleEntryError: If the section holds no entry for the bundle.
         """
         entry = getattr(self, key, None)
         if not isinstance(entry, Pds4Bundle):
-            raise KeyError(f'the pds4 section holds no entry for the bundle {key!r}')
+            raise Pds4BundleEntryError(f'the pds4 section holds no entry for the bundle {key!r}')
         return entry
 
 

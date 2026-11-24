@@ -19,9 +19,8 @@ Pipeline support
   (see :doc:`/user_guide/user_guide_ck_kernels`).
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
-* **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
-  label template directory, but the remaining hooks are unimplemented and the
-  configuration entry is a commented-out stub.
+* **PDS4 bundles** -- not supported. This camera does not produce PDS4 bundles yet,
+  and ``sd_create_bundle`` says so and stops.
 * **Simulator** -- supported, under the instrument key ``nhlorri``.
 * **Statistics** -- supported.
 

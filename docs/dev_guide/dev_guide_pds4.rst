@@ -374,25 +374,23 @@ The full extension-point set:
 Reference implementation:
 :class:`~spindoctor.dataset.dataset_pds3_cassini_iss.DataSetPDS3CassiniISS`
 overrides every PDS4 hook above and serves as the canonical worked example.
-Of its two registered subclasses only the Saturn one bundles as the package
-ships.  The cruise one's template directory is ``cassini_iss_cruise_1.0``, which does
-not ship, so both passes refuse it at the missing-template check.  Galileo SSI
+Of its two registered subclasses, the Saturn one gives the ``PDS4_CONFIG_KEY``
+``coiss_saturn``, and the cruise one gives ``coiss_cruise``, for which the
+configuration has no entry as the package ships.  Looking up a bundle with no entry
+raises :exc:`~spindoctor.config.sections_products.Pds4BundleEntryError`, and
+``sd_create_bundle`` prints one line that gives the key and exits with status 1.
+Galileo SSI
 (:class:`~spindoctor.dataset.dataset_pds3_galileo_ssi.DataSetPDS3GalileoSSI`),
 New Horizons LORRI
 (:class:`~spindoctor.dataset.dataset_pds3_newhorizons_lorri.DataSetPDS3NewHorizonsLORRI`)
 and Voyager ISS
 (:class:`~spindoctor.dataset.dataset_pds3_voyager_iss.DataSetPDS3VoyagerISS`)
-implement only
-:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_template_dir` and
-:meth:`~spindoctor.dataset.dataset.DataSet.pds4_bundle_name`, over template
-directories that do not ship.  Every other hook raises
-:exc:`NotImplementedError`,
-:meth:`~spindoctor.dataset.dataset.DataSet.pds4_required_templates` among
-them, so both passes stop on these datasets before they look for a template.
-The Cassini ISS class itself, registered as ``coiss``, leaves its configuration
-name and default template directory to its subclasses and raises
-:exc:`NotImplementedError` for them, so both passes stop on it when they ask for
-the template directory, as they do on ``sim``, whose hooks all raise it.  Every
+implement no PDS4 hook and leave ``PDS4_CONFIG_KEY`` at None, as does ``sim``.
+``sd_create_bundle`` checks that attribute once, before it runs any pass, and a
+dataset where it is None ends the run with one line saying the dataset does not
+produce PDS4 bundles, and exit status 1.  The Cassini ISS class itself, registered as
+``coiss``, also leaves ``PDS4_CONFIG_KEY`` at None, so its hooks raise
+:exc:`NotImplementedError` if something calls them directly.  Every
 registered name but ``sim`` has a ``_pds3`` alias for the same class, which
 bundles, or does not, the same way.
 

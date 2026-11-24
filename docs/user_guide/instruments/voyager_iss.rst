@@ -22,9 +22,8 @@ Pipeline support
   constant attitude: see `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
-* **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
-  label template directory, but the remaining hooks are unimplemented and the
-  configuration entry is a commented-out stub.
+* **PDS4 bundles** -- not supported. This camera does not produce PDS4 bundles yet,
+  and ``sd_create_bundle`` says so and stops.
 * **Simulator** -- supported, under four instrument keys, one for each spacecraft and
   camera: ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``.
 * **Statistics** -- supported.

@@ -21,9 +21,8 @@ Pipeline support
 * **Mosaics** -- supported, body and ring.
 * **PDS4 bundles** -- supported for the Saturn dataset. The dataset class
   implements every PDS4 hook, and the shipped label templates and configuration
-  entry cover ``coiss_saturn``. ``coiss_cruise`` points to a template directory
-  that is not shipped, so a cruise bundle needs that directory supplied before
-  it will build. The Saturn bundle's labels identify Saturn, each satellite the
+  entry cover ``coiss_saturn``. The cruise dataset has no bundle configuration,
+  so a bundle cannot be made for it yet. The Saturn bundle's labels identify Saturn, each satellite the
   configuration lists for it, and Saturn's main rings, whose PDS4 context
   product is ``Saturn Rings``; the shipped targets table has an entry for every
   one. A data label states no ring geometry: for the rings it gives only the
@@ -649,7 +648,7 @@ Known limitations
 * A BOTSIM wide angle frame receives no corrected segment whenever its narrow
   angle partner writes one. Its pixel offset in the metadata is unaffected.
 * PDS4 bundles are shipped for the Saturn dataset only; the cruise dataset
-  points to a label template directory that is not part of the distribution.
+  has no bundle configuration, so a bundle cannot be made for it yet.
 
 References
 ==========
