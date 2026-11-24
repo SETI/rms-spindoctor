@@ -3,6 +3,7 @@
 import argparse
 import itertools
 import logging
+import re
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
@@ -33,6 +34,7 @@ from spindoctor.config.logging_config import (
 )
 from spindoctor.config.logging_keys import log_key_for, technique_log_keys
 from spindoctor.config.program_names import SD_MOSAIC, SD_OFFSET
+from spindoctor.schema import SchemaError
 
 _STAMP = '2026-07-29T12-00-00'
 _RUN_STAMP = '2099-12-31T23-59-59'
@@ -1195,11 +1197,8 @@ def test_there_is_no_configuration_key_for_a_file_sink(tmp_path: Path) -> None:
     attempt is an error naming the key, rather than a line that sits in the
     configuration looking effective and doing nothing.
     """
-    from spindoctor.config.logging_keys import validate_logging_config
-
-    config = _config(tmp_path, '  image_file: false\n')
-    with pytest.raises(ValueError, match='not a known logging key'):
-        validate_logging_config(config)
+    with pytest.raises(SchemaError, match=re.escape("logging: unknown keys: ['image_file']")):
+        _config(tmp_path, '  image_file: false\n')
 
 
 # ---------------------------------------------------------------------------

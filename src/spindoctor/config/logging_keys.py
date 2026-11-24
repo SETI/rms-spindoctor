@@ -1,4 +1,4 @@
-"""Key namespace and validation for the ``logging`` configuration section.
+"""Key namespace and section type of the ``logging`` configuration section.
 
 The ``logging`` section names each configurable module by a snake_case key.
 For navigation techniques and models those keys are derived from the class
@@ -7,33 +7,39 @@ and never has to be maintained as a parallel list that can fall out of date.
 A class may override its derived key by declaring a ``log_key`` class
 attribute.
 
-:func:`validate_logging_config` rejects an unrecognized module key, program
-name, or level name when the configuration is loaded, so a typo fails at
-startup instead of silently having no effect.  It lives here rather than on
-:class:`~spindoctor.config.config.Config` because it needs the technique and
-model registries, and those packages import ``spindoctor.config``; the
-registry imports are therefore function-local and happen only when validation
-runs.
+:class:`LoggingSection` is the section's type.  The configuration parses the
+merged section into it each time a configuration is installed, so an
+unrecognized module key, program name, or level name is refused at load with
+the file and the key path, instead of silently having no effect.  The module
+keys a category accepts come from the technique and model registries, and
+those packages import ``spindoctor.config``, so the registry imports are
+function-local: they run when a module key is checked, during a configuration
+load.  No module loads the configuration while it is being imported, so by
+then importing either package has registered every class it defines.
 """
 
 import re
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Annotated
 
-if TYPE_CHECKING:
-    from .config import Config
+from pydantic import AfterValidator
+
+from spindoctor.schema import SCHEMA_CONFIG, Bool, Str
+
+from .program_names import PROGRAM_NAMES
 
 __all__ = [
     'CATEGORY_KEYS',
-    'CONSOLE_KEYS',
-    'LOGGER_KEYS',
     'LOG_LEVEL_NAMES',
     'LOG_LEVEL_VALUES',
     'OTHER_LOG_KEYS',
+    'LoggingSection',
+    'ProgramLogging',
     'log_key_for',
     'model_log_keys',
     'normalize_level',
     'technique_log_keys',
-    'validate_logging_config',
 ]
 
 
@@ -55,19 +61,7 @@ the library can emit, rather than relying on nothing happening to log at
 LOG_LEVEL_NAMES = frozenset(LOG_LEVEL_VALUES)
 """Level names accepted anywhere in the ``logging`` section."""
 
-LOGGER_KEYS = frozenset({'main', 'image'})
-"""The two per-logger global defaults."""
-
 CATEGORY_KEYS = frozenset({'techniques', 'models', 'other'})
-
-CONSOLE_KEYS = frozenset({'main_console', 'image_console'})
-"""Keys choosing whether each logger writes to the terminal.
-
-Booleans rather than levels, and the only sink selection the configuration
-carries: whether a log is *written to a file* is bound up with where the file
-goes, which is a per-run decision, while whether it appears on the terminal is
-the kind of preference a machine or an operator keeps.
-"""
 """Categories that group per-module overrides."""
 
 OTHER_LOG_KEYS = frozenset(
@@ -93,8 +87,6 @@ so that backend's verbosity is the program's ``image`` level.
 """
 
 _CATEGORY_DEFAULT_KEY = 'default'
-_PROGRAMS_KEY = 'programs'
-_STRICT_SCOPE_KEY = 'strict_scope'
 
 _CAMEL_BOUNDARY = re.compile(r'(?<!^)(?=[A-Z])')
 _CLASS_NAME_PREFIXES = ('NavTechnique', 'NavModel')
@@ -214,137 +206,195 @@ def model_log_keys() -> frozenset[str]:
     return frozenset(log_key_for(cls) for cls in NavModel._registry if _is_shipped(cls))
 
 
-def _validate_level(value: Any, location: str) -> None:
-    """Raise if ``value`` is not a recognized level name.
+def _level(value: str) -> str:
+    """Return the canonical spelling of a configured level, refusing an unknown one.
 
     Parameters:
-        value: The configured value, expected to be a level-name string.
-        location: Dotted path of the key, used in the error message.
+        value: A level name as a file writes it.
+
+    Returns:
+        The level name as :func:`normalize_level` spells it.
 
     Raises:
-        ValueError: If ``value`` is not a string or names no known level.
+        ValueError: If ``value`` names no known level.
     """
-    if not isinstance(value, str):
-        raise ValueError(f'{location} must be a level name string, got {type(value).__name__}')
-    if normalize_level(value) not in LOG_LEVEL_NAMES:
-        raise ValueError(f'{location} is {value!r}; expected one of {sorted(LOG_LEVEL_NAMES)}')
+    level = normalize_level(value)
+    if level not in LOG_LEVEL_NAMES:
+        raise ValueError(f'{value!r} is not one of {sorted(LOG_LEVEL_NAMES)}')
+    return level
 
 
-def _validate_category(
-    block: Any, category: str, valid_keys: frozenset[str], location: str
-) -> None:
-    """Raise if a category block holds an unknown module key or a bad level.
+def _module_key(key: str, valid_keys: frozenset[str], category: str) -> str:
+    """Return ``key`` if a category accepts it; refuse it if not.
 
     Parameters:
-        block: The category's configured value, expected to be a mapping.
-        category: Category name, one of :data:`CATEGORY_KEYS`.
-        valid_keys: Module keys this category accepts.
-        location: Dotted path of the category, used in error messages.
+        key: A key of the category's mapping.
+        valid_keys: The module keys the category accepts, besides ``default``.
+        category: The category's name, one of :data:`CATEGORY_KEYS`.
+
+    Returns:
+        ``key``.
 
     Raises:
-        ValueError: If ``block`` is not a mapping, names an unknown module, or
-            holds a value that is not a level name.
+        ValueError: If ``key`` is neither ``default`` nor one of ``valid_keys``.
     """
-    if not isinstance(block, dict):
-        raise ValueError(f'{location} must be a mapping, got {type(block).__name__}')
-    for key, value in block.items():
-        if key != _CATEGORY_DEFAULT_KEY and key not in valid_keys:
-            raise ValueError(
-                f'{location}.{key} is not a known {category} key; '
-                f'expected {_CATEGORY_DEFAULT_KEY!r} or one of {sorted(valid_keys)}'
-            )
-        _validate_level(value, f'{location}.{key}')
-
-
-def _validate_block(block: dict[str, Any], location: str, *, is_top_level: bool) -> None:
-    """Validate one logging block: the top-level section or one program's.
-
-    Parameters:
-        block: The mapping to validate.
-        location: Dotted path of the block, used in error messages.
-        is_top_level: True for the ``logging`` section itself, False for a
-            block under ``programs``.  Only the top-level block may carry
-            ``strict_scope``, which is a global switch, or ``programs``, which
-            does not nest.
-
-    Raises:
-        ValueError: If the block holds an unknown key or a malformed value.
-    """
-    categories = {
-        'techniques': technique_log_keys(),
-        'models': model_log_keys(),
-        'other': OTHER_LOG_KEYS,
-    }
-    for key, value in block.items():
-        if key == _PROGRAMS_KEY:
-            if is_top_level:
-                continue  # unpacked by validate_logging_config
-            raise ValueError(
-                f'{location}.{_PROGRAMS_KEY} does not nest; per-program overrides live '
-                f'only in the top-level logging.{_PROGRAMS_KEY} block'
-            )
-        if key == _STRICT_SCOPE_KEY:
-            if not is_top_level:
-                raise ValueError(
-                    f'{location}.{_STRICT_SCOPE_KEY} is a global setting and cannot be '
-                    f'set for one program'
-                )
-            if not isinstance(value, bool):
-                raise ValueError(
-                    f'{location}.{_STRICT_SCOPE_KEY} must be true or false, '
-                    f'got {type(value).__name__}'
-                )
-        elif key in LOGGER_KEYS:
-            _validate_level(value, f'{location}.{key}')
-        elif key in CONSOLE_KEYS:
-            if not isinstance(value, bool):
-                raise ValueError(
-                    f'{location}.{key} must be true or false, got {type(value).__name__}'
-                )
-        elif key in CATEGORY_KEYS:
-            _validate_category(value, key, categories[key], f'{location}.{key}')
-        else:
-            allowed = sorted(LOGGER_KEYS | CONSOLE_KEYS | CATEGORY_KEYS)
-            raise ValueError(
-                f'{location}.{key} is not a known logging key; expected one of {allowed}'
-            )
-
-
-def validate_logging_config(config: 'Config') -> None:
-    """Validate the ``logging`` section of ``config``.
-
-    Checks every key in the top-level block and in each ``programs`` block
-    against the technique and model registries, the fixed set of other
-    image-scoped modules, and the registered program identities, and checks
-    that every level is a recognized name.
-
-    Parameters:
-        config: The configuration to validate.
-
-    Raises:
-        ValueError: On an unknown logging key, category, module key, program
-            name, or level name.  The message names the offending dotted path.
-    """
-    from spindoctor.config.program_names import PROGRAM_NAMES
-
-    section = config.logging
-    if not isinstance(section, dict):
-        raise ValueError(f'logging must be a mapping, got {type(section).__name__}')
-
-    block = dict(section)
-    _validate_block(block, 'logging', is_top_level=True)
-
-    programs = block.get(_PROGRAMS_KEY, {})
-    if not isinstance(programs, dict):
+    if key != _CATEGORY_DEFAULT_KEY and key not in valid_keys:
         raise ValueError(
-            f'logging.{_PROGRAMS_KEY} must be a mapping, got {type(programs).__name__}'
+            f'{key!r} is not a known {category} key; '
+            f'expected {_CATEGORY_DEFAULT_KEY!r} or one of {sorted(valid_keys)}'
         )
-    for program_name, program_block in programs.items():
-        location = f'logging.{_PROGRAMS_KEY}.{program_name}'
-        if program_name not in PROGRAM_NAMES:
-            raise ValueError(
-                f'{location} is not a known program; expected one of {sorted(PROGRAM_NAMES)}'
-            )
-        if not isinstance(program_block, dict):
-            raise ValueError(f'{location} must be a mapping, got {type(program_block).__name__}')
-        _validate_block(dict(program_block), location, is_top_level=False)
+    return key
+
+
+def _technique_key(key: str) -> str:
+    """Return ``key`` if the ``techniques`` category accepts it; refuse it if not."""
+    return _module_key(key, technique_log_keys(), 'techniques')
+
+
+def _model_key(key: str) -> str:
+    """Return ``key`` if the ``models`` category accepts it; refuse it if not."""
+    return _module_key(key, model_log_keys(), 'models')
+
+
+def _other_key(key: str) -> str:
+    """Return ``key`` if the ``other`` category accepts it; refuse it if not."""
+    return _module_key(key, OTHER_LOG_KEYS, 'other')
+
+
+def _program_name(name: str) -> str:
+    """Return ``name`` if it is a registered program identity; refuse it if not.
+
+    Parameters:
+        name: A key of the ``programs`` mapping.
+
+    Returns:
+        ``name``.
+
+    Raises:
+        ValueError: If ``name`` is not in
+            :data:`~spindoctor.config.program_names.PROGRAM_NAMES`.
+    """
+    if name not in PROGRAM_NAMES:
+        raise ValueError(
+            f'{name!r} is not a known program; expected one of {sorted(PROGRAM_NAMES)}'
+        )
+    return name
+
+
+_Level = Annotated[Str, AfterValidator(_level)]
+_TechniqueKey = Annotated[Str, AfterValidator(_technique_key)]
+_ModelKey = Annotated[Str, AfterValidator(_model_key)]
+_OtherKey = Annotated[Str, AfterValidator(_other_key)]
+_ProgramName = Annotated[Str, AfterValidator(_program_name)]
+
+
+@dataclass(frozen=True)
+class ProgramLogging:
+    """One program's block under ``logging.programs``: the settings it overrides.
+
+    Every key is optional, because a block names only what differs for its program.
+    A key left out keeps the top-level value, and a category merges with the
+    top-level category key by key, so a block can set one module without restating
+    the rest.  ``strict_scope`` is a global switch and ``programs`` does not nest, so
+    neither is a key here.
+
+    Parameters:
+        main: The main logger's level for this program.
+        image: The image logger's level for this program.
+        main_console: Whether the main logger writes to the terminal.
+        image_console: Whether the image logger writes to the terminal.
+        techniques: Per-technique levels, and an optional ``default``.
+        models: Per-model levels, and an optional ``default``.
+        other: Levels of the other image-scoped modules, and an optional ``default``.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    main: _Level | None = None
+    image: _Level | None = None
+    main_console: Bool | None = None
+    image_console: Bool | None = None
+    techniques: Mapping[_TechniqueKey, _Level] | None = None
+    models: Mapping[_ModelKey, _Level] | None = None
+    other: Mapping[_OtherKey, _Level] | None = None
+
+
+@dataclass(frozen=True)
+class LoggingSection:
+    """The ``logging`` section: the levels and terminal sinks of the two loggers.
+
+    Each level is held in its canonical spelling, upper case, whatever case the
+    file wrote it in.  A category maps module keys, and optionally ``default``, to
+    levels.  Its module keys are those of the registered techniques
+    (:func:`technique_log_keys`), the registered models (:func:`model_log_keys`),
+    and :data:`OTHER_LOG_KEYS`.
+
+    The two console keys are the only sink selection the configuration carries.
+    Whether a log is written to a file is bound up with where the file goes, which
+    is a per-run decision, while whether it appears on the terminal is the kind of
+    preference a machine or an operator keeps.
+
+    Parameters:
+        strict_scope: Whether an image-scoped component that logs with no image
+            scope open raises, rather than warns.
+        main: The main logger's level.
+        image: The image logger's level, and that of every image-scoped module
+            with no level of its own.
+        main_console: Whether the main logger writes to the terminal.
+        image_console: Whether the image logger writes to the terminal.
+        techniques: Per-technique levels, and an optional ``default``.
+        models: Per-model levels, and an optional ``default``.
+        other: Levels of the other image-scoped modules, and an optional ``default``.
+        programs: Each program's overrides, keyed by its identity from
+            :mod:`spindoctor.config.program_names`.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    strict_scope: Bool
+    main: _Level
+    image: _Level
+    main_console: Bool
+    image_console: Bool
+    techniques: Mapping[_TechniqueKey, _Level]
+    models: Mapping[_ModelKey, _Level]
+    other: Mapping[_OtherKey, _Level]
+    programs: Mapping[_ProgramName, ProgramLogging]
+
+    def for_program(self, program_name: str) -> 'LoggingSection':
+        """Return the settings in force for one program.
+
+        The program's block under ``programs`` wins over the top-level value key by
+        key, and its categories merge with the top-level categories key by key.
+
+        Parameters:
+            program_name: The program's identity, as declared by its dispatch
+                module.  A name with no block, such as an empty one, selects the
+                top-level settings alone.
+
+        Returns:
+            The merged settings, whose ``programs`` is empty.
+        """
+        block = self.programs.get(program_name, ProgramLogging())
+        return LoggingSection(
+            strict_scope=self.strict_scope,
+            main=self.main if block.main is None else block.main,
+            image=self.image if block.image is None else block.image,
+            main_console=self.main_console if block.main_console is None else block.main_console,
+            image_console=(
+                self.image_console if block.image_console is None else block.image_console
+            ),
+            techniques={**self.techniques, **(block.techniques or {})},
+            models={**self.models, **(block.models or {})},
+            other={**self.other, **(block.other or {})},
+            programs={},
+        )
+
+    def categories(self) -> dict[str, Mapping[str, str]]:
+        """Return each category's levels, keyed by the category's name.
+
+        Returns:
+            The ``techniques``, ``models``, and ``other`` mappings, keyed by
+            :data:`CATEGORY_KEYS`.
+        """
+        return {'techniques': self.techniques, 'models': self.models, 'other': self.other}
