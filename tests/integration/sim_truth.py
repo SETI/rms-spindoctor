@@ -190,11 +190,12 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
     # atmosphere.  In titan_haze_limb, a haze-blind navigator fits a hard limb under a
-    # soft haze limb, and the high-pass disc refinement ignores the haze's smooth glow
-    # (#791).  titan_crescent_horns and its noiseless twin carry a known error in their
-    # expected blocks instead (#1050).
-    ('titan_haze', FUSED): _t(0.046, 0.063, 0.020, 0.05),
-    ('titan_haze_limb', FUSED): _t(0.008, 0.014, 0.006, 0.05),
+    # soft haze limb.  The high-pass disc refinement ignores the haze's smooth glow and
+    # lands within 0.01 px, the limb fit lands 0.17 px off, and the fused answer sits
+    # 0.03 px off (#791).  titan_crescent_horns and its noiseless twin carry a known
+    # error in their expected blocks instead (#1050).
+    ('titan_haze', FUSED): _t(0.042, 0.058, 0.018, 0.05),
+    ('titan_haze_limb', FUSED): _t(0.030, 0.033, 0.002, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
@@ -244,9 +245,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_deep', 'BodyBlobNav'): _b(6.720, 6.729, 0.05, 6.670, 6.780),
     ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
     ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(25.091, 25.123, 0.05, 25.041, 25.174),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.151, 25.151, 0.05, 25.100, 25.201),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(1.474, 1.482, 0.05, 1.424, 1.532),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(23.841, 23.869, 0.05, 23.791, 23.920),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(24.224, 24.224, 0.05, 24.173, 24.274),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(0.336, 0.344, 0.05, 0.286, 0.395),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.006 px and 0.055 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.597, 0.604, 0.05, 0.547, 0.654),

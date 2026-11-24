@@ -31,30 +31,25 @@ offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
 # At 155 deg phase the forward-scattering haze defeats every body technique.
-# The ring of light drags the lit-weighted blob centroid 25 px from the planted
+# The ring of light drags the lit-weighted blob centroid 24 px from the planted
 # offset.  The predicted TERMINATOR_ARC is emitted but never fitted: with its
 # reliability computed as the SPICE-backed model does (visible-arc fraction
 # ~1.0, the albedo penalty, and the sin(155 deg) = 0.42 phase cap), it scores
-# 0.26 against the 0.30 TERMINATOR_ARC reliability gate.  The ring of light is
-# brighter than a white disc lit face-on, and the detector saturates on it.
+# 0.26 against the 0.30 TERMINATOR_ARC reliability gate.  The ring of light
+# peaks at about 0.9 of a white disc lit face-on, below the full well.
 # The disc correlation is pulled by the ring of light, which its hard-limbed
-# template leaves out (#1050): it answers (1.20, -3.80), 3.00 px from the
+# template leaves out (#1050): it answers (1.19, -3.67), 2.87 px from the
 # planted offset, at the edge of its half-pixel refinement window along u
 # (#1061).  It does not flag that answer spurious, so the body-witness veto
 # has nothing to read, the blob is dropped as a fallback, and the disc
 # correlation alone sets a low-tier success.  The status: success asserted
 # below is a hazard held in view, not an endorsement.
 # Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 2.989 to 2.997 px (spread 0.008 px).  Each end of the
+# the fused error runs 2.864 to 2.911 px (spread 0.047 px).  Each end of the
 # band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [2.939, 3.047] px.
-# The ring of light saturates because the simulated haze is about four times
-# too bright: its single-scattering source lacks the factor of 1/4 (#1101).
-# The recorded error moves when #1101 is fixed; at a quarter of the haze
-# brightness the same correlation is 2.87 px off.
+# outside, giving [2.814, 2.961] px.
 expected:
-  # Depends on the haze brightness #1101 corrects.
   status: success
   confidence_tier: low
-  known_offset_error_px: 2.993
-  known_offset_error_tol_px: 0.054
+  known_offset_error_px: 2.8875
+  known_offset_error_tol_px: 0.0735

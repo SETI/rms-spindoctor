@@ -7,7 +7,7 @@ sweep_name: atmosphere_haze
 # The sweep walks the reference optical depth up; the haze lifts and blurs the
 # limb.  Fused result; the disc correlation is the highest-confidence technique at
 # every step, and its high-pass refinement weakens the haze's smooth glow, so the
-# error grows from 0.02 px at the floor to 0.06 px at the thickest haze or less.
+# error stays between 0.01 and 0.04 px at every step (25 noise draws).
 base_scene: model_mismatch/haze_limb_base.yaml
 parameters: [bodies.0.atmosphere.tau_ref]
 values: [0.0, 1.0, 2.0, 4.0, 6.0]

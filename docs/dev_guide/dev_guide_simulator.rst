@@ -2127,7 +2127,7 @@ not yet fixed. There are eight:
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
 - In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
-  pulls the disc correlation, which carries a low-tier success 2.99 px wrong. The
+  pulls the disc correlation, which carries a low-tier success 2.87 px wrong. The
   correlation stops at the edge of its half-pixel refinement window on every seed,
   with the surface still rising beyond it.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
@@ -3102,9 +3102,11 @@ a deliberate model mismatch. A navigator that fits the bright sunward haze ramp
 recovers a small offset toward the sunlit limb whose size tracks the
 phase-dependent apparent limb radius (and the haze parameters) -- the
 ``atmosphere`` catalog scenes measure that bias and pin the measured value. The
-low-phase ``titan_haze_limb`` scene records a sub-pixel sunward offset (a few
-tenths of a pixel in ``du``) at the medium tier, the limb DT fit and the disc
-correlation agreeing on the haze-lifted limb.
+low-phase ``titan_haze_limb`` scene ends a medium-tier success 0.03 px from the
+planted offset. The disc correlation's high-pass refinement ignores the haze's
+smooth glow and lands within 0.01 px. The limb DT fit reads the haze-lifted limb
+and lands 0.17 px off, and the fused answer sits between the two, close to the
+disc correlation.
 
 Everything in this paragraph is about *body* navigation against a haze the
 navigator does not model. The scenes that measure it carry a body named
@@ -3113,23 +3115,23 @@ to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
 is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light is
-brighter than a white disc lit face-on and saturates the detector. The predicted
+outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light peaks
+at about 0.9 of a white disc lit face-on. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.24 against the 0.30
 ``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
-25 px off in ``du``. The ring of light, which the disc correlation's
-hard-limbed template leaves out, also pulls the correlation 2.99 px off, to the
+24 px off in ``du``. The ring of light, which the disc correlation's
+hard-limbed template leaves out, also pulls the correlation 2.87 px off, to the
 edge of its half-pixel refinement window, and the correlation does not flag that
 answer spurious. So the body-witness veto (see
 :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
 nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its 2.99 px error to a band. The noiseless sibling
+scene holds its 2.87 px error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
 and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near -26.0, and the same 2.99 px disc correlation error), so the
+blob centroid near -25.0, and the same 2.87 px disc correlation error), so the
 ring of light alone drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with

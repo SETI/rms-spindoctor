@@ -886,18 +886,17 @@ def test_atmosphere_haze_floor_recovers() -> None:
 
 
 # The fused answer is the disc correlation's, whose high-pass refinement weakens the
-# haze's smooth glow, so the haze barely biases it (#791).  Over 25 noise draws the
-# thickest haze's largest rise above the bare limb's error is 0.025 px, and a brighter
-# haze never raises the error above it.  The rows record only the error's size, so
-# these tests bound how much the error grows.
+# haze's smooth glow, so the haze barely biases it (#791).  Over 25 noise draws no step
+# of either haze sweep raises the error more than 0.005 px above the bare limb's.  The
+# rows record only the error's size, so these tests bound how much the error grows.
 _HAZE_FUSED_RISE_BOUND_PX = 0.1
 
 
 def test_atmosphere_haze_barely_raises_the_fused_error() -> None:
     """The thickest haze raises the fused error less than 0.1 px above the bare limb's.
 
-    A single-draw tripwire: over 9 noise draws the last step's error runs from 0.005 px
-    below the floor's to 0.007 px above it.
+    A single-draw tripwire: over 9 noise draws the last step's error is 0.002 to
+    0.004 px above the floor's.
     """
     rows = _rows('atmosphere_haze')
     assert rows[0].offset_error_px is not None
@@ -920,7 +919,7 @@ def test_atmosphere_haze_albedo_floor_recovers() -> None:
 def test_atmosphere_haze_albedo_barely_raises_the_fused_error() -> None:
     """The brightest haze raises the fused error less than 0.1 px above the bare limb's.
 
-    A single-draw tripwire: over 9 noise draws the last step is 0.023 to 0.031 px
+    A single-draw tripwire: over 9 noise draws the last step is 0.008 to 0.013 px
     closer than the floor.
     """
     rows = _rows('atmosphere_haze_albedo')
