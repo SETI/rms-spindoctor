@@ -463,7 +463,7 @@ def test_upsample_factor_rejects_overlarge_value() -> None:
 
 
 def _install_covariance_terms(monkeypatch: pytest.MonkeyPatch, *, floor_px: float) -> None:
-    """Give :class:`RingAnnulusNav` only a model-error floor among its covariance terms.
+    """Give :class:`RingAnnulusNav` a tuning whose only covariance term is the floor.
 
     The configuration is read first, so the tuning the test replaces is the class's own
     and is what ``monkeypatch`` restores.
@@ -517,7 +517,7 @@ def test_ring_annulus_passes_the_localization_scale_to_the_correlator(
     """The tuning's localization scale reaches the correlator that adds the term.
 
     The correlator adds ``(scale * consistency)**2`` to the translation diagonal, so
-    a scale the technique drops would leave that term out of the covariance.
+    if the technique dropped the scale, the covariance would lack that term.
     """
     shape = (180, 180)
     image_center = (90.0, 90.0)

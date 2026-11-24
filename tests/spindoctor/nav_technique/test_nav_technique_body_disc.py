@@ -410,7 +410,7 @@ def _consistency_tol(monkeypatch: pytest.MonkeyPatch, *, fraction: float, max_px
     Parameters:
         monkeypatch: Installs the tuning on :class:`BodyDiscCorrelateNav`.
         fraction: The migration allowed per pixel of body extent.
-        max_px: The least cap in pixels.
+        max_px: The smallest cap in pixels.
 
     Returns:
         The cap in pixels.
@@ -430,14 +430,14 @@ def _consistency_tol(monkeypatch: pytest.MonkeyPatch, *, fraction: float, max_px
 def test_consistency_tol_takes_the_scaled_cap_when_it_is_larger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A large body's cap is its extent times the fraction, above the least cap."""
+    """A large body's cap is its extent times the fraction, which exceeds the smallest cap."""
     assert _consistency_tol(monkeypatch, fraction=0.1, max_px=5.0) == pytest.approx(5.6)
 
 
 def test_consistency_tol_takes_the_least_cap_when_it_is_larger(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A small body's cap is the least cap, above its extent times the fraction."""
+    """A small body's cap is the smallest cap, which exceeds its extent times the fraction."""
     assert _consistency_tol(monkeypatch, fraction=0.01, max_px=5.0) == pytest.approx(5.0)
 
 

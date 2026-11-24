@@ -192,7 +192,7 @@ def test_body_blob_model_error_floor_inflates_covariance(
     make_nav_context: NavContextFactory,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The tuning's floor, not its size fraction, adds its square to the diagonal."""
+    """The tuning's model-error floor adds its square to each diagonal term."""
     cov_bare = _blob_covariance(disc_image, make_nav_context, monkeypatch, floor_px=0.0)
     cov_floored = _blob_covariance(disc_image, make_nav_context, monkeypatch, floor_px=1.5)
     for axis in (0, 1):

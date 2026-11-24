@@ -63,7 +63,7 @@ class BodyDiscTuning(NCCCovarianceTuning):
         consistency_max_fraction_of_diameter: The inter-pyramid peak migration
             allowed per pixel of the largest body's extent before the result is
             spurious.
-        consistency_max_px: The least migration cap in pixels, whatever the body's
+        consistency_max_px: The smallest migration cap in pixels, whatever the body's
             size.
         refine_lowpass_sigma_px: The sigma in pixels of the Gaussian low-pass applied
             to both surfaces in the full-resolution sub-pixel refinement; 0 disables
