@@ -51,7 +51,7 @@ sys.path.insert(0, str(REPO / 'src'))
 
 from spindoctor.config import DEFAULT_CONFIG  # noqa: E402
 from spindoctor.nav_technique.confidence import ConfidenceSpec  # noqa: E402
-from spindoctor.nav_technique.confidence_config import load_confidence_spec  # noqa: E402
+from spindoctor.nav_technique.nav_technique import NavTechnique  # noqa: E402
 
 TECHNIQUES = (
     'BodyDiscCorrelateNav',
@@ -301,6 +301,15 @@ def _reliability_table(
     return table
 
 
+def _packaged_spec(name: str) -> ConfidenceSpec:
+    """The confidence formula the packaged configuration gives the technique ``name``."""
+    DEFAULT_CONFIG.read_config()
+    technique = next(cls for cls in NavTechnique._registry if cls.name == name)
+    # Read the parsed configuration, not the class attribute, which follows whichever
+    # configuration was installed last.
+    return DEFAULT_CONFIG.techniques.block(technique).confidence_spec()
+
+
 def fit_technique(
     name: str,
     rows: list[dict[str, Any]],
@@ -309,7 +318,7 @@ def fit_technique(
     l2: float,
 ) -> dict[str, Any] | None:
     """Fit one technique's alphas; returns the proposal dict or None."""
-    spec = load_confidence_spec(DEFAULT_CONFIG.category('techniques'), name)
+    spec = _packaged_spec(name)
     usable = [
         t
         for row in rows

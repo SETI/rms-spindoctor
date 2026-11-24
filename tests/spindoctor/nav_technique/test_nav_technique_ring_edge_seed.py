@@ -79,30 +79,6 @@ def test_ring_edge_nav_keeps_the_overlap_seed_on_a_comparably_strong_edge(
     assert result.offset_px[0] == pytest.approx(3.0, abs=0.3)
 
 
-@pytest.mark.parametrize('ratio', [-0.1, 1.5])
-def test_ring_edge_nav_rejects_a_coarse_strength_keep_ratio_outside_unit_range(
-    ratio: float, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A keep ratio outside [0, 1] fails at construction."""
-    bad_tuning = dict(RingEdgeNav.tuning)
-    bad_tuning['coarse_strength_keep_ratio'] = ratio
-    monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='coarse_strength_keep_ratio must lie in'):
-        RingEdgeNav()
-
-
-@pytest.mark.parametrize('margin', [-1, 2.5], ids=['negative', 'fractional'])
-def test_ring_edge_nav_rejects_a_coarse_sensor_margin_that_is_not_a_count(
-    margin: float, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A negative or fractional margin raises instead of being truncated."""
-    bad_tuning = dict(RingEdgeNav.tuning)
-    bad_tuning['coarse_sensor_margin_px'] = margin
-    monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='coarse_sensor_margin_px must be a non-negative'):
-        RingEdgeNav()
-
-
 def _seed_with(
     monkeypatch: pytest.MonkeyPatch, *, overlap_strength: float, best_strength: float
 ) -> CoarseSearchResult:
@@ -150,7 +126,7 @@ def test_coarse_seed_keeps_the_overlap_seed_at_or_above_the_keep_ratio(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The keep ratio is inclusive, and a frame with no strength anywhere keeps the overlap seed."""
-    keep = RingEdgeNav()._coarse_strength_keep_ratio
+    keep = RingEdgeNav.tuning.coarse_strength_keep_ratio
     overlap_strength, best_strength = {
         'at_ratio': (keep, 1.0),
         'just_below': (float(np.nextafter(keep, 0.0)), 1.0),

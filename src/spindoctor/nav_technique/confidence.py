@@ -18,6 +18,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
+from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, RuleError, Str, Unit
+
 __all__ = [
     'ConfidenceBreakdown',
     'ConfidenceSpec',
@@ -26,134 +28,72 @@ __all__ = [
     'evaluate_sigmoid_combination',
 ]
 
-_NumberType = (int, float)
-
 
 @dataclass(frozen=True)
 class ConfidenceTerm:
     """One term in the sigmoid-of-linear-combination formula.
 
+    A term is one entry of a technique block's ``terms`` list, which the schema core
+    parses when the configuration loads.
+
     Parameters:
         feature: Name of the diagnostic-dataclass attribute supplying the
             raw value.
         alpha: Linear-combination coefficient.
-        offset: Subtracted from the raw value before scaling.
-        divisor: Raw value is divided by this after offset (default 1).
-            Must be non-zero.
-        cap_at: Optional upper bound on the post-scale value (clamped to
-            ``[0, cap_at]`` if set).  When set, must lie in ``[0, 1]``.
+        offset: Subtracted from the raw value before scaling.  A term that leaves it
+            out shifts nothing.
+        divisor: Divides the raw value after the offset.  A term that leaves it out
+            scales nothing.  Must be non-zero.
+        cap_at: Upper bound on the scaled value, which is then clamped to
+            ``[0, cap_at]``.  A term that leaves it out is not clamped.
 
     Raises:
-        TypeError: if ``alpha``, ``offset``, ``divisor``, or ``cap_at``
-            is not numeric.
-        ValueError: if ``divisor`` is zero or ``cap_at`` is outside
-            ``[0, 1]``.
+        RuleError: If ``feature`` is blank or ``divisor`` is zero.
     """
 
-    feature: str
-    alpha: float
-    offset: float = 0.0
-    divisor: float = 1.0
-    cap_at: float | None = None
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    feature: Str
+    alpha: Float
+    offset: Float = 0.0
+    divisor: Float = 1.0
+    cap_at: Unit | None = None
 
     def __post_init__(self) -> None:
-        """Validate numeric types and divisor / cap_at ranges."""
-        if not isinstance(self.feature, str):
-            raise TypeError(
-                f'ConfidenceTerm.feature must be str; got {type(self.feature).__name__}'
-            )
+        """Refuse a blank attribute name and a zero divisor."""
         if not self.feature.strip():
-            raise ValueError('ConfidenceTerm.feature must be a non-empty string')
-        for name in ('alpha', 'offset', 'divisor'):
-            value = getattr(self, name)
-            if isinstance(value, bool) or not isinstance(value, _NumberType):
-                raise TypeError(
-                    f'ConfidenceTerm.{name} must be numeric; got {type(value).__name__}'
-                )
-            if not math.isfinite(value):
-                raise ValueError(f'ConfidenceTerm.{name} must be finite; got {value!r}')
+            raise RuleError('expected the name of a diagnostic attribute', at='feature')
         if self.divisor == 0.0:
-            raise ValueError('ConfidenceTerm.divisor must be non-zero')
-        if self.cap_at is not None:
-            if isinstance(self.cap_at, bool) or not isinstance(self.cap_at, _NumberType):
-                raise TypeError(
-                    f'ConfidenceTerm.cap_at must be numeric or None; got '
-                    f'{type(self.cap_at).__name__}'
-                )
-            if not math.isfinite(self.cap_at):
-                raise ValueError(f'ConfidenceTerm.cap_at must be finite; got {self.cap_at!r}')
-            if not 0.0 <= self.cap_at <= 1.0:
-                raise ValueError(f'ConfidenceTerm.cap_at must lie in [0, 1]; got {self.cap_at!r}')
+            raise RuleError('expected a non-zero divisor', at='divisor')
 
 
 @dataclass(frozen=True)
 class ConfidenceSpec:
     """Full confidence formula spec for one NavTechnique.
 
+    These are the confidence keys of a technique block, which the schema core parses
+    when the configuration loads (:mod:`spindoctor.nav_technique.confidence_config`).
+
     Parameters:
         alpha0: Constant term in the sigmoid argument.
-        terms: Tuple of ``ConfidenceTerm`` linear contributions.
-        hard_zero_if: Mapping of diagnostic-attribute names (str) to
-            expected boolean values; if any condition holds,
-            confidence = 0.
-        hard_cap: Optional upper-bound clamp applied after the sigmoid.
-            When set, must lie in ``[0, 1]``.
-
-    Raises:
-        TypeError: if ``alpha0`` is not numeric, ``terms`` is not a
-            tuple of ``ConfidenceTerm``, or ``hard_zero_if`` is not a
-            mapping of ``str`` to ``bool``.
-        ValueError: if ``hard_cap`` is outside ``[0, 1]``.
+        terms: The linear terms.  A block that leaves the key out has none.
+        hard_zero_if: Mapping of diagnostic-attribute names to expected boolean values;
+            if any condition holds, confidence = 0.  A block that leaves the key out
+            has none.
+        hard_cap: Upper-bound clamp applied after the sigmoid.  A block that leaves it
+            out is not clamped.
     """
 
-    alpha0: float
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    alpha0: Float
     terms: tuple[ConfidenceTerm, ...] = ()
-    hard_zero_if: dict[str, bool] = field(default_factory=dict)
-    hard_cap: float | None = None
+    hard_zero_if: dict[Str, Bool] = field(default_factory=dict)
+    hard_cap: Unit | None = None
 
     def __post_init__(self) -> None:
-        """Validate types and ranges of every field."""
-        if isinstance(self.alpha0, bool) or not isinstance(self.alpha0, _NumberType):
-            raise TypeError(
-                f'ConfidenceSpec.alpha0 must be numeric; got {type(self.alpha0).__name__}'
-            )
-        if not isinstance(self.terms, tuple):
-            raise TypeError(
-                f'ConfidenceSpec.terms must be a tuple; got {type(self.terms).__name__}'
-            )
-        for term in self.terms:
-            if not isinstance(term, ConfidenceTerm):
-                raise TypeError(
-                    'ConfidenceSpec.terms entries must be ConfidenceTerm; '
-                    f'got {type(term).__name__}'
-                )
-        if not isinstance(self.hard_zero_if, dict):
-            raise TypeError(
-                'ConfidenceSpec.hard_zero_if must be a dict; '
-                f'got {type(self.hard_zero_if).__name__}'
-            )
-        for key, value in self.hard_zero_if.items():
-            if not isinstance(key, str):
-                raise TypeError(
-                    f'ConfidenceSpec.hard_zero_if keys must be str; got {type(key).__name__}'
-                )
-            if not isinstance(value, bool):
-                raise TypeError(
-                    f'ConfidenceSpec.hard_zero_if[{key!r}] must be bool; got {type(value).__name__}'
-                )
-        # Defensive shallow copy so the caller cannot mutate the
-        # frozen dataclass's hard_zero_if dict after construction.
+        """Keep a copy of ``hard_zero_if``, so the caller cannot change it afterward."""
         object.__setattr__(self, 'hard_zero_if', dict(self.hard_zero_if))
-        if self.hard_cap is not None:
-            if isinstance(self.hard_cap, bool) or not isinstance(self.hard_cap, _NumberType):
-                raise TypeError(
-                    f'ConfidenceSpec.hard_cap must be numeric or None; got '
-                    f'{type(self.hard_cap).__name__}'
-                )
-            if not 0.0 <= self.hard_cap <= 1.0:
-                raise ValueError(
-                    f'ConfidenceSpec.hard_cap must lie in [0, 1]; got {self.hard_cap!r}'
-                )
 
 
 def _sigmoid(x: float) -> float:

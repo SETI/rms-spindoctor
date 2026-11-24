@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 import pdslogger
 import pytest
-from tests.packaged_sections import packaged_tree_tuning
+from tests.packaged_sections import packaged_tree_tuning, preserved_technique_settings
 
 from spindoctor.cli.results_index import IngestCounts, ingest_metadata_files
 from spindoctor.config import Config
@@ -343,6 +343,7 @@ def upsample_override_config(tmp_path: Path) -> Config:
         f'offset:\n  correlation_fft_upsample_factor: {OVERRIDDEN_UPSAMPLE_FACTOR}\n'
     )
     config = Config()
-    config.read_config()
-    config.update_config(override)
+    with preserved_technique_settings():
+        config.read_config()
+        config.update_config(override)
     return config

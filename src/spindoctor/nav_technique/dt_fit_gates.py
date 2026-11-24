@@ -28,20 +28,18 @@ layer over that machinery's health signals.  Three signals feed it:
   ships as plumbing plus a conservative default; a library-calibrated
   threshold lock is separate follow-on calibration work.
 
-All thresholds are per-technique config
-(``techniques.<name>.tuning`` in ``config_510_techniques.yaml``); the config
-dataclass fails fast on a missing key, matching the techniques' own tuning
-pattern.
+All thresholds are per-technique tuning keys (``techniques.<key>.tuning`` in
+``config_510_techniques.yaml``).  :class:`DTFitGateConfig` declares them, and each DT
+technique's tuning type extends it (:class:`~spindoctor.nav_technique.dt_tuning.DTTuning`),
+so a technique passes its own tuning as the gate configuration.
 """
 
 from __future__ import annotations
 
-import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any
 
 from spindoctor.nav_technique.dt_fitting import LMRefineResult
+from spindoctor.schema import SCHEMA_CONFIG, Unit
 
 __all__ = [
     'DTFitGateConfig',
@@ -52,7 +50,7 @@ __all__ = [
 
 @dataclass(frozen=True)
 class DTFitGateConfig:
-    """Config thresholds for the shared DT fit-quality gates.
+    """The tuning keys of the shared DT fit-quality gates.
 
     Parameters:
         lm_unconverged_confidence_cap: Post-sigmoid confidence cap applied
@@ -73,47 +71,12 @@ class DTFitGateConfig:
             fit spurious: the acquisition never had a lock.
     """
 
-    lm_unconverged_confidence_cap: float
-    spurious_max_polarity_rejection_fraction: float
-    spurious_unconverged_polarity_rejection_fraction: float
-    spurious_min_coarse_peak_fraction: float
+    __pydantic_config__ = SCHEMA_CONFIG
 
-    def __post_init__(self) -> None:
-        """Validate ranges: cap in [0, 1], fractions in [0, 1]."""
-        for name in (
-            'lm_unconverged_confidence_cap',
-            'spurious_max_polarity_rejection_fraction',
-            'spurious_unconverged_polarity_rejection_fraction',
-            'spurious_min_coarse_peak_fraction',
-        ):
-            value = float(getattr(self, name))
-            if not math.isfinite(value) or not 0.0 <= value <= 1.0:
-                raise ValueError(f'DTFitGateConfig.{name} must be in [0, 1]; got {value!r}')
-
-    @classmethod
-    def from_tuning(cls, tuning: Mapping[str, Any]) -> DTFitGateConfig:
-        """Read the gate thresholds from a technique's YAML ``tuning`` mapping.
-
-        Missing-key access is a ``KeyError`` so a config typo fails fast at
-        process startup, matching the techniques' own tuning pattern.
-
-        Parameters:
-            tuning: The technique's ``tuning`` mapping from
-                ``config_510_techniques.yaml``.
-
-        Returns:
-            The validated gate config.
-        """
-        return cls(
-            lm_unconverged_confidence_cap=float(tuning['lm_unconverged_confidence_cap']),
-            spurious_max_polarity_rejection_fraction=float(
-                tuning['spurious_max_polarity_rejection_fraction']
-            ),
-            spurious_unconverged_polarity_rejection_fraction=float(
-                tuning['spurious_unconverged_polarity_rejection_fraction']
-            ),
-            spurious_min_coarse_peak_fraction=float(tuning['spurious_min_coarse_peak_fraction']),
-        )
+    lm_unconverged_confidence_cap: Unit
+    spurious_max_polarity_rejection_fraction: Unit
+    spurious_unconverged_polarity_rejection_fraction: Unit
+    spurious_min_coarse_peak_fraction: Unit
 
 
 @dataclass(frozen=True)

@@ -689,7 +689,7 @@ def test_load_user_default_preserves_bundled_siblings(
     config = Config()
     load_default_and_user_config(argparse.Namespace(), config)
     assert config.general.truetype_font_dir == '/user/fonts'
-    assert config.logging['other']['annotate'] == 'ERROR'
+    assert config.logging.other['annotate'] == 'ERROR'
 
 
 def test_load_explicit_config_files_apply_in_order(

@@ -14,8 +14,11 @@ Concrete subclasses self-register via ``__init_subclass__`` and are discovered b
 orchestrator through ``NavTechnique._registry``. Each
 technique declares its accepted feature types, whether it requires a pass-1 prior, and the
 attribute set its confidence formula may read. Per-technique tunables and confidence-formula
-coefficients live in ``techniques.<TechniqueName>`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``.
+coefficients live in the technique's block of the ``techniques`` section in
+``src/spindoctor/config_files/config_510_techniques.yaml``, which is parsed when the
+configuration loads (see :ref:`config-techniques-section`). A technique whose tuning is
+typed declares ``Tuning``, a frozen dataclass of its tuning keys, and its block is keyed
+by its snake_case key, as in ``body_limb``.
 
 Two cross-cutting kinds of pages live under this section:
 

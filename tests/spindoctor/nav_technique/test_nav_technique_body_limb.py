@@ -20,17 +20,17 @@ from spindoctor.nav_technique.nav_technique_body_limb import BodyLimbNav
 # Tests pull these values from the technique's loaded YAML tuning so a
 # config edit retunes the assertions automatically.  The values must be
 # read AFTER ``Config.read_config()`` runs (BodyLimbNav.__init__ calls
-# it) so the class-level ``BodyLimbNav.tuning`` dict is populated.
+# it) so the class-level ``BodyLimbNav.tuning`` is set.
 BodyLimbNav()  # populates BodyLimbNav.tuning via Config.read_config
-LIMB_MIN_ARC_PX = BodyLimbNav.tuning['min_arc_vertices']
-SPURIOUS_MIN_INLIER_FRACTION = BodyLimbNav.tuning['spurious_min_inlier_fraction']
-SPURIOUS_MAX_LM_DISPLACEMENT_PX = BodyLimbNav.tuning['spurious_max_lm_displacement_px']
-SPURIOUS_DT_FLOOR_PX = BodyLimbNav.tuning['spurious_dt_floor_px']
-SPURIOUS_DT_RMS_FACTOR = BodyLimbNav.tuning['spurious_dt_rms_factor']
-SPURIOUS_UNCONVERGED_TRUST_BOUNDARY_FRACTION = BodyLimbNav.tuning[
-    'spurious_unconverged_trust_boundary_fraction'
-]
-LM_TRUST_REGION_PX = BodyLimbNav.tuning['lm_trust_region_px']
+LIMB_MIN_ARC_PX = BodyLimbNav.tuning.min_arc_vertices
+SPURIOUS_MIN_INLIER_FRACTION = BodyLimbNav.tuning.spurious_min_inlier_fraction
+SPURIOUS_MAX_LM_DISPLACEMENT_PX = BodyLimbNav.tuning.spurious_max_lm_displacement_px
+SPURIOUS_DT_FLOOR_PX = BodyLimbNav.tuning.spurious_dt_floor_px
+SPURIOUS_DT_RMS_FACTOR = BodyLimbNav.tuning.spurious_dt_rms_factor
+SPURIOUS_UNCONVERGED_TRUST_BOUNDARY_FRACTION = (
+    BodyLimbNav.tuning.spurious_unconverged_trust_boundary_fraction
+)
+LM_TRUST_REGION_PX = BodyLimbNav.tuning.lm_trust_region_px
 
 
 def test_body_limb_nav_recovers_planted_offset_single_body(
@@ -199,7 +199,7 @@ def test_body_limb_nav_at_edge_when_offset_walks_outside_search_window(
     context = make_nav_context(image, extfov_margin_vu=(margin_v, margin_u))
     result = technique.navigate([feature], context)
     dv, _du = result.offset_px
-    at_edge_tolerance_px = float(technique._at_edge_tolerance_px)
+    at_edge_tolerance_px = technique.tuning.at_edge_tolerance_px
     # The fit converged at or past the V-axis margin (the regression case).
     assert abs(dv) >= float(margin_v) - at_edge_tolerance_px
     assert result.at_edge is True
@@ -394,7 +394,7 @@ def test_body_limb_nav_3dof_at_edge_when_rotation_saturates(
     # Force a converged LM rotation right at the configured at-edge
     # fraction of the cap so the test stays valid if calibration retunes
     # ``rotation_at_edge_fraction`` per technique.
-    rotation_fraction = float(BodyLimbNav.tuning['rotation_at_edge_fraction'])
+    rotation_fraction = float(BodyLimbNav.tuning.rotation_at_edge_fraction)
     forged_rotation_rad = float(np.deg2rad(rotation_fraction * max_rotation_deg))
     forged_result = dt_fitting.LMRefineResult(
         offset_vu=(0.0, 0.0),

@@ -96,9 +96,12 @@ def _load_sim(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarra
 def _shipped_anchors() -> np.ndarray:
     """The alphas currently in ``config_510_techniques.yaml``, ordered by TERMS."""
     from spindoctor.config import DEFAULT_CONFIG
-    from spindoctor.nav_technique.confidence_config import load_confidence_spec
+    from spindoctor.nav_technique import TitanHazeNav
 
-    spec = load_confidence_spec(DEFAULT_CONFIG.category('techniques'), TECHNIQUE)
+    DEFAULT_CONFIG.read_config()
+    # Read the parsed configuration, not the class attribute, which follows whichever
+    # configuration was installed last.
+    spec = DEFAULT_CONFIG.techniques.block(TitanHazeNav).confidence_spec()
     by_feature = {term.feature: term.alpha for term in spec.terms}
     return np.array([spec.alpha0] + [by_feature[name] for name, *_ in TERMS])
 

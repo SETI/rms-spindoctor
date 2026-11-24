@@ -101,7 +101,6 @@ with this number rather than a level name.
 """
 
 _CATEGORY_DEFAULT_KEY = 'default'
-_PROGRAMS_KEY = 'programs'
 
 
 @dataclass(frozen=True)
@@ -113,8 +112,8 @@ class LogLevels:
         image: Level for the image logger, and for any image-scoped module
             with no override of its own.
         modules: Level per module key, for the modules that override the
-            image level.  Keys are the snake_case names validated by
-            :mod:`spindoctor.config.logging_keys`.
+            image level.  Keys are the snake_case names the
+            :class:`~spindoctor.config.logging_keys.LoggingSection` accepts.
     """
 
     main: str = DEFAULT_LEVEL
@@ -210,19 +209,21 @@ class LogSinks:
 
 
 def _level_or_none(value: Any, location: str) -> str | None:
-    """Return a canonicalized level name, or None when nothing was configured.
+    """Return a canonicalized command-line level, or None when none was given.
+
+    The configuration's levels are checked and canonicalized when it loads, so only
+    a command-line level comes through here.
 
     Parameters:
-        value: A configured or command-line level, possibly absent.
+        value: A command-line level, possibly absent.
         location: What supplied the value, used in the error message.
 
     Returns:
         The canonical level name, or None if ``value`` is absent.
 
     Raises:
-        ValueError: If ``value`` names no known level.  The configuration side
-            is checked at load; this catches the command-line side, which
-            would otherwise reach pdslogger as a bare ``KeyError``.
+        ValueError: If ``value`` names no known level, which would otherwise reach
+            pdslogger as a bare ``KeyError``.
     """
     if value is None:
         return None
@@ -252,41 +253,6 @@ def _first_set(*candidates: str | None) -> str:
     return DEFAULT_LEVEL
 
 
-def _merged_logging_block(program_name: str, config: 'Config') -> dict[str, Any]:
-    """Return the logging configuration in force for one program.
-
-    The top-level block is merged with that program's block under
-    ``programs``, the program's value winning key by key.  Categories merge a
-    level deeper, so a program can override one module without restating the
-    rest of the category.
-
-    Parameters:
-        program_name: The program's identity, as declared by its dispatch
-            module.
-        config: The loaded configuration.
-
-    Returns:
-        A mapping in the shape of the top-level ``logging`` block, with the
-        ``programs`` key removed.
-    """
-    section = config.logging
-    block: dict[str, Any] = {k: v for k, v in dict(section).items() if k != _PROGRAMS_KEY}
-    for key in CATEGORY_KEYS:
-        if isinstance(block.get(key), dict):
-            block[key] = dict(block[key])
-
-    overrides = dict(section).get(_PROGRAMS_KEY) or {}
-    program_block = overrides.get(program_name) or {}
-    for key, value in dict(program_block).items():
-        if key in CATEGORY_KEYS and isinstance(value, dict):
-            merged = dict(block.get(key) or {})
-            merged.update(dict(value))
-            block[key] = merged
-        else:
-            block[key] = value
-    return block
-
-
 def resolve_log_levels(
     program_name: str,
     arguments: argparse.Namespace | None,
@@ -310,33 +276,21 @@ def resolve_log_levels(
     Returns:
         The resolved :class:`LogLevels`.
     """
-    block = _merged_logging_block(program_name, config)
+    section = config.logging.for_program(program_name)
 
     cli_global, cli_modules = _parse_log_level_arguments(arguments)
     cli_main = _level_or_none(getattr(arguments, 'log_level_main', None), '--log-level-main')
     cli_image = _level_or_none(getattr(arguments, 'log_level_image', None), '--log-level-image')
 
-    main = _first_set(
-        cli_main, cli_global, _level_or_none(block.get('main'), 'logging.main'), DEFAULT_LEVEL
-    )
-    image = _first_set(
-        cli_image, cli_global, _level_or_none(block.get('image'), 'logging.image'), DEFAULT_LEVEL
-    )
+    main = _first_set(cli_main, cli_global, section.main)
+    image = _first_set(cli_image, cli_global, section.image)
 
     modules: dict[str, str] = {}
-    for category in CATEGORY_KEYS:
-        entries = block.get(category)
-        if not isinstance(entries, dict):
-            continue
-        category_default = _level_or_none(
-            entries.get(_CATEGORY_DEFAULT_KEY), f'logging.{category}.default'
+    for category, entries in section.categories().items():
+        category_default = entries.get(_CATEGORY_DEFAULT_KEY)
+        modules.update(
+            (key, level) for key, level in entries.items() if key != _CATEGORY_DEFAULT_KEY
         )
-        for key, value in entries.items():
-            if key == _CATEGORY_DEFAULT_KEY:
-                continue
-            level = _level_or_none(value, f'logging.{category}.{key}')
-            if level is not None:
-                modules[key] = level
         if category_default is not None:
             # Applies to every module in the category that did not name itself.
             # Recorded per known key rather than as a category-wide entry so
@@ -734,14 +688,13 @@ def sinks_from_arguments(
     """
     root = absolute_log_root(log_root)
     defaults = LogSinks(log_root=root)
-    block = _merged_logging_block(program_name, config) if config is not None else {}
+    section = config.logging.for_program(program_name) if config is not None else None
 
-    def console(argument_name: str, config_key: str, default: bool) -> bool:
+    def console(argument_name: str, configured: bool | None, default: bool) -> bool:
         from_arguments = getattr(arguments, argument_name, None)
         if from_arguments is not None:
             return bool(from_arguments)
-        configured = block.get(config_key)
-        return default if configured is None else bool(configured)
+        return default if configured is None else configured
 
     def flag(name: str, default: bool) -> bool:
         value = getattr(arguments, name, None)
@@ -749,9 +702,17 @@ def sinks_from_arguments(
 
     return LogSinks(
         log_root=root,
-        main_console=console('log_main_to_console', 'main_console', defaults.main_console),
+        main_console=console(
+            'log_main_to_console',
+            None if section is None else section.main_console,
+            defaults.main_console,
+        ),
         main_file=flag('log_main_to_file', defaults.main_file),
-        image_console=console('log_image_to_console', 'image_console', defaults.image_console),
+        image_console=console(
+            'log_image_to_console',
+            None if section is None else section.image_console,
+            defaults.image_console,
+        ),
         image_file=flag('log_image_to_file', defaults.image_file),
     )
 

@@ -4,7 +4,6 @@ import os
 from filecache import FCPath
 
 from .config import Config
-from .logging_keys import validate_logging_config
 
 RESULTS_INDEX_DB_NONE = 'none'
 """Value of the results index URL that makes :func:`get_results_index_db_url` answer None.
@@ -224,10 +223,9 @@ def get_results_index_db_url(arguments: argparse.Namespace, config: Config) -> s
 def load_default_and_user_config(arguments: argparse.Namespace, config: Config) -> None:
     """Load the default and user configuration (if any).
 
-    The merged result's ``logging`` section is validated before returning, so a
-    misspelled module key, program name, or level name fails here rather than having
-    no effect at the point it was meant to apply.  The typed sections, ``results_tree``
-    among them, are checked as each file is merged.
+    The typed sections are checked as each file is merged, so a misspelled key, a
+    value of the wrong type, or a value no pass can run at fails here rather than having
+    no effect at the point it was meant to apply.
 
     A named file that cannot be read is not skipped in favor of the defaults;
     ``Config``'s own diagnostic propagates, so a missing file still raises
@@ -241,8 +239,7 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
         config: The configuration to update.
 
     Raises:
-        SchemaError: If a file breaks a typed section's schema.
-        ValueError: If the merged ``logging`` section is not valid.
+        SchemaError: If a file breaks the schema of a typed section.
     """
     config.read_config()
     # If the user specified one or more config files, load them; if they didn't,
@@ -259,4 +256,3 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
             config.update_config('nav_default_config.yaml')
         except FileNotFoundError:
             pass
-    validate_logging_config(config)

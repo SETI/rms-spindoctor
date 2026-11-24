@@ -5,8 +5,10 @@ that needs a section takes the packaged one from here and changes only the field
 about, so it never restates a value.
 """
 
+import contextlib
 import dataclasses
 import functools
+from collections.abc import Iterator
 from typing import Any
 
 import pytest
@@ -20,17 +22,14 @@ from spindoctor.nav_technique.nav_technique import NavTechnique
 _TECHNIQUE_SETTINGS = ('confidence_spec', 'tuning')
 
 
-@functools.cache
-def packaged_sections() -> TypedSections:
-    """Return the typed sections of the packaged configuration.
-
-    The packaged files are read once per process, into a configuration of their own,
-    so no override another test applies to the shared configuration reaches it.
+@contextlib.contextmanager
+def preserved_technique_settings() -> Iterator[None]:
+    """Put the technique classes' settings back as they were when the block exits.
 
     Loading a configuration assigns each registered technique class its confidence
-    specification and tuning, which every configuration shares. The load here puts
-    back the settings the classes held before it, so a technique override another
-    test applied survives.
+    specification and tuning, which every configuration shares.  A test helper that
+    loads a configuration of its own wraps the load in this, so a technique override
+    another test applied survives.
     """
     saved = [
         (cls, name, cls.__dict__[name])
@@ -45,13 +44,25 @@ def packaged_sections() -> TypedSections:
         if name not in cls.__dict__
     ]
     try:
-        return Config()._parsed()
+        yield
     finally:
         for cls, name, value in saved:
             setattr(cls, name, value)
         for cls, name in unset:
             if name in cls.__dict__:
                 delattr(cls, name)
+
+
+@functools.cache
+def packaged_sections() -> TypedSections:
+    """Return the typed sections of the packaged configuration.
+
+    The packaged files are read once per process, into a configuration of their own,
+    so no override another test applies to the shared configuration reaches it.  The
+    load leaves the technique classes' settings as it found them.
+    """
+    with preserved_technique_settings():
+        return Config()._parsed()
 
 
 def packaged_tree_tuning(**changes: Any) -> TreeTuning:

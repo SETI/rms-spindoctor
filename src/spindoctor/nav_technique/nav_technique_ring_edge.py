@@ -13,7 +13,8 @@ body blob) before declaring a final answer.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 from scipy.ndimage import binary_erosion
@@ -24,7 +25,7 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import RingEdgePolyline
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
-from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
+from spindoctor.nav_technique.dt_fit_gates import evaluate_dt_fit_gates
 from spindoctor.nav_technique.dt_fitting import (
     CoarseSearchResult,
     _rotate_directions,
@@ -35,6 +36,7 @@ from spindoctor.nav_technique.dt_fitting import (
     edge_strength_score,
     lm_subpixel_refine,
 )
+from spindoctor.nav_technique.dt_tuning import DTTuning
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
@@ -60,18 +62,13 @@ from spindoctor.nav_technique.ring_edge_stats import (
     _per_edge_rms_summed,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.schema import SCHEMA_CONFIG, Bool, NonNeg, NonNegInt, Positive, Unit
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['RingEdgeNav', 'aggregate_edge_normal_angle_deg']
-
-# All numeric tunables for this technique live in
-# ``config_files/config_510_techniques.yaml`` under
-# ``techniques.RingEdgeNav.tuning``.  No Python-level fallback;
-# missing-key access in ``__init__`` is a KeyError so a config typo
-# fails fast at process startup.
+__all__ = ['RingEdgeNav', 'RingEdgeTuning', 'aggregate_edge_normal_angle_deg']
 
 
 def _aggregate_ring_edges(
@@ -128,6 +125,44 @@ def _aggregate_ring_edges(
     return vertices, normals, sigmas, ids, (every_straight if seen_any else False)
 
 
+@dataclass(frozen=True)
+class RingEdgeTuning(DTTuning):
+    """The tuning keys of :class:`RingEdgeNav`, beyond those every DT technique holds.
+
+    Parameters:
+        spurious_waiver_min_well_fit_edges: The fewest edges that must each pass the
+            inlier tests on their own vertices for the inlier-fraction veto to be
+            waived.
+        spurious_waiver_absent_median_px: For the waiver, every other edge's median DT
+            residual must be at least this many pixels, so it is absent from the
+            image rather than misaligned.
+        spurious_waiver_sigma_floor_px: The sigma floor in pixels added in quadrature
+            to the translation covariance of a fit the waiver lets through.
+        edge_localization_sigma_px: How well the binary edge mask places an edge, in
+            pixels, added in quadrature to each vertex's model sigma.
+        gradient_ridge_refine: Whether the gradient-ridge refinement runs after the LM.
+        coarse_sensor_margin_px: Detected edges within this many pixels inside the
+            sensor boundary are left out of the edge-strength scores.
+        spurious_min_edge_strength_fraction: A converged fit whose matched edges have a
+            median strength below this fraction of the frame's strongest edges is
+            spurious.
+        coarse_strength_keep_ratio: The mask-overlap seed is kept unless its
+            edge-strength score falls below this fraction of the strongest score in
+            the search window.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    spurious_waiver_min_well_fit_edges: NonNegInt
+    spurious_waiver_absent_median_px: NonNeg
+    spurious_waiver_sigma_floor_px: NonNeg
+    edge_localization_sigma_px: Positive
+    gradient_ridge_refine: Bool
+    coarse_sensor_margin_px: NonNegInt
+    spurious_min_edge_strength_fraction: Unit
+    coarse_strength_keep_ratio: Unit
+
+
 class RingEdgeNav(NavTechnique):
     """Ring-edge DT-based translation fit.
 
@@ -137,6 +172,8 @@ class RingEdgeNav(NavTechnique):
     """
 
     name = 'RingEdgeNav'
+    Tuning = RingEdgeTuning
+    tuning: ClassVar[RingEdgeTuning]
     accepts_feature_types = frozenset({NavFeatureType.RING_EDGE})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -152,84 +189,14 @@ class RingEdgeNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
-        """Read the technique's tunables from config.
+        """Load the configuration, which sets the technique's tuning.
 
         Parameters:
             config: Optional ``Config`` override; ``None`` uses
                 ``DEFAULT_CONFIG``.
-
-        Raises:
-            KeyError: If any tuning key is missing, so a config typo fails
-                at process startup rather than mid-image.
-            ValueError: If ``edge_localization_sigma_px`` is not a finite
-                number greater than zero (zero is physically meaningless
-                against a half-pixel-quantized edge mask, and a
-                non-numeric value would otherwise fail far from the
-                config that caused it), if ``coarse_sensor_margin_px`` is
-                not a non-negative integer, or if
-                ``spurious_min_edge_strength_fraction`` or
-                ``coarse_strength_keep_ratio`` lies outside ``[0, 1]``.
         """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        self._spurious_dt_rms_factor = float(self.tuning['spurious_dt_rms_factor'])
-        self._spurious_dt_floor_px = float(self.tuning['spurious_dt_floor_px'])
-        self._spurious_min_inliers = int(self.tuning['spurious_min_inliers'])
-        self._spurious_min_inlier_fraction = float(self.tuning['spurious_min_inlier_fraction'])
-        self._spurious_waiver_min_well_fit_edges = int(
-            self.tuning['spurious_waiver_min_well_fit_edges']
-        )
-        self._spurious_waiver_absent_median_px = float(
-            self.tuning['spurious_waiver_absent_median_px']
-        )
-        self._spurious_waiver_sigma_floor_px = float(self.tuning['spurious_waiver_sigma_floor_px'])
-        self._spurious_max_lm_displacement_px = float(
-            self.tuning['spurious_max_lm_displacement_px']
-        )
-        raw_edge_sigma = self.tuning['edge_localization_sigma_px']
-        try:
-            self._edge_localization_sigma_px = float(raw_edge_sigma)
-        except (TypeError, ValueError, OverflowError) as err:
-            # Name the type, not the value: an oversized int's repr can
-            # itself exceed the interpreter's integer-string digit limit.
-            raise ValueError(
-                'RingEdgeNav.edge_localization_sigma_px must be a finite number > 0; '
-                f'got an unconvertible {type(raw_edge_sigma).__name__} value'
-            ) from err
-        if not math.isfinite(self._edge_localization_sigma_px) or (
-            self._edge_localization_sigma_px <= 0.0
-        ):
-            raise ValueError(
-                'RingEdgeNav.edge_localization_sigma_px must be a finite number > 0; '
-                f'got {self._edge_localization_sigma_px!r}'
-            )
-        self._lm_trust_region_px = float(self.tuning['lm_trust_region_px'])
-        self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
-        self._gradient_ridge_refine = bool(self.tuning['gradient_ridge_refine'])
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        raw_margin = self.tuning['coarse_sensor_margin_px']
-        if isinstance(raw_margin, bool) or not isinstance(raw_margin, int) or raw_margin < 0:
-            raise ValueError(
-                'RingEdgeNav.coarse_sensor_margin_px must be a non-negative integer; '
-                f'got {raw_margin!r}'
-            )
-        self._coarse_sensor_margin_px = raw_margin
-        self._spurious_min_edge_strength_fraction = float(
-            self.tuning['spurious_min_edge_strength_fraction']
-        )
-        if not 0.0 <= self._spurious_min_edge_strength_fraction <= 1.0:
-            raise ValueError(
-                'RingEdgeNav.spurious_min_edge_strength_fraction must lie in [0, 1]; '
-                f'got {self._spurious_min_edge_strength_fraction!r}'
-            )
-        self._coarse_strength_keep_ratio = float(self.tuning['coarse_strength_keep_ratio'])
-        if not 0.0 <= self._coarse_strength_keep_ratio <= 1.0:
-            raise ValueError(
-                'RingEdgeNav.coarse_strength_keep_ratio must lie in [0, 1]; '
-                f'got {self._coarse_strength_keep_ratio!r}'
-            )
-        self._dt_gate_config = DTFitGateConfig.from_tuning(self.tuning)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable ring edge.
@@ -313,7 +280,7 @@ class RingEdgeNav(NavTechnique):
             # Combining them in quadrature is what keeps the robust weighting
             # measuring model agreement rather than pixel phase; see
             # ``edge_localization_sigma_px`` in the technique config.
-            sigmas = np.hypot(sigmas, self._edge_localization_sigma_px)
+            sigmas = np.hypot(sigmas, self.tuning.edge_localization_sigma_px)
             self.logger.debug(
                 'Aggregated %d ring-edge vertices, model sigma_radial range '
                 '[%.3f, %.3f] px, fit residual scale range [%.3f, %.3f] px after '
@@ -323,7 +290,7 @@ class RingEdgeNav(NavTechnique):
                 model_sigma_max,
                 float(sigmas.min()) if sigmas.size else 0.0,
                 float(sigmas.max()) if sigmas.size else 0.0,
-                self._edge_localization_sigma_px,
+                self.tuning.edge_localization_sigma_px,
                 margin_v,
                 margin_u,
             )
@@ -331,8 +298,10 @@ class RingEdgeNav(NavTechnique):
             # measure: the step onto the zero-padded margin is usually the
             # strongest edge in the frame and says nothing about the rings.
             sensor_interior = (
-                binary_erosion(context.sensor_mask_ext, iterations=self._coarse_sensor_margin_px)
-                if self._coarse_sensor_margin_px > 0
+                binary_erosion(
+                    context.sensor_mask_ext, iterations=self.tuning.coarse_sensor_margin_px
+                )
+                if self.tuning.coarse_sensor_margin_px > 0
                 else context.sensor_mask_ext
             )
             coarse = self._coarse_seed(
@@ -360,14 +329,14 @@ class RingEdgeNav(NavTechnique):
                 fit_rotation=fit_rotation,
                 pivot_vu=pivot_vu if fit_rotation else None,
                 pivot_distance_px=pivot_distance,
-                trust_region_px=self._lm_trust_region_px,
-                tikhonov_alpha=self._lm_tikhonov_alpha,
-                final_gradient_ridge=self._gradient_ridge_refine,
+                trust_region_px=self.tuning.lm_trust_region_px,
+                tikhonov_alpha=self.tuning.lm_tikhonov_alpha,
+                final_gradient_ridge=self.tuning.gradient_ridge_refine,
             )
             dv_final, du_final = result.offset_vu
             max_rotation_rad = math.radians(context.max_rotation_deg)
             rotation_at_edge = fit_rotation and (
-                abs(result.rotation_rad) >= self._rotation_at_edge_fraction * max_rotation_rad
+                abs(result.rotation_rad) >= self.tuning.rotation_at_edge_fraction * max_rotation_rad
             )
             # See BodyLimbNav: ``>=`` covers both at-edge and over-edge cases
             # so an LM that walked past the coarse-NCC search window does
@@ -385,13 +354,13 @@ class RingEdgeNav(NavTechnique):
                 # Maximum reach of the search box along the normal.
                 bound_along_normal = abs(n_hat[0]) * margin_v + abs(n_hat[1]) * margin_u
                 at_edge = (
-                    offset_along_normal >= bound_along_normal - self._at_edge_tolerance_px
+                    offset_along_normal >= bound_along_normal - self.tuning.at_edge_tolerance_px
                     or rotation_at_edge
                 )
             else:
                 at_edge = (
-                    abs(dv_final) >= margin_v - self._at_edge_tolerance_px
-                    or abs(du_final) >= margin_u - self._at_edge_tolerance_px
+                    abs(dv_final) >= margin_v - self.tuning.at_edge_tolerance_px
+                    or abs(du_final) >= margin_u - self.tuning.at_edge_tolerance_px
                     or rotation_at_edge
                 )
             sigma_min_px = float(sigmas.min()) if sigmas.size else 1.0
@@ -461,8 +430,8 @@ class RingEdgeNav(NavTechnique):
             rejected: list[_EdgeFitStat] = []
             for stat in edge_stats:
                 if (
-                    stat.inlier_count >= self._spurious_min_inliers
-                    and stat.inlier_fraction >= self._spurious_min_inlier_fraction
+                    stat.inlier_count >= self.tuning.spurious_min_inliers
+                    and stat.inlier_fraction >= self.tuning.spurious_min_inlier_fraction
                 ):
                     well_fit.append(stat)
                 else:
@@ -481,14 +450,14 @@ class RingEdgeNav(NavTechnique):
             )
             veto_waived = (
                 len(edge_stats) >= 2
-                and len(well_fit) >= self._spurious_waiver_min_well_fit_edges
+                and len(well_fit) >= self.tuning.spurious_waiver_min_well_fit_edges
                 and translation_full_rank
                 and all(
-                    stat.median_abs_residual_px >= self._spurious_waiver_absent_median_px
+                    stat.median_abs_residual_px >= self.tuning.spurious_waiver_absent_median_px
                     for stat in rejected
                 )
             )
-            inlier_fraction_low = inlier_fraction < self._spurious_min_inlier_fraction
+            inlier_fraction_low = inlier_fraction < self.tuning.spurious_min_inlier_fraction
             inlier_fraction_veto = inlier_fraction_low and not veto_waived
             if inlier_fraction_low and veto_waived:
                 self.logger.info(
@@ -496,10 +465,10 @@ class RingEdgeNav(NavTechnique):
                     'edges fit well independently and every rejected edge is absent from '
                     'the image (median |DT| >= %.1f px); waiving the mis-convergence veto',
                     inlier_fraction,
-                    self._spurious_min_inlier_fraction,
+                    self.tuning.spurious_min_inlier_fraction,
                     len(well_fit),
                     len(edge_stats),
-                    self._spurious_waiver_absent_median_px,
+                    self.tuning.spurious_waiver_absent_median_px,
                 )
             if every_straight:
                 # As with at_edge above: the tangent component of the
@@ -520,7 +489,7 @@ class RingEdgeNav(NavTechnique):
             # still apply.
             gate_verdict = evaluate_dt_fit_gates(
                 result,
-                self._dt_gate_config,
+                self.tuning,
                 coarse_peak_fraction=coarse.score,
                 total_vertex_count=total_vertices,
                 use_polarity=False,
@@ -548,7 +517,9 @@ class RingEdgeNav(NavTechnique):
                 (dv_final, du_final),
                 valid_mask=sensor_interior,
             )
-            faint_edge_veto = edge_strength_fraction < self._spurious_min_edge_strength_fraction
+            faint_edge_veto = (
+                edge_strength_fraction < self.tuning.spurious_min_edge_strength_fraction
+            )
             self.logger.debug(
                 "Matched edge strength is %.4f of the frame's strongest edges",
                 edge_strength_fraction,
@@ -558,19 +529,19 @@ class RingEdgeNav(NavTechnique):
                     "Matched edges are %.4f as strong as the frame's strongest, below "
                     'the %.4f floor: the fit found no ring edge; marking it spurious',
                     edge_strength_fraction,
-                    self._spurious_min_edge_strength_fraction,
+                    self.tuning.spurious_min_edge_strength_fraction,
                 )
             spurious = (
                 faint_edge_veto
                 or result.degenerate
                 or result.rms_px
                 > max(
-                    self._spurious_dt_floor_px,
-                    self._spurious_dt_rms_factor * sigma_min_px,
+                    self.tuning.spurious_dt_floor_px,
+                    self.tuning.spurious_dt_rms_factor * sigma_min_px,
                 )
-                or result.inlier_count < self._spurious_min_inliers
+                or result.inlier_count < self.tuning.spurious_min_inliers
                 or inlier_fraction_veto
-                or lm_displacement_px > self._spurious_max_lm_displacement_px
+                or lm_displacement_px > self.tuning.spurious_max_lm_displacement_px
                 or gate_verdict.spurious
             )
             rotation_rad: float | None
@@ -621,11 +592,13 @@ class RingEdgeNav(NavTechnique):
                 # convention) to keep the fix below the medium tier's
                 # sigma cap: it surfaces as a low-tier result and cannot
                 # outweigh a full-support fix in the ensemble.
-                covariance = add_model_error_floor(covariance, self._spurious_waiver_sigma_floor_px)
+                covariance = add_model_error_floor(
+                    covariance, self.tuning.spurious_waiver_sigma_floor_px
+                )
                 self.logger.info(
                     'Applying the spurious-waiver sigma floor of %.1f px to the '
                     'reported covariance',
-                    self._spurious_waiver_sigma_floor_px,
+                    self.tuning.spurious_waiver_sigma_floor_px,
                 )
             # Radial orbit-uncertainty channel: the LM covariance describes
             # the statistical lock onto the MODELED annulus; a catalog-orbit
@@ -786,7 +759,7 @@ class RingEdgeNav(NavTechnique):
             strongest.offset_vu[1],
             ratio,
         )
-        if ratio >= self._coarse_strength_keep_ratio:
+        if ratio >= self.tuning.coarse_strength_keep_ratio:
             return overlap
         self.logger.info(
             'Coarse overlap seed (%d, %d) lies on edges %.2f as strong as the strongest '
@@ -796,7 +769,7 @@ class RingEdgeNav(NavTechnique):
             ratio,
             strongest.offset_vu[0],
             strongest.offset_vu[1],
-            self._coarse_strength_keep_ratio,
+            self.tuning.coarse_strength_keep_ratio,
         )
         return strongest
 

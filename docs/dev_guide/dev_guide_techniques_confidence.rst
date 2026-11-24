@@ -98,14 +98,12 @@ of which term (or which hard-zero gate) drove the result down.
 Restrictions and assumptions
 ----------------------------
 
-- Term divisors must be strictly non-zero; the dataclass constructor rejects zero at config-load
-  time.
+- Term divisors must be strictly non-zero; a zero divisor is refused when the configuration
+  loads.
 - Caps, when set, must lie in :math:`[0, 1]`.
 - Every term's feature name and every hard-zero key must reference an attribute the diagnostics
-  object actually carries. The orchestrator's startup-time
-  :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walk catches
-  unknown attribute names before any image is processed; if a YAML spec references an unknown
-  field the process fails fast.
+  object actually carries. The loader refuses a block that refers to an attribute outside its
+  technique's allow-list, with the file and key path, before any image is processed.
 - The offset / divisor / cap transformation is dimensional but the framework is unit-agnostic —
   the YAML divisor must be quoted in the same units as the raw diagnostic value.
 
@@ -123,9 +121,15 @@ Configuration
 =============
 
 Confidence calibration is the *consumer* of YAML, not a producer. Every technique's
-confidence spec lives under ``techniques.<TechniqueName>`` in
-``src/spindoctor/config_files/config_510_techniques.yaml`` alongside its ``tuning`` block. The spec
-shape is:
+confidence spec lives in its block of the ``techniques`` section in
+``src/spindoctor/config_files/config_510_techniques.yaml``, alongside its ``tuning`` block. A
+technique whose tuning is typed has its block under its snake_case key, as in
+``techniques.body_limb``; the others keep their class name, as in ``techniques.BodyBlobNav``
+(see :ref:`config-techniques-section`). The loader parses each block through the schema core
+each time a configuration is installed, so a value of the wrong type or out of range, and an
+unknown key, are refused with the file and key path. The exception is a key inside the
+``tuning`` block of a technique whose tuning is not yet typed: that block is a mapping of
+numbers, so a misspelled key there is accepted and never read. The spec shape is:
 
 - ``alpha0`` — float (dimensionless). Baseline contribution to the sigmoid argument. Negative
   values pull the sigmoid below 0.5 by default; positive values push it above.
@@ -153,7 +157,7 @@ shape is:
   below 1.
 
 This module exposes no module-level numeric constants of its own; the spec values come from
-YAML and the runtime constructors validate them.
+YAML, and their types check them when the configuration loads.
 
 Implementation
 ==============
@@ -166,12 +170,14 @@ Source files:
   :class:`~spindoctor.nav_technique.confidence.ConfidenceTermContribution`, and
   :class:`~spindoctor.nav_technique.confidence.ConfidenceBreakdown` dataclasses plus the
   :func:`~spindoctor.nav_technique.confidence.evaluate_sigmoid_combination` evaluator.
-- ``src/spindoctor/nav_technique/confidence_config.py`` — YAML-to-:class:`~spindoctor.nav_technique.confidence.ConfidenceSpec`
-  loader used by :class:`~spindoctor.config.config.Config` at startup.
+- ``src/spindoctor/nav_technique/confidence_config.py`` — the ``techniques`` section's types:
+  :class:`~spindoctor.nav_technique.confidence_config.TechniqueBlock`, which adds the
+  allow-list rule to the confidence keys, and the functions that build each technique's block
+  type and the section's type from the technique registry.
+  :class:`~spindoctor.config.config.Config` parses the section and assigns each technique its
+  :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.confidence_spec`.
 - ``src/spindoctor/nav_technique/nav_technique.py`` —
-  :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` and
-  :func:`~spindoctor.nav_technique.nav_technique.log_confidence_breakdown`, the orchestrator-side
-  validation and logging helpers.
+  :func:`~spindoctor.nav_technique.nav_technique.log_confidence_breakdown`, the logging helper.
 
 Public surface (autodocumented at :doc:`/api_reference/api_nav_technique`):
 
@@ -231,18 +237,15 @@ Call path traced through
    whether the cap fired in the breakdown.
 6. Return the calibrated confidence (and the breakdown when requested).
 
-The orchestrator-side helpers are:
+The allow-list check and the logging helper:
 
-- :func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` — invoked at
-  config-load time. Walks every registered
-  :class:`~spindoctor.nav_technique.nav_technique.NavTechnique` whose
-  :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.confidence_spec` was loaded and verifies
-  that every term's
+- :class:`~spindoctor.nav_technique.confidence_config.TechniqueBlock` — checks, as each block is
+  parsed, that every term's
   :attr:`~spindoctor.nav_technique.confidence.ConfidenceTerm.feature` and every
   :attr:`~spindoctor.nav_technique.confidence.ConfidenceSpec.hard_zero_if` key appears in the
   technique's
   :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.confidence_attributes` allow-list.
-  Raises :exc:`ValueError` on the first unknown name.
+  An unknown name is refused at load, with the file and the key path.
 - :func:`~spindoctor.nav_technique.nav_technique.log_confidence_breakdown` — emits the breakdown at
   DEBUG always, and also at INFO when the calibrated confidence falls at or below a
   ``low_threshold`` (default 0.1). This is what surfaces "alpha=-1.303 dt_fit_rms_px=8.7
@@ -275,10 +278,9 @@ fit and the cap encodes that fact independently of the per-term coefficients.
 
 **Validation at startup.**  If the YAML spec for a technique declares ``feature: dt_fit_rms_px`` for
 a star technique whose :class:`~spindoctor.nav_technique.diagnostics.StarRefineDiagnostics` does not
-carry ``dt_fit_rms_px``, the
-:func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walk fails with
-a :exc:`ValueError` that gives the technique class and the unknown attribute, before any image is
-processed. The same check fires for unknown
+carry ``dt_fit_rms_px``, the configuration is refused when it loads, before any image is
+processed. The message gives the file, the key path of the term's ``feature``, the technique,
+and the attributes it declares. The same check fires for unknown
 :attr:`~spindoctor.nav_technique.confidence.ConfidenceSpec.hard_zero_if` keys.
 
 **Worked breakdown.**  A converged ``BodyLimbNav`` fit with

@@ -21,8 +21,8 @@ _TUNING = {
 
 
 def _gate_config() -> DTFitGateConfig:
-    """Return a gate config built from the reference tuning mapping."""
-    return DTFitGateConfig.from_tuning(_TUNING)
+    """Return a gate config built from the reference thresholds."""
+    return DTFitGateConfig(**_TUNING)
 
 
 def _lm_result(
@@ -46,43 +46,6 @@ def _lm_result(
         degenerate=False,
         polarity_rejected_count=polarity_rejected_count,
     )
-
-
-# ---------------------------------------------------------------------------
-# DTFitGateConfig
-# ---------------------------------------------------------------------------
-
-
-def test_from_tuning_reads_every_threshold() -> None:
-    cfg = _gate_config()
-    assert cfg.lm_unconverged_confidence_cap == pytest.approx(0.84)
-    assert cfg.spurious_max_polarity_rejection_fraction == pytest.approx(0.35)
-    assert cfg.spurious_unconverged_polarity_rejection_fraction == pytest.approx(0.10)
-    assert cfg.spurious_min_coarse_peak_fraction == pytest.approx(0.05)
-
-
-def test_from_tuning_missing_key_raises_key_error() -> None:
-    tuning = dict(_TUNING)
-    del tuning['spurious_min_coarse_peak_fraction']
-    with pytest.raises(KeyError, match='spurious_min_coarse_peak_fraction'):
-        DTFitGateConfig.from_tuning(tuning)
-
-
-@pytest.mark.parametrize(
-    'field_name',
-    [
-        'lm_unconverged_confidence_cap',
-        'spurious_max_polarity_rejection_fraction',
-        'spurious_unconverged_polarity_rejection_fraction',
-        'spurious_min_coarse_peak_fraction',
-    ],
-)
-@pytest.mark.parametrize('bad_value', [-0.1, 1.5, float('nan')])
-def test_config_rejects_out_of_range_value(field_name: str, bad_value: float) -> None:
-    tuning = dict(_TUNING)
-    tuning[field_name] = bad_value
-    with pytest.raises(ValueError, match=field_name):
-        DTFitGateConfig.from_tuning(tuning)
 
 
 # ---------------------------------------------------------------------------
