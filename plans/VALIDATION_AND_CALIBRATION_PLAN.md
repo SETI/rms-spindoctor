@@ -682,7 +682,7 @@ geometry, never the planted truth, apply the same gates, then re-run the
 limb-scene calibration and re-ratchet whatever moves. **Status:** the gates are
 done (#750, closed by #845; no committed scene clips a body, so no baseline
 moved). The limb-scene re-run is not: the calibration scene generator builds
-the limb family again (#837, done in PR #TBD), and the re-run waits for the
+the limb family again (#837, done in PR #1171), and the re-run waits for the
 simulator plan's Phase 3 refit (#793, #874).
 
 **Approach for the residual.** The navigator uses its *best available* model — do

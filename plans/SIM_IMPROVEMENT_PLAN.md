@@ -302,8 +302,8 @@ scenes are not built on the same slip.
 
 | Issue | Subject |
 |---|---|
-| #837 | **Done (PR #TBD): the regular moons render as ellipsoids carrying the photometric and surface keys, the irregular moons as meshes carrying only mesh keys, and all eight families generate and validate.** The calibration generator fails on four families |
-| #898 | **Done (PR #TBD): every catalog body is drawn with semi-axis a equal to its drawn radius, and its rendered width matches twice that radius.** The calibration generator draws catalog bodies at half size |
+| #837 | **Done (PR #1171): the regular moons render as ellipsoids carrying the photometric and surface keys, the irregular moons as meshes carrying only mesh keys, and all eight families generate and validate.** The calibration generator fails on four families |
+| #898 | **Done (PR #1171): every catalog body is drawn with semi-axis a equal to its drawn radius, and its rendered width matches twice that radius.** The calibration generator draws catalog bodies at half size |
 | #309 | The campaign does not run the realism-anchored configuration (chain off, NAC only) |
 | #793, #874 | Refit on the repaired renderers and generator, under the overflow limits, and re-ratchet the moved coefficients |
 | #942 | Disc and ring confidence was fitted on runner-up ratios that wrap-around depressed before #930; the refit covers them |
