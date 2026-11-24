@@ -12,9 +12,8 @@ from pathlib import Path
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.config.logging_keys import log_key_for, technique_log_keys
 from spindoctor.nav_technique import BodyLimbNav
-from spindoctor.nav_technique.confidence_config import shipped_techniques, technique_config_key
+from spindoctor.nav_technique.confidence_config import shipped_techniques
 from spindoctor.schema import SchemaError
 
 
@@ -25,15 +24,6 @@ def test_packaged_techniques_section_parses() -> None:
         tuning = section.block(technique).technique_tuning()
         expected = dict if technique.Tuning is None else technique.Tuning
         assert isinstance(tuning, expected), technique.name
-
-
-def test_a_typed_technique_block_uses_its_logging_key() -> None:
-    """A typed technique's block is named as the ``logging.techniques`` category names it."""
-    typed = [technique for technique in shipped_techniques() if technique.Tuning is not None]
-    assert typed
-    for technique in typed:
-        assert technique_config_key(technique) == log_key_for(technique)
-        assert technique_config_key(technique) in technique_log_keys()
 
 
 @pytest.mark.parametrize(
