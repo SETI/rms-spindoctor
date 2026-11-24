@@ -140,57 +140,62 @@ terminator only when a limb or disc result exists on the same body to supersede 
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.BodyTerminatorNav.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``.
+All tunables for this technique live in ``techniques.body_terminator.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. The schema core parses them
+into :class:`~spindoctor.nav_technique.nav_technique_body_terminator.BodyTerminatorTuning`
+when the configuration loads, so each value's type and range are checked there, and the
+technique reads them as ``self.tuning.<key>``. Each value lives in the YAML only; the
+values given below are the packaged ones.
 
-- ``min_arc_vertices`` — float, default ``30.0``. Minimum surviving vertex count per
-  ``TERMINATOR_ARC`` for feasibility. Arcs with fewer vertices do not constrain a 2-D
+- ``min_arc_vertices`` — float, packaged value ``30.0``. Minimum surviving vertex count
+  per ``TERMINATOR_ARC`` for feasibility. Arcs with fewer vertices do not constrain a 2-D
   translation enough to be worth the LM iteration.
-- ``spurious_dt_rms_factor`` — float, default ``5.0`` (dimensionless). Final DT residual
-  exceeding this many terminator-sigmas marks the result spurious.
-- ``spurious_dt_floor_px`` — float, default ``4.0`` px. Floor of the spurious-detection
-  threshold; terminators are softer than limbs so the floor sits one pixel wider than the
-  limb fit's.
-- ``spurious_min_inliers`` — int, default ``6`` (count). Below this Tukey-inlier count the
-  M-estimator covariance is uninformative; the result is flagged spurious.
-- ``spurious_min_inlier_fraction`` — float, default ``0.20`` (dimensionless). Below this
-  inlier fraction the LM has almost certainly walked off the true terminator onto crater
-  shadows or surface boundaries; the result is flagged spurious. Same motivation as the
-  limb fit's identically-named knob.
-- ``spurious_max_lm_displacement_px`` — float, default ``4.0`` px. If the LM moves more
-  than this many pixels from the integer coarse-NCC seed, flag spurious. Defensive: with
-  the trust region below the LM cannot leave the coarse basin; the guard catches any
+- ``spurious_dt_rms_factor`` — float, packaged value ``5.0`` (dimensionless). Final DT
+  residual exceeding this many terminator-sigmas marks the result spurious.
+- ``spurious_dt_floor_px`` — float, packaged value ``4.0`` px. Floor of the
+  spurious-detection threshold; terminators are softer than limbs so the floor sits one
+  pixel wider than the limb fit's.
+- ``spurious_min_inliers`` — int, packaged value ``6`` (count). Below this Tukey-inlier
+  count the M-estimator covariance is uninformative; the result is flagged spurious.
+- ``spurious_min_inlier_fraction`` — float, packaged value ``0.20`` (dimensionless). Below
+  this inlier fraction the LM has almost certainly walked off the true terminator onto
+  crater shadows or surface boundaries; the result is flagged spurious. Same motivation as
+  the limb fit's identically-named knob.
+- ``spurious_max_lm_displacement_px`` — float, packaged value ``4.0`` px. If the LM moves
+  more than this many pixels from the integer coarse-NCC seed, flag spurious. Defensive:
+  with the trust region below the LM cannot leave the coarse basin; the guard catches any
   future regression that bypasses the trust region.
-- ``lm_trust_region_px`` — float, default ``1.0`` px. Maximum LM displacement from the
-  integer coarse-NCC seed; the LM rejects any trial step that would land outside this
+- ``lm_trust_region_px`` — float, packaged value ``1.0`` px. Maximum LM displacement from
+  the integer coarse-NCC seed; the LM rejects any trial step that would land outside this
   radius. See :doc:`dev_guide_techniques_body_limb` for the rationale.
-- ``lm_tikhonov_alpha`` — float, default ``0.0`` (dimensionless). Tikhonov anchor strength
-  toward the coarse-NCC seed; 0 disables the anchor (the trust region is the harder
-  bound).
-- ``model_error_floor_px`` — float, default ``4.32`` px. Model-error floor added in
+- ``lm_tikhonov_alpha`` — float, packaged value ``0.0`` (dimensionless). Tikhonov anchor
+  strength toward the coarse-NCC seed; 0 disables the anchor (the trust region is the
+  harder bound).
+- ``model_error_floor_px`` — float, packaged value ``4.32`` px. Model-error floor added in
   quadrature to the covariance's translation diagonal, solved on the technique's own
   calibration-campaign rows: the DT fit's reported sigma (~1.2 px) sits far below its
   actual recovery error (median 5.2 px), so nearly all of the reported uncertainty comes
   from the floor. The campaign measured 2-sigma coverage 0.04 before flooring and 0.87
   after. A terminator fix is therefore always a low-tier result, consistent with its
   fallback-only ensemble role.
-- ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
-  distance from any search-window axis bound falls within this tolerance is flagged
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Matches the
-  bilinear-DT half-cell width.
-- ``basin_cost_ratio_threshold`` — float, default ``1.2`` (dimensionless). A competing
-  DT basin whose mean per-vertex cost falls below this multiple of the converged cost
-  marks the fit spurious; ``0`` disables the basin second-opinion.
-- ``basin_exclude_radius_px`` — float, default ``5.0`` px. Shifts within this distance of
-  the converged offset belong to the converged basin and are never counted as rivals.
-- ``basin_cost_epsilon_px`` — float, default ``0.25`` px. Floor on the converged cost in
-  the ratio's denominator, so a near-perfect fit is not vetoed by numerical noise; a rival
-  must genuinely match a near-zero converged cost to fire the gate.
-- ``rotation_at_edge_fraction`` — float, default ``0.95`` (dimensionless). When
-  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true, the
-  converged rotation magnitude trips
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it crosses this
-  fraction of the per-image
+- ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. A converged offset whose
+  absolute distance from any search-window axis bound falls within this tolerance is
+  flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
+  Matches the bilinear-DT half-cell width.
+- ``basin_cost_ratio_threshold`` — float, packaged value ``1.2`` (dimensionless). A
+  competing DT basin whose mean per-vertex cost falls below this multiple of the converged
+  cost marks the fit spurious; ``0`` disables the basin second-opinion.
+- ``basin_exclude_radius_px`` — float, packaged value ``5.0`` px. Shifts within this
+  distance of the converged offset belong to the converged basin and are never counted as
+  rivals.
+- ``basin_cost_epsilon_px`` — float, packaged value ``0.25`` px. Floor on the converged
+  cost in the ratio's denominator, so a near-perfect fit is not vetoed by numerical noise;
+  a rival must genuinely match a near-zero converged cost to fire the gate.
+- ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). When
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true,
+  the converged rotation magnitude trips
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it
+  crosses this fraction of the per-image
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` cap.
 
 Per-instrument overrides
@@ -207,7 +212,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared
 sigmoid combination; see :doc:`dev_guide_techniques_confidence` for the per-term arithmetic.
-The formula spec is ``techniques.BodyTerminatorNav`` in the same YAML file and consumes
+The formula spec is ``techniques.body_terminator`` in the same YAML file and consumes
 attributes off :class:`~spindoctor.nav_technique.diagnostics.BodyTerminatorDiagnostics` plus the
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious` flags.

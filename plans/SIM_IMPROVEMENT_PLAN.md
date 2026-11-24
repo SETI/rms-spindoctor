@@ -302,8 +302,9 @@ scenes are not built on the same slip.
 
 | Issue | Subject |
 |---|---|
-| #837 | The calibration generator fails on four families |
-| #898 | The calibration generator draws catalog bodies at half size |
+| #837 | **Done (PR #1171): the regular moons render as ellipsoids carrying the photometric and surface keys, the irregular moons as meshes carrying only mesh keys, and all eight families generate and validate.** The calibration generator fails on four families |
+| #898 | **Done (PR #1171): every catalog body is drawn with semi-axis a equal to its drawn radius, and its rendered width matches twice that radius.** The calibration generator draws catalog bodies at half size |
+| #1174 | **Affects the refit of BodyTerminatorNav.** At full body size the disc correlation covers the crescent, so the terminator family runs BodyTerminatorNav (a fallback) in about 1 of 30 scenes against 12 of 30 at the old half size; decide before the refit whether the family measures the technique in isolation or changes its geometry |
 | #309 | The campaign does not run the realism-anchored configuration (chain off, NAC only) |
 | #793, #874 | Refit on the repaired renderers and generator, under the overflow limits, and re-ratchet the moved coefficients |
 | #942 | Disc and ring confidence was fitted on runner-up ratios that wrap-around depressed before #930; the refit covers them |
@@ -534,6 +535,7 @@ retired and retained library classes.
 | #1052 | **Affects the report only.** The simulator report describes the disc correlation's old half-pixel window and the bias a haze puts on it; rewrite it in the end-of-stack regeneration, after the disc refinement work (#791) lands |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference page is generated from the typed scene's field metadata by #1024. |
 | #310 | **Moved to Phase 3b.** Advanced by #1005 (package-level import guard) and #1026 (the navigator view as types); its own change moves the truth attributes off `ObsSim`. Structural information-boundary guard |
+| #1184 | **Done (PR #1185).** Committed baselines and contact sheets drifted from main's own output by up to 0.008 px (below the 0.02 px check); regenerated |
 
 Each phase updates the docs for what it changes, with per-camera values on the instrument pages
 after #924 (done). This phase finishes the guide split once the schema has settled. The

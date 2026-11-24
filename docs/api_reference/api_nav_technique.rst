@@ -36,6 +36,16 @@ spindoctor.nav_technique
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_technique.dt_fit_gates
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.nav_technique.dt_tuning
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_technique.nav_technique_body_limb
    :members:
    :undoc-members:

@@ -7,7 +7,6 @@ from filecache import FCPath
 from spindoctor.nav_records.tuning import TreeTuning
 
 from .config import Config
-from .logging_keys import validate_logging_config
 
 RESULTS_INDEX_DB_NONE = 'none'
 """Value of the results index URL that makes :func:`get_results_index_db_url` answer None.
@@ -275,11 +274,11 @@ def get_results_tree_tuning(config: Config) -> TreeTuning:
 def load_default_and_user_config(arguments: argparse.Namespace, config: Config) -> None:
     """Load the default and user configuration (if any).
 
-    The merged result's ``logging`` and ``results_tree`` sections are validated
-    before returning, so a misspelled module key, program name, level name or
-    tuning setting fails here rather than having no effect at the point it was
-    meant to apply, and a value no pass can run at fails before a run has
-    written anything.
+    The merged result's ``results_tree`` section is validated before returning,
+    so a misspelled tuning setting fails here rather than having no effect at the
+    point it was meant to apply, and a value no pass can run at fails before a run
+    has written anything.  The typed sections, ``logging`` among them, are checked
+    as each file loads.
 
     A named file that cannot be read is not skipped in favor of the defaults;
     ``Config``'s own diagnostic propagates, so a missing file still raises
@@ -293,8 +292,9 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
         config: The configuration to update.
 
     Raises:
-        ValueError: If the merged ``logging`` or ``results_tree`` section is
-            not valid.
+        ValueError: If the merged ``results_tree`` section is not valid.
+        SchemaError: If a file breaks the schema of a typed section, as with a
+            misspelled module key, program name, or level name under ``logging``.
     """
     config.read_config()
     # If the user specified one or more config files, load them; if they didn't,
@@ -311,7 +311,6 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
             config.update_config('nav_default_config.yaml')
         except FileNotFoundError:
             pass
-    validate_logging_config(config)
     # Built for the check alone and discarded.  The loader runs before a
     # program has written anything, so an unusable value is refused here.
     get_results_tree_tuning(config)

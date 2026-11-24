@@ -47,7 +47,6 @@ __all__ = [
     'rotation_unobservable_sigma_rad',
     'search_window_for_obs',
     'technique_tier',
-    'validate_registered_confidence_specs',
 ]
 
 
@@ -77,7 +76,7 @@ unobservable in the rotation direction.
 
 Each 3-DoF technique reads its threshold from
 ``config_510_techniques.yaml`` under
-``techniques.<name>.tuning.rotation_at_edge_fraction``; this constant
+``techniques.<key>.tuning.rotation_at_edge_fraction``; this constant
 is the documented default that ships in the YAML.  Re-exported so
 tests and downstream tools can reference the canonical default
 without re-reading the YAML.
@@ -293,21 +292,29 @@ class NavTechnique(NavBase, ABC):
     #: Ignored for primary-tier techniques, which always run.
     runs_as_witness: ClassVar[bool] = False
     #: Confidence-formula spec consumed by ``evaluate_sigmoid_combination``.
-    #: Loaded from ``config_510_techniques.yaml`` and assigned at
-    #: ``Config.read_config`` time.  ``None`` for techniques that opt out
-    #: of the autonomous registry (e.g. ``NavTechniqueManual``).
+    #: Parsed from the technique's block in ``config_510_techniques.yaml``
+    #: and assigned each time a configuration is installed.  ``None`` for
+    #: techniques that opt out of the autonomous registry (e.g.
+    #: ``NavTechniqueManual``) and for techniques defined outside the
+    #: package, whose spec their own code sets.
     confidence_spec: ClassVar[ConfidenceSpec | None] = None
-    #: Per-technique runtime tuning loaded from
-    #: ``config_510_techniques.yaml.techniques.<name>.tuning``.  Each
-    #: technique pulls the values it needs by name from this dict and
-    #: falls back to the module-level default constant when a key is
-    #: missing.  Empty for techniques that opt out of the autonomous
-    #: registry or that have no tunable parameters.
-    tuning: ClassVar[dict[str, float | int]] = {}
+    #: The frozen schema dataclass of the technique's tuning keys.  The
+    #: loader parses the ``tuning`` mapping of the technique's block into
+    #: it, and the block is named by the technique's snake_case key
+    #: (:func:`~spindoctor.nav_technique.confidence_config.technique_config_key`).
+    #: ``None`` for a technique whose family is not typed yet: its block is
+    #: named by ``name`` and its tuning is a mapping of numbers.
+    Tuning: ClassVar[type | None] = None
+    #: The technique's tuning, assigned each time a configuration is
+    #: installed: an instance of ``Tuning``, or a mapping of numbers when
+    #: ``Tuning`` is ``None``.  A technique that declares ``Tuning`` also
+    #: declares this attribute's type, so its reads are checked.
+    tuning: ClassVar[Any] = {}
     #: Names of every attribute the technique's confidence spec may read
     #: (diagnostics fields plus side-channel flags such as ``at_edge``).
-    #: ``validate_registered_confidence_specs`` ensures every term in
-    #: ``confidence_spec`` references a member of this set.
+    #: The loader refuses a technique block whose terms or ``hard_zero_if``
+    #: name anything outside this set
+    #: (:class:`~spindoctor.nav_technique.confidence_config.TechniqueBlock`).
     confidence_attributes: ClassVar[frozenset[str]] = frozenset()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
@@ -396,7 +403,11 @@ class NavTechnique(NavBase, ABC):
 
 
 def load_model_error_floor(tuning: dict[str, Any], technique_name: str) -> float:
-    """Read and validate a technique's ``model_error_floor_px`` tunable.
+    """Read and validate a technique's ``model_error_floor_px`` tunable from a mapping.
+
+    A technique whose tuning is typed declares ``model_error_floor_px`` as a field of
+    its tuning type instead; this function serves the techniques whose tuning is still
+    a mapping of numbers.
 
     The floor is added in quadrature to the technique's reported translation
     covariance (#210): robust-fit and NCC covariances measure statistical
@@ -481,7 +492,9 @@ class NCCCovarianceTuning:
 
 
 def load_ncc_covariance_tuning(tuning: dict[str, Any], technique_name: str) -> NCCCovarianceTuning:
-    """Read and validate an NCC technique's covariance model-error tunables.
+    """Read and validate an NCC technique's covariance model-error tunables from a mapping.
+
+    This function serves the techniques whose tuning is still a mapping of numbers.
 
     Parameters:
         tuning: The technique's YAML ``tuning`` mapping.
@@ -558,45 +571,6 @@ def technique_tier(technique_name: str) -> str:
         if cls.name == technique_name:
             return cls.tier
     return 'primary'
-
-
-def validate_registered_confidence_specs() -> None:
-    """Validate every registered ``NavTechnique``'s confidence spec.
-
-    Each technique whose spec was loaded from
-    ``config_510_techniques.yaml`` (assigned by
-    :meth:`spindoctor.config.config.Config._validate_registered_techniques`)
-    must declare the full set of valid attribute names in
-    ``confidence_attributes``.  Every term's ``feature`` and every
-    ``hard_zero_if`` key must appear in that set; otherwise the
-    technique would raise at navigate time.  Validation runs at
-    config-load time so the failure surfaces during process startup
-    rather than mid-image.  Techniques whose spec is ``None`` (test-
-    only registry entries opted out of YAML lookup) are skipped.
-
-    Raises:
-        ValueError: if any term references an unknown attribute.  The
-            message names both the technique class and the bad
-            attribute.
-    """
-    for cls in NavTechnique._registry:
-        spec = cls.confidence_spec
-        if spec is None:
-            continue
-        valid = cls.confidence_attributes
-        for term in spec.terms:
-            if term.feature not in valid:
-                raise ValueError(
-                    f'NavTechnique {cls.name!r}: confidence term references unknown '
-                    f'attribute {term.feature!r}; declared attributes are '
-                    f'{sorted(valid)!r}'
-                )
-        for key in spec.hard_zero_if:
-            if key not in valid:
-                raise ValueError(
-                    f'NavTechnique {cls.name!r}: hard_zero_if references unknown '
-                    f'attribute {key!r}; declared attributes are {sorted(valid)!r}'
-                )
 
 
 def filter_technique_names(names: list[str], patterns: str | list[str]) -> list[str]:
