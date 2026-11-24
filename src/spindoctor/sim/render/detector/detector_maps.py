@@ -8,12 +8,13 @@ the detector sees the same values at the same coordinates, at any frame size.
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 
 import numpy as np
 
 from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
-__all__ = ['detector_column_map', 'detector_hot_pixel_map']
+__all__ = ['EXPONENTIAL', 'AmplitudeLaw', 'detector_column_map', 'detector_hot_pixel_map']
 
 # The hot-pixel map hashes each pixel's (v, u) as v * stride + u, so the stride
 # bounds the detector width it keys uniquely; every emulated camera is far
@@ -40,8 +41,63 @@ def _unit_interval(words: NDArrayIntType) -> NDArrayFloatType:
     return (words >> np.uint64(64 - _UNIT_BITS)).astype(np.float64) * 2.0**-_UNIT_BITS
 
 
+@dataclass(frozen=True)
+class AmplitudeLaw:
+    """The distribution of the hot pixels' relative amplitudes.
+
+    ``exponential`` draws amplitudes with mean 1.  ``power_law`` draws a truncated
+    Pareto on ``[1, maximum]``: the fraction of hot pixels with an amplitude above
+    ``a`` is ``(a**-index - maximum**-index) / (1 - maximum**-index)``, so with
+    ``index`` near 1 the count above ``a`` falls about as ``1 / a`` up to the cutoff.
+    An index of 0 is the log-uniform limit, and a maximum of 1 or less gives every
+    pixel the amplitude 1.
+
+    Parameters:
+        kind: ``'exponential'`` or ``'power_law'``.
+        index: The power law's index; ignored by the exponential.
+        maximum: The power law's largest amplitude; ignored by the exponential.
+    """
+
+    kind: str = 'exponential'
+    index: float = 1.0
+    maximum: float = 1.0
+
+    def from_uniform(self, uniform: NDArrayFloatType) -> NDArrayFloatType:
+        """Map uniform draws in [0, 1) to relative amplitudes by the inverse CDF.
+
+        Parameters:
+            uniform: Uniform draws in [0, 1).
+
+        Returns:
+            The relative amplitudes, one per draw.
+
+        Raises:
+            ValueError: If ``kind`` is neither law.
+        """
+        u = np.asarray(uniform, dtype=np.float64)
+        if self.kind == 'exponential':
+            result: NDArrayFloatType = -np.log1p(-u)
+            return result
+        if self.kind != 'power_law':
+            raise ValueError(f'unknown hot-pixel amplitude law {self.kind!r}')
+        if self.maximum <= 1.0:
+            return np.ones_like(u)
+        if self.index <= 0.0:
+            return np.asarray(self.maximum**u, dtype=np.float64)
+        floor = self.maximum**-self.index
+        return np.asarray((floor + (1.0 - u) * (1.0 - floor)) ** (-1.0 / self.index))
+
+
+EXPONENTIAL = AmplitudeLaw()
+
+
 def detector_hot_pixel_map(
-    shape: tuple[int, int], *, fraction: float, detector_id: str, binning: int = 1
+    shape: tuple[int, int],
+    *,
+    fraction: float,
+    detector_id: str,
+    binning: int = 1,
+    law: AmplitudeLaw = EXPONENTIAL,
 ) -> tuple[NDArrayIntType, NDArrayIntType, NDArrayFloatType]:
     """The emulated detector's fixed hot-pixel population over a frame.
 
@@ -51,7 +107,8 @@ def detector_hot_pixel_map(
     coordinates, at any frame size (a smaller frame sees the corner of the
     map from ``(0, 0)``).  The count is binomial with mean ``fraction`` times
     the pixel count, and raising ``fraction`` only adds pixels.  Each hot
-    pixel's relative amplitude is a fixed exponential draw keyed the same way.
+    pixel's relative amplitude is a fixed uniform draw keyed the same way, mapped
+    through ``law``.
     A binned frame reads the native map: each frame pixel holds the summed
     amplitudes of the hot native pixels in its block, so the same hot pixels
     show at every binning.
@@ -62,15 +119,18 @@ def detector_hot_pixel_map(
         detector_id: The emulated detector's name; the calibrated and raw
             products of one camera share it.
         binning: The readout mode's binning factor.
+        law: The distribution of the native relative amplitudes.
 
     Returns:
         ``(hot_v, hot_u, relative_amplitudes)`` in frame pixels, row-major and
-        each pixel once; a native amplitude is exponentially distributed with
-        mean 1.
+        each pixel once.
     """
     if binning > 1:
         native_v, native_u, native_amps = detector_hot_pixel_map(
-            (shape[0] * binning, shape[1] * binning), fraction=fraction, detector_id=detector_id
+            (shape[0] * binning, shape[1] * binning),
+            fraction=fraction,
+            detector_id=detector_id,
+            law=law,
         )
         summed = np.zeros(shape, dtype=np.float64)
         np.add.at(summed, (native_v // binning, native_u // binning), native_amps)
@@ -82,7 +142,7 @@ def detector_hot_pixel_map(
     words = _splitmix64((vs * np.uint64(_DETECTOR_STRIDE) + us) ^ np.uint64(key))
     hot_v, hot_u = np.nonzero(_unit_interval(words) < fraction)
     amp_words = _splitmix64(words[hot_v, hot_u])
-    relative = -np.log1p(-_unit_interval(amp_words))
+    relative = law.from_uniform(_unit_interval(amp_words))
     return hot_v.astype(np.intp), hot_u.astype(np.intp), relative
 
 
