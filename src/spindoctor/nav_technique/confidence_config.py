@@ -1,247 +1,203 @@
-"""Build :class:`ConfidenceSpec` instances from the techniques config block.
+"""The ``techniques`` configuration section: each technique's confidence formula and tuning.
 
-The per-technique confidence-formula coefficients live in
-``config_files/config_510_techniques.yaml`` under the ``techniques`` key.
-Each technique reads its own block via :func:`load_confidence_spec`,
-which validates the YAML shape and returns a frozen
-:class:`ConfidenceSpec`.  Mis-typed numbers, unknown keys, and missing
-``alpha0`` raise at config-load time so a malformed file fails fast at
-process startup instead of mid-image.
+The section, in ``config_files/config_510_techniques.yaml``, holds one block for each
+technique the package ships.  A block holds the technique's confidence formula
+(``alpha0``, ``terms``, ``hard_zero_if``, and ``hard_cap``, the fields of
+:class:`~spindoctor.nav_technique.confidence.ConfidenceSpec`) and its ``tuning``
+mapping.  :class:`~spindoctor.config.config.Config` parses the section through the
+schema core each time it installs a configuration, so a bad value, an unknown key, or a
+missing block is refused at load with the file and key path.  It then assigns each
+technique class its ``confidence_spec`` and ``tuning``.
+
+The section's type is built from the technique registry, so a technique declares its
+own tuning and no list of techniques is written twice.  A technique that declares
+``Tuning`` (a frozen schema dataclass of its tuning keys) has its ``tuning`` mapping
+parsed into that type, and its block is named by its snake_case key, the one the
+``logging.techniques`` category uses.  A technique whose family is not typed yet
+declares no ``Tuning``: its block is named by its class name, and its ``tuning`` is a
+mapping of numbers.  Each family is typed and renamed in turn, until every technique
+declares ``Tuning``.
+
+A block may name only diagnostic attributes its technique declares in
+``confidence_attributes``, in ``terms`` and in ``hard_zero_if``; any other name is
+refused at load, since the formula would fail on every image.
 """
 
-from __future__ import annotations
+import dataclasses
+import functools
+from dataclasses import dataclass
+from typing import Any, ClassVar
 
-import math
-from typing import Any
+from spindoctor.config.logging_keys import is_shipped, log_key_for
+from spindoctor.nav_technique.confidence import ConfidenceSpec
+from spindoctor.nav_technique.nav_technique import NavTechnique
+from spindoctor.schema import SCHEMA_CONFIG, Float, Int, RuleError, Str
 
-from spindoctor.nav_technique.confidence import ConfidenceSpec, ConfidenceTerm
+__all__ = [
+    'TechniqueBlock',
+    'TechniquesSection',
+    'UntypedTuning',
+    'shipped_techniques',
+    'technique_block_type',
+    'technique_config_key',
+    'techniques_section_type',
+]
 
-__all__ = ['ConfidenceConfigError', 'load_confidence_spec', 'load_technique_tuning']
-
-
-_VALID_TERM_KEYS: frozenset[str] = frozenset({'feature', 'alpha', 'offset', 'divisor', 'cap_at'})
-_VALID_BLOCK_KEYS: frozenset[str] = frozenset(
-    {'alpha0', 'terms', 'hard_zero_if', 'hard_cap', 'tuning'}
-)
-
-
-class ConfidenceConfigError(ValueError):
-    """Raised when ``config_510_techniques.yaml`` cannot build a valid spec.
-
-    Always names the technique whose block triggered the failure so a
-    typo or shape error surfaces with full diagnostic at startup.
-    """
+#: The tuning of a technique whose family is not typed yet: a mapping of numbers, each an
+#: integer or a finite float as the file writes it.
+UntypedTuning = dict[Str, Int | Float]
 
 
-def load_confidence_spec(techniques: dict[str, Any], technique_name: str) -> ConfidenceSpec:
-    """Return the :class:`ConfidenceSpec` for ``technique_name``.
-
-    Reads the ``techniques[technique_name]`` mapping and constructs a
-    :class:`ConfidenceSpec` from its fields.  All numeric coercion and
-    range checks happen here so per-technique modules stay free of
-    YAML-shape bookkeeping.  Callers typically pass
-    ``Config.category('techniques')`` (an ``AttrDict``, which subclasses
-    ``dict``).
+def technique_config_key(technique: type[NavTechnique]) -> str:
+    """Return the key of a technique's block in the ``techniques`` section.
 
     Parameters:
-        techniques: Mapping of ``NavTechnique.name`` to its raw config
-            block (the ``techniques`` section of
-            ``config_510_techniques.yaml``).
-        technique_name: ``NavTechnique.name`` to look up.
+        technique: The technique class.
 
     Returns:
-        A frozen :class:`ConfidenceSpec` ready to assign to the
-        technique's ``confidence_spec`` class attribute.
+        The technique's snake_case key (:func:`~spindoctor.config.log_key_for`) when
+        it declares ``Tuning``, and its ``name`` when its family is not typed yet.
+    """
+    if technique.Tuning is None:
+        return technique.name
+    return log_key_for(technique)
+
+
+def shipped_techniques() -> tuple[type[NavTechnique], ...]:
+    """Return the registered techniques the package ships, in registration order.
+
+    Test modules register techniques of their own, which set their own confidence
+    specification and have no block.
+
+    Returns:
+        The technique classes.
+    """
+    return tuple(technique for technique in NavTechnique._registry if is_shipped(technique))
+
+
+@dataclass(frozen=True)
+class TechniqueBlock(ConfidenceSpec):
+    """The base of every technique's block type: its confidence formula.
+
+    :func:`technique_block_type` adds a ``tuning`` field typed by the technique, and
+    sets :attr:`technique`.
 
     Raises:
-        ConfidenceConfigError: If the block is missing, has the wrong
-            shape, or carries an unknown / malformed field.
+        RuleError: If a term or a ``hard_zero_if`` key names a diagnostic attribute the
+            technique does not declare.
     """
-    techniques = _require_mapping(techniques, 'techniques')
-    if technique_name not in techniques:
-        raise ConfidenceConfigError(
-            f'config_510_techniques.yaml: missing block for technique '
-            f'{technique_name!r}; declared techniques are '
-            f'{sorted(techniques.keys())!r}'
-        )
-    block = _require_mapping(techniques[technique_name], f'techniques.{technique_name}')
-    unknown = set(block.keys()) - _VALID_BLOCK_KEYS
-    if unknown:
-        raise ConfidenceConfigError(
-            f'techniques.{technique_name}: unknown keys {sorted(unknown)!r}; '
-            f'valid keys are {sorted(_VALID_BLOCK_KEYS)!r}'
-        )
-    if 'alpha0' not in block:
-        raise ConfidenceConfigError(f'techniques.{technique_name}: missing required key alpha0')
-    alpha0 = _require_finite_float(block['alpha0'], f'techniques.{technique_name}.alpha0')
-    raw_terms = block.get('terms', [])
-    if not isinstance(raw_terms, list):
-        raise ConfidenceConfigError(
-            f'techniques.{technique_name}.terms: expected a list, got {type(raw_terms).__name__}'
-        )
-    terms = tuple(
-        _build_term(entry, location=f'techniques.{technique_name}.terms[{i}]')
-        for i, entry in enumerate(raw_terms)
-    )
-    raw_gates = block.get('hard_zero_if', {})
-    if not isinstance(raw_gates, dict):
-        raise ConfidenceConfigError(
-            f'techniques.{technique_name}.hard_zero_if: expected a mapping, got '
-            f'{type(raw_gates).__name__}'
-        )
-    hard_zero_if: dict[str, bool] = {}
-    for key, value in raw_gates.items():
-        if not isinstance(key, str):
-            raise ConfidenceConfigError(
-                f'techniques.{technique_name}.hard_zero_if: keys must be strings, got '
-                f'{type(key).__name__}'
-            )
-        if not isinstance(value, bool):
-            raise ConfidenceConfigError(
-                f'techniques.{technique_name}.hard_zero_if[{key!r}]: must be bool, got '
-                f'{type(value).__name__}'
-            )
-        hard_zero_if[key] = value
-    raw_cap = block.get('hard_cap')
-    hard_cap = (
-        None
-        if raw_cap is None
-        else _require_finite_float(raw_cap, f'techniques.{technique_name}.hard_cap')
-    )
-    try:
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    #: The technique the block configures.
+    technique: ClassVar[type[NavTechnique]]
+
+    def __post_init__(self) -> None:
+        """Refuse a diagnostic attribute the technique does not declare."""
+        super().__post_init__()
+        declared = self.technique.confidence_attributes
+        name = self.technique.name
+        message = f'{name} declares no such attribute; it declares {sorted(declared)}'
+        for index, term in enumerate(self.terms):
+            if term.feature not in declared:
+                raise RuleError(message, at=('terms', index, 'feature'))
+        for key in self.hard_zero_if:
+            if key not in declared:
+                raise RuleError(message, at=('hard_zero_if', key))
+
+    def confidence_spec(self) -> ConfidenceSpec:
+        """Return the block's confidence formula.
+
+        Returns:
+            The formula, without the block's tuning.
+        """
         return ConfidenceSpec(
-            alpha0=alpha0,
-            terms=terms,
-            hard_zero_if=hard_zero_if,
-            hard_cap=hard_cap,
+            alpha0=self.alpha0,
+            terms=self.terms,
+            hard_zero_if=self.hard_zero_if,
+            hard_cap=self.hard_cap,
         )
-    except (TypeError, ValueError) as exc:
-        raise ConfidenceConfigError(
-            f'techniques.{technique_name}: ConfidenceSpec construction failed: {exc}'
-        ) from exc
+
+    def technique_tuning(self) -> Any:
+        """Return the block's tuning.
+
+        Returns:
+            An instance of the technique's ``Tuning``, or a mapping of numbers for a
+            technique whose family is not typed yet.
+        """
+        # Each technique's block type adds the field with its own type, so this base
+        # declares none.
+        return vars(self)['tuning']
 
 
-def load_technique_tuning(
-    techniques: dict[str, Any], technique_name: str
-) -> dict[str, float | int]:
-    """Return the ``tuning`` block for ``technique_name``.
+@dataclass(frozen=True)
+class TechniquesSection:
+    """The base of the ``techniques`` section's type.
 
-    Returns the dict-shaped ``tuning`` sub-block as a flat
-    ``{key: number}`` mapping with all numeric values coerced to
-    ``float`` or ``int`` (booleans rejected — YAML's loose numeric
-    types make ``True`` look numeric without this guard).  Each
-    technique consumer pulls the values it needs by name and supplies
-    its own default for missing keys.
+    :func:`techniques_section_type` adds one field per shipped technique, named by
+    :func:`technique_config_key` and typed by :func:`technique_block_type`.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    def block(self, technique: type[NavTechnique]) -> TechniqueBlock:
+        """Return a technique's block.
+
+        Parameters:
+            technique: A shipped technique class.
+
+        Returns:
+            The technique's parsed block.
+
+        Raises:
+            TypeError: If the section holds no block for the technique.
+        """
+        block = getattr(self, technique_config_key(technique), None)
+        if not isinstance(block, TechniqueBlock):
+            raise TypeError(f'the techniques section holds no block for {technique.name}')
+        return block
+
+
+@functools.cache
+def technique_block_type(technique: type[NavTechnique]) -> type[TechniqueBlock]:
+    """Return the type of a technique's block.
 
     Parameters:
-        techniques: Mapping of ``NavTechnique.name`` to its raw config
-            block (the ``techniques`` section of
-            ``config_510_techniques.yaml``).
-        technique_name: ``NavTechnique.name`` to look up.
+        technique: The technique class.
 
     Returns:
-        ``{key: value}`` or an empty mapping when the technique block
-        has no ``tuning`` sub-block.
-
-    Raises:
-        ConfidenceConfigError: If the block is malformed or any
-            tuning value is not a finite numeric scalar.
+        A frozen schema dataclass: the fields of :class:`TechniqueBlock` and a
+        required ``tuning`` field of the technique's ``Tuning``, or of
+        :data:`UntypedTuning` when the technique declares none.
     """
-    techniques = _require_mapping(techniques, 'techniques')
-    if technique_name not in techniques:
-        return {}
-    block = _require_mapping(techniques[technique_name], f'techniques.{technique_name}')
-    raw = block.get('tuning', {})
-    if raw is None:
-        return {}
-    if not isinstance(raw, dict):
-        raise ConfidenceConfigError(
-            f'techniques.{technique_name}.tuning: expected a mapping, got {type(raw).__name__}'
-        )
-    out: dict[str, float | int] = {}
-    for key, value in raw.items():
-        if not isinstance(key, str):
-            raise ConfidenceConfigError(
-                f'techniques.{technique_name}.tuning: keys must be strings, got '
-                f'{type(key).__name__}'
-            )
-        location = f'techniques.{technique_name}.tuning.{key}'
-        if isinstance(value, bool):
-            raise ConfidenceConfigError(f'{location}: must be numeric, got bool {value!r}')
-        if isinstance(value, int):
-            out[key] = value
-        elif isinstance(value, float):
-            if not math.isfinite(value):
-                raise ConfidenceConfigError(f'{location}: must be finite, got {value!r}')
-            out[key] = value
-        else:
-            raise ConfidenceConfigError(f'{location}: must be numeric, got {type(value).__name__}')
-    return out
-
-
-def _build_term(entry: Any, *, location: str) -> ConfidenceTerm:
-    """Construct one :class:`ConfidenceTerm` from a YAML mapping entry."""
-    if not isinstance(entry, dict):
-        raise ConfidenceConfigError(
-            f'{location}: each terms entry must be a mapping, got {type(entry).__name__}'
-        )
-    unknown = set(entry.keys()) - _VALID_TERM_KEYS
-    if unknown:
-        raise ConfidenceConfigError(
-            f'{location}: unknown keys {sorted(unknown)!r}; valid keys are '
-            f'{sorted(_VALID_TERM_KEYS)!r}'
-        )
-    if 'feature' not in entry:
-        raise ConfidenceConfigError(f'{location}: missing required key feature')
-    if 'alpha' not in entry:
-        raise ConfidenceConfigError(f'{location}: missing required key alpha')
-    feature = entry['feature']
-    if not isinstance(feature, str) or not feature.strip():
-        raise ConfidenceConfigError(
-            f'{location}.feature: must be a non-empty string, got {feature!r}'
-        )
-    alpha = _require_finite_float(entry['alpha'], f'{location}.alpha')
-    offset = (
-        0.0
-        if entry.get('offset') is None
-        else _require_finite_float(entry['offset'], f'{location}.offset')
+    tuning = technique.Tuning if technique.Tuning is not None else UntypedTuning
+    block_type: type[TechniqueBlock] = dataclasses.make_dataclass(
+        f'{technique.__name__}Block',
+        [('tuning', tuning, dataclasses.field(kw_only=True))],
+        bases=(TechniqueBlock,),
+        frozen=True,
+        namespace={'__pydantic_config__': SCHEMA_CONFIG, 'technique': technique},
     )
-    divisor = (
-        1.0
-        if entry.get('divisor') is None
-        else _require_finite_float(entry['divisor'], f'{location}.divisor')
+    return block_type
+
+
+@functools.cache
+def techniques_section_type(
+    techniques: tuple[type[NavTechnique], ...],
+) -> type[TechniquesSection]:
+    """Return the type of the ``techniques`` section for a set of techniques.
+
+    Parameters:
+        techniques: The shipped techniques (:func:`shipped_techniques`).
+
+    Returns:
+        A frozen schema dataclass with one required field per technique.
+    """
+    section_type: type[TechniquesSection] = dataclasses.make_dataclass(
+        'TechniquesSection',
+        [(technique_config_key(cls), technique_block_type(cls)) for cls in techniques],
+        bases=(TechniquesSection,),
+        frozen=True,
+        namespace={'__pydantic_config__': SCHEMA_CONFIG},
     )
-    cap_at = (
-        None
-        if entry.get('cap_at') is None
-        else _require_finite_float(entry['cap_at'], f'{location}.cap_at')
-    )
-    try:
-        return ConfidenceTerm(
-            feature=feature,
-            alpha=alpha,
-            offset=offset,
-            divisor=divisor,
-            cap_at=cap_at,
-        )
-    except (TypeError, ValueError) as exc:
-        raise ConfidenceConfigError(f'{location}: {exc}') from exc
-
-
-def _require_mapping(value: Any, location: str) -> dict[str, Any]:
-    """Coerce ``value`` to ``dict[str, Any]`` or raise a typed error."""
-    if not isinstance(value, dict):
-        raise ConfidenceConfigError(f'{location}: expected a mapping, got {type(value).__name__}')
-    return value
-
-
-def _require_finite_float(value: Any, location: str) -> float:
-    """Coerce ``value`` to ``float`` or raise a typed error."""
-    if isinstance(value, bool):
-        raise ConfidenceConfigError(f'{location}: must be numeric, got bool {value!r}')
-    if not isinstance(value, (int, float)):
-        raise ConfidenceConfigError(f'{location}: must be numeric, got {type(value).__name__}')
-    coerced = float(value)
-    if not math.isfinite(coerced):
-        raise ConfidenceConfigError(f'{location}: must be finite, got {value!r}')
-    return coerced
+    return section_type

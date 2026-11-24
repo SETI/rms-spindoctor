@@ -29,6 +29,7 @@ __all__ = [
     'LOG_LEVEL_NAMES',
     'LOG_LEVEL_VALUES',
     'OTHER_LOG_KEYS',
+    'is_shipped',
     'log_key_for',
     'model_log_keys',
     'normalize_level',
@@ -166,13 +167,14 @@ def normalize_level(value: str) -> str:
     return value.strip().upper()
 
 
-def _is_shipped(cls: type) -> bool:
+def is_shipped(cls: type) -> bool:
     """Whether ``cls`` is part of the distributed package.
 
     The technique and model registries are process-global, and test modules
     register their own subclasses into them.  Filtering on the defining module
     keeps the key namespace to what actually ships, so a configuration key set
-    cannot vary with which tests have been imported.
+    cannot vary with which tests have been imported.  The ``logging`` section's
+    keys and the ``techniques`` section's blocks both follow this rule.
 
     Parameters:
         cls: A registered technique or model class.
@@ -196,7 +198,7 @@ def technique_log_keys() -> frozenset[str]:
     from spindoctor.nav_technique.nav_technique import NavTechnique
     from spindoctor.nav_technique.nav_technique_manual import NavTechniqueManual
 
-    keys = {log_key_for(cls) for cls in NavTechnique._registry if _is_shipped(cls)}
+    keys = {log_key_for(cls) for cls in NavTechnique._registry if is_shipped(cls)}
     keys.add(log_key_for(NavTechniqueManual))
     return frozenset(keys)
 
@@ -211,7 +213,7 @@ def model_log_keys() -> frozenset[str]:
     """
     from spindoctor.nav_model.nav_model import NavModel
 
-    return frozenset(log_key_for(cls) for cls in NavModel._registry if _is_shipped(cls))
+    return frozenset(log_key_for(cls) for cls in NavModel._registry if is_shipped(cls))
 
 
 def _validate_level(value: Any, location: str) -> None:

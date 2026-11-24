@@ -1,6 +1,7 @@
 # Per-technique confidence-formula coefficients and runtime tunables.
-# Loaded at config-load time so any unknown reference fails fast at
-# startup rather than mid-image.  Each technique block looks like:
+# Parsed at config-load time, so a bad value, an unknown key, or a term
+# naming an attribute the technique does not declare fails at startup
+# rather than mid-image.  Each technique block looks like:
 #
 #   <technique_name>:
 #     alpha0: float                 # constant in the sigmoid argument
@@ -14,7 +15,7 @@
 #       <attribute>: bool
 #     hard_cap: float               # optional; post-sigmoid clamp, in [0, 1]
 #     tuning:                       # technique-specific runtime tunables
-#       <key>: float | int          # see ``load_technique_tuning`` for schema
+#       <key>: float | int          # each an integer or a finite float
 #
 # Alpha coefficients and term normalizations are SIM-ANCHORED: fitted
 # 2026-07-18 by L2-regularized logistic regression against

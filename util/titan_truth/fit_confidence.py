@@ -96,9 +96,12 @@ def _load_sim(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarra
 def _shipped_anchors() -> np.ndarray:
     """The alphas currently in ``config_510_techniques.yaml``, ordered by TERMS."""
     from spindoctor.config import DEFAULT_CONFIG
-    from spindoctor.nav_technique.confidence_config import load_confidence_spec
+    from spindoctor.nav_technique import TitanHazeNav
 
-    spec = load_confidence_spec(DEFAULT_CONFIG.category('techniques'), TECHNIQUE)
+    DEFAULT_CONFIG.read_config()
+    spec = TitanHazeNav.confidence_spec
+    if spec is None:
+        raise ValueError(f'{TECHNIQUE} has no confidence formula')
     by_feature = {term.feature: term.alpha for term in spec.terms}
     return np.array([spec.alpha0] + [by_feature[name] for name, *_ in TERMS])
 
