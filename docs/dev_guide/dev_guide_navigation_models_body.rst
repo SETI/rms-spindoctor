@@ -392,7 +392,7 @@ Configuration
 The model's runtime knobs are split across two YAML files: the rendering / extraction
 parameters live under ``bodies`` in ``src/spindoctor/config_files/config_040_bodies.yaml`` (consumed
 by the model itself plus its annotation helpers and the reprojection pipeline); per-body
-shape, albedo, and SPK-residual values live under ``body_shape`` in
+shape and albedo values live under ``body_shape`` in
 ``src/spindoctor/config_files/config_220_body_shape.yaml`` (consumed via the
 :func:`~spindoctor.nav_model.body_shape.load_body_shape` lookup chain). Module-level Python
 constants in :mod:`spindoctor.nav_model.nav_model_body` set the emission-gate thresholds that are
@@ -478,11 +478,16 @@ Body-shape catalog
 
 ``src/spindoctor/config_files/config_220_body_shape.yaml`` carries the per-body
 :class:`~spindoctor.nav_model.body_shape.BodyShape` overrides under a ``body_shape`` mapping keyed by
-upper-case SPICE body name. Each entry may set any subset of the
-:class:`~spindoctor.nav_model.body_shape.BodyShape` fields; null or missing fields fall through to
-the hard-coded :data:`~spindoctor.nav_model.body_shape.BODY_SHAPE_TABLE` baseline (Saturn-moon,
-irregular-moon, gas-giant, or default profile depending on the body) per
-:func:`~spindoctor.nav_model.body_shape.load_body_shape`.
+upper-case SPICE body name, each entry parsed at load into a
+:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`. An entry may set any subset of
+``ellipsoid_rms_residual_km``, ``crater_scale_km``, ``albedo_variation``, and
+``shape_class_hint``; a key it leaves out falls through to the hard-coded
+:data:`~spindoctor.nav_model.body_shape.BODY_SHAPE_TABLE` baseline (Saturn-moon, irregular-moon,
+gas-giant, or default profile depending on the body) per
+:func:`~spindoctor.nav_model.body_shape.load_body_shape`. The other two
+:class:`~spindoctor.nav_model.body_shape.BodyShape` fields, ``spice_orbital_residual_km`` and
+``min_blob_diameter_px``, come from that baseline only. An entry's ``radii_km`` is read by the
+calibration tooling and not by the body model, which takes a body's radii from SPICE.
 
 Module-level emission constants
 -------------------------------
@@ -605,9 +610,9 @@ covariance and emission gates:
   logs and reviewer-facing diagnostics.
 
 The public entry point is :func:`~spindoctor.nav_model.body_shape.load_body_shape`,
-which resolves the operator-curated YAML entry (via the private ``_yaml_entry_for``
-helper), overlays the fields it sets onto the hard-coded baseline, and returns the
-merged :class:`~spindoctor.nav_model.body_shape.BodyShape`. Priority order:
+which reads the body's entry from the configuration's ``body_shape`` section, overlays
+the keys it sets onto the hard-coded baseline, and returns the merged
+:class:`~spindoctor.nav_model.body_shape.BodyShape`. Priority order:
 
 1. Operator-curated YAML (``config_220_body_shape.yaml``) — each field the entry sets
    overrides the baseline.

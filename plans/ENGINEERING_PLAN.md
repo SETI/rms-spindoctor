@@ -1629,7 +1629,16 @@ asserts the generated half matches the registries.
     `RingFeature`, `RingFeatureFilter`, and `RingsRenderContext` on catalog
     values deleted; a `rings.ring_features` planet not in `planets` is
     refused)
-  - [ ] `body_shape` (step 6b's second part)
+  - [x] `body_shape` (done: step 6b's second part; parsed at load into
+    a mapping of `BodyShapeEntry`, every key `X | None = None` so an
+    absent key still takes the next tier; `shape_class_hint` is a
+    `Literal`; `load_body_shape` reads the typed entry, and its
+    `_yaml_entry_for` and `_YAML_FIELDS` deleted; the upper-case body
+    rule moved from `BodiesSection` into `TypedSections`, covering
+    `bodies.geometric_albedo` and `body_shape` with one message; the
+    unread `albedo_mean`, and `spice_orbital_residual_km` and
+    `min_blob_diameter_px`, which no entry sets, are not keys; #766
+    adds `spice_orbital_residual_km` and needs a field when it merges)
   - [x] `general`, `environment`, `offset`, and `results_tree` (done:
     parsed at load into `GeneralSection`, `EnvironmentSection` (every key
     optional, a packaged file that sets none), `OffsetSection`, and `TreeTuning`;
