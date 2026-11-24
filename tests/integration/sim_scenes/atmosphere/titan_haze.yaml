@@ -16,19 +16,28 @@ exposure_sec: 1.0
 # lands the predicted envelope 16.3 px above the surface and the whole envelope
 # (dilated by the 50 px extfov search window) sits inside the extended frame at
 # every offset the sweeps plant.  The rendered haze is deliberately NOT that
-# envelope: an 8 px scale height referenced 4 px up puts the soft optical limb a
-# few pixels above the solid radius, which is the altitude mismatch the
-# free-radius arc fit exists to absorb.
+# envelope: it is Titan's published haze at this scale.  The scale height is 45 km
+# above 140 km (Doose et al. 2016, Icarus 270, 355), 1.05 px; the tangent optical
+# depth at 140 km is 14.3, from the optical depth above 80 km at 650 nm, 2.66
+# (Tomasko et al. 2008, Planet. Space Sci. 56, 669), carried up from 80 km with
+# their 65 km scale height; the single-scattering albedo is 0.95 (Doose et al.
+# 2016); and the phase function is the two-term Henyey-Greenstein fit to the DISR
+# haze phase function at 650 nm (see sim/render/bodies/haze_scattering.py).  The
+# haze hides the surface, and the optical limb sits about 6 px above the solid
+# radius, well inside the predicted envelope: the altitude mismatch the free-radius
+# arc fit exists to absorb.  The fit lands 0.28 to 0.53 px off along the sun axis,
+# toward the night side, and the error grows with the rendered scale height.
 #
 # Phase 60 deg is chosen, not incidental.  A smooth haze disc near full
 # illumination is close to rotationally symmetric, so the mirror-correlation
 # scan grows side lobes about 15 px either side of the true axis whose
 # normalized height approaches the 0.90 competing-peak threshold; the technique
 # then refuses the frame rather than risk locking onto one.  Measured at this
-# body size, the strongest rival lobe runs 0.91 at phase 20, 0.89 at phase 40,
-# 0.74 at phase 60, and vanishes by phase 90 -- so a base scene at low phase
-# would characterize the gate, not the estimator.  The phase dependence itself
-# is a real property of the method and is swept in the util/ campaign.
+# body size, with a thicker and more extended haze, the strongest rival lobe runs
+# 0.91 at phase 20, 0.89 at phase 40, 0.74 at phase 60, and vanishes by phase 90
+# -- so a base scene at low phase would characterize the gate, not the
+# estimator.  The phase dependence itself is a real property of the method and
+# is swept in the util/ campaign.
 bodies:
   - name: TITAN
     shape_model: ellipsoid
@@ -42,10 +51,13 @@ bodies:
     km_per_pixel: 42.917
     range_km: 1200000.0
     atmosphere:
-      scale_height_px: 8.0
-      tau_ref: 3.0
-      ref_altitude_px: 4.0
-      g: 0.5
+      scale_height_px: 1.05
+      tau_ref: 14.3
+      ref_altitude_px: 3.26
+      g: 0.886
+      g2: -0.164
+      g2_fraction: 0.091
+      albedo: 0.95
 noise:
   poisson: true
   read_noise_dn: 4.0

@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -0.02775808303504814,
-  "offset_dv_px": 0.011292468189722762,
+  "offset_du_px": -0.9968162386089671,
+  "offset_dv_px": 0.019538252214247487,
   "scene_name": "haze_limb_base",
   "status": "success"
 }

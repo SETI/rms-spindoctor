@@ -12,6 +12,12 @@ exposure_sec: 1.0
 # floor convention of the other model-mismatch bases.  The committed
 # titan_haze_limb scene keeps its original PSF-free render (its own baseline is
 # a separate tripwire); this base exists for the atmosphere_haze sweep.
+# Its haze is a generic axis-study haze, not Titan's: thinner, far more extended
+# (a 12 px scale height on a 90 px radius), and with a one-term phase function, so
+# the sweeps on it walk from a clear limb to a thick haze in resolved steps.
+# titan_haze_limb renders the same geometry with Titan's published haze.  Under
+# this haze the fused answer lands 0.97 to 1.01 px off over the committed seed
+# and random_seed 101 to 1515.
 # The body is named HAZEMOON, not TITAN, deliberately: this scene is a
 # body-navigation fidelity record for a haze-BLIND navigator.  A body named
 # TITAN routes to the haze model and its symmetry technique instead, which

@@ -11,6 +11,16 @@ exposure_sec: 1.0
 # the hard limb they predict.  A body named TITAN routes to the haze model and
 # its symmetry technique instead, which is a different measurement; the sim
 # Titan scenes live alongside this one under their own base scene.
+#
+# The haze is Titan's published haze with the 90 px radius standing for Titan's
+# 2575 km (28.6 km/px): see titan_haze for the values and their sources.  It
+# hides the surface, and the haze disc reaches about 9 px past the solid limb the
+# navigator predicts.  The disc correlation and the limb fit both read that haze
+# edge as the limb and land 7.5 to 8.3 px off toward the sun; the blob centroid
+# lands 1.1 px off.  On 16 of 24 draws (the committed seed, random_seed 101 to
+# 1515, and noise_seed 101 to 808) the ensemble reports the disagreement and the
+# frame is conflicted, the committed draw among them; on the other 8 it returns a
+# medium-tier success 7.52 to 7.54 px off against a 1.2 to 1.4 px sigma.
 bodies:
   - name: HAZEMOON
     shape_model: ellipsoid
@@ -22,10 +32,13 @@ bodies:
     illumination_angle: 90.0
     phase_angle: 40.0
     atmosphere:
-      scale_height_px: 12.0
-      tau_ref: 4.0
-      ref_altitude_px: 0.0
-      g: 0.6
+      scale_height_px: 1.57
+      tau_ref: 14.3
+      ref_altitude_px: 4.89
+      g: 0.886
+      g2: -0.164
+      g2_fraction: 0.091
+      albedo: 0.95
 noise:
   poisson: true
   read_noise_dn: 4.0
@@ -33,5 +46,4 @@ offset_v: -0.74
 offset_u: 1.19
 offset_rotation_deg: 0.0
 expected:
-  status: success
-  confidence_tier: medium
+  status: conflicted

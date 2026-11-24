@@ -20,28 +20,31 @@ bodies:
     illumination_angle: 90.0
     phase_angle: 155.0
     atmosphere:
-      scale_height_px: 10.0
-      tau_ref: 3.0
-      ref_altitude_px: 0.0
-      g: 0.75
+      scale_height_px: 1.49
+      tau_ref: 14.3
+      ref_altitude_px: 4.62
+      g: 0.886
+      g2: -0.164
+      g2_fraction: 0.091
+      albedo: 0.95
 noise:
   poisson: false
   read_noise_dn: 0.0
 offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
-# See titan_crescent_horns: the ring of light drags the blob centroid 24 px,
-# the terminator feature is dropped by the reliability gate (0.26 vs the 0.30
-# threshold, the sin(155 deg) phase cap doing most of the capping), and the
-# disc correlation, pulled by the ring of light its template leaves out
-# (#1050), answers (1.20, -3.67) at the edge of its refinement window along u
-# (#1061) without flagging it spurious.  The noiseless twin removes read and
-# Poisson noise as a confound and pins both biases deterministically: the haze
-# alone, not the noise, decides them.
-# Known error: 2.872 px on the committed draw and on random_seed 101, 202, ...,
-# 1515 alike, giving the band [2.821, 2.922] px with the 0.05 px margin.
+# See titan_crescent_horns: the haze is Titan's published haze, the ring of light
+# drags the blob centroid 17 px, the terminator feature is dropped by the
+# reliability gate (0.26 vs the 0.30 threshold, the sin(155 deg) phase cap doing
+# most of the capping), and the disc correlation, whose template leaves the ring
+# of light out (#1050), answers the coarse-grid point (-0.5, 0.5) without flagging
+# it spurious.  The noiseless twin removes read and Poisson noise as a confound
+# and pins both biases deterministically: the haze alone, not the noise, decides
+# them.
+# Known error: 2.140 px on the committed draw and on random_seed 101, 202, ...,
+# 1515 alike, giving the band [2.090, 2.191] px with the 0.05 px margin.
 expected:
   status: success
   confidence_tier: low
-  known_offset_error_px: 2.8715
+  known_offset_error_px: 2.1405
   known_offset_error_tol_px: 0.0505

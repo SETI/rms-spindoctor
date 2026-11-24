@@ -1,13 +1,14 @@
 sweep_name: atmosphere_haze_albedo
 # Haze-brightness mismatch axis: the atmosphere_haze base scene's haze at its
 # full tau_ref 4 column, with the haze albedo walked up from 0.  At albedo 0 the
-# haze adds no light (its halo only dims the black sky behind it), so the limb
-# renders as the bare surface and that point is the self-consistency floor.  A
-# brighter haze lifts the limb farther above the reference radius the navigator
-# predicts.  The disc correlation's high-pass refinement weakens the haze's smooth
-# glow, so the error stays between 0.02 and 0.04 px at every step and is smallest
-# at albedo 1.0 (25 noise draws).  The 0.6 point is the base scene's default
-# albedo, the atmosphere_haze sweep's tau_ref 4 point.
+# haze adds no light (its halo only dims the black sky behind it), but it still
+# dims the surface beneath it, more toward the limb, so the floor sits about 1 px
+# off.  Over 25 noise draws the albedo 0, 0.15, 0.3, and 0.6 steps sit 0.94 to
+# 1.01 px off, within 0.04 px of the floor draw for draw; at albedo 1.0 the haze's
+# light makes the answer unstable, 0.43 to 3.99 px off and conflicted on some
+# draws.  The base scene's haze is a generic axis-study haze with a one-term phase
+# function.  The 0.6 point is the base scene's default albedo, the atmosphere_haze
+# sweep's tau_ref 4 point.
 base_scene: model_mismatch/haze_limb_base.yaml
 parameters: [bodies.0.atmosphere.albedo]
 values: [0.0, 0.15, 0.3, 0.6, 1.0]
