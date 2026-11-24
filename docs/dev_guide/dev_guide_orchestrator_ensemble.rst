@@ -398,16 +398,17 @@ a regression test, and each also shows where the veto's coverage ends:
   the planted offset sub-pixel and stays a success, so the veto doesn't blanket
   the walk.
 - ``tests/integration/sim_scenes/atmosphere/titan_crescent_horns.yaml`` (and
-  its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
-  a ~24 px wrong offset. A spurious disc correlation would leave the blob as the
+  its noiseless twin) -- a 155-degree haze crescent drags the blob centroid 16
+  to 19 px off. A spurious disc correlation would leave the blob as the
   lone survivor, and the collapsed-regime veto would decline the frame. Here the
-  disc correlation is pulled 2.9 px off by the ring of light its template leaves
-  out, and it doesn't flag that answer spurious. The blob is dropped from the fuse
+  disc correlation, whose template leaves the ring of light out, lands 1.5 to
+  2.1 px off on a point of its half-pixel coarse grid, and it doesn't flag that
+  answer spurious. The blob is dropped from the fuse
   as a fallback, and neither veto applies. At 155 degrees the blob is past half
   phase, where the shape-lock check does not trust it. The collapsed-regime check
   applies only when the disc correlation flags itself spurious, and here it does
-  not. The frame ends a low-confidence success 2.9 px wrong, and the scene holds
-  that error to a band.
+  not. The frame ends a low-confidence success 1.5 to 2.1 px wrong, and the scene
+  holds that error to a band.
 
 The witness is a defense against a geometric lock, not a cure for the blob's
 own bias: past half phase the centroid is itself crescent- and haze-biased, so

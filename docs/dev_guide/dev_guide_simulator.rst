@@ -183,9 +183,18 @@ relative to ``sim/render/``):
        (see :ref:`the planted roll <sim-planted-roll>`).
    * - ``bodies/atmosphere.py``
      - The haze-limb layer for atmospheric (Titan-class) bodies: an
-       exponential haze column composited onto the disc, giving a soft limb, a
-       terminator that brightens past 90 deg, and a forward-scattering ring of
-       light at high phase (see :ref:`sim-atmosphere`).
+       exponential haze column over the disc and above the limb, giving a soft
+       limb, a surface dimmed or hidden by the column, a terminator that
+       brightens past 90 deg, and a forward-scattering ring of light at high
+       phase (see :ref:`sim-atmosphere`).
+   * - ``bodies/haze_scattering.py``
+     - The reflectance of a haze column of finite optical depth, single and
+       multiple scattering together, and the effective cosines of grazing
+       paths (see :ref:`sim-atmosphere`).
+   * - ``bodies/haze_geometry.py``
+     - The image-plane geometry of that haze: the box it is evaluated in, the
+       latitude of the column a pixel sees, and the surface incidence under the
+       disc.
    * - ``bodies/haze.py``
      - The optional symmetry-breaking structure of that haze layer: axis tilt,
        hemispheric and azimuthal falloff variation, an interior brightness
@@ -2152,10 +2161,10 @@ not yet fixed. There are eight:
   template lacks.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
-- In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
-  pulls the disc correlation, which carries a low-tier success 2.87 px wrong. The
-  correlation stops at the edge of its half-pixel refinement window on every seed,
-  with the surface still rising beyond it.
+- In ``titan_crescent_horns`` and its noiseless twin, the disc correlation,
+  whose template leaves the haze's ring of light out, answers a point of its
+  half-pixel coarse grid on every seed and carries a low-tier success 1.48 to
+  2.14 px wrong.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
   outline that the image doesn't have, and the disc correlation lands on the
   maximum of its high-pass surface, pulled by that outline.
@@ -2242,13 +2251,15 @@ render departs from it. The sweeps and their floors:
   while the navigator predicts point sources.
 - ``ring_orbit_error`` -- a navigable ringlet's rendered orbit displaced radially
   off the catalog orbit.
-- ``atmosphere_haze`` -- a Titan-class haze softens the limb the navigator
-  predicts as hard. The sweep drives a ``HAZEMOON`` body, so it measures
-  haze-BLIND body navigation; the haze solar-symmetry fit has its own base scene
-  and offset sweeps.
+- ``atmosphere_haze`` -- a haze softens the limb the navigator predicts as hard,
+  dims the surface beneath it, and lifts the level it reflects from. The base
+  scene's haze is a generic one, thinner and far more extended than Titan's, so
+  the walk from a clear limb to a thick haze is resolved. The sweep drives a
+  ``HAZEMOON`` body, so it measures haze-BLIND body navigation; the haze
+  solar-symmetry fit has its own base scene and offset sweeps.
 - ``atmosphere_haze_albedo`` -- the same haze column at ``tau_ref`` 4 with the
-  haze ``albedo`` walked up from 0, where the haze adds no light, so a dim
-  Titan-like haze and a brighter one can be compared at one thickness.
+  haze ``albedo`` walked up from 0, where the haze adds no light but still dims
+  the surface, so a dim haze and a brighter one can be compared at one thickness.
 
 The remaining Section 8 axes are covered by pre-existing sweeps
 (``noise_read_noise`` and its calibrated twin ``noise_read_noise_calib``, the
@@ -2968,47 +2979,121 @@ Atmospheres (haze limb)
 
 A body carrying an ``atmosphere`` block gains an exponential haze layer above
 its surface (``atmosphere.py``), evaluated after the disc is shaded: the
-on-disc haze joins the body's opaque paint, while the above-limb glow is a
-translucent halo screen composited like the ring system's -- background,
-rings, and stars behind it show through scaled by ``exp(-tau)`` with the glow
-added, and the body's mask / depth / occlusion truth sees only the solid
-silhouette. The body then goes over its own halo by how much of each pixel its
-outline covers, so a limb pixel shows the disc in that fraction and the glow in
-the rest. Where limb relief dips inside the reference ellipse, the uncovered
-pixels are sky seen through the haze column and join the halo screen. The
-halo reaches out until its glow, and its dimming of a full-scale background,
-both fall below 1e-5 of full scale, under a twentieth of a 12-bit DN. So a
-bright forward-scattering haze fades into the sky instead of ending in a step.
-A line of sight grazing the body at tangent altitude ``h`` (pixels above the
-reference radius) accumulates a tangent optical depth
+on-disc haze dims the body's opaque paint and adds its own light, while the
+above-limb glow is a translucent halo screen composited like the ring
+system's -- background, rings, and stars behind it show through scaled by
+``exp(-tau)`` with the glow added, and the body's mask / depth / occlusion
+truth sees only the solid silhouette. The body then goes over its own halo by
+how much of each pixel its outline covers, so a limb pixel shows the disc in
+that fraction and the glow in the rest. Where limb relief dips inside the
+reference ellipse, the uncovered pixels are sky seen through the haze column and
+join the halo screen. The halo reaches out until its glow, and its dimming of a
+full-scale background, both fall below 1e-5 of full scale, under a twentieth of
+a 12-bit DN. So a bright forward-scattering haze fades into the sky instead of
+ending in a step.
+
+**The column.** A line of sight grazing the body at tangent altitude ``h``
+(pixels above the reference radius) accumulates a tangent optical depth
 ``tau(h) = tau_ref * exp(-(h - ref_altitude_px) / scale_height_px)``, so
-``tau_ref`` is the tangent optical depth at ``ref_altitude_px``. The emergent
-haze brightness is a single-scattering source (the haze ``albedo``, times a
-Henyey-Greenstein phase factor ``P`` of asymmetry ``g``, divided by 4, times a
-wrapped illumination weight) multiplied by an opacity ``1 - exp(-tau)``. The
-image is in I/F, where a white Lambert disc lit face-on is 1, and ``P``
-averages 1 over the sphere, so a thin, fully lit column of optical depth
-``tau`` reflects ``albedo * P * tau / 4``, the standard single-scattering
-result, and a thick one at most ``albedo * P / 4``. The ring system's
-photometry uses the same factor. ``albedo`` is the haze's single-scattering
-albedo: it defaults to 0.6 and lies in [0, 1]. It sets how bright the
-haze is against the disc and the sky, independently of how thick it is, so a
-dim Titan-like haze and a brighter Saturn-like one can share a column. At 0
-the haze adds no light: the halo still dims what lies behind it, and the
-limb renders as the bare surface. Three consequences follow:
+``tau_ref`` is the tangent optical depth at ``ref_altitude_px``. A line of sight
+that meets the disc crosses the slant column from the top of the haze down to the
+surface: the vertical optical depth ``tau_vert`` (the surface tangent depth
+divided by the grazing enhancement ``sqrt(2 pi R / H)``) over the cosine of the
+emission angle. Toward the limb that cosine is replaced by an effective cosine
+``sqrt(mu**2 (1 - c) + c)`` with ``c = 2 H / (pi R)``, which keeps the column
+finite on a grazing path. At the limb it is ``sqrt(c)``, and the slant column is
+then half the surface tangent depth, the near half of the column a line of sight
+just above the limb crosses. The incidence angle takes the same correction.
 
-- **A soft limb.** Above the geometric limb the opacity fades as an
-  exponential ramp, so the sharp edge becomes a soft glow whose apparent
-  radius sits outside the reference radius. Because the source scales with the
-  phase factor, the ramp is brighter -- and the apparent limb sits further out
-  -- at high phase than at low phase. That is the physical root of the Titan
-  altitude-versus-phase problem.
+**The reflectance.** The haze reflects sunlight as a layer of finite optical
+depth, by Hapke's isotropic multiple-scattering approximation
+(``haze_scattering.py``)::
 
-- **A terminator that wraps.** The illumination weight stays positive past
-  the terminator over the horizon-dip angle ``sqrt(2 * H / R)`` of arc (the
-  solar depression at which a column one scale height up loses direct
-  sunlight; ~0.5 rad for the catalog Titans, floored at 0.05 rad for thin
-  atmospheres), so the night side near the terminator brightens smoothly
+    I/F = (albedo / 4) * mu0 / (mu0 + mu) * [P * f + (H(mu0) * H(mu) - 1) * f**2]
+
+Here ``P`` is the phase function, ``mu0`` and ``mu`` the effective cosines of
+the incidence and emission angles, and ``H`` the H-function in Hapke's closed
+form, ``(1 + 2x) / (1 + 2x sqrt(1 - albedo))``. The first term is the light
+scattered once, the second the light scattered more than once. The factor
+``f = 1 - exp(-tau (1 + mu / mu0))``, with ``tau`` the column along the line of
+sight, is the share of a semi-infinite layer's light that the column reflects.
+Light scattered twice meets the column twice, so the second term takes the
+square of it. A thin column therefore reflects ``albedo * P * tau / 4``, the
+single-scattering result, and a thick one reflects what a semi-infinite haze
+would. The image is in I/F, where a white Lambert disc lit face-on is 1, and
+``P`` averages 1 over the sphere; the ring system's photometry uses the same
+factor of 1/4. A forward-scattering haze sends less of its multiply scattered
+light back than an isotropic one with the same albedo, so the second term uses
+the similarity relations: its H-functions take the albedo
+``albedo (1 - g) / (1 - albedo g)`` and the column ``(1 - albedo g) tau``, where
+``g`` is the phase function's mean cosine.
+
+**The phase function.** ``P`` is a Henyey-Greenstein function of asymmetry
+``g``, or, when the block also sets ``g2`` and ``g2_fraction``, the two-term
+function ``(1 - g2_fraction) * HG(g) + g2_fraction * HG(g2)``, whose mean cosine
+is the same mix of ``g`` and ``g2``. The scenes that render Titan use a two-term
+fit to the haze phase function the Huygens probe measured above 80 km (Tomasko et
+al. 2008), interpolated to 650 nm: ``g`` 0.886, ``g2`` -0.164, and
+``g2_fraction`` 0.091, a mean cosine of 0.790. It follows the measured function
+within 20% from 20 to 180 deg of scattering angle, and nearer the forward
+direction two terms cannot follow the measured peak. The module docstring of
+``haze_scattering.py`` gives the fit. The same scenes take Titan's published scale
+height, optical depth, and albedo, scaled to each body's radius; the
+``titan_haze`` scene comment lists them with their sources.
+
+The haze reflects from the level where the tangent optical depth is 1, or from
+the surface when the column is thinner than that. A thick haze therefore looks
+like a sphere that much larger than the body: across the disc the brightness
+varies as a haze layer's does, out to that sphere's edge, and beyond it the glow
+falls off with the thinning tangent column.
+
+**The surface beneath.** The disc's own shading is multiplied by the direct
+transmission ``exp(-tau_vert * (1 / mu + 1 / mu0))`` of the sunlight coming in
+and the light going out, with ``mu`` and ``mu0`` the effective cosines at the
+surface. A haze one or two optical depths thick dims the surface, and one several
+optical depths thick hides it. The haze is as bright just inside the solid limb
+as just outside it, so the solid limb does not show.
+
+``albedo`` is the haze's single-scattering albedo: it defaults to 0.6 and lies in
+[0, 1]. It sets how bright the haze is against the disc and the sky,
+independently of how thick it is. At 0 the haze adds no light: the halo still
+dims what lies behind it, and the disc shows the surface through the column.
+
+What the model leaves out: the surface is lit only by the sunlight that crosses
+the column unscattered and seen only through the direct beam, so light bouncing
+between the surface and the haze and light diffusely transmitted through it are
+not rendered; the multiply scattered light is isotropic; and each column is
+evaluated at one point (where the line of sight meets the reflecting level, or
+its tangent point) rather than integrated along the curved path. The last means
+that at high phase the near side of a thick tangent path, which real sunlight
+reaches only through the deep atmosphere behind the limb, is lit as fully as the
+tangent point.
+
+Compared with real frames of Titan, the rendered disc and its sunward edge come
+out somewhat darker and lower at low and moderate phase, and the forward ring of
+light is fainter at high phase: light scattered forward more than once along the
+limb path is not carried forward by an isotropic multiple-scattering term. The
+instrument chapters give the comparison for their cameras, and the published
+parameters are not adjusted to close it.
+
+Four consequences follow:
+
+- **A soft limb.** Above the reflecting level the glow fades as an exponential
+  ramp, so the sharp edge becomes a soft glow whose apparent radius sits outside
+  the reference radius. Because the glow scales with the phase factor, the ramp
+  is brighter -- and the apparent limb sits further out -- at high phase than at
+  low phase. That is the physical root of the Titan altitude-versus-phase
+  problem.
+
+- **A disc of haze.** Over a thick haze the disc is haze: its brightness follows
+  the haze's own reflectance, limb-brightened where ``mu0 / (mu0 + mu)`` grows
+  toward the edge, and the surface beneath does not show.
+
+- **A terminator that wraps.** The haze stays lit past the terminator, its light
+  falling as ``exp(-(e / delta)**2)`` with the solar depression ``e``, where
+  ``delta`` is the horizon-dip angle ``sqrt(2 * H / R)`` (the solar depression at
+  which a column one scale height up loses direct sunlight), floored at 0.05 rad
+  for thin atmospheres. So the night side near the terminator brightens smoothly
   instead of cutting off at 90 deg incidence.
 
 - **A ring of light.** A forward-scattering haze (``g`` > 0) peaks toward high
@@ -3124,15 +3209,16 @@ carries cold-render budgets for the structureless path.
 The layer is a truth key: the navigator's predicted body (see
 :doc:`dev_guide_navigation_models_body_simulated`) keeps a hard limb at the
 reference radius and never learns the haze exists, so the soft rendered limb is
-a deliberate model mismatch. A navigator that fits the bright sunward haze ramp
-recovers a small offset toward the sunlit limb whose size tracks the
-phase-dependent apparent limb radius (and the haze parameters) -- the
-``atmosphere`` catalog scenes measure that bias and pin the measured value. The
-low-phase ``titan_haze_limb`` scene ends a medium-tier success 0.03 px from the
-planted offset. The disc correlation's high-pass refinement ignores the haze's
-smooth glow and lands within 0.01 px. The limb DT fit reads the haze-lifted limb
-and lands 0.17 px off, and the fused answer sits between the two, close to the
-disc correlation.
+a deliberate model mismatch. A navigator that fits a haze-hidden disc as if it
+were the solid body reads the haze's edge as the limb and recovers an offset
+toward the sunlit limb whose size tracks the height of that edge above the solid
+radius -- the ``atmosphere`` catalog scenes measure that bias and pin the
+measured value. With Titan's haze the edge stands about 9 px above the 90 px
+radius of the low-phase ``titan_haze_limb`` scene. There the disc correlation
+and the limb DT fit both land 7.5 to 8.3 px off toward the sun and the blob
+centroid 1.1 px off, so on 16 of its 24 measured draws the ensemble reports the
+frame conflicted; on the other 8 it returns a medium-tier success 7.5 px off
+against a sigma of 1.2 to 1.4 px.
 
 Everything in this paragraph is about *body* navigation against a haze the
 navigator does not model. The scenes that measure it carry a body named
@@ -3140,29 +3226,30 @@ navigator does not model. The scenes that measure it carry a body named
 to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
-is the one that drives that technique. At high phase the haze is
-outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light peaks
-at about 0.9 of a white disc lit face-on. The predicted
+is the one that drives that technique; with Titan's haze it lands 0.28 to 0.53 px
+off along the sun axis, toward the night side, an error that grows with the
+rendered scale height. At high phase the haze is outright hostile: in
+``titan_crescent_horns`` (155 deg) the haze hides the surface and the only light
+is the ring of light, which peaks at 0.39 of a white disc lit face-on about 7 px
+above the solid limb. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.24 against the 0.30
-``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
-24 px off in ``du``. The ring of light, which the disc correlation's
-hard-limbed template leaves out, also pulls the correlation 2.87 px off, to the
-edge of its half-pixel refinement window, and the correlation does not flag that
-answer spurious. So the body-witness veto (see
-:doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands 16 to
+19 px off. The disc correlation, whose hard-limbed template leaves the ring of
+light out, answers a point of its half-pixel coarse grid on every draw, 1.48 to
+2.14 px off, and does not flag that answer spurious. So the body-witness veto
+(see :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
 nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its 2.87 px error to a band. The noiseless sibling
+scene holds its error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
-and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near -25.0, and the same 2.87 px disc correlation error), so the
-ring of light alone drives them. The haze evaluation
-is restricted to the bounding box of the
-body plus its halo (out to a detached shell's reach), so its cost scales with
-that box rather than the frame, and a body without an ``atmosphere`` block
-renders hard-limbed and byte-for-byte unchanged.
+and phase geometry -- pins both biases deterministically (blob centroid 17.0 px
+off, disc correlation 2.14 px off), so the ring of light alone drives them. The
+haze evaluation is restricted to the bounding box of the body plus its halo (out
+to a detached shell's reach), so its cost scales with that box rather than the
+frame, and a body without an ``atmosphere`` block renders hard-limbed and
+byte-for-byte unchanged.
 
 .. _sim-ring-renderer:
 

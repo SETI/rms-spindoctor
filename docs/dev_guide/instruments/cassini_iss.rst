@@ -625,6 +625,76 @@ lower the hot-pixel fraction to the 1.6e-5 the cohort measures.
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
 
+**Titan haze.** The simulated Titan scenes render Titan's published haze (see
+:ref:`sim-atmosphere`), and it was compared with five calibrated Titan frames
+from the cohort in ``util/titan_cohort``. Their geometry comes from the
+navigator's Titan model with each frame's committed offset, and each comparison
+render is Titan at that frame's own scale and phase, before the detector. All
+values are I/F. "Half max" is the altitude above the solid radius where the
+sunward profile falls to half its peak, and the peak altitude is negative where
+the sunward peak lies on the disc.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Frame
+     - Filters
+     - Phase (deg)
+     - Disc center, real / simulated
+     - Sunward peak, real / simulated
+     - Peak altitude (km), real / simulated
+     - Half max (km), real / simulated
+     - Anti-sunward peak, real / simulated
+   * - W1552216540
+     - CL1, RED
+     - 60.6
+     - 0.134 / 0.106
+     - 0.266 / 0.212
+     - -321 / -64
+     - 260 / 198
+     - 0.020 / 0.024
+   * - N1634463227
+     - CL1, CL2
+     - 81.1
+     - 0.052 / 0.038
+     - 0.224 / 0.210
+     - -250 / 108
+     - 222 / 195
+     - 0.002 / 0.001
+   * - N1702239331
+     - CL1, CL2
+     - 107.1
+     - 0.0024 / 0.0017
+     - 0.287 / 0.197
+     - -43 / 132
+     - 232 / 207
+     - 0.001 / 0.000
+   * - W1721822901
+     - CL1, CL2
+     - 149.2
+     - 0.005 / 0.000
+     - 0.847 / 0.263
+     - 217 / 197
+     - 326 / 290
+     - 0.028 / 0.000
+   * - W1561790952
+     - CL1, CL2
+     - 166.5
+     - 0.102 / 0.000
+     - 2.693 / 1.590
+     - 310 / 262
+     - 399 / 310
+     - 0.321 / 0.271
+
+The 0.102 at the center of W1561790952 is scattered light from the bright ring
+around it. From 60 to 107 deg the simulated disc runs 20 to 30% darker than the
+real one and the sunward edge falls to half its peak 25 to 60 km lower. At 149
+and 167 deg the ring of light is 3.2 and 1.7 times fainter than on the real
+frames and its peak sits 20 to 50 km lower, and at 149 deg no light reaches the
+anti-sunward side, where the real frame shows 0.028. The likely cause is light
+scattered forward more than once along the long limb path, which the renderer's
+isotropic multiple-scattering term cannot carry forward.
+
 Image library and test coverage
 ===============================
 
