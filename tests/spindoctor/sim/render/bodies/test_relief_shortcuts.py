@@ -1,8 +1,9 @@
 """The relief renderer's shortcuts change none of its answers.
 
 The cast-shadow march skips the samples a slope bound proves above the terrain, the
-line-of-sight search off the field's pole bounds the slope by the cells near each
-step, and the working grid computes the relief only inside the silhouette.  Each is
+line-of-sight search bounds the slope by the field near each step (the rows beside
+it along the field's pole, the cells near it elsewhere), and the working grid
+computes the relief only inside the silhouette.  Each is
 checked against the work it saves: a march that takes every sample, a search that
 uses the field's steepest slope anywhere, and a body that computes the relief at
 every pixel it reaches.
@@ -88,6 +89,59 @@ def test_a_ray_stays_above_the_terrain_over_its_clear_distance(
     assert float(clearance.min()) > 0.0
 
 
+def _ramp_field(depth: float, slope: float) -> ReliefField:
+    """Terrain ``depth`` deep that rises ``slope`` per radian toward ``+z`` to the equator.
+
+    The height depends on latitude alone: ``-depth`` far south, 0 from the equator
+    north, and a ramp between, so the field's steepest slope is the ramp's.
+    """
+    n = 256
+    lat = -np.pi + 2.0 * np.pi * np.arange(n) / n
+    grid = np.repeat(np.clip(slope * lat, -depth, 0.0)[:, np.newaxis], n, axis=1)
+    return ReliefField(
+        grid=grid,
+        rms=depth,
+        corr_deg=60.0,
+        h_min=float(grid.min()),
+        h_max=float(grid.max()),
+        slope_max=relief._grid_slope_bound(grid),
+    )
+
+
+@pytest.mark.parametrize('height', [1e-6, 1e-2], ids=['a-millionth-above', 'a-hundredth-above'])
+def test_a_falling_ray_stays_above_a_steep_ramp_over_its_clear_distance(height: float) -> None:
+    """Sampled every 1/256 of its clear distance, a falling ray never dips into a ramp.
+
+    The terrain lies half a radius deep, and its one ramp rises 10 per radian, as
+    steeply as the field allows.  A ray starts low on the ramp, at radius 0.53, and
+    heads up it while falling toward the body, at the angle that closes on the ramp
+    fastest: 18.8 per unit of travel, against the bound's 21.  Just above the ramp the
+    clear distance must keep its margin, and high above it the clear distance must
+    allow for the ray closing faster as it falls.
+
+    Parameters:
+        height: How far above the ramp the ray starts.
+    """
+    field = _ramp_field(0.5, 10.0)
+    lat = -1.9 * 2.0 * np.pi / field.grid.shape[0]
+    up = np.array([math.cos(lat), 0.0, math.sin(lat)])
+    north = np.array([-math.sin(lat), 0.0, math.cos(lat)])
+    ground = 1.0 + float(field.sample_points(up[np.newaxis, :])[0])
+    descent = -1.0 / math.hypot(1.0, field.slope_max / ground)
+    start = ((ground + height) * up)[np.newaxis, :]
+    direction = descent * up + math.sqrt(1.0 - descent**2) * north
+    radius = np.linalg.norm(start, axis=1)
+    surface = 1.0 + field.sample_points(start)
+    impact = np.linalg.norm(np.cross(start, direction), axis=1)
+    clear = relief._clear_distances(
+        start, radius, surface, impact=impact, sun=direction, field=field
+    )
+    along = start + (clear[0] * np.linspace(0.0, 1.0, 257))[:, np.newaxis] * direction
+    clearance = np.linalg.norm(along, axis=1) - 1.0 - field.sample_points(along)
+    assert float(clear[0]) > 0.0
+    assert float(clearance.min()) > 0.0
+
+
 def test_the_march_answers_as_if_it_took_every_sample(monkeypatch: pytest.MonkeyPatch) -> None:
     """Skipping the samples proved above the terrain leaves every shadow as it was."""
     field = synthesize_relief_field(0.05, 5.0, 3)
@@ -136,27 +190,60 @@ def test_the_cells_near_a_point_bound_the_slope_within_a_cell_of_it() -> None:
     assert float(excess.max()) <= 1e-12
 
 
-def test_the_turned_search_finds_what_the_steepest_slope_finds(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Off the pole, the search reads the same points with either slope bound.
+def _grid_scale_rough_field(amplitude: float, seed: int) -> ReliefField:
+    """Terrain rough at the scale of its own grid: each node an independent height.
 
-    At 10% relief and a 1-degree correlation length, the search's quarter-cell steps
-    pass over ridge tops.  A search that took no slope into account would miss one on
-    17 of these lines of sight.
+    The heights are uniform within ``amplitude`` of 0, and every grid node is a sharp
+    peak or pit, so the slope next to a ridge top is as steep as the cells around it
+    allow.  The pole rows are 0, single valued as a synthesized field's are.
     """
-    field = synthesize_relief_field(0.1, 1.0, 1)
-    view = (math.sin(math.radians(50.0)), math.cos(math.radians(50.0)))
+    n = 256
+    grid = np.zeros((n, n))
+    grid[n // 4 + 1 : 3 * n // 4] = amplitude * np.random.default_rng(seed).uniform(
+        -1.0, 1.0, (n // 2 - 1, n)
+    )
+    return ReliefField(
+        grid=grid,
+        rms=amplitude,
+        corr_deg=1.0,
+        h_min=float(grid.min()),
+        h_max=float(grid.max()),
+        slope_max=relief._grid_slope_bound(grid),
+    )
+
+
+@pytest.mark.parametrize('view_lat_deg', [0.0, 75.0], ids=['equator-on', 'seventy-five-degrees'])
+def test_the_search_finds_what_the_steepest_slope_finds(
+    view_lat_deg: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The search reads the same points with its slope bound as with the field's steepest.
+
+    The field is rough at its own grid's scale, so ridge tops poke into the lines of
+    sight between the search's quarter-cell steps.  Half the lines of sight cross the
+    disc and half lie between the lowest and highest outline, where they graze ridge
+    tops.  A search that took no slope into account would read another point on 349
+    of these lines of sight equator-on, and on 783 at 75 degrees.
+
+    Parameters:
+        view_lat_deg: The sub-observer latitude.  Seen equator-on the slope comes
+            from the field's rows beside each step, and from any other latitude from
+            the field cells near it.
+        monkeypatch: Replaces the slope bound with the field's steepest slope.
+    """
+    field = _grid_scale_rough_field(0.01, 1)
+    view = (math.sin(math.radians(view_lat_deg)), math.cos(math.radians(view_lat_deg)))
     rng = np.random.default_rng(1)
-    radius = np.sqrt(rng.random(20000))
+    radius = np.concatenate(
+        [np.sqrt(rng.random(10000)), rng.uniform(1.0 + field.h_min, 1.0 + field.h_max, 10000)]
+    )
     angle = rng.uniform(0.0, 2.0 * np.pi, radius.size)
     x, y = radius * np.cos(angle), radius * np.sin(angle)
     nearby = visible_surface_directions(x, y, field, view=view)
 
-    def steepest(self: Any, upper: NDArrayFloatType, index: NDArrayFloatType) -> NDArrayFloatType:
+    def steepest(self: Any, ends: Any, index: NDArrayFloatType) -> NDArrayFloatType:
         return np.full(index.size, self.field.slope_max)
 
-    monkeypatch.setattr(relief_sight._SightLines, '_turned_slope_bound', steepest)
+    monkeypatch.setattr(relief_sight._SightLines, 'slope_bound', steepest)
     np.testing.assert_array_equal(nearby, visible_surface_directions(x, y, field, view=view))
 
 
