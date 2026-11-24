@@ -155,7 +155,7 @@ such as a fraction above 1 or a star count of 0, is refused too, and the message
 file and the setting. For now there are three exceptions. A misspelled section name is
 ignored. A misspelled setting inside ``tuning`` is ignored in all technique blocks other
 than ``body_limb``, ``body_terminator``, and ``ring_edge``, though its value must still be
-a number. And the message for a bad value in an instrument's camera block names the block
+a number. And the message for a bad value in an instrument's camera block gives the block
 and the setting but not the file.
 
 In a ring catalog, each gap or ringlet needs at least one edge, and each edge needs
