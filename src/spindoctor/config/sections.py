@@ -80,7 +80,17 @@ class TypedSections:
 def _typed_sections_type(
     techniques: tuple[type[NavTechnique], ...],
 ) -> type[TypedSections]:
-    """Return the type to parse for a set of shipped techniques; see :func:`typed_sections_type`."""
+    """Return the type to parse for a set of shipped techniques.
+
+    The result is cached, so one set of techniques always gets the same type.
+
+    Parameters:
+        techniques: The shipped technique classes, in registry order.
+
+    Returns:
+        A subclass of :class:`TypedSections` whose ``techniques`` field has the section
+        type for ``techniques``.
+    """
     sections_type: type[TypedSections] = dataclasses.make_dataclass(
         'TypedSections',
         [('techniques', techniques_section_type(techniques))],

@@ -308,9 +308,8 @@ the ``techniques`` section. A setting that navigation does not know, or a value 
 use, such as a confidence above 1, is refused, and the message gives the file and the
 setting. In the other technique blocks, the settings inside ``tuning`` are checked only
 for being numbers, so a misspelled one there is not refused; every other setting is
-checked. A technique block whose key navigation does not know is refused too. That
-includes ``BodyLimbNav``, ``BodyTerminatorNav``, and ``RingEdgeNav``: the blocks of those
-techniques are ``body_limb``, ``body_terminator``, and ``ring_edge``.
+checked. A technique block whose key navigation does not know is refused too. Spell each
+block key as the ``techniques`` entry above gives it.
 
 What a run records about its own configuration
 ==============================================
