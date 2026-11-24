@@ -73,7 +73,7 @@ class BodySpec:
     (:func:`~spindoctor.sim.render.roll.roll_body_params`), and records
     the roll in ``roll_deg``.  It then scales the center and semi-axes by the
     oversampling factor.  :func:`~spindoctor.sim.render.bodies.render.render_single_body`
-    adds the planted translation when it draws the body.
+    adds the planted offset, turned by the roll, when it draws the body.
 
     Parameters:
         name: The body's name as written, or ``SIM-BODY-<index + 1>`` when the

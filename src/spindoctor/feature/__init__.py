@@ -17,7 +17,7 @@ Modules:
     ``feature``
         ``NavFeature`` dataclass and ``NavReliabilityBreakdown``.
     ``reliability``
-        ``FeatureReliabilityGate`` and per-type reliability thresholds.
+        ``FeatureReliabilityGate``, the per-type reliability thresholds.
     ``constants``
         Module-level physical constants (cap angles, sentinel values).
 
@@ -63,16 +63,11 @@ from spindoctor.feature.geometry import (
     TerminatorPolyline,
     TitanHazeGeometry,
 )
-from spindoctor.feature.reliability import (
-    DEFAULT_RELIABILITY_THRESHOLDS,
-    FeatureReliabilityGate,
-    GatedFeatureRecord,
-)
+from spindoctor.feature.reliability import FeatureReliabilityGate, GatedFeatureRecord
 
 __all__ = [
     'AGREEMENT_FACTOR_CAP',
     'COMBINED_CONFIDENCE_CAP',
-    'DEFAULT_RELIABILITY_THRESHOLDS',
     'INCIDENCE_FACTOR_ANGLE_CAP_DEG',
     'INCIDENCE_FACTOR_CLIP_DEG',
     'JSON_INF_SENTINEL',

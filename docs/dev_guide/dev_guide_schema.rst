@@ -14,12 +14,14 @@ into typed Python objects. It has two halves:
   them in order into the one mapping the core checks. It applies the file family's
   rule for null, and it records which file set each value.
 
-The navigator's configuration loads through :class:`~spindoctor.config.config.Config`
-(see :doc:`dev_guide_config_and_static_data`). The simulator's instrument catalog loads
-through this package: its files merge under the ``REMOVE`` rule for null, and each
-entry parses into a typed dataclass (see :ref:`sim-instrument-files`). So does each
-artifact mode's map, in a scene or in the catalog. The rest of a scene is checked by the
-simulator's own scene validator.
+The navigator's configuration uses both halves for its typed sections:
+:class:`~spindoctor.config.config.Config` merges its files under the ``REFUSE`` rule for
+null, parses each typed section into a dataclass, and then applies its own load-time
+checks to the whole merged configuration (see :ref:`config-typed-sections`). The simulator's instrument catalog uses both
+halves: its files merge under the ``REMOVE`` rule for null, and each entry parses into a
+typed dataclass (see :ref:`sim-instrument-files`). So does each artifact mode's map, in
+a scene or in the catalog. The rest of a scene is checked by the simulator's own scene
+validator.
 
 The package imports nothing else from ``spindoctor``. Beyond the standard library it
 may import only pydantic, ``annotated_types``, ``ruamel.yaml``, and ``filecache``, and a
@@ -206,16 +208,16 @@ in order:
      - Deletes the value an earlier layer set. A null with nothing beneath it to
        delete is an error.
    * - ``REFUSE``
-     - Simulated scenes
-     - Is always an error. A scene leaves a key out to take its default.
+     - Simulated scenes, navigator configuration
+     - Is always an error. A file leaves a key out to take its default.
 
 Under both policies, a null inside a list, or inside a mapping that no earlier layer
 has, is an error. A merge collects every refused null in every layer before it
 raises.
 
-The navigator's configuration treats a null as a value: some keys use it to mean
-"no limit". The package has no policy for that, so the navigator's loader keeps its
-own merge.
+The navigator's configuration loader merges its packaged files and the user's
+overrides under ``REFUSE``, so a null in an operator's override is refused with its
+file and key path, as one in a scene is.
 
 The merge returns a :class:`~spindoctor.schema.layers.Merged` with the merged ``data``
 and the ``origins`` of each value. The origins also hold each key a null removed,

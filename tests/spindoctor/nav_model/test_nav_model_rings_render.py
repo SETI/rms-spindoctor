@@ -1,6 +1,6 @@
 """Spec-first tests for the ``NavModelRings`` rendering pipeline.
 
-Covers ``_render`` (including the ``min_res_at_radius`` closure and the sparse
+Covers ``_render`` (including the ``min_res_at_radius`` closure and the ring
 visibility pre-check) plus the parts of ``instances_for_obs`` / ``to_features``
 / ``to_annotations`` that depend on the rendered state.  The contract asserted
 here comes from ``docs/dev_guide/dev_guide_navigation_models_ring.rst`` and the
@@ -19,10 +19,10 @@ module / method docstrings, not from the current implementation:
   every feature filtered out, empty catalog.
 
 Backplane data is supplied by the table-driven ``tests.shims`` fakes; the oops
-``Meshgrid`` / ``Backplane`` names the module builds its own backplanes from
-are monkeypatched with stand-ins serving both the sparse pre-check and the
-striped whole-frame evaluations, so the tests are hermetic (no SPICE, no
-holdings).
+``Meshgrid`` / ``Backplane`` names the ring model and its visibility pre-check
+build their own backplanes from are monkeypatched with stand-ins serving both
+the pre-check and the striped whole-frame evaluations, so the tests are
+hermetic (no SPICE, no holdings).
 """
 
 from __future__ import annotations
@@ -37,8 +37,10 @@ import numpy as np
 import polymath
 import pytest
 from tests.shims import FakeBackplane, FakeObs, RingBackplaneData, bare_nav_context
+from tests.shims.backplane import RingEdgeBackplane, edge_meshgrid
 
 import spindoctor.nav_model.nav_model_rings as nav_model_rings_module
+import spindoctor.nav_model.ring_visibility as ring_visibility_module
 from spindoctor.annotation import Annotations
 from spindoctor.config.config import Config
 from spindoctor.feature.feature import NavFeature
@@ -73,16 +75,15 @@ class _RingBackplane(FakeBackplane):
 
 
 class _FakeMeshgrid:
-    """Meshgrid stand-in for the sparse pre-check and the striped evaluations.
+    """Meshgrid stand-in for the striped evaluations.
 
-    It only records what it was built over.  The sparse pre-check passes an
-    ``undersample``; the striped whole-frame evaluations pass a strip's rows
-    as ``origin`` / ``limit``, which :class:`_DelegatingBackplane` reads back.
+    It only records what it was built over.  The striped whole-frame
+    evaluations pass a strip's rows as ``origin`` / ``limit``, which
+    :class:`_DelegatingBackplane` reads back.
 
     Parameters:
         origin: ``(u, v)`` grid origin.
         limit: ``(u, v)`` grid limit.
-        undersample: Per-axis undersampling steps.
         swap: Whether arrays are (v, u)-indexed.
     """
 
@@ -91,12 +92,10 @@ class _FakeMeshgrid:
         origin: tuple[float, float],
         limit: tuple[float, float],
         *,
-        undersample: tuple[int, int] = (1, 1),
         swap: bool = False,
     ) -> None:
         self.origin = origin
         self.limit = limit
-        self.undersample = undersample
         self.swap = swap
 
     @classmethod
@@ -106,20 +105,18 @@ class _FakeMeshgrid:
         *,
         origin: tuple[float, float],
         limit: tuple[float, float],
-        undersample: tuple[int, int] = (1, 1),
         swap: bool = False,
     ) -> _FakeMeshgrid:
         """Mirror the ``oops.Meshgrid.for_fov`` keywords the model passes."""
         del fov
-        return cls(origin, limit, undersample=undersample, swap=swap)
+        return cls(origin, limit, swap=swap)
 
 
 class _DelegatingBackplane:
-    """Backplane stand-in for the sparse pre-check and the striped evaluations.
+    """Backplane stand-in for the striped evaluations.
 
-    Delegates every query to the observation's dense ``ext_bp``, so the sparse
-    visibility verdict always matches the dense data the test wired and a
-    strip's answer is that strip's rows of the same dense arrays.
+    Delegates every query to the observation's dense ``ext_bp``, so a strip's
+    answer is that strip's rows of the same dense arrays.
 
     Parameters:
         obs: Observation carrying the fake ``ext_bp``.
@@ -341,6 +338,8 @@ def _make_obs(ring_data: RingBackplaneData, *, shape: tuple[int, int] = _SHAPE) 
         closest_planet='SATURN',
         ext_bp=_RingBackplane(per_ring={_TARGET: ring_data}),
         midtime=2.5e8,
+        # Far outside the frame, so the pre-check's verdict rests on the radii.
+        path_uv={'SATURN': (-1.0e6, -1.0e6)},
     )
 
 
@@ -352,15 +351,17 @@ def _make_model(
     """Build a ``NavModelRings`` wired to the fake backplanes.
 
     Parameters:
-        monkeypatch: Pytest monkeypatch fixture (patches the module's oops
-            ``Meshgrid`` / ``Backplane``, which serve both the sparse
-            pre-check and the striped whole-frame evaluations).
+        monkeypatch: Pytest monkeypatch fixture (patches the oops
+            ``Meshgrid`` / ``Backplane`` that the visibility pre-check and
+            the striped whole-frame evaluations build).
         ring_data: Ring backplane tables.
         config: Config carrying the synthetic catalog.
     """
     obs = _make_obs(ring_data)
     monkeypatch.setattr(nav_model_rings_module, 'Meshgrid', _FakeMeshgrid)
     monkeypatch.setattr(nav_model_rings_module, 'Backplane', _DelegatingBackplane)
+    monkeypatch.setattr(ring_visibility_module, 'Meshgrid', edge_meshgrid)
+    monkeypatch.setattr(ring_visibility_module, 'Backplane', RingEdgeBackplane)
     model = NavModelRings('rings:SATURN', cast(Any, obs), config=config)
     return model, obs
 

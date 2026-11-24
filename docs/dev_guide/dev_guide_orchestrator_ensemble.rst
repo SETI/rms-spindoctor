@@ -377,7 +377,7 @@ a regression test, and each also shows where the veto's coverage ends:
   extreme mesh-vs-ellipsoid shape mismatch (``mesh_lumpiness`` 0.7, a
   non-ellipsoidal relief of 8.75% of the radius RMS) the disc correlation and
   the limb fit lock onto the mismatched model. Over mesh seeds 0 to 12 the
-  veto fires on 2 to 6 of the 13 shapes, depending on the noise draw, and
+  veto fires on 3 to 7 of the 13 shapes, depending on the noise draw, and
   reports each one ``conflicted``, with the status reason
   ``body_shape_lock_suspect``. On such a shape the pose-free blob, which does
   not chase the shape, sits pixels from the consensus, and its separation clears
@@ -388,8 +388,8 @@ a regression test, and each also shows where the veto's coverage ends:
   each other, and the veto plays no part. On the remaining shapes the blob
   either carries the result itself at low confidence or is displaced together
   with the lock, so the disagreement the veto reads never appears. One shape
-  ends a success 12.8 px off, carried by the disc correlation, on 24 of 25 noise
-  draws, at 0.89 confidence. That wrong result is a known gap, held by a strict
+  ends a success 8.1 px off, carried by the limb fit, on 7 of 25 noise draws, at
+  0.92 confidence. That wrong result is a known gap, held by a strict
   expected-failure test until the veto catches it. The sweep's own walk uses a
   typical shape (``mesh_seed`` 4, chosen by its silhouette mismatch): on the
   scene's own draw the veto declines its extreme step. Over 25 noise draws it
@@ -401,12 +401,12 @@ a regression test, and each also shows where the veto's coverage ends:
   its noiseless twin) -- a 155-degree haze crescent drags the blob centroid to
   a ~25 px wrong offset. A spurious disc correlation would leave the blob as the
   lone survivor, and the collapsed-regime veto would decline the frame. Here the
-  disc correlation is pulled 1.8 px off by the ring of light its template leaves
+  disc correlation is pulled 3.0 px off by the ring of light its template leaves
   out, and it doesn't flag that answer spurious. The blob is dropped from the fuse
   as a fallback, and neither veto applies. At 155 degrees the blob is past half
   phase, where the shape-lock check does not trust it. The collapsed-regime check
   applies only when the disc correlation flags itself spurious, and here it does
-  not. The frame ends a low-confidence success 1.8 px wrong, and the scene holds
+  not. The frame ends a low-confidence success 3.0 px wrong, and the scene holds
   that error to a band.
 
 The witness is a defense against a geometric lock, not a cure for the blob's
@@ -478,82 +478,93 @@ fused confidence is reduced multiplicatively.
 Configuration
 =============
 
-Tunables live on :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`. The defaults are
-module-level constants in :mod:`spindoctor.nav_orchestrator.ensemble`; the orchestrator's
-constructor accepts an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig` override.
+Tunables live on :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`, which is the
+``orchestrator.ensemble`` configuration section. The configuration parses the section into
+this type when it loads (see :ref:`config-typed-sections`), so a value of the wrong type or
+out of range is refused there. No tunable has a default in code: every value lives in
+``config_540_orchestrator.yaml``, and the values given below are the packaged ones. A
+tier's sigma bound is optional, and a tier that leaves it out has no bound. The
+orchestrator takes the section from the configuration it is given, and a test that needs
+other values builds a variant with :func:`dataclasses.replace`.
 
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_sigma` — float, default
-  ``2.0``. Mahalanobis-distance threshold for grouping.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_pixel_floor` — float,
-  default ``5.0``. Euclidean translation-distance fallback for grouping: two results
-  agree when either distance test passes (see Step 3). ``0.0`` disables the floor.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.shared_feature_agreement_px` —
-  float, default ``1.5``. Translation distance within which two results that consumed a
-  common feature agree; such a pair is judged by this alone (see Step 3).
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_gap` — float, default
-  ``0.5``. Minimum summed-confidence gap between best and runner-up groups before
-  declaring a conflict. Applied as an absolute gap when the runner-up has a quorum; in a
-  lone-vs-lone standoff it is measured relative to the winner (``best - runner_up <
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_sigma` — float,
+  packaged value ``2.0``. Mahalanobis-distance threshold for grouping.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_pixel_floor` —
+  float, packaged value ``5.0``. Euclidean translation-distance fallback for grouping: two
+  results agree when either distance test passes (see Step 3). ``0.0`` disables the floor.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.shared_feature_agreement_px`
+  — float, packaged value ``1.5``. Translation distance within which two results that
+  consumed a common feature agree; such a pair is judged by this alone (see Step 3).
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_gap` — float,
+  packaged value ``0.5``. Minimum summed-confidence gap between best and runner-up groups
+  before declaring a conflict. Applied as an absolute gap when the runner-up has a quorum;
+  in a lone-vs-lone standoff it is measured relative to the winner (``best - runner_up <
   agreement_gap * best``).
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.disagreement_penalty` — float,
-  default ``0.7``. Multiplier on combined confidence when more than one group existed.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.conflicted_confidence_multiplier` —
-  float, default ``0.3``. Additional multiplier when the conflicted branch fires.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.min_confidence` — float, default
-  ``0.35``. Final-result threshold below which the ensemble returns
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.disagreement_penalty` —
+  float, packaged value ``0.7``. Multiplier on combined confidence when more than one
+  group existed.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.conflicted_confidence_multiplier`
+  — float, packaged value ``0.3``. Additional multiplier when the conflicted branch fires.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.min_confidence` — float,
+  packaged value ``0.35``. Final-result threshold below which the ensemble returns
   :meth:`~spindoctor.nav_orchestrator.nav_result.NavResult.failed` instead of
   :meth:`~spindoctor.nav_orchestrator.nav_result.NavResult.success`. The calibration
   campaign's fused fit rate (error at most 3 px) measures 0.35-0.40 in the 0.10-0.15
   confidence bands and 0.89 at 0.35, with almost no probability mass in between, so the
   gate takes the measured upper edge of that crossing.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.blob_star_disagreement_floor_px` —
-  float, default ``5.0``. Euclidean translation distance (px) within which a
-  :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` brightness centroid is
-  treated as agreeing with a corroborated (non-single-star) star fix. When such a fix is present
-  and the blob agrees with none within this floor, the blob is dropped from the ensemble math as a
-  contradicted outlier, so a lone centroid cannot force a conflict against a multi-star solution
-  (Step 1). The same floor governs the body-witness shape-lock veto's star-corroboration
-  suppression, so the ensemble-math drop and the veto-side suppression share one distance.
-  Defaults to the same value as
-  :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_pixel_floor` but is
-  an independent field: ``0.0`` disables only the blob-drop and the veto-side suppression,
-  and setting ``agreement_pixel_floor`` to ``0.0`` separately disables the grouping fallback.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.pinvh_rcond` — float, default
-  ``1.0e-9``. Cutoff for :func:`scipy.linalg.pinvh`.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.max_allowed_rotation_deg` — float,
-  default ``5.0``. Small-angle bound on a 3-DoF result's rotation magnitude. Every
-  contributing technique clamps its rotation fit to this bound, so a result arriving
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.blob_star_disagreement_floor_px`
+  — float, packaged value ``5.0``. Euclidean translation distance (px) within which a
+  :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` brightness
+  centroid is treated as agreeing with a corroborated (non-single-star) star fix. When
+  such a fix is present and the blob agrees with none within this floor, the blob is
+  dropped from the ensemble math as a contradicted outlier, so a lone centroid cannot
+  force a conflict against a multi-star solution (Step 1). The same floor governs the
+  body-witness shape-lock veto's star-corroboration suppression, so the ensemble-math drop
+  and the veto-side suppression share one distance. Packaged at the same value as
+  :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.agreement_pixel_floor` but
+  is an independent field: ``0.0`` disables only the blob-drop and the veto-side
+  suppression, and setting ``agreement_pixel_floor`` to ``0.0`` separately disables the
+  grouping fallback.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.pinvh_rcond` — float,
+  packaged value ``1.0e-9``. Cutoff for :func:`scipy.linalg.pinvh`.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.max_allowed_rotation_deg` —
+  float, packaged value ``5.0``. Small-angle bound on a 3-DoF result's rotation magnitude.
+  Every contributing technique clamps its rotation fit to this bound, so a result arriving
   outside it is an upstream programming error and raises
   :class:`~spindoctor.support.exceptions.NavContractError`.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_shape_lock_max_phase_deg` —
-  float, default ``60.0``. Phase ceiling below which the pose-free centroid is treated as a
-  trustworthy position witness for the shape-lock veto; past it the centroid's lit-hemisphere
-  bias grows and would disagree with a correct geometric fit.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_collapse_min_phase_deg` —
-  float, default ``90.0``. Phase floor above which a lone blob is the haze-bias suspect for the
-  collapsed-regime veto. It sits above the shape-lock ceiling, so the two checks bracket the
-  centroid's reliable-witness regime.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_disagreement_floor_px` —
-  float, default ``4.0``. Absolute floor of the shape-lock veto's blob-vs-fused
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_shape_lock_max_phase_deg`
+  — float, packaged value ``60.0``. Phase ceiling below which the pose-free centroid is
+  treated as a trustworthy position witness for the shape-lock veto; past it the
+  centroid's lit-hemisphere bias grows and would disagree with a correct geometric fit.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_collapse_min_phase_deg`
+  — float, packaged value ``90.0``. Phase floor above which a lone blob is the haze-bias
+  suspect for the collapsed-regime veto. It sits above the shape-lock ceiling, so the two
+  checks bracket the centroid's reliable-witness regime.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_disagreement_floor_px`
+  — float, packaged value ``4.0``. Absolute floor of the shape-lock veto's blob-vs-fused
   disagreement tolerance.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_disagreement_frac` —
-  float, default ``0.03``. Fraction of the body diameter added to the floor as the
-  body-witness veto's disagreement lower bound. Well-navigated single-body frames hold the
-  blob within ~1.5 px of the fused offset; a shape lock disagrees by 5 px and up.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_agreement_sigma` —
-  float, default ``2.0``. Mahalanobis-distance threshold the blob-vs-consensus disagreement
-  must exceed under the combined translation covariance before the veto fires; the pixel
-  floor is a lower bound, this is the statistical threshold.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.scattered_light_gradient_score` —
-  float, default ``5.0``. Background-gradient score at or above which the frame is treated as
-  scattered-light, so the disc and limb techniques on one body are fused as a single
-  correlated witness rather than two independent ones.
-- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.tier_thresholds` — mapping
-  ``rank -> {min_confidence, max_sigma_px}``; default thresholds give ``'high'`` for
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_disagreement_frac`
+  — float, packaged value ``0.03``. Fraction of the body diameter added to the floor as
+  the body-witness veto's disagreement lower bound. Well-navigated single-body frames hold
+  the blob within ~1.5 px of the fused offset; a shape lock disagrees by 5 px and up.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.body_witness_agreement_sigma`
+  — float, packaged value ``2.0``. Mahalanobis-distance threshold the blob-vs-consensus
+  disagreement must exceed under the combined translation covariance before the veto
+  fires; the pixel floor is a lower bound, this is the statistical threshold.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.scattered_light_gradient_score`
+  — float, packaged value ``5.0``. Background-gradient score at or above which the frame
+  is treated as scattered-light, so the disc and limb techniques on one body are fused as
+  a single correlated witness rather than two independent ones.
+- :attr:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig.tier_thresholds` — a
+  :class:`~spindoctor.nav_orchestrator.ensemble.TierThresholds` holding one
+  :class:`~spindoctor.nav_orchestrator.ensemble.TierThreshold` per tier, each with a
+  ``min_confidence`` and an optional ``max_sigma_px``; a tier that leaves out
+  ``max_sigma_px`` has no sigma requirement. The packaged thresholds give ``'high'`` for
   confidence at or above 0.85 with sigma at most 0.5 px, ``'medium'`` for confidence at
   or above 0.35 with sigma at most 2.0 px, and ``'low'`` for confidence at or above 0.35
-  with no sigma cap. Each tier boundary is the smallest confidence at which the tier's
-  sigma-gated subset achieves a 0.9 success rate against the tier's own error budget on
+  with no sigma cap (its entry leaves out ``max_sigma_px``). Each tier boundary is the
+  smallest confidence at which the tier's sigma-gated subset achieves a 0.9 success rate
+  against the tier's own error budget on
   the calibration campaign (the ``max_sigma_px`` values are the tier definitions, not
   fitted); the high boundary sits at 0.85 because the campaign's ring family plants
   per-feature orbit errors that produce tight-sigma, confidently-wrong locks in the
@@ -601,7 +612,9 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
 - :func:`~spindoctor.nav_orchestrator.ensemble.derive_confidence_rank` — assign the
   five-bucket rank from a confidence / sigma pair.
 - :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig` — frozen dataclass carrying
-  the tunables documented above.
+  the tunables documented above, with
+  :class:`~spindoctor.nav_orchestrator.ensemble.TierThresholds` and
+  :class:`~spindoctor.nav_orchestrator.ensemble.TierThreshold` for the confidence tiers.
 
 Grouping is sponsored-neighborhood consensus selection
 (:func:`~spindoctor.nav_orchestrator.ensemble_consensus.consensus_selection`): every

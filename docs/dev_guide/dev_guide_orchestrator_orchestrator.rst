@@ -58,7 +58,8 @@ Pipeline stages
 3. **Feature extraction.**  Each surviving model's
    :meth:`~spindoctor.nav_model.nav_model.NavModel.to_features` is invoked; an exception is
    logged and the model contributes zero features.
-4. **Reliability gate.**  The per-feature reliability gate (an instance of
+4. **Reliability gate.**  The per-feature reliability gate (the configuration's
+   ``orchestrator.reliability_gate`` section, a
    :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`) drops features whose
    per-feature ``reliability`` score falls below the per-type floor.
 5. **Pass 1.**  Run the registered techniques with
@@ -156,12 +157,11 @@ Constructor-level overrides:
 
 - ``models`` — list of constructed
   :class:`~spindoctor.nav_model.nav_model.NavModel` instances. The caller builds these per-image.
-- ``config`` — optional :class:`~spindoctor.config.config.Config` override.
+- ``config`` — optional :class:`~spindoctor.config.config.Config` override. The ensemble's
+  tunables and the reliability gate's thresholds are its ``orchestrator`` section.
 - ``only_models`` — glob pattern or list selecting which models run. Default ``'*'``.
 - ``only_techniques`` — glob pattern or list selecting which techniques run. Default
   ``'*'``.
-- ``ensemble_config`` — optional
-  :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig` override.
 - ``image_quality_thresholds`` — optional
   :class:`~spindoctor.support.image_class.ImageQualityThresholds` override.
 - ``image_derivatives_config`` — optional

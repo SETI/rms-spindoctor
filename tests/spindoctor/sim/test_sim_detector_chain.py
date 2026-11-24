@@ -63,15 +63,15 @@ def test_calibrated_sky_sits_near_zero_if() -> None:
 
 def test_vidicon_floor_is_clean() -> None:
     """A vgiss scene with no noise block renders without vidicon noise (floor)."""
-    plain, _ = render_scene(_disc('vgiss'))
+    plain, _ = render_scene(_disc('vgiss_1_nac'))
     corner = plain[:4, :4]
     assert float(corner.std()) == 0.0
 
 
 def test_vidicon_defaults_add_dn_domain_noise() -> None:
     """instrument_defaults turns on the vidicon DN-domain noise model."""
-    plain, _ = render_scene(_disc('vgiss'))
-    noisy, _ = render_scene(_disc('vgiss', artifacts={'instrument_defaults': True}))
+    plain, _ = render_scene(_disc('vgiss_1_nac'))
+    noisy, _ = render_scene(_disc('vgiss_1_nac', artifacts={'instrument_defaults': True}))
     assert not np.array_equal(plain, noisy)
 
 
@@ -102,7 +102,7 @@ def test_vidicon_target_saturates_on_its_total_charge(
         point_dn: The uniform point-source charge in DN.
         artifacts: The artifact block, which adds the residual image.
     """
-    scene = _disc('vgiss', artifacts=artifacts)
+    scene = _disc('vgiss_1_nac', artifacts=artifacts)
     scene['detector'] = zero_bias()
     scene['noise'] = {'vidicon': {'read_noise_pixel_dn': 3.0}}
     frame = SimFrame(
@@ -122,7 +122,7 @@ def test_vidicon_calibrated_if_is_exposure_invariant() -> None:
     """
     peaks = []
     for exposure in (1.0, 2.0, 4.0):
-        img, _ = render_scene(_disc('vgiss', exposure_sec=exposure))
+        img, _ = render_scene(_disc('vgiss_1_nac', exposure_sec=exposure))
         peaks.append(float(img.max()))
     assert abs(peaks[1] - peaks[0]) < 0.01
     assert abs(peaks[2] - peaks[0]) < 0.01

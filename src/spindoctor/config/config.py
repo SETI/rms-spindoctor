@@ -1,21 +1,43 @@
 """YAML-backed configuration for SpinDoctor.
 
-Loads and merges settings from bundled defaults and optional user YAML files
-using :class:`ruamel.yaml.YAML` (safe typ), then exposes sections as
-:class:`spindoctor.support.attrdict.AttrDict` for attribute-style access. The
-:class:`Config` class is the main public entry; helpers such as
-:func:`_as_str_list` validate list-shaped YAML fragments used when building
-config structures.
+Reads the packaged configuration files in filename order, then any user override
+files, and merges them with :func:`spindoctor.schema.layers.merge` under
+:attr:`~spindoctor.schema.layers.NullPolicy.REFUSE`: mappings merge key by key, any
+other value replaces the earlier one whole, and a null in any file is refused.  The
+typed sections (:mod:`spindoctor.config.sections`) are parsed into frozen dataclasses
+each time a configuration is installed.  The other sections are exposed as
+:class:`spindoctor.support.attrdict.AttrDict` for attribute-style access.  The
+:class:`Config` class is the main public entry; helpers such as :func:`_as_str_list`
+validate list-shaped YAML fragments used when building config structures.
 """
 
+from __future__ import annotations
+
+import dataclasses
 import hashlib
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from ruamel.yaml import YAML
-
+from spindoctor.schema import (
+    Issue,
+    KeyPath,
+    Layer,
+    NullPolicy,
+    SchemaError,
+    describe_value,
+    merge,
+    parse,
+    read_layer,
+)
 from spindoctor.support.attrdict import AttrDict
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from spindoctor.config.sections import OrchestratorSection, TypedSections
+
+_PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
+"""The directory of the packaged configuration files, merged in filename order."""
 
 _BLOB_MAX_OVERFLOW_KEY = 'blob_max_overflow_fraction'
 """``bodies`` key holding the overflow limit for BODY_BLOB emission."""
@@ -26,57 +48,82 @@ _CAMERA_MARKER_KEY = 'data_units'
 _ONE_STAR_ELLIPSE_KEY = 'one_star_ellipse_fraction'
 """Camera key: the fraction of the offset window inside which a lone star is believed."""
 
+_PACKAGED_LABEL = 'the packaged configuration'
+"""The source a message gives for a packaged value when no file is recorded for it."""
 
-def _strip_underscore_keys(value: Any) -> Any:
-    """Recursively drop mapping keys whose name starts with ``_``.
-
-    Used by :meth:`Config._load_yaml` to remove documentation-only
-    ``_sources`` blocks before merging.  Lists are walked element-wise;
-    scalars pass through unchanged.
-
-    Parameters:
-        value: A YAML-parsed value (mapping, list, or scalar).
-
-    Returns:
-        ``value`` with every underscore-prefixed mapping key removed.
-    """
-    if isinstance(value, dict):
-        return {
-            k: _strip_underscore_keys(v)
-            for k, v in value.items()
-            if not (isinstance(k, str) and k.startswith('_'))
-        }
-    if isinstance(value, list):
-        return [_strip_underscore_keys(v) for v in value]
-    return value
+_MERGED_LABEL = 'the merged configuration'
+"""The label of the configuration as it stands when an override is merged over it."""
 
 
-def _deep_merge(base: dict[Any, Any], overlay: dict[Any, Any]) -> dict[Any, Any]:
-    """Recursively merge ``overlay`` into ``base``, returning a new mapping.
+def _typed_sections_type() -> type[TypedSections]:
+    """Return the type the typed sections of a configuration are parsed into.
 
-    When a key is present in both mappings and both values are dictionaries,
-    the values are merged key-by-key so sibling keys in ``base`` are
-    preserved.  For any other case (one side is not a mapping, or the key is
-    new) the ``overlay`` value replaces the ``base`` value; lists and scalars
-    are never merged element-wise.
-
-    Parameters:
-        base: The starting mapping (e.g. bundled defaults).
-        overlay: The mapping whose values take precedence at each leaf.
+    The section types import modules that import this package, so the import waits
+    until a configuration is installed, by which time this package has loaded.
 
     Returns:
-        A new ``dict`` containing the deep-merged result.  ``base`` and
-        ``overlay`` are not mutated.
+        :class:`~spindoctor.config.sections.TypedSections`.
     """
+    from spindoctor.config.sections import TypedSections
 
-    merged: dict[Any, Any] = dict(base)
-    for key, overlay_value in overlay.items():
-        base_value = merged.get(key)
-        if isinstance(base_value, dict) and isinstance(overlay_value, dict):
-            merged[key] = _deep_merge(base_value, overlay_value)
-        else:
-            merged[key] = overlay_value
-    return merged
+    return TypedSections
+
+
+def _parse_typed_sections(
+    config_dict: Mapping[str, Any], origins: Mapping[KeyPath, str], *, source: str
+) -> tuple[TypedSections, dict[KeyPath, str]]:
+    """Parse the typed sections of a merged configuration.
+
+    Parameters:
+        config_dict: The merged configuration.
+        origins: The label of the file that set each value, keyed by key path, in the
+            order the files merged.  Values of other sections may be included.
+        source: The label a message gives for a value that ``origins`` does not
+            cover.
+
+    Returns:
+        The typed sections, and the entries of ``origins`` that lie inside them.
+
+    Raises:
+        SchemaError: Listing every problem in the typed sections, each line in the
+            form ``file: key.path: message``.
+    """
+    sections_type = _typed_sections_type()
+    keys = {item.name for item in dataclasses.fields(sections_type)}
+    raw = {key: value for key, value in config_dict.items() if key in keys}
+    kept = {path: label for path, label in origins.items() if path[0] in keys}
+    return parse(sections_type, raw, source=source, origins=kept), kept
+
+
+def _refuse_replaced_sections(merged: Mapping[Any, Any], layer: Layer) -> None:
+    """Refuse an override that gives a section as anything but a mapping.
+
+    A section is a top-level key whose value in the merged configuration is a
+    mapping.  The merge would let a scalar or a list replace it whole, which would
+    leave every reader of the section to fail on its own.  A null is left to the
+    merge, which refuses every null.
+
+    Parameters:
+        merged: The configuration merged so far.
+        layer: The override about to be merged over it.
+
+    Raises:
+        SchemaError: Naming the file and each section it gives as something else.
+    """
+    issues = [
+        Issue(
+            layer.label,
+            str(key),
+            f'expected a mapping, since {key} is a section of the configuration; '
+            f'got {describe_value(value)}',
+        )
+        for key, value in layer.data.items()
+        if value is not None
+        and isinstance(merged.get(key), dict)
+        and not isinstance(value, Mapping)
+    ]
+    if issues:
+        raise SchemaError(issues)
 
 
 HASH_EXCLUDED_SECTIONS = frozenset({'environment', 'logging', 'results_tree'})
@@ -186,6 +233,8 @@ class Config:
         self._config_dict: dict[str, Any] = {}
         self._category_cache: dict[str, AttrDict] = {}
         self._override_paths: list[str] = []
+        self._sections: TypedSections | None = None
+        self._typed_origins: dict[KeyPath, str] = {}
         self._config_environment: dict[str, Any] = AttrDict({})
         self._config_general: dict[str, Any] = AttrDict({})
         self._config_logging: dict[str, Any] = AttrDict({})
@@ -195,10 +244,8 @@ class Config:
         self._config_rings: dict[str, Any] = AttrDict({})
         self._config_stars: dict[str, Any] = AttrDict({})
         self._config_titan: dict[str, Any] = AttrDict({})
-        self._config_bootstrap: dict[str, Any] = AttrDict({})
         self._config_backplanes: dict[str, Any] = AttrDict({})
         self._config_pds4: dict[str, Any] = AttrDict({})
-        self._config_orchestrator: dict[str, Any] = AttrDict({})
         self._config_results_tree: dict[str, Any] = AttrDict({})
 
     @property
@@ -235,42 +282,64 @@ class Config:
         self._config_rings = AttrDict(self._config_dict.get('rings', {}))
         self._config_stars = AttrDict(self._config_dict.get('stars', {}))
         self._config_titan = AttrDict(self._config_dict.get('titan', {}))
-        self._config_bootstrap = AttrDict(self._config_dict.get('bootstrap', {}))
         self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
         self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
-        self._config_orchestrator = AttrDict(self._config_dict.get('orchestrator', {}))
         self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
 
-    def _load_yaml(self, config_path: str | Path) -> dict[str, Any]:
-        """Loads a YAML file and returns a dictionary mapping.
+    def _install(
+        self,
+        candidate: dict[str, Any],
+        override_paths: list[str],
+        *,
+        origins: Mapping[KeyPath, str],
+        source: str,
+    ) -> None:
+        """Parse and validate a merged configuration, and keep it only if it passes.
 
-        Documentation-only ``_sources`` blocks (and any other top-level or
-        nested key that starts with an underscore) are stripped at load
-        time so citations can live alongside values for human review
-        without bloating the parsed config.
-        """
-
-        yaml = YAML(typ='safe')
-        with open(config_path, encoding='utf-8') as f:
-            loaded = yaml.load(f) or {}
-        if not isinstance(loaded, dict):
-            raise ValueError(f'Config "{config_path}" did not parse to a dictionary mapping')
-        stripped = _strip_underscore_keys(loaded)
-        # ``_strip_underscore_keys`` returns ``Any`` because it walks
-        # arbitrary YAML; the top-level shape is guaranteed dict because
-        # ``loaded`` was checked above.
-        assert isinstance(stripped, dict)
-        return stripped
-
-    def read_config(self, config_path: str | Path | None = None, reread: bool = False) -> None:
-        """Reads configuration from the specified YAML file.
+        A refused candidate leaves the configuration, its typed sections, and
+        :attr:`override_paths` as they were.
 
         Parameters:
-            config_path: Path to the configuration file. If None, uses the default
-                config files.
-            reread: Whether to reread the configuration file if it has already been read.
+            candidate: The merged configuration to keep.
+            override_paths: The override files it includes, in order.
+            origins: The label of the file that set each value of the typed sections,
+                keyed by key path, in the order the files merged.
+            source: The label a message gives for a value that ``origins`` does not
+                cover.
 
         Raises:
+            SchemaError: If a typed section breaks its schema.
+            ValueError: If the candidate fails :meth:`_validate`.
+        """
+        sections, typed_origins = _parse_typed_sections(candidate, origins, source=source)
+        try:
+            self._validate(candidate)
+        except Exception:
+            # Validation assigns each technique's spec and tuning as it goes, so the
+            # techniques it reached are given back the ones the kept configuration sets.
+            if self._config_dict:
+                self._validate(self._config_dict)
+            raise
+        self._config_dict = candidate
+        self._override_paths = override_paths
+        self._sections = sections
+        self._typed_origins = typed_origins
+        self._update_attrdicts()
+
+    def read_config(self, *, reread: bool = False) -> None:
+        """Read the packaged configuration files, unless they have been read already.
+
+        The files merge in filename order.  Every key beginning with an underscore is
+        dropped as its file is read, so a file can carry notes, such as ``_sources``
+        citations, beside its values.  A reread starts again from the packaged files
+        alone, so it drops every override applied since.
+
+        Parameters:
+            reread: Whether to read the files again if the configuration is loaded.
+
+        Raises:
+            SchemaError: If a file is not a YAML mapping, or holds a null, or if a
+                typed section breaks its schema.
             ValueError: If any registered NavTechnique's confidence spec
                 references an attribute the technique does not declare, if
                 ``bodies.blob_max_overflow_fraction`` is not a finite number within
@@ -281,40 +350,27 @@ class Config:
         if not reread and self._config_dict:
             return
 
-        if config_path is None:
-            config_dir = Path(__file__).resolve().parent.parent / 'config_files'
-            # The no-path branch always rebuilds from the full config_files
-            # glob, so start from an empty dict.  On a reread this ensures keys
-            # removed from the YAML files since the previous load do not survive
-            # (update_config merges *into* the dict, so a stale dict would union
-            # old and new keys rather than producing a clean reload).
-            self._config_dict = {}
-            # A clean rebuild from bundled defaults carries no user overrides.
-            self._override_paths = []
-            for filename in sorted(config_dir.glob('*.yaml')):
-                self.update_config(filename, read_default=False)
-            self._validate()
-            return
+        layers = [read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))]
+        merged = merge(layers, nulls=NullPolicy.REFUSE)
+        self._install(merged.data, [], origins=merged.origins, source=_PACKAGED_LABEL)
 
-        self._config_dict = self._load_yaml(config_path)
-        # An explicit path replaces the bundled defaults wholesale; record it
-        # as the single applied override so provenance can reproduce the load.
-        self._override_paths = [str(config_path)]
-        self._update_attrdicts()
-        self._validate()
+    @staticmethod
+    def _validate(config_dict: dict[str, Any]) -> None:
+        """Apply every load-time check to a merged configuration.
 
-    def _validate(self) -> None:
-        """Apply every load-time check to the merged configuration.
+        Both paths that load a configuration (:meth:`read_config` and
+        :meth:`update_config`) call this one method, so neither can skip a check the
+        other applies.
 
-        Every path that loads a configuration (:meth:`read_config` with or without a
-        path, and :meth:`update_config` with ``read_default``) calls this one method,
-        so no path can skip a check the others apply.
+        Parameters:
+            config_dict: The merged configuration.
         """
-        self._validate_registered_techniques()
-        self._validate_bodies_block()
-        self._validate_camera_blocks()
+        Config._validate_registered_techniques(config_dict)
+        Config._validate_bodies_block(config_dict)
+        Config._validate_camera_blocks(config_dict)
 
-    def _validate_bodies_block(self) -> None:
+    @staticmethod
+    def _validate_bodies_block(config_dict: dict[str, Any]) -> None:
         """Reject a ``bodies.blob_max_overflow_fraction`` that is not a fraction.
 
         The value is the overflow limit above which a body emits no ``BODY_BLOB``.
@@ -322,11 +378,14 @@ class Config:
         invert that limit, so it is refused when the configuration is loaded.  A
         configuration that carries no such key is left to fail where the key is read.
 
+        Parameters:
+            config_dict: The merged configuration.
+
         Raises:
             ValueError: If the value is not a finite number within ``[0, 1]``; the
                 message names the key and the offending value.
         """
-        bodies = self._config_dict.get('bodies')
+        bodies = config_dict.get('bodies')
         if not isinstance(bodies, dict) or _BLOB_MAX_OVERFLOW_KEY not in bodies:
             return
         value = bodies[_BLOB_MAX_OVERFLOW_KEY]
@@ -337,7 +396,8 @@ class Config:
                 f'bodies.{_BLOB_MAX_OVERFLOW_KEY} must be finite and within [0, 1]; got {value!r}'
             )
 
-    def _validate_camera_blocks(self) -> None:
+    @staticmethod
+    def _validate_camera_blocks(config_dict: dict[str, Any]) -> None:
         """Require every camera block to set a lone-star ellipse fraction in ``(0, 1]``.
 
         ``one_star_ellipse_fraction`` is a property of the camera, so no technique-level
@@ -345,11 +405,14 @@ class Config:
         lone star's offset and one above 1 would reach past the offset window, so a
         fraction outside ``(0, 1]`` is refused when the configuration is loaded.
 
+        Parameters:
+            config_dict: The merged configuration.
+
         Raises:
             ValueError: If a camera block sets no fraction, or one that is not a number
                 within ``(0, 1]``; the message names the block and the key.
         """
-        for path, block in _camera_blocks(self._config_dict):
+        for path, block in _camera_blocks(config_dict):
             if _ONE_STAR_ELLIPSE_KEY not in block:
                 raise ValueError(f'{path} sets no {_ONE_STAR_ELLIPSE_KEY}')
             value = block[_ONE_STAR_ELLIPSE_KEY]
@@ -360,7 +423,8 @@ class Config:
                     f'{path}.{_ONE_STAR_ELLIPSE_KEY} must lie in (0, 1]; got {value!r}'
                 )
 
-    def _validate_registered_techniques(self) -> None:
+    @staticmethod
+    def _validate_registered_techniques(config_dict: dict[str, Any]) -> None:
         """Load + validate every registered NavTechnique's confidence spec.
 
         Builds each technique's :class:`ConfidenceSpec` from the
@@ -379,6 +443,9 @@ class Config:
         partially initialized module 'spindoctor.config'``.  This lazy-import
         site is the minimum cycle break — the other modules can keep
         their top-of-file imports.
+
+        Parameters:
+            config_dict: The merged configuration.
         """
         from spindoctor.nav_technique.confidence_config import (
             ConfidenceConfigError,
@@ -390,7 +457,7 @@ class Config:
             validate_registered_confidence_specs,
         )
 
-        techniques_block = dict(self._config_dict.get('techniques', {}))
+        techniques_block = dict(config_dict.get('techniques', {}))
         for cls in NavTechnique._registry:
             try:
                 cls.confidence_spec = load_confidence_spec(techniques_block, cls.name)
@@ -403,65 +470,60 @@ class Config:
             cls.tuning = load_technique_tuning(techniques_block, cls.name)
         validate_registered_confidence_specs()
 
-    def update_config(self, config_path: str | Path, read_default: bool = True) -> None:
-        """Updates the current configuration with values from the specified YAML file.
+    def update_config(self, config_path: str | Path) -> None:
+        """Merge a user override file over the configuration.
 
-        When ``read_default`` is true the merged YAML is re-validated against
-        every registered :class:`NavTechnique` so per-technique overrides
-        (``confidence_spec`` and ``tuning``) take effect.  The internal
-        bootstrap path inside :meth:`read_config` calls with
-        ``read_default=False`` and validates once after the loop, since
-        early default files are loaded before
-        ``config_510_techniques.yaml`` has populated the techniques block.
+        The packaged files are read first if they have not been.  The merged
+        configuration is then validated again against every registered
+        :class:`NavTechnique`, so per-technique overrides (``confidence_spec`` and
+        ``tuning``) take effect.  A refused override, whatever the reason, leaves the
+        configuration and :attr:`override_paths` as they were.
 
         Parameters:
-            config_path: Path to the configuration file containing update values.
-            read_default: Whether to read the default configuration file if no config
-                has been previously read.
+            config_path: The override file.  Error messages and :attr:`override_paths`
+                give it as written here.
 
         Raises:
-            ValueError: If a section in the file is not a mapping where the merged
-                configuration has one, or (when ``read_default`` is true) if the
-                merged configuration fails the validation :meth:`read_config` applies.
+            FileNotFoundError: If the file does not exist.
+            SchemaError: If the file is not a YAML mapping, holds a null, or gives a
+                section as anything but a mapping, or if a typed section of the merged
+                result breaks its schema, as with an unknown key or a value of the
+                wrong type or out of range; each line of the message gives the file
+                that set the value and the key path.
+            ValueError: If the merged configuration fails the validation
+                :meth:`read_config` applies.
         """
 
-        if read_default:
-            self.read_config()
-        new_config = self._load_yaml(config_path)
-        for key in new_config:
-            if key in self._config_dict and isinstance(self._config_dict[key], dict):
-                overlay = new_config[key]
-                if not isinstance(overlay, dict):
-                    # A section written with no body parses to None, which would
-                    # otherwise surface as an AttributeError from inside the merge.
-                    kind = 'empty' if overlay is None else type(overlay).__name__
-                    raise ValueError(
-                        f'Config "{config_path}" section "{key}" is {kind}; expected a '
-                        f'mapping because "{key}" is a mapping in the merged configuration'
-                    )
-                self._config_dict[key] = _deep_merge(self._config_dict[key], overlay)
-            else:
-                self._config_dict[key] = new_config[key]
-        if read_default:
-            # ``read_default=True`` marks a user/CLI override file (the
-            # internal bundled-defaults bootstrap loads with
-            # ``read_default=False``); record it in application order so
-            # provenance can list exactly which overrides shaped the run.
-            self._override_paths.append(str(config_path))
-        self._update_attrdicts()
-        if read_default:
-            self._validate()
+        self.read_config()
+        layer = read_layer(Path(config_path), label=str(config_path))
+        _refuse_replaced_sections(self._config_dict, layer)
+        # Only the sections the override names are merged again, and the candidate
+        # shares the rest with the configuration as it stands, so the cost follows the
+        # size of the override and never the number of overrides before it.
+        named = {key: self._config_dict[key] for key in layer.data if key in self._config_dict}
+        merged = merge([Layer(named, _MERGED_LABEL), layer], nulls=NullPolicy.REFUSE)
+        candidate = {**self._config_dict, **merged.data}
+        # A value the override leaves alone keeps the file recorded for it before.
+        origins = {
+            path: label for path, label in self._typed_origins.items() if path[0] not in named
+        }
+        origins.update(
+            (path, self._typed_origins.get(path, label) if label == _MERGED_LABEL else label)
+            for path, label in merged.origins.items()
+        )
+        self._install(
+            candidate,
+            [*self._override_paths, str(config_path)],
+            origins=origins,
+            source=str(config_path),
+        )
 
     @property
     def override_paths(self) -> tuple[str, ...]:
-        """The user/CLI override config files applied, in application order.
+        """The user override files applied by :meth:`update_config`, in order.
 
-        Bundled default files (the ``config_files`` glob loaded by
-        :meth:`read_config` with no path) are not overrides and never
-        appear here; only files loaded via :meth:`update_config` with
-        ``read_default=True`` (user ``nav_default_config.yaml`` or
-        ``--config-file`` paths) or an explicit :meth:`read_config` path
-        are recorded.
+        The packaged files are not overrides and never appear here.  Each path is
+        given as it was passed to :meth:`update_config`.
         """
 
         return tuple(self._override_paths)
@@ -635,7 +697,7 @@ class Config:
 
         Each entry is keyed by SPICE body name (e.g. ``MIMAS``) and exposes
         ``radii_km``, ``ellipsoid_rms_residual_km``, ``crater_scale_km``,
-        ``albedo_mean``, ``albedo_variation``, and ``shape_class_hint``.
+        ``albedo_variation``, and ``shape_class_hint``.
         Missing-body lookups return ``None`` from ``AttrDict.get``; downstream
         code applies the conservative fallback (10% radius default,
         reliability cap 0.3).
@@ -666,18 +728,17 @@ class Config:
         return self._config_titan
 
     @property
-    def bootstrap(self) -> Any:
-        """Returns the bootstrap configuration settings."""
+    def orchestrator(self) -> OrchestratorSection:
+        """Returns the orchestrator section: the ensemble and the reliability gate.
+
+        The section is parsed when the configuration is installed, so every value has
+        been checked against its type and range.
+        """
 
         self.read_config()
-        return self._config_bootstrap
-
-    @property
-    def orchestrator(self) -> Any:
-        """Returns the orchestrator (ensemble + reliability gate) settings."""
-
-        self.read_config()
-        return self._config_orchestrator
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but holds no parsed sections')
+        return self._sections.orchestrator
 
     @property
     def results_tree(self) -> Any:

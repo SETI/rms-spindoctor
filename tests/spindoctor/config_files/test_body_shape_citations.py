@@ -1,10 +1,10 @@
 """Validation tests for ``config_220_body_shape.yaml`` citations.
 
 Per Part 0 §74 of the design plan: every body in the body-shape catalog
-must carry a complete ``_sources`` mapping; every non-``null`` numeric
-field must have a non-empty citation; ``PLACEHOLDER`` is allowed only
-when paired with a ``null`` value; the strings ``TODO`` / ``FIXME`` /
-``XXX`` are forbidden anywhere in the citation text.
+must carry a complete ``_sources`` mapping; every field, set or left out,
+must have a non-empty citation; ``PLACEHOLDER`` is allowed only for a field
+the entry leaves out; the strings ``TODO`` / ``FIXME`` / ``XXX`` are
+forbidden anywhere in the citation text.
 """
 
 from __future__ import annotations
@@ -86,8 +86,8 @@ def test_no_forbidden_tokens_in_citations() -> None:
                 )
 
 
-def test_placeholder_only_paired_with_null_value() -> None:
-    """``PLACEHOLDER`` citations are allowed only when the field's value is null."""
+def test_placeholder_only_for_a_field_left_out() -> None:
+    """``PLACEHOLDER`` citations are allowed only for a field the entry leaves out."""
     bodies = _load_raw_yaml()
     for body_name, entry in bodies.items():
         sources = entry['_sources']
@@ -95,11 +95,10 @@ def test_placeholder_only_paired_with_null_value() -> None:
             if field not in sources:
                 continue
             citation = sources[field]
-            value = entry.get(field)
             if 'PLACEHOLDER' in str(citation).upper():
-                assert value is None, (
+                assert field not in entry, (
                     f'{body_name}.{field}: PLACEHOLDER citation is only allowed '
-                    f'when the value is null; got {value!r}'
+                    f'when the field is left out; got {entry[field]!r}'
                 )
 
 

@@ -11,7 +11,9 @@ Modules:
     ``backplane``
         :class:`FakeBackplane`, :class:`BodyBackplaneData`,
         :class:`RingBackplaneData`, plus the
-        :func:`plant_circular_body` factory.  Backplane methods return
+        :func:`plant_circular_body` factory, and the ring pre-check's
+        boundary stand-ins :class:`RingEdgeBackplane` and
+        :func:`edge_meshgrid`.  Backplane methods return
         real ``polymath.Scalar`` instances built from the configured
         per-pixel arrays.
     ``catalog``
@@ -33,6 +35,8 @@ from tests.shims.backplane import (
     BodyBackplaneData,
     FakeBackplane,
     RingBackplaneData,
+    RingEdgeBackplane,
+    edge_meshgrid,
     plant_circular_body,
 )
 from tests.shims.catalog import (
@@ -61,7 +65,9 @@ __all__ = [
     'FakeStarCatalog',
     'FakeUV',
     'RingBackplaneData',
+    'RingEdgeBackplane',
     'bare_nav_context',
+    'edge_meshgrid',
     'install_fake_catalogs',
     'make_star',
     'plant_circular_body',

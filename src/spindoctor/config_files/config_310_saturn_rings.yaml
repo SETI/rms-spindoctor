@@ -1000,7 +1000,6 @@ rings:
             ae: 0.0
             long_peri: 0.0
             rate_peri: 0.0
-          outer_data: null
         encke_gap:
           feature_type: GAP
           name: Encke
@@ -1028,10 +1027,8 @@ rings:
             ae: 0.0
             long_peri: 0.0
             rate_peri: 0.0
-          outer_data: null
         feature_135_ieg:
           feature_type: GAP
-          name: null
           inner_data:
           - mode: 1
             a: 74614.73965
@@ -1039,11 +1036,8 @@ rings:
             ae: 0.0
             long_peri: 0.0
             rate_peri: 0.0
-          outer_data: null
         feature_144_oer:
           feature_type: RINGLET
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 75988.65895
@@ -1057,8 +1051,6 @@ rings:
             pattern_speed: 22.5997842
         feature_40_oer:
           feature_type: RINGLET
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 76261.77387
@@ -1072,8 +1064,6 @@ rings:
             pattern_speed: 22.5677381
         feature_39_oer:
           feature_type: RINGLET
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 77162.11501
@@ -1087,7 +1077,6 @@ rings:
             pattern_speed: 22.5786349
         feature_38_37_ringlet:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 79222.04152
@@ -1112,7 +1101,6 @@ rings:
             pattern_speed: 22.5732605
         feature_35_34_ringlet:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 84751.7741
@@ -1129,7 +1117,6 @@ rings:
             rate_peri: 0.0
         feature_33_42_ringlet:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 85661.96178
@@ -1146,7 +1133,6 @@ rings:
             rate_peri: 0.0
         feature_31_ier:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 85923.69993
@@ -1154,10 +1140,8 @@ rings:
             ae: 0.0
             long_peri: 0.0
             rate_peri: 0.0
-          outer_data: null
         feature_30_ier:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 86373.17361
@@ -1165,11 +1149,8 @@ rings:
             ae: 0.0
             long_peri: 0.0
             rate_peri: 0.0
-          outer_data: null
         feature_28_oer:
           feature_type: RINGLET
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 88592.73625
@@ -1179,7 +1160,6 @@ rings:
             rate_peri: 0.0
         feature_27_41_ringlet:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 89190.586
@@ -1196,7 +1176,6 @@ rings:
             rate_peri: 0.0
         feature_26_25_ringlet:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 89789.57831
@@ -1213,7 +1192,6 @@ rings:
             rate_peri: 0.0
         feature_24_23_ringlet:
           feature_type: RINGLET
-          name: null
           inner_data:
           - mode: 1
             a: 90406.12658
@@ -1230,8 +1208,6 @@ rings:
             rate_peri: 0.0
         feature_77_oeg:
           feature_type: GAP
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 100024.40676
@@ -1241,8 +1217,6 @@ rings:
             rate_peri: 0.0
         feature_74_oeg:
           feature_type: GAP
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 101743.40857
@@ -1252,8 +1226,6 @@ rings:
             rate_peri: 0.0
         feature_73_oer:
           feature_type: RINGLET
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 103008.64563
@@ -1263,8 +1235,6 @@ rings:
             rate_peri: 0.0
         feature_71_oeg:
           feature_type: GAP
-          name: null
-          inner_data: null
           outer_data:
           - mode: 1
             a: 104082.65168

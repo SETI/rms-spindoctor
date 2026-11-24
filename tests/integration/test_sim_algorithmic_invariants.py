@@ -257,9 +257,7 @@ def test_invariant_scene_navigates(path: Path) -> None:
 def test_disc_scene_recovers_planted_offset(path: Path) -> None:
     """Each disc scene's fused offset meets its truth check.
 
-    Three disc scenes carry a known error, because the correlation stops at the edge of
-    its sub-pixel window.  Those scenes are held to a band around the error, and the rest
-    are held to a tolerance.
+    A truth check is a tolerance, or a band around a known error.
     """
     scene = load_sim_scene(path)
     result = _navigate(scene)

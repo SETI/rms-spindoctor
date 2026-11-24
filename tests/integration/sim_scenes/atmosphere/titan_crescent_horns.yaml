@@ -38,23 +38,23 @@ offset_rotation_deg: 0.0
 # 0.26 against the 0.30 TERMINATOR_ARC reliability gate.  The ring of light is
 # brighter than a white disc lit face-on, and the detector saturates on it.
 # The disc correlation is pulled by the ring of light, which its hard-limbed
-# template leaves out (#1050): it answers (0.5, -2.5), 1.84 px from the planted
-# offset, at the corner of its +-0.5 px refinement window (#791).  It does not
-# flag that answer spurious, so the body-witness veto has nothing to read, the
-# blob is dropped as a fallback, and the disc correlation alone sets a low-tier
-# success.  The status: success asserted below is a hazard held in view, not an
-# endorsement.
-# Known error: the fused error is 1.838 px on the committed seed and on
-# random_seed 101, 202, ..., 1515 (spread 0.000 px).  Each end of the band
-# sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px outside,
-# giving [1.788, 1.889] px.
+# template leaves out (#1050): it answers (1.20, -3.80), 3.00 px from the
+# planted offset, at the edge of its half-pixel refinement window along u
+# (#1061).  It does not flag that answer spurious, so the body-witness veto
+# has nothing to read, the blob is dropped as a fallback, and the disc
+# correlation alone sets a low-tier success.  The status: success asserted
+# below is a hazard held in view, not an endorsement.
+# Known error: over the committed seed and random_seed 101, 202, ..., 1515
+# the fused error runs 2.989 to 2.997 px (spread 0.008 px).  Each end of the
+# band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
+# outside, giving [2.939, 3.047] px.
 # The ring of light saturates because the simulated haze is about four times
 # too bright: its single-scattering source lacks the factor of 1/4 (#1101).
 # The recorded error moves when #1101 is fixed; at a quarter of the haze
-# brightness the same correlation is 1.70 px off.
+# brightness the same correlation is 2.87 px off.
 expected:
   # Depends on the haze brightness #1101 corrects.
   status: success
   confidence_tier: low
-  known_offset_error_px: 1.8385
-  known_offset_error_tol_px: 0.0505
+  known_offset_error_px: 2.993
+  known_offset_error_tol_px: 0.054

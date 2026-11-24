@@ -265,7 +265,15 @@ diagrams in the Mermaid Live Editor (https://mermaid.live/) before committing.
 
 The autodoc API pages under ``docs/api_reference/`` are populated from
 docstrings in the source tree; new modules require a corresponding entry under
-``docs/api_reference/`` so they appear in the rendered API surface.
+``docs/api_reference/`` so they appear in the rendered API surface. Each
+documented object carries a ``[source]`` link to its lines on GitHub, at the
+commit the documentation was built from.
+
+The sidebar lists every guide and report page on every page. The API reference
+appears in it as one entry, and its pages and documented objects are listed
+only on the API reference's own pages, which keeps the thousands of API entries
+out of every other page and the build within Read the Docs' time limit. Both
+the source links and the sidebar are set up in ``docs/conf.py``.
 
 CI / CD pipeline
 ================
@@ -278,11 +286,8 @@ GitHub Actions defines three workflows under ``.github/workflows/``:
   - **Lint** — Python 3.13. ``ruff check``, ``ruff format --check``, ``mypy``.
   - **Test** — matrix across Python 3.11 / 3.12 / 3.13 / 3.14 on Ubuntu. Runs
     ``pytest -m "(not integration or sim_integration) and not postgres" -n auto
-    --dist=loadfile`` with the holdings / catalog env vars exported. The PDS3 index files the
-    dataset tests download from the archive are kept between runs with
-    ``actions/cache`` (``FILECACHE_CACHE_ROOT`` points the navigator's
-    ``nav_pds3_index`` file cache at the cached directory), so a run downloads
-    only the index files the cache lacks. Uploads coverage to Codecov
+    --dist=loadfile``. The holdings and catalog variables are left unset, so the
+    tests that read the archive skip themselves. Uploads coverage to Codecov
     from the 3.13 job on pushes (PRs from forks are excluded for secrets
     reasons).
   - **Docs** — ``sphinx-build -W`` against the ``[docs]`` extra.
@@ -297,7 +302,9 @@ GitHub Actions defines three workflows under ``.github/workflows/``:
   catalogs, and is slow. The postgres
   tier needs a server named by ``SPINDOCTOR_TEST_POSTGRES_URL``, and CI runs no
   service container for one. Maintainers run both locally before merging
-  anything that could plausibly regress navigation accuracy or the index.
+  anything that could plausibly regress navigation accuracy or the index. They
+  also run the dataset tests locally, with ``PDS3_HOLDINGS_DIR`` set, before
+  merging a change to the datasets.
 
 - ``publish_to_test_pypi.yml`` — runs on pushes to ``main`` once tests pass.
   Builds a wheel + sdist and uploads to TestPyPI under the dev version stamped

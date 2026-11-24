@@ -1,15 +1,15 @@
 """Tests for ``spindoctor.feature.reliability.FeatureReliabilityGate``."""
 
+import dataclasses
+
 import numpy as np
+from tests.orchestrator_section import packaged_gate
 
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
-from spindoctor.feature.reliability import (
-    DEFAULT_RELIABILITY_THRESHOLDS,
-    FeatureReliabilityGate,
-)
+from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 
 
@@ -37,7 +37,7 @@ def _make_star(reliability: float, feature_id: str = 'star:1') -> NavFeature:
 
 def test_gate_keeps_features_above_threshold() -> None:
     """Features above the per-type threshold are kept."""
-    gate = FeatureReliabilityGate()
+    gate = packaged_gate()
     features = [_make_star(0.8)]
     kept, gated = gate.apply(features)
     assert kept == features
@@ -46,7 +46,7 @@ def test_gate_keeps_features_above_threshold() -> None:
 
 def test_gate_drops_features_below_threshold() -> None:
     """Features below the per-type threshold are gated."""
-    gate = FeatureReliabilityGate()
+    gate = packaged_gate()
     features = [_make_star(0.05)]
     kept, gated = gate.apply(features)
     assert kept == []
@@ -56,7 +56,7 @@ def test_gate_drops_features_below_threshold() -> None:
 
 def test_gate_records_per_feature_reason() -> None:
     """The gate records the reliability and threshold values in the reason."""
-    gate = FeatureReliabilityGate()
+    gate = packaged_gate()
     feat = _make_star(0.05)
     _, gated = gate.apply([feat])
     assert '0.050' in gated[0].reason
@@ -65,17 +65,13 @@ def test_gate_records_per_feature_reason() -> None:
 
 def test_gate_uses_per_type_threshold() -> None:
     """The threshold lookup is by feature_type, not a global value."""
-    custom_thresholds = dict(DEFAULT_RELIABILITY_THRESHOLDS)
-    custom_thresholds[NavFeatureType.STAR] = 0.99
-    gate = FeatureReliabilityGate(thresholds=custom_thresholds)
+    gate = packaged_gate(STAR=0.99)
     kept, gated = gate.apply([_make_star(0.9)])
     assert kept == []
     assert len(gated) == 1
 
 
-def test_gate_unknown_feature_type_passes() -> None:
-    """A feature whose type has no threshold falls through with no gate."""
-    gate = FeatureReliabilityGate(thresholds={})
-    kept, gated = gate.apply([_make_star(0.001)])
-    assert len(kept) == 1
-    assert gated == []
+def test_gate_has_a_threshold_for_every_feature_type() -> None:
+    """The gate's fields are the feature types, so no type goes without a threshold."""
+    fields = [item.name for item in dataclasses.fields(FeatureReliabilityGate)]
+    assert sorted(fields) == sorted(ftype.name for ftype in NavFeatureType)

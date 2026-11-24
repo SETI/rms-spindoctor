@@ -7,12 +7,12 @@
 #     terms:                        # confidence-formula linear terms
 #       - feature: str              # diagnostic-attribute name
 #         alpha: float              # linear coefficient
-#         offset: float | null      # subtracted before scaling (default 0)
-#         divisor: float | null     # divides after offset (default 1, non-zero)
-#         cap_at: float | null      # post-scale upper bound, in [0, 1] (optional)
+#         offset: float             # optional; subtracted before scaling (default 0)
+#         divisor: float            # optional; divides after offset (default 1, non-zero)
+#         cap_at: float             # optional; post-scale upper bound, in [0, 1]
 #     hard_zero_if:                 # mapping str -> bool; firing forces conf=0
 #       <attribute>: bool
-#     hard_cap: float | null        # optional post-sigmoid clamp, in [0, 1]
+#     hard_cap: float               # optional; post-sigmoid clamp, in [0, 1]
 #     tuning:                       # technique-specific runtime tunables
 #       <key>: float | int          # see ``load_technique_tuning`` for schema
 #

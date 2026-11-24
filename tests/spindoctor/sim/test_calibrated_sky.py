@@ -16,7 +16,7 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.driver import render_scene
 
-_CALIBRATED = ('coiss_calib_nac', 'coiss_calib_wac', 'vgiss')
+_CALIBRATED = ('coiss_calib_nac', 'coiss_calib_wac', 'vgiss_1_nac')
 _RENDERS = {'floor': {}, 'instrument_defaults': {'artifacts': {'instrument_defaults': True}}}
 
 
@@ -54,7 +54,7 @@ def test_no_pixel_of_a_calibrated_frame_reads_zero(instrument: str, render: str)
 @pytest.mark.parametrize('render', sorted(_RENDERS))
 def test_vgiss_sky_sits_above_zero(render: str) -> None:
     """A vgiss sky's 1st percentile is positive, as inside a real GEOMED border."""
-    assert float(np.percentile(_sky('vgiss', render), 1)) > 0.0
+    assert float(np.percentile(_sky('vgiss_1_nac', render), 1)) > 0.0
 
 
 @pytest.mark.parametrize('instrument', ['coiss_calib_nac', 'coiss_calib_wac'])
@@ -120,7 +120,7 @@ def test_no_pixel_reads_zero_where_the_lattice_crosses_it(
 def test_vgiss_sky_never_reads_zero_at_any_noise_level(sigma_dn: float) -> None:
     """The vidicon's residual is half a DN off the DN grid, so noise never lands on 0."""
     params = frame_scene(
-        instrument='vgiss', seed=3, noise={'vidicon': {'read_noise_pixel_dn': sigma_dn}}
+        instrument='vgiss_1_nac', seed=3, noise={'vidicon': {'read_noise_pixel_dn': sigma_dn}}
     )
     img, _ = render_scene(params)
     assert int((img == 0.0).sum()) == 0
@@ -140,5 +140,5 @@ def test_cassini_calibrated_floor_sky_is_the_measured_residual(instrument: str) 
 
 def test_vgiss_floor_sky_is_one_and_a_half_dn() -> None:
     """A noise-free vgiss sky reads 1.5 DN at 127.5 DN per unit I/F."""
-    sky = np.unique(_sky('vgiss', 'floor'))
+    sky = np.unique(_sky('vgiss_1_nac', 'floor'))
     assert sky.tolist() == [pytest.approx(1.5 / 127.5, rel=1e-12)]

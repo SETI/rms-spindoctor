@@ -1006,7 +1006,11 @@ vapor.
 - Audit **reserved-but-unwired config keys** (curvature/roughness limb filters,
  ring fiducial promotion, `remove_body_shadows`, `min_emission_ring_body`,
  curvature reductions): either implement, or remove from shipped YAML and the
- docs so the config surface stops advertising absent features.
+ docs so the config surface stops advertising absent features. (Done, 2026-11-23:
+ the shipped YAML and the docs carry none of these keys. #1032's first PR
+ deleted the limb-filter keys and `min_emission_ring_body`, which nothing read;
+ ring fiducial promotion, `remove_body_shadows`, and the curvature reductions
+ were already gone.)
 
 **Acceptance criteria.**
 - A capability matrix exists, is test-verified, and is the single referenced

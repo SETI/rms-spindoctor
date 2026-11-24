@@ -252,9 +252,9 @@ def get_results_tree_tuning(config: Config) -> TreeTuning:
 
     Raises:
         ValueError: If the section names a setting that does not exist, or a
-            value no pass can run at -- one that is not a positive integer,
-            ``null`` included, or a round of work smaller than the pool it
-            feeds.  The message names the section and the setting.
+            value no pass can run at -- one that is not a positive integer, or
+            a round of work smaller than the pool it feeds.  The message names
+            the section and the setting.
     """
     section = config.results_tree
     known = [field.name for field in fields(TreeTuning)]

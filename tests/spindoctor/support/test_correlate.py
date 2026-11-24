@@ -373,7 +373,14 @@ class TestSingleScale:
             covariance=False,
             logger=None,
         )
-        assert sorted(result) == ['all_candidates', 'offset', 'peak_val', 'quality', 'rc']
+        assert sorted(result) == [
+            'all_candidates',
+            'offset',
+            'peak_val',
+            'peak_vu',
+            'quality',
+            'rc',
+        ]
 
     def test_a_model_smaller_than_the_image_is_refused(self) -> None:
         """The model must be at least as large as the image on both axes."""

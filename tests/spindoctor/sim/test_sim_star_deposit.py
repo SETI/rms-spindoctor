@@ -237,7 +237,7 @@ def test_vidicon_star_renders_in_the_dn_domain() -> None:
     through the frame's own calibration before summing.
     """
     scene = _star_scene(
-        'vgiss',
+        'vgiss_1_nac',
         # Bright enough that the PSF wings clear the 1-DN quantization step (so
         # little flux rounds away) yet below the 8-bit ceiling.
         vmag=1.2,

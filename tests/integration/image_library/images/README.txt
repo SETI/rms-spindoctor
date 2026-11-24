@@ -85,6 +85,7 @@ YAML schema
   schema_version: 1
   mission: <one of the ALLOWED_MISSIONS values below>
   camera:  <one of the ALLOWED_CAMERAS values below>
+  spacecraft: <VG1 | VG2 | omitted>   # VGISS frames only
   image_id: <opaque string, must match filename stem>
   image_datetime_utc: <UTC ISO 8601 string | omitted>
                                    # from et_to_utc(obs.midtime)
@@ -140,6 +141,11 @@ mission     ALLOWED_MISSIONS
 
 camera      ALLOWED_CAMERAS
   NAC | WAC | SSI | NA | WA | LORRI
+
+spacecraft
+  Optional. VG1 | VG2. The Voyager spacecraft that took a VGISS
+  frame, so the realism match can pair the frame with the instrument entry
+  of its own camera. Omit it for the other missions.
 
 filter_combo
   Filters applied for the exposure, sorted alphabetically and

@@ -103,7 +103,7 @@ def test_the_vidicon_chain_draws_the_bias_structure() -> None:
     """On the vidicon chain a 20 DN row gradient reads through the calibration."""
     quiet = {'vidicon': {'read_noise_line_dn': 0.0, 'read_noise_pixel_dn': 0.0}}
     scene = _gradient_frame(
-        'vgiss', quiet, bias_dn=100.0, row_gradient_dn=20.0, col_gradient_dn=0.0
+        'vgiss_1_nac', quiet, bias_dn=100.0, row_gradient_dn=20.0, col_gradient_dn=0.0
     )
     img, _ = render_scene(scene)
     rise_if = 20.0 / (resolve_detector_params(scene).calibration_scale_dn_per_s_per_if * 0.1)

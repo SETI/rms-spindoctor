@@ -34,6 +34,47 @@ access. The stack is, in order (later files override earlier ones for the same k
    program, so a program offers it exactly when the dataset it was asked for
    enumerates a PDS3 holdings tree.
 
+.. _config-merge:
+
+How the files merge
+-------------------
+
+Each file is read with :func:`~spindoctor.schema.layers.read_layer`, and the files are
+merged in the order above by :func:`~spindoctor.schema.layers.merge`, the same merge the
+simulator's files use (see :doc:`dev_guide_schema`):
+
+- A mapping merges key by key. An override that sets ``bodies.use_lambert: false``
+  keeps every other key under ``bodies``, and the same holds for a key set deeper in a
+  section.
+- Any other value replaces the earlier one whole. A list replaces the earlier list, so
+  an override of ``stars.catalogs`` takes the place of the packaged list instead of
+  adding to it.
+- A null is refused, in every file, under
+  :attr:`~spindoctor.schema.layers.NullPolicy.REFUSE`. A key that is not set is left
+  out of the file, and every reader treats an absent key as not set. A user override
+  can therefore change a packaged value but cannot unset it.
+- An override that gives a whole section, such as ``bodies``, as something other than
+  a mapping is refused too.
+- Every mapping key that begins with an underscore is dropped as its file is read, at
+  any depth. That is what lets a static-data file carry ``_sources`` citations beside
+  its values (see :ref:`static-data-citations`): no reader of the configuration ever
+  sees them, and tests hold the loader to that.
+
+A file the merge refuses raises :class:`~spindoctor.schema.errors.SchemaError`, a
+:class:`ValueError` whose message has one line per problem, in the form
+``file: key.path: message``. An override is given by the path it was loaded from, and
+a packaged file by its name. The merged result's typed sections are then parsed (see
+:ref:`config-typed-sections`), and the result goes through the load-time checks, which
+raise a :class:`ValueError` of their own. An override refused at any of these steps
+leaves the configuration as it was, so a later override still loads.
+:attr:`~spindoctor.config.config.Config.override_paths` lists the overrides applied, in
+order, for provenance.
+
+Numeric values are typed by YAML; downstream consumers convert with explicit casts
+where the section schema is mixed (e.g. the per-instrument
+``image_quality_thresholds`` block constructs a frozen
+:class:`~spindoctor.support.image_class.ImageQualityThresholds` dataclass).
+
 Direct programmatic use:
 
 .. code-block:: python
@@ -51,10 +92,43 @@ Per-class ``config`` properties on
 :class:`~spindoctor.support.nav_base.NavBase` subclasses surface the same singleton
 through dependency injection.
 
+.. _config-typed-sections:
+
+Typed sections
+--------------
+
+Some sections are parsed into frozen dataclasses through the schema core (see
+:doc:`dev_guide_schema`), every time a configuration is installed: once when the
+packaged files are read, and again for each override. The typed sections are the fields
+of :class:`~spindoctor.config.sections.TypedSections`. Each one is named after its
+top-level key, and the matching :class:`~spindoctor.config.config.Config` property
+returns the typed object:
+
+- ``orchestrator`` — :class:`~spindoctor.config.sections.OrchestratorSection`, holding
+  ``ensemble`` (an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`; see
+  :doc:`dev_guide_orchestrator_ensemble`) and ``reliability_gate`` (a
+  :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`).
+
+The rules for a typed section:
+
+- A tunable's value lives in the YAML only. Its field has no default, so the packaged
+  file must set it and no copy of it exists in code.
+- A key that is optional by nature is typed ``X | None = None``, so leaving it out reads
+  as None. The low confidence tier's ``max_sigma_px`` is such a key: the tier sets no
+  sigma requirement.
+- An unknown key, a value of the wrong type, and a value out of range are refused when
+  the configuration loads, and so is a broken rule that ties two keys together. The
+  message has one line per problem, in the form ``file: key.path: message``. The file
+  is the one that set the value, and the key path starts at the section's name, as in
+  ``orchestrator.ensemble.min_confidence``.
+- A reader takes the typed object from the configuration and never repeats a check the
+  type makes. A test that needs different values builds a variant of the packaged section
+  with :func:`dataclasses.replace`.
+
 Sections
 --------
 
-Top-level YAML keys are exposed as
+Top-level YAML keys other than the typed sections are exposed as
 :class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
 ``cfg.bodies.use_lambert`` instead of ``cfg['bodies']['use_lambert']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
@@ -71,7 +145,8 @@ removal. The shipping sections:
 - ``general`` — global settings shared across programs.
 - ``logging`` — logger defaults, per-module levels, and per-program
   overrides.
-- ``offset`` — correlation and star-refinement parameters.
+- ``offset`` — the FFT upsample factor of the image correlation
+  (``correlation_fft_upsample_factor``).
 - ``stars`` — star-model and ring-occlusion parameters; see
   :doc:`dev_guide_navigation_models_star`.
 - ``bodies`` — body rendering parameters; see
@@ -83,7 +158,6 @@ removal. The shipping sections:
   reliability floors and mask settings, and the two blocks of fit tunables the haze
   technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``). See
   :doc:`dev_guide_navigation_models_titan` and :doc:`dev_guide_techniques_titan_haze`.
-- ``bootstrap`` — bootstrap navigation parameters.
 - ``backplanes`` — the list of body and ring backplanes to generate; see
   :doc:`dev_guide_backplanes`.
 - ``pds4`` — per-dataset PDS4 template directories and bundle names; see
@@ -103,6 +177,8 @@ removal. The shipping sections:
 - ``techniques`` — per-:class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   tunables and confidence-formula
   coefficients; see :doc:`dev_guide_techniques`.
+- ``orchestrator`` — the ensemble combine's tunables and confidence tiers, and the
+  per-feature-type reliability gate; a typed section (see :ref:`config-typed-sections`).
 - ``satellites`` — per-planet satellite lists used by the body
   :class:`~spindoctor.nav_model.nav_model.NavModel`'s inventory query.
 - ``feature_emission`` — per-planet
@@ -133,8 +209,7 @@ ranges are conventional, not enforced by the loader:
      - Global / model-shared
      - ``config_010_general``, ``config_015_logging``, ``config_020_offset``,
        ``config_030_stars``,
-       ``config_040_bodies``, ``config_050_rings``, ``config_060_titan``,
-       ``config_070_bootstrap``
+       ``config_040_bodies``, ``config_050_rings``, ``config_060_titan``
    * - ``1xx``
      - Catalogs
      - ``config_100_satellites``
@@ -151,8 +226,8 @@ ranges are conventional, not enforced by the loader:
        ``config_420_inst_nhlorri``, ``config_430_inst_vgiss``,
        ``config_440_sim``
    * - ``5xx``
-     - Per-technique tunables
-     - ``config_510_techniques``
+     - Per-technique and orchestrator tunables
+     - ``config_510_techniques``, ``config_540_orchestrator``
    * - ``9xx``
      - Downstream-product settings
      - ``config_900_backplanes``, ``config_951_pds4_coiss_saturn``,
@@ -166,12 +241,11 @@ Each shipping file and what it holds:
 - ``config_010_general`` — general settings shared across programs.
 - ``config_015_logging`` — logging defaults, per-module levels, and
   per-program overrides.
-- ``config_020_offset`` — offset-finding and star-refinement parameters.
+- ``config_020_offset`` — the image correlation's FFT upsample factor.
 - ``config_030_stars`` — star-model and ring-occlusion parameters.
 - ``config_040_bodies`` — body (planet / moon) rendering parameters.
 - ``config_050_rings`` — ring-model parameters.
 - ``config_060_titan`` — Titan-specific navigation parameters.
-- ``config_070_bootstrap`` — bootstrap navigation parameters (angles in degrees).
 - ``config_100_satellites`` — satellite definitions for each planet.
 - ``config_220_body_shape`` — per-body shape table (radii, ellipsoid residual,
   crater scale, albedo) consumed by the body NavModel and feature extractors;
@@ -188,6 +262,8 @@ Each shipping file and what it holds:
   runtime tunables (spurious-detection thresholds, at-edge tolerances, minimum
   arc lengths) plus the planet-specific ``feature_emission.ring_annulus`` block
   that decides RING_EDGE vs RING_ANNULUS emission.
+- ``config_540_orchestrator`` — the ``orchestrator`` section: the ensemble combine's
+  tunables and confidence tiers, and the per-feature-type reliability gate.
 - ``config_900_backplanes`` — backplane-generation settings.
 - ``config_951_pds4_coiss_saturn`` — the ``coiss_saturn`` dataset's PDS4 bundle
   settings, ``pds4.coiss_saturn``: its template directory, the bundle's name and
@@ -198,26 +274,6 @@ Each shipping file and what it holds:
   :doc:`dev_guide_pds4`).
 - ``config_960_results_tree`` — how much of a pass over a navigation results
   tree runs at once; see :doc:`dev_guide_results_index`.
-
-Loader rules
-------------
-
-- YAML mappings are deep-merged, not overwritten. A user override that sets
-  ``bodies.use_lambert: false`` does not unset every other key under
-  ``bodies``.
-- Lists are overwritten wholesale. A user override of ``stars.catalogs``
-  overwrites the bundled list rather than appending to it.
-- Mapping keys whose name starts with ``_`` are stripped at load time. This
-  is the strip-rule that lets static-data files carry ``_sources`` blocks
-  alongside their numeric values without bloating the parsed
-  :class:`~spindoctor.config.config.Config` object;
-  see :ref:`static-data-citations`.
-
-Numeric values are typed by YAML; downstream consumers convert with explicit
-casts where the section schema is mixed (e.g. the per-instrument
-``image_quality_thresholds`` block constructs a frozen
-:class:`~spindoctor.support.image_class.ImageQualityThresholds`
-dataclass).
 
 Path resolution
 ---------------
@@ -310,9 +366,8 @@ Schema
 
 Each body block in ``config_220_body_shape.yaml`` is wrapped in a top-level
 ``body_shape:`` mapping; each entry is keyed by upper-case SPICE body name and
-carries an optional sibling ``_sources`` mapping. Keys beginning with ``_``
-are stripped at config-load time so the documentation does not bloat the
-parsed ``Config`` — the citation lives in the file for human review only.
+carries an optional sibling ``_sources`` mapping. The loader drops it (see
+:ref:`config-merge`), so the citation lives in the file for human review only.
 
 .. code-block:: yaml
 
@@ -321,13 +376,13 @@ parsed ``Config`` — the citation lives in the file for human review only.
         radii_km: [207.8, 196.7, 190.6]
         ellipsoid_rms_residual_km: 0.74
         crater_scale_km: 1.0
-        albedo_mean: null
         albedo_variation: 0.06
         shape_class_hint: regular
         _sources:
           radii_km: 'Archinal et al. 2011, CMDA 109, Table 5 (per Thomas
                      2010, Icarus 208); PDF fetched in-session 2026-07-10'
           ellipsoid_rms_residual_km: '...'
+          albedo_mean: 'PLACEHOLDER — no in-session source fetched; no runtime consumer'
           # ... and so on for every numeric field.
 
 Body-shape table: sources
@@ -367,9 +422,10 @@ Fields that are *estimates by design*: ``crater_scale_km`` (characteristic
 limb topographic roughness beyond the ellipsoid) and ``albedo_variation``
 have no standard published per-body scalar; entries carry
 ``'ESTIMATE — <physical basis>'`` sources and feed sigma/reliability
-terms only.  ``albedo_mean`` is ``null`` throughout because it has no
-runtime consumer; a developer adding a consumer should populate it with
-cited values at that point, following the procedure below.
+terms only.  ``albedo_mean`` is left out of every entry because it has no
+runtime consumer, and each entry's ``_sources`` says so.  A developer adding a
+consumer should populate it with cited values at that point, following the
+procedure below.
 
 Downstream, ``ellipsoid_rms_residual_km`` drives the LIMB_ARC
 normal-sigma quadrature and the ``max_phase_irregularity_factor``
@@ -393,11 +449,11 @@ AI agents drafting body-shape entries:
    *summary* (rather than the fetched document itself) is permitted only
    when its ``_sources`` entry says so explicitly and flags the value for
    reviewer spot-check, as the Io and Ganymede residual entries do.
-2. If a value cannot be sourced from a fetched document, leave it as ``null``
-   and write
-   ``'PLACEHOLDER — no source found, calibration pending'`` as the
+2. If a value cannot be sourced from a fetched document, leave the key out
+   of the entry and write
+   ``'PLACEHOLDER — no source found, calibration pending'`` as its
    ``_sources`` entry. The runtime fallback (10 % radius default plus a
-   reliability cap of 0.3) handles ``null`` values.
+   reliability cap of 0.3) takes the place of a value that is left out.
 3. DOIs and paper titles must verify against a real
    ``https://doi.org/<DOI>`` lookup; agents do not invent identifiers.
 4. Any draft PR that lists a citation an AI agent invented (caught in human
@@ -422,7 +478,7 @@ Validation tests
   ``_sources`` entry that is a non-empty string.
 - No ``_sources`` value contains the substrings ``TODO`` / ``FIXME`` /
   ``XXX`` (case-insensitive).
-- ``PLACEHOLDER`` is allowed only when the value itself is ``null``.
+- ``PLACEHOLDER`` is allowed only for a field the entry leaves out.
 
 The same validation pattern extends to per-camera ``noise`` /
 ``mag_offset`` blocks in ``config_4N0_inst_*.yaml`` and to any new entries
@@ -430,16 +486,6 @@ added to ``config_3N0_*_rings.yaml``. Existing ring-catalog values are
 grandfathered (they were curated by orbit-fitting astronomers and the
 catalogs document their pedigree in the file header) — only *new*
 additions need explicit ``_sources`` entries.
-
-Strip-rule guarantee
---------------------
-
-``Config._load_yaml`` strips every mapping key whose
-name starts with ``_`` before merging, so ``_sources`` blocks never appear in
-the parsed :class:`~spindoctor.config.config.Config` object. The runtime accessors
-(``config.body_shape``, ``config.<camera>.mag_offset``, etc.) see only the
-value-bearing fields. Tests assert this behavior explicitly so the strip
-rule cannot regress silently.
 
 Adding a new tunable
 ====================

@@ -150,6 +150,8 @@ class FakeObs:
             star projects onto the FOV center.
         center_ra_rad: Right ascension of the frame center, in radians.
         center_dec_rad: Declination of the frame center, in radians.
+        path_uv: Planted ``(u, v)`` per path name for ``uv_from_path``, in pixel
+            corner coordinates; None plants a point that cannot be projected.
     """
 
     data: np.ndarray
@@ -167,6 +169,7 @@ class FakeObs:
     center_ra_rad: float = 0.0
     center_dec_rad: float = 0.0
     fov: FakeFOV = field(default_factory=FakeFOV)
+    path_uv: dict[str, tuple[float, float] | None] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         """Build the extfov-padded ``extdata`` from ``data`` plus the margin."""
@@ -461,6 +464,27 @@ class FakeObs:
         u = u + (tfrac - 0.5) * 2.0  # -1 at tfrac=0, +1 at tfrac=1
         v = v + (tfrac - 0.5) * 1.0
         return FakeUV(u_vals=u, v_vals=v)
+
+    def uv_from_path(self, path: str) -> polymath.Pair:
+        """Return the planted ``(u, v)`` of a path, as ``Observation.uv_from_path`` does.
+
+        Parameters:
+            path: Name of the path, looked up in ``self.path_uv``.
+
+        Returns:
+            A ``polymath.Pair`` holding the planted ``(u, v)`` in the pixel corner
+            coordinates the real call answers in, or a fully masked Pair when the path
+            was planted as None (a point the real call could not project).
+
+        Raises:
+            NotImplementedError: If no position was planted for ``path``.
+        """
+        if path not in self.path_uv:
+            raise NotImplementedError(f'FakeObs.path_uv has no entry for path {path!r}')
+        uv = self.path_uv[path]
+        if uv is None:
+            return polymath.Pair((0.0, 0.0), True)
+        return polymath.Pair(uv)
 
 
 def _extract_vals(obj: Any) -> Any:

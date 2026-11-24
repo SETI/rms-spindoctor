@@ -695,7 +695,10 @@ def test_a_raw_dn_pair_adds_every_patch_unjudged() -> None:
 def test_a_calibrated_camera_without_a_ceiling_is_not_judged() -> None:
     """A calibrated camera that doesn't set a ceiling is handled like a raw-DN one."""
     pair = pair_sky(
-        _sky_record('vgiss'), _sky_frame(0.5, sigma=2e-3), _sky_frame(0.012), twins_with_sky=True
+        _sky_record('vgiss_1_nac'),
+        _sky_frame(0.5, sigma=2e-3),
+        _sky_frame(0.012),
+        twins_with_sky=True,
     )
     assert pair.status is SkyPairStatus.NOT_JUDGED
 

@@ -386,7 +386,7 @@ per-image metadata into :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metad
 Simulated-image instrument config: inherit / override / self-specify
 --------------------------------------------------------------------
 
-A simulated scene sets an ``instrument`` (``coiss_nac``, ``vgiss``, ...) so its
+A simulated scene sets an ``instrument`` (``coiss_nac``, ``vgiss_1_nac``, ...) so its
 :class:`~spindoctor.obs.obs_inst_sim.ObsSim` goes through
 the same per-instrument units, noise, saturation, and PSF the navigator applies
 to a real frame.
