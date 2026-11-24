@@ -5,6 +5,7 @@ from typing import Any
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
+from spindoctor.sim.scene import rules_body
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
@@ -60,6 +61,18 @@ def test_a_second_phase_term_without_its_share_is_refused() -> None:
         validate_sim_params(_second_term_scene(g2=-0.2))
 
 
+def test_a_second_phase_term_share_without_its_term_is_refused() -> None:
+    """``g2_fraction`` without ``g2`` fails validation and names both keys."""
+    with pytest.raises(SimSceneValidationError, match=r'g2 and .*g2_fraction'):
+        validate_sim_params(_second_term_scene(g2_fraction=0.1))
+
+
+def test_a_second_phase_term_asymmetry_outside_the_open_interval_is_refused() -> None:
+    """A second-term asymmetry of 1 or more fails validation and names the key."""
+    with pytest.raises(SimSceneValidationError, match=r'atmosphere\.g2 must lie in \(-1, 1\)'):
+        validate_sim_params(_second_term_scene(g2=1.0, g2_fraction=0.1))
+
+
 def test_a_second_phase_term_share_above_one_is_refused() -> None:
     """A second-term share above 1 fails validation and names the key."""
     with pytest.raises(SimSceneValidationError, match=r'atmosphere\.g2_fraction'):
@@ -91,6 +104,18 @@ def test_a_titan_model_haze_that_also_sets_its_column_is_refused() -> None:
         validate_sim_params(_titan_model_scene(tau_ref=2.0))
 
 
+def test_a_titan_model_haze_with_a_detached_shell_is_refused() -> None:
+    """A detached shell cannot join a named haze model, whose depth would set the shell's."""
+    with pytest.raises(SimSceneValidationError, match=r'detached_px cannot join a haze_model'):
+        validate_sim_params(_titan_model_scene(detached_px=10.0))
+
+
+def test_a_titan_model_haze_checks_its_structure_keys() -> None:
+    """A structure key under a named haze model is validated as under an explicit one."""
+    with pytest.raises(SimSceneValidationError, match=r'atmosphere\.ns_falloff_ratio'):
+        validate_sim_params(_titan_model_scene(ns_falloff_ratio=-1.0))
+
+
 def test_an_unknown_haze_model_is_refused() -> None:
     """Only ``titan`` names a haze model."""
     scene = _titan_model_scene()
@@ -113,7 +138,7 @@ def test_a_titan_haze_in_a_methane_window_filter_is_refused() -> None:
 
 def test_a_titan_haze_in_a_filter_overlapping_a_methane_band_is_refused() -> None:
     """A filter that puts a quarter of its light in a methane band core is refused."""
-    with pytest.raises(SimSceneValidationError, match=r"methane-band.*'CL1\+IR3'"):
+    with pytest.raises(SimSceneValidationError, match=r"24% of the light of 'CL1\+IR3' falls"):
         validate_sim_params(_with_filter(_titan_model_scene(), 'CL1+IR3'))
 
 
@@ -121,6 +146,24 @@ def test_a_titan_haze_in_an_ultraviolet_filter_is_refused() -> None:
     """A filter whose light lies outside the modeled span is refused, giving the share."""
     with pytest.raises(SimSceneValidationError, match=r"100% of the light of 'CL1\+UV3'"):
         validate_sim_params(_with_filter(_titan_model_scene(), 'CL1+UV3'))
+
+
+def test_a_titan_haze_with_just_under_a_quarter_of_its_light_outside_validates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A passband with 0.24 of its light outside the modeled span validates."""
+    monkeypatch.setattr(rules_body, 'uncovered_fraction', lambda _passband: 0.24)
+    scene = validate_sim_params(_titan_model_scene())
+    assert scene['bodies'][0]['atmosphere'] == {'haze_model': 'titan'}
+
+
+def test_a_titan_haze_with_just_over_a_quarter_of_its_light_outside_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A passband with 0.26 of its light outside the modeled span is refused."""
+    monkeypatch.setattr(rules_body, 'uncovered_fraction', lambda _passband: 0.26)
+    with pytest.raises(SimSceneValidationError, match=r'26% of the light'):
+        validate_sim_params(_titan_model_scene())
 
 
 def test_a_titan_haze_on_a_camera_without_passbands_is_refused() -> None:

@@ -15,7 +15,8 @@ Inputs, both published by the Huygens DISR team:
   degrees) at the DISR wavelengths (columns, Angstrom), from Tomasko et al. (2008,
   Planet. Space Sci. 56, 669).
 - :data:`ALBEDO_ABOVE_144_KM`: the haze's single-scattering albedo above 144 km,
-  Table 2 of the same paper.
+  transcribed from Table 2 of the same paper.  The transcription has not been
+  checked against the published table.
 
 At each DISR wavelength from 430 to 1078 nm, the span over which both are given, the
 phase function is normalized to average 1 over the sphere and fitted by a two-term
@@ -42,8 +43,9 @@ OUT = HERE.parents[1] / 'src/spindoctor/sim/render/bodies/titan_haze_table.py'
 WAVELENGTHS_NM = (430.0, 490.9, 599.9, 713.1, 822.4, 934.8, 1078.0)
 
 # Table 2 of Tomasko et al. (2008): single-scattering albedo above 144 km, by
-# wavelength in nm.  Where the table gives two values at one wavelength (934 nm),
-# their mean is used.
+# wavelength in nm, as transcribed.  The rows at 934 and 938 nm are separate, and
+# the rows at 670 and 675 nm carry the same value.  The transcription is unverified
+# against the published table (#1197).
 ALBEDO_ABOVE_144_KM = (
     (430.0, 0.8200),
     (491.0, 0.8700),

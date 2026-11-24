@@ -6,7 +6,9 @@ sweep_name: atmosphere_haze_albedo
 # off.  Over 25 noise draws the albedo 0, 0.15, 0.3, and 0.6 steps sit 0.94 to
 # 1.01 px off, within 0.04 px of the floor draw for draw; at albedo 1.0 the haze's
 # light makes the answer unstable, 0.43 to 3.99 px off and conflicted on some
-# draws.  The base scene's haze is a generic axis-study haze with a one-term phase
+# draws.  So from albedo 0 to 0.6 the sweep does not measure its axis: the haze's
+# dimming of the surface sets the error, and the haze's own light does not move
+# it.  Only the 1.0 step responds to the albedo.  The base scene's haze is a generic axis-study haze with a one-term phase
 # function.  The 0.6 point is the base scene's default albedo, the atmosphere_haze
 # sweep's tau_ref 4 point.
 base_scene: model_mismatch/haze_limb_base.yaml

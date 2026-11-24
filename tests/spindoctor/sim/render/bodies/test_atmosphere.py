@@ -180,6 +180,22 @@ def test_terminator_brightens_past_ninety_degrees() -> None:
     assert with_haze[past].mean() > without[past].mean()
 
 
+def test_the_haze_fades_into_the_night_side() -> None:
+    """Deep past the terminator the haze's light falls below a tenth of its value there.
+
+    The fade is the twilight weight: about 30 deg of solar depression for this scale
+    height and radius, so 60 to 70 deg past the terminator the weight is below 0.01,
+    while 2 to 7 deg past it the weight is nearly 1.  The rendered ratio is about 0.05;
+    without the weight it is about 1.
+    """
+    atmosphere = {'scale_height_px': 8.0, 'tau_ref': 1.5, 'g': 0.6}
+    haze = _render_haze_body(atmosphere, phase_deg=90.0) - _render_haze_body(None, phase_deg=90.0)
+    incidence = _incidence_deg_map()
+    near = (incidence > 92.0) & (incidence < 97.0)
+    deep = (incidence > 150.0) & (incidence < 160.0)
+    assert haze[deep].mean() < 0.1 * haze[near].mean()
+
+
 def test_lit_disc_beyond_terminator_stays_at_floor_without_atmosphere() -> None:
     """Without a haze layer the past-terminator disc renders at the dark floor."""
     without = _render_haze_body(None, phase_deg=90.0)

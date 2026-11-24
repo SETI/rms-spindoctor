@@ -49,6 +49,19 @@ that crosses the column unscattered and is seen only through the same direct bea
 the multiple-scattered light is isotropic; and the column is evaluated at the point
 where the line of sight meets it, not integrated along a curved path.
 
+**How accurate it is.**  Against a Monte Carlo simulation of a semi-infinite layer lit
+from straight above, with Titan's haze at 650 nm (albedo 0.92 and the two-term phase
+function ``g`` 0.886, ``g2`` -0.151, share 0.099), the reflectance runs about 22% low:
+0.162 against 0.207 seen at an emission cosine of 0.475, and 0.149 against 0.186 at
+0.975.  The single-scattering term is exact, so the shortfall lies in the
+multiple-scattering term: the similarity relations and an isotropic redistribution
+return less of a strongly forward-scattering haze's light than its real phase function
+does.  With isotropic scattering the same check runs 1 to 5% low, the error of the
+closed-form H-function.  For layers of vertical optical depth 0.3 to 3 the
+reflectance runs 4 to 17% low, the finite-column scaling adding little to the
+semi-infinite shortfall.
+``util/titan_haze/check_multiple_scattering.py`` runs the check.
+
 **Titan's phase function.**  Titan's haze
 (:mod:`spindoctor.sim.render.bodies.titan_haze`) uses a two-term Henyey-Greenstein phase
 function, ``(1 - f) HG(g) + f HG(g2)``, fitted at each DISR wavelength from 430 to 1078
@@ -59,7 +72,8 @@ logarithm, each scattering angle weighted by the span of angle it stands for.  F
 to 1078 nm the fits follow the tabulation within 20% from 20 to 180 deg of scattering
 angle (phase angles 0 to 160 deg); at 430 nm they fall up to 44% below it.  Nearer the
 forward direction two terms cannot follow the aggregates' narrow peak: the fits run 1.2
-to 1.8 times high at 10 deg and 2 to 4 times low at 0 deg.
+to 1.8 times high at 10 deg and 1.1 to 1.3 times high at 15 deg, and they fall 1.4 to
+4.2 times low at 0 deg, under 2 times at 822, 935, and 1078 nm.
 """
 
 import math

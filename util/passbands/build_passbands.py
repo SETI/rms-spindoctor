@@ -16,7 +16,8 @@ next to the instrument catalog, one file per camera
 (``src/spindoctor/sim/instruments/passbands/<camera>.csv``) with a column per filter
 combination the catalog lists for that camera, and one file for the solar spectrum
 (``solar_flux.csv``).  A combination whose polarizer the catalog folds onto a clear
-element takes that clear element's table.  ``tests/integration/test_passband_tables.py``
+element takes that clear element's table, whose solar-weighted mean wavelength lies
+under 1 nm from the polarizer's own.  ``tests/integration/test_passband_tables.py``
 rebuilds the tables from the archive and compares them with the committed files.
 """
 

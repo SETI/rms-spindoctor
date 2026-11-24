@@ -437,9 +437,6 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
         )
     if 'haze_model' in value:
         _check_atmosphere_model(value, label=label, source=source)
-        _check_optional_positive_number(
-            value.get('detached_px'), f'{label}.atmosphere.detached_px', source=source
-        )
         _check_haze_structure(value, label=label, source=source)
         return
     for required in ('scale_height_px', 'tau_ref'):
@@ -504,7 +501,10 @@ def _check_atmosphere_model(value: dict[str, Any], *, label: str, source: str) -
     """Validate an ``atmosphere`` block that takes a published haze by name.
 
     The model sets the column, so a block that names one may not also set the
-    column's own keys.
+    column's own keys.  Nor may it add a detached shell: the shell's depth is a
+    multiple of the column's reference depth, which for Titan's haze would make the
+    shell about 15 tangent optical depths deep, far deeper than Titan's detached
+    layer.
     """
     haze_model = value.get('haze_model')
     if haze_model != TITAN_HAZE_MODEL:
@@ -517,6 +517,12 @@ def _check_atmosphere_model(value: dict[str, Any], *, label: str, source: str) -
         raise SimSceneValidationError(
             f'{source}: {label}.atmosphere.haze_model sets the haze, so the block may not also '
             f'set {stated}'
+        )
+    if 'detached_px' in value:
+        raise SimSceneValidationError(
+            f"{source}: {label}.atmosphere.detached_px cannot join a haze_model: the shell's "
+            "depth follows the column's reference depth, which would make it as opaque as "
+            "Titan's main haze"
         )
 
 
@@ -558,11 +564,18 @@ def check_model_atmosphere_filters(
     in_methane = any(
         element.startswith(_METHANE_FILTER_PREFIXES) for element in passband.filter_name.split('+')
     )
-    if in_methane or methane_band_fraction(passband) > MAX_METHANE_BAND_FRACTION:
+    if in_methane:
         raise SimSceneValidationError(
             f"{source}: Titan's haze is not modeled in methane-band or methane-window "
             f'filters, whose light methane absorbs or lets through to the surface; '
             f'the scene uses {passband.filter_name!r}'
+        )
+    in_bands = methane_band_fraction(passband)
+    if in_bands > MAX_METHANE_BAND_FRACTION:
+        raise SimSceneValidationError(
+            f"{source}: Titan's haze is not modeled where methane absorbs, and "
+            f'{in_bands:.0%} of the light of {passband.filter_name!r} falls in the cores of '
+            f'the methane bands'
         )
     outside = uncovered_fraction(passband)
     if outside > MAX_UNCOVERED_FRACTION:
