@@ -1,8 +1,9 @@
 """Tests for the typed ``techniques`` configuration section.
 
 The schema core checks each key's type and range, and is tested in its own suite.
-What is tested here is that the packaged section parses, and the rule that a block
-refers only to attributes its technique declares.
+What is tested here is that the packaged section parses, how its blocks are named, the
+rule that a block names only attributes its technique declares, and that the loader
+refuses a block by a name the section does not use.
 """
 
 import re
@@ -11,7 +12,9 @@ from pathlib import Path
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.nav_technique.confidence_config import shipped_techniques
+from spindoctor.config.logging_keys import log_key_for, technique_log_keys
+from spindoctor.nav_technique import BodyLimbNav
+from spindoctor.nav_technique.confidence_config import shipped_techniques, technique_config_key
 from spindoctor.schema import SchemaError
 
 
@@ -22,6 +25,15 @@ def test_packaged_techniques_section_parses() -> None:
         tuning = section.block(technique).technique_tuning()
         expected = dict if technique.Tuning is None else technique.Tuning
         assert isinstance(tuning, expected), technique.name
+
+
+def test_a_typed_technique_block_uses_its_logging_key() -> None:
+    """A typed technique's block is named as the ``logging.techniques`` category names it."""
+    typed = [technique for technique in shipped_techniques() if technique.Tuning is not None]
+    assert typed
+    for technique in typed:
+        assert technique_config_key(technique) == log_key_for(technique)
+        assert technique_config_key(technique) in technique_log_keys()
 
 
 @pytest.mark.parametrize(
@@ -37,11 +49,26 @@ def test_an_undeclared_attribute_is_refused(tmp_path: Path, text: str, path: str
 
     Parameters:
         tmp_path: A directory for the override file.
-        text: The ``BodyLimbNav`` block's lines in the override.
+        text: The ``body_limb`` block's lines in the override.
         path: The key path the message gives inside the block.
     """
     user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text(f'techniques:\n  BodyLimbNav:\n{text}', encoding='utf-8')
-    expected = f'{user_path}: techniques.BodyLimbNav.{path}: BodyLimbNav declares no such attribute'
+    user_path.write_text(f'techniques:\n  body_limb:\n{text}', encoding='utf-8')
+    expected = f'{user_path}: techniques.body_limb.{path}: BodyLimbNav declares no such attribute'
     with pytest.raises(SchemaError, match=re.escape(expected)):
         Config().update_config(user_path)
+
+
+def test_a_typed_technique_block_under_its_class_name_is_refused(tmp_path: Path) -> None:
+    """A block named by a typed technique's class name is an unknown key, and changes nothing."""
+    config = Config()
+    tuning = config.techniques.block(BodyLimbNav).technique_tuning()
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text(
+        'techniques:\n  BodyLimbNav:\n    tuning:\n      spurious_dt_floor_px: 9.0\n',
+        encoding='utf-8',
+    )
+    expected = f"{user_path}: techniques: unknown keys: ['BodyLimbNav']"
+    with pytest.raises(SchemaError, match=re.escape(expected)):
+        config.update_config(user_path)
+    assert BodyLimbNav.tuning is tuning

@@ -16,7 +16,8 @@ Mirrors :class:`BodyLimbNav` with three terminator-specific differences:
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -27,35 +28,30 @@ from spindoctor.feature.flags import TerminatorArcFlags
 from spindoctor.feature.geometry import TerminatorPolyline
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import BodyTerminatorDiagnostics
-from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
+from spindoctor.nav_technique.dt_fit_gates import evaluate_dt_fit_gates
 from spindoctor.nav_technique.dt_fitting import (
     _rotate_vertices,
     coarse_polarity_search_scored,
     find_secondary_dt_minimum,
     lm_subpixel_refine,
 )
+from spindoctor.nav_technique.dt_tuning import DTTuning
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     add_model_error_floor,
-    load_model_error_floor,
     log_confidence_breakdown,
     rotation_pivot_distance_px,
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg
 from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['BodyTerminatorNav']
-
-# All numeric tunables for this technique live in
-# ``config_files/config_510_techniques.yaml`` under
-# ``techniques.BodyTerminatorNav.tuning``.  No Python-level fallback;
-# missing-key access in ``__init__`` is a KeyError so a config typo
-# fails fast at process startup.
+__all__ = ['BodyTerminatorNav', 'BodyTerminatorTuning']
 
 
 def _aggregate_terminator_features(
@@ -116,6 +112,33 @@ def _aggregate_terminator_features(
     return vertices_out, normals_out, sigmas_out, ids, phase_factors, albedo_penalties
 
 
+@dataclass(frozen=True)
+class BodyTerminatorTuning(DTTuning):
+    """The tuning keys of :class:`BodyTerminatorNav`, beyond those every DT technique holds.
+
+    Parameters:
+        min_arc_vertices: The fewest surviving polyline vertices a terminator arc needs
+            to take part in the fit.
+        model_error_floor_px: The model-error floor in pixels, added in quadrature to
+            the translation covariance.
+        basin_cost_ratio_threshold: A competing DT-cost basin whose mean per-vertex cost
+            is below this many times the converged cost marks the fit spurious; 0
+            disables the test.
+        basin_exclude_radius_px: How far from the converged offset, in pixels, a
+            competing basin must lie.
+        basin_cost_epsilon_px: The least converged cost, in pixels, the comparison
+            divides by, so a near-zero cost does not make every basin a rival.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    min_arc_vertices: NonNeg
+    model_error_floor_px: NonNeg
+    basin_cost_ratio_threshold: NonNeg
+    basin_exclude_radius_px: NonNeg
+    basin_cost_epsilon_px: NonNeg
+
+
 class BodyTerminatorNav(NavTechnique):
     """Body-terminator DT-based translation fit.
 
@@ -134,6 +157,8 @@ class BodyTerminatorNav(NavTechnique):
     """
 
     name = 'BodyTerminatorNav'
+    Tuning = BodyTerminatorTuning
+    tuning: ClassVar[BodyTerminatorTuning]
     accepts_feature_types = frozenset({NavFeatureType.TERMINATOR_ARC})
     requires_prior = False
     tier = 'fallback'
@@ -152,35 +177,14 @@ class BodyTerminatorNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
-        """Read the technique's tunables from config.
+        """Load the configuration, which sets the technique's tuning.
 
         Parameters:
             config: Optional ``Config`` override; ``None`` uses
                 ``DEFAULT_CONFIG``.
-
-        Raises:
-            KeyError: If any tuning key is missing, so a config typo fails
-                at process startup rather than mid-image.
         """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._min_arc_vertices = float(self.tuning['min_arc_vertices'])
-        self._spurious_dt_rms_factor = float(self.tuning['spurious_dt_rms_factor'])
-        self._spurious_dt_floor_px = float(self.tuning['spurious_dt_floor_px'])
-        self._spurious_min_inliers = int(self.tuning['spurious_min_inliers'])
-        self._spurious_min_inlier_fraction = float(self.tuning['spurious_min_inlier_fraction'])
-        self._spurious_max_lm_displacement_px = float(
-            self.tuning['spurious_max_lm_displacement_px']
-        )
-        self._lm_trust_region_px = float(self.tuning['lm_trust_region_px'])
-        self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
-        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
-        self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._basin_cost_ratio_threshold = float(self.tuning['basin_cost_ratio_threshold'])
-        self._basin_exclude_radius_px = float(self.tuning['basin_exclude_radius_px'])
-        self._basin_cost_epsilon_px = float(self.tuning['basin_cost_epsilon_px'])
-        self._dt_gate_config = DTFitGateConfig.from_tuning(self.tuning)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries a usable terminator arc.
@@ -200,7 +204,7 @@ class BodyTerminatorNav(NavTechnique):
             f
             for f in features
             if isinstance(f.geometry, TerminatorPolyline)
-            and f.geometry.vertices_vu.shape[0] >= self._min_arc_vertices
+            and f.geometry.vertices_vu.shape[0] >= self.tuning.min_arc_vertices
         ]
         if not eligible:
             return NavFeasibilityReport(
@@ -252,7 +256,7 @@ class BodyTerminatorNav(NavTechnique):
                 f
                 for f in features
                 if isinstance(f.geometry, TerminatorPolyline)
-                and f.geometry.vertices_vu.shape[0] >= self._min_arc_vertices
+                and f.geometry.vertices_vu.shape[0] >= self.tuning.min_arc_vertices
             ]
             self.logger.info(
                 'Consuming %d TERMINATOR_ARC features (out of %d offered)',
@@ -320,13 +324,13 @@ class BodyTerminatorNav(NavTechnique):
                 fit_rotation=fit_rotation,
                 pivot_vu=pivot_vu if fit_rotation else None,
                 pivot_distance_px=pivot_distance,
-                trust_region_px=self._lm_trust_region_px,
-                tikhonov_alpha=self._lm_tikhonov_alpha,
+                trust_region_px=self.tuning.lm_trust_region_px,
+                tikhonov_alpha=self.tuning.lm_tikhonov_alpha,
             )
             dv_final, du_final = result.offset_vu
             max_rotation_rad = math.radians(context.max_rotation_deg)
             rotation_at_edge = fit_rotation and (
-                abs(result.rotation_rad) >= self._rotation_at_edge_fraction * max_rotation_rad
+                abs(result.rotation_rad) >= self.tuning.rotation_at_edge_fraction * max_rotation_rad
             )
             covariance = result.covariance
             rotation_rad: float | None
@@ -353,8 +357,8 @@ class BodyTerminatorNav(NavTechnique):
             # past the search window registers as at-edge instead of
             # silently producing an out-of-extfov offset.
             at_edge = (
-                abs(dv_final) >= margin_v - self._at_edge_tolerance_px
-                or abs(du_final) >= margin_u - self._at_edge_tolerance_px
+                abs(dv_final) >= margin_v - self.tuning.at_edge_tolerance_px
+                or abs(du_final) >= margin_u - self.tuning.at_edge_tolerance_px
                 or rotation_at_edge
             )
             sigma_min_px = float(sigmas.min()) if sigmas.size else 1.0
@@ -383,12 +387,12 @@ class BodyTerminatorNav(NavTechnique):
             # it with the same DT residual threshold the weighted check
             # uses (mirrors ``RingEdgeNav``).
             dt_rms_threshold = max(
-                self._spurious_dt_floor_px,
-                self._spurious_dt_rms_factor * sigma_min_px,
+                self.tuning.spurious_dt_floor_px,
+                self.tuning.spurious_dt_rms_factor * sigma_min_px,
             )
             gate_verdict = evaluate_dt_fit_gates(
                 result,
-                self._dt_gate_config,
+                self.tuning,
                 coarse_peak_fraction=coarse.score,
                 total_vertex_count=n_vertices,
                 use_polarity=True,
@@ -406,9 +410,9 @@ class BodyTerminatorNav(NavTechnique):
                 result.degenerate
                 or result.rms_px > dt_rms_threshold
                 or result.raw_rms_px > dt_rms_threshold
-                or result.inlier_count < self._spurious_min_inliers
-                or inlier_fraction < self._spurious_min_inlier_fraction
-                or lm_displacement_px > self._spurious_max_lm_displacement_px
+                or result.inlier_count < self.tuning.spurious_min_inliers
+                or inlier_fraction < self.tuning.spurious_min_inlier_fraction
+                or lm_displacement_px > self.tuning.spurious_max_lm_displacement_px
                 or gate_verdict.spurious
             )
             # Basin second-opinion (#125): a textured surface can offer the
@@ -419,7 +423,7 @@ class BodyTerminatorNav(NavTechnique):
             # spurious.  Skipped when already spurious or disabled.
             secondary_basin_distance_px: float | None = None
             secondary_basin_cost_ratio: float | None = None
-            if not spurious and self._basin_cost_ratio_threshold > 0.0:
+            if not spurious and self.tuning.basin_cost_ratio_threshold > 0.0:
                 # The LM evaluates the DT at the *rotated* vertex positions
                 # when it fits rotation; the basin scan must score the same
                 # geometry, or the converged cost is inflated and a good
@@ -434,13 +438,13 @@ class BodyTerminatorNav(NavTechnique):
                     basin_vertices,
                     converged_offset_vu=(dv_final, du_final),
                     search_window_vu=(margin_v, margin_u),
-                    exclude_radius_px=self._basin_exclude_radius_px,
+                    exclude_radius_px=self.tuning.basin_exclude_radius_px,
                 )
                 if basin is not None:
-                    denominator = max(basin.converged_cost_px, self._basin_cost_epsilon_px)
+                    denominator = max(basin.converged_cost_px, self.tuning.basin_cost_epsilon_px)
                     secondary_basin_cost_ratio = basin.cost_px / denominator
                     secondary_basin_distance_px = basin.distance_px
-                    if secondary_basin_cost_ratio < self._basin_cost_ratio_threshold:
+                    if secondary_basin_cost_ratio < self.tuning.basin_cost_ratio_threshold:
                         spurious = True
                         self.logger.info(
                             'Competing DT basin at (%d, %d) px (distance %.1f px) has cost '
@@ -452,7 +456,7 @@ class BodyTerminatorNav(NavTechnique):
                             basin.cost_px,
                             basin.converged_cost_px,
                             secondary_basin_cost_ratio,
-                            self._basin_cost_ratio_threshold,
+                            self.tuning.basin_cost_ratio_threshold,
                         )
             visible_terminator_arc_fraction = _aggregate_visible_arc_fraction(eligible_features)
             mean_phase = float(np.mean(phase_factors)) if phase_factors else 0.0
@@ -522,7 +526,7 @@ class BodyTerminatorNav(NavTechnique):
                 mean_albedo,
             )
             # Model-error floor (#210); rationale on load_model_error_floor.
-            covariance = add_model_error_floor(covariance, self._model_error_floor_px)
+            covariance = add_model_error_floor(covariance, self.tuning.model_error_floor_px)
             return NavTechniqueResult(
                 technique_name=self.name,
                 feature_ids=tuple(feature_ids),

@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.nav_technique import BodyDiscCorrelateNav
+from spindoctor.nav_technique import RingEdgeNav
 
 
 def test_update_config_preserves_sibling_defaults(tmp_path: Path) -> None:
@@ -56,10 +56,10 @@ def test_an_override_refused_by_validation_changes_nothing(tmp_path: Path) -> No
     config = Config()
     config.read_config()
     fraction = config.bodies['blob_max_overflow_fraction']
-    tuning = dict(BodyDiscCorrelateNav.tuning)
+    tuning = RingEdgeNav.tuning
     refused = tmp_path / 'refused.yaml'
     refused.write_text(
-        'techniques:\n  BodyDiscCorrelateNav:\n    tuning:\n'
+        'techniques:\n  ring_edge:\n    tuning:\n'
         '      rotation_at_edge_fraction: 0.5\n'
         'bodies:\n  blob_max_overflow_fraction: 5\n',
         encoding='utf-8',
@@ -70,7 +70,7 @@ def test_an_override_refused_by_validation_changes_nothing(tmp_path: Path) -> No
         config.update_config(refused)
     assert config.bodies['blob_max_overflow_fraction'] == fraction
     assert not config.override_paths
-    assert BodyDiscCorrelateNav.tuning == tuning
+    assert RingEdgeNav.tuning is tuning
     config.update_config(valid)
     assert config.override_paths == (str(valid),)
 

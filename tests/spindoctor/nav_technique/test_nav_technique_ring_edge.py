@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import (
@@ -1259,64 +1257,3 @@ def test_ring_edge_nav_answer_does_not_depend_on_a_sub_mask_catalog_sigma(
     sigma_coarse = float(np.sqrt(coarse.covariance_px2[0, 0]))
     sigma_fine = float(np.sqrt(fine.covariance_px2[0, 0]))
     assert sigma_fine == pytest.approx(sigma_coarse, rel=0.5)
-
-
-def test_ring_edge_nav_rejects_a_negative_edge_localization_sigma(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A negative localization sigma fails at construction, not silently.
-
-    ``hypot`` squares its arguments, so a negative value would behave as its
-    absolute value and the misconfiguration would never surface.
-    """
-    bad_tuning = dict(RingEdgeNav.tuning)
-    bad_tuning['edge_localization_sigma_px'] = -0.5
-    monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='edge_localization_sigma_px must be a finite number > 0'):
-        RingEdgeNav()
-
-
-def test_ring_edge_nav_rejects_a_zero_edge_localization_sigma(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A zero localization sigma fails at construction.
-
-    Zero is physically meaningless against a half-pixel-quantized edge mask
-    and lets a zero catalog sigma reach the LM refine as a zero residual
-    scale.
-    """
-    bad_tuning = dict(RingEdgeNav.tuning)
-    bad_tuning['edge_localization_sigma_px'] = 0.0
-    monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='edge_localization_sigma_px must be a finite number > 0'):
-        RingEdgeNav()
-
-
-def test_ring_edge_nav_rejects_a_null_edge_localization_sigma(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A non-numeric localization sigma (YAML null) raises ValueError.
-
-    The error names the config key rather than surfacing as a bare
-    ``TypeError`` from ``float(None)`` far from the config that caused it.
-    """
-    bad_tuning: dict[str, Any] = dict(RingEdgeNav.tuning)
-    bad_tuning['edge_localization_sigma_px'] = None
-    monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='edge_localization_sigma_px must be a finite number > 0'):
-        RingEdgeNav()
-
-
-def test_ring_edge_nav_rejects_an_overflowing_edge_localization_sigma(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """An int too large for a float raises ValueError naming the key.
-
-    ``float()`` raises ``OverflowError`` for such an int, which would
-    otherwise escape the documented ValueError contract.
-    """
-    bad_tuning: dict[str, Any] = dict(RingEdgeNav.tuning)
-    bad_tuning['edge_localization_sigma_px'] = 10**10000
-    monkeypatch.setattr(RingEdgeNav, 'tuning', bad_tuning)
-    with pytest.raises(ValueError, match='edge_localization_sigma_px must be a finite number > 0'):
-        RingEdgeNav()

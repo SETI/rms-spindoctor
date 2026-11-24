@@ -1,9 +1,12 @@
 # Per-technique confidence-formula coefficients and runtime tunables.
 # Parsed at config-load time, so a bad value, an unknown key, or a term
 # naming an attribute the technique does not declare fails at startup
-# rather than mid-image.  Each technique block looks like:
+# rather than mid-image.  A technique whose tuning is typed is keyed by
+# its snake_case name (body_limb, body_terminator, ring_edge), the key
+# logging.techniques uses; the others are keyed by class name until
+# their tuning is typed.  Each technique block looks like:
 #
-#   <technique_name>:
+#   <technique_key>:
 #     alpha0: float                 # constant in the sigmoid argument
 #     terms:                        # confidence-formula linear terms
 #       - feature: str              # diagnostic-attribute name
@@ -15,7 +18,7 @@
 #       <attribute>: bool
 #     hard_cap: float               # optional; post-sigmoid clamp, in [0, 1]
 #     tuning:                       # technique-specific runtime tunables
-#       <key>: float | int          # each an integer or a finite float
+#       <key>: value                # the technique's tuning type gives each key's type
 #
 # Alpha coefficients and term normalizations are SIM-ANCHORED: fitted
 # 2026-07-18 by L2-regularized logistic regression against
@@ -54,7 +57,7 @@
 # per-technique errors), the same fit reruns against it and these
 # sim-anchored values become the fallback for regimes real data cannot
 # reach.
-# BodyTerminatorNav carries its first sim-anchored fit (#223): the
+# body_terminator carries its first sim-anchored fit (#223): the
 # campaign's terminator rows are single-class (zero of 116 usable rows
 # within 1 px), so its formula gives a low plateau -- see the
 # technique block.  Its trust label additionally stays provisional
@@ -226,7 +229,7 @@ techniques:
     hard_cap: 0.4
     tuning:
       # Pixels of slack around the search-window axis bounds for the
-      # at-edge check.  See ``RingEdgeNav.at_edge_tolerance_px``.
+      # at-edge check.  See ``ring_edge.at_edge_tolerance_px``.
       at_edge_tolerance_px: 1.0
       # Covariance model-error terms.  The per-blob centroid CRLB counts
       # photon statistics only; the brightness-weighted centroid is a
@@ -242,7 +245,7 @@ techniques:
       model_error_size_frac: 0.05
       model_error_floor_px: 0.1
 
-  BodyLimbNav:
+  body_limb:
     # Sim campaign (seed 20260718, full-truth-axis renderer): n=461
     # usable, base rate 0.54, AUC 0.71 -> 0.81, Brier 0.22 -> 0.21.
     # The base rate fell from the previous campaign's 0.75: the
@@ -349,11 +352,10 @@ techniques:
       # that offset (clean planted-(0,0) recovery worsens from ~0.10 px to
       # ~0.17 px).  Removing the floor needs a model-side fix that predicts
       # the limb at the gradient-peak location; see
-      # ``dev_guide_techniques_body_limb``.  1 enables, 0 disables (the
-      # tuning loader is numeric-only, so this is an int flag).
-      gradient_ridge_refine: 0
+      # ``dev_guide_techniques_body_limb``.
+      gradient_ridge_refine: false
       # Pixels of slack around the search-window axis bounds for the
-      # at-edge check.  See ``RingEdgeNav.at_edge_tolerance_px``.
+      # at-edge check.  See ``ring_edge.at_edge_tolerance_px``.
       at_edge_tolerance_px: 1.0
       # Rotation-axis ``at_edge`` fraction; see
       # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
@@ -414,7 +416,7 @@ techniques:
       # The full library-calibrated threshold lock is #179's scope.
       spurious_min_coarse_peak_fraction: 0.05
 
-  BodyTerminatorNav:
+  body_terminator:
     # First sim-anchored fit (#223; seed 20260718, full-truth-axis
     # renderer).  The campaign's terminator rows are SINGLE-CLASS: zero
     # of 116 usable rows recovered within 1 px (median error 5.2 px,
@@ -453,7 +455,7 @@ techniques:
       spurious: true
     tuning:
       # Minimum surviving polyline length per TERMINATOR_ARC for
-      # feasibility (same shape as BodyLimbNav.min_arc_vertices).
+      # feasibility (same shape as body_limb.min_arc_vertices).
       min_arc_vertices: 30.0
       # Final DT residual exceeding this many terminator-sigmas marks
       # the result spurious.
@@ -466,17 +468,17 @@ techniques:
       spurious_min_inliers: 6
       # Below this inlier fraction the LM has almost certainly walked
       # off the true terminator onto crater shadows or surface
-      # boundaries; see ``BodyLimbNav.spurious_min_inlier_fraction``
+      # boundaries; see ``body_limb.spurious_min_inlier_fraction``
       # for the motivation.
       spurious_min_inlier_fraction: 0.20
-      # See ``BodyLimbNav.spurious_max_lm_displacement_px``.
+      # See ``body_limb.spurious_max_lm_displacement_px``.
       spurious_max_lm_displacement_px: 4.0
-      # See ``BodyLimbNav.lm_trust_region_px``.
+      # See ``body_limb.lm_trust_region_px``.
       lm_trust_region_px: 1.0
-      # See ``BodyLimbNav.lm_tikhonov_alpha``.
+      # See ``body_limb.lm_tikhonov_alpha``.
       lm_tikhonov_alpha: 0.0
       # Pixels of slack around the search-window axis bounds for the
-      # at-edge check.  See ``RingEdgeNav.at_edge_tolerance_px``.
+      # at-edge check.  See ``ring_edge.at_edge_tolerance_px``.
       at_edge_tolerance_px: 1.0
       # Rotation-axis ``at_edge`` fraction; see
       # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
@@ -505,14 +507,14 @@ techniques:
       basin_cost_ratio_threshold: 1.2
       basin_exclude_radius_px: 5.0
       basin_cost_epsilon_px: 0.25
-      # Shared DT fit-quality gates; see ``BodyLimbNav`` for the
+      # Shared DT fit-quality gates; see ``body_limb`` for the
       # rationale behind each threshold.
       lm_unconverged_confidence_cap: 0.84
       spurious_max_polarity_rejection_fraction: 0.35
       spurious_unconverged_polarity_rejection_fraction: 0.10
       spurious_min_coarse_peak_fraction: 0.05
 
-  RingEdgeNav:
+  ring_edge:
     # Sim campaign (seed 20260718, ring-vocabulary family: inclined
     # through face-on projections, eccentric/m-mode/edge-wave orbits,
     # planted orbit errors, non-navigable distractors): n=591 usable,
@@ -605,7 +607,7 @@ techniques:
       # tier's 2 px sigma cap so a waived fix surfaces as a low-tier
       # result and cannot outweigh a full-support fix in the ensemble.
       spurious_waiver_sigma_floor_px: 3.0
-      # See ``BodyLimbNav.spurious_max_lm_displacement_px``.
+      # See ``body_limb.spurious_max_lm_displacement_px``.
       spurious_max_lm_displacement_px: 4.0
       # The median strength of the image edges a converged fit matched (the
       # image gradient projected onto the model normal at each vertex within
@@ -645,12 +647,12 @@ techniques:
       # and pole uncertainty, which measure 0.5 to 3 px on real frames
       # and so already exceed what the mask can resolve.
       edge_localization_sigma_px: 0.5
-      # See ``BodyLimbNav.lm_trust_region_px``.
+      # See ``body_limb.lm_trust_region_px``.
       lm_trust_region_px: 1.0
-      # See ``BodyLimbNav.lm_tikhonov_alpha``.
+      # See ``body_limb.lm_tikhonov_alpha``.
       lm_tikhonov_alpha: 0.0
       # Final continuous gradient-ridge sub-pixel refinement; see
-      # ``BodyLimbNav.gradient_ridge_refine``.  1 enables, 0 disables.
+      # ``body_limb.gradient_ridge_refine``.
       # ON: the binary edge mask quantizes detected edges to the integer
       # pixel grid, so on dense real ring scenes a large fraction of model
       # vertices land exactly on edge pixels (DT == 0, zero gradient) and the
@@ -659,7 +661,7 @@ techniques:
       # magnitude, recovering the sub-pixel offset the quantized DT discards.
       # (On clean sim scenes the DT-LM already reaches its ~0.016 px floor, so
       # the refine is a no-op there.)
-      gradient_ridge_refine: 1
+      gradient_ridge_refine: true
       # Rotation-axis ``at_edge`` fraction; see
       # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
       rotation_at_edge_fraction: 0.95
@@ -681,7 +683,7 @@ techniques:
       # border would otherwise lock onto it.  Five pixels covers the reach
       # of the 1.2 px gradient smoothing into the frame (about four sigma).
       coarse_sensor_margin_px: 5
-      # Shared DT fit-quality gates; see ``BodyLimbNav`` for the
+      # Shared DT fit-quality gates; see ``body_limb`` for the
       # rationale.  RingEdgeNav runs polarity-free (the ring catalog
       # does not yet encode lighting / gap-vs-ringlet polarity), so the
       # two polarity thresholds are inert here until that flag is
