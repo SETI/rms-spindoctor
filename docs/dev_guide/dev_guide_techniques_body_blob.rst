@@ -257,10 +257,10 @@ off :class:`~spindoctor.nav_technique.diagnostics.BodyBlobDiagnostics` plus
 - :attr:`~spindoctor.nav_technique.diagnostics.BodyBlobDiagnostics.max_phase_irregularity_factor`
   — alpha = -0.545, offset = 0.0, divisor = 0.35, cap at 1.0. Maximum phase-and-irregularity
   factor across the consumed blobs (see :doc:`dev_guide_navigation_models_body` for the
-  formula); the divisor spans the campaign's raw p5/p50/p95 of 0.003/0.019/0.369. With
-  surface texture and relief in the rendered cohort the irregularity penalty carries
-  substantial weight: an irregular body's unpredictable shadowing is model error the
-  ellipsoidal render cannot correct.
+  formula); the divisor spans the campaign's raw p5/p50/p95 of 0.003/0.019/0.369. The
+  current alpha was fitted on mesh bodies drawn at half size, with limb relief and no
+  surface texture. The irregularity penalty carries substantial weight: an irregular
+  body's unpredictable shadowing is model error the ellipsoidal render cannot correct.
 
 Hard-zero gate: :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`
 firing forces confidence to zero before the sigmoid evaluates. The constant baseline is

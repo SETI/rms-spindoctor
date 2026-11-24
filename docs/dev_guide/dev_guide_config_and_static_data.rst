@@ -489,11 +489,12 @@ Downstream, ``ellipsoid_rms_residual_km`` drives the LIMB_ARC
 normal-sigma quadrature and the ``max_phase_irregularity_factor``
 confidence term of :class:`~spindoctor.nav_technique.nav_technique_body_blob.BodyBlobNav` (see
 :doc:`dev_guide_navigation_models_body`).  The calibration tooling in
-``util/calibration/`` renders its simulated bodies at relief amplitudes
-derived from these same residual-over-radius ratios, so the sim-anchored
-confidence coefficients and this table form one system: a developer who
-revises a residual here should re-run that calibration (see
-``util/calibration/README.md``).
+``util/calibration/`` renders its simulated irregular moons as lumpy meshes at relief
+amplitudes derived from these same residual-over-radius ratios, and its regular moons
+as smooth ellipsoids, so the ``max_phase_irregularity_factor`` term is fitted on every
+blob row, with the regular moons' factors sitting near zero.  The sim-anchored confidence coefficients and this table form
+one system: a developer who revises a residual here should re-run that calibration
+(see ``util/calibration/README.md``).
 
 Anti-hallucination procedure
 ----------------------------

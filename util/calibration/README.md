@@ -16,10 +16,23 @@ package); generated artifacts go under `_work/calibration/` (gitignored).
 ## Pipeline
 
 1. **`scene_gen.py`** — seeded randomized sim_params per technique family
-   (disc / limb / terminator / blob / ring / star_field / star_unique),
-   spanning each technique's regime from clean through the failure cliff:
-   noise, feature size/count/brightness, and the controlled model-error
-   axes (mesh-vs-ellipsoid shape mismatch, predicted-pose error).
+   (disc / limb / terminator / blob / ring / star_field / star_unique /
+   titan), spanning each technique's regime from clean through the failure
+   cliff: noise, feature size/count/brightness, and the controlled
+   model-error axes (irregular-body shape mismatch, predicted-pose error,
+   and the surface truth axes).  The four body families draw each body
+   from a catalog of Saturn's moons at its drawn apparent radius, so a
+   body of radius r is 2r pixels across.  The regular moons (Mimas,
+   Enceladus, Tethys, Dione, Rhea) render as ellipsoids and draw the
+   photometric law, opposition surge, limb relief, and albedo texture, and
+   in the disc family the banded disc texture and transits.  The irregular
+   moons (Hyperion, Phoebe, Janus, Epimetheus) render as lumpy polyhedral
+   meshes and draw limb relief, gouraud shading, and pose scatter.  Both
+   kinds can draw limb relief, which the navigator cannot predict, and the
+   irregular moons also plant a mesh-versus-ellipsoid shape error.  The
+   BodyBlobNav `max_phase_irregularity_factor` term is fitted on every blob
+   row, and the regular moons' factors sit near zero.  The generator's
+   tests are in `tests/util_calibration` and run with the unit suite.
 2. **`collect.py`** — navigates every scene with the full autonomous
    ensemble in-process (no external holdings needed) and writes one JSONL
    row per frame: planted truth, the fused result, and every
