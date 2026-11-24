@@ -1,5 +1,6 @@
 """Tests for image-scope routing, logger roles, and scope enforcement."""
 
+import dataclasses
 import importlib
 import logging
 from collections.abc import Iterator
@@ -403,18 +404,32 @@ def test_an_out_of_scope_exception_keeps_its_traceback(
 # ---------------------------------------------------------------------------
 
 
+def _configure_strict_scope(monkeypatch: pytest.MonkeyPatch, value: bool) -> None:
+    """Make the shared configuration's ``logging.strict_scope`` read ``value`` for one test.
+
+    Parameters:
+        monkeypatch: Restores the configuration's parsed sections after the test.
+        value: The value the key reads.
+    """
+    DEFAULT_CONFIG.ensure_loaded()
+    sections = DEFAULT_CONFIG._sections
+    assert sections is not None
+    logging_section = dataclasses.replace(sections.logging, strict_scope=value)
+    monkeypatch.setattr(
+        DEFAULT_CONFIG, '_sections', dataclasses.replace(sections, logging=logging_section)
+    )
+
+
 def test_the_config_key_enables_strict_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     """logging.strict_scope is read, not merely shipped and validated."""
-    DEFAULT_CONFIG.ensure_loaded()
-    monkeypatch.setitem(DEFAULT_CONFIG.logging, 'strict_scope', True)
+    _configure_strict_scope(monkeypatch, True)
     set_strict_scope(None)
     assert strict_scope() is True
 
 
 def test_the_config_key_can_disable_strict_scope(monkeypatch: pytest.MonkeyPatch) -> None:
     """The configured value governs in both directions."""
-    DEFAULT_CONFIG.ensure_loaded()
-    monkeypatch.setitem(DEFAULT_CONFIG.logging, 'strict_scope', False)
+    _configure_strict_scope(monkeypatch, False)
     set_strict_scope(None)
     assert strict_scope() is False
 
@@ -425,7 +440,6 @@ def test_an_override_beats_the_config_key(monkeypatch: pytest.MonkeyPatch) -> No
     Set against a configuration saying the opposite, so that agreeing with the
     shipped default is not enough to pass.
     """
-    DEFAULT_CONFIG.ensure_loaded()
-    monkeypatch.setitem(DEFAULT_CONFIG.logging, 'strict_scope', True)
+    _configure_strict_scope(monkeypatch, True)
     set_strict_scope(False)
     assert strict_scope() is False

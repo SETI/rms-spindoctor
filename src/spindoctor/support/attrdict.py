@@ -25,7 +25,8 @@ class AttrDict(dict[str, Any]):
     # therefore reaches the shared Config through the observation and so every
     # section of it; because this class publishes its own dict as its
     # ``__dict__``, the attribute oops sets becomes a configuration key that no
-    # configuration file declares, and the logging-config validator refuses it.
+    # configuration file declares.  A section read back, copied, or compared
+    # would then carry a key its file never wrote.
     # The marker lives on the class, so oops finds it with ``hasattr`` without
     # it occupying the mapping.
     #
