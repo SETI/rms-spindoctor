@@ -153,7 +153,7 @@ file and the setting. For now there are three exceptions. A misspelled section n
 ignored. A misspelled setting inside ``tuning`` is ignored in all technique blocks other
 than ``body_blob``, ``body_disc_correlate``, ``body_limb``, ``body_terminator``,
 ``ring_annulus``, and ``ring_edge``, though its value must still be a number. And the
-message for a bad value in an instrument's camera block names the block and the setting
+message for a bad value in an instrument's camera block gives the block and the setting
 but not the file.
 
 Writing your own default file
