@@ -25,11 +25,7 @@ actually consumes:
   ``highly_irregular`` / ``unknown``; used in human-readable logs and
   by reviewers reading sidecar diagnostics.
 
-The configuration can set ``ellipsoid_rms_residual_km``,
-``crater_scale_km``, ``albedo_variation``, and ``shape_class_hint``;
-``spice_orbital_residual_km`` and ``min_blob_diameter_px`` come from the
-hard-coded profiles only.  An entry's
-``radii_km`` is not surfaced on the runtime dataclass, since it would compete
+An entry's ``radii_km`` is not surfaced on the runtime dataclass, since it would compete
 with the ``oops`` body radii; the calibration tooling reads it from the
 configuration.
 """
@@ -191,8 +187,10 @@ def load_body_shape(body_name: str, config: Config | None = None) -> BodyShape:
         ),
         crater_scale_km=_first_set(entry.crater_scale_km, baseline.crater_scale_km),
         albedo_variation=_first_set(entry.albedo_variation, baseline.albedo_variation),
-        spice_orbital_residual_km=baseline.spice_orbital_residual_km,
-        min_blob_diameter_px=baseline.min_blob_diameter_px,
+        spice_orbital_residual_km=_first_set(
+            entry.spice_orbital_residual_km, baseline.spice_orbital_residual_km
+        ),
+        min_blob_diameter_px=_first_set(entry.min_blob_diameter_px, baseline.min_blob_diameter_px),
         shape_class_hint=_first_set(entry.shape_class_hint, baseline.shape_class_hint),
     )
 

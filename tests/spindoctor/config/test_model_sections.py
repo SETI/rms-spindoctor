@@ -175,3 +175,17 @@ def test_an_unknown_key_is_refused_and_changes_nothing(tmp_path: Path) -> None:
     with pytest.raises(SchemaError, match=re.escape(expected)):
         config.update_config(user_path)
     assert config.titan is section
+
+
+def test_a_body_override_sets_one_key_and_keeps_the_packaged_rest(tmp_path: Path) -> None:
+    """An override that sets one key of a packaged body merges with the packaged entry."""
+    packaged = Config().body_shape['MIMAS']
+    assert packaged.crater_scale_km != 0.7
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text('body_shape:\n  MIMAS:\n    crater_scale_km: 0.7\n', encoding='utf-8')
+    config = Config()
+    config.update_config(user_path)
+    mimas = config.body_shape['MIMAS']
+    assert mimas.crater_scale_km == 0.7
+    assert mimas.ellipsoid_rms_residual_km == packaged.ellipsoid_rms_residual_km
+    assert mimas.radii_km == packaged.radii_km

@@ -392,7 +392,7 @@ Configuration
 The model's runtime knobs are split across two YAML files: the rendering / extraction
 parameters live under ``bodies`` in ``src/spindoctor/config_files/config_040_bodies.yaml`` (consumed
 by the model itself plus its annotation helpers and the reprojection pipeline); per-body
-shape and albedo values live under ``body_shape`` in
+shape, albedo, and SPK-residual values live under ``body_shape`` in
 ``src/spindoctor/config_files/config_220_body_shape.yaml`` (consumed via the
 :func:`~spindoctor.nav_model.body_shape.load_body_shape` lookup chain). Module-level Python
 constants in :mod:`spindoctor.nav_model.nav_model_body` set the emission-gate thresholds that are
@@ -480,13 +480,12 @@ Body-shape catalog
 :class:`~spindoctor.nav_model.body_shape.BodyShape` overrides under a ``body_shape`` mapping keyed by
 upper-case SPICE body name, each entry parsed at load into a
 :class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`. An entry may set any subset of
-``ellipsoid_rms_residual_km``, ``crater_scale_km``, ``albedo_variation``, and
-``shape_class_hint``; a key it leaves out falls through to the hard-coded
+``ellipsoid_rms_residual_km``, ``crater_scale_km``, ``albedo_variation``,
+``spice_orbital_residual_km``, ``min_blob_diameter_px``, and ``shape_class_hint``; a key
+it leaves out falls through to the hard-coded
 :data:`~spindoctor.nav_model.body_shape.BODY_SHAPE_TABLE` baseline (Saturn-moon, irregular-moon,
 gas-giant, or default profile depending on the body) per
-:func:`~spindoctor.nav_model.body_shape.load_body_shape`. The other two
-:class:`~spindoctor.nav_model.body_shape.BodyShape` fields, ``spice_orbital_residual_km`` and
-``min_blob_diameter_px``, come from that baseline only. An entry's ``radii_km`` is read by the
+:func:`~spindoctor.nav_model.body_shape.load_body_shape`. An entry's ``radii_km`` is read by the
 calibration tooling and not by the body model, which takes a body's radii from SPICE.
 
 Module-level emission constants

@@ -121,3 +121,13 @@ def test_entry_for_a_body_with_no_profile_overrides_the_default() -> None:
         DEFAULT_BODY_SHAPE, ellipsoid_rms_residual_km=0.5, shape_class_hint='regular'
     )
     assert load_body_shape('NEW_MOON', config=config) == expected
+
+
+def test_entry_sets_the_orbital_residual_and_blob_diameter() -> None:
+    """An entry's SPK residual and blob diameter reach the loaded shape."""
+    entry = BodyShapeEntry(spice_orbital_residual_km=5.0, min_blob_diameter_px=9.0)
+    config = _config_with({'MIMAS': entry})
+    expected = dataclasses.replace(
+        BODY_SHAPE_TABLE['MIMAS'], spice_orbital_residual_km=5.0, min_blob_diameter_px=9.0
+    )
+    assert load_body_shape('MIMAS', config=config) == expected

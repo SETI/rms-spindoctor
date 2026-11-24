@@ -1636,9 +1636,9 @@ asserts the generated half matches the registries.
     `_yaml_entry_for` and `_YAML_FIELDS` deleted; the upper-case body
     rule moved from `BodiesSection` into `TypedSections`, covering
     `bodies.geometric_albedo` and `body_shape` with one message; the
-    unread `albedo_mean`, and `spice_orbital_residual_km` and
-    `min_blob_diameter_px`, which no entry sets, are not keys; #766
-    adds `spice_orbital_residual_km` and needs a field when it merges)
+    unread `albedo_mean` is not a key; `spice_orbital_residual_km` and
+    `min_blob_diameter_px` are keys, as the old loader read them, so #766's
+    `spice_orbital_residual_km` entries load as they are)
   - [x] `general`, `environment`, `offset`, and `results_tree` (done:
     parsed at load into `GeneralSection`, `EnvironmentSection` (every key
     optional, a packaged file that sets none), `OffsetSection`, and `TreeTuning`;

@@ -39,6 +39,10 @@ class BodyShapeEntry:
         crater_scale_km: The characteristic limb relief, in km, from craters and
             topography beyond the ellipsoid.
         albedo_variation: The fractional brightness variation across the disc.
+        spice_orbital_residual_km: The SPK ephemeris uncertainty, in km, projected to the
+            limb plane.
+        min_blob_diameter_px: The predicted disc diameter, in pixels, below which a blob
+            is preferred over an unresolved limb.
         shape_class_hint: The body's coarse shape class.
     """
 
@@ -48,4 +52,6 @@ class BodyShapeEntry:
     ellipsoid_rms_residual_km: NonNeg | None = None
     crater_scale_km: NonNeg | None = None
     albedo_variation: Unit | None = None
+    spice_orbital_residual_km: NonNeg | None = None
+    min_blob_diameter_px: Positive | None = None
     shape_class_hint: ShapeClass | None = None
