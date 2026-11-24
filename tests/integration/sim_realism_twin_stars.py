@@ -28,6 +28,7 @@ about ten minutes.
 
 from __future__ import annotations
 
+import dataclasses
 import sys
 from collections.abc import Iterable, Sequence
 from typing import Any, Protocol, cast
@@ -37,17 +38,12 @@ from oops import Meshgrid
 from oops.backplane import Backplane
 
 from spindoctor.config import DEFAULT_CONFIG, Config
+from spindoctor.config.sections_models import StarsSection
 from spindoctor.nav_model.stars.catalog import reduce_catalogs
-from spindoctor.nav_model.stars.conflicts import (
-    _cast_dict,
-    _conflict_body_list,
-    _ring_opaque_fraction,
-    parse_ring_occlusion_annuli,
-)
+from spindoctor.nav_model.stars.conflicts import _conflict_body_list, _ring_opaque_fraction
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.sim.instruments.resolvers import binning_for_frame_size
 from spindoctor.sim.render.radiance.compose import sky_star_faint_cutoff_mag
-from spindoctor.support.attrdict import AttrDict
 
 __all__ = [
     'CatalogStar',
@@ -196,14 +192,13 @@ def stars_behind_a_body_or_ring(
         One flag per star, in the order of ``stars``: True when the star is hidden.
     """
     stars_config = config.stars
-    margin = float(stars_config.body_conflict_margin)
+    margin = stars_config.body_conflict_margin
     body_list = _conflict_body_list(obs, config)
     planet = obs.closest_planet
-    annuli: list[tuple[float, float]] = []
-    if bool(stars_config.ring_occlusion_enabled) and planet is not None:
-        all_annuli = parse_ring_occlusion_annuli(_cast_dict(stars_config.ring_occlusion_radii_km))
-        annuli = all_annuli.get(planet.upper(), [])
-    min_opaque_fraction = float(stars_config.ring_occlusion_min_opaque_fraction)
+    annuli: Sequence[tuple[float, float]] = ()
+    if stars_config.ring_occlusion_enabled and planet is not None:
+        annuli = stars_config.ring_occlusion_radii_km.get(planet.upper(), ())
+    min_opaque_fraction = stars_config.ring_occlusion_min_opaque_fraction
     hidden: list[bool] = []
     for start in range(0, len(stars), _STARS_PER_BACKPLANE):
         hidden += _stars_hidden_in_one_backplane(
@@ -223,7 +218,7 @@ def _stars_hidden_in_one_backplane(
     *,
     margin: float,
     body_list: list[str],
-    annuli: list[tuple[float, float]],
+    annuli: Sequence[tuple[float, float]],
     min_opaque_fraction: float,
 ) -> list[bool]:
     """Apply the body and ring rule to a batch of stars through one backplane.
@@ -317,9 +312,9 @@ class _UncappedConfig:
         self._config = config
 
     @property
-    def stars(self) -> AttrDict:
+    def stars(self) -> StarsSection:
         """The star settings with no cap on the number of stars kept."""
-        return AttrDict({**self._config.stars, 'max_stars': sys.maxsize})
+        return dataclasses.replace(self._config.stars, max_stars=sys.maxsize)
 
     def __getattr__(self, name: str) -> Any:
         """Every other setting of the wrapped config."""

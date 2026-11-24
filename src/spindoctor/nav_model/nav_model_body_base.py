@@ -146,7 +146,7 @@ class NavModelBodyBase(NavModel):
 
     def _blob_max_overflow_fraction(self) -> float:
         """Return the configured maximum overflow fraction for BODY_BLOB emission."""
-        return float(self._config.bodies.blob_max_overflow_fraction)
+        return self._config.bodies.blob_max_overflow_fraction
 
     def _blob_overflow_ok(self) -> bool:
         """Return True when the silhouette overflow permits BODY_BLOB emission.

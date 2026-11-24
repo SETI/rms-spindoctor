@@ -118,65 +118,6 @@ by those calls, and striping bounds only the three quantities named here -- the
 ring-plane distance, the planet shadow and the planet's occlusion of the rings.
 """
 
-# All ring-annulus emission tunables live in
-# ``config_files/config_510_techniques.yaml`` under
-# ``feature_emission.ring_annulus`` with per-planet overrides.  No
-# Python-level fallback; missing-key access in
-# ``_ring_annulus_emission_params`` is a KeyError so a config typo
-# fails fast at process startup.
-
-
-def _ring_annulus_emission_params(config: Config, planet: str) -> tuple[float, float]:
-    """Return ``(max_radial_px, kmpp_threshold)`` for ``planet``.
-
-    Reads
-    ``config.feature_emission.ring_annulus.planets[planet]`` first,
-    then falls back to ``config.feature_emission.ring_annulus.default``.
-    Both fields (``max_radial_px`` and ``kmpp_threshold``) are
-    independently looked up, so a planet block may set only one and
-    inherit the other from default.  A missing default-block field is
-    a ``KeyError`` so a config typo fails fast at process startup.
-
-    Parameters:
-        config: Active :class:`~spindoctor.config.Config`.
-        planet: SPICE planet name (uppercase), e.g. ``'SATURN'``.
-
-    Returns:
-        ``(max_radial_px, kmpp_threshold)`` in pixels and km/px.
-
-    Raises:
-        KeyError: If neither the per-planet block nor the default
-            block defines a required field.
-    """
-    block = dict(config.category('feature_emission').get('ring_annulus', {}))
-    default_block = block.get('default', {}) or {}
-    planets_block = block.get('planets', {}) or {}
-    planet_block = planets_block.get(planet, {}) or {}
-
-    def _lookup(field: str) -> float:
-        """Read one emission field, preferring the planet block over the default.
-
-        Parameters:
-            field: Field name to read.
-
-        Returns:
-            The field's value as a float.
-
-        Raises:
-            KeyError: If neither the planet block nor the default block
-                defines the field, so a config typo fails at startup.
-        """
-        if field in planet_block:
-            return float(planet_block[field])
-        if field in default_block:
-            return float(default_block[field])
-        raise KeyError(
-            f'feature_emission.ring_annulus: missing field {field!r} for planet '
-            f'{planet!r} (no per-planet override and no default block entry)'
-        )
-
-    return _lookup('max_radial_px'), _lookup('kmpp_threshold')
-
 
 def _require_positive_finite_planet_scalar(
     planet: str, key: str, planet_config: dict[str, Any]
@@ -761,9 +702,7 @@ class NavModelRings(NavModelRingsBase):
             features: list[NavFeature] = []
             edge_count = 0
             straight_count = 0
-            max_radial_px, kmpp_threshold = _ring_annulus_emission_params(
-                self._config, self._planet or ''
-            )
+            emission = self._config.feature_emission.ring_annulus.for_planet(self._planet or '')
             # Default radial orbit uncertainty for a catalog feature that
             # carries no fitted rms; an edge's own rms takes precedence.  See
             # config_050_rings.yaml for the value's provenance.
@@ -806,14 +745,14 @@ class NavModelRings(NavModelRingsBase):
             # was measured) live with the
             # ``feature_emission.ring_annulus`` block in
             # config_510_techniques.yaml.
-            force_annulus = self._km_per_pixel_radial >= kmpp_threshold
+            force_annulus = self._km_per_pixel_radial >= emission.kmpp_threshold
             if force_annulus:
                 self._logger.debug(
                     'System-level annulus gate fires for planet %s: '
                     'km_per_pixel_radial = %.2f >= %.2f',
                     self._planet,
                     self._km_per_pixel_radial,
-                    kmpp_threshold,
+                    emission.kmpp_threshold,
                 )
             # Annulus-eligible per-ring renderings accumulate here and
             # collapse into a single composite RING_ANNULUS at the end
@@ -874,7 +813,7 @@ class NavModelRings(NavModelRingsBase):
                     )
                     orbit_sigma_px = orbit_sigma_km / orbit_km_per_pixel_radial
                     use_annulus = force_annulus or (
-                        radial_extent_px <= max_radial_px and not straight
+                        radial_extent_px <= emission.max_radial_px and not straight
                     )
                     if use_annulus:
                         annulus_renderings.append(

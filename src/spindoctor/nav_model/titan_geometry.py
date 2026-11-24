@@ -409,7 +409,7 @@ def _body_scale(obs: ObsSnapshotInst, config: Config) -> _BodyScale | None:
             'Titan: degenerate image scale (km/px = %r, radius = %r km)', km_per_px, radius_km
         )
         return None
-    atmosphere_height_km = float(config.titan['atmosphere_height'])
+    atmosphere_height_km = config.titan.atmosphere_height
     return _BodyScale(
         km_per_px=km_per_px,
         r_solid_px=radius_km / km_per_px,
@@ -995,8 +995,8 @@ def _contaminant_mask(
         The mask (``None`` when nothing is masked) and the fraction of the
         envelope disc that the occlusion components alone cover.
     """
-    nav_config = config.titan['navigation']
-    pad = float(nav_config['symmetry']['annulus_outer_pad_px']) + 2.0 * window_px
+    nav_config = config.titan.navigation
+    pad = nav_config.symmetry.annulus_outer_pad_px + 2.0 * window_px
     pad_int = math.ceil(pad)
     u_min, u_max, v_min, v_max = bbox_nominal
     mask_bbox = (u_min - pad_int, u_max + pad_int, v_min - pad_int, v_max + pad_int)
@@ -1022,14 +1022,13 @@ def _contaminant_mask(
         # strip costs a strip's worth; the mask assembled from the strips is the
         # mask the whole-box call returns.
         planet = obs.closest_planet
-        radii = nav_config['ring_occlusion_radii_km']
         body_local, ring_local = _striped_occlusion(
             obs=obs,
             bbox_nominal=clipped_bbox,
             sibling_ranges=sibling_ranges,
             subject_range_km=subject_range_km,
             planet=None if planet is None else str(planet),
-            ring_radii_km=(float(radii[0]), float(radii[1])),
+            ring_radii_km=nav_config.ring_occlusion_radii_km,
         )
         for local in (body_local, ring_local):
             if local is not None:
@@ -1041,8 +1040,8 @@ def _contaminant_mask(
         obs,
         config,
         margin_vu=margin_vu,
-        vmag_limit=float(nav_config['star_mask_vmag_limit']),
-        radius_px=float(nav_config['star_mask_radius_px']),
+        vmag_limit=nav_config.star_mask_vmag_limit,
+        radius_px=nav_config.star_mask_radius_px,
     )
     # Deliberately the unclipped box, not the clipped one the backplanes were
     # evaluated over.  The region indicator is built inside the extended frame
@@ -1214,9 +1213,9 @@ def geometry_from_obs(
         env_bbox,
         center_vu,
         margin_vu,
-        axis_min_offset_px=float(config.titan['navigation']['axis_min_offset_px']),
+        axis_min_offset_px=config.titan.navigation.axis_min_offset_px,
         r_solid_px=scale.r_solid_px,
-        max_samples=int(config.titan['navigation']['backplane_max_samples']),
+        max_samples=config.titan.navigation.backplane_max_samples,
     )
     contaminant = _contaminant_mask(
         obs,

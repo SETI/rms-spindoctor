@@ -55,20 +55,19 @@ def test_an_override_refused_by_validation_changes_nothing(tmp_path: Path) -> No
     """A refused merged result keeps the config, its overrides, and technique tuning."""
     config = Config()
     config.read_config()
-    fraction = config.bodies['blob_max_overflow_fraction']
     tuning = dict(BodyDiscCorrelateNav.tuning)
     refused = tmp_path / 'refused.yaml'
     refused.write_text(
         'techniques:\n  BodyDiscCorrelateNav:\n    tuning:\n'
         '      rotation_at_edge_fraction: 0.5\n'
-        'bodies:\n  blob_max_overflow_fraction: 5\n',
+        'extra_camera:\n  data_units: raw_dn\n',
         encoding='utf-8',
     )
     valid = tmp_path / 'valid.yaml'
     valid.write_text('orchestrator:\n  ensemble:\n    min_confidence: 0.1\n', encoding='utf-8')
-    with pytest.raises(ValueError, match='blob_max_overflow_fraction must be finite'):
+    with pytest.raises(ValueError, match='extra_camera sets no one_star_ellipse_fraction'):
         config.update_config(refused)
-    assert config.bodies['blob_max_overflow_fraction'] == fraction
+    assert 'extra_camera' not in config._config_dict
     assert not config.override_paths
     assert BodyDiscCorrelateNav.tuning == tuning
     config.update_config(valid)

@@ -280,7 +280,7 @@ def _find_stars_in_one_catalog(
     # second navigation against the same catalog gets fresh records.
     typed_raw: list[MutableStar] = [copy.deepcopy(s) for s in raw]
     stars_config = config.stars
-    default_star_class = cast(str, stars_config.default_star_class)
+    default_star_class = stars_config.default_star_class
 
     fixed: list[MutableStar] = []
     for star in typed_raw:
@@ -494,7 +494,7 @@ def reduce_catalogs(
     """Walk every configured catalog, deduplicate, and return the merged list.
 
     Catalogs are walked in the order configured in
-    ``config.stars.catalogs`` (default ``['ucac4', 'tycho2', 'ybsc']``).
+    ``config.stars.catalogs``.
     Within each catalog the search proceeds bin-by-bin against
     ``CATALOG_MAGNITUDE_BINS`` until the configured ``max_stars`` budget
     is hit.  Across catalogs, stars whose RA/DEC and magnitude match a
@@ -518,8 +518,8 @@ def reduce_catalogs(
     mag_max_cap = obs.star_max_usable_vmag()
 
     duplicate_radec = float(np.radians(stars_config.duplicate_ra_dec_threshold_arcsec / 3600.0))
-    duplicate_vmag = float(stars_config.duplicate_vmag_threshold)
-    overlap_vmag = float(stars_config.overlapping_vmag_threshold)
+    duplicate_vmag = stars_config.duplicate_vmag_threshold
+    overlap_vmag = stars_config.overlapping_vmag_threshold
 
     kept: list[MutableStar] = []
     photometry_reference: list[MutableStar] = []

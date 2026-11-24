@@ -13,9 +13,15 @@ when it installs a configuration.
 
 from dataclasses import dataclass
 
+from spindoctor.config.sections_models import (
+    BodiesSection,
+    FeatureEmissionSection,
+    StarsSection,
+    TitanSection,
+)
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig
-from spindoctor.schema import SCHEMA_CONFIG
+from spindoctor.schema import SCHEMA_CONFIG, Str
 
 __all__ = [
     'OrchestratorSection',
@@ -49,8 +55,18 @@ class TypedSections:
 
     Parameters:
         orchestrator: The ``orchestrator`` section.
+        bodies: The ``bodies`` section.
+        stars: The ``stars`` section.
+        titan: The ``titan`` section.
+        satellites: Each planet's satellites, keyed by the planet's SPICE name.
+        feature_emission: The ``feature_emission`` section.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
 
     orchestrator: OrchestratorSection
+    bodies: BodiesSection
+    stars: StarsSection
+    titan: TitanSection
+    satellites: dict[Str, tuple[Str, ...]]
+    feature_emission: FeatureEmissionSection
