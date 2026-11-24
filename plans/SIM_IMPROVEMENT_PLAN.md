@@ -407,6 +407,7 @@ model does not gain them.
 | #1170 | Simulated raw Cassini dark current, 5 e-/s, is about 20 times what real dark frames show (at most 0.1-0.26 e-/s) |
 | #1177 | Simulated calibrated Cassini frames lack the dark pits calibration leaves at raw hot pixels (real calibrated frames sit 0.2 to 1.3 times the raw charge below their neighbors there) |
 | #1178 | The realism match counts a cluster shared by two calibrated NAC frames (192 of 957 stationary spikes, in rows and columns 512 to 767) as hot pixels, inflating the real-side target the simulated calibrated hot pixels are fitted on |
+| #1186 | **Affects no current scene.** The hot-pixel power-law sampler rounds to the minimum amplitude for an index far below 1e-15 (the instrument entries use 0.94 to 1.0); compute the inverse CDF in log form |
 | #1133 | **Affects no current scene.** Simulated bright and dark pixel pairs are placed independently, so two pairs can overlap and cancel while the truth record lists both |
 | #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
 | #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
