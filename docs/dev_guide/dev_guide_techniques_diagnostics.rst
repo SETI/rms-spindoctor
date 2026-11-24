@@ -11,10 +11,8 @@ technique declares its own diagnostics dataclass — a frozen, narrow record of 
 quantities that the confidence formula consumes and the curator surfaces in the JSON sidecar.
 Centralizing every diagnostics dataclass in one module lets the curator's allow-list
 discipline catch a programmer who adds a new diagnostic field without updating its JSON
-schema, and lets the
-:func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walk verify at
-config-load time that every YAML-driven confidence formula references only attributes the
-technique actually emits.
+schema, and lets the configuration loader verify that every YAML-driven confidence formula
+references only attributes the technique actually emits.
 
 Theory
 ======
@@ -77,10 +75,9 @@ Configuration
 =============
 
 Diagnostics carry no YAML configuration of their own. Each technique's confidence formula —
-which references diagnostic-attribute names by string — lives under
-``techniques.<TechniqueName>`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``; see :doc:`dev_guide_techniques_confidence`
-for the YAML schema.
+which references diagnostic-attribute names by string — lives in the technique's block of the
+``techniques`` section in ``src/spindoctor/config_files/config_510_techniques.yaml``; see
+:doc:`dev_guide_techniques_confidence` for the YAML schema.
 
 Implementation
 ==============
@@ -221,7 +218,7 @@ raises :exc:`AssertionError` and fails the build before any image is processed.
 **Confidence-formula reference.**  The YAML stanza for ``BodyLimbNav`` declares::
 
     techniques:
-      BodyLimbNav:
+      body_limb:
         alpha0: 0.132
         terms:
           - feature: visible_limb_arc_fraction
@@ -239,9 +236,9 @@ raises :exc:`AssertionError` and fails the build before any image is processed.
 Each ``feature`` value, and each ``hard_zero_if`` key, is the name of an attribute that the
 technique's confidence context exposes. Most come from
 :class:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics`; ``at_edge`` and ``spurious`` are
-result-level flags the context supplies alongside it. At config-load time
-:func:`~spindoctor.nav_technique.nav_technique.validate_registered_confidence_specs` walks the spec
-and confirms every name appears in
+result-level flags the context supplies alongside it. When the configuration loads, the
+block's type (:class:`~spindoctor.nav_technique.confidence_config.TechniqueBlock`) confirms
+every name appears in
 :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav`'s
 :attr:`~spindoctor.nav_technique.nav_technique.NavTechnique.confidence_attributes` allow-list.
 

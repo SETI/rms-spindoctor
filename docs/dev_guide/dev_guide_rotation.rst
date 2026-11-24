@@ -202,7 +202,7 @@ at_edge for rotation
 The ``at_edge`` flag fires when the converged rotation magnitude
 crosses ``rotation_at_edge_fraction * max_rotation_deg``, where
 ``rotation_at_edge_fraction`` is read from each technique's tuning
-block in ``config_510_techniques.yaml`` (default ``0.95``;
+block in ``config_510_techniques.yaml`` (``0.95`` for every technique;
 :data:`~spindoctor.nav_technique.nav_technique.ROTATION_AT_EDGE_FRACTION`
 is the canonical value that ships in the YAML). This is a separate
 condition from translation ``at_edge`` (which checks proximity to

@@ -122,7 +122,7 @@ The same cohort drives:
 - **Per-technique confidence-formula coefficients.**  Each
   :class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   carries a small set of calibrated coefficients in
-  ``techniques.<TechniqueName>.confidence`` in
+  the technique's block of the ``techniques`` section in
   ``config_510_techniques.yaml``. The coefficients map per-technique
   diagnostics (correlation peak height, NCC margin, fit residuals, ...)
   into a [0, 1] confidence score. The coefficients are tuned offline so
