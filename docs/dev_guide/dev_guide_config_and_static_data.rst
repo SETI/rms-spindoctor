@@ -108,6 +108,11 @@ returns the typed object:
   ``ensemble`` (an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`; see
   :doc:`dev_guide_orchestrator_ensemble`) and ``reliability_gate`` (a
   :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`).
+- ``logging`` — :class:`~spindoctor.config.logging_keys.LoggingSection`, holding the
+  levels and terminal settings of the two loggers, with each program's overrides under
+  ``programs`` as a :class:`~spindoctor.config.logging_keys.ProgramLogging`. Its
+  module keys come from the technique and model registries, so the set of keys it
+  accepts is known only when the program runs; see :doc:`dev_guide_logging`.
 
 The rules for a typed section:
 
@@ -136,15 +141,14 @@ own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
 its mutability verdict by setting an attribute on every object it walks, and it
 walks everything reachable from an observation, so building a backplane reaches
-the shared configuration and writes a key into every section of it, which
-:func:`~spindoctor.config.logging_keys.validate_logging_config` then rejects.
+the shared configuration and writes a key into every section of it.
 The class carries ``oops``'s own opt-out marker to prevent that; it is a
 workaround for one package rather than a general convention, and is tracked for
 removal. The shipping sections:
 
 - ``general`` — global settings shared across programs.
 - ``logging`` — logger defaults, per-module levels, and per-program
-  overrides.
+  overrides; a typed section (see :ref:`config-typed-sections`).
 - ``offset`` — the FFT upsample factor of the image correlation
   (``correlation_fft_upsample_factor``).
 - ``stars`` — star-model and ring-occlusion parameters; see

@@ -387,7 +387,7 @@ with the settings above it, so a program can override one value while
 inheriting the rest.
 
 An unrecognized component name, program name, or level is rejected when the
-configuration loads, and the error gives the offending key.
+configuration loads, and the message gives the file and the setting.
 
 Component names
 ---------------
