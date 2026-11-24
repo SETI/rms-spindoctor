@@ -531,6 +531,7 @@ retired and retained library classes.
 | #1052 | **Affects the report only.** The simulator report describes the disc correlation's old half-pixel window and the bias a haze puts on it; rewrite it in the end-of-stack regeneration, after the disc refinement work (#791) lands |
 | #914, the rest | User chapter around a complete scene, developer guide split, and one schema reference. The schema reference page is generated from the typed scene's field metadata by #1024. |
 | #310 | **Moved to Phase 3b.** Advanced by #1005 (package-level import guard) and #1026 (the navigator view as types); its own change moves the truth attributes off `ObsSim`. Structural information-boundary guard |
+| #1184 | **Done (PR #1185).** Committed baselines and contact sheets drifted from main's own output by up to 0.008 px (below the 0.02 px check); regenerated |
 
 Each phase updates the docs for what it changes, with per-camera values on the instrument pages
 after #924 (done). This phase finishes the guide split once the schema has settled. The
