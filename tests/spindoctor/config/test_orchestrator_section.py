@@ -9,9 +9,11 @@ import re
 from pathlib import Path
 
 import pytest
+from tests.orchestrator_section import packaged_orchestrator
 
 from spindoctor.config import Config
 from spindoctor.config.sections import OrchestratorSection
+from spindoctor.nav_technique.nav_technique import NavTechnique
 from spindoctor.schema import SchemaError
 
 
@@ -85,3 +87,15 @@ def test_an_override_refused_by_validation_keeps_the_section(tmp_path: Path) -> 
         config.update_config(user_path)
     assert config.orchestrator is section
     assert not config.override_paths
+
+
+def test_the_packaged_section_helper_keeps_technique_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Reading the packaged section for tests leaves a technique's overridden tuning alone."""
+    technique = next(cls for cls in NavTechnique._registry if not cls.name.startswith('_'))
+    override = object()
+    monkeypatch.setattr(technique, 'tuning', override)
+    packaged_orchestrator.cache_clear()
+    packaged_orchestrator()
+    assert technique.tuning is override

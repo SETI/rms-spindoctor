@@ -13,6 +13,10 @@ from spindoctor.config import Config
 from spindoctor.config.sections import OrchestratorSection
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig, TierThresholds
+from spindoctor.nav_technique.nav_technique import NavTechnique
+
+# The technique settings a configuration load assigns to every registered technique class.
+_TECHNIQUE_SETTINGS = ('confidence_spec', 'tuning')
 
 
 @functools.cache
@@ -21,8 +25,32 @@ def packaged_orchestrator() -> OrchestratorSection:
 
     The packaged files are read once per process, into a configuration of their own,
     so no override another test applies to the shared configuration reaches it.
+
+    Loading a configuration assigns each registered technique class its confidence
+    specification and tuning, which every configuration shares. The load here puts
+    back the settings the classes held before it, so a technique override another
+    test applied survives.
     """
-    return Config().orchestrator
+    saved = [
+        (cls, name, cls.__dict__[name])
+        for cls in NavTechnique._registry
+        for name in _TECHNIQUE_SETTINGS
+        if name in cls.__dict__
+    ]
+    unset = [
+        (cls, name)
+        for cls in NavTechnique._registry
+        for name in _TECHNIQUE_SETTINGS
+        if name not in cls.__dict__
+    ]
+    try:
+        return Config().orchestrator
+    finally:
+        for cls, name, value in saved:
+            setattr(cls, name, value)
+        for cls, name in unset:
+            if name in cls.__dict__:
+                delattr(cls, name)
 
 
 def packaged_ensemble(**changes: Any) -> EnsembleConfig:
