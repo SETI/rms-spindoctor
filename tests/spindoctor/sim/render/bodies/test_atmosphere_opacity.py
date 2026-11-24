@@ -85,7 +85,7 @@ def test_a_thick_haze_dims_smoothly_across_the_solid_limb() -> None:
     row = int(_CENTER)
     inside = float(layers.disc[row, int(_CENTER + _RADIUS) - 2])
     outside = float(layers.halo.emission[row, int(_CENTER + _RADIUS) + 1])
-    assert outside > 0.95 * inside
+    assert outside == pytest.approx(inside, rel=0.05)
 
 
 def test_a_thick_haze_hides_the_surface() -> None:
