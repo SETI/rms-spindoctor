@@ -278,9 +278,7 @@ def test_rendered_hot_pixel_charge_follows_the_scene_exposure() -> None:
     hot = {'rate_e_per_sec': 1.0e3, 'readout_e': 0.0, 'streak_e': 0.0}
     _img, short_record = _rendered_hot_pixels(0.1, hot)
     _img, long_record = _rendered_hot_pixels(0.2, hot)
-    assert long_record['charges_e'] == pytest.approx(
-        [2.0 * c for c in short_record['charges_e']]
-    )
+    assert long_record['charges_e'] == pytest.approx([2.0 * c for c in short_record['charges_e']])
 
 
 def test_a_rendered_hot_pixel_streaks_the_rows_read_after_it() -> None:
