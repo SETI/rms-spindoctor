@@ -128,6 +128,13 @@ _FIRST_STEP_SPLIT = 8
 # even nearer the point.  Against a brute-force march, a ray starting on the surface
 # that took only the evenly spaced samples missed walls within 1/64 of a cell.
 _LEAD_SAMPLES = 6
+# The march skips the samples a slope bound proves above the terrain (see
+# _clear_distances).  The bound's rates are inflated by this fraction and each
+# sample's clearance above the terrain is reduced by this much, both far beyond
+# their rounding, so a skipped sample is never one the march would have found
+# below the terrain, and the march's answer is unchanged.
+_CLEAR_RATE_MARGIN = 1e-9
+_CLEARANCE_MARGIN = 1e-12
 # The length, in field grid cells, over which turned_from_sun differences the depth
 # below the terrain at a point seen: short enough to read the bilinear terrain the
 # point lies on, not the next cell's.
@@ -248,9 +255,26 @@ class ReliefField:
             Fractional relief values, shape ``points.shape[:-1]``.
         """
         pts = np.asarray(points, dtype=np.float64)
-        norm = np.maximum(np.linalg.norm(pts, axis=-1), 1e-300)
-        lat = np.arcsin(np.clip(pts[..., 2] / norm, -1.0, 1.0))
-        lon = np.mod(np.arctan2(pts[..., 1], pts[..., 0]), 2.0 * np.pi)
+        return self.sample_points_at(pts, np.linalg.norm(pts, axis=-1))
+
+    def sample_points_at(
+        self, points: NDArrayFloatType, norm: NDArrayFloatType
+    ) -> NDArrayFloatType:
+        """Sample the field in the directions of points whose norms are known.
+
+        The same as :meth:`sample_points`, for a caller that already holds the
+        points' norms.
+
+        Parameters:
+            points: ``(..., 3)`` positions in the field's frame.
+            norm: Their norms, ``points.shape[:-1]``.
+
+        Returns:
+            Fractional relief values, shape ``points.shape[:-1]``.
+        """
+        safe_norm = np.maximum(norm, 1e-300)
+        lat = np.arcsin(np.clip(points[..., 2] / safe_norm, -1.0, 1.0))
+        lon = np.mod(np.arctan2(points[..., 1], points[..., 0]), 2.0 * np.pi)
         return self.sample(lat, lon)
 
     def depth_below(self, points: NDArrayFloatType) -> NDArrayFloatType:
@@ -264,7 +288,8 @@ class ReliefField:
             negative above it, shape ``points.shape[:-1]``.
         """
         pts = np.asarray(points, dtype=np.float64)
-        return np.asarray(1.0 + self.sample_points(pts) - np.linalg.norm(pts, axis=-1))
+        norm = np.linalg.norm(pts, axis=-1)
+        return np.asarray(1.0 + self.sample_points_at(pts, norm) - norm)
 
     def surface_gradient(self, points: NDArrayFloatType) -> NDArrayFloatType:
         """The field's surface gradient at unit-sphere directions, per radian of arc.
@@ -415,6 +440,20 @@ def _unit_albedo_grid(corr_deg: float, seed: int) -> NDArrayFloatType:
 def _unit_relief_slope(corr_deg: float, seed: int) -> float:
     """An upper bound on the unit relief field's surface slope, per radian of arc.
 
+    Parameters:
+        corr_deg: Correlation length in degrees of surface arc.
+        seed: The realization seed.
+
+    Returns:
+        The bound (:func:`_grid_slope_bound`) for the unit-RMS realization; the slope
+        scales with the RMS.
+    """
+    return _grid_slope_bound(_unit_relief_grid(corr_deg, seed))
+
+
+def _grid_slope_bound(grid: NDArrayFloatType) -> float:
+    """An upper bound on a field grid's surface slope, per radian of arc.
+
     The bilinear field's slope along latitude is the row difference over the
     row spacing, and along longitude the column difference over the column
     arc ``cos(lat)`` times the spacing; each is maximized over the rows
@@ -422,13 +461,11 @@ def _unit_relief_slope(corr_deg: float, seed: int) -> float:
     longitude extent), and the two maxima combine in quadrature.
 
     Parameters:
-        corr_deg: Correlation length in degrees of surface arc.
-        seed: The realization seed.
+        grid: The ``(n, n)`` torus grid of a :class:`ReliefField`.
 
     Returns:
-        The bound for the unit-RMS realization; the slope scales with the RMS.
+        The bound.
     """
-    grid = _unit_relief_grid(corr_deg, seed)
     n = grid.shape[0]
     spacing = 2.0 * np.pi / n
     half = grid[n // 4 : 3 * n // 4 + 1]
@@ -644,9 +681,12 @@ def cast_shadows(
     away from the sun, or because the point lies just inside it.  The first step is
     sampled :data:`_FIRST_STEP_SPLIT` times more finely than the rest, after
     :data:`_LEAD_SAMPLES` samples nearer still, so the ray still shows open sky
-    between the point and a wall less than a step away.  The
-    test is exact up to the step and the bilinear field, and it reads terrain on
-    the far hemisphere as readily as on the near one.
+    between the point and a wall less than a step away.  Past the first step, a
+    sample above the terrain lets the ray skip the samples it provably stays above
+    the terrain for (:func:`_clear_distances`), and a ray that can never come down
+    again stops; none of those samples could shadow the point, so the answer is the
+    one every sample would give.  The test is exact up to the step and the bilinear
+    field, and it reads terrain on the far hemisphere as readily as on the near one.
 
     Parameters:
         points: ``(N, 3)`` parameter-space positions of the points, on the relief
@@ -677,17 +717,53 @@ def cast_shadows(
         np.maximum(along**2 - (np.sum(start**2, axis=1) - (1.0 + field.h_max) ** 2), 0.0)
     )
     risen = np.zeros(count, dtype=np.bool_)
+    # The samples within the first step, the same distance along every ray.
     sample = 1
     active = np.nonzero(reach > _march_distance(sample, step))[0]
-    while active.size:
+    while active.size and sample <= _LEAD_SAMPLES + _FIRST_STEP_SPLIT:
         ray = start[active] + _march_distance(sample, step) * sun_hat
         radius = np.linalg.norm(ray, axis=1)
-        below = radius < 1.0 + field.sample_points(ray)
+        below = radius < 1.0 + field.sample_points_at(ray, radius)
         hit = below & risen[active]
         shadowed[active[hit]] = True
         risen[active[~below]] = True
         sample += 1
         active = active[~hit & (reach[active] > _march_distance(sample, step))]
+    # The later samples, a whole step apart.  A ray above the terrain skips the
+    # samples a slope bound proves it stays above until (_clear_distances): none of
+    # them could shadow the point.  A ray that can never come down again is done.
+    # Each ray's data is carried in arrays that shrink with the rays still marching.
+    origin = start[active]
+    impact = np.linalg.norm(np.cross(origin, sun_hat), axis=1)
+    reach = reach[active]
+    risen = risen[active]
+    steps = np.full(active.size, sample - _LEAD_SAMPLES - _FIRST_STEP_SPLIT + 1, dtype=np.intp)
+    while active.size:
+        ray = origin + (steps * step)[:, np.newaxis] * sun_hat
+        radius = np.linalg.norm(ray, axis=1)
+        surface = 1.0 + field.sample_points_at(ray, radius)
+        below = radius < surface
+        hit = below & risen
+        shadowed[active[hit]] = True
+        risen |= ~below
+        above = np.nonzero(~below)[0]
+        clear = np.zeros(active.size)
+        clear[above] = _clear_distances(
+            ray[above],
+            radius[above],
+            surface[above],
+            impact=impact[above],
+            sun=sun_hat,
+            field=field,
+        )
+        done = np.isinf(clear)
+        # Every sample short of the clear distance is skipped.  A sample within
+        # rounding of it lies well inside the margins the distance carries.
+        skipped = np.ceil(np.minimum(clear, reach) / step)
+        steps += np.where(done, 0, np.maximum(skipped, 1.0)).astype(np.intp)
+        keep = ~hit & ~done & (reach > steps * step)
+        active, origin, impact, reach = active[keep], origin[keep], impact[keep], reach[keep]
+        risen, steps = risen[keep], steps[keep]
     return shadowed
 
 
@@ -753,3 +829,58 @@ def _march_distance(sample: int, step: float) -> float:
     if sample <= _FIRST_STEP_SPLIT:
         return sample * fine
     return (sample - _FIRST_STEP_SPLIT + 1) * step
+
+
+def _clear_distances(
+    ray: NDArrayFloatType,
+    radius: NDArrayFloatType,
+    surface: NDArrayFloatType,
+    *,
+    impact: NDArrayFloatType,
+    sun: NDArrayFloatType,
+    field: ReliefField,
+) -> NDArrayFloatType:
+    """How far beyond samples above the terrain their rays stay above it, at least.
+
+    A ray ``r = P + t * sun`` lies above the terrain by its clearance ``|r| - 1 - h``.
+    Along the ray ``|r|`` changes by at most 1 per unit of ``t``, and the direction
+    ``r_hat`` turns by ``sin(theta) / |r|``, with ``theta`` the angle between ``r``
+    and the sun.  The height changes by at most :attr:`ReliefField.slope_max` per
+    radian of turn, a bound that holds everywhere for the bilinear field.  So while
+    the ray stays above the terrain, where ``|r| > 1 + h_min``, the clearance falls by
+    at most ``1 + slope_max / (1 + h_min)`` per unit of ``t``.  Once the ray climbs,
+    ``|r|`` grows by ``cos(theta)`` per unit, ``cos(theta)`` only grows, and
+    ``sin(theta) / |r|`` only shrinks, so the clearance falls by at most
+    ``slope_max * sin(theta) / |r| - cos(theta)`` per unit from then on, and never
+    falls where that is not positive.  The bounds are inflated, and the clearance
+    reduced, by far more than their rounding.
+
+    Parameters:
+        ray: ``(N, 3)`` positions of the samples, in parameter space.
+        radius: Their distances from the body center, ``|r|``.
+        surface: The relief surface's radius in their directions, ``1 + h``, each
+            below ``radius``.
+        impact: Each ray's distance from the body center at its closest approach,
+            ``|P x sun|``.
+        sun: The unit sun direction, ``(3,)``.
+        field: The relief realization.
+
+    Returns:
+        For each sample, a distance along the ray over which it stays above the
+        terrain: 0 where none is proved, and infinite where the clearance never
+        falls.
+    """
+    along = stable_matmul3(ray, sun)
+    climbing = along >= 0.0
+    falling_rate = np.where(
+        climbing,
+        field.slope_max * impact / radius**2 * (1.0 + _CLEAR_RATE_MARGIN)
+        - along / radius * (1.0 - _CLEAR_RATE_MARGIN),
+        (1.0 + field.slope_max / max(1.0 + field.h_min, 1e-300)) * (1.0 + _CLEAR_RATE_MARGIN),
+    )
+    margin = radius - surface - _CLEARANCE_MARGIN
+    clear = np.where(
+        falling_rate > 0.0, np.maximum(margin, 0.0) / np.maximum(falling_rate, 1e-300), np.inf
+    )
+    # A sample whose margin is gone proves nothing, even on a ray that climbs clear.
+    return np.where(margin > 0.0, clear, 0.0)
