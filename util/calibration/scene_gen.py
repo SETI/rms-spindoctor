@@ -5,12 +5,13 @@ sim-sweep harness feeds ObsSim) spanning each NavTechnique's operating
 regime, from clean well-resolved frames through the failure cliff:
 
 - disc        : resolved regular/irregular body, low-moderate phase
-                (BodyDiscCorrelateNav; mesh-vs-ellipsoid shape mismatch)
+                (BodyDiscCorrelateNav; irregular-mesh shape mismatch,
+                surface truth on the regular ellipsoids)
 - limb        : large body partially off-frame, low phase (BodyLimbNav;
                 pose-disagreement and shape-mismatch slices)
 - terminator  : high-phase crescent (BodyTerminatorNav)
 - blob        : small / distant body (BodyBlobNav; irregular slice)
-- ring        : 1-2 ringlets, curved through near-flat arcs, face-on
+- ring       : 1-2 ringlets, curved through near-flat arcs, face-on
                 through moderately inclined (RingEdgeNav and, via the
                 always-emitted template, RingAnnulusNav); slices draw the
                 ring truth vocabulary: eccentric orbits with occasional
@@ -30,6 +31,18 @@ regime, from clean well-resolved frames through the failure cliff:
                 a non-affine hemispheric falloff, an interior ramp, a limb
                 sharpness gradient -- and add point-source contamination
 
+The four body families draw each body from a catalog of Saturn's moons at
+its drawn apparent radius (semi-axis a equals that radius, so the body is
+twice the radius across).  The regular moons (Mimas, Enceladus, Tethys,
+Dione, Rhea) render as ellipsoids and carry the photometric and surface
+truth axes; the irregular moons (Hyperion, Phoebe, Janus, Epimetheus)
+render as lumpy polyhedral meshes and carry the mesh truth axes.  Both
+kinds can draw a limb-relief field the navigator's smooth prediction
+cannot model, and the irregular moons also plant a mesh-versus-ellipsoid
+shape error, so the ``max_phase_irregularity_factor`` confidence term is
+fitted on every blob row, with the regular moons' factors sitting near
+zero.
+
 Every scene carries a planted (offset_v, offset_u) ground truth. The noise
 level, feature sizes/counts, and the model-error axes (mesh lumpiness vs an
 ellipsoidal nav prediction, predicted-pose error) are drawn from ranges wide
@@ -47,13 +60,14 @@ import random
 from collections.abc import Callable
 from typing import Any
 
-# The body families draw the full set of body truth axes the renderer
-# carries (photometric law / opposition surge, the limb-relief field,
-# albedo texture, mesh shading / pose scatter; the disc family adds the
-# giant-planet disc_texture / transits slice), so every sim-anchored
-# coefficient is fit on the renderer it ships with.  Each mismatch axis
-# is drawn on a minority of scenes so the clean label class stays
-# dominant; see _surface_truth_axes.
+# The body families draw every body truth axis the renderer carries for
+# the body's shape model: a regular-moon ellipsoid draws the photometric
+# law, opposition surge, limb-relief field, and albedo texture (and, in
+# the disc family, the giant-planet disc_texture / transits slice); an
+# irregular-moon mesh draws the limb-relief field, gouraud shading, and
+# pose scatter.  Each mismatch axis is drawn on a minority of scenes so
+# the clean label class stays dominant; see _ellipsoid_truth_axes and
+# _mesh_truth_axes.
 FAMILIES = (
     'disc',
     'limb',
@@ -67,15 +81,18 @@ FAMILIES = (
 
 # Body identities the campaign draws from, with mean radius and published
 # ellipsoid RMS residual pulled live from config_220_body_shape.yaml (so
-# the campaign always matches the shipped table).  Every rendered body is
-# a polyhedral mesh with mesh_lumpiness 3x the body's fractional RMS
-# residual; the mesh's non-ellipsoidal RMS is lumpiness / 8, so that plants
-# 3/8 of the published residual (8x would match it), while the navigator
-# predicts the smooth (zero-relief) limit -- so the rendered shape error,
-# and hence the recovered-offset error, physically tracks the
-# max_phase_irregularity_factor the confidence formula consumes.  The
-# scene also carries km_per_pixel = mean_radius_km / radius_px, without
-# which the sim blob feature reports a zero irregularity factor.
+# the campaign always matches the shipped table).  A regular moon renders
+# as a smooth ellipsoid, which the navigator predicts exactly apart from
+# the truth axes it draws.  An irregular moon renders as a polyhedral mesh
+# with mesh_lumpiness 3x the body's fractional RMS residual; the mesh's
+# non-ellipsoidal RMS is lumpiness / 8, so that plants 3/8 of the
+# published residual (8x would match it), while the navigator predicts
+# the smooth (zero-relief) limit -- so the rendered shape error, and hence
+# the recovered-offset error, physically tracks the
+# max_phase_irregularity_factor the confidence formula consumes.  Every
+# body also carries km_per_pixel = mean_radius_km / mean_radius_px (the mean
+# of its three drawn semi-axes), without which the sim blob feature reports
+# a zero irregularity factor.
 _REGULAR_BODIES = ('MIMAS', 'ENCELADUS', 'TETHYS', 'DIONE', 'RHEA')
 _IRREGULAR_BODIES = ('HYPERION', 'PHOEBE', 'JANUS', 'EPIMETHEUS')
 
@@ -139,28 +156,47 @@ def _base(rng: random.Random, *, size: int) -> dict[str, Any]:
 # navigator's smooth-Lambert prediction cannot model, so each stays a
 # minority draw: the clean class must remain dominant for the logistic
 # fit, and stacking every axis on every scene would fit the techniques
-# against a renderer regime no catalog scene uses.
-_BODY_NONLAMBERT_FRAC = 0.40  # photometric_law lommel_seeliger / minnaert
+# against a renderer regime no catalog scene uses.  Each body draws only
+# the axes its shape model renders: the ellipsoid takes the photometric,
+# surge, relief, and albedo axes, and the mesh takes the relief, shading,
+# and pose-scatter axes.
+_BODY_NONLAMBERT_FRAC = 0.40  # ellipsoid: photometric_law lommel_seeliger / minnaert
 _BODY_MINNAERT_FRAC = 0.15  # of which: minnaert with a drawn k
-_BODY_SURGE_FRAC = 0.25  # opposition_surge (matters at low phase)
-_BODY_LIMB_RELIEF_FRAC = 0.40  # limb_relief_rms / limb_relief_corr_deg
-_BODY_ALBEDO_TEXTURE_FRAC = 0.40  # multiplicative albedo noise field
-_BODY_SMOOTH_SHADING_FRAC = 0.30  # mesh gouraud shading (render side only)
-_BODY_POSE_SCATTER_FRAC = 0.15  # per-frame unmodelable pose error
+_BODY_SURGE_FRAC = 0.25  # ellipsoid: opposition_surge (matters at low phase)
+_BODY_LIMB_RELIEF_FRAC = 0.40  # both: limb_relief_rms / limb_relief_corr_deg
+_BODY_ALBEDO_TEXTURE_FRAC = 0.40  # ellipsoid: multiplicative albedo noise field
+_BODY_SMOOTH_SHADING_FRAC = 0.30  # mesh: gouraud shading (render side only)
+_BODY_POSE_SCATTER_FRAC = 0.15  # mesh: per-frame unmodelable pose error
 
 
-def _surface_truth_axes(rng: random.Random, body: dict[str, Any]) -> None:
-    """Draw the render-side surface / photometric truth axes onto a body.
+def _limb_relief_axis(rng: random.Random, body: dict[str, Any]) -> None:
+    """Draw the limb-relief field onto a body on its controlled fraction of scenes.
 
-    Every key drawn here is a truth key the boundary filter strips: the
-    navigator predicts the smooth flat-shaded Lambert body at the catalog
-    pose, so each draw plants a controlled model error whose recovered
-    offset consequences the calibration fit observes.  Mutually
-    independent draws from the family RNG keep the campaign reproducible.
+    Both shape models render the relief field, so both kinds of body draw it.
 
     Parameters:
         rng: Scene-local random generator.
         body: The body entry to extend in place.
+    """
+    if rng.random() < _BODY_LIMB_RELIEF_FRAC:
+        # h/R from smooth-icy (~0.002) through battered-small-moon (~0.03).
+        body['limb_relief_rms'] = math.exp(rng.uniform(math.log(0.002), math.log(0.03)))
+        body['limb_relief_corr_deg'] = rng.uniform(5.0, 25.0)
+
+
+def _ellipsoid_truth_axes(rng: random.Random, body: dict[str, Any]) -> None:
+    """Draw the render-side truth axes an ellipsoid body renders.
+
+    These are the photometric law (with a drawn Minnaert k on a sub-slice), the
+    opposition surge, the limb-relief field, and the albedo texture.  Every key drawn
+    here is a truth key the boundary filter strips: the navigator predicts the smooth
+    Lambert ellipsoid, so each draw plants a controlled model error whose recovered
+    offset consequences the calibration fit observes.  Mutually independent draws from
+    the family RNG keep the campaign reproducible.
+
+    Parameters:
+        rng: Scene-local random generator.
+        body: The ellipsoid body entry to extend in place.
     """
     roll = rng.random()
     if roll < _BODY_MINNAERT_FRAC:
@@ -173,15 +209,27 @@ def _surface_truth_axes(rng: random.Random, body: dict[str, Any]) -> None:
             'amplitude': rng.uniform(0.2, 1.0),
             'width_deg': rng.uniform(2.0, 8.0),
         }
-    if rng.random() < _BODY_LIMB_RELIEF_FRAC:
-        # h/R from smooth-icy (~0.002) through battered-small-moon (~0.03).
-        body['limb_relief_rms'] = math.exp(rng.uniform(math.log(0.002), math.log(0.03)))
-        body['limb_relief_corr_deg'] = rng.uniform(5.0, 25.0)
+    _limb_relief_axis(rng, body)
     if rng.random() < _BODY_ALBEDO_TEXTURE_FRAC:
         body['albedo_texture'] = {
             'rms': rng.uniform(0.05, 0.30),
             'corr_px': rng.uniform(5.0, 30.0),
         }
+
+
+def _mesh_truth_axes(rng: random.Random, body: dict[str, Any]) -> None:
+    """Draw the render-side truth axes a polyhedral-mesh body renders.
+
+    These are the limb-relief field, gouraud shading, and pose scatter; the mesh
+    renderer takes no photometric law, surge, or texture.  Every key drawn here is a
+    truth key the boundary filter strips: the navigator predicts the smooth
+    flat-shaded mesh at the catalog pose.
+
+    Parameters:
+        rng: Scene-local random generator.
+        body: The mesh body entry to extend in place.
+    """
+    _limb_relief_axis(rng, body)
     if rng.random() < _BODY_SMOOTH_SHADING_FRAC:
         body['shading'] = 'gouraud'
     if rng.random() < _BODY_POSE_SCATTER_FRAC:
@@ -199,29 +247,41 @@ def _catalog_body(
     irregular_fraction: float,
     pose_error_deg: float = 0.0,
 ) -> dict[str, Any]:
-    """A named body whose rendered relief tracks its published shape residual.
+    """A named catalog moon drawn at its apparent radius.
 
-    Draws the identity from the config_220-backed catalog (regular vs
-    irregular per ``irregular_fraction``), renders a polyhedral mesh with
-    ``mesh_lumpiness`` 3x the body's fractional RMS residual (a
-    non-ellipsoidal RMS of ``lumpiness / 8``, so 3/8 of the residual; 8x
-    would match it), and has the navigator predict the smooth (zero-relief)
-    limit -- so the shape error the navigator cannot model scales with the
-    same residual-over-radius ratio the ``max_phase_irregularity_factor``
-    confidence term consumes.  ``km_per_pixel`` gives the sim blob feature
-    the physical scale that factor needs (it reports 0.0 without it).
-    Every body also rolls the surface / photometric truth axes
-    (:func:`_surface_truth_axes`).
+    Draws the identity from the config_220-backed catalog (regular vs irregular per
+    ``irregular_fraction``).  Semi-axis a is ``radius``, so the body is ``2 * radius``
+    across.  ``km_per_pixel`` is the catalog mean radius over the drawn body's mean
+    radius in pixels, the arithmetic mean of its three semi-axes (the same mean the
+    catalog takes of its radii), so the drawn body's mean radius in km equals the
+    catalog value.  That gives the sim blob feature the physical scale the
+    ``max_phase_irregularity_factor`` term needs (it reports 0.0 without it).
+
+    A regular moon renders as an ellipsoid turned by ``rotation_z`` and
+    ``sub_observer_lat_deg`` and draws the ellipsoid truth axes
+    (:func:`_ellipsoid_truth_axes`).  The navigator predicts the same smooth
+    ellipsoid, so the only shape error a regular moon plants is the limb relief
+    it draws on a minority of scenes.
+
+    An irregular moon renders as a polyhedral mesh with ``mesh_lumpiness`` 3x the
+    body's fractional RMS residual (a non-ellipsoidal RMS of ``lumpiness / 8``, so 3/8
+    of the residual; 8x would match it) and draws the mesh truth axes
+    (:func:`_mesh_truth_axes`).  The navigator predicts the smooth (zero-relief) mesh,
+    so the shape error it cannot model scales with the same residual-over-radius ratio
+    the ``max_phase_irregularity_factor`` confidence term consumes.  The fit uses
+    every blob row; the regular moons' factors sit near zero.
 
     Parameters:
         rng: Scene-local random generator.
         center_v: Body center row in image coordinates (px).
         center_u: Body center column in image coordinates (px).
-        radius: Apparent body radius (px).
+        radius: Apparent body radius (px): semi-axis a, half the body's width.
         phase: Phase angle (deg).
         illumination: Image-plane illumination direction (deg).
         irregular_fraction: Probability of drawing an irregular-catalog body.
-        pose_error_deg: Pose error applied to the predicted (nav) mesh (deg).
+        pose_error_deg: Pose error applied to the navigator's predicted body (deg):
+            added to the second Euler angle of a mesh, or to ``rotation_z`` of an
+            ellipsoid.
 
     Returns:
         A sim ``bodies`` entry dict ready for the scene parameter file.
@@ -231,45 +291,64 @@ def _catalog_body(
     else:
         name = rng.choice(_REGULAR_BODIES)
     mean_radius_km, rms_residual_km = _catalog()[name]
-    residual_fraction = rms_residual_km / mean_radius_km
-    lumpiness = 3.0 * residual_fraction
-    pose = [rng.uniform(0.0, 60.0), rng.uniform(0.0, 60.0), 0.0]
-    nav_override: dict[str, Any] = {'mesh_lumpiness': 0.0}
-    if pose_error_deg != 0.0:
-        nav_override['pose_euler_deg'] = [pose[0], pose[1] + pose_error_deg, pose[2]]
+    irregular = name in _IRREGULAR_BODIES
     # Irregular bodies get genuinely tri-axial base ellipsoids; the
     # near-spherical regulars keep modest axis spreads.
-    if name in _IRREGULAR_BODIES:
+    if irregular:
         b_fraction = rng.uniform(0.75, 0.95)
         c_fraction = rng.uniform(0.6, 0.85)
     else:
         b_fraction = rng.uniform(0.97, 1.0)
         c_fraction = rng.uniform(0.95, 1.0)
-    # The semi-axes are half the radius, so every body draws at half its
-    # apparent size; that slip is tracked as #898 and kept here on purpose.
-    semi_a_px = radius / 2.0
+    # The catalog mean radius is the arithmetic mean of the three radii, so the drawn
+    # body's mean radius in pixels is taken the same way.
+    mean_radius_px = radius * (1.0 + b_fraction + c_fraction) / 3.0
     body: dict[str, Any] = {
         'name': name,
-        'shape_model': 'polyhedral_mesh',
-        'mesh_lumpiness': lumpiness,
-        'mesh_seed': rng.randrange(2**31),
-        'pose_euler_deg': pose,
         'center_v': center_v,
         'center_u': center_u,
-        'semi_a_px': semi_a_px,
-        'semi_b_px': semi_a_px * b_fraction,
-        'semi_c_px': semi_a_px * c_fraction,
+        'semi_a_px': radius,
+        'semi_b_px': radius * b_fraction,
+        'semi_c_px': radius * c_fraction,
         'illumination_angle': illumination,
         'phase_angle': phase,
-        'km_per_pixel': mean_radius_km / radius,
-        'nav_override': nav_override,
+        'km_per_pixel': mean_radius_km / mean_radius_px,
     }
-    _surface_truth_axes(rng, body)
+    if irregular:
+        pose = [rng.uniform(0.0, 60.0), rng.uniform(0.0, 60.0), 0.0]
+        nav_override: dict[str, Any] = {'mesh_lumpiness': 0.0}
+        if pose_error_deg != 0.0:
+            nav_override['pose_euler_deg'] = [pose[0], pose[1] + pose_error_deg, pose[2]]
+        body.update(
+            {
+                'shape_model': 'polyhedral_mesh',
+                'mesh_lumpiness': 3.0 * rms_residual_km / mean_radius_km,
+                'mesh_seed': rng.randrange(2**31),
+                'pose_euler_deg': pose,
+                'nav_override': nav_override,
+            }
+        )
+        _mesh_truth_axes(rng, body)
+    else:
+        # The two orientation angles span the same 0-60 deg the mesh pose
+        # draws for its two tilts.
+        rotation_z = rng.uniform(0.0, 60.0)
+        body.update(
+            {
+                'shape_model': 'ellipsoid',
+                'rotation_z': rotation_z,
+                'sub_observer_lat_deg': rng.uniform(0.0, 60.0),
+            }
+        )
+        if pose_error_deg != 0.0:
+            body['nav_override'] = {'rotation_z': rotation_z + pose_error_deg}
+        _ellipsoid_truth_axes(rng, body)
     return body
 
 
-# Fraction of disc scenes rendering a banded giant-planet-class disc
-# (zones/belts plus storm ovals), and, within those, the fraction adding
+# Fraction of the disc family's ellipsoid bodies rendering a banded
+# giant-planet-class disc (zones/belts plus storm ovals; the mesh renderer
+# takes neither key), and, within those, the fraction adding
 # a transiting moon and its cast shadow -- the sharp circular false
 # crater the disc correlation can lock onto.
 _DISC_BANDED_FRAC = 0.15
@@ -279,10 +358,11 @@ _DISC_TRANSIT_FRAC = 0.40
 def gen_disc(rng: random.Random) -> dict[str, Any]:
     """Resolved body at low-moderate phase (BodyDiscCorrelateNav regime).
 
-    A minority slice renders the giant-planet disc regime: latitude bands
-    with storm ovals (``disc_texture``), optionally crossed by a
-    transiting moon and its shadow (``transits``) -- all truth-side disc
-    texture the navigator's smooth template cannot model.
+    A minority of the ellipsoid (regular-moon) bodies render the giant-planet
+    disc regime: latitude bands with storm ovals (``disc_texture``), optionally
+    crossed by a transiting moon and its shadow (``transits``) -- all truth-side
+    disc texture the navigator's smooth template cannot model.  Mesh bodies take
+    neither key.
 
     Parameters:
         rng: Scene-local random generator.
@@ -306,7 +386,7 @@ def gen_disc(rng: random.Random) -> dict[str, Any]:
         illumination=illumination,
         irregular_fraction=0.35,
     )
-    if rng.random() < _DISC_BANDED_FRAC:
+    if body['shape_model'] == 'ellipsoid' and rng.random() < _DISC_BANDED_FRAC:
         storms = []
         for _ in range(rng.randint(0, 2)):
             storms.append(
@@ -329,9 +409,9 @@ def gen_disc(rng: random.Random) -> dict[str, Any]:
             # shadow disc sits a few pixels from the moon along a random
             # displacement (projected sun-moon-disc geometry), the sharp
             # dark circle the disc correlation can mistake for a crater.
-            moon_radius = radius / 2.0 * rng.uniform(0.10, 0.25)
-            dv = rng.uniform(-0.5, 0.5) * radius / 2.0
-            du = rng.uniform(-0.5, 0.5) * radius / 2.0
+            moon_radius = radius * rng.uniform(0.10, 0.25)
+            dv = rng.uniform(-0.5, 0.5) * radius
+            du = rng.uniform(-0.5, 0.5) * radius
             shadow_angle = rng.uniform(0.0, 2.0 * math.pi)
             shadow_sep = moon_radius * rng.uniform(0.5, 2.5)
             body['transits'] = [
@@ -368,15 +448,16 @@ def gen_limb(rng: random.Random) -> dict[str, Any]:
     radius = rng.uniform(90.0, 190.0)
     phase = rng.uniform(8.0, 55.0)
     illumination = rng.uniform(0.0, 35.0)
-    # Slide the center along a random direction so the visible limb arc
-    # fraction spans "fully in frame" to "small arc in one corner".
+    # Slide the center along a random direction.  The body is drawn at its full
+    # radius against a 220 px frame, so about 97.8% of limb bodies are partly off
+    # frame and the visible limb arc runs from a long arc to a small one in a corner.
     theta = rng.uniform(0.0, 2.0 * math.pi)
     displacement = rng.uniform(0.0, radius * 0.9)
     center_v = size / 2 + displacement * math.sin(theta)
     center_u = size / 2 + displacement * math.cos(theta)
     # A pose-error slice keeps the "confidently wrong limb" failure mode
-    # in the cohort (the trained-away pose-disagreement scenario, where the mesh
-    # is predicted at a different pose than it was rendered at).
+    # in the cohort (the trained-away pose-disagreement scenario, where the body
+    # is predicted at a different orientation than it was rendered at).
     pose_error = rng.uniform(2.0, 35.0) if rng.random() < 0.2 else 0.0
     body = _catalog_body(
         rng,
@@ -424,11 +505,11 @@ def gen_terminator(rng: random.Random) -> dict[str, Any]:
 def gen_blob(rng: random.Random) -> dict[str, Any]:
     """Small-to-mid body (BodyBlobNav regime).
 
-    The radius range spans from below the 5 px BODY_BLOB emission floor
-    (those scenes exercise the fused failure path) through the sizes where
-    the disc correlation takes over, so the fit sees the technique's whole
-    design regime including the small-blob band the detection-SNR gate
-    admits.
+    The radius is half the body's width, so the range runs from a 1 px wide body,
+    below the 5 px BODY_BLOB emission floor on the predicted diameter (those scenes
+    exercise the fused failure path), through the sizes where the disc correlation
+    takes over.  The fit sees the technique's whole design regime including the
+    small-blob band the detection-SNR gate admits.
 
     Parameters:
         rng: Scene-local random generator.
@@ -438,7 +519,7 @@ def gen_blob(rng: random.Random) -> dict[str, Any]:
     """
     size = 128
     params = _base(rng, size=size)
-    radius = rng.uniform(2.5, 30.0)
+    radius = rng.uniform(0.5, 30.0)
     phase = rng.uniform(10.0, 130.0)
     illumination = rng.uniform(0.0, 35.0)
     center_v = size / 2 + rng.uniform(-0.2, 0.2) * size

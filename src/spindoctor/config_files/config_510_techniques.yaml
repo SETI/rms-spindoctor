@@ -28,11 +28,12 @@
 # planted-truth recovery on a randomized simulated-scene campaign
 # (util/calibration, campaign seed 20260718, 4200 scenes per pass;
 # label = "technique's own offset error <= 1.0 px") collected on the
-# staged forward-model renderer (physically-scaled polyhedral meshes
-# from the config_220 catalog plus the full surface / photometric truth
-# axes: photometric law and opposition surge, the limb-relief field,
-# albedo texture, gouraud shading, pose scatter, and a giant-planet
-# disc-texture / transit slice with cast moon shadows; the ring family
+# staged forward-model renderer (every body in the body families was a
+# polyhedral mesh from the config_220 catalog, drawn at half its
+# intended size, carrying the limb-relief field, gouraud shading, and
+# pose scatter; the mesh renderer ignored the photometric law, opposition
+# surge, albedo texture, and disc-texture / transit keys the scenes also
+# held, so none of those rendered; the ring family
 # draws the ring truth vocabulary -- face-on through moderately
 # inclined projections, eccentric / m-mode / edge-wave orbits, planted
 # per-feature orbit errors, non-navigable distractors; the star
