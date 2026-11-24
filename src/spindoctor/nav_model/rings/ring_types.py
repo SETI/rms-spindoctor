@@ -5,8 +5,8 @@ data: ``RingFeatureType``, ``RingBaseOrbitMode``, ``RingPerturbationMode``,
 and ``RingEdgeData``. These are frozen dataclasses (immutable) because orbital
 parameters from YAML config are physical constants that should never be modified
 after loading. The ring catalogs are checked when the configuration loads
-(:mod:`spindoctor.config.sections_rings`), so these types carry no checks of their
-own.
+(:mod:`spindoctor.config.sections_rings`), so these types do not check their values
+again.
 
 Separating these types into their own module keeps them free of rendering
 dependencies (oops, numpy), enabling lightweight import for testing.

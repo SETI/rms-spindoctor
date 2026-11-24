@@ -103,12 +103,12 @@ def test_a_base_orbit_entry_is_mode_one() -> None:
     [
         (
             [_base(1000.0), {'mode': 2, 'phase': 0.0, 'pattern_speed': 0.0}],
-            'inner_data[1]: a perturbation entry sets amplitude, phase, and pattern_speed, but '
+            'inner_data[1]: a perturbation entry must set amplitude, phase, and pattern_speed, but '
             'this one leaves out amplitude',
         ),
         (
             [_base(1000.0, phase=3.0)],
-            'inner_data[0]: a base-orbit entry sets only a, rms, ae, long_peri, and rate_peri, '
+            'inner_data[0]: a base-orbit entry may set only a, rms, ae, long_peri, and rate_peri, '
             'but this one also sets phase',
         ),
         (
@@ -145,8 +145,8 @@ def test_an_edge_has_exactly_one_base_orbit(modes: list[dict[str, Any]], count: 
     _refused(
         RingFeatureEntry,
         {'feature_type': 'RINGLET', 'outer_data': modes},
-        f'outer_data: an edge has exactly one base-orbit entry (one that sets a), and this '
-        f'one has {count}',
+        f'outer_data: an edge must have exactly one base-orbit entry (one that sets a), but '
+        f'this one has {count}',
     )
 
 
@@ -155,7 +155,8 @@ def test_a_feature_has_at_least_one_edge() -> None:
     _refused(
         RingFeatureEntry,
         {'feature_type': 'RINGLET', 'name': 'Nothing'},
-        'a feature has an inner edge, an outer edge, or both; set inner_data, outer_data, or both',
+        'a feature needs an inner edge, an outer edge, or both; set inner_data, outer_data, '
+        'or both',
     )
 
 

@@ -10,11 +10,11 @@ The catalog values are measured orbits taken from published fits, and the ring m
 turns each entry into a :class:`~spindoctor.nav_model.rings.RingFeature` when it
 renders.  Every check on a catalog is made here, when the configuration loads.
 
-A planet key of ``ring_features`` must name a planet of the ``planets`` section.  That
+A planet key of ``ring_features`` must be a planet of the ``planets`` section.  That
 rule reads two sections, so :class:`~spindoctor.config.sections.TypedSections` checks
 it.
 
-Every field without a default is a key whose value lives in the packaged YAML only.
+A field that has no default takes its value from the packaged YAML.
 """
 
 from collections.abc import Sequence
@@ -155,13 +155,15 @@ class RingModeEntry:
         missing = [key for key in own if getattr(self, key) is None]
         if missing:
             raise RuleError(
-                f'a {kind} entry sets {_listed(own)}, but this one leaves out {_listed(missing)}',
+                f'a {kind} entry must set {_listed(own)}, but this one leaves out '
+                f'{_listed(missing)}',
                 at=(),
             )
         stray = [key for key in other if getattr(self, key) is not None]
         if stray:
             raise RuleError(
-                f'a {kind} entry sets only {_listed(own)}, but this one also sets {_listed(stray)}',
+                f'a {kind} entry may set only {_listed(own)}, but this one also sets '
+                f'{_listed(stray)}',
                 at=(),
             )
 
@@ -179,7 +181,8 @@ def _check_edge(modes: tuple[RingModeEntry, ...], *, at: str) -> None:
     count = sum(1 for mode in modes if mode.is_base_orbit)
     if count != 1:
         raise RuleError(
-            f'an edge has exactly one base-orbit entry (one that sets a), and this one has {count}',
+            f'an edge must have exactly one base-orbit entry (one that sets a), but this one '
+            f'has {count}',
             at=(at,),
         )
 
@@ -215,10 +218,10 @@ class RingFeatureEntry:
     end_date: UtcTime | None = None
 
     def __post_init__(self) -> None:
-        """Refuse a feature with no edge, a bad edge, or dates out of order."""
+        """Refuse a feature that has no edge, a bad edge, or dates out of order."""
         if self.inner_data is None and self.outer_data is None:
             raise RuleError(
-                'a feature has an inner edge, an outer edge, or both; set inner_data, '
+                'a feature needs an inner edge, an outer edge, or both; set inner_data, '
                 'outer_data, or both',
                 at=(),
                 reads=(('inner_data',), ('outer_data',)),
@@ -255,7 +258,7 @@ class RingFeatureEntry:
 def _overlap(first: RingFeatureEntry, second: RingFeatureEntry) -> bool:
     """Whether two features cover overlapping radii over overlapping dates.
 
-    Two features overlap only when both have at least one date.  A feature with no
+    Two features overlap only when both have at least one date.  A feature that has no
     dates is in the catalog at every time, and may stand beside a dated feature at the
     same radii.  A date left out is an open end, and the date ranges are half open.
 
@@ -303,8 +306,8 @@ class RingCatalog:
             has no partner edge.
         min_allowed_fade_width_pix: The fade width, in pixels, below which an edge
             whose fade is cut short by a neighboring edge is dropped.
-        min_feature_pixels: The least width, in pixels, of a feature with both edges for
-            the feature to be rendered.
+        min_feature_pixels: The smallest width, in pixels, that a feature with both edges
+            must have to be rendered.
         features: The features, keyed by a name unique within the catalog.
     """
 
@@ -317,7 +320,7 @@ class RingCatalog:
     features: dict[Str, RingFeatureEntry]
 
     def __post_init__(self) -> None:
-        """Refuse a least fade wider than the fade, and two features that overlap.
+        """Refuse a minimum fade width above the fade width, and two features that overlap.
 
         Two features overlap when they cover overlapping radii over overlapping dates,
         which is two entries for one ring edge at one time.
