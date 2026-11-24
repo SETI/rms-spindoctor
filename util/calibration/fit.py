@@ -305,9 +305,9 @@ def _packaged_spec(name: str) -> ConfidenceSpec:
     """The confidence formula the packaged configuration gives the technique ``name``."""
     DEFAULT_CONFIG.read_config()
     technique = next(cls for cls in NavTechnique._registry if cls.name == name)
-    if technique.confidence_spec is None:
-        raise ValueError(f'{name} has no confidence formula')
-    return technique.confidence_spec
+    # Read the parsed configuration, not the class attribute, which follows whichever
+    # configuration was installed last.
+    return DEFAULT_CONFIG.techniques.block(technique).confidence_spec()
 
 
 def fit_technique(

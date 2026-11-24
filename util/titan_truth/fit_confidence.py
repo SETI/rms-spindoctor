@@ -99,9 +99,9 @@ def _shipped_anchors() -> np.ndarray:
     from spindoctor.nav_technique import TitanHazeNav
 
     DEFAULT_CONFIG.read_config()
-    spec = TitanHazeNav.confidence_spec
-    if spec is None:
-        raise ValueError(f'{TECHNIQUE} has no confidence formula')
+    # Read the parsed configuration, not the class attribute, which follows whichever
+    # configuration was installed last.
+    spec = DEFAULT_CONFIG.techniques.block(TitanHazeNav).confidence_spec()
     by_feature = {term.feature: term.alpha for term in spec.terms}
     return np.array([spec.alpha0] + [by_feature[name] for name, *_ in TERMS])
 

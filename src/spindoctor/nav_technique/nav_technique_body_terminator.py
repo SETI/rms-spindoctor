@@ -45,7 +45,7 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.schema import SCHEMA_CONFIG, NonNeg
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Positive
 from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -136,7 +136,7 @@ class BodyTerminatorTuning(DTTuning):
     model_error_floor_px: NonNeg
     basin_cost_ratio_threshold: NonNeg
     basin_exclude_radius_px: NonNeg
-    basin_cost_epsilon_px: NonNeg
+    basin_cost_epsilon_px: Positive
 
 
 class BodyTerminatorNav(NavTechnique):
