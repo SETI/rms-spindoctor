@@ -217,6 +217,13 @@ tests need none of the archive environment above.
        technique has a known wrong answer, that answer stays in its band. Each
        fused error stays within 3 times the reported sigma, or inside the
        scene's known band in sigmas.
+   * - Full-frame guard classes (``test_sim_<class>.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Full-size frames, each class in a module of its own, each scene
+       navigated once per run. The one answer meets every check the
+       truth-check, expected-outcome, and baseline modules apply to the smaller
+       scenes, and those modules skip the class when they navigate.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing

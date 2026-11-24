@@ -350,6 +350,27 @@ on a real frame of this instrument and checks it against the identity.
 instrument fits no camera rotation, records a corrected attitude alongside its
 uncorrected one, and is not omitted as ``rotation_unsupported``.
 
+**Simulator guard scenes.** The ``full_frame_cameras`` scene class (see
+:ref:`sim-full-frame-cameras`) holds three scenes of this instrument, each at the
+full 800 px frame with the measured twist of -0.0526 degrees. Simulated skies of
+this camera are about four times quieter than real ones, so each scene plants
+the measured sky noise of 0.96 DN in place of the catalog's read noise.
+
+- ``gossi_star_field``: two bright stars among 14 fainter ones at 1.6 s, offset
+  257 px, the size of the library's scattered-light frames. The answer lands
+  0.04 to 0.06 px off over 16 seeds, and 0.02 px off without the twist.
+- ``gossi_star_field_short_exposure``: the same field at 0.1 s, the exposure of
+  the real Pleiades frames, which navigate on three stars. The navigator
+  predicts only the brightest star visible, so the frame fails, and the scene's
+  expected block holds the failure. The simulated stars are about 12 times
+  fainter than real stars of the same magnitude. The navigator's star limit on
+  a simulated frame also spreads the simulator's star brightness over a 3.0 px
+  placeholder blur, so it reaches only V 3.2 at 0.1 s, against V 7.8 on the
+  real frames.
+- ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
+  0.18 px off with the twist, and 0.04 px off without it. The scene takes about
+  20 seconds to navigate, because the search window reaches 350 px.
+
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
 Pogson ratio, the non-positive-exposure fallback, and finiteness. It also pins

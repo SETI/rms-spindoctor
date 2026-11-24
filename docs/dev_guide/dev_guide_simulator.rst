@@ -2176,6 +2176,35 @@ check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family.
 
+.. _sim-full-frame-cameras:
+
+Full-frame camera scenes
+------------------------
+
+The ``full_frame_cameras`` scene class
+(``tests/integration/sim_scenes/full_frame_cameras/``) holds realistic frames
+from the cataloged cameras. Each scene renders at its camera's real frame size
+with the camera's whole detector chain, and uses an exposure a real frame of
+that kind uses. Each offset is as large as the camera's real pointing errors,
+or larger where those are small, and the offsets point in different directions.
+Each scene also plants
+the camera's measured twist and leaves roll fitting off, as the cameras ship.
+Together the scenes guard the renderer and the navigator, so a change that moves
+a realistic frame's answer shows up.
+
+Each scene that navigates has its fused answer held to a tolerance measured
+over 16 seeds, like the other validation scenes. A scene the navigator fails is
+an expected failure: its expected block holds the failure, so a fix fails the
+scene until the block is retired. A scene whose answer depends on a navigator
+weakness says so in its comments and in ``sim_truth.py``.
+
+The instrument chapters list each camera's scenes, with their content, their
+measured errors, and the failures they hold.
+
+``test_sim_full_frame_cameras.py`` navigates each scene once per run. A star
+field takes a few seconds to navigate, and a frame with a disc takes up to half
+a minute, since the disc correlation searches the camera's whole offset window.
+
 .. _sim-floor:
 
 The self-consistency floor
@@ -3632,11 +3661,10 @@ render the default scene.
 The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
-``star_confounder``, ``ring_system``, ``expected_fail``) scope what each scene
-is testing and are
-enforced by the structural test. The scene README at
-``tests/integration/sim_scenes/README.txt`` documents the schema alongside the
-code.
+``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``)
+scope what each scene is testing and are enforced by the structural test. The
+scene README at ``tests/integration/sim_scenes/README.txt`` documents the schema
+alongside the code.
 
 A complete YAML scene -- a noisy Cassini NAC frame with one irregular mesh body, a
 ring, a couple of stars, and a planted offset the navigator must recover -- reads:
@@ -4947,6 +4975,22 @@ change alters rendered output:
   A truth check compares the answer with the planted offset, not with a stored
   answer. If a regression is regenerated into the baselines, the truth check
   still fails.
+
+  A full-frame scene takes far longer to navigate than a small catalog scene,
+  so each class of full-frame scenes has a test module of its own,
+  ``test_sim_<class>.py``. These classes are listed in ``OWN_MODULE_CLASSES``
+  in ``sim_truth.py``. A class module is a few lines: it calls
+  ``scene_class_tests`` in ``sim_scene_checks.py``, which reads the class from
+  the module's file name and builds tests that navigate each scene once and
+  hold that one answer to every check: the truth tolerance or known-error band,
+  each tolerance or band on one technique's answer, the expected block, the
+  sigma check, and the regression baseline. The shared modules call the same
+  checks. When they navigate, they skip these classes. Their checks that need
+  no navigation still cover every scene. A structural
+  test in the default suite checks that each listed class is a declared
+  validation class with scenes and a module, and that each class module belongs
+  to a listed class. Because each class sits in a module of its own,
+  ``--dist=loadfile`` runs the classes on separate workers.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
   confidence rank, each offset axis within 0.02 px, and the confidence within 0.02
