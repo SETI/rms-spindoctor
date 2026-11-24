@@ -12,9 +12,9 @@
 #   scripts/check-doc-prose.sh --warnings   # include the heuristic tier
 #   scripts/check-doc-prose.sh --diff BASE  # check the lines a branch adds outside docs/
 #
-# --diff BASE reads the lines added in src, tests, util, and scripts since the
-# commit where the current branch left BASE (git merge-base BASE HEAD), including
-# changes not yet committed. It runs two warnings-tier checks over them: a verb
+# --diff BASE reads the lines added in every file outside docs/, plans/, README.md,
+# and CONTRIBUTING.md since the commit where the current branch left BASE (git
+# merge-base BASE HEAD), including changes not yet committed. It runs two warnings-tier checks over them: a verb
 # followed by "no" and a noun, and "names" used as a verb. Those lines hold code
 # as well as docstrings, comments, and messages, so read each hit before changing
 # it. Use it on a branch before opening a pull request, for example
@@ -275,8 +275,13 @@ if [[ -n "$DIFF_BASE" ]]; then
         echo "check-doc-prose: FAILED -- no merge base between $DIFF_BASE and HEAD" >&2
         exit 1
     fi
-    if ! diff_text=$(git diff -U0 --no-color --no-ext-diff "$merge_base" \
-            -- src tests util scripts); then
+    # The prefixes are set explicitly, because diff.noprefix or diff.mnemonicPrefix in
+    # a user's git config would otherwise change the "+++ b/" header the parser reads.
+    # Every file outside the documentation is checked, except plans/, whose backlog
+    # the prose checks deliberately leave alone.
+    if ! diff_text=$(git diff -U0 --no-color --no-ext-diff --src-prefix=a/ \
+            --dst-prefix=b/ "$merge_base" -- . ':(exclude)docs' ':(exclude)plans' \
+            ':(exclude)README.md' ':(exclude)CONTRIBUTING.md'); then
         echo "check-doc-prose: FAILED -- git diff against $DIFF_BASE did not run" >&2
         exit 1
     fi

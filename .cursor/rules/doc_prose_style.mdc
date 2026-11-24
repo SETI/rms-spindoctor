@@ -15,8 +15,9 @@ sentence and that one governs the outline.
 before claiming a documentation change is done; `scripts/run-all-checks.sh` runs
 it too. `--warnings` adds the heuristic tier, whose hits a person has to judge.
 `--diff BASE` runs two of those heuristics, the verb + "no" check and the names
-check, over the lines a branch has added outside `docs/` since it left `BASE`:
-the docstrings, comments, and messages, along with the code around them. Run
+check, over the lines a branch has added since it left `BASE` in every file
+other than the documentation files above and `plans/`: the docstrings, comments,
+and messages, along with the code around them. Run
 `scripts/check-doc-prose.sh --diff origin/main` on a branch before opening its pull
 request. The rest of this rule is a review checklist -- a human or a model has to
 read the prose to apply it.
