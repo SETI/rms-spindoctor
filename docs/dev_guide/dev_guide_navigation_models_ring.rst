@@ -219,13 +219,14 @@ sigma and curvature thresholds that are not exposed to YAML.
 rings block
 -----------
 
-Every key under ``rings`` is listed below, each with the consumer that reads it. The
-section is parsed at load into :class:`~spindoctor.config.sections_rings.RingsSection`.
-Its fields give each key's type and range, a key it does not declare is refused, and
-every key must be set.
+Every key under ``rings`` is listed below, each with the consumer that reads it. When
+the configuration loads, the section is parsed into
+:class:`~spindoctor.config.sections_rings.RingsSection`, whose fields give each key's type
+and range. Every key must be set, and the loader refuses a key that the class does not
+declare.
 
 - ``default_orbit_radial_sigma_km`` — float, at least 0, packaged as ``2.0`` km. Coherent
-  whole-edge radial orbit uncertainty used for an edge whose catalog entry carries no
+  whole-edge radial orbit uncertainty used for an edge whose catalog entry does not set
   ``rms``. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``orbit_radial_sigma_correlated_fraction`` — float in ``[0, 1]``, packaged as ``1.0``.
@@ -240,9 +241,9 @@ every key must be set.
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``ring_features`` — the per-planet ring catalogs, each a
   :class:`~spindoctor.config.sections_rings.RingCatalog`, keyed by the planet's SPICE
-  name, which must be a planet of the ``planets`` section. They are set in the
-  per-planet ``config_3N0_*_rings.yaml`` files (see below). A planet that has no catalog
-  has no ring model. Consumed by
+  name, which must appear in the ``planets`` section. They are set in the per-planet
+  ``config_3N0_*_rings.yaml`` files (see below). A planet that has no catalog has no
+  ring model. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
 - ``label_font`` — str, packaged as ``liberation2/LiberationMono-Bold.ttf``. Font used
   for ring labels. Consumed by
@@ -268,10 +269,11 @@ every key must be set.
 Per-planet ring catalog
 -------------------------
 
-Each ``config_3N0_<planet>_rings.yaml`` file holds one planet's catalog, as the
-``rings.ring_features.<PLANET>`` mapping keyed by upper-case SPICE planet name. There is
-one file for each of Jupiter, Saturn, Uranus, and Neptune. The catalog values are measured orbits from
-published fits, and they are entered as published. Each per-planet entry sets:
+Each ``config_3N0_<planet>_rings.yaml`` file holds one planet's catalog under
+``rings.ring_features.<PLANET>``, where ``<PLANET>`` is the planet's SPICE name in upper
+case. There is one file for each of Jupiter, Saturn, Uranus, and Neptune. The catalog
+values are measured orbits from published fits, entered as published. Each per-planet
+entry sets:
 
 - ``epoch`` — str (UTC, ISO 8601). Reference epoch for every ring solution under this
   planet; used to advance precessing edge solutions to the per-image time.
@@ -279,19 +281,20 @@ published fits, and they are entered as published. Each per-planet entry sets:
   brightness profile used by the rendered annulus template; controls how many pixels
   the catalog brightness fades into the background.
 - ``min_allowed_fade_width_pix`` — positive float (px), no more than
-  ``fade_width_pix``. The fade width below which the per-image filter drops an edge
-  whose fade a neighboring edge cuts short.
+  ``fade_width_pix``. If a neighboring edge cuts an edge's fade shorter than this, the
+  per-image filter drops the edge.
 - ``min_feature_pixels`` — positive float (px). Minimum per-feature pixel extent below
   which the per-image filter drops the feature.
 - ``features`` — per-feature entries keyed by feature name, each a
   :class:`~spindoctor.config.sections_rings.RingFeatureEntry`. Each entry carries
   ``feature_type`` (``GAP`` or ``RINGLET``), an optional ``name`` (display label, left
-  out for an unnamed feature), optional ``start_date`` and ``end_date`` (UTC; the feature
-  is in the catalog from the start up to, but not including, the end, and a date left
-  out leaves that end open), and one or both of ``inner_data`` / ``outer_data`` lists.
-  An edge that has no data has no list. Each ``*_data`` list holds the edge's mode
-  entries (:class:`~spindoctor.config.sections_rings.RingModeEntry`). The entry that sets
-  ``a`` is the edge's base orbit, which is mode 1 and also sets ``rms``, ``ae``,
+  out for an unnamed feature), optional ``start_date`` and ``end_date``, and one or both
+  of the ``inner_data`` and ``outer_data`` lists. The dates are UTC times. A feature
+  that has dates is in the catalog from its start date up to, but not including, its end
+  date, and a missing date leaves that end open. An edge that has no data has no list.
+  Each ``*_data`` list holds the edge's mode entries
+  (:class:`~spindoctor.config.sections_rings.RingModeEntry`). The entry that sets ``a``
+  is the edge's base orbit: it is mode 1, and it also sets ``rms``, ``ae``,
   ``long_peri``, and ``rate_peri``. Every other entry is a perturbation of its mode
   number and sets ``amplitude``, ``phase``, and ``pattern_speed``. The mode number alone
   does not tell the two apart, because some features have a mode-1 perturbation besides
@@ -303,7 +306,7 @@ Besides each key's type and range, a catalog is refused at load when:
 
 - a mode entry that sets ``a`` is not mode 1, or a mode entry leaves out a key of its
   kind or sets a key of the other kind;
-- an edge's list holds no base orbit, or more than one;
+- an edge's list has no base orbit, or has more than one;
 - a feature sets neither ``inner_data`` nor ``outer_data``;
 - a feature's ``start_date`` is not before its ``end_date``, or a time cannot be read;
 - ``min_allowed_fade_width_pix`` is above ``fade_width_pix``;
