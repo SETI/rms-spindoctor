@@ -478,15 +478,15 @@ Body-shape catalog
 
 ``src/spindoctor/config_files/config_220_body_shape.yaml`` carries the per-body
 :class:`~spindoctor.nav_model.body_shape.BodyShape` overrides under a ``body_shape`` mapping keyed by
-upper-case SPICE body name, each entry parsed at load into a
-:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`. An entry may set any subset of
-``ellipsoid_rms_residual_km``, ``crater_scale_km``, ``albedo_variation``,
-``spice_orbital_residual_km``, ``min_blob_diameter_px``, and ``shape_class_hint``; a key
-it leaves out falls through to the hard-coded
-:data:`~spindoctor.nav_model.body_shape.BODY_SHAPE_TABLE` baseline (Saturn-moon, irregular-moon,
-gas-giant, or default profile depending on the body) per
-:func:`~spindoctor.nav_model.body_shape.load_body_shape`. An entry's ``radii_km`` is read by the
-calibration tooling and not by the body model, which takes a body's radii from SPICE.
+upper-case SPICE body name. The loader parses each entry into a
+:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`. An entry may set any
+subset of ``ellipsoid_rms_residual_km``, ``crater_scale_km``, ``albedo_variation``,
+``spice_orbital_residual_km``, ``min_blob_diameter_px``, and ``shape_class_hint``. For a
+key that the entry leaves out, :func:`~spindoctor.nav_model.body_shape.load_body_shape`
+uses the hard-coded :data:`~spindoctor.nav_model.body_shape.BODY_SHAPE_TABLE` baseline:
+the Saturn-moon, irregular-moon, gas-giant, or default profile, depending on the body.
+Only the calibration tooling reads an entry's ``radii_km``; the body model takes a body's
+radii from SPICE.
 
 Module-level emission constants
 -------------------------------

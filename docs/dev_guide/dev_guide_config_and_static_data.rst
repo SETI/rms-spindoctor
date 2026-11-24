@@ -148,10 +148,10 @@ returns the typed object:
   commented-out line. The schema does not decide whether the command line, this section,
   or an environment variable wins. Each reader applies its own order, and the helpers in
   :mod:`spindoctor.config.config_helper` define the usual one.
-- ``body_shape`` — the body-shape table, keyed by each body's SPICE name, with each
-  body's entry a :class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`. Every
-  key of an entry is optional, and a key the entry leaves out takes the next tier's
-  value (see :ref:`static-data-citations`).
+- ``body_shape`` — the body-shape table: one
+  :class:`~spindoctor.config.sections_body_shape.BodyShapeEntry` per body, keyed by the
+  body's SPICE name. Every key of an entry is optional, and a key that the entry leaves
+  out takes its value from the next tier (see :ref:`static-data-citations`).
 - ``logging`` — :class:`~spindoctor.config.logging_keys.LoggingSection`, holding the
   levels and terminal settings of the two loggers, with each program's overrides under
   ``programs`` as a :class:`~spindoctor.config.logging_keys.ProgramLogging`. Its
@@ -179,11 +179,10 @@ misspelled or in lower case, so such a key is refused at load. That rule reads t
 sections, so :class:`~spindoctor.config.sections.TypedSections` checks it. The message
 gives the key and the file that last set either it or ``planets``.
 
-Two mappings are keyed by body: ``bodies.geometric_albedo`` and ``body_shape``. Each of
-their keys must be in upper case, as SPICE spells it, for the same reason, and a key in
-lower case is refused at load. One rule in
-:class:`~spindoctor.config.sections.TypedSections` covers both mappings, so they give
-the same message.
+Two mappings are keyed by body: ``bodies.geometric_albedo`` and ``body_shape``. For the
+same reason, each of their keys must be in upper case, as SPICE spells it, and the loader
+refuses a key that is not. One rule in :class:`~spindoctor.config.sections.TypedSections`
+checks both mappings, so both give the same message.
 
 Keys come in two kinds, and each kind has its own spelling. A key for a setting,
 such as ``use_albedo`` or ``body_limb``, is a name the package chose, and it is in
@@ -499,12 +498,12 @@ Each body block in ``config_220_body_shape.yaml`` is wrapped in a top-level
 carries an optional sibling ``_sources`` mapping. The loader drops it (see
 :ref:`config-merge`), so the citation lives in the file for human review only.
 
-The entry is then parsed into a
-:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`, which gives each key's
-type and range. Every key is optional: a key the entry leaves out is read as None, and
-:func:`~spindoctor.nav_model.body_shape.load_body_shape` takes that value from the
-body's built-in profile. A key the type does not declare is refused at load, and so is
-a body name in lower case.
+The loader then parses the entry into a
+:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`, whose fields give each
+key's type and range. Every key is optional. A key that the entry leaves out is read as
+None, and :func:`~spindoctor.nav_model.body_shape.load_body_shape` takes that value from
+the body's built-in profile. The loader refuses a key that the type does not declare,
+and a body name that is not in upper case.
 
 .. code-block:: yaml
 
@@ -560,10 +559,11 @@ limb topographic roughness beyond the ellipsoid) and ``albedo_variation``
 have no standard published per-body scalar; entries carry
 ``'ESTIMATE — <physical basis>'`` sources and feed sigma/reliability
 terms only.  ``albedo_mean`` is left out of every entry because it has no
-runtime consumer, and each entry's ``_sources`` says so.  The entry's type
-does not declare it either, so a value written for it is refused at load.  A
-developer adding a consumer should add the key to the type and populate it with
-cited values at that point, following the procedure below.
+runtime consumer, and each entry's ``_sources`` says so.
+:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry` does not declare it
+either, so the loader refuses a value written for it.  A developer adding a consumer
+should add the key to the type and populate it with cited values at that point,
+following the procedure below.
 
 Downstream, ``ellipsoid_rms_residual_km`` drives the LIMB_ARC
 normal-sigma quadrature and the ``max_phase_irregularity_factor``
@@ -591,8 +591,8 @@ AI agents drafting body-shape entries:
 2. If a value cannot be sourced from a fetched document, leave the key out
    of the entry and write
    ``'PLACEHOLDER — no source found, calibration pending'`` as its
-   ``_sources`` entry. The body's built-in profile, or the generic profile of
-   a body with none, takes the place of a value that is left out.
+   ``_sources`` entry. The body's built-in profile takes the place of a value
+   that is left out, and a body that has no built-in profile uses the generic one.
 3. DOIs and paper titles must verify against a real
    ``https://doi.org/<DOI>`` lookup; agents do not invent identifiers.
 4. Any draft PR that lists a citation an AI agent invented (caught in human

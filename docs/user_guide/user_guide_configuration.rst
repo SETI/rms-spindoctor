@@ -169,9 +169,9 @@ ones listed in ``planets``. The bodies in a setting kept per body, such as
 ``bodies.geometric_albedo`` or ``body_shape``, and the moons listed for each planet in
 ``satellites`` must be in upper case. Any other planet or body is refused the same way.
 
-A body in ``body_shape`` can leave out any of its settings. A setting it leaves out, and
-every setting of a body it does not list, takes the value navigation assumes for that
-kind of body.
+A body in ``body_shape`` may set any of its settings and leave out the rest. A setting
+that a body leaves out, and every setting of a body that is not listed, takes the value
+navigation assumes for that kind of body.
 
 Writing your own default file
 =============================
