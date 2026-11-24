@@ -63,8 +63,8 @@ def test_navtechnique_registry_records_subclass() -> None:
 
 
 def test_registering_a_technique_without_tuning_is_refused() -> None:
-    """A concrete technique that declares no ``Tuning`` fails at its class statement."""
-    with pytest.raises(TypeError, match=r'_NoTuningProbe .* declares no Tuning'):
+    """A concrete technique that does not declare ``Tuning`` fails at its class statement."""
+    with pytest.raises(TypeError, match=r'_NoTuningProbe .* does not declare Tuning'):
 
         class _NoTuningProbe(_ConcreteTechniqueForTest):
             name = '_NoTuningProbe'

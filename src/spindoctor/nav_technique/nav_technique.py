@@ -276,8 +276,8 @@ class NavTechnique(NavBase, ABC):
     confidence_spec: ClassVar[ConfidenceSpec | None] = None
     #: The frozen schema dataclass of the technique's tuning keys.  Every
     #: technique the package ships declares it: the loader parses the
-    #: ``tuning`` mapping of the technique's block into it, and the block is
-    #: named by the technique's snake_case key
+    #: ``tuning`` mapping of the technique's block into it, and the block sits
+    #: under the technique's snake_case key
     #: (:func:`~spindoctor.nav_technique.confidence_config.technique_config_key`).
     Tuning: ClassVar[type]
     #: The technique's tuning, an instance of ``Tuning`` assigned each time a
@@ -295,15 +295,15 @@ class NavTechnique(NavBase, ABC):
         """Auto-register concrete subclasses.
 
         Raises:
-            TypeError: If a concrete technique declares no ``Tuning``, since the
-                configuration loader could not parse its block.
+            TypeError: If a concrete technique does not declare ``Tuning``, since the
+                configuration loader could not then parse its block.
         """
         super().__init_subclass__(**kwargs)
         if not cls.__dict__.get('_abstract', False):
             if not hasattr(cls, 'Tuning'):
                 raise TypeError(
-                    f'{cls.__name__} is registered for autonomous navigation but declares '
-                    'no Tuning, the schema dataclass of its tuning keys'
+                    f'{cls.__name__} is registered for autonomous navigation but does not '
+                    'declare Tuning, the schema dataclass of its tuning keys'
                 )
             NavTechnique._registry.append(cls)
 

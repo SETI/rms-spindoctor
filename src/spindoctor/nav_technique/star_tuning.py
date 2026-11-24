@@ -100,7 +100,7 @@ class StarTuning:
 
 @dataclass(frozen=True)
 class StarUniqueMatchTuning(StarTuning):
-    """The tuning keys of ``StarUniqueMatchNav``, beyond those every star technique holds.
+    """The tuning keys of ``StarUniqueMatchNav``, beyond those all star techniques share.
 
     Parameters:
         brightness_margin_to_next_catalog_star_mag: The magnitude difference within
@@ -128,10 +128,10 @@ class StarUniqueMatchTuning(StarTuning):
             the pair puts them.
         pair_vote_peak_factor: The factor within which a source's peak must match the
             peak the pair predicts for it to vote for the pair; it must exceed 1.
-        one_star_min_peak_ratio: The least ratio of a lone star's source's peak to that
+        one_star_min_peak_ratio: The smallest ratio of a lone star's source's peak to that
             of every other source in its window.
         one_star_max_residual_px: The largest prediction-to-detection distance in pixels
-            the 1-star path accepts when its window holds no rival source.
+            the 1-star path accepts when its window has no rival source.
         one_star_max_peak_sharpness: The largest peak sharpness of a lone star, with no
             allowance for noise.
         one_star_absent_stars: A lone star's offset is refuted when at least this many
@@ -167,7 +167,7 @@ class StarUniqueMatchTuning(StarTuning):
 
 @dataclass(frozen=True)
 class StarRefineTuning(StarTuning):
-    """The tuning keys of ``StarRefineNav``, beyond those every star technique holds.
+    """The tuning keys of ``StarRefineNav``, beyond those all star techniques share.
 
     Parameters:
         refine_window_px: The half-width in pixels of the per-star refine window around
@@ -195,7 +195,7 @@ class StarRefineTuning(StarTuning):
 
 @dataclass(frozen=True)
 class StarFieldTuning(StarTuning):
-    """The tuning keys of ``StarFieldFromCatalogNav``, beyond those every star technique holds.
+    """The tuning keys of ``StarFieldFromCatalogNav``, beyond those all star techniques share.
 
     Parameters:
         max_sources: The number of brightest detected sources, and of brightest catalog
@@ -229,9 +229,9 @@ class StarFieldTuning(StarTuning):
             lock.
         wide_offset_one_star_enabled: Whether the single-bright-star wide-offset lock
             runs when no other match locks.
-        wide_offset_one_star_catalog_margin_mag: The least magnitude margin of the
+        wide_offset_one_star_catalog_margin_mag: The smallest magnitude margin of the
             catalog anchor over the next-brightest predictable star for a one-star lock.
-        wide_offset_one_star_detection_margin_ratio: The least ratio of the brightest
+        wide_offset_one_star_detection_margin_ratio: The smallest ratio of the brightest
             detection's peak to the next-brightest for a one-star lock.
         wide_offset_one_star_confidence_cap: The post-formula confidence cap of a
             one-star wide-offset lock.

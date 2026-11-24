@@ -49,7 +49,7 @@ def test_an_undeclared_attribute_is_refused(tmp_path: Path, text: str, path: str
 
 
 def test_a_technique_block_under_its_class_name_is_refused(tmp_path: Path) -> None:
-    """A block named by a technique's class name is an unknown key, and changes nothing."""
+    """A block under a technique's class name is an unknown key, and changes nothing."""
     config = Config()
     tuning = config.techniques.block(BodyLimbNav).technique_tuning()
     user_path = tmp_path / 'user_config.yaml'

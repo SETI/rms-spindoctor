@@ -1167,10 +1167,10 @@ techniques:
       # uniquely bright by a large margin.  A glare field routinely produces
       # peaks brighter than a real faint star, so a frame whose brightest
       # detection is not uniquely dominant (e.g. 1694 vs 1240 DN) correctly
-      # fails this gate and stays unlocked.  It is off: the capability is
-      # validated on the sim scenes, but an image-library false-lock sweep
-      # (which needs SPICE holdings the unit suite does not reach) has not
-      # been run.
+      # fails this gate and stays unlocked.  It is off until an
+      # image-library false-lock sweep has been run.  The sim scenes
+      # validate it, but the sweep needs SPICE holdings the unit suite does
+      # not reach.
       wide_offset_one_star_enabled: false
       # Minimum predicted-brightness margin (mag) of the catalog anchor over
       # the next-brightest predictable catalog star for a one-star lock.  A

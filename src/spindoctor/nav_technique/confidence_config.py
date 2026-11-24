@@ -12,7 +12,7 @@ technique class its ``confidence_spec`` and ``tuning``.
 The section's type is built from the technique registry, so a technique declares its
 own tuning and no list of techniques is written twice.  Each technique declares
 ``Tuning``, a frozen schema dataclass of its tuning keys, and has its ``tuning`` mapping
-parsed into that type.  Its block is named by its snake_case key, the one the
+parsed into that type.  Its block sits under its snake_case key, the one the
 ``logging.techniques`` category uses.
 
 A block may name only diagnostic attributes its technique declares in
