@@ -585,8 +585,13 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     ),
     _detector_mode(
         'hot_pixels',
+        ModeParam('amplitude_law', Literal['exponential', 'power_law'], 'exponential'),
+        ModeParam('amplitude_index', NonNeg, None),
+        ModeParam('amplitude_max', NonNeg, None),
         ModeParam('rate_e_per_sec', NonNeg, None),
+        ModeParam('readout_sec', NonNeg, None),
         ModeParam('readout_e', NonNeg, None),
+        ModeParam('streak_sec', NonNeg, None),
         ModeParam('streak_e', NonNeg, None),
         activation=PIXEL_FRACTION,
         activation_semantics=(

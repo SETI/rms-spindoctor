@@ -733,7 +733,7 @@ def test_uniform_placement_ignores_features() -> None:
 
 def test_adversarial_hot_pixels_concentrate_on_features() -> None:
     """Adversarial hot pixels land on and beside the navigation features."""
-    from spindoctor.sim.render.detector.pixel_defects import add_hot_pixels
+    from spindoctor.sim.render.detector.pixel_defects import HotPixelPopulation, add_hot_pixels
     from spindoctor.sim.render.feature_loci import dilated_pixels, extract_feature_loci
 
     truth = _body_truth(28, 36, 28, 36)
@@ -742,10 +742,7 @@ def test_adversarial_hot_pixels_concentrate_on_features() -> None:
     electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     add_hot_pixels(
         electrons,
-        fraction=0.02,
-        rate_e_per_sec=1.0e4,
-        readout_e=0.0,
-        streak_e=0.0,
+        HotPixelPopulation(fraction=0.02, rate_e_per_sec=1.0e4),
         exposure_sec=1.0,
         detector_id='coiss_nac',
         rng=np.random.default_rng(4),

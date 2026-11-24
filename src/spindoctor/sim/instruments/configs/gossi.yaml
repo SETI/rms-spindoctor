@@ -124,11 +124,22 @@ gossi:
       #   set to zero.  These frames hold 50 times the 60 2/3 s mode's hot pixels.
       # - Longer exposures use the extended-exposure mode, whose longer frame cycle
       #   the simulator does not model, so they are not used.
-      # - The rows read after a hot pixel carry a flat streak of 1.15% of its charge
-      #   per row (the 8 2/3 s frames), and the rows read before it none.  That is
-      #   streak_e.  The pixel to the right of a strong hot pixel also holds up to a
-      #   tenth of its charge, a trail along the row that is left out.
-      hot_pixels: {rate_e_per_sec: 0.0, readout_e: 150.0, streak_e: 1.7}
+      # - The counts fall twentyfold from 150 to 300 e- in pairs of 60 2/3 s darks,
+      #   in 1990 and in 1992, as an exponential does; a power law that steep would
+      #   need an index near 4, so the amplitudes stay exponential.
+      # - The rows read after a hot pixel carry a flat streak, and the rows read
+      #   before it none.  On the median stack of the six 60 2/3 s zero-exposure
+      #   darks of GO_0007 (1992), 237 hot pixels of 300 e- or more give 0.51%
+      #   +- 0.05% of the pixel's charge per row; the four undated 60 2/3 s darks of
+      #   GO_0002 give 0.29% +- 0.04% (102 pixels), and the seven dated 1990 darks
+      #   hold too few hot pixels (9) to measure it.  Two 8 2/3 s zero-exposure
+      #   darks of GO_0007 give 0.55% +- 0.08%.  The streak is 0.5% of the charge,
+      #   0.75 e- per row at relative amplitude 1, which is streak_e.
+      # - The pixel to the right of a strong hot pixel also holds up to a tenth of
+      #   its charge, a trail along the row that is left out.
+      # - The population is one per camera, although the real one depends on the
+      #   frame mode and grew between 1990 and 1992 (#1169).
+      hot_pixels: {rate_e_per_sec: 0.0, readout_e: 150.0, streak_e: 0.75}
       # Published: vertical bands every 42 px from the 2400 Hz supply (~0.35 DN raw
       # at gain state 2, ~65 e-).  In high gain the camera also shows a horizontal
       # component below 8 Hz, which a scene adds with orientation both.

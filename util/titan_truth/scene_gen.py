@@ -257,11 +257,13 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
 
     - The hot-pixel ``pixel_fraction`` is drawn over 2e-4 to 2e-3.  The realism
       match measures a transient single-pixel spike fraction of 2.75e-4 per frame
-      on the CALIB NAC cohort, and about 2e-3 of the raw camera's pixels leak more
+      on the CALIB NAC cohort, and about 3e-3 of the raw camera's pixels leak more
       than 4 e-/s, so the range spans from about the measured transient population
       up to the raw camera's hot pixels -- an order of magnitude of stress, not a
-      distribution.  The rate is drawn over 2e4 to 6e4 e-/s, so at the scenes'
-      1 s exposure every hot pixel holds a fifth to a half of the full well.
+      distribution.  The rates are exponential with a mean drawn over 2e4 to 6e4
+      e-/s, so at the scenes' 1 s exposure a typical hot pixel holds a fifth to a
+      half of the full well, and its streak, which the camera's dwell ties to the
+      rate, adds 300 to 900 e- to each row read after it.
     - The cosmic-ray rate is drawn strictly positive although the realism
       recalibration RETAINED zero for it: the instrument's tuned hot-pixel
       fraction already carries the measured spike population, so a nonzero
@@ -283,6 +285,7 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
         'instrument_defaults': True,
         'hot_pixels': {
             'pixel_fraction': round(rng.uniform(2.0e-4, 2.0e-3), 6),
+            'amplitude_law': 'exponential',
             'rate_e_per_sec': round(rng.uniform(2.0e4, 6.0e4), 1),
         },
     }
