@@ -392,7 +392,7 @@ model does not gain them.
 
 | Issue | Subject |
 |---|---|
-| #906 | **Hot-pixel part done (PR #TBD): hot pixels scale with exposure, fitted on raw Cassini and Galileo frames; the bloom, anti-blooming, and LORRI parts remain.** Hot pixels ignore exposure; bloom discards charge; LORRI bloom contradiction |
+| #906 | **Hot-pixel part done (PR #1168): hot pixels scale with exposure, fitted on raw Cassini and Galileo frames; the bloom, anti-blooming, and LORRI parts remain.** Hot pixels ignore exposure; bloom discards charge; LORRI bloom contradiction |
 | #977 | Simulated Cassini TABLE-downlink skies are about a third as noisy as real ones (NAC median ratio 0.37 against 0.88 at 12 bits) and lack the real skies' offset; split from #925 |
 | #979 | Simulated Galileo SSI skies are about a quarter as noisy as real ones (0.22 DN against 0.96 DN on 8 frames each), measured with #903's quantized-noise fit; the Voyager comparison waits on modeling the GEOMED resampling in the twins |
 | #995 | On a binned simulated frame the navigator's star blur, star box sizes, and per-pixel thresholds stay in unbinned pixels, and a `match_navigator` PSF is not divided by the binning. #993 (done) fixed only the faint-star limit, so none of these is covered yet. No committed scene or sweep sets binning; the realism twins do, with the catalog kernel |
@@ -401,7 +401,7 @@ model does not gain them.
 | #1125 | **Affects no current scene.** The vidicon residual image is shifted with wraparound, so a source at one edge puts its ghost on the opposite edge |
 | #1126 | **Affects no current scene; the truth record only.** The frame-transfer smear records the mean of both pedestals where each pixel receives one |
 | #1131 | **Affects no current scene.** The banding mode skips its dark step whenever the band amplitudes are zero, so a scene asking for the step alone gets nothing |
-| #1132 | **Done (PR #TBD): the streak is the dark charge each packet picks up passing the hot pixel, flat on the rows read after it, as raw Cassini and Galileo frames show.** **Affects every frame drawn with the Cassini or Galileo camera defaults.** A hot pixel's warm streak sits on the side of the column read before it and is strongest at line 0, where the readout puts it on the other side; which process it models needs a ruling first |
+| #1132 | **Done (PR #1168): the streak is the dark charge each packet picks up passing the hot pixel, flat on the rows read after it, as raw Cassini and Galileo frames show.** **Affects every frame drawn with the Cassini or Galileo camera defaults.** A hot pixel's warm streak sits on the side of the column read before it and is strongest at line 0, where the readout puts it on the other side; which process it models needs a ruling first |
 | #1133 | **Affects no current scene.** Simulated bright and dark pixel pairs are placed independently, so two pairs can overlap and cancel while the truth record lists both |
 | #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
 | #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
