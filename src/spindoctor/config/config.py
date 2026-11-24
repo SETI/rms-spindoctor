@@ -635,48 +635,6 @@ class Config:
             location=f'config.satellites[{planet.upper()!r}]',
         )
 
-    def fuzzy_satellites(self, planet: str) -> list[str]:
-        """Returns the list of fuzzy satellites for the specified planet.
-
-        Parameters:
-            planet: The name of the planet to get fuzzy satellites for.
-
-        Returns:
-            A list of fuzzy satellite names for the specified planet.
-        """
-
-        self.read_config()
-        block = self._config_dict.get('fuzzy_satellites', {})
-        if not isinstance(block, dict):
-            raise TypeError(
-                f'config key "fuzzy_satellites" must be a mapping, got {type(block).__name__}'
-            )
-        return _as_str_list(
-            block.get(planet.upper(), []),
-            location=f'config.fuzzy_satellites[{planet.upper()!r}]',
-        )
-
-    def ring_satellites(self, planet: str) -> list[str]:
-        """Returns the list of ring satellites for the specified planet.
-
-        Parameters:
-            planet: The name of the planet to get ring satellites for.
-
-        Returns:
-            A list of ring satellite names for the specified planet.
-        """
-
-        self.read_config()
-        block = self._config_dict.get('ring_satellites', {})
-        if not isinstance(block, dict):
-            raise TypeError(
-                f'config key "ring_satellites" must be a mapping, got {type(block).__name__}'
-            )
-        return _as_str_list(
-            block.get(planet.upper(), []),
-            location=f'config.ring_satellites[{planet.upper()!r}]',
-        )
-
     @property
     def offset(self) -> Any:
         """Returns the offset configuration settings."""
