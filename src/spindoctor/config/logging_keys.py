@@ -20,8 +20,8 @@ then importing either package has registered every class it defines.
 
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
-from typing import Annotated
+from dataclasses import dataclass, fields
+from typing import Annotated, Any
 
 from pydantic import AfterValidator
 
@@ -376,19 +376,19 @@ class LoggingSection:
             The merged settings, whose ``programs`` is empty.
         """
         block = self.programs.get(program_name, ProgramLogging())
-        return LoggingSection(
-            strict_scope=self.strict_scope,
-            main=self.main if block.main is None else block.main,
-            image=self.image if block.image is None else block.image,
-            main_console=self.main_console if block.main_console is None else block.main_console,
-            image_console=(
-                self.image_console if block.image_console is None else block.image_console
-            ),
-            techniques={**self.techniques, **(block.techniques or {})},
-            models={**self.models, **(block.models or {})},
-            other={**self.other, **(block.other or {})},
-            programs={},
-        )
+        merged: dict[str, Any] = {
+            field.name: getattr(self, field.name) for field in fields(LoggingSection)
+        }
+        for field in fields(ProgramLogging):
+            value = getattr(block, field.name)
+            if value is None:
+                continue
+            if field.name in CATEGORY_KEYS:
+                merged[field.name] = {**merged[field.name], **value}
+            else:
+                merged[field.name] = value
+        merged['programs'] = {}
+        return LoggingSection(**merged)
 
     def categories(self) -> dict[str, Mapping[str, str]]:
         """Return each category's levels, keyed by the category's name.

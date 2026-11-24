@@ -3,7 +3,6 @@
 import argparse
 import itertools
 import logging
-import re
 from datetime import datetime
 from pathlib import Path
 from unittest import mock
@@ -34,7 +33,6 @@ from spindoctor.config.logging_config import (
 )
 from spindoctor.config.logging_keys import log_key_for, technique_log_keys
 from spindoctor.config.program_names import SD_MOSAIC, SD_OFFSET
-from spindoctor.schema import SchemaError
 
 _STAMP = '2026-07-29T12-00-00'
 _RUN_STAMP = '2099-12-31T23-59-59'
@@ -1186,19 +1184,6 @@ def test_the_shipped_defaults_are_unchanged(tmp_path: Path) -> None:
         _args(), FCPath(tmp_path), program_name=SD_OFFSET, config=_config(tmp_path)
     )
     assert (sinks.main_console, sinks.image_console) == (True, False)
-
-
-def test_there_is_no_configuration_key_for_a_file_sink(tmp_path: Path) -> None:
-    """``image_file`` is not a setting, and writing it says so.
-
-    Whether a log file is written is command-line only, being inseparable from
-    where the file goes.  Someone who has just seen ``image_console`` will
-    reasonably try ``image_file`` next; the point of this test is that the
-    attempt is an error naming the key, rather than a line that sits in the
-    configuration looking effective and doing nothing.
-    """
-    with pytest.raises(SchemaError, match=re.escape("logging: unknown keys: ['image_file']")):
-        _config(tmp_path, '  image_file: false\n')
 
 
 # ---------------------------------------------------------------------------

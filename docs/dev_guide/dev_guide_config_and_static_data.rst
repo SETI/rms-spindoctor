@@ -141,7 +141,8 @@ own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
 its mutability verdict by setting an attribute on every object it walks, and it
 walks everything reachable from an observation, so building a backplane reaches
-the shared configuration and writes a key into every section of it.
+the shared configuration and writes a key into every section of it, so a section
+read back holds a key that no configuration file declares.
 The class carries ``oops``'s own opt-out marker to prevent that; it is a
 workaround for one package rather than a general convention, and is tracked for
 removal. The shipping sections:

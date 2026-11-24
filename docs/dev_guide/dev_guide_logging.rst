@@ -182,6 +182,8 @@ Code that needs the settings for one program calls
 :meth:`~spindoctor.config.logging_keys.LoggingSection.for_program`, which lays that
 program's block over the top-level settings. A key the block sets wins, and a category
 the block sets is merged with the top-level category one key at a time.
+The ``strict_scope`` setting is global, and program blocks do not nest, so a block
+that names either is refused as an unknown key.
 
 Every dispatch module that has a logger declares ``PROGRAM_NAME`` from
 :mod:`spindoctor.config.program_names`. ``PROGRAM_NAME`` gives the program's
