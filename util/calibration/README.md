@@ -27,11 +27,12 @@ package); generated artifacts go under `_work/calibration/` (gitignored).
    photometric law, opposition surge, limb relief, and albedo texture, and
    in the disc family the banded disc texture and transits.  The irregular
    moons (Hyperion, Phoebe, Janus, Epimetheus) render as lumpy polyhedral
-   meshes and draw limb relief, gouraud shading, and pose scatter.  Only
-   the irregular moons plant a shape error the navigator cannot predict,
-   so the BodyBlobNav `max_phase_irregularity_factor` term is fitted on the
-   irregular moons alone.  The generator's tests run with
-   `pytest util/calibration/tests`.
+   meshes and draw limb relief, gouraud shading, and pose scatter.  Both
+   kinds can draw limb relief, which the navigator cannot predict, and the
+   irregular moons also plant a mesh-versus-ellipsoid shape error.  The
+   BodyBlobNav `max_phase_irregularity_factor` term is fitted on every blob
+   row, and the regular moons' factors sit near zero.  The generator's
+   tests are in `tests/util_calibration` and run with the unit suite.
 2. **`collect.py`** — navigates every scene with the full autonomous
    ensemble in-process (no external holdings needed) and writes one JSONL
    row per frame: planted truth, the fused result, and every

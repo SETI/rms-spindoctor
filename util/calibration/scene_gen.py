@@ -11,17 +11,7 @@ regime, from clean well-resolved frames through the failure cliff:
                 pose-disagreement and shape-mismatch slices)
 - terminator  : high-phase crescent (BodyTerminatorNav)
 - blob        : small / distant body (BodyBlobNav; irregular slice)
-
-The four body families draw each body from a catalog of Saturn's moons at
-its drawn apparent radius (semi-axis a equals that radius, so the body is
-twice the radius across).  The regular moons (Mimas, Enceladus, Tethys,
-Dione, Rhea) render as ellipsoids and carry the photometric and surface
-truth axes; the irregular moons (Hyperion, Phoebe, Janus, Epimetheus)
-render as lumpy polyhedral meshes and carry the mesh truth axes.  Only the
-irregular moons plant a shape error the navigator's smooth prediction
-cannot model, so the ``max_phase_irregularity_factor`` confidence term is
-fitted on the irregular moons alone.
-- ring        : 1-2 ringlets, curved through near-flat arcs, face-on
+- ring       : 1-2 ringlets, curved through near-flat arcs, face-on
                 through moderately inclined (RingEdgeNav and, via the
                 always-emitted template, RingAnnulusNav); slices draw the
                 ring truth vocabulary: eccentric orbits with occasional
@@ -40,6 +30,18 @@ fitted on the irregular moons alone.
                 symmetry the method assumes -- clouds, a tilted haze axis,
                 a non-affine hemispheric falloff, an interior ramp, a limb
                 sharpness gradient -- and add point-source contamination
+
+The four body families draw each body from a catalog of Saturn's moons at
+its drawn apparent radius (semi-axis a equals that radius, so the body is
+twice the radius across).  The regular moons (Mimas, Enceladus, Tethys,
+Dione, Rhea) render as ellipsoids and carry the photometric and surface
+truth axes; the irregular moons (Hyperion, Phoebe, Janus, Epimetheus)
+render as lumpy polyhedral meshes and carry the mesh truth axes.  Both
+kinds can draw a limb-relief field the navigator's smooth prediction
+cannot model, and the irregular moons also plant a mesh-versus-ellipsoid
+shape error, so the ``max_phase_irregularity_factor`` confidence term is
+fitted on every blob row, with the regular moons' factors sitting near
+zero.
 
 Every scene carries a planted (offset_v, offset_u) ground truth. The noise
 level, feature sizes/counts, and the model-error axes (mesh lumpiness vs an
@@ -88,8 +90,9 @@ FAMILIES = (
 # the smooth (zero-relief) limit -- so the rendered shape error, and hence
 # the recovered-offset error, physically tracks the
 # max_phase_irregularity_factor the confidence formula consumes.  Every
-# body also carries km_per_pixel = mean_radius_km / radius_px, without
-# which the sim blob feature reports a zero irregularity factor.
+# body also carries km_per_pixel = mean_radius_km / mean_radius_px (the mean
+# of its three drawn semi-axes), without which the sim blob feature reports
+# a zero irregularity factor.
 _REGULAR_BODIES = ('MIMAS', 'ENCELADUS', 'TETHYS', 'DIONE', 'RHEA')
 _IRREGULAR_BODIES = ('HYPERION', 'PHOEBE', 'JANUS', 'EPIMETHEUS')
 
@@ -248,22 +251,25 @@ def _catalog_body(
 
     Draws the identity from the config_220-backed catalog (regular vs irregular per
     ``irregular_fraction``).  Semi-axis a is ``radius``, so the body is ``2 * radius``
-    across, and ``km_per_pixel`` is the catalog mean radius over ``radius``, which
-    gives the sim blob feature the physical scale the
+    across.  ``km_per_pixel`` is the catalog mean radius over the drawn body's mean
+    radius in pixels, the arithmetic mean of its three semi-axes (the same mean the
+    catalog takes of its radii), so the drawn body's mean radius in km equals the
+    catalog value.  That gives the sim blob feature the physical scale the
     ``max_phase_irregularity_factor`` term needs (it reports 0.0 without it).
 
     A regular moon renders as an ellipsoid turned by ``rotation_z`` and
     ``sub_observer_lat_deg`` and draws the ellipsoid truth axes
     (:func:`_ellipsoid_truth_axes`).  The navigator predicts the same smooth
-    ellipsoid, so a regular moon plants no shape error.
+    ellipsoid, so the only shape error a regular moon plants is the limb relief
+    it draws on a minority of scenes.
 
     An irregular moon renders as a polyhedral mesh with ``mesh_lumpiness`` 3x the
     body's fractional RMS residual (a non-ellipsoidal RMS of ``lumpiness / 8``, so 3/8
     of the residual; 8x would match it) and draws the mesh truth axes
     (:func:`_mesh_truth_axes`).  The navigator predicts the smooth (zero-relief) mesh,
     so the shape error it cannot model scales with the same residual-over-radius ratio
-    the ``max_phase_irregularity_factor`` confidence term consumes.  That term is
-    therefore fitted on the irregular moons alone.
+    the ``max_phase_irregularity_factor`` confidence term consumes.  The fit uses
+    every blob row; the regular moons' factors sit near zero.
 
     Parameters:
         rng: Scene-local random generator.
@@ -294,6 +300,9 @@ def _catalog_body(
     else:
         b_fraction = rng.uniform(0.97, 1.0)
         c_fraction = rng.uniform(0.95, 1.0)
+    # The catalog mean radius is the arithmetic mean of the three radii, so the drawn
+    # body's mean radius in pixels is taken the same way.
+    mean_radius_px = radius * (1.0 + b_fraction + c_fraction) / 3.0
     body: dict[str, Any] = {
         'name': name,
         'center_v': center_v,
@@ -303,7 +312,7 @@ def _catalog_body(
         'semi_c_px': radius * c_fraction,
         'illumination_angle': illumination,
         'phase_angle': phase,
-        'km_per_pixel': mean_radius_km / radius,
+        'km_per_pixel': mean_radius_km / mean_radius_px,
     }
     if irregular:
         pose = [rng.uniform(0.0, 60.0), rng.uniform(0.0, 60.0), 0.0]
@@ -439,15 +448,16 @@ def gen_limb(rng: random.Random) -> dict[str, Any]:
     radius = rng.uniform(90.0, 190.0)
     phase = rng.uniform(8.0, 55.0)
     illumination = rng.uniform(0.0, 35.0)
-    # Slide the center along a random direction so the visible limb arc
-    # fraction spans "fully in frame" to "small arc in one corner".
+    # Slide the center along a random direction.  The body is drawn at its full
+    # radius against a 220 px frame, so about 97.8% of limb bodies are partly off
+    # frame and the visible limb arc runs from a long arc to a small one in a corner.
     theta = rng.uniform(0.0, 2.0 * math.pi)
     displacement = rng.uniform(0.0, radius * 0.9)
     center_v = size / 2 + displacement * math.sin(theta)
     center_u = size / 2 + displacement * math.cos(theta)
     # A pose-error slice keeps the "confidently wrong limb" failure mode
-    # in the cohort (the trained-away pose-disagreement scenario, where the mesh
-    # is predicted at a different pose than it was rendered at).
+    # in the cohort (the trained-away pose-disagreement scenario, where the body
+    # is predicted at a different orientation than it was rendered at).
     pose_error = rng.uniform(2.0, 35.0) if rng.random() < 0.2 else 0.0
     body = _catalog_body(
         rng,
@@ -495,11 +505,11 @@ def gen_terminator(rng: random.Random) -> dict[str, Any]:
 def gen_blob(rng: random.Random) -> dict[str, Any]:
     """Small-to-mid body (BodyBlobNav regime).
 
-    The radius range spans from below the 5 px BODY_BLOB emission floor
-    (those scenes exercise the fused failure path) through the sizes where
-    the disc correlation takes over, so the fit sees the technique's whole
-    design regime including the small-blob band the detection-SNR gate
-    admits.
+    The radius is half the body's width, so the range runs from a 1 px wide body,
+    below the 5 px BODY_BLOB emission floor on the predicted diameter (those scenes
+    exercise the fused failure path), through the sizes where the disc correlation
+    takes over.  The fit sees the technique's whole design regime including the
+    small-blob band the detection-SNR gate admits.
 
     Parameters:
         rng: Scene-local random generator.
@@ -509,7 +519,7 @@ def gen_blob(rng: random.Random) -> dict[str, Any]:
     """
     size = 128
     params = _base(rng, size=size)
-    radius = rng.uniform(2.5, 30.0)
+    radius = rng.uniform(0.5, 30.0)
     phase = rng.uniform(10.0, 130.0)
     illumination = rng.uniform(0.0, 35.0)
     center_v = size / 2 + rng.uniform(-0.2, 0.2) * size
