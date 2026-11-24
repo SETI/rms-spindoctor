@@ -102,7 +102,19 @@ class TypedSections:
     techniques: TechniquesSection
 
     def __post_init__(self) -> None:
-        """Refuse a key of a mapping keyed by planet that names no planet of ``planets``."""
+        """Refuse a planet name that is not in upper case, and a planet key that names no
+        planet of ``planets``.
+
+        Every reader looks a planet up by its upper-case SPICE name, so a lower-case name
+        would be accepted and never read, even where ``planets`` lists it the same way.
+        """
+        for index, name in enumerate(self.planets):
+            if name != name.upper():
+                raise RuleError(
+                    f'{name!r} is not in upper case; a planet is written in upper case, as '
+                    'SPICE spells it',
+                    at=('planets', index),
+                )
         keyed_by_planet: tuple[tuple[tuple[str, ...], Iterable[str]], ...] = (
             (('satellites',), self.satellites),
             (('stars', 'ring_occlusion_radii_km'), self.stars.ring_occlusion_radii_km),

@@ -81,6 +81,20 @@ def test_a_planet_key_not_in_the_planets_section_is_refused(tmp_path: Path) -> N
         Config().update_config(user_path)
 
 
+def test_a_planet_name_not_in_upper_case_is_refused(tmp_path: Path) -> None:
+    """A planet in lower case is refused even where its keyed entries match it."""
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text(
+        'planets: [SATURN, jupiter]\nsatellites:\n  jupiter: [IO]\n', encoding='utf-8'
+    )
+    expected = (
+        f"{user_path}: planets[1]: 'jupiter' is not in upper case; a planet is written in "
+        'upper case, as SPICE spells it'
+    )
+    with pytest.raises(SchemaError, match=re.escape(expected)):
+        Config().update_config(user_path)
+
+
 def test_a_geometric_albedo_key_not_in_upper_case_is_refused(tmp_path: Path) -> None:
     """A body's albedo is keyed by its SPICE name, so a key in lower case is refused."""
     user_path = tmp_path / 'user_config.yaml'
