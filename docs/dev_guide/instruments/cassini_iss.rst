@@ -754,6 +754,9 @@ This dataset is the reference implementation, and implements every hook.
   gives the schemas of the ``pds``, ``disp``, ``geom``, and ``cassini`` dictionaries.
   The last is the Cassini mission dictionary, whose namespace the data label declares
   for its mission area.
+* ``pds4_required_templates`` names the templates each pass renders and the files it
+  copies, and ``pds4_user_guide_file_name`` names the bundle's user guide in the
+  template directory; each subclass names its own bundle's guide.
 * ``pds4_bundle_path_for_image`` maps ``N1234567890`` to
   ``1234xxxxxx/123456xxxx/``, raising on a name shorter than 11 characters
   rather than returning an empty string a caller would concatenate into a

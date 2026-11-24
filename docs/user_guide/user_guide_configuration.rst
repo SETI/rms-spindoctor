@@ -150,9 +150,13 @@ A setting you do not want to change is left out of your file. A setting written 
 value, or as ``null``, is refused when the file is read, and the message gives the file
 and the setting. Your file cannot unset a default. It can only give it another value.
 
-When your file is read, a setting that SpinDoctor does not know, or a value it cannot
-use, such as a fraction above 1 or a star count of 0, is refused too, and the message
-gives the file and the setting.
+When your file is read, a setting that SpinDoctor does not know, or a value it cannot use,
+such as a fraction above 1 or a star count of 0, is refused too, and the message gives the
+file and the setting. For now there are three exceptions. A misspelled section name is
+ignored. A misspelled setting inside ``tuning`` is ignored in all technique blocks other
+than ``body_limb``, ``body_terminator``, and ``ring_edge``, though its value must still be
+a number. And the message for a bad value in an instrument's camera block names the block
+and the setting but not the file.
 
 Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
 or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
@@ -319,9 +323,7 @@ than the defaults assume. The confidence and the tier that navigation settled on
 image are recorded in that image's metadata document; see
 :doc:`/user_guide/user_guide_metadata`.
 
-Spell each technique block's key as the ``techniques`` entry above gives it. In the
-blocks other than ``body_limb``, ``body_terminator``, and ``ring_edge``, a setting inside
-``tuning`` must be a number, but a misspelled one is not refused.
+Spell each technique block's key as the ``techniques`` entry above gives it.
 
 What a run records about its own configuration
 ==============================================
