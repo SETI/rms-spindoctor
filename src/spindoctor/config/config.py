@@ -546,9 +546,9 @@ class Config:
     def body_shape(self) -> Mapping[str, BodyShapeEntry]:
         """Returns the body-shape table, keyed by each body's SPICE name in upper case.
 
-        A key an entry leaves out is None, and
-        :func:`~spindoctor.nav_model.body_shape.load_body_shape` takes it from the next
-        tier.
+        A key that an entry leaves out reads as None, and
+        :func:`~spindoctor.nav_model.body_shape.load_body_shape` then takes its value from
+        the next tier.
         """
 
         return self._typed_sections().body_shape

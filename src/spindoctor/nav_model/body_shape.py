@@ -6,7 +6,7 @@ shape, albedo, and SPICE-residual quantities returned by
 turn: the body's entry in the ``body_shape`` section of the configuration
 (``config_220_body_shape.yaml``), then the hard-coded ``BODY_SHAPE_TABLE``
 profile for a value the entry leaves out, and finally ``DEFAULT_BODY_SHAPE``
-for a body with no profile.
+for a body that has no profile.
 
 Each ``BodyShape`` instance carries the values the navigation pipeline
 actually consumes:
@@ -160,12 +160,12 @@ def load_body_shape(body_name: str, config: Config | None = None) -> BodyShape:
 
     Merges three sources, in priority order:
 
-    1. ``config.body_shape[<BODY>]`` — operator-curated entry from
+    1. ``config.body_shape[<BODY>]`` -- operator-curated entry from
        ``config_220_body_shape.yaml``.  Each key it sets overrides
        the hard-coded baseline.
-    2. ``BODY_SHAPE_TABLE[<BODY>]`` — hard-coded per-class profile, for
-       a key the entry leaves out and for a body with no entry.
-    3. ``DEFAULT_BODY_SHAPE`` — final fallback for bodies unknown to
+    2. ``BODY_SHAPE_TABLE[<BODY>]`` -- hard-coded per-class profile, for
+       a key the entry leaves out and for a body that has no entry.
+    3. ``DEFAULT_BODY_SHAPE`` -- final fallback for bodies unknown to
        both sources.
 
     Parameters:

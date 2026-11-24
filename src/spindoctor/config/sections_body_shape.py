@@ -7,7 +7,7 @@ entry's ``_sources`` mapping, which the loader drops before the section is parse
 
 Every key of an entry is optional.  A key an entry leaves out is read as None, and
 :func:`~spindoctor.nav_model.body_shape.load_body_shape` takes that value from the next
-tier: the body's built-in profile, or the generic profile of a body with none.
+tier: the body's built-in profile, or the generic profile for a body that has none.
 
 A body key must be in upper case.  The same rule covers ``bodies.geometric_albedo``, so
 :class:`~spindoctor.config.sections.TypedSections` checks it.
