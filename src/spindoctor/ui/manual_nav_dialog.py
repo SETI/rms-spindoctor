@@ -46,7 +46,7 @@ from PyQt6.QtWidgets import (
 
 from spindoctor._version import __version__ as _spindoctor_version
 from spindoctor.annotation import Annotations
-from spindoctor.config import Config
+from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.obs import ObsSnapshot
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.correlate import masked_ncc, navigate_with_pyramid_kpeaks
@@ -864,11 +864,8 @@ class ManualNavDialog(QDialog):
         # The bi-directional ``data_mask`` keeps a body model that extends
         # into the extfov zero-padded margin from biasing the peak toward
         # |dV| = extfov_margin_v.
-        up_factor = (
-            getattr(self._config.offset, 'correlation_fft_upsample_factor', 128)
-            if self._config
-            else 128
-        )
+        config = DEFAULT_CONFIG if self._config is None else self._config
+        up_factor = config.offset.correlation_fft_upsample_factor
         res = navigate_with_pyramid_kpeaks(
             image=self._img_ext,
             model=self._model_img_ext,

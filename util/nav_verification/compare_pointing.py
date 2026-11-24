@@ -74,6 +74,7 @@ from util.nav_verification.bundle_cassini_fring import (  # noqa: E402
     suppl_path,
 )
 
+from spindoctor.config import DEFAULT_CONFIG  # noqa: E402
 from spindoctor.nav_records import (  # noqa: E402
     NavRecord,
     Selection,
@@ -326,7 +327,7 @@ def compare(
     compared: dict[str, FrameComparison] = {}
     duplicated: set[str] = set()
     unreadable: list[str] = []
-    with TreeRecordSource([nav_results_root]) as source:
+    with TreeRecordSource([nav_results_root], tuning=DEFAULT_CONFIG.results_tree) as source:
         for found in source.records(Selection()):
             if isinstance(found, UnreadableFile):
                 unreadable.append(f'{found.stub}: {found.reason}')

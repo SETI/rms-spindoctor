@@ -164,11 +164,7 @@ def _resolve_pds3_holdings_root(config: Any) -> str:
             config = DEFAULT_CONFIG
         except Exception:  # pragma: no cover - bootstrap sandbox
             return ''
-    try:
-        environment = config.environment
-    except Exception:  # pragma: no cover - partial-config sandbox
-        return ''
-    cfg_root = getattr(environment, 'pds3_holdings_root', None)
+    cfg_root = config.environment.pds3_holdings_root
     if not cfg_root:
         return ''
     return str(cfg_root).rstrip('/')

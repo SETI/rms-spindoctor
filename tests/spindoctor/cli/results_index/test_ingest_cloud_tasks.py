@@ -19,6 +19,7 @@ import pdslogger
 import pytest
 import sqlalchemy
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.cli.results_index.conftest import (
     FIRST_STUB,
     build_tree,
@@ -46,7 +47,7 @@ from spindoctor.cli.results_index import (
     ingest_task_share,
 )
 from spindoctor.cli.results_index.store import _recorded_files
-from spindoctor.nav_records import TreeTuning, UnlistableDirectoryError
+from spindoctor.nav_records import UnlistableDirectoryError
 from spindoctor.results_index import (
     FEATURE_SOURCES,
     IMAGES,
@@ -231,7 +232,11 @@ def test_a_share_of_no_files_is_refused(tmp_path: Path, quiet_logger: pdslogger.
     try:
         with pytest.raises(ValueError, match='at least one file'):
             fan_out_ingest_tasks(
-                engine, [root.as_posix()], share_size=0, logger=quiet_logger, tuning=TreeTuning()
+                engine,
+                [root.as_posix()],
+                share_size=0,
+                logger=quiet_logger,
+                tuning=packaged_tree_tuning(),
             )
     finally:
         engine.dispose()
@@ -248,7 +253,7 @@ def test_a_root_that_is_not_there_is_counted_rather_than_fanned_out(
             [str(tmp_path / 'absent')],
             share_size=2,
             logger=quiet_logger,
-            tuning=TreeTuning(),
+            tuning=packaged_tree_tuning(),
         )
     finally:
         engine.dispose()
@@ -266,7 +271,7 @@ def test_a_root_that_is_not_there_yields_no_task(
             [str(tmp_path / 'absent')],
             share_size=2,
             logger=quiet_logger,
-            tuning=TreeTuning(),
+            tuning=packaged_tree_tuning(),
         )
     finally:
         engine.dispose()
@@ -311,7 +316,11 @@ def test_the_fan_out_reports_what_it_removed(
     engine = open_index(url)
     try:
         found = fan_out_ingest_tasks(
-            engine, [root.as_posix()], share_size=2, logger=quiet_logger, tuning=TreeTuning()
+            engine,
+            [root.as_posix()],
+            share_size=2,
+            logger=quiet_logger,
+            tuning=packaged_tree_tuning(),
         )
     finally:
         engine.dispose()
@@ -342,7 +351,7 @@ def test_a_share_removes_no_row(tmp_path: Path, quiet_logger: pdslogger.PdsLogge
     }
     engine = open_index(url)
     try:
-        ingest_task_share(engine, one_share, logger=quiet_logger, tuning=TreeTuning())
+        ingest_task_share(engine, one_share, logger=quiet_logger, tuning=packaged_tree_tuning())
         with engine.connect() as connection:
             found = list(connection.execute(sqlalchemy.select(IMAGES.c.results_path_stub)))
     finally:
@@ -375,7 +384,7 @@ def test_a_root_holding_a_directory_nobody_can_list_is_not_fanned_out(
                     [root.as_posix()],
                     share_size=2,
                     logger=quiet_logger,
-                    tuning=TreeTuning(),
+                    tuning=packaged_tree_tuning(),
                 )
         finally:
             engine.dispose()
@@ -409,7 +418,9 @@ def test_the_shares_write_the_rows_a_single_pass_writes(
     serial = index_url(tmp_path / 'serial.sqlite3')
     engine = open_index(serial, create=True)
     try:
-        ingest_metadata_files(engine, [root.as_posix()], logger=quiet_logger, tuning=TreeTuning())
+        ingest_metadata_files(
+            engine, [root.as_posix()], logger=quiet_logger, tuning=packaged_tree_tuning()
+        )
     finally:
         engine.dispose()
     assert rows_of(divided, IMAGES) == rows_of(serial, IMAGES)
@@ -434,7 +445,9 @@ def test_the_shares_write_the_child_rows_a_single_pass_writes(
     serial = index_url(tmp_path / 'serial.sqlite3')
     engine = open_index(serial, create=True)
     try:
-        ingest_metadata_files(engine, [root.as_posix()], logger=quiet_logger, tuning=TreeTuning())
+        ingest_metadata_files(
+            engine, [root.as_posix()], logger=quiet_logger, tuning=packaged_tree_tuning()
+        )
     finally:
         engine.dispose()
     assert rows_of(divided, TECHNIQUES) == rows_of(serial, TECHNIQUES)
@@ -469,7 +482,7 @@ def test_concurrent_shares_write_the_rows_a_single_pass_writes(
             return TaskResult(
                 task_id=str(task['task_id']),
                 result=ingest_task_share(
-                    engine, task['data'], logger=quiet_logger, tuning=TreeTuning()
+                    engine, task['data'], logger=quiet_logger, tuning=packaged_tree_tuning()
                 ),
             )
         finally:
@@ -481,7 +494,9 @@ def test_concurrent_shares_write_the_rows_a_single_pass_writes(
     serial = index_url(tmp_path / 'serial.sqlite3')
     engine = open_index(serial, create=True)
     try:
-        ingest_metadata_files(engine, [root.as_posix()], logger=quiet_logger, tuning=TreeTuning())
+        ingest_metadata_files(
+            engine, [root.as_posix()], logger=quiet_logger, tuning=packaged_tree_tuning()
+        )
     finally:
         engine.dispose()
     assert rows_of(divided, IMAGES) == rows_of(serial, IMAGES)
@@ -505,7 +520,9 @@ def test_concurrent_shares_lose_no_feature_row(
     def one_worker(task: dict[str, Any]) -> dict[str, Any]:
         engine = open_index(divided)
         try:
-            return ingest_task_share(engine, task['data'], logger=quiet_logger, tuning=TreeTuning())
+            return ingest_task_share(
+                engine, task['data'], logger=quiet_logger, tuning=packaged_tree_tuning()
+            )
         finally:
             engine.dispose()
 
@@ -720,7 +737,9 @@ def test_a_share_with_no_metrics_reads_everything(
     metric_less = dict(tasks[0]['data'], has_file_metrics=False)
     engine = open_index(url)
     try:
-        result = ingest_task_share(engine, metric_less, logger=quiet_logger, tuning=TreeTuning())
+        result = ingest_task_share(
+            engine, metric_less, logger=quiet_logger, tuning=packaged_tree_tuning()
+        )
     finally:
         engine.dispose()
     assert result['files_ingested'] == 1
@@ -789,7 +808,7 @@ def test_a_share_writes_its_rows_under_the_normalized_root(
     handwritten = dict(tasks[0]['data'], root_url=f'{root.as_posix()}/')
     engine = open_index(url)
     try:
-        ingest_task_share(engine, handwritten, logger=quiet_logger, tuning=TreeTuning())
+        ingest_task_share(engine, handwritten, logger=quiet_logger, tuning=packaged_tree_tuning())
         with engine.connect() as connection:
             found = list(connection.execute(sqlalchemy.select(IMAGES.c.root_url)))
     finally:
@@ -889,7 +908,7 @@ def test_a_task_of_another_shape_is_refused(
     engine = open_index(index_url(tmp_path / 'index.sqlite3'), create=True)
     try:
         with pytest.raises(ValueError, match=message):
-            ingest_task_share(engine, data, logger=quiet_logger, tuning=TreeTuning())
+            ingest_task_share(engine, data, logger=quiet_logger, tuning=packaged_tree_tuning())
     finally:
         engine.dispose()
 
@@ -930,7 +949,7 @@ def test_a_file_entry_of_another_shape_is_refused(
     engine = open_index(index_url(tmp_path / 'index.sqlite3'), create=True)
     try:
         with pytest.raises(ValueError, match=message):
-            ingest_task_share(engine, data, logger=quiet_logger, tuning=TreeTuning())
+            ingest_task_share(engine, data, logger=quiet_logger, tuning=packaged_tree_tuning())
     finally:
         engine.dispose()
 
@@ -948,7 +967,7 @@ def test_task_data_that_is_not_an_object_is_refused(
     engine = open_index(index_url(tmp_path / 'index.sqlite3'), create=True)
     try:
         with pytest.raises(ValueError, match='not an object'):
-            ingest_task_share(engine, task_data, logger=quiet_logger, tuning=TreeTuning())
+            ingest_task_share(engine, task_data, logger=quiet_logger, tuning=packaged_tree_tuning())
     finally:
         engine.dispose()
 
@@ -970,7 +989,7 @@ def test_a_file_entry_may_report_no_metrics(
     ]
     engine = open_index(index_url(tmp_path / 'index.sqlite3'), create=True)
     try:
-        result = ingest_task_share(engine, data, logger=quiet_logger, tuning=TreeTuning())
+        result = ingest_task_share(engine, data, logger=quiet_logger, tuning=packaged_tree_tuning())
     finally:
         engine.dispose()
     assert result['files_ingested'] == 1
@@ -994,8 +1013,8 @@ def test_a_file_carrying_no_metrics_is_read_again_whatever_its_task_claims(
     data['files'] = [{'results_path_stub': FIRST_STUB, 'mtime_ns': None, 'size_bytes': None}]
     engine = open_index(index_url(tmp_path / 'index.sqlite3'), create=True)
     try:
-        ingest_task_share(engine, data, logger=quiet_logger, tuning=TreeTuning())
-        again = ingest_task_share(engine, data, logger=quiet_logger, tuning=TreeTuning())
+        ingest_task_share(engine, data, logger=quiet_logger, tuning=packaged_tree_tuning())
+        again = ingest_task_share(engine, data, logger=quiet_logger, tuning=packaged_tree_tuning())
     finally:
         engine.dispose()
     assert again['files_ingested'] == 1

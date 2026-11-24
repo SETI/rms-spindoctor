@@ -25,6 +25,7 @@ from typing import Any, cast
 
 import pytest
 import sqlalchemy
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import index_url
 from tests.spindoctor.dataset.conftest import (
     VOLUMES,
@@ -145,7 +146,14 @@ def _refusal_of(tree: Path, names: Sequence[str]) -> str | None:
     """
     flags: dict[str, Any] = dict.fromkeys(names, True)
     try:
-        ResultsFilter(VOLUMES, str(tree), logger=null_logger(), results_index_db_url=None, **flags)
+        ResultsFilter(
+            VOLUMES,
+            str(tree),
+            logger=null_logger(),
+            results_index_db_url=None,
+            tuning=packaged_tree_tuning(),
+            **flags,
+        )
     except SelectionError as exc:
         return str(exc)
     return None
@@ -230,7 +238,12 @@ def test_a_contradictory_pair_is_refused_before_the_index_is_opened(
     absent = index_url(tmp_path / 'not-an-index.sqlite3')
     with pytest.raises(ValueError, match=CONTRADICTION_REFUSAL) as excinfo:
         ResultsFilter(
-            VOLUMES, str(tree), logger=null_logger(), results_index_db_url=absent, **flags
+            VOLUMES,
+            str(tree),
+            logger=null_logger(),
+            results_index_db_url=absent,
+            tuning=packaged_tree_tuning(),
+            **flags,
         )
     assert 'not-an-index.sqlite3' not in str(excinfo.value)
 
@@ -252,7 +265,14 @@ def test_a_refusal_names_every_flag_that_made_the_selection_impossible(
         flags: The contradictory pair.
     """
     with pytest.raises(SelectionError) as excinfo:
-        ResultsFilter(VOLUMES, str(tree), logger=null_logger(), results_index_db_url=None, **flags)
+        ResultsFilter(
+            VOLUMES,
+            str(tree),
+            logger=null_logger(),
+            results_index_db_url=None,
+            tuning=packaged_tree_tuning(),
+            **flags,
+        )
     assert [name for name in flags if name not in str(excinfo.value)] == []
 
 
@@ -266,6 +286,7 @@ def test_a_root_with_no_completed_ingest_is_refused(tree: Path, indexed: str) ->
             logger=null_logger(),
             results_index_db_url=indexed,
             has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
     assert other_root.as_posix() in str(excinfo.value)
 
@@ -282,6 +303,7 @@ def test_an_index_that_cannot_be_opened_is_not_a_reason_to_read_files(
             logger=null_logger(),
             results_index_db_url=absent,
             has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
     assert 'not-an-index.sqlite3' in str(excinfo.value)
 
@@ -297,7 +319,12 @@ def test_an_index_that_will_not_answer_refuses_the_selection(tmp_path: Path) -> 
     url = index_without_a_table(tmp_path, root, 'failed_files')
     with pytest.raises(SelectionError, match='could not be read'):
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -307,7 +334,12 @@ def test_an_index_that_will_not_answer_raises_no_database_exception(tmp_path: Pa
     url = index_without_a_table(tmp_path, root, 'failed_files')
     with pytest.raises(SelectionError) as excinfo:
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
     assert not isinstance(excinfo.value, sqlalchemy.exc.SQLAlchemyError)
 
@@ -323,6 +355,7 @@ def test_an_index_that_cannot_be_opened_refuses_the_selection(tmp_path: Path) ->
             logger=null_logger(),
             results_index_db_url=absent,
             has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -335,6 +368,7 @@ def test_a_root_the_index_does_not_cover_refuses_the_selection(tree: Path, index
             logger=null_logger(),
             results_index_db_url=indexed,
             has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -347,6 +381,7 @@ def test_a_contradictory_pair_refuses_the_selection(tree: Path) -> None:
             logger=null_logger(),
             has_offset_file=True,
             has_no_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -361,7 +396,12 @@ def test_the_refusal_does_not_repeat_the_query_that_failed(tmp_path: Path) -> No
     url = index_without_a_table(tmp_path, root, 'failed_files')
     with pytest.raises(SelectionError) as excinfo:
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
     assert 'SELECT' not in str(excinfo.value)
 
@@ -372,7 +412,12 @@ def test_the_refusal_carries_what_the_driver_said(tmp_path: Path) -> None:
     url = index_without_a_table(tmp_path, root, 'failed_files')
     with pytest.raises(SelectionError, match='no such table: failed_files'):
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -392,7 +437,12 @@ def test_a_failure_of_the_bookkeeping_query_is_translated_too(tmp_path: Path) ->
     url = index_without_a_table(tmp_path, root, 'ingest_runs')
     with pytest.raises(SelectionError, match='could not be read'):
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -408,7 +458,12 @@ def test_a_failure_of_the_bookkeeping_query_raises_no_database_exception(
     url = index_without_a_table(tmp_path, root, 'ingest_runs')
     with pytest.raises(SelectionError) as excinfo:
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
     assert not isinstance(excinfo.value, sqlalchemy.exc.SQLAlchemyError)
 
@@ -423,7 +478,12 @@ def test_a_failure_of_the_bookkeeping_query_names_the_table(tmp_path: Path) -> N
     url = index_without_a_table(tmp_path, root, 'ingest_runs')
     with pytest.raises(SelectionError, match='no such table: ingest_runs'):
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -442,7 +502,12 @@ def test_an_index_that_stops_answering_a_scan_of_candidates_refuses_the_selectio
     root, images = one_image_tree(tmp_path)
     url = index_without_a_table(tmp_path, root, 'failed_files')
     scan = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=url,
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     with scan, pytest.raises(SelectionError, match='could not be read'):
         scan.filter_batch(images)
@@ -459,7 +524,12 @@ def test_an_index_that_stops_answering_a_scan_of_candidates_raises_no_database_e
     root, images = one_image_tree(tmp_path)
     url = index_without_a_table(tmp_path, root, 'failed_files')
     scan = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=url,
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     with scan, pytest.raises(SelectionError) as excinfo:
         scan.filter_batch(images)
@@ -494,6 +564,7 @@ def test_a_scan_of_candidates_refused_at_the_bookkeeping_query_leaves_no_storage
             logger=null_logger(),
             results_index_db_url=url,
             has_no_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
     assert source.closes == 1
 
@@ -583,7 +654,13 @@ def test_a_listing_that_refuses_releases_the_storage_it_was_read_through(
     source = _CountingSource(ValueError('the index stopped answering'))
     _opening(monkeypatch, source)
     with pytest.raises(SelectionError, match='stopped answering'):
-        ResultsFilter(VOLUMES, str(tmp_path), logger=null_logger(), has_offset_error=True)
+        ResultsFilter(
+            VOLUMES,
+            str(tmp_path),
+            logger=null_logger(),
+            has_offset_error=True,
+            tuning=packaged_tree_tuning(),
+        )
     assert source.closes == 1
 
 
@@ -602,7 +679,13 @@ def test_a_listing_that_fails_outright_releases_the_storage_too(
     source = _CountingSource(RuntimeError('the storage layer fell over'))
     _opening(monkeypatch, source)
     with pytest.raises(RuntimeError, match='fell over'):
-        ResultsFilter(VOLUMES, str(tmp_path), logger=null_logger(), has_offset_error=True)
+        ResultsFilter(
+            VOLUMES,
+            str(tmp_path),
+            logger=null_logger(),
+            has_offset_error=True,
+            tuning=packaged_tree_tuning(),
+        )
     assert source.closes == 1
 
 
@@ -635,5 +718,6 @@ def test_a_refusal_from_the_report_releases_the_storage_as_well(
             logger=null_logger(),
             results_index_db_url='sqlite+pysqlite:///nothing-is-opened',
             has_offset_error=True,
+            tuning=packaged_tree_tuning(),
         )
     assert source.closes == 1

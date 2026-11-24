@@ -33,6 +33,7 @@ import pdslogger
 import pytest
 import sqlalchemy
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import (
     index_url,
     ingest_tree,
@@ -303,6 +304,7 @@ def selection_of(
         str(root),
         logger=null_logger(),
         results_index_db_url=results_index_db_url,
+        tuning=packaged_tree_tuning(),
         **flags,
     )
     return select_from(results_filter, candidate_files(root))

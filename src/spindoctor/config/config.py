@@ -34,7 +34,17 @@ from spindoctor.schema import (
 from spindoctor.support.attrdict import AttrDict
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
-    from spindoctor.config.sections import OrchestratorSection, TypedSections
+    # nav_records is imported whole so the results_tree annotation is qualified: the
+    # documentation lists its class where it is defined and where it is re-exported, and
+    # a bare name would match both.
+    import spindoctor.nav_records
+    from spindoctor.config.sections import (
+        EnvironmentSection,
+        GeneralSection,
+        OffsetSection,
+        OrchestratorSection,
+        TypedSections,
+    )
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
 """The directory of the packaged configuration files, merged in filename order."""
@@ -235,10 +245,7 @@ class Config:
         self._override_paths: list[str] = []
         self._sections: TypedSections | None = None
         self._typed_origins: dict[KeyPath, str] = {}
-        self._config_environment: dict[str, Any] = AttrDict({})
-        self._config_general: dict[str, Any] = AttrDict({})
         self._config_logging: dict[str, Any] = AttrDict({})
-        self._config_offset: dict[str, Any] = AttrDict({})
         self._config_bodies: dict[str, Any] = AttrDict({})
         self._config_body_shape: dict[str, Any] = AttrDict({})
         self._config_rings: dict[str, Any] = AttrDict({})
@@ -246,7 +253,6 @@ class Config:
         self._config_titan: dict[str, Any] = AttrDict({})
         self._config_backplanes: dict[str, Any] = AttrDict({})
         self._config_pds4: dict[str, Any] = AttrDict({})
-        self._config_results_tree: dict[str, Any] = AttrDict({})
 
     @property
     def is_loaded(self) -> bool:
@@ -273,10 +279,7 @@ class Config:
         # category() rebuilds them from the fresh dict (mirrors the named
         # section properties below being reassigned here).
         self._category_cache = {}
-        self._config_environment = AttrDict(self._config_dict.get('environment', {}))
-        self._config_general = AttrDict(self._config_dict.get('general', {}))
         self._config_logging = AttrDict(self._config_dict.get('logging', {}))
-        self._config_offset = AttrDict(self._config_dict.get('offset', {}))
         self._config_bodies = AttrDict(self._config_dict.get('bodies', {}))
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
         self._config_rings = AttrDict(self._config_dict.get('rings', {}))
@@ -284,7 +287,6 @@ class Config:
         self._config_titan = AttrDict(self._config_dict.get('titan', {}))
         self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
         self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
-        self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
 
     def _install(
         self,
@@ -579,19 +581,36 @@ class Config:
             self._category_cache[category] = cached
         return cached
 
-    @property
-    def general(self) -> Any:
-        """Returns the general configuration settings."""
+    def _parsed(self) -> TypedSections:
+        """Return the typed sections of the configuration, reading it first if need be.
 
+        Returns:
+            The typed sections, parsed when the configuration was installed.
+
+        Raises:
+            RuntimeError: If the configuration is read but holds no parsed sections.
+        """
         self.read_config()
-        return self._config_general
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but holds no parsed sections')
+        return self._sections
 
     @property
-    def environment(self) -> Any:
-        """Returns the environment configuration settings."""
+    def general(self) -> GeneralSection:
+        """Returns the general section, the settings no one part of the pipeline owns."""
 
-        self.read_config()
-        return self._config_environment
+        return self._parsed().general
+
+    @property
+    def environment(self) -> EnvironmentSection:
+        """Returns the environment section, which says where a deployment keeps its files.
+
+        No packaged file sets it, so a location no override names is None.  The helpers
+        in :mod:`spindoctor.config.config_helper` resolve each location from the command
+        line, then from here, then from an environment variable.
+        """
+
+        return self._parsed().environment
 
     @property
     def logging(self) -> Any:
@@ -678,11 +697,10 @@ class Config:
         )
 
     @property
-    def offset(self) -> Any:
-        """Returns the offset configuration settings."""
+    def offset(self) -> OffsetSection:
+        """Returns the offset section, which sets how finely a correlation resolves its peak."""
 
-        self.read_config()
-        return self._config_offset
+        return self._parsed().offset
 
     @property
     def bodies(self) -> Any:
@@ -735,21 +753,18 @@ class Config:
         been checked against its type and range.
         """
 
-        self.read_config()
-        if self._sections is None:
-            raise RuntimeError('the configuration is read but holds no parsed sections')
-        return self._sections.orchestrator
+        return self._parsed().orchestrator
 
     @property
-    def results_tree(self) -> Any:
+    def results_tree(self) -> spindoctor.nav_records.TreeTuning:
         """Returns how much of a pass over a results tree runs at once.
 
-        :func:`~spindoctor.config.get_results_tree_tuning` is what reads this
-        section into a :class:`~spindoctor.nav_records.TreeTuning`.
+        No command-line option or environment variable names these settings, because
+        they describe a machine rather than a run.  A program reads the section once
+        and passes it to whatever reads the tree.
         """
 
-        self.read_config()
-        return self._config_results_tree
+        return self._parsed().results_tree
 
     @property
     def backplanes(self) -> Any:

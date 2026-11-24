@@ -19,6 +19,7 @@ import pdslogger
 import pytest
 import sqlalchemy
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.cli.results_index.conftest import (
     run_rows,
 )
@@ -34,7 +35,7 @@ from tests.spindoctor.conftest import (
 from spindoctor.cli.results_index import chunks as chunks_module
 from spindoctor.cli.results_index import driver as driver_module
 from spindoctor.cli.results_index import ingest_metadata_files
-from spindoctor.nav_records import METADATA_SUFFIX, TreeTuning
+from spindoctor.nav_records import METADATA_SUFFIX
 from spindoctor.results_index import (
     IMAGES,
     INGEST_RUNS,
@@ -351,7 +352,7 @@ def test_a_file_that_is_not_a_document_is_no_part_of_what_the_walk_found(
     """
     root = _tree_with_a_file_that_is_not_a_document(tmp_path)
     listing = driver_module._listing_of_root(
-        root.as_posix(), logger=quiet_logger, tuning=TreeTuning()
+        root.as_posix(), logger=quiet_logger, tuning=packaged_tree_tuning()
     )
     assert listing is not None
     assert [found.stub for found in listing.documents] == ['VOL/N1454725799_1_CALIB']
@@ -694,7 +695,9 @@ def test_an_ingest_run_is_recorded_at_the_start(
         return real_listing(listed_root, **kwargs)
 
     monkeypatch.setattr(driver_module, '_listing_of_root', watching)
-    ingest_metadata_files(engine, [root.as_posix()], logger=quiet_logger, tuning=TreeTuning())
+    ingest_metadata_files(
+        engine, [root.as_posix()], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     engine.dispose()
     assert [row.finished_utc for row in seen] == [None]
 
@@ -751,7 +754,9 @@ def test_each_root_gets_its_own_run(tmp_path: Path, quiet_logger: pdslogger.PdsL
     assert sorted(row.root_url for row in found) == sorted([first.as_posix(), second.as_posix()])
 
 
-_CHUNKS_OF_THREE = TreeTuning(retrieve_threads=1, retrieve_batch_size=1, ingest_commit_batches=3)
+_CHUNKS_OF_THREE = packaged_tree_tuning(
+    retrieve_threads=1, retrieve_batch_size=1, ingest_commit_batches=3
+)
 """A tuning whose transactions cover three documents, passed the way a program passes one."""
 
 
@@ -974,7 +979,9 @@ def test_a_root_is_normalized_before_it_is_stored(
     write_metadata(root, 'VOL/N1454725799_1_CALIB', metadata_document())
     url = index_url(tmp_path / 'index.sqlite3')
     engine = open_index(url, create=True)
-    ingest_metadata_files(engine, [f'{root.as_posix()}/'], logger=quiet_logger, tuning=TreeTuning())
+    ingest_metadata_files(
+        engine, [f'{root.as_posix()}/'], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     with engine.connect() as connection:
         found = _rows(connection, sqlalchemy.select(IMAGES.c.root_url))
     engine.dispose()
@@ -997,7 +1004,10 @@ def _ingest_two_spellings_of_one_root(tmp_path: Path, logger: pdslogger.PdsLogge
     engine = open_index(url, create=True)
     try:
         ingest_metadata_files(
-            engine, [root.as_posix(), f'{root.as_posix()}/'], logger=logger, tuning=TreeTuning()
+            engine,
+            [root.as_posix(), f'{root.as_posix()}/'],
+            logger=logger,
+            tuning=packaged_tree_tuning(),
         )
     finally:
         engine.dispose()
@@ -1029,7 +1039,7 @@ def test_two_spellings_of_one_root_read_their_documents_once(
             engine,
             [root.as_posix(), f'{root.as_posix()}/'],
             logger=quiet_logger,
-            tuning=TreeTuning(),
+            tuning=packaged_tree_tuning(),
         )
     finally:
         engine.dispose()
@@ -1057,7 +1067,7 @@ def _ingest_a_relative_root(tmp_path: Path, logger: pdslogger.PdsLogger) -> str:
     previous = Path.cwd()
     try:
         os.chdir(tmp_path)
-        ingest_metadata_files(engine, ['results'], logger=logger, tuning=TreeTuning())
+        ingest_metadata_files(engine, ['results'], logger=logger, tuning=packaged_tree_tuning())
     finally:
         os.chdir(previous)
         engine.dispose()

@@ -6,7 +6,6 @@ from .config_helper import (
     get_nav_results_root,
     get_pds4_bundle_results_root,
     get_results_index_db_url,
-    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from .log_scope import (
@@ -74,7 +73,6 @@ __all__ = [
     'get_nav_results_root',
     'get_pds4_bundle_results_root',
     'get_results_index_db_url',
-    'get_results_tree_tuning',
     'image_log_path',
     'image_log_section',
     'image_scope',
