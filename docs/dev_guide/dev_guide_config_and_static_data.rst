@@ -104,11 +104,14 @@ of :class:`~spindoctor.config.sections.TypedSections`. Each one is named after i
 top-level key, and the matching :class:`~spindoctor.config.config.Config` property
 returns the typed object:
 
+- ``planets`` — the SPICE names of the planets the navigator knows, read through
+  :attr:`~spindoctor.config.config.Config.planets`.
 - ``orchestrator`` — :class:`~spindoctor.config.sections.OrchestratorSection`, holding
   ``ensemble`` (an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`; see
   :doc:`dev_guide_orchestrator_ensemble`) and ``reliability_gate`` (a
   :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`).
-- ``bodies`` — :class:`~spindoctor.config.sections_models.BodiesSection`.
+- ``bodies`` — :class:`~spindoctor.config.sections_models.BodiesSection`. A key of
+  ``geometric_albedo`` is a body's SPICE name and must be in upper case.
 - ``stars`` — :class:`~spindoctor.config.sections_models.StarsSection`. An opaque ring
   annulus in ``ring_occlusion_radii_km`` must have its inner radius below its outer
   radius.
@@ -122,6 +125,14 @@ returns the typed object:
 - ``feature_emission`` — :class:`~spindoctor.config.sections_models.FeatureEmissionSection`.
   A planet's entry under ``ring_annulus.planets`` may leave a key out, and that key
   keeps the ``default`` entry's value.
+
+Three mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
+and ``feature_emission.ring_annulus.planets``. Each of their keys must be a planet of
+``planets``, written in upper case as SPICE spells it. Every reader looks a planet up by
+its upper-case name, and would never read a key that is misspelled or in lower case, so
+such a key is refused at load. That rule reads two sections, so
+:class:`~spindoctor.config.sections.TypedSections` checks it. The message gives the key
+and the file that last set either it or ``planets``.
 
 The rules for a typed section:
 
@@ -157,6 +168,7 @@ workaround for one package rather than a general convention, and is tracked for
 removal. The shipping sections:
 
 - ``general`` — global settings shared across programs.
+- ``planets`` — the planets the navigator knows, by SPICE name; a typed section.
 - ``logging`` — logger defaults, per-module levels, and per-program
   overrides.
 - ``offset`` — the FFT upsample factor of the image correlation

@@ -11,6 +11,7 @@ configuration package, so :mod:`spindoctor.config.config` imports this module on
 when it installs a configuration.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 from spindoctor.config.sections_models import (
@@ -21,7 +22,7 @@ from spindoctor.config.sections_models import (
 )
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig
-from spindoctor.schema import SCHEMA_CONFIG, Str
+from spindoctor.schema import SCHEMA_CONFIG, RuleError, Str
 
 __all__ = [
     'OrchestratorSection',
@@ -53,7 +54,12 @@ class TypedSections:
     of a problem found while parsing starts at the section's name, as in
     ``orchestrator.ensemble.min_confidence``.
 
+    A mapping keyed by planet must name only planets of the ``planets`` section, as
+    SPICE spells them, so a key in lower case or misspelled is refused rather than
+    left unread.
+
     Parameters:
+        planets: The SPICE names of the planets the navigator knows.
         orchestrator: The ``orchestrator`` section.
         bodies: The ``bodies`` section.
         stars: The ``stars`` section.
@@ -64,9 +70,30 @@ class TypedSections:
 
     __pydantic_config__ = SCHEMA_CONFIG
 
+    planets: tuple[Str, ...]
     orchestrator: OrchestratorSection
     bodies: BodiesSection
     stars: StarsSection
     titan: TitanSection
     satellites: dict[Str, tuple[Str, ...]]
     feature_emission: FeatureEmissionSection
+
+    def __post_init__(self) -> None:
+        """Refuse a key of a mapping keyed by planet that names no planet of ``planets``."""
+        keyed_by_planet: tuple[tuple[tuple[str, ...], Iterable[str]], ...] = (
+            (('satellites',), self.satellites),
+            (('stars', 'ring_occlusion_radii_km'), self.stars.ring_occlusion_radii_km),
+            (
+                ('feature_emission', 'ring_annulus', 'planets'),
+                self.feature_emission.ring_annulus.planets,
+            ),
+        )
+        for at, planets in keyed_by_planet:
+            for planet in planets:
+                if planet not in self.planets:
+                    raise RuleError(
+                        f'{planet!r} is not a planet of the planets section; a planet is '
+                        'written in upper case, as SPICE spells it',
+                        at=(*at, planet),
+                        reads=((*at, planet), ('planets',)),
+                    )

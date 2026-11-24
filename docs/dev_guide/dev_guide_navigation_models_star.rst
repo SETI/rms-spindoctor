@@ -320,9 +320,10 @@ range, and a key it does not declare is refused.
   window straddles a ringlet edge or a gap boundary is judged by how much of the
   window is actually over opaque material.
 - ``ring_occlusion_radii_km`` — dict[str, list[list[float]]]. Per-planet ring annular
-  bounds (km) used by the occlusion check, keyed by SPICE name, each written as
-  ``[inner_km, outer_km]``. An annulus whose inner radius is not below its outer radius
-  is refused at load. Saturn entry covers C, B, and A rings; Uranus covers the main ring
+  bounds (km) used by the occlusion check, each written as ``[inner_km, outer_km]``.
+  A key is the planet's SPICE name in upper case and must name a planet of the
+  ``planets`` section; any other key is refused at load. An annulus whose inner radius is
+  not below its outer radius is refused at load too. Saturn entry covers C, B, and A rings; Uranus covers the main ring
   system; Neptune covers Galle through Adams rings.
 
 Module-level emission constants

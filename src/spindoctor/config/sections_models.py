@@ -9,6 +9,9 @@ Five top-level sections of the navigator configuration are parsed here:
 - ``titan`` (:class:`TitanSection`): the haze envelope of a body whose atmosphere hides
   its surface, the reliability its feature reports, and the haze fit's tunables.
 - ``satellites``: each planet's satellites, keyed by the planet's SPICE name.
+
+A mapping keyed by planet must name only planets of the ``planets`` section.  That rule
+reads two sections, so :class:`~spindoctor.config.sections.TypedSections` checks it.
 - ``feature_emission`` (:class:`FeatureEmissionSection`): when the ring model emits one
   annulus in place of the edges it would trace.
 
@@ -87,8 +90,8 @@ class BodiesSection:
         oversample_maximum: The largest oversampling factor along each axis.
         blob_max_overflow_fraction: The largest share of a body's silhouette that may
             fall outside the sensor for the body to emit a blob.
-        geometric_albedo: Each body's geometric albedo, keyed by SPICE name; the model
-            of a body left out is not scaled.
+        geometric_albedo: Each body's geometric albedo, keyed by SPICE name in upper
+            case; the model of a body left out is not scaled.
         use_lambert: Whether the body model is shaded by Lambert's law.
         use_albedo: Whether the body model is scaled by ``geometric_albedo``.
         label_mask_enlarge: The distance, in pixels, around a body that a label of
@@ -129,6 +132,16 @@ class BodiesSection:
     label_grid_u: PositiveInt
     outline_thicken: NonNegInt
 
+    def __post_init__(self) -> None:
+        """Refuse a ``geometric_albedo`` key that is not in upper case, as SPICE spells it."""
+        for body in self.geometric_albedo:
+            if body != body.upper():
+                raise RuleError(
+                    f'{body!r} is not in upper case; a body is written in upper case, as '
+                    'SPICE spells it',
+                    at=('geometric_albedo', body),
+                )
+
 
 @dataclass(frozen=True)
 class StarsSection:
@@ -161,7 +174,8 @@ class StarsSection:
         ring_occlusion_enabled: Whether a star behind an opaque ring is marked hidden.
         ring_occlusion_min_opaque_fraction: The least share of a star's conflict
             window over opaque ring for the star to be hidden.
-        ring_occlusion_radii_km: Each planet's opaque annuli, keyed by SPICE name.
+        ring_occlusion_radii_km: Each planet's opaque annuli, keyed by the planet's SPICE
+            name, which must be in the ``planets`` section.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -318,7 +332,8 @@ class RingAnnulusEmissionTable:
     Parameters:
         default: The settings of a planet with no entry, and of each key an entry
             leaves out.
-        planets: Each planet's settings, keyed by SPICE name.
+        planets: Each planet's settings, keyed by the planet's SPICE name, which must be
+            in the ``planets`` section.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG

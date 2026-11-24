@@ -212,7 +212,9 @@ composite for the edges that compressed below ``max_radial_px``.
 
 The section is parsed at load into
 :class:`~spindoctor.config.sections_models.FeatureEmissionSection`, which refuses an unknown key
-and any value that is not a positive number. A planet's entry under ``planets`` may leave out
+and any value that is not a positive number. A key under ``planets`` is the planet's SPICE name in
+upper case and must name a planet of the top-level ``planets`` section, or it is refused at load
+too. A planet's entry under ``planets`` may leave out
 either key, and that key then takes the ``default`` entry's value; a planet with no entry takes
 the ``default`` entry whole
 (:meth:`~spindoctor.config.sections_models.RingAnnulusEmissionTable.for_planet`).

@@ -2,8 +2,8 @@
 
 The schema core checks each key's type and range, and is tested in its own suite.
 What is tested here is that each packaged section parses, each section's cross-field
-rule, the per-planet lookup of the ring emission table, and that the loader refuses a
-bad override at load.
+rule, the rules on keys that name planets and bodies, the per-planet lookup of the ring
+emission table, and that the loader refuses a bad override at load.
 """
 
 import re
@@ -65,6 +65,32 @@ def test_a_planet_entry_keeps_the_default_for_a_key_it_leaves_out() -> None:
     assert table.for_planet('SATURN') == saturn
     assert table.for_planet('URANUS') == uranus
     assert table.for_planet('PLUTO') is table.default
+
+
+def test_a_planet_key_not_in_the_planets_section_is_refused(tmp_path: Path) -> None:
+    """A mapping keyed by planet refuses a key that names no planet of ``planets``."""
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text(
+        'stars:\n  ring_occlusion_radii_km:\n    saturn: [[74490.0, 91980.0]]\n', encoding='utf-8'
+    )
+    expected = (
+        f"{user_path}: stars.ring_occlusion_radii_km.saturn: 'saturn' is not a planet of the "
+        'planets section; a planet is written in upper case, as SPICE spells it'
+    )
+    with pytest.raises(SchemaError, match=re.escape(expected)):
+        Config().update_config(user_path)
+
+
+def test_a_geometric_albedo_key_not_in_upper_case_is_refused(tmp_path: Path) -> None:
+    """A body's albedo is keyed by its SPICE name, so a key in lower case is refused."""
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text('bodies:\n  geometric_albedo:\n    titan: 0.2\n', encoding='utf-8')
+    expected = (
+        f"{user_path}: bodies.geometric_albedo.titan: 'titan' is not in upper case; a body is "
+        'written in upper case, as SPICE spells it'
+    )
+    with pytest.raises(SchemaError, match=re.escape(expected)):
+        Config().update_config(user_path)
 
 
 @pytest.mark.parametrize(

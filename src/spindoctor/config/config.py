@@ -7,8 +7,7 @@ other value replaces the earlier one whole, and a null in any file is refused.  
 typed sections (:mod:`spindoctor.config.sections`) are parsed into frozen dataclasses
 each time a configuration is installed.  The other sections are exposed as
 :class:`spindoctor.support.attrdict.AttrDict` for attribute-style access.  The
-:class:`Config` class is the main public entry; helpers such as :func:`_as_str_list`
-validate list-shaped YAML fragments used when building config structures.
+:class:`Config` class is the main public entry.
 """
 
 from __future__ import annotations
@@ -197,30 +196,6 @@ def _camera_blocks(config_dict: dict[str, Any]) -> list[tuple[str, dict[str, Any
             if isinstance(block, dict) and _CAMERA_MARKER_KEY in block:
                 blocks.append((f'{name}.{camera}', block))
     return blocks
-
-
-def _as_str_list(value: Any, *, location: str) -> list[str]:
-    """Coerce a YAML list value to ``list[str]``.
-
-    Parameters:
-        value: Parsed YAML fragment expected to be a list of strings.
-        location: Human-readable path (e.g. config key path) for error messages.
-
-    Returns:
-        A new ``list[str]`` containing each element of ``value`` as ``str``.
-
-    Raises:
-        TypeError: If ``value`` is not a list, or if any element is not a ``str``.
-    """
-
-    if not isinstance(value, list):
-        raise TypeError(f'{location}: expected a list of strings, got {type(value).__name__}')
-    out: list[str] = []
-    for i, item in enumerate(value):
-        if not isinstance(item, str):
-            raise TypeError(f'{location}[{i}]: expected str, got {type(item).__name__}')
-        out.append(item)
-    return out
 
 
 class Config:
@@ -577,10 +552,9 @@ class Config:
 
     @property
     def planets(self) -> list[str]:
-        """Returns the list of configured planet names."""
+        """Returns the SPICE names of the configured planets."""
 
-        self.read_config()
-        return _as_str_list(self._config_dict.get('planets', []), location='config.planets')
+        return list(self._typed_sections().planets)
 
     def satellites(self, planet: str) -> list[str]:
         """Returns the list of satellites for the specified planet.

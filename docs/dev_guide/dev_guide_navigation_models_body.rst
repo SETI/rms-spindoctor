@@ -430,7 +430,8 @@ returns 18 keys, which matches the 18 bullets here.
   (see `Feature emission gates`_). A value outside ``[0, 1]`` is refused at load. Consumed
   by :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
 - ``geometric_albedo`` — dict[str, float], per-body table (dimensionless). Per-body
-  geometric albedo applied to the rendered brightness image when ``use_albedo`` is enabled.
+  geometric albedo applied to the rendered brightness image when ``use_albedo`` is enabled,
+  keyed by the body's SPICE name in upper case; a key in lower case is refused at load.
   Entries default to bright icy moons (0.6-1.0); Phoebe (0.08), Iapetus (0.275), and Saturn
   (0.342) are the notable dark exceptions. Consumed by
   :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
