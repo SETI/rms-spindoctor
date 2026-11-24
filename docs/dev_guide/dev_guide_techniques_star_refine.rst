@@ -141,50 +141,58 @@ as zero. At-edge and spurious flags hard-zero the confidence on top of the linea
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.StarRefineNav.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``.
+The technique's ``tuning`` keys live in ``techniques.star_refine.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
+the schema core parses them into
+:class:`~spindoctor.nav_technique.star_tuning.StarRefineTuning` and refuses a value of the
+wrong type or out of range. Each value lives in the YAML only; the values given below
+are the packaged ones.
 
-- ``refine_window_px`` — float, default ``6.0`` px. Half-width of the per-star refinement
-  window centered on each shifted prediction. Tighter than the unique-match search window
-  because the pass-1 prior already put the prediction within a few pixels of the brightness
-  peak.
-- ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the
+- ``refine_window_px`` — float, packaged value ``6.0`` px. Half-width of the per-star
+  refinement window centered on each shifted prediction. Tighter than the unique-match
+  search window because the pass-1 prior already put the prediction within a few pixels of
+  the brightness peak.
+- ``centroid_box_half_px`` — int, packaged value ``3`` px. Half-width of the
   brightness-weighted-moment box around each accepted peak, and of the matched-filter
   kernel.
-- ``psf_sigma_px`` — float, default ``1.0`` px. Gaussian sigma of the matched-filter
-  kernel that chooses the detection in each refinement window.
-- ``max_peak_sharpness`` — float, default ``8.0``. Largest ratio of a detection's
+- ``psf_sigma_px`` — float, packaged value ``1.0`` px. Gaussian sigma of the
+  matched-filter kernel that chooses the detection in each refinement window.
+- ``max_peak_sharpness`` — float, packaged value ``8.0``. Largest ratio of a detection's
   brightest-pixel excess to the mean excess of its four edge neighbors; see
   :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`.
-- ``max_per_star_residual_px`` — float, default ``4.0`` px. A star whose detected centroid
-  sits more than this many pixels from the shifted prediction is dropped before the average;
-  almost certainly a wrong peak.
-- ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
+- ``max_per_star_residual_px`` — float, packaged value ``4.0`` px. A star whose detected
+  centroid sits more than this many pixels from the shifted prediction is dropped before
+  the average; almost certainly a wrong peak.
+- ``detection_sigma`` — float, packaged value ``4.0`` (dimensionless). Detection-threshold
   multiplier on the per-image noise sigma; the brightest pixel of the detection's centroid
   box must stand ``detection_sigma * image_noise_sigma`` above the box's median to be
   accepted.
-- ``min_inliers`` — int, default ``1`` (count). Below this many surviving inliers the
-  technique reports a spurious zero-confidence result instead of attempting the average.
-- ``at_edge_tolerance_px`` — float, default ``1.0`` px. The reported absolute translation
-  is flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` when its absolute distance from any search-window axis bound falls
-  within this tolerance.
-- ``single_inlier_confidence_cap`` — float, default ``0.5`` (dimensionless). Post-sigmoid
-  confidence cap when the refine fit had only one inlier. A 1-star refine carries no
-  independent cross-check beyond the prior it was handed; the cap keeps the technique from
-  outranking a 1-star unique-match on the same observation.
-- ``rotation_at_edge_fraction`` — float, default ``0.95`` (dimensionless). Fraction of
-  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` at which the converged rotation magnitude trips :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the
-  multi-inlier Procrustes path uses this threshold; a 1-inlier refine always reports rotation
-  as unobservable.
-- ``model_error_floor_px`` — float, default ``0.27`` px. Calibrated model-error floor added
-  in quadrature to the covariance's translation diagonal: the 2026-07-18 calibration
-  campaign measured 2-sigma coverage 0.83 at a 0.22 px floor and 0.87 at this value,
-  against the 0.865 reference.
+- ``min_inliers`` — int, packaged value ``1`` (count). Below this many surviving inliers
+  the technique reports a spurious zero-confidence result instead of attempting the
+  average.
+- ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. The reported absolute
+  translation is flagged
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` when its
+  absolute distance from any search-window axis bound falls within this tolerance.
+- ``single_inlier_confidence_cap`` — float, packaged value ``0.5`` (dimensionless).
+  Post-sigmoid confidence cap when the refine fit had only one inlier. A 1-star refine
+  carries no independent cross-check beyond the prior it was handed; the cap keeps the
+  technique from outranking a 1-star unique-match on the same observation.
+- ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). Fraction
+  of :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` at which
+  the converged rotation magnitude trips
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the
+  multi-inlier Procrustes path uses this threshold; a 1-inlier refine always reports
+  rotation as unobservable.
+- ``model_error_floor_px`` — float, packaged value ``0.27`` px. Calibrated model-error
+  floor added in quadrature to the covariance's translation diagonal: the 2026-07-18
+  calibration campaign measured 2-sigma coverage 0.83 at a 0.22 px floor and 0.87 at this
+  value, against the 0.865 reference.
 
 Per-instrument overrides
 ------------------------
 
-The nine keys above are global; the per-instrument YAML files in
+The keys above are global; the per-instrument YAML files in
 ``src/spindoctor/config_files/config_4N0_inst_*.yaml`` do not override any of them. The
 camera-rotation flag (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation`) and the rotation cap (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg`)
 that this technique reads off the per-image
@@ -197,7 +205,7 @@ Confidence formula
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared sigmoid
 combination, see :doc:`dev_guide_techniques_confidence` for the per-term arithmetic and
 :doc:`dev_guide_techniques` for the family-level overview. The formula spec is
-``techniques.StarRefineNav`` in the same YAML file and consumes attributes off
+``techniques.star_refine`` in the same YAML file and consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.StarRefineDiagnostics` plus :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious`.
 
 - :attr:`~spindoctor.nav_technique.diagnostics.StarRefineDiagnostics.n_stars_used` — alpha = 1.228,

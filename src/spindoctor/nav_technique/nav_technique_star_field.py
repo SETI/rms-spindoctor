@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, ClassVar, Protocol, runtime_checkable
 
 import numpy as np
 from scipy.ndimage import maximum_filter
@@ -79,10 +79,10 @@ from spindoctor.nav_technique.nav_technique import (
     ROTATION_UNOBSERVABLE_VARIANCE,
     NavTechnique,
     embed_rotation_unobservable,
-    load_model_error_floor,
     log_confidence_breakdown,
     search_window_for_obs,
 )
+from spindoctor.nav_technique.star_tuning import StarFieldTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
@@ -120,13 +120,6 @@ comparisons.  ``1e-6`` admits numerical jitter on near-degenerate
 real-detection triplets while still catching the geometric
 degeneracy.
 """
-
-
-# All numeric tunables for this technique live in
-# ``config_files/config_510_techniques.yaml`` under
-# ``techniques.StarFieldFromCatalogNav.tuning``.  Missing-key access in
-# ``__init__`` is a KeyError so a config typo fails fast at process
-# startup.
 
 
 @dataclass(frozen=True)
@@ -648,6 +641,8 @@ class StarFieldFromCatalogNav(NavTechnique):
     """
 
     name = 'StarFieldFromCatalogNav'
+    Tuning = StarFieldTuning
+    tuning: ClassVar[StarFieldTuning]
     accepts_feature_types = frozenset({NavFeatureType.STAR})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -662,109 +657,14 @@ class StarFieldFromCatalogNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._max_sources = int(self.tuning['max_sources'])
-        self._detection_sigma = float(self.tuning['detection_sigma'])
-        self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
-        self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
-        self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
-        self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
-        self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
-        self._hash_match_tolerance = float(self.tuning['hash_match_tolerance'])
-        self._hash_ratio_weight = float(self.tuning['hash_ratio_weight'])
-        self._hash_angle_weight = float(self.tuning['hash_angle_weight'])
-        self._inlier_tolerance_px = float(self.tuning['inlier_tolerance_px'])
-        self._min_inliers = int(self.tuning['pattern_match_min_inliers'])
-        self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        # Roll / translation separability floor (deg).  Below this a fitted
-        # rotation is not separable from a pure translation (see the
-        # camera-roll separability analysis in docs/simulator_report) and is
-        # reported as unobservable; see config_510_techniques.yaml.
-        self._rotation_separability_floor_deg = float(
-            self.tuning['rotation_separability_floor_deg']
-        )
-        # Uncalibrated model-error variance floor (px); added in quadrature to
-        # the reported covariance diagonal.  Default 0.0 -> no-op.  See
-        # ORCH-001 / config_510_techniques.yaml.
-        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
-        # Wide-offset asterism matching for sparse few-bright-star fields
-        # (see config_510_techniques.yaml and ``_wide_offset_asterism_match``).
-        self._wide_offset_enabled = bool(int(self.tuning['wide_offset_enabled']))
-        self._wide_offset_min_inliers = int(self.tuning['wide_offset_min_inliers'])
-        self._wide_offset_anchor_catalog = int(self.tuning['wide_offset_anchor_catalog'])
-        self._wide_offset_anchor_detections = int(self.tuning['wide_offset_anchor_detections'])
-        self._wide_offset_false_lock_budget = float(self.tuning['wide_offset_false_lock_budget'])
-        self._wide_offset_max_residual_rms_px = float(
-            self.tuning['wide_offset_max_residual_rms_px']
-        )
-        self._wide_offset_confidence_cap = float(self.tuning['wide_offset_confidence_cap'])
-        # Single-bright-star wide-offset acquisition (see
-        # config_510_techniques.yaml and ``_wide_offset_one_star_match``).
-        self._wide_offset_one_star_enabled = bool(int(self.tuning['wide_offset_one_star_enabled']))
-        self._wide_offset_one_star_catalog_margin_mag = float(
-            self.tuning['wide_offset_one_star_catalog_margin_mag']
-        )
-        self._wide_offset_one_star_detection_margin_ratio = float(
-            self.tuning['wide_offset_one_star_detection_margin_ratio']
-        )
-        self._wide_offset_one_star_confidence_cap = float(
-            self.tuning['wide_offset_one_star_confidence_cap']
-        )
-        # PSF-fit re-centroiding of matched inliers (see config_510_techniques.yaml).
-        self._psf_refine_enabled = bool(int(self.tuning['psf_refine_enabled']))
-        self._psf_refine_box_px = int(self.tuning['psf_refine_box_px'])
-        self._psf_refine_search_limit_px = float(self.tuning['psf_refine_search_limit_px'])
-        self._psf_refine_snr_max = float(self.tuning['psf_refine_snr_max'])
-        if self._psf_refine_box_px % 2 == 0:
-            raise ValueError(f'psf_refine_box_px must be odd; got {self._psf_refine_box_px}')
-        if self._min_inliers < 3:
-            raise ValueError(
-                f'pattern_match_min_inliers must be >= 3 (the matcher needs at '
-                f'least one triplet per side); got {self._min_inliers}'
-            )
-        if self._max_sources < 3:
-            raise ValueError(f'max_sources must be >= 3; got {self._max_sources}')
-        if self._wide_offset_min_inliers < 3:
-            raise ValueError(
-                f'wide_offset_min_inliers must be >= 3 (two stars cannot cross-'
-                f'check a rigid translation); got {self._wide_offset_min_inliers}'
-            )
-        if self._wide_offset_anchor_catalog < 1:
-            raise ValueError(
-                f'wide_offset_anchor_catalog must be >= 1; got {self._wide_offset_anchor_catalog}'
-            )
-        if self._wide_offset_anchor_detections < 1:
-            raise ValueError(
-                f'wide_offset_anchor_detections must be >= 1; '
-                f'got {self._wide_offset_anchor_detections}'
-            )
-        if self._wide_offset_false_lock_budget <= 0.0:
-            raise ValueError(
-                f'wide_offset_false_lock_budget must be > 0; '
-                f'got {self._wide_offset_false_lock_budget}'
-            )
-        if not 0.0 <= self._wide_offset_confidence_cap <= 1.0:
-            raise ValueError(
-                f'wide_offset_confidence_cap must lie in [0, 1]; '
-                f'got {self._wide_offset_confidence_cap}'
-            )
-        if self._wide_offset_one_star_catalog_margin_mag <= 0.0:
-            raise ValueError(
-                f'wide_offset_one_star_catalog_margin_mag must be > 0; '
-                f'got {self._wide_offset_one_star_catalog_margin_mag}'
-            )
-        if self._wide_offset_one_star_detection_margin_ratio < 1.0:
-            raise ValueError(
-                f'wide_offset_one_star_detection_margin_ratio must be >= 1; '
-                f'got {self._wide_offset_one_star_detection_margin_ratio}'
-            )
-        if not 0.0 <= self._wide_offset_one_star_confidence_cap <= 1.0:
-            raise ValueError(
-                f'wide_offset_one_star_confidence_cap must lie in [0, 1]; '
-                f'got {self._wide_offset_one_star_confidence_cap}'
-            )
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Report feasibility based on the predictable-star cohort.
@@ -802,7 +702,9 @@ class StarFieldFromCatalogNav(NavTechnique):
                 len(usable),
                 len(features),
             )
-            ranked_catalog = sorted(usable, key=predicted_snr, reverse=True)[: self._max_sources]
+            ranked_catalog = sorted(usable, key=predicted_snr, reverse=True)[
+                : self.tuning.max_sources
+            ]
             n_catalog_predicted = len(ranked_catalog)
             if n_catalog_predicted < 3:
                 return self._fail(
@@ -821,20 +723,20 @@ class StarFieldFromCatalogNav(NavTechnique):
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
             # Every star of one frame smears alike; the median serves them all.
             isolation_inner_px, isolation_outer_px = isolation_radii(
-                self._isolation_inner_px,
-                self._isolation_outer_px,
+                self.tuning.source_isolation_inner_px,
+                self.tuning.source_isolation_outer_px,
                 float(np.median([smear_length_px(f) for f in usable])),
             )
             detected = _detect_image_sources(
                 image_ext,
                 image_noise_sigma=noise_sigma,
-                sigma_px=self._psf_sigma_px,
-                detection_sigma=self._detection_sigma,
-                centroid_box_half_px=self._centroid_box_half_px,
-                max_sources=self._max_sources,
+                sigma_px=self.tuning.psf_sigma_px,
+                detection_sigma=self.tuning.detection_sigma,
+                centroid_box_half_px=self.tuning.centroid_box_half_px,
+                max_sources=self.tuning.max_sources,
                 isolation_inner_px=isolation_inner_px,
                 isolation_outer_px=isolation_outer_px,
-                isolation_max_ratio=self._isolation_max_ratio,
+                isolation_max_ratio=self.tuning.source_isolation_max_ratio,
             )
             n_detected_sources = len(detected)
             self.logger.info(
@@ -896,9 +798,12 @@ class StarFieldFromCatalogNav(NavTechnique):
         psf = obs.star_psf()
         image = np.asarray(context.image_ext, np.float64)
         noise_sigma = float(max(context.image_noise_sigma, 1e-9))
-        box = self._psf_refine_box_px
+        box = self.tuning.psf_refine_box_px
         half = box // 2
-        search_limit = (self._psf_refine_search_limit_px, self._psf_refine_search_limit_px)
+        search_limit = (
+            self.tuning.psf_refine_search_limit_px,
+            self.tuning.psf_refine_search_limit_px,
+        )
         h, w = image.shape
         refined = det_inliers.copy()
         n_refined = 0
@@ -907,7 +812,10 @@ class StarFieldFromCatalogNav(NavTechnique):
             u_pix = round(float(u))
             if not (half <= v_pix < h - half and half <= u_pix < w - half):
                 continue
-            if self._box_snr(image, v_pix, u_pix, half, noise_sigma) > self._psf_refine_snr_max:
+            if (
+                self._box_snr(image, v_pix, u_pix, half, noise_sigma)
+                > self.tuning.psf_refine_snr_max
+            ):
                 continue  # bright: moment beats the PSF fit's bias floor
             try:
                 result = psf.find_position(
@@ -999,7 +907,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         wide_offset_lock = False
         one_star_lock = False
         wide_offset_expectation = 0.0
-        if best is None or best[0] < self._min_inliers:
+        if best is None or best[0] < self.tuning.pattern_match_min_inliers:
             # The triplet RANSAC could not reach its strong-evidence floor.
             # Sparse few-bright-star fields with a large unknown offset land
             # here routinely (the faint remainder is undetectable, so no
@@ -1038,7 +946,8 @@ class StarFieldFromCatalogNav(NavTechnique):
                 return self._fail(
                     features=features,
                     reason=(
-                        f'too_few_inliers ({n_inliers} < min {self._min_inliers}) and no '
+                        f'too_few_inliers ({n_inliers} < min '
+                        f'{self.tuning.pattern_match_min_inliers}) and no '
                         f'wide-offset asterism lock cleared the false-lock budget'
                     ),
                     diagnostics=StarFieldDiagnostics(
@@ -1057,7 +966,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         n_inliers, correspondences, _coarse_offset = best
         det_inliers: NDArrayFloatType = det_points_arr[[d for d, _ in correspondences]]
         cat_inliers = cat_points_arr[[c for _, c in correspondences]]
-        if self._psf_refine_enabled:
+        if self.tuning.psf_refine_enabled:
             det_inliers = self._psf_refine_positions(det_inliers, context)
         fit_rotation = bool(context.fit_camera_rotation)
         if fit_rotation:
@@ -1086,7 +995,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         # flag) so no downstream consumer reads a confident near-zero roll.
         rotation_below_floor = fit_rotation and (
             rotation_rad is not None
-            and abs(rotation_rad) < math.radians(self._rotation_separability_floor_deg)
+            and abs(rotation_rad) < math.radians(self.tuning.rotation_separability_floor_deg)
         )
         if rotation_below_floor:
             cov[2, 2] = ROTATION_UNOBSERVABLE_VARIANCE
@@ -1094,7 +1003,7 @@ class StarFieldFromCatalogNav(NavTechnique):
                 'Fitted rotation %.4f deg is below the %.2f deg separability floor; '
                 'reporting rotation as unobservable',
                 math.degrees(rotation_rad if rotation_rad is not None else 0.0),
-                self._rotation_separability_floor_deg,
+                self.tuning.rotation_separability_floor_deg,
             )
         diagnostics = StarFieldDiagnostics(
             n_inliers=n_inliers,
@@ -1110,11 +1019,11 @@ class StarFieldFromCatalogNav(NavTechnique):
         max_rotation_rad = math.radians(context.max_rotation_deg)
         rotation_at_edge = fit_rotation and (
             rotation_rad is not None
-            and abs(rotation_rad) >= self._rotation_at_edge_fraction * max_rotation_rad
+            and abs(rotation_rad) >= self.tuning.rotation_at_edge_fraction * max_rotation_rad
         )
         at_edge = (
-            abs(offset_vu[0]) >= margin_v - self._at_edge_tolerance_px
-            or abs(offset_vu[1]) >= margin_u - self._at_edge_tolerance_px
+            abs(offset_vu[0]) >= margin_v - self.tuning.at_edge_tolerance_px
+            or abs(offset_vu[1]) >= margin_u - self.tuning.at_edge_tolerance_px
             or rotation_at_edge
         )
         confidence = self._evaluate_confidence(
@@ -1129,9 +1038,9 @@ class StarFieldFromCatalogNav(NavTechnique):
             # A one-star lock has no corroborating inlier at all and is
             # capped lower still.
             cap = (
-                self._wide_offset_one_star_confidence_cap
+                self.tuning.wide_offset_one_star_confidence_cap
                 if one_star_lock
-                else self._wide_offset_confidence_cap
+                else self.tuning.wide_offset_confidence_cap
             )
             capped = min(confidence, cap)
             if capped < confidence:
@@ -1194,7 +1103,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         canonicalisation and yields bit-identical iteration across two
         back-to-back invocations on the same obs (Cardinal Principle 3).
         """
-        tol_sq = self._hash_match_tolerance * self._hash_match_tolerance
+        tol_sq = self.tuning.hash_match_tolerance * self.tuning.hash_match_tolerance
         out: list[tuple[float, int, int, int, int, int, int, int]] = []
         for det in det_triplets:
             sorted_indices = sorted([det.idx_a, det.idx_b, det.idx_c])
@@ -1203,8 +1112,8 @@ class StarFieldFromCatalogNav(NavTechnique):
                 dist_sq = _hash_distance_sq(
                     det.hash_v,
                     cat.hash_v,
-                    ratio_weight=self._hash_ratio_weight,
-                    angle_weight=self._hash_angle_weight,
+                    ratio_weight=self.tuning.hash_ratio_weight,
+                    angle_weight=self.tuning.hash_angle_weight,
                 )
                 if dist_sq <= tol_sq:
                     out.append(
@@ -1252,7 +1161,7 @@ class StarFieldFromCatalogNav(NavTechnique):
                 det_points_arr,
                 cat_points_arr,
                 offset_vu=offset,
-                tolerance_px=self._inlier_tolerance_px,
+                tolerance_px=self.tuning.inlier_tolerance_px,
             )
             if best is None or n_inliers > best[0]:
                 best = (n_inliers, pairs, offset)
@@ -1300,11 +1209,14 @@ class StarFieldFromCatalogNav(NavTechnique):
             A :class:`_WideOffsetMatch` when a lock cleared every guard, else
             ``None``.
         """
-        if not self._wide_offset_enabled:
+        if not self.tuning.wide_offset_enabled:
             return None
         n_det = int(det_points_arr.shape[0])
         n_cat = int(cat_points_arr.shape[0])
-        if n_det < self._wide_offset_min_inliers or n_cat < self._wide_offset_min_inliers:
+        if (
+            n_det < self.tuning.wide_offset_min_inliers
+            or n_cat < self.tuning.wide_offset_min_inliers
+        ):
             return None
         # Trusted bright catalog anchors: the brightest stars whose corrected
         # magnitude is trustworthy (#284 photometry_saturated == False), so a
@@ -1312,7 +1224,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         # saturated lower bound.  ``ranked_catalog`` is sorted by predicted
         # SNR descending, so the first survivors are the brightest.
         anchor_cat = [j for j in range(n_cat) if not _star_photometry_saturated(ranked_catalog[j])][
-            : self._wide_offset_anchor_catalog
+            : self.tuning.wide_offset_anchor_catalog
         ]
         if not anchor_cat:
             self.logger.debug('Wide-offset: no photometry-trusted bright catalog anchor; skipping')
@@ -1324,7 +1236,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         # reproducible across numpy versions (Cardinal Principle 3).
         anchor_det = [
             int(i)
-            for i in np.argsort(-det_dn, kind='stable')[: self._wide_offset_anchor_detections]
+            for i in np.argsort(-det_dn, kind='stable')[: self.tuning.wide_offset_anchor_detections]
         ]
         margin_v, margin_u = search_window_for_obs(context)
         seeds: list[tuple[float, float]] = []
@@ -1344,9 +1256,9 @@ class StarFieldFromCatalogNav(NavTechnique):
                 det_points_arr,
                 cat_points_arr,
                 offset_vu=off,
-                tolerance_px=self._inlier_tolerance_px,
+                tolerance_px=self.tuning.inlier_tolerance_px,
             )
-            if n_inliers < self._wide_offset_min_inliers:
+            if n_inliers < self.tuning.wide_offset_min_inliers:
                 continue
             resid = det_points_arr[[d for d, _ in pairs]] - (
                 cat_points_arr[[c for _, c in pairs]] + np.asarray(off, np.float64)[None, :]
@@ -1357,13 +1269,13 @@ class StarFieldFromCatalogNav(NavTechnique):
         if best is None:
             return None
         n_best, pairs, off, rms = best
-        if rms > self._wide_offset_max_residual_rms_px:
+        if rms > self.tuning.wide_offset_max_residual_rms_px:
             self.logger.info(
                 'Wide-offset: best %d-inlier lock residual RMS %.3f px exceeds '
                 'max %.3f px; rejecting',
                 n_best,
                 rms,
-                self._wide_offset_max_residual_rms_px,
+                self.tuning.wide_offset_max_residual_rms_px,
             )
             return None
         if not anchor_cat_set & {c for _, c in pairs}:
@@ -1379,16 +1291,16 @@ class StarFieldFromCatalogNav(NavTechnique):
             n_seeds=n_unique_seeds,
             n_catalog=n_cat,
             n_detected=n_det,
-            tolerance_px=self._inlier_tolerance_px,
+            tolerance_px=self.tuning.inlier_tolerance_px,
             image_area_px2=image_area,
         )
-        if expectation > self._wide_offset_false_lock_budget:
+        if expectation > self.tuning.wide_offset_false_lock_budget:
             self.logger.info(
                 'Wide-offset: %d-inlier lock false-lock expectation %.3e exceeds '
                 'budget %.3e; rejecting',
                 n_best,
                 expectation,
-                self._wide_offset_false_lock_budget,
+                self.tuning.wide_offset_false_lock_budget,
             )
             return None
         self.logger.info(
@@ -1448,7 +1360,7 @@ class StarFieldFromCatalogNav(NavTechnique):
             A single-inlier :class:`_WideOffsetMatch` when the anchor pairing
             is unambiguous and inside the search window, else ``None``.
         """
-        if not self._wide_offset_one_star_enabled:
+        if not self.tuning.wide_offset_one_star_enabled:
             return None
         n_det = int(det_points_arr.shape[0])
         n_cat = int(cat_points_arr.shape[0])
@@ -1462,11 +1374,11 @@ class StarFieldFromCatalogNav(NavTechnique):
             return None
         next_cat_snr = predicted_snr(ranked_catalog[1]) if n_cat > 1 else 0.0
         cat_margin_mag = brightness_margin_mag(predicted_snr(ranked_catalog[0]), next_cat_snr)
-        if cat_margin_mag < self._wide_offset_one_star_catalog_margin_mag:
+        if cat_margin_mag < self.tuning.wide_offset_one_star_catalog_margin_mag:
             self.logger.debug(
                 'One-star: catalog anchor margin %.3f mag below floor %.3f; skipping',
                 cat_margin_mag,
-                self._wide_offset_one_star_catalog_margin_mag,
+                self.tuning.wide_offset_one_star_catalog_margin_mag,
             )
             return None
         # The detection anchor is the brightest peak; it must be uniquely
@@ -1476,12 +1388,12 @@ class StarFieldFromCatalogNav(NavTechnique):
         dn_top = float(det_dn[det_i])
         dn_next = float(det_dn[int(order[1])]) if n_det > 1 else 0.0
         det_ratio = math.inf if dn_next <= 0.0 else dn_top / dn_next
-        if det_ratio < self._wide_offset_one_star_detection_margin_ratio:
+        if det_ratio < self.tuning.wide_offset_one_star_detection_margin_ratio:
             self.logger.info(
                 'One-star: brightest detection peak ratio %.3f below floor %.3f; '
                 'rejecting (not uniquely dominant)',
                 det_ratio,
-                self._wide_offset_one_star_detection_margin_ratio,
+                self.tuning.wide_offset_one_star_detection_margin_ratio,
             )
             return None
         off = (
@@ -1604,7 +1516,7 @@ class StarFieldFromCatalogNav(NavTechnique):
         chi2_nu_v = float(np.sum(weights * residuals[:, 0] ** 2)) / dof
         chi2_nu_u = float(np.sum(weights * residuals[:, 1] ** 2)) / dof
         floor = 1.0 / total
-        model_error = self._model_error_floor_px * self._model_error_floor_px
+        model_error = self.tuning.model_error_floor_px * self.tuning.model_error_floor_px
         cov_v = max(chi2_nu_v / total, floor) + model_error
         cov_u = max(chi2_nu_u / total, floor) + model_error
         return np.diag([cov_v, cov_u]).astype(np.float64)

@@ -14,7 +14,6 @@ from spindoctor.nav_technique.nav_technique import (
     add_model_error_floor,
     add_size_scaled_model_error,
     filter_technique_names,
-    load_model_error_floor,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 
@@ -124,23 +123,6 @@ def test_filter_technique_names_rejects_empty_patterns() -> None:
 
 
 # --- model-error floor helpers (#210) ---
-
-
-def test_load_model_error_floor_defaults_to_disabled() -> None:
-    """A tuning block without the key yields a disabled (0.0) floor."""
-    assert load_model_error_floor({}, 'SomeNav') == 0.0
-
-
-def test_load_model_error_floor_accepts_positive_value() -> None:
-    """A configured positive floor is returned unchanged."""
-    assert load_model_error_floor({'model_error_floor_px': 0.92}, 'SomeNav') == 0.92
-
-
-@pytest.mark.parametrize('bad', [-0.5, float('nan'), float('inf')])
-def test_load_model_error_floor_rejects_invalid_values(bad: float) -> None:
-    """Negative and non-finite floors raise instead of silently misbehaving."""
-    with pytest.raises(ValueError, match='model_error_floor_px must be finite'):
-        load_model_error_floor({'model_error_floor_px': bad}, 'SomeNav')
 
 
 def test_add_model_error_floor_adds_in_quadrature() -> None:
