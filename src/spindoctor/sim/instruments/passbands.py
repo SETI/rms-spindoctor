@@ -99,6 +99,6 @@ def solar_weighted_passband(instrument: str | None, filter_name: str | None) -> 
     weight = table[combination] * solar['photons_per_cm2_s_angstrom']
     return Passband(
         filter_name=combination,
-        wavelength_nm=table['wavelength_nm'],
+        wavelength_nm=table['wavelength_nm'].copy(),
         weight=weight / weight.sum(),
     )

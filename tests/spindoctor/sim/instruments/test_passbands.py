@@ -40,3 +40,12 @@ def test_a_camera_without_passbands_is_refused() -> None:
     """A camera whose entry names no passband table raises, naming the camera."""
     with pytest.raises(FilterCatalogError, match="'vgiss_1_nac' has no passband table"):
         solar_weighted_passband('vgiss_1_nac', None)
+
+
+def test_changing_a_passbands_wavelengths_leaves_the_next_lookup_alone() -> None:
+    """A caller that changes the returned wavelengths in place does not change the table."""
+    first = solar_weighted_passband('coiss_nac', 'CL1+CL2')
+    original = first.wavelength_nm.copy()
+    first.wavelength_nm[:] = 0.0
+    second = solar_weighted_passband('coiss_nac', 'CL1+CL2')
+    np.testing.assert_array_equal(second.wavelength_nm, original)
