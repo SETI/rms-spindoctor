@@ -124,7 +124,7 @@ Confidence calibration is the *consumer* of YAML, not a producer. Every techniqu
 confidence spec lives in its block of the ``techniques`` section in
 ``src/spindoctor/config_files/config_510_techniques.yaml``, alongside its ``tuning`` block. A
 technique whose tuning is typed has its block under its snake_case key, as in
-``techniques.body_limb``; the others keep their class name, as in ``techniques.BodyBlobNav``
+``techniques.body_limb``; the others keep their class name, as in ``techniques.StarRefineNav``
 (see :ref:`config-techniques-section`). The loader parses each block through the schema core
 each time a configuration is installed, so a value of the wrong type or out of range, and an
 unknown key, are refused with the file and key path. The exception is a key inside the

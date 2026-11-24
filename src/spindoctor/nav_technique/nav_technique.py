@@ -23,6 +23,7 @@ from spindoctor.nav_technique.confidence import ConfidenceBreakdown, ConfidenceS
 from spindoctor.nav_technique.diagnostics import NavTechniqueDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.nav_base import NavBase
 from spindoctor.support.types import NDArrayFloatType
@@ -40,7 +41,6 @@ __all__ = [
     'embed_rotation_unobservable',
     'filter_technique_names',
     'load_model_error_floor',
-    'load_ncc_covariance_tuning',
     'log_confidence_breakdown',
     'reported_position_vu',
     'rotation_pivot_distance_px',
@@ -461,7 +461,7 @@ def add_model_error_floor(covariance: NDArrayFloatType, floor_px: float) -> NDAr
 
 @dataclass(frozen=True)
 class NCCCovarianceTuning:
-    """Model-error terms folded into an NCC technique's translation covariance.
+    """The tuning keys of the model-error terms folded into an NCC covariance.
 
     The bare peak-curvature (matched-filter) covariance measures only the
     statistical precision at the correlation peak.  On a well-matched
@@ -478,6 +478,10 @@ class NCCCovarianceTuning:
     - ``model_error_floor_px`` is a size-independent absolute floor
       (pointing, camera distortion, sub-pixel interpolation).
 
+    The schema core parses these keys out of a correlation technique's ``tuning``
+    block when the configuration loads; a technique whose tuning holds more keys
+    extends this type.
+
     Parameters:
         localization_uncertainty_scale: Multiplier on the correlator
             ``consistency`` (px); ``0.0`` disables it.
@@ -486,40 +490,11 @@ class NCCCovarianceTuning:
         model_error_floor_px: Absolute floor (px); ``0.0`` disables it.
     """
 
-    localization_uncertainty_scale: float
-    model_error_size_frac: float
-    model_error_floor_px: float
+    __pydantic_config__ = SCHEMA_CONFIG
 
-
-def load_ncc_covariance_tuning(tuning: dict[str, Any], technique_name: str) -> NCCCovarianceTuning:
-    """Read and validate an NCC technique's covariance model-error tunables from a mapping.
-
-    This function serves the techniques whose tuning is still a mapping of numbers.
-
-    Parameters:
-        tuning: The technique's YAML ``tuning`` mapping.
-        technique_name: Technique name for error messages.
-
-    Returns:
-        The validated :class:`NCCCovarianceTuning`.
-
-    Raises:
-        ValueError: If any term is negative or non-finite.
-    """
-    floor_px = load_model_error_floor(tuning, technique_name)
-    scale = float(tuning.get('localization_uncertainty_scale', 0.0))
-    size_frac = float(tuning.get('model_error_size_frac', 0.0))
-    for name, value in (
-        ('localization_uncertainty_scale', scale),
-        ('model_error_size_frac', size_frac),
-    ):
-        if not math.isfinite(value) or value < 0.0:
-            raise ValueError(f'{technique_name}: {name} must be finite and >= 0; got {value!r}')
-    return NCCCovarianceTuning(
-        localization_uncertainty_scale=scale,
-        model_error_size_frac=size_frac,
-        model_error_floor_px=floor_px,
-    )
+    localization_uncertainty_scale: NonNeg
+    model_error_size_frac: NonNeg
+    model_error_floor_px: NonNeg
 
 
 def add_size_scaled_model_error(

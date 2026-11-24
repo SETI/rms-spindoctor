@@ -145,8 +145,8 @@ content on unit-std-normalized surfaces (amplitude-invariant, inflated by the re
 correlation area), and a ``localization_uncertainty_scale * consistency`` localization-spread
 term plus a ``model_error_floor_px`` absolute floor carry the template model error that
 dominates the true registration error. The ring annulus size (``model_error_size_frac``)
-term is disabled by default because the ring bulk error does not track the annulus radial
-span.
+term is set to zero in the packaged configuration because the ring bulk error does not
+track the annulus radial span.
 
 Radial orbit-uncertainty channel
 ---------------------------------
@@ -186,15 +186,21 @@ levels as :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.s
 Configuration
 =============
 
-The technique's only per-technique ``tuning`` knobs in ``config_510_techniques.yaml`` are the
-covariance model-error terms (the shared pyramid-NCC machinery owns the numeric thresholds for
-peak quality, consistency, and top-k count):
+The technique's only ``tuning`` keys, in ``techniques.ring_annulus.tuning`` in
+``config_510_techniques.yaml``, are the covariance model-error terms (the shared pyramid-NCC
+machinery owns the numeric thresholds for peak quality, consistency, and top-k count). The
+schema core parses them into
+:class:`~spindoctor.nav_technique.nav_technique.NCCCovarianceTuning` when the configuration
+loads, so each value's type and range are checked there. Each value lives in the YAML only;
+the values given below are the packaged ones.
 
-- ``localization_uncertainty_scale`` — float, default ``1.0`` (dimensionless). Multiplies the
-  inter-pyramid-level peak migration (``consistency``, px) into an added translation sigma.
-- ``model_error_size_frac`` — float, default ``0.0`` (fraction of the annulus radial span);
-  disabled because the ring bulk error does not track span.
-- ``model_error_floor_px`` — float, default ``0.13`` px. Absolute floor added in quadrature.
+- ``localization_uncertainty_scale`` — float, packaged value ``1.0`` (dimensionless).
+  Multiplies the inter-pyramid-level peak migration (``consistency``, px) into an added
+  translation sigma.
+- ``model_error_size_frac`` — float, packaged value ``0.0`` (fraction of the annulus radial
+  span); zero because the ring bulk error does not track span.
+- ``model_error_floor_px`` — float, packaged value ``0.13`` px. Absolute floor added in
+  quadrature.
 
 Feature-emission tunables (per-planet)
 --------------------------------------
@@ -263,7 +269,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared
 sigmoid combination; see :doc:`dev_guide_techniques_confidence`. The formula spec is
-``techniques.RingAnnulusNav`` in the same YAML file and consumes attributes off
+``techniques.ring_annulus`` in the same YAML file and consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.RingAnnulusDiagnostics` plus
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious`.

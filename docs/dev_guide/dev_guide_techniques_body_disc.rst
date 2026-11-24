@@ -317,30 +317,37 @@ drift across levels as
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.BodyDiscCorrelateNav.tuning``
-in ``src/spindoctor/config_files/config_510_techniques.yaml``.
+All tunables for this technique live in ``techniques.body_disc_correlate.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. The schema core parses them
+into :class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscTuning` when the
+configuration loads, so each value's type and range are checked there, and the technique
+reads them as ``self.tuning.<key>``. The last three keys below are the covariance terms
+every correlation technique holds
+(:class:`~spindoctor.nav_technique.nav_technique.NCCCovarianceTuning`). Each value lives in
+the YAML only; the values given below are the packaged ones.
 
-- ``rotation_at_edge_fraction`` — float, default ``0.95`` (dimensionless). When
+- ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). When
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true, the
   converged rotation magnitude trips
   :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it crosses
   this fraction of the per-image
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` cap.
-- ``consistency_max_fraction_of_diameter`` / ``consistency_max_px`` — floats, defaults
-  ``0.025`` / ``4.0`` px. Diameter-scaled and absolute floors on the accepted pyramid-level
-  peak migration; the applied spurious cap is the larger of the two.
-- ``refine_lowpass_sigma_px`` — float, default ``1.0`` px. Gaussian low-pass applied to both
-  surfaces in the full-resolution sub-pixel refine (see "Sub-pixel refinement band-limit").
-  Removes the sharp-edge cross-power aliasing that otherwise leaves a ~0.03 px (up to ~0.1 px
-  at the worst two-axis phase) sub-pixel-phase S-curve in the recovered offset; ``0.0``
-  disables it and restores that bias.
-- ``localization_uncertainty_scale`` — float, default ``1.0`` (dimensionless). Multiplies the
-  inter-pyramid-level peak migration (``consistency``, px) into an added translation sigma (see
-  "Sources of uncertainty"). ``0.0`` disables it.
-- ``model_error_size_frac`` — float, default ``0.005`` (fraction of the body diameter). The
-  silhouette model error as a fraction of the body's ext-FOV extent. ``0.0`` disables it.
-- ``model_error_floor_px`` — float, default ``0.05`` px. Absolute size-independent floor added
-  in quadrature. ``0.0`` disables it.
+- ``consistency_max_fraction_of_diameter`` / ``consistency_max_px`` — floats, packaged
+  values ``0.025`` / ``4.0`` px. Diameter-scaled and absolute floors on the accepted
+  pyramid-level peak migration; the applied spurious cap is the larger of the two.
+- ``refine_lowpass_sigma_px`` — float, packaged value ``1.0`` px. Gaussian low-pass applied
+  to both surfaces in the full-resolution sub-pixel refine (see "Sub-pixel refinement
+  band-limit"). Removes the sharp-edge cross-power aliasing that otherwise leaves a
+  ~0.03 px (up to ~0.1 px at the worst two-axis phase) sub-pixel-phase S-curve in the
+  recovered offset; ``0.0`` disables it and restores that bias.
+- ``localization_uncertainty_scale`` — float, packaged value ``1.0`` (dimensionless).
+  Multiplies the inter-pyramid-level peak migration (``consistency``, px) into an added
+  translation sigma (see "Sources of uncertainty"). ``0.0`` disables it.
+- ``model_error_size_frac`` — float, packaged value ``0.005`` (fraction of the body
+  diameter). The silhouette model error as a fraction of the body's ext-FOV extent.
+  ``0.0`` disables it.
+- ``model_error_floor_px`` — float, packaged value ``0.05`` px. Absolute size-independent
+  floor added in quadrature. ``0.0`` disables it.
 
 The remaining numeric thresholds (NCC peak quality, consistency tolerance, top-k count) are
 shared across every pyramid-NCC technique and live as module-level constants in
@@ -359,7 +366,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared
 sigmoid combination; see :doc:`dev_guide_techniques_confidence`. The formula spec is
-``techniques.BodyDiscCorrelateNav`` and consumes attributes off
+``techniques.body_disc_correlate`` and consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.BodyDiscDiagnostics` plus
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious`.

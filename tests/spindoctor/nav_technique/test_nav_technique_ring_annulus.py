@@ -461,8 +461,26 @@ def test_upsample_factor_rejects_overlarge_value() -> None:
         technique._upsample_factor()
 
 
+def _install_covariance_terms(monkeypatch: pytest.MonkeyPatch, *, floor_px: float) -> None:
+    """Give :class:`RingAnnulusNav` only a model-error floor among its covariance terms.
+
+    The configuration is read first, so the tuning the test replaces is the class's own
+    and is what ``monkeypatch`` restores.
+
+    Parameters:
+        monkeypatch: Installs the tuning.
+        floor_px: The model-error floor in pixels.
+    """
+    RingAnnulusNav()
+    tuning = NCCCovarianceTuning(
+        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=floor_px
+    )
+    monkeypatch.setattr(RingAnnulusNav, 'tuning', tuning)
+
+
 def test_ring_annulus_model_error_floor_inflates_covariance(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """model_error_floor_px adds exactly its square to the covariance diagonal.
 
@@ -483,16 +501,10 @@ def test_ring_annulus_model_error_floor_inflates_covariance(
         planted_offset_vu=(2.0, -3.0),
     )
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
-    bare = RingAnnulusNav()
-    bare._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
-    )
-    floored = RingAnnulusNav()
-    floored._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=1.5
-    )
-    cov_bare = bare.navigate([feature], context).covariance_px2
-    cov_floored = floored.navigate([feature], context).covariance_px2
+    _install_covariance_terms(monkeypatch, floor_px=0.0)
+    cov_bare = RingAnnulusNav().navigate([feature], context).covariance_px2
+    _install_covariance_terms(monkeypatch, floor_px=1.5)
+    cov_floored = RingAnnulusNav().navigate([feature], context).covariance_px2
     for axis in (0, 1):
         assert cov_floored[axis, axis] == pytest.approx(cov_bare[axis, axis] + 1.5**2, rel=1e-9)
 
@@ -505,6 +517,7 @@ def _closed_ring_normals(count: int) -> NDArrayFloatType:
 
 def _orbit_channel_fixture(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
     *,
     orbit_normals_vu: NDArrayFloatType,
     sigma_orbit_radial_px: float,
@@ -518,9 +531,7 @@ def _orbit_channel_fixture(
     image_center = (90.0, 90.0)
     image = _render_annulus_image(shape, image_center, 14.0, 28.0)
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
-    tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
-    )
+    _install_covariance_terms(monkeypatch, floor_px=0.0)
 
     def _cov(sigma: float) -> NDArrayFloatType:
         feature = _make_annulus_feature(
@@ -533,15 +544,14 @@ def _orbit_channel_fixture(
             orbit_normals_vu=orbit_normals_vu,
             sigma_orbit_radial_px=sigma,
         )
-        technique = RingAnnulusNav()
-        technique._cov_tuning = tuning
-        return np.asarray(technique.navigate([feature], context).covariance_px2)
+        return np.asarray(RingAnnulusNav().navigate([feature], context).covariance_px2)
 
     return _cov(0.0), _cov(sigma_orbit_radial_px)
 
 
 def test_orbit_channel_inflates_isotropically_on_closed_ring(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A closed ring's normals cancel, so the orbit sigma widens every axis equally.
 
@@ -552,7 +562,10 @@ def test_orbit_channel_inflates_isotropically_on_closed_ring(
     """
     sigma = 5.0
     cov_off, cov_on = _orbit_channel_fixture(
-        make_nav_context, orbit_normals_vu=_closed_ring_normals(360), sigma_orbit_radial_px=sigma
+        make_nav_context,
+        monkeypatch,
+        orbit_normals_vu=_closed_ring_normals(360),
+        sigma_orbit_radial_px=sigma,
     )
     assert cov_on[0, 0] == pytest.approx(cov_off[0, 0] + sigma**2, rel=1e-6)
     assert cov_on[1, 1] == pytest.approx(cov_off[1, 1] + sigma**2, rel=1e-6)
@@ -560,12 +573,13 @@ def test_orbit_channel_inflates_isotropically_on_closed_ring(
 
 def test_orbit_channel_directional_on_parallel_normals(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Normals pointing one way widen only that axis (a short arc absorbs it fully)."""
     sigma = 5.0
     normals = np.tile(np.array([1.0, 0.0]), (200, 1))
     cov_off, cov_on = _orbit_channel_fixture(
-        make_nav_context, orbit_normals_vu=normals, sigma_orbit_radial_px=sigma
+        make_nav_context, monkeypatch, orbit_normals_vu=normals, sigma_orbit_radial_px=sigma
     )
     assert cov_on[0, 0] == pytest.approx(cov_off[0, 0] + sigma**2, rel=1e-6)
     assert cov_on[1, 1] == pytest.approx(cov_off[1, 1], rel=1e-6)
@@ -573,6 +587,7 @@ def test_orbit_channel_directional_on_parallel_normals(
 
 def test_orbit_channel_absent_when_sigma_zero(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No declared orbit sigma leaves the covariance and diagnostic untouched."""
     shape = (180, 180)
@@ -589,10 +604,8 @@ def test_orbit_channel_absent_when_sigma_zero(
         sigma_orbit_radial_px=0.0,
     )
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
+    _install_covariance_terms(monkeypatch, floor_px=0.0)
     technique = RingAnnulusNav()
-    technique._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
-    )
     result = technique.navigate([feature], context)
     assert isinstance(result.diagnostics, RingAnnulusDiagnostics)
     assert result.diagnostics.sigma_orbit_radial_px == 0.0

@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 from scipy.ndimage import rotate as ndimage_rotate
@@ -35,12 +35,13 @@ from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     ROTATION_UNOBSERVABLE_VARIANCE,
     NavTechnique,
+    NCCCovarianceTuning,
     add_size_scaled_model_error,
-    load_ncc_covariance_tuning,
     log_confidence_breakdown,
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Unit
 from spindoctor.support.correlate import (
     gradient_magnitude,
     navigate_with_pyramid_kpeaks,
@@ -54,7 +55,7 @@ from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['BodyDiscCorrelateNav']
+__all__ = ['BodyDiscCorrelateNav', 'BodyDiscTuning']
 
 # Measured against strong star solutions on 76 real disc frames, 69 of them Cassini
 # narrow-angle, the high-pass refinement lowered the narrow-angle median per-axis error of
@@ -299,6 +300,31 @@ def _composite_pivot_vu(features: list[NavFeature]) -> tuple[float, float]:
     return float(cv), float(cu)
 
 
+@dataclass(frozen=True)
+class BodyDiscTuning(NCCCovarianceTuning):
+    """The tuning keys of :class:`BodyDiscCorrelateNav`, beyond its covariance terms.
+
+    Parameters:
+        rotation_at_edge_fraction: The fraction of the largest allowed rotation at
+            which the best rotation candidate trips the at-edge flag.
+        consistency_max_fraction_of_diameter: The inter-pyramid peak migration
+            allowed per pixel of the largest body's extent before the result is
+            spurious.
+        consistency_max_px: The least migration cap in pixels, whatever the body's
+            size.
+        refine_lowpass_sigma_px: The sigma in pixels of the Gaussian low-pass applied
+            to both surfaces in the full-resolution sub-pixel refinement; 0 disables
+            it.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    rotation_at_edge_fraction: Unit
+    consistency_max_fraction_of_diameter: NonNeg
+    consistency_max_px: NonNeg
+    refine_lowpass_sigma_px: NonNeg
+
+
 class BodyDiscCorrelateNav(NavTechnique):
     """Body-disc full-disc NCC translation fit (multi-body, Z-buffer paint).
 
@@ -308,6 +334,8 @@ class BodyDiscCorrelateNav(NavTechnique):
     """
 
     name = 'BodyDiscCorrelateNav'
+    Tuning = BodyDiscTuning
+    tuning: ClassVar[BodyDiscTuning]
     accepts_feature_types = frozenset({NavFeatureType.BODY_DISC})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -324,15 +352,14 @@ class BodyDiscCorrelateNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._consistency_max_fraction_of_diameter = float(
-            self.tuning['consistency_max_fraction_of_diameter']
-        )
-        self._consistency_max_px = float(self.tuning['consistency_max_px'])
-        self._refine_lowpass_sigma_px = float(self.tuning['refine_lowpass_sigma_px'])
-        self._cov_tuning = load_ncc_covariance_tuning(self.tuning, self.name)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable BODY_DISC feature.
@@ -431,11 +458,9 @@ class BodyDiscCorrelateNav(NavTechnique):
                     max_offset_vu=(margin_v, margin_u),
                     data_mask=context.sensor_mask_ext,
                     use_gradient='auto',
-                    refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+                    refine_lowpass_sigma_px=self.tuning.refine_lowpass_sigma_px,
                     final_refinement=_FINAL_REFINEMENT,
-                    localization_uncertainty_scale=(
-                        self._cov_tuning.localization_uncertainty_scale
-                    ),
+                    localization_uncertainty_scale=(self.tuning.localization_uncertainty_scale),
                     logger=self.logger,
                 )
             dv = float(ncc_result['offset'][0])
@@ -455,8 +480,8 @@ class BodyDiscCorrelateNav(NavTechnique):
             covariance_2x2 = add_size_scaled_model_error(
                 covariance_2x2,
                 size_px=self._max_body_extent_px(eligible),
-                size_frac=self._cov_tuning.model_error_size_frac,
-                floor_px=self._cov_tuning.model_error_floor_px,
+                size_frac=self.tuning.model_error_size_frac,
+                floor_px=self.tuning.model_error_floor_px,
             )
             spurious = bool(ncc_result['spurious'])
             at_edge_translation = bool(ncc_result['at_edge'])
@@ -485,7 +510,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             if fit_rotation:
                 max_rotation_rad = math.radians(context.max_rotation_deg)
                 rotation_at_edge = (
-                    abs(best_theta_rad) >= self._rotation_at_edge_fraction * max_rotation_rad
+                    abs(best_theta_rad) >= self.tuning.rotation_at_edge_fraction * max_rotation_rad
                 )
                 cov = np.zeros((3, 3), dtype=np.float64)
                 cov[:2, :2] = covariance_2x2
@@ -556,9 +581,11 @@ class BodyDiscCorrelateNav(NavTechnique):
         ext-FOV bbox extent across the consumed BODY_DISC features.
         """
         if not features:
-            return self._consistency_max_px
-        scaled_px = self._consistency_max_fraction_of_diameter * self._max_body_extent_px(features)
-        return max(self._consistency_max_px, scaled_px)
+            return self.tuning.consistency_max_px
+        scaled_px = self.tuning.consistency_max_fraction_of_diameter * self._max_body_extent_px(
+            features
+        )
+        return max(self.tuning.consistency_max_px, scaled_px)
 
     @staticmethod
     def _max_body_extent_px(features: list[NavFeature]) -> float:
@@ -841,9 +868,9 @@ class BodyDiscCorrelateNav(NavTechnique):
             max_offset_vu=max_offset_vu,
             data_mask=data_mask,
             use_gradient='auto',
-            refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+            refine_lowpass_sigma_px=self.tuning.refine_lowpass_sigma_px,
             final_refinement=_FINAL_REFINEMENT,
-            localization_uncertainty_scale=self._cov_tuning.localization_uncertainty_scale,
+            localization_uncertainty_scale=self.tuning.localization_uncertainty_scale,
             logger=self.logger,
         )
 

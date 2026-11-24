@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import numpy as np
@@ -16,11 +17,9 @@ from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import BodyDiscFlags
 from spindoctor.feature.geometry import BodyDiscGeometry
+from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_technique.diagnostics import BodyDiscDiagnostics
-from spindoctor.nav_technique.nav_technique import (
-    ROTATION_UNOBSERVABLE_VARIANCE,
-    NCCCovarianceTuning,
-)
+from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANCE
 from spindoctor.nav_technique.nav_technique_body_disc import (
     BodyDiscCorrelateNav,
     _RotationCandidate,
@@ -373,9 +372,42 @@ def test_rotation_sigma_from_quality_reports_unobservable() -> None:
     assert sigma is None
 
 
+def _navigate_with_cov_terms(
+    monkeypatch: pytest.MonkeyPatch,
+    feature: NavFeature,
+    context: NavContext,
+    *,
+    size_frac: float,
+    floor_px: float,
+) -> NDArrayFloatType:
+    """Navigate with the localization term off and the given size and floor terms.
+
+    Parameters:
+        monkeypatch: Installs the tuning on :class:`BodyDiscCorrelateNav`.
+        feature: The disc feature.
+        context: The navigation context.
+        size_frac: The size-proportional model-error fraction.
+        floor_px: The model-error floor in pixels.
+
+    Returns:
+        The result's covariance.
+    """
+    # The technique is built first, so the configuration is read and the tuning the test
+    # replaces is the class's own, which is what ``monkeypatch`` restores.
+    tuning = dataclasses.replace(
+        BodyDiscCorrelateNav().tuning,
+        localization_uncertainty_scale=0.0,
+        model_error_size_frac=size_frac,
+        model_error_floor_px=floor_px,
+    )
+    monkeypatch.setattr(BodyDiscCorrelateNav, 'tuning', tuning)
+    return np.asarray(BodyDiscCorrelateNav().navigate([feature], context).covariance_px2)
+
+
 def test_body_disc_model_error_floor_inflates_covariance(
     disc_image: DiscImageFactory,
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """model_error_floor_px adds exactly its square to the covariance diagonal.
 
@@ -396,16 +428,10 @@ def test_body_disc_model_error_floor_inflates_covariance(
         planted_offset_vu=(2.0, -3.0),
     )
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
-    bare = BodyDiscCorrelateNav()
-    bare._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
+    cov_bare = _navigate_with_cov_terms(monkeypatch, feature, context, size_frac=0.0, floor_px=0.0)
+    cov_floored = _navigate_with_cov_terms(
+        monkeypatch, feature, context, size_frac=0.0, floor_px=0.8
     )
-    floored = BodyDiscCorrelateNav()
-    floored._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.8
-    )
-    cov_bare = bare.navigate([feature], context).covariance_px2
-    cov_floored = floored.navigate([feature], context).covariance_px2
     for axis in (0, 1):
         assert cov_floored[axis, axis] == pytest.approx(cov_bare[axis, axis] + 0.8**2, rel=1e-9)
 
@@ -413,6 +439,7 @@ def test_body_disc_model_error_floor_inflates_covariance(
 def test_body_disc_size_term_scales_covariance_with_diameter(
     disc_image: DiscImageFactory,
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """model_error_size_frac adds (frac * body_diameter)**2 to the diagonal."""
     shape = (160, 160)
@@ -427,17 +454,11 @@ def test_body_disc_size_term_scales_covariance_with_diameter(
         planted_offset_vu=(2.0, -3.0),
     )
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
-    bare = BodyDiscCorrelateNav()
-    bare._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
-    )
-    sized = BodyDiscCorrelateNav()
-    sized._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.05, model_error_floor_px=0.0
-    )
     size_px = BodyDiscCorrelateNav._max_body_extent_px([feature])
-    cov_bare = bare.navigate([feature], context).covariance_px2
-    cov_sized = sized.navigate([feature], context).covariance_px2
+    cov_bare = _navigate_with_cov_terms(monkeypatch, feature, context, size_frac=0.0, floor_px=0.0)
+    cov_sized = _navigate_with_cov_terms(
+        monkeypatch, feature, context, size_frac=0.05, floor_px=0.0
+    )
     expected_extra = (0.05 * size_px) ** 2
     assert expected_extra > 0.0
     for axis in (0, 1):

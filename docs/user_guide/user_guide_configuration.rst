@@ -111,10 +111,11 @@ The sections are:
 ``techniques``
     Per-technique settings: how much work each technique does, and how it turns what it
     measured into a confidence. Each technique has its own block. The blocks of the
-    body-limb, body-terminator, and ring-edge techniques are ``body_limb``,
-    ``body_terminator``, and ``ring_edge``, the same keys the ``logging`` section uses
-    for them. Every other technique's block is named after the technique, as in
-    ``BodyBlobNav``.
+    body-blob, body-disc, body-limb, body-terminator, ring-annulus, and ring-edge
+    techniques are ``body_blob``, ``body_disc_correlate``, ``body_limb``,
+    ``body_terminator``, ``ring_annulus``, and ``ring_edge``, the same keys the
+    ``logging`` section uses for them. Every other technique's block is named after the
+    technique, as in ``StarRefineNav``.
 
 ``orchestrator``
     How the per-technique answers are combined into the one offset reported for the image,
@@ -307,8 +308,9 @@ image are recorded in that image's metadata document; see
 :doc:`/user_guide/user_guide_metadata`.
 
 Every setting in the ``orchestrator`` section is checked when your file is read, and so
-is every setting in the ``body_limb``, ``body_terminator``, and ``ring_edge`` blocks of
-the ``techniques`` section. A setting that navigation does not know, or a value it cannot
+is every setting in the ``body_blob``, ``body_disc_correlate``, ``body_limb``,
+``body_terminator``, ``ring_annulus``, and ``ring_edge`` blocks of the ``techniques``
+section. A setting that navigation does not know, or a value it cannot
 use, such as a confidence above 1, is refused, and the message gives the file and the
 setting. In the other technique blocks, the settings inside ``tuning`` are checked only
 for being numbers, so a misspelled one there is not refused; every other setting is

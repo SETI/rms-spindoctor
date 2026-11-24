@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.nav_technique import BodyBlobNav, RingEdgeNav
+from spindoctor.nav_technique import RingEdgeNav, StarRefineNav
 from spindoctor.nav_technique.confidence_config import shipped_techniques
 
 
@@ -145,6 +145,6 @@ def test_an_untyped_tuning_override_reaches_its_technique(
     _apply_technique_override(
         tmp_path,
         monkeypatch,
-        'techniques:\n  BodyBlobNav:\n    tuning:\n      at_edge_tolerance_px: 0.123\n',
+        'techniques:\n  StarRefineNav:\n    tuning:\n      at_edge_tolerance_px: 0.123\n',
     )
-    assert BodyBlobNav.tuning['at_edge_tolerance_px'] == 0.123
+    assert StarRefineNav.tuning['at_edge_tolerance_px'] == 0.123

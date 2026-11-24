@@ -22,7 +22,7 @@ handle ``len(features) > 1``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -36,9 +36,9 @@ from spindoctor.nav_technique.diagnostics import RingAnnulusDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
+    NCCCovarianceTuning,
     add_size_scaled_model_error,
     embed_rotation_unobservable,
-    load_ncc_covariance_tuning,
     log_confidence_breakdown,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
@@ -175,6 +175,8 @@ class RingAnnulusNav(NavTechnique):
     """
 
     name = 'RingAnnulusNav'
+    Tuning = NCCCovarianceTuning
+    tuning: ClassVar[NCCCovarianceTuning]
     accepts_feature_types = frozenset({NavFeatureType.RING_ANNULUS})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -189,9 +191,16 @@ class RingAnnulusNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Its tuning holds the covariance model-error terms only.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._cov_tuning = load_ncc_covariance_tuning(self.tuning, self.name)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable RING_ANNULUS feature.
@@ -286,7 +295,7 @@ class RingAnnulusNav(NavTechnique):
                 max_offset_vu=(margin_v, margin_u),
                 data_mask=context.sensor_mask_ext,
                 use_gradient='auto',
-                localization_uncertainty_scale=self._cov_tuning.localization_uncertainty_scale,
+                localization_uncertainty_scale=self.tuning.localization_uncertainty_scale,
                 logger=self.logger,
                 final_refinement=_FINAL_REFINEMENT,
             )
@@ -303,8 +312,8 @@ class RingAnnulusNav(NavTechnique):
             covariance_2x2 = add_size_scaled_model_error(
                 covariance_2x2,
                 size_px=_annulus_span_px(eligible),
-                size_frac=self._cov_tuning.model_error_size_frac,
-                floor_px=self._cov_tuning.model_error_floor_px,
+                size_frac=self.tuning.model_error_size_frac,
+                floor_px=self.tuning.model_error_floor_px,
             )
             # Radial orbit-uncertainty channel: the NCC covariance describes the
             # statistical lock onto the MODELED annulus, but a catalog-orbit
