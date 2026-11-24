@@ -536,7 +536,7 @@ def reduce_catalogs(
             chunk = stars_in_extfov(
                 obs,
                 config,
-                catalog_name=catalog_name.lower(),
+                catalog_name=catalog_name,
                 mag_min=mag_min_clamped,
                 mag_max=mag_max_clamped,
                 radec_movement=radec_movement,
@@ -545,7 +545,7 @@ def reduce_catalogs(
             if len(next_per_catalog) >= max_stars:
                 break
 
-        if catalog_name.lower() in _PHOTOMETRY_REFERENCE_CATALOGS:
+        if catalog_name in _PHOTOMETRY_REFERENCE_CATALOGS:
             # Keep the full in-field YBSC and Tycho-2 sets as the photometric
             # reference even where the merge later drops individual entries as
             # duplicates; the bright-end correction reads from them below.
@@ -568,7 +568,7 @@ def reduce_catalogs(
     # bright UCAC4 record with no reference in either catalog must still be
     # flagged saturated rather than silently trusted.
     reference_configured = any(
-        name.lower() in _PHOTOMETRY_REFERENCE_CATALOGS for name in stars_config.catalogs
+        name in _PHOTOMETRY_REFERENCE_CATALOGS for name in stars_config.catalogs
     )
     if reference_configured:
         kept = correct_star_photometry(
