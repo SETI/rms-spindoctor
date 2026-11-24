@@ -7,8 +7,7 @@ other value replaces the earlier one whole, and a null in any file is refused.  
 typed sections (:mod:`spindoctor.config.sections`) are parsed into frozen dataclasses
 each time a configuration is installed.  The other sections are exposed as
 :class:`spindoctor.support.attrdict.AttrDict` for attribute-style access.  The
-:class:`Config` class is the main public entry; helpers such as :func:`_as_str_list`
-validate list-shaped YAML fragments used when building config structures.
+:class:`Config` class is the main public entry.
 """
 
 from __future__ import annotations
@@ -36,13 +35,16 @@ from spindoctor.support.attrdict import AttrDict
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.config.logging_keys import LoggingSection
     from spindoctor.config.sections import OrchestratorSection, TypedSections
+    from spindoctor.config.sections_models import (
+        BodiesSection,
+        FeatureEmissionSection,
+        StarsSection,
+        TitanSection,
+    )
     from spindoctor.nav_technique.confidence_config import TechniquesSection
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
 """The directory of the packaged configuration files, merged in filename order."""
-
-_BLOB_MAX_OVERFLOW_KEY = 'blob_max_overflow_fraction'
-"""``bodies`` key holding the overflow limit for BODY_BLOB emission."""
 
 _CAMERA_MARKER_KEY = 'data_units'
 """Key every camera block of the instrument configuration declares."""
@@ -212,30 +214,6 @@ def _camera_blocks(config_dict: dict[str, Any]) -> list[tuple[str, dict[str, Any
     return blocks
 
 
-def _as_str_list(value: Any, *, location: str) -> list[str]:
-    """Coerce a YAML list value to ``list[str]``.
-
-    Parameters:
-        value: Parsed YAML fragment expected to be a list of strings.
-        location: Human-readable path (e.g. config key path) for error messages.
-
-    Returns:
-        A new ``list[str]`` containing each element of ``value`` as ``str``.
-
-    Raises:
-        TypeError: If ``value`` is not a list, or if any element is not a ``str``.
-    """
-
-    if not isinstance(value, list):
-        raise TypeError(f'{location}: expected a list of strings, got {type(value).__name__}')
-    out: list[str] = []
-    for i, item in enumerate(value):
-        if not isinstance(item, str):
-            raise TypeError(f'{location}[{i}]: expected str, got {type(item).__name__}')
-        out.append(item)
-    return out
-
-
 class Config:
     """Manages configuration settings for the navigation system.
 
@@ -254,11 +232,8 @@ class Config:
         self._config_environment: dict[str, Any] = AttrDict({})
         self._config_general: dict[str, Any] = AttrDict({})
         self._config_offset: dict[str, Any] = AttrDict({})
-        self._config_bodies: dict[str, Any] = AttrDict({})
         self._config_body_shape: dict[str, Any] = AttrDict({})
         self._config_rings: dict[str, Any] = AttrDict({})
-        self._config_stars: dict[str, Any] = AttrDict({})
-        self._config_titan: dict[str, Any] = AttrDict({})
         self._config_backplanes: dict[str, Any] = AttrDict({})
         self._config_pds4: dict[str, Any] = AttrDict({})
         self._config_results_tree: dict[str, Any] = AttrDict({})
@@ -291,11 +266,8 @@ class Config:
         self._config_environment = AttrDict(self._config_dict.get('environment', {}))
         self._config_general = AttrDict(self._config_dict.get('general', {}))
         self._config_offset = AttrDict(self._config_dict.get('offset', {}))
-        self._config_bodies = AttrDict(self._config_dict.get('bodies', {}))
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
         self._config_rings = AttrDict(self._config_dict.get('rings', {}))
-        self._config_stars = AttrDict(self._config_dict.get('stars', {}))
-        self._config_titan = AttrDict(self._config_dict.get('titan', {}))
         self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
         self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
         self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
@@ -349,10 +321,8 @@ class Config:
             SchemaError: If a file is not a YAML mapping, or holds a null, or if a
                 typed section breaks its schema, as with a technique block that names
                 a diagnostic attribute its technique does not declare.
-            ValueError: If ``bodies.blob_max_overflow_fraction`` is not a finite number
-                within ``[0, 1]``, or if a camera block sets no
-                ``one_star_ellipse_fraction`` within ``(0, 1]``.  Validation runs once
-                per ``read_config`` invocation.
+            ValueError: If a camera block sets no ``one_star_ellipse_fraction`` within
+                ``(0, 1]``.  Validation runs once per ``read_config`` invocation.
         """
 
         if not reread and self._config_dict:
@@ -373,35 +343,7 @@ class Config:
         Parameters:
             config_dict: The merged configuration.
         """
-        Config._validate_bodies_block(config_dict)
         Config._validate_camera_blocks(config_dict)
-
-    @staticmethod
-    def _validate_bodies_block(config_dict: dict[str, Any]) -> None:
-        """Reject a ``bodies.blob_max_overflow_fraction`` that is not a fraction.
-
-        The value is the overflow limit above which a body emits no ``BODY_BLOB``.
-        A non-numeric, non-finite, or out-of-range value would silently disable or
-        invert that limit, so it is refused when the configuration is loaded.  A
-        configuration that carries no such key is left to fail where the key is read.
-
-        Parameters:
-            config_dict: The merged configuration.
-
-        Raises:
-            ValueError: If the value is not a finite number within ``[0, 1]``; the
-                message names the key and the offending value.
-        """
-        bodies = config_dict.get('bodies')
-        if not isinstance(bodies, dict) or _BLOB_MAX_OVERFLOW_KEY not in bodies:
-            return
-        value = bodies[_BLOB_MAX_OVERFLOW_KEY]
-        is_number = isinstance(value, int | float) and not isinstance(value, bool)
-        # The chained comparison is False for NaN, so a NaN is refused with the rest.
-        if not is_number or not 0.0 <= float(value) <= 1.0:
-            raise ValueError(
-                f'bodies.{_BLOB_MAX_OVERFLOW_KEY} must be finite and within [0, 1]; got {value!r}'
-            )
 
     @staticmethod
     def _validate_camera_blocks(config_dict: dict[str, Any]) -> None:
@@ -565,80 +507,26 @@ class Config:
         level has been checked.
         """
 
-        self.read_config()
-        if self._sections is None:
-            raise RuntimeError('the configuration is read but holds no parsed sections')
-        return self._sections.logging
+        return self._typed_sections().logging
 
     @property
     def planets(self) -> list[str]:
-        """Returns the list of configured planet names."""
+        """Returns the SPICE names of the configured planets."""
 
-        self.read_config()
-        return _as_str_list(self._config_dict.get('planets', []), location='config.planets')
+        return list(self._typed_sections().planets)
 
     def satellites(self, planet: str) -> list[str]:
         """Returns the list of satellites for the specified planet.
 
         Parameters:
-            planet: The name of the planet to get satellites for.
+            planet: The name of the planet to get satellites for, in any case.
 
         Returns:
-            A list of satellite names for the specified planet.
+            A list of satellite names for the specified planet; empty for a planet the
+            ``satellites`` section leaves out.
         """
 
-        self.read_config()
-        block = self._config_dict.get('satellites', {})
-        if not isinstance(block, dict):
-            raise TypeError(
-                f'config key "satellites" must be a mapping, got {type(block).__name__}'
-            )
-        return _as_str_list(
-            block.get(planet.upper(), []),
-            location=f'config.satellites[{planet.upper()!r}]',
-        )
-
-    def fuzzy_satellites(self, planet: str) -> list[str]:
-        """Returns the list of fuzzy satellites for the specified planet.
-
-        Parameters:
-            planet: The name of the planet to get fuzzy satellites for.
-
-        Returns:
-            A list of fuzzy satellite names for the specified planet.
-        """
-
-        self.read_config()
-        block = self._config_dict.get('fuzzy_satellites', {})
-        if not isinstance(block, dict):
-            raise TypeError(
-                f'config key "fuzzy_satellites" must be a mapping, got {type(block).__name__}'
-            )
-        return _as_str_list(
-            block.get(planet.upper(), []),
-            location=f'config.fuzzy_satellites[{planet.upper()!r}]',
-        )
-
-    def ring_satellites(self, planet: str) -> list[str]:
-        """Returns the list of ring satellites for the specified planet.
-
-        Parameters:
-            planet: The name of the planet to get ring satellites for.
-
-        Returns:
-            A list of ring satellite names for the specified planet.
-        """
-
-        self.read_config()
-        block = self._config_dict.get('ring_satellites', {})
-        if not isinstance(block, dict):
-            raise TypeError(
-                f'config key "ring_satellites" must be a mapping, got {type(block).__name__}'
-            )
-        return _as_str_list(
-            block.get(planet.upper(), []),
-            location=f'config.ring_satellites[{planet.upper()!r}]',
-        )
+        return list(self._typed_sections().satellites.get(planet.upper(), ()))
 
     @property
     def offset(self) -> Any:
@@ -648,11 +536,10 @@ class Config:
         return self._config_offset
 
     @property
-    def bodies(self) -> Any:
-        """Returns the celestial bodies configuration settings."""
+    def bodies(self) -> BodiesSection:
+        """Returns the ``bodies`` section: how a body is rendered, gated, and labeled."""
 
-        self.read_config()
-        return self._config_bodies
+        return self._typed_sections().bodies
 
     @property
     def body_shape(self) -> Any:
@@ -677,18 +564,22 @@ class Config:
         return self._config_rings
 
     @property
-    def stars(self) -> Any:
-        """Returns the stars configuration settings."""
+    def stars(self) -> StarsSection:
+        """Returns the ``stars`` section: the catalogs, their reduction, and conflicts."""
 
-        self.read_config()
-        return self._config_stars
+        return self._typed_sections().stars
 
     @property
-    def titan(self) -> Any:
-        """Returns the Titan-specific configuration settings."""
+    def titan(self) -> TitanSection:
+        """Returns the ``titan`` section: the haze envelope, its feature, and its fit."""
 
-        self.read_config()
-        return self._config_titan
+        return self._typed_sections().titan
+
+    @property
+    def feature_emission(self) -> FeatureEmissionSection:
+        """Returns the ``feature_emission`` section: which features the ring model emits."""
+
+        return self._typed_sections().feature_emission
 
     @property
     def orchestrator(self) -> OrchestratorSection:
@@ -698,10 +589,22 @@ class Config:
         been checked against its type and range.
         """
 
+        return self._typed_sections().orchestrator
+
+    def _typed_sections(self) -> TypedSections:
+        """Return the typed sections, reading the packaged files first if need be.
+
+        Returns:
+            The sections parsed when the configuration was installed.
+
+        Raises:
+            RuntimeError: If the configuration is read but holds no parsed sections.
+        """
+
         self.read_config()
         if self._sections is None:
             raise RuntimeError('the configuration is read but holds no parsed sections')
-        return self._sections.orchestrator
+        return self._sections
 
     @property
     def techniques(self) -> TechniquesSection:
@@ -712,10 +615,7 @@ class Config:
         method gives one technique's block.
         """
 
-        self.read_config()
-        if self._sections is None:
-            raise RuntimeError('the configuration is read but holds no parsed sections')
-        return self._sections.techniques
+        return self._typed_sections().techniques
 
     @property
     def results_tree(self) -> Any:

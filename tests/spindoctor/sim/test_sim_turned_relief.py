@@ -343,6 +343,7 @@ def test_faint_relief_stretches_no_cell_of_a_turned_body(
         up_factor=1,
         illumination_angle=_SUN,
         phase_angle=_PHASE,
+        inside=np.ones(grid.ellipse_dist_sq.shape, dtype=np.bool_),
     )
     assert int(marked[0][grid.ellipse_dist_sq < 0.8].sum()) == 0
 

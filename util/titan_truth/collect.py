@@ -257,10 +257,10 @@ def _sigma_scales() -> dict[str, float]:
     """Return the configured cross- and along-track sigma scales."""
     from spindoctor.config import DEFAULT_CONFIG
 
-    navigation = DEFAULT_CONFIG.titan['navigation']
+    navigation = DEFAULT_CONFIG.titan.navigation
     return {
-        'cross': float(navigation['symmetry']['cross_sigma_scale']),
-        'along': float(navigation['arc']['along_sigma_scale']),
+        'cross': navigation.symmetry.cross_sigma_scale,
+        'along': navigation.arc.along_sigma_scale,
     }
 
 
@@ -273,10 +273,10 @@ def _sigma_floors() -> dict[str, float]:
     """
     from spindoctor.config import DEFAULT_CONFIG
 
-    navigation = DEFAULT_CONFIG.titan['navigation']
+    navigation = DEFAULT_CONFIG.titan.navigation
     return {
-        'cross': float(navigation['symmetry']['sigma_floor_cross_px']),
-        'along': float(navigation['arc']['sigma_floor_along_px']),
+        'cross': navigation.symmetry.sigma_floor_cross_px,
+        'along': navigation.arc.sigma_floor_along_px,
     }
 
 

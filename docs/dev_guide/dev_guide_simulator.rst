@@ -1091,8 +1091,9 @@ intensive signal passes through the electron unit chain in
    shot noise grows with the dark signal. A calibrated CCD product subtracts the dark
    current and the readout dark again, line by line, as a real pipeline's dark model
    does. It keeps their shot noise and the readout dark's enhanced columns. The
-   frame-transfer smear joins the charge here too. Poisson shot noise then
-   acts on the electron image, one pixel at a time. The chain draws one uniform
+   frame-transfer smear and the hot pixels, described below, join the charge here
+   too. Poisson shot noise then acts on the electron image, one pixel at a time. The
+   chain draws one uniform
    value per pixel and turns it into a count through that pixel's own Poisson
    distribution (:func:`~spindoctor.sim.render.detector.shot_noise.sample_poisson`).
    How the count is found depends on the pixel's mean. Below 30 electrons it is
@@ -1109,20 +1110,45 @@ intensive signal passes through the electron unit chain in
    or infinite mean raises an error. The sampler takes about 0.07 s for that
    frame. The exact quantile at every mean takes 0.31 s, and NumPy's frame-wide
    sampler 0.03 s.
-4. **Pixel defects, radiation, and the full well.** The anti-blooming pairs, the hot
-   pixels, and the radiation hits are added. Where the ``bloom`` mode is on, charge above
+
+   **Hot pixels.** A hot pixel is a pixel whose dark current is far above the rest
+   of the detector's. Each one has a relative amplitude, and its rate is that
+   amplitude times ``rate_e_per_sec``. Its charge is its rate times the exposure plus
+   ``readout_sec``, the time it collects charge outside the exposure in each frame,
+   and it also holds the amplitude times ``readout_e``, a charge that does not depend
+   on the rate or the exposure. During readout every line moves one row toward line
+   0, which is read first, so the charge of every row below a hot pixel passes
+   through it on the way out. Each of those rows picks up the pixel's rate times
+   ``streak_sec``, the time a row spends there, plus the amplitude times
+   ``streak_e``, the same at every exposure. The result is a flat warm streak from
+   the row after the hot pixel to the last line. The rows above it are read before
+   it and get none. A binned row holds ``binning`` native rows that each passed the
+   hot pixel, so it picks up ``binning`` times as much; no dark frame has tested
+   that factor. A camera whose hot-pixel charge follows its dark rate states
+   the ``_sec`` terms, and one whose charge stays the same at every exposure states
+   the ``_e`` terms with a zero rate.
+
+   ``amplitude_law`` sets how the relative amplitudes are spread. ``exponential``
+   draws them with mean 1, so ``rate_e_per_sec`` is the population's mean rate.
+   ``power_law`` draws them from 1 up to ``amplitude_max``, with the number above
+   an amplitude falling as that amplitude to the power ``-amplitude_index``. Then
+   ``rate_e_per_sec`` is the lowest rate in the population, and ``pixel_fraction``
+   is the fraction of pixels at least that hot.
+
+   The hot pixels belong to the detector: a pixel is hot when a draw keyed only on
+   the emulated detector and the pixel's coordinates falls below ``pixel_fraction``,
+   so every scene emulating that camera, whatever its seed, has the same hot pixels
+   at the same coordinates with the same relative amplitudes. A smaller frame sees
+   the map's corner from ``(0, 0)``, and raising the fraction only adds pixels. A
+   population the scene sets itself under the adversarial switch is drawn onto the
+   navigation features instead (see :ref:`sim-adversarial-placement`). The
+   instrument pages give each camera's fitted values.
+4. **Pixel defects, radiation, and the full well.** The anti-blooming pairs and the
+   radiation hits are added. Where the ``bloom`` mode is on, charge above
    ``full_well_e`` then spills along the column up to ``bloom_length`` pixels each way,
    and the image is capped at the well. A camera's physical saturation
    therefore emerges from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling
-   for Cassini), not from the ADC clip. The hot pixels belong to the detector:
-   a pixel is hot when a draw keyed only on the emulated detector and the
-   pixel's coordinates falls below ``pixel_fraction``, so every scene
-   emulating that camera, whatever its seed, has the same hot pixels at the
-   same coordinates with the same amplitudes. A smaller frame sees the map's
-   corner from ``(0, 0)``, raising the fraction only adds pixels, and a
-   calibrated Cassini product shares its raw camera's map. A population the scene sets
-   itself under the adversarial switch is drawn onto the navigation features instead (see
-   :ref:`sim-adversarial-placement`).
+   for Cassini), not from the ADC clip.
 5. **Cosmic rays and read noise.** Cosmic rays deposit after the bloom cap. The
    detector collects them during the exposure and while the frame waits to be
    read, so the event count is a Poisson draw with mean
@@ -1932,7 +1958,7 @@ column, ``vgiss_*`` stands for the four Voyager entries.
      - Availability
      - Activation key
    * - ``hot_pixels``
-     - a fixed spatial population of high-dark-current pixels
+     - a fixed spatial population of high-dark-current pixels and their warm streaks
      - nac, wac, gossi
      - ``pixel_fraction``
    * - ``banding``
@@ -2117,7 +2143,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are eight:
+not yet fixed. There are twelve:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -2134,6 +2160,13 @@ not yet fixed. There are eight:
   outline that the image doesn't have, and the disc correlation lands on the
   maximum of its high-pass surface, pulled by that outline.
 - In ``mutual_deep``, the far body's crescent pulls the disc correlation.
+- In ``keeler_gap_unlit_ansa``, the edge fit slides along nearly straight edges.
+- In ``a_ring_edge_f_ring``, the unfit camera twist slides the curved edges along
+  themselves.
+- In ``b_ring_saturated_plateau``, the saturated edge reads farther out than the
+  same edge unsaturated, and the twist slides the edges along themselves.
+- In ``a_ring_low_opening``, the fit uses both edges of a narrow gap that the
+  image resolves only near the ansa.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
 answer as correct behavior. So the scene also declares ``known_offset_error_px``
@@ -2149,6 +2182,35 @@ or retirement of the check, instead of a silent behavior change. The success the
 check holds marks a known hazard. The scene comments and the campaign record
 carry the analysis, and the ensemble chapter
 (:doc:`dev_guide_orchestrator_ensemble`) describes the failure family.
+
+.. _sim-full-frame-cameras:
+
+Full-frame camera scenes
+------------------------
+
+The ``full_frame_cameras`` scene class
+(``tests/integration/sim_scenes/full_frame_cameras/``) holds realistic frames
+from the cataloged cameras. Each scene renders at its camera's real frame size
+with the camera's whole detector chain, and uses an exposure a real frame of
+that kind uses. Each offset is as large as the camera's real pointing errors,
+or larger where those are small, and the offsets point in different directions.
+Each scene also plants
+the camera's measured twist and leaves roll fitting off, as the cameras ship.
+Together the scenes guard the renderer and the navigator, so a change that moves
+a realistic frame's answer shows up.
+
+Each scene that navigates has its fused answer held to a tolerance measured
+over 16 seeds, like the other validation scenes. A scene the navigator fails is
+an expected failure: its expected block holds the failure, so a fix fails the
+scene until the block is retired. A scene whose answer depends on a navigator
+weakness says so in its comments and in ``sim_truth.py``.
+
+The instrument chapters list each camera's scenes, with their content, their
+measured errors, and the failures they hold.
+
+``test_sim_full_frame_cameras.py`` navigates each scene once per run. A star
+field takes a few seconds to navigate, and a frame with a disc takes up to half
+a minute, since the disc correlation searches the camera's whole offset window.
 
 .. _sim-floor:
 
@@ -2513,8 +2575,13 @@ least a quarter of a field grid cell, so the walk resolves the terrain at its ow
 resolution whatever the body's size. A step that long can pass over the top of a ridge
 that pokes into the line of sight between two samples outside the surface. Wherever the
 slope bound leaves room for such a ridge top, the step is halved, and the halves are
-tested again, until the pieces are 1/256 of a cell long. The step that enters the
-surface is then narrowed by interpolation. Near the limb the point found can lie far
+tested again, until the pieces are 1/256 of a cell long. Seen equator-on, that test
+takes the slope from the field's rows beside the step. From any other latitude it
+takes the steepest slope of the field cells within a cell of the step, raised by a
+millionth of itself plus 0.000001 per radian. So it rules out only steps that stay
+clear of the surface by far more than rounding, and it finds the same ridge tops as the
+field's slope bound would, with fewer halvings. The step that enters the surface is
+then narrowed by interpolation. Near the limb the point found can lie far
 from the smooth sphere's direction under the pixel, and behind a ridge the line of sight
 meets the ridge and never reaches the terrain beyond it. A pixel just outside the
 outline reads the closest of the walk's samples, which is the outline point beside it to
@@ -2556,6 +2623,23 @@ distances double up to that spacing, so a wall close to the point still shows
 open sky between itself and the point. The march reads terrain on the far
 hemisphere as readily as on the near one, and the body's curvature is in the
 geometry rather than an approximation.
+
+Past the first step, the march skips samples it can prove lie above the terrain. Per
+unit of distance along the ray, the ray's distance from the center changes by at most
+one unit, and its direction turns by at most one radian divided by that distance.
+Above the terrain that distance is at least the lowest terrain's, and no terrain rises
+faster than the field's slope bound. So the gap between the ray and the terrain closes
+by at most one unit plus the slope bound divided by the lowest terrain's distance from
+the center, and a sample some height above the terrain stays above it for at least that
+height divided by this rate. The march skips every sample within that distance. Once a
+ray climbs, the gap closes more slowly, and a ray that climbs faster than any terrain
+can rise is done. Every skipped sample lies above the terrain, so the march finds
+exactly the shadows it would find by taking every sample. On a 150 px body with 5%
+relief at a 5-degree correlation length, a ray takes about 44 samples instead of about
+150. Drawn at oversample 4 on one core, that body takes about 7.5 s, and a 280 px body
+with 5% relief at a 1-degree correlation length about 66 s. Most of what remains goes
+to the march and the line-of-sight search, in about equal parts on the 150 px body,
+while on finer relief the search takes the larger part.
 
 The terrain right at the point can also turn away from the Sun while the shading
 normal still faces it, because that normal is taken from differences half a cell
@@ -2632,7 +2716,9 @@ Outside those places the interpolated tilt is added to the smooth normal as it i
 without scaling the sum back to unit length. On the day side a Lambert surface's
 brightness is then the smooth brightness plus the interpolated difference between the
 relief and smooth brightness. Rescaling the sum would brighten rough terrain slightly.
-Only the rectangle a relief or cratered body covers is shaded.
+Only the rectangle a relief or cratered body covers is shaded, and on the working grid
+the relief is computed only at pixels inside the silhouette, since the silhouette
+masks every other pixel to zero.
 
 The craters are carved on the detector grid and their slopes taken there by
 central differences. On a finer grid those slopes are interpolated, so a body has
@@ -3351,6 +3437,33 @@ non-navigable gap plus a bright propeller moonlet at its center) both
 recover the planted offset from the catalog edges alone, with the clutter
 present and unmodeled.
 
+.. _sim-dense-rings:
+
+Saturn's rings at real scale
+----------------------------
+
+The ``ring_system`` scenes are small and clean: one or two features on black sky.
+The ``dense_rings`` class draws Saturn's main rings the way a full-size frame
+shows them. Each cataloged edge sits at its radius in the navigator's ring
+catalog, converted to pixels at the scene's scale. The navigator is told only
+about those edges, and structure it doesn't know about is drawn beside them.
+Every scene renders with the camera's detector chain, a realistic exposure, a
+realistic pointing error, and the camera's measured twist, with roll fitting
+off as the cameras ship. A radial profile comes from a library frame after its
+operator-verified pointing was applied, because a profile read from an
+unnavigated frame carries that frame's pointing error. The scene's comments say
+where every radius comes from and give its measured outcome. A scene that
+navigates holds its answer to its known-error band; a scene whose techniques
+disagree is returned as conflicted, and each technique's answer is held to its
+own band instead (see :ref:`sim-expected`).
+
+The instrument chapters list each camera's ring scenes and their measured
+outcomes.
+
+These frames take longer to render and navigate than the rest of the catalog,
+most of it in the ring renderer at the oversampling the detector chain's blur
+selects, so the class has its own test module, ``test_sim_dense_rings.py``.
+
 .. _sim-perf-budget:
 
 The render performance budget
@@ -3582,11 +3695,19 @@ render the default scene.
 The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
-``star_confounder``, ``ring_system``, ``expected_fail``) scope what each scene
-is testing and are
+``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``,
+``mixed_content``, ``dense_rings``) scope what each scene is testing and are
 enforced by the structural test. The scene README at
 ``tests/integration/sim_scenes/README.txt`` documents the schema alongside the
 code.
+
+The ``mixed_content`` scenes put two kinds of content in one realistic frame, as
+many real frames do: stars with a body whose predicted position is wrong, stars
+with a crescent, a moon in front of a ring sheet, and a distant Saturn with its
+rings. Each kind of content gets its own answer from its own techniques, and the
+navigator then has to reconcile those answers. Reconciling answers from different
+kinds of content is the main job of the step that combines the techniques'
+results.
 
 A complete YAML scene -- a noisy Cassini NAC frame with one irregular mesh body, a
 ring, a couple of stars, and a planted offset the navigator must recover -- reads:
@@ -4897,6 +5018,22 @@ change alters rendered output:
   A truth check compares the answer with the planted offset, not with a stored
   answer. If a regression is regenerated into the baselines, the truth check
   still fails.
+
+  A full-frame scene takes far longer to navigate than a small catalog scene,
+  so each class of full-frame scenes has a test module of its own,
+  ``test_sim_<class>.py``. These classes are listed in ``OWN_MODULE_CLASSES``
+  in ``sim_truth.py``. A class module is a few lines: it calls
+  ``scene_class_tests`` in ``sim_scene_checks.py``, which reads the class from
+  the module's file name and builds tests that navigate each scene once and
+  hold that one answer to every check: the truth tolerance or known-error band,
+  each tolerance or band on one technique's answer, the expected block, the
+  sigma check, and the regression baseline. The shared modules call the same
+  checks. When they navigate, they skip these classes. Their checks that need
+  no navigation still cover every scene. A structural
+  test in the default suite checks that each listed class is a declared
+  validation class with scenes and a module, and that each class module belongs
+  to a listed class. Because each class sits in a module of its own,
+  ``--dist=loadfile`` runs the classes on separate workers.
 - **Regression baselines** (``tests/integration/sim_baselines/``): every
   catalog scene re-navigates to its recorded outcome, with the same status and
   confidence rank, each offset axis within 0.02 px, and the confidence within 0.02

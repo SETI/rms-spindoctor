@@ -20,8 +20,9 @@ and reports the gate that rejected a frame.
 
 from __future__ import annotations
 
+import dataclasses
 import math
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -246,48 +247,6 @@ def _eligible_features(features: list[NavFeature]) -> list[NavFeature]:
     ]
 
 
-def _symmetry_params(block: dict[str, Any], *, angle_refine_deg: float) -> SymmetryFitParams:
-    """Build the cross-track tuning constants from the config block.
-
-    Parameters:
-        block: The ``titan.navigation.symmetry`` mapping.
-        angle_refine_deg: Half-range of the symmetry-angle search, passed
-            separately so the caller can disable refinement on a frame whose
-            axis is degenerate.
-    """
-    return SymmetryFitParams(
-        annulus_inner_fraction=float(block['annulus_inner_fraction']),
-        annulus_outer_pad_px=float(block['annulus_outer_pad_px']),
-        angle_refine_deg=angle_refine_deg,
-        angle_refine_step_deg=float(block['angle_refine_step_deg']),
-        angle_refine_min_gain=float(block['angle_refine_min_gain']),
-        min_peak_score=float(block['min_peak_score']),
-        min_valid_fraction=float(block['min_valid_fraction']),
-        max_second_peak_ratio=float(block['max_second_peak_ratio']),
-        cross_sigma_scale=float(block['cross_sigma_scale']),
-        sigma_floor_cross_px=float(block['sigma_floor_cross_px']),
-    )
-
-
-def _arc_params(block: dict[str, Any]) -> ArcFitParams:
-    """Build the along-track tuning constants from the ``titan.navigation.arc`` block."""
-    return ArcFitParams(
-        sector_half_angle_deg=float(block['sector_half_angle_deg']),
-        ray_step_deg=float(block['ray_step_deg']),
-        radial_step_px=float(block['radial_step_px']),
-        radial_inner_fraction=float(block['radial_inner_fraction']),
-        radial_outer_pad_px=float(block['radial_outer_pad_px']),
-        median_filter_samples=int(block['median_filter_samples']),
-        min_gradient_snr=float(block['min_gradient_snr']),
-        min_rays=int(block['min_rays']),
-        min_inlier_fraction=float(block['min_inlier_fraction']),
-        max_residual_rms_px=float(block['max_residual_rms_px']),
-        tukey_c=float(block['tukey_c']),
-        along_sigma_scale=float(block['along_sigma_scale']),
-        sigma_floor_along_px=float(block['sigma_floor_along_px']),
-    )
-
-
 def _rotated_covariance(
     theta_rad: float, sigma_cross_px: float, sigma_along_px: float
 ) -> NDArrayFloatType:
@@ -437,15 +396,14 @@ class TitanHazeNav(NavTechnique):
             assert isinstance(geometry, TitanHazeGeometry)
             margin_v, margin_u = search_window_for_obs(context)
             window_px = float(max(margin_v, margin_u))
-            nav_config = self.config.titan['navigation']
-            symmetry_block = nav_config['symmetry']
-            # A degenerate axis means any direction is equally valid, so the
-            # refinement search has nothing to improve and would only chase
-            # noise; disabling it is the Section-2.2 skip expressed through
-            # the fitting library's own zero-range convention.
-            angle_refine_deg = (
-                0.0 if geometry.axis_degenerate else float(symmetry_block['angle_refine_deg'])
-            )
+            nav_config = self.config.titan.navigation
+            sym_params = nav_config.symmetry
+            if geometry.axis_degenerate:
+                # A degenerate axis means any direction is equally valid, so the
+                # refinement search has nothing to improve and would only chase
+                # noise; disabling it is the Section-2.2 skip expressed through
+                # the fitting library's own zero-range convention.
+                sym_params = dataclasses.replace(sym_params, angle_refine_deg=0.0)
             reported_center = reported_position_vu(
                 geometry.predicted_center_vu, (margin_v, margin_u)
             )
@@ -459,8 +417,7 @@ class TitanHazeNav(NavTechnique):
                 geometry.axis_degenerate,
                 window_px,
             )
-            sym_params = _symmetry_params(symmetry_block, angle_refine_deg=angle_refine_deg)
-            arc_params = _arc_params(nav_config['arc'])
+            arc_params = nav_config.arc
             symmetry, arc, offset_vu, recentered = fit_titan_center(
                 np.asarray(context.image_ext, np.float64),
                 np.asarray(context.sensor_mask_ext, bool),
@@ -472,7 +429,7 @@ class TitanHazeNav(NavTechnique):
                 window_px=window_px,
                 sym_params=sym_params,
                 arc_params=arc_params,
-                recenter_threshold_px=float(nav_config['recenter_threshold_px']),
+                recenter_threshold_px=nav_config.recenter_threshold_px,
             )
             self._log_gate_table(
                 symmetry,

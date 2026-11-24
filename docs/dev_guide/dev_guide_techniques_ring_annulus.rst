@@ -216,6 +216,17 @@ rank-1 ``RING_EDGE`` rather than joining the composite. A sub-threshold scene ca
 a mix: ``RING_EDGE`` features for well-extended or straight edges alongside one ``RING_ANNULUS``
 composite for the edges that compressed below ``max_radial_px``.
 
+The section is parsed at load into
+:class:`~spindoctor.config.sections_models.FeatureEmissionSection`, which refuses an unknown key
+and any value that is not a positive number. A key under ``planets`` is the planet's SPICE name in
+upper case and must name a planet of the top-level ``planets`` section, or it is refused at load
+too. A planet's entry under ``planets`` may leave out
+either key, and that key then takes the ``default`` entry's value; a planet with no entry takes
+the ``default`` entry whole. What counts is the entry after every file is merged, and files
+merge key by key: an override that changes ``default.max_radial_px`` leaves a packaged planet
+entry's own ``max_radial_px`` in place
+(:meth:`~spindoctor.config.sections_models.RingAnnulusEmissionTable.for_planet`).
+
 For Saturn the km/px threshold routes by measured reliability, not by pixel span: at or above
 25 km/px radial resolution the whole Saturn system routes to the annulus composite, and the
 per-edge distance-transform fit receives only sub-25 km/px scenes. A 131-frame clean-truth

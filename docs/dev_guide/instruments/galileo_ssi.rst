@@ -275,6 +275,41 @@ second, a 4.33 s readout dwell (half the full-frame readout), a 6,000 e-
 deposit scale, and 0.4 native pixels of diffusion. The simulator report's
 artifact-rate table gives the fit's evidence.
 
+**Hot pixels.** The hot-pixel values are fitted on raw frames at the 10K gain
+state, 39 e-/DN. A pixel that spikes in at least three frames of a set counts as a
+hot pixel. A hot pixel's charge and its streak are constants of the frame mode: they
+do not grow with the exposure, so ``rate_e_per_sec`` is 0 and the charges are set
+by ``readout_e`` and ``streak_e``.
+
+* Nine dark frames of zero exposure from volumes GO_0002 and GO_0006 were taken
+  late in 1990 in the 60 2/3 s frame mode, which most of the image-library frames
+  use. Of the 640,000 pixels, 8 hold 300 e- or more, 2 hold 500 e-, and 1 holds
+  1,000 e-. An exponential population with a fraction of 9e-5 and a mean of
+  150 e- matches those counts, so ``pixel_fraction`` is 9e-5 and ``readout_e`` is
+  150 e-.
+* 47 dark-sky frames from volumes GO_0007 and GO_0008 were taken on 3 December
+  1992 in the 8 2/3 s frame mode, at exposures from 0.1 to 0.8 s. Their counts are
+  the same at every exposure: 435 pixels at 300 e- or more, 89 at 500 e-, and 6 at
+  1,000 e-. The charge therefore does not come from the exposure, and its mean is
+  about 150 e- here too. A dark rate above 8 e-/s at relative amplitude 1 would
+  have raised the 500 e- count by a tenth from 0.1 to 0.8 s. These frames hold
+  about 50 times the hot pixels of the 60 2/3 s frames, a difference the
+  simulator does not model.
+* The counts fall twentyfold from 150 to 300 e- in pairs of 60 2/3 s darks, in
+  1990 and in 1992. An exponential falls that fast, and a power law would need an
+  index near 4, so ``amplitude_law`` stays ``exponential``.
+* Longer exposures in these sets use the extended-exposure mode. Its longer frame
+  cycle is not modeled, so those frames are not used.
+* The rows read after a hot pixel carry a flat streak, and the rows read before it
+  carry nothing. On the median of the six 60 2/3 s darks of GO_0007, from 1992,
+  237 hot pixels of 300 e- or more give 0.51% +- 0.05% of the pixel's charge per
+  row. The four undated 60 2/3 s darks of GO_0002 give 0.29% +- 0.04% from 102
+  hot pixels, and the seven dated 1990 darks hold only nine hot pixels, too few to
+  measure. Two zero-exposure darks of GO_0007 in the 8 2/3 s mode give 0.55% +-
+  0.08%. ``streak_e`` is 0.5% of 150 e-, which is 0.75 e-.
+* The pixel to the right of a strong hot pixel holds up to a tenth of its charge,
+  a trail along the row that the simulator leaves out.
+
 **Artifact-mode availability.** The instrument entry's ``artifact_modes.offered``
 lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
@@ -314,6 +349,27 @@ on a real frame of this instrument and checks it against the identity.
 ``tests/integration/test_ck_round_trip.py`` asserts that a frame of this
 instrument fits no camera rotation, records a corrected attitude alongside its
 uncorrected one, and is not omitted as ``rotation_unsupported``.
+
+**Simulator guard scenes.** The ``full_frame_cameras`` scene class (see
+:ref:`sim-full-frame-cameras`) holds three scenes of this instrument, each at the
+full 800 px frame with the measured twist of -0.0526 degrees. Simulated skies of
+this camera are about four times quieter than real ones, so each scene plants
+the measured sky noise of 0.96 DN in place of the catalog's read noise.
+
+- ``gossi_star_field``: two bright stars among 14 fainter ones at 1.6 s, offset
+  257 px, the size of the library's scattered-light frames. The answer lands
+  0.04 to 0.06 px off over 16 seeds, and 0.02 px off without the twist.
+- ``gossi_star_field_short_exposure``: the same field at 0.1 s, the exposure of
+  the real Pleiades frames, which navigate on three stars. The navigator
+  predicts only the brightest star visible, so the frame fails, and the scene's
+  expected block holds the failure. The simulated stars are about 12 times
+  fainter than real stars of the same magnitude. The navigator's star limit on
+  a simulated frame also spreads the simulator's star brightness over a 3.0 px
+  placeholder blur, so it reaches only V 3.2 at 0.1 s, against V 7.8 on the
+  real frames.
+- ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
+  0.18 px off with the twist, and 0.04 px off without it. The scene takes about
+  20 seconds to navigate, because the search window reaches 350 px.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per

@@ -501,6 +501,93 @@ rate of 2.0e-5 events per pixel per second, a 6 s readout dwell, a 1,000 e-
 deposit scale, and 0.6 native pixels of diffusion; the simulator report's
 artifact-rate table gives the fit's evidence.
 
+**Hot pixels.** The raw cameras' hot-pixel values are fitted on raw 12-bit
+full-frame dark frames, taken with the shutter disabled, at exposures of 0, 10, 32,
+100, 320, 560, and 1200 s. Each exposure has five to seven frames, and their median
+removes the cosmic rays. The NAC has four such series: COISS_2019 (January 2006),
+COISS_2041 (January 2008), COISS_2069 (July 2011), and COISS_2114 (June 2017). The
+WAC has the first two. The frames are converted to electrons at 30 e-/DN on the NAC
+and 28 e-/DN on the WAC.
+
+* A hot pixel's charge grows in proportion to the exposure from 10 to 1200 s, to
+  within 3%. A frame of zero exposure still holds the charge the hot pixel collects
+  in 0.09 s on the NAC and in 0.10 s on the WAC, which is ``readout_sec``.
+* The rates follow a power law with an upper cutoff. Each pixel's rate is read from
+  the shortest exposure that holds it well above the noise. In the 2008 series,
+  1.0% of the NAC's pixels are hotter than 1 e-/s, and the number hotter than a
+  given rate falls as that rate to the power -0.94, up to 1,100 e-/s, above which
+  there are none. On the WAC the figures are 0.72%, -0.98, and 1,260 e-/s. The fit
+  follows the real counts to within 15% up to 100 or 200 e-/s, and to within 45%
+  above that, where a frame holds 30 such pixels or fewer.
+* The table gives the number of NAC pixels in a full frame holding at least 75 e-,
+  the real 2008 count against the fitted power law:
+
+  ============  ======  ==========
+  Exposure (s)  Real    Power law
+  ============  ======  ==========
+  0.01          7       6
+  0.1           17      24
+  1             190     182
+  3             551     509
+  10            1,811   1,579
+  30            4,391   4,435
+  60            7,709   8,511
+  ============  ======  ==========
+
+* The population grows over the mission at about the same slope. On the NAC,
+  0.76% of the pixels are hotter than 1 e-/s in 2006, 1.8% in 2011, and 2.3% in
+  2017, and the cutoff rises to between 2,000 and 5,000 e-/s. The published 0.15%
+  of pixels in 2004 and about 0.28% by 2008 match the dark frames' count of pixels
+  hotter than about 4 e-/s.
+* The rows read after a hot pixel carry a flat streak, out to 1,000 rows from it.
+  Each charge packet that passes through the hot pixel picks up the charge the
+  hot pixel collects in 0.0146 s on the NAC and in 0.0142 s on the WAC, at every
+  exposure, which is ``streak_sec``. The rows read before a hot pixel carry
+  nothing. The camera timing model of the ISS ground calibration report reads the
+  CCD at 69 to 79 lines per second in full-frame mode, 0.0126 to 0.0145 s per
+  line, which matches. The same model slows the readout to the telemetry rate once
+  the camera's 336-line buffer fills, which would lengthen the streak on rows far
+  below a hot pixel, but the dark frames show no such step.
+* A binned row is given ``binning`` times a native row's streak. No dark frame
+  settles that factor: summed-mode darks give 0.027 +- 0.012 s per binned row after
+  a hot pixel, against 0.018 s before it. The timing model's summed-mode line rate,
+  88 to 96 lines per second, would give about 0.011 s.
+* The first three rows after a hot pixel also carry a short trail that grows about
+  as the square root of the hot pixel's charge: 2.5% of the charge on the first
+  row at 1,000 e-, and 0.4% at 70,000 e-. The simulator leaves it out.
+
+**Calibrated hot pixels.** A calibrated product carries its raw camera's hot-pixel
+map positions, with a population of its own. CISSCAL's dark subtraction removes the
+raw camera's hot pixels: where the nearest dark series has a pixel hotter than
+20 e-/s, a calibrated frame holds less than the frame around it, by 0.2 to 1.3
+times the raw charge. What a calibrated frame keeps are spikes that recur at one
+position and do not grow with the exposure. Frames of 0.08 to 0.2 s show them at
+2,000 to 9,000 e-, more than any raw hot pixel collects in that time.
+
+* The calibrated population is fitted to the stationary spikes of the 58-frame NAC
+  cohort: 957 spikes, a mean fraction of 1.57e-5 of each frame's pixels. A charge
+  of the same size whatever the exposure fits the frames' counts better than a
+  charge in proportion to the exposure.
+* ``pixel_fraction`` is 3.3e-5, the fraction of pixels holding 1,000 e- or more
+  (``readout_e``), and ``rate_e_per_sec`` is 0. The number above a charge falls as
+  one over that charge (the fitted index is 0.97) up to the full well. At the real
+  frames' spike thresholds the population predicts the cohort's fraction of
+  1.57e-5. The realism match measures 2.8e-5 on the matched frames: the NAC's map
+  holds 41 such pixels in a full frame where 35 are expected, and the matched
+  frames' own spike thresholds flag about 1.5 times more of the population.
+* Two frames 14 days apart, N1487595731 (0.18 s) and N1488823805 (1.2 s), share
+  192 of those spikes at about the same charge, all in one square of rows and
+  columns 512 to 767. They make up 48% of the cohort's stationary spikes. The
+  frames' counts also scatter far more than any one law allows, since scene
+  content that repeats between frames adds to them.
+* The WAC cohort has four frames and one stationary pixel, seen in two of them:
+  2,314 e- at 1.8 s and 2,285 e- at 0.025 s. The NAC's law with a fraction of
+  7.9e-7 predicts its mean fraction of 4.8e-7, but one pixel leaves that fraction
+  uncertain by a factor of several. The WAC's map holds no pixel that rare in a
+  full frame, so the realism match measures none.
+* The residual pixels' streaks are not measured, so the calibrated population has
+  none.
+
 **PSF kernels.** ``coiss_nac`` is
 ``{sigma_v: 0.70, sigma_u: 0.70, w: 0.12, r0: 3.0, n: 4.0}``, tuned against the
 image-library cohort's eleven contributing narrow angle star frames: the cohort
@@ -559,6 +646,83 @@ offset, linear in the offset. The hermetic writer tests build their own minimal
 kernels and do not depend on this instrument's holdings, but the
 angular-velocity measurement quoted above was made against the real
 reconstructed kernel ``04002_04009ra.bc``.
+
+**Simulator guard scenes.** The ``full_frame_cameras`` scene class (see
+:ref:`sim-full-frame-cameras`) holds five scenes of this instrument, each at the
+full 1024 px frame. The offsets lie within the range of real pointing errors on
+each camera, most of them near its upper end. The narrow angle scenes plant the
+measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
+
+- ``coiss_nac_star_field``: a raw narrow angle star field, 18 stars of V 8.7 to
+  11.4 at 2 s, offset 39 px. The star-field technique matches the catalog
+  against the 30 brightest sources it detects. The frame's cosmic rays crowd
+  the stars out of that list, so the technique finds one match where it needs
+  six and returns spurious. With the cosmic rays turned off it finds the offset
+  to 0.02 px, hot pixels and all. The single-star and refinement techniques
+  carry the answer, 0.01 to 0.23 px off over 16 seeds.
+
+  The scene renders its stars through the clear filter, though the real frame
+  it follows was taken through CL1+IR3. Through CL1+IR3 the simulator dims each
+  star by the filter's throughput for sunlight, 22 times, and the frame fails at
+  2 s, where the real frame navigates. The real frame's stars are about 50 times
+  brighter than the simulator draws them through that filter, and about twice
+  as bright as it draws them through the clear filter.
+- ``coiss_calib_nac_disc``: a calibrated narrow angle frame of a moon 280 px
+  across, offset 57 px. The answer lands 0.09 to 0.10 px off.
+- ``coiss_wac_disc``: a raw wide angle frame of a moon 128 px across, offset
+  13 px. The disc correlation finds the offset to 0.09 px but marks it
+  spurious, because it lies within 2 px of the edge of the 13 px search window.
+  The limb fit carries the frame at low confidence, 0.13 to 0.17 px off, and
+  the scene's expected block holds the low tier.
+- ``coiss_calib_wac_star_field``: a calibrated wide angle star field, 95 stars
+  of V 7.4 to 10.4 at 26 s, offset 12 px. The answer lands 0.01 to 0.03 px off.
+- ``coiss_calib_wac_star_field_large_offset``: the same field with the offset at
+  the largest real per-axis extent, 12.4 px. Both star techniques find the
+  offset to within 0.06 px, but an answer within 1 px of the 13 px search limit
+  has its confidence set to zero, so the frame is refused. The scene's expected
+  block holds the failure.
+
+**Simulator ring guard scenes.** The ``dense_rings`` scene class (see
+:ref:`sim-dense-rings`) holds five full-size narrow angle frames of the main
+rings. Each has a pointing error of 27 to 34 px and the camera's measured twist
+of 0.0115 degrees, with roll fitting off as the camera ships.
+
+- ``keeler_gap_unlit_ansa`` draws the Keeler gap at 0.338 km/px on the unlit face,
+  near the ansa, beside 453 one-kilometer bins of a radial profile measured on a
+  library frame. The edge fit lands about 3.5 px off along the nearly straight
+  edges and reports a sigma near 0.1 px. With one uniform sheet in place of the
+  profile it lands about 1.2 px off, so the profile carries most of the error.
+- ``a_ring_edge_f_ring`` draws the outer A ring at 10 km/px with the F ring 345 px
+  outside the A ring's edge and the Encke gap's central ringlet inside the gap.
+  Neither pulls the fit.
+- ``a_ring_low_opening`` draws the same rings at a ring opening of 2.5 degrees.
+  The edges become nested hairpins about the ansa, and along their arms the
+  rings' radial direction is squeezed to about a twentieth of its length. The
+  Keeler gap, 3.7 px wide at the ansa, is under a pixel wide over most of its arc,
+  and fitting both of its edges puts the answer 0.84 px off at a sigma under
+  0.06 px.
+- ``maxwell_hidden_eccentricity`` draws the Maxwell ringlet with its measured
+  eccentricity while the navigator's orbit for it is circular. The fit follows the
+  drawn ringlet, about 5 px inward of the circular orbit, and ends 6.8 px off at a
+  sigma under 0.1 px. The annulus correlation, pulled by the same ringlet, lands
+  11.8 px off without flagging it. The two answers disagree, and the frame is
+  returned as conflicted.
+- In ``b_ring_saturated_plateau`` a 12 s exposure saturates the B ring into a flat
+  plateau beside the Huygens gap, with the Herschel and Russell gaps in the
+  Cassini Division beyond it. The saturated edge pulls the answer 0.06 px farther
+  out across the edges than the same frame unsaturated, which is five times the
+  reported sigma.
+
+Turning a frame about the boresight slides a curved ring edge along itself by
+about the twist angle times the edge's radius of curvature on the sky. For the A
+ring at 10 km/px that is about 0.26 px, and the navigator's reported sigma leaves
+it out: with the twist removed, ``a_ring_edge_f_ring`` lands 0.039 px off. The
+twist is not what puts the other scenes above three sigma. Without it they still
+sit at 5.5 sigma (the saturated B ring), 25 sigma (the Keeler gap), 17 sigma (the
+low opening), and 144 sigma (the hidden eccentricity). Where the along-edge answer
+is weakly determined, as at the Keeler gap, the twist moves it by more than a
+slide would, in a direction that depends on the twist's sign. Rendering and
+navigating one of these frames takes 6 to 40 seconds.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.

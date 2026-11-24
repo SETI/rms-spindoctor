@@ -966,7 +966,7 @@ class NavModelBody(NavModelBodyBase):
         restr_u_max = u_max + 1 - PIXEL_CENTER_TO_CORNER_PX / oversample_u
         restr_v_min = v_min + PIXEL_CENTER_TO_CORNER_PX / oversample_v
         restr_v_max = v_max + 1 - PIXEL_CENTER_TO_CORNER_PX / oversample_v
-        want_lambert = bool(body_config.use_lambert)
+        want_lambert = body_config.use_lambert
         strips = _striped_body_quantities(
             obs,
             body_name,
@@ -1031,7 +1031,7 @@ class NavModelBody(NavModelBodyBase):
             else:
                 local_model = body_mask_valid.astype(np.float64)
             if body_config.use_albedo and body_name in body_config.geometric_albedo:
-                albedo = float(body_config.geometric_albedo[body_name])
+                albedo = body_config.geometric_albedo[body_name]
                 local_model = local_model * albedo
 
         # Promote to extfov-shaped arrays.
@@ -1174,7 +1174,7 @@ class NavModelBody(NavModelBodyBase):
                     'BODY_DISC; BODY_BLOB may still emit',
                     self._body_name,
                     self._predicted_diameter_px,
-                    math.sqrt(float(self._config.bodies.min_bounding_box_area)),
+                    math.sqrt(self._config.bodies.min_bounding_box_area),
                 )
             limb_arc_emitted = False
             blob_min_px = max(BODY_BLOB_MIN_DIAMETER_PX, shape.min_blob_diameter_px)
@@ -1406,7 +1406,7 @@ def shape_features_suppressed(
     Returns:
         True when the body's shape features must not be emitted.
     """
-    resolved_diameter_px = math.sqrt(float(config.bodies.min_bounding_box_area))
+    resolved_diameter_px = math.sqrt(config.bodies.min_bounding_box_area)
     return (
         shape.shape_class_hint == 'highly_irregular'
         and predicted_diameter_px > resolved_diameter_px

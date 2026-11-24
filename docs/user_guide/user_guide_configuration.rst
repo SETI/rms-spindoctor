@@ -104,6 +104,10 @@ The sections are:
     still be measured, where the ring radii come from, and how thick the atmosphere of a
     hazy body is taken to be.
 
+``feature_emission``
+    For each planet, how coarse the image must be, or how narrow a ring edge, before its
+    rings are matched as one band rather than edge by edge.
+
 ``body_shape``
     The dimensions, surface roughness, and brightness assumed for each body, which is what
     decides how closely a modeled limb can be expected to match the real one.
@@ -150,6 +154,12 @@ and the setting. Your file cannot unset a default. It can only give it another v
 When your file is read, a setting that SpinDoctor does not know, or a value it cannot use,
 such as a fraction above 1 or a star count of 0, is refused too, and the message gives the
 file and the setting.
+
+Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
+or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
+ones listed in ``planets``. The bodies in a setting kept per body, such as
+``bodies.geometric_albedo``, and the moons listed for each planet in ``satellites`` must
+be in upper case. Any other planet or body is refused the same way.
 
 Writing your own default file
 =============================

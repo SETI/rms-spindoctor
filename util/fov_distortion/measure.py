@@ -20,9 +20,10 @@ instrument that ships with rotation fitting off is still measured.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from dataclasses import dataclass, field
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 from filecache import FCPath
@@ -31,6 +32,7 @@ from psfmodel import GaussianPSF
 from util.fov_distortion.decompose import FrameDecomposition, decompose_frame
 
 from spindoctor.config import DEFAULT_CONFIG, Config
+from spindoctor.config.sections_models import StarsSection
 from spindoctor.nav_model.nav_model import build_models_for_obs
 from spindoctor.nav_model.stars.nav_model_stars import NavModelStars
 from spindoctor.nav_orchestrator.orchestrator import NavOrchestrator
@@ -197,6 +199,34 @@ def _centroid_star(
     return (float(det_v), float(det_u)), peak - background
 
 
+class _StarCapConfig:
+    """A view of a configuration whose star reduction keeps a given number of stars.
+
+    The models keep the configuration they are built with and read it again when
+    they render, so the cap holds for the whole navigation.  Every other setting is
+    the wrapped configuration's.
+    """
+
+    def __init__(self, config: Config, *, max_stars: int) -> None:
+        """Wrap a configuration with a cap on the stars its reduction keeps.
+
+        Parameters:
+            config: The configuration every other setting is read from.
+            max_stars: The most stars the star reduction keeps.
+        """
+        self._config = config
+        self._stars = dataclasses.replace(config.stars, max_stars=max_stars)
+
+    @property
+    def stars(self) -> StarsSection:
+        """The star settings with the cap applied."""
+        return self._stars
+
+    def __getattr__(self, name: str) -> Any:
+        """Every other setting of the wrapped configuration."""
+        return getattr(self._config, name)
+
+
 def measure_frame(
     url: str,
     inst_id: str,
@@ -210,9 +240,9 @@ def measure_frame(
         url: Image URL; may embed ``${PDS3_HOLDINGS_DIR}`` and similar tokens.
         inst_id: Instrument id used to select the observation class.
         params: Detection / rejection parameters; defaults if omitted.
-        config: Configuration; ``DEFAULT_CONFIG`` if omitted.  ``stars.max_stars``
-            is set from ``params.max_stars`` only while the star models are built
-            and is restored afterward, so a shared config is left unchanged.
+        config: Configuration; ``DEFAULT_CONFIG`` if omitted.  The models read it
+            through a view whose ``stars.max_stars`` is ``params.max_stars``, so a
+            shared config is left unchanged.
 
     Returns:
         A :class:`FrameMeasurement`.  Frames that fail to load, fail
@@ -258,12 +288,11 @@ def measure_frame(
     center = ((h - 1) / 2.0, (w - 1) / 2.0)
     rho_ref = 0.5 * math.hypot(h, w)
 
-    original_max_stars = config.stars.max_stars
-    config.stars.max_stars = params.max_stars
-    try:
-        models = build_models_for_obs(obs, config=config)
-    finally:
-        config.stars.max_stars = original_max_stars
+    # The models take a Config and read many of its sections, so the view is cast to
+    # one; it answers every attribute through the wrapped Config.
+    models = build_models_for_obs(
+        obs, config=cast(Config, _StarCapConfig(config, max_stars=params.max_stars))
+    )
     star_models = [m for m in models if isinstance(m, NavModelStars)]
     result = NavOrchestrator(models, only_models='stars').navigate(obs)
     if result.offset_px is None:

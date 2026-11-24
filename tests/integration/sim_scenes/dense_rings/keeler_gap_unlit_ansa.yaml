@@ -1,0 +1,541 @@
+schema_version: 2
+scene_name: keeler_gap_unlit_ansa
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 23
+exposure_sec: 3.8
+# The Keeler gap at real scale on the unlit face, near the ansa, with the
+# measured radial profile of the A ring beside it and only the gap's two
+# cataloged edges known to the navigator.
+#
+# Where the profile comes from.  Library frame N1863267861 (COISS_2110,
+# 2017-01-16, NAC, CL1+IR3, 3.8 s, gain 29 e-/DN) navigated: its
+# operator-verified pointing, (dv, du) = (-14.7228, -17.9813) px from the
+# image library's ground truth, was applied before reading the ring radius
+# of every pixel.  That verification is along the edge normal, which is the
+# direction a radial profile depends on.  The profile is the median CALIB
+# I/F in 1 km bins of ring radius, 136,283 to 136,736 km: 453 bins, each a
+# non-navigable ringlet 2.959 px wide.  Each bin's tau sits on the low-tau
+# side of the unlit single-scattering law for this geometry, scaled so the
+# brightest bin is at 98% of that law's peak, so the drawn brightness
+# follows the measured I/F.  These tau values are therefore not the ring's
+# optical depths.  On the frame, the gap's inner edge falls within 1 km of
+# its cataloged radius and the outer edge rises about 3 km inside it.
+#
+# The cataloged edges, from config_310_saturn_rings.yaml.  The gap's inner
+# edge is keeler_gap, 136,484.91 km and circular, and the gap carries that
+# orbit.  Its outer edge is the inner edge of Keeler-A Ring OE, 136,522.087
+# km with ae = 0.99 km and its pericenter frozen at 322.44 deg.  The gap's
+# width, 36.39 km, puts the outer edge on that catalog orbit in the middle
+# of its arc in the frame (longitude -0.10 deg), at 136,521.30 km; along
+# the arc it then sits within 0.004 km (0.01 px) of its catalog radius.
+# The navigable gap clears the profile between its edges, and the
+# navigator is given the same orbit and width the scene draws.
+#
+# The geometry is the frame's own: 0.338 km/px radially, B = -12.83 deg to
+# the observer and +26.67 deg to the Sun (the unlit face), phase 82.1 deg.
+# The real frame looks near the sub-observer meridian, where the edges are
+# straight; this scene moves the view to the ansa (ring longitudes -0.5 to
+# +0.3 deg from the node).  There the edges curve with a radius of about
+# 19,900 px, bending about 6.6 px across the frame, so the edge fit is
+# two-dimensional rather than rank-1.  An albedo of 0.95 at the frame's
+# exposure puts most of the ring at 525 to 735 DN against the raw frame's 555 to
+# 818 DN.  The planted twist, +0.0115 deg, is the NAC's measured twist,
+# with roll fitting off as the camera ships.
+#
+# Measured outcome (2026-11-24): RingEdgeNav answers 3.53 px from the
+# planted offset, almost all of it along the edge, with a reported sigma of
+# 0.033 to 0.12 px: 33 sigma.  This is the along-edge error on nearly
+# straight edges at sub-pixel sigma (#755).  The along-edge answer is weakly
+# determined, so the twist does not simply slide it: with the twist
+# removed the committed draw is 2.37 px off along the edge (25 sigma), and
+# a twist of -0.01 deg moves it to 4.09 px off on the other side.  With one
+# uniform sheet in place of the measured profile the committed draw is
+# 1.21 px off with the twist and 1.38 px without, so the profile beside
+# the edges carries most of the error.  The measurement covers the
+# committed seed and random_seed 101, 202, ..., 1515: 16 distinct draws.
+# noise_seed 101 to 808 repeats random_seed 101 to 808 exactly, because the
+# random seed draws only the detector noise here.  The error is 3.338 to
+# 3.532 px and 27.1 to 32.8 sigma.  The confidence runs 0.84 to 0.90 across
+# the high tier's 0.85 floor, so the tier is medium on 14 draws and high on
+# 2 and is not asserted.  The band puts each end max(0.05 px, a fifth of
+# the spread) outside the measured range: [3.288, 3.583] px.
+expected:
+  status: success
+  known_offset_error_px: 3.4355
+  known_offset_error_tol_px: 0.1475
+artifacts:
+  instrument_defaults: true
+bodies: []
+ring_system:
+  phase_deg: 82.1
+  geometry:
+    center_v: 56898.31
+    center_u: -399381.74
+    opening_deg_obs: -12.83
+    opening_deg_sun: 26.67
+    node_deg: 8.0
+  features:
+    - name: KEELER
+      kind: gap
+      tau: 0.3
+      width_px: 107.670
+      navigable: true
+      orbit: {a_px: 403801.509}
+    - {kind: ringlet, tau: 0.1190, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403204.142}}
+    - {kind: ringlet, tau: 0.1041, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403207.101}}
+    - {kind: ringlet, tau: 0.0829, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403210.059}}
+    - {kind: ringlet, tau: 0.0631, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403213.018}}
+    - {kind: ringlet, tau: 0.0563, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403215.976}}
+    - {kind: ringlet, tau: 0.0620, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403218.935}}
+    - {kind: ringlet, tau: 0.0811, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403221.893}}
+    - {kind: ringlet, tau: 0.1050, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403224.852}}
+    - {kind: ringlet, tau: 0.1219, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403227.811}}
+    - {kind: ringlet, tau: 0.1295, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403230.769}}
+    - {kind: ringlet, tau: 0.1277, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403233.728}}
+    - {kind: ringlet, tau: 0.1109, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403236.686}}
+    - {kind: ringlet, tau: 0.0867, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403239.645}}
+    - {kind: ringlet, tau: 0.0807, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403242.604}}
+    - {kind: ringlet, tau: 0.0846, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403245.562}}
+    - {kind: ringlet, tau: 0.1041, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403248.521}}
+    - {kind: ringlet, tau: 0.1197, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403251.479}}
+    - {kind: ringlet, tau: 0.1148, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403254.438}}
+    - {kind: ringlet, tau: 0.1120, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403257.396}}
+    - {kind: ringlet, tau: 0.1057, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403260.355}}
+    - {kind: ringlet, tau: 0.1079, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403263.314}}
+    - {kind: ringlet, tau: 0.1108, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403266.272}}
+    - {kind: ringlet, tau: 0.1115, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403269.231}}
+    - {kind: ringlet, tau: 0.1175, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403272.189}}
+    - {kind: ringlet, tau: 0.1196, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403275.148}}
+    - {kind: ringlet, tau: 0.1188, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403278.107}}
+    - {kind: ringlet, tau: 0.1178, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403281.065}}
+    - {kind: ringlet, tau: 0.1176, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403284.024}}
+    - {kind: ringlet, tau: 0.1193, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403286.982}}
+    - {kind: ringlet, tau: 0.1189, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403289.941}}
+    - {kind: ringlet, tau: 0.1180, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403292.899}}
+    - {kind: ringlet, tau: 0.1183, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403295.858}}
+    - {kind: ringlet, tau: 0.1185, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403298.817}}
+    - {kind: ringlet, tau: 0.1189, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403301.775}}
+    - {kind: ringlet, tau: 0.1196, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403304.734}}
+    - {kind: ringlet, tau: 0.1204, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403307.692}}
+    - {kind: ringlet, tau: 0.1205, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403310.651}}
+    - {kind: ringlet, tau: 0.1183, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403313.609}}
+    - {kind: ringlet, tau: 0.1178, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403316.568}}
+    - {kind: ringlet, tau: 0.1174, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403319.527}}
+    - {kind: ringlet, tau: 0.1187, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403322.485}}
+    - {kind: ringlet, tau: 0.1198, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403325.444}}
+    - {kind: ringlet, tau: 0.1185, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403328.402}}
+    - {kind: ringlet, tau: 0.1189, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403331.361}}
+    - {kind: ringlet, tau: 0.1192, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403334.320}}
+    - {kind: ringlet, tau: 0.1192, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403337.278}}
+    - {kind: ringlet, tau: 0.1191, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403340.237}}
+    - {kind: ringlet, tau: 0.1184, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403343.195}}
+    - {kind: ringlet, tau: 0.1179, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403346.154}}
+    - {kind: ringlet, tau: 0.1189, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403349.112}}
+    - {kind: ringlet, tau: 0.1213, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403352.071}}
+    - {kind: ringlet, tau: 0.1236, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403355.030}}
+    - {kind: ringlet, tau: 0.1217, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403357.988}}
+    - {kind: ringlet, tau: 0.1134, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403360.947}}
+    - {kind: ringlet, tau: 0.1108, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403363.905}}
+    - {kind: ringlet, tau: 0.1134, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403366.864}}
+    - {kind: ringlet, tau: 0.1187, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403369.822}}
+    - {kind: ringlet, tau: 0.1177, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403372.781}}
+    - {kind: ringlet, tau: 0.1157, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403375.740}}
+    - {kind: ringlet, tau: 0.1163, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403378.698}}
+    - {kind: ringlet, tau: 0.1202, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403381.657}}
+    - {kind: ringlet, tau: 0.1197, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403384.615}}
+    - {kind: ringlet, tau: 0.1201, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403387.574}}
+    - {kind: ringlet, tau: 0.1201, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403390.533}}
+    - {kind: ringlet, tau: 0.1203, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403393.491}}
+    - {kind: ringlet, tau: 0.1205, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403396.450}}
+    - {kind: ringlet, tau: 0.1203, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403399.408}}
+    - {kind: ringlet, tau: 0.1196, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403402.367}}
+    - {kind: ringlet, tau: 0.1197, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403405.325}}
+    - {kind: ringlet, tau: 0.1197, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403408.284}}
+    - {kind: ringlet, tau: 0.1188, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403411.243}}
+    - {kind: ringlet, tau: 0.1172, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403414.201}}
+    - {kind: ringlet, tau: 0.1157, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403417.160}}
+    - {kind: ringlet, tau: 0.1174, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403420.118}}
+    - {kind: ringlet, tau: 0.1200, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403423.077}}
+    - {kind: ringlet, tau: 0.1212, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403426.036}}
+    - {kind: ringlet, tau: 0.1184, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403428.994}}
+    - {kind: ringlet, tau: 0.1173, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403431.953}}
+    - {kind: ringlet, tau: 0.1178, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403434.911}}
+    - {kind: ringlet, tau: 0.1190, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403437.870}}
+    - {kind: ringlet, tau: 0.1182, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403440.828}}
+    - {kind: ringlet, tau: 0.1182, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403443.787}}
+    - {kind: ringlet, tau: 0.1179, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403446.746}}
+    - {kind: ringlet, tau: 0.1179, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403449.704}}
+    - {kind: ringlet, tau: 0.1183, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403452.663}}
+    - {kind: ringlet, tau: 0.1182, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403455.621}}
+    - {kind: ringlet, tau: 0.1175, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403458.580}}
+    - {kind: ringlet, tau: 0.1174, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403461.538}}
+    - {kind: ringlet, tau: 0.1172, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403464.497}}
+    - {kind: ringlet, tau: 0.1162, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403467.456}}
+    - {kind: ringlet, tau: 0.1138, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403470.414}}
+    - {kind: ringlet, tau: 0.1129, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403473.373}}
+    - {kind: ringlet, tau: 0.1151, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403476.331}}
+    - {kind: ringlet, tau: 0.1169, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403479.290}}
+    - {kind: ringlet, tau: 0.1131, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403482.249}}
+    - {kind: ringlet, tau: 0.1087, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403485.207}}
+    - {kind: ringlet, tau: 0.1049, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403488.166}}
+    - {kind: ringlet, tau: 0.0986, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403491.124}}
+    - {kind: ringlet, tau: 0.0911, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403494.083}}
+    - {kind: ringlet, tau: 0.0894, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403497.041}}
+    - {kind: ringlet, tau: 0.0959, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403500.000}}
+    - {kind: ringlet, tau: 0.1090, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403502.959}}
+    - {kind: ringlet, tau: 0.1207, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403505.917}}
+    - {kind: ringlet, tau: 0.1275, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403508.876}}
+    - {kind: ringlet, tau: 0.1301, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403511.834}}
+    - {kind: ringlet, tau: 0.1299, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403514.793}}
+    - {kind: ringlet, tau: 0.1266, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403517.751}}
+    - {kind: ringlet, tau: 0.1194, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403520.710}}
+    - {kind: ringlet, tau: 0.1032, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403523.669}}
+    - {kind: ringlet, tau: 0.0724, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403526.627}}
+    - {kind: ringlet, tau: 0.0540, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403529.586}}
+    - {kind: ringlet, tau: 0.0653, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403532.544}}
+    - {kind: ringlet, tau: 0.1044, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403535.503}}
+    - {kind: ringlet, tau: 0.1249, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403538.462}}
+    - {kind: ringlet, tau: 0.1172, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403541.420}}
+    - {kind: ringlet, tau: 0.0918, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403544.379}}
+    - {kind: ringlet, tau: 0.0888, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403547.337}}
+    - {kind: ringlet, tau: 0.1073, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403550.296}}
+    - {kind: ringlet, tau: 0.1132, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403553.254}}
+    - {kind: ringlet, tau: 0.1103, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403556.213}}
+    - {kind: ringlet, tau: 0.1129, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403559.172}}
+    - {kind: ringlet, tau: 0.1140, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403562.130}}
+    - {kind: ringlet, tau: 0.1160, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403565.089}}
+    - {kind: ringlet, tau: 0.1171, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403568.047}}
+    - {kind: ringlet, tau: 0.1158, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403571.006}}
+    - {kind: ringlet, tau: 0.1133, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403573.964}}
+    - {kind: ringlet, tau: 0.1099, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403576.923}}
+    - {kind: ringlet, tau: 0.1101, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403579.882}}
+    - {kind: ringlet, tau: 0.1148, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403582.840}}
+    - {kind: ringlet, tau: 0.1165, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403585.799}}
+    - {kind: ringlet, tau: 0.1137, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403588.757}}
+    - {kind: ringlet, tau: 0.1133, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403591.716}}
+    - {kind: ringlet, tau: 0.1141, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403594.675}}
+    - {kind: ringlet, tau: 0.1137, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403597.633}}
+    - {kind: ringlet, tau: 0.1147, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403600.592}}
+    - {kind: ringlet, tau: 0.1141, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403603.550}}
+    - {kind: ringlet, tau: 0.1133, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403606.509}}
+    - {kind: ringlet, tau: 0.1142, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403609.467}}
+    - {kind: ringlet, tau: 0.1143, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403612.426}}
+    - {kind: ringlet, tau: 0.1137, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403615.385}}
+    - {kind: ringlet, tau: 0.1129, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403618.343}}
+    - {kind: ringlet, tau: 0.1112, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403621.302}}
+    - {kind: ringlet, tau: 0.1091, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403624.260}}
+    - {kind: ringlet, tau: 0.1055, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403627.219}}
+    - {kind: ringlet, tau: 0.1052, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403630.178}}
+    - {kind: ringlet, tau: 0.1097, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403633.136}}
+    - {kind: ringlet, tau: 0.1094, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403636.095}}
+    - {kind: ringlet, tau: 0.1077, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403639.053}}
+    - {kind: ringlet, tau: 0.1131, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403642.012}}
+    - {kind: ringlet, tau: 0.1172, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403644.970}}
+    - {kind: ringlet, tau: 0.1145, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403647.929}}
+    - {kind: ringlet, tau: 0.1060, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403650.888}}
+    - {kind: ringlet, tau: 0.1041, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403653.846}}
+    - {kind: ringlet, tau: 0.1115, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403656.805}}
+    - {kind: ringlet, tau: 0.1125, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403659.763}}
+    - {kind: ringlet, tau: 0.1115, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403662.722}}
+    - {kind: ringlet, tau: 0.1122, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403665.680}}
+    - {kind: ringlet, tau: 0.1111, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403668.639}}
+    - {kind: ringlet, tau: 0.1108, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403671.598}}
+    - {kind: ringlet, tau: 0.1114, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403674.556}}
+    - {kind: ringlet, tau: 0.1099, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403677.515}}
+    - {kind: ringlet, tau: 0.1070, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403680.473}}
+    - {kind: ringlet, tau: 0.1085, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403683.432}}
+    - {kind: ringlet, tau: 0.1121, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403686.391}}
+    - {kind: ringlet, tau: 0.1123, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403689.349}}
+    - {kind: ringlet, tau: 0.1106, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403692.308}}
+    - {kind: ringlet, tau: 0.1080, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403695.266}}
+    - {kind: ringlet, tau: 0.1051, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403698.225}}
+    - {kind: ringlet, tau: 0.1069, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403701.183}}
+    - {kind: ringlet, tau: 0.1086, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403704.142}}
+    - {kind: ringlet, tau: 0.1028, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403707.101}}
+    - {kind: ringlet, tau: 0.0902, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403710.059}}
+    - {kind: ringlet, tau: 0.0744, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403713.018}}
+    - {kind: ringlet, tau: 0.0645, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403715.976}}
+    - {kind: ringlet, tau: 0.0645, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403718.935}}
+    - {kind: ringlet, tau: 0.0738, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403721.893}}
+    - {kind: ringlet, tau: 0.0946, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403724.852}}
+    - {kind: ringlet, tau: 0.1110, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403727.811}}
+    - {kind: ringlet, tau: 0.1170, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403730.769}}
+    - {kind: ringlet, tau: 0.1179, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403733.728}}
+    - {kind: ringlet, tau: 0.1162, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403736.686}}
+    - {kind: ringlet, tau: 0.1104, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403739.645}}
+    - {kind: ringlet, tau: 0.0936, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403742.604}}
+    - {kind: ringlet, tau: 0.0657, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403745.562}}
+    - {kind: ringlet, tau: 0.0715, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403748.521}}
+    - {kind: ringlet, tau: 0.1024, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403751.479}}
+    - {kind: ringlet, tau: 0.1154, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403754.438}}
+    - {kind: ringlet, tau: 0.1180, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403757.396}}
+    - {kind: ringlet, tau: 0.1175, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403760.355}}
+    - {kind: ringlet, tau: 0.1158, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403763.314}}
+    - {kind: ringlet, tau: 0.1159, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403766.272}}
+    - {kind: ringlet, tau: 0.1165, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403769.231}}
+    - {kind: ringlet, tau: 0.1151, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403772.189}}
+    - {kind: ringlet, tau: 0.1128, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403775.148}}
+    - {kind: ringlet, tau: 0.1107, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403778.107}}
+    - {kind: ringlet, tau: 0.1098, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403781.065}}
+    - {kind: ringlet, tau: 0.1095, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403784.024}}
+    - {kind: ringlet, tau: 0.1109, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403786.982}}
+    - {kind: ringlet, tau: 0.1117, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403789.941}}
+    - {kind: ringlet, tau: 0.1116, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403792.899}}
+    - {kind: ringlet, tau: 0.1099, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403795.858}}
+    - {kind: ringlet, tau: 0.0819, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403798.817}}
+    - {kind: ringlet, tau: 0.0166, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403801.775}}
+    - {kind: ringlet, tau: 0.0066, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403804.734}}
+    - {kind: ringlet, tau: 0.0055, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403807.692}}
+    - {kind: ringlet, tau: 0.0050, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403810.651}}
+    - {kind: ringlet, tau: 0.0047, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403813.609}}
+    - {kind: ringlet, tau: 0.0045, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403816.568}}
+    - {kind: ringlet, tau: 0.0044, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403819.527}}
+    - {kind: ringlet, tau: 0.0043, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403822.485}}
+    - {kind: ringlet, tau: 0.0042, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403825.444}}
+    - {kind: ringlet, tau: 0.0042, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403828.402}}
+    - {kind: ringlet, tau: 0.0041, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403831.361}}
+    - {kind: ringlet, tau: 0.0041, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403834.320}}
+    - {kind: ringlet, tau: 0.0041, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403837.278}}
+    - {kind: ringlet, tau: 0.0041, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403840.237}}
+    - {kind: ringlet, tau: 0.0041, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403843.195}}
+    - {kind: ringlet, tau: 0.0041, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403846.154}}
+    - {kind: ringlet, tau: 0.0042, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403849.112}}
+    - {kind: ringlet, tau: 0.0042, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403852.071}}
+    - {kind: ringlet, tau: 0.0042, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403855.030}}
+    - {kind: ringlet, tau: 0.0043, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403857.988}}
+    - {kind: ringlet, tau: 0.0044, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403860.947}}
+    - {kind: ringlet, tau: 0.0046, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403863.905}}
+    - {kind: ringlet, tau: 0.0048, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403866.864}}
+    - {kind: ringlet, tau: 0.0051, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403869.822}}
+    - {kind: ringlet, tau: 0.0057, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403872.781}}
+    - {kind: ringlet, tau: 0.0065, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403875.740}}
+    - {kind: ringlet, tau: 0.0077, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403878.698}}
+    - {kind: ringlet, tau: 0.0094, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403881.657}}
+    - {kind: ringlet, tau: 0.0122, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403884.615}}
+    - {kind: ringlet, tau: 0.0160, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403887.574}}
+    - {kind: ringlet, tau: 0.0214, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403890.533}}
+    - {kind: ringlet, tau: 0.0302, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403893.491}}
+    - {kind: ringlet, tau: 0.0363, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403896.450}}
+    - {kind: ringlet, tau: 0.0490, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403899.408}}
+    - {kind: ringlet, tau: 0.0714, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403902.367}}
+    - {kind: ringlet, tau: 0.1024, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403905.325}}
+    - {kind: ringlet, tau: 0.1454, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403908.284}}
+    - {kind: ringlet, tau: 0.1045, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403911.243}}
+    - {kind: ringlet, tau: 0.0579, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403914.201}}
+    - {kind: ringlet, tau: 0.0270, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403917.160}}
+    - {kind: ringlet, tau: 0.0579, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403920.118}}
+    - {kind: ringlet, tau: 0.1551, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403923.077}}
+    - {kind: ringlet, tau: 0.1838, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403926.036}}
+    - {kind: ringlet, tau: 0.1752, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403928.994}}
+    - {kind: ringlet, tau: 0.1802, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403931.953}}
+    - {kind: ringlet, tau: 0.1736, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403934.911}}
+    - {kind: ringlet, tau: 0.1733, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403937.870}}
+    - {kind: ringlet, tau: 0.1783, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403940.828}}
+    - {kind: ringlet, tau: 0.1818, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403943.787}}
+    - {kind: ringlet, tau: 0.1771, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403946.746}}
+    - {kind: ringlet, tau: 0.1708, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403949.704}}
+    - {kind: ringlet, tau: 0.1700, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403952.663}}
+    - {kind: ringlet, tau: 0.1822, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403955.621}}
+    - {kind: ringlet, tau: 0.1810, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403958.580}}
+    - {kind: ringlet, tau: 0.1731, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403961.538}}
+    - {kind: ringlet, tau: 0.1755, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403964.497}}
+    - {kind: ringlet, tau: 0.1743, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403967.456}}
+    - {kind: ringlet, tau: 0.1763, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403970.414}}
+    - {kind: ringlet, tau: 0.1768, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403973.373}}
+    - {kind: ringlet, tau: 0.1772, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403976.331}}
+    - {kind: ringlet, tau: 0.1795, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403979.290}}
+    - {kind: ringlet, tau: 0.1859, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403982.249}}
+    - {kind: ringlet, tau: 0.1896, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403985.207}}
+    - {kind: ringlet, tau: 0.1881, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403988.166}}
+    - {kind: ringlet, tau: 0.1723, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403991.124}}
+    - {kind: ringlet, tau: 0.1574, width_px: 2.958, albedo: 0.95, orbit: {a_px: 403994.083}}
+    - {kind: ringlet, tau: 0.1801, width_px: 2.959, albedo: 0.95, orbit: {a_px: 403997.041}}
+    - {kind: ringlet, tau: 0.1794, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404000.000}}
+    - {kind: ringlet, tau: 0.1782, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404002.959}}
+    - {kind: ringlet, tau: 0.1791, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404005.917}}
+    - {kind: ringlet, tau: 0.1766, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404008.876}}
+    - {kind: ringlet, tau: 0.1816, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404011.834}}
+    - {kind: ringlet, tau: 0.1733, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404014.793}}
+    - {kind: ringlet, tau: 0.1686, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404017.751}}
+    - {kind: ringlet, tau: 0.1717, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404020.710}}
+    - {kind: ringlet, tau: 0.1832, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404023.669}}
+    - {kind: ringlet, tau: 0.1832, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404026.627}}
+    - {kind: ringlet, tau: 0.1635, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404029.586}}
+    - {kind: ringlet, tau: 0.1222, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404032.544}}
+    - {kind: ringlet, tau: 0.1078, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404035.503}}
+    - {kind: ringlet, tau: 0.0785, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404038.462}}
+    - {kind: ringlet, tau: 0.0598, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404041.420}}
+    - {kind: ringlet, tau: 0.0780, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404044.379}}
+    - {kind: ringlet, tau: 0.1058, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404047.337}}
+    - {kind: ringlet, tau: 0.1302, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404050.296}}
+    - {kind: ringlet, tau: 0.1495, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404053.254}}
+    - {kind: ringlet, tau: 0.1627, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404056.213}}
+    - {kind: ringlet, tau: 0.1667, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404059.172}}
+    - {kind: ringlet, tau: 0.1605, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404062.130}}
+    - {kind: ringlet, tau: 0.1436, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404065.089}}
+    - {kind: ringlet, tau: 0.1035, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404068.047}}
+    - {kind: ringlet, tau: 0.0511, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404071.006}}
+    - {kind: ringlet, tau: 0.1018, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404073.964}}
+    - {kind: ringlet, tau: 0.1829, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404076.923}}
+    - {kind: ringlet, tau: 0.1989, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404079.882}}
+    - {kind: ringlet, tau: 0.1566, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404082.840}}
+    - {kind: ringlet, tau: 0.1209, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404085.799}}
+    - {kind: ringlet, tau: 0.1966, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404088.757}}
+    - {kind: ringlet, tau: 0.1747, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404091.716}}
+    - {kind: ringlet, tau: 0.1926, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404094.675}}
+    - {kind: ringlet, tau: 0.1903, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404097.633}}
+    - {kind: ringlet, tau: 0.2023, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404100.592}}
+    - {kind: ringlet, tau: 0.2063, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404103.550}}
+    - {kind: ringlet, tau: 0.1921, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404106.509}}
+    - {kind: ringlet, tau: 0.1601, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404109.467}}
+    - {kind: ringlet, tau: 0.1806, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404112.426}}
+    - {kind: ringlet, tau: 0.1718, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404115.385}}
+    - {kind: ringlet, tau: 0.1660, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404118.343}}
+    - {kind: ringlet, tau: 0.1828, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404121.302}}
+    - {kind: ringlet, tau: 0.1880, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404124.260}}
+    - {kind: ringlet, tau: 0.1849, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404127.219}}
+    - {kind: ringlet, tau: 0.1839, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404130.178}}
+    - {kind: ringlet, tau: 0.1969, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404133.136}}
+    - {kind: ringlet, tau: 0.1892, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404136.095}}
+    - {kind: ringlet, tau: 0.1721, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404139.053}}
+    - {kind: ringlet, tau: 0.1660, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404142.012}}
+    - {kind: ringlet, tau: 0.1749, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404144.970}}
+    - {kind: ringlet, tau: 0.1850, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404147.929}}
+    - {kind: ringlet, tau: 0.1915, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404150.888}}
+    - {kind: ringlet, tau: 0.1823, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404153.846}}
+    - {kind: ringlet, tau: 0.1850, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404156.805}}
+    - {kind: ringlet, tau: 0.1707, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404159.763}}
+    - {kind: ringlet, tau: 0.1654, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404162.722}}
+    - {kind: ringlet, tau: 0.1449, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404165.680}}
+    - {kind: ringlet, tau: 0.1279, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404168.639}}
+    - {kind: ringlet, tau: 0.1840, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404171.598}}
+    - {kind: ringlet, tau: 0.2164, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404174.556}}
+    - {kind: ringlet, tau: 0.1895, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404177.515}}
+    - {kind: ringlet, tau: 0.1552, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404180.473}}
+    - {kind: ringlet, tau: 0.1633, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404183.432}}
+    - {kind: ringlet, tau: 0.1619, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404186.391}}
+    - {kind: ringlet, tau: 0.1799, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404189.349}}
+    - {kind: ringlet, tau: 0.1771, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404192.308}}
+    - {kind: ringlet, tau: 0.1911, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404195.266}}
+    - {kind: ringlet, tau: 0.1893, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404198.225}}
+    - {kind: ringlet, tau: 0.1971, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404201.183}}
+    - {kind: ringlet, tau: 0.1907, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404204.142}}
+    - {kind: ringlet, tau: 0.1730, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404207.101}}
+    - {kind: ringlet, tau: 0.1859, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404210.059}}
+    - {kind: ringlet, tau: 0.2198, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404213.018}}
+    - {kind: ringlet, tau: 0.2084, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404215.976}}
+    - {kind: ringlet, tau: 0.1795, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404218.935}}
+    - {kind: ringlet, tau: 0.1981, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404221.893}}
+    - {kind: ringlet, tau: 0.2051, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404224.852}}
+    - {kind: ringlet, tau: 0.1981, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404227.811}}
+    - {kind: ringlet, tau: 0.2124, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404230.769}}
+    - {kind: ringlet, tau: 0.2031, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404233.728}}
+    - {kind: ringlet, tau: 0.2032, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404236.686}}
+    - {kind: ringlet, tau: 0.2001, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404239.645}}
+    - {kind: ringlet, tau: 0.1910, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404242.604}}
+    - {kind: ringlet, tau: 0.1880, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404245.562}}
+    - {kind: ringlet, tau: 0.2195, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404248.521}}
+    - {kind: ringlet, tau: 0.2281, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404251.479}}
+    - {kind: ringlet, tau: 0.1990, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404254.438}}
+    - {kind: ringlet, tau: 0.1747, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404257.396}}
+    - {kind: ringlet, tau: 0.1867, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404260.355}}
+    - {kind: ringlet, tau: 0.1578, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404263.314}}
+    - {kind: ringlet, tau: 0.1523, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404266.272}}
+    - {kind: ringlet, tau: 0.1377, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404269.231}}
+    - {kind: ringlet, tau: 0.1488, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404272.189}}
+    - {kind: ringlet, tau: 0.1403, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404275.148}}
+    - {kind: ringlet, tau: 0.1394, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404278.107}}
+    - {kind: ringlet, tau: 0.1775, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404281.065}}
+    - {kind: ringlet, tau: 0.2082, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404284.024}}
+    - {kind: ringlet, tau: 0.2166, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404286.982}}
+    - {kind: ringlet, tau: 0.2165, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404289.941}}
+    - {kind: ringlet, tau: 0.2101, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404292.899}}
+    - {kind: ringlet, tau: 0.1938, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404295.858}}
+    - {kind: ringlet, tau: 0.1765, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404298.817}}
+    - {kind: ringlet, tau: 0.1513, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404301.775}}
+    - {kind: ringlet, tau: 0.1174, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404304.734}}
+    - {kind: ringlet, tau: 0.0709, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404307.692}}
+    - {kind: ringlet, tau: 0.0331, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404310.651}}
+    - {kind: ringlet, tau: 0.0559, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404313.609}}
+    - {kind: ringlet, tau: 0.1245, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404316.568}}
+    - {kind: ringlet, tau: 0.1773, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404319.527}}
+    - {kind: ringlet, tau: 0.1859, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404322.485}}
+    - {kind: ringlet, tau: 0.1441, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404325.444}}
+    - {kind: ringlet, tau: 0.0802, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404328.402}}
+    - {kind: ringlet, tau: 0.1532, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404331.361}}
+    - {kind: ringlet, tau: 0.1983, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404334.320}}
+    - {kind: ringlet, tau: 0.1728, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404337.278}}
+    - {kind: ringlet, tau: 0.2185, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404340.237}}
+    - {kind: ringlet, tau: 0.2193, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404343.195}}
+    - {kind: ringlet, tau: 0.2153, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404346.154}}
+    - {kind: ringlet, tau: 0.2235, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404349.112}}
+    - {kind: ringlet, tau: 0.2392, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404352.071}}
+    - {kind: ringlet, tau: 0.2258, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404355.030}}
+    - {kind: ringlet, tau: 0.1887, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404357.988}}
+    - {kind: ringlet, tau: 0.1900, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404360.947}}
+    - {kind: ringlet, tau: 0.1846, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404363.905}}
+    - {kind: ringlet, tau: 0.1943, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404366.864}}
+    - {kind: ringlet, tau: 0.2004, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404369.822}}
+    - {kind: ringlet, tau: 0.1938, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404372.781}}
+    - {kind: ringlet, tau: 0.1858, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404375.740}}
+    - {kind: ringlet, tau: 0.1510, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404378.698}}
+    - {kind: ringlet, tau: 0.1587, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404381.657}}
+    - {kind: ringlet, tau: 0.1953, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404384.615}}
+    - {kind: ringlet, tau: 0.1790, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404387.574}}
+    - {kind: ringlet, tau: 0.2040, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404390.533}}
+    - {kind: ringlet, tau: 0.2189, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404393.491}}
+    - {kind: ringlet, tau: 0.2212, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404396.450}}
+    - {kind: ringlet, tau: 0.2287, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404399.408}}
+    - {kind: ringlet, tau: 0.2250, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404402.367}}
+    - {kind: ringlet, tau: 0.2075, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404405.325}}
+    - {kind: ringlet, tau: 0.1319, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404408.284}}
+    - {kind: ringlet, tau: 0.0920, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404411.243}}
+    - {kind: ringlet, tau: 0.1575, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404414.201}}
+    - {kind: ringlet, tau: 0.1452, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404417.160}}
+    - {kind: ringlet, tau: 0.1191, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404420.118}}
+    - {kind: ringlet, tau: 0.1332, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404423.077}}
+    - {kind: ringlet, tau: 0.1364, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404426.036}}
+    - {kind: ringlet, tau: 0.1459, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404428.994}}
+    - {kind: ringlet, tau: 0.1445, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404431.953}}
+    - {kind: ringlet, tau: 0.1394, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404434.911}}
+    - {kind: ringlet, tau: 0.1820, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404437.870}}
+    - {kind: ringlet, tau: 0.1670, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404440.828}}
+    - {kind: ringlet, tau: 0.1262, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404443.787}}
+    - {kind: ringlet, tau: 0.1467, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404446.746}}
+    - {kind: ringlet, tau: 0.1928, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404449.704}}
+    - {kind: ringlet, tau: 0.2305, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404452.663}}
+    - {kind: ringlet, tau: 0.2391, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404455.621}}
+    - {kind: ringlet, tau: 0.2457, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404458.580}}
+    - {kind: ringlet, tau: 0.2460, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404461.538}}
+    - {kind: ringlet, tau: 0.2427, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404464.497}}
+    - {kind: ringlet, tau: 0.2431, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404467.456}}
+    - {kind: ringlet, tau: 0.2502, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404470.414}}
+    - {kind: ringlet, tau: 0.2475, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404473.373}}
+    - {kind: ringlet, tau: 0.2354, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404476.331}}
+    - {kind: ringlet, tau: 0.2282, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404479.290}}
+    - {kind: ringlet, tau: 0.2261, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404482.249}}
+    - {kind: ringlet, tau: 0.1968, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404485.207}}
+    - {kind: ringlet, tau: 0.1458, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404488.166}}
+    - {kind: ringlet, tau: 0.1013, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404491.124}}
+    - {kind: ringlet, tau: 0.1301, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404494.083}}
+    - {kind: ringlet, tau: 0.1954, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404497.041}}
+    - {kind: ringlet, tau: 0.2240, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404500.000}}
+    - {kind: ringlet, tau: 0.2319, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404502.959}}
+    - {kind: ringlet, tau: 0.2306, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404505.917}}
+    - {kind: ringlet, tau: 0.2207, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404508.876}}
+    - {kind: ringlet, tau: 0.2027, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404511.834}}
+    - {kind: ringlet, tau: 0.1778, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404514.793}}
+    - {kind: ringlet, tau: 0.1304, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404517.751}}
+    - {kind: ringlet, tau: 0.0557, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404520.710}}
+    - {kind: ringlet, tau: 0.0245, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404523.669}}
+    - {kind: ringlet, tau: 0.0376, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404526.627}}
+    - {kind: ringlet, tau: 0.0785, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404529.586}}
+    - {kind: ringlet, tau: 0.1243, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404532.544}}
+    - {kind: ringlet, tau: 0.1469, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404535.503}}
+    - {kind: ringlet, tau: 0.1443, width_px: 2.958, albedo: 0.95, orbit: {a_px: 404538.462}}
+    - {kind: ringlet, tau: 0.1232, width_px: 2.959, albedo: 0.95, orbit: {a_px: 404541.420}}
+offset_v: -17.37
+offset_u: 21.83
+offset_rotation_deg: 0.0115

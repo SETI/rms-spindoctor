@@ -61,6 +61,9 @@ DECLARED_SIM_SCENE_CLASSES: frozenset[str] = frozenset(
         'star_confounder',
         'ring_system',
         'expected_fail',
+        'full_frame_cameras',
+        'mixed_content',
+        'dense_rings',
     }
 )
 
