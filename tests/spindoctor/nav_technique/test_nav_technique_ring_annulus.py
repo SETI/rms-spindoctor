@@ -6,9 +6,11 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.conftest import OVERRIDDEN_UPSAMPLE_FACTOR
 from tests.spindoctor.nav_technique.conftest import NavContextFactory
 
 import spindoctor.nav_technique.nav_technique_ring_annulus as annulus_module
+from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import RingAnnulusFlags
@@ -596,3 +598,31 @@ def test_ring_annulus_refines_its_final_pass_on_the_ncc(
     )
     RingAnnulusNav().navigate([feature], make_nav_context(image, extfov_margin_vu=(16, 16)))
     assert calls == ['ncc_quadratic']
+
+
+def test_ring_annulus_correlation_reads_the_configured_upsample_factor(
+    monkeypatch: pytest.MonkeyPatch,
+    make_nav_context: NavContextFactory,
+    upsample_override_config: Config,
+) -> None:
+    """The correlation runs at the upsample factor the configuration names."""
+    seen: list[int] = []
+
+    def _record(**kwargs: Any) -> Any:
+        seen.append(kwargs['upsample_factor'])
+        return navigate_with_pyramid_kpeaks(**kwargs)
+
+    monkeypatch.setattr(annulus_module, 'navigate_with_pyramid_kpeaks', _record)
+    shape = (180, 180)
+    feature = _make_annulus_feature(
+        'SATURN',
+        extfov_shape=shape,
+        image_center_vu=(90.0, 90.0),
+        inner_radius=14.0,
+        outer_radius=28.0,
+        planted_offset_vu=(2.0, -3.0),
+    )
+    image = _render_annulus_image(shape, (90.0, 90.0), 14.0, 28.0)
+    context = make_nav_context(image, extfov_margin_vu=(16, 16))
+    RingAnnulusNav(config=upsample_override_config).navigate([feature], context)
+    assert seen[0] == OVERRIDDEN_UPSAMPLE_FACTOR

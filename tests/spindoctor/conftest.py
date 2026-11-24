@@ -23,6 +23,7 @@ import pytest
 from tests.packaged_sections import packaged_tree_tuning
 
 from spindoctor.cli.results_index import IngestCounts, ingest_metadata_files
+from spindoctor.config import Config
 from spindoctor.nav_records import TreeTuning
 from spindoctor.results_index import open_index
 from spindoctor.support.cmatrix import AttitudeBaseline, PointingSolution
@@ -328,3 +329,20 @@ def ingest_tree(
         )
     finally:
         engine.dispose()
+
+
+OVERRIDDEN_UPSAMPLE_FACTOR = 256
+"""The upsample factor ``upsample_override_config`` sets; not the packaged 128."""
+
+
+@pytest.fixture
+def upsample_override_config(tmp_path: Path) -> Config:
+    """A configuration whose correlation upsample factor is overridden to 256."""
+    override = tmp_path / 'upsample_override.yaml'
+    override.write_text(
+        f'offset:\n  correlation_fft_upsample_factor: {OVERRIDDEN_UPSAMPLE_FACTOR}\n'
+    )
+    config = Config()
+    config.read_config()
+    config.update_config(override)
+    return config
