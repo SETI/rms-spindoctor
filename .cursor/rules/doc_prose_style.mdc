@@ -13,15 +13,29 @@ sentence and that one governs the outline.
 
 `scripts/check-doc-prose.sh` enforces the mechanically detectable half. Run it
 before claiming a documentation change is done; `scripts/run-all-checks.sh` runs
-it too. The rest of this rule is a review checklist -- a human or a model has to
+it too. `--warnings` adds the heuristic tier, whose hits a person has to judge.
+`--diff BASE` runs two of those heuristics, the verb + "no" check and the names
+check, over the lines a branch has added outside `docs/` since it left `BASE`:
+the docstrings, comments, and messages, along with the code around them. Run
+`scripts/check-doc-prose.sh --diff origin/main` on a branch before opening its pull
+request. The rest of this rule is a review checklist -- a human or a model has to
 read the prose to apply it.
 
-In every pull request, read each changed passage aloud, or as if aloud, and rewrite
-any passage that does not sound like a person wrote it. This covers the files listed
-above, and also the docstrings, code comments, log lines, and error messages in
-`.py` files. It is the first item of the review checklist in section 8, and no
-script can check it. The rest of this rule applies only to the files under `docs/`,
-`README.md`, and `CONTRIBUTING.md`.
+Before a pull request opens, read its whole diff aloud, or as if aloud, and rewrite
+any passage that does not sound like a person wrote it. The whole diff means every
+added or changed passage, docstring, comment, log line, and error message, whatever
+file it is in: the files listed above, `.py` files, the packaged YAML configuration
+files, override files, test fixtures, and scripts. Citation comments in static-data
+files quote their sources and are kept as written.
+
+The person who opens the pull request does this reading. Someone else's statement
+that they read the prose does not count, and a review of the change's accuracy is
+a different review. The reading is the first item of the review checklist in
+section 8, and no script can do it for you.
+
+The verb + "no" rule and the names rule in section 2 apply to all of that prose.
+The rest of this rule applies only to the files under `docs/`, `README.md`, and
+`CONTRIBUTING.md`.
 
 ## 1. Audience separation
 
@@ -74,6 +88,8 @@ technique in one plain sentence and cross-reference the developer guide with
 | "exactly as every offset product has always been built" | (delete) | No implementation history. |
 | "every program accepts the same options, so what you learn for one works for the next" | "every program accepts the same options" | Delete clauses that restate the obvious. |
 | "the scene names the mode", "a run naming a results index" | "the scene sets the mode", "a run that asks for a results index" | Say what happens. See the names rule below. |
+| "the dataset makes no PDS4 bundle", "the section holds no entry for the bundle" | "the dataset does not make a PDS4 bundle", "the section has no entry for the bundle" | A verb followed by "no" and a noun is not how people talk. See the verb + "no" rule below. |
+| "the narrow-angle camera has the largest frame of any camera", "the only camera that ...", "unlike the other instruments" | "the Cassini ISS narrow-angle camera reads out 1024 by 1024 pixels" | State each instrument's facts on their own. See the instrument rules below. |
 | "keeps the converged covariance an honest expression of the inliers' precision", "the axis is honestly flagged" | "keeps the converged covariance computed from the surviving inliers alone", "the axis is flagged as unobservable" | "Honest", "honestly", "honesty", and "dishonest" judge a value without saying what it is. Say what the value is or what it measures. |
 
 ### The X-not-Y test
@@ -112,6 +128,47 @@ sense: "a file named `X`", "named after the class that implements it".
 `scripts/check-doc-prose.sh --warnings` flags the likely verb uses. It flags some
 nouns and misses some verbs, so read each hit before changing it, and do not take a
 clean run to mean none are left.
+
+### The verb + "no" rule
+
+Do not follow a verb with "no" and a noun: "makes no", "gives no", "accepts no",
+"holds no", "sets no", "carries no", and the like. Use "does not" with the verb,
+use "has no", or say what does happen.
+
+- "the dataset makes no PDS4 bundle" becomes "the dataset does not make a PDS4
+  bundle".
+- "the section holds no entry for the bundle" becomes "the section has no entry for
+  the bundle".
+
+"Has no" is fine where it reads naturally, and the script does not flag it. Some
+phrases are ordinary English, such as "makes no difference", so read each hit
+before changing it. `--warnings` flags the likely cases in the documentation files,
+and `--diff BASE` flags them in the lines a branch adds elsewhere.
+
+### Say a shared property once
+
+When something holds for every item in a set, say it once, about the set. Do not
+repeat it for each item, and do not keep a list of the items it holds for, because
+that list has to change whenever an item is added.
+
+For example, every configuration section's settings are checked when the file is
+read. A user-guide page that describes the sections in turn says that once, before
+the first section. It does not end each section by saying that its settings are
+checked when the file is read.
+
+### The instrument rules
+
+Per-instrument details belong only in the instrument chapters of the user guide
+and the developer guide (`docs/user_guide/instruments/` and
+`docs/dev_guide/instruments/`). Every other chapter is shared prose. Shared prose
+never assumes which instruments exist, or which of them turn a feature on.
+
+- In a shared chapter, do not write "which one instrument turns on". Say what the
+  feature does and how it is turned on, and let each instrument chapter say whether
+  its instrument uses it.
+- Never compare instruments, in a shared chapter or an instrument chapter. Do not
+  write "the only camera that ...", "the largest of any camera", or "unlike the
+  others". State each instrument's facts on their own.
 
 ## 3. Terminology
 
@@ -201,10 +258,15 @@ five copies of it read as distrust of the reader.
 
 The script cannot judge these. Read for them:
 
-1. Read each changed passage through as if aloud. Does it sound like something a
-   person would write? If not, rewrite it. This applies to the docstrings, code
-   comments, log lines, and error messages in `.py` files as much as to the files
-   under `docs/`. These are the usual signs that a passage fails:
+1. Before the pull request opens, read the whole diff through as if aloud: every
+   added or changed passage, docstring, comment, log line, and error message. Does
+   it sound like something a person would write? If not, rewrite it. This applies
+   to comments in every file the repository holds as much as to the files under
+   `docs/`: `.py` files, the packaged YAML configuration files, override files,
+   test fixtures, and scripts. Citation comments in static-data files quote their
+   sources and are kept as written. The person who opens the pull request does this
+   reading; someone else's statement that they read it does not count, and a review
+   of accuracy is not this review. These are the usual signs that a passage fails:
    - Stacked nouns: "the schema-version mismatch remedy step".
    - A chain of qualifiers in front of one word: "the first completed
      current-schema root ingest".
@@ -217,6 +279,7 @@ The script cannot judge these. Read for them:
      tooltip says why." The same goes for "a name the catalog does not know leaves
      the selection as it is", from a docstring. Write instead: "If the catalog
      doesn't know the name, the selection stays as it is."
+   - A verb followed by "no" and a noun: "the section holds no entry".
    - A sentence you have to read twice to follow.
 2. Would a user who has never seen our source understand every sentence?
 3. Is every term defined before it is used, or linked to where it is defined?
@@ -226,3 +289,7 @@ The script cannot judge these. Read for them:
 6. Is any passage explaining how the code works rather than what the program does?
 7. Does any sentence appeal to history, or to how a product has always been built?
 8. Is a convention described as a requirement?
+9. Is something that holds for every item said once per item, or kept as a list of
+   the items it holds for?
+10. Does a shared chapter assume which instruments exist, or say which one turns a
+    feature on? Does any chapter compare one instrument with another?

@@ -35,3 +35,4 @@ The PR template is in `.github/pull_request_template.md` and is applied automati
 - **Library-specific** — Call out public API changes, deprecations, and migration notes in Potential Impacts.
 - **Required reviewers** — Tag maintainers for changes to core modules.
 - **Brevity vs. completeness** — Short enough that authors fill everything out; detailed enough for a reviewer with no other context.
+- **Prose review before opening** — Before the PR opens, the person opening it reads the whole diff's prose aloud, as `doc_prose_style.mdc` describes: every added or changed passage, docstring, comment, and message, in every file. Someone else's statement that they read it does not count, and a review of accuracy is not this review. Run `scripts/check-doc-prose.sh --warnings` and `scripts/check-doc-prose.sh --diff origin/main` first; they catch a few of the common faults.
