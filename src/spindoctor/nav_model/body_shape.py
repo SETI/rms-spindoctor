@@ -146,15 +146,15 @@ BODY_SHAPE_TABLE: dict[str, BodyShape] = {
 """Hard-coded fallback profiles, keyed by upper-case SPICE body name.
 
 Used when the corresponding body is missing from
-``config_220_body_shape.yaml`` or when individual numeric fields in
-the YAML entry are ``null`` (the YAML value wins when it is set).
+``config_220_body_shape.yaml`` or when its YAML entry leaves out a
+field (the YAML value wins when it is set).
 Bodies absent from this table fall through to ``DEFAULT_BODY_SHAPE``.
 """
 
 
 # YAML field names that map directly onto ``BodyShape`` fields.  The
 # loader walks this list and overwrites the hard-coded baseline only
-# when the YAML carries a non-null value.  Keep ordering aligned with
+# for the fields the YAML entry sets.  Keep ordering aligned with
 # the ``BodyShape`` field declaration above for grep-ability.
 _YAML_FIELDS: tuple[str, ...] = (
     'ellipsoid_rms_residual_km',
@@ -172,7 +172,7 @@ def load_body_shape(body_name: str, config: Any = None) -> BodyShape:
     Merges three sources, in priority order:
 
     1. ``config.body_shape[<BODY>]`` — operator-curated YAML entry from
-       ``config_220_body_shape.yaml``.  Each non-null field overrides
+       ``config_220_body_shape.yaml``.  Each field it sets overrides
        the hard-coded baseline.
     2. ``BODY_SHAPE_TABLE[<BODY>]`` — hard-coded per-class profile for
        bodies the YAML has not populated yet (e.g. minor moons that
@@ -195,14 +195,7 @@ def load_body_shape(body_name: str, config: Any = None) -> BodyShape:
     yaml_block = _yaml_entry_for(upper, config)
     if yaml_block is None:
         return baseline
-    overrides: dict[str, Any] = {}
-    for field in _YAML_FIELDS:
-        if field not in yaml_block:
-            continue
-        value = yaml_block[field]
-        if value is None:
-            continue
-        overrides[field] = value
+    overrides = {field: yaml_block[field] for field in _YAML_FIELDS if field in yaml_block}
     if not overrides:
         return baseline
     return replace(baseline, **overrides)
@@ -221,7 +214,7 @@ def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
     Returns:
         A copy of the body's mapping of shape overrides, or None when the
         ``body_shape`` section is not a mapping, when it has no entry for the
-        body, when the entry is null, or when the entry is not a mapping.
+        body, or when the entry is not a mapping.
 
     Raises:
         AttributeError: If ``config`` has no ``body_shape`` attribute.
@@ -231,6 +224,6 @@ def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
     if not isinstance(body_shape_section, dict):
         return None
     entry = body_shape_section.get(upper_body_name)
-    if entry is None or not isinstance(entry, dict):
+    if not isinstance(entry, dict):
         return None
     return dict(entry)

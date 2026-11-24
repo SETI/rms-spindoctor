@@ -96,28 +96,13 @@ def test_gas_giants_share_shape_profile() -> None:
 
 
 def test_yaml_overrides_individual_field() -> None:
-    """A non-null YAML value overwrites the hard-coded baseline for that field."""
+    """A YAML value overwrites the hard-coded baseline for that field."""
     config = _FakeConfig({'MIMAS': {'ellipsoid_rms_residual_km': 0.42}})
     shape = load_body_shape('MIMAS', config=config)
     assert shape.ellipsoid_rms_residual_km == 0.42
     # Other fields untouched — they stay at the hard-coded SATURN-moon profile.
     assert shape.crater_scale_km == BODY_SHAPE_TABLE['MIMAS'].crater_scale_km
     assert shape.albedo_variation == BODY_SHAPE_TABLE['MIMAS'].albedo_variation
-
-
-def test_yaml_null_fields_keep_baseline() -> None:
-    """Explicit nulls in the YAML do not override the baseline."""
-    config = _FakeConfig(
-        {
-            'MIMAS': {
-                'ellipsoid_rms_residual_km': None,
-                'crater_scale_km': None,
-                'albedo_variation': None,
-            }
-        }
-    )
-    shape = load_body_shape('MIMAS', config=config)
-    assert shape == BODY_SHAPE_TABLE['MIMAS']
 
 
 def test_yaml_supplies_shape_class_hint_only() -> None:

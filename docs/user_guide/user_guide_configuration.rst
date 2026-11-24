@@ -135,7 +135,12 @@ The sections are:
 When two configuration files give the same setting different values, the file loaded
 last wins.
 Sections merge setting by setting, so a file that sets one value in a section leaves the
-rest of that section at its default.
+rest of that section at its default. A list is the exception: a file that sets a list
+replaces the whole list.
+
+A setting you do not want to change is left out of your file. A setting written with no
+value, or as ``null``, is refused when the file is read, and the message gives the file
+and the setting. Your file cannot unset a default. It can only give it another value.
 
 Writing your own default file
 =============================
@@ -292,6 +297,10 @@ trustworthy, so change them only when you know why the evidence in your frames i
 than the defaults assume. The confidence and the tier that navigation settled on for each
 image are recorded in that image's metadata document; see
 :doc:`/user_guide/user_guide_metadata`.
+
+Every setting in the ``orchestrator`` section is checked when your file is read. A
+setting that navigation does not know, or a value it cannot use, such as a confidence
+above 1, is refused, and the message gives the file and the setting.
 
 What a run records about its own configuration
 ==============================================

@@ -199,7 +199,9 @@ narrative below the diagram describes each group in turn.
       }
 
       class FeatureReliabilityGate {
-          +thresholds: dict[NavFeatureType, float]
+          <<frozen dataclass>>
+          +STAR ... CARTOGRAPHIC_MODEL: float
+          +threshold(feature_type) float
           +apply(features) tuple[list, list]
       }
 
@@ -341,11 +343,12 @@ FeatureReliabilityGate
 
 :class:`~spindoctor.feature.reliability.FeatureReliabilityGate` is the gate the
 orchestrator runs between feature extraction and technique invocation.
-It carries a per-:class:`~spindoctor.feature.feature_type.NavFeatureType`
-threshold mapping (defaulted from
-:data:`~spindoctor.feature.reliability.DEFAULT_RELIABILITY_THRESHOLDS`) and
-exposes a single
-:meth:`~spindoctor.feature.reliability.FeatureReliabilityGate.apply` method that
+It has one threshold field for each
+:class:`~spindoctor.feature.feature_type.NavFeatureType` member, named after the
+member.
+:meth:`~spindoctor.feature.reliability.FeatureReliabilityGate.threshold` returns
+the threshold for a feature type, and
+:meth:`~spindoctor.feature.reliability.FeatureReliabilityGate.apply`
 splits an extracted feature list into ``(kept, gated)``: features whose
 self-assessed
 :attr:`~spindoctor.feature.feature.NavFeature.reliability` falls below the
@@ -353,14 +356,12 @@ per-type threshold are emitted as
 :class:`~spindoctor.feature.reliability.GatedFeatureRecord` instances carrying a
 stable ``reason`` string; everything else passes through unmodified.
 
-Per-instance threshold overrides come from the ``orchestrator.reliability_gate``
-block in ``config_540_orchestrator.yaml``, read by the orchestrator's
-constructor via
-:meth:`~spindoctor.feature.reliability.FeatureReliabilityGate.from_mapping`.
-Threshold values are validated
-on construction: they must be finite floats in :math:`[0, 1]` and keyed
-by :class:`~spindoctor.feature.feature_type.NavFeatureType` enum members. The
-gate is stateless — the same instance can be reused across images — and
+The gate is the ``orchestrator.reliability_gate`` section of the configuration,
+whose values live in ``config_540_orchestrator.yaml``. The configuration parses
+the section when it loads (see :ref:`config-typed-sections`), so every feature
+type has a threshold, each threshold is a finite number in :math:`[0, 1]`, and a
+key that is not the name of a feature type is refused. The orchestrator takes the gate from
+its configuration. The gate is stateless — the same instance can be reused across images — and
 deterministic given its thresholds.
 
 Dataset, Obs, and ObsSnapshot

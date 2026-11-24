@@ -30,6 +30,8 @@ __all__ = [
     'FakeBackplane',
     'KeyedScalar',
     'RingBackplaneData',
+    'RingEdgeBackplane',
+    'edge_meshgrid',
     'plant_circular_body',
 ]
 
@@ -504,3 +506,45 @@ def plant_circular_body(
         center_phase_rad=float(np.radians(phase_angle_deg)),
         default_resolution_km_px=resolution_km_px,
     )
+
+
+def edge_meshgrid(fov: Any, uv: Any) -> np.ndarray:
+    """Stand in for the ring pre-check's boundary meshgrid by keeping its pixel coordinates.
+
+    Parameters:
+        fov: The field of view the real meshgrid is built over; ignored.
+        uv: The boundary pixel centers, shape ``(N, 2)``.
+    """
+    del fov
+    return np.asarray(uv)
+
+
+class RingEdgeBackplane:
+    """Backplane stand-in for the ring model's visibility pre-check.
+
+    Reads the dense fake ring radius at each boundary pixel center the pre-check asks
+    about, and places every intercept at ring longitude zero. Canned radii are not a real
+    ring plane, and putting the whole trace on one radial line makes its closest approach
+    to the planet the least radius it passes through, so the pre-check's verdict rests on
+    the boundary radii alone.
+
+    Parameters:
+        obs: Observation carrying a :class:`FakeBackplane` as ``ext_bp``.
+        meshgrid: The boundary pixel centers, from :func:`edge_meshgrid`.
+    """
+
+    def __init__(self, obs: Any, meshgrid: np.ndarray) -> None:
+        self._obs = obs
+        self._u = np.round(meshgrid[:, 0] - 0.5).astype(int) - obs.extfov_u_min
+        self._v = np.round(meshgrid[:, 1] - 0.5).astype(int) - obs.extfov_v_min
+
+    def ring_radius(self, ring_target: str) -> polymath.Scalar:
+        """Return the dense fake radius at the boundary pixel centers."""
+        dense = self._obs.ext_bp.ring_radius(ring_target)
+        mask = np.broadcast_to(np.asarray(dense.mask, dtype=bool), dense.vals.shape)
+        return polymath.Scalar(dense.vals[self._v, self._u], mask[self._v, self._u])
+
+    def ring_longitude(self, ring_target: str) -> polymath.Scalar:
+        """Return longitude zero, masked where the radius is."""
+        radius = self.ring_radius(ring_target)
+        return polymath.Scalar(np.zeros_like(radius.vals), radius.mask)

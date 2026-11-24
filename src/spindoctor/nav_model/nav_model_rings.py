@@ -50,6 +50,7 @@ from spindoctor.nav_model.ring_polyline import (
     _polyline_from_edge_mask,
     _radial_extent_px,
 )
+from spindoctor.nav_model.ring_visibility import ring_disc_view
 from spindoctor.nav_model.rings import (
     RingFeature,
     RingFeatureFilter,
@@ -116,17 +117,6 @@ from that cached array. The ring model's transient floor is therefore still set
 by those calls, and striping bounds only the three quantities named here -- the
 ring-plane distance, the planet shadow and the planet's occlusion of the rings.
 """
-
-SPARSE_VISIBILITY_GRID_SIZE: int = 16
-"""Side length of the sparse-grid backplane used by the cheap ring pre-check.
-
-A 16x16 ring-radius backplane evaluates ~256 SPICE ray casts (vs ~1M+
-for a 1024x1024 ext-FOV) and runs in well under 10 ms; it is sufficient
-to detect the two common skip cases — no ring-plane intersection in
-the FOV at all, and a visible radial range entirely beyond the
-catalog's outermost feature.
-"""
-
 
 # All ring-annulus emission tunables live in
 # ``config_files/config_510_techniques.yaml`` under
@@ -449,12 +439,12 @@ class NavModelRings(NavModelRingsBase):
         validate_no_date_overlaps(features)
         max_feature_extent = max(f.max_extent_radius for f in features)
         ring_target = f'{planet.lower()}:ring'
-        # Cheap 16x16 visibility pre-check: rules out the two common skip
-        # cases (no ring-plane intersection in the FOV at all; visible
-        # radial range entirely beyond the catalog's outermost feature)
-        # without paying for the dense ext-FOV backplane.  Saves ~5-7 s
-        # per image when it fires.
-        if self._sparse_visibility_skip(ring_target, max_feature_extent):
+        # Cheap visibility pre-check: skips the dense extended-frame
+        # backplane, several seconds per frame, when the ring plane out to
+        # the catalog's outermost feature provably lies outside the frame.
+        # It reads the frame boundary rather than a sparse grid, because a
+        # grid can step over a distant or edge-on ring system (#591).
+        if self._ring_disc_outside_frame(ring_target, planet, max_feature_extent):
             return
         bp_radii = obs.ext_bp.ring_radius(ring_target)
         if bp_radii.is_all_masked():
@@ -720,80 +710,50 @@ class NavModelRings(NavModelRingsBase):
             release_transient_memory()
         return assembled
 
-    def _sparse_visibility_skip(self, ring_target: str, max_feature_extent: float) -> bool:
-        """Decide whether a sparse 16x16 ring-radius backplane rules out the dense path.
+    def _ring_disc_outside_frame(
+        self, ring_target: str, planet: str, max_feature_extent: float
+    ) -> bool:
+        """Decide whether the ring plane out to the catalog's edge lies outside the frame.
 
-        Builds a :class:`~oops.Meshgrid` covering the ext-FOV at
-        :data:`SPARSE_VISIBILITY_GRID_SIZE` samples per axis and runs a
-        single ``ring_radius`` evaluation against it.  Returns ``True``
-        when either:
-
-        * No sparse sample's ray intersects the ring plane — the FOV
-          looks entirely off the ring plane and the dense path would
-          report ``is_all_masked()`` after a much costlier
-          backplane evaluation.
-        * Every sparse sample's ring radius exceeds
-          ``max_feature_extent`` — the visible ring plane is at radii
-          beyond every catalog feature, so the dense ``min_radius >
-          max_feature_extent`` short-circuit would also fire.
-
-        Returns ``False`` when the dense path must run (some sparse
-        sample sees a ring radius inside the catalog, or the sparse
-        grid was uninformative).
+        Asks :func:`~spindoctor.nav_model.ring_visibility.ring_disc_view` for the
+        extended frame's boundary traced on the ring plane and the planet center's place
+        in the frame, and logs what it established when it decides to skip.  The answer
+        is ``True`` only when the planet center projects outside the frame and the
+        boundary's trace stays farther than ``max_feature_extent`` from the planet, in
+        which case no radius inside the catalog can appear anywhere in the extended
+        frame.
 
         Parameters:
             ring_target: ``'<planet>:ring'`` target string.
-            max_feature_extent: Largest ``RingFeature.max_extent_radius``
-                across the surviving catalog entries.
+            planet: SPICE name of the planet at the ring plane's center.
+            max_feature_extent: Largest ``RingFeature.max_extent_radius`` across the
+                catalog entries, in km.
 
         Returns:
-            ``True`` to skip the dense backplane and emit no ring
-            features for this image; ``False`` to proceed.
+            ``True`` to skip the dense backplane and emit no ring features for this
+            image; ``False`` to proceed.
         """
-        obs = self.obs
-        u_extent = obs.extfov_u_max - obs.extfov_u_min + 1
-        v_extent = obs.extfov_v_max - obs.extfov_v_min + 1
-        u_step = max(1, u_extent // SPARSE_VISIBILITY_GRID_SIZE)
-        v_step = max(1, v_extent // SPARSE_VISIBILITY_GRID_SIZE)
-        # The extended-frame bounds are array bounds; the meshgrid reads the
-        # geometry layer's pixel corner coordinates, so the half pixel goes on
-        # here.
-        sparse_meshgrid = Meshgrid.for_fov(
-            obs.fov,
-            origin=(
-                obs.extfov_u_min + PIXEL_CENTER_TO_CORNER_PX,
-                obs.extfov_v_min + PIXEL_CENTER_TO_CORNER_PX,
-            ),
-            limit=(
-                obs.extfov_u_max + PIXEL_CENTER_TO_CORNER_PX,
-                obs.extfov_v_max + PIXEL_CENTER_TO_CORNER_PX,
-            ),
-            undersample=(u_step, v_step),
-            swap=True,
+        view = ring_disc_view(self.obs, ring_target, planet, max_feature_extent)
+        if not view.disc_outside_frame:
+            return False
+        if not view.edge_meets_plane:
+            self._logger.info(
+                'Ring visibility pre-check: no pixel on the extended frame boundary looks '
+                'onto the ring plane and the planet center is outside the frame, so the '
+                'frame does not see the ring plane'
+            )
+            return True
+        self._logger.info(
+            'Ring visibility pre-check: the ring plane out to the catalog max extent of '
+            '%.0f km lies wholly outside the extended frame (the frame boundary traced on '
+            'the ring plane comes no closer than %.0f km to the planet, radii at its pixel '
+            'centers span [%.0f, %.0f] km, and the planet center is outside the frame)',
+            max_feature_extent,
+            view.edge_closest_km,
+            float(view.edge_radii_km.min()),
+            float(view.edge_radii_km.max()),
         )
-        sparse_bp = Backplane(obs, meshgrid=sparse_meshgrid)
-        sparse_radii = sparse_bp.ring_radius(ring_target)
-        if sparse_radii.is_all_masked():
-            self._logger.info(
-                'Sparse %dx%d visibility pre-check: no ring-plane intersection in FOV',
-                SPARSE_VISIBILITY_GRID_SIZE,
-                SPARSE_VISIBILITY_GRID_SIZE,
-            )
-            return True
-        sparse_min = float(sparse_radii.min().vals)
-        if sparse_min > max_feature_extent:
-            sparse_max = float(sparse_radii.max().vals)
-            self._logger.info(
-                'Sparse %dx%d visibility pre-check: visible ring radial range '
-                '[%.0f, %.0f] km lies outside catalog max extent of %.0f km',
-                SPARSE_VISIBILITY_GRID_SIZE,
-                SPARSE_VISIBILITY_GRID_SIZE,
-                sparse_min,
-                sparse_max,
-                max_feature_extent,
-            )
-            return True
-        return False
+        return True
 
     def to_features(self, context: NavContext) -> list[NavFeature]:
         """Emit RING_EDGE / RING_ANNULUS features per surviving render result."""
