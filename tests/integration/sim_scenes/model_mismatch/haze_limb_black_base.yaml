@@ -1,0 +1,47 @@
+schema_version: 2
+scene_name: haze_limb_black_base
+instrument: coiss_nac
+size_v: 260
+size_u: 260
+random_seed: 7
+exposure_sec: 1.0
+# Haze-brightness base: haze_limb_base with the body's surface painted black, so the
+# only light in the frame is the haze's own and the edge the navigator sees is the
+# haze's.  Everything else is haze_limb_base's: the geometry, the navigator-matched
+# PSF, the generic axis-study haze at tau_ref 4, and the noise.  The scene format has
+# no surface-albedo key, so the surface is blackened by one albedo_texture spot of
+# albedo factor 0 and radius 180 degrees, which covers the whole sphere; it is
+# centered on the sub-observer point, so the spot's edge, at the antipode, is never
+# in view.  The atmosphere_haze_albedo sweep walks the haze albedo on this scene.
+# The scene carries no expected block because its outcome depends on the noise draw:
+# over 25 draws it lands 0.41 to 0.63 px off, conflicted on 20 and a success on 5.
+optics:
+  psf:
+    match_navigator: true
+bodies:
+  - name: HAZEMOON
+    shape_model: ellipsoid
+    center_v: 130.0
+    center_u: 130.0
+    semi_a_px: 90.0
+    semi_b_px: 90.0
+    semi_c_px: 90.0
+    illumination_angle: 90.0
+    phase_angle: 40.0
+    albedo_texture:
+      spots:
+        - lat_deg: 0.0
+          lon_deg: 90.0
+          radius_deg: 180.0
+          albedo_factor: 0.0
+    atmosphere:
+      scale_height_px: 12.0
+      tau_ref: 4.0
+      ref_altitude_px: 0.0
+      g: 0.6
+noise:
+  poisson: true
+  read_noise_dn: 4.0
+offset_v: 0.0
+offset_u: 0.0
+offset_rotation_deg: 0.0

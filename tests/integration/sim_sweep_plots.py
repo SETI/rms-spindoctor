@@ -209,7 +209,9 @@ _MISMATCH_ERROR_DISPLAY_FLOOR_PX = 1e-4
 # The Section 8 model-mismatch axes: (sweep name, x-axis label, panel title).
 # Each walks one render-vs-navigate mismatch from a self-consistency floor (the
 # first sweep value) into the mismatched regime; the recovery-error-vs-mismatch
-# curve is the product.  The floor point is drawn distinctly and labeled.
+# curve is the product.  The floor point is drawn distinctly and labeled.  The haze
+# brightness axis has no floor: its first step, a haze that adds no light over a black
+# body, leaves a blank frame.
 _MISMATCH_AXES = [
     ('psf_limb_mismatch', 'rendered PSF sigma (px)', 'PSF core mismatch (limb)'),
     ('psf_limb_wings', 'rendered PSF wing energy fraction', 'PSF wing mismatch (limb)'),
@@ -252,9 +254,12 @@ def _mismatch_axes_figure() -> None:
         if solved:
             xs, ys = zip(*solved, strict=True)
             ax.plot(xs, ys, marker='o', ms=4, lw=1.2, color='tab:blue', label='recovery error')
+        # The floor is the first swept value; a sweep whose first step leaves nothing to
+        # navigate on has none.
+        if rows and rows[0].get('offset_error_px') is not None:
             ax.plot(
-                [xs[0]],
-                [ys[0]],
+                [solved[0][0]],
+                [solved[0][1]],
                 marker='*',
                 ms=13,
                 color='tab:green',

@@ -1,17 +1,22 @@
 sweep_name: atmosphere_haze_albedo
-# Haze-brightness mismatch axis: the atmosphere_haze base scene's haze at its
-# full tau_ref 4 column, with the haze albedo walked up from 0.  At albedo 0 the
-# haze adds no light (its halo only dims the black sky behind it), but it still
-# dims the surface beneath it, more toward the limb, so the floor sits about 1 px
-# off.  Over 25 noise draws the albedo 0, 0.15, 0.3, and 0.6 steps sit 0.94 to
-# 1.01 px off, within 0.04 px of the floor draw for draw; at albedo 1.0 the haze's
-# light makes the answer unstable, 0.43 to 3.99 px off and conflicted on some
-# draws.  So from albedo 0 to 0.6 the sweep does not measure its axis: the haze's
-# dimming of the surface sets the error, and the haze's own light does not move
-# it.  Only the 1.0 step responds to the albedo.  The base scene's haze is a generic axis-study haze with a one-term phase
-# function.  The 0.6 point is the base scene's default albedo, the atmosphere_haze
-# sweep's tau_ref 4 point.
-base_scene: model_mismatch/haze_limb_base.yaml
+# Haze-brightness axis: the atmosphere_haze sweep's generic haze at its full tau_ref 4
+# column, on the same body with its surface painted black, and the haze albedo walked
+# up from 0.  The only light in the frame is the haze's own, so the edge the navigator
+# sees is the haze's and the albedo sets how bright it is.  The navigator predicts a
+# lit body with a hard limb.  The sweep measures how bright the haze must be before
+# the body navigates on it.
+#
+# Over 25 noise draws (the scene's own and noise seeds 101 to 2424):
+# - albedo 0 leaves a blank frame.  20 draws fail; the other 5 report a success 45.6
+#   to 59.4 px off.
+# - albedo 0.15 and 0.3 light a haze ring that peaks 10 and 24 DN above the sky,
+#   against 4 DN of read noise.  They fail on 21 and 14 draws and lock 41.2 to 42.4
+#   px off on the rest.
+# - albedo 0.6, the base scene's default, lands 0.41 to 0.63 px off on every draw,
+#   conflicted on 20 and a success on 5.
+# - albedo 1.0 lands 0.49 to 0.50 px off on 22 draws and is conflicted 3.9 to 4.4 px
+#   off on 3.
+base_scene: model_mismatch/haze_limb_black_base.yaml
 parameters: [bodies.0.atmosphere.albedo]
 values: [0.0, 0.15, 0.3, 0.6, 1.0]
 technique: '*'

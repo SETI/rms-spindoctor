@@ -2271,7 +2271,8 @@ The population of irregular shapes is asserted the same way, in
 ``test_sim_irregularity_population``.
 
 A *model-mismatch* sweep uses this harness to characterize one render-vs-navigate
-disagreement. Each starts from a **self-consistency floor** -- the value at which
+disagreement. Each but ``atmosphere_haze_albedo`` starts from a
+**self-consistency floor** -- the value at which
 the rendered image equals the navigator's own model, so the floor point measures
 reproducibility, not accuracy -- and walks the mismatch up; the
 recovery-error-vs-mismatch curve is the product. The floor is equality with the
@@ -2300,11 +2301,16 @@ render departs from it. The sweeps and their floors:
   the walk from a clear limb to a thick haze is resolved. The sweep drives a
   ``HAZEMOON`` body, so it measures haze-BLIND body navigation; the haze
   solar-symmetry fit has its own base scene and offset sweeps.
-- ``atmosphere_haze_albedo`` -- the same haze column at ``tau_ref`` 4 with the
-  haze ``albedo`` walked up from 0, where the haze adds no light but still dims
-  the surface. From albedo 0 to 0.6 the error stays at 0.94 to 1.01 px, set by
-  the dimmed surface, so over that range the sweep does not measure the haze's
-  brightness; only the albedo 1.0 step responds to it.
+- ``atmosphere_haze_albedo`` -- the same haze column at ``tau_ref`` 4 over the
+  same body with its surface painted black, and the haze ``albedo`` walked up from
+  0. The only light in the frame is the haze's own, so the sweep measures how
+  bright the haze must be before the body navigates on its edge. Its base scene,
+  ``haze_limb_black_base``, blackens the surface with a single
+  ``albedo_texture`` spot of albedo factor 0 that covers the whole sphere. At
+  albedo 0 the frame is blank, and up to albedo 0.3 no answer comes within 1 px:
+  most draws fail, and the rest lock 41 to 59 px off. At albedo 0.6 every draw
+  lands 0.41 to 0.63 px off. This axis has no self-consistency floor, since its
+  first step leaves nothing to navigate on.
 
 The remaining Section 8 axes are covered by pre-existing sweeps
 (``noise_read_noise`` and its calibrated twin ``noise_read_noise_calib``, the
