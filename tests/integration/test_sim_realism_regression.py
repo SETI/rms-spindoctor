@@ -31,7 +31,7 @@ from tests.integration.realism_regression import (
 from tests.integration.sim_realism import run_realism_match
 from tests.integration.sim_realism_report import summary_dict
 
-# CI sets PDS3_HOLDINGS_DIR but not OOPS_RESOURCES.
+# These tests need PDS3_HOLDINGS_DIR and OOPS_RESOURCES. CI sets neither, so they skip there.
 _HAS_REAL_DATA = bool(os.environ.get('PDS3_HOLDINGS_DIR')) and bool(
     os.environ.get('OOPS_RESOURCES')
 )
