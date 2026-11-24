@@ -298,6 +298,10 @@ than the defaults assume. The confidence and the tier that navigation settled on
 image are recorded in that image's metadata document; see
 :doc:`/user_guide/user_guide_metadata`.
 
+Every setting in the ``orchestrator`` section is checked when your file is read. A
+setting that navigation does not know, or a value it cannot use, such as a confidence
+above 1, is refused, and the message gives the file and the setting.
+
 What a run records about its own configuration
 ==============================================
 

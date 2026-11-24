@@ -1,46 +1,25 @@
-"""Reliability gate — drops features whose self-assessed reliability is too low.
+"""Reliability gate -- drops features whose self-assessed reliability is too low.
 
 Each feature carries a [0, 1] reliability score it computed at extraction
 time.  The orchestrator runs this gate between extraction and technique
 invocation; gated-out features are recorded in the feature inventory with
 their rejection reason but are not passed to any technique.
 
-The thresholds live in ``config_520_features.yaml`` per feature type with
-optional per-instrument overrides.  Default values defined here are used
-when no override is supplied by the loader.
+The thresholds are the ``orchestrator.reliability_gate`` configuration section,
+one per feature type, which the configuration parses into a
+:class:`FeatureReliabilityGate` when it loads.
 """
 
-import math
-from collections.abc import Mapping
-from dataclasses import dataclass, field
-from typing import Any, Final
+from dataclasses import dataclass
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
+from spindoctor.schema import SCHEMA_CONFIG, Unit
 
 __all__ = [
-    'DEFAULT_RELIABILITY_THRESHOLDS',
     'FeatureReliabilityGate',
     'GatedFeatureRecord',
 ]
-
-
-DEFAULT_RELIABILITY_THRESHOLDS: Final[dict[NavFeatureType, float]] = {
-    NavFeatureType.STAR: 0.20,
-    NavFeatureType.LIMB_ARC: 0.30,
-    NavFeatureType.TERMINATOR_ARC: 0.30,
-    NavFeatureType.BODY_DISC: 0.30,
-    NavFeatureType.BODY_BLOB: 0.20,
-    NavFeatureType.RING_EDGE: 0.30,
-    NavFeatureType.RING_ANNULUS: 0.30,
-    NavFeatureType.CARTOGRAPHIC_MODEL: 0.30,
-    NavFeatureType.TITAN_LIMB: 0.30,
-}
-"""Default per-type reliability thresholds.
-
-Feature types not present in this map fall through with a 0.0 threshold (no
-gate).  Values are placeholders subject to empirical calibration.
-"""
 
 
 @dataclass(frozen=True)
@@ -56,79 +35,51 @@ class GatedFeatureRecord:
     reason: str
 
 
-@dataclass
+@dataclass(frozen=True)
 class FeatureReliabilityGate:
     """Stateless gate filtering features by per-type reliability threshold.
 
-    Parameters:
-        thresholds: Mapping ``feature_type -> minimum reliability``.  Falls
-            back to 0.0 (no gate) for missing keys.
+    This is the ``orchestrator.reliability_gate`` configuration section.  It has one
+    field for each :class:`~spindoctor.feature.feature_type.NavFeatureType` member,
+    named after the member, so every feature type has a threshold.  A feature whose
+    reliability is below its type's threshold is gated out.
 
-    Raises:
-        TypeError: if any key in ``thresholds`` is not a ``NavFeatureType``
-            or any value is not numeric.
-        ValueError: if any threshold is non-finite or outside ``[0, 1]``.
+    Parameters:
+        STAR: Minimum reliability of a ``STAR`` feature, in ``[0, 1]``.
+        LIMB_ARC: Minimum reliability of a ``LIMB_ARC`` feature, in ``[0, 1]``.
+        TERMINATOR_ARC: Minimum reliability of a ``TERMINATOR_ARC`` feature, in
+            ``[0, 1]``.
+        BODY_DISC: Minimum reliability of a ``BODY_DISC`` feature, in ``[0, 1]``.
+        BODY_BLOB: Minimum reliability of a ``BODY_BLOB`` feature, in ``[0, 1]``.
+        RING_EDGE: Minimum reliability of a ``RING_EDGE`` feature, in ``[0, 1]``.
+        RING_ANNULUS: Minimum reliability of a ``RING_ANNULUS`` feature, in ``[0, 1]``.
+        TITAN_LIMB: Minimum reliability of a ``TITAN_LIMB`` feature, in ``[0, 1]``.
+        CARTOGRAPHIC_MODEL: Minimum reliability of a ``CARTOGRAPHIC_MODEL`` feature,
+            in ``[0, 1]``.
     """
 
-    thresholds: dict[NavFeatureType, float] = field(
-        default_factory=lambda: dict(DEFAULT_RELIABILITY_THRESHOLDS)
-    )
+    __pydantic_config__ = SCHEMA_CONFIG
 
-    @classmethod
-    def from_mapping(cls, mapping: Mapping[str, Any] | None) -> 'FeatureReliabilityGate':
-        """Build a gate from a YAML-derived ``{type name: threshold}`` mapping.
+    STAR: Unit
+    LIMB_ARC: Unit
+    TERMINATOR_ARC: Unit
+    BODY_DISC: Unit
+    BODY_BLOB: Unit
+    RING_EDGE: Unit
+    RING_ANNULUS: Unit
+    TITAN_LIMB: Unit
+    CARTOGRAPHIC_MODEL: Unit
+
+    def threshold(self, feature_type: NavFeatureType) -> float:
+        """Return the reliability a feature of one type needs to be kept.
 
         Parameters:
-            mapping: The ``orchestrator.reliability_gate`` config section.
-                ``None`` or empty returns the code defaults.  Keys are
-                ``NavFeatureType`` member names; each value overrides the
-                default threshold for that type only, so a partial mapping
-                leaves the other types at their defaults.
+            feature_type: The feature's type.
 
         Returns:
-            A ``FeatureReliabilityGate`` with the merged thresholds.
-
-        Raises:
-            ValueError: If a key is not a ``NavFeatureType`` member name.
+            The threshold, in ``[0, 1]``.
         """
-        if not mapping:
-            return cls()
-        thresholds = dict(DEFAULT_RELIABILITY_THRESHOLDS)
-        for name, value in mapping.items():
-            try:
-                ftype = NavFeatureType[str(name)]
-            except KeyError:
-                valid = ', '.join(t.name for t in NavFeatureType)
-                raise ValueError(
-                    f'Unknown feature type {name!r} in reliability_gate config; '
-                    f'valid names: {valid}'
-                ) from None
-            try:
-                thresholds[ftype] = float(value)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f'orchestrator.reliability_gate.{name} must be a number; got {value!r}'
-                ) from exc
-        return cls(thresholds=thresholds)
-
-    def __post_init__(self) -> None:
-        """Validate the thresholds mapping and every threshold value."""
-        if not isinstance(self.thresholds, Mapping):
-            raise TypeError(
-                'FeatureReliabilityGate.thresholds must be a Mapping; '
-                f'got {type(self.thresholds).__name__}'
-            )
-        for key, value in self.thresholds.items():
-            if not isinstance(key, NavFeatureType):
-                raise TypeError(f'thresholds keys must be NavFeatureType; got {type(key).__name__}')
-            if isinstance(value, bool) or not isinstance(value, (int, float)):
-                raise TypeError(
-                    f'thresholds[{key.name}] must be numeric; got {type(value).__name__}'
-                )
-            if not math.isfinite(value):
-                raise ValueError(f'thresholds[{key.name}] must be finite; got {value!r}')
-            if not 0.0 <= value <= 1.0:
-                raise ValueError(f'thresholds[{key.name}] must lie in [0, 1]; got {value!r}')
+        return float(getattr(self, feature_type.name))
 
     def apply(
         self, features: list[NavFeature]
@@ -145,7 +96,7 @@ class FeatureReliabilityGate:
         kept: list[NavFeature] = []
         gated: list[GatedFeatureRecord] = []
         for feature in features:
-            threshold = self.thresholds.get(feature.feature_type, 0.0)
+            threshold = self.threshold(feature.feature_type)
             if feature.reliability < threshold:
                 gated.append(
                     GatedFeatureRecord(

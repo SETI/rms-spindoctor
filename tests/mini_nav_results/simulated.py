@@ -21,6 +21,7 @@ from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
+from tests.orchestrator_section import packaged_tiers
 
 from .shared import classifier, holdings_path, navigated, provenance
 
@@ -81,7 +82,9 @@ def simulated_scene() -> dict[str, Any]:
         offset_px=(1.5, 0.5),
         covariance_px2=np.diag([0.0961, 0.0784]),
         confidence=0.88,
-        confidence_rank=derive_confidence_rank(confidence=0.88, sigma_px=(0.31, 0.28)),
+        confidence_rank=derive_confidence_rank(
+            confidence=0.88, sigma_px=(0.31, 0.28), tier_thresholds=packaged_tiers()
+        ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
         feature_inventory=inventory,

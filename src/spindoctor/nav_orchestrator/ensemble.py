@@ -47,13 +47,12 @@ The ensemble is tested in isolation against synthetic per-technique results;
 correctness here is what makes the rest of the pipeline trustworthy.
 """
 
-import copy
 import math
-from collections.abc import Mapping
-from dataclasses import dataclass, field, fields
-from typing import Any
+from dataclasses import asdict, dataclass
+from typing import Annotated, Any
 
 import numpy as np
+from annotated_types import Ge, Le
 
 from spindoctor.annotation import Annotations
 from spindoctor.config import IMAGE_LOGGER, logged_section
@@ -89,84 +88,73 @@ from spindoctor.nav_orchestrator.nav_result import ConfidenceRank, NavResult
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.nav_technique.nav_technique import technique_tier
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.schema import SCHEMA_CONFIG, Float, NonNeg, Positive, RuleError, Unit
 from spindoctor.support.exceptions import NavContractError
 from spindoctor.support.status_reason import NavStatusReason
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'EnsembleConfig',
+    'TierThreshold',
+    'TierThresholds',
     'derive_confidence_rank',
     'ensemble',
 ]
 
 
-# Default constants used by the ensemble.  Configurable via ``EnsembleConfig``.
-DEFAULT_AGREEMENT_SIGMA = 2.0
-DEFAULT_AGREEMENT_PIXEL_FLOOR = 5.0
-# Translation distance (px) within which two results that consumed a common
-# feature agree.  Measured on the 1030 frames of ISS_006RI_LPHRLFMOV001_PRIME:
-# star results sharing a star whose answers both lie within 2 px of the
-# published F ring bundle never sit more than 1.27 px apart (1607 pairs, 99th
-# percentile 0.79 px), while a pair in which one result misidentified the star
-# sits at least 2.25 px apart.  Mirrored in config_540_orchestrator.yaml.
-DEFAULT_SHARED_FEATURE_AGREEMENT_PX = 1.5
-DEFAULT_AGREEMENT_GAP = 0.5
-DEFAULT_DISAGREEMENT_PENALTY = 0.7
-DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER = 0.3
-DEFAULT_MIN_CONFIDENCE = 0.35
-# Euclidean translation distance (px) within which a brightness-centroid blob
-# is treated as agreeing with a corroborated star consensus; beyond it the
-# blob is a contradicting outlier and is dropped from the ensemble math (a
-# multi-star fix outranks a lone centroid as a position witness).  Matches the
-# grouping pixel floor: a blob that does not even fall within the grouping
-# tolerance of a trusted star fix is not corroborating it.
-DEFAULT_BLOB_STAR_DISAGREEMENT_FLOOR_PX = 5.0
-DEFAULT_PINVH_RCOND = 1.0e-9
-DEFAULT_MAX_ALLOWED_ROTATION_DEG = 5.0
-# Body-witness veto thresholds (see body_witness_veto).  The blob centroid's
-# lit-hemisphere bias grows toward half phase (and is re-modeled only once the
-# coarse acquisition switches to the crescent template past it), so the two
-# checks bracket the reliable-witness regime: the shape-lock check trusts the
-# blob only below the low phase ceiling, the collapsed-regime check treats it
-# as the haze-bias suspect only above the high phase floor.  The disagreement
-# tolerance is the larger of an absolute floor and a fraction of the body
-# diameter; well-navigated single-body frames hold the blob within ~1.5 px of
-# the fused offset, while a disc / limb shape lock disagrees by 5 px and up.
-DEFAULT_BODY_WITNESS_SHAPE_LOCK_MAX_PHASE_DEG = 60.0
-DEFAULT_BODY_WITNESS_COLLAPSE_MIN_PHASE_DEG = 90.0
-DEFAULT_BODY_WITNESS_DISAGREEMENT_FLOOR_PX = 4.0
-DEFAULT_BODY_WITNESS_DISAGREEMENT_FRAC = 0.03
-# Mahalanobis-distance threshold the blob-vs-consensus disagreement must exceed
-# under the combined covariance before the veto fires, so a large-sigma centroid
-# whose separation is statistically consistent is not vetoed on scatter alone.
-DEFAULT_BODY_WITNESS_AGREEMENT_SIGMA = 2.0
-# Background-gradient score at or above which a frame is treated as
-# scattered-light: the disc and limb techniques then measure the same veiling
-# ramp, so they are collapsed to one witness before the combine (issue #339).
-# Matches the cohort-curation scattered-light prescan threshold.
-DEFAULT_SCATTERED_LIGHT_GRADIENT_SCORE = 5.0
-# Tier confidence boundaries are sim-anchored (fitted 2026-07-18 on the
-# recalibrated simulated-scene campaign, with the #210 covariance
-# floors live and the ring truth vocabulary in the scene cohort): the
-# smallest confidence at which each tier's sigma-gated subset of the
-# campaign's fused results achieves a 0.9 success rate against the
-# tier's error budget.  The medium tier's
-# sigma gate carries the discrimination by itself, so its confidence
-# boundary rests at the same 0.35 floor as the low tier and the final
-# gate (the tiers are sigma-differentiated).  Mirrored in
-# config_540_orchestrator.yaml, which carries the full provenance note.
-DEFAULT_TIER_THRESHOLDS: dict[str, dict[str, float | None]] = {
-    'high': {'min_confidence': 0.85, 'max_sigma_px': 0.5},
-    'medium': {'min_confidence': 0.35, 'max_sigma_px': 2.0},
-    'low': {'min_confidence': 0.35, 'max_sigma_px': None},
-}
+#: A phase angle in degrees, in [0, 180].
+_PhaseDeg = Annotated[Float, Ge(0.0), Le(180.0)]
+
+
+@dataclass(frozen=True)
+class TierThreshold:
+    """What a fused result needs to earn one confidence tier.
+
+    Parameters:
+        min_confidence: The least combined confidence the tier accepts, in ``[0, 1]``.
+        max_sigma_px: The largest 1-sigma localization uncertainty the tier accepts,
+            in pixels, compared with ``max(sigma_dv, sigma_du)``.  None, the value when
+            the key is left out, sets no sigma requirement.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    min_confidence: Unit
+    max_sigma_px: Positive | None = None
+
+
+@dataclass(frozen=True)
+class TierThresholds:
+    """The requirements of the three confidence tiers a fused result can earn.
+
+    Parameters:
+        high: The ``high`` tier's requirements.
+        medium: The ``medium`` tier's requirements.
+        low: The ``low`` tier's requirements.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    high: TierThreshold
+    medium: TierThreshold
+    low: TierThreshold
+
+    def in_order(self) -> tuple[tuple[ConfidenceRank, TierThreshold], ...]:
+        """Return each tier's name and requirements, best tier first.
+
+        Returns:
+            ``(('high', high), ('medium', medium), ('low', low))``.
+        """
+        return (('high', self.high), ('medium', self.medium), ('low', self.low))
 
 
 @dataclass(frozen=True)
 class EnsembleConfig:
     """Tunable parameters of the ensemble combine.
 
-    Defaults match ``config_540_orchestrator.yaml``.
+    This is the ``orchestrator.ensemble`` configuration section, which the
+    configuration parses into this type when it loads.  Every value lives in the
+    packaged ``config_540_orchestrator.yaml``.
 
     Parameters:
         agreement_sigma: Mahalanobis-distance threshold for grouping.
@@ -193,16 +181,16 @@ class EnsembleConfig:
             absolute gap when the runner-up has a quorum (two or more
             members); in a lone-vs-lone standoff (singleton best against
             a singleton excluded dissenter) the gap is measured relative
-            to the winner — conflict fires only when
-            ``best - runner_up < agreement_gap * best`` — so a dissenter
+            to the winner -- conflict fires only when
+            ``best - runner_up < agreement_gap * best`` -- so a dissenter
             with well under ``(1 - agreement_gap)`` of the winner's
             confidence cannot veto it.
         disagreement_penalty: Multiplier on combined confidence when more
-            than one group existed.
+            than one group existed, in ``[0, 1]``.
         conflicted_confidence_multiplier: Additional multiplier when the
-            conflicted branch fires.
+            conflicted branch fires, in ``[0, 1]``.
         min_confidence: Final-result threshold below which the ensemble
-            returns NavResult.failed instead of NavResult.ok.
+            returns NavResult.failed instead of NavResult.ok, in ``[0, 1]``.
         blob_star_disagreement_floor_px: Euclidean translation distance (px)
             within which a ``BodyBlobNav`` brightness centroid is treated as
             agreeing with a corroborated (non-single-star) star fix.  When a
@@ -217,23 +205,17 @@ class EnsembleConfig:
             mean of ``(dv, du, theta)`` triples); this bound enforces the
             small-angle assumption that every contributing technique fits
             against (every DT/star technique clamps its rotation to
-            ``+-max_rotation_deg``, default 5 deg).  A 3-DoF result
-            arriving with ``abs(rotation_rad)`` at or above this bound is a
-            programming error upstream and raises ``NavContractError``.
-        scattered_light_gradient_score: Background-gradient score at or
-            above which the frame is treated as scattered-light, so the disc
-            and limb techniques on one body are fused as a single correlated
-            witness rather than two independent ones (see
-            ``resolve_independent_estimators``).
-        tier_thresholds: Mapping ``rank -> {min_confidence, max_sigma_px}``;
-            see ``derive_confidence_rank``.
-        body_witness_shape_lock_max_phase_deg: Phase ceiling (degrees) below
-            which the pose-free brightness centroid is a trustworthy position
-            witness for the body shape-lock veto; the lit-hemisphere bias grows
-            toward half phase, so the ceiling sits below it.
-        body_witness_collapse_min_phase_deg: Phase floor (degrees) above which a
-            lone blob is the haze-bias-prone suspect for the collapsed-regime
-            veto.
+            ``+-max_rotation_deg``, default 5 deg).  A 3-DoF result arriving
+            with ``abs(rotation_rad)`` at or above this bound is a programming
+            error upstream and raises ``NavContractError``.
+        body_witness_shape_lock_max_phase_deg: Phase ceiling (degrees, in
+            ``[0, 180]``) below which the pose-free brightness centroid is a
+            trustworthy position witness for the body shape-lock veto; the
+            lit-hemisphere bias grows toward half phase, so the ceiling sits below
+            it.  It must be below ``body_witness_collapse_min_phase_deg``.
+        body_witness_collapse_min_phase_deg: Phase floor (degrees, in ``[0, 180]``)
+            above which a lone blob is the haze-bias-prone suspect for the
+            collapsed-regime veto.
         body_witness_disagreement_floor_px: Absolute floor of the body-witness
             veto's cross-technique disagreement tolerance (a lower bound).
         body_witness_disagreement_frac: Fraction of the body diameter added to
@@ -241,133 +223,57 @@ class EnsembleConfig:
         body_witness_agreement_sigma: Mahalanobis-distance threshold the
             disagreement must exceed under the combined covariance before the
             body-witness veto fires.
+        scattered_light_gradient_score: Background-gradient score at or
+            above which the frame is treated as scattered-light, so the disc
+            and limb techniques on one body are fused as a single correlated
+            witness rather than two independent ones (see
+            ``resolve_independent_estimators``).
+        tier_thresholds: The requirements of each confidence tier; see
+            :func:`derive_confidence_rank`.
+
+    Raises:
+        RuleError: If ``body_witness_shape_lock_max_phase_deg`` is not below
+            ``body_witness_collapse_min_phase_deg``.
     """
 
-    agreement_sigma: float = DEFAULT_AGREEMENT_SIGMA
-    agreement_pixel_floor: float = DEFAULT_AGREEMENT_PIXEL_FLOOR
-    shared_feature_agreement_px: float = DEFAULT_SHARED_FEATURE_AGREEMENT_PX
-    agreement_gap: float = DEFAULT_AGREEMENT_GAP
-    disagreement_penalty: float = DEFAULT_DISAGREEMENT_PENALTY
-    conflicted_confidence_multiplier: float = DEFAULT_CONFLICTED_CONFIDENCE_MULTIPLIER
-    min_confidence: float = DEFAULT_MIN_CONFIDENCE
-    blob_star_disagreement_floor_px: float = DEFAULT_BLOB_STAR_DISAGREEMENT_FLOOR_PX
-    pinvh_rcond: float = DEFAULT_PINVH_RCOND
-    max_allowed_rotation_deg: float = DEFAULT_MAX_ALLOWED_ROTATION_DEG
-    body_witness_shape_lock_max_phase_deg: float = DEFAULT_BODY_WITNESS_SHAPE_LOCK_MAX_PHASE_DEG
-    body_witness_collapse_min_phase_deg: float = DEFAULT_BODY_WITNESS_COLLAPSE_MIN_PHASE_DEG
-    body_witness_disagreement_floor_px: float = DEFAULT_BODY_WITNESS_DISAGREEMENT_FLOOR_PX
-    body_witness_disagreement_frac: float = DEFAULT_BODY_WITNESS_DISAGREEMENT_FRAC
-    body_witness_agreement_sigma: float = DEFAULT_BODY_WITNESS_AGREEMENT_SIGMA
-    scattered_light_gradient_score: float = DEFAULT_SCATTERED_LIGHT_GRADIENT_SCORE
-    tier_thresholds: dict[str, dict[str, float | None]] = field(
-        default_factory=lambda: copy.deepcopy(DEFAULT_TIER_THRESHOLDS)
-    )
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    agreement_sigma: NonNeg
+    agreement_pixel_floor: NonNeg
+    shared_feature_agreement_px: NonNeg
+    agreement_gap: NonNeg
+    disagreement_penalty: Unit
+    conflicted_confidence_multiplier: Unit
+    min_confidence: Unit
+    blob_star_disagreement_floor_px: NonNeg
+    pinvh_rcond: NonNeg
+    max_allowed_rotation_deg: Positive
+    body_witness_shape_lock_max_phase_deg: _PhaseDeg
+    body_witness_collapse_min_phase_deg: _PhaseDeg
+    body_witness_disagreement_floor_px: NonNeg
+    body_witness_disagreement_frac: NonNeg
+    body_witness_agreement_sigma: NonNeg
+    scattered_light_gradient_score: NonNeg
+    tier_thresholds: TierThresholds
 
     def __post_init__(self) -> None:
-        """Reject ensemble thresholds that would misfire their gate.
+        """Refuse a body-witness phase window whose ceiling is not below its floor.
 
-        Both direct construction and ``from_mapping`` land here, so a
-        non-finite value, a negative tolerance, an out-of-range phase, or an
-        inverted phase window is rejected the same way regardless of how the
-        config was built.  A negative Mahalanobis threshold, for instance,
-        would make nearly every separation veto-worthy, and a negative
-        ``blob_star_disagreement_floor_px`` would drop every blob.
-
-        Raises:
-            ValueError: if any body-witness or blob/star tolerance is
-                non-finite or negative, a body-witness phase falls outside
-                ``[0, 180]``, or the shape-lock ceiling is not below the
-                collapse floor.
+        The shape-lock check trusts the blob only below its ceiling and the
+        collapsed-regime check suspects it only above its floor, so the two must
+        bracket a gap.
         """
-        non_negative = {
-            'body_witness_disagreement_floor_px': self.body_witness_disagreement_floor_px,
-            'body_witness_disagreement_frac': self.body_witness_disagreement_frac,
-            'body_witness_agreement_sigma': self.body_witness_agreement_sigma,
-            'blob_star_disagreement_floor_px': self.blob_star_disagreement_floor_px,
-            'shared_feature_agreement_px': self.shared_feature_agreement_px,
-        }
-        for name, value in non_negative.items():
-            if not math.isfinite(value):
-                raise ValueError(f'{name} must be finite, got {value}')
-            if value < 0.0:
-                raise ValueError(f'{name} must be non-negative, got {value}')
-        phases = {
-            'body_witness_shape_lock_max_phase_deg': self.body_witness_shape_lock_max_phase_deg,
-            'body_witness_collapse_min_phase_deg': self.body_witness_collapse_min_phase_deg,
-        }
-        for name, value in phases.items():
-            if not math.isfinite(value):
-                raise ValueError(f'{name} must be finite, got {value}')
-            if not 0.0 <= value <= 180.0:
-                raise ValueError(f'{name} must lie in [0, 180] deg, got {value}')
         if self.body_witness_shape_lock_max_phase_deg >= self.body_witness_collapse_min_phase_deg:
-            raise ValueError(
-                'body_witness_shape_lock_max_phase_deg '
-                f'({self.body_witness_shape_lock_max_phase_deg}) must be below '
-                'body_witness_collapse_min_phase_deg '
-                f'({self.body_witness_collapse_min_phase_deg})'
+            raise RuleError(
+                f'must be below body_witness_collapse_min_phase_deg '
+                f'({self.body_witness_collapse_min_phase_deg:g}), got '
+                f'{self.body_witness_shape_lock_max_phase_deg:g}',
+                at='body_witness_shape_lock_max_phase_deg',
+                reads=(
+                    'body_witness_shape_lock_max_phase_deg',
+                    'body_witness_collapse_min_phase_deg',
+                ),
             )
-
-    @classmethod
-    def from_mapping(cls, mapping: Mapping[str, Any] | None) -> 'EnsembleConfig':
-        """Build an ``EnsembleConfig`` from a YAML-derived mapping.
-
-        Parameters:
-            mapping: The ``orchestrator.ensemble`` config section.  ``None``
-                or empty returns the code defaults.  Scalar keys override
-                their field; a ``tier_thresholds`` block is merged tier-by-
-                tier over the defaults, so a partial override (for example
-                only ``low.min_confidence``) leaves the other tiers intact.
-                A tier that leaves out ``max_sigma_px`` keeps the default's,
-                which is None (no sigma bound) for the low tier.
-
-        Returns:
-            An ``EnsembleConfig`` with mapping values overriding the code
-            defaults field-by-field.
-
-        Raises:
-            ValueError: If the mapping contains an unknown key, an unknown
-                tier name, or an unknown tier-threshold key.
-        """
-        if not mapping:
-            return cls()
-        data = dict(mapping)
-        tiers_raw = data.pop('tier_thresholds', None)
-        scalar_fields = {f.name for f in fields(cls)} - {'tier_thresholds'}
-        unknown = set(data) - scalar_fields
-        if unknown:
-            raise ValueError(f'Unknown orchestrator.ensemble config keys: {sorted(unknown)}')
-        kwargs: dict[str, Any] = {}
-        for key, value in data.items():
-            try:
-                kwargs[key] = float(value)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f'orchestrator.ensemble.{key} must be a number; got {value!r}'
-                ) from exc
-        if tiers_raw is not None:
-            if not isinstance(tiers_raw, Mapping):
-                raise ValueError('orchestrator.ensemble.tier_thresholds must be a mapping')
-            tiers = copy.deepcopy(DEFAULT_TIER_THRESHOLDS)
-            for tier, spec in tiers_raw.items():
-                if tier not in tiers:
-                    raise ValueError(
-                        f'Unknown tier {tier!r} in tier_thresholds; valid tiers: {sorted(tiers)}'
-                    )
-                if not isinstance(spec, Mapping):
-                    raise ValueError(f'tier_thresholds[{tier!r}] must be a mapping')
-                for key, value in spec.items():
-                    if key not in ('min_confidence', 'max_sigma_px'):
-                        raise ValueError(f'Unknown tier_thresholds[{tier!r}] key {key!r}')
-                    try:
-                        tiers[tier][key] = float(value)
-                    except (TypeError, ValueError) as exc:
-                        raise ValueError(
-                            f'orchestrator.ensemble.tier_thresholds[{tier!r}].{key} '
-                            f'must be a number; got {value!r}'
-                        ) from exc
-            kwargs['tier_thresholds'] = tiers
-        return cls(**kwargs)
 
 
 #: The brightness-centroid fallback technique down-weighted against a
@@ -724,7 +630,7 @@ def derive_confidence_rank(
     *,
     confidence: float,
     sigma_px: tuple[float, float] | None,
-    tier_thresholds: dict[str, dict[str, float | None]] | None = None,
+    tier_thresholds: TierThresholds,
 ) -> ConfidenceRank:
     """Derive the five-bucket confidence rank from confidence + sigma.
 
@@ -737,14 +643,14 @@ def derive_confidence_rank(
         confidence: Combined confidence in ``[0, 1]``.
         sigma_px: Per-axis 1sigma marginal uncertainty (use ``None`` to mean
             "unknown / not applicable").
-        tier_thresholds: Mapping ``rank -> {min_confidence, max_sigma_px}``
-            with ``max_sigma_px`` allowed to be ``None``.
+        tier_thresholds: The requirements of each tier, normally the
+            ``tier_thresholds`` of the configuration's ``orchestrator.ensemble``
+            section.
 
     Returns:
         ``'high'``, ``'medium'``, or ``'low'`` if any tier matches; else
         ``'failed'``.
     """
-    thresholds = tier_thresholds or DEFAULT_TIER_THRESHOLDS
     max_sigma = max(sigma_px) if sigma_px is not None else None
     if max_sigma is None:
         # No covariance was supplied, so every sigma-constrained tier
@@ -758,15 +664,10 @@ def derive_confidence_rank(
             'sigma-constrained tiers are unreachable and the rank caps at the '
             'best sigma-free tier'
         )
-    ranks: tuple[ConfidenceRank, ...] = ('high', 'medium', 'low')
-    for rank in ranks:
-        spec = thresholds[rank]
-        min_conf = spec['min_confidence']
-        max_allowed = spec['max_sigma_px']
-        assert min_conf is not None  # min_confidence is always set
-        if confidence < min_conf:
+    for rank, tier in tier_thresholds.in_order():
+        if confidence < tier.min_confidence:
             continue
-        if max_allowed is not None and (max_sigma is None or max_sigma > max_allowed):
+        if tier.max_sigma_px is not None and (max_sigma is None or max_sigma > tier.max_sigma_px):
             continue
         return rank
     return 'failed'
@@ -779,7 +680,7 @@ def ensemble(
     feature_inventory: list[NavFeatureSummary],
     image_classifier: NavImageClassifierResult,
     provenance: Provenance,
-    config: EnsembleConfig | None = None,
+    config: EnsembleConfig,
     model_metadata: dict[str, dict[str, Any]] | None = None,
     annotations: Annotations | None = None,
 ) -> NavResult:
@@ -790,7 +691,8 @@ def ensemble(
         feature_inventory: Feature inventory (kept + gated entries).
         image_classifier: Image-quality classifier verdict.
         provenance: Reproducibility envelope.
-        config: Optional ``EnsembleConfig`` overrides.
+        config: The ensemble's tunables, normally the configuration's
+            ``orchestrator.ensemble`` section.
         model_metadata: Optional per-NavModel diagnostic dict map.
         annotations: Optional pre-built annotation collection from the
             orchestrator's ``_collect_annotations`` pass.
@@ -798,7 +700,6 @@ def ensemble(
     Returns:
         A single NavResult — ok / conflicted / failed.
     """
-    cfg = config or EnsembleConfig()
     md = model_metadata if model_metadata is not None else {}
     ann = annotations if annotations is not None else Annotations()
     if not results:
@@ -839,18 +740,18 @@ def ensemble(
     # contradicts is unaffected.
     viable = _drop_blob_outlier_against_star_consensus(
         viable,
-        disagreement_floor_px=cfg.blob_star_disagreement_floor_px,
+        disagreement_floor_px=config.blob_star_disagreement_floor_px,
     )
     interior = [r for r in viable if not r.at_edge]
     if interior:
         viable = interior
     selection = consensus_selection(
         viable,
-        agreement_sigma=cfg.agreement_sigma,
-        agreement_pixel_floor=cfg.agreement_pixel_floor,
-        shared_feature_agreement_px=cfg.shared_feature_agreement_px,
-        rcond=cfg.pinvh_rcond,
-        max_allowed_rotation_deg=cfg.max_allowed_rotation_deg,
+        agreement_sigma=config.agreement_sigma,
+        agreement_pixel_floor=config.agreement_pixel_floor,
+        shared_feature_agreement_px=config.shared_feature_agreement_px,
+        rcond=config.pinvh_rcond,
+        max_allowed_rotation_deg=config.max_allowed_rotation_deg,
     )
     best_group = selection.best
     excluded = selection.excluded
@@ -868,11 +769,11 @@ def ensemble(
     resolution = resolve_independent_estimators(
         best_group,
         image_classifier=image_classifier,
-        scattered_light_gradient_score=cfg.scattered_light_gradient_score,
-        rcond=cfg.pinvh_rcond,
+        scattered_light_gradient_score=config.scattered_light_gradient_score,
+        rcond=config.pinvh_rcond,
     )
     combine_set = blend_collapsed_confidence(
-        resolution.estimators, resolution.collapsed_groups, rcond=cfg.pinvh_rcond
+        resolution.estimators, resolution.collapsed_groups, rcond=config.pinvh_rcond
     )
     for dropped in resolution.dropped_descendants:
         IMAGE_LOGGER.info(
@@ -903,13 +804,13 @@ def ensemble(
     try:
         combined = _combine_precision_weighted(
             combine_set,
-            rcond=cfg.pinvh_rcond,
-            max_allowed_rotation_deg=cfg.max_allowed_rotation_deg,
+            rcond=config.pinvh_rcond,
+            max_allowed_rotation_deg=config.max_allowed_rotation_deg,
         )
         combined_confidence = _combine_confidence(
             combine_set,
-            rcond=cfg.pinvh_rcond,
-            disagreement_penalty=cfg.disagreement_penalty,
+            rcond=config.pinvh_rcond,
+            disagreement_penalty=config.disagreement_penalty,
             apply_disagreement_penalty=apply_disagreement_penalty,
         )
     except ValueError:
@@ -943,17 +844,17 @@ def ensemble(
     if excluded:
         gap = best_summed_conf - selection.runner_up_confidence
         if selection.runner_up_has_quorum:
-            is_conflict = gap < cfg.agreement_gap
+            is_conflict = gap < config.agreement_gap
         elif not best_has_quorum:
-            is_conflict = gap < cfg.agreement_gap * best_summed_conf
+            is_conflict = gap < config.agreement_gap * best_summed_conf
         else:
             is_conflict = False
         if is_conflict:
-            conflicted_confidence = combined_confidence * cfg.conflicted_confidence_multiplier
+            conflicted_confidence = combined_confidence * config.conflicted_confidence_multiplier
             effective_gap_threshold = (
-                cfg.agreement_gap
+                config.agreement_gap
                 if selection.runner_up_has_quorum
-                else cfg.agreement_gap * best_summed_conf
+                else config.agreement_gap * best_summed_conf
             )
             IMAGE_LOGGER.info(
                 'Conflicted: best-vs-runner-up summed-confidence gap %.3f is '
@@ -968,7 +869,7 @@ def ensemble(
                 selection.runner_up_has_quorum,
                 conflicted_confidence,
                 combined_confidence,
-                cfg.conflicted_confidence_multiplier,
+                config.conflicted_confidence_multiplier,
             )
             return NavResult.conflicted(
                 offset_px=combined.offset_px,
@@ -995,11 +896,11 @@ def ensemble(
             selection.runner_up_confidence,
             selection.runner_up_has_quorum,
         )
-    if combined_confidence < cfg.min_confidence:
+    if combined_confidence < config.min_confidence:
         IMAGE_LOGGER.info(
             'Combined confidence %.3f is below the min_confidence threshold %.3f',
             combined_confidence,
-            cfg.min_confidence,
+            config.min_confidence,
         )
         return NavResult.failed(
             status_reason=NavStatusReason.FINAL_CONFIDENCE_BELOW_THRESHOLD,
@@ -1025,13 +926,13 @@ def ensemble(
         results,
         combined.offset_px,
         combined.covariance_px2,
-        shape_lock_max_phase_deg=cfg.body_witness_shape_lock_max_phase_deg,
-        collapse_min_phase_deg=cfg.body_witness_collapse_min_phase_deg,
-        disagreement_floor_px=cfg.body_witness_disagreement_floor_px,
-        disagreement_frac=cfg.body_witness_disagreement_frac,
-        agreement_sigma=cfg.body_witness_agreement_sigma,
-        star_agreement_floor_px=cfg.blob_star_disagreement_floor_px,
-        rcond=cfg.pinvh_rcond,
+        shape_lock_max_phase_deg=config.body_witness_shape_lock_max_phase_deg,
+        collapse_min_phase_deg=config.body_witness_collapse_min_phase_deg,
+        disagreement_floor_px=config.body_witness_disagreement_floor_px,
+        disagreement_frac=config.body_witness_disagreement_frac,
+        agreement_sigma=config.body_witness_agreement_sigma,
+        star_agreement_floor_px=config.blob_star_disagreement_floor_px,
+        rcond=config.pinvh_rcond,
     )
     if veto is BodyWitnessVeto.LONE_BLOB_COLLAPSED_REGIME:
         IMAGE_LOGGER.info(
@@ -1049,7 +950,7 @@ def ensemble(
             annotations=ann,
         )
     if veto is BodyWitnessVeto.SHAPE_LOCK_SUSPECT:
-        conflicted_confidence = combined_confidence * cfg.conflicted_confidence_multiplier
+        conflicted_confidence = combined_confidence * config.conflicted_confidence_multiplier
         IMAGE_LOGGER.info(
             'Body-witness veto: the geometric body consensus (%s) disagrees with '
             'the pose-free blob witness by more than the shape-lock tolerance; '
@@ -1079,7 +980,7 @@ def ensemble(
     rank = derive_confidence_rank(
         confidence=combined_confidence,
         sigma_px=(sigma_dv, sigma_du),
-        tier_thresholds=cfg.tier_thresholds,
+        tier_thresholds=config.tier_thresholds,
     )
     if rank == 'high' and combined.is_rank_deficient:
         # A fused result with an unobservable translation axis reports one
@@ -1144,9 +1045,7 @@ def ensemble(
         # ``min_confidence`` yet still earned no tier, the offset was confident
         # but too imprecise (sigma exceeded every tier's ``max_sigma_px``);
         # otherwise the confidence itself was below threshold.
-        lowest_min_conf = min(
-            float(spec['min_confidence'] or 0.0) for spec in cfg.tier_thresholds.values()
-        )
+        lowest_min_conf = min(tier.min_confidence for _, tier in config.tier_thresholds.in_order())
         if combined_confidence >= lowest_min_conf:
             failed_reason = NavStatusReason.FINAL_SIGMA_ABOVE_THRESHOLD
         else:
@@ -1159,7 +1058,7 @@ def ensemble(
             sigma_dv,
             sigma_du,
             max(sigma_dv, sigma_du),
-            cfg.tier_thresholds,
+            asdict(config.tier_thresholds),
         )
         return NavResult.failed(
             status_reason=failed_reason,
