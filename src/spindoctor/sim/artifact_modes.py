@@ -585,8 +585,14 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
     ),
     _detector_mode(
         'hot_pixels',
-        ModeParam('amplitude_e', NonNeg, None),
-        ModeParam('column_factor', Unit, None),
+        ModeParam('amplitude_law', Literal['exponential', 'power_law'], 'exponential'),
+        ModeParam('amplitude_index', NonNeg, None),
+        ModeParam('amplitude_max', NonNeg, None),
+        ModeParam('rate_e_per_sec', NonNeg, None),
+        ModeParam('readout_sec', NonNeg, None),
+        ModeParam('readout_e', NonNeg, None),
+        ModeParam('streak_sec', NonNeg, None),
+        ModeParam('streak_e', NonNeg, None),
         activation=PIXEL_FRACTION,
         activation_semantics=(
             'the fraction of detector pixels that are hot, a spatial density in [0, 1]'
@@ -748,8 +754,8 @@ DETECTOR_MODE_ORDER: tuple[str, ...] = (
     'residual_image',
     'readout_dark',
     'frame_transfer_smear',
-    'bright_dark_pairs',
     'hot_pixels',
+    'bright_dark_pairs',
     'radiation_transients',
     'bloom',
     'banding',
