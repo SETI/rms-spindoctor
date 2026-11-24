@@ -1092,7 +1092,8 @@ intensive signal passes through the electron unit chain in
    current and the readout dark again, line by line, as a real pipeline's dark model
    does. It keeps their shot noise and the readout dark's enhanced columns. The
    frame-transfer smear and the hot pixels, described below, join the charge here
-   too. Poisson shot noise then acts on the electron image, one pixel at a time. The chain draws one uniform
+   too. Poisson shot noise then acts on the electron image, one pixel at a time. The
+   chain draws one uniform
    value per pixel and turns it into a count through that pixel's own Poisson
    distribution (:func:`~spindoctor.sim.render.detector.shot_noise.sample_poisson`).
    How the count is found depends on the pixel's mean. Below 30 electrons it is
@@ -1111,27 +1112,37 @@ intensive signal passes through the electron unit chain in
    sampler 0.03 s.
 
    **Hot pixels.** A hot pixel is a pixel whose dark current is far above the rest
-   of the detector's. Each one has a relative amplitude, and its charge is that
-   amplitude times ``rate_e_per_sec`` for each second of the exposure, plus the
-   amplitude times ``readout_e``, the charge it collects in each frame outside the
-   exposure. During readout every line moves one row toward line 0, which is read
-   first, so the charge of every row below a hot pixel passes through it on the way
-   out. Each of those rows picks up the amplitude times ``streak_e`` there, the same
-   at every exposure. The result is a flat warm streak from the row after the hot
-   pixel to the last line. The rows above it are read before it and get none. A binned row
-   holds ``binning`` native rows that each passed the hot pixel, so it picks up
-   ``binning`` times as much.
+   of the detector's. Each one has a relative amplitude, and its rate is that
+   amplitude times ``rate_e_per_sec``. Its charge is its rate times the exposure plus
+   ``readout_sec``, the time it collects charge outside the exposure in each frame,
+   and it also holds the amplitude times ``readout_e``, a charge that does not depend
+   on the rate or the exposure. During readout every line moves one row toward line
+   0, which is read first, so the charge of every row below a hot pixel passes
+   through it on the way out. Each of those rows picks up the pixel's rate times
+   ``streak_sec``, the time a row spends there, plus the amplitude times
+   ``streak_e``, the same at every exposure. The result is a flat warm streak from
+   the row after the hot pixel to the last line. The rows above it are read before
+   it and get none. A binned row holds ``binning`` native rows that each passed the
+   hot pixel, so it picks up ``binning`` times as much; no dark frame has tested
+   that factor. A camera whose hot-pixel charge follows its dark rate states
+   the ``_sec`` terms, and one whose charge stays the same at every exposure states
+   the ``_e`` terms with a zero rate.
+
+   ``amplitude_law`` sets how the relative amplitudes are spread. ``exponential``
+   draws them with mean 1, so ``rate_e_per_sec`` is the population's mean rate.
+   ``power_law`` draws them from 1 up to ``amplitude_max``, with the number above
+   an amplitude falling as that amplitude to the power ``-amplitude_index``. Then
+   ``rate_e_per_sec`` is the lowest rate in the population, and ``pixel_fraction``
+   is the fraction of pixels at least that hot.
 
    The hot pixels belong to the detector: a pixel is hot when a draw keyed only on
    the emulated detector and the pixel's coordinates falls below ``pixel_fraction``,
    so every scene emulating that camera, whatever its seed, has the same hot pixels
-   at the same coordinates with the same relative amplitudes. The amplitudes are
-   exponentially distributed with mean 1, so ``rate_e_per_sec`` is the population's
-   mean rate. A smaller frame sees the map's corner from ``(0, 0)``, raising the
-   fraction only adds pixels, and a calibrated Cassini product shares its raw
-   camera's map. A population the scene sets itself under the adversarial switch is
-   drawn onto the navigation features instead (see :ref:`sim-adversarial-placement`).
-   The instrument pages give each camera's fitted values.
+   at the same coordinates with the same relative amplitudes. A smaller frame sees
+   the map's corner from ``(0, 0)``, and raising the fraction only adds pixels. A
+   population the scene sets itself under the adversarial switch is drawn onto the
+   navigation features instead (see :ref:`sim-adversarial-placement`). The
+   instrument pages give each camera's fitted values.
 4. **Pixel defects, radiation, and the full well.** The anti-blooming pairs and the
    radiation hits are added. Where the ``bloom`` mode is on, charge above
    ``full_well_e`` then spills along the column up to ``bloom_length`` pixels each way,

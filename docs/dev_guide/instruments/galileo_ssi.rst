@@ -277,26 +277,36 @@ artifact-rate table gives the fit's evidence.
 
 **Hot pixels.** The hot-pixel values are fitted on raw frames at the 10K gain
 state, 39 e-/DN. A pixel that spikes in at least three frames of a set counts as a
-hot pixel.
+hot pixel. A hot pixel's charge and its streak are constants of the frame mode: they
+do not grow with the exposure, so ``rate_e_per_sec`` is 0 and the charges are set
+by ``readout_e`` and ``streak_e``.
 
 * Nine dark frames of zero exposure from volumes GO_0002 and GO_0006 were taken
   late in 1990 in the 60 2/3 s frame mode, which most of the image-library frames
-  use. Of the 640,000 pixels, 8 hold 300 e- or more, 2 hold 500 e-, and 1
-  holds 1,000 e-. That is an exponential population with a fraction of 9e-5 and a
-  mean of 150 e-, the ``pixel_fraction`` and ``readout_e`` the entry catalogs.
+  use. Of the 640,000 pixels, 8 hold 300 e- or more, 2 hold 500 e-, and 1 holds
+  1,000 e-. An exponential population with a fraction of 9e-5 and a mean of
+  150 e- matches those counts, so ``pixel_fraction`` is 9e-5 and ``readout_e`` is
+  150 e-.
 * 47 dark-sky frames from volumes GO_0007 and GO_0008 were taken on 3 December
   1992 in the 8 2/3 s frame mode, at exposures from 0.1 to 0.8 s. Their counts are
   the same at every exposure: 435 pixels at 300 e- or more, 89 at 500 e-, and 6 at
   1,000 e-. The charge therefore does not come from the exposure, and its mean is
-  about 150 e- here too. A dark rate above 8 e-/s at relative amplitude 1 would have raised the
-  500 e- count by a tenth from 0.1 to 0.8 s, so ``rate_e_per_sec`` is 0. These
-  frames hold about 50 times the hot pixels of the 60 2/3 s frames, a difference
-  the simulator does not model.
+  about 150 e- here too. A dark rate above 8 e-/s at relative amplitude 1 would
+  have raised the 500 e- count by a tenth from 0.1 to 0.8 s. These frames hold
+  about 50 times the hot pixels of the 60 2/3 s frames, a difference the
+  simulator does not model.
+* The counts fall twentyfold from 150 to 300 e- in pairs of 60 2/3 s darks, in
+  1990 and in 1992. An exponential falls that fast, and a power law would need an
+  index near 4, so ``amplitude_law`` stays ``exponential``.
 * Longer exposures in these sets use the extended-exposure mode. Its longer frame
   cycle is not modeled, so those frames are not used.
-* The rows read after a hot pixel carry a flat streak of 1.15% of its charge per
-  row, measured on the 8 2/3 s frames, and the rows read before it carry nothing.
-  ``streak_e`` is 1.15% of 150 e-, which is 1.7 e-.
+* The rows read after a hot pixel carry a flat streak, and the rows read before it
+  carry nothing. On the median of the six 60 2/3 s darks of GO_0007, from 1992,
+  237 hot pixels of 300 e- or more give 0.51% +- 0.05% of the pixel's charge per
+  row. The four undated 60 2/3 s darks of GO_0002 give 0.29% +- 0.04% from 102
+  hot pixels, and the seven dated 1990 darks hold only nine hot pixels, too few to
+  measure. Two zero-exposure darks of GO_0007 in the 8 2/3 s mode give 0.55% +-
+  0.08%. ``streak_e`` is 0.5% of 150 e-, which is 0.75 e-.
 * The pixel to the right of a strong hot pixel holds up to a tenth of its charge,
   a trail along the row that the simulator leaves out.
 
