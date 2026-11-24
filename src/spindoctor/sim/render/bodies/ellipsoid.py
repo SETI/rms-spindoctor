@@ -318,6 +318,7 @@ def render_ellipsoid_body(
         # body is shaded with, so it renders exactly as the smooth body.
         shading_spec = _without_inert_surface(spec, crater_count=craters.count)
 
+    mask = silhouette_mask(work_grid, field)
     if up_factor > 1 and _lays_detail_on_detector_grid(shading_spec, field):
         intensity_work = _shade_disc_with_detector_detail(
             work_grid,
@@ -326,6 +327,7 @@ def render_ellipsoid_body(
             field,
             up_factor=up_factor,
             craters=craters,
+            inside=mask > 0.0,
         )
     else:
         intensity_work = _shade_disc(
@@ -335,9 +337,8 @@ def render_ellipsoid_body(
             detector_grid=detector_grid,
             scale=up_factor,
             craters=craters,
+            inside=mask > 0.0,
         )
-
-    mask = silhouette_mask(work_grid, field)
     intensity_work *= mask
 
     if aa_scale > 1:
@@ -439,6 +440,7 @@ def _shade_disc(
     detector_grid: EllipsoidProjection,
     scale: int,
     craters: _CraterLayout,
+    inside: NDArrayBoolType,
 ) -> NDArrayFloatType:
     """Shade the disc on one grid, with all its surface detail evaluated there.
 
@@ -458,6 +460,8 @@ def _shade_disc(
         scale: Pixels of ``grid`` per detector pixel, the unit of texture and
             transit lengths.
         craters: Where the craters are drawn and how many there are.
+        inside: The grid's pixels inside the body's silhouette.  The relief is
+            computed at those pixels only, since every other pixel is masked off.
 
     Returns:
         The intensity on the grid.
@@ -471,6 +475,7 @@ def _shade_disc(
             normals,
             illumination_angle=spec.illumination_angle,
             phase_angle=spec.phase_angle,
+            inside=inside,
         ).shadowed
     if spec.crater_fill > 0.0:
         normals = perturb_normals_by_slope(
@@ -502,6 +507,7 @@ def _shade_disc_with_detector_detail(
     *,
     up_factor: int,
     craters: _CraterLayout,
+    inside: NDArrayBoolType,
 ) -> NDArrayFloatType:
     """Shade the disc on the working grid, with relief and craters from the detector grid.
 
@@ -524,6 +530,9 @@ def _shade_disc_with_detector_detail(
         field: The relief realization, or None for the smooth surface.
         up_factor: Pixels of the working grid per detector pixel.
         craters: Where the craters are drawn and how many there are.
+        inside: The working grid's pixels inside the body's silhouette.  The relief
+            is computed on the working grid at those pixels only, since every other
+            pixel is masked off.
 
     Returns:
         The intensity on the working grid.
@@ -545,6 +554,7 @@ def _shade_disc_with_detector_detail(
         crater_slopes = (slope_v[rows, cols], slope_u[rows, cols])
     detector_grid = detector_grid.crop(rows, cols)
     work_grid = work_grid.crop(work_rows, work_cols)
+    inside = inside[work_rows, work_cols]
 
     normal_v, normal_u, normal_z = ellipsoid_image_normals(work_grid)
     band_shadowed: NDArrayBoolType | None = None
@@ -555,6 +565,7 @@ def _shade_disc_with_detector_detail(
             (normal_v, normal_u, normal_z),
             illumination_angle=spec.illumination_angle,
             phase_angle=spec.phase_angle,
+            inside=inside,
         ).shadowed
     elif field is not None:
         band_shadowed = add_detector_relief(
@@ -565,6 +576,7 @@ def _shade_disc_with_detector_detail(
             up_factor=up_factor,
             illumination_angle=spec.illumination_angle,
             phase_angle=spec.phase_angle,
+            inside=inside,
         )
     if crater_slopes is not None:
         normal_v, normal_u, normal_z = perturb_normals_by_slope(
