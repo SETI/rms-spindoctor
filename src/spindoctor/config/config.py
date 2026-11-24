@@ -41,6 +41,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         StarsSection,
         TitanSection,
     )
+    from spindoctor.config.sections_rings import RingsSection
     from spindoctor.nav_technique.confidence_config import TechniquesSection
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
@@ -233,7 +234,6 @@ class Config:
         self._config_general: dict[str, Any] = AttrDict({})
         self._config_offset: dict[str, Any] = AttrDict({})
         self._config_body_shape: dict[str, Any] = AttrDict({})
-        self._config_rings: dict[str, Any] = AttrDict({})
         self._config_backplanes: dict[str, Any] = AttrDict({})
         self._config_pds4: dict[str, Any] = AttrDict({})
         self._config_results_tree: dict[str, Any] = AttrDict({})
@@ -267,7 +267,6 @@ class Config:
         self._config_general = AttrDict(self._config_dict.get('general', {}))
         self._config_offset = AttrDict(self._config_dict.get('offset', {}))
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
-        self._config_rings = AttrDict(self._config_dict.get('rings', {}))
         self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
         self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
         self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
@@ -557,11 +556,10 @@ class Config:
         return self._config_body_shape
 
     @property
-    def rings(self) -> Any:
-        """Returns the planetary rings configuration settings."""
+    def rings(self) -> RingsSection:
+        """Returns the ``rings`` section: the ring model's settings and the ring catalogs."""
 
-        self.read_config()
-        return self._config_rings
+        return self._typed_sections().rings
 
     @property
     def stars(self) -> StarsSection:

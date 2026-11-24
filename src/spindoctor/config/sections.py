@@ -27,6 +27,7 @@ from spindoctor.config.sections_models import (
     StarsSection,
     TitanSection,
 )
+from spindoctor.config.sections_rings import RingsSection
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig
 from spindoctor.nav_technique.confidence_config import (
@@ -84,6 +85,7 @@ class TypedSections:
         titan: The ``titan`` section.
         satellites: Each planet's satellites, keyed by the planet's SPICE name.
         feature_emission: The ``feature_emission`` section.
+        rings: The ``rings`` section, with each planet's ring catalog.
         logging: The ``logging`` section.
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
@@ -98,6 +100,7 @@ class TypedSections:
     titan: TitanSection
     satellites: dict[Str, tuple[Str, ...]]
     feature_emission: FeatureEmissionSection
+    rings: RingsSection
     logging: LoggingSection
     techniques: TechniquesSection
 
@@ -122,6 +125,7 @@ class TypedSections:
                 ('feature_emission', 'ring_annulus', 'planets'),
                 self.feature_emission.ring_annulus.planets,
             ),
+            (('rings', 'ring_features'), self.rings.ring_features),
         )
         for at, planets in keyed_by_planet:
             for planet in planets:
