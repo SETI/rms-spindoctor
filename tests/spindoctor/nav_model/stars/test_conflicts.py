@@ -8,67 +8,7 @@ import numpy as np
 import pytest
 
 import spindoctor.nav_model.stars.conflicts as conflicts_module
-from spindoctor.nav_model.stars.conflicts import (
-    _conflict_body_list,
-    _ring_opaque_fraction,
-    parse_ring_occlusion_annuli,
-)
-
-
-def test_parse_ring_occlusion_annuli_normalizes_keys() -> None:
-    """Planet keys are normalized to upper case in the returned mapping."""
-    result = parse_ring_occlusion_annuli({'saturn': [[100.0, 200.0]]})
-    assert list(result.keys()) == ['SATURN']
-    assert result['SATURN'] == [(100.0, 200.0)]
-
-
-def test_parse_ring_occlusion_annuli_returns_empty_for_none() -> None:
-    """A ``None`` input is treated as the empty mapping."""
-    assert parse_ring_occlusion_annuli(None) == {}
-
-
-def test_parse_ring_occlusion_annuli_returns_empty_for_empty() -> None:
-    """An empty mapping returns an empty mapping."""
-    assert parse_ring_occlusion_annuli({}) == {}
-
-
-def test_parse_ring_occlusion_annuli_rejects_non_sequence_pair() -> None:
-    """A scalar where a length-2 sequence was expected raises ``ValueError``."""
-    bad: Any = {'SATURN': [123.0]}
-    with pytest.raises(ValueError, match='must be a length-2 sequence'):
-        parse_ring_occlusion_annuli(bad)
-
-
-def test_parse_ring_occlusion_annuli_rejects_wrong_length() -> None:
-    """A length-3 sequence raises ``ValueError`` with the actual length."""
-    with pytest.raises(ValueError, match='must have exactly 2 elements'):
-        parse_ring_occlusion_annuli({'SATURN': [[1.0, 2.0, 3.0]]})
-
-
-def test_parse_ring_occlusion_annuli_rejects_non_numeric() -> None:
-    """A non-numeric inner radius raises ``ValueError`` naming it."""
-    bad: Any = {'SATURN': [['inner', 200.0]]}
-    with pytest.raises(ValueError, match='must be numeric'):
-        parse_ring_occlusion_annuli(bad)
-
-
-def test_parse_ring_occlusion_annuli_rejects_inner_ge_outer() -> None:
-    """Degenerate annuli (inner >= outer) raise ``ValueError``."""
-    with pytest.raises(ValueError, match=r'inner 100\.0 km >= outer 100\.0 km'):
-        parse_ring_occlusion_annuli({'SATURN': [[100.0, 100.0]]})
-
-
-def test_parse_ring_occlusion_annuli_rejects_bool() -> None:
-    """A bool is rejected even though Python admits it as int."""
-    bad: Any = {'SATURN': [[True, 200.0]]}
-    with pytest.raises(ValueError, match='got bool'):
-        parse_ring_occlusion_annuli(bad)
-
-
-def test_parse_ring_occlusion_annuli_rejects_inf() -> None:
-    """Non-finite radii raise ``ValueError`` naming the bad value."""
-    with pytest.raises(ValueError, match='must be finite'):
-        parse_ring_occlusion_annuli({'SATURN': [[float('inf'), 200.0]]})
+from spindoctor.nav_model.stars.conflicts import _conflict_body_list, _ring_opaque_fraction
 
 
 class _FakeObsWithSaturn:

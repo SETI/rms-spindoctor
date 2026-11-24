@@ -58,13 +58,3 @@ satellites:
     - KERBEROS
     # - NIX
     - STYX
-
-fuzzy_satellites:
-  SATURN:
-    - HYPERION
-    - PHOEBE
-
-ring_satellites:
-  SATURN:
-    - DAPHNIS
-    - PAN

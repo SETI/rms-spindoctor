@@ -50,6 +50,7 @@ from spindoctor.support.image import draw_rect
 from spindoctor.support.time import now_dt
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from spindoctor.config.sections_models import StarsSection
     from spindoctor.nav_orchestrator.nav_context import NavContext
     from spindoctor.support.types import MutableStar
 
@@ -214,8 +215,8 @@ class NavModelStars(NavModel):
             )
             return []
         mag_limit = float(self.obs.star_max_usable_vmag())
-        min_snr = float(getattr(self._stars_config, 'min_predicted_snr', 0.0))
-        max_smear = float(getattr(self._stars_config, 'max_smear', math.inf))
+        min_snr = self._stars_config.min_predicted_snr
+        max_smear = self._stars_config.max_smear
         mag_offset_value = _resolve_mag_offset(self.obs)
         self._logger.debug(
             'image_noise_sigma = %.3g, star_max_usable_vmag = %.3f, '
@@ -654,7 +655,7 @@ def _star_summary(star: MutableStar) -> dict[str, Any]:
 def _star_label(
     *,
     star: MutableStar,
-    config: Any,
+    config: StarsSection,
     v_int: int,
     u_int: int,
     label_margin: int,

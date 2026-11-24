@@ -283,17 +283,13 @@ def _resolve_star_catalogs(config: Config) -> Mapping[str, str]:
     Returns:
         Read-only mapping sorted by catalog name.
     """
-    # config.stars.catalogs is always present in the merged configuration
-    # (config_030_stars.yaml), so a read that raises is a broken configuration;
-    # recording no catalogs for it would put a false claim in the provenance.
-    catalog_names = [str(name).lower() for name in config.stars.catalogs]
     resolved: dict[str, str] = {}
-    for name in catalog_names:
+    for name in config.stars.catalogs:
         if name == 'ucac4':
             resolved[name] = os.environ.get('UCAC4_PATH', '')
         elif name == 'ybsc':
             resolved[name] = os.environ.get('YBSC_PATH', '')
-        elif name == 'tycho2':
+        else:
             spice_path = os.environ.get('SPICE_PATH')
             oops_resources = os.environ.get('OOPS_RESOURCES')
             if spice_path:
@@ -302,8 +298,6 @@ def _resolve_star_catalogs(config: Config) -> Mapping[str, str]:
                 resolved[name] = f'{oops_resources}/SPICE/Stars'
             else:
                 resolved[name] = ''
-        else:
-            resolved[name] = ''
     return MappingProxyType(dict(sorted(resolved.items())))
 
 
