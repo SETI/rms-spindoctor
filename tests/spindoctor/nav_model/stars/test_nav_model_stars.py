@@ -15,6 +15,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from tests.model_sections import packaged_stars
 
 from spindoctor.annotation import Annotations
 from spindoctor.feature.constants import MIN_ANISOTROPIC_SMEAR_PX
@@ -62,17 +63,6 @@ class _FakePSF:
 
     def __init__(self, sigma: float = 1.0) -> None:
         self.sigma = sigma
-
-
-class _FakeStarsConfig:
-    """Stand-in for ``config.stars`` exposing only the fields we need."""
-
-    label_font: str = 'Liberation Mono'
-    label_font_size: int = 10
-    label_font_color: tuple[int, int, int] = (255, 0, 0)
-    label_star_color: tuple[int, int, int] = (255, 255, 0)
-    max_smear: float = 100.0
-    min_predicted_snr: float = 0.0
 
 
 @dataclass
@@ -128,7 +118,7 @@ def _make_model(*, star_max_vmag: float = 12.0) -> tuple[NavModelStars, _FakeObs
     """Build a NavModelStars instance with the fake obs and stars config."""
     obs = _FakeObs(star_max_vmag=star_max_vmag)
     config = mock.Mock()
-    config.stars = _FakeStarsConfig()
+    config.stars = packaged_stars()
     model = NavModelStars('stars', cast(Any, obs), config=config)
     # Bypass the catalog reduction in tests by injecting our own list.
     return model, obs
@@ -323,10 +313,7 @@ def test_to_features_returns_empty_when_noise_zero() -> None:
 def test_to_features_skips_when_smear_exceeds_max() -> None:
     """A star whose smear exceeds ``stars.max_smear`` is dropped from the feature list."""
     model, _obs = _make_model()
-    cfg = mock.Mock()
-    cfg.stars = _FakeStarsConfig()
-    cfg.stars.max_smear = 1.0
-    model._stars_config = cfg.stars
+    model._stars_config = packaged_stars(max_smear=1.0)
     star = _FakeMutableStar(move_v=10.0, move_u=10.0)
     model._stars = [cast(MutableStar, star)]
     assert model.to_features(cast(NavContext, _FakeContext())) == []

@@ -1597,8 +1597,18 @@ asserts the generated half matches the registries.
     against the technique and model registries and `OTHER_LOG_KEYS`,
     program keys against `PROGRAM_NAMES`; `validate_logging_config`,
     its helpers, and `LOGGER_KEYS` and `CONSOLE_KEYS` deleted)
-  - [ ] `bodies`, `stars`, `titan`, `rings`, `body_shape`, `satellites`,
-    and `feature_emission`
+  - [x] `bodies`, `stars`, `titan`, `satellites`, and `feature_emission`
+    (done: step 6a; parsed at load into `BodiesSection`, `StarsSection`,
+    `TitanSection`, a planet-to-satellites mapping, and
+    `FeatureEmissionSection`; `Config._validate_bodies_block`,
+    `parse_ring_occlusion_annuli`, the `titan.navigation` block readers,
+    and `_ring_annulus_emission_params` deleted; the unread
+    `fuzzy_satellites` and `ring_satellites` deleted; `planets` typed too,
+    a planet key of `satellites`, `stars.ring_occlusion_radii_km`, or
+    `feature_emission.ring_annulus.planets` that is not in `planets` is
+    refused, and so is a `bodies.geometric_albedo` key not in upper case;
+    it also made the FOV distortion tool's star cap take effect, #1176)
+  - [ ] `rings` with the ring catalogs, and `body_shape` (step 6b)
   - [x] `general`, `environment`, `offset`, and `results_tree` (done:
     parsed at load into `GeneralSection`, `EnvironmentSection` (every key
     optional, a packaged file that sets none), `OffsetSection`, and `TreeTuning`;
@@ -1611,7 +1621,10 @@ asserts the generated half matches the registries.
   - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;
     no earlier step waits for it
   - [ ] `load_nav_config`, `AttrDict` off the config path, and one test
-    fixture for config overrides; #118 and #1001 close here
+    fixture for config overrides; #118 and #1001 close here. Until this
+    step parses the whole tree, a top-level section nothing types (for
+    example the deleted `fuzzy_satellites`) is still accepted silently in
+    an override
 
 ## Track E — Test and documentation debt
 
@@ -1684,6 +1697,13 @@ asserts the generated half matches the registries.
   entry points, so `logging.programs` would gain non-shipped keys), and
   where their log files belong, since `util/` output does not live under a
   results root.
+- **#1176** (Priority 4) — the FOV distortion tool's per-instrument star cap
+  never applied. `util/fov_distortion` set `stars.max_stars` only while the
+  models were built and restored it before they navigated, so every frame
+  was measured with the packaged 100 stars, the published report included.
+  #1032's typing of the `stars` section makes the cap take effect, so a
+  rerun gives fewer stars per frame. Decide whether to rerun the report with
+  the cap or drop the per-instrument `max_stars` keys.
 - **#391** — pin the lint tools (`ruff`, `mypy`, `pymarkdownlnt`) in the
   `dev` group, or move linting to pinned `pre-commit` hooks, so a new
   release cannot turn `main` red without a deliberate code change. A ruff

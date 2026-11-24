@@ -20,7 +20,6 @@ from spindoctor.feature.geometry import RingAnnulusGeometry
 from spindoctor.nav_model.nav_model_rings import (
     NavModelRings,
     _require_positive_finite_planet_scalar,
-    _ring_annulus_emission_params,
 )
 from spindoctor.nav_model.ring_emission import (
     RING_EDGE_DEFAULT_RELIABILITY,
@@ -233,33 +232,6 @@ def test_composite_ring_renderings_empty_input_returns_zero_arrays() -> None:
     assert composite_img.shape == (8, 8)
     assert composite_mask.shape == (8, 8)
     assert not composite_mask.any()
-
-
-def test_ring_annulus_emission_params_loads_saturn_block() -> None:
-    """Saturn's planet-specific block in the bundled YAML is loaded."""
-    config = Config()
-    max_radial_px, kmpp_threshold = _ring_annulus_emission_params(config, 'SATURN')
-    assert max_radial_px == pytest.approx(5.0)
-    # Saturn routes every scene at or above 25 km/px radial resolution to
-    # the annulus composite; the measured basis is in the bundled YAML.
-    assert kmpp_threshold == pytest.approx(25.0)
-
-
-def test_ring_annulus_emission_params_loads_jupiter_block() -> None:
-    """Jupiter's planet-specific block uses a tighter km/px threshold."""
-    config = Config()
-    max_radial_px, kmpp_threshold = _ring_annulus_emission_params(config, 'JUPITER')
-    assert max_radial_px == pytest.approx(5.0)
-    # Jupiter's main ring is ~10x narrower than Saturn's; threshold lower.
-    assert kmpp_threshold == pytest.approx(200.0)
-
-
-def test_ring_annulus_emission_params_falls_back_to_default_block() -> None:
-    """An unknown planet falls back to the ``default`` block."""
-    config = Config()
-    max_radial_px, kmpp_threshold = _ring_annulus_emission_params(config, 'UNKNOWN')
-    assert max_radial_px == pytest.approx(5.0)
-    assert kmpp_threshold == pytest.approx(1000.0)
 
 
 def test_require_positive_finite_planet_scalar_returns_value() -> None:

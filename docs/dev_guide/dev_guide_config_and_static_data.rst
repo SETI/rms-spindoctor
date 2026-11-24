@@ -104,10 +104,28 @@ of :class:`~spindoctor.config.sections.TypedSections`. Each one is named after i
 top-level key, and the matching :class:`~spindoctor.config.config.Config` property
 returns the typed object:
 
+- ``planets`` — the SPICE names of the planets the navigator knows, read through
+  :attr:`~spindoctor.config.config.Config.planets`.
 - ``orchestrator`` — :class:`~spindoctor.config.sections.OrchestratorSection`, holding
   ``ensemble`` (an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`; see
   :doc:`dev_guide_orchestrator_ensemble`) and ``reliability_gate`` (a
   :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`).
+- ``bodies`` — :class:`~spindoctor.config.sections_models.BodiesSection`. A key of
+  ``geometric_albedo`` is a body's SPICE name and must be in upper case.
+- ``stars`` — :class:`~spindoctor.config.sections_models.StarsSection`. An opaque ring
+  annulus in ``ring_occlusion_radii_km`` must have its inner radius below its outer
+  radius.
+- ``titan`` — :class:`~spindoctor.config.sections_models.TitanSection`. Its
+  ``navigation.symmetry`` and ``navigation.arc`` blocks parse straight into the haze
+  fit's :class:`~spindoctor.nav_technique.titan_fitting.SymmetryFitParams` and
+  :class:`~spindoctor.nav_technique.titan_fitting.ArcFitParams`, and its opaque ring
+  annulus follows the same rule as the star one.
+- ``satellites`` — a list of satellites for each planet, keyed by the planet's SPICE
+  name and read through :meth:`~spindoctor.config.config.Config.satellites`. Each
+  satellite is its SPICE name and must be in upper case.
+- ``feature_emission`` — :class:`~spindoctor.config.sections_models.FeatureEmissionSection`.
+  A planet's entry under ``ring_annulus.planets`` may leave a key out, and that key
+  keeps the ``default`` entry's value.
 - ``general`` — :class:`~spindoctor.config.sections.GeneralSection`: the directory of
   TrueType fonts that annotation text and summary labels are drawn in
   (``truetype_font_dir``).
@@ -133,6 +151,23 @@ returns the typed object:
   accepts is known only when the program runs; see :doc:`dev_guide_logging`.
 - ``techniques`` — one block per technique the package ships: its confidence formula
   and its tuning (see :ref:`config-techniques-section`).
+
+Three mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
+and ``feature_emission.ring_annulus.planets``. Each of their keys must be a planet of
+``planets``, written in upper case as SPICE spells it. Every reader looks a planet up by
+its upper-case name, and would never read a key that is misspelled or in lower case, so
+such a key is refused at load. That rule reads two sections, so
+:class:`~spindoctor.config.sections.TypedSections` checks it. The message gives the key
+and the file that last set either it or ``planets``.
+
+Keys come in two kinds, and each kind has its own spelling. A key for a setting,
+such as ``use_albedo`` or ``body_limb``, is a name the package chose, and it is in
+snake_case. A key for something outside the package is spelled the way its source
+spells it: a body or planet as SPICE spells it, such as ``SATURN`` or ``TITAN``, and a
+feature type by its name, such as ``STAR`` or ``LIMB_ARC``. Body names stay in upper case
+because SPICE, the metadata documents, the backplanes, the logs, and the simulator scenes
+all spell them that way. A lower-case key would show the user a second spelling of the
+same body, and every lookup would have to convert the SPICE name before reading it.
 
 .. _config-techniques-section:
 
@@ -197,7 +232,7 @@ Sections
 
 Top-level YAML keys other than the typed sections are exposed as
 :class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
-``cfg.bodies.use_lambert`` instead of ``cfg['bodies']['use_lambert']``. That
+``cfg.rings.remove_planet_shadow`` instead of ``cfg['rings']['remove_planet_shadow']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
@@ -209,19 +244,25 @@ The class carries ``oops``'s own opt-out marker to prevent that; it is a
 workaround for one package rather than a general convention, and is tracked for
 removal. The shipping sections:
 
+- ``general`` — global settings shared across programs; a typed section (see
+  :ref:`config-typed-sections`).
+- ``planets`` — the planets the navigator knows, by SPICE name; a typed section.
 - ``logging`` — logger defaults, per-module levels, and per-program
   overrides; a typed section (see :ref:`config-typed-sections`).
-- ``stars`` — star-model and ring-occlusion parameters; see
-  :doc:`dev_guide_navigation_models_star`.
-- ``bodies`` — body rendering parameters; see
+- ``offset`` — the FFT upsample factor of the image correlation
+  (``correlation_fft_upsample_factor``); a typed section.
+- ``stars`` — star-model and ring-occlusion parameters; a typed section (see
+  :ref:`config-typed-sections`) described in :doc:`dev_guide_navigation_models_star`.
+- ``bodies`` — body rendering parameters; a typed section described in
   :doc:`dev_guide_navigation_models_body`.
 - ``rings`` — ring-model parameters (planet shadow removal, fade widths,
   per-planet ``ring_features``); see
   :doc:`dev_guide_navigation_models_ring`.
 - ``titan`` — Titan-specific parameters: the haze envelope height, the emission-side
   reliability floors and mask settings, and the two blocks of fit tunables the haze
-  technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``). See
-  :doc:`dev_guide_navigation_models_titan` and :doc:`dev_guide_techniques_titan_haze`.
+  technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``); a typed
+  section. See :doc:`dev_guide_navigation_models_titan` and
+  :doc:`dev_guide_techniques_titan_haze`.
 - ``backplanes`` — the list of body and ring backplanes to generate; see
   :doc:`dev_guide_backplanes`.
 - ``pds4`` — per-dataset PDS4 template directories and bundle names; see
@@ -237,11 +278,12 @@ removal. The shipping sections:
 - ``orchestrator`` — the ensemble combine's tunables and confidence tiers, and the
   per-feature-type reliability gate; a typed section (see :ref:`config-typed-sections`).
 - ``satellites`` — per-planet satellite lists used by the body
-  :class:`~spindoctor.nav_model.nav_model.NavModel`'s inventory query.
+  :class:`~spindoctor.nav_model.nav_model.NavModel`'s inventory query, by the star
+  model's body conflicts, and by the backplanes; a typed section.
 - ``feature_emission`` — per-planet
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE` vs
-  :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` gates; see
-  :doc:`dev_guide_techniques_ring_annulus`.
+  :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` gates; a typed
+  section. See :doc:`dev_guide_techniques_ring_annulus`.
 
 The user-facing tour at :doc:`/user_guide/user_guide_configuration` covers how operators
 override these defaults with their own files; this chapter is the reference for

@@ -56,24 +56,43 @@ def test_an_override_refused_by_validation_changes_nothing(tmp_path: Path) -> No
     """A refused merged result keeps the config, its overrides, and technique tuning."""
     config = Config()
     config.read_config()
-    fraction = config.bodies['blob_max_overflow_fraction']
     tuning = RingEdgeNav.tuning
     refused = tmp_path / 'refused.yaml'
     refused.write_text(
         'techniques:\n  ring_edge:\n    tuning:\n'
         '      rotation_at_edge_fraction: 0.5\n'
-        'bodies:\n  blob_max_overflow_fraction: 5\n',
+        'extra_camera:\n  data_units: raw_dn\n',
         encoding='utf-8',
     )
     valid = tmp_path / 'valid.yaml'
     valid.write_text('orchestrator:\n  ensemble:\n    min_confidence: 0.1\n', encoding='utf-8')
-    with pytest.raises(ValueError, match='blob_max_overflow_fraction must be finite'):
+    with pytest.raises(ValueError, match='extra_camera sets no one_star_ellipse_fraction'):
         config.update_config(refused)
-    assert config.bodies['blob_max_overflow_fraction'] == fraction
+    assert 'extra_camera' not in config._config_dict
     assert not config.override_paths
     assert RingEdgeNav.tuning is tuning
     config.update_config(valid)
     assert config.override_paths == (str(valid),)
+
+
+def test_an_override_refused_by_a_typed_section_changes_nothing(tmp_path: Path) -> None:
+    """A typed section refusing an override keeps the config, its overrides, and tuning."""
+    config = Config()
+    config.read_config()
+    bodies = config.bodies
+    tuning = RingEdgeNav.tuning
+    refused = tmp_path / 'refused.yaml'
+    refused.write_text(
+        'techniques:\n  ring_edge:\n    tuning:\n'
+        '      rotation_at_edge_fraction: 0.5\n'
+        'bodies:\n  not_a_bodies_key: 1\n',
+        encoding='utf-8',
+    )
+    with pytest.raises(ValueError, match='not_a_bodies_key'):
+        config.update_config(refused)
+    assert config.bodies is bodies
+    assert not config.override_paths
+    assert RingEdgeNav.tuning is tuning
 
 
 def test_category_returns_cached_instance() -> None:

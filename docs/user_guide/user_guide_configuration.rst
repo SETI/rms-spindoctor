@@ -107,6 +107,10 @@ The sections are:
     still be measured, where the ring radii come from, and how thick the atmosphere of a
     hazy body is taken to be.
 
+``feature_emission``
+    For each planet, how coarse the image must be, or how narrow a ring edge, before its
+    rings are matched as one band rather than edge by edge.
+
 ``body_shape``
     The dimensions, surface roughness, and brightness assumed for each body, which is what
     decides how closely a modeled limb can be expected to match the real one.
@@ -149,11 +153,18 @@ A setting you do not want to change is left out of your file. A setting written 
 value, or as ``null``, is refused when the file is read, and the message gives the file
 and the setting. Your file cannot unset a default. It can only give it another value.
 
-The settings in the ``environment``, ``general``, ``offset``, ``orchestrator``, and
-``results_tree`` sections are checked when your file is read. A setting in one of them
-that SpinDoctor does not know, such as a misspelled name, is refused, and so is a value
-of the wrong kind or out of range, such as text where a number belongs. The message gives
-the file and the setting, so the mistake is found on the first run.
+Every setting in the ``environment``, ``general``, ``offset``, ``orchestrator``,
+``results_tree``, ``stars``, ``bodies``, ``titan``, ``satellites``, and ``feature_emission``
+sections is checked when your file is read. A setting that navigation does not know, such
+as a misspelled name, or a value it cannot use, such as text where a number belongs, a
+fraction above 1, or a star count of 0, is refused, and the message gives the file and the
+setting, so the mistake is found on the first run.
+
+Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
+or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
+ones listed in ``planets``. The bodies in a setting kept per body, such as
+``bodies.geometric_albedo``, and the moons listed for each planet in ``satellites`` must
+be in upper case. Any other planet or body is refused the same way.
 
 Writing your own default file
 =============================
