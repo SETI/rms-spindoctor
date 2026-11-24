@@ -1885,11 +1885,7 @@ in `str()` to build an `FCPath`, #590 the remaining function-level imports
 that do not qualify for the GUI exemption, #604 a second
 `load_default_and_user_config` in one process silently keeping the first load,
 #612 `library_entry` resolving the PDS3 holdings root in a different order
-from `DataSetPDS3` while its docstring says the two agree, #1175 the PDS3
-holdings root resolved in two different orders (`DataSetPDS3` reads the
-configuration before `PDS3_HOLDINGS_DIR`, the library-entry code reads the
-environment variable first, so the two can disagree; make them share one
-order), #711 hashing every
+from `DataSetPDS3` while its docstring says the two agree, #711 hashing every
 static-data configuration file into a navigation's provenance rather than the
 instrument configuration it actually used, #628 choosing the source of the
 observation block's spacecraft clock counts (on two of the four missions a
