@@ -2568,8 +2568,13 @@ least a quarter of a field grid cell, so the walk resolves the terrain at its ow
 resolution whatever the body's size. A step that long can pass over the top of a ridge
 that pokes into the line of sight between two samples outside the surface. Wherever the
 slope bound leaves room for such a ridge top, the step is halved, and the halves are
-tested again, until the pieces are 1/256 of a cell long. The step that enters the
-surface is then narrowed by interpolation. Near the limb the point found can lie far
+tested again, until the pieces are 1/256 of a cell long. Seen equator-on, that test
+takes the slope from the field's rows beside the step. From any other latitude it
+takes the steepest slope of the field cells within a cell of the step, raised by a
+millionth of itself plus 0.000001 per radian. So it rules out only steps that stay
+clear of the surface by far more than rounding, and it finds the same ridge tops as the
+field's slope bound would, with fewer halvings. The step that enters the surface is
+then narrowed by interpolation. Near the limb the point found can lie far
 from the smooth sphere's direction under the pixel, and behind a ridge the line of sight
 meets the ridge and never reaches the terrain beyond it. A pixel just outside the
 outline reads the closest of the walk's samples, which is the outline point beside it to
@@ -2611,6 +2616,23 @@ distances double up to that spacing, so a wall close to the point still shows
 open sky between itself and the point. The march reads terrain on the far
 hemisphere as readily as on the near one, and the body's curvature is in the
 geometry rather than an approximation.
+
+Past the first step, the march skips samples it can prove lie above the terrain. Per
+unit of distance along the ray, the ray's distance from the center changes by at most
+one unit, and its direction turns by at most one radian divided by that distance.
+Above the terrain that distance is at least the lowest terrain's, and no terrain rises
+faster than the field's slope bound. So the gap between the ray and the terrain closes
+by at most one unit plus the slope bound divided by the lowest terrain's distance from
+the center, and a sample some height above the terrain stays above it for at least that
+height divided by this rate. The march skips every sample within that distance. Once a
+ray climbs, the gap closes more slowly, and a ray that climbs faster than any terrain
+can rise is done. Every skipped sample lies above the terrain, so the march finds
+exactly the shadows it would find by taking every sample. On a 150 px body with 5%
+relief at a 5-degree correlation length, a ray takes about 44 samples instead of about
+150. Drawn at oversample 4 on one core, that body takes about 7.5 s, and a 280 px body
+with 5% relief at a 1-degree correlation length about 66 s. Most of what remains goes
+to the march and the line-of-sight search, in about equal parts on the 150 px body,
+while on finer relief the search takes the larger part.
 
 The terrain right at the point can also turn away from the Sun while the shading
 normal still faces it, because that normal is taken from differences half a cell
@@ -2687,7 +2709,9 @@ Outside those places the interpolated tilt is added to the smooth normal as it i
 without scaling the sum back to unit length. On the day side a Lambert surface's
 brightness is then the smooth brightness plus the interpolated difference between the
 relief and smooth brightness. Rescaling the sum would brighten rough terrain slightly.
-Only the rectangle a relief or cratered body covers is shaded.
+Only the rectangle a relief or cratered body covers is shaded, and on the working grid
+the relief is computed only at pixels inside the silhouette, since the silhouette
+masks every other pixel to zero.
 
 The craters are carved on the detector grid and their slopes taken there by
 central differences. On a finer grid those slopes are interpolated, so a body has
