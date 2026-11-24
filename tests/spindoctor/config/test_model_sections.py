@@ -107,13 +107,27 @@ def test_a_satellite_name_not_in_upper_case_is_refused(tmp_path: Path) -> None:
         Config().update_config(user_path)
 
 
-def test_a_geometric_albedo_key_not_in_upper_case_is_refused(tmp_path: Path) -> None:
-    """A body's albedo is keyed by its SPICE name, so a key in lower case is refused."""
+@pytest.mark.parametrize(
+    ('text', 'at'),
+    [
+        ('bodies:\n  geometric_albedo:\n    titan: 0.2\n', 'bodies.geometric_albedo.titan'),
+        ('body_shape:\n  titan:\n    crater_scale_km: 0.3\n', 'body_shape.titan'),
+    ],
+    ids=['geometric_albedo', 'body_shape'],
+)
+def test_a_body_key_not_in_upper_case_is_refused(tmp_path: Path, text: str, at: str) -> None:
+    """A mapping keyed by body uses the SPICE name, so a key in lower case is refused.
+
+    Parameters:
+        tmp_path: A directory for the override file.
+        text: The override file's text.
+        at: The refused key's path.
+    """
     user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text('bodies:\n  geometric_albedo:\n    titan: 0.2\n', encoding='utf-8')
+    user_path.write_text(text, encoding='utf-8')
     expected = (
-        f"{user_path}: bodies.geometric_albedo.titan: 'titan' is not in upper case; a body is "
-        'written in upper case, as SPICE spells it'
+        f"{user_path}: {at}: 'titan' is not in upper case; a body is written in upper case, "
+        'as SPICE spells it'
     )
     with pytest.raises(SchemaError, match=re.escape(expected)):
         Config().update_config(user_path)

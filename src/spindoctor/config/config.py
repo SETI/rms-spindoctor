@@ -45,6 +45,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         OrchestratorSection,
         TypedSections,
     )
+    from spindoctor.config.sections_body_shape import BodyShapeEntry
     from spindoctor.config.sections_models import (
         BodiesSection,
         FeatureEmissionSection,
@@ -241,7 +242,6 @@ class Config:
         self._override_paths: list[str] = []
         self._sections: TypedSections | None = None
         self._typed_origins: dict[KeyPath, str] = {}
-        self._config_body_shape: dict[str, Any] = AttrDict({})
 
     @property
     def is_loaded(self) -> bool:
@@ -268,7 +268,6 @@ class Config:
         # category() rebuilds them from the fresh dict (mirrors the named
         # section properties below being reassigned here).
         self._category_cache = {}
-        self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
 
     def _install(
         self,
@@ -544,19 +543,15 @@ class Config:
         return self._typed_sections().bodies
 
     @property
-    def body_shape(self) -> Any:
-        """Returns the per-body shape catalog (``config_220_body_shape.yaml``).
+    def body_shape(self) -> Mapping[str, BodyShapeEntry]:
+        """Returns the body-shape table, keyed by each body's SPICE name in upper case.
 
-        Each entry is keyed by SPICE body name (e.g. ``MIMAS``) and exposes
-        ``radii_km``, ``ellipsoid_rms_residual_km``, ``crater_scale_km``,
-        ``albedo_variation``, and ``shape_class_hint``.
-        Missing-body lookups return ``None`` from ``AttrDict.get``; downstream
-        code applies the conservative fallback (10% radius default,
-        reliability cap 0.3).
+        A key an entry leaves out is None, and
+        :func:`~spindoctor.nav_model.body_shape.load_body_shape` takes it from the next
+        tier.
         """
 
-        self.read_config()
-        return self._config_body_shape
+        return self._typed_sections().body_shape
 
     @property
     def rings(self) -> RingsSection:

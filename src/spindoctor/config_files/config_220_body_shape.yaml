@@ -1,11 +1,11 @@
 # Per-body shape parameters consumed by the body NavModel and feature
-# extractors.  Schema:
+# extractors.  Schema (the type is BodyShapeEntry, in
+# spindoctor/config/sections_body_shape.py):
 #
 #   <BODY_NAME>:                     # every field is optional; leave out what is not known
 #     radii_km: [a, b, c]             # tri-axial ellipsoid (km)
 #     ellipsoid_rms_residual_km: float
 #     crater_scale_km: float
-#     albedo_mean: float
 #     albedo_variation: float         # relative albedo std on visible hemisphere
 #     shape_class_hint: regular | irregular | highly_irregular | unknown
 #     _sources:                       # documentation-only; loader ignores `_` keys
@@ -38,9 +38,11 @@
 #   feed sigma/reliability terms (not science products) and whose
 #   runtime fallbacks are themselves per-class estimates.
 #
-# albedo_mean is left out throughout: it has no runtime consumer.  Each
-# body's _sources entry for it says so.  Populate it with cited values
-# when a consumer materializes, following the developers-guide procedure.
+# albedo_mean is left out throughout: it has no runtime consumer, so the
+# type does not declare it and a value for it is refused at load.  Each
+# body's _sources entry for it says so.  Add it to the type and populate
+# it with cited values when a consumer materializes, following the
+# developers-guide procedure.
 
 body_shape:
   # ---------------------------------------------------------------- Saturn

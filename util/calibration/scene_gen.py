@@ -104,10 +104,14 @@ def _body_catalog() -> dict[str, tuple[float, float]]:
     catalog: dict[str, tuple[float, float]] = {}
     for name in _REGULAR_BODIES + _IRREGULAR_BODIES:
         entry = DEFAULT_CONFIG.body_shape[name]
-        radii = entry['radii_km']
+        if entry.radii_km is None or entry.ellipsoid_rms_residual_km is None:
+            raise ValueError(
+                f'body_shape.{name} must set radii_km and ellipsoid_rms_residual_km for '
+                'the calibration campaign'
+            )
         catalog[name] = (
-            sum(float(r) for r in radii) / len(radii),
-            float(entry['ellipsoid_rms_residual_km']),
+            sum(entry.radii_km) / len(entry.radii_km),
+            entry.ellipsoid_rms_residual_km,
         )
     return catalog
 
