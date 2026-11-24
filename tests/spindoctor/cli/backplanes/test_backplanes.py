@@ -42,6 +42,7 @@ from spindoctor.config import (
     set_log_levels,
 )
 from spindoctor.config.program_names import SD_BACKPLANES
+from spindoctor.config.sections_products import PlaneEntry
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
 from spindoctor.obs import Obs, ObsSnapshotInst
 from spindoctor.support.types import PathLike
@@ -56,28 +57,14 @@ SHAPE_VU = (10, 12)
 # ---------------------------------------------------------------------------
 
 
-def _config_entries(kind: str) -> list[dict[str, Any]]:
+def _config_entries(kind: str) -> tuple[PlaneEntry, ...]:
     """Return the shipping backplane entries of the given kind.
 
     Parameters:
         kind: Either 'bodies' or 'rings'.
     """
-    return cast('list[dict[str, Any]]', getattr(DEFAULT_CONFIG.backplanes, kind))
-
-
-@pytest.mark.parametrize('kind', ['bodies', 'rings'])
-def test_default_config_entries_have_required_fields(kind: str) -> None:
-    """Every shipping backplane entry declares name, method, and units.
-
-    Parameters:
-        kind: The config list under test ('bodies' or 'rings').
-    """
-    entries = _config_entries(kind)
-    assert len(entries) > 0
-    for entry in entries:
-        assert entry.get('name'), f'{kind} entry missing name: {entry}'
-        assert entry.get('method'), f'{kind} entry missing method: {entry}'
-        assert entry.get('units'), f'{kind} entry missing units: {entry}'
+    backplanes = DEFAULT_CONFIG.backplanes
+    return backplanes.bodies if kind == 'bodies' else backplanes.rings
 
 
 @pytest.mark.parametrize('kind', ['bodies', 'rings'])
@@ -91,9 +78,9 @@ def test_default_config_methods_exist_on_oops_backplane(kind: str) -> None:
         kind: The config list under test ('bodies' or 'rings').
     """
     for entry in _config_entries(kind):
-        method = entry['method']
+        method = entry.method
         assert callable(getattr(Backplane, method, None)), (
-            f'{kind} backplane {entry["name"]} names unknown oops method {method}'
+            f'{kind} backplane {entry.name} names unknown oops method {method}'
         )
 
 
@@ -106,9 +93,9 @@ def test_default_config_angle_backplanes_declare_radians() -> None:
     angle_names = {'body_longitude', 'body_latitude', 'ring_longitude'}
     for kind in ('bodies', 'rings'):
         for entry in _config_entries(kind):
-            name = entry['name']
+            name = entry.name
             if name.endswith('_angle') or name in angle_names:
-                assert entry['units'] == 'rad', f'{name} must declare rad units'
+                assert entry.units == 'rad', f'{name} must declare rad units'
 
 
 @pytest.mark.parametrize('kind', ['bodies', 'rings'])
@@ -133,9 +120,9 @@ def test_default_config_declares_only_measures_the_statistics_know(kind: str) ->
     """
     known = {'rad', 'deg', 'km'}
     for entry in _config_entries(kind):
-        measure = entry['units'].partition('/')[0]
+        measure = entry.units.partition('/')[0]
         assert measure in known, (
-            f'{entry["name"]} declares {entry["units"]}, a measure the statistics do not know'
+            f'{entry.name} declares {entry.units}, a measure the statistics do not know'
         )
 
 
@@ -154,9 +141,9 @@ def test_default_config_declares_only_units_the_index_tables_can_write(kind: str
         kind: The config list under test ('bodies' or 'rings').
     """
     unformatted = [
-        f'{entry["name"]}: {entry["units"]}'
+        f'{entry.name}: {entry.units}'
         for entry in _config_entries(kind)
-        if statistics_units(entry['units']) not in INDEX_VALUE_FORMATS
+        if statistics_units(entry.units) not in INDEX_VALUE_FORMATS
     ]
     assert unformatted == []
 
@@ -807,7 +794,7 @@ def test_end_to_end_simulated_image_writes_sidecar(tmp_path: Path) -> None:
     assert sidecar.exists()
     metadata = json.loads(sidecar.read_text())
     body = metadata['bodies']['MIMAS']
-    assert set(body['backplanes']) == {e['name'] for e in _config_entries('bodies')}
+    assert set(body['backplanes']) == {e.name for e in _config_entries('bodies')}
     assert body['center_uv'] == [3.5, 4.5]
     assert body['center_range'] == 500000.0
 

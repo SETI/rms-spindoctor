@@ -36,6 +36,7 @@ from spindoctor.support.attrdict import AttrDict
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.config.logging_keys import LoggingSection
     from spindoctor.config.sections import OrchestratorSection, TypedSections
+    from spindoctor.config.sections_products import BackplanesSection, Pds4Section
     from spindoctor.nav_technique.confidence_config import TechniquesSection
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
@@ -259,8 +260,6 @@ class Config:
         self._config_rings: dict[str, Any] = AttrDict({})
         self._config_stars: dict[str, Any] = AttrDict({})
         self._config_titan: dict[str, Any] = AttrDict({})
-        self._config_backplanes: dict[str, Any] = AttrDict({})
-        self._config_pds4: dict[str, Any] = AttrDict({})
         self._config_results_tree: dict[str, Any] = AttrDict({})
 
     @property
@@ -296,8 +295,6 @@ class Config:
         self._config_rings = AttrDict(self._config_dict.get('rings', {}))
         self._config_stars = AttrDict(self._config_dict.get('stars', {}))
         self._config_titan = AttrDict(self._config_dict.get('titan', {}))
-        self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
-        self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
         self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
 
     def _install(
@@ -729,18 +726,30 @@ class Config:
         return self._config_results_tree
 
     @property
-    def backplanes(self) -> Any:
-        """Returns backplanes configuration, including bodies, rings, and target LIDs."""
+    def backplanes(self) -> BackplanesSection:
+        """Returns the backplanes section: the planes each image gets, and their targets.
+
+        The section is parsed when the configuration is installed, so every value has
+        been checked against its type.
+        """
 
         self.read_config()
-        return self._config_backplanes
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but holds no parsed sections')
+        return self._sections.backplanes
 
     @property
-    def pds4(self) -> Any:
-        """Returns PDS4 bundle generation configuration."""
+    def pds4(self) -> Pds4Section:
+        """Returns the pds4 section: each PDS4 bundle's settings, keyed by its dataset.
+
+        Its :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` method gives
+        one bundle's entry.
+        """
 
         self.read_config()
-        return self._config_pds4
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but holds no parsed sections')
+        return self._sections.pds4
 
 
 DEFAULT_CONFIG = Config()

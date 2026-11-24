@@ -34,6 +34,7 @@ from typing import Any, cast
 import numpy as np
 from astropy.io import fits
 from filecache import FCPath
+from tests.product_sections import packaged_backplanes
 from tests.spindoctor.cli.sd_create_bundle_helpers import (
     STAND_IN_INFORMATION_MODEL_VERSION,
     STAND_IN_SCHEMAS,
@@ -42,8 +43,9 @@ from tests.spindoctor.cli.sd_create_bundle_helpers import (
 from spindoctor.cli.pds4.collections import CollectionOutcome, generate_collection_files
 from spindoctor.cli.pds4.epochs import EpochRange
 from spindoctor.cli.pds4.targets import Pds4Target
-from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
-from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass, Pds4Schema
+from spindoctor.config import MAIN_LOGGER
+from spindoctor.config.sections_products import Pds4Schema, PlaneEntry, TargetEntry
+from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
 DEFAULT_BUNDLE_NAME = 'fake_bundle'
 DEFAULT_BUNDLE_VERSION = '1.0'
@@ -232,13 +234,13 @@ DEFAULT_TEMPLATES = LABELS_TEMPLATES | SUMMARY_TEMPLATES
 PLUMBING_RING_TARGET = 'PLANET_RINGS'
 """The ring target the plumbing backplane metadata names beside its ring statistics."""
 
-TARGET_LIDS: dict[str, dict[str, str]] = {
-    name: {
-        'lid': f'urn:nasa:pds:context:target:fake.{name.lower()}',
-        'version': '1.0',
-        'name': name.title(),
-        'type': target_type,
-    }
+TARGET_LIDS: dict[str, TargetEntry] = {
+    name: TargetEntry(
+        lid=f'urn:nasa:pds:context:target:fake.{name.lower()}',
+        version='1.0',
+        name=name.title(),
+        type=target_type,
+    )
     for name, target_type in (
         ('PLANET', 'Planet'),
         ('A', 'Satellite'),
@@ -311,8 +313,8 @@ class FakePds4DataSet:
         bundle_name: str = DEFAULT_BUNDLE_NAME,
         shard: str = DEFAULT_SHARD,
         template_variables: dict[str, Any] | None = None,
-        bodies: list[dict[str, Any]] | None = None,
-        rings: list[dict[str, Any]] | None = None,
+        bodies: Sequence[PlaneEntry] = (),
+        rings: Sequence[PlaneEntry] = (),
         information_model_version: str = STAND_IN_INFORMATION_MODEL_VERSION,
         schemas: dict[str, Pds4Schema] | None = None,
     ) -> None:
@@ -324,8 +326,8 @@ class FakePds4DataSet:
             shard: Directory prefix used by :meth:`pds4_path_stub` for every image.
             template_variables: Dict returned (by reference) from
                 :meth:`pds4_template_variables`; empty dict when None.
-            bodies: ``config.backplanes.bodies`` entries (dicts with a ``name`` key).
-            rings: ``config.backplanes.rings`` entries (dicts with a ``name`` key).
+            bodies: ``config.backplanes.bodies``.
+            rings: ``config.backplanes.rings``.
             information_model_version: Served by :meth:`pds4_information_model_version`.
             schemas: Served by :meth:`pds4_schemas`; the neutral stand-in when None, and
                 a registered dataset's own for templates it ships, which declare them.
@@ -340,12 +342,8 @@ class FakePds4DataSet:
         )
         self.template_variables_calls: list[dict[str, Any]] = []
         self.config = SimpleNamespace(
-            backplanes=SimpleNamespace(
-                bodies=bodies if bodies is not None else [],
-                rings=rings if rings is not None else [],
-                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
-                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
-                target_lids=TARGET_LIDS,
+            backplanes=packaged_backplanes(
+                bodies=tuple(bodies), rings=tuple(rings), target_lids=TARGET_LIDS
             )
         )
 
@@ -478,13 +476,7 @@ class NoPds4DataSet:
     def __init__(self) -> None:
         """Build the dataset with a configuration declaring no backplanes."""
         self.config = SimpleNamespace(
-            backplanes=SimpleNamespace(
-                bodies=[],
-                rings=[],
-                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
-                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
-                target_lids=TARGET_LIDS,
-            )
+            backplanes=packaged_backplanes(bodies=(), rings=(), target_lids=TARGET_LIDS)
         )
 
     def as_dataset(self) -> DataSet:
@@ -545,28 +537,6 @@ def write_templates(template_dir: Path, contents: dict[str, str]) -> None:
         (template_dir / filename).write_text(content, encoding='utf-8')
 
 
-def index_entry(name: str, units: str) -> dict[str, Any]:
-    """Return a backplane configuration entry, with the index block the index tables read.
-
-    Parameters:
-        name: The plane's name.
-        units: The unit its array carries.
-
-    Returns:
-        The entry: its name and units, and an ``index`` block naming its two columns
-        ``minimum_<name>`` and ``maximum_<name>``, each ``ASCII_Real`` and described.
-    """
-    return {
-        'name': name,
-        'units': units,
-        'index': {
-            'data_type': 'ASCII_Real',
-            'minimum': {'name': f'minimum_{name}', 'description': f'The least {name}.'},
-            'maximum': {'name': f'maximum_{name}', 'description': f'The greatest {name}.'},
-        },
-    }
-
-
 @dataclass
 class BundleEnv:
     """A complete hermetic environment for one bundle-generation call.
@@ -601,8 +571,8 @@ def make_bundle_env(
     results_path_stub: str | None = None,
     template_contents: dict[str, str] | None = None,
     template_variables: dict[str, Any] | None = None,
-    bodies: list[dict[str, Any]] | None = None,
-    rings: list[dict[str, Any]] | None = None,
+    bodies: Sequence[PlaneEntry] = (),
+    rings: Sequence[PlaneEntry] = (),
     information_model_version: str = STAND_IN_INFORMATION_MODEL_VERSION,
     schemas: dict[str, Pds4Schema] | None = None,
 ) -> BundleEnv:

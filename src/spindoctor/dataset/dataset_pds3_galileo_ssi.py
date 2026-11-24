@@ -253,29 +253,6 @@ class DataSetPDS3GalileoSSI(DataSetPDS3):
             config=config,
         )
 
-    def pds4_bundle_template_dir(self) -> str:
-        """Returns absolute path to template directory for PDS4 bundle generation."""
-        template_dir = None
-        gossi_config = self.config.pds4.get('gossi', {})
-        if 'template_dir' in gossi_config:
-            template_dir = str(gossi_config['template_dir'])
-
-        if template_dir is None:
-            template_dir = 'galileo_ssi_1.0'
-
-        if Path(template_dir).is_absolute():
-            return template_dir
-
-        pds4_templates_dir = Path(__file__).resolve().parent.parent / 'cli' / 'pds4' / 'templates'
-        return str(pds4_templates_dir / template_dir)
-
-    def pds4_bundle_name(self) -> str:
-        """Returns bundle name for PDS4 bundle generation."""
-        gossi_config = self.config.pds4.get('gossi', {})
-        if 'bundle_name' in gossi_config:
-            return str(gossi_config['bundle_name'])
-        return 'galileo_ssi_backplanes_rsfrench2027'
-
     @staticmethod
     def pds4_bundle_path_for_image(image_name: str) -> str:
         """Maps image name to bundle directory path."""

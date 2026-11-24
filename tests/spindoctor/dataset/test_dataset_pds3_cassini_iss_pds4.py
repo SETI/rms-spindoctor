@@ -175,7 +175,7 @@ def test_cassini_shipped_configuration_sets_the_bundle_version() -> None:
     ``version_id`` pattern allows, ``[0-9]+.[0-9]+``, since a YAML number standing in for
     it would lose a version such as 1.10.
     """
-    version = DEFAULT_CONFIG.pds4['coiss_saturn']['bundle_version']
+    version = DEFAULT_CONFIG.pds4.bundle('coiss_saturn').bundle_version
     assert re.fullmatch(r'[0-9]+\.[0-9]+', version) is not None
 
 
