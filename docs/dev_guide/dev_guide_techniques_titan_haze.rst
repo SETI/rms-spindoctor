@@ -267,6 +267,10 @@ covariance floor and the confidence coefficients live in
 ``techniques.TitanHazeNav`` in ``config_510_techniques.yaml``. The
 :doc:`model page <dev_guide_navigation_models_titan>` documents the emission-side keys
 (``titan.navigation`` scalars plus ``titan.atmosphere_height``); the two fit blocks are here.
+Each block is parsed at load straight into the fitting library's parameter dataclass,
+:class:`~spindoctor.nav_technique.titan_fitting.SymmetryFitParams` or
+:class:`~spindoctor.nav_technique.titan_fitting.ArcFitParams`, whose fields give each key's
+type and range.
 
 ``titan.navigation.symmetry`` -- the cross-track scan:
 
@@ -569,7 +573,7 @@ Call path traced through
    :func:`~spindoctor.nav_technique.nav_technique.search_window_for_obs` and take their scalar
    maximum: the two fit components live in the rotated frame, where per-axis image margins
    cannot be applied cleanly.
-3. Build the two frozen parameter dataclasses from ``titan.navigation.symmetry`` and
+3. Take the two frozen parameter dataclasses from ``titan.navigation.symmetry`` and
    ``titan.navigation.arc``, zeroing the angle-refinement range when the feature reports a
    degenerate axis.
 4. Run :func:`~spindoctor.nav_technique.titan_fitting.fit_titan_center` over

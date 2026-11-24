@@ -153,7 +153,7 @@ def titan_haze_reliability(
         ``[0, 1]`` and ``breakdown`` carries the envelope diameter and the
         occluded fraction that produced it.
     """
-    nav_config = config.titan['navigation']
+    nav_config = config.titan.navigation
     diameter_px = 2.0 * geometry.r_env_px
     occluded = geometry.occluded_fraction
     breakdown = NavReliabilityBreakdown(
@@ -162,13 +162,14 @@ def titan_haze_reliability(
     )
     if not _envelope_fits_in_frame(geometry):
         return 0.0, breakdown
-    if occluded > float(nav_config['max_occluded_fraction']):
+    if occluded > nav_config.max_occluded_fraction:
         return 0.0, breakdown
-    if diameter_px < float(nav_config['min_envelope_diameter_px']):
+    if diameter_px < nav_config.min_envelope_diameter_px:
         return 0.0, breakdown
-    midpoint = float(nav_config['reliability_diameter_midpoint_px'])
-    scale = float(nav_config['reliability_diameter_scale_px'])
-    size_term = _sigmoid((diameter_px - midpoint) / scale)
+    size_term = _sigmoid(
+        (diameter_px - nav_config.reliability_diameter_midpoint_px)
+        / nav_config.reliability_diameter_scale_px
+    )
     return float(min(max(size_term * (1.0 - occluded), 0.0), 1.0)), breakdown
 
 
@@ -193,8 +194,8 @@ def build_titan_feature(
         breakdown.
     """
     reliability, breakdown = titan_haze_reliability(geometry, config=config)
-    nav_config = config.titan['navigation']
-    surface_window_filters = {str(name).upper() for name in nav_config['surface_window_filters']}
+    nav_config = config.titan.navigation
+    surface_window_filters = {name.upper() for name in nav_config.surface_window_filters}
     return NavFeature(
         feature_id=f'titan_limb:{TITAN_BODY_NAME}',
         feature_type=NavFeatureType.TITAN_LIMB,
@@ -223,7 +224,7 @@ def build_titan_feature(
             surface_window_filter=any(
                 f.upper() in surface_window_filters for f in geometry.filters
             ),
-            high_phase=geometry.phase_deg >= float(nav_config['high_phase_deg']),
+            high_phase=geometry.phase_deg >= nav_config.high_phase_deg,
         ),
     )
 
@@ -618,13 +619,12 @@ class NavModelTitan(NavModel):
         feature = build_titan_feature(geometry, source_model=self.name, config=self._config)
         kept, _gated = self._config.orchestrator.reliability_gate.apply([feature])
         usable = len(kept) > 0
-        arc_config = self._config.titan['navigation']['arc']
-        annotation_config = self._config.titan['annotation']
+        titan_config = self._config.titan
         overlay = haze_overlay(
             geometry,
-            sector_half_angle_deg=float(arc_config['sector_half_angle_deg']),
-            dot_spacing=1 if usable else int(annotation_config['gated_dot_spacing']),
-            center_marker_half_px=float(annotation_config['center_marker_half_px']),
+            sector_half_angle_deg=titan_config.navigation.arc.sector_half_angle_deg,
+            dot_spacing=1 if usable else titan_config.annotation.gated_dot_spacing,
+            center_marker_half_px=titan_config.annotation.center_marker_half_px,
         )
         if not overlay.any():
             self._logger.info('Haze overlay skipped: nothing to draw inside the extended frame')
@@ -644,7 +644,7 @@ class NavModelTitan(NavModel):
                 avoid_mask=_disc_mask(
                     geometry.extfov_shape_vu,
                     geometry.predicted_center_vu,
-                    geometry.r_env_px + float(self._config.bodies.label_mask_enlarge),
+                    geometry.r_env_px + self._config.bodies.label_mask_enlarge,
                 ),
                 text_info=self._label(geometry, usable=usable),
                 config=self._config,

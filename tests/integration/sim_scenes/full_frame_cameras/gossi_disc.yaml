@@ -1,0 +1,35 @@
+schema_version: 2
+scene_name: gossi_disc
+instrument: gossi
+size_v: 800
+size_u: 800
+random_seed: 7
+exposure_sec: 0.1
+# A Galileo SSI frame of a moon 240 px across, at a phase of 40 deg, with a
+# pointing error of 286 px, the larger of the library's two Galileo
+# scattered-light offsets, in a different direction.  The search window is
+# 350 px.  At 0.1 s the disc reads about 100 to 170 DN of the 8-bit range.
+#
+# instrument_defaults turns on the camera's whole chain.  The scene plants the
+# measured Galileo sky noise, 0.96 DN, in place of the catalog's read noise,
+# because simulated Galileo skies are about four times quieter than real ones
+# (#979).
+#
+# The roll is the camera's measured twist, -0.0526 deg, planted with roll
+# fitting off as the camera ships.
+artifacts:
+  instrument_defaults: true
+noise:
+  read_noise_dn: 0.96
+bodies:
+  - name: EUROPA
+    center_v: 330.0
+    center_u: 470.0
+    semi_a_px: 120.0
+    semi_b_px: 120.0
+    semi_c_px: 120.0
+    illumination_angle: 250.0
+    phase_angle: 40.0
+offset_v: 163.27
+offset_u: -234.81
+offset_rotation_deg: -0.0526

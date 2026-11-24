@@ -188,9 +188,11 @@ image with ``status_reason=internal_error``, recording the component.
 Configuration
 =============
 
-``config_060_titan.yaml`` carries the whole consumed schema. The emission-side keys are here;
-the two fit blocks (``titan.navigation.symmetry`` and ``titan.navigation.arc``) are documented
-with the technique that reads them, at :doc:`dev_guide_techniques_titan_haze`.
+``config_060_titan.yaml`` carries the whole consumed schema. The section is parsed at load into
+:class:`~spindoctor.config.sections_models.TitanSection`. Its fields give each key's type and
+range, and a key it does not declare is refused. The emission-side keys are here; the two fit
+blocks (``titan.navigation.symmetry`` and ``titan.navigation.arc``) are documented with the
+technique that reads them, at :doc:`dev_guide_techniques_titan_haze`.
 
 .. list-table::
    :header-rows: 1
@@ -212,7 +214,7 @@ with the technique that reads them, at :doc:`dev_guide_techniques_titan_haze`.
    * - ``titan.navigation.ring_occlusion_radii_km``
      - ``[74490.0, 140500.0]``
      - Ring-plane radius range treated as opaque, from the C-ring inner edge to just outside the
-       F ring.
+       F ring. An inner radius that is not below the outer radius is refused at load.
    * - ``titan.navigation.axis_min_offset_px``
      - ``3.0``
      - Predicted-center-to-minimum-incidence distance below which the symmetry axis is reported

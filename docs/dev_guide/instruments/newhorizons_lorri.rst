@@ -344,6 +344,21 @@ on a real frame of this instrument and checks it against ``diag(+1, -1, -1)``.
 in its round-trip cohort: it is navigated, its corrected kernel is written, and
 it is re-navigated in a fresh process with that kernel furnished.
 
+**Simulator guard scenes.** The ``full_frame_cameras`` scene class (see
+:ref:`sim-full-frame-cameras`) holds two scenes of this instrument, each at the
+full 1024 px frame with the measured twist of +0.19 degrees. The image library's
+frames of this camera are only about a pixel off, so the scenes' 32 px offset
+instead reaches half the camera's search window.
+
+- ``nhlorri_star_field``: 18 stars of V 10.5 to 13.0 at 5 s. The twist moves the
+  four measured stars' mean position by about 0.94 px, because a translation
+  follows the turned stars it measures, and the answer lands 0.90 to 0.96 px off
+  over 16 seeds. Without the twist it lands 0.05 px off.
+- ``nhlorri_star_field_short_exposure``: the same field at 1 s. The navigator's
+  star blur for this camera is a 3.0 px placeholder against a published core
+  near 1 px, so at 1 s it predicts every star too faint to see and draws no star
+  features. The frame fails, and the scene's expected block holds the failure.
+
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
 the limiting-magnitude form: the anchor at unit exposure, one magnitude gained
 per Pogson ratio, the non-positive-exposure fallback, and finiteness. It also

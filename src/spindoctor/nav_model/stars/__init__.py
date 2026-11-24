@@ -22,10 +22,7 @@ from spindoctor.nav_model.stars.catalog import (
     select_radec_list,
     stars_in_extfov,
 )
-from spindoctor.nav_model.stars.conflicts import (
-    mark_body_and_ring_conflicts,
-    parse_ring_occlusion_annuli,
-)
+from spindoctor.nav_model.stars.conflicts import mark_body_and_ring_conflicts
 from spindoctor.nav_model.stars.detection import (
     DAOPHOT_DEFAULT_DETECTION_SIGMA,
     DAOPHOT_DEFAULT_ROUNDNESS_BOUND,
@@ -82,7 +79,6 @@ __all__ = [
     'mark_body_and_ring_conflicts',
     'matched_filter_image',
     'movement_granularity_px',
-    'parse_ring_occlusion_annuli',
     'predicted_snr',
     'psf_aperture_pixels',
     'psf_sigma_px',

@@ -80,10 +80,10 @@ def test_an_override_refused_by_validation_keeps_the_section(tmp_path: Path) -> 
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text(
         'orchestrator:\n  ensemble:\n    min_confidence: 0.1\n'
-        'bodies:\n  blob_max_overflow_fraction: 5\n',
+        'extra_camera:\n  data_units: raw_dn\n',
         encoding='utf-8',
     )
-    with pytest.raises(ValueError, match='blob_max_overflow_fraction must be finite'):
+    with pytest.raises(ValueError, match='extra_camera sets no one_star_ellipse_fraction'):
         config.update_config(user_path)
     assert config.orchestrator is section
     assert not config.override_paths

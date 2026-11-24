@@ -16,9 +16,8 @@ with the moon, not the rings.
 
 from __future__ import annotations
 
-import math
-from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 from oops import Meshgrid
@@ -31,92 +30,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 __all__ = [
     'mark_body_and_ring_conflicts',
-    'parse_ring_occlusion_annuli',
 ]
-
-
-def parse_ring_occlusion_annuli(
-    raw: dict[str, list[list[float]]] | None,
-) -> dict[str, list[tuple[float, float]]]:
-    """Validate and normalize a ring-occlusion annulus mapping.
-
-    The YAML config exposes per-planet annulus pairs as nested lists
-    (``[[inner_km, outer_km], ...]``); this helper validates each pair,
-    rejects degenerate (inner >= outer) annuli, and normalizes the
-    planet keys to upper case so lookup is case-insensitive.
-
-    Parameters:
-        raw: Mapping returned by ``config.stars.ring_occlusion_radii_km``.
-            ``None`` is treated as the empty mapping.
-
-    Returns:
-        ``{PLANET_UPPER: [(inner_km, outer_km), ...]}`` with float
-        entries.
-
-    Raises:
-        ValueError: If an annulus is malformed or has ``inner >= outer``.
-    """
-    if not raw:
-        return {}
-    out: dict[str, list[tuple[float, float]]] = {}
-    for planet, pairs in raw.items():
-        validated: list[tuple[float, float]] = []
-        for pair in pairs:
-            inner, outer = _parse_annulus_pair(pair, planet)
-            if inner >= outer:
-                raise ValueError(
-                    f'ring_occlusion_radii_km: invalid annulus for {planet}: '
-                    f'inner {inner} km >= outer {outer} km'
-                )
-            validated.append((inner, outer))
-        out[planet.upper()] = validated
-    return out
-
-
-def _parse_annulus_pair(pair: object, planet_key: str) -> tuple[float, float]:
-    """Parse one annulus into ``(inner_km, outer_km)`` floats.
-
-    Parameters:
-        pair: Sequence of two finite numbers.
-        planet_key: Planet name used in error messages.
-
-    Returns:
-        ``(inner_km, outer_km)`` as finite floats.
-
-    Raises:
-        ValueError: If ``pair`` is not a length-2 sequence of finite
-            real numbers.
-    """
-    if isinstance(pair, (str, bytes)) or not isinstance(pair, Sequence):
-        raise ValueError(
-            f'ring_occlusion_radii_km: annulus for {planet_key!r} must be a '
-            f'length-2 sequence of numbers, got {type(pair).__name__}: {pair!r}'
-        )
-    if len(pair) != 2:
-        raise ValueError(
-            f'ring_occlusion_radii_km: annulus for {planet_key!r} must have '
-            f'exactly 2 elements, got {len(pair)}: {pair!r}'
-        )
-    out: list[float] = []
-    for label, raw in (('inner', pair[0]), ('outer', pair[1])):
-        if isinstance(raw, bool):
-            raise ValueError(
-                f'ring_occlusion_radii_km: {label} radius for {planet_key!r} '
-                f'must be numeric, got bool: {raw!r}'
-            )
-        if not isinstance(raw, (int, float, np.integer, np.floating)):
-            raise ValueError(
-                f'ring_occlusion_radii_km: {label} radius for {planet_key!r} '
-                f'must be numeric, got {type(raw).__name__}: {raw!r}'
-            )
-        val = float(raw)
-        if not math.isfinite(val):
-            raise ValueError(
-                f'ring_occlusion_radii_km: {label} radius for {planet_key!r} '
-                f'must be finite, got {raw!r}'
-            )
-        out.append(val)
-    return out[0], out[1]
 
 
 def _conflict_body_list(obs: ObsSnapshot, config: Config) -> list[str]:
@@ -130,7 +44,7 @@ def _conflict_body_list(obs: ObsSnapshot, config: Config) -> list[str]:
 def _ring_opaque_fraction(
     radii_km: np.ndarray,
     valid_mask: np.ndarray,
-    annuli: list[tuple[float, float]],
+    annuli: Sequence[tuple[float, float]],
 ) -> float:
     """Fraction of the valid window pixels that lie inside an opaque annulus.
 
@@ -158,7 +72,7 @@ def _check_one_star(
     obs: ObsSnapshot,
     star: MutableStar,
     body_list: list[str],
-    ring_annuli: dict[str, list[tuple[float, float]]],
+    ring_annuli: Mapping[str, Sequence[tuple[float, float]]],
     rings_can_conflict: bool,
     body_conflict_margin: float,
     ring_min_opaque_fraction: float,
@@ -176,7 +90,7 @@ def _check_one_star(
         obs: Observation snapshot.
         star: Star record to inspect (mutated when a conflict is found).
         body_list: List of body names checked for intercepts.
-        ring_annuli: Per-planet list of opaque ring annuli in km.
+        ring_annuli: Each planet's opaque ring annuli in km, keyed by SPICE name.
         rings_can_conflict: Toggle the ring check.
         body_conflict_margin: Pixel slop around the star when building
             the conflict-check meshgrid.
@@ -204,7 +118,7 @@ def _check_one_star(
             return True
 
     if rings_can_conflict and obs.closest_planet is not None:
-        annuli = ring_annuli.get(obs.closest_planet.upper(), [])
+        annuli = ring_annuli.get(obs.closest_planet.upper(), ())
         if annuli:
             ring_target = f'{obs.closest_planet.lower()}:ring'
             bp_radii = backplane.ring_radius(ring_target)
@@ -251,10 +165,6 @@ def mark_body_and_ring_conflicts(
     """
     stars_config = config.stars
     body_list = _conflict_body_list(obs, config)
-    ring_annuli = parse_ring_occlusion_annuli(_cast_dict(stars_config.ring_occlusion_radii_km))
-    rings_can_conflict = bool(stars_config.ring_occlusion_enabled)
-    margin = float(stars_config.body_conflict_margin)
-    min_opaque_fraction = float(stars_config.ring_occlusion_min_opaque_fraction)
     for star in stars:
         if star.conflicts:
             continue
@@ -262,44 +172,8 @@ def mark_body_and_ring_conflicts(
             obs=obs,
             star=star,
             body_list=body_list,
-            ring_annuli=ring_annuli,
-            rings_can_conflict=rings_can_conflict,
-            body_conflict_margin=margin,
-            ring_min_opaque_fraction=min_opaque_fraction,
+            ring_annuli=stars_config.ring_occlusion_radii_km,
+            rings_can_conflict=stars_config.ring_occlusion_enabled,
+            body_conflict_margin=stars_config.body_conflict_margin,
+            ring_min_opaque_fraction=stars_config.ring_occlusion_min_opaque_fraction,
         )
-
-
-def _cast_dict(
-    raw: Any,
-) -> dict[str, list[list[float]]] | None:
-    """Narrow a raw config value to the ring-occlusion mapping shape.
-
-    The YAML loader returns ``AttrDict`` and ``list`` instances; we
-    accept any mapping with string keys and list-of-list values, and
-    treat ``None`` as the empty mapping.  Mismatches raise so the error
-    points at the YAML site, not at the ring-radius math.
-
-    Parameters:
-        raw: Value pulled from ``config.stars.ring_occlusion_radii_km``.
-
-    Returns:
-        ``None`` (no annuli) or the validated mapping.
-    """
-    if raw is None:
-        return None
-    if not hasattr(raw, 'items'):
-        raise ValueError(
-            f'ring_occlusion_radii_km must be a mapping or None; got {type(raw).__name__}'
-        )
-    out: dict[str, list[list[float]]] = {}
-    for key, value in raw.items():
-        if not isinstance(key, str):
-            raise ValueError(
-                f'ring_occlusion_radii_km keys must be strings; got {type(key).__name__}'
-            )
-        if not isinstance(value, list):
-            raise ValueError(
-                f'ring_occlusion_radii_km[{key!r}] must be a list; got {type(value).__name__}'
-            )
-        out[key] = value
-    return out
