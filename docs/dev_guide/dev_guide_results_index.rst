@@ -323,12 +323,12 @@ the values are written. A program reads ``config.results_tree`` once, in its
 entry point, and passes it down to whatever reads the tree ---
 :class:`~spindoctor.nav_records.TreeRecordSource`,
 :func:`~spindoctor.results_index.open_record_source`, the ingest --- the way it
-passes its logger. The library reads no configuration itself, so each of these
-takes the tuning as a required argument.
+passes its logger. The library does not read the configuration itself, so each of
+these takes the tuning as a required argument.
 
-The section is checked as each configuration file is merged, so a value no pass
-can run at is refused before the program has written anything. The message gives
-the file and the key path, as for every typed section (see
+The configuration parses the section as each file is merged. A value that no pass
+can run at is therefore refused before the program has written anything, and the
+message gives the file and the key path, as for every typed section (see
 :doc:`dev_guide_config_and_static_data`). Three kinds of value are refused: a
 count that is not a positive integer, a setting the section does not have, and a
 round of work smaller than the pool it feeds. The section

@@ -134,16 +134,16 @@ returns the typed object:
   :data:`~spindoctor.config.sections.MAX_UPSAMPLE_FACTOR`. The disc correlation, the ring
   annulus correlation, and the manual navigation dialog read it from here.
 - ``results_tree`` — a :class:`~spindoctor.nav_records.TreeTuning`: how much of a pass
-  over a navigation results tree runs at once; see :doc:`dev_guide_results_index`. Its
-  rule refuses a round of work smaller than the thread pool it feeds.
+  over a navigation results tree runs at once; see :doc:`dev_guide_results_index`. It
+  refuses a round of work smaller than the thread pool that the round feeds.
 - ``environment`` — :class:`~spindoctor.config.sections.EnvironmentSection`: deployment
   locations (``pds3_holdings_root``, ``nav_results_root``, ``backplane_results_root``,
-  ``bundle_results_root``, ``log_root``, and ``results_index_db``). The packaged file
-  (``config_005_environment.yaml``) sets no key and lists each as a commented-out line,
-  so every key is optional and an absent one reads as None. Which of the command line,
-  this section, and an environment variable wins is precedence rather than schema; each
-  reader applies its own order, and the usual one lives in the helpers of
-  :mod:`spindoctor.config.config_helper`.
+  ``bundle_results_root``, ``log_root``, and ``results_index_db``). Every key is
+  optional, and a key left out reads as None. The packaged file
+  (``config_005_environment.yaml``) leaves every key unset and lists each as a
+  commented-out line. The schema does not decide whether the command line, this section,
+  or an environment variable wins. Each reader applies its own order, and the helpers in
+  :mod:`spindoctor.config.config_helper` define the usual one.
 - ``logging`` — :class:`~spindoctor.config.logging_keys.LoggingSection`, holding the
   levels and terminal settings of the two loggers, with each program's overrides under
   ``programs`` as a :class:`~spindoctor.config.logging_keys.ProgramLogging`. Its
