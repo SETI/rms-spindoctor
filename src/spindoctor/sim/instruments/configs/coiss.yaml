@@ -193,8 +193,12 @@ coiss_nac:
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
-      # Published: 0.15% of pixels in 2004, growing to ~0.28% by 2008-2009.
-      hot_pixels: {pixel_fraction: 2.0e-3}
+      # Fitted 2026-11-23 with the hot-pixel law in the shape defaults below, from
+      # the dark frames described there: the fraction of pixels hotter than 1 e-/s
+      # in 2008.  The published 0.15% of pixels in 2004, growing to ~0.28% by
+      # 2008-2009, counts the pixels hotter than about 4 e-/s, as the dark frames do:
+      # 2.8e-3 of them in 2008.
+      hot_pixels: {pixel_fraction: 1.0e-2}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
       bias_structure: {probability: 1.0}
@@ -204,9 +208,37 @@ coiss_nac:
     # sets it.  Shapes here are the values a scene inherits when it sets a mode
     # without spelling out every parameter.
     shape_defaults:
-      # Estimated: an amplitude near the full well, and the fraction of a hot
-      # pixel's total charge bled into the warm column above it.
-      hot_pixels: {amplitude_e: 4.0e+4, column_factor: 0.3}
+      # Fitted 2026-11-23 on raw 12-bit full-frame dark frames (shutter disabled),
+      # median-stacked over the 5-7 frames at each exposure of 0, 10, 32, 100, 320,
+      # 560, and 1200 s, in four series: COISS_2019 (2006-005), COISS_2041
+      # (2008-021), COISS_2069 (2011-182), and COISS_2114 (2017-171).
+      # - A hot pixel's charge grows in proportion to the exposure from 10 to 1200 s,
+      #   to within 3%.  A frame of zero exposure holds the charge of 0.09 s more
+      #   (0.083-0.091 s over the four series), which is readout_sec.
+      # - The rates follow a truncated power law.  Fitted on the COISS_2041 frames
+      #   (2008-021), with each rate read from the shortest exposure that holds it
+      #   10 sigma above the stack noise (30 e-/DN, 13 at gain state 3): 1.0e-2 of
+      #   the pixels are hotter than 1 e-/s (rate_e_per_sec, the law's lower rate),
+      #   and the count hotter than x falls as x^-0.94 up to 1,100 e-/s, where it
+      #   ends (amplitude_max, 1,100 times the lower rate).  The fit is within 15% of
+      #   the real counts from 1 to 200 e-/s, and within 45% from there to 1,000
+      #   e-/s, where the counts are 30 pixels or fewer.
+      # - The population grows over the mission: 7.6e-3 of the pixels are hotter
+      #   than 1 e-/s in 2006, 1.8e-2 in 2011, and 2.3e-2 in 2017, at about the same
+      #   index (0.94-1.01), and the cutoff rises to 2,000-5,000 e-/s.
+      # - The rows read after a hot pixel carry a flat streak: each packet passing
+      #   through it picks up 0.0146 s of its dark rate, the same at every exposure,
+      #   which is streak_sec.  The rows read before it carry none.
+      # - Rows one to three after a hot pixel also carry a short trail that grows
+      #   about as the square root of the pixel's charge: 2.5% of the charge on the
+      #   first row at 1,000 e- and 0.4% at 70,000 e-.  It is left out.
+      hot_pixels:
+        amplitude_law: power_law
+        amplitude_index: 0.94
+        amplitude_max: 1100.0
+        rate_e_per_sec: 1.0
+        readout_sec: 0.09
+        streak_sec: 0.0146
       # Published: ~30 e- horizontal bands (2.1 and 2.5 Hz beating).  The period is
       # estimated; the line readout rate sets it.
       banding: {amplitude: 30.0, period_px: 64.0, orientation: horizontal}
@@ -365,14 +397,31 @@ coiss_wac:
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
-      hot_pixels: {pixel_fraction: 2.0e-3}
+      # Fitted 2026-11-23 with the hot-pixel law in the shape defaults below: the
+      # fraction of pixels hotter than 1 e-/s in 2008.
+      hot_pixels: {pixel_fraction: 7.2e-3}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
       bias_structure: {probability: 1.0}
       bloom: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
-      hot_pixels: {amplitude_e: 3.5e+4, column_factor: 0.3}
+      # Fitted 2026-11-23 as for the NAC, on the WAC dark frames of COISS_2019
+      # (2006-005) and COISS_2041 (2008-021) at 0 to 1200 s, in electrons at 28
+      # e-/DN (12.1 at gain state 3, scaled from the NAC's gain ratio).  The power
+      # law fits the 2008 counts: 7.2e-3 of the pixels are hotter than 1 e-/s, the
+      # count hotter than x falls as x^-0.98, and it ends at 1,260 e-/s.  The fit is
+      # within 15% of the real counts from 1 to 100 e-/s, and within 45% from there
+      # to 1,000 e-/s.  In 2006, 4.9e-3 of the pixels are hotter than 1 e-/s.  A
+      # frame of zero exposure holds the charge of 0.10 s more, and each packet read
+      # through a hot pixel picks up 0.0142 s of its rate.
+      hot_pixels:
+        amplitude_law: power_law
+        amplitude_index: 0.98
+        amplitude_max: 1260.0
+        rate_e_per_sec: 1.0
+        readout_sec: 0.10
+        streak_sec: 0.0142
       # Published: ~6 e- horizontal bands at 4.0 Hz.  The period is the NAC's
       # estimate.
       banding: {amplitude: 6.0, period_px: 64.0, orientation: horizontal}
@@ -451,18 +500,50 @@ coiss_calib_nac:
 
   artifact_modes:
     instrument_defaults:
-      # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
-      # image-library cohort: the measured stationary spike fraction 1.6e-5
-      # (single-pixel spikes recurring at fixed positions across the 58-frame NAC
-      # cohort; the raw camera's estimated 2e-3 overstated the calibrated products
-      # by ~100x and dominated their p99 signal percentile).
-      hot_pixels: {pixel_fraction: 1.6e-5}
+      # Fitted 2026-11-23 with the residual law in the shape defaults below.
+      hot_pixels: {pixel_fraction: 3.3e-5}
       # CISSCAL's 2-Hz noise removal strips the banding, and the cohort sky floor
       # sits below the level at which the raw chain's 30 e- bands would register.
       banding: null
       # CISSCAL subtracts the full 2-D bias structure, not just the constant
       # pedestal the calibration inverse already removes.
       bias_structure: null
+    shape_defaults:
+      # The hot pixels CISSCAL leaves in a CALIB product, fitted 2026-11-23 on the
+      # 58-frame NAC cohort's stationary spikes (spikes the realism match flags at
+      # one position in two or more frames of one size): 957 spikes, a mean
+      # fraction of 1.57e-5 per frame.
+      # - CISSCAL's dark subtraction removes the raw camera's hot pixels.  At the
+      #   pixels hotter than 20 e-/s in the nearest dark series, a CALIB frame holds
+      #   less than the frame around them, by 0.2 to 1.3 times the raw charge on
+      #   the frames with the most such pixels.
+      # - The stationary spikes do not grow with the exposure.  Frames of 0.08 to
+      #   0.2 s show spikes of 2,000 to 9,000 e-, rates no raw hot pixel reaches,
+      #   and two frames 14 days apart (N1487595731 at 0.18 s, N1488823805 at 1.2 s)
+      #   share 192 spikes at about the same charge, all in rows and columns 512 to
+      #   767 (48% of the cohort's stationary spikes).
+      # - A population of fixed charge whatever the exposure fits the frames'
+      #   spike counts better than charge in proportion to the exposure: a
+      #   fraction of 3.3e-5 of the pixels holding 1,000 e- or more (readout_e),
+      #   the count above a charge falling as its inverse (fitted index 0.97) up
+      #   to the full well (amplitude_max, 110 times 1,000 e-).  At the real
+      #   frames' spike thresholds it predicts the cohort's fraction, 1.57e-5.
+      #   The frames' counts scatter far more than any one law allows, as scene
+      #   content that repeats between frames adds to them.
+      # - The realism match measures 2.8e-5 on the matched frames (2026-11-23).
+      #   This detector's map holds 41 pixels of a full frame at this fraction,
+      #   where 35 are expected, and the matched frames' own spike thresholds
+      #   flag about 1.5 times more of the population than the real frames' do.
+      # - The residual pixels' streaks are not measured, so the population has
+      #   none.
+      hot_pixels:
+        amplitude_law: power_law
+        amplitude_index: 1.0
+        amplitude_max: 110.0
+        rate_e_per_sec: 0.0
+        readout_sec: null
+        readout_e: 1000.0
+        streak_sec: null
 
   # The image library's CALIB frames from this camera are matched against this
   # instrument by the realism match.
@@ -507,15 +588,30 @@ coiss_calib_wac:
 
   artifact_modes:
     instrument_defaults:
-      # TUNED 2026-07-17 by the realism match against the 62-frame CALIB
-      # image-library cohort; the stationary spike fraction 1.6e-5 measured on the
-      # NAC cohort stands for both cameras (see the coiss_calib_nac entry).
-      hot_pixels: {pixel_fraction: 1.6e-5}
+      # Fitted 2026-11-23 with the residual law in the shape defaults below.
+      hot_pixels: {pixel_fraction: 7.9e-7}
       # CISSCAL's 2-Hz noise removal strips the banding.
       banding: null
       # CISSCAL subtracts the full 2-D bias structure, not just the constant
       # pedestal the calibration inverse already removes.
       bias_structure: null
+    shape_defaults:
+      # The NAC's residual law (see the coiss_calib_nac entry), up to this camera's
+      # full well (amplitude_max, 95 times 1,000 e-), with the fraction fitted
+      # 2026-11-23 on the 4-frame WAC cohort.  Its stationary spikes are one pixel
+      # in two frames, 2,314 e- at 1.8 s and 2,285 e- at 0.025 s: a mean fraction
+      # of 4.8e-7 per frame, which the fraction predicts at the real frames' spike
+      # thresholds.  One pixel says little, so the fraction is uncertain by a
+      # factor of several.  This detector's map holds no pixel that rare in a full
+      # frame (its rarest draw is 3.3e-6), so the realism match measures none.
+      hot_pixels:
+        amplitude_law: power_law
+        amplitude_index: 1.0
+        amplitude_max: 95.0
+        rate_e_per_sec: 0.0
+        readout_sec: null
+        readout_e: 1000.0
+        streak_sec: null
 
   # The image library's CALIB frames from this camera are matched against this
   # instrument by the realism match.

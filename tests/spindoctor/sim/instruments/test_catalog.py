@@ -173,12 +173,12 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     (
         {
             'cam.yaml': _cam(
-                _with(_OFFERED, 'offered: [hot_pixels]')
-                + '  shape_defaults:\n    hot_pixels: {column_factor: 5.0}\n'
+                _with(_OFFERED, 'offered: [readout_dark]')
+                + '  shape_defaults:\n    readout_dark: {rbi_column_factor: 5.0}\n'
             )
         },
-        r'^cam\.yaml: cam: artifact_modes\.shape_defaults\.hot_pixels\.column_factor: expected a '
-        r'number in \[0, 1\], got 5\.0',
+        r'^cam\.yaml: cam: artifact_modes\.shape_defaults\.readout_dark\.rbi_column_factor: '
+        r'expected a number in \[0, 1\], got 5\.0',
         'fraction-above-one',
     ),
     (
