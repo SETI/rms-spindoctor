@@ -679,10 +679,11 @@ def _present(value: _T | None) -> _T:
     """Return a value the catalog's rules guarantee is set, narrowed from optional.
 
     Parameters:
-        value: A key of a mode entry whose kind requires it.
+        value: A key that a mode entry of its kind must set, or an edge's base orbit,
+            which every edge has.
 
     Returns:
         ``value``.
     """
-    assert value is not None  # the mode entry's rule requires the key
+    assert value is not None  # the catalog's rules require the value
     return value
