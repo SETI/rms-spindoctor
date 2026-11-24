@@ -75,13 +75,13 @@ def test_margin_holds_sky_stars() -> None:
 
 
 def test_frame_stars_do_not_depend_on_the_margin() -> None:
-    """The frame's own stars are the ones a frame without a margin draws.
+    """The frame's sky is the one a frame without a margin draws, edge pixels included.
 
-    Margin stars put part of their light on the frame's outermost pixels, so those
-    are left out of the comparison.
+    A star less than a pixel outside the frame lights the frame's outermost pixels
+    whether or not the plane has a margin.
     """
-    framed = _sky_plane(8)[9:-9, 9:-9]
-    plain = _sky_plane(0)[1:-1, 1:-1]
+    framed = _sky_plane(8)[8:-8, 8:-8]
+    plain = _sky_plane(0)
     assert np.array_equal(framed, plain)
 
 
