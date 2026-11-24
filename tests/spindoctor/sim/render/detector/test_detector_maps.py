@@ -21,8 +21,10 @@ def test_the_detector_map_ignores_the_scene_seed() -> None:
         add_hot_pixels(
             electrons,
             fraction=0.002,
-            amplitude_e=1.0e4,
-            column_factor=0.0,
+            rate_e_per_sec=1.0e4,
+            readout_e=0.0,
+            streak_e=0.0,
+            exposure_sec=1.0,
             detector_id='gossi',
             rng=np.random.default_rng(seed),
         )

@@ -255,12 +255,13 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
     the instrument's realism-matched values and a reader would otherwise take
     them for an operational prediction:
 
-    - The hot-pixel ``pixel_fraction`` is drawn over 2e-4 to 2e-3.  The emulated
-      instrument's own catalog carries 2e-3 for the raw camera, while the
-      realism match measures a transient single-pixel spike fraction of
-      2.75e-4 per frame on the CALIB NAC cohort, so the range spans from
-      about the measured transient population up to the catalog value -- an
-      order of magnitude of stress, not a distribution.
+    - The hot-pixel ``pixel_fraction`` is drawn over 2e-4 to 2e-3.  The realism
+      match measures a transient single-pixel spike fraction of 2.75e-4 per frame
+      on the CALIB NAC cohort, and about 2e-3 of the raw camera's pixels leak more
+      than 4 e-/s, so the range spans from about the measured transient population
+      up to the raw camera's hot pixels -- an order of magnitude of stress, not a
+      distribution.  The rate is drawn over 2e4 to 6e4 e-/s, so at the scenes'
+      1 s exposure every hot pixel holds a fifth to a half of the full well.
     - The cosmic-ray rate is drawn strictly positive although the realism
       recalibration RETAINED zero for it: the instrument's tuned hot-pixel
       fraction already carries the measured spike population, so a nonzero
@@ -282,7 +283,7 @@ def _artifact_blocks(rng: random.Random) -> tuple[dict[str, Any], dict[str, Any]
         'instrument_defaults': True,
         'hot_pixels': {
             'pixel_fraction': round(rng.uniform(2.0e-4, 2.0e-3), 6),
-            'amplitude_e': round(rng.uniform(2.0e4, 6.0e4), 1),
+            'rate_e_per_sec': round(rng.uniform(2.0e4, 6.0e4), 1),
         },
     }
     noise_extras = {

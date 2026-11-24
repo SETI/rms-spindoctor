@@ -193,8 +193,11 @@ coiss_nac:
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
-      # Published: 0.15% of pixels in 2004, growing to ~0.28% by 2008-2009.
-      hot_pixels: {pixel_fraction: 2.0e-3}
+      # Fitted 2026-11-23 with the hot-pixel rate in the shape defaults below, from
+      # the dark frames described there.  The published 0.15% of pixels in 2004,
+      # growing to ~0.28% by 2008-2009, counts the pixels hotter than about 4 e-/s,
+      # as the dark frames do: 2.1e-3 of them in 2006 and 3.0e-3 in 2008.
+      hot_pixels: {pixel_fraction: 6.0e-4}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
       bias_structure: {probability: 1.0}
@@ -204,9 +207,28 @@ coiss_nac:
     # sets it.  Shapes here are the values a scene inherits when it sets a mode
     # without spelling out every parameter.
     shape_defaults:
-      # Estimated: an amplitude near the full well, and the fraction of a hot
-      # pixel's total charge bled into the warm column above it.
-      hot_pixels: {amplitude_e: 4.0e+4, column_factor: 0.3}
+      # Fitted 2026-11-23 on raw 12-bit full-frame dark frames (shutter disabled),
+      # median-stacked over the 5-7 frames at each exposure of 0, 10, 32, 100, 320,
+      # 560, and 1200 s, in four series: COISS_2019 (2006-005), COISS_2041
+      # (2008-021), COISS_2069 (2011-182), and COISS_2114 (2017-171).
+      # - A hot pixel's charge grows in proportion to the exposure from 10 to 1200 s,
+      #   to within 3%.  A frame of zero exposure holds the charge of 0.09 s more
+      #   (0.083-0.091 s over the four series), which is readout_e.
+      # - The count of pixels hotter than a rate x falls as about 1/x from 1 to 200
+      #   e-/s, and it grows over the mission: 9.6e-4 of the pixels are hotter than
+      #   10 e-/s in 2006, 1.4e-3 in 2008, 2.1e-3 in 2011, and 3.0e-3 in 2017.
+      # - The rate and the fraction are the exponential population that best fits
+      #   the 2008 counts over 7.5-750 e-/s, the rates a 75 e- detection threshold
+      #   picks out at exposures from 10 s down to 0.1 s.  It stays within a factor
+      #   of 3 of the real counts there, with too few pixels below 30 e-/s and too
+      #   many from 75 to 300 e-/s.
+      # - The rows read after a hot pixel carry a flat streak: each packet passing
+      #   through it picks up 0.0146 s of its dark rate, the same at every exposure,
+      #   which is streak_e.  The rows read before it carry none.
+      # - Rows one to three after a hot pixel also carry a short trail that grows
+      #   about as the square root of the pixel's charge: 2.5% of the charge on the
+      #   first row at 1,000 e- and 0.4% at 70,000 e-.  It is left out.
+      hot_pixels: {rate_e_per_sec: 143.0, readout_e: 13.0, streak_e: 2.1}
       # Published: ~30 e- horizontal bands (2.1 and 2.5 Hz beating).  The period is
       # estimated; the line readout rate sets it.
       banding: {amplitude: 30.0, period_px: 64.0, orientation: horizontal}
@@ -365,14 +387,21 @@ coiss_wac:
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
-      hot_pixels: {pixel_fraction: 2.0e-3}
+      # Fitted 2026-11-23 with the hot-pixel rate in the shape defaults below.
+      hot_pixels: {pixel_fraction: 4.0e-4}
       banding: {probability: 1.0}
       readout_dark: {probability: 1.0}
       bias_structure: {probability: 1.0}
       bloom: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
-      hot_pixels: {amplitude_e: 3.5e+4, column_factor: 0.3}
+      # Fitted 2026-11-23 as for the NAC, on the WAC dark frames of COISS_2019
+      # (2006-005) and COISS_2041 (2008-021) at 0 to 1200 s.  The exponential
+      # population fits the 2008 counts; 7.3e-4 of the pixels are hotter than 10
+      # e-/s in 2006 and 9.9e-4 in 2008.  A frame of zero exposure holds the charge
+      # of 0.10 s more, and each packet read through a hot pixel picks up 0.0142 s
+      # of its rate.
+      hot_pixels: {rate_e_per_sec: 146.0, readout_e: 15.0, streak_e: 2.1}
       # Published: ~6 e- horizontal bands at 4.0 Hz.  The period is the NAC's
       # estimate.
       banding: {amplitude: 6.0, period_px: 64.0, orientation: horizontal}

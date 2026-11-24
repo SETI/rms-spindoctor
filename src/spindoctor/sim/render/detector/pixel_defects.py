@@ -22,79 +22,93 @@ def add_hot_pixels(
     electrons: NDArrayFloatType,
     *,
     fraction: float,
-    amplitude_e: float,
-    column_factor: float,
+    rate_e_per_sec: float,
+    readout_e: float,
+    streak_e: float,
+    exposure_sec: float,
     detector_id: str,
     rng: np.random.Generator,
     candidate_pool: tuple[NDArrayIntType, NDArrayIntType] | None = None,
     binning: int = 1,
 ) -> dict[str, Any]:
-    """Add a hot-pixel population (electrons) in place.
+    """Add a hot-pixel population and its warm streaks (electrons) in place.
 
-    A hot pixel holds a large fixed charge; on CCDs read through it, a fraction
-    of that charge contaminates the column above it (a warm streak).  The
-    uniform population is the detector's fixed map
-    (:func:`detector_hot_pixel_map`), the same pixels and amplitudes in every
-    scene that emulates the detector.  An adversarial population drawn onto
+    A hot pixel is a pixel with a high dark current.  Its own charge is its dark
+    rate times the exposure plus a fixed charge each frame collects outside the
+    exposure (``readout_e``); both scale with the pixel's relative amplitude, so a
+    pixel twice as hot holds twice the charge.  During readout every line moves one
+    row toward line 0, which is read first, so the charge packets of all the rows
+    below the hot pixel (larger line numbers) pass through it on their way out.
+    Each packet picks up the dark charge the hot pixel generates while the packet
+    sits there, the same amount whatever the exposure.  The warm streak is therefore
+    flat and lies only on the rows read after the hot pixel: ``streak_e`` times the
+    relative amplitude on each of them.  A binned row holds ``binning`` native rows
+    that each passed the hot pixel, so it collects ``binning`` times that.
+
+    The uniform population is the detector's fixed map
+    (:func:`detector_hot_pixel_map`), the same pixels and relative amplitudes in
+    every scene that emulates the detector.  An adversarial population drawn onto
     the navigation features comes from ``candidate_pool`` instead:
-    ``round(fraction * size)`` distinct pool pixels, or the whole pool when it
-    holds fewer, drawn without replacement from the scene's seeded ``rng``.  A
-    zero fraction or amplitude is a no-op.
+    ``round(fraction * size)`` distinct pool pixels, or the whole pool when it holds
+    fewer, drawn without replacement from the scene's seeded ``rng``, with
+    exponentially distributed relative amplitudes.  A zero fraction, or a zero
+    charge per relative amplitude, is a no-op.
 
     Parameters:
         electrons: The electron image, modified in place.
         fraction: Fraction of pixels that are hot.
-        amplitude_e: Hot-pixel amplitude scale in electrons (exponentially
-            distributed about this scale, so a few are very hot).
-        column_factor: Fraction of a hot pixel's TOTAL charge bled up its
-            column: the warm streak's integral is ``column_factor`` times the
-            hot pixel's charge, independent of the frame height.
+        rate_e_per_sec: Dark rate at relative amplitude 1, in electrons per second
+            of exposure.  The relative amplitudes are exponentially distributed
+            with mean 1, so this is the population's mean rate.
+        readout_e: Charge at relative amplitude 1 that a hot pixel collects each
+            frame outside the exposure, in electrons.
+        streak_e: Charge at relative amplitude 1 that each packet read through a
+            hot pixel picks up, in electrons per native row.
+        exposure_sec: The frame's exposure time in seconds.
         detector_id: The emulated detector the uniform population belongs to.
         rng: The stage's seeded generator, read only by an adversarial draw.
         candidate_pool: Optional ``(v, u)`` coordinate pool an adversarial
             population is drawn from.  When None or empty, the population is
             the detector's map.
-        binning: The readout mode's binning factor, for the detector's map.
+        binning: The readout mode's binning factor, for the detector's map and the
+            streak.
 
     Returns:
-        The realized population for the truth record: the planted ``pixels``
-        as ``[v, u]`` pairs and their ``amplitudes_e``, empty on a no-op.
+        The realized population for the truth record: the planted ``pixels`` as
+        ``[v, u]`` pairs and the charge planted in each, ``charges_e``, both empty
+        on a no-op.
     """
-    if fraction <= 0.0 or amplitude_e <= 0.0:
-        return {'pixels': [], 'amplitudes_e': []}
+    charge_per_unit = rate_e_per_sec * max(exposure_sec, 0.0) + readout_e
+    if fraction <= 0.0 or (charge_per_unit <= 0.0 and streak_e <= 0.0):
+        return {'pixels': [], 'charges_e': []}
     size_v, size_u = electrons.shape
     if candidate_pool is not None and candidate_pool[0].size > 0:
         n_hot = round(fraction * size_v * size_u)
         if n_hot <= 0:
-            return {'pixels': [], 'amplitudes_e': []}
+            return {'pixels': [], 'charges_e': []}
         pool_v, pool_u = candidate_pool
         pick = rng.choice(pool_v.size, size=min(n_hot, pool_v.size), replace=False)
         hot_v = pool_v[pick]
         hot_u = pool_u[pick]
-        amps = amplitude_e * rng.exponential(1.0, size=pick.size)
+        relative = rng.exponential(1.0, size=pick.size)
     else:
         hot_v, hot_u, relative = detector_hot_pixel_map(
             (size_v, size_u), fraction=fraction, detector_id=detector_id, binning=binning
         )
-        amps = amplitude_e * relative
-    np.add.at(electrons, (hot_v, hot_u), amps)
+    charges = charge_per_unit * relative
+    np.add.at(electrons, (hot_v, hot_u), charges)
     record = {
         'pixels': [[int(v), int(u)] for v, u in zip(hot_v.tolist(), hot_u.tolist(), strict=True)],
-        'amplitudes_e': [float(a) for a in amps.tolist()],
+        'charges_e': [float(c) for c in charges.tolist()],
     }
-    if column_factor <= 0.0:
+    if streak_e <= 0.0:
         return record
-    # Warm column: each hot pixel bleeds charge onto the pixels above it
-    # (decreasing toward the read register), a CCD readout scar.  The linear
-    # ramp is normalized so its INTEGRAL is column_factor * amp: the column
-    # carries a fixed fraction of the hot pixel's charge however tall the
-    # frame is, keeping the contamination conservative and size-invariant.
-    for v, u, amp in zip(hot_v.tolist(), hot_u.tolist(), amps.tolist(), strict=True):
-        if v <= 0:
-            continue
-        weights = np.linspace(1.0, 0.0, v, endpoint=False)
-        weights /= weights.sum()
-        electrons[:v, u] += column_factor * amp * weights
+    # The warm streak: each hot pixel adds its per-row pickup at the row after it, and
+    # a running sum down the columns carries it to the last line.
+    below = hot_v + 1 < size_v
+    steps = np.zeros((size_v, size_u), dtype=np.float64)
+    np.add.at(steps, (hot_v[below] + 1, hot_u[below]), streak_e * binning * relative[below])
+    electrons += np.cumsum(steps, axis=0)
     return record
 
 

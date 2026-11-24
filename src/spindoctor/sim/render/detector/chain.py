@@ -132,9 +132,10 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
 
     The registry's detector artifact modes render at their physical point in the
     chain: the shutter shading and the fixed-pattern response scale the light, and
-    the readout dark joins the dark signal, before Poisson; the frame-transfer smear
-    is integrated charge before Poisson; the anti-blooming pairs, radiation
-    transients, and column bloom follow the shot term; banding is added in electrons
+    the readout dark and the hot pixels join the dark signal, before Poisson; the
+    frame-transfer smear is integrated charge before Poisson; the anti-blooming pairs,
+    radiation transients, and column bloom follow the shot term; banding is added in
+    electrons
     before the gain divide; and the additive fixed pattern and the saturation serial
     tail ride on the digitized DN before quantization.
     """
@@ -170,6 +171,10 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             t_transfer_sec=float(cfg.get('t_transfer_sec') or 0.0),
             exposure_sec=dp.exposure_sec,
         )
+    if 'hot_pixels' in modes:
+        # Hot pixels are dark charge, so they join the collected charge before Poisson
+        # and carry its shot noise.
+        records['hot_pixels'] = _apply_hot_pixels(electrons, modes['hot_pixels'], frame, dp)
     if dp.poisson:
         # One uniform per pixel, whatever the means, so a change to one pixel's
         # mean (a zero-crossing convolution tail, a last-bit FFT difference)
@@ -180,8 +185,6 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
         records['bright_dark_pairs'] = _apply_bright_dark_pairs(
             electrons, modes['bright_dark_pairs'], frame, dp
         )
-    if 'hot_pixels' in modes:
-        records['hot_pixels'] = _apply_hot_pixels(electrons, modes['hot_pixels'], frame, dp)
     if 'radiation_transients' in modes:
         records['radiation_transients'] = _apply_radiation_transients(
             electrons, modes['radiation_transients'], dp
@@ -361,8 +364,10 @@ def _apply_hot_pixels(
     return add_hot_pixels(
         electrons,
         fraction=float(cfg['pixel_fraction']),
-        amplitude_e=float(cfg['amplitude_e'] or 0.0),
-        column_factor=float(cfg['column_factor'] or 0.0),
+        rate_e_per_sec=float(cfg['rate_e_per_sec'] or 0.0),
+        readout_e=float(cfg['readout_e'] or 0.0),
+        streak_e=float(cfg['streak_e'] or 0.0),
+        exposure_sec=dp.exposure_sec,
         detector_id=dp.detector_id,
         rng=_stream_rng(dp, 'hot_pixels'),
         candidate_pool=_feature_pool(frame, dp, 'hot_pixels'),

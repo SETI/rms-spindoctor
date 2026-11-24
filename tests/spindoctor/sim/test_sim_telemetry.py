@@ -743,8 +743,10 @@ def test_adversarial_hot_pixels_concentrate_on_features() -> None:
     add_hot_pixels(
         electrons,
         fraction=0.02,
-        amplitude_e=1.0e4,
-        column_factor=0.0,
+        rate_e_per_sec=1.0e4,
+        readout_e=0.0,
+        streak_e=0.0,
+        exposure_sec=1.0,
         detector_id='coiss_nac',
         rng=np.random.default_rng(4),
         candidate_pool=pool,

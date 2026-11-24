@@ -101,21 +101,34 @@ gossi:
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
-      # TUNED 2026-11-01 by the realism match: the 8-frame Galileo REDR cohort's
-      # stationary spike fraction (single-pixel spikes recurring at fixed
-      # positions) is 1.4e-6 -- the REDR blemish correction removes most hot
-      # pixels.  The simulated hot pixels are a fixed per-detector map, so this
-      # fraction is the stationary population alone; the cohort's transient
-      # spikes are carried by the cosmic-ray rate.
-      hot_pixels: {pixel_fraction: 1.4e-6}
+      # Fitted 2026-11-23 with the hot-pixel charge in the shape defaults below,
+      # from the 60 2/3 s frames described there.
+      hot_pixels: {pixel_fraction: 9.0e-5}
       banding: {probability: 1.0}
       bias_structure: {probability: 1.0}
       bloom: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
-      # Estimated: nine low-full-well columns bloom early, so half of a hot pixel's
-      # total charge bleeds into its warm column.
-      hot_pixels: {amplitude_e: 4.0e+4, column_factor: 0.5}
+      # Fitted 2026-11-23 on raw frames at the 10K gain state (39 e-/DN), with
+      # recurring spikes taken as hot pixels:
+      # - Nine dark frames of zero exposure in the 60 2/3 s frame mode, the mode of
+      #   most of the image-library frames (GO_0002 1990-11-28 and 1990-11-30, GO_0006
+      #   1990-12-17): 8 pixels of 640,000 hold 300 e- or more, 2 hold 500 e-, and 1
+      #   holds 1,000 e-, an exponential population of fraction 9e-5 and mean 150 e-.
+      # - 47 dark-sky frames in the 8 2/3 s mode at exposures from 0.1 to 0.8 s
+      #   (GO_0007 and GO_0008, 1992-12-03): the same counts at every exposure (435
+      #   pixels at 300 e- or more, 89 at 500 e-, 6 at 1,000 e-), so the charge
+      #   does not come from the exposure.  Its mean is about 150 e- too.
+      #   That is readout_e.  A dark rate at relative amplitude 1 above 8 e-/s would
+      #   have raised the 500 e- count by a tenth from 0.1 to 0.8 s, so the rate is
+      #   set to zero.  These frames hold 50 times the 60 2/3 s mode's hot pixels.
+      # - Longer exposures use the extended-exposure mode, whose longer frame cycle
+      #   the simulator does not model, so they are not used.
+      # - The rows read after a hot pixel carry a flat streak of 1.15% of its charge
+      #   per row (the 8 2/3 s frames), and the rows read before it none.  That is
+      #   streak_e.  The pixel to the right of a strong hot pixel also holds up to a
+      #   tenth of its charge, a trail along the row that is left out.
+      hot_pixels: {rate_e_per_sec: 0.0, readout_e: 150.0, streak_e: 1.7}
       # Published: vertical bands every 42 px from the 2400 Hz supply (~0.35 DN raw
       # at gain state 2, ~65 e-).  In high gain the camera also shows a horizontal
       # component below 8 Hz, which a scene adds with orientation both.

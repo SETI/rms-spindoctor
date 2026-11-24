@@ -4,7 +4,7 @@ The hot pixels are driven both directly and through a rendered scene, whose trut
 records the population it planted.
 """
 
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -23,64 +23,75 @@ def _rng(seed: int = 0) -> np.random.Generator:
     return np.random.default_rng(seed)
 
 
+def _one_hot_pixel(
+    *,
+    exposure_sec: float = 1.0,
+    rate_e_per_sec: float = 100.0,
+    readout_e: float = 0.0,
+    streak_e: float = 0.0,
+    binning: int = 1,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    """A 64 by 64 plane holding one adversarial hot pixel at (30, 20), and its record."""
+    electrons = np.zeros((_SIZE, _SIZE), dtype=np.float64)
+    record = add_hot_pixels(
+        electrons,
+        fraction=1.0 / (_SIZE * _SIZE),
+        rate_e_per_sec=rate_e_per_sec,
+        readout_e=readout_e,
+        streak_e=streak_e,
+        exposure_sec=exposure_sec,
+        detector_id='coiss_nac',
+        rng=_rng(7),
+        candidate_pool=(np.array([30]), np.array([20])),
+        binning=binning,
+    )
+    return electrons, record
+
+
 def test_hot_pixels_elevate_a_sparse_population() -> None:
     """Hot pixels raise a fraction of pixels well above zero."""
     electrons = np.zeros((100, 100), dtype=np.float64)
     add_hot_pixels(
         electrons,
         fraction=0.01,
-        amplitude_e=1.0e4,
-        column_factor=0.0,
+        rate_e_per_sec=1.0e4,
+        readout_e=0.0,
+        streak_e=0.0,
+        exposure_sec=1.0,
         detector_id='coiss_nac',
         rng=np.random.default_rng(3),
     )
     assert int((electrons > 0.0).sum()) > 0
 
 
-def test_hot_pixel_warm_column_is_a_total_charge_fraction() -> None:
-    """The warm-column integral is bounded by column_factor times the charge.
-
-    The column contamination is a fraction of the hot pixel's TOTAL charge
-    spread along the column, not a per-pixel amplitude, so the streak stays
-    conservative and frame-size-invariant.
-    """
-    electrons = np.zeros((512, 512), dtype=np.float64)
-    column_factor = 0.3
-    add_hot_pixels(
-        electrons,
-        fraction=1.0 / (512 * 512),  # exactly one hot pixel, drawn from a one-pixel pool
-        amplitude_e=4.0e4,
-        column_factor=column_factor,
-        detector_id='coiss_nac',
-        rng=np.random.default_rng(7),
-        candidate_pool=(np.array([300]), np.array([200])),
-    )
-    hot_v, hot_u = np.unravel_index(int(np.argmax(electrons)), electrons.shape)
-    hot_charge = float(electrons[hot_v, hot_u])
-    column_integral = float(electrons[:hot_v, hot_u].sum())
-    assert hot_charge > 0.0
-    assert column_integral > 0.0
-    assert column_integral <= column_factor * hot_charge + 1e-6
+def test_hot_pixel_charge_scales_with_exposure() -> None:
+    """Doubling the exposure doubles a hot pixel's dark charge."""
+    short_e, _ = _one_hot_pixel(exposure_sec=1.0)
+    long_e, _ = _one_hot_pixel(exposure_sec=2.0)
+    assert float(long_e[30, 20]) == pytest.approx(2.0 * float(short_e[30, 20]))
 
 
-def test_hot_pixel_warm_column_is_frame_size_invariant() -> None:
-    """The same column_factor bleeds the same total charge at any frame height."""
-    integrals = []
-    for size in (128, 512):
-        electrons = np.zeros((size, size), dtype=np.float64)
-        add_hot_pixels(
-            electrons,
-            fraction=1.0 / (size * size),
-            amplitude_e=4.0e4,
-            column_factor=0.3,
-            detector_id='coiss_nac',
-            rng=np.random.default_rng(7),
-            candidate_pool=(np.array([100]), np.array([50])),
-        )
-        hot_v, hot_u = np.unravel_index(int(np.argmax(electrons)), electrons.shape)
-        hot_charge = float(electrons[hot_v, hot_u])
-        integrals.append(float(electrons[:hot_v, hot_u].sum()) / hot_charge)
-    assert abs(integrals[0] - integrals[1]) < 1e-9
+def test_hot_pixel_holds_the_readout_charge_at_zero_exposure() -> None:
+    """A frame of zero exposure holds the readout charge times the relative amplitude."""
+    with_rate, _ = _one_hot_pixel(exposure_sec=1.0, rate_e_per_sec=100.0, readout_e=0.0)
+    relative = float(with_rate[30, 20]) / 100.0
+    electrons, _ = _one_hot_pixel(exposure_sec=0.0, readout_e=15.0)
+    assert float(electrons[30, 20]) == pytest.approx(15.0 * relative)
+
+
+def test_hot_pixel_streak_is_flat_on_the_rows_read_after_it() -> None:
+    """Every row below a hot pixel gains the streak charge, and no row above it."""
+    electrons, _ = _one_hot_pixel(rate_e_per_sec=0.0, readout_e=10.0, streak_e=2.0)
+    relative = float(electrons[30, 20]) / 10.0
+    assert np.all(electrons[:30, 20] == 0.0)
+    assert electrons[31:, 20] == pytest.approx(np.full(_SIZE - 31, 2.0 * relative))
+
+
+def test_binned_hot_pixel_streak_holds_each_native_rows_pickup() -> None:
+    """A binned row below a hot pixel gains the streak of its binning native rows."""
+    electrons, _ = _one_hot_pixel(rate_e_per_sec=0.0, readout_e=10.0, streak_e=2.0, binning=2)
+    relative = float(electrons[30, 20]) / 10.0
+    assert float(electrons[40, 20]) == pytest.approx(2.0 * 2.0 * relative)
 
 
 def test_adversarial_hot_pixels_are_distinct_and_capped_at_the_pool() -> None:
@@ -90,8 +101,10 @@ def test_adversarial_hot_pixels_are_distinct_and_capped_at_the_pool() -> None:
     record = add_hot_pixels(
         electrons,
         fraction=25.0 / (64 * 64),
-        amplitude_e=1.0e4,
-        column_factor=0.0,
+        rate_e_per_sec=1.0e4,
+        readout_e=0.0,
+        streak_e=0.0,
+        exposure_sec=1.0,
         detector_id='coiss_nac',
         rng=np.random.default_rng(11),
         candidate_pool=(pool_v, pool_u),
@@ -100,7 +113,7 @@ def test_adversarial_hot_pixels_are_distinct_and_capped_at_the_pool() -> None:
         zip(pool_v.tolist(), pool_u.tolist(), strict=True)
     )
     planted = [float(electrons[v, u]) for v, u in record['pixels']]
-    assert planted == pytest.approx(record['amplitudes_e'])
+    assert planted == pytest.approx(record['charges_e'])
 
 
 def test_hot_pixels_disabled_at_zero_fraction() -> None:
@@ -109,8 +122,10 @@ def test_hot_pixels_disabled_at_zero_fraction() -> None:
     add_hot_pixels(
         electrons,
         fraction=0.0,
-        amplitude_e=1.0e4,
-        column_factor=0.5,
+        rate_e_per_sec=1.0e4,
+        readout_e=10.0,
+        streak_e=2.0,
+        exposure_sec=1.0,
         detector_id='coiss_nac',
         rng=np.random.default_rng(3),
     )
@@ -123,28 +138,30 @@ def test_hot_pixels_record_matches_planted_pixels() -> None:
     record = add_hot_pixels(
         electrons,
         fraction=0.01,
-        amplitude_e=1.0e4,
-        column_factor=0.0,
+        rate_e_per_sec=1.0e4,
+        readout_e=0.0,
+        streak_e=0.0,
+        exposure_sec=1.0,
         detector_id='coiss_nac',
         rng=_rng(4),
     )
     assert record['pixels']
-    for (v, u), amp in zip(record['pixels'], record['amplitudes_e'], strict=True):
+    for (v, u), amp in zip(record['pixels'], record['charges_e'], strict=True):
         assert float(electrons[v, u]) == pytest.approx(amp)
 
 
 def test_hot_pixels_mode_records_truth_end_to_end() -> None:
     """The hot_pixels mode writes its planted population into the frame truth."""
     scene = disc_scene(
-        'coiss_nac', artifacts={'hot_pixels': {'pixel_fraction': 0.002, 'amplitude_e': 4.0e4}}
+        'coiss_nac', artifacts={'hot_pixels': {'pixel_fraction': 0.002, 'rate_e_per_sec': 4.0e4}}
     )
     scene['bodies'] = []
     img, truth = render_scene(scene)
     record = truth['artifacts']['hot_pixels']
     assert record['pixels']
-    assert len(record['amplitudes_e']) == len(record['pixels'])
+    assert len(record['charges_e']) == len(record['pixels'])
     # The strongest planted pixel stands above the frame's background level.
-    idx = int(np.argmax(record['amplitudes_e']))
+    idx = int(np.argmax(record['charges_e']))
     v, u = record['pixels'][idx]
     assert float(img[v, u]) > float(np.median(img))
 
@@ -170,7 +187,7 @@ def test_a_calibrated_product_shares_its_cameras_hot_pixels() -> None:
 
 def _nac_map_pixels() -> list[list[int]]:
     """The NAC detector's hot pixels in a 96 by 96 frame at the camera's fraction."""
-    vs, us, _amps = detector_hot_pixel_map((96, 96), fraction=2.0e-3, detector_id='coiss_nac')
+    vs, us, _amps = detector_hot_pixel_map((96, 96), fraction=6.0e-4, detector_id='coiss_nac')
     return [[int(v), int(u)] for v, u in zip(vs, us, strict=True)]
 
 
@@ -244,23 +261,41 @@ def test_a_binned_frame_plants_the_binned_map() -> None:
     assert truth['artifacts']['hot_pixels']['pixels'] == expected
 
 
-def test_a_rendered_hot_pixel_bleeds_its_column_factor_up_the_column() -> None:
-    """The column above a lone hot pixel holds column_factor of its charge."""
-    hot = {'pixel_fraction': 0.002, 'amplitude_e': 1.0e4, 'column_factor': 0.5}
+def _rendered_hot_pixels(exposure_sec: float, hot: dict[str, float]) -> tuple[Any, Any]:
+    """A quiet 64 px NAC frame with a hot-pixel population, rendered."""
     scene = frame_scene(
         noise=quiet_noise(),
-        exposure_sec=0.1,
+        exposure_sec=exposure_sec,
         detector={'quantization': 'exact', 'bias_dn': 0.0},
-        artifacts={'hot_pixels': hot},
+        artifacts={'hot_pixels': {'pixel_fraction': 0.002, **hot}},
     )
     img, truth = render_scene(scene)
-    record = truth['artifacts']['hot_pixels']
-    columns = [u for _v, u in record['pixels']]
-    (v, u), amp = next(
-        (pixel, amp)
-        for pixel, amp in zip(record['pixels'], record['amplitudes_e'], strict=True)
-        if columns.count(pixel[1]) == 1 and pixel[0] > 0
+    return img, truth['artifacts']['hot_pixels']
+
+
+def test_rendered_hot_pixel_charge_follows_the_scene_exposure() -> None:
+    """A scene of twice the exposure plants twice the charge in each hot pixel."""
+    hot = {'rate_e_per_sec': 1.0e3, 'readout_e': 0.0, 'streak_e': 0.0}
+    _img, short_record = _rendered_hot_pixels(0.1, hot)
+    _img, long_record = _rendered_hot_pixels(0.2, hot)
+    assert long_record['charges_e'] == pytest.approx(
+        [2.0 * c for c in short_record['charges_e']]
     )
-    gain = resolve_detector_params(scene).gain_e_per_dn
-    # Each pixel of the column rounds to a whole DN.
-    assert float(img[:v, u].sum()) == pytest.approx(0.5 * amp / gain, abs=0.5 * v + 1.0)
+
+
+def test_a_rendered_hot_pixel_streaks_the_rows_read_after_it() -> None:
+    """The column below a lone hot pixel carries the streak, and the column above none."""
+    hot = {'rate_e_per_sec': 0.0, 'readout_e': 1.0e4, 'streak_e': 300.0}
+    img, record = _rendered_hot_pixels(0.1, hot)
+    columns = [u for _v, u in record['pixels']]
+    charge, (v, u) = max(
+        (charge, pixel)
+        for pixel, charge in zip(record['pixels'], record['charges_e'], strict=True)
+        if columns.count(pixel[1]) == 1 and 0 < pixel[0] < 63
+    )
+    gain = resolve_detector_params(frame_scene()).gain_e_per_dn
+    # Each pixel rounds to a whole DN.
+    per_row_dn = float(np.rint(300.0 * charge / 1.0e4 / gain))
+    assert per_row_dn > 0.0
+    assert np.all(img[:v, u] == 0.0)
+    assert np.all(img[v + 1 :, u] == per_row_dn)

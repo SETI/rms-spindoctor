@@ -162,7 +162,7 @@ def test_floor_scene_records_no_detector_artifacts() -> None:
 # the mode's activation key where the camera states it, and the shape a review checks.
 _DEFAULT_MODES: dict[str, dict[str, dict[str, Any]]] = {
     'coiss_wac': {
-        'hot_pixels': {'pixel_fraction': 2.0e-3},
+        'hot_pixels': {'pixel_fraction': 4.0e-4},
         'banding': {'orientation': 'horizontal'},
         'readout_dark': {'amplitude': 33.0},
         'bias_structure': {},
@@ -174,7 +174,12 @@ _DEFAULT_MODES: dict[str, dict[str, dict[str, Any]]] = {
         'bloom': {},
     },
     'gossi': {
-        'hot_pixels': {'pixel_fraction': 1.4e-6, 'amplitude_e': 4.0e4, 'column_factor': 0.5},
+        'hot_pixels': {
+            'pixel_fraction': 9.0e-5,
+            'rate_e_per_sec': 0.0,
+            'readout_e': 150.0,
+            'streak_e': 1.7,
+        },
         'banding': {'orientation': 'vertical'},
         'bias_structure': {},
         'bloom': {'bloom_length': 6},
