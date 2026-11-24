@@ -1706,6 +1706,10 @@ CI and test infrastructure:
 - **#953** — the shared-directory cleanup in `tests/conftest.py` calls
   `rmtree` on a directory symlink, which raises and leaves the link; check
   `is_symlink()` first. No test leaves one there today.
+- **#1165** (Priority 5) — CI skips the 31 dataset tests marked
+  `REQUIRES_PDS3_HOLDINGS`, because #820's fix stopped setting
+  `PDS3_HOLDINGS_DIR` there and the live archive was their only source.
+  Run them in CI again once a more reliable holdings source exists.
 
 Documentation bugs:
 
