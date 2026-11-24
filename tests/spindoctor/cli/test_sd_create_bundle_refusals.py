@@ -1,9 +1,9 @@
 """Tests that ``sd_create_bundle`` refuses, in one line, a dataset it cannot bundle.
 
-Two datasets cannot be bundled: one that makes no PDS4 bundle, and one that names a
-bundle the configuration gives no entry.  Every pass ends the same way for each, with
-one line and exit status 1 (the labels pass writes its line through the run logger), and
-these drive the program's entry point to show it.
+Two kinds of dataset cannot be bundled: one that does not make PDS4 bundles, and one
+whose bundle has no entry in the configuration.  For each, every pass ends with one line
+and exit status 1; the labels pass writes its line through the run logger.  These tests
+drive the program's entry point.
 """
 
 from pathlib import Path
@@ -39,7 +39,7 @@ def test_a_dataset_that_makes_no_bundle_is_refused_by_every_pass(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A dataset with no bundle ends the pass with one line naming it and status 1."""
+    """A dataset that does not make bundles ends the pass with one line giving its name."""
     with pytest.raises(SystemExit) as raised:
         _run(subcommand, 'vgiss', tmp_path, monkeypatch)
     assert raised.value.code == 1
@@ -53,12 +53,12 @@ def test_a_bundle_with_no_configuration_entry_is_refused_by_the_quiet_passes(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """A bundle key with no entry ends the pass with one line naming the key and status 1."""
+    """A bundle key that has no entry ends the pass with one line giving the key."""
     with pytest.raises(SystemExit) as raised:
         _run(subcommand, 'coiss_cruise', tmp_path, monkeypatch)
     assert raised.value.code == 1
     expected = (
-        "the pds4 section holds no entry for the bundle 'coiss_cruise', so no bundle can be made"
+        "the pds4 section has no entry for the bundle 'coiss_cruise', so no bundle can be made"
     )
     assert capsys.readouterr().out.strip().endswith(expected)
 
@@ -88,7 +88,7 @@ def test_the_labels_run_log_records_the_missing_entry_refusal(
     with pytest.raises(SystemExit) as raised:
         sd_create_bundle.main()
     assert raised.value.code == 1
-    refusal = "holds no entry for the bundle 'coiss_cruise', so no bundle can be made"
+    refusal = "has no entry for the bundle 'coiss_cruise', so no bundle can be made"
     logs = sorted(log_root.rglob('main_*.log'))
     assert len(logs) == 1
     assert refusal in logs[0].read_text()

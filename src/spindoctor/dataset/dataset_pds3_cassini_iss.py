@@ -426,8 +426,9 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
             The entry under the dataset's ``PDS4_CONFIG_KEY``.
 
         Raises:
-            NotImplementedError: If the dataset makes no bundle.
-            Pds4BundleEntryError: If the configuration gives the dataset's bundle no entry.
+            NotImplementedError: If the dataset does not make bundles.
+            Pds4BundleEntryError: If the ``pds4`` section has no entry for the dataset's
+                bundle.
         """
         if self.PDS4_CONFIG_KEY is None:
             raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
@@ -436,7 +437,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_bundle_template_dir(self) -> str:
         """Returns absolute path to template directory for PDS4 bundle generation.
 
-        Reads ``config.pds4.<dataset>.template_dir``: an absolute path is returned as it
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.template_dir``: an absolute path is returned as it
         is, and a bare name is taken under the packaged templates directory.
 
         Returns:
@@ -451,7 +452,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_bundle_name(self) -> str:
         """Returns bundle name for PDS4 bundle generation.
 
-        Reads ``config.pds4.<dataset>.bundle_name``.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.bundle_name``.
 
         Returns:
             Bundle name.
@@ -461,7 +462,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_bundle_version(self) -> str:
         """Returns the bundle's version, which each of the bundle's own products carries.
 
-        Reads ``config.pds4.<dataset>.bundle_version``.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.bundle_version``.
 
         Returns:
             The version, in the PDS4 ``<major>.<minor>`` form.
@@ -471,7 +472,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_information_model_version(self) -> str:
         """Returns the information model version the bundle's labels are written against.
 
-        Reads ``config.pds4.<dataset>.information_model_version``.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.information_model_version``.
 
         Returns:
             The version, in the PDS4 four-part form.
@@ -481,7 +482,7 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
     def pds4_schemas(self) -> dict[str, Pds4Schema]:
         """Returns the schema of each PDS4 dictionary the bundle's labels declare.
 
-        Reads ``config.pds4.<dataset>.schemas``.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.schemas``.
 
         Returns:
             Each dictionary's schema, by its namespace prefix, in the order the

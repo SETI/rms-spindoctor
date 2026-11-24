@@ -5,10 +5,9 @@ each image gets, and the PDS4 bundle that publishes them.  Each is a frozen data
 parsed through the schema core (:func:`spindoctor.schema.parse`) each time a
 configuration is installed, and every value lives in the packaged YAML.
 
-The ``pds4`` section holds one entry per bundle, keyed by the name a dataset class gives
-its bundle (:attr:`spindoctor.dataset.dataset.DataSet.PDS4_CONFIG_KEY`).  Its fields come
-from the dataset registry, so the type to parse is :func:`pds4_section_type`, which adds
-them.
+The ``pds4`` section holds one entry per bundle, keyed by the dataset class's
+:attr:`~spindoctor.dataset.dataset.DataSet.PDS4_CONFIG_KEY`.  Its fields come from the
+dataset registry, so the type to parse is the one :func:`pds4_section_type` builds.
 
 The module imports nothing from the rest of ``spindoctor`` but the schema core, so the
 dataset and product modules can import its types.
@@ -40,10 +39,10 @@ class IndexColumnEntry:
     """One column a global index table gives a statistic: its field name and description.
 
     Parameters:
-        name: The field's name, as the table's header line and its label give it: a
-            PDS4 dictionary attribute's name with the dictionary's prefix, as in
-            ``geom:minimum_latitude``, where the column holds the quantity that attribute
-            defines, and a name of its own otherwise.
+        name: The field's name, as the table's header line and its label give it.  A
+            column holding the quantity a PDS4 dictionary attribute defines takes that
+            attribute's name with the dictionary's prefix, as in
+            ``geom:minimum_latitude``.  Any other column has a name of its own.
         description: What the column's values are.
     """
 
@@ -65,8 +64,10 @@ class PlaneIndex:
         data_type: The PDS4 data type of every column's values, as in ``ASCII_Real``.
         minimum: The column of the plane's least value.
         maximum: The column of the plane's greatest value.
-        wrapped_minimum: The column of where the plane's range wrapped at zero starts.
-        wrapped_maximum: The column of where the plane's range wrapped at zero ends.
+        wrapped_minimum: The column holding the start of the plane's range wrapped at
+            zero.
+        wrapped_maximum: The column holding the end of the plane's range wrapped at
+            zero.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -112,8 +113,8 @@ class PlaneEntry:
     """One backplane every image gets: how it is computed and how it is indexed.
 
     Parameters:
-        name: The plane's name, under which the backplane metadata records its
-            statistic, and in upper case its FITS extension's name.
+        name: The plane's name.  The backplane metadata records the plane's statistic
+            under it, and the plane's FITS extension takes it in upper case.
         method: The oops backplane method the plane is evaluated with.
         units: The units the plane's array carries.  The plane's statistic is in the
             same units, except that an angular plane's is in degrees.
@@ -275,15 +276,15 @@ class Pds4Bundle:
 
 
 class Pds4BundleEntryError(LookupError):
-    """The ``pds4`` section holds no entry for a bundle key a dataset class names."""
+    """Raised when the ``pds4`` section has no entry for a dataset's bundle key."""
 
 
 @dataclass(frozen=True)
 class Pds4Section:
     """The base of the ``pds4`` section's type.
 
-    :func:`pds4_section_type` adds one optional field per bundle a dataset class names,
-    so a key that names no dataset's bundle is refused.
+    :func:`pds4_section_type` adds one optional field for each dataset class's bundle
+    key, so an entry under any other key is refused.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -292,17 +293,17 @@ class Pds4Section:
         """Return one bundle's entry.
 
         Parameters:
-            key: The name a dataset class gives its bundle.
+            key: A dataset class's ``PDS4_CONFIG_KEY``.
 
         Returns:
             The bundle's entry.
 
         Raises:
-            Pds4BundleEntryError: If the section holds no entry for the bundle.
+            Pds4BundleEntryError: If the section has no entry for the bundle.
         """
         entry = getattr(self, key, None)
         if not isinstance(entry, Pds4Bundle):
-            raise Pds4BundleEntryError(f'the pds4 section holds no entry for the bundle {key!r}')
+            raise Pds4BundleEntryError(f'the pds4 section has no entry for the bundle {key!r}')
         return entry
 
 
@@ -311,11 +312,11 @@ def pds4_section_type(keys: tuple[str, ...]) -> type[Pds4Section]:
     """Return the type of the ``pds4`` section for a set of bundles.
 
     Parameters:
-        keys: The names the dataset classes give their bundles.
+        keys: The ``PDS4_CONFIG_KEY`` of each dataset class that makes bundles.
 
     Returns:
         A frozen schema dataclass with one optional field of :class:`Pds4Bundle` per
-        bundle.  A bundle the files give no entry reads as None.
+        bundle.  A bundle that has no entry in the files reads as None.
     """
     section_type: type[Pds4Section] = dataclasses.make_dataclass(
         'Pds4Section',

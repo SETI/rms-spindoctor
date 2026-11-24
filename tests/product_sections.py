@@ -27,9 +27,9 @@ def _packaged_backplanes() -> BackplanesSection:
     """Return the ``backplanes`` section of the packaged configuration.
 
     The packaged files are read once per process, into a configuration of their own,
-    so no override another test applies to the shared configuration reaches it.  The
-    load puts back the settings the technique classes held before it, so a technique
-    override another test applied survives.
+    so overrides that other tests apply to the shared configuration do not reach it.
+    The load then restores the settings the technique classes held before it, so a
+    technique override that another test applied survives.
     """
     saved = [
         (cls, name, cls.__dict__[name])

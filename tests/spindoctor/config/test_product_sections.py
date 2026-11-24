@@ -37,13 +37,13 @@ def test_packaged_pds4_section_parses() -> None:
 
 
 def test_the_pds4_section_accepts_each_registered_dataset_s_bundle() -> None:
-    """Each bundle key a registered dataset class gives is a field of the section."""
+    """Each registered dataset class's bundle key is a field of the section."""
     fields = set(Config().pds4.__dataclass_fields__)
     assert fields == set(pds4_config_keys())
 
 
 def test_a_pds4_key_no_dataset_names_is_refused_at_load(tmp_path: Path) -> None:
-    """An entry for a bundle no dataset makes is refused, naming the file and the key."""
+    """An entry for a bundle that no dataset makes is refused with the file and the key."""
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text('pds4:\n  no_such_bundle:\n    bundle_name: x\n', encoding='utf-8')
     expected = f"{user_path}: pds4: unknown keys: ['no_such_bundle']"
@@ -52,12 +52,12 @@ def test_a_pds4_key_no_dataset_names_is_refused_at_load(tmp_path: Path) -> None:
 
 
 def test_the_pds4_section_accepts_exactly_the_bundle_keys_of_the_datasets() -> None:
-    """The keys are the ones the datasets that make bundles name, and no others."""
+    """The keys are exactly those of the datasets that make bundles."""
     assert set(pds4_config_keys()) == {'coiss_cruise', 'coiss_saturn'}
 
 
 def test_an_entry_for_a_dataset_that_has_no_bundle_is_refused_at_load(tmp_path: Path) -> None:
-    """An entry under a key that is no bundle's key, such as vgiss, is refused."""
+    """An entry under a key that is not a bundle key, such as vgiss, is refused."""
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text('pds4:\n  vgiss:\n    bundle_name: x\n', encoding='utf-8')
     expected = f"{user_path}: pds4: unknown keys: ['vgiss']"
@@ -66,7 +66,7 @@ def test_an_entry_for_a_dataset_that_has_no_bundle_is_refused_at_load(tmp_path: 
 
 
 def test_a_bundle_with_no_entry_is_refused() -> None:
-    """Looking up a bundle the files give no entry raises, naming the bundle."""
+    """Looking up a bundle that has no entry in the files raises with its key."""
     section = pds4_section_type(('a_bundle',))()
     with pytest.raises(Pds4BundleEntryError, match="no entry for the bundle 'a_bundle'"):
         section.bundle('a_bundle')

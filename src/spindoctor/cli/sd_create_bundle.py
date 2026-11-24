@@ -699,16 +699,16 @@ def main_check() -> None:
 
 
 def _refuse_dataset_without_bundles(subcommand_arguments: list[str]) -> None:
-    """Stop, naming the dataset, when the one on the command line makes no PDS4 bundle.
+    """Stop when the dataset on the command line does not make PDS4 bundles.
 
-    Every pass reads the dataset's bundle hooks, so the refusal is made once, before any
-    pass runs.  A name that is no dataset is left to the pass, which reports it.
+    Every pass reads the dataset's bundle hooks, so the check is made once, before any
+    pass runs.  If the name is not a dataset, the pass reports that itself.
 
     Parameters:
         subcommand_arguments: The arguments after the subcommand, the dataset name first.
 
     Raises:
-        SystemExit: With status 1 when the dataset class names no bundle.
+        SystemExit: With status 1 when the dataset class has no ``PDS4_CONFIG_KEY``.
     """
     if len(subcommand_arguments) == 0:
         return

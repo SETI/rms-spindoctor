@@ -92,8 +92,8 @@ class TypedSections:
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
         backplanes: The ``backplanes`` section.
-        pds4: The ``pds4`` section: each bundle's entry, keyed by the name its dataset
-            class gives the bundle.
+        pds4: The ``pds4`` section: each bundle's entry, keyed by its dataset class's
+            ``PDS4_CONFIG_KEY``.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -162,7 +162,7 @@ def _typed_sections_type(
 
     Parameters:
         techniques: The shipped technique classes, in registry order.
-        pds4_bundles: The names the dataset classes give their bundles.
+        pds4_bundles: The ``PDS4_CONFIG_KEY`` of each dataset class that makes bundles.
 
     Returns:
         A subclass of :class:`TypedSections` whose ``techniques`` field has the section

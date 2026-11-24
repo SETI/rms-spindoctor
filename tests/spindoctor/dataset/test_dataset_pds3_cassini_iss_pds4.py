@@ -316,6 +316,6 @@ def test_cassini_lid_charset_is_pds4_legal(tmp_path: Path) -> None:
 
 
 def test_the_undivided_cassini_dataset_makes_no_bundle() -> None:
-    """The dataset covering no one division of the mission has no bundle to name."""
+    """The dataset that spans the whole mission does not make a bundle."""
     with pytest.raises(NotImplementedError, match='not supported for this dataset'):
         DataSetPDS3CassiniISS().pds4_bundle_name()

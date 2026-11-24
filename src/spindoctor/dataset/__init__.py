@@ -57,8 +57,8 @@ def pds4_config_keys() -> tuple[str, ...]:
     """Return the key of each registered dataset's bundle in the ``pds4`` config section.
 
     Returns:
-        Each key a registered dataset class gives as its ``PDS4_CONFIG_KEY``, once each
-        and sorted.  A dataset that makes no bundle gives none.
+        The ``PDS4_CONFIG_KEY`` of every registered dataset class that sets one, sorted
+        and without repeats.
     """
     return tuple(
         sorted(

@@ -182,8 +182,9 @@ class DataSet(ABC, NavBase):
             log; routing them to the image logger would file them under
             whichever image happened to be open, or none at all.
         PDS4_CONFIG_KEY: The key of the dataset's bundle in the configuration's ``pds4``
-            section, or None for a dataset that makes no PDS4 bundle.  The section
-            accepts an entry under each key a registered dataset class gives here.
+            section, or None for a dataset that does not make PDS4 bundles.  The
+            section accepts an entry under the key each registered dataset class sets
+            here.
     """
 
     log_role: ClassVar[LogRole] = LogRole.MAIN
