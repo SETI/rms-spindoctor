@@ -11,7 +11,8 @@ mistakes by construction.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -21,33 +22,28 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import LimbPolyline
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics
-from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig, evaluate_dt_fit_gates
+from spindoctor.nav_technique.dt_fit_gates import evaluate_dt_fit_gates
 from spindoctor.nav_technique.dt_fitting import (
     coarse_polarity_search_scored,
     lm_subpixel_refine,
 )
+from spindoctor.nav_technique.dt_tuning import DTTuning
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     add_model_error_floor,
-    load_model_error_floor,
     log_confidence_breakdown,
     rotation_pivot_distance_px,
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.schema import SCHEMA_CONFIG, Bool, NonNeg, Unit
 from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['BodyLimbNav']
-
-# All numeric tunables for this technique live in
-# ``config_files/config_510_techniques.yaml`` under
-# ``techniques.BodyLimbNav.tuning``.  No Python-level fallback;
-# missing-key access in ``__init__`` is a KeyError so a config typo
-# fails fast at process startup.
+__all__ = ['BodyLimbNav', 'BodyLimbTuning']
 
 
 def _aggregate_limb_features(
@@ -91,6 +87,29 @@ def _aggregate_limb_features(
     return vertices, normals, sigmas, ids
 
 
+@dataclass(frozen=True)
+class BodyLimbTuning(DTTuning):
+    """The tuning keys of :class:`BodyLimbNav`, beyond those every DT technique holds.
+
+    Parameters:
+        min_arc_vertices: The fewest surviving polyline vertices a limb arc needs to
+            take part in the fit.
+        spurious_unconverged_trust_boundary_fraction: An LM that fails to converge and
+            ends at least this fraction of the trust region from the coarse seed marks
+            the fit spurious.
+        gradient_ridge_refine: Whether the gradient-ridge refinement runs after the LM.
+        model_error_floor_px: The model-error floor in pixels, added in quadrature to
+            the translation covariance.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    min_arc_vertices: NonNeg
+    spurious_unconverged_trust_boundary_fraction: Unit
+    gradient_ridge_refine: Bool
+    model_error_floor_px: NonNeg
+
+
 class BodyLimbNav(NavTechnique):
     """Body-limb DT-based translation fit.
 
@@ -107,6 +126,8 @@ class BodyLimbNav(NavTechnique):
     """
 
     name = 'BodyLimbNav'
+    Tuning = BodyLimbTuning
+    tuning: ClassVar[BodyLimbTuning]
     accepts_feature_types = frozenset({NavFeatureType.LIMB_ARC})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -122,36 +143,14 @@ class BodyLimbNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
-        """Read the technique's tunables from config.
+        """Load the configuration, which sets the technique's tuning.
 
         Parameters:
             config: Optional ``Config`` override; ``None`` uses
                 ``DEFAULT_CONFIG``.
-
-        Raises:
-            KeyError: If any tuning key is missing, so a config typo fails
-                at process startup rather than mid-image.
         """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._min_arc_vertices = float(self.tuning['min_arc_vertices'])
-        self._spurious_dt_rms_factor = float(self.tuning['spurious_dt_rms_factor'])
-        self._spurious_dt_floor_px = float(self.tuning['spurious_dt_floor_px'])
-        self._spurious_min_inliers = int(self.tuning['spurious_min_inliers'])
-        self._spurious_min_inlier_fraction = float(self.tuning['spurious_min_inlier_fraction'])
-        self._spurious_max_lm_displacement_px = float(
-            self.tuning['spurious_max_lm_displacement_px']
-        )
-        self._spurious_unconverged_trust_boundary_fraction = float(
-            self.tuning['spurious_unconverged_trust_boundary_fraction']
-        )
-        self._lm_trust_region_px = float(self.tuning['lm_trust_region_px'])
-        self._lm_tikhonov_alpha = float(self.tuning['lm_tikhonov_alpha'])
-        self._gradient_ridge_refine = bool(self.tuning['gradient_ridge_refine'])
-        self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
-        self._dt_gate_config = DTFitGateConfig.from_tuning(self.tuning)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable limb arc.
@@ -173,7 +172,7 @@ class BodyLimbNav(NavTechnique):
             f
             for f in features
             if isinstance(f.geometry, LimbPolyline)
-            and f.geometry.vertices_vu.shape[0] >= self._min_arc_vertices
+            and f.geometry.vertices_vu.shape[0] >= self.tuning.min_arc_vertices
         ]
         if not eligible:
             return NavFeasibilityReport(
@@ -229,7 +228,7 @@ class BodyLimbNav(NavTechnique):
                 f
                 for f in features
                 if isinstance(f.geometry, LimbPolyline)
-                and f.geometry.vertices_vu.shape[0] >= self._min_arc_vertices
+                and f.geometry.vertices_vu.shape[0] >= self.tuning.min_arc_vertices
             ]
             self.logger.info(
                 'Consuming %d LIMB_ARC features (out of %d offered)',
@@ -293,14 +292,14 @@ class BodyLimbNav(NavTechnique):
                 fit_rotation=fit_rotation,
                 pivot_vu=pivot_vu if fit_rotation else None,
                 pivot_distance_px=pivot_distance,
-                trust_region_px=self._lm_trust_region_px,
-                tikhonov_alpha=self._lm_tikhonov_alpha,
-                final_gradient_ridge=self._gradient_ridge_refine,
+                trust_region_px=self.tuning.lm_trust_region_px,
+                tikhonov_alpha=self.tuning.lm_tikhonov_alpha,
+                final_gradient_ridge=self.tuning.gradient_ridge_refine,
             )
             dv_final, du_final = result.offset_vu
             max_rotation_rad = math.radians(context.max_rotation_deg)
             rotation_at_edge = fit_rotation and (
-                abs(result.rotation_rad) >= self._rotation_at_edge_fraction * max_rotation_rad
+                abs(result.rotation_rad) >= self.tuning.rotation_at_edge_fraction * max_rotation_rad
             )
             covariance = result.covariance
             rotation_rad: float | None
@@ -331,8 +330,8 @@ class BodyLimbNav(NavTechnique):
             # window and produces an offset that ``ObsSnapshot.extract_offset_array``
             # cannot honor without zero-fill.
             at_edge = (
-                abs(dv_final) >= margin_v - self._at_edge_tolerance_px
-                or abs(du_final) >= margin_u - self._at_edge_tolerance_px
+                abs(dv_final) >= margin_v - self.tuning.at_edge_tolerance_px
+                or abs(du_final) >= margin_u - self.tuning.at_edge_tolerance_px
                 or rotation_at_edge
             )
             sigma_min_px = float(sigmas.min()) if sigmas.size else 1.0
@@ -361,12 +360,12 @@ class BodyLimbNav(NavTechnique):
             # it with the same DT residual threshold the weighted check
             # uses (mirrors ``RingEdgeNav``).
             dt_rms_threshold = max(
-                self._spurious_dt_floor_px,
-                self._spurious_dt_rms_factor * sigma_min_px,
+                self.tuning.spurious_dt_floor_px,
+                self.tuning.spurious_dt_rms_factor * sigma_min_px,
             )
             gate_verdict = evaluate_dt_fit_gates(
                 result,
-                self._dt_gate_config,
+                self.tuning,
                 coarse_peak_fraction=coarse.score,
                 total_vertex_count=n_vertices,
                 use_polarity=True,
@@ -389,22 +388,23 @@ class BodyLimbNav(NavTechnique):
             # ``dev_guide_techniques_body_limb``.
             unconverged_at_trust_boundary = not gate_verdict.lm_converged and (
                 lm_displacement_px
-                >= self._spurious_unconverged_trust_boundary_fraction * self._lm_trust_region_px
+                >= self.tuning.spurious_unconverged_trust_boundary_fraction
+                * self.tuning.lm_trust_region_px
             )
             if unconverged_at_trust_boundary:
                 self.logger.info(
                     'Coarse-seed mis-lock: LM unconverged and pinned %.3f px from the '
                     'coarse seed (trust region %.3f px); flagging spurious',
                     lm_displacement_px,
-                    self._lm_trust_region_px,
+                    self.tuning.lm_trust_region_px,
                 )
             spurious = (
                 result.degenerate
                 or result.rms_px > dt_rms_threshold
                 or result.raw_rms_px > dt_rms_threshold
-                or result.inlier_count < self._spurious_min_inliers
-                or inlier_fraction < self._spurious_min_inlier_fraction
-                or lm_displacement_px > self._spurious_max_lm_displacement_px
+                or result.inlier_count < self.tuning.spurious_min_inliers
+                or inlier_fraction < self.tuning.spurious_min_inlier_fraction
+                or lm_displacement_px > self.tuning.spurious_max_lm_displacement_px
                 or unconverged_at_trust_boundary
                 or gate_verdict.spurious
             )
@@ -463,7 +463,7 @@ class BodyLimbNav(NavTechnique):
                 visible_limb_arc_fraction,
             )
             # Model-error floor (#210); rationale on load_model_error_floor.
-            covariance = add_model_error_floor(covariance, self._model_error_floor_px)
+            covariance = add_model_error_floor(covariance, self.tuning.model_error_floor_px)
             return NavTechniqueResult(
                 technique_name=self.name,
                 feature_ids=tuple(feature_ids),

@@ -113,6 +113,50 @@ returns the typed object:
   ``programs`` as a :class:`~spindoctor.config.logging_keys.ProgramLogging`. Its
   module keys come from the technique and model registries, so the set of keys it
   accepts is known only when the program runs; see :doc:`dev_guide_logging`.
+- ``techniques`` — one block per technique the package ships: its confidence formula
+  and its tuning (see :ref:`config-techniques-section`).
+
+.. _config-techniques-section:
+
+The techniques section
+^^^^^^^^^^^^^^^^^^^^^^
+
+The ``techniques`` section's type is built from the technique registry
+(:mod:`spindoctor.nav_technique.confidence_config`), so no list of techniques is
+written twice. :func:`~spindoctor.config.sections.typed_sections_type` returns the type
+the loader parses: :class:`~spindoctor.config.sections.TypedSections` with one field
+per shipped technique. Techniques that tests register are not shipped, have no block,
+and set their own confidence formula.
+
+A block holds the technique's confidence formula (``alpha0``, ``terms``,
+``hard_zero_if``, and ``hard_cap``; see :doc:`dev_guide_techniques_confidence`) and its
+``tuning`` mapping:
+
+- A technique declares ``Tuning``, a frozen schema dataclass of its tuning keys. The
+  loader parses the block's ``tuning`` into that type, and the technique reads
+  ``self.tuning.key``. The DT techniques' types share
+  :class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which in turn holds the keys of
+  the shared fit-quality gates
+  (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`).
+- The block of a technique that declares ``Tuning`` is keyed by the technique's
+  snake_case key, the one ``logging.techniques`` uses
+  (:func:`~spindoctor.config.logging_keys.log_key_for`): ``body_limb``,
+  ``body_terminator``, and ``ring_edge``. The technique's ``name``, which results and
+  metadata carry, does not change.
+- The techniques whose tuning is not typed yet declare no ``Tuning``. Their blocks keep
+  the class name, as in ``BodyBlobNav``, and their ``tuning`` is a mapping of numbers
+  that the technique reads by key. A key in that mapping is checked only for being a
+  number, so a misspelled key is accepted and nothing reads it. Each family moves to a
+  ``Tuning`` type and a snake_case name in turn.
+- The ``terms`` and the ``hard_zero_if`` keys of a block may refer only to the
+  diagnostic attributes its technique declares in ``confidence_attributes``. Any other
+  attribute is refused at load with the file and key path, as in
+  ``techniques.body_limb.terms[0].feature``.
+
+Each time a configuration is installed, the loader assigns every shipped technique
+class its ``confidence_spec`` and ``tuning`` from the parsed section. An override that
+is refused assigns nothing. A block under a name the section does not use, such as a
+typed technique's class name, is refused as an unknown key.
 
 The rules for a typed section:
 
@@ -263,10 +307,11 @@ Each shipping file and what it holds:
 - ``config_420_inst_nhlorri`` — New Horizons LORRI instrument-specific settings.
 - ``config_430_inst_vgiss`` — Voyager ISS instrument-specific settings.
 - ``config_440_sim`` — simulated-image settings.
-- ``config_510_techniques`` — per-NavTechnique confidence-formula coefficients and
-  runtime tunables (spurious-detection thresholds, at-edge tolerances, minimum
-  arc lengths) plus the planet-specific ``feature_emission.ring_annulus`` block
-  that decides RING_EDGE vs RING_ANNULUS emission.
+- ``config_510_techniques`` — the ``techniques`` section, each technique's
+  confidence-formula coefficients and runtime tunables (spurious-detection thresholds,
+  at-edge tolerances, minimum arc lengths), plus the planet-specific
+  ``feature_emission.ring_annulus`` block that decides RING_EDGE vs RING_ANNULUS
+  emission.
 - ``config_540_orchestrator`` — the ``orchestrator`` section: the ensemble combine's
   tunables and confidence tiers, and the per-feature-type reliability gate.
 - ``config_900_backplanes`` — backplane-generation settings.

@@ -177,8 +177,8 @@ than ~1.5 px from the DT-LM pose. When the stage runs, the reported residuals / 
 covariance are recomputed against the DT at the refined pose so the spurious gates stay on the
 same footing as without it.
 
-The per-technique ``gradient_ridge_refine`` tuning flag is **on (1) for
-RingEdgeNav and off (0) for the limb and terminator fits**. It is correct for *symmetric*
+The per-technique ``gradient_ridge_refine`` tuning flag is **on for
+RingEdgeNav and off for the limb fit**; the terminator fit never runs the stage. It is correct for *symmetric*
 edges only:
 
 - The ring edge benefits on dense real ring scenes: the binary edge mask quantizes detected
@@ -506,9 +506,11 @@ Shared fit-quality gates
 fitting machinery's health signals; every DT technique calls
 :func:`~spindoctor.nav_technique.dt_fit_gates.evaluate_dt_fit_gates` with its
 :class:`~spindoctor.nav_technique.dt_fitting.LMRefineResult`, its coarse acquisition score,
-and its per-technique thresholds
-(:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`, read from the technique's
-``tuning`` block). Three signals feed the verdict:
+and its per-technique thresholds, which are the technique's own tuning: each DT
+technique's tuning type extends
+:class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which extends
+:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`, the four gate keys of the
+technique's ``tuning`` block. Three signals feed the verdict:
 
 - **LM convergence** (``lm_unconverged_confidence_cap``). A fit that reached no local
   optimum in either stage is unverified, not necessarily wrong: formal convergence flickers

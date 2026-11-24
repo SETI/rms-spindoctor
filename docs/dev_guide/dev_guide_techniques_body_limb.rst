@@ -168,66 +168,75 @@ low-phase band) also clears it, because convergence is the discriminator.
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.BodyLimbNav.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``.
+All tunables for this technique live in ``techniques.body_limb.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. The schema core parses them
+into :class:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbTuning` when the
+configuration loads, so each value's type and range are checked there, and the technique
+reads them as ``self.tuning.<key>``. Each value lives in the YAML only; the values given
+below are the packaged ones.
 
-- ``min_arc_vertices`` — float, default ``30.0``. Minimum surviving vertex count per
-  ``LIMB_ARC`` for feasibility. Arcs with fewer vertices do not constrain a 2-D translation
-  enough to be worth the LM iteration.
-- ``spurious_dt_rms_factor`` — float, default ``5.0`` (dimensionless). Final DT residual
-  exceeding this many limb-sigmas marks the result spurious.
-- ``spurious_dt_floor_px`` — float, default ``3.0`` px. Floor of the spurious-detection
-  threshold; the threshold is the larger of the floor and the per-feature sigma multiple.
-- ``spurious_min_inliers`` — int, default ``6`` (count). Below this Tukey-inlier count the
-  M-estimator covariance is uninformative; the result is flagged spurious.
-- ``spurious_min_inlier_fraction`` — float, default ``0.20`` (dimensionless). Below this
-  inlier fraction the LM has almost certainly walked off the true limb onto internal-body
-  features (crater rims, terminator, surface boundaries); the result is flagged spurious.
-  A clean limb fit on a fully-visible body retains 50 %+ of vertices as inliers, and image
-  dropouts and cosmic rays account for at most a few percent more rejection, so below 20 %
-  is a strong mis-convergence signature.
-- ``spurious_max_lm_displacement_px`` — float, default ``4.0`` px. If the LM moves more
-  than this many pixels from the integer coarse-NCC seed, flag spurious. Defensive: with
-  the trust region below the LM cannot leave the coarse basin, so this guard normally
+- ``min_arc_vertices`` — float, packaged value ``30.0``. Minimum surviving vertex count
+  per ``LIMB_ARC`` for feasibility. Arcs with fewer vertices do not constrain a 2-D
+  translation enough to be worth the LM iteration.
+- ``spurious_dt_rms_factor`` — float, packaged value ``5.0`` (dimensionless). Final DT
+  residual exceeding this many limb-sigmas marks the result spurious.
+- ``spurious_dt_floor_px`` — float, packaged value ``3.0`` px. Floor of the
+  spurious-detection threshold; the threshold is the larger of the floor and the
+  per-feature sigma multiple.
+- ``spurious_min_inliers`` — int, packaged value ``6`` (count). Below this Tukey-inlier
+  count the M-estimator covariance is uninformative; the result is flagged spurious.
+- ``spurious_min_inlier_fraction`` — float, packaged value ``0.20`` (dimensionless). Below
+  this inlier fraction the LM has almost certainly walked off the true limb onto
+  internal-body features (crater rims, terminator, surface boundaries); the result is
+  flagged spurious. A clean limb fit on a fully-visible body retains 50 %+ of vertices as
+  inliers, and image dropouts and cosmic rays account for at most a few percent more
+  rejection, so below 20 % is a strong mis-convergence signature.
+- ``spurious_max_lm_displacement_px`` — float, packaged value ``4.0`` px. If the LM moves
+  more than this many pixels from the integer coarse-NCC seed, flag spurious. Defensive:
+  with the trust region below the LM cannot leave the coarse basin, so this guard normally
   never fires; it catches any future regression that bypasses the trust region. Set
   slightly larger than ``lm_trust_region_px``.
-- ``spurious_unconverged_trust_boundary_fraction`` — float, default ``0.9`` (dimensionless).
-  Coarse-seed mis-lock gate. A fit that BOTH failed to converge AND ended at least this
-  fraction of the trust region away from the integer coarse seed was pinned against the
-  trust-region boundary trying to escape a wrong-basin seed; it is flagged spurious rather
-  than allowed to emit a confident multi-pixel offset. This is the low-phase
-  (below ~15 deg) under-conditioned failure where a false overlap peak seeds the wrong basin.
-  A healthy sub-pixel fit sits within ~0.71 px of its integer seed and converges, so it
-  is not flagged. Convergence is the decisive condition: a fit that legitimately walks to
-  the trust-region boundary but still converges is not flagged, because the test requires
-  both a failure to converge and a boundary-pinned displacement.
-- ``lm_trust_region_px`` — float, default ``1.0`` px. Maximum LM displacement from the
-  integer coarse seed; the LM rejects any trial step that would land outside this
+- ``spurious_unconverged_trust_boundary_fraction`` — float, packaged value ``0.9``
+  (dimensionless). Coarse-seed mis-lock gate. A fit that BOTH failed to converge AND ended
+  at least this fraction of the trust region away from the integer coarse seed was pinned
+  against the trust-region boundary trying to escape a wrong-basin seed; it is flagged
+  spurious rather than allowed to emit a confident multi-pixel offset. This is the
+  low-phase (below ~15 deg) under-conditioned failure where a false overlap peak seeds the
+  wrong basin. A healthy sub-pixel fit sits within ~0.71 px of its integer seed and
+  converges, so it is not flagged. Convergence is the decisive condition: a fit that
+  legitimately walks to the trust-region boundary but still converges is not flagged,
+  because the test requires both a failure to converge and a boundary-pinned displacement.
+- ``lm_trust_region_px`` — float, packaged value ``1.0`` px. Maximum LM displacement from
+  the integer coarse seed; the LM rejects any trial step that would land outside this
   radius without committing. The coarse search returns the integer-pixel polarity-weighted
-  match maximum, so the true sub-pixel optimum is within ~0.71 px of the seed — 1.0 px gives
-  legitimate sub-pixel refinement headroom while denying the LM the runway to reach a
-  2-4 px-away spurious minimum.
-- ``lm_tikhonov_alpha`` — float, default ``0.0`` (dimensionless). Tikhonov anchor strength
-  toward the coarse-NCC seed. Zero by default: an anchor strong enough to prevent
-  multi-pixel walks on textured bodies also prevents legitimate sub-pixel refinement on
-  clean ones, and the trust region is the harder bound.
-- ``gradient_ridge_refine`` — int flag, default ``0`` (OFF). Final continuous
+  match maximum, so the true sub-pixel optimum is within ~0.71 px of the seed — 1.0 px
+  gives legitimate sub-pixel refinement headroom while denying the LM the runway to reach
+  a 2-4 px-away spurious minimum.
+- ``lm_tikhonov_alpha`` — float, packaged value ``0.0`` (dimensionless). Tikhonov anchor
+  strength toward the coarse-NCC seed. Zero in the packaged file: an anchor strong enough
+  to prevent multi-pixel walks on textured bodies also prevents legitimate sub-pixel
+  refinement on clean ones, and the trust region is the harder bound.
+- ``gradient_ridge_refine`` — boolean, packaged value ``false``. Final continuous
   gradient-ridge sub-pixel refinement after the DT LM converges. Held off for the limb:
   the dominant limb error is the model-vs-image edge offset discussed above, not DT
   quantization, and refining onto the gradient peak sharpens that offset. See
   :doc:`dev_guide_techniques_dt_fitting`.
-- ``model_error_floor_px`` — float, default ``2.61`` px. Calibrated model-error floor
-  added in quadrature to the covariance's translation diagonal (see "Sources of
-  uncertainty"). The 2026-07-18 calibration campaign measured 2-sigma coverage 0.68 at
-  a 0.92 px floor and 0.86 at this value. The floor sits above the medium tier's 2.0 px
+- ``model_error_floor_px`` — float, packaged value ``2.61`` px. Calibrated model-error
+  floor added in quadrature to the covariance's translation diagonal (see "Sources of
+  uncertainty"). The 2026-07-18 calibration campaign measured 2-sigma coverage 0.68 at a
+  0.92 px floor and 0.86 at this value. The floor sits above the medium tier's 2.0 px
   sigma cap, so a limb-only fix surfaces as a low-tier result. That tier matches the
   accuracy of a limb whose position error is set by unmodeled terrain.
-- ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
-  distance from any search-window axis bound falls within this tolerance is flagged
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Matches the bilinear-DT half-cell width.
-- ``rotation_at_edge_fraction`` — float, default ``0.95`` (dimensionless). When
-  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true, the converged rotation magnitude trips :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it
-  crosses this fraction of the per-image :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` cap.
+- ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. A converged offset whose
+  absolute distance from any search-window axis bound falls within this tolerance is
+  flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
+  Matches the bilinear-DT half-cell width.
+- ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). When
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true,
+  the converged rotation magnitude trips
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it
+  crosses this fraction of the per-image
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` cap.
 
 Per-instrument overrides
 ------------------------
@@ -243,7 +252,7 @@ Confidence formula
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared sigmoid
 combination, see :doc:`dev_guide_techniques_confidence` for the per-term arithmetic and
 :doc:`dev_guide_techniques` for the family-level overview of confidence. The formula spec is
-``techniques.BodyLimbNav`` in the same YAML file and consumes attributes off
+``techniques.body_limb`` in the same YAML file and consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.BodyLimbDiagnostics` plus the :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious` flags carried on the result.
 
