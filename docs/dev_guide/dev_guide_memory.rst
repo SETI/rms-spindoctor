@@ -315,7 +315,39 @@ building anything. When nothing in front of the body was in view either, the
 navigation records ``body_fills_fov`` as its reason, which is what lets a
 statistics report omit the image as one that could not have been navigated.
 
-The ring model's pre-check is the same idea: a 16 x 16 evaluation rules out the two
-common cases -- no ring-plane intersection anywhere in the frame, and a visible radial range
-entirely outside the catalog's outermost feature -- without paying for a dense
-backplane.
+The ring model's pre-check asks the same kind of question of the ring plane: can any of
+it inside the catalog's outermost radius appear in the extended frame? That part of the
+plane is a disc around the planet, and seen from the spacecraft it covers one connected
+patch of sky. Draw a loop through the outermost pixel centers of the extended frame. If
+the patch covers any pixel center inside that loop, either it crosses the loop or it
+lies wholly inside it, and then it holds the planet center.
+:func:`~spindoctor.nav_model.ring_visibility.ring_disc_view` therefore traces the loop
+on the ring plane and projects the planet center into the frame. The model declines
+only when the center falls outside the frame and the trace never comes within the
+outermost radius of the planet.
+
+The trace comes from one backplane over the boundary pixel centers, which gives the ring
+radius and longitude where each pixel's ray meets the plane. A straight row of pixels
+looks out along a flat fan of rays, and a flat fan meets the ring plane along a straight
+line, so between two neighboring boundary pixels the trace is the straight segment
+joining their intercepts. Camera distortion bends a row by far too little over one pixel
+to change that. The segment is what catches a band thinner than a pixel, seen nearly
+edge-on, where it crosses the boundary between two pixel centers: neither pixel lands on
+the band, but the segment joining them passes through it.
+
+A straight side crosses the ring plane's horizon at most once, so the pixels on it that
+meet the plane form one unbroken run. Near the horizon oops occasionally fails to
+compute an intercept, and the trace bridges such pixels with the segment joining the
+nearest pixels on either side that meet the plane. Where a side does cross the horizon,
+the intercepts along it run off to infinity, and the trace carries on past the last
+pixel that meets the plane, along the line through that pixel and its neighbor. Two
+neighbors that both look away from the plane have nothing between them on it.
+
+The test holds for any viewing geometry. A distant ring system a few pixels across has
+its center in the frame. A band seen nearly edge-on crosses the boundary, however thin
+it is. A frame that lies wholly over the rings, inside the outermost radius, has its
+whole trace inside the disc. When the trace cannot be followed, because only one pixel
+on a side that crosses the horizon meets the plane, or when the planet center cannot be
+projected, the model does not decline. The frame then goes to the whole-frame backplane,
+which is slower but always correct. The boundary backplane costs tens of milliseconds,
+against several seconds for the whole-frame ring backplane it avoids.

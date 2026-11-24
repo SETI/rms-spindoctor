@@ -33,6 +33,11 @@ spindoctor.nav_model
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_model.ring_visibility
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_model.nav_model_titan
    :members:
    :undoc-members:
