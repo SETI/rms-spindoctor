@@ -1713,7 +1713,12 @@ The keys of an entry, all directly under the instrument's top-level key:
      - ``throughput_e_per_s_per_if`` (electrons per second per native pixel at
        I/F 1.0, by filter combination, spelled canonically), ``clear`` (the
        combination the star zero point refers to), and optionally
-       ``polarizer_clear`` (the clear element each polarizer folds onto).
+       ``polarizer_clear`` (the clear element each polarizer folds onto) and
+       ``passbands`` (the name of a table in ``sim/instruments/passbands/`` of
+       each combination's system transmission against wavelength, which a
+       wavelength-dependent body property such as Titan's haze weights by the
+       solar spectrum beside it; ``util/passbands/build_passbands.py`` builds the
+       tables from the camera team's calibration files).
    * - ``realism_cohort``
      - no
      - The image library's ``{mission, camera}`` pairs, with an optional
@@ -2162,9 +2167,9 @@ not yet fixed. There are eight:
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
 - In ``titan_crescent_horns`` and its noiseless twin, the disc correlation,
-  whose template leaves the haze's ring of light out, answers a point of its
-  half-pixel coarse grid on every seed and carries a low-tier success 1.48 to
-  2.14 px wrong.
+  whose template leaves the haze's ring of light out, carries a success 2.40 px
+  wrong on the coarse-grid point (0.5, 1.5) on most seeds and 10.2 px wrong,
+  reading the haze edge as the limb, on the rest.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
   outline that the image doesn't have, and the disc correlation lands on the
   maximum of its high-pass surface, pulled by that outline.
@@ -3031,15 +3036,36 @@ the similarity relations: its H-functions take the albedo
 **The phase function.** ``P`` is a Henyey-Greenstein function of asymmetry
 ``g``, or, when the block also sets ``g2`` and ``g2_fraction``, the two-term
 function ``(1 - g2_fraction) * HG(g) + g2_fraction * HG(g2)``, whose mean cosine
-is the same mix of ``g`` and ``g2``. The scenes that render Titan use a two-term
-fit to the haze phase function the Huygens probe measured above 80 km (Tomasko et
-al. 2008), interpolated to 650 nm: ``g`` 0.886, ``g2`` -0.164, and
-``g2_fraction`` 0.091, a mean cosine of 0.790. It follows the measured function
-within 20% from 20 to 180 deg of scattering angle, and nearer the forward
-direction two terms cannot follow the measured peak. The module docstring of
-``haze_scattering.py`` gives the fit. The same scenes take Titan's published scale
-height, optical depth, and albedo, scaled to each body's radius; the
-``titan_haze`` scene comment lists them with their sources.
+is the same mix of ``g`` and ``g2``.
+
+**Titan's haze.** Instead of the column's keys, a block may say
+``haze_model: titan``. The body then takes Titan's published haze, defined once
+in ``titan_haze.py`` as a property of the body and a function of wavelength:
+
+- a scale height of 45 km above 140 km (Doose et al. 2016), taken as the same at
+  every wavelength since no variation is reported;
+- an optical depth that follows the Huygens probe's power law,
+  ``1.012e7 * lambda**-2.339`` above 80 km for ``lambda`` in nm (Tomasko et al.
+  2008), carried up to 140 km and integrated along the tangent path there (14.3
+  at 650 nm);
+- the single-scattering albedo above 144 km and a two-term Henyey-Greenstein fit
+  to the haze phase function, both at each Huygens wavelength from 430 to
+  1078 nm (Tomasko et al. 2008), in a table that
+  ``util/titan_haze/build_table.py`` builds and a test rebuilds.
+
+The scene's filter picks the wavelengths: ``detector.filter``, or the camera's
+clear combination when the scene sets none, read through the camera's
+passband table. Each quantity is averaged over the passband weighted by the solar
+flux times the transmission, the optical depth in its logarithm, since the limb's
+height goes as the scale height times that logarithm, and the rest directly. Below
+430 nm and above 1078 nm the table holds its end values. The body's
+``km_per_pixel`` sets the scale; a body without one stands for Titan at its own
+size, its mean semi-axis being Titan's 2575 km radius. The haze is not modeled in
+methane-band or methane-window filters, where methane absorbs the light or lets the
+surface show through, so validation refuses a Titan haze in such a filter, in a
+filter that puts more than a tenth of its light in the cores of the methane bands
+at 619, 727, and 889 nm, in a filter that puts more than a quarter of its light
+outside 430 to 1078 nm, and on a camera that has no passband table.
 
 The haze reflects from the level where the tangent optical depth is 1, or from
 the surface when the column is thinner than that. A thick haze therefore looks
@@ -3069,8 +3095,8 @@ that at high phase the near side of a thick tangent path, which real sunlight
 reaches only through the deep atmosphere behind the limb, is lit as fully as the
 tangent point.
 
-Compared with real frames of Titan, the rendered disc and its sunward edge come
-out somewhat darker and lower at low and moderate phase, and the forward ring of
+Compared with real frames of Titan, the rendered disc comes out darker at low and
+moderate phase, by an amount that depends on the filter, and the forward ring of
 light is fainter at high phase: light scattered forward more than once along the
 limb path is not carried forward by an isotropic multiple-scattering term. The
 instrument chapters give the comparison for their cameras, and the published
@@ -3215,10 +3241,10 @@ toward the sunlit limb whose size tracks the height of that edge above the solid
 radius -- the ``atmosphere`` catalog scenes measure that bias and pin the
 measured value. With Titan's haze the edge stands about 9 px above the 90 px
 radius of the low-phase ``titan_haze_limb`` scene. There the disc correlation
-and the limb DT fit both land 7.5 to 8.3 px off toward the sun and the blob
-centroid 1.1 px off, so on 16 of its 24 measured draws the ensemble reports the
-frame conflicted; on the other 8 it returns a medium-tier success 7.5 px off
-against a sigma of 1.2 to 1.4 px.
+and the limb DT fit both land 7.9 to 8.7 px off toward the sun and the blob
+centroid 1.3 px off, so on 14 of its 24 measured draws the ensemble reports the
+frame conflicted; on the other 10 it returns a medium-tier success 7.9 px off
+against a sigma of 1.17 px.
 
 Everything in this paragraph is about *body* navigation against a haze the
 navigator does not model. The scenes that measure it carry a body named
@@ -3226,26 +3252,28 @@ navigator does not model. The scenes that measure it carry a body named
 to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
-is the one that drives that technique; with Titan's haze it lands 0.28 to 0.53 px
+is the one that drives that technique; with Titan's haze it lands 0.27 to 0.60 px
 off along the sun axis, toward the night side, an error that grows with the
 rendered scale height. At high phase the haze is outright hostile: in
 ``titan_crescent_horns`` (155 deg) the haze hides the surface and the only light
-is the ring of light, which peaks at 0.39 of a white disc lit face-on about 7 px
+is the ring of light, which peaks at 0.37 of a white disc lit face-on about 7 px
 above the solid limb. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.24 against the 0.30
 ``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands 16 to
 19 px off. The disc correlation, whose hard-limbed template leaves the ring of
-light out, answers a point of its half-pixel coarse grid on every draw, 1.48 to
-2.14 px off, and does not flag that answer spurious. So the body-witness veto
+light out, answers on 16 of 24 draws the point (0.5, 1.5) of its half-pixel coarse
+grid, 2.40 px off, a low-tier success, and on the other 8 reads the haze edge as
+the limb, 10.2 px off, a medium-tier success; it does not flag either answer
+spurious. So the body-witness veto
 (see :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
 nothing to read. The disc correlation sets a low-confidence success, and the
 scene holds its error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
-and phase geometry -- pins both biases deterministically (blob centroid 17.0 px
-off, disc correlation 2.14 px off), so the ring of light alone drives them. The
+and phase geometry -- pins both biases deterministically (blob centroid 16.5 px
+off, disc correlation 2.40 px off), so the ring of light alone drives them. The
 haze evaluation is restricted to the bounding box of the body plus its halo (out
 to a detached shell's reach), so its cost scales with that box rather than the
 frame, and a body without an ``atmosphere`` block renders hard-limbed and
