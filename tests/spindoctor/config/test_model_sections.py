@@ -55,9 +55,15 @@ def test_a_planet_entry_keeps_the_default_for_a_key_it_leaves_out() -> None:
     """A planet entry replaces only the keys it sets; a planet with none gets the default."""
     table = RingAnnulusEmissionTable(
         default=RingAnnulusEmission(max_radial_px=5.0, kmpp_threshold=1000.0),
-        planets={'SATURN': RingAnnulusEmissionOverride(kmpp_threshold=25.0)},
+        planets={
+            'SATURN': RingAnnulusEmissionOverride(kmpp_threshold=25.0),
+            'URANUS': RingAnnulusEmissionOverride(max_radial_px=3.0),
+        },
     )
-    assert table.for_planet('SATURN') == RingAnnulusEmission(max_radial_px=5.0, kmpp_threshold=25.0)
+    saturn = RingAnnulusEmission(max_radial_px=5.0, kmpp_threshold=25.0)
+    uranus = RingAnnulusEmission(max_radial_px=3.0, kmpp_threshold=1000.0)
+    assert table.for_planet('SATURN') == saturn
+    assert table.for_planet('URANUS') == uranus
     assert table.for_planet('PLUTO') is table.default
 
 
