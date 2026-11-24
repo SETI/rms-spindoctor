@@ -34,6 +34,7 @@ from spindoctor.schema import (
 from spindoctor.support.attrdict import AttrDict
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from spindoctor.config.logging_keys import LoggingSection
     from spindoctor.config.sections import OrchestratorSection, TypedSections
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
@@ -237,7 +238,6 @@ class Config:
         self._typed_origins: dict[KeyPath, str] = {}
         self._config_environment: dict[str, Any] = AttrDict({})
         self._config_general: dict[str, Any] = AttrDict({})
-        self._config_logging: dict[str, Any] = AttrDict({})
         self._config_offset: dict[str, Any] = AttrDict({})
         self._config_bodies: dict[str, Any] = AttrDict({})
         self._config_body_shape: dict[str, Any] = AttrDict({})
@@ -275,7 +275,6 @@ class Config:
         self._category_cache = {}
         self._config_environment = AttrDict(self._config_dict.get('environment', {}))
         self._config_general = AttrDict(self._config_dict.get('general', {}))
-        self._config_logging = AttrDict(self._config_dict.get('logging', {}))
         self._config_offset = AttrDict(self._config_dict.get('offset', {}))
         self._config_bodies = AttrDict(self._config_dict.get('bodies', {}))
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
@@ -594,18 +593,20 @@ class Config:
         return self._config_environment
 
     @property
-    def logging(self) -> Any:
-        """Returns the logging configuration settings.
+    def logging(self) -> LoggingSection:
+        """Returns the logging section: the levels and terminal sinks of the two loggers.
 
         Holds the per-logger defaults (``main``, ``image``), the per-module
         override categories (``techniques``, ``models``, ``other``), the
         ``strict_scope`` switch, and per-program overrides under ``programs``.
-        See :func:`spindoctor.config.logging_keys.validate_logging_config` for
-        the accepted keys.
+        The section is parsed when the configuration is installed, so every key and
+        level has been checked.
         """
 
         self.read_config()
-        return self._config_logging
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but holds no parsed sections')
+        return self._sections.logging
 
     @property
     def planets(self) -> list[str]:

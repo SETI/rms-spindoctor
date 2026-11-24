@@ -1568,7 +1568,11 @@ asserts the generated half matches the registries.
     `DEFAULT_RELIABILITY_THRESHOLDS`)
   - [ ] technique confidence and tuning, two or three PRs by family
     (decide #411's snake_case rename first)
-  - [ ] the logging section
+  - [x] the logging section (done: parsed at load into `LoggingSection`,
+    with each `programs` block a `ProgramLogging`; module keys checked
+    against the technique and model registries and `OTHER_LOG_KEYS`,
+    program keys against `PROGRAM_NAMES`; `validate_logging_config`,
+    its helpers, and `LOGGER_KEYS` and `CONSOLE_KEYS` deleted)
   - [ ] `bodies`, `stars`, `titan`, `rings`, `body_shape`, `satellites`,
     and `feature_emission`
   - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
