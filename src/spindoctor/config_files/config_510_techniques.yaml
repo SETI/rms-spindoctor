@@ -1,8 +1,11 @@
 # Per-technique confidence-formula coefficients and runtime tunables.
 # Parsed at config-load time, so a bad value, an unknown key, or a term
 # naming an attribute the technique does not declare fails at startup
-# rather than mid-image.  A technique whose tuning is typed is keyed by
-# its snake_case name (body_limb, body_terminator, ring_edge), the key
+# rather than mid-image.  The one exception is a tuning key of a technique
+# whose tuning is not yet typed: its tuning is a mapping of numbers, so a
+# misspelled key there is accepted and never read.  A technique whose
+# tuning is typed is keyed by its snake_case name (body_limb,
+# body_terminator, ring_edge), the key
 # logging.techniques uses; the others are keyed by class name until
 # their tuning is typed.  Each technique block looks like:
 #

@@ -127,7 +127,9 @@ technique whose tuning is typed has its block under its snake_case key, as in
 ``techniques.body_limb``; the others keep their class name, as in ``techniques.BodyBlobNav``
 (see :ref:`config-techniques-section`). The loader parses each block through the schema core
 each time a configuration is installed, so a value of the wrong type or out of range, and an
-unknown key, are refused with the file and key path. The spec shape is:
+unknown key, are refused with the file and key path. The exception is a key inside the
+``tuning`` block of a technique whose tuning is not yet typed: that block is a mapping of
+numbers, so a misspelled key there is accepted and never read. The spec shape is:
 
 - ``alpha0`` — float (dimensionless). Baseline contribution to the sigmoid argument. Negative
   values pull the sigmoid below 0.5 by default; positive values push it above.

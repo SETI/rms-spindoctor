@@ -27,7 +27,8 @@ class DTTuning(DTFitGateConfig):
 
     Parameters:
         spurious_dt_rms_factor: A final DT residual RMS above this many times the
-            smallest per-vertex sigma marks the fit spurious.
+            smallest per-vertex sigma marks the fit spurious. Zero leaves the floor
+            as the whole threshold.
         spurious_dt_floor_px: The least RMS threshold of that test, in pixels.
         spurious_min_inliers: Fewer Tukey inliers than this marks the fit spurious.
         spurious_min_inlier_fraction: A Tukey inlier fraction below this marks the fit
@@ -46,7 +47,7 @@ class DTTuning(DTFitGateConfig):
 
     __pydantic_config__ = SCHEMA_CONFIG
 
-    spurious_dt_rms_factor: Positive
+    spurious_dt_rms_factor: NonNeg
     spurious_dt_floor_px: NonNeg
     spurious_min_inliers: NonNegInt
     spurious_min_inlier_fraction: Unit
