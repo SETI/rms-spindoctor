@@ -47,3 +47,8 @@ spindoctor.config
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: spindoctor.config.sections_rings
+   :members:
+   :undoc-members:
+   :show-inheritance:

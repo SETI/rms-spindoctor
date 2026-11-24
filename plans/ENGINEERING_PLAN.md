@@ -1608,7 +1608,20 @@ asserts the generated half matches the registries.
     `feature_emission.ring_annulus.planets` that is not in `planets` is
     refused, and so is a `bodies.geometric_albedo` key not in upper case;
     it also made the FOV distortion tool's star cap take effect, #1176)
-  - [ ] `rings` with the ring catalogs, and `body_shape` (step 6b)
+  - [x] `rings` with the ring catalogs (done: step 6b, split from
+    `body_shape`; parsed at load into `RingsSection`, each planet's
+    catalog a `RingCatalog` of `RingFeatureEntry` features whose edges
+    are lists of `RingModeEntry`; an entry that sets `a` is the base
+    orbit and any other is a perturbation, since the Saturn catalog holds
+    a mode-1 perturbation and `mode` alone cannot tag them;
+    `RingFeature.from_config` (now `from_entry`), its parsing helpers,
+    `validate_no_date_overlaps`, `_require_positive_finite_planet_scalar`,
+    the render-time epoch checks, and the hand-written checks of
+    `RingBaseOrbitMode`, `RingPerturbationMode`, `RingEdgeData`,
+    `RingFeature`, `RingFeatureFilter`, and `RingsRenderContext` on catalog
+    values deleted; a `rings.ring_features` planet not in `planets` is
+    refused)
+  - [ ] `body_shape` (step 6b's second part)
   - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
     and `pds4`
   - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;

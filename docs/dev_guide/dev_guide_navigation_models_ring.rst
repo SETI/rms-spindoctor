@@ -209,8 +209,8 @@ Configuration
 The model's runtime knobs are split across three locations: the ``rings`` block in
 ``src/spindoctor/config_files/config_050_rings.yaml`` (general per-model knobs and label
 rendering), the per-planet ring catalogs in
-``src/spindoctor/config_files/config_3N0_*_rings.yaml`` (one file per planet, each carrying a
-``rings.ring_features`` mapping), and the per-planet annulus-emission thresholds under
+``src/spindoctor/config_files/config_3N0_*_rings.yaml`` (one file per planet, holding its
+entry in ``rings.ring_features``), and the per-planet annulus-emission thresholds under
 ``feature_emission.ring_annulus`` in ``src/spindoctor/config_files/config_510_techniques.yaml``
 (consumed by the per-feature emission gate; see :doc:`dev_guide_techniques_ring_annulus`).
 Module-level Python constants in :mod:`spindoctor.nav_model.nav_model_rings` set per-vertex
@@ -219,72 +219,99 @@ sigma and curvature thresholds that are not exposed to YAML.
 rings block
 -----------
 
-Every key under ``rings`` is listed below, each with the consumer that reads it.
+Every key under ``rings`` is listed below, each with the consumer that reads it. The
+section is parsed at load into :class:`~spindoctor.config.sections_rings.RingsSection`.
+Its fields give each key's type and range, a key it does not declare is refused, and
+every key must be set.
 
-- ``default_orbit_radial_sigma_km`` — float, default ``2.0`` km. Coherent whole-edge
-  radial orbit uncertainty used for an edge whose catalog entry carries no ``rms``.
-  Consumed by
+- ``default_orbit_radial_sigma_km`` — float, at least 0, packaged as ``2.0`` km. Coherent
+  whole-edge radial orbit uncertainty used for an edge whose catalog entry carries no
+  ``rms``. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
-- ``orbit_radial_sigma_correlated_fraction`` — float, default ``1.0``, required to lie in
-  ``[0, 1]``. Scales the separate coherent whole-edge displacement computed from an edge's
-  catalog RMS; ``1.0`` charges that RMS in full. The per-vertex radial sigma is derived
-  from the catalog RMS independently and this key does not change it. A value outside the
-  range raises. Consumed by
+- ``orbit_radial_sigma_correlated_fraction`` — float in ``[0, 1]``, packaged as ``1.0``.
+  Scales the separate coherent whole-edge displacement computed from an edge's catalog
+  RMS; ``1.0`` charges that RMS in full. The per-vertex radial sigma is derived from the
+  catalog RMS independently and this key does not change it. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
-- ``remove_planet_shadow`` — bool, default ``true``. When true the model masks pixels
+- ``remove_planet_shadow`` — bool, packaged as ``true``. When true the model masks pixels
   inside the per-planet shadow before rendering ring edges; the ring radius is still
   defined inside the shadow but the brightness is zero, so leaving the shadow pixels
   in would skew the per-vertex covariance. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
-- ``ring_features`` — dict[str, dict]. Per-planet ring catalog overlaid from the
-  per-planet ``config_3N0_*_rings.yaml`` files (see below). Consumed by
+- ``ring_features`` — the per-planet ring catalogs, each a
+  :class:`~spindoctor.config.sections_rings.RingCatalog`, keyed by the planet's SPICE
+  name, which must be a planet of the ``planets`` section. They are set in the
+  per-planet ``config_3N0_*_rings.yaml`` files (see below). A planet that has no catalog
+  has no ring model. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings.NavModelRings`.
-- ``label_font`` — str, default ``liberation2/LiberationMono-Bold.ttf``. Font used for
-  ring labels. Consumed by
+- ``label_font`` — str, packaged as ``liberation2/LiberationMono-Bold.ttf``. Font used
+  for ring labels. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
-- ``label_font_size`` — int, default ``18`` px. Ring label font size. Consumed by
+- ``label_font_size`` — positive int, packaged as ``18`` px. Ring label font size.
+  Consumed by :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
+- ``label_font_color`` — RGB triple, each channel from 0 through 255, packaged as
+  ``[255, 0, 0]``. Ring label font color. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
-- ``label_font_color`` — list[int], default ``[255, 0, 0]`` (RGB). Ring label font
-  color. Consumed by :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
-- ``label_limb_color`` — list[int], default ``[255, 0, 0]`` (RGB). Color of the per-edge
+- ``label_limb_color`` — RGB triple, packaged as ``[255, 0, 0]``. Color of the per-edge
   polyline drawn on the summary PNG. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
-- ``label_mask_enlarge`` — int, default ``10`` px. Pixels around a ring edge to avoid
-  for label placement. Consumed by
+- ``label_mask_enlarge`` — positive int, packaged as ``10`` px. Pixels around a ring edge
+  to avoid for label placement. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
-- ``label_horiz_gap`` — int, default ``7`` px. Horizontal gap between the edge and the
-  head of the label arrow. Consumed by
+- ``label_horiz_gap`` — int, at least 0, packaged as ``7`` px. Horizontal gap between the
+  edge and the head of the label arrow. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
-- ``label_vert_gap`` — int, default ``5`` px. Vertical gap between the edge and the head
-  of the label arrow. Consumed by
+- ``label_vert_gap`` — int, at least 0, packaged as ``5`` px. Vertical gap between the
+  edge and the head of the label arrow. Consumed by
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`.
 
 Per-planet ring catalog
 -------------------------
 
-Each ``config_3N0_<planet>_rings.yaml`` file carries a single
-``rings.ring_features.<PLANET>`` mapping keyed by upper-case SPICE planet name (one file
-per planet: Jupiter, Saturn, Uranus, Neptune). Each per-planet entry sets:
+Each ``config_3N0_<planet>_rings.yaml`` file holds one planet's catalog, as the
+``rings.ring_features.<PLANET>`` mapping keyed by upper-case SPICE planet name. There is
+one file for each of Jupiter, Saturn, Uranus, and Neptune; only the Saturn file holds a
+catalog, and the other three are empty. The catalog values are measured orbits from
+published fits, and they are entered as published. Each per-planet entry sets:
 
-- ``epoch`` — str (UTC). Reference epoch for every ring solution under this planet;
-  used to advance precessing edge solutions to the per-image time. A missing or invalid
-  epoch raises at config-load.
-- ``fade_width_pix`` — float (px). Per-planet softness of the per-edge brightness
-  profile used by the rendered annulus template; controls how many pixels the catalog
-  brightness fades into the background.
-- ``min_allowed_fade_width_pix`` — float (px). Floor on the per-edge fade width applied
-  after per-image scaling; prevents the rendered template from collapsing to a
-  single-pixel ring at high subject distances.
-- ``min_feature_pixels`` — float (px). Minimum per-feature pixel extent below which the
-  per-image filter drops the feature.
-- ``features`` — dict[str, dict]. Per-edge entries keyed by feature name. Each entry
-  carries ``feature_type`` (``GAP`` / ``RINGLET`` / ``RING``), an optional ``name``
-  (display label, left out for an unnamed feature), and one or both of ``inner_data`` /
-  ``outer_data`` lists. An edge that has no data has no list. Each ``*_data`` list
-  enumerates the per-mode catalog terms (mode number plus ``a`` / ``rms`` / ``ae`` /
-  ``long_peri`` / ``rate_peri`` for orbiting features, or ``amplitude`` / ``phase`` /
-  ``pattern_speed`` for free-mode features). Consumed by
-  :class:`~spindoctor.nav_model.rings.ring_feature.RingFeature`.
+- ``epoch`` — str (UTC, ISO 8601). Reference epoch for every ring solution under this
+  planet; used to advance precessing edge solutions to the per-image time.
+- ``fade_width_pix`` — positive float (px). Per-planet softness of the per-edge
+  brightness profile used by the rendered annulus template; controls how many pixels
+  the catalog brightness fades into the background.
+- ``min_allowed_fade_width_pix`` — positive float (px), no more than
+  ``fade_width_pix``. Floor on the per-edge fade width applied after per-image scaling;
+  prevents the rendered template from collapsing to a single-pixel ring at high subject
+  distances.
+- ``min_feature_pixels`` — positive float (px). Minimum per-feature pixel extent below
+  which the per-image filter drops the feature.
+- ``features`` — per-feature entries keyed by feature name, each a
+  :class:`~spindoctor.config.sections_rings.RingFeatureEntry`. Each entry carries
+  ``feature_type`` (``GAP`` or ``RINGLET``), an optional ``name`` (display label, left
+  out for an unnamed feature), optional ``start_date`` and ``end_date`` (UTC; the feature
+  is in the catalog from the start up to, but not including, the end, and a date left
+  out leaves that end open), and one or both of ``inner_data`` / ``outer_data`` lists.
+  An edge that has no data has no list. Each ``*_data`` list holds the edge's mode
+  entries (:class:`~spindoctor.config.sections_rings.RingModeEntry`). The entry that sets
+  ``a`` is the edge's base orbit, which is mode 1 and also sets ``rms``, ``ae``,
+  ``long_peri``, and ``rate_peri``. Every other entry is a perturbation of its mode
+  number and sets ``amplitude``, ``phase``, and ``pattern_speed``. The mode number alone
+  does not tell the two apart, because the Saturn catalog has a mode-1 perturbation as
+  well as mode-1 base orbits. The ring model builds a
+  :class:`~spindoctor.nav_model.rings.ring_feature.RingFeature` from each entry with
+  :meth:`~spindoctor.nav_model.rings.ring_feature.RingFeature.from_entry`.
+
+Besides each key's type and range, a catalog is refused at load when:
+
+- a mode entry that sets ``a`` is not mode 1, or a mode entry leaves out a key of its
+  kind or sets a key of the other kind;
+- an edge's list holds no base orbit, or more than one;
+- a feature sets neither ``inner_data`` nor ``outer_data``;
+- a feature's ``start_date`` is not before its ``end_date``, or a time cannot be read;
+- ``min_allowed_fade_width_pix`` is above ``fade_width_pix``;
+- two features whose radii overlap both have dates, and their date ranges overlap. Two
+  such entries describe one ring edge at one time. A feature that has no dates may stand
+  beside a dated one at the same radii.
 
 Module-level emission constants
 -------------------------------
@@ -328,7 +355,7 @@ Source files:
   :class:`~spindoctor.nav_model.nav_model_rings_base.NavModelRingsBase`, abstract shared base
   carrying the ring annotation pipeline.
 - ``src/spindoctor/nav_model/rings/`` — the :mod:`spindoctor.nav_model.rings` subpackage with the
-  validation, filtering, and rendering helpers
+  ring data types, filtering, and rendering helpers
   (:mod:`~spindoctor.nav_model.rings.ring_types`,
   :mod:`~spindoctor.nav_model.rings.ring_feature`,
   :mod:`~spindoctor.nav_model.rings.ring_filter`,
