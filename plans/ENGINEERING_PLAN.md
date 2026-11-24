@@ -1569,8 +1569,14 @@ asserts the generated half matches the registries.
   - [ ] technique confidence and tuning, two or three PRs by family
     (decide #411's snake_case rename first)
   - [ ] the logging section
-  - [ ] `bodies`, `stars`, `titan`, `rings`, `body_shape`, `satellites`,
-    and `feature_emission`
+  - [x] `bodies`, `stars`, `titan`, `satellites`, and `feature_emission`
+    (done: step 6a; parsed at load into `BodiesSection`, `StarsSection`,
+    `TitanSection`, a planet-to-satellites mapping, and
+    `FeatureEmissionSection`; `Config._validate_bodies_block`,
+    `parse_ring_occlusion_annuli`, the `titan.navigation` block readers,
+    and `_ring_annulus_emission_params` deleted; the unread
+    `fuzzy_satellites` and `ring_satellites` deleted)
+  - [ ] `rings` with the ring catalogs, and `body_shape` (step 6b)
   - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
     and `pds4`
   - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;

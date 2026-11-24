@@ -108,6 +108,20 @@ returns the typed object:
   ``ensemble`` (an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`; see
   :doc:`dev_guide_orchestrator_ensemble`) and ``reliability_gate`` (a
   :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`).
+- ``bodies`` — :class:`~spindoctor.config.sections_models.BodiesSection`.
+- ``stars`` — :class:`~spindoctor.config.sections_models.StarsSection`. An opaque ring
+  annulus in ``ring_occlusion_radii_km`` must have its inner radius below its outer
+  radius.
+- ``titan`` — :class:`~spindoctor.config.sections_models.TitanSection`. Its
+  ``navigation.symmetry`` and ``navigation.arc`` blocks parse straight into the haze
+  fit's :class:`~spindoctor.nav_technique.titan_fitting.SymmetryFitParams` and
+  :class:`~spindoctor.nav_technique.titan_fitting.ArcFitParams`, and its opaque ring
+  annulus follows the same rule as the star one.
+- ``satellites`` — a list of satellites for each planet, keyed by the planet's SPICE
+  name and read through :meth:`~spindoctor.config.config.Config.satellites`.
+- ``feature_emission`` — :class:`~spindoctor.config.sections_models.FeatureEmissionSection`.
+  A planet's entry under ``ring_annulus.planets`` may leave a key out, and that key
+  keeps the ``default`` entry's value.
 
 The rules for a typed section:
 
@@ -130,7 +144,7 @@ Sections
 
 Top-level YAML keys other than the typed sections are exposed as
 :class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
-``cfg.bodies.use_lambert`` instead of ``cfg['bodies']['use_lambert']``. That
+``cfg.rings.remove_planet_shadow`` instead of ``cfg['rings']['remove_planet_shadow']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
@@ -147,17 +161,18 @@ removal. The shipping sections:
   overrides.
 - ``offset`` — the FFT upsample factor of the image correlation
   (``correlation_fft_upsample_factor``).
-- ``stars`` — star-model and ring-occlusion parameters; see
-  :doc:`dev_guide_navigation_models_star`.
-- ``bodies`` — body rendering parameters; see
+- ``stars`` — star-model and ring-occlusion parameters; a typed section (see
+  :ref:`config-typed-sections`) described in :doc:`dev_guide_navigation_models_star`.
+- ``bodies`` — body rendering parameters; a typed section described in
   :doc:`dev_guide_navigation_models_body`.
 - ``rings`` — ring-model parameters (planet shadow removal, fade widths,
   per-planet ``ring_features``); see
   :doc:`dev_guide_navigation_models_ring`.
 - ``titan`` — Titan-specific parameters: the haze envelope height, the emission-side
   reliability floors and mask settings, and the two blocks of fit tunables the haze
-  technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``). See
-  :doc:`dev_guide_navigation_models_titan` and :doc:`dev_guide_techniques_titan_haze`.
+  technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``); a typed
+  section. See :doc:`dev_guide_navigation_models_titan` and
+  :doc:`dev_guide_techniques_titan_haze`.
 - ``backplanes`` — the list of body and ring backplanes to generate; see
   :doc:`dev_guide_backplanes`.
 - ``pds4`` — per-dataset PDS4 template directories and bundle names; see
@@ -180,11 +195,12 @@ removal. The shipping sections:
 - ``orchestrator`` — the ensemble combine's tunables and confidence tiers, and the
   per-feature-type reliability gate; a typed section (see :ref:`config-typed-sections`).
 - ``satellites`` — per-planet satellite lists used by the body
-  :class:`~spindoctor.nav_model.nav_model.NavModel`'s inventory query.
+  :class:`~spindoctor.nav_model.nav_model.NavModel`'s inventory query, by the star
+  model's body conflicts, and by the backplanes; a typed section.
 - ``feature_emission`` — per-planet
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_EDGE` vs
-  :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` gates; see
-  :doc:`dev_guide_techniques_ring_annulus`.
+  :attr:`~spindoctor.feature.feature_type.NavFeatureType.RING_ANNULUS` gates; a typed
+  section. See :doc:`dev_guide_techniques_ring_annulus`.
 
 The user-facing tour at :doc:`/user_guide/user_guide_configuration` covers how operators
 override these defaults with their own files; this chapter is the reference for
