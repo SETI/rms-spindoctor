@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8070797077574047,
+  "confidence": 0.8087242661379608,
   "confidence_rank": "medium",
-  "offset_du_px": -12.403897421897856,
-  "offset_dv_px": -27.739551587519635,
+  "offset_du_px": -12.423772622623355,
+  "offset_dv_px": -27.741443765976932,
   "scene_name": "coiss_nac_stars_moon_lost_lines",
   "status": "success"
 }

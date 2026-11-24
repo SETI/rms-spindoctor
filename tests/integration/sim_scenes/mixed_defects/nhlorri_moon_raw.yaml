@@ -37,11 +37,11 @@ exposure_sec: 0.085
 # (about 1.2 px each).  The roll is the camera's measured twist, +0.1912 deg,
 # planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.29 to 0.30 px off over 24 draws, at medium tier,
+# The fused answer lands 0.10 to 0.11 px off over 24 draws, at medium tier,
 # from the disc correlation and the limb fit together.  The disc correlation
-# lands 0.42 to 0.43 px off on every draw without flagging it; it lands 0.35 px
-# off without the smear and 0.28 px without the roll.  The limb fit lands 0.26
-# to 0.32 px off, and 0.47 to 0.48 px without the roll, so the twist offsets
+# lands 0.18 to 0.19 px off on every draw without flagging it, with the smear
+# removed too, and 0.004 to 0.005 px off without the roll.  The limb fit lands
+# 0.26 to 0.32 px off, and 0.47 to 0.48 px without the roll, so the twist offsets
 # part of its own error.
 #
 # BodyBlobNav lands 4.7 to 5.1 px off without flagging it (#975).  The smear

@@ -34,14 +34,16 @@ exposure_sec: 0.06
 # pointing down and right.  The roll is the camera's measured twist,
 # +0.0115 deg, planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.076 to 0.084 px off over 16 distinct draws: the scene
-# seeds nothing but the noise, so its noise_seed draws repeat random_seed 101 to
-# 808.  The table and the compression are realistic but do not move the answer,
-# so the scene shows the navigator unaffected by them: with the compression
-# removed the fused answer lands 0.087 to 0.088 px off on four draws, and with the
-# table removed 0.076 to 0.081 px.  Without the hot pixels the disc correlation
-# lands 0.17 to 0.18 px off and the fused answer 0.19 px.  BodyLimbNav lands 0.30
-# to 0.35 px off, and 0.36 to 0.37 px without the compression.
+# The fused answer lands 0.034 to 0.050 px off over 16 distinct draws, at medium
+# tier on all of them: the scene seeds nothing but the noise, so its noise_seed
+# draws repeat random_seed 101 to 808.  The table and the compression are
+# realistic but do not move the answer, so the scene shows the navigator
+# unaffected by them: with the compression removed the fused answer lands 0.045
+# to 0.047 px off on four draws, and with the table removed 0.041 to 0.042 px.
+# Without the hot pixels it lands 0.041 to 0.050 px off, the disc correlation
+# 0.010 to 0.021 px.  The disc correlation lands 0.008 to 0.024 px off with every
+# defect present.  BodyLimbNav lands 0.29 to 0.33 px off, and 0.33 to 0.35 px
+# without the compression.
 artifacts:
   instrument_defaults: true
   compression_dct: {probability: 1.0, scale_factor: 128.0}
