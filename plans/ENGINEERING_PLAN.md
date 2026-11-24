@@ -776,7 +776,9 @@ where they differ).
 - **#239** — implement the sub-5 px body policy the operator settled on
   (expected-failure curation); the open work is the targeted diameter-
   filtered cohort scan for a qualifying single-body frame.
-- **#591** — `NavModelRings._render`'s cheap 16x16 visibility pre-check can
+- **#591** (done: the pre-check reads the ring radius along the extended
+  frame's boundary and projects the planet center, 2026-11-23) —
+  `NavModelRings._render`'s cheap 16x16 visibility pre-check can
   skip the whole ring model on a frame whose rings fall between its samples,
   so a navigable ring frame silently offers no ring feature.
 - **#577** — `compute_smear_vector_px` calls `obs.boresight_ra()` and
@@ -1481,11 +1483,13 @@ asserts the generated half matches the registries.
 - **#427** — the config top-level namespace mixes domain objects, pipeline
   stages, instruments, output products, and infrastructure on no stated
   axis, with `general` as the catch-all. Lifting `logging` out of `general`
-  fixed the worst instance and left the pattern. By default, sequence this
-  **before** #118 (config validation), unless the operator decision below
-  says otherwise: a schema per section is easier to write and to keep
-  accurate once the sections are organized, and doing it the other way
-  freezes the current grouping into a schema. #712 (renumber the
+  fixed the worst instance and left the pattern. The operator decided on
+  2026-11-23 to type first and reorganize after: #1032 types each section
+  under its current top-level name, no typing PR moves a section, and this
+  reorganization comes after #1032 as its own change. Once the sections
+  are typed, mypy finds every reader of a moved path and the loader
+  refuses the old key in any override. Starting it needs operator rulings
+  on the new layout. #712 (renumber the
   configuration files, so the `config_NN_*` merge order carries the same
   axis) is the filename half of the same question and moves with it.
   The shared schema core #118 builds on is #1021 (plain frozen dataclasses
@@ -1493,11 +1497,7 @@ asserts the generated half matches the registries.
   simulator only and changes no navigator config. Deferred by the
   operator on 2026-11-17 with #1029 (the navigator camera blocks) and
   #1032 (every other section, and deleting the packaged keys nothing
-  reads); resumed on 2026-11-23, starting with #1032. Which sections this
-  reorganization covers, and whether it lands before they are typed, is
-  an operator decision to record on #427; until it is recorded, each
-  typing PR checks #427 first and does any move it asks for in the same
-  PR.
+  reads); resumed on 2026-11-23, starting with #1032.
 - **#141 / #142** — dedup the CLI driver preamble and cloud-task loop;
   fix the dropped `extra_params` and the ImageFiles cardinality
   disagreement.
@@ -1546,7 +1546,8 @@ asserts the generated half matches the registries.
   from the config path). Meanwhile the typed scene (#1024) types the
   scene's `instrument_config` overlay itself, repeating the camera keys'
   ranges until #1029 lands. #1032 lands in about ten PRs in a stated
-  order, each typing PR checking #427 first:
+  order, typing each section under its current name (#427's
+  reorganization comes after):
   - [x] delete the packaged keys nothing reads, at least 54 of them
     including the whole `bootstrap` section (needs nothing else; #1023
     deletes the camera blocks' dead keys) (done: 56 deleted, 27 of the
@@ -1559,7 +1560,12 @@ asserts the generated half matches the registries.
     ring-feature `name`/`inner_data`/`outer_data`, and the low tier's
     `max_sigma_px` left out; `_deep_merge` deleted, and a null in any
     file, a user override included, is refused with its file and key path)
-  - [ ] the orchestrator section
+  - [x] the orchestrator section (done: `ensemble` and
+    `reliability_gate` parsed at load into `EnsembleConfig` and
+    `FeatureReliabilityGate`, held by `OrchestratorSection`; both
+    `from_mapping` methods and the 18 `DEFAULT_*` copies deleted, the 16
+    ensemble scalars, `DEFAULT_TIER_THRESHOLDS`, and
+    `DEFAULT_RELIABILITY_THRESHOLDS`)
   - [ ] technique confidence and tuning, two or three PRs by family
     (decide #411's snake_case rename first)
   - [ ] the logging section
@@ -1748,6 +1754,10 @@ CI and test infrastructure:
 - **#953** — the shared-directory cleanup in `tests/conftest.py` calls
   `rmtree` on a directory symlink, which raises and leaves the link; check
   `is_symlink()` first. No test leaves one there today.
+- **#1165** (Priority 5) — CI skips the 31 dataset tests marked
+  `REQUIRES_PDS3_HOLDINGS`, because #820's fix stopped setting
+  `PDS3_HOLDINGS_DIR` there and the live archive was their only source.
+  Run them in CI again once a more reliable holdings source exists.
 
 Documentation bugs:
 

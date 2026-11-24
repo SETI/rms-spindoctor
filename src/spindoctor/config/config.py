@@ -4,28 +4,37 @@ Reads the packaged configuration files in filename order, then any user override
 files, and merges them with :func:`spindoctor.schema.layers.merge` under
 :attr:`~spindoctor.schema.layers.NullPolicy.REFUSE`: mappings merge key by key, any
 other value replaces the earlier one whole, and a null in any file is refused.  The
-sections are exposed as :class:`spindoctor.support.attrdict.AttrDict` for
-attribute-style access.  The :class:`Config` class is the main public entry; helpers
-such as :func:`_as_str_list` validate list-shaped YAML fragments used when building
-config structures.
+typed sections (:mod:`spindoctor.config.sections`) are parsed into frozen dataclasses
+each time a configuration is installed.  The other sections are exposed as
+:class:`spindoctor.support.attrdict.AttrDict` for attribute-style access.  The
+:class:`Config` class is the main public entry; helpers such as :func:`_as_str_list`
+validate list-shaped YAML fragments used when building config structures.
 """
 
+from __future__ import annotations
+
+import dataclasses
 import hashlib
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from spindoctor.schema import (
     Issue,
+    KeyPath,
     Layer,
     NullPolicy,
     SchemaError,
     describe_value,
     merge,
+    parse,
     read_layer,
 )
 from spindoctor.support.attrdict import AttrDict
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from spindoctor.config.sections import OrchestratorSection, TypedSections
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
 """The directory of the packaged configuration files, merged in filename order."""
@@ -38,6 +47,52 @@ _CAMERA_MARKER_KEY = 'data_units'
 
 _ONE_STAR_ELLIPSE_KEY = 'one_star_ellipse_fraction'
 """Camera key: the fraction of the offset window inside which a lone star is believed."""
+
+_PACKAGED_LABEL = 'the packaged configuration'
+"""The source a message gives for a packaged value when no file is recorded for it."""
+
+_MERGED_LABEL = 'the merged configuration'
+"""The label of the configuration as it stands when an override is merged over it."""
+
+
+def _typed_sections_type() -> type[TypedSections]:
+    """Return the type the typed sections of a configuration are parsed into.
+
+    The section types import modules that import this package, so the import waits
+    until a configuration is installed, by which time this package has loaded.
+
+    Returns:
+        :class:`~spindoctor.config.sections.TypedSections`.
+    """
+    from spindoctor.config.sections import TypedSections
+
+    return TypedSections
+
+
+def _parse_typed_sections(
+    config_dict: Mapping[str, Any], origins: Mapping[KeyPath, str], *, source: str
+) -> tuple[TypedSections, dict[KeyPath, str]]:
+    """Parse the typed sections of a merged configuration.
+
+    Parameters:
+        config_dict: The merged configuration.
+        origins: The label of the file that set each value, keyed by key path, in the
+            order the files merged.  Values of other sections may be included.
+        source: The label a message gives for a value that ``origins`` does not
+            cover.
+
+    Returns:
+        The typed sections, and the entries of ``origins`` that lie inside them.
+
+    Raises:
+        SchemaError: Listing every problem in the typed sections, each line in the
+            form ``file: key.path: message``.
+    """
+    sections_type = _typed_sections_type()
+    keys = {item.name for item in dataclasses.fields(sections_type)}
+    raw = {key: value for key, value in config_dict.items() if key in keys}
+    kept = {path: label for path, label in origins.items() if path[0] in keys}
+    return parse(sections_type, raw, source=source, origins=kept), kept
 
 
 def _refuse_replaced_sections(merged: Mapping[Any, Any], layer: Layer) -> None:
@@ -178,6 +233,8 @@ class Config:
         self._config_dict: dict[str, Any] = {}
         self._category_cache: dict[str, AttrDict] = {}
         self._override_paths: list[str] = []
+        self._sections: TypedSections | None = None
+        self._typed_origins: dict[KeyPath, str] = {}
         self._config_environment: dict[str, Any] = AttrDict({})
         self._config_general: dict[str, Any] = AttrDict({})
         self._config_logging: dict[str, Any] = AttrDict({})
@@ -189,7 +246,6 @@ class Config:
         self._config_titan: dict[str, Any] = AttrDict({})
         self._config_backplanes: dict[str, Any] = AttrDict({})
         self._config_pds4: dict[str, Any] = AttrDict({})
-        self._config_orchestrator: dict[str, Any] = AttrDict({})
         self._config_results_tree: dict[str, Any] = AttrDict({})
 
     @property
@@ -228,22 +284,34 @@ class Config:
         self._config_titan = AttrDict(self._config_dict.get('titan', {}))
         self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
         self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
-        self._config_orchestrator = AttrDict(self._config_dict.get('orchestrator', {}))
         self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
 
-    def _install(self, candidate: dict[str, Any], override_paths: list[str]) -> None:
-        """Validate a merged configuration and keep it only if it passes.
+    def _install(
+        self,
+        candidate: dict[str, Any],
+        override_paths: list[str],
+        *,
+        origins: Mapping[KeyPath, str],
+        source: str,
+    ) -> None:
+        """Parse and validate a merged configuration, and keep it only if it passes.
 
-        A refused candidate leaves the configuration and :attr:`override_paths` as
-        they were.
+        A refused candidate leaves the configuration, its typed sections, and
+        :attr:`override_paths` as they were.
 
         Parameters:
             candidate: The merged configuration to keep.
             override_paths: The override files it includes, in order.
+            origins: The label of the file that set each value of the typed sections,
+                keyed by key path, in the order the files merged.
+            source: The label a message gives for a value that ``origins`` does not
+                cover.
 
         Raises:
+            SchemaError: If a typed section breaks its schema.
             ValueError: If the candidate fails :meth:`_validate`.
         """
+        sections, typed_origins = _parse_typed_sections(candidate, origins, source=source)
         try:
             self._validate(candidate)
         except Exception:
@@ -254,6 +322,8 @@ class Config:
             raise
         self._config_dict = candidate
         self._override_paths = override_paths
+        self._sections = sections
+        self._typed_origins = typed_origins
         self._update_attrdicts()
 
     def read_config(self, *, reread: bool = False) -> None:
@@ -268,7 +338,8 @@ class Config:
             reread: Whether to read the files again if the configuration is loaded.
 
         Raises:
-            SchemaError: If a file is not a YAML mapping, or holds a null.
+            SchemaError: If a file is not a YAML mapping, or holds a null, or if a
+                typed section breaks its schema.
             ValueError: If any registered NavTechnique's confidence spec
                 references an attribute the technique does not declare, if
                 ``bodies.blob_max_overflow_fraction`` is not a finite number within
@@ -280,7 +351,8 @@ class Config:
             return
 
         layers = [read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))]
-        self._install(merge(layers, nulls=NullPolicy.REFUSE).data, [])
+        merged = merge(layers, nulls=NullPolicy.REFUSE)
+        self._install(merged.data, [], origins=merged.origins, source=_PACKAGED_LABEL)
 
     @staticmethod
     def _validate(config_dict: dict[str, Any]) -> None:
@@ -414,8 +486,10 @@ class Config:
         Raises:
             FileNotFoundError: If the file does not exist.
             SchemaError: If the file is not a YAML mapping, holds a null, or gives a
-                section as anything but a mapping; the message names the file and
-                the key path.
+                section as anything but a mapping, or if a typed section of the merged
+                result breaks its schema, as with an unknown key or a value of the
+                wrong type or out of range; each line of the message gives the file
+                that set the value and the key path.
             ValueError: If the merged configuration fails the validation
                 :meth:`read_config` applies.
         """
@@ -427,9 +501,22 @@ class Config:
         # shares the rest with the configuration as it stands, so the cost follows the
         # size of the override and never the number of overrides before it.
         named = {key: self._config_dict[key] for key in layer.data if key in self._config_dict}
-        merged = merge([Layer(named, 'the merged configuration'), layer], nulls=NullPolicy.REFUSE)
+        merged = merge([Layer(named, _MERGED_LABEL), layer], nulls=NullPolicy.REFUSE)
         candidate = {**self._config_dict, **merged.data}
-        self._install(candidate, [*self._override_paths, str(config_path)])
+        # A value the override leaves alone keeps the file recorded for it before.
+        origins = {
+            path: label for path, label in self._typed_origins.items() if path[0] not in named
+        }
+        origins.update(
+            (path, self._typed_origins.get(path, label) if label == _MERGED_LABEL else label)
+            for path, label in merged.origins.items()
+        )
+        self._install(
+            candidate,
+            [*self._override_paths, str(config_path)],
+            origins=origins,
+            source=str(config_path),
+        )
 
     @property
     def override_paths(self) -> tuple[str, ...]:
@@ -641,11 +728,17 @@ class Config:
         return self._config_titan
 
     @property
-    def orchestrator(self) -> Any:
-        """Returns the orchestrator (ensemble + reliability gate) settings."""
+    def orchestrator(self) -> OrchestratorSection:
+        """Returns the orchestrator section: the ensemble and the reliability gate.
+
+        The section is parsed when the configuration is installed, so every value has
+        been checked against its type and range.
+        """
 
         self.read_config()
-        return self._config_orchestrator
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but holds no parsed sections')
+        return self._sections.orchestrator
 
     @property
     def results_tree(self) -> Any:

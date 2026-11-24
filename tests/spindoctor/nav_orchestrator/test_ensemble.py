@@ -5,10 +5,9 @@ import math
 
 import numpy as np
 import pytest
+from tests.orchestrator_section import packaged_ensemble, packaged_tiers
 
 from spindoctor.nav_orchestrator.ensemble import (
-    DEFAULT_MAX_ALLOWED_ROTATION_DEG,
-    EnsembleConfig,
     _combine_confidence,
     _combine_precision_weighted,
     derive_confidence_rank,
@@ -87,6 +86,7 @@ def test_ensemble_empty_inputs_returns_failed_no_techniques() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'failed'
     assert result.status_reason.value == 'no_feasible_techniques'
@@ -101,6 +101,7 @@ def test_ensemble_all_spurious_returns_failed() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'failed'
     assert result.status_reason.value == 'all_techniques_spurious'
@@ -115,6 +116,7 @@ def test_ensemble_two_agreeing_results_combine() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -133,6 +135,7 @@ def test_ensemble_disagreement_yields_conflicted() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
     assert result.confidence_rank == 'conflicted'
@@ -167,6 +170,7 @@ def test_ensemble_pixel_floor_groups_crlb_tight_results_within_floor() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
 
@@ -181,7 +185,7 @@ def test_ensemble_pixel_floor_disabled_falls_back_to_mahalanobis() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
-        config=EnsembleConfig(agreement_pixel_floor=0.0),
+        config=packaged_ensemble(agreement_pixel_floor=0.0),
     )
     assert result.status == 'conflicted'
 
@@ -197,6 +201,7 @@ def test_ensemble_pixel_floor_does_not_group_results_beyond_floor() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
 
@@ -215,6 +220,7 @@ def test_ensemble_at_edge_dropped_when_interior_exists() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     # The at-edge result is dropped, leaving only the interior technique
@@ -235,13 +241,14 @@ def test_ensemble_at_edge_kept_when_only_one() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
 
 
 def test_ensemble_below_min_confidence_fails() -> None:
     """A combined confidence below min_confidence yields failed."""
-    cfg = EnsembleConfig(min_confidence=0.5)
+    cfg = packaged_ensemble(min_confidence=0.5)
     a = _make_result(technique_name='TechniqueA', offset=(0.0, 0.0), confidence=0.1)
     result = ensemble(
         [a],
@@ -256,25 +263,33 @@ def test_ensemble_below_min_confidence_fails() -> None:
 
 def test_derive_confidence_rank_high() -> None:
     """High confidence + small sigma earns the 'high' tier."""
-    rank = derive_confidence_rank(confidence=0.9, sigma_px=(0.3, 0.3))
+    rank = derive_confidence_rank(
+        confidence=0.9, sigma_px=(0.3, 0.3), tier_thresholds=packaged_tiers()
+    )
     assert rank == 'high'
 
 
 def test_derive_confidence_rank_medium_when_sigma_too_large_for_high() -> None:
     """High confidence but sigma above 'high' threshold falls back to 'medium'."""
-    rank = derive_confidence_rank(confidence=0.85, sigma_px=(1.5, 1.5))
+    rank = derive_confidence_rank(
+        confidence=0.85, sigma_px=(1.5, 1.5), tier_thresholds=packaged_tiers()
+    )
     assert rank == 'medium'
 
 
 def test_derive_confidence_rank_low() -> None:
     """Low confidence + any sigma earns the 'low' tier when >= 0.35."""
-    rank = derive_confidence_rank(confidence=0.4, sigma_px=(10.0, 10.0))
+    rank = derive_confidence_rank(
+        confidence=0.4, sigma_px=(10.0, 10.0), tier_thresholds=packaged_tiers()
+    )
     assert rank == 'low'
 
 
 def test_derive_confidence_rank_failed_below_threshold() -> None:
     """Confidence below the 0.35 low-tier boundary yields 'failed'."""
-    rank = derive_confidence_rank(confidence=0.3, sigma_px=(0.3, 0.3))
+    rank = derive_confidence_rank(
+        confidence=0.3, sigma_px=(0.3, 0.3), tier_thresholds=packaged_tiers()
+    )
     assert rank == 'failed'
 
 
@@ -282,7 +297,7 @@ def test_derive_confidence_rank_logs_when_sigma_missing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """CODE-ORCH-003: a None sigma is logged and caps the rank at low."""
-    rank = derive_confidence_rank(confidence=0.95, sigma_px=None)
+    rank = derive_confidence_rank(confidence=0.95, sigma_px=None, tier_thresholds=packaged_tiers())
     assert rank == 'low'
     captured = capsys.readouterr()
     assert 'sigma_px is None' in (captured.out + captured.err)
@@ -298,12 +313,14 @@ def test_ensemble_order_independent() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     res2 = ensemble(
         [b, a],
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert res1.offset_px is not None
     assert res2.offset_px is not None
@@ -321,6 +338,7 @@ def test_ensemble_rank_1_only_for_single_axis_observable() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     from spindoctor.support.status_reason import NavStatusReason
@@ -347,6 +365,7 @@ def test_ensemble_unobservable_offset_when_all_share_null_direction() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     # v is observable, u is not; the ensemble reports RANK_1_ONLY with
     # ``sigma_along_unobservable_px`` set on the result.
@@ -388,6 +407,7 @@ def test_ensemble_3dof_combines_translation_and_rotation() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.rotation_rad is not None
@@ -434,6 +454,7 @@ def test_ensemble_3dof_with_rotation_unobservable_input() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.rotation_rad is not None
@@ -481,7 +502,7 @@ def test_ensemble_3dof_rotation_circular_mean_does_not_collapse_near_wrap() -> N
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
-        config=EnsembleConfig(max_allowed_rotation_deg=180.0),
+        config=packaged_ensemble(max_allowed_rotation_deg=180.0),
     )
     assert result.rotation_rad is not None
     # Circular mean of +-179 deg is ~180 deg (|sin| ~ pi), nowhere near 0.
@@ -520,6 +541,7 @@ def test_ensemble_3dof_rotation_small_angle_circular_mean_matches_arithmetic() -
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.rotation_rad is not None
     assert result.rotation_rad == pytest.approx(0.03, abs=1e-6)
@@ -546,6 +568,7 @@ def test_ensemble_3dof_rotation_over_bound_raises_contract_error() -> None:
             feature_inventory=[],
             image_classifier=_classifier(),
             provenance=_provenance(),
+            config=packaged_ensemble(),
         )
 
 
@@ -568,7 +591,7 @@ def test_combine_precision_weighted_rotation_over_bound_raises_contract_error() 
         _combine_precision_weighted(
             [a],
             rcond=1.0e-9,
-            max_allowed_rotation_deg=DEFAULT_MAX_ALLOWED_ROTATION_DEG,
+            max_allowed_rotation_deg=packaged_ensemble().max_allowed_rotation_deg,
         )
 
 
@@ -584,7 +607,7 @@ def test_mahalanobis_null_space_groups_near_rank_deficient_agreement() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
-        config=EnsembleConfig(agreement_pixel_floor=0.0),
+        config=packaged_ensemble(agreement_pixel_floor=0.0),
     )
     assert result.status == 'success'
 
@@ -606,7 +629,7 @@ def test_mahalanobis_null_axis_junk_does_not_separate_agreeing_rank_1_pair() -> 
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
-        config=EnsembleConfig(agreement_pixel_floor=0.0),
+        config=packaged_ensemble(agreement_pixel_floor=0.0),
     )
     assert result.status == 'success'
     assert result.status_reason.value == 'rank_1_only'
@@ -624,7 +647,7 @@ def test_mahalanobis_disagreement_along_shared_observable_axis_conflicts() -> No
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
-        config=EnsembleConfig(agreement_pixel_floor=0.0),
+        config=packaged_ensemble(agreement_pixel_floor=0.0),
     )
     assert result.status == 'conflicted'
 
@@ -684,6 +707,7 @@ def test_ensemble_drops_terminator_when_limb_succeeds_for_same_body() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -728,6 +752,7 @@ def test_ensemble_fallback_drop_uses_source_bodies_not_feature_ids() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -754,6 +779,7 @@ def test_ensemble_keeps_terminator_when_limb_is_spurious() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -780,6 +806,7 @@ def test_ensemble_keeps_terminator_for_different_body() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     # Both results survive the fallback filter, end up in different
     # agreement groups, and so the ensemble flags conflicted.
@@ -817,6 +844,7 @@ def test_ensemble_drops_blob_when_disc_succeeds_for_same_body() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -846,6 +874,7 @@ def test_ensemble_rejects_mixed_dof_inputs() -> None:
             feature_inventory=[],
             image_classifier=_classifier(),
             provenance=_provenance(),
+            config=packaged_ensemble(),
         )
 
 
@@ -922,6 +951,7 @@ def test_ensemble_rejects_lone_outlier_against_consensus() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.excluded_from_consensus == ['BodyTerminatorNav']
@@ -940,12 +970,14 @@ def test_ensemble_outlier_rejection_applies_disagreement_penalty() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     unanimous = ensemble(
         _three_agreeing_plus_outlier()[:3],
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert unanimous.excluded_from_consensus == []
     assert with_outlier.confidence < unanimous.confidence
@@ -965,6 +997,7 @@ def test_ensemble_two_pairs_disagreeing_across_pairs_conflict() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
     assert result.excluded_from_consensus == ['TechniqueC', 'TechniqueD']
@@ -984,6 +1017,7 @@ def test_ensemble_dominant_pair_beats_weak_pair_without_conflict() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.excluded_from_consensus == ['TechniqueC', 'TechniqueD']
@@ -1001,6 +1035,7 @@ def test_ensemble_unanimous_consensus_reports_no_exclusions() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.excluded_from_consensus == []
@@ -1024,6 +1059,7 @@ def test_ensemble_lone_dissenter_half_confidence_is_outlier_not_conflict() -> No
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.excluded_from_consensus == ['TechniqueB']
@@ -1047,6 +1083,7 @@ def test_ensemble_lone_vs_lone_comparable_confidence_still_conflicts() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
     assert result.confidence_rank == 'conflicted'
@@ -1071,6 +1108,7 @@ def test_ensemble_conflicted_result_records_its_star_count() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
     assert result.matched_star_count == 2
@@ -1095,6 +1133,7 @@ def test_ensemble_single_inlier_refine_is_single_star_only() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
@@ -1115,6 +1154,7 @@ def test_ensemble_one_star_unique_match_is_single_star_only() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
     assert result.confidence_rank == 'low'
@@ -1155,6 +1195,7 @@ def test_ensemble_two_results_on_one_star_are_one_witness() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status_reason == NavStatusReason.SINGLE_STAR_ONLY
     assert result.confidence_rank == 'low'
@@ -1199,6 +1240,7 @@ def test_ensemble_star_results_on_two_stars_top_out_at_medium(n_refined: int, ra
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.matched_star_count == n_refined
     assert result.confidence_rank == rank
@@ -1232,6 +1274,7 @@ def test_ensemble_two_single_star_results_on_different_stars_are_two_stars() -> 
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status_reason == NavStatusReason.OK
     assert result.matched_star_count == 2
@@ -1268,6 +1311,7 @@ def test_ensemble_three_single_star_results_on_different_stars_stay_medium() -> 
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.matched_star_count == 3
     assert result.confidence_rank == 'medium'
@@ -1305,6 +1349,7 @@ def test_ensemble_star_results_sharing_a_star_disagree_beyond_tolerance() -> Non
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
 
@@ -1331,6 +1376,7 @@ def test_ensemble_single_star_plus_body_technique_keeps_high() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.confidence_rank == 'high'
@@ -1357,6 +1403,7 @@ def test_ensemble_multi_star_refine_keeps_high() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.confidence_rank == 'high'
@@ -1385,6 +1432,7 @@ def test_ensemble_rank_1_ring_and_full_rank_blob_agreeing_radially_fuse() -> Non
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.status_reason.value == 'ok'
@@ -1412,6 +1460,7 @@ def test_ensemble_rank_1_ring_disagreeing_radially_does_not_group() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     # The 7.9 px radial disagreement is genuine; the ring wins the
     # consensus and the blob is excluded as an outlier.
@@ -1444,6 +1493,7 @@ def test_blob_outlier_dropped_against_two_star_consensus() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     # The blob is dropped, so the star fix commits instead of conflicting.
     assert result.status == 'success'
@@ -1478,7 +1528,7 @@ def test_blob_star_disagreement_floor_zero_disables_the_drop() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
-        config=EnsembleConfig(blob_star_disagreement_floor_px=0.0),
+        config=packaged_ensemble(blob_star_disagreement_floor_px=0.0),
     )
     assert result.status == 'conflicted'
 
@@ -1502,6 +1552,7 @@ def test_blob_agreeing_with_star_consensus_is_kept() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert 'BodyBlobNav' in result.consensus_techniques
 
@@ -1530,14 +1581,9 @@ def test_blob_outlier_kept_against_one_star_consensus_still_conflicts() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
-
-
-def test_blob_star_disagreement_floor_rejects_negative() -> None:
-    """A negative blob/star disagreement floor is rejected at construction."""
-    with pytest.raises(ValueError, match='blob_star_disagreement_floor_px must be non-negative'):
-        EnsembleConfig(blob_star_disagreement_floor_px=-1.0)
 
 
 def test_ensemble_rotation_sentinel_does_not_zero_translation_offset() -> None:
@@ -1566,6 +1612,7 @@ def test_ensemble_rotation_sentinel_does_not_zero_translation_offset() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -1587,6 +1634,7 @@ def test_ensemble_rank_deficient_fused_result_caps_at_medium() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.status_reason.value == 'rank_1_only'
@@ -1633,12 +1681,14 @@ def test_ensemble_prior_descendant_does_not_boost_confidence() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     without_tag = ensemble(
         [ring, untagged],
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert with_tag.status == 'success'
     assert without_tag.confidence > with_tag.confidence
@@ -1664,6 +1714,7 @@ def test_ensemble_seeded_single_star_refine_does_not_drag_offset() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -1692,6 +1743,7 @@ def test_ensemble_seeded_multi_star_refine_still_refines_the_offset() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -1728,6 +1780,7 @@ def test_ensemble_two_ring_techniques_are_one_witness_not_two() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     # Control: an independent body+ring pair on the same numbers does earn the
     # two-witness boost, so it lands at the confidence cap.
@@ -1743,6 +1796,7 @@ def test_ensemble_two_ring_techniques_are_one_witness_not_two() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert ring_pair.status == 'success'
     # No agreement boost: the collapsed witness keeps its own 0.8, while the
@@ -1788,6 +1842,7 @@ def test_ensemble_collapsed_ring_pair_has_no_spurious_quorum() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
     assert result.excluded_from_consensus == ['TechniqueB']
@@ -1824,12 +1879,14 @@ def test_ensemble_scattered_light_disc_limb_are_one_witness() -> None:
         feature_inventory=[],
         image_classifier=_classifier(background_gradient_score=8.0),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     clean = ensemble(
         [disc, limb],
         feature_inventory=[],
         image_classifier=_classifier(background_gradient_score=1.0),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert scattered.status == 'success'
     assert clean.status == 'success'
@@ -1863,6 +1920,7 @@ def test_ensemble_descendant_backed_winner_is_singleton_in_standoff() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
     assert result.excluded_from_consensus == ['TechniqueB']
@@ -1882,6 +1940,7 @@ def test_ensemble_descendant_backed_runner_up_has_no_quorum() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     # Without the corroboration fix the excluded pair counts as a
     # two-member runner-up (summed 0.9 against best 1.2, gap 0.3 < 0.5)
@@ -1920,6 +1979,7 @@ def test_ensemble_shape_lock_veto_reports_conflicted() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'conflicted'
     assert result.status_reason.value == 'body_shape_lock_suspect'
@@ -1967,6 +2027,7 @@ def test_ensemble_shape_lock_suppressed_by_corroborating_star_fix() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.offset_px is not None
@@ -2007,6 +2068,7 @@ def test_ensemble_lone_blob_collapsed_regime_veto_reports_failed() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'failed'
     assert result.status_reason.value == 'lone_blob_in_collapsed_regime'
@@ -2021,38 +2083,12 @@ def test_ensemble_untagged_results_unchanged_by_lineage_logic() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     assert result.status == 'success'
     assert result.consensus_techniques == ['TechniqueA', 'TechniqueB']
     # Two independent members still earn the 2-member agreement factor.
     assert result.confidence == pytest.approx(0.99)
-
-
-def test_config_rejects_negative_body_witness_agreement_sigma() -> None:
-    """A negative Mahalanobis threshold would veto nearly every separation."""
-    with pytest.raises(ValueError, match='body_witness_agreement_sigma must be non-negative'):
-        EnsembleConfig(body_witness_agreement_sigma=-1.0)
-
-
-def test_config_rejects_non_finite_body_witness_disagreement_floor() -> None:
-    """A non-finite disagreement floor is rejected rather than silently accepted."""
-    with pytest.raises(ValueError, match='body_witness_disagreement_floor_px must be finite'):
-        EnsembleConfig(body_witness_disagreement_floor_px=float('inf'))
-
-
-def test_config_rejects_out_of_range_shape_lock_phase() -> None:
-    """A phase ceiling outside [0, 180] deg is rejected."""
-    with pytest.raises(ValueError, match=r'body_witness_shape_lock_max_phase_deg must lie'):
-        EnsembleConfig(body_witness_shape_lock_max_phase_deg=200.0)
-
-
-def test_config_rejects_inverted_phase_window() -> None:
-    """The shape-lock ceiling must sit below the collapse floor."""
-    with pytest.raises(ValueError, match='must be below'):
-        EnsembleConfig(
-            body_witness_shape_lock_max_phase_deg=95.0,
-            body_witness_collapse_min_phase_deg=90.0,
-        )
 
 
 def test_ensemble_collapsed_star_set_reports_the_blended_confidence() -> None:
@@ -2098,6 +2134,7 @@ def test_ensemble_collapsed_star_set_reports_the_blended_confidence() -> None:
         feature_inventory=[],
         image_classifier=_classifier(),
         provenance=_provenance(),
+        config=packaged_ensemble(),
     )
     weights = (1 / 0.09, 1 / 0.05, 1 / 0.09)
     blend = (weights[0] * 0.6 + weights[1] * 0.8 + weights[2] * 0.95) / sum(weights)

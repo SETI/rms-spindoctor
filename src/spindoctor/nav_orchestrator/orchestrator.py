@@ -30,9 +30,9 @@ from spindoctor.config import MAIN_LOGGER, Config, logged_section
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
-from spindoctor.feature.reliability import FeatureReliabilityGate, GatedFeatureRecord
+from spindoctor.feature.reliability import GatedFeatureRecord
 from spindoctor.nav_model import NavModel
-from spindoctor.nav_orchestrator.ensemble import EnsembleConfig, ensemble
+from spindoctor.nav_orchestrator.ensemble import ensemble
 from spindoctor.nav_orchestrator.feature_summary import NavFeatureSummary
 from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 from spindoctor.nav_orchestrator.image_classifier_result import (
@@ -269,9 +269,6 @@ class NavOrchestrator(NavBase):
         only_techniques: Glob-pattern string or list selecting which
             techniques run.  Default ``'*'`` runs every registered
             technique.
-        ensemble_config: Optional ``EnsembleConfig`` override; when omitted
-            the ensemble parameters come from the ``orchestrator.ensemble``
-            config section (config_540_orchestrator.yaml defaults).
         image_quality_thresholds: Optional thresholds for the image-quality
             classifier.
         spindoctor_version: Version string written into provenance.
@@ -284,7 +281,6 @@ class NavOrchestrator(NavBase):
         config: Config | None = None,
         only_models: str | list[str] = '*',
         only_techniques: str | list[str] = '*',
-        ensemble_config: EnsembleConfig | None = None,
         image_quality_thresholds: ImageQualityThresholds | None = None,
         image_derivatives_config: ImageDerivativesConfig | None = None,
         spindoctor_version: str = '0.0.0',
@@ -294,16 +290,13 @@ class NavOrchestrator(NavBase):
             models=_ModelRegistry(models=models).filter_by_glob(only_models)
         )
         self._only_techniques = only_techniques
-        orch_cfg = self.config.orchestrator
-        self._ensemble_config = ensemble_config or EnsembleConfig.from_mapping(
-            orch_cfg.get('ensemble')
-        )
+        self._ensemble_config = self.config.orchestrator.ensemble
         # ``image_quality_thresholds`` overrides the per-instrument config
         # block when supplied; otherwise the orchestrator builds the
         # thresholds from ``obs.inst_config`` per image.
         self._explicit_thresholds = image_quality_thresholds
         self._image_derivatives_config = image_derivatives_config or ImageDerivativesConfig()
-        self._gate = FeatureReliabilityGate.from_mapping(orch_cfg.get('reliability_gate'))
+        self._gate = self.config.orchestrator.reliability_gate
         self._spindoctor_version = spindoctor_version
 
     def prepare(
@@ -818,11 +811,11 @@ class NavOrchestrator(NavBase):
         # reliability components dragged a gated feature below the
         # threshold (visible_arc_fraction, incidence_factor,
         # albedo_penalty, ...) without having to crack the metadata
-        # JSON.  Threshold lookup mirrors ``FeatureReliabilityGate.apply``.
+        # JSON.
         gated_ids = {record.feature.feature_id for record in gated}
         for feature in all_features:
             verdict = 'gated' if feature.feature_id in gated_ids else 'kept'
-            threshold = self._gate.thresholds.get(feature.feature_type, 0.0)
+            threshold = self._gate.threshold(feature.feature_type)
             self._logger.debug(
                 '%s: %s %s reliability=%.3f threshold=%.3f reasons={%s}',
                 verdict,

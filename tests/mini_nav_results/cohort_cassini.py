@@ -61,6 +61,7 @@ from spindoctor.nav_orchestrator.nav_result import NavResult
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics, RingEdgeDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.status_reason import NavStatusReason
+from tests.orchestrator_section import packaged_tiers
 
 from .backplanes import COHORT_SHAPE_VU, CohortBody
 from .cohort import Cohort, CohortImage
@@ -409,7 +410,9 @@ def cassini_body_limb() -> dict[str, Any]:
         offset_px=(1.2, -0.75),
         covariance_px2=np.diag([0.0576, 0.0441]),
         confidence=0.88,
-        confidence_rank=derive_confidence_rank(confidence=0.88, sigma_px=(0.24, 0.21)),
+        confidence_rank=derive_confidence_rank(
+            confidence=0.88, sigma_px=(0.24, 0.21), tier_thresholds=packaged_tiers()
+        ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
         feature_inventory=inventory,
@@ -503,7 +506,9 @@ def cassini_ring_edges() -> dict[str, Any]:
         offset_px=(-0.42, 0.18),
         covariance_px2=np.diag([0.1024, 0.0729]),
         confidence=0.77,
-        confidence_rank=derive_confidence_rank(confidence=0.77, sigma_px=(0.32, 0.27)),
+        confidence_rank=derive_confidence_rank(
+            confidence=0.77, sigma_px=(0.32, 0.27), tier_thresholds=packaged_tiers()
+        ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
         feature_inventory=inventory,

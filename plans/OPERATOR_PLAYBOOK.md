@@ -1009,4 +1009,4 @@ these are what it owes and what generalizes it):**
 The program's finish line for this arc: #230 retires the
 `confidence_provisional` marker on real evidence, at which point every
 confidence number the pipeline emits is backed by published, real-frame
-measurements — the goal named in Section 1 of the program plan.
+measurements — the goal the program plan opens with.

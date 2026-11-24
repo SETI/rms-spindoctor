@@ -1,12 +1,13 @@
 # Archived plans
 
 Historical planning records, kept for reference. The live plans are in the
-parent `plans/` directory: `PROGRAM_PLAN.md` is the top-level plan of record;
-`VALIDATION_AND_CALIBRATION_PLAN.md` (Track A science detail),
+parent `plans/` directory: `PROGRAM_PLAN.md` is the top-level plan of record,
+one row per issue in phases; `SIM_IMPROVEMENT_PLAN.md` is the same for the
+simulator; `VALIDATION_AND_CALIBRATION_PLAN.md` (Track A science detail),
 `ENGINEERING_PLAN.md` (Tracks B-F implementation detail), and
 `COHORT_CURATION_PLAN.md` (image-library growth playbook) are its detail
 layers, and `OPERATOR_PLAYBOOK.md` is the operator's dispatch sheet over all
-of them. Archived documents may reference each other and pre-archive paths
+of them. The tracks are those of `PROGRAM_PLAN_2026-11-17.md`. Archived documents may reference each other and pre-archive paths
 (e.g. `plans/ROADMAP.md`, `plans/PHASE10_CURATION.md`); resolve such
 references against the dated filenames in this directory.
 
@@ -148,6 +149,11 @@ references against the dated filenames in this directory.
   Voyager, Galileo and New Horizons is the other half and begins from the
   reference template tree this work produced. Its other open follow-ups are
   #600, #611, #614, #677, #687, #706, #710, #716 and #720.
+- `PROGRAM_PLAN_2026-11-17.md` — the program plan by track, with each open
+  issue's history and the index that grouped the issues by track. Superseded
+  on 2026-11-22 by the phase-ordered `plans/PROGRAM_PLAN.md`, which lists every
+  open issue outside the simulator plan once. Its narrative remains the record
+  of why each issue stands where it does.
 - `ROADMAP_2026-07-12.md` — the issue-ordered, Cassini-first pipeline
   build-out that served as the plan of record until 2026-07-12; consolidated
   into `plans/PROGRAM_PLAN.md` together with the post-stack task inventory.

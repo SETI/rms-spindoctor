@@ -63,8 +63,9 @@ simulator's files use (see :doc:`dev_guide_schema`):
 A file the merge refuses raises :class:`~spindoctor.schema.errors.SchemaError`, a
 :class:`ValueError` whose message has one line per problem, in the form
 ``file: key.path: message``. An override is given by the path it was loaded from, and
-a packaged file by its name. The merged result then goes through the load-time checks,
-which raise a :class:`ValueError` of their own. An override refused at either step
+a packaged file by its name. The merged result's typed sections are then parsed (see
+:ref:`config-typed-sections`), and the result goes through the load-time checks, which
+raise a :class:`ValueError` of their own. An override refused at any of these steps
 leaves the configuration as it was, so a later override still loads.
 :attr:`~spindoctor.config.config.Config.override_paths` lists the overrides applied, in
 order, for provenance.
@@ -91,10 +92,43 @@ Per-class ``config`` properties on
 :class:`~spindoctor.support.nav_base.NavBase` subclasses surface the same singleton
 through dependency injection.
 
+.. _config-typed-sections:
+
+Typed sections
+--------------
+
+Some sections are parsed into frozen dataclasses through the schema core (see
+:doc:`dev_guide_schema`), every time a configuration is installed: once when the
+packaged files are read, and again for each override. The typed sections are the fields
+of :class:`~spindoctor.config.sections.TypedSections`. Each one is named after its
+top-level key, and the matching :class:`~spindoctor.config.config.Config` property
+returns the typed object:
+
+- ``orchestrator`` — :class:`~spindoctor.config.sections.OrchestratorSection`, holding
+  ``ensemble`` (an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`; see
+  :doc:`dev_guide_orchestrator_ensemble`) and ``reliability_gate`` (a
+  :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`).
+
+The rules for a typed section:
+
+- A tunable's value lives in the YAML only. Its field has no default, so the packaged
+  file must set it and no copy of it exists in code.
+- A key that is optional by nature is typed ``X | None = None``, so leaving it out reads
+  as None. The low confidence tier's ``max_sigma_px`` is such a key: the tier sets no
+  sigma requirement.
+- An unknown key, a value of the wrong type, and a value out of range are refused when
+  the configuration loads, and so is a broken rule that ties two keys together. The
+  message has one line per problem, in the form ``file: key.path: message``. The file
+  is the one that set the value, and the key path starts at the section's name, as in
+  ``orchestrator.ensemble.min_confidence``.
+- A reader takes the typed object from the configuration and never repeats a check the
+  type makes. A test that needs different values builds a variant of the packaged section
+  with :func:`dataclasses.replace`.
+
 Sections
 --------
 
-Top-level YAML keys are exposed as
+Top-level YAML keys other than the typed sections are exposed as
 :class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
 ``cfg.bodies.use_lambert`` instead of ``cfg['bodies']['use_lambert']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
@@ -143,6 +177,8 @@ removal. The shipping sections:
 - ``techniques`` — per-:class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   tunables and confidence-formula
   coefficients; see :doc:`dev_guide_techniques`.
+- ``orchestrator`` — the ensemble combine's tunables and confidence tiers, and the
+  per-feature-type reliability gate; a typed section (see :ref:`config-typed-sections`).
 - ``satellites`` — per-planet satellite lists used by the body
   :class:`~spindoctor.nav_model.nav_model.NavModel`'s inventory query.
 - ``feature_emission`` — per-planet
@@ -190,8 +226,8 @@ ranges are conventional, not enforced by the loader:
        ``config_420_inst_nhlorri``, ``config_430_inst_vgiss``,
        ``config_440_sim``
    * - ``5xx``
-     - Per-technique tunables
-     - ``config_510_techniques``
+     - Per-technique and orchestrator tunables
+     - ``config_510_techniques``, ``config_540_orchestrator``
    * - ``9xx``
      - Downstream-product settings
      - ``config_900_backplanes``, ``config_951_pds4_coiss_saturn``,
@@ -226,6 +262,8 @@ Each shipping file and what it holds:
   runtime tunables (spurious-detection thresholds, at-edge tolerances, minimum
   arc lengths) plus the planet-specific ``feature_emission.ring_annulus`` block
   that decides RING_EDGE vs RING_ANNULUS emission.
+- ``config_540_orchestrator`` — the ``orchestrator`` section: the ensemble combine's
+  tunables and confidence tiers, and the per-feature-type reliability gate.
 - ``config_900_backplanes`` — backplane-generation settings.
 - ``config_951_pds4_coiss_saturn`` — the ``coiss_saturn`` dataset's PDS4 bundle
   settings, ``pds4.coiss_saturn``: its template directory, the bundle's name and

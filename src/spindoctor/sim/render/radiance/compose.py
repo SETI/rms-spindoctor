@@ -183,9 +183,10 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     catalog_scatter_px = float(params.get('star_catalog_scatter_px', 0.0)) * os
 
     # Camera roll about the boresight (the frame center after the planted offset),
-    # suppressed in GUI preview mode alongside the offset.  Every star, body, and
-    # ring system turns about the frame center and then moves by this one shift,
-    # the offset turned by the roll, so none can take another order (#1157).
+    # suppressed in GUI preview mode alongside the offset.  Every star (sky stars
+    # included), body, and ring system turns about the frame center and then moves
+    # by this one shift, the offset turned by the roll, so none can take another
+    # order (#1157).
     offset_rotation_deg = float(params.get('offset_rotation_deg', 0.0))
     planted = (float(params.get('offset_v', 0.0)) * os, float(params.get('offset_u', 0.0)) * os)
     shift_v, shift_u = boresight_shift(*planted, roll_deg=offset_rotation_deg)
@@ -224,7 +225,14 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # identical to the scene's stars.
     stars_params_scaled = [_scale_star_params(sp, os) for sp in stars_params]
 
-    _render_sky(point_e, params, os=os, seed=background_stars_seed, margin=margin)
+    _render_sky(
+        point_e,
+        params,
+        os=os,
+        seed=background_stars_seed,
+        margin=margin,
+        shift=(shift_v, shift_u),
+    )
 
     point_e, sim_star_list, star_info = render_stars(
         point_e,
@@ -539,7 +547,14 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # ``point_e``; the body and ring layers are intensive-signal layers.
     if needs_layers:
         stars_layer = np.zeros((size_v, size_u), dtype=np.float64)
-        _render_sky(stars_layer, params, os=os, seed=background_stars_seed, margin=margin)
+        _render_sky(
+            stars_layer,
+            params,
+            os=os,
+            seed=background_stars_seed,
+            margin=margin,
+            shift=(shift_v, shift_u),
+        )
         # The layer must be pixel-identical to the primary deposit above (same
         # scatter sigma and seed included): differential smear REPLACES the
         # point-source plane with this layer, so any argument omitted here
@@ -863,13 +878,15 @@ def _render_sky(
     os: int,
     seed: int,
     margin: int,
+    shift: tuple[float, float],
 ) -> None:
     """Render the background-sky star field into a point-source plane in place.
 
     Reads the scene ``sky_counts`` block (absent = no sky).  The faint cutoff
     (:func:`sky_star_faint_cutoff_mag`) is derived from the camera's nominal read noise
     and the scene PSF core, so the count integral stops where a star drops below the
-    sky background.  The planted roll turns the field with the rest of the scene.
+    sky background.  The planted roll turns the field about the frame center and the
+    shift then moves it, as for every other object.
 
     Parameters:
         plane: The oversampled point-source plane to deposit into.
@@ -877,6 +894,9 @@ def _render_sky(
         os: The oversampling factor.
         seed: The sky realization sub-seed.
         margin: How many pixels the plane extends past the frame on each side.
+        shift: The planted offset turned by the roll, ``(v, u)`` on the render grid
+            (see :func:`~spindoctor.sim.render.roll.boresight_shift`), so the roll
+            turns the field about the boresight.
     """
     sky = params.get('sky_counts')
     if not isinstance(sky, Mapping):
@@ -904,6 +924,8 @@ def _render_sky(
         oversample=os,
         rotation_deg=float(params.get('offset_rotation_deg', 0.0)),
         margin=margin,
+        shift_v=shift[0],
+        shift_u=shift[1],
     )
 
 

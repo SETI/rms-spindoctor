@@ -37,3 +37,8 @@ spindoctor.config
    :members:
    :undoc-members:
    :show-inheritance:
+
+.. automodule:: spindoctor.config.sections
+   :members:
+   :undoc-members:
+   :show-inheritance:
