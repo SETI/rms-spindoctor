@@ -86,7 +86,10 @@ The sections are:
     roots that navigation results, backplanes, and PDS4 bundles are written to, the log
     root, and the results index.
 
-``general``, ``planets``, ``satellites``
+``general``
+    The directory of TrueType fonts that labels on summary images are drawn in.
+
+``planets``, ``satellites``
     Which planets and moons SpinDoctor knows about, and how each is grouped. Change these
     to add a moon that is not modeled, or to leave one out.
 
@@ -141,6 +144,12 @@ replaces the whole list.
 A setting you do not want to change is left out of your file. A setting written with no
 value, or as ``null``, is refused when the file is read, and the message gives the file
 and the setting. Your file cannot unset a default. It can only give it another value.
+
+The settings in the ``environment``, ``general``, ``offset``, ``orchestrator``, and
+``results_tree`` sections are checked when your file is read. A setting in one of them
+that SpinDoctor does not know, such as a misspelled name, is refused, and so is a value
+of the wrong kind or out of range, such as text where a number belongs. The message gives
+the file and the setting, so the mistake is found on the first run.
 
 Writing your own default file
 =============================

@@ -316,23 +316,22 @@ a machine, its link to the root, and what the service will do concurrently:
 where the useful value stops rising is where that particular round trip becomes
 what is left, and another provider or another link puts it somewhere else. So
 the numbers are configuration rather than constants, and they travel through the
-code one way. :class:`~spindoctor.nav_records.TreeTuning` carries them and owns
-their defaults; the ``results_tree`` section of the configuration is where a
-machine overrides them, shipped with the same values so that an operator can see
-what they are; and :func:`~spindoctor.config.get_results_tree_tuning` is the one
-door a program reads the section through. A program resolves the tuning once, in
-its entry point, and passes it down to whatever reads the tree ---
+code one way. The ``results_tree`` section of the configuration holds them, and
+the configuration parses it into a :class:`~spindoctor.nav_records.TreeTuning`
+when it loads. The type has no defaults, so the packaged file is the one place
+the values are written. A program reads ``config.results_tree`` once, in its
+entry point, and passes it down to whatever reads the tree ---
 :class:`~spindoctor.nav_records.TreeRecordSource`,
 :func:`~spindoctor.results_index.open_record_source`, the ingest --- the way it
-passes its logger. The library reads no configuration itself, and a call that
-passes no tuning gets the library's defaults.
+passes its logger. The library reads no configuration itself, so each of these
+takes the tuning as a required argument.
 
-The section is validated where every program loads its configuration, in
-:func:`~spindoctor.config.load_default_and_user_config`. A value is refused if
-no pass can run at it. The refusal comes before the program has written
-anything, and the message gives the section and the setting. Three kinds of
-value are refused: a count that is not a positive integer, a setting the section
-does not have, and a round of work smaller than the pool it feeds. The section
+The section is checked as each configuration file is merged, so a value no pass
+can run at is refused before the program has written anything. The message gives
+the file and the key path, as for every typed section (see
+:doc:`dev_guide_config_and_static_data`). Three kinds of value are refused: a
+count that is not a positive integer, a setting the section does not have, and a
+round of work smaller than the pool it feeds. The section
 is also one of the three
 :data:`~spindoctor.config.config.HASH_EXCLUDED_SECTIONS`: how many requests a
 pass makes at once cannot change what any document says, so tuning it must not

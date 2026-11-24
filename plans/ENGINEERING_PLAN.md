@@ -1571,8 +1571,15 @@ asserts the generated half matches the registries.
   - [ ] the logging section
   - [ ] `bodies`, `stars`, `titan`, `rings`, `body_shape`, `satellites`,
     and `feature_emission`
-  - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
-    and `pds4`
+  - [x] `general`, `environment`, `offset`, and `results_tree` (done:
+    parsed at load into `GeneralSection`, `EnvironmentSection` (every key
+    optional, none packaged), `OffsetSection`, and `TreeTuning`;
+    `get_results_tree_tuning`, its unknown-key check, `TreeTuning`'s five
+    defaults, and the literal copies of the upsample factor 128 in three
+    modules deleted; the tree readers take the tuning as a required
+    argument; the flag, then config, then environment-variable order
+    unchanged)
+  - [ ] `backplanes` and `pds4`
   - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;
     no earlier step waits for it
   - [ ] `load_nav_config`, `AttrDict` off the config path, and one test

@@ -236,8 +236,8 @@ once, and past that point extra requests queue, or the service refuses them,
 and the pass gets slower rather than faster.
 
 **A value is refused if no pass can run at it.** The refusal comes when the configuration
-is loaded, before the program has written anything, and the message says which setting is
-wrong. Three kinds of value are refused: a count that is not a positive whole number, a
+is loaded, before the program has written anything, and the message gives the file and
+the setting. Three kinds of value are refused: a count that is not a positive whole number, a
 setting name the section does not have, and a round of work smaller than the pool it
 feeds, which would leave threads idle at every setting rather than merely running slowly.
 

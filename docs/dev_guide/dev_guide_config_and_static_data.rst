@@ -108,6 +108,23 @@ returns the typed object:
   ``ensemble`` (an :class:`~spindoctor.nav_orchestrator.ensemble.EnsembleConfig`; see
   :doc:`dev_guide_orchestrator_ensemble`) and ``reliability_gate`` (a
   :class:`~spindoctor.feature.reliability.FeatureReliabilityGate`).
+- ``general`` — :class:`~spindoctor.config.sections.GeneralSection`: the directory of
+  TrueType fonts that annotation text and summary labels are drawn in
+  (``truetype_font_dir``).
+- ``offset`` — :class:`~spindoctor.config.sections.OffsetSection`: the FFT upsample
+  factor of the image correlation (``correlation_fft_upsample_factor``), from 1 to
+  :data:`~spindoctor.config.sections.MAX_UPSAMPLE_FACTOR`. The disc correlation, the ring
+  annulus correlation, and the manual navigation dialog read it from here.
+- ``results_tree`` — a :class:`~spindoctor.nav_records.TreeTuning`: how much of a pass
+  over a navigation results tree runs at once; see :doc:`dev_guide_results_index`. Its
+  rule refuses a round of work smaller than the thread pool it feeds.
+- ``environment`` — :class:`~spindoctor.config.sections.EnvironmentSection`: deployment
+  locations (``pds3_holdings_root``, ``nav_results_root``, ``backplane_results_root``,
+  ``bundle_results_root``, ``log_root``, and ``results_index_db``). No packaged file sets
+  this section, so every key is optional and an absent one reads as None. Resolving a
+  location from the command line, then this section, then an environment variable is
+  precedence rather than schema, and stays in the helpers of
+  :mod:`spindoctor.config.config_helper`.
 
 The rules for a typed section:
 
@@ -142,11 +159,8 @@ The class carries ``oops``'s own opt-out marker to prevent that; it is a
 workaround for one package rather than a general convention, and is tracked for
 removal. The shipping sections:
 
-- ``general`` — global settings shared across programs.
 - ``logging`` — logger defaults, per-module levels, and per-program
   overrides.
-- ``offset`` — the FFT upsample factor of the image correlation
-  (``correlation_fft_upsample_factor``).
 - ``stars`` — star-model and ring-occlusion parameters; see
   :doc:`dev_guide_navigation_models_star`.
 - ``bodies`` — body rendering parameters; see
@@ -162,13 +176,6 @@ removal. The shipping sections:
   :doc:`dev_guide_backplanes`.
 - ``pds4`` — per-dataset PDS4 template directories and bundle names; see
   :doc:`dev_guide_pds4`.
-- ``environment`` — deployment locations (``pds3_holdings_root``,
-  ``nav_results_root``, ``backplane_results_root``, ``bundle_results_root``,
-  ``results_index_db``).
-- ``results_tree`` — how much of a pass over a navigation results tree runs at
-  once, read into a :class:`~spindoctor.nav_records.TreeTuning` by
-  :func:`~spindoctor.config.get_results_tree_tuning`; see
-  :doc:`dev_guide_results_index`.
 - ``body_shape`` — static per-body shape catalog (see
   :ref:`static-data-citations` below).
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
