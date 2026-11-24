@@ -4,13 +4,8 @@ bodies:
   # Titan is a hardcoded special case (the TITAN_BODY_NAME constant in
   # nav_model_body); NavModelTitan records a no-result for it instead.
   min_bounding_box_area: 9
-  min_emission_ring_body: 20
   oversample_edge_limit: 512
   oversample_maximum: 2
-  curvature_threshold_frac: 0.02
-  curvature_threshold_pixels: 20
-  limb_incidence_threshold: 1.53588974175501
-  limb_incidence_frac: 0.4
   # Maximum overflow fraction (share of the rendered silhouette lying outside the
   # sensor) at which a body still emits BODY_BLOB, whether as its only feature or
   # as the witness beside a limb.  The predicted lit-weighted centroid is taken
@@ -30,27 +25,6 @@ bodies:
   # off (N1484593951_2 Rhea, N1716186428_1 Tethys, N1816644691_1 Dione,
   # N1483174087_1 Iapetus).
   blob_max_overflow_fraction: 0.05
-  surface_bumpiness:
-    SATURN: 50.0
-    PAN: 7.0
-    DAPHNIS: 3.0
-    ATLAS: 12.0
-    PROMETHEUS: 25.0
-    PANDORA: 20.0
-    EPIMETHEUS: 13.0
-    JANUS: 20.0
-    MIMAS: 5.0
-    ENCELADUS: 0.5
-    TETHYS: 5.0
-    TELESTO: 5.0
-    CALYPSO: 7.0
-    DIONE: 0.75
-    HELENE: 45.0
-    RHEA: 0.75
-    TITAN: 0.0
-    HYPERION: 350.0
-    IAPETUS: 35.0
-    PHOEBE: 40.0
   geometric_albedo:
     SATURN: 0.342
     PAN: 0.5
@@ -74,13 +48,6 @@ bodies:
     PHOEBE: 0.08
   use_lambert: true
   use_albedo: false
-  min_reproj_seed_area: 40000
-  min_reproj_candidate_area: 2500
-  reproj_lon_resolution: 0.017453292519943295
-  reproj_lat_resolution: 0.017453292519943295
-  reproj_latlon_type: centric
-  reproj_lon_direction: east
-  min_text_area: 0.003
   # Details of labels placed on bodies
   label_mask_enlarge: 10  # Number of pixels around a body to avoid for label placement
   label_limb_color: [255, 0, 0]  # Red

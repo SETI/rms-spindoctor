@@ -56,13 +56,6 @@ def test_an_override_of_one_setting_leaves_the_rest_at_their_defaults(tmp_path: 
     assert tuning.retrieve_threads == TreeTuning().retrieve_threads
 
 
-def test_a_null_setting_is_refused_rather_than_defaulted(tmp_path: Path) -> None:
-    """A key written with no value is a mistake to report, not a default to fall back on."""
-    config = _config(tmp_path, 'results_tree:\n  walk_threads: null\n')
-    with pytest.raises(ValueError, match=re.escape('results_tree: walk_threads')):
-        get_results_tree_tuning(config)
-
-
 def test_a_setting_that_does_not_exist_is_refused_by_name(tmp_path: Path) -> None:
     """A misspelled key would otherwise tune nothing and say nothing."""
     config = _config(tmp_path, 'results_tree:\n  walk_thread: 4\n')

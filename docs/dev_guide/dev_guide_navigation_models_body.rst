@@ -401,20 +401,17 @@ not exposed to YAML.
 bodies block
 ------------
 
-Every key under ``bodies`` is listed below. Several keys are read by classes
-other than :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`, and some are not read
-at all. Each bullet gives the class that reads its key, or says that the key is reserved. The grep
-``grep -c '^  [a-z_]\+:' src/spindoctor/config_files/config_040_bodies.yaml`` returns 31 keys, which
-matches the 31 bullets here.
+Every key under ``bodies`` is listed below, with the class that reads it. Several keys
+are read by classes other than
+:class:`~spindoctor.nav_model.nav_model_body.NavModelBody`. The grep
+``grep -c '^  [a-z_]\+:' src/spindoctor/config_files/config_040_bodies.yaml``
+returns 18 keys, which matches the 18 bullets here.
 
 - ``min_bounding_box_area`` — int, default ``9`` px². Recorded on the model's metadata as
   ``size_ok``; sub-threshold bounding boxes are flagged for reviewer awareness. Does not by
   itself suppress feature emission. Its square root is also the "resolved" diameter cutoff
   above which a ``highly_irregular`` body drops its shape features. Consumed by
   :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
-- ``min_emission_ring_body`` — int, default ``20`` px. Reserved for the per-body ring-emission
-  gate that decides whether to emit RING_EDGE features near a body. Reserved as an unused
-  key so the per-instrument override story is uniform once a consumer is wired in.
 - ``oversample_edge_limit`` — int, default ``512`` px. Cap on the per-axis oversample factor:
   the floor of ``oversample_edge_limit / max(1, ceil(bbox_extent_px))``. Larger values
   produce a smoother anti-aliased limb at the cost of a larger backplane query. Consumed by
@@ -423,17 +420,6 @@ matches the 31 bullets here.
   oversample factor independent of bounding-box size. Saturates small-body renders so large
   field-fillers do not exhaust memory. Consumed by
   :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
-- ``curvature_threshold_frac`` — float, default ``0.02`` (dimensionless). Reserved for the
-  curvature-classification heuristic that distinguishes "limb fits a circle" from "limb is
-  effectively a straight line"; not consumed by the current
-  :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
-- ``curvature_threshold_pixels`` — int, default ``20`` px. Reserved alongside
-  ``curvature_threshold_frac`` for the same heuristic.
-- ``limb_incidence_threshold`` — float, default ``1.53589...`` rad (= 88 degrees). Reserved
-  for a limb-vertex shadow filter that drops vertices whose local incidence angle is past
-  the threshold. Not consumed by the current model.
-- ``limb_incidence_frac`` — float, default ``0.4`` (dimensionless). Reserved for the same
-  shadow filter.
 - ``blob_max_overflow_fraction`` — float, default ``0.05`` (dimensionless). Maximum
   overflow fraction at which the body emits
   :attr:`~spindoctor.feature.feature_type.NavFeatureType.BODY_BLOB`, whether as its only
@@ -441,10 +427,6 @@ matches the 31 bullets here.
   that clipping alone produces reaches the centroid bias budget in the blob covariance
   (see `Feature emission gates`_). Validated at load as a finite number within
   ``[0, 1]``. Consumed by :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
-- ``surface_bumpiness`` — dict[str, float], per-body table (km). Reserved for a per-body
-  surface-roughness estimate that would feed into the per-vertex sigma formula; not
-  consumed (the equivalent quantity comes from
-  :attr:`~spindoctor.nav_model.body_shape.BodyShape.crater_scale_km`).
 - ``geometric_albedo`` — dict[str, float], per-body table (dimensionless). Per-body
   geometric albedo applied to the rendered brightness image when ``use_albedo`` is enabled.
   Entries default to bright icy moons (0.6-1.0); Phoebe (0.08), Iapetus (0.275), and Saturn
@@ -459,27 +441,6 @@ matches the 31 bullets here.
   entry in ``geometric_albedo``, the rendered brightness is multiplied by that albedo.
   Distinguishes bright icy moons from dark bodies in multi-body composites. Consumed by
   :class:`~spindoctor.nav_model.nav_model_body.NavModelBody`.
-- ``min_reproj_seed_area`` — int, default ``40000`` px². Threshold on per-image body extent
-  below which a body is not seeded into a body mosaic. Consumed by
-  :class:`~spindoctor.reproj.bodies.BodyMosaic`.
-- ``min_reproj_candidate_area`` — int, default ``2500`` px². Threshold on per-image body
-  extent below which a body is not added as a candidate to an existing body mosaic.
-  Consumed by :class:`~spindoctor.reproj.bodies.BodyMosaic`.
-- ``reproj_lon_resolution`` — float, default ``0.01745...`` rad (= 1 degree). Longitude
-  step for the body-mosaic reprojection grid. Consumed by
-  :class:`~spindoctor.reproj.bodies.BodyMosaic`.
-- ``reproj_lat_resolution`` — float, default ``0.01745...`` rad (= 1 degree). Latitude
-  step for the body-mosaic reprojection grid. Consumed by
-  :class:`~spindoctor.reproj.bodies.BodyMosaic`.
-- ``reproj_latlon_type`` — str, default ``centric`` (one of ``centric`` / ``graphic``).
-  Latitude / longitude convention used by the body-mosaic reprojection. Consumed by
-  :class:`~spindoctor.reproj.bodies.BodyMosaic`.
-- ``reproj_lon_direction`` — str, default ``east`` (one of ``east`` / ``west``). Longitude
-  positive direction for the body-mosaic reprojection. Consumed by
-  :class:`~spindoctor.reproj.bodies.BodyMosaic`.
-- ``min_text_area`` — float, default ``0.003`` (dimensionless fraction of frame area). Below
-  this fraction the body is too small to label and the annotation pipeline skips its label.
-  Consumed by :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`.
 - ``label_mask_enlarge`` — int, default ``10`` px. Pixels around a body to avoid for label
   placement. Consumed by :class:`~spindoctor.nav_model.nav_model_body_base.NavModelBodyBase`.
 - ``label_limb_color`` — list[int], default ``[255, 0, 0]`` (RGB). Color of the limb outline
@@ -642,11 +603,11 @@ covariance and emission gates:
 
 The public entry point is :func:`~spindoctor.nav_model.body_shape.load_body_shape`,
 which resolves the operator-curated YAML entry (via the private ``_yaml_entry_for``
-helper), overlays its non-null fields onto the hard-coded baseline, and returns the
+helper), overlays the fields it sets onto the hard-coded baseline, and returns the
 merged :class:`~spindoctor.nav_model.body_shape.BodyShape`. Priority order:
 
-1. Operator-curated YAML (``config_220_body_shape.yaml``) — each non-null field overrides
-   the baseline.
+1. Operator-curated YAML (``config_220_body_shape.yaml``) — each field the entry sets
+   overrides the baseline.
 2. Hard-coded :data:`~spindoctor.nav_model.body_shape.BODY_SHAPE_TABLE` profile for the body
    (Saturn-moon, irregular-moon, or gas-giant).
 3. :data:`~spindoctor.nav_model.body_shape.DEFAULT_BODY_SHAPE` for entirely unknown bodies.
@@ -661,7 +622,7 @@ Two helpers live there:
   discrete neighbor shifts. Used by the simulated body model.
 - ``_create_annotations`` — builds the body-label
   :class:`~spindoctor.annotation.annotations.Annotations` collection for the summary PNG. Consumes
-  the ``label_*``, ``min_text_area``, and ``outline_thicken`` keys documented above.
+  the ``label_*`` and ``outline_thicken`` keys documented above.
 
 Per-image metadata
 ------------------

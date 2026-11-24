@@ -1,7 +1,7 @@
 """Smoke tests for the shipped YAML configuration files.
 
-Asserts the renumbered ``config_NNN_*.yaml`` set loads cleanly under
-``Config.read_config`` and that bootstrap angles are now in degrees.
+Asserts the ``config_NNN_*.yaml`` set loads cleanly under ``Config.read_config``, and
+checks the per-instrument blocks and the body-shape section it carries.
 """
 
 from __future__ import annotations
@@ -20,21 +20,6 @@ def test_default_config_loads_cleanly() -> None:
     config = Config()
     config.read_config()
     assert config.is_loaded
-
-
-def test_bootstrap_angles_are_degrees() -> None:
-    """``config_070_bootstrap.yaml`` exposes degree-valued angle fields."""
-    config = Config()
-    config.read_config()
-    bootstrap = config.bootstrap
-    # Degree-keyed names plus magnitudes consistent with Cardinal Principle
-    # #4 — values are in degrees, not radians.
-    assert bootstrap.max_phase_angle_deg == 135.0
-    assert bootstrap.max_incidence_angle_deg == 70.0
-    assert bootstrap.max_emission_angle_deg == 70.0
-    assert bootstrap.lon_resolution_deg == 0.5
-    assert bootstrap.lat_resolution_deg == 0.5
-    assert bootstrap.max_subsolar_dist_deg == 45.0
 
 
 def _enables_rotation(node: object) -> bool:

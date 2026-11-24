@@ -266,7 +266,7 @@ ABBREV = re.compile(r"(?i)\b(?:e\.g|i\.e|etc|vs|fig|no|sec|ch|eq|approx|cf)\.")
 HOST = re.compile(r"\b[\w-]+(?:\.[\w-]+)+\.(?:io|com|org|net|gov|edu|dev|ai)\b", re.I)
 # Naming a configuration setting by its key is allowed, and a key is dotted.
 SECTIONS = ("general|environment|logging|planets|satellites|offset|bodies|rings|"
-            "stars|titan|bootstrap|backplanes|pds4|orchestrator|techniques|"
+            "stars|titan|backplanes|pds4|orchestrator|techniques|"
             "results_tree|sim|body_shape|feature_emission|other|ephem")
 CONFIG_KEY = re.compile(r"\b(?:%s)(?:\.[a-z0-9_<>*]+)+" % SECTIONS, re.I)
 DOTTED = re.compile(os.environ.get("PATTERN") or r"\b[a-z][a-z0-9_]*\.[a-z][a-z0-9_]{2,}\b")

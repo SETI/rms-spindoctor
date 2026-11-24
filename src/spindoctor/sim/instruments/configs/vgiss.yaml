@@ -1,4 +1,13 @@
-# Voyager ISS vidicon, calibrated (GEOMED, I/F) products.
+# Voyager ISS vidicon cameras, calibrated (GEOMED, I/F) products: the narrow-angle
+# and wide-angle cameras of Voyager 1 and Voyager 2.  Each camera is its own entry
+# and no entry inherits from another, because each vidicon and telescope is
+# unique: the PSF, residual distortion, plate scale, star zero point, and vidicon
+# detector values are never shared between cameras, even where the number is the
+# same today.  Where a comment says "the camera model", the value is a
+# placeholder that stands for the camera until a measurement for that camera
+# exists.  Every analysis of the cameras is per camera as well: the realism match,
+# the FOV distortion, and the rotation each use one camera's frames.  No entry holds
+# a rotation value today.
 #
 # A value marked "published" comes from Benesh and Jepsen 1978 (Voyager
 # Imaging Science Subsystem Calibration Report, JPL 618-802), the PDS
@@ -8,17 +17,31 @@
 # without a figure.  Neither has been fitted to flight frames; a measured or
 # fitted value says so, with the date and the frames.  The keys are described in
 # the simulator chapter of the developer guide.
-vgiss:
+#
+# The values that do not describe a camera's optics or vidicon (the data units,
+# the navigator link, the readout modes, which artifact modes are offered and why
+# one is not, which modes every frame shows, and the downlink band) are stated in each
+# entry too.  A shared parent entry would have to be a camera, and a parent camera
+# would own the other cameras' optics, so the file repeats these values rather than
+# inherit them.
+
+# Voyager 1 narrow-angle camera.
+vgiss_1_nac:
   # A GEOMED product is in I/F, which is what the navigator block below expects.
+  # The units belong to the product and not to the optics, so all four entries
+  # state the same value.
   data_units: calibrated_if
 
+  # The navigator section every Voyager camera emulates.  The section holds no
+  # per-camera value, so the link is the same for all four entries.
   navigator:
     section: voyager_iss
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
   # cohort and of VGISS_5101).  The camera has no binned readout, so this size
-  # only tells a full frame from a subframe.
+  # only tells a full frame from a subframe.  The product format is the same for
+  # all four cameras.
   native_frame_size_px: 1000
 
   psf:
@@ -26,32 +49,35 @@ vgiss:
     # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
     # flat-top guard leaves two simulated cutouts to compare against); the
     # Voyager references publish no FWHM.  Radii in native detector pixels.
+    # The kernel is one estimate for all cameras and is not measured for the Voyager 1 narrow angle camera.
     kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
     truncation_px: 16
 
   # The residual geometric distortion left after the navigator's distortion
   # model, from the star-field FOV distortion analysis: the GEOMED products
   # carry several tenths of a pixel of both radial and non-radial distortion.
-  # The block is the Voyager 2 WAC measurement; the two Voyager missions and
-  # their narrow- and wide-angle cameras have distinct optics, so a single entry
-  # under-represents that spread until per-camera entries and locked frames for
-  # each are available.
+  # The block is the Voyager 2 wide angle camera's measurement.  It is not measured for the Voyager 1 narrow angle camera, which has no locked frame.
+  # Each camera's optics are distinct, so each entry states its own block and
+  # a camera's measurement replaces it when locked frames exist for that camera.
   distortion_residual: {k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}
 
   # The vidicon has no electron domain, so its zero point is DN a magnitude-0
   # star deposits per second.  Estimated: sized so stars at the vidicon's
   # published limiting magnitudes land at the matched-filter boundary in the DN
-  # chain.
+  # chain.  Not yet measured for the Voyager 1 narrow angle camera.
   star_flux:
     dn_per_s_vmag0: 3.0e+3
 
-  # Plate scale from the published value, ~9.3 urad/px.
+  # Plate scale from the published narrow angle value, ~9.3 urad/px.
+  # This is the narrow angle camera's value; it is not yet measured for the Voyager 1 narrow angle camera.
   sky_pixel_scale_arcsec: 1.910
 
   detector:
     detector_model: vidicon
     # The vidicon skips the electron conversion; signal maps straight to the
-    # 8-bit DN full scale, then the DN-domain vidicon noise model applies.
+    # 8-bit DN full scale, then the DN-domain vidicon noise model applies.  The
+    # exposure reference, bias, and quantization describe this camera's vidicon
+    # and read-out chain, so each entry states them.  Not yet measured for the Voyager 1 narrow angle camera.
     exposure_ref_sec: 1.0
     bias_dn: 20.0
     saturation_dn: 255.0  # 8-bit ADC
@@ -60,7 +86,10 @@ vgiss:
     missing_data_rate: 0.0
     quantization: 8bit
     # The calibrated sky residual in I/F, added after the calibration inverse
-    # (the generic entry carries the value for an entry without its own).  Real
+    # (the generic entry carries the value for an entry without its own).  It is
+    # the sky level the calibration and the resample leave in the GEOMED product,
+    # sized from this camera's vidicon noise and DN scale (below), so it is stated
+    # per camera with the vidicon values.  Real
     # GEOMED sky sits above 0: inside the resample border of five archived
     # frames (four VGISS_8210 Voyager 2 star frames and one VGISS_5101 Voyager 1
     # dark frame) the sky's 1st percentile is positive, at most 0.03% of the
@@ -93,15 +122,20 @@ vgiss:
       # sub-LSB value, so the choice is anchored to the published low-gain range
       # rather than to the (unreachable) 0.22 DN cohort estimate -- see the
       # simulator report's known-gaps list.  3 frames is limited evidence; revisit
-      # as VGISS frames land.
+      # as VGISS frames land.  The cohort holds Voyager 2 narrow angle and Voyager 1
+      # wide angle frames, so the noise values are not fitted to this camera.
       read_noise_line_dn: 0.25
       read_noise_pixel_dn: 0.25
 
-  # The vidicon has no binned readout.
+  # The vidicon has no binned readout.  The readout modes describe the spacecraft
+  # data system and are the same for all four cameras.
   readout_modes:
     1: {}
 
   artifact_modes:
+    # Which modes the simulator can render for a vidicon camera.  The list
+    # follows from the detector model and the archive processing, so it is the
+    # same for all four cameras.
     offered:
       - missing_lines
       - partial_lines
@@ -118,8 +152,9 @@ vgiss:
       - resample_texture
     # Why validation fails a scene that asks for one of these modes.  The vidicon DN
     # chain has no fixed-pattern stage, so the mode would render nothing (#935).
+    # The reason is the same for all four cameras.
     unavailable_reasons:
-      fixed_pattern: not rendered for vgiss, whose vidicon DN chain has no fixed-pattern stage
+      fixed_pattern: not rendered for the Voyager ISS cameras, whose vidicon DN chain has no fixed-pattern stage
     # The modes every frame of the camera shows, which a scene's
     # instrument_defaults turns on.
     instrument_defaults:
@@ -128,16 +163,20 @@ vgiss:
     # bias that survives reseau-anchored correction, the shortened erase-cycle
     # residual image, the readout dark, the reseau-removal
     # scars on the ~59-px lattice, and the GEOMED resample texture (blank border
-    # + missing-line interpolation banding).
+    # + missing-line interpolation banding).  The beam bend, residual image, readout
+    # dark, reseau, and resample values describe each camera's own vidicon and
+    # have not been measured for Voyager 1 narrow angle camera; the values are the camera model's.
     shape_defaults:
       # The edited (IM) modes downlink a centered band of each line: 608, 440,
       # 272, 160, or 80 of the 800 raw samples (the PDS Ring-Moon Systems Node
       # instrument catalogs).  The GEOMED resample spreads the 800 raw samples
       # over 1000 pixels, so the 440-sample band is 550 GEOMED pixels wide.  A
-      # scene that sets only a probability gets that band.
+      # scene that sets only a probability gets that band.  The downlink format
+      # is the same for all four cameras.
       edited_frame: {band_width_px: 550}
       # Published: a faint coherent periodic component (2.4 kHz vertical, ~0.5
       # DN peak-to-peak).  The vidicon chain works in DN, so the amplitude is in DN.
+      # The published figure is for the camera model, not a per-camera measurement.
       banding: {amplitude: 0.25, period_px: 8.0, orientation: vertical}
       beam_bend: {amplitude_px: 1.0}
       residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}
@@ -145,14 +184,518 @@ vgiss:
       readout_dark: {amplitude: 6.0, nonlinear: 1.5}
       # 202 reseau marks per camera on a triangular lattice (Benesh and Jepsen
       # 1978).  Measured 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
-      # median nearest-neighbor distance 47.25 raw pixels.  The GEOMED resample
-      # spreads the 800 raw pixels over 1000, so the spacing here is 47.25 * 1.25,
-      # about 59 GEOMED pixels.
+      # median nearest-neighbor distance 47.25 raw pixels (a Voyager 1 frame).  The
+      # GEOMED resample spreads the 800 raw pixels over 1000, so the spacing here
+      # is 47.25 * 1.25, about 59 GEOMED pixels.  The lattice is a property of
+      # each camera's faceplate; it is not yet measured for the Voyager 1 narrow angle camera.
       reseau_scars: {spacing_px: 59, patch_radius_px: 4, mark_count: 202}
       resample_texture: {warp_amp_px: 0.3, blank_border_px: 2, missing_line_interp: false}
 
-  # The image library's GEOMED frames from both cameras are matched against this
-  # instrument by the realism match.
+# Voyager 1 wide-angle camera.
+vgiss_1_wac:
+  # The realism match compares the image library's two Voyager 1 wide-angle GEOMED
+  # frames against this entry, and no frame of another camera.  A library sidecar
+  # gives the spacecraft as well as the mission and camera for this reason.
   realism_cohort:
-    - {mission: VGISS, camera: NA}
-    - {mission: VGISS, camera: WA}
+    - {mission: VGISS, spacecraft: VG1, camera: WA}
+
+  # A GEOMED product is in I/F, which is what the navigator block below expects.
+  # The units belong to the product and not to the optics, so all four entries
+  # state the same value.
+  data_units: calibrated_if
+
+  # The navigator section every Voyager camera emulates.  The section holds no
+  # per-camera value, so the link is the same for all four entries.
+  navigator:
+    section: voyager_iss
+
+  # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
+  # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
+  # cohort and of VGISS_5101).  The camera has no binned readout, so this size
+  # only tells a full frame from a subframe.  The product format is the same for
+  # all four cameras.
+  native_frame_size_px: 1000
+
+  psf:
+    # An estimate, kept: the cohort's one star frame (8 usable star cutouts, EE50
+    # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
+    # flat-top guard leaves two simulated cutouts to compare against); the
+    # Voyager references publish no FWHM.  Radii in native detector pixels.
+    # The kernel is one estimate for all cameras and is not measured for the Voyager 1 wide angle camera.
+    kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
+    truncation_px: 16
+
+  # The residual geometric distortion left after the navigator's distortion
+  # model, from the star-field FOV distortion analysis: the GEOMED products
+  # carry several tenths of a pixel of both radial and non-radial distortion.
+  # The block is the Voyager 2 wide angle camera's measurement.  It is not measured for the Voyager 1 wide angle camera, which has no locked frame.
+  # Each camera's optics are distinct, so each entry states its own block and
+  # a camera's measurement replaces it when locked frames exist for that camera.
+  distortion_residual: {k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}
+
+  # The vidicon has no electron domain, so its zero point is DN a magnitude-0
+  # star deposits per second.  Estimated: sized so stars at the vidicon's
+  # published limiting magnitudes land at the matched-filter boundary in the DN
+  # chain.  Not yet measured for the Voyager 1 wide angle camera.
+  star_flux:
+    dn_per_s_vmag0: 3.0e+3
+
+  # Plate scale from the published narrow angle value, ~9.3 urad/px.
+  # This is the narrow angle value, so it does not match the wide angle optics and is not yet measured for the Voyager 1 wide angle camera.
+  sky_pixel_scale_arcsec: 1.910
+
+  detector:
+    detector_model: vidicon
+    # The vidicon skips the electron conversion; signal maps straight to the
+    # 8-bit DN full scale, then the DN-domain vidicon noise model applies.  The
+    # exposure reference, bias, and quantization describe this camera's vidicon
+    # and read-out chain, so each entry states them.  Not yet measured for the Voyager 1 wide angle camera.
+    exposure_ref_sec: 1.0
+    bias_dn: 20.0
+    saturation_dn: 255.0  # 8-bit ADC
+    full_well_dn: 255.0
+    signal_full_scale_frac: 0.5
+    missing_data_rate: 0.0
+    quantization: 8bit
+    # The calibrated sky residual in I/F, added after the calibration inverse
+    # (the generic entry carries the value for an entry without its own).  It is
+    # the sky level the calibration and the resample leave in the GEOMED product,
+    # sized from this camera's vidicon noise and DN scale (below), so it is stated
+    # per camera with the vidicon values.  Real
+    # GEOMED sky sits above 0: inside the resample border of five archived
+    # frames (four VGISS_8210 Voyager 2 star frames and one VGISS_5101 Voyager 1
+    # dark frame) the sky's 1st percentile is positive, at most 0.03% of the
+    # pixels are exactly 0, and the sky level spans 6.6e-4 to 3.2e-2 I/F (median
+    # about 5e-3).  The vidicon's calibration scale is 127.5 DN per unit I/F
+    # (signal_full_scale_frac 0.5 of the 255 DN full scale), so this value is
+    # 1.5 / 127.5, 1.5 DN: half a DN off the integer DN grid, so no digitized
+    # pixel lands on exactly 0, and one and a half steps up, so the
+    # instrument_defaults noise (0.40 DN rms from the two vidicon read-noise terms
+    # below and the banding) takes a -1.5 DN excursion (3.8 sigma, about 7e-5 of
+    # the pixels) to put a
+    # sky pixel below 0.  0.5 DN (3.9e-3 I/F, nearer the cohort median) would
+    # put about 10% of the noisy sky one step below 0.  The value sits inside
+    # the cohort's range, 2.3x its median.
+    calibrated_sky_if: 0.011764705882352941
+    # Cosmic rays kept at zero 2026-07-17.  The realism match measured a
+    # 3.5e-5 transient spike fraction over the 3-frame GEOMED cohort --
+    # GEOMED's reseau-anchored resampling interpolates most single-pixel
+    # transients away, so the cohort cannot say how many hits the target took.
+    # Unblocked by more Voyager frames (raw or CALIB, ahead of the resampling).
+    cosmic_ray_events_per_pixel_per_sec: 0.0
+    vidicon:
+      # TUNED 2026-07-17 by the realism match: the 3-frame GEOMED cohort's
+      # paired-difference sky sigma is ~0.22 DN equivalent (median 1.75e-3 I/F),
+      # placing the products in the low-gain regime of the published 0.3-0.75 DN
+      # range after GEOMED resampling smoothing.  The earlier 1.8 DN values
+      # (toward the high-gain end) overstated the cohort's measured 0.22 DN sky
+      # sigma about 9x.  0.25 DN per component (quadrature sum ~0.35 DN, the low
+      # end of the published range): the sim's 8-bit quantization floors any
+      # sub-LSB value, so the choice is anchored to the published low-gain range
+      # rather than to the (unreachable) 0.22 DN cohort estimate -- see the
+      # simulator report's known-gaps list.  3 frames is limited evidence; revisit
+      # as VGISS frames land.  The cohort holds Voyager 2 narrow angle and Voyager 1
+      # wide angle frames, so two Voyager 1 wide angle frames of the cohort inform this entry, but the noise values are tuned to the cohort as a group and not fitted to this camera alone.
+      read_noise_line_dn: 0.25
+      read_noise_pixel_dn: 0.25
+
+  # The vidicon has no binned readout.  The readout modes describe the spacecraft
+  # data system and are the same for all four cameras.
+  readout_modes:
+    1: {}
+
+  artifact_modes:
+    # Which modes the simulator can render for a vidicon camera.  The list
+    # follows from the detector model and the archive processing, so it is the
+    # same for all four cameras.
+    offered:
+      - missing_lines
+      - partial_lines
+      - edited_frame
+      - line_garble
+      - pixel_spikes
+      - banding
+      - bias_structure
+      - readout_dark
+      - shutter_shading
+      - beam_bend
+      - residual_image
+      - reseau_scars
+      - resample_texture
+    # Why validation fails a scene that asks for one of these modes.  The vidicon DN
+    # chain has no fixed-pattern stage, so the mode would render nothing (#935).
+    # The reason is the same for all four cameras.
+    unavailable_reasons:
+      fixed_pattern: not rendered for the Voyager ISS cameras, whose vidicon DN chain has no fixed-pattern stage
+    # The modes every frame of the camera shows, which a scene's
+    # instrument_defaults turns on.
+    instrument_defaults:
+      banding: {probability: 1.0}
+    # Per-mode shape defaults, estimated, all GEOMED-level: the beam-bend limb
+    # bias that survives reseau-anchored correction, the shortened erase-cycle
+    # residual image, the readout dark, the reseau-removal
+    # scars on the ~59-px lattice, and the GEOMED resample texture (blank border
+    # + missing-line interpolation banding).  The beam bend, residual image, readout
+    # dark, reseau, and resample values describe each camera's own vidicon and
+    # have not been measured for Voyager 1 wide angle camera; the values are the camera model's.
+    shape_defaults:
+      # The edited (IM) modes downlink a centered band of each line: 608, 440,
+      # 272, 160, or 80 of the 800 raw samples (the PDS Ring-Moon Systems Node
+      # instrument catalogs).  The GEOMED resample spreads the 800 raw samples
+      # over 1000 pixels, so the 440-sample band is 550 GEOMED pixels wide.  A
+      # scene that sets only a probability gets that band.  The downlink format
+      # is the same for all four cameras.
+      edited_frame: {band_width_px: 550}
+      # Published: a faint coherent periodic component (2.4 kHz vertical, ~0.5
+      # DN peak-to-peak).  The vidicon chain works in DN, so the amplitude is in DN.
+      # The published figure is for the camera model, not a per-camera measurement.
+      banding: {amplitude: 0.25, period_px: 8.0, orientation: vertical}
+      beam_bend: {amplitude_px: 1.0}
+      residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}
+      # 48 x n s readout ramp, nonlinear in wait time.
+      readout_dark: {amplitude: 6.0, nonlinear: 1.5}
+      # 202 reseau marks per camera on a triangular lattice (Benesh and Jepsen
+      # 1978).  Measured 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
+      # median nearest-neighbor distance 47.25 raw pixels (a Voyager 1 frame).  The
+      # GEOMED resample spreads the 800 raw pixels over 1000, so the spacing here
+      # is 47.25 * 1.25, about 59 GEOMED pixels.  The lattice is a property of
+      # each camera's faceplate; it is not yet measured for the Voyager 1 wide angle camera.
+      reseau_scars: {spacing_px: 59, patch_radius_px: 4, mark_count: 202}
+      resample_texture: {warp_amp_px: 0.3, blank_border_px: 2, missing_line_interp: false}
+
+# Voyager 2 narrow-angle camera.
+vgiss_2_nac:
+  # The realism match compares the image library's one Voyager 2 narrow-angle GEOMED
+  # frame against this entry, and no frame of another camera.
+  realism_cohort:
+    - {mission: VGISS, spacecraft: VG2, camera: NA}
+
+  # A GEOMED product is in I/F, which is what the navigator block below expects.
+  # The units belong to the product and not to the optics, so all four entries
+  # state the same value.
+  data_units: calibrated_if
+
+  # The navigator section every Voyager camera emulates.  The section holds no
+  # per-camera value, so the link is the same for all four entries.
+  navigator:
+    section: voyager_iss
+
+  # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
+  # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
+  # cohort and of VGISS_5101).  The camera has no binned readout, so this size
+  # only tells a full frame from a subframe.  The product format is the same for
+  # all four cameras.
+  native_frame_size_px: 1000
+
+  psf:
+    # An estimate, kept: the cohort's one star frame (8 usable star cutouts, EE50
+    # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
+    # flat-top guard leaves two simulated cutouts to compare against); the
+    # Voyager references publish no FWHM.  Radii in native detector pixels.
+    # The kernel is one estimate for all cameras and is not measured for the Voyager 2 narrow angle camera.
+    kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
+    truncation_px: 16
+
+  # The residual geometric distortion left after the navigator's distortion
+  # model, from the star-field FOV distortion analysis: the GEOMED products
+  # carry several tenths of a pixel of both radial and non-radial distortion.
+  # The block is the Voyager 2 wide angle camera's measurement.  It is not measured for the Voyager 2 narrow angle camera, which has its own measurement that is not used here.
+  # Each camera's optics are distinct, so each entry states its own block and
+  # a camera's measurement replaces it when locked frames exist for that camera.
+  distortion_residual: {k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}
+
+  # The vidicon has no electron domain, so its zero point is DN a magnitude-0
+  # star deposits per second.  Estimated: sized so stars at the vidicon's
+  # published limiting magnitudes land at the matched-filter boundary in the DN
+  # chain.  Not yet measured for the Voyager 2 narrow angle camera.
+  star_flux:
+    dn_per_s_vmag0: 3.0e+3
+
+  # Plate scale from the published narrow angle value, ~9.3 urad/px.
+  # This is the narrow angle camera's value; it is not yet measured for the Voyager 2 narrow angle camera.
+  sky_pixel_scale_arcsec: 1.910
+
+  detector:
+    detector_model: vidicon
+    # The vidicon skips the electron conversion; signal maps straight to the
+    # 8-bit DN full scale, then the DN-domain vidicon noise model applies.  The
+    # exposure reference, bias, and quantization describe this camera's vidicon
+    # and read-out chain, so each entry states them.  Not yet measured for the Voyager 2 narrow angle camera.
+    exposure_ref_sec: 1.0
+    bias_dn: 20.0
+    saturation_dn: 255.0  # 8-bit ADC
+    full_well_dn: 255.0
+    signal_full_scale_frac: 0.5
+    missing_data_rate: 0.0
+    quantization: 8bit
+    # The calibrated sky residual in I/F, added after the calibration inverse
+    # (the generic entry carries the value for an entry without its own).  It is
+    # the sky level the calibration and the resample leave in the GEOMED product,
+    # sized from this camera's vidicon noise and DN scale (below), so it is stated
+    # per camera with the vidicon values.  Real
+    # GEOMED sky sits above 0: inside the resample border of five archived
+    # frames (four VGISS_8210 Voyager 2 star frames and one VGISS_5101 Voyager 1
+    # dark frame) the sky's 1st percentile is positive, at most 0.03% of the
+    # pixels are exactly 0, and the sky level spans 6.6e-4 to 3.2e-2 I/F (median
+    # about 5e-3).  The vidicon's calibration scale is 127.5 DN per unit I/F
+    # (signal_full_scale_frac 0.5 of the 255 DN full scale), so this value is
+    # 1.5 / 127.5, 1.5 DN: half a DN off the integer DN grid, so no digitized
+    # pixel lands on exactly 0, and one and a half steps up, so the
+    # instrument_defaults noise (0.40 DN rms from the two vidicon read-noise terms
+    # below and the banding) takes a -1.5 DN excursion (3.8 sigma, about 7e-5 of
+    # the pixels) to put a
+    # sky pixel below 0.  0.5 DN (3.9e-3 I/F, nearer the cohort median) would
+    # put about 10% of the noisy sky one step below 0.  The value sits inside
+    # the cohort's range, 2.3x its median.
+    calibrated_sky_if: 0.011764705882352941
+    # Cosmic rays kept at zero 2026-07-17.  The realism match measured a
+    # 3.5e-5 transient spike fraction over the 3-frame GEOMED cohort --
+    # GEOMED's reseau-anchored resampling interpolates most single-pixel
+    # transients away, so the cohort cannot say how many hits the target took.
+    # Unblocked by more Voyager frames (raw or CALIB, ahead of the resampling).
+    cosmic_ray_events_per_pixel_per_sec: 0.0
+    vidicon:
+      # TUNED 2026-07-17 by the realism match: the 3-frame GEOMED cohort's
+      # paired-difference sky sigma is ~0.22 DN equivalent (median 1.75e-3 I/F),
+      # placing the products in the low-gain regime of the published 0.3-0.75 DN
+      # range after GEOMED resampling smoothing.  The earlier 1.8 DN values
+      # (toward the high-gain end) overstated the cohort's measured 0.22 DN sky
+      # sigma about 9x.  0.25 DN per component (quadrature sum ~0.35 DN, the low
+      # end of the published range): the sim's 8-bit quantization floors any
+      # sub-LSB value, so the choice is anchored to the published low-gain range
+      # rather than to the (unreachable) 0.22 DN cohort estimate -- see the
+      # simulator report's known-gaps list.  3 frames is limited evidence; revisit
+      # as VGISS frames land.  The cohort holds Voyager 2 narrow angle and Voyager 1
+      # wide angle frames, so one Voyager 2 narrow angle frame of the cohort informs this entry, but the noise values are tuned to the cohort as a group and not fitted to this camera alone.
+      read_noise_line_dn: 0.25
+      read_noise_pixel_dn: 0.25
+
+  # The vidicon has no binned readout.  The readout modes describe the spacecraft
+  # data system and are the same for all four cameras.
+  readout_modes:
+    1: {}
+
+  artifact_modes:
+    # Which modes the simulator can render for a vidicon camera.  The list
+    # follows from the detector model and the archive processing, so it is the
+    # same for all four cameras.
+    offered:
+      - missing_lines
+      - partial_lines
+      - edited_frame
+      - line_garble
+      - pixel_spikes
+      - banding
+      - bias_structure
+      - readout_dark
+      - shutter_shading
+      - beam_bend
+      - residual_image
+      - reseau_scars
+      - resample_texture
+    # Why validation fails a scene that asks for one of these modes.  The vidicon DN
+    # chain has no fixed-pattern stage, so the mode would render nothing (#935).
+    # The reason is the same for all four cameras.
+    unavailable_reasons:
+      fixed_pattern: not rendered for the Voyager ISS cameras, whose vidicon DN chain has no fixed-pattern stage
+    # The modes every frame of the camera shows, which a scene's
+    # instrument_defaults turns on.
+    instrument_defaults:
+      banding: {probability: 1.0}
+    # Per-mode shape defaults, estimated, all GEOMED-level: the beam-bend limb
+    # bias that survives reseau-anchored correction, the shortened erase-cycle
+    # residual image, the readout dark, the reseau-removal
+    # scars on the ~59-px lattice, and the GEOMED resample texture (blank border
+    # + missing-line interpolation banding).  The beam bend, residual image, readout
+    # dark, reseau, and resample values describe each camera's own vidicon and
+    # have not been measured for Voyager 2 narrow angle camera; the values are the camera model's.
+    shape_defaults:
+      # The edited (IM) modes downlink a centered band of each line: 608, 440,
+      # 272, 160, or 80 of the 800 raw samples (the PDS Ring-Moon Systems Node
+      # instrument catalogs).  The GEOMED resample spreads the 800 raw samples
+      # over 1000 pixels, so the 440-sample band is 550 GEOMED pixels wide.  A
+      # scene that sets only a probability gets that band.  The downlink format
+      # is the same for all four cameras.
+      edited_frame: {band_width_px: 550}
+      # Published: a faint coherent periodic component (2.4 kHz vertical, ~0.5
+      # DN peak-to-peak).  The vidicon chain works in DN, so the amplitude is in DN.
+      # The published figure is for the camera model, not a per-camera measurement.
+      banding: {amplitude: 0.25, period_px: 8.0, orientation: vertical}
+      beam_bend: {amplitude_px: 1.0}
+      residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}
+      # 48 x n s readout ramp, nonlinear in wait time.
+      readout_dark: {amplitude: 6.0, nonlinear: 1.5}
+      # 202 reseau marks per camera on a triangular lattice (Benesh and Jepsen
+      # 1978).  Measured 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
+      # median nearest-neighbor distance 47.25 raw pixels (a Voyager 1 frame).  The
+      # GEOMED resample spreads the 800 raw pixels over 1000, so the spacing here
+      # is 47.25 * 1.25, about 59 GEOMED pixels.  The lattice is a property of
+      # each camera's faceplate; it is not yet measured for the Voyager 2 narrow angle camera.
+      reseau_scars: {spacing_px: 59, patch_radius_px: 4, mark_count: 202}
+      resample_texture: {warp_amp_px: 0.3, blank_border_px: 2, missing_line_interp: false}
+
+# Voyager 2 wide-angle camera.
+vgiss_2_wac:
+  # A GEOMED product is in I/F, which is what the navigator block below expects.
+  # The units belong to the product and not to the optics, so all four entries
+  # state the same value.
+  data_units: calibrated_if
+
+  # The navigator section every Voyager camera emulates.  The section holds no
+  # per-camera value, so the link is the same for all four entries.
+  navigator:
+    section: voyager_iss
+
+  # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
+  # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
+  # cohort and of VGISS_5101).  The camera has no binned readout, so this size
+  # only tells a full frame from a subframe.  The product format is the same for
+  # all four cameras.
+  native_frame_size_px: 1000
+
+  psf:
+    # An estimate, kept: the cohort's one star frame (8 usable star cutouts, EE50
+    # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
+    # flat-top guard leaves two simulated cutouts to compare against); the
+    # Voyager references publish no FWHM.  Radii in native detector pixels.
+    # The kernel is one estimate for all cameras and is not measured for the Voyager 2 wide angle camera.
+    kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
+    truncation_px: 16
+
+  # The residual geometric distortion left after the navigator's distortion
+  # model, from the star-field FOV distortion analysis: the GEOMED products
+  # carry several tenths of a pixel of both radial and non-radial distortion.
+  # The block is the Voyager 2 wide angle camera's measurement.  It is this camera's own measurement.
+  # Each camera's optics are distinct, so each entry states its own block and
+  # a camera's measurement replaces it when locked frames exist for that camera.
+  distortion_residual: {k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}
+
+  # The vidicon has no electron domain, so its zero point is DN a magnitude-0
+  # star deposits per second.  Estimated: sized so stars at the vidicon's
+  # published limiting magnitudes land at the matched-filter boundary in the DN
+  # chain.  Not yet measured for the Voyager 2 wide angle camera.
+  star_flux:
+    dn_per_s_vmag0: 3.0e+3
+
+  # Plate scale from the published narrow angle value, ~9.3 urad/px.
+  # This is the narrow angle value, so it does not match the wide angle optics and is not yet measured for the Voyager 2 wide angle camera.
+  sky_pixel_scale_arcsec: 1.910
+
+  detector:
+    detector_model: vidicon
+    # The vidicon skips the electron conversion; signal maps straight to the
+    # 8-bit DN full scale, then the DN-domain vidicon noise model applies.  The
+    # exposure reference, bias, and quantization describe this camera's vidicon
+    # and read-out chain, so each entry states them.  Not yet measured for the Voyager 2 wide angle camera.
+    exposure_ref_sec: 1.0
+    bias_dn: 20.0
+    saturation_dn: 255.0  # 8-bit ADC
+    full_well_dn: 255.0
+    signal_full_scale_frac: 0.5
+    missing_data_rate: 0.0
+    quantization: 8bit
+    # The calibrated sky residual in I/F, added after the calibration inverse
+    # (the generic entry carries the value for an entry without its own).  It is
+    # the sky level the calibration and the resample leave in the GEOMED product,
+    # sized from this camera's vidicon noise and DN scale (below), so it is stated
+    # per camera with the vidicon values.  Real
+    # GEOMED sky sits above 0: inside the resample border of five archived
+    # frames (four VGISS_8210 Voyager 2 star frames and one VGISS_5101 Voyager 1
+    # dark frame) the sky's 1st percentile is positive, at most 0.03% of the
+    # pixels are exactly 0, and the sky level spans 6.6e-4 to 3.2e-2 I/F (median
+    # about 5e-3).  The vidicon's calibration scale is 127.5 DN per unit I/F
+    # (signal_full_scale_frac 0.5 of the 255 DN full scale), so this value is
+    # 1.5 / 127.5, 1.5 DN: half a DN off the integer DN grid, so no digitized
+    # pixel lands on exactly 0, and one and a half steps up, so the
+    # instrument_defaults noise (0.40 DN rms from the two vidicon read-noise terms
+    # below and the banding) takes a -1.5 DN excursion (3.8 sigma, about 7e-5 of
+    # the pixels) to put a
+    # sky pixel below 0.  0.5 DN (3.9e-3 I/F, nearer the cohort median) would
+    # put about 10% of the noisy sky one step below 0.  The value sits inside
+    # the cohort's range, 2.3x its median.
+    calibrated_sky_if: 0.011764705882352941
+    # Cosmic rays kept at zero 2026-07-17.  The realism match measured a
+    # 3.5e-5 transient spike fraction over the 3-frame GEOMED cohort --
+    # GEOMED's reseau-anchored resampling interpolates most single-pixel
+    # transients away, so the cohort cannot say how many hits the target took.
+    # Unblocked by more Voyager frames (raw or CALIB, ahead of the resampling).
+    cosmic_ray_events_per_pixel_per_sec: 0.0
+    vidicon:
+      # TUNED 2026-07-17 by the realism match: the 3-frame GEOMED cohort's
+      # paired-difference sky sigma is ~0.22 DN equivalent (median 1.75e-3 I/F),
+      # placing the products in the low-gain regime of the published 0.3-0.75 DN
+      # range after GEOMED resampling smoothing.  The earlier 1.8 DN values
+      # (toward the high-gain end) overstated the cohort's measured 0.22 DN sky
+      # sigma about 9x.  0.25 DN per component (quadrature sum ~0.35 DN, the low
+      # end of the published range): the sim's 8-bit quantization floors any
+      # sub-LSB value, so the choice is anchored to the published low-gain range
+      # rather than to the (unreachable) 0.22 DN cohort estimate -- see the
+      # simulator report's known-gaps list.  3 frames is limited evidence; revisit
+      # as VGISS frames land.  The cohort holds Voyager 2 narrow angle and Voyager 1
+      # wide angle frames, so the noise values are not fitted to this camera.
+      read_noise_line_dn: 0.25
+      read_noise_pixel_dn: 0.25
+
+  # The vidicon has no binned readout.  The readout modes describe the spacecraft
+  # data system and are the same for all four cameras.
+  readout_modes:
+    1: {}
+
+  artifact_modes:
+    # Which modes the simulator can render for a vidicon camera.  The list
+    # follows from the detector model and the archive processing, so it is the
+    # same for all four cameras.
+    offered:
+      - missing_lines
+      - partial_lines
+      - edited_frame
+      - line_garble
+      - pixel_spikes
+      - banding
+      - bias_structure
+      - readout_dark
+      - shutter_shading
+      - beam_bend
+      - residual_image
+      - reseau_scars
+      - resample_texture
+    # Why validation fails a scene that asks for one of these modes.  The vidicon DN
+    # chain has no fixed-pattern stage, so the mode would render nothing (#935).
+    # The reason is the same for all four cameras.
+    unavailable_reasons:
+      fixed_pattern: not rendered for the Voyager ISS cameras, whose vidicon DN chain has no fixed-pattern stage
+    # The modes every frame of the camera shows, which a scene's
+    # instrument_defaults turns on.
+    instrument_defaults:
+      banding: {probability: 1.0}
+    # Per-mode shape defaults, estimated, all GEOMED-level: the beam-bend limb
+    # bias that survives reseau-anchored correction, the shortened erase-cycle
+    # residual image, the readout dark, the reseau-removal
+    # scars on the ~59-px lattice, and the GEOMED resample texture (blank border
+    # + missing-line interpolation banding).  The beam bend, residual image, readout
+    # dark, reseau, and resample values describe each camera's own vidicon and
+    # have not been measured for Voyager 2 wide angle camera; the values are the camera model's.
+    shape_defaults:
+      # The edited (IM) modes downlink a centered band of each line: 608, 440,
+      # 272, 160, or 80 of the 800 raw samples (the PDS Ring-Moon Systems Node
+      # instrument catalogs).  The GEOMED resample spreads the 800 raw samples
+      # over 1000 pixels, so the 440-sample band is 550 GEOMED pixels wide.  A
+      # scene that sets only a probability gets that band.  The downlink format
+      # is the same for all four cameras.
+      edited_frame: {band_width_px: 550}
+      # Published: a faint coherent periodic component (2.4 kHz vertical, ~0.5
+      # DN peak-to-peak).  The vidicon chain works in DN, so the amplitude is in DN.
+      # The published figure is for the camera model, not a per-camera measurement.
+      banding: {amplitude: 0.25, period_px: 8.0, orientation: vertical}
+      beam_bend: {amplitude_px: 1.0}
+      residual_image: {amplitude: 0.05, prior: self_offset, offset_px: [5, 5]}
+      # 48 x n s readout ramp, nonlinear in wait time.
+      readout_dark: {amplitude: 6.0, nonlinear: 1.5}
+      # 202 reseau marks per camera on a triangular lattice (Benesh and Jepsen
+      # 1978).  Measured 2026-11-08 in VGISS_5101's C1385455_RESLOC.TAB: 202 marks,
+      # median nearest-neighbor distance 47.25 raw pixels (a Voyager 1 frame).  The
+      # GEOMED resample spreads the 800 raw pixels over 1000, so the spacing here
+      # is 47.25 * 1.25, about 59 GEOMED pixels.  The lattice is a property of
+      # each camera's faceplate; it is not yet measured for the Voyager 2 wide angle camera.
+      reseau_scars: {spacing_px: 59, patch_radius_px: 4, mark_count: 202}
+      resample_texture: {warp_amp_px: 0.3, blank_border_px: 2, missing_line_interp: false}

@@ -68,10 +68,10 @@ The per-instrument YAML schema consumed by
 - ``data_units`` — str, one of ``'raw_dn'`` or ``'calibrated_if'``. ``raw_dn`` exposes
   pixels in raw counts; ``calibrated_if`` exposes pixels in calibrated I/F reflectance.
 - ``noise.saturation_dn`` — float, optional. Per-instrument full-well DN. Required for
-  ``raw_dn`` instruments; ``None`` for ``calibrated_if`` (where saturation cannot be
+  ``raw_dn`` instruments; left out for ``calibrated_if`` (where saturation cannot be
   identified post-CALIB).
 - ``noise.marker_value`` — int / float / str. Missing-data sentinel value. The literal
-  ``"NaN"`` (or ``null``) becomes :class:`float` ``NaN``. An absent key defaults to 0
+  ``"NaN"`` becomes :class:`float` ``NaN``. An absent key defaults to 0
   for ``raw_dn`` and to ``NaN`` for ``calibrated_if``. Every shipped block declares 0:
   the raw instruments, and the calibrated Cassini CALIB and Voyager ISS blocks, whose
   CALIB and GEOMED products fill lost pixels with zero. On a calibrated frame a pixel of
@@ -154,7 +154,7 @@ does from a per-camera one, and what those values then decide is unchanged by
 where they were read from.
 
 **Cassini ISS CALIB pipeline.**  When the operator runs the calibrated-IF pipeline,
-``data_units: calibrated_if``, ``noise.saturation_dn: null``, and
+``data_units: calibrated_if``, no ``noise.saturation_dn``, and
 ``noise.marker_value: 0``. The orchestrator's saturation-mask helper returns an empty
 mask (saturation cannot be identified post-CALIB), and the star navigation model screens
 catalog stars purely by magnitude against :meth:`obs.star_max_usable_vmag()

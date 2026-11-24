@@ -89,6 +89,11 @@ Sidecar schema (schema_version 1)
      techniques_must_run: [BodyLimbNav]
      techniques_must_skip: [StarFieldFromCatalogNav]
 
+A sidecar may also carry ``spacecraft`` beside ``camera``, for a mission whose
+spacecraft carry cameras of the same name. The realism match then pairs the frame only
+with a simulator entry whose realism cohort gives the same spacecraft. An instrument's
+page says whether its sidecars need the key and which values it takes.
+
 The full validator lives in :mod:`tests.integration.sidecar`; malformed
 fields raise :class:`~tests.integration.sidecar.SidecarValidationError`
 at collection time.

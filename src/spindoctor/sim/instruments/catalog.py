@@ -228,8 +228,8 @@ def _cross_entry_issues(
     """The problems that span entries.
 
     The generic entry must state the calibrated sky residual that every entry without
-    its own falls back on.  No real (mission, camera) pair may be claimed by two
-    entries' realism cohorts.  An alias may be neither an instrument's name nor
+    its own falls back on.  No real (mission, spacecraft, camera) triple may be claimed
+    by two entries' realism cohorts.  An alias may be neither an instrument's name nor
     another entry's alias; the message gives the file that holds the clashing name or
     alias.
     """
@@ -243,11 +243,11 @@ def _cross_entry_issues(
                 'without its own falls back on',
             )
         )
-    owner: dict[tuple[str, str], tuple[str, int]] = {}
+    owner: dict[tuple[str, str | None, str], tuple[str, int]] = {}
     aliases: dict[str, str] = {}
     for name in sorted(entries):
         for index, camera in enumerate(entries[name].realism_cohort):
-            key = (camera.mission, camera.camera)
+            key = (camera.mission, camera.spacecraft, camera.camera)
             if key in owner:
                 other, other_index = owner[key]
                 issues.append(
@@ -335,15 +335,15 @@ def sim_instrument_names() -> tuple[str, ...]:
     return load_instrument_catalog().instrument_names()
 
 
-def realism_cohort_instruments() -> dict[tuple[str, str], str]:
-    """Map each real (mission, camera) pair to the instrument that emulates its products.
+def realism_cohort_instruments() -> dict[tuple[str, str | None, str], str]:
+    """Map each real (mission, spacecraft, camera) to the instrument emulating its products.
 
     Returns:
-        One entry per ``realism_cohort`` pair in the packaged catalog.
+        One entry per ``realism_cohort`` camera in the packaged catalog.
     """
     catalog = load_instrument_catalog()
     return {
-        (camera.mission, camera.camera): name
+        (camera.mission, camera.spacecraft, camera.camera): name
         for name in catalog.instrument_names()
         for camera in catalog.entry(name).realism_cohort
     }

@@ -813,8 +813,9 @@ baseline, saved PNG, or any other image that leaves the editor uses the full ren
 **Instruments.** The ``instrument`` field selects an instrument entry
 (see :ref:`sim-instrument-files`) and the navigator block the entry points at. The
 recognized names are the entries' top-level keys, ``coiss_nac``, ``coiss_wac``,
-``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, and ``vgiss``,
-plus ``generic`` (alias ``sim``) for the instrument-agnostic defaults.
+``coiss_calib_nac``, ``coiss_calib_wac``, ``gossi``, ``nhlorri``, ``vgiss_1_nac``,
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``, plus ``generic`` (alias ``sim``)
+for the instrument-agnostic defaults.
 
 The entry is the only source of the camera's physics: the renderer takes the detector,
 the PSF, and the distortion from it. A scene's ``detector`` and ``noise`` blocks change
@@ -837,11 +838,12 @@ shipped navigator block marks a lost pixel with ``0`` (``noise.marker_value``):
 
 * ``coiss_nac``, ``coiss_wac``, ``gossi``, ``nhlorri``, and ``generic`` render raw
   DN. The bias pedestal keeps the dark sky above the marker.
-* ``coiss_calib_nac``, ``coiss_calib_wac``, and ``vgiss`` render calibrated I/F.
+* ``coiss_calib_nac``, ``coiss_calib_wac``, and the four ``vgiss`` entries render
+  calibrated I/F.
   The Cassini CALIB and Voyager GEOMED products these blocks describe fill lost
   pixels with zero, and GEOMED fills its resample border with zero as well.
-  ``vgiss`` also keeps a full well: its entry's 255 DN full scale sets an I/F
-  ceiling.
+  The ``vgiss`` entries also keep a full well: each entry's 255 DN full scale sets an
+  I/F ceiling.
 
 The telemetry stage writes the marker the navigator applies to the same frame
 (:func:`~spindoctor.support.image_class.missing_data_marker`), so a lost line
@@ -856,12 +858,12 @@ value. The navigator applies no saturation test to an I/F
 frame of either kind. The telemetry modes that act on transmitted DN work the same
 way on a calibrated frame. The lossy codec, ``line_garble``, and ``pixel_spikes``
 map the I/F back to DN, alter it there, and write the result as I/F. A bit-flip
-spike is capped at the ADC word, 255 DN on ``vgiss``, so it calibrates to at most
-the I/F ceiling. A garbled line and a uniform spike draw anywhere in the ADC word. The
-codec doesn't clip what it rebuilds, so a saturated block can come back above the
-word, but a garbled line or a uniform spike drawn after it stays inside the word.
-A calibrated value that lands exactly on the 0 I/F marker moves to the next float
-above it, as the calibration inverse does.
+spike is capped at the ADC word, 255 DN on the ``vgiss`` cameras, so it calibrates to at
+most the I/F ceiling. A garbled line and a uniform spike draw anywhere in the ADC word.
+The codec doesn't clip what it rebuilds, so a saturated block can come back above the
+word, but a garbled line or a uniform spike drawn after it stays inside the word. A
+calibrated value that lands exactly on the 0 I/F marker moves to the next float above
+it, as the calibration inverse does.
 
 The inverse subtracts the bias and dark pedestals, which would put a noise-free
 dark sky at exactly 0 I/F, the marker. A real calibrated product's dark sky keeps
@@ -873,7 +875,7 @@ the entry sets none, as when a scene pins a raw camera to ``calibrated_if``, the
 generic entry's value applies. The generic value is the Cassini CALIB cameras'
 value. Each camera's value, and
 the real sky measurements behind it, are on its instrument page: the Voyager
-page for ``vgiss`` and the Cassini page for the CALIB cameras.
+page for the ``vgiss`` cameras and the Cassini page for the CALIB cameras.
 
 Before the divide, the inverse subtracts the calibration residual: the
 structure a real pipeline's per-pixel corrections leave in its product. A real
@@ -1326,8 +1328,8 @@ also takes hits while it waits to be read; the stage counts the exposure alone,
 as on a CCD.
 
 **The calibrated-I/F path.** A calibrated instrument (``coiss_calib_*`` on the
-CCD chain, ``vgiss`` on the vidicon chain) renders through its DN chain and then
-inverts the calibration transform: the bias and dark pedestals are subtracted
+CCD chain, the ``vgiss`` cameras on the vidicon chain) renders through its DN chain
+and then inverts the calibration transform: the bias and dark pedestals are subtracted
 before the exposure divide (matching the real pipeline; the vidicon has no dark current,
 and its readout dark is cataloged as what its calibrated product keeps), so a calibrated
 frame carries no spurious 1/exposure pedestal and
@@ -1405,13 +1407,14 @@ a mission's instrument blocks. Each
 top-level key of a file holds one instrument entry, and a scene selects it by
 writing that key in ``instrument``; the file's name plays no part. ``coiss.yaml``
 holds four instruments (``coiss_nac``, ``coiss_wac``, ``coiss_calib_nac``, and
-``coiss_calib_wac``), and ``gossi.yaml``, ``nhlorri.yaml``, ``vgiss.yaml``, and
-``generic.yaml`` hold one each. The ``generic`` entry is the instrument-agnostic
-one: a scene renders through it when it doesn't set ``instrument`` or sets it to
-``generic`` or ``sim``. The directory sits outside ``config_files/``, so the
-navigator's :class:`~spindoctor.config.config.Config` never loads a simulator
-value. What the navigator knows about a camera stays in its own ``config_4N0``
-block, and the sim entry points at that block.
+``coiss_calib_wac``), ``vgiss.yaml`` holds the four Voyager cameras (``vgiss_1_nac``,
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``), and ``gossi.yaml``,
+``nhlorri.yaml``, and ``generic.yaml`` hold one each. The ``generic`` entry is the
+instrument-agnostic one: a scene renders through it when it doesn't set ``instrument``
+or sets it to ``generic`` or ``sim``. The directory sits outside ``config_files/``, so
+the navigator's :class:`~spindoctor.config.config.Config` never loads a simulator value.
+What the navigator knows about a camera stays in its own ``config_4N0`` block, and the
+sim entry points at that block.
 
 An entry may set another instrument as its ``base``, and then inherits that
 instrument's entry. The base's entry is merged under the entry's own keys:
@@ -1677,9 +1680,10 @@ The keys of an entry, all directly under the instrument's top-level key:
        ``polarizer_clear`` (the clear element each polarizer folds onto).
    * - ``realism_cohort``
      - no
-     - The image library's ``{mission, camera}`` pairs whose frames the realism
-       match compares against this instrument. Not passed on to an entry that
-       sets this one as its ``base``.
+     - The image library's ``{mission, camera}`` pairs, with an optional
+       ``spacecraft``, whose frames the realism match compares against this
+       instrument. A sidecar's ``spacecraft`` must equal the entry's when the entry
+       states one. Not passed on to an entry that sets this one as its ``base``.
 
 Write a number so YAML reads it as one: ``1.0e+7`` and ``1.0e7`` are numbers,
 but ``.5e3`` is a string, which the loader refuses.
@@ -1799,7 +1803,8 @@ Applied at the detector grid after readout, in the physical order of
 transmission (see :data:`~spindoctor.sim.artifact_modes.STRUCTURED_LOSS_ORDER`).
 Loss modes write the instrument's missing-data marker, its ``noise.marker_value``:
 0 on every shipped instrument. Garble and spikes write *wrong*
-values instead.
+values instead. In the Availability column, ``vgiss_*`` stands for the four Voyager
+entries.
 
 .. list-table::
    :header-rows: 1
@@ -1815,7 +1820,7 @@ values instead.
      - ``expected_events``
    * - ``partial_lines``
      - a line truncated from a column to its end, or a middle segment lost
-     - nac, wac, vgiss
+     - nac, wac, vgiss_*
      - ``expected_events``
    * - ``alternating_lines``
      - every Nth line dropped, or (``mode: keep``) only every Nth line kept, the
@@ -1826,7 +1831,7 @@ values instead.
    * - ``edited_frame``
      - only a centered column band of the camera's default width, or the top or
        bottom half of the frame, kept
-     - gossi, vgiss
+     - gossi, vgiss_*
      - ``probability``
    * - ``truncated_frame``
      - a clean full-width band of lines (a quarter frame by default) cut from
@@ -1839,11 +1844,11 @@ values instead.
      - ``expected_events``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
-     - gossi, vgiss
+     - gossi, vgiss_*
      - ``expected_events``
    * - ``pixel_spikes``
      - isolated pixels flipped to a wrong DN (a bit-flip or a uniform draw)
-     - vgiss
+     - vgiss_*
      - ``expected_events``
    * - ``dead_pixels``
      - singleton pixels held at a low response
@@ -1872,12 +1877,12 @@ values instead.
      - ``probability``
    * - ``reseau_scars``
      - reseau-removal smudges on the vidicon lattice (archive processing)
-     - vgiss
+     - vgiss_*
      - ``probability``
    * - ``resample_texture``
      - geometric resample warp, blank border, and missing-line interpolation
        (archive processing)
-     - vgiss
+     - vgiss_*
      - ``probability``
 
 The telemetry sub-stage order is fixed: lossy compression runs first (a codec
@@ -1914,7 +1919,8 @@ asks for a mode that its detector model never renders, scene validation refuses
 it. The scene's detector model is its own ``detector.detector_model``, else its
 camera's default in the scene's readout mode. Validation also refuses
 ``instrument_defaults`` in a scene if the camera's ``instrument_defaults`` turns
-on a mode that the scene's detector model never renders.
+on a mode that the scene's detector model never renders. In the Availability
+column, ``vgiss_*`` stands for the four Voyager entries.
 
 .. list-table::
    :header-rows: 1
@@ -1943,7 +1949,7 @@ on a mode that the scene's detector model never renders.
      - ``probability``
    * - ``shutter_shading``
      - a focal-plane shutter's line-dependent exposure
-     - nac, wac, gossi, vgiss
+     - nac, wac, gossi, vgiss_*
      - ``probability``
    * - ``bloom``
      - electron-domain column bleed from saturated wells
@@ -1967,11 +1973,11 @@ on a mode that the scene's detector model never renders.
      - ``probability``
    * - ``beam_bend``
      - a brightness-dependent vidicon limb bend
-     - vgiss
+     - vgiss_*
      - ``probability``
    * - ``residual_image``
      - a prior-frame ghost from incomplete erasure
-     - vgiss
+     - vgiss_*
      - ``probability``
    * - ``fixed_pattern``
      - a static PRNU / vignetting / stitch / jail-bar / dust composite
@@ -2262,8 +2268,9 @@ own center (:func:`~spindoctor.sim.render.roll.roll_body_params`; see
 :ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
 ``roll_deg``, which turns the crater layout. The stage then shifts each center by the
 ephemeris parallax, turns it about the frame center by the roll, and scales the
-centers and axes to the render grid. The body
-renderer adds the planted translation when it draws the body. Both renderers read only the
+centers and axes to the render grid. The body renderer adds the planted offset,
+turned by the roll, when it draws the body, which makes the roll a turn about the
+boresight. Both renderers read only the
 spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
 render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
 the ``albedo_texture`` noise draws its seed from the body's identity. The renderer builds
@@ -3668,23 +3675,35 @@ The scene's displacements need no conversion: the planted ``offset_v`` /
 
 **The planted roll** is a roll of the camera about its boresight. A scene describes
 what the unrolled camera would see, and the roll turns everything in the field of
-view by the same angle, in the same direction, about **one** point in that same
-convention: the frame's center ``(size_v / 2, size_u / 2)``. A positive roll turns
-from ``+v`` toward ``+u``, carrying a point at ``(dv, du)`` from the center to
+view by the same angle, in the same direction, about **one** point: the boresight,
+which is the frame's center ``(size_v / 2, size_u / 2)`` in that same convention
+after the planted offset has moved the camera. A positive roll turns from ``+v``
+toward ``+u``, carrying a point at ``(dv, du)`` from the center to
 ``(cos * dv - sin * du, sin * dv + cos * du)``. That is the rotation the star fit
 ``similarity_transform_fit`` in ``nav_technique/_star_helpers.py`` reports and the
 rotation the edge fits apply to their model, so the rotation the navigator
-recovers equals the planted roll. The roll turns the scene first, and the planted
-``offset_v`` / ``offset_u`` then moves the turned stars, bodies, and ring system. The
+recovers equals the planted roll. The navigator never learns the roll:
+``offset_rotation_deg`` is a truth key, so the navigator's models predict the unrolled
+scene.
+
+The planted ``offset_v`` / ``offset_u`` is the boresight's pointing error ``d``, and
+it stays the truth for the navigator's translation. Measured from the frame center,
+an object the scene puts at ``x`` therefore lands at ``R (x + d)``, where ``R`` is the
+roll. The renderer computes this as ``R x + R d``: it turns each star, body, and the
+ring system about the frame center, then moves all of them by the offset turned by
+the roll (:func:`~spindoctor.sim.render.roll.boresight_shift`). The scene radiance
+stage computes that shift once and hands the same one to every object, so they all
+turn about the same point. Turning about the frame center and adding the offset
+unturned would put every object ``(R - I) d`` from where it belongs: the same shift
+for every object, ``2 |d| sin(theta / 2)`` long and nearly at right angles to the
+offset. The
 ``sky_counts`` background field turns with the roll but does not move with the offset:
-its stars are drawn where they land in the frame whatever the offset. The navigator
-never learns the roll: ``offset_rotation_deg`` is a truth key, so the navigator's
-models predict the unrolled scene.
+its stars are drawn where they land in the frame whatever the offset.
 
 The roll turns:
 
-- catalog star positions, body centers, and the ring system's center about the frame
-  center;
+- catalog star positions, body centers, and the ring system's center about the
+  boresight;
 - each body about its own center by the same angle: its outline, the side its light
   comes from, and everything drawn on it (craters, relief, albedo texture, bands and
   storms, transiting moons and their shadows, and the haze with its clouds);
@@ -3697,9 +3716,10 @@ The roll turns:
   direction in the field of view and turns with it;
 - a linear stray-light ramp. The ramp rises toward a bright source beyond the field
   of view, and rolling the camera turns that source's direction on the detector. The
-  rolled ramp is the unrolled ramp turned about the frame center, with the same slope
-  and the same value there. Where the turned frame reaches past the span the unrolled
-  ramp was scaled to, the ramp continues the same line, and where that line falls
+  ramp, like the sky field, does not move with the offset, so only its direction
+  turns: the rolled ramp is the unrolled ramp turned about the frame center, with the
+  same slope and the same value there. Where the turned frame reaches past the span
+  the unrolled ramp was scaled to, the ramp continues the same line, and where that line falls
   below zero it is clipped to zero, since light is never negative;
 - the ``sky_counts`` background field. The turned frame also shows sky beyond the
   unrolled frame's corners. The sky beyond the frame is drawn in fixed tiles at the
@@ -3805,8 +3825,8 @@ A scene either sets a key or leaves it out to take its default.
      - 0.0
      - truth
      - Planted boresight roll (deg, from ``+v`` toward ``+u``), turning
-       everything in the field of view about the frame's uv center
-       ``(size_v / 2, size_u / 2)`` (see
+       everything in the field of view about the boresight, the frame's uv
+       center ``(size_v / 2, size_u / 2)`` after the planted offset (see
        :ref:`the planted roll <sim-planted-roll>`).  That covers the positions
        of stars and bodies; each body's outline, lit side, and surface; the ring
        system; star smear, companions, and catalog errors; the optics motion
@@ -4632,7 +4652,7 @@ is a validation error:
    * - ``nhlorri``
      - 1, 4
      - The 4x4 readout mode reads about 19.4 e-/DN (21 at 1x1).
-   * - ``vgiss``
+   * - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, ``vgiss_2_wac``
      - 1
      - The vidicon has no binned readout.
 

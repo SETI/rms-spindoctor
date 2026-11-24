@@ -794,14 +794,46 @@ where they differ).
   the duplicate check compares only stars from different catalogs.
 - **The correlation techniques** — the disc and ring annulus correlations
   share `support/correlate.py`, and five items on them are open.
-  - **#791** (Priority 2) — `BodyDiscCorrelateNav`'s sub-pixel refinement
+  - **#791** (Priority 2; done by PR #1053, the rest moved to #1061, #1062,
+    and #1050) — `BodyDiscCorrelateNav`'s sub-pixel refinement
     cannot leave a +-0.5 px window around the integer peak and reports the
     window edge unflagged, and the raw cross-power peak it climbs is itself
     biased by about a pixel on a scene with stray light and limb relief.
     #929 fixed the clamp for the ring annulus only (#1003, a quadratic fit
     of the NCC surface on the final pass); the disc stays as it is by
     decision, since on 29 real disc frames no candidate refinement beat the
-    current one, and #929's disc criteria moved here.
+    current one, and #929's disc criteria moved here. Done (PR #1053):
+    the disc's final pass now refines on a high-pass cross-power
+    surface, in a window centered on the NCC quadratic vertex. On 69 real
+    NAC frames the median per-axis error fell from 0.29 / 0.30 to 0.23 /
+    0.23 px; the median radial error stayed flat (0.467 to 0.470 px), the
+    mean fell (0.747 to 0.634 px), and the maximum rose (5.21 to 6.20 px).
+    On all 76 measured frames the answers that stop at the refinement
+    window's edge with the surface still rising fell from 61% to 7%; on
+    the 10 of them with bright unmodeled structure beside the limb the
+    median radial error rose from 1.64 to 2.03 px. The at-edge flag now
+    tests the integer peak as well, since the window can carry the answer
+    1.5 px from it. Moved out (operator, 2026-11-18): flagging an answer
+    that still stops at its window edge is #1061. Main's strict #790
+    expectation reads mesh seed 10, a disc-carried success 12.8 px off on
+    24 of 25 noise draws. With this change the shape-lock veto declines
+    mesh seed 10 on all 25 draws, so that expectation no longer fails;
+    mesh seed 9 instead ends a 0.92-confidence success 8.1 to 8.2 px off
+    on 7 of 25 draws, one of them among the 5 the check reads. By
+    operator decision (2026-11-23) the 10 px check is now a plain test,
+    and a new strict #790 expectation holds that no success reaches 0.9
+    confidence more than 5 px off, which mesh seed 9 breaks; a sturdier
+    reproduction is #1062. The
+    refinement's pull toward bright structure
+    the template leaves out is #1050, which also carries the wide-angle
+    regression on saturated frames, the haze-crescent scenes
+    (`titan_crescent_horns` and its noiseless twin, 3.0 px off), and the
+    remaining bias on the
+    stray-light-and-relief scene #791 was opened on. On real irregular moons
+    the disc is spurious on 46 of 47 frames with star truth, so that sim
+    regime is barely testable; smeared and short-exposure frames improved
+    (PR #1053 lists the numbers). An Iapetus disc lock found there is
+    #1055.
   - **#1002** — when the annulus quadratic fit cannot be used, or its
     maximum lies more than a pixel away, the answer stays on the whole pixel
     with nothing marking it: no wider uncertainty, no spurious flag.
@@ -1451,23 +1483,21 @@ asserts the generated half matches the registries.
 - **#427** — the config top-level namespace mixes domain objects, pipeline
   stages, instruments, output products, and infrastructure on no stated
   axis, with `general` as the catch-all. Lifting `logging` out of `general`
-  fixed the worst instance and left the pattern. By default, sequence this
-  **before** #118 (config validation), unless the operator decision below
-  says otherwise: a schema per section is easier to write and to keep
-  accurate once the sections are organized, and doing it the other way
-  freezes the current grouping into a schema. #712 (renumber the
+  fixed the worst instance and left the pattern. The operator decided on
+  2026-11-23 to type first and reorganize after: #1032 types each section
+  under its current top-level name, no typing PR moves a section, and this
+  reorganization comes after #1032 as its own change. Once the sections
+  are typed, mypy finds every reader of a moved path and the loader
+  refuses the old key in any override. Starting it needs operator rulings
+  on the new layout. #712 (renumber the
   configuration files, so the `config_NN_*` merge order carries the same
   axis) is the filename half of the same question and moves with it.
   The shared schema core #118 builds on is #1021 (plain frozen dataclasses
   parsed by pydantic), in the simulator plan's Phase 2a; it serves the
-  simulator only and changes no navigator config. **Deferred (operator,
-  2026-11-17):** the navigator config is left alone for now, so #427,
-  #1029 (the navigator camera blocks), and #1032 (every other section,
-  and deleting the packaged keys nothing reads) wait. When the work
-  resumes, which sections this reorganization covers, and whether it
-  lands before they are typed, is an operator decision to record on
-  #427; until it is recorded, each typing PR checks #427 first and does
-  any move it asks for in the same PR.
+  simulator only and changes no navigator config. Deferred by the
+  operator on 2026-11-17 with #1029 (the navigator camera blocks) and
+  #1032 (every other section, and deleting the packaged keys nothing
+  reads); resumed on 2026-11-23, starting with #1032.
 - **#141 / #142** — dedup the CLI driver preamble and cloud-task loop;
   fix the dropped `extra_params` and the ImageFiles cardinality
   disagreement.
@@ -1507,20 +1537,35 @@ asserts the generated half matches the registries.
   (`src/spindoctor/config/config.py`); pairs well with #176's
   constants-into-config completion, whose single source of truth #1032
   enforces (section types declare fields with no Python default, and the
-  `DEFAULT_*` copies are deleted). **Deferred (operator, 2026-11-17),**
-  with #427 (see its entry above). Delivered on #1021 (the shared schema
-  core, which the simulator builds first) by two issues: #1029 (the
+  `DEFAULT_*` copies are deleted). Deferred on 2026-11-17 and resumed on
+  2026-11-23 (see #427's entry above). The navigator config refuses null
+  as the simulated scenes do (operator, 2026-11-23): a key that is not set
+  is left out, so no null-as-value policy is built. Delivered on #1021
+  (the shared schema core, which the simulator builds first) by two issues: #1029 (the
   camera blocks) and #1032 (every other section, then `AttrDict` retired
   from the config path). Meanwhile the typed scene (#1024) types the
   scene's `instrument_config` overlay itself, repeating the camera keys'
   ranges until #1029 lands. #1032 lands in about ten PRs in a stated
-  order, each typing PR checking #427 first:
-  - [ ] delete the packaged keys nothing reads, at least 54 of them
+  order, typing each section under its current name (#427's
+  reorganization comes after):
+  - [x] delete the packaged keys nothing reads, at least 54 of them
     including the whole `bootstrap` section (needs nothing else; #1023
-    deletes the camera blocks' dead keys)
-  - [ ] #1029: the camera blocks, with the core's VALUE null policy and
-    the loader's merge moved onto the core
-  - [ ] the orchestrator section
+    deletes the camera blocks' dead keys) (done: 56 deleted, 27 of the
+    28 `offset` keys, 13 `bodies` keys, 2 `stars` keys, and all 14
+    `bootstrap` keys with the section)
+  - [x] the loader on the core: delete the 62 packaged nulls and the
+    one in `util/cohort_curation/rescue_config.yaml` (an absent key means
+    not set; for a tier's `max_sigma_px`, no sigma bound) and move the
+    merge onto `layers.merge` under REFUSE (done: 31 `albedo_mean`, 30
+    ring-feature `name`/`inner_data`/`outer_data`, and the low tier's
+    `max_sigma_px` left out; `_deep_merge` deleted, and a null in any
+    file, a user override included, is refused with its file and key path)
+  - [x] the orchestrator section (done: `ensemble` and
+    `reliability_gate` parsed at load into `EnsembleConfig` and
+    `FeatureReliabilityGate`, held by `OrchestratorSection`; both
+    `from_mapping` methods and the 18 `DEFAULT_*` copies deleted, the 16
+    ensemble scalars, `DEFAULT_TIER_THRESHOLDS`, and
+    `DEFAULT_RELIABILITY_THRESHOLDS`)
   - [ ] technique confidence and tuning, two or three PRs by family
     (decide #411's snake_case rename first)
   - [ ] the logging section
@@ -1528,6 +1573,8 @@ asserts the generated half matches the registries.
     and `feature_emission`
   - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
     and `pds4`
+  - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;
+    no earlier step waits for it
   - [ ] `load_nav_config`, `AttrDict` off the config path, and one test
     fixture for config overrides; #118 and #1001 close here
 
@@ -1685,12 +1732,13 @@ asserts the generated half matches the registries.
 
 CI and test infrastructure:
 
-- **#820** (Priority 2) — the PDS3 dataset unit tests download index files
-  from the live archive on every CI run without the `integration` marker,
-  so a slow server fails the unit suite on unrelated PRs. #829 reduced it
-  (CI caches the index files between runs, and the Voyager test scans two
-  volumes rather than 91); the cause, a live download in a unit test,
-  remains.
+- **#820** (Priority 2; done) — the PDS3 dataset unit tests download index
+  files from the live archive on every CI run without the `integration`
+  marker, so a slow server fails the unit suite on unrelated PRs. #829
+  reduced it (CI caches the index files between runs, and the Voyager test
+  scans two volumes rather than 91). Done: CI no longer sets
+  `PDS3_HOLDINGS_DIR`, so the tests marked `REQUIRES_PDS3_HOLDINGS` skip
+  there and run locally against a local holdings tree.
 - **#832** — CI test jobs have hung for six hours and segfaulted in a PyQt6
   editor test, on code that passes on every other Python version of the
   same commit. Check whether the Qt tests run headless, and whether a

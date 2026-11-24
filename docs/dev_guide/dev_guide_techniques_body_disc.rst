@@ -54,9 +54,12 @@ technique maximizes the normalized cross-correlation
 over the integer offsets :math:`(\Delta v, \Delta u)` in the per-instrument search window,
 where :math:`\langle \cdot, \cdot \rangle_{M}` denotes the masked inner product (only pixels
 where :math:`M = \mathrm{True}` contribute). Sub-pixel refinement comes from a localized
-upsampled-DFT (Guizar-Sicairos) of the cross-power spectrum around the integer peak,
-reaching a 1/128 px resolution, on every pass of the pyramid. The refinement is evaluated
-on the **raw-intensity** surfaces even when the integer peak was chosen on the gradient
+upsampled-DFT (Guizar-Sicairos) of the cross-power spectrum, reaching a resolution of
+``1 / correlation_fft_upsample_factor`` px (1/128 px by default). The coarser pyramid
+levels search within half a pixel of the integer peak; the final full-resolution pass
+refines on a high-pass surface around the NCC's own sub-pixel estimate (see "High-pass
+refinement on the final pass"). The refinement is evaluated on the **raw-intensity**
+surfaces even when the integer peak was chosen on the gradient
 surfaces, so a gradient-mode peak does not carry the gradient-magnitude rectification bias
 (the magnitude rectifies the signal, making the cross-power peak non-smooth at its apex)
 into the reported offset; the template gradient structure provides the matched-filter
@@ -105,6 +108,71 @@ in the navigator's correlation, which applies to real PSF-blurred images too, so
 fixed in the correlator (the band-limit above) rather than in the simulator. The band-limit
 removes the bias for both simulated and real images and changes neither the rendered image nor
 the template.
+
+High-pass refinement on the final pass
+--------------------------------------
+
+The final full-resolution pass runs
+:func:`~spindoctor.support.correlate.navigate_with_pyramid_kpeaks` with
+``final_refinement='highpass_cross_power'``. Two things differ from the coarser levels.
+
+- **The surface.** After the low-pass above, each of the two surfaces has its own Gaussian
+  blur subtracted, with a sigma of
+  :data:`~spindoctor.support.correlate_subpixel.HIGHPASS_SIGMA_PX` (3 px). What remains is
+  the limb, the terminator, and surface detail. Light that changes slowly across the body,
+  such as stray light, a sloped background, or a broad photometric mismatch with the
+  Lambert template, is weakened and pulls the maximum much less, though it can still
+  move it.
+- **The window.** The search covers half a pixel around the maximum of a quadratic fitted to
+  the 3x3 block of NCC values at the integer peak, rounded to the refinement grid of
+  ``1 / correlation_fft_upsample_factor`` px
+  (:func:`~spindoctor.support.correlate_subpixel.ncc_vertex_window_steps`). When that fit
+  has no maximum, the window stays on the integer peak. The fit moves at most one pixel
+  along each axis, so the answer can lie up to 1.5 px from the integer peak.
+
+**Why.** The integer peak comes from the NCC, which in gradient mode is computed on
+gradient magnitudes. The cross-power maximum can then sit more than half a pixel from it,
+and a window confined to half a pixel around the integer peak stops at its edge. With
+such a window, 61% of the disc answers on 76 real frames with strong star solutions stop
+there with the surface still rising past the edge. A typical case is a body whose true
+offset is 1.43 px: the gradient NCC peaks at 2, the window spans 1.5 to 2.5, and the
+answer is 1.5. Centering the window on the NCC's sub-pixel estimate usually puts the true
+maximum inside it.
+
+On those 76 frames, the high-pass refinement gives a median per-axis error of
+0.24 / 0.24 px against the stars, where the half-pixel window around the integer peak gives
+0.32 / 0.31 px. The median distance from the star solution hardly changes, from 0.507 to
+0.509 px. The mean distance falls from 0.923 to 0.851 px, and 43 frames improve by more
+than 0.05 px while 19 get worse by as much. 7% of the high-pass answers still stop at the
+window edge with the surface still rising, and nothing marks them.
+
+That half-pixel window is unrelated to the result's ``at_edge`` flag, which marks a peak
+at the edge of the whole translation search window. Either of two conditions sets it: the
+integer peak lies one pixel inside the search window's edge, or the answer lies within
+2 px of that edge. The first catches a peak at the edge even when the high-pass window has
+carried the answer more than a pixel inward from it; the second flags an answer near the
+edge even when its integer peak is not one pixel inside it.
+
+**Known weakness.** Bright structure that the template leaves out, lying against a modeled
+limb, pulls the high-pass maximum about 2.7 times further than the raw one. Examples are a
+far body hidden behind a near one except for a crescent (a body below 40% visible lit
+fraction emits no ``BODY_DISC`` template), rings or Saturn behind a moon, and saturation
+spill around an overexposed body. On the 10 real frames with such structure, the
+high-pass refinement is better on 5 and worse on 3, but the median distance from the star
+solution rises from 1.64 to 2.03 px. The three that get worse are all saturated and more
+than 1.7 px off with either refinement. On the other 66 frames the median distance moves
+from 0.47 to 0.49 px.
+
+**Cost.** The high-pass spectrum replaces the raw one on the final pass, so the added work
+per correlation is two Gaussian filters of the padded surfaces and one 3x3 quadratic fit
+per candidate peak: about 0.14 s per final pass on a 1100 px extended frame, where the
+whole correlation takes about 8.5 s. In ``auto`` mode both the raw and the gradient
+pyramids run a final pass, so the estimate is about 0.27 s per image. Rotation fitting
+scores its trial angles with a single correlation each, which neither refines nor builds a
+high-pass spectrum (see "Rotation-aware schedule"). Only its full pyramids run a final
+pass: the one on the unrotated template, and the one at the best angle when that angle is
+not zero. Each runs in both modes, so rotation fitting adds about 0.27 s more per image of
+that size, and nothing when the best angle is zero.
 
 Mode selection (auto / raw / gradient)
 --------------------------------------

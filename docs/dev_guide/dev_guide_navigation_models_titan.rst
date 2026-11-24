@@ -31,7 +31,8 @@ generalize to other thick-atmosphere bodies such as Venus.
 model emits its feature. Frame quality lives in that feature's reliability, never in a refusal: an
 envelope that cannot clear the detector wherever the true pointing puts it, one too heavily
 occluded, or one too small to measure scores exactly zero, and the standard per-type reliability
-gate then removes it. A marginal Titan therefore resolves through the same statuses as any other
+gate then removes it, since the packaged ``TITAN_LIMB`` threshold is above zero. (A threshold of
+zero would let it through.) A marginal Titan therefore resolves through the same statuses as any other
 marginal scene -- ``all_features_gated`` on a Titan-only frame. The gate record's reliability
 breakdown holds the envelope diameter and the occluded fraction, so a zero caused by either one can
 be read from it. The breakdown says nothing about the detector edge, but a zero next to a passing
@@ -258,9 +259,7 @@ with the technique that reads them, at :doc:`dev_guide_techniques_titan_haze`.
      - Half-length of the cross drawn at the disc center.
 
 The per-type reliability threshold the emitted feature is gated against is the ``TITAN_LIMB``
-entry under ``reliability_gate`` in ``config_540_orchestrator.yaml``, mirrored in
-:data:`~spindoctor.feature.reliability.DEFAULT_RELIABILITY_THRESHOLDS`; the two must stay in
-sync.
+entry under ``reliability_gate`` in ``config_540_orchestrator.yaml``.
 
 Implementation
 ==============

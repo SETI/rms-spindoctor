@@ -77,11 +77,12 @@ Curvature classification
 ------------------------
 
 For each surviving polyline the model fits a best-fit straight line and measures the
-maximum perpendicular deviation. An edge whose deviation exceeds
-``curvature_threshold_pixels`` (or the configured fraction of the edge's length) is flagged
-``is_curved``; otherwise the edge is straight-line and the per-edge constraint is rank-1
-along the radial direction. The :doc:`dev_guide_techniques_ring_edge` page describes how
-the downstream technique handles the all-straight case.
+maximum perpendicular deviation. An edge whose deviation is at most
+``FLAT_CURVATURE_THRESHOLD_PX`` (1 px, in ``nav_model/ring_polyline.py``) is flagged
+:attr:`~spindoctor.feature.flags.RingEdgeFlags.is_straight_line`, and its per-edge
+constraint is rank-1 along the radial direction. Any other edge is curved. The
+:doc:`dev_guide_techniques_ring_edge` page describes how the downstream technique handles
+the all-straight case.
 
 Per-vertex covariance
 ---------------------
@@ -277,8 +278,9 @@ per planet: Jupiter, Saturn, Uranus, Neptune). Each per-planet entry sets:
 - ``min_feature_pixels`` — float (px). Minimum per-feature pixel extent below which the
   per-image filter drops the feature.
 - ``features`` — dict[str, dict]. Per-edge entries keyed by feature name. Each entry
-  carries ``feature_type`` (``GAP`` / ``RINGLET`` / ``RING``), ``name`` (display label),
-  and one or both of ``inner_data`` / ``outer_data`` lists. Each ``*_data`` list
+  carries ``feature_type`` (``GAP`` / ``RINGLET`` / ``RING``), an optional ``name``
+  (display label, left out for an unnamed feature), and one or both of ``inner_data`` /
+  ``outer_data`` lists. An edge that has no data has no list. Each ``*_data`` list
   enumerates the per-mode catalog terms (mode number plus ``a`` / ``rms`` / ``ae`` /
   ``long_peri`` / ``rate_peri`` for orbiting features, or ``amplitude`` / ``phase`` /
   ``pattern_speed`` for free-mode features). Consumed by
