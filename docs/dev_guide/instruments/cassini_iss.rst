@@ -689,9 +689,9 @@ of 0.0115 degrees, with roll fitting off as the camera ships.
 
 - ``keeler_gap_unlit_ansa`` draws the Keeler gap at 0.338 km/px on the unlit face,
   near the ansa, beside 453 one-kilometer bins of a radial profile measured on a
-  library frame. The edge fit lands about 3.4 px off along the nearly straight
+  library frame. The edge fit lands about 3.5 px off along the nearly straight
   edges and reports a sigma near 0.1 px. With one uniform sheet in place of the
-  profile it lands about 1.4 px off, so the profile carries most of the error.
+  profile it lands about 1.2 px off, so the profile carries most of the error.
 - ``a_ring_edge_f_ring`` draws the outer A ring at 10 km/px with the F ring 345 px
   outside the A ring's edge and the Encke gap's central ringlet inside the gap.
   Neither pulls the fit.
@@ -699,12 +699,14 @@ of 0.0115 degrees, with roll fitting off as the camera ships.
   The edges become nested hairpins about the ansa, and along their arms the
   rings' radial direction is squeezed to about a twentieth of its length. The
   Keeler gap, 3.7 px wide at the ansa, is under a pixel wide over most of its arc,
-  and fitting both of its edges puts the answer 0.77 px off at a sigma under
+  and fitting both of its edges puts the answer 0.84 px off at a sigma under
   0.06 px.
 - ``maxwell_hidden_eccentricity`` draws the Maxwell ringlet with its measured
   eccentricity while the navigator's orbit for it is circular. The fit follows the
   drawn ringlet, about 5 px inward of the circular orbit, and ends 6.8 px off at a
-  sigma under 0.1 px.
+  sigma under 0.1 px. The annulus correlation, pulled by the same ringlet, lands
+  11.8 px off without flagging it. The two answers disagree, and the frame is
+  returned as conflicted.
 - In ``b_ring_saturated_plateau`` a 12 s exposure saturates the B ring into a flat
   plateau beside the Huygens gap, with the Herschel and Russell gaps in the
   Cassini Division beyond it. The saturated edge pulls the answer 0.06 px farther
@@ -714,10 +716,10 @@ of 0.0115 degrees, with roll fitting off as the camera ships.
 Turning a frame about the boresight slides a curved ring edge along itself by
 about the twist angle times the edge's radius of curvature on the sky. For the A
 ring at 10 km/px that is about 0.26 px, and the navigator's reported sigma leaves
-it out: with the twist removed, ``a_ring_edge_f_ring`` lands 0.045 px off. The
+it out: with the twist removed, ``a_ring_edge_f_ring`` lands 0.039 px off. The
 twist is not what puts the other scenes above three sigma. Without it they still
-sit at 5.5 sigma (the saturated B ring), 25 sigma (the Keeler gap), 14 sigma (the
-low opening), and 153 sigma (the hidden eccentricity). Where the along-edge answer
+sit at 5.5 sigma (the saturated B ring), 25 sigma (the Keeler gap), 17 sigma (the
+low opening), and 144 sigma (the hidden eccentricity). Where the along-edge answer
 is weakly determined, as at the Keeler gap, the twist moves it by more than a
 slide would, in a direction that depends on the twist's sign. Rendering and
 navigating one of these frames takes 6 to 40 seconds.

@@ -44,27 +44,27 @@ exposure_sec: 3.8
 # 818 DN.  The planted twist, +0.0115 deg, is the NAC's measured twist,
 # with roll fitting off as the camera ships.
 #
-# Measured outcome (2026-11-23): RingEdgeNav answers 3.39 px from the
+# Measured outcome (2026-11-24): RingEdgeNav answers 3.53 px from the
 # planted offset, almost all of it along the edge, with a reported sigma of
-# 0.034 to 0.13 px: 28 sigma.  This is the along-edge error on nearly
+# 0.033 to 0.12 px: 33 sigma.  This is the along-edge error on nearly
 # straight edges at sub-pixel sigma (#755).  The along-edge answer is weakly
 # determined, so the twist does not simply slide it: with the twist
 # removed the committed draw is 2.37 px off along the edge (25 sigma), and
-# a twist of -0.01 deg moves it to 4.37 px off on the other side.  With one
+# a twist of -0.01 deg moves it to 4.09 px off on the other side.  With one
 # uniform sheet in place of the measured profile the committed draw is
-# 1.38 px off with the twist and 1.37 px without, so the profile beside
+# 1.21 px off with the twist and 1.38 px without, so the profile beside
 # the edges carries most of the error.  The measurement covers the
 # committed seed and random_seed 101, 202, ..., 1515: 16 distinct draws.
 # noise_seed 101 to 808 repeats random_seed 101 to 808 exactly, because the
-# random seed draws only the detector noise here.  The error is 3.243 to
-# 3.469 px and 27.2 to 29.9 sigma.  The confidence runs 0.84 to 0.90 across
-# the high tier's 0.85 floor, so the tier is medium on 15 draws and high on
-# 1 and is not asserted.  The band puts each end max(0.05 px, a fifth of
-# the spread) outside the measured range: [3.193, 3.519] px.
+# random seed draws only the detector noise here.  The error is 3.338 to
+# 3.532 px and 27.1 to 32.8 sigma.  The confidence runs 0.84 to 0.90 across
+# the high tier's 0.85 floor, so the tier is medium on 14 draws and high on
+# 2 and is not asserted.  The band puts each end max(0.05 px, a fifth of
+# the spread) outside the measured range: [3.288, 3.583] px.
 expected:
   status: success
-  known_offset_error_px: 3.356
-  known_offset_error_tol_px: 0.163
+  known_offset_error_px: 3.4355
+  known_offset_error_tol_px: 0.1475
 artifacts:
   instrument_defaults: true
 bodies: []

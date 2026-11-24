@@ -300,8 +300,8 @@ are the authorable parts of #904 and the ring-only part of #377:
   full-size NAC scenes (a navigated Keeler-gap profile, the F ring beside the A ring's edge,
   the same rings at an opening of 2.5 degrees, a hidden Maxwell-ringlet eccentricity, a
   saturated B ring), each held to a known-error band (#755 for the Keeler gap, #1143 for the
-  unfit twist, #1152 for the low opening, #1144 for the hidden eccentricity, #1145 for the
-  saturated edge);
+  unfit twist, #1152 for the low opening, #1144 for the hidden eccentricity, where the frame
+  conflicts, #1145 for the saturated edge);
 - interleaved defect modes on one frame.
 
 Each scene asserts against its planted truth (#905). Scenes that expose a navigator failure are
@@ -523,9 +523,9 @@ Those classes are eligible for retirement in Phase 7.
 | #1149 | **Affects no current scene: with the hot pixels scaled to the exposure (#906, PR #1168), `saturn_rings_wac` sits at 0.9 to 2.6 sigma and needs no sigma band.** On a whole-system WAC frame RingEdgeNav answered 0.15 to 0.23 px off at a sigma of about 0.04 px, 3 to 5 sigma, with the simulated hot pixels near full well whatever the exposure. Re-measured on PR #1168 it answers 0.03 to 0.10 px off at a sigma of 0.04 to 0.05 px; the planet in view still adds to the error (0.10 against 0.08 px on the committed seed) |
 | #1150 | **Affects no current scene: with the hot pixels scaled to the exposure (#906, PR #1168), `stars_body_ephemeris_error` shows no such draw.** StarUniqueMatchNav answered 114 px off at 0.70 confidence on one draw of 16 and did not flag it (navigator work). Re-measured on PR #1168 it flags 5 of its 25 answers spurious, and the rest lie within 0.25 px of the truth |
 | #1143 | **Affects `a_ring_edge_f_ring`, held as a known error, and the other `dense_rings` scenes in part.** The NAC's unfit twist of 0.0115 degrees slides ring answers along curved edges by about 0.3 px, and moves weakly determined answers by more, and the reported sigma leaves it out (navigator work) |
-| #1144 | **Affects `maxwell_hidden_eccentricity`, held as a known error.** RingEdgeNav follows an eccentric ringlet whose catalog orbit is circular and answers 6.8 px off at high tier and 130 sigma; RingAnnulusNav is 7.0 to 9.4 px off and flagged on most draws (navigator work) |
+| #1144 | **Affects `maxwell_hidden_eccentricity`, held as a conflicted frame with a known-error band on each technique.** RingEdgeNav follows an eccentric ringlet whose catalog orbit is circular and answers 6.8 px off at 120 sigma; RingAnnulusNav, pulled by the same ringlet, answers 11.8 px off without flagging it, so the frame conflicts (navigator work) |
 | #1145 | **Affects `b_ring_saturated_plateau`, held as a known error.** A saturated ring edge pulls the answer 0.06 px farther out across the edges than the same frame unsaturated, about five times the reported sigma (navigator work) |
-| #1152 | **Affects `a_ring_low_opening`, held as a known error.** At a low ring opening a narrow gap is resolved only near the ansa, yet both its edges are fitted along the whole arc, and the answer lands 0.77 px off at 14 sigma (navigator work) |
+| #1152 | **Affects `a_ring_low_opening`, held as a known error.** At a low ring opening a narrow gap is resolved only near the ansa, yet both its edges are fitted along the whole arc, and the answer lands 0.84 px off at 16 sigma (navigator work) |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling

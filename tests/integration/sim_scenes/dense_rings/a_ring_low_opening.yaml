@@ -29,13 +29,13 @@ exposure_sec: 1.0
 # puts the A ring at about 640 DN.  The planted twist, +0.0115 deg, is the
 # NAC's measured twist, with roll fitting off as the camera ships.
 #
-# Measured outcome (2026-11-23): success at medium tier (confidence 0.68),
-# 0.774 px from the planted offset along the line of nodes, the radial
-# direction at the ansa, with a reported sigma of 0.022 to 0.056 px: 14
-# sigma.  Neither the twist (0.767 px with it removed) nor the unmodeled F
-# ring and Encke ringlet (0.776 px with them removed) moves it.  The Keeler
+# Measured outcome (2026-11-24): success at medium tier (confidence 0.68),
+# 0.842 px from the planted offset along the line of nodes, the radial
+# direction at the ansa, with a reported sigma of 0.023 to 0.051 px: 16
+# sigma.  Neither the twist (0.852 px with it removed) nor the unmodeled F
+# ring and Encke ringlet (0.844 px with them removed) moves it.  The Keeler
 # gap does: with the gap unknown to the navigator the committed draw is
-# 0.068 px off at 1.5 sigma.  The gap is 3.7 px wide at the ansa, but its
+# 0.060 px off at 1.8 sigma.  The gap is 3.7 px wide at the ansa, but its
 # arms are foreshortened to 0.58 to 3.7 px on the sky, 0.84 px at the
 # median, and it is at least 2 px wide on only 105 of the 1,098 px of its
 # arc.  The simulated ring model keeps every navigable feature, and the
@@ -45,14 +45,14 @@ exposure_sec: 1.0
 # measurement covers the committed seed and random_seed 101, 202, ...,
 # 1515: 16 distinct draws.  noise_seed 101 to 808 repeats random_seed 101
 # to 808 exactly, because the random seed draws only the detector noise
-# here.  The error is 0.755 to 0.789 px and 13.3 to 14.6 sigma, at medium
+# here.  The error is 0.832 to 0.874 px and 15.9 to 18.0 sigma, at medium
 # tier on every draw.  The band puts each end max(0.05 px, a fifth of the
-# spread) outside the measured range: [0.704, 0.839] px.
+# spread) outside the measured range: [0.782, 0.924] px.
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.7715
-  known_offset_error_tol_px: 0.0675
+  known_offset_error_px: 0.853
+  known_offset_error_tol_px: 0.071
 artifacts:
   instrument_defaults: true
 bodies: []

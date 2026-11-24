@@ -33,24 +33,24 @@ exposure_sec: 2.0
 # measured twist (the twist table of the FOV distortion report), with roll
 # fitting off as the camera ships.
 #
-# Measured outcome (2026-11-23): success at high tier, RingEdgeNav 0.344 px
+# Measured outcome (2026-11-24): success at high tier, RingEdgeNav 0.343 px
 # from the planted offset, almost all of it along the edges, with a reported
-# sigma of 0.016 to 0.16 px: 2.2 sigma.  Neither the F ring nor the Encke
+# sigma of 0.016 to 0.17 px: 2.0 sigma.  Neither the F ring nor the Encke
 # ringlet pulls the fit.  The error is the unfit twist: turning the frame
-# about its center slides a curved arc along itself by about the twist times
-# the arc's radius of curvature on the sky, here 2.0e-4 rad times about
-# 1,300 px, or 0.26 px.  With the twist removed the committed draw is 0.045
+# about the boresight slides a curved arc along itself by about the twist
+# times the arc's radius of curvature on the sky, here 2.0e-4 rad times about
+# 1,300 px, or 0.26 px.  With the twist removed the committed draw is 0.039
 # px off (#1143).  The measurement covers the committed seed and
 # random_seed 101, 202, ..., 1515: 16 distinct draws.  noise_seed 101 to
 # 808 repeats random_seed 101 to 808 exactly, because the random seed draws
-# only the detector noise here.  The error is 0.341 to 0.348 px and 2.18 to
-# 2.23 sigma, at high tier on every draw.  The band puts each end max(0.05
-# px, a fifth of the spread) outside the measured range: [0.291, 0.398] px.
+# only the detector noise here.  The error is 0.340 to 0.348 px and 2.01 to
+# 2.05 sigma, at high tier on every draw.  The band puts each end max(0.05
+# px, a fifth of the spread) outside the measured range: [0.290, 0.399] px.
 expected:
   status: success
   confidence_tier: high
   known_offset_error_px: 0.3445
-  known_offset_error_tol_px: 0.0535
+  known_offset_error_tol_px: 0.0545
 artifacts:
   instrument_defaults: true
 bodies: []

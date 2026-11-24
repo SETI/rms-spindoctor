@@ -2143,7 +2143,7 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are thirteen:
+not yet fixed. There are twelve:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
@@ -2161,8 +2161,6 @@ not yet fixed. There are thirteen:
   maximum of its high-pass surface, pulled by that outline.
 - In ``mutual_deep``, the far body's crescent pulls the disc correlation.
 - In ``keeler_gap_unlit_ansa``, the edge fit slides along nearly straight edges.
-- In ``maxwell_hidden_eccentricity``, the fit follows a ringlet drawn eccentric
-  while the navigator's orbit for it is circular.
 - In ``a_ring_edge_f_ring``, the unfit camera twist slides the curved edges along
   themselves.
 - In ``b_ring_saturated_plateau``, the saturated edge reads farther out than the

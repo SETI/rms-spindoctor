@@ -36,8 +36,8 @@ exposure_sec: 2.0
 #   cross 179 to 261 px arcs in the frame's corner.  They are drawn but not
 #   known to the navigator.  The ringlet's outer edge sits 1.9 px inside
 #   the gap's outer edge.  With both navigable, the frame with the ringlet
-#   drawn circular and the twist removed lands 0.66 px off at 12 sigma
-#   instead of 0.08 px, a separate failure (#1152) that would mix with the
+#   drawn circular and the twist removed lands 0.68 px off at 12 sigma
+#   instead of 0.09 px, a separate failure (#1152) that would mix with the
 #   hidden eccentricity this scene holds.
 #
 # Geometry: B = +14 deg to the observer and +20 deg to the Sun (the lit
@@ -45,27 +45,30 @@ exposure_sec: 2.0
 # curved arcs.  The planted twist, +0.0115 deg, is the NAC's measured
 # twist, with roll fitting off as the camera ships.
 #
-# Measured outcome (2026-11-23): success at high tier, 6.80 px from the
-# planted offset with a reported sigma of 0.047 to 0.060 px: 130 sigma.
-# The error is 4.99 px across the edges, matching the ringlet's displacement,
-# so the fit followed the ringlet and gave up the gap's correct edges, and
-# 4.62 px along them.  RingAnnulusNav is 7.0 to 9.4 px off and flagged on
-# 12 of the 16 draws, so it carries no band.  With the ringlet drawn
-# circular the committed draw is 0.581 px off (0.084 px with the twist
-# removed too), so the hidden eccentricity carries the error, and the
-# reported sigma does not cover it (#1144).  With only the twist removed it
-# is 6.50 px off at 153 sigma.  The measurement covers the committed seed
-# and random_seed 101, 202, ..., 1515: 16 distinct draws.  noise_seed 101
-# to 808 repeats random_seed 101 to 808 exactly, because the random seed
-# draws only the detector noise here.  The error is 6.782 to 6.819 px and
-# 128.8 to 132.8 sigma, at high tier on every draw.  The band puts each end
-# max(0.05 px, a fifth of the spread) outside the measured range: [6.732,
-# 6.870] px.
+# Measured outcome (2026-11-24): conflicted on every draw.  RingEdgeNav
+# answers 6.80 px from the planted offset at confidence 0.90 with a
+# reported sigma of 0.048 to 0.073 px: 120 sigma.  The error is 5.00 px
+# across the edges, matching the ringlet's displacement, so the fit
+# followed the ringlet and gave up the gap's correct edges, and 4.61 px
+# along them.  With the ringlet drawn circular the committed draw is
+# 0.599 px off (0.089 px with the twist removed too), so the hidden
+# eccentricity carries the error, and the reported sigma does not cover it
+# (#1144).  With only the twist removed it is 6.48 px off at 144 sigma.
+# RingAnnulusNav answers 11.80 px off at confidence 0.86 on every draw and
+# does not flag it (#TBD).  The ensemble sees the two disagree and returns
+# conflicted.  The annulus error also comes from the hidden eccentricity:
+# with the ringlet drawn circular the annulus answer is 0.40 px off and
+# flagged, and with only the twist removed it is 6.62 px off and flagged,
+# and the frame succeeds on RingEdgeNav alone.  The measurement covers the
+# committed seed and random_seed 101, 202, ..., 1515: 16 distinct draws.
+# noise_seed 101 to 808 repeats random_seed 101 to 808 exactly, because the
+# random seed draws only the detector noise here.  RingEdgeNav is 6.801 to
+# 6.820 px off and RingAnnulusNav 11.804 px off on every draw; each is held
+# to a band with ends max(0.05 px, a fifth of the spread) outside the
+# measured range.
 expected:
-  status: success
-  confidence_tier: high
-  known_offset_error_px: 6.801
-  known_offset_error_tol_px: 0.069
+  status: conflicted
+  status_reason: conflicted_techniques
 artifacts:
   instrument_defaults: true
 bodies: []

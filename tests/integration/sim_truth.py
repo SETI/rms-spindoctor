@@ -306,7 +306,13 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.794, 1.850, 0.05, 1.744, 1.900),
     # The annulus correlation lands 0.58 px off on the saturated B ring, unflagged; the
     # saturated edge (#1145) and the unfit twist (#1143) share the edge fit's error.
-    ('b_ring_saturated_plateau', 'RingAnnulusNav'): _b(0.576, 0.582, 0.05, 0.526, 0.633),
+    ('b_ring_saturated_plateau', 'RingAnnulusNav'): _b(0.573, 0.579, 0.05, 0.522, 0.629),
+    # The edge fit follows a ringlet drawn eccentric while the navigator's orbit is
+    # circular, 6.8 px off at a sigma near 0.06 px (#1144).  The annulus correlation,
+    # pulled by the same ringlet, lands 11.8 px off and does not flag it (#TBD), so the
+    # two disagree and the frame conflicts.
+    ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
+    ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
@@ -344,18 +350,15 @@ SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # The translation is fitted about the extended field of view's corner (#434).
     'planted_rotation_star_field': _b(16.333, 16.447, 0.1, 16.233, 16.547),
     # dense_rings.  RingEdgeNav lands about 3.4 px off along nearly straight edges at a
-    # sigma of 0.033 to 0.13 px (#755).
-    'keeler_gap_unlit_ansa': _b(27.158, 29.942, 0.5568, 26.601, 30.499),
-    # The fit follows a ringlet drawn eccentric while the navigator's orbit is
-    # circular, 6.8 px off at a sigma of 0.046 to 0.061 px (#1144).
-    'maxwell_hidden_eccentricity': _b(128.807, 132.824, 0.8032, 128.004, 133.627),
+    # sigma of 0.033 to 0.12 px (#755).
+    'keeler_gap_unlit_ansa': _b(27.066, 32.797, 1.1461, 25.920, 33.943),
     # The saturated edge reads farther out than the same edge unsaturated, and the
     # reported sigma does not cover it (#1145).
-    'b_ring_saturated_plateau': _b(5.342, 5.369, 0.1, 5.242, 5.469),
+    'b_ring_saturated_plateau': _b(5.353, 5.384, 0.1, 5.253, 5.485),
     # At a ring opening of 2.5 degrees the Keeler gap is resolved only near the ansa,
-    # and fitting its two edges puts the answer 0.77 px off at a sigma of 0.022 to
-    # 0.058 px (#1152).
-    'a_ring_low_opening': _b(13.324, 14.617, 0.2587, 13.064, 14.877),
+    # and fitting its two edges puts the answer 0.84 px off at a sigma of 0.023 to
+    # 0.051 px (#1152).
+    'a_ring_low_opening': _b(15.877, 17.969, 0.4185, 15.458, 18.388),
 }
 
 # The planted roll is recovered 0.018 to 0.020 deg short over the seeds; the margin is
