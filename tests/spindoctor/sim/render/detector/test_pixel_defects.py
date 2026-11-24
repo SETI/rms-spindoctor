@@ -109,9 +109,17 @@ def test_hot_pixel_streak_follows_the_pixels_rate() -> None:
 
 def test_binned_hot_pixel_streak_holds_each_native_rows_pickup() -> None:
     """A binned row below a hot pixel gains the streak of its binning native rows."""
-    electrons, _ = _one_hot_pixel(rate_e_per_sec=0.0, readout_e=10.0, streak_e=2.0, binning=2)
-    relative = float(electrons[30, 20]) / 10.0
+    electrons, record = _one_hot_pixel(rate_e_per_sec=0.0, readout_e=10.0, streak_e=2.0, binning=2)
+    relative = record['charges_e'][0] / 10.0
     assert float(electrons[40, 20]) == pytest.approx(2.0 * 2.0 * relative)
+
+
+def test_binned_hot_pixel_row_holds_the_average_in_block_streak() -> None:
+    """The hot pixel's own binned row gains (binning - 1) / 2 native rows' streak."""
+    electrons, record = _one_hot_pixel(rate_e_per_sec=0.0, readout_e=10.0, streak_e=2.0, binning=4)
+    charge = record['charges_e'][0]
+    relative = charge / 10.0
+    assert float(electrons[30, 20]) == pytest.approx(charge + 1.5 * 2.0 * relative)
 
 
 def test_power_law_amplitudes_start_at_one() -> None:

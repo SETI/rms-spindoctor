@@ -94,10 +94,13 @@ def add_hot_pixels(
     pixel generates while the packet sits there (the ``_sec`` term), or a fixed
     charge on a detector whose hot-pixel charge and streak are constants of the
     frame mode (the ``_e`` term).  The warm streak is therefore flat and lies only
-    on the rows read after the hot pixel.  A binned row holds
-    ``binning`` native rows that each passed the hot pixel, so it collects
-    ``binning`` times the native row's streak; no dark frame has tested that
-    factor.
+    on the rows read after the hot pixel.  A binned row below the hot pixel's
+    holds ``binning`` native rows that each passed the hot pixel, so it collects
+    ``binning`` times the native row's streak.  The hot pixel's own binned row
+    holds the native rows after it within the block; the binned map no longer
+    records which native row the hot pixel occupies, so that row gets the
+    average over the block, ``(binning - 1) / 2`` native rows' streak.  No dark
+    frame has tested either factor.
 
     The uniform population is the detector's fixed map
     (:func:`detector_hot_pixel_map`), the same pixels and relative amplitudes in
@@ -161,6 +164,10 @@ def add_hot_pixels(
     steps = np.zeros((size_v, size_u), dtype=np.float64)
     np.add.at(steps, (hot_v[below] + 1, hot_u[below]), streak_per_unit * binning * relative[below])
     electrons += np.cumsum(steps, axis=0)
+    if binning > 1:
+        # The native rows after the hot pixel inside its own binned row, averaged
+        # over the native row it occupies.
+        np.add.at(electrons, (hot_v, hot_u), streak_per_unit * 0.5 * (binning - 1) * relative)
     return record
 
 
