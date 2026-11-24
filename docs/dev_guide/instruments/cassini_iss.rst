@@ -570,8 +570,11 @@ position and do not grow with the exposure. Frames of 0.08 to 0.2 s show them at
   charge in proportion to the exposure.
 * ``pixel_fraction`` is 3.3e-5, the fraction of pixels holding 1,000 e- or more
   (``readout_e``), and ``rate_e_per_sec`` is 0. The number above a charge falls as
-  one over that charge (the fitted index is 0.97) up to the full well. The
-  population reproduces the cohort's fraction of 1.57e-5.
+  one over that charge (the fitted index is 0.97) up to the full well. At the real
+  frames' spike thresholds the population predicts the cohort's fraction of
+  1.57e-5. The realism match measures 2.8e-5 on the matched frames: the NAC's map
+  holds 41 such pixels in a full frame where 35 are expected, and the matched
+  frames' own spike thresholds flag about 1.5 times more of the population.
 * Two frames 14 days apart, N1487595731 (0.18 s) and N1488823805 (1.2 s), share
   192 of those spikes at about the same charge, all in one square of rows and
   columns 512 to 767. They make up 48% of the cohort's stationary spikes. The
@@ -579,8 +582,9 @@ position and do not grow with the exposure. Frames of 0.08 to 0.2 s show them at
   content that repeats between frames adds to them.
 * The WAC cohort has four frames and one stationary pixel, seen in two of them:
   2,314 e- at 1.8 s and 2,285 e- at 0.025 s. The NAC's law with a fraction of
-  7.9e-7 reproduces its mean fraction of 4.8e-7, but one pixel leaves that
-  fraction uncertain by a factor of several.
+  7.9e-7 predicts its mean fraction of 4.8e-7, but one pixel leaves that fraction
+  uncertain by a factor of several. The WAC's map holds no pixel that rare in a
+  full frame, so the realism match measures none.
 * The residual pixels' streaks are not measured, so the calibrated population has
   none.
 
