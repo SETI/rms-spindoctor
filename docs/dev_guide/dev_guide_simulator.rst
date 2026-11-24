@@ -3696,9 +3696,10 @@ The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
 ``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``,
-``mixed_content``, ``dense_rings``) scope what each scene is testing and are enforced by the
-structural test. The scene README at ``tests/integration/sim_scenes/README.txt``
-documents the schema alongside the code.
+``mixed_content``, ``dense_rings``) scope what each scene is testing and are
+enforced by the structural test. The scene README at
+``tests/integration/sim_scenes/README.txt`` documents the schema alongside the
+code.
 
 The ``mixed_content`` scenes put two kinds of content in one realistic frame, as
 many real frames do: stars with a body whose predicted position is wrong, stars

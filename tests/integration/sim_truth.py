@@ -90,7 +90,9 @@ VALIDATION_CLASSES: frozenset[str] = frozenset(
 )
 """The scene classes that check accuracy on a frame.  The remaining classes are sweeps."""
 
-OWN_MODULE_CLASSES: frozenset[str] = frozenset({'dense_rings', 'full_frame_cameras', 'mixed_content'})
+OWN_MODULE_CLASSES: frozenset[str] = frozenset(
+    {'dense_rings', 'full_frame_cameras', 'mixed_content'}
+)
 """The validation classes that a test module of their own navigates.
 
 These classes hold full-frame scenes.  Each class's module, ``test_sim_<class>.py``,
