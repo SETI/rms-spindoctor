@@ -157,8 +157,8 @@ are the packaged ones.
   kernel.
 - ``psf_sigma_px`` — float, packaged value ``1.0`` px. Gaussian sigma of the
   matched-filter kernel that chooses the detection in each refinement window.
-- ``max_peak_sharpness`` — float, packaged value ``8.0``. Largest ratio of a detection's
-  brightest-pixel excess to the mean excess of its four edge neighbors; see
+- ``max_peak_sharpness`` — float, packaged value ``8.0``, at least 1. Largest ratio of a
+  detection's brightest-pixel excess to the mean excess of its four edge neighbors; see
   :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`.
 - ``max_per_star_residual_px`` — float, packaged value ``4.0`` px. A star whose detected
   centroid sits more than this many pixels from the shifted prediction is dropped before

@@ -497,11 +497,12 @@ are the packaged ones.
 - ``psf_sigma_px`` — float, packaged value ``1.0`` px. Gaussian sigma of the
   matched-filter kernel that chooses the detection in each window and measures its
   isolation; the same value ``StarFieldFromCatalogNav`` detects with.
-- ``max_peak_sharpness`` — float, packaged value ``8.0``. Largest ratio of a detection's
-  brightest-pixel excess to the mean excess of its four edge neighbors; a sharper peak is
-  passed over as a cosmic ray or hot pixel.
+- ``max_peak_sharpness`` — float, packaged value ``8.0``, at least 1. Largest ratio of a
+  detection's brightest-pixel excess to the mean excess of its four edge neighbors; a
+  sharper peak is passed over as a cosmic ray or hot pixel.
 - ``source_isolation_inner_px``, ``source_isolation_outer_px`` — int, packaged values
-  ``4`` and ``6`` px. Radii of the annulus over which a detection's isolation is measured.
+  ``4`` and ``6`` px. Radii of the annulus over which a detection's isolation is
+  measured; the inner radius may not exceed the outer one.
 - ``source_isolation_max_ratio`` — float, packaged value ``0.5``. Largest allowed excess
   of the annulus maximum over the annulus mean, as a fraction of the detection's own
   height above that mean.

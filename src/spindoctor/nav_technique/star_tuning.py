@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from annotated_types import Ge, Gt
+from pydantic import AfterValidator
 
 from spindoctor.schema import (
     SCHEMA_CONFIG,
@@ -26,6 +27,7 @@ from spindoctor.schema import (
     RuleError,
     Unit,
 )
+from spindoctor.schema.errors import RangeError
 
 __all__ = [
     'StarFieldTuning',
@@ -36,9 +38,37 @@ __all__ = [
 
 #: A ratio of one brightness to another that a rule requires to be at least 1.
 _AtLeastOne = Annotated[Float, Ge(1.0)]
+
+
+def _at_least_three(value: int) -> int:
+    """Return ``value`` if it is at least 3; raise the schema's range error if not."""
+    if value < 3:
+        raise RangeError('an integer of at least 3')
+    return value
+
+
 #: A count of stars or inliers that cannot be fewer than three, the size of the
 #: smallest pattern that cross-checks a rigid translation.
-_AtLeastThree = Annotated[Int, Ge(3)]
+_AtLeastThree = Annotated[Int, AfterValidator(_at_least_three)]
+
+
+def _check_isolation_radii(inner_px: int, outer_px: int) -> None:
+    """Refuse an isolation annulus whose inner radius exceeds its outer radius.
+
+    Parameters:
+        inner_px: The value of ``source_isolation_inner_px``.
+        outer_px: The value of ``source_isolation_outer_px``.
+
+    Raises:
+        RuleError: If the inner radius is larger than the outer radius.
+    """
+    if inner_px > outer_px:
+        raise RuleError(
+            'source_isolation_inner_px must not exceed source_isolation_outer_px, '
+            f'got {inner_px} and {outer_px}',
+            at='source_isolation_inner_px',
+            reads=('source_isolation_inner_px', 'source_isolation_outer_px'),
+        )
 
 
 @dataclass(frozen=True)
@@ -113,7 +143,7 @@ class StarUniqueMatchTuning(StarTuning):
     __pydantic_config__ = SCHEMA_CONFIG
 
     brightness_margin_to_next_catalog_star_mag: NonNeg
-    max_peak_sharpness: Positive
+    max_peak_sharpness: _AtLeastOne
     source_isolation_inner_px: NonNegInt
     source_isolation_outer_px: PositiveInt
     source_isolation_max_ratio: NonNeg
@@ -129,6 +159,10 @@ class StarUniqueMatchTuning(StarTuning):
     one_star_absent_stars: PositiveInt
     one_star_confidence_cap: Unit
     two_star_confidence_cap: Unit
+
+    def __post_init__(self) -> None:
+        """Refuse an inverted isolation annulus."""
+        _check_isolation_radii(self.source_isolation_inner_px, self.source_isolation_outer_px)
 
 
 @dataclass(frozen=True)
@@ -152,7 +186,7 @@ class StarRefineTuning(StarTuning):
     __pydantic_config__ = SCHEMA_CONFIG
 
     refine_window_px: Positive
-    max_peak_sharpness: Positive
+    max_peak_sharpness: _AtLeastOne
     max_per_star_residual_px: Positive
     min_inliers: PositiveInt
     single_inlier_confidence_cap: Unit
@@ -247,6 +281,7 @@ class StarFieldTuning(StarTuning):
     psf_refine_snr_max: NonNeg
 
     def __post_init__(self) -> None:
-        """Refuse an even PSF-fit box, which has no center pixel."""
+        """Refuse an even PSF-fit box and an inverted isolation annulus."""
+        _check_isolation_radii(self.source_isolation_inner_px, self.source_isolation_outer_px)
         if self.psf_refine_box_px % 2 == 0:
             raise RuleError('expected an odd number of pixels', at='psf_refine_box_px')

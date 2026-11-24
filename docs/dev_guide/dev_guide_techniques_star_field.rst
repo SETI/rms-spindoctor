@@ -314,7 +314,7 @@ are the packaged ones.
 - ``source_isolation_inner_px`` — int, packaged value ``4`` px. Inner radius of the
   annulus over which a candidate source's isolation is measured.
 - ``source_isolation_outer_px`` — int, packaged value ``6`` px. Outer radius of that
-  annulus.
+  annulus; the inner radius may not exceed it.
 - ``source_isolation_max_ratio`` — float, packaged value ``0.5`` (dimensionless). Largest
   allowed excess of the annulus maximum over the annulus mean, as a fraction of the
   candidate's own height above that mean. The matched-filter response to a star of sigma 1
