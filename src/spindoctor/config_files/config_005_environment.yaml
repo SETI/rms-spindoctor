@@ -2,8 +2,10 @@
 #
 # Nothing is set here: each location is optional, and one that is not set reads as
 # unset.  Each location can also be given by a command-line flag or an environment
-# variable.  To set one for every run, give it under an environment key in a configuration
-# file named with --config-file, written as the commented lines below are.
+# variable.  To set one for every run, write it in a configuration file named with
+# --config-file, as a line "environment:" with each location indented below it, written
+# as the commented lines below are.  Leave out the "{}" this file has: it makes the section
+# an empty mapping, and a location indented under it fails to load.
 environment: {}
 # The root directory or URL of the PDS3 holdings that images are read from.
 #   pds3_holdings_root: /path/to/holdings

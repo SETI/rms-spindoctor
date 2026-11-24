@@ -151,8 +151,8 @@ def _resolve_pds3_holdings_root(config: Any) -> str:
     """Return the configured PDS3 holdings root or ``''`` if unknown.
 
     The ``PDS3_HOLDINGS_DIR`` environment variable wins, then
-    ``config.environment.pds3_holdings_root``.  Missing or empty
-    configurations yield ``''``.
+    ``config.environment.pds3_holdings_root``.  An unset or empty root
+    yields ``''``.
     """
     env_root = os.environ.get('PDS3_HOLDINGS_DIR')
     if env_root:
