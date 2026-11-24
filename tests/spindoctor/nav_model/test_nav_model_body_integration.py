@@ -38,7 +38,7 @@ from spindoctor.nav_model.nav_model_body import (
     _PolylineSampler,
 )
 
-_BLOB_MAX_OVERFLOW_FRACTION = float(DEFAULT_CONFIG.bodies.blob_max_overflow_fraction)
+_BLOB_MAX_OVERFLOW_FRACTION = DEFAULT_CONFIG.bodies.blob_max_overflow_fraction
 
 
 def _make_polyline_sampler(*, n: int, km_per_pixel: float = 1.0) -> _PolylineSampler:

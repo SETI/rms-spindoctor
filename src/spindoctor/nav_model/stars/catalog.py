@@ -280,7 +280,7 @@ def _find_stars_in_one_catalog(
     # second navigation against the same catalog gets fresh records.
     typed_raw: list[MutableStar] = [copy.deepcopy(s) for s in raw]
     stars_config = config.stars
-    default_star_class = cast(str, stars_config.default_star_class)
+    default_star_class = stars_config.default_star_class
 
     fixed: list[MutableStar] = []
     for star in typed_raw:
@@ -494,7 +494,7 @@ def reduce_catalogs(
     """Walk every configured catalog, deduplicate, and return the merged list.
 
     Catalogs are walked in the order configured in
-    ``config.stars.catalogs`` (default ``['ucac4', 'tycho2', 'ybsc']``).
+    ``config.stars.catalogs``.
     Within each catalog the search proceeds bin-by-bin against
     ``CATALOG_MAGNITUDE_BINS`` until the configured ``max_stars`` budget
     is hit.  Across catalogs, stars whose RA/DEC and magnitude match a
@@ -518,8 +518,8 @@ def reduce_catalogs(
     mag_max_cap = obs.star_max_usable_vmag()
 
     duplicate_radec = float(np.radians(stars_config.duplicate_ra_dec_threshold_arcsec / 3600.0))
-    duplicate_vmag = float(stars_config.duplicate_vmag_threshold)
-    overlap_vmag = float(stars_config.overlapping_vmag_threshold)
+    duplicate_vmag = stars_config.duplicate_vmag_threshold
+    overlap_vmag = stars_config.overlapping_vmag_threshold
 
     kept: list[MutableStar] = []
     photometry_reference: list[MutableStar] = []
@@ -536,7 +536,7 @@ def reduce_catalogs(
             chunk = stars_in_extfov(
                 obs,
                 config,
-                catalog_name=catalog_name.lower(),
+                catalog_name=catalog_name,
                 mag_min=mag_min_clamped,
                 mag_max=mag_max_clamped,
                 radec_movement=radec_movement,
@@ -545,7 +545,7 @@ def reduce_catalogs(
             if len(next_per_catalog) >= max_stars:
                 break
 
-        if catalog_name.lower() in _PHOTOMETRY_REFERENCE_CATALOGS:
+        if catalog_name in _PHOTOMETRY_REFERENCE_CATALOGS:
             # Keep the full in-field YBSC and Tycho-2 sets as the photometric
             # reference even where the merge later drops individual entries as
             # duplicates; the bright-end correction reads from them below.
@@ -568,7 +568,7 @@ def reduce_catalogs(
     # bright UCAC4 record with no reference in either catalog must still be
     # flagged saturated rather than silently trusted.
     reference_configured = any(
-        name.lower() in _PHOTOMETRY_REFERENCE_CATALOGS for name in stars_config.catalogs
+        name in _PHOTOMETRY_REFERENCE_CATALOGS for name in stars_config.catalogs
     )
     if reference_configured:
         kept = correct_star_photometry(

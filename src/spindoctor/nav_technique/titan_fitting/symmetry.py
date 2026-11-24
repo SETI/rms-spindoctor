@@ -21,6 +21,7 @@ from spindoctor.nav_technique.titan_fitting.grid import (
     sample_bool_nearest,
     validate_image,
 )
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Positive, Unit
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -61,16 +62,18 @@ class SymmetryFitParams:
         sigma_floor_cross_px: Lower clamp on the reported cross-track sigma.
     """
 
-    annulus_inner_fraction: float
-    annulus_outer_pad_px: float
-    angle_refine_deg: float
-    angle_refine_step_deg: float
-    angle_refine_min_gain: float
-    min_peak_score: float
-    min_valid_fraction: float
-    max_second_peak_ratio: float
-    cross_sigma_scale: float
-    sigma_floor_cross_px: float
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    annulus_inner_fraction: Unit
+    annulus_outer_pad_px: NonNeg
+    angle_refine_deg: NonNeg
+    angle_refine_step_deg: Positive
+    angle_refine_min_gain: NonNeg
+    min_peak_score: Unit
+    min_valid_fraction: Unit
+    max_second_peak_ratio: Unit
+    cross_sigma_scale: Positive
+    sigma_floor_cross_px: NonNeg
 
 
 @dataclass(frozen=True)

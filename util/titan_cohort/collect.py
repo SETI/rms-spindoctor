@@ -25,6 +25,7 @@ the campaign record are.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import multiprocessing
 import os
@@ -161,13 +162,13 @@ def _titan_config() -> dict[str, Any]:
     """The Titan config values a campaign's numbers depend on."""
     from spindoctor.config import DEFAULT_CONFIG
 
-    navigation = DEFAULT_CONFIG.titan['navigation']
+    navigation = DEFAULT_CONFIG.titan.navigation
     return {
-        'atmosphere_height_km': DEFAULT_CONFIG.titan['atmosphere_height'],
-        'min_envelope_diameter_px': navigation['min_envelope_diameter_px'],
-        'max_occluded_fraction': navigation['max_occluded_fraction'],
-        'symmetry': dict(navigation['symmetry']),
-        'arc': dict(navigation['arc']),
+        'atmosphere_height_km': DEFAULT_CONFIG.titan.atmosphere_height,
+        'min_envelope_diameter_px': navigation.min_envelope_diameter_px,
+        'max_occluded_fraction': navigation.max_occluded_fraction,
+        'symmetry': dataclasses.asdict(navigation.symmetry),
+        'arc': dataclasses.asdict(navigation.arc),
     }
 
 

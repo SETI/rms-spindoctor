@@ -274,13 +274,16 @@ Configuration
 =============
 
 The model's runtime knobs live in ``stars`` in
-``src/spindoctor/config_files/config_030_stars.yaml``.
+``src/spindoctor/config_files/config_030_stars.yaml``. The section is parsed at load into
+:class:`~spindoctor.config.sections_models.StarsSection`. Its fields give each key's type and
+range, and a key it does not declare is refused.
 
-- ``catalogs`` — list[str], default ``[ucac4, tycho2, ybsc]``. Catalog priority order
-  (most-precise first). Catalog files are loaded from the configured catalog roots. YBSC and
-  Tycho-2 also serve as the photometric reference for the bright-end saturation correction
-  regardless of their list position; dropping both from the list disables that correction.
-- ``body_conflict_margin`` — int, default ``5`` px. Margin around body silhouettes for
+- ``catalogs`` — list of ``ucac4``, ``tycho2``, and ``ybsc``, default
+  ``[ucac4, tycho2, ybsc]``. Catalog priority order (most-precise first). Catalog files are
+  loaded from the configured catalog roots. YBSC and Tycho-2 also serve as the photometric
+  reference for the bright-end saturation correction regardless of their list position;
+  dropping both from the list disables that correction.
+- ``body_conflict_margin`` — float, default ``5`` px. Margin around body silhouettes for
   the body-conflict flag.
 - ``default_star_class`` — str, default ``'G0'``. Spectral class assigned to catalog stars
   with no per-entry class.
@@ -300,8 +303,8 @@ The model's runtime knobs live in ``stars`` in
   duplicate detection step.
 - ``overlapping_vmag_threshold`` — float, default ``2`` mag. Below this magnitude
   difference, two visually-overlapping stars are dropped from both catalogs.
-- ``max_smear`` — float, default ``100`` (dimensionless). Maximum smear length above which
-  a star is dropped from the emission set.
+- ``max_smear`` — float, default ``100`` px. Maximum smear length above which a star is
+  dropped from the emission set.
 - ``min_predicted_snr`` — float, default ``0.0`` (dimensionless). Effective SNR at which
   the ``predicted_snr`` entry of a star's reported reliability breakdown reaches 1.0;
   below it the entry is ``snr / min_predicted_snr``. It is a reporting value only: the
@@ -317,8 +320,11 @@ The model's runtime knobs live in ``stars`` in
   window straddles a ringlet edge or a gap boundary is judged by how much of the
   window is actually over opaque material.
 - ``ring_occlusion_radii_km`` — dict[str, list[list[float]]]. Per-planet ring annular
-  bounds (km) used by the occlusion check. Saturn entry covers C, B, and A rings; Uranus
-  covers the main ring system; Neptune covers Galle through Adams rings.
+  bounds (km) used by the occlusion check, each written as ``[inner_km, outer_km]``.
+  A key is the planet's SPICE name in upper case and must name a planet of the
+  ``planets`` section; any other key is refused at load. An annulus whose inner radius is
+  not below its outer radius is refused at load too. Saturn entry covers C, B, and A rings; Uranus covers the main ring
+  system; Neptune covers Galle through Adams rings.
 
 Module-level emission constants
 -------------------------------

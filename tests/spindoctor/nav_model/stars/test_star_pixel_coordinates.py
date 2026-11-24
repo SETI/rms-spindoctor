@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 from oops.fov import FlatFOV
 from psfmodel import GaussianPSF
+from tests.model_sections import packaged_stars
 
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.nav_model_stars import (
@@ -126,17 +127,10 @@ class _StarRecord:
         self.dn = 1.0
 
 
-class _StarsConfig:
-    """Stand-in for ``config.stars`` exposing only the gates the model reads."""
-
-    max_smear = 100.0
-    min_predicted_snr = 0.0
-
-
 class _Config:
     """Stand-in for ``Config`` exposing only its ``stars`` section."""
 
-    stars = _StarsConfig()
+    stars = packaged_stars()
 
 
 class _Obs:

@@ -26,6 +26,7 @@ hermetic (no SPICE, no holdings).
 
 from __future__ import annotations
 
+import dataclasses
 import math
 import types
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
+from tests.model_sections import packaged_bodies
 from tests.shims import BodyBackplaneData, FakeBackplane, FakeMeshgrid, FakeObs, bare_nav_context
 
 import spindoctor.nav_model.nav_model_body as nav_model_body_module
@@ -248,17 +250,15 @@ def _noise_context(obs: FakeObs, *, seed: int = 12345) -> NavContext:
 
 
 def _bodies_config(**overrides: Any) -> Config:
-    """Return a ``Config`` with ``bodies`` keys overridden.
+    """Return a ``Config`` whose ``bodies`` section has the given fields changed.
 
     Parameters:
-        **overrides: Key / value pairs written into the ``bodies`` block.
+        **overrides: Fields of the packaged ``bodies`` section to change, by name.
     """
     config = Config()
-    config.read_config()
-    bodies = dict(config._config_dict['bodies'])
-    bodies.update(overrides)
-    config._config_dict['bodies'] = bodies
-    config._update_attrdicts()
+    config._sections = dataclasses.replace(
+        config._typed_sections(), bodies=packaged_bodies(**overrides)
+    )
     return config
 
 

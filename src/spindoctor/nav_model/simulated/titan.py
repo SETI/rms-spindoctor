@@ -204,7 +204,7 @@ class NavModelTitanSimulated(NavModelTitan):
             The fully-populated :class:`TitanGeometryInputs`.
         """
         params = self._body_params
-        nav_config = self._config.titan['navigation']
+        titan_config = self._config.titan
         margin_v = int(self.obs.extfov_margin_v)
         margin_u = int(self.obs.extfov_margin_u)
         extfov_shape_vu = (int(self.obs.extdata_shape_vu[0]), int(self.obs.extdata_shape_vu[1]))
@@ -215,13 +215,13 @@ class NavModelTitanSimulated(NavModelTitan):
         )
         km_per_px = float(params['km_per_pixel'])
         r_solid_px = _mean_semi_axis_px(params)
-        r_env_px = r_solid_px + float(self._config.titan['atmosphere_height']) / km_per_px
+        r_env_px = r_solid_px + titan_config.atmosphere_height / km_per_px
         phase_deg = float(params.get('phase_angle', 0.0))
         theta_rad, axis_degenerate = self._symmetry_axis(
             params,
             r_solid_px=r_solid_px,
             phase_deg=phase_deg,
-            axis_min_offset_px=float(nav_config['axis_min_offset_px']),
+            axis_min_offset_px=titan_config.navigation.axis_min_offset_px,
         )
         contaminant, occluded_fraction = self._contaminant_mask(
             extfov_shape_vu=extfov_shape_vu,
@@ -323,7 +323,7 @@ class NavModelTitanSimulated(NavModelTitan):
             ``(mask, occluded_fraction)``; the mask is None when nothing is
             masked.
         """
-        nav_config = self._config.titan['navigation']
+        nav_config = self._config.titan.navigation
         data_shape = (int(self.obs.data_shape_v), int(self.obs.data_shape_u))
         occluder_ext: NDArrayBoolType = np.zeros(extfov_shape_vu, dtype=bool)
         contaminant_ext: NDArrayBoolType = np.zeros(extfov_shape_vu, dtype=bool)
@@ -343,8 +343,8 @@ class NavModelTitanSimulated(NavModelTitan):
                 margin_vu,
             )
         contaminant_ext |= occluder_ext
-        vmag_limit = float(nav_config['star_mask_vmag_limit'])
-        radius_px = float(nav_config['star_mask_radius_px'])
+        vmag_limit = nav_config.star_mask_vmag_limit
+        radius_px = nav_config.star_mask_radius_px
         for star in self._star_records:
             if float(star.get('vmag', 99.0)) > vmag_limit:
                 continue

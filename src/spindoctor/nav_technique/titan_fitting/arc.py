@@ -9,9 +9,10 @@ haze altitude.
 
 import math
 from dataclasses import dataclass
-from typing import cast
+from typing import Annotated, cast
 
 import numpy as np
+from annotated_types import Le
 from scipy.ndimage import map_coordinates, median_filter, minimum_filter1d
 
 from spindoctor.nav_technique.dt_fitting import (
@@ -19,6 +20,7 @@ from spindoctor.nav_technique.dt_fitting import (
     tukey_biweight_weights,
 )
 from spindoctor.nav_technique.titan_fitting.grid import sample_bool_nearest, validate_image
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Positive, PositiveInt, Unit
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -83,19 +85,21 @@ class ArcFitParams:
         sigma_floor_along_px: Lower clamp on the reported along-track sigma.
     """
 
-    sector_half_angle_deg: float
-    ray_step_deg: float
-    radial_step_px: float
-    radial_inner_fraction: float
-    radial_outer_pad_px: float
-    median_filter_samples: int
-    min_gradient_snr: float
-    min_rays: int
-    min_inlier_fraction: float
-    max_residual_rms_px: float
-    tukey_c: float
-    along_sigma_scale: float
-    sigma_floor_along_px: float
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    sector_half_angle_deg: Annotated[Positive, Le(180)]
+    ray_step_deg: Positive
+    radial_step_px: Positive
+    radial_inner_fraction: Positive
+    radial_outer_pad_px: NonNeg
+    median_filter_samples: PositiveInt
+    min_gradient_snr: NonNeg
+    min_rays: PositiveInt
+    min_inlier_fraction: Unit
+    max_residual_rms_px: Positive
+    tukey_c: Positive
+    along_sigma_scale: Positive
+    sigma_floor_along_px: NonNeg
 
 
 @dataclass(frozen=True)
