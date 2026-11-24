@@ -505,7 +505,7 @@ Those classes are eligible for retirement in Phase 7.
 | #1092 | **Affects `planted_rank1_ring_flat`, held as a known error.** Ring-edge vertices sit at border-pixel centers, which biases the fit for straight edges (navigator work) |
 | #1099 | **Affects `mutual_grazing` and `mutual_half`, held as known errors.** Overlapping body templates are painted by a yes-or-no mask, which leaves a dark outline at the occluding limb (navigator work) |
 | #1103 | **Affects the widest step of the PSF sweep.** The limb fit reports a confident answer a pixel wrong under a blur the navigator does not model (navigator work) |
-| #1146 | **Affects `coiss_nac_star_field`, where the other star techniques carry the answer.** StarFieldFromCatalogNav passes only its 30 brightest sources to the matcher, and on a raw frame hot pixels and cosmic rays take those places, so it returns spurious (navigator work) |
+| #1146 | **Affects `coiss_nac_star_field`, where the other star techniques carry the answer.** StarFieldFromCatalogNav passes only its 30 brightest sources to the matcher, and on a raw frame cosmic rays take those places, so it returns spurious (navigator work) |
 | #1147 | **Affects `coiss_wac_disc`, held at low tier.** The disc correlation discards any answer within 2 px of its search limit, so with the WAC's 13 px window a correct answer past 11 px is thrown away (navigator work) |
 | #1148 | **Affects no current scene: the Galileo guard scenes plant the measured sky noise of #979, because real Galileo skies are that noisy.** A quantized 8-bit sky measures zero noise, and the star model then draws no stars. The Galileo star field at the real Pleiades frames' 0.1 s exposure and the catalog read noise reproduces it (navigator work) |
 

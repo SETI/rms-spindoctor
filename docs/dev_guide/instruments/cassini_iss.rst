@@ -655,13 +655,11 @@ measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
 
 - ``coiss_nac_star_field``: a raw narrow angle star field, 18 stars of V 8.7 to
   11.4 at 2 s, offset 39 px. The star-field technique matches the catalog
-  against the 30 brightest sources it detects. The frame's hot pixels and
-  cosmic rays crowd the stars out of that list, so the technique finds one
-  match where it needs six and returns spurious. The single-star and refinement
-  techniques carry the answer, 0.03 to 0.30 px off over 16 seeds. The simulated
-  hot pixels are stronger than real ones, so the failure with hot pixels alone
-  is partly the simulator's, but the technique also fails with cosmic rays
-  alone.
+  against the 30 brightest sources it detects. The frame's cosmic rays crowd
+  the stars out of that list, so the technique finds one match where it needs
+  six and returns spurious. With the cosmic rays turned off it finds the offset
+  to 0.02 px, hot pixels and all. The single-star and refinement techniques
+  carry the answer, 0.01 to 0.23 px off over 16 seeds.
 
   The scene renders its stars through the clear filter, though the real frame
   it follows was taken through CL1+IR3. Through CL1+IR3 the simulator dims each
@@ -672,9 +670,9 @@ measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
 - ``coiss_calib_nac_disc``: a calibrated narrow angle frame of a moon 280 px
   across, offset 57 px. The answer lands 0.09 to 0.10 px off.
 - ``coiss_wac_disc``: a raw wide angle frame of a moon 128 px across, offset
-  13 px. The disc correlation finds the offset to 0.02 px but marks it
+  13 px. The disc correlation finds the offset to 0.09 px but marks it
   spurious, because it lies within 2 px of the edge of the 13 px search window.
-  The limb fit carries the frame at low confidence, 0.14 to 0.17 px off, and
+  The limb fit carries the frame at low confidence, 0.13 to 0.17 px off, and
   the scene's expected block holds the low tier.
 - ``coiss_calib_wac_star_field``: a calibrated wide angle star field, 95 stars
   of V 7.4 to 10.4 at 26 s, offset 12 px. The answer lands 0.01 to 0.03 px off.

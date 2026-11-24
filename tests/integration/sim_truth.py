@@ -216,13 +216,13 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # position, about 280 px from the boresight, by about 0.94 px.  gossi_star_field
     # lands 0.05 px off with its twist and 0.02 px off without it, and gossi_disc
     # 0.17 px off with its twist and 0.04 px off without it.  coiss_wac_disc's error is
-    # the limb fit's own: 0.16 px with the roll, 0.18 px without.  The three
+    # the limb fit's own: 0.16 px with the roll, 0.17 px without.  The three
     # short-exposure and large-offset scenes fail as their expected blocks declare
     # (#342, #785, #1153).
-    ('coiss_calib_nac_disc', FUSED): _t(0.097, 0.099, 0.009, 0.05),
+    ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
     ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
-    ('coiss_nac_star_field', FUSED): _t(0.030, 0.299, 0.270, 0.06),
-    ('coiss_wac_disc', FUSED): _t(0.161, 0.172, 0.033, 0.05),
+    ('coiss_nac_star_field', FUSED): _t(0.017, 0.231, 0.220, 0.05),
+    ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
     ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
     ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
     ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),

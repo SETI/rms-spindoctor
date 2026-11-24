@@ -1,8 +1,8 @@
 {
-  "confidence": 0.7749319713568852,
+  "confidence": 0.7497719410709652,
   "confidence_rank": "medium",
-  "offset_du_px": 31.781478421518045,
-  "offset_dv_px": -23.380665936286025,
+  "offset_du_px": 31.797343501334627,
+  "offset_dv_px": -23.35865249883357,
   "scene_name": "coiss_nac_star_field",
   "status": "success"
 }
