@@ -2121,15 +2121,18 @@ not yet fixed. There are eight:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
-- In ``relief_psf_stray_light``, the disc correlation stops at the edge of its
-  sub-pixel search window.
+- In ``relief_psf_stray_light``, the disc correlation lands on the maximum of its
+  high-pass surface, 0.88 to 0.90 px off, pulled by the relief that the smooth
+  template lacks.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
 - In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
-  pulls the disc correlation, which carries a low-tier success 1.84 px wrong.
+  pulls the disc correlation, which carries a low-tier success 2.99 px wrong. The
+  correlation stops at the edge of its half-pixel refinement window on every seed,
+  with the surface still rising beyond it.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
-  outline that the image doesn't have, and the disc correlation stops at the
-  edge of its sub-pixel search window.
+  outline that the image doesn't have, and the disc correlation lands on the
+  maximum of its high-pass surface, pulled by that outline.
 - In ``mutual_deep``, the far body's crescent pulls the disc correlation.
 
 Pinning bare ``status: success`` on such a scene would quietly freeze the wrong
@@ -2907,28 +2910,28 @@ Nothing reads a truth key: the occlusion is derived from the same idealized
 sibling geometry both models already hold.
 
 Over 16 noise seeds the limb fit lands 0.32 to 0.34 px from the planted offset on
-grazing overlap and 0.23 to 0.25 px on half overlap. The disc correlation stops at the
-edge of its half-pixel refinement window, 0.18 px off on grazing overlap (on 14 of the
-16 seeds) and 0.34 to 0.35 px on half overlap. Its composite template paints the near
+grazing overlap and 0.23 to 0.25 px on half overlap. The disc correlation lands on the
+maximum of its high-pass surface, 0.12 px off on grazing overlap (on 15 of the 16
+seeds) and 0.41 px on half overlap. Its composite template paints the near
 body over the far one wherever the near body touches a pixel, even partly, so the
-template keeps a dark outline at the near body's limb that the image no longer shows.
-With the template drawn by coverage, the same correlation lands within 0.01 px. Both
-scenes hold their fused errors, 0.07 to 0.17 px and 0.31 to 0.32 px, to bands. That is a
+template keeps a dark outline at the near body's limb that the image no longer shows,
+and the outline pulls that maximum. With the template drawn by coverage, the same
+correlation lands within 0.02 px. Both
+scenes hold their fused errors, 0.105 to 0.112 px and 0.373 to 0.377 px, to bands. That is a
 statement about these simulated scenes, not a certification of real-frame accuracy: the
 sim renders an idealized occlusion the true optics only approximate. On the deep scene
 the far body's disc is over 90 percent hidden, so its ``visible_lit_fraction`` collapses
 and its disc feature is dropped for low reliability. The far body's crescent still shows
 beside the near body's limb, and the disc template, which holds only the near body,
-leaves it out, so the crescent pulls the disc correlation about 0.8 px off. The limb fit
+leaves it out, so the crescent pulls the disc correlation about 0.25 px off. The limb fit
 runs on arcs the image actually shows -- the robust Tukey biweight loss is a second line
 of defense against a stray vertex, not the mechanism that carries the result -- and lands
 0.14 to 0.17 px off, but it flags itself spurious on every seed, and the disc correlation
-alone sets the answer. The deep scene holds that 0.78 to 0.79 px error to a band. No
+alone sets the answer. The deep scene holds that 0.24 to 0.26 px error to a band. No
 double-counting conflict arises. The mutual-event scenes pin the arc fractions and
 offsets so a regression toward hidden-arc lock-on fails loudly.
 
-.. The grazing and half scenes' template outline is issue 1099, and the window edge
-   issue 791.
+.. The grazing and half scenes' template outline is issue 1099.
 
 .. The deep scene's disc correlation error is tracked in issue 1050.
 
@@ -3110,18 +3113,19 @@ outright hostile: in ``titan_crescent_horns`` (155 deg) the ring of light is
 brighter than a white disc lit face-on and saturates the detector. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
-capped by ``sin(155 deg)`` = 0.42, scores 0.26 against the 0.30
+capped by ``sin(155 deg)`` = 0.42, scores 0.24 against the 0.30
 ``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
 25 px off in ``du``. The ring of light, which the disc correlation's
-hard-limbed template leaves out, also pulls the correlation 1.84 px off, and the
-correlation does not flag that answer spurious. So the body-witness veto (see
+hard-limbed template leaves out, also pulls the correlation 2.99 px off, to the
+edge of its half-pixel refinement window, and the correlation does not flag that
+answer spurious. So the body-witness veto (see
 :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
 nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its 1.84 px error to a band. The noiseless sibling
+scene holds its 2.99 px error to a band. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
 and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near -26.0, and the same 1.84 px disc correlation error), so the
+blob centroid near -26.0, and the same 2.99 px disc correlation error), so the
 ring of light alone drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
