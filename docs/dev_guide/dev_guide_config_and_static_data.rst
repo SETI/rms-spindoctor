@@ -141,6 +141,15 @@ such a key is refused at load. That rule reads two sections, so
 :class:`~spindoctor.config.sections.TypedSections` checks it. The message gives the key
 and the file that last set either it or ``planets``.
 
+Keys come in two kinds, and each kind has its own spelling. A key for a setting,
+such as ``use_albedo`` or ``body_limb``, is a name the package chose, and it is in
+snake_case. A key for something outside the package is spelled the way its source
+spells it: a body or planet as SPICE spells it, such as ``SATURN`` or ``TITAN``, and a
+feature type by its name, such as ``STAR`` or ``LIMB_ARC``. Body names stay in upper case
+because SPICE, the metadata documents, the backplanes, the logs, and the simulator scenes
+all spell them that way. A lower-case key would show the user a second spelling of the
+same body, and every lookup would have to convert the SPICE name before reading it.
+
 .. _config-techniques-section:
 
 The techniques section
