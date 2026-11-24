@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 from spindoctor.sim.render.bodies.atmosphere import AtmosphereSpec, apply_atmosphere
+from spindoctor.sim.shared.ellipsoid import ellipsoid_image_normals, project_ellipsoid
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 
@@ -148,3 +149,46 @@ def test_a_thin_haze_lights_disc_center_by_its_whole_column() -> None:
     expected = albedo * phase_function * _vertical_depth(spec) / (4.0 * mu)
     pixel = (int(_CENTER), int(_CENTER))
     assert float(layers.disc[pixel]) == pytest.approx(expected, rel=1e-3)
+
+
+def test_haze_on_an_oblate_body_follows_its_surface_normal() -> None:
+    """At phase 0 the haze over a strongly oblate body depends only on the normal.
+
+    The body is three times wider than it is tall.  At phase 0 a haze too thin to lift
+    its reflecting level lights each pixel by the angle between the surface normal and
+    the line of sight, so the short axis matches the long axis wherever their normals
+    agree.  Had the haze taken a sphere's emission angle from the outline, the short
+    axis would be up to about 30% off.
+    """
+    semi_a, semi_b = 20.0, 60.0
+    projection = project_ellipsoid(
+        (_SIZE, _SIZE), (_CENTER, _CENTER), semi_a, semi_b_px=semi_b, semi_c_px=semi_b
+    )
+    outline = (projection.ellipse_dist_sq < 1.0).astype(np.float64)
+    layers = apply_atmosphere(
+        np.zeros((_SIZE, _SIZE)),
+        AtmosphereSpec(scale_height_px=3.0, tau_ref=0.5, g=0.6, albedo=0.9),
+        center_v=_CENTER,
+        center_u=_CENTER,
+        semi_a=semi_a,
+        semi_b=semi_b,
+        semi_c=semi_b,
+        rotation_z=0.0,
+        sub_observer_lat=0.0,
+        illumination_angle=math.radians(90.0),
+        phase_angle=0.0,
+        silhouette=outline,
+    )
+    _normal_v, _normal_u, normal_z = ellipsoid_image_normals(projection)
+    center = int(_CENTER)
+    long_axis = slice(center, center + int(semi_b))
+    long_order = np.argsort(normal_z[center, long_axis])
+    # The 14 pixels of the short axis whose normals lie within 72 degrees of the line of
+    # sight, where the long axis samples the normals finely.
+    short_axis = slice(center, center + 14)
+    expected = np.interp(
+        normal_z[short_axis, center],
+        normal_z[center, long_axis][long_order],
+        layers.disc[center, long_axis][long_order],
+    )
+    np.testing.assert_allclose(layers.disc[short_axis, center], expected, rtol=1e-3)

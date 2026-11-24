@@ -1,8 +1,8 @@
 """Image-plane geometry of a body's haze layer.
 
 The bounding box the haze is evaluated in, the latitude of the haze column a pixel
-sees, and the surface incidence under an on-disc pixel, for
-:mod:`spindoctor.sim.render.bodies.atmosphere`.
+sees, and the emission and incidence cosines a pixel takes from the body or a scaled
+copy of it, for :mod:`spindoctor.sim.render.bodies.atmosphere`.
 """
 
 import math
@@ -18,7 +18,7 @@ from spindoctor.sim.shared.ellipsoid import (
 )
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['band_bbox', 'column_latitude_sine', 'disc_incidence']
+__all__ = ['band_bbox', 'column_latitude_sine', 'disc_cosines', 'scaled_body_cosines']
 
 
 def band_bbox(
@@ -97,7 +97,7 @@ def column_latitude_sine(
     return sin_latitude
 
 
-def disc_incidence(
+def disc_cosines(
     v_rot: NDArrayFloatType,
     u_rot: NDArrayFloatType,
     e2: NDArrayFloatType,
@@ -108,12 +108,16 @@ def disc_incidence(
     illum_v: float,
     illum_u: float,
     illum_z: float,
-) -> NDArrayFloatType:
-    """Cosine of the surface incidence angle at on-disc haze pixels.
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """Cosines of the emission and incidence angles at on-disc haze pixels.
 
-    The shared projection's surface normal in image coordinates
-    (:func:`~spindoctor.sim.shared.ellipsoid.surface_normals`) dotted with the
-    illumination direction, so the haze stays aligned with the disc shading.
+    Both come from the shared projection's surface normal in image coordinates
+    (:func:`~spindoctor.sim.shared.ellipsoid.surface_normals`): the emission cosine is
+    its component toward the observer, and the incidence cosine is its dot product
+    with the illumination direction, so the haze stays aligned with the disc shading
+    and the two cosines agree at phase 0 on any ellipsoid.  On a sphere the emission
+    cosine is ``sqrt(1 - e2)``, which equals the normal's component toward the
+    observer, and it is computed that way.
 
     Parameters:
         v_rot: Rotated-frame first-axis coordinate of each pixel.
@@ -127,9 +131,84 @@ def disc_incidence(
         illum_z: Z component of the unit illumination direction.
 
     Returns:
-        ``cos(incidence)`` per pixel (negative on the night side).
+        ``(cos(emission), cos(incidence))`` per pixel; the incidence cosine is
+        negative on the night side.
     """
     normal_v, normal_u, normal_z = surface_normals(
         v_rot, u_rot, e2, geometry=geometry, cos_rz=cos_rz, sin_rz=sin_rz
     )
-    return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)
+    incidence = cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)
+    if geometry.semi_a == geometry.semi_b == geometry.semi_c:
+        emission = cast(NDArrayFloatType, np.sqrt(np.maximum(1.0 - e2, 0.0)))
+    else:
+        emission = normal_z
+    return emission, incidence
+
+
+def scaled_body_cosines(
+    v_rot: NDArrayFloatType,
+    u_rot: NDArrayFloatType,
+    e2: NDArrayFloatType,
+    *,
+    scale: float | NDArrayFloatType,
+    limb_incidence: NDArrayFloatType,
+    geometry: EllipsoidGeometry,
+    cos_rz: float,
+    sin_rz: float,
+    illum_v: float,
+    illum_u: float,
+    illum_z: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """The emission and incidence cosines on the body scaled by ``scale``.
+
+    A pixel the scaled outline covers takes them from the scaled surface, whose normal
+    at an image point is the body's own normal at that point divided by the scale
+    (:func:`disc_cosines`).  A pixel outside it is a grazing line of sight (emission
+    cosine 0) whose incidence is that of the limb at the pixel's azimuth, the column
+    standing above the limb there.
+
+    Parameters:
+        v_rot: Rotated-frame first-axis coordinate of each pixel.
+        u_rot: Rotated-frame second-axis coordinate of each pixel.
+        e2: Squared normalized outline distance of each pixel on the body itself.
+        scale: The size of the scaled body relative to the body, one value or one
+            per pixel.
+        limb_incidence: The incidence cosine of the limb at each pixel's azimuth.
+        geometry: The body's shape and orientation.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+        illum_v: V component of the unit illumination direction.
+        illum_u: U component of the unit illumination direction.
+        illum_z: Z component of the unit illumination direction.
+
+    Returns:
+        ``(cos(emission), cos(incidence))`` per pixel, as new arrays.
+    """
+    scale_px = np.asarray(scale, dtype=np.float64)
+    e2_scaled = e2 / (scale_px * scale_px)
+    on_disc = e2_scaled < 1.0
+    if not on_disc.any():
+        return np.zeros_like(e2_scaled), limb_incidence.copy()
+    everywhere = bool(on_disc.all())
+    if scale_px.ndim and not everywhere:
+        scale_on = scale_px[on_disc]
+    else:
+        scale_on = scale_px
+    disc_mu, disc_mu0 = disc_cosines(
+        (v_rot if everywhere else v_rot[on_disc]) / scale_on,
+        (u_rot if everywhere else u_rot[on_disc]) / scale_on,
+        e2_scaled if everywhere else e2_scaled[on_disc],
+        geometry=geometry,
+        cos_rz=cos_rz,
+        sin_rz=sin_rz,
+        illum_v=illum_v,
+        illum_u=illum_u,
+        illum_z=illum_z,
+    )
+    if everywhere:
+        return disc_mu, disc_mu0
+    mu = np.zeros_like(e2_scaled)
+    mu[on_disc] = disc_mu
+    mu0 = limb_incidence.copy()
+    mu0[on_disc] = disc_mu0
+    return mu, mu0

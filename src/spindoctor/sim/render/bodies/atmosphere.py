@@ -116,7 +116,7 @@ from spindoctor.sim.render.bodies.haze import (
 from spindoctor.sim.render.bodies.haze_geometry import (
     band_bbox,
     column_latitude_sine,
-    disc_incidence,
+    scaled_body_cosines,
 )
 from spindoctor.sim.render.bodies.haze_scattering import (
     chandrasekhar_h,
@@ -760,30 +760,14 @@ def apply_atmosphere(
     def _incidence(
         pixels: NDArrayBoolType, scale: float | NDArrayFloatType
     ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
-        """The emission and incidence cosines on the body scaled by ``scale``.
-
-        A pixel the scaled outline covers takes them from the scaled surface, whose
-        normal at an image point is the body's own normal at that point divided by
-        the scale.  A pixel outside it is a grazing line of sight (emission cosine
-        0) whose incidence is that of the limb at the pixel's azimuth, the column
-        standing above the limb there.
-        """
+        """The emission and incidence cosines of some pixels on the body scaled by ``scale``."""
         v_rot_px, u_rot_px, e2_px, limb_mu0 = _gather(pixels)
-        scale_px = np.asarray(scale, dtype=np.float64)
-        e2_scaled = e2_px / (scale_px * scale_px)
-        on_disc = e2_scaled < 1.0
-        mu = np.sqrt(np.maximum(1.0 - e2_scaled, 0.0))
-        if not on_disc.any():
-            return mu, limb_mu0.copy()
-        if scale_px.ndim:
-            scale_on = scale_px if on_disc.all() else scale_px[on_disc]
-        else:
-            scale_on = scale_px
-        everywhere = bool(on_disc.all())
-        disc_mu0 = disc_incidence(
-            (v_rot_px if everywhere else v_rot_px[on_disc]) / scale_on,
-            (u_rot_px if everywhere else u_rot_px[on_disc]) / scale_on,
-            e2_scaled if everywhere else e2_scaled[on_disc],
+        return scaled_body_cosines(
+            v_rot_px,
+            u_rot_px,
+            e2_px,
+            scale=scale,
+            limb_incidence=limb_mu0,
             geometry=geometry,
             cos_rz=cos_rz,
             sin_rz=sin_rz,
@@ -791,11 +775,6 @@ def apply_atmosphere(
             illum_u=illum_u,
             illum_z=illum_z,
         )
-        if everywhere:
-            return mu, disc_mu0
-        mu0 = limb_mu0.copy()
-        mu0[on_disc] = disc_mu0
-        return mu, mu0
 
     def _reflecting_scale(height: float | NDArrayFloatType) -> float | NDArrayFloatType:
         """The size of the level the haze reflects from, relative to the body.

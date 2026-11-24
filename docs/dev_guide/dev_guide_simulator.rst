@@ -3072,7 +3072,8 @@ emission angle. Toward the limb that cosine is replaced by an effective cosine
 ``sqrt(mu**2 (1 - c) + c)`` with ``c = 2 H / (pi R)``, which keeps the column
 finite on a grazing path. At the limb it is ``sqrt(c)``, and the slant column is
 then half the surface tangent depth, the near half of the column a line of sight
-just above the limb crosses. The incidence angle takes the same correction.
+just above the limb crosses. The incidence angle takes the same correction. Both
+angles are measured from the surface normal of the ellipsoid under the pixel.
 
 **The reflectance.** The haze reflects sunlight as a layer of finite optical
 depth, by Hapke's isotropic multiple-scattering approximation
