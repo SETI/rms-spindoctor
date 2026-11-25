@@ -81,7 +81,13 @@ class _FakeContext:
 class _FakeObs:
     """Observation stand-in covering the methods ``NavModelStars`` reads."""
 
-    def __init__(self, *, extfov_margin: int = 14, star_max_vmag: float = 12.0) -> None:
+    def __init__(
+        self,
+        *,
+        extfov_margin: int = 14,
+        star_max_vmag: float = 12.0,
+        star_dimmest_vmag: float | None = None,
+    ) -> None:
         self.extfov_margin_v = extfov_margin
         self.extfov_margin_u = extfov_margin
         self.extdata_shape_vu = (128, 128)
@@ -89,6 +95,7 @@ class _FakeObs:
         self.data_shape_u = 100
         self._psf = _FakePSF(sigma=1.0)
         self._star_max_vmag = star_max_vmag
+        self._star_dimmest_vmag = star_max_vmag if star_dimmest_vmag is None else star_dimmest_vmag
 
     def star_psf(self) -> _FakePSF:
         """Return the fake PSF shared by every test star."""
@@ -97,6 +104,10 @@ class _FakeObs:
     def star_max_usable_vmag(self) -> float:
         """Return the limiting magnitude used by the star gate."""
         return self._star_max_vmag
+
+    def star_dimmest_visible_vmag(self) -> float:
+        """Return the dimmest visible magnitude, the limit unless the test sets one."""
+        return self._star_dimmest_vmag
 
     def make_extfov_false(self) -> np.ndarray:
         """Return a False-filled boolean array of the extfov shape."""
@@ -114,9 +125,11 @@ class _FakeObs:
         )
 
 
-def _make_model(*, star_max_vmag: float = 12.0) -> tuple[NavModelStars, _FakeObs]:
+def _make_model(
+    *, star_max_vmag: float = 12.0, star_dimmest_vmag: float | None = None
+) -> tuple[NavModelStars, _FakeObs]:
     """Build a NavModelStars instance with the fake obs and stars config."""
-    obs = _FakeObs(star_max_vmag=star_max_vmag)
+    obs = _FakeObs(star_max_vmag=star_max_vmag, star_dimmest_vmag=star_dimmest_vmag)
     config = mock.Mock()
     config.stars = packaged_stars()
     model = NavModelStars('stars', cast(Any, obs), config=config)
@@ -274,6 +287,16 @@ def test_to_features_star_at_limit_gets_snr_ref() -> None:
     assert feat.flags.predicted_snr == pytest.approx(SNR_REF)
 
 
+def test_to_features_effective_snr_is_anchored_at_the_dimmest_visible_star() -> None:
+    """A star at a limit 1 mag past the dimmest visible star gets ``SNR_REF / 2.512``."""
+    model, _obs = _make_model(star_max_vmag=8.0, star_dimmest_vmag=7.0)
+    at_limit = _FakeMutableStar(vmag=8.0)
+    model._stars = [cast(MutableStar, at_limit)]
+    feat = model.to_features(cast(NavContext, _FakeContext()))[0]
+    assert isinstance(feat.flags, StarFlags)
+    assert feat.flags.predicted_snr == pytest.approx(SNR_REF / 2.512)
+
+
 def test_to_features_brighter_star_has_higher_effective_snr() -> None:
     """The effective SNR (and reliability) rises with magnitude margin.
 
@@ -345,6 +368,16 @@ def test_to_features_keeps_saturated_star_fainter_than_limit() -> None:
 def test_to_features_saturated_star_gets_at_least_snr_ref() -> None:
     """A saturated star fainter than the limit is treated as at-limit bright."""
     model, _obs = _make_model(star_max_vmag=8.0)
+    saturated = _FakeMutableStar(vmag=9.0, photometry_saturated=True)
+    model._stars = [cast(MutableStar, saturated)]
+    feat = model.to_features(cast(NavContext, _FakeContext()))[0]
+    assert isinstance(feat.flags, StarFlags)
+    assert feat.flags.predicted_snr == pytest.approx(SNR_REF)
+
+
+def test_to_features_saturated_star_is_at_least_as_bright_as_the_dimmest_visible() -> None:
+    """A saturated star is treated as at least as bright as the dimmest visible star."""
+    model, _obs = _make_model(star_max_vmag=8.0, star_dimmest_vmag=7.0)
     saturated = _FakeMutableStar(vmag=9.0, photometry_saturated=True)
     model._stars = [cast(MutableStar, saturated)]
     feat = model.to_features(cast(NavContext, _FakeContext()))[0]

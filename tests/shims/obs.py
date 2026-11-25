@@ -384,6 +384,10 @@ class FakeObs:
         """Return the catalog-search upper magnitude floor."""
         return self.star_max_vmag
 
+    def star_dimmest_visible_vmag(self) -> float:
+        """Return the dimmest visible magnitude, the catalog-search upper floor."""
+        return self.star_max_vmag
+
     def ra_dec_limits_ext(self, apparent: bool = True) -> tuple[float, float, float, float]:
         """Return the configured RA / DEC limits in radians."""
         return self.ra_dec_limits_ext_rad

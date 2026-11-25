@@ -154,6 +154,10 @@ class _Obs:
         """Return the limiting magnitude, set well past the test star."""
         return 12.0
 
+    def star_dimmest_visible_vmag(self) -> float:
+        """Return the dimmest visible magnitude, the limit."""
+        return self.star_max_usable_vmag()
+
 
 class _Context:
     """NavContext stand-in carrying the masks the star model consults."""

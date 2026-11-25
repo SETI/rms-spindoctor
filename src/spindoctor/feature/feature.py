@@ -36,7 +36,7 @@ class NavReliabilityBreakdown:
 
     Parameters:
         predicted_snr: STAR — detection contribution derived from the
-            star's magnitude margin to the limiting magnitude (effective
+            star's magnitude margin to the dimmest visible star (effective
             SNR), not a DN-based photometric SNR.
         visible_arc_fraction: LIMB_ARC, TERMINATOR_ARC, RING_EDGE — fraction
             of total predicted arc length in extfov and not occluded.

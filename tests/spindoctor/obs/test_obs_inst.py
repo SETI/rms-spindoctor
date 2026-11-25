@@ -42,6 +42,11 @@ def _make_star(vmag: float) -> Star:
     return star
 
 
+def test_the_dimmest_visible_star_is_the_limit_by_default() -> None:
+    """An instrument that does not override it anchors the effective SNR at its limit."""
+    assert _ConcreteObsInst().star_dimmest_visible_vmag() == 20.0
+
+
 def test_star_psf_size_selects_threshold() -> None:
     """A star below a threshold returns that threshold's size."""
     inst = _ConcreteObsInst()

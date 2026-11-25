@@ -250,19 +250,34 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
     def star_max_usable_vmag(self) -> float:
         """Returns the faintest V magnitude of a catalog star the star model uses.
 
-        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
-        class deposits ``rate * 10**(-0.4 * (m + offset)) * texp * factor`` raw DN, where
-        ``rate`` is the camera's DN rate for a V = 0 star through the clear filter in the
-        low gain state, ``offset`` is the frame's filter's magnitude offset from the
-        clear filter, ``texp`` is the exposure in seconds and ``factor`` is the frame's
-        gain state's DN factor.  The dimmest visible star deposits
-        ``min_detectable_dn``, and the limit is that star's magnitude plus
-        ``search_depth_mag``.  Every quantity but the exposure comes from the camera's
+        The limit is the dimmest visible star's magnitude
+        (:meth:`star_dimmest_visible_vmag`) plus the ``search_depth_mag`` of the
+        camera's entry in the ``voyager_iss_star_photometry`` configuration section.
+
+        Returns:
+            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
+            records no starlight.
+
+        Raises:
+            ValueError: As :meth:`star_dimmest_visible_vmag` raises.
+        """
+        return self.star_dimmest_visible_vmag() + self._star_photometry().search_depth_mag
+
+    def star_dimmest_visible_vmag(self) -> float:
+        """Returns the V magnitude of the dimmest star this observation shows.
+
+        The magnitude is photometric.  A star of V magnitude ``m`` and the default
+        spectral class deposits ``rate * 10**(-0.4 * (m + offset)) * texp * factor`` raw
+        DN, where ``rate`` is the camera's DN rate for a V = 0 star through the clear
+        filter in the low gain state, ``offset`` is the frame's filter's magnitude offset
+        from the clear filter, ``texp`` is the exposure in seconds and ``factor`` is the
+        frame's gain state's DN factor.  The dimmest visible star deposits
+        ``min_detectable_dn``.  Every quantity but the exposure comes from the camera's
         entry in the ``voyager_iss_star_photometry`` configuration section.  The filter
         and the gain state are read from the VICAR label's ``LAB03`` record.
 
         Returns:
-            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
+            The dimmest visible magnitude, or ``-inf`` for a non-positive exposure, which
             records no starlight.
 
         Raises:
@@ -290,8 +305,8 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
                 f'{self.detector} gain state {gain_state!r}'
             )
         dn_vmag0 = photometry.flux_dn_per_s_vmag0 * self.texp * factors[gain_state]
-        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
-        return dimmest_visible - offsets[self.filter] + photometry.search_depth_mag
+        dimmest_clear = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
+        return dimmest_clear - offsets[self.filter]
 
     def star_psf_sigma(self) -> float:
         """Returns the Gaussian sigma, in pixels, of a star in this observation.
