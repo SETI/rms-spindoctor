@@ -87,8 +87,10 @@ def host_input(image: PathLike, *, label: PathLike | None = None) -> FCPath:
         The label if one is named or exists beside the image, otherwise the image file.
 
     Raises:
-        OSError: If the label beside the image cannot be retrieved for a reason other
-            than its absence.
+        OSError: If the file beside the image fails with an error that leaves its
+            absence unconfirmed.  An error that the storage client raises as its own
+            type, such as a denied access to a Google Cloud Storage bucket, is not
+            converted and reaches the caller as it was raised.
     """
     if label is not None:
         return FCPath(label)
