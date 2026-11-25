@@ -5,10 +5,12 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
 ``camera`` field, prefixed by its ``spacecraft`` field when the record has one):
 
 1. **Aperture correction.**  The median ratio of the large-aperture to the small-aperture DN
-   over bright, clean stars, per camera and readout mode, turns each small-aperture DN into a
-   total DN.
-2. **Zero point.**  For every clean, unsaturated star detected at a flux SNR of at least
-   ``FIT_MIN_FLUX_SNR``, ``2.5 log10(DN / texp) + V`` is a zero point; a robust least-squares fit
+   over bright, clean stars, per camera and readout mode, is reported (a measure of how much
+   light a star spreads beyond the small aperture).
+2. **Zero point.**  A star's DN is its large-aperture DN, which holds a smeared or elongated
+   star's light where the small aperture would lose a varying part of it.  For every clean,
+   unsaturated star detected at a large-aperture flux SNR of at least ``FIT_MIN_FLUX_SNR``,
+   ``2.5 log10(DN / texp) + V`` is a zero point; a robust least-squares fit
    (Tukey biweight) of the zero points on an intercept, one term per filter but the reference
    filter, and one term per gain state but the reference state gives the reference rate (DN
    per second for a V = 0 star through the reference filter in the reference gain state), the
@@ -300,19 +302,18 @@ def fit_camera(
     rows = _star_rows(accepted)
     result.apcorr = _apcorr(rows)
     for row in rows:
-        row['total_dn'] = row.get('flux', float('nan')) * result.apcorr.get(row['mode'], math.nan)
+        row['total_dn'] = row.get('flux_big', float('nan'))
     fit_rows = [
         r
         for r in rows
         if not r['held_out']
         and _clean(r)
         and r['detected']
-        and r['flux'] > 0.0
-        and r['flux'] / max(r['flux_sigma'], 1e-9) >= FIT_MIN_FLUX_SNR
-        and math.isfinite(r['total_dn'])
+        and r['flux_big'] > 0.0
+        and r['flux_big'] / max(r['flux_big_sigma'], 1e-9) >= FIT_MIN_FLUX_SNR
     ]
     result.n_fit_frames = len(
-        {r['image_id'] for r in accepted if not is_held_out(r['frame']['image_id'])}
+        {r['frame']['image_id'] for r in accepted if not is_held_out(r['frame']['image_id'])}
     )
     result.n_zp_stars = len(fit_rows)
     if len(fit_rows) < 5:

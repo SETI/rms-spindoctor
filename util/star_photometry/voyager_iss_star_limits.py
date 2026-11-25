@@ -12,14 +12,15 @@ to CALIB line and sample, the CALIB and CLEANED geometries being the same).
 Frames come from the cumulative PDS3 index of each Voyager ISS volume set: GEOMED products
 inside the epochs the local SPICE kernels cover, whose target is not a dark, calibration-lamp
 or plaque frame, and whose inventory lists no planet (so the field holds stars and at most
-moons).  Every camera, filter and exposure range present is sampled: within each group of
-encounter, camera, filter and exposure octave, up to ``--per-group`` frames evenly spaced in
-the index.  The vidicon's gain state comes from ``GAIN_MODE`` (every frame in these volumes
-says ``LOW``) and its readout from ``SCAN_MODE``.
+moons), exposed at least half a second (NAC) or a tenth of a second (WAC).  Every camera,
+filter and exposure range present is sampled: within each group of encounter, camera, filter
+and exposure octave, up to ``--per-group`` frames evenly spaced in the index.  The vidicon's
+gain state comes from ``GAIN_MODE`` (every frame in these volumes says ``LOW``) and its readout
+from ``SCAN_MODE``.
 
 Usage::
 
-    python -m util.star_photometry.voyager_iss_star_limits OUT.jsonl [--per-group 6]
+    python -m util.star_photometry.voyager_iss_star_limits OUT.jsonl [--per-group 5]
         [--workers 4] [--limit N] [--only ID ...]
 """
 
@@ -71,6 +72,11 @@ EXCLUDED_TARGETS = frozenset({'DARK', 'CAL LAMPS', 'PLAQUE'})
 #: Inventory entries that mean a planet is in the field.
 PLANETS = frozenset({'JUPITER', 'SATURN', 'URANUS', 'NEPTUNE'})
 
+#: Shortest exposure sampled per camera (seconds): below it the camera records no star in the
+#: field at the depth the navigator expects (a V 7-8 star in the NAC's 0.4 degree field), so
+#: the frame cannot be fixed from stars.
+MIN_EXPOSURE_S = {'NAC': 0.5, 'WAC': 0.1}
+
 #: The 8-bit DN at which the vidicon's ADC saturates.
 SATURATION_DN = 255.0
 
@@ -113,6 +119,7 @@ PARAMS = MeasureParams(
     psf_half=6,
     ee_r_max=8.0,
     ee_n_bins=16,
+    highpass_subsample=2,
 )
 
 
@@ -173,6 +180,8 @@ def voyager_frames(holdings: Path, per_group: int) -> list[FrameInput]:
                     continue
                 texp = float(row[_COL_EXPOSURE])
                 camera = 'NAC' if row[_COL_INSTRUMENT].strip().startswith('NARROW') else 'WAC'
+                if texp < MIN_EXPOSURE_S[camera]:
+                    continue
                 volume = row[_COL_VOLUME].strip()
                 path = (
                     holdings
@@ -268,7 +277,7 @@ def main() -> None:
     """Measure a stratified sample of Voyager ISS star fields into a JSON-lines file."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument('out', type=Path, help='JSON-lines output (appended; resumes)')
-    parser.add_argument('--per-group', type=int, default=6)
+    parser.add_argument('--per-group', type=int, default=5)
     parser.add_argument('--workers', type=int, default=4)
     parser.add_argument('--limit', type=int, default=0, help='Measure only the first N frames')
     parser.add_argument('--only', nargs='*', default=[], help='Measure only these image IDs')

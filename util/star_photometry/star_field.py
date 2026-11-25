@@ -68,22 +68,33 @@ def robust_sigma(values: FloatArray) -> float:
     return float(MAD_TO_SIGMA * np.median(np.abs(finite - np.median(finite))))
 
 
-def highpass(image: FloatArray, size: int) -> FloatArray:
+def highpass(image: FloatArray, size: int, *, subsample: int = 1) -> FloatArray:
     """Return the image minus its running median, which removes the sky and its gradients.
 
     Parameters:
         image: The image.
         size: The side of the square median window in pixels; it should span several star
             widths so a star does not lift its own median.
+        subsample: When above 1, the median is taken on every ``subsample``-th pixel of each
+            axis with a window of ``size // subsample`` (rounded up to odd) and expanded back
+            by repetition, which is much faster on a large image and changes the smooth sky
+            estimate very little.
 
     Returns:
         The high-passed image as float64.
     """
     data = np.asarray(image, dtype=np.float64)
-    background = np.asarray(
-        scipy.ndimage.median_filter(data, size=size, mode='nearest'), dtype=np.float64
+    if subsample <= 1:
+        background = np.asarray(
+            scipy.ndimage.median_filter(data, size=size, mode='nearest'), dtype=np.float64
+        )
+        return data - background
+    small_size = max(3, (size // subsample) | 1)
+    small = scipy.ndimage.median_filter(
+        data[::subsample, ::subsample], size=small_size, mode='nearest'
     )
-    return data - background
+    expanded = np.repeat(np.repeat(small, subsample, axis=0), subsample, axis=1)
+    return data - np.asarray(expanded[: data.shape[0], : data.shape[1]], dtype=np.float64)
 
 
 @dataclass(frozen=True)
@@ -762,8 +773,9 @@ def detection_test(
 
     The peak is the brightest pixel within ``search_px`` of the expected position.  The noise
     is the robust standard deviation of the annulus ``noise_inner``-``noise_outer`` about that
-    peak.  The count is the number of pixels in the ``(2 * box_half + 1)``-square box about the
-    peak above three times the noise.
+    peak, or its plain standard deviation when the robust one is zero (a quantized image).
+    The count is the number of pixels in the ``(2 * box_half + 1)``-square box about the peak
+    above three times the noise.
 
     Parameters:
         hp: The high-passed image.
@@ -795,6 +807,10 @@ def detection_test(
     r = np.hypot(nv - pv, nu - pu)
     ring = hp[pv - o : pv + o + 1, pu - o : pu + o + 1][(r >= noise_inner) & (r <= noise_outer)]
     noise = robust_sigma(ring)
+    if not noise > 0.0:
+        # In a heavily quantized image most of the annulus can share one value, which gives
+        # a zero median absolute deviation; the standard deviation still measures the noise.
+        noise = float(np.std(ring))
     if not noise > 0.0:
         return None
     box = hp[pv - box_half : pv + box_half + 1, pu - box_half : pu + box_half + 1]

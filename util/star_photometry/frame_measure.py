@@ -131,6 +131,8 @@ class MeasureParams:
         psf_half: Half-size of the PSF-fit cutout.
         ee_r_max: Outer radius of the encircled-energy profile.
         ee_n_bins: Radial bins of the encircled-energy profile.
+        highpass_subsample: Pixel step of the high-pass filter's median (see
+            :func:`util.star_photometry.star_field.highpass`).
     """
 
     catalog_depth_mag: float
@@ -161,6 +163,7 @@ class MeasureParams:
     psf_half: int
     ee_r_max: float
     ee_n_bins: int
+    highpass_subsample: int = 1
 
 
 #: Maps navigator-image array-index positions to photometric-image positions.
@@ -240,7 +243,7 @@ def measure_frame(
     pu = np.array([float(s.u) - _CORNER_TO_INDEX for s in stars])
     vmag = np.array([float(s.vmag) if s.vmag is not None else np.inf for s in stars])
 
-    hp = highpass(nav, params.highpass_size)
+    hp = highpass(nav, params.highpass_size, subsample=params.highpass_subsample)
     peaks = detect_peaks(
         hp,
         smooth_sigma=params.smooth_sigma,
