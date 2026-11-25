@@ -523,15 +523,16 @@ def ring_plane_from_sky(
     # dv and du may be a column and a row that broadcast to the grid, which leaves
     # one grid-sized sum per coordinate.  The steps after that work in place on
     # arrays this call owns; each is the IEEE operation the formula names, so the
-    # results match the plain expressions to the last bit.
-    x = p * math.cos(node) + q * math.sin(node)
-    y = -p * math.sin(node) + q * math.cos(node)
-    y /= sin_b
+    # results match the plain expressions to the last bit.  The results are arrays
+    # whatever the inputs' dimensions, zero included.
+    x = np.asarray(p * math.cos(node) + q * math.sin(node), dtype=np.float64)
+    y = np.asarray(-p * math.sin(node) + q * math.cos(node), dtype=np.float64)
+    np.divide(y, sin_b, out=y)
     # stable_hypot's sum of squares, in place.
-    r = x * x
+    r = np.multiply(x, x, out=np.empty_like(x))
     r += y * y
     np.sqrt(r, out=r)
-    lam = np.arctan2(y, x)
+    lam = np.arctan2(y, x, out=np.empty_like(x))
     np.mod(lam, 2.0 * math.pi, out=lam)
     return (
         r,
@@ -592,8 +593,10 @@ def ring_radial_scale(
     """
     sin_b = math.sin(math.radians(opening_deg_obs))
     # In place on this call's own arrays, which matches the plain expression
-    # sqrt(x*x + y*y / sin_b**2) / r to the last bit.
-    scale = x * x
+    # sqrt(x*x + y*y / sin_b**2) / r to the last bit, and is an array whatever the
+    # inputs' dimensions, zero included.
+    shape = np.broadcast_shapes(np.shape(r), np.shape(x), np.shape(y))
+    scale = np.multiply(x, x, out=np.empty(shape))
     across = y * y
     across /= sin_b * sin_b
     scale += across
