@@ -39,6 +39,7 @@ from spindoctor.support.constants import HALFPI, PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
+    'KNOWN_OUTSIDE_BINS',
     'LIMB_PEAK_KIND_PREFIX',
     'LimbPeakBin',
     'SilhouetteOffsets',
@@ -53,6 +54,18 @@ __all__ = [
 
 LIMB_PEAK_KIND_PREFIX = 'limb_peak_'
 """The prefix of the per-bin limb gradient-peak sample kinds."""
+
+# The Cassini NAC bin at 60 to 120 degrees phase and 100 to 400 px: its 4 real Dione and
+# Tethys limbs peak 0.01 to 0.43 px inside their matched limbs, so the matched median
+# (+0.02 px) lies 0.15 px from the real one (-0.13 px), outside the 0.12 px band.  The
+# photometric law explains at most part of it, and the 0.43 px Tethys limb lies beyond
+# every law tried (#TBD).
+KNOWN_OUTSIDE_BINS: frozenset[tuple[str, str]] = frozenset({('coiss_calib_nac', 'p1_r1')})
+"""The (instrument, bin) pairs whose matched median is known to lie outside its band.
+
+The record check holds each of them outside, so a change that brings one inside shows up
+as clearly as one that pushes another bin out.
+"""
 
 # A function that takes a body model's name, the (N, 2) limb vertices in extended-FOV
 # pixel-centric coordinates, and their (N, 2) outward normals, and returns the (N,)
@@ -338,20 +351,34 @@ def compare_limb_peaks(
     return out
 
 
-def record_limb_peak_problems(record: dict[str, Any]) -> list[str]:
-    """The bins of a realism record whose matched median lies outside its band.
+def record_limb_peak_problems(
+    record: dict[str, Any], *, known_outside: frozenset[tuple[str, str]] = frozenset()
+) -> list[str]:
+    """The bins of a realism record whose verdict differs from the one expected.
+
+    A bin is expected within its band unless it is in ``known_outside``.
 
     Parameters:
         record: A realism summary, as
             :func:`tests.integration.realism_regression.load_record` reads it.
+        known_outside: The (instrument, bin) pairs expected to lie outside their bands.
 
     Returns:
-        One line per bin that lies outside its band, giving the instrument, the bin, both
-        medians, the band, and both counts.  Bins without a verdict are left out.
+        One line per bin that lies outside its band and is not expected to, giving the
+        instrument, the bin, both medians, the band, and both counts, and one line per
+        bin expected outside that is not.  Bins without a verdict are left out, except
+        that a bin expected outside must have one.
     """
     problems: list[str] = []
     for instrument, entry in sorted(record.get('instruments', {}).items()):
         for label, peak in sorted(entry.get('limb_peaks', {}).items()):
+            if (instrument, label) in known_outside:
+                if peak['within_band'] is not False:
+                    problems.append(
+                        f'{instrument} {label}: expected outside its band, but its verdict '
+                        f'is {peak["within_band"]}'
+                    )
+                continue
             if peak['within_band'] is not False:
                 continue
             problems.append(

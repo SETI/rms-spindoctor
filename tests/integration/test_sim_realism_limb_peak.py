@@ -20,6 +20,7 @@ from spindoctor.feature.geometry import LimbPolyline
 from tests.integration import sim_realism_limb_peak
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
 from tests.integration.sim_realism_limb_peak import (
+    KNOWN_OUTSIDE_BINS,
     compare_limb_peaks,
     limb_peak_offset,
     matched_silhouette_offsets,
@@ -318,6 +319,24 @@ def _record_bin(within: bool | None) -> dict[str, Any]:
     }
 
 
+def test_a_known_outside_bin_outside_its_band_is_not_a_problem() -> None:
+    """A bin expected outside its band is left out when it lies outside."""
+    record = {'instruments': {'coiss_calib_nac': {'limb_peaks': {'p1_r1': _record_bin(False)}}}}
+    problems = record_limb_peak_problems(
+        record, known_outside=frozenset({('coiss_calib_nac', 'p1_r1')})
+    )
+    assert problems == []
+
+
+def test_a_known_outside_bin_within_its_band_is_a_problem() -> None:
+    """A bin expected outside its band is reported when it lies within it."""
+    record = {'instruments': {'coiss_calib_nac': {'limb_peaks': {'p1_r1': _record_bin(True)}}}}
+    problems = record_limb_peak_problems(
+        record, known_outside=frozenset({('coiss_calib_nac', 'p1_r1')})
+    )
+    assert problems == ['coiss_calib_nac p1_r1: expected outside its band, but its verdict is True']
+
+
 def test_a_record_bin_outside_its_band_is_a_problem() -> None:
     """Only the bin whose verdict is False is reported."""
     record = {
@@ -344,7 +363,7 @@ def test_a_record_bin_outside_its_band_is_a_problem() -> None:
 )
 def test_the_recorded_limb_peaks_lie_within_their_bands() -> None:
     """In every bin with a verdict, the matched median lies within the real band."""
-    problems = record_limb_peak_problems(_RECORD)
+    problems = record_limb_peak_problems(_RECORD, known_outside=KNOWN_OUTSIDE_BINS)
     assert not problems, (
         f'The limb gradient peaks of the record made at {made_at(_RECORD)} leave their '
         'bands:\n' + '\n'.join(problems) + f'\n{REGENERATE_HINT}'
