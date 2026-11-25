@@ -191,13 +191,16 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
   :class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which in turn holds the keys of
   the shared fit-quality gates
   (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`).
+  :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning` holds the
+  model-error terms of a correlation technique's covariance. The ring-annulus technique's
+  tuning is that type, and the body-disc technique's type extends it.
 - The block of a technique that declares ``Tuning`` is keyed by the technique's
   snake_case key, the one ``logging.techniques`` uses
-  (:func:`~spindoctor.config.logging_keys.log_key_for`): ``body_limb``,
-  ``body_terminator``, and ``ring_edge``. The technique's ``name``, which results and
-  metadata carry, does not change.
+  (:func:`~spindoctor.config.logging_keys.log_key_for`): ``body_blob``,
+  ``body_disc_correlate``, ``body_limb``, ``body_terminator``, ``ring_annulus``, and
+  ``ring_edge``. Results and metadata still identify the technique by its ``name``.
 - The techniques whose tuning is not typed yet declare no ``Tuning``. Their blocks keep
-  the class name, as in ``BodyBlobNav``, and their ``tuning`` is a mapping of numbers
+  the class name, as in ``StarRefineNav``, and their ``tuning`` is a mapping of numbers
   that the technique reads by key. A key in that mapping is checked only for being a
   number, so a misspelled key is accepted and nothing reads it. Each family moves to a
   ``Tuning`` type and a snake_case name in turn.

@@ -739,8 +739,8 @@ also yields a useful quality signal: if the winning position moves as the resolu
 improves, the answer is genuinely less well localized, and the reported uncertainty is
 widened accordingly. How far the position may move between scales before the answer is
 called inconsistent is the larger of
-``techniques.BodyDiscCorrelateNav.tuning.consistency_max_px``, 4 pixels by default, and
-``techniques.BodyDiscCorrelateNav.tuning.consistency_max_fraction_of_diameter`` times the
+``techniques.body_disc_correlate.tuning.consistency_max_px``, 4 pixels by default, and
+``techniques.body_disc_correlate.tuning.consistency_max_fraction_of_diameter`` times the
 body's diameter in pixels. The technique also chooses for itself, per image,
 whether to correlate raw brightness or brightness gradients, running both and keeping the
 more confident result. Raw brightness wins on a smooth shaded disc that fills the frame;
@@ -887,7 +887,7 @@ the disc correlation, the search runs from a coarse downsampled copy up to full
 resolution, which is both faster than a full-resolution sweep and informative: a winning
 position that drifts between scales is less well localized, and the reported uncertainty
 grows to say so, scaled by
-``techniques.RingAnnulusNav.tuning.localization_uncertainty_scale``. The technique also
+``techniques.ring_annulus.tuning.localization_uncertainty_scale``. The technique also
 runs both a raw-brightness pass and a gradient pass and keeps the more confident of the
 two, since a coarse view of Saturn's rings is mostly broad brightness variation while a
 closer one is mostly sharp ringlet edges.
