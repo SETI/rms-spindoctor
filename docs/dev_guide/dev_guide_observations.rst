@@ -378,8 +378,8 @@ Shipping subclasses:
   the simulator's renderer and exposes the navigator the filtered idealized scene view
   ``obs.nav_params`` (see :doc:`dev_guide_simulator`).
 
-Each subclass overrides :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` to call its
-host, wires up the per-instrument PSF and photometric window, and forwards
+Each real-camera subclass overrides :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` to
+call its host, wires up the per-instrument PSF and photometric window, and forwards
 per-image metadata into :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata`.
 
 Reading an image through its host
