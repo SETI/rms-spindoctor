@@ -14,7 +14,7 @@ exposure_sec: 1.0
 # centered on the sub-observer point, so the spot's edge, at the antipode, is never
 # in view.  The atmosphere_haze_albedo sweep walks the haze albedo on this scene.
 # The scene carries no expected block because its outcome depends on the noise draw:
-# over 25 draws it lands 0.41 to 0.63 px off, conflicted on 20 and a success on 5.
+# over 25 draws it lands 0.25 to 0.44 px off, conflicted on 19 and a success on 6.
 optics:
   psf:
     match_navigator: true

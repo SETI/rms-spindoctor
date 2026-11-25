@@ -10,11 +10,11 @@ sweep_name: atmosphere_haze_albedo
 # - albedo 0 leaves a blank frame.  20 draws fail; the other 5 report a success 45.6
 #   to 59.4 px off.
 # - albedo 0.15 and 0.3 light a haze ring that peaks 10 and 24 DN above the sky,
-#   against 4 DN of read noise.  They fail on 21 and 14 draws and lock 41.2 to 42.4
+#   against 4 DN of read noise.  They fail on 19 and 16 draws and lock 41.2 to 42.5
 #   px off on the rest.
-# - albedo 0.6, the base scene's default, lands 0.41 to 0.63 px off on every draw,
-#   conflicted on 20 and a success on 5.
-# - albedo 1.0 lands 0.49 to 0.50 px off on 22 draws and is conflicted 3.9 to 4.4 px
+# - albedo 0.6, the base scene's default, lands 0.25 to 0.44 px off on every draw,
+#   conflicted on 19 and a success on 6.
+# - albedo 1.0 lands 0.48 to 0.49 px off on 22 draws and is conflicted 3.8 to 4.5 px
 #   off on 3.
 base_scene: model_mismatch/haze_limb_black_base.yaml
 parameters: [bodies.0.atmosphere.albedo]

@@ -28,8 +28,8 @@ exposure_sec: 7.3
 # depth of 15.1 at 140 km, an albedo of 0.92, and a two-term phase function fitted
 # to the Huygens measurements.  The haze hides the surface, and the optical limb
 # sits about 6 px above the solid radius, well inside the predicted envelope: the
-# altitude mismatch the free-radius arc fit exists to absorb.  The fit lands 0.41
-# to 0.46 px off along the sun axis, toward the night side, on all 16 distinct
+# altitude mismatch the free-radius arc fit exists to absorb.  The fit lands 0.49
+# to 0.54 px off along the sun axis, toward the night side, on all 16 distinct
 # draws (the committed seed and random_seed 101 to 1515; with no random content
 # but the detector noise, noise_seed 101 to 808 repeat random_seed draws), and the
 # error grows with the rendered scale height.

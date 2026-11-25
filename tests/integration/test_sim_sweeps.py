@@ -891,8 +891,8 @@ def test_atmosphere_haze_raises_the_fused_error_with_thickness() -> None:
 
     The haze dims the surface toward the limb and lifts the level it reflects from,
     and the navigator predicts neither.  A single-draw tripwire: over 25 noise draws
-    the first four steps sit 0.033 to 0.035, 0.181 to 0.195, 0.390 to 0.400, and
-    0.971 to 1.015 px off, so the steps never overlap.
+    the first four steps sit 0.033 to 0.035, 0.182 to 0.195, 0.396 to 0.408, and
+    0.899 to 1.051 px off, so the steps never overlap.
     """
     errors = [row.offset_error_px for row in _rows('atmosphere_haze')[:4]]
     measured = [error for error in errors if error is not None]
@@ -904,7 +904,8 @@ def test_atmosphere_haze_thickest_step_is_conflicted() -> None:
     """At tau_ref 6 the haze lifts the limb so far that the techniques disagree.
 
     The level the haze reflects from stands about 21 px above the 90 px radius.  A
-    single-draw tripwire: all 25 noise draws report the frame conflicted.
+    single-draw tripwire: 24 of 25 noise draws report the frame conflicted, 20.7 to
+    40.4 px off, and on noise_seed 303 it is a success 6.9 px off.
     """
     assert _rows('atmosphere_haze')[-1].status == 'conflicted'
 
@@ -914,15 +915,15 @@ def test_atmosphere_haze_thickest_step_is_conflicted() -> None:
 # from albedo 0.6 its edge puts the answer about half a pixel off.
 _HAZE_ALBEDO_FAINT_STEPS = 3
 _HAZE_ALBEDO_FAINT_BOUND_PX = 1.0
-_HAZE_ALBEDO_BRIGHT_BAND_PX = (0.364, 0.679)
+_HAZE_ALBEDO_BRIGHT_BAND_PX = (0.200, 0.494)
 
 
 def test_atmosphere_haze_albedo_faint_haze_gives_no_answer_near_the_truth() -> None:
     """Up to albedo 0.3 no answer comes within 1 px of the planted offset.
 
     A single-draw tripwire: over 25 noise draws the albedo 0, 0.15, and 0.3 steps fail
-    on 20, 21, and 14 draws.  The rest report a success far off: 45.6 to 59.4 px at
-    albedo 0, where the frame is blank, and 41.2 to 42.4 px at 0.15 and 0.3.
+    on 20, 19, and 16 draws.  The rest report a success far off: 45.6 to 59.4 px at
+    albedo 0, where the frame is blank, and 41.2 to 42.5 px at 0.15 and 0.3.
     """
     rows = _rows('atmosphere_haze_albedo')[:_HAZE_ALBEDO_FAINT_STEPS]
     assert rows[-1].value == 0.3
@@ -933,10 +934,10 @@ def test_atmosphere_haze_albedo_faint_haze_gives_no_answer_near_the_truth() -> N
 def test_atmosphere_haze_albedo_bright_haze_edge_sits_in_its_band() -> None:
     """At albedo 0.6 the haze's own edge puts the fused answer about half a pixel off.
 
-    A single-draw tripwire: over 25 noise draws the error is 0.414 to 0.628 px, with the
-    frame conflicted on 20 draws and a success on 5.  The band is that range with a 0.05
+    A single-draw tripwire: over 25 noise draws the error is 0.250 to 0.443 px, with the
+    frame conflicted on 19 draws and a success on 6.  The band is that range with a 0.05
     px margin each side.  The albedo 1.0 step is not asserted: over the same draws it
-    lands 0.49 to 0.50 px off on 22 and is conflicted 3.9 to 4.4 px off on 3.
+    lands 0.48 to 0.49 px off on 22 and is conflicted 3.8 to 4.5 px off on 3.
     """
     row = _rows('atmosphere_haze_albedo')[_HAZE_ALBEDO_FAINT_STEPS]
     low, high = _HAZE_ALBEDO_BRIGHT_BAND_PX

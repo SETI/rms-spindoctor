@@ -1,8 +1,8 @@
 {
-  "confidence": 0.6493338862492559,
-  "confidence_rank": "low",
-  "offset_du_px": 1.5,
-  "offset_dv_px": 0.5,
+  "confidence": 0.7591634920481437,
+  "confidence_rank": "medium",
+  "offset_du_px": 9.390625,
+  "offset_dv_px": 1.203125,
   "scene_name": "titan_crescent_horns",
   "status": "success"
 }

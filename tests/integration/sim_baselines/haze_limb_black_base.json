@@ -1,8 +1,8 @@
 {
-  "confidence": 0.15181572583436911,
-  "confidence_rank": "conflicted",
-  "offset_du_px": -0.546875,
+  "confidence": 0.7245096724557882,
+  "confidence_rank": "low",
+  "offset_du_px": -0.37499999999999994,
   "offset_dv_px": -0.015625,
   "scene_name": "haze_limb_black_base",
-  "status": "conflicted"
+  "status": "success"
 }

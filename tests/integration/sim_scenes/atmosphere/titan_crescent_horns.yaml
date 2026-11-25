@@ -4,8 +4,8 @@ instrument: coiss_nac
 size_v: 260
 size_u: 260
 random_seed: 7
-exposure_sec: 4.1
-# The exposure puts the ring of light 2775 DN above the sky, 68% of the 12-bit
+exposure_sec: 3.6
+# The exposure puts the ring of light 2782 DN above the sky, 68% of the 12-bit
 # range, where the cohort frame nearest this phase puts it: W1721822901 (CL1+CL2,
 # 149.2 deg) peaks 2787 DN above its sky.  The read noise is the camera's own,
 # 12 e- at the 30 e-/DN of gain state 2, which is 0.4 DN.
@@ -34,26 +34,26 @@ offset_rotation_deg: 0.0
 # The body takes Titan's published haze by name, the 85 px radius standing for
 # Titan's 2575 km (30.3 km/px): see titan_haze.  It hides the surface, so the only
 # light is the haze's own, and at 155 deg phase that is the ring of light, which
-# peaks at 0.37 of a white disc lit face-on about 7 px above the solid limb.
+# peaks at 0.43 of a white disc lit face-on about 7 px above the solid limb.
 # At this phase the haze defeats every body technique.  The ring of light drags
-# the lit-weighted blob centroid 16.5 to 18.8 px from the planted offset.  The
+# the lit-weighted blob centroid 17.8 to 20.1 px from the planted offset.  The
 # predicted TERMINATOR_ARC is emitted but never fitted: with its reliability
 # computed as the SPICE-backed model does (visible-arc fraction ~1.0, the albedo
 # penalty, and the sin(155 deg) = 0.42 phase cap), it scores 0.26 against the
 # 0.30 TERMINATOR_ARC reliability gate.
 # The disc correlation's hard-limbed template leaves the ring of light out
-# (#1050).  On all 16 distinct draws (the committed seed and random_seed 101 to
-# 1515; with no random content but the detector noise, noise_seed 101 to 808
-# repeat random_seed draws) it answers the point (0.5, 1.5) of its half-pixel
-# coarse grid, 2.404 px from the planted offset, a low-tier success, as the
-# noiseless twin does.  It does not flag that answer spurious, so the body-witness
-# veto has nothing to read, the blob is dropped as a fallback, and the disc
-# correlation alone sets the answer.  The status: success asserted below is a
-# hazard held in view, not an endorsement.
-# Known error: 2.404 px on every draw, giving the band [2.354, 2.455] px with the
-# 0.05 px margin.
+# (#1050), and it locks onto that ring.  On all 16 distinct draws (the committed
+# seed and random_seed 101 to 1515; with no random content but the detector noise,
+# noise_seed 101 to 808 repeat random_seed draws) it lands 10.19 px from the
+# planted offset toward the sun, at a reported sigma of 1.02 to 1.03 px, as the
+# noiseless twin does: a medium-tier success 9.9 sigma off.  It does not flag that
+# answer spurious, so the body-witness veto has nothing to read, the blob is
+# dropped as a fallback, and the disc correlation alone sets the answer.  The
+# status: success asserted below is a hazard held in view, not an endorsement.
+# Known error: 10.191 px on every draw, giving the band [10.140, 10.241] px with
+# the 0.05 px margin.
 expected:
   status: success
-  confidence_tier: low
-  known_offset_error_px: 2.4045
+  confidence_tier: medium
+  known_offset_error_px: 10.1905
   known_offset_error_tol_px: 0.0505

@@ -22,19 +22,19 @@ exposure_sec: 7.5
 # haze disc reaches about 9 px past the solid limb the navigator predicts.  The
 # disc correlation and the limb fit both read that haze edge as the limb: the disc
 # correlation lands 7.35 px off toward the sun on every draw, and the limb fit
-# 8.47 to 8.51 px off.  The blob centroid lands 1.43 px off and is dropped as a
+# 8.49 to 8.56 px off.  The blob centroid lands 1.41 px off and is dropped as a
 # fallback.  Over the 16 distinct draws (the committed seed and random_seed 101 to
 # 1515; with no random content but the detector noise, noise_seed 101 to 808
 # repeat random_seed draws) the frame is a medium-tier success every time.  On 14
 # the limb fit flags its answer spurious and the disc correlation alone sets the
-# answer, 7.349 px off; on random_seed 505 and 606 the limb fit's answer joins it
-# and the answer lands 7.538 px off.  The reported sigma, 1.07 to 1.17 px, puts
-# that error at 6.3 to 7.1 sigma: a haze-blind navigator is confidently wrong under
+# answer, 7.349 px off; on random_seed 1010 and 1515 the limb fit's answer joins it
+# and the answer lands 7.550 and 7.536 px off.  The reported sigma, 1.08 to 1.19
+# px, puts that error at 6.2 to 7.0 sigma: a haze-blind navigator is confidently wrong under
 # an unmodeled thick haze (#1190).  The status and tier asserted below hold that
 # hazard in view; they do not endorse it.
-# Known error: over the 16 draws the fused error runs 7.349 to 7.538 px (spread
-# 0.189 px); each end of the band sits a margin of max(0.05 px, a fifth of the
-# spread) = 0.05 px outside, giving [7.299, 7.589] px.
+# Known error: over the 16 draws the fused error runs 7.349 to 7.550 px (spread
+# 0.200 px); each end of the band sits a margin of max(0.05 px, a fifth of the
+# spread) = 0.05 px outside, giving [7.299, 7.600] px.
 bodies:
   - name: HAZEMOON
     shape_model: ellipsoid
@@ -56,5 +56,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 7.444
-  known_offset_error_tol_px: 0.145
+  known_offset_error_px: 7.4495
+  known_offset_error_tol_px: 0.1505

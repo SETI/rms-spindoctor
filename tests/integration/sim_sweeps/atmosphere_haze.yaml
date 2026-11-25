@@ -9,9 +9,10 @@ sweep_name: atmosphere_haze
 # neither of.  The base scene's haze is a generic one, thinner and far more
 # extended than Titan's (titan_haze_limb carries the published values), so the walk
 # runs from a clear limb to a thick haze in resolved steps.  Fused result over 25
-# noise draws: 0.033 to 0.035, 0.18 to 0.19, 0.39 to 0.40, and 0.97 to 1.01 px off
+# noise draws: 0.033 to 0.035, 0.18 to 0.20, 0.40 to 0.41, and 0.90 to 1.05 px off
 # for tau_ref 0 to 4; at tau_ref 6 the reflecting level stands about 21 px above
-# the limb and every draw is conflicted, 20 to 29 px off.
+# the limb and 24 of the 25 draws are conflicted, 20.7 to 40.4 px off, the other a
+# success 6.9 px off.
 base_scene: model_mismatch/haze_limb_base.yaml
 parameters: [bodies.0.atmosphere.tau_ref]
 values: [0.0, 1.0, 2.0, 4.0, 6.0]
