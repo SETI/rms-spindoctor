@@ -77,6 +77,8 @@ from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_syste
 from spindoctor.sim.render.roll import boresight_shift, roll_body_params
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import default_body_range_km, scene_binning, scene_value
+from spindoctor.sim.scene.idealized import DEFAULT_EXPOSURE_SEC
+from spindoctor.sim.scene.truth_optics import DEFAULT_SMEAR_OBJECT_CLASS
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.stars import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
@@ -215,7 +217,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # The photometric zero point and its unit domain (electrons for a CCD, DN for
     # the vidicon) drive the flux each star deposits into the point-source plane.
     zero_point, flux_domain = _star_zero_point(params)
-    exposure_sec = float(params.get('exposure_sec', 1.0))
+    exposure_sec = float(params.get('exposure_sec', DEFAULT_EXPOSURE_SEC))
 
     stars_params = params.get('stars', [])
     bodies_params = params.get('bodies', [])
@@ -865,7 +867,7 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
         psf_sigma = 0.0
     return faint_sky_cutoff_mag(
         zero_point=zero_point,
-        exposure_sec=float(params.get('exposure_sec', 1.0)),
+        exposure_sec=float(params.get('exposure_sec', DEFAULT_EXPOSURE_SEC)),
         read_noise=_nominal_read_noise(instrument, domain, binning=binning),
         psf_sigma=psf_sigma,
     )
@@ -903,7 +905,7 @@ def _render_sky(
         return
     instrument = params.get('instrument')
     zero_point, _ = _star_zero_point(params)
-    exposure_sec = float(params.get('exposure_sec', 1.0))
+    exposure_sec = float(params.get('exposure_sec', DEFAULT_EXPOSURE_SEC))
     cutoff = sky_star_faint_cutoff_mag(params)
     render_sky_counts(
         plane,
@@ -990,7 +992,7 @@ def _optics_needs_layers(params: Mapping[str, Any]) -> bool:
     if not isinstance(optics, dict):
         return False
     smear = optics.get('smear') or []
-    return any(entry.get('object_class', 'all') != 'all' for entry in smear)
+    return any(entry.get('object_class', DEFAULT_SMEAR_OBJECT_CLASS) != 'all' for entry in smear)
 
 
 def _scale_star_params(star_params: dict[str, Any], os: int) -> dict[str, Any]:

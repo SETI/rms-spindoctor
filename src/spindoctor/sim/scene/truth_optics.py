@@ -16,6 +16,11 @@ from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, NonNeg, Positive, Rule
 from spindoctor.sim.scene.declare import EditorHint, optional
 
 __all__ = [
+    'DEFAULT_PSF_N',
+    'DEFAULT_PSF_R0_PX',
+    'DEFAULT_PSF_W',
+    'DEFAULT_SMEAR_OBJECT_CLASS',
+    'DEFAULT_STRAY_LIGHT_MODEL',
     'Optics',
     'OpticsDistortion',
     'OpticsGhost',
@@ -30,6 +35,18 @@ __all__ = [
 SmearObjectClass = Literal['all', 'stars', 'bodies', 'rings']
 #: The shape of the stray-light field: a ramp across the frame, or a bump.
 StrayLightModel = Literal['linear', 'radial']
+
+#: The Moffat wing's energy fraction when an explicit PSF kernel leaves ``w`` out: the
+#: kernel then has no wing.
+DEFAULT_PSF_W = 0.0
+#: The Moffat core radius, in pixels, when an explicit PSF kernel leaves ``r0`` out.
+DEFAULT_PSF_R0_PX = 2.0
+#: The Moffat index when an explicit PSF kernel leaves ``n`` out.
+DEFAULT_PSF_N = 3.0
+#: The objects a smear entry smears when it leaves ``object_class`` out: all of them.
+DEFAULT_SMEAR_OBJECT_CLASS: SmearObjectClass = 'all'
+#: The stray-light field's shape when the block leaves ``model`` out.
+DEFAULT_STRAY_LIGHT_MODEL: StrayLightModel = 'linear'
 
 # The keys of an explicit PSF kernel, which the navigator-matched form excludes.
 _KERNEL_KEYS: tuple[str, ...] = ('sigma_v', 'sigma_u', 'w', 'r0', 'n')
@@ -58,7 +75,7 @@ class OpticsPsf:
         "Resolve the PSF to the navigator's own Gaussian at the instrument's "
         '``star_psf_sigma``. It is written true or left out, and no other PSF key may '
         'appear beside it.',
-        default=False,
+        when_absent='the explicit kernel the other keys give',
     )
     sigma_v: Positive | None = optional(
         'truth',
@@ -75,19 +92,19 @@ class OpticsPsf:
     w: Unit | None = optional(
         'truth',
         'The fraction of the energy in the Moffat wing.',
-        default=0.0,
+        default=DEFAULT_PSF_W,
         editor=EditorHint(minimum=0.0, maximum=1.0, decimals=4, step=0.005),
     )
     r0: Positive | None = optional(
         'truth',
         'The Moffat core radius, in pixels.',
-        default=2.0,
+        default=DEFAULT_PSF_R0_PX,
         editor=EditorHint(minimum=0.01, maximum=50.0, decimals=3, step=0.1),
     )
     n: Float | None = optional(
         'truth',
         'The Moffat index.',
-        default=3.0,
+        default=DEFAULT_PSF_N,
         editor=EditorHint(minimum=0.1, maximum=20.0, decimals=3, step=0.1),
     )
 
@@ -144,7 +161,7 @@ class OpticsSmear:
         'truth',
         'The objects the entry smears. One ``all`` entry smears the whole scene, and '
         'several entries give differential smear.',
-        default='all',
+        default=DEFAULT_SMEAR_OBJECT_CLASS,
     )
 
 
@@ -250,20 +267,21 @@ class OpticsStrayLight:
 
     amplitude: Float | None = optional(
         'truth',
-        "The field's peak, as a fraction of full scale. Zero turns it off.",
+        "The field's peak, in the units of the signal, where 1.0 is the brightness of a "
+        'surface at I/F 1. Zero turns it off.',
         default=0.0,
         editor=EditorHint(minimum=0.0, maximum=1.0, decimals=3, step=0.01),
     )
     direction_deg: Float | None = optional(
         'truth',
-        'The direction the linear ramp rises toward, in degrees.',
+        'The direction the linear ramp rises toward, in degrees from +v toward +u.',
         default=0.0,
         editor=EditorHint(minimum=0.0, maximum=360.0, decimals=1),
     )
     model: StrayLightModel | None = optional(
         'truth',
         "The field's shape: a ``linear`` ramp across the frame or a ``radial`` bump.",
-        default='linear',
+        default=DEFAULT_STRAY_LIGHT_MODEL,
     )
     center_v: Float | None = optional(
         'truth',

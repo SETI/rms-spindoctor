@@ -44,10 +44,13 @@ from dataclasses import dataclass
 from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, Int, Positive, PositiveInt, RuleError, Str
 from spindoctor.sim.scene.declare import EditorHint, NonEmptyStr, optional, required
 
-__all__ = ['CURRENT_SCHEMA_VERSION', 'IdealizedScene']
+__all__ = ['CURRENT_SCHEMA_VERSION', 'DEFAULT_EXPOSURE_SEC', 'IdealizedScene']
 
 #: The scene format version every scene is written in.
 CURRENT_SCHEMA_VERSION: int = 2
+
+#: The exposure time, in seconds, of a scene that leaves ``exposure_sec`` out.
+DEFAULT_EXPOSURE_SEC = 1.0
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -97,9 +100,11 @@ class IdealizedScene:
     )
     exposure_sec: Positive | None = optional(
         'idealized',
-        'The exposure time, in seconds. It scales the charge the detector collects and '
-        'the counts of cosmic rays, radiation transients, and bright-dark pairs.',
-        default=1.0,
+        "The exposure time, in seconds. It scales each star's flux and the counts of "
+        'cosmic rays, radiation transients, and bright-dark pairs. On the CCD chain it '
+        'also scales the charge from extended sources, as a ratio to the reference '
+        'exposure, and the charge from the dark current.',
+        default=DEFAULT_EXPOSURE_SEC,
         editor=EditorHint(minimum=0.001, maximum=100000.0, decimals=3),
     )
     midtime_utc: Str | None = optional(

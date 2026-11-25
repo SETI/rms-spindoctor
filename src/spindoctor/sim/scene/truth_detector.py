@@ -42,12 +42,24 @@ from spindoctor.sim.instruments.schema_detector import (
     SignalFullScaleFrac,
 )
 from spindoctor.sim.scene.declare import EditorHint, IntWithin, optional
+from spindoctor.sim.scene.fields import DEFAULT_BINNING
 
-__all__ = ['CONTOUR_STEP_MAX', 'ContourStep', 'DetectorOverride', 'Noise', 'NoiseVidicon']
+__all__ = [
+    'CONTOUR_STEP_MAX',
+    'DEFAULT_CONTOUR_STEP',
+    'ContourStep',
+    'DetectorOverride',
+    'Noise',
+    'NoiseVidicon',
+]
 
 #: The largest step of the ``contour_8bit`` quantization: the top code of the 8-bit
 #: word it posterizes.
 CONTOUR_STEP_MAX = 255
+
+#: The DN step of the ``contour_8bit`` quantization when a scene leaves
+#: ``detector.contour_step`` out.
+DEFAULT_CONTOUR_STEP = 8
 
 #: The DN step of the ``contour_8bit`` quantization.
 ContourStep = Annotated[Int, AfterValidator(IntWithin(1, CONTOUR_STEP_MAX))]
@@ -193,8 +205,10 @@ class DetectorOverride:
     binning: PositiveInt | None = optional(
         'truth',
         'The readout mode: each frame pixel sums a block of this many native pixels on '
-        "a side. The camera's instrument entry lists its readout modes.",
-        default=1,
+        "a side. The camera's instrument entry lists its readout modes. It is the one "
+        "detector value the navigator's view carries, as its top-level ``binning``, "
+        "because a real frame's label states its readout mode.",
+        default=DEFAULT_BINNING,
     )
     detector_model: DetectorModel | None = optional(
         'truth',
@@ -250,7 +264,7 @@ class DetectorOverride:
     contour_step: ContourStep | None = optional(
         'truth',
         'The DN step of the ``contour_8bit`` quantization. Only that quantization reads it.',
-        default=8,
+        default=DEFAULT_CONTOUR_STEP,
     )
     missing_data_rate: MissingDataRate | None = optional(
         'truth',

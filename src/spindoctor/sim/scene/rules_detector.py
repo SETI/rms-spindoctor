@@ -120,10 +120,10 @@ def _check_downlink_table_ceiling(
 ) -> None:
     """Refuse a companded frame whose downlink table decodes above the ADC ceiling.
 
-    The quantizer snaps each DN, already clipped at the ceiling, to the nearest decoded
-    value, so a level above the ceiling would put DN in the frame that the ADC can never
-    produce.  The ceiling is the block's ``saturation_dn``, else the camera's.  Only the
-    ``sqrt_lut`` quantization decodes through a table.
+    The rule is the table's own, which the detector stage applies too:
+    :meth:`~spindoctor.sim.instruments.schema.DownlinkTable.check_ceiling`.  The
+    ceiling is the block's ``saturation_dn``, else the camera's.  Only the ``sqrt_lut``
+    quantization decodes through a table.
     """
     defaults = resolve_detector_defaults(instrument, detector.binning or 1)
     if (detector.quantization or defaults.quantization) != 'sqrt_lut':
@@ -132,10 +132,10 @@ def _check_downlink_table_ceiling(
     if table is None:
         return
     saturation_dn = detector.saturation_dn or defaults.saturation_dn
-    top_dn = table.top_decoded_dn()
-    if top_dn > saturation_dn:
+    try:
+        table.check_ceiling(saturation_dn)
+    except ValueError as exc:
         raise SimSceneValidationError(
-            f'{source}: detector.saturation_dn {saturation_dn:g}: the downlink table decodes '
-            f'up to {top_dn:g} DN, above the ADC ceiling (saturation_dn) of {saturation_dn:g} '
-            f'DN; raise the ceiling or choose another downlink table'
-        )
+            f'{source}: detector.saturation_dn {saturation_dn:g}: {exc}; raise the ceiling '
+            f'or choose another downlink table'
+        ) from exc

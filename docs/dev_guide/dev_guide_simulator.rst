@@ -1308,10 +1308,11 @@ sends ``codes`` codes (256 for an 8-bit code word), and code ``c`` decodes to
 ``whole_dn`` is set. A tabulated table lists the DN each code decodes to, in
 code order, under ``decoded_dn``, so a curve of any shape takes an instrument entry
 and no code; the load requires at least two distinct values, none of them
-negative. When a frame is companded through a listed table, the detector
-resolver refuses a table whose largest decoded value lies above the ADC ceiling,
-``saturation_dn``, because the quantizer would then write DN the ADC can't
-produce. If a camera's entry lists no table, the camera gets the plain
+negative. When a frame is companded through a listed table, the scene validator
+and the detector resolver both refuse a table whose largest decoded value lies
+above the ADC ceiling, ``saturation_dn``, because the quantizer would then write DN
+the ADC can't produce. Both apply the table's own rule,
+:meth:`~spindoctor.sim.instruments.schema.DownlinkTable.check_ceiling`. If a camera's entry lists no table, the camera gets the plain
 square-root curve over 256 codes, whose top code decodes to ``saturation_dn``:
 ``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
 kept.
