@@ -51,6 +51,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         StarsSection,
         TitanSection,
     )
+    from spindoctor.config.sections_products import BackplanesSection, Pds4Section
     from spindoctor.nav_technique.confidence_config import TechniquesSection
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
@@ -241,8 +242,6 @@ class Config:
         self._typed_origins: dict[KeyPath, str] = {}
         self._config_body_shape: dict[str, Any] = AttrDict({})
         self._config_rings: dict[str, Any] = AttrDict({})
-        self._config_backplanes: dict[str, Any] = AttrDict({})
-        self._config_pds4: dict[str, Any] = AttrDict({})
 
     @property
     def is_loaded(self) -> bool:
@@ -271,8 +270,6 @@ class Config:
         self._category_cache = {}
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
         self._config_rings = AttrDict(self._config_dict.get('rings', {}))
-        self._config_backplanes = AttrDict(self._config_dict.get('backplanes', {}))
-        self._config_pds4 = AttrDict(self._config_dict.get('pds4', {}))
 
     def _install(
         self,
@@ -604,12 +601,12 @@ class Config:
             The sections parsed when the configuration was installed.
 
         Raises:
-            RuntimeError: If the configuration is read but holds no parsed sections.
+            RuntimeError: If the configuration is read but its sections were not parsed.
         """
 
         self.read_config()
         if self._sections is None:
-            raise RuntimeError('the configuration is read but holds no parsed sections')
+            raise RuntimeError('the configuration is read but its sections were not parsed')
         return self._sections
 
     @property
@@ -635,18 +632,30 @@ class Config:
         return self._typed_sections().results_tree
 
     @property
-    def backplanes(self) -> Any:
-        """Returns backplanes configuration, including bodies, rings, and target LIDs."""
+    def backplanes(self) -> BackplanesSection:
+        """Returns the backplanes section: the planes each image gets, and their targets.
+
+        The section is parsed when the configuration is installed, so every value has
+        been checked against its type.
+        """
 
         self.read_config()
-        return self._config_backplanes
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but its sections were not parsed')
+        return self._sections.backplanes
 
     @property
-    def pds4(self) -> Any:
-        """Returns PDS4 bundle generation configuration."""
+    def pds4(self) -> Pds4Section:
+        """Returns the pds4 section: each PDS4 bundle's settings, keyed by its bundle key.
+
+        Its :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` method gives
+        one bundle's entry.
+        """
 
         self.read_config()
-        return self._config_pds4
+        if self._sections is None:
+            raise RuntimeError('the configuration is read but its sections were not parsed')
+        return self._sections.pds4
 
 
 DEFAULT_CONFIG = Config()

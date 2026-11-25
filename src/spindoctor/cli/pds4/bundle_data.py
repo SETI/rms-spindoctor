@@ -259,7 +259,7 @@ def generate_bundle_data_files(
         # The copy made below is byte-identical, so the source's description is the copy's.
         fits_objects = describe_backplane_fits(
             fits_source_local,
-            masked_value=float(dataset.config.backplanes.masked_value),
+            masked_value=dataset.config.backplanes.masked_value,
             methods=configured_methods(dataset.config),
         )
 

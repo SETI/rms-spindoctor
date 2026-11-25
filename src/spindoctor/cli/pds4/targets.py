@@ -70,10 +70,7 @@ def target_table(config: Config) -> dict[str, Pds4Target]:
     """
     return {
         key: Pds4Target(
-            lid=entry['lid'],
-            version=str(entry['version']),
-            name=entry['name'],
-            target_type=entry['type'],
+            lid=entry.lid, version=entry.version, name=entry.name, target_type=entry.type
         )
         for key, entry in config.backplanes.target_lids.items()
     }

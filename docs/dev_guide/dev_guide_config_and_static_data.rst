@@ -151,6 +151,17 @@ returns the typed object:
   accepts is known only when the program runs; see :doc:`dev_guide_logging`.
 - ``techniques`` — one block per technique the package ships: its confidence formula
   and its tuning (see :ref:`config-techniques-section`).
+- ``backplanes`` — :class:`~spindoctor.config.sections_products.BackplanesSection`,
+  holding the body and ring planes, the ring incidence angle, the masked value, and
+  ``target_lids``; see :doc:`dev_guide_backplanes`. ``target_lids`` maps each body
+  and ring system to its PDS4 target. Its keys are SPICE names in upper case, and the
+  loader refuses a key that is not.
+- ``pds4`` — one :class:`~spindoctor.config.sections_products.Pds4Bundle` per bundle.
+  As with the ``techniques`` section, its type is built from a registry. Each
+  registered dataset class that sets ``PDS4_CONFIG_KEY`` adds one optional field under
+  that key, and the loader refuses an entry under any other key.
+  :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` returns one bundle's
+  entry; see :doc:`dev_guide_pds4`.
 
 Three mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
 and ``feature_emission.ring_annulus.planets``. Each of their keys must be a planet of
@@ -266,10 +277,11 @@ removal. The shipping sections:
   technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``); a typed
   section. See :doc:`dev_guide_navigation_models_titan` and
   :doc:`dev_guide_techniques_titan_haze`.
-- ``backplanes`` — the list of body and ring backplanes to generate; see
-  :doc:`dev_guide_backplanes`.
-- ``pds4`` — per-dataset PDS4 template directories and bundle names; see
-  :doc:`dev_guide_pds4`.
+- ``backplanes`` — the body and ring backplanes to generate, and the PDS4 target of
+  each body and ring system; a typed section (see :ref:`config-typed-sections`)
+  described in :doc:`dev_guide_backplanes`.
+- ``pds4`` — each bundle's template directory, name, version, and schemas; a typed
+  section (see :ref:`config-typed-sections`) described in :doc:`dev_guide_pds4`.
 - ``body_shape`` — static per-body shape catalog (see
   :ref:`static-data-citations` below).
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
