@@ -31,9 +31,10 @@ exposure_sec: 0.1
 #
 # The simulator has no ICT codec (#920); compression_dct, which steps every
 # frequency alike, stands in for it, and its step is illustrative.  4 DN is the
-# largest step tried (2, 4, 8, 16) that keeps block edges inside the disc no
-# sharper than the inside of the blocks (1.01 times), as on C0401785378R (1.00);
-# 8 DN gives 1.68.
+# largest step tried (2, 4, 8, 16) that keeps the contrast across block edges
+# inside the disc close to the contrast inside the blocks: 1.02 times as large on
+# the committed draw and 0.98 to 1.00 on three noise draws, against 0.95 to 0.98
+# without the compression, as on C0401785378R (1.00).  8 DN gives 1.52 to 1.69.
 #
 # The exposure is scaled to the simulator's brightness scale (#895): at 0.1 s the
 # middle of a Lambert disc read a median 102 DN, where the real disc reads 128 DN.

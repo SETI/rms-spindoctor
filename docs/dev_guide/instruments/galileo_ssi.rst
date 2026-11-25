@@ -386,12 +386,13 @@ edge. The three moon-filled frames the scene follows each lost one band of 3 or 
 slices.
 
 The simulator has no model of the lossy codec, so the scene uses the generic one
-with a step of 4 DN, which leaves block edges no sharper than the inside of the
-blocks, as on the real frame the disc follows. The simulator also cannot plant
-exactly one band of slices that starts on any slice. The scene loses whole bands
-of three slices on a 24-line grid instead, a random number of them with one
-expected, so some seeds lose none and some lose two. On the committed seed one
-band crosses the middle of the disc.
+with a step of 4 DN. That step keeps the contrast across block edges inside the
+disc close to the contrast inside the blocks (0.98 to 1.02 times as large), as on
+the real frame the disc follows (1.00); a step of 8 DN raises it to 1.5 to 1.7. The
+simulator also cannot plant exactly one band of slices that starts on any slice.
+The scene loses whole bands of three slices on a 24-line grid instead, a random
+number of them with one expected, so some seeds lose none and some lose two. On the
+committed seed one band crosses the middle of the disc.
 
 The scene plants a 260 px offset and the camera's twist. The fused answer lands
 0.26 to 0.30 px off over 24 draws, all at medium confidence, toward the Sun, where
