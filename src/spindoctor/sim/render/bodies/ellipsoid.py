@@ -334,7 +334,7 @@ def render_ellipsoid_body(
             work_grid = _project_box(size, center, spec, anti_aliasing=anti_aliasing)
         # Only the boolean silhouette is held through the shading; the float mask is
         # built after it, which keeps the shading's peak memory down.
-        inside = silhouette_mask(work_grid, field) > 0.0
+        inside = silhouette_mask(work_grid, field)
         intensity_work = _shade_disc(
             work_grid,
             shading_spec,
@@ -475,7 +475,7 @@ def _shade_body_box(
     work_cols = slice(cols.start * up_factor, cols.stop * up_factor)
     # Only the boolean silhouette is held through the shading; the float mask is
     # built after it, which keeps the shading's peak memory down.
-    inside = silhouette_mask(work_box, field) > 0.0
+    inside = silhouette_mask(work_box, field)
     shaded = _shade_disc_with_detector_detail(
         work_box,
         detector_grid,
@@ -559,7 +559,8 @@ def _apply_law(
 
     Parameters:
         cos_i: Incidence cosine per pixel (negative on the night side).
-        normal_z: The normal's toward-observer component per pixel.
+        normal_z: The normal's toward-observer component per pixel.  It is clamped in
+            place, which saves a working-grid array; the callers read it no further.
         spec: The body spec (law, Minnaert exponent, and surge are read).
 
     Returns:
@@ -567,7 +568,7 @@ def _apply_law(
     """
     return shade_surface(
         cos_i,
-        np.maximum(normal_z, 1e-12),
+        np.maximum(normal_z, 1e-12, out=normal_z),
         law=spec.photometric_law,
         phase_angle=spec.phase_angle,
         minnaert_k=spec.minnaert_k,
@@ -637,7 +638,7 @@ def _shade_disc(
     if shadowed is not None:
         # A cast shadow is night: the law renders it black like the far side of
         # the terminator.
-        cos_i = np.where(shadowed, -1.0, cos_i)
+        np.copyto(cos_i, -1.0, where=shadowed)
     intensity = _apply_law(cos_i, normal_z, spec)
     factor = _texture_factor(grid, spec, scale=scale)
     return _apply_surface_textures(intensity, grid, spec, field, factor=factor, scale=scale)
@@ -734,7 +735,7 @@ def _shade_disc_with_detector_detail(
         phase_angle=spec.phase_angle,
     )
     if band_shadowed is not None:
-        cos_i = np.where(band_shadowed, -1.0, cos_i)
+        np.copyto(cos_i, -1.0, where=band_shadowed)
     intensity = _apply_law(cos_i, normal_z, spec)
     # The texture factor is cheap to evaluate, and its spots and storms have sharp
     # edges, so it is evaluated on the working grid, where a sampled edge cannot
@@ -815,7 +816,7 @@ def _apply_surface_textures(
             base_intensity=intensity,
             v_ctr=grid.v_coords / scale,
             u_ctr=grid.u_coords / scale,
-            disc_mask=silhouette_mask(grid, field) > 0.0,
+            disc_mask=silhouette_mask(grid, field),
         )
     return textured
 

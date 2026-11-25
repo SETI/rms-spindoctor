@@ -167,27 +167,33 @@ def shade_surface(
 
     visible = np.greater(cos_emission, 0.0)
     mu0 = np.clip(cos_incidence, 0.0, 1.0)
-    mu = np.clip(cos_emission, 0.0, 1.0)
 
     if law == 'lambert':
         intensity = mu0
-    elif law == 'lommel_seeliger':
-        intensity = _lommel_seeliger(mu0, mu)
-    elif law == 'minnaert':
-        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
-            intensity = np.where(mu > 0.0, mu0**minnaert_k * mu ** (minnaert_k - 1.0), 0.0)
-        intensity = np.minimum(np.nan_to_num(intensity, nan=0.0), MINNAERT_CEILING)
-    else:  # lunar_lambert
-        blend = _lunar_lambert_blend(phase_angle)
-        intensity = blend * _lommel_seeliger(mu0, mu) + (1.0 - blend) * mu0
+    else:
+        mu = np.clip(cos_emission, 0.0, 1.0)
+        if law == 'lommel_seeliger':
+            intensity = _lommel_seeliger(mu0, mu)
+        elif law == 'minnaert':
+            with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+                intensity = np.where(mu > 0.0, mu0**minnaert_k * mu ** (minnaert_k - 1.0), 0.0)
+            intensity = np.minimum(np.nan_to_num(intensity, nan=0.0), MINNAERT_CEILING)
+        else:  # lunar_lambert
+            blend = _lunar_lambert_blend(phase_angle)
+            intensity = blend * _lommel_seeliger(mu0, mu) + (1.0 - blend) * mu0
 
-    # where(visible, intensity * surge, 0), built in a new array, which leaves mu0 alone
-    # (it is the Lambert law's intensity) and matches that expression to the last bit,
-    # and in shape and type.
-    shaded = np.multiply(
+    # where(visible, intensity * surge, 0), which this matches to the last bit, and in
+    # shape and type.  The intensity is a new array this call made, read nowhere after,
+    # so it is built there when it has the result's shape; else in a new array.
+    shaded = intensity
+    if not isinstance(intensity, np.ndarray) or intensity.shape != np.broadcast_shapes(
+        intensity.shape, visible.shape
+    ):
+        shaded = result_array(intensity, visible)
+    np.multiply(
         intensity,
         surge_factor(phase_angle, amplitude=surge_amplitude, width_deg=surge_width_deg),
-        out=result_array(intensity, visible),
+        out=shaded,
     )
     np.copyto(shaded, 0.0, where=np.logical_not(visible))
     return shaded

@@ -366,6 +366,68 @@ def surface_normals(
     Returns:
         ``(normal_v, normal_u, normal_z)`` in image coordinates.
     """
+    first = v_rot
+    if not (
+        isinstance(first, np.ndarray)
+        and first.ndim == 2
+        and first.shape[0] > _STRIP_ROWS
+        and all(
+            isinstance(other, np.ndarray) and other.shape == first.shape
+            for other in (u_rot, ellipse_dist_sq)
+        )
+    ):
+        return _normals_block(
+            v_rot, u_rot, ellipse_dist_sq, geometry=geometry, cos_rz=cos_rz, sin_rz=sin_rz
+        )
+    # A large grid is worked a strip of rows at a time, so the intermediate arrays
+    # stay a strip in size and only the three results are grid-sized.  Each pixel is
+    # computed on its own, so the strips give the same bits as one pass.
+    normals: tuple[NDArrayFloatType, ...] = ()
+    for start in range(0, first.shape[0], _STRIP_ROWS):
+        rows = slice(start, start + _STRIP_ROWS)
+        block = _normals_block(
+            v_rot[rows],
+            u_rot[rows],
+            ellipse_dist_sq[rows],
+            geometry=geometry,
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+        )
+        if not normals:
+            normals = tuple(np.empty(first.shape, dtype=part.dtype) for part in block)
+        for normal, part in zip(normals, block, strict=True):
+            normal[rows] = part
+    return normals[0], normals[1], normals[2]
+
+
+# Grid rows worked at a time where a large grid is built a strip at a time: a
+# strip's temporaries stay well under the size at which a new array costs more
+# than its arithmetic.
+_STRIP_ROWS = 128
+
+
+def _normals_block(
+    v_rot: NDArrayFloatType,
+    u_rot: NDArrayFloatType,
+    ellipse_dist_sq: NDArrayFloatType,
+    *,
+    geometry: EllipsoidGeometry,
+    cos_rz: float,
+    sin_rz: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """:func:`surface_normals` over a block of pixels, or at scalars.
+
+    Parameters:
+        v_rot: Each pixel's coordinate along the rotated first axis, in pixels.
+        u_rot: Each pixel's coordinate along the rotated second axis, in pixels.
+        ellipse_dist_sq: Each pixel's squared normalized outline distance.
+        geometry: The ellipsoid's shape and orientation.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+
+    Returns:
+        ``(normal_v, normal_u, normal_z)`` in image coordinates.
+    """
     # The arrays are built in place wherever this call owns them: the image side
     # evaluates the normals over a large body on an oversampled grid, where a fresh
     # temporary costs more than its arithmetic.  Every step is the IEEE operation of
@@ -516,14 +578,15 @@ def project_ellipsoid(
     u_rot = (v_axis * sin_rz)[:, np.newaxis] + (u_axis * cos_rz)[np.newaxis, :]
 
     # The projected outline is the ellipse (v_rot/a_outline)^2 + (u_rot/b)^2 = 1.
-    # Built in place, which gives the same bits as the plain expression with three
-    # fewer grid-sized temporaries.
+    # Built in place, the second term a strip of rows at a time, which gives the same
+    # bits as the plain expression with no grid-sized temporary.
     ellipse_dist_sq = v_rot / semi_a_outline
     np.square(ellipse_dist_sq, out=ellipse_dist_sq)
-    across = u_rot / semi_b
-    np.square(across, out=across)
-    ellipse_dist_sq += across
-    del across
+    for start in range(0, shape[0], _STRIP_ROWS):
+        rows = slice(start, start + _STRIP_ROWS)
+        across = u_rot[rows] / semi_b
+        np.square(across, out=across)
+        ellipse_dist_sq[rows] += across
 
     return EllipsoidProjection(
         aa_scale=aa_scale,
