@@ -29,7 +29,7 @@ from spindoctor.sim.render.bodies.photometry import (
     incidence_cosines,
     shade_surface,
 )
-from spindoctor.sim.render.bodies.placement import BodyCoverage, uncovered_fraction
+from spindoctor.sim.render.bodies.placement import BodyCoverage, UncoveredFraction
 from spindoctor.sim.render.rings.photometry import ring_reflection_factor
 from spindoctor.sim.render.rings.profiles import FeatureBoundaries, feature_tau
 from spindoctor.sim.render.rings.render import _GRID_STRIP_ROWS, _ring_plane_grid
@@ -343,23 +343,31 @@ def test_ellipse_distance_is_its_plain_expression() -> None:
 
 
 def test_starlight_scaled_over_the_covered_box_is_the_whole_frame_scaled() -> None:
-    """Scaling starlight over the bodies' box gives the frame of transmissions' bits."""
+    """Scaling starlight over the bodies' growing box gives the frame of transmissions' bits.
+
+    The bodies cover nothing, then a box, then a box reaching past it above, below, and
+    to the left, then a box inside the grown one.
+    """
     frame = _decimal(0.0, 9.0, (40, 37), seed=9)
     coverages = [
+        BodyCoverage(box_v=slice(0, 0), box_u=slice(0, 0), coverage=np.zeros((0, 0))),
         BodyCoverage(
             box_v=slice(3, 20), box_u=slice(5, 30), coverage=_decimal(0, 1, (17, 25), seed=10)
         ),
         BodyCoverage(
-            box_v=slice(12, 35), box_u=slice(2, 18), coverage=_decimal(0, 1, (23, 16), seed=11)
+            box_v=slice(1, 35), box_u=slice(2, 18), coverage=_decimal(0, 1, (34, 16), seed=11)
         ),
-        BodyCoverage(box_v=slice(0, 0), box_u=slice(0, 0), coverage=np.zeros((0, 0))),
+        BodyCoverage(
+            box_v=slice(8, 30), box_u=slice(4, 25), coverage=_decimal(0, 1, (22, 21), seed=12)
+        ),
     ]
     transmission = np.ones(frame.shape)
+    uncovered = UncoveredFraction()
     for coverage in coverages:
         transmission[coverage.box_v, coverage.box_u] *= coverage.transmission
-    box, fraction = uncovered_fraction(coverages)
+        uncovered.multiply(coverage)
     scaled = frame.copy()
-    scaled[box] *= fraction
+    scaled[uncovered.box] *= uncovered.fraction
     _assert_identical(scaled, frame * transmission)
 
 

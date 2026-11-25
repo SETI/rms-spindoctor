@@ -33,7 +33,6 @@ laid out, so the margin changes no pixel of the frame.
 """
 
 import math
-from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any
@@ -48,11 +47,11 @@ __all__ = [
     'PARTIAL_DRAWINGS_KEPT',
     'BodyCanvas',
     'BodyCoverage',
+    'UncoveredFraction',
     'body_canvas',
     'composite_halo',
     'finish_single_body',
     'finish_unseen_body',
-    'uncovered_fraction',
 ]
 
 # Detector pixels a canvas keeps beyond the part of the body the frame reads.  The
@@ -108,39 +107,60 @@ class BodyCoverage:
         return uncovered
 
 
-def uncovered_fraction(
-    coverages: Sequence[BodyCoverage],
-) -> tuple[tuple[slice, slice], NDArrayFloatType]:
+class UncoveredFraction:
     """The fraction of each pixel no body covers, over the box the bodies cover.
 
-    The fraction is the product of the bodies' transmissions, multiplied in the order
-    given into an array of ones, and is exactly 1 outside the box, where a multiply
-    by it leaves any value as it is.  Only the box is built, which on a frame with
-    small bodies is far less than the frame.
-
-    Parameters:
-        coverages: The bodies' coverages, in the order they are multiplied.
-
-    Returns:
-        The box's rows and columns on the frame, and the box-sized fraction; an empty
-        box when no body covers any pixel.
+    The fraction is the product of the bodies' transmissions, multiplied into an array
+    of ones in the order the bodies are placed, and is exactly 1 outside the box, where
+    a multiply by it leaves any value as it is.  Only the box is built, which on a
+    frame with small bodies is far less than the frame.  The box grows to take in each
+    body's box as that body is multiplied in, so no body's coverage is kept after it.
     """
-    covering = [
-        coverage
-        for coverage in coverages
-        if coverage.box_v.stop > coverage.box_v.start and coverage.box_u.stop > coverage.box_u.start
-    ]
-    if not covering:
-        return (slice(0, 0), slice(0, 0)), np.ones((0, 0), dtype=np.float64)
-    rows = slice(min(c.box_v.start for c in covering), max(c.box_v.stop for c in covering))
-    cols = slice(min(c.box_u.start for c in covering), max(c.box_u.stop for c in covering))
-    fraction = np.ones((rows.stop - rows.start, cols.stop - cols.start), dtype=np.float64)
-    for coverage in covering:
-        fraction[
+
+    box: tuple[slice, slice]
+    """The box's rows and columns on the frame; empty while no body covers any pixel."""
+
+    fraction: NDArrayFloatType
+    """The box-sized fraction."""
+
+    def __init__(self) -> None:
+        """Start with no body: an empty box."""
+        self.box = (slice(0, 0), slice(0, 0))
+        self.fraction = np.ones((0, 0), dtype=np.float64)
+
+    def multiply(self, coverage: BodyCoverage) -> None:
+        """Multiply one body's transmission in, after those of the bodies before it.
+
+        Parameters:
+            coverage: The body's coverage.
+        """
+        box_v, box_u = coverage.box_v, coverage.box_u
+        if box_v.stop <= box_v.start or box_u.stop <= box_u.start:
+            return
+        rows, cols = self.box
+        if rows.stop <= rows.start:
+            self.box = (box_v, box_u)
+            self.fraction = np.ones((box_v.stop - box_v.start, box_u.stop - box_u.start))
+        elif not (
+            rows.start <= box_v.start
+            and box_v.stop <= rows.stop
+            and cols.start <= box_u.start
+            and box_u.stop <= cols.stop
+        ):
+            # The pixels the box takes in hold 1, as a frame of ones would.
+            grown_v = slice(min(rows.start, box_v.start), max(rows.stop, box_v.stop))
+            grown_u = slice(min(cols.start, box_u.start), max(cols.stop, box_u.stop))
+            grown = np.ones((grown_v.stop - grown_v.start, grown_u.stop - grown_u.start))
+            grown[
+                rows.start - grown_v.start : rows.stop - grown_v.start,
+                cols.start - grown_u.start : cols.stop - grown_u.start,
+            ] = self.fraction
+            self.box, self.fraction = (grown_v, grown_u), grown
+        rows, cols = self.box
+        self.fraction[
             coverage.box_v.start - rows.start : coverage.box_v.stop - rows.start,
             coverage.box_u.start - cols.start : coverage.box_u.stop - cols.start,
         ] *= coverage.transmission
-    return (rows, cols), fraction
 
 
 @dataclass(frozen=True)
