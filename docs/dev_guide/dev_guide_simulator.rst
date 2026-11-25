@@ -554,9 +554,13 @@ What it cannot do
 - **Fix the gaps it exposes.** A known-error check is evidence, not
   mitigation. Closing the gap it documents requires ensemble work (consuming
   declared model-error bars, cross-technique vetoes). The body-witness veto
-  closes the shape-mismatch and haze-crescent modes; the remaining hazard under
-  a known-error check (the ring planted-orbit-error lock) stands until its own
-  fix lands (see the ensemble chapter, :doc:`dev_guide_orchestrator_ensemble`).
+  closes the shape-mismatch mode. It does not close the haze modes. In
+  ``titan_crescent_horns`` the disc correlation returns a low-tier success
+  2.40 px wrong and does not flag it spurious, so the veto has nothing to read.
+  In ``titan_haze_limb`` the ensemble returns a medium-tier success 7.35 to
+  7.54 px wrong. These two, the ring planted-orbit-error lock, and the other
+  hazards under a known-error check (:ref:`sim-expected`) stand until their own
+  fixes land (see the ensemble chapter, :doc:`dev_guide_orchestrator_ensemble`).
 - **Transfer its calibration to real frames by itself.** That path runs
   through the sidecar re-ratchet and a pre-stated transfer criterion (the
   proposed transfer watch in ``util/calibration/CAMPAIGN_20260718.md``), not
@@ -3109,6 +3113,8 @@ the similarity relations: its H-functions take the albedo
 function ``(1 - g2_fraction) * HG(g) + g2_fraction * HG(g2)``, whose mean cosine
 is the same mix of ``g`` and ``g2``.
 
+.. _sim-titan-haze:
+
 **Titan's haze.** Instead of the column's keys, a block may say
 ``haze_model: titan``. The body then takes Titan's published haze, defined once
 in ``titan_haze.py`` as a property of the body and a function of wavelength:
@@ -4911,9 +4917,11 @@ together with ``exposure_ref_sec``.
 
 A scene that doesn't name a filter keeps the nominal scale its instrument entry
 derives. For the NAC that is 55,000 e-/s per I/F, close to its IR3 and HAL filters; for
-the WAC it is 47,500, close to its MT3 filter. The throughput is the only part of the
-rendering that depends on the filter. Haze, body photometry, star color, and the PSF render
-the same for every filter.
+the WAC it is 47,500, close to its MT3 filter. The filter also sets the haze of a body
+whose atmosphere block sets ``haze_model: titan``: the filter's passband sets that haze's
+optical depth, albedo, and phase function (see :ref:`Titan's haze <sim-titan-haze>`). A
+haze whose block sets its own keys does not depend on the filter, and neither do body
+photometry, star color, or the PSF.
 
 ``binning`` selects a binned or summed readout mode, 1 by default: each frame
 pixel sums a ``b`` by ``b`` block of native pixels. Each instrument entry's
