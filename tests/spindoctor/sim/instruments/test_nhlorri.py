@@ -21,7 +21,7 @@ _REAL_SHARE_BELOW = 1.937e-3
 _SHARE_TOLERANCE = 0.03
 
 # The camera's extra integration time, as its entry states it.
-_EXTRA_INTEGRATION_SEC = 7.05e-4
+_EXTRA_INTEGRATION_SEC = 6.3e-4
 
 _DISC_COLUMNS = slice(490, 535)
 
@@ -101,7 +101,7 @@ def test_a_star_collects_light_for_the_exposure_plus_the_extra_time() -> None:
 
     The unblurred star lands in a few pixels of a few hundred DN each, whose rounding to
     whole DN allows the looser tolerance; leaving out the extra time moves the ratio by
-    6.6%.
+    5.9%.
     """
     star = {'bodies': [], 'stars': [{'name': 'S1', 'v': 600.0, 'u': 600.0, 'vmag': 2.5}]}
     ratio = _signal_dn(_scene(0.010, **star)) / _signal_dn(_scene(0.005, **star))

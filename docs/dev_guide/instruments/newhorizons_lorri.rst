@@ -304,30 +304,39 @@ column takes the mean of the wave over the native columns it holds. The entry's
 shape defaults give ``embedded_header`` a 34-pixel header, the binary housekeeping at the
 start of row 0 of every image.
 
-**Frame transfer and integration time.** Both were measured on raw frames. The
-camera collects light for 0.705 ms beyond the commanded exposure, which the entry
-states as ``extra_integration_sec``, and its two frame transfers last 12.35 and
-11.31 ms. On 21 unsaturated full-resolution frames of Io, Europa, Ganymede, Callisto,
-Charon, and Pluto, taken at 3 to 150 ms, each row above or below a bright source
-carries a share of its column's charge. Those shares fit a fixed transfer time
-spread over 1,024 rows and divided by the exposure plus 0.705 ms, to within 0.14 ms.
+**Frame transfer and integration time.** Both were measured on raw frames. In a raw
+frame, each row above or below a bright source carries a share of its column's
+charge, the frame-transfer smear. That share is a fixed transfer time spread over
+1,024 rows and divided by the time the frame collects light. The fit uses 14
+unsaturated full-resolution frames of Io, Europa, Ganymede, and Callisto, taken at 3
+to 16 ms, whose smear is 34 to 510 DN in each row. It gives a mean transfer time of
+11.66 ms and 0.63 ms of collected light beyond the commanded exposure, with
+residuals of at most 0.09 ms. Leaving out any one frame moves the extra time between
+0.61 and 0.64 ms. The entry states the extra time as ``extra_integration_sec``.
+
+Four Charon frames taken at 100 and 150 ms carry only 2 to 5 DN of smear in each
+row, so a sky error of 0.1 DN moves them by 2% to 5%. They read 1% to 3% above the
+fit. Fitting them too gives an extra time of 0.70 ms and a transfer time of 11.83 ms,
+so the extra time lies between 0.6 and 0.7 ms.
+
 Three pairs of Europa frames taken at 5 and 10 ms show the same smear in DN, within
 0.4%, while the exposure doubles. So the transfer time stays fixed, and the extra
-time is light the frame collects. The pipeline's desmear times for short exposures
-show the same effect: the SOC-to-Instrument Pipeline ICD gives 7.1, 8.75, 9.65, and
-10.5 ms at 1, 2, 3, and 6 ms, and the fit gives 6.94, 8.75, 9.58, and 10.59 ms. The
-ICD's 10.7 ms for nominal exposures is below the 11.6 to 11.9 ms that frames at 100
-to 150 ms show, and the reason is not known.
+time is light the frame collects. The 10 ms frames, measured on their unsaturated
+edge columns and left out of the fit, match it within 0.2%. The pipeline's desmear
+times for short exposures show the same effect: the SOC-to-Instrument Pipeline ICD
+gives 7.1, 8.75, 9.65, and 10.5 ms at 1, 2, 3, and 6 ms, and the fit gives 7.16,
+8.87, 9.64, and 10.55 ms. The ICD's 10.7 ms for nominal exposures is below the
+11.6 ms that the fit gives at 100 ms, and the reason is not known.
 
-The rows above a source, toward line 0, carry the larger share. On every clean frame
-it is 1.092 times the share of the rows below, the ratio Cheng et al. (2008) give for
-the two transfers (1.044 and 0.956 of their mean). The entry gives the larger time to
-``t_transfer_sec``, which the simulator draws above the source, and the smaller to
-``t_scrub_sec``, which it draws below. Cheng et al. call the larger time the scrub.
-The frames show which side carries which share, but not which transfer causes it, so
-the key names say only where each time is drawn. A simulated 5 ms frame of a bright
-disc carries 2.12e-3 of its column's charge in each row above the disc and 1.94e-3
-in each row below it. The real frame lor_0034849319 carries 2.115e-3 and 1.937e-3.
+The rows above a source, toward line 0, carry the larger share. On the 14 frames it
+is 1.090 to 1.093 times the share of the rows below, and on the four Charon frames
+1.088 to 1.096. Cheng et al. (2008) give the two transfers as 1.044 and 0.956 of
+their mean, a ratio of 1.092, which splits the mean into 12.17 ms above the source
+and 11.15 ms below it. The simulator draws ``t_transfer_sec`` above the source, so
+the entry gives it the larger time, although Cheng et al. attribute the larger time
+to the scrub. A simulated 5 ms frame of a bright disc carries 2.106e-3 of its
+column's charge in each row above the disc and 1.936e-3 in each row below it. The
+real frame lor_0034849319 carries 2.115e-3 and 1.937e-3.
 
 The entry states an explicit **exclusion reason** for three modes:
 
