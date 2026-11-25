@@ -36,7 +36,7 @@ def _config_with(body_shape: dict[str, BodyShapeEntry]) -> Config:
 
 
 def test_lookup_known_body_no_entry_returns_table_entry() -> None:
-    """A known body that has no configured entry returns the hard-coded profile."""
+    """A known body without a configured entry returns the hard-coded profile."""
     config = _config_with({})
     assert load_body_shape('MIMAS', config=config) == BODY_SHAPE_TABLE['MIMAS']
 

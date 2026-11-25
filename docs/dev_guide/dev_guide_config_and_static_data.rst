@@ -592,7 +592,7 @@ AI agents drafting body-shape entries:
    of the entry and write
    ``'PLACEHOLDER — no source found, calibration pending'`` as its
    ``_sources`` entry. The body's built-in profile takes the place of a value
-   that is left out, and a body that has no built-in profile uses the generic one.
+   that is left out, and a body without a built-in profile uses the generic one.
 3. DOIs and paper titles must verify against a real
    ``https://doi.org/<DOI>`` lookup; agents do not invent identifiers.
 4. Any draft PR that lists a citation an AI agent invented (caught in human

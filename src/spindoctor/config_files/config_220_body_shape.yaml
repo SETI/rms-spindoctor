@@ -38,7 +38,7 @@
 #   feed sigma/reliability terms (not science products) and whose
 #   runtime fallbacks are themselves per-class estimates.
 #
-# albedo_mean is left out throughout: it has no runtime consumer, so the
+# albedo_mean is left out throughout: nothing at run time reads it, so the
 # type does not declare it and a value for it is refused at load.  Each
 # body's _sources entry for it says so.  Add it to the type and populate
 # it with cited values when a consumer materializes, following the
