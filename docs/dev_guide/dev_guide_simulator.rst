@@ -1982,7 +1982,9 @@ shows as many groups as it drew. When the clusters do not fit, the frame draws
 the sizes and gaps again, a few times, and then loses one group fewer. With a
 ``cluster_probability`` of 1, the default, every group falls on its own. With
 adversarial placement each cluster starts on a feature row instead, and clusters
-that overlap merge in the frame and stay separate in the truth record.
+that overlap merge in the frame and stay separate in the truth record. Each
+cluster must still fit between the frame's first and last lines, and a draw
+with a longer cluster counts as one that does not fit.
 
 With ``head_probability`` the line just above a group loses its end, and with
 ``tail_probability`` the line just below does. Such a line keeps a whole number of

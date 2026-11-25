@@ -561,7 +561,7 @@ def _group_layout(
     shows in it as a group of its own.  When the clusters do not fit, the frame
     redraws the sizes and gaps a few times, then loses one group fewer.  With
     ``rows`` each cluster starts on one of those rows instead, and clusters may
-    overlap.
+    overlap, but each cluster must still fit inside the frame's inner lines.
     """
     inner = size_v - 2
     count = min(count, (inner + 1) // 2)
@@ -571,6 +571,8 @@ def _group_layout(
             sizes = np.clip(np.rint(draws), 1, inner).astype(np.int64).tolist()
             clusters = _clusters(rng, sizes, cfg)
             lengths = [sum(members) + sum(gaps) for members, gaps in clusters]
+            if max(lengths) > inner:
+                continue
             if rows is not None:
                 starts: list[int] | None = _feature_starts(rng, lengths, rows, size_v)
             else:

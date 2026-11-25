@@ -309,6 +309,30 @@ def test_a_frame_too_small_for_its_draw_loses_fewer_groups() -> None:
     assert len(groups) == 10
 
 
+def test_an_adversarial_cluster_taller_than_the_frame_loses_groups() -> None:
+    """Three 800-line groups one line apart cannot start on a feature row of 1024 lines.
+
+    The cluster would run 2,402 lines, so the frame loses groups until one 800-line
+    group is left, and that group keeps the frame's last line.
+    """
+    scene_cfg = {
+        'probability': 1.0,
+        'mean_groups': 3.0,
+        'size_percentiles': [800.0] * 10,
+        'cluster_probability': 0.0,
+        'head_probability': 1.0,
+    }
+    cfg = resolve_mode_with_catalog('downlink_gaps', scene_cfg, 'generic')
+    signal = np.full((1024, 64), _FILL, dtype=np.float64)
+    rows = np.array([500], dtype=np.int64)
+    loci = FeatureLoci(rows=rows, pixel_v=rows, pixel_u=rows)
+    record = apply_downlink_gaps(
+        signal, cfg, marker_dn=0.0, rng=np.random.default_rng(2), loci=loci, adversarial=True
+    )
+    assert [g['row_end'] - g['row_start'] for g in record['groups']] == [800]
+    assert record['groups'][0]['row_end'] < 1024
+
+
 def test_a_summed_frame_draws_sizes_from_the_summed_table() -> None:
     """A 2x2-summed frame draws its group sizes from the summed table."""
     cfg = {
