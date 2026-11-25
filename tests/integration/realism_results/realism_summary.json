@@ -1,5 +1,5 @@
 {
-  "code_commit": "27dbe85cb9d97bc79d174fec0677d9dd8a671f7f",
+  "code_commit": "357b6d710a87df0fbb69722b38e2ae37b53a2841",
   "code_dirty": false,
   "instruments": {
     "coiss_calib_nac": {
@@ -129,7 +129,7 @@
           "n_sim": 2,
           "n_sim_frames": 2,
           "real_iqr": null,
-          "real_median": -0.0954759,
+          "real_median": -0.0558058,
           "sim_median": -0.0632446,
           "support": "limited",
           "w1": null,
@@ -141,7 +141,7 @@
           "n_sim": 2,
           "n_sim_frames": 2,
           "real_iqr": null,
-          "real_median": 0.497425,
+          "real_median": 0.505844,
           "sim_median": -0.115779,
           "support": "limited",
           "w1": null,
@@ -153,7 +153,7 @@
           "n_sim": 4,
           "n_sim_frames": 4,
           "real_iqr": null,
-          "real_median": 0.112985,
+          "real_median": 0.277351,
           "sim_median": -0.0910252,
           "support": "limited",
           "w1": null,
@@ -165,7 +165,7 @@
           "n_sim": 2,
           "n_sim_frames": 2,
           "real_iqr": null,
-          "real_median": -0.0572174,
+          "real_median": 0.0232404,
           "sim_median": -0.0452575,
           "support": "limited",
           "w1": null,
@@ -177,7 +177,7 @@
           "n_sim": 4,
           "n_sim_frames": 4,
           "real_iqr": null,
-          "real_median": -0.129271,
+          "real_median": 0.0283306,
           "sim_median": 0.0176199,
           "support": "limited",
           "w1": null,
@@ -201,7 +201,7 @@
           "n_sim": 1,
           "n_sim_frames": 1,
           "real_iqr": null,
-          "real_median": 0.00626846,
+          "real_median": -0.00372799,
           "sim_median": 0.0849533,
           "support": "unsupported",
           "w1": null,
@@ -213,7 +213,7 @@
           "n_sim": 1,
           "n_sim_frames": 1,
           "real_iqr": null,
-          "real_median": -0.0760577,
+          "real_median": 0.0689904,
           "sim_median": 0.142484,
           "support": "unsupported",
           "w1": null,
@@ -883,7 +883,7 @@
           "band_px": null,
           "n_real": 2,
           "n_sim": 2,
-          "real_median_px": -0.0954759,
+          "real_median_px": -0.0558058,
           "real_scatter_px": null,
           "sim_median_px": -0.0632446,
           "within_band": null
@@ -892,17 +892,17 @@
           "band_px": null,
           "n_real": 2,
           "n_sim": 2,
-          "real_median_px": 0.497425,
+          "real_median_px": 0.505844,
           "real_scatter_px": null,
           "sim_median_px": -0.115779,
           "within_band": null
         },
         "p0_r2": {
-          "band_px": 1.06245,
+          "band_px": 0.818765,
           "n_real": 4,
           "n_sim": 4,
-          "real_median_px": 0.112985,
-          "real_scatter_px": 1.06245,
+          "real_median_px": 0.277351,
+          "real_scatter_px": 0.818765,
           "sim_median_px": -0.0910252,
           "within_band": true
         },
@@ -910,19 +910,19 @@
           "band_px": null,
           "n_real": 2,
           "n_sim": 2,
-          "real_median_px": -0.0572174,
+          "real_median_px": 0.0232404,
           "real_scatter_px": null,
           "sim_median_px": -0.0452575,
           "within_band": null
         },
         "p1_r1": {
-          "band_px": 0.123151,
+          "band_px": 0.106797,
           "n_real": 4,
           "n_sim": 4,
-          "real_median_px": -0.129271,
-          "real_scatter_px": 0.123151,
+          "real_median_px": 0.0283306,
+          "real_scatter_px": 0.106797,
           "sim_median_px": 0.0176199,
-          "within_band": false
+          "within_band": true
         },
         "p1_r2": {
           "band_px": null,
@@ -937,7 +937,7 @@
           "band_px": null,
           "n_real": 1,
           "n_sim": 1,
-          "real_median_px": 0.00626846,
+          "real_median_px": -0.00372799,
           "real_scatter_px": null,
           "sim_median_px": 0.0849533,
           "within_band": null
@@ -946,7 +946,7 @@
           "band_px": null,
           "n_real": 1,
           "n_sim": 1,
-          "real_median_px": -0.0760577,
+          "real_median_px": 0.0689904,
           "real_scatter_px": null,
           "sim_median_px": 0.142484,
           "within_band": null
@@ -1799,7 +1799,7 @@
           "n_sim": 1,
           "n_sim_frames": 1,
           "real_iqr": null,
-          "real_median": -0.595678,
+          "real_median": -0.116966,
           "sim_median": 0.0479875,
           "support": "unsupported",
           "w1": null,
@@ -2192,7 +2192,7 @@
           "band_px": null,
           "n_real": 1,
           "n_sim": 1,
-          "real_median_px": -0.595678,
+          "real_median_px": -0.116966,
           "real_scatter_px": null,
           "sim_median_px": 0.0479875,
           "within_band": null
@@ -3419,5 +3419,5 @@
       ]
     }
   },
-  "runtime_sec": 2583.0
+  "runtime_sec": 2883.1
 }
