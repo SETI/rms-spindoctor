@@ -23,6 +23,7 @@ from typing import TypeVar, cast
 
 import numpy as np
 
+from spindoctor.sim.shared.inplace import result_array
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -359,7 +360,7 @@ def surface_normals(
     # to the last bit.
     if geometry.sin_lat == 0.0:
         # semi_c * sqrt(maximum(0, 1 - ellipse_dist_sq)) / semi_c**2
-        normal_z_local = np.subtract(1.0, ellipse_dist_sq)
+        normal_z_local = np.subtract(1.0, ellipse_dist_sq, out=result_array(ellipse_dist_sq))
         np.maximum(0.0, normal_z_local, out=normal_z_local)
         np.sqrt(normal_z_local, out=normal_z_local)
         normal_z_local *= geometry.semi_c
@@ -375,6 +376,17 @@ def surface_normals(
         # in exact arithmetic; the rounding of the closest-approach depth leaves a
         # last-bit residue, which a renderer would read as a lit sliver of sky.
         normal_z_local = np.where(ellipse_dist_sq >= 1.0, 0.0, normal_z_local)
+    components = (normal_v_local, normal_u_local, normal_z_local)
+    if not _arrays_of_one_kind(components):
+        # Scalars, components that broadcast against each other, or components of
+        # different floating types: the plain expressions, which give the normals
+        # their shape and type.  They are the expressions the steps below build in
+        # place.
+        magnitude = np.maximum(
+            np.sqrt(normal_v_local**2 + normal_u_local**2 + normal_z_local**2), 1e-10
+        )
+        unit_v, unit_u, unit_z = (component / magnitude for component in components)
+        return unit_v * cos_rz + unit_u * sin_rz, -unit_v * sin_rz + unit_u * cos_rz, unit_z
 
     # Normalize the normal vectors: sqrt(v**2 + u**2 + z**2), floored at 1e-10 to
     # avoid a division by zero.
@@ -401,6 +413,25 @@ def surface_normals(
     normal_u_local *= cos_rz
     normal_u += normal_u_local
     return normal_v, normal_u, normal_z_local
+
+
+def _arrays_of_one_kind(components: tuple[NDArrayFloatType, ...]) -> bool:
+    """Whether every component is an array of one shape and one type, not 0-d.
+
+    Parameters:
+        components: The components.
+
+    Returns:
+        True when they can be combined in place, with the plain expressions' result.
+    """
+    first = components[0]
+    return all(
+        isinstance(component, np.ndarray)
+        and component.ndim > 0
+        and component.shape == first.shape
+        and component.dtype == first.dtype
+        for component in components
+    )
 
 
 def project_ellipsoid(

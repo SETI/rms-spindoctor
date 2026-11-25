@@ -48,6 +48,7 @@ from typing import Any, cast
 import numpy as np
 
 from spindoctor.sim.scene.fields import RING_SIDE_DEFAULTS, scene_value
+from spindoctor.sim.shared.inplace import result_array, ufunc_result
 from spindoctor.sim.shared.ring import RingOrbit, compute_orbit_radii
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 
@@ -197,13 +198,13 @@ def feature_tau(
         damping = float(scene_value(feature, 'density_wave_damping_px', 0.0)) * os
         # Clipping x at zero makes the profile exactly zero inward of the launch
         # radius (sin(0) = 0) and keeps the envelope from growing without bound there.
-        x = r - r_edge
+        x = np.subtract(r, r_edge, out=result_array(r, r_edge))
         np.clip(x, 0.0, None, out=x)
         # tau * exp(-x / damping) * sin(2 * pi * x / wavelength), built in place: a
         # wave train reaches over most of an oversampled frame, where each fresh
         # temporary costs more than its arithmetic.  Every step is the IEEE operation
         # of that expression, so the profile is unchanged to the last bit.
-        envelope = np.negative(x)
+        envelope = np.negative(x, out=np.empty_like(x))
         envelope /= damping
         np.exp(envelope, out=envelope)
         envelope *= tau
@@ -211,7 +212,7 @@ def feature_tau(
         x /= wavelength
         np.sin(x, out=x)
         envelope *= x
-        return cast(NDArrayFloatType, envelope)
+        return ufunc_result(envelope)
     raise ValueError(f'ring feature kind {kind!r} is not renderable')
 
 

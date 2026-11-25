@@ -55,6 +55,8 @@ from typing import Any, cast
 import numpy as np
 
 from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.shared.inplace import result_array, ufunc_result
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -167,6 +169,40 @@ def compute_edge_radii_array(
         ValueError: If ``ae / a`` is an eccentricity of 1 or more, which does
             not describe a closed elliptical edge.
     """
+    return ufunc_result(
+        _edge_radii(
+            angles, a=a, ae=ae, long_peri=long_peri, rate_peri=rate_peri, epoch=epoch, time=time
+        )
+    )
+
+
+def _edge_radii(
+    angles: NDArrayFloatType,
+    *,
+    a: float,
+    ae: float,
+    long_peri: float,
+    rate_peri: float,
+    epoch: float,
+    time: float,
+) -> NDArrayFloatType:
+    """:func:`compute_edge_radii_array`'s radii as an array, a 0-d one for a scalar.
+
+    Parameters:
+        angles: Ring-plane longitudes from the ascending node, in radians.
+        a: Semimajor axis, in the caller's radial unit.
+        ae: Eccentricity times semimajor axis, in the same unit.
+        long_peri: Longitude of pericenter in degrees.
+        rate_peri: Rate of precession in degrees/day.
+        epoch: Epoch time (TDB seconds).
+        time: Current time (TDB seconds).
+
+    Returns:
+        The edge radii, in an array this call allocated.
+
+    Raises:
+        ValueError: If ``ae / a`` is an eccentricity of 1 or more.
+    """
     # Compute current longitude of pericenter
     days_since_epoch = (time - epoch) / 86400.0
     current_long_peri = math.radians(long_peri + rate_peri * days_since_epoch)
@@ -178,13 +214,12 @@ def compute_edge_radii_array(
     # an oversampled frame, where each fresh temporary costs more than its arithmetic.
     # Each step is the same IEEE operation the closed form names, so the radii are
     # unchanged to the last bit.
-    r = np.array(angles, dtype=np.float64)
-    r -= current_long_peri
+    r = np.subtract(angles, current_long_peri, out=result_array(angles))
     np.cos(r, out=r)
     r *= e
     r += 1.0
     np.divide(a * (1.0 - e * e), r, out=r)
-    return cast(NDArrayFloatType, r)
+    return r
 
 
 @dataclass(frozen=True)
@@ -392,7 +427,7 @@ def compute_orbit_radii(
     Raises:
         ValueError: If ``ae / a`` is an eccentricity of 1 or more.
     """
-    r = compute_edge_radii_array(
+    r = _edge_radii(
         lam,
         a=orbit.a,
         ae=orbit.ae,
@@ -401,17 +436,17 @@ def compute_orbit_radii(
         epoch=epoch,
         time=time,
     )
-    # In place, as in compute_edge_radii_array: r is this call's own array.
+    # In place, as in _edge_radii: r is this call's own array, and each term below has
+    # its shape and type, since every other operand is a Python number.
     for mode in orbit.modes:
-        term = np.array(lam, dtype=np.float64)
-        term -= math.radians(mode.peri)
+        term = np.subtract(lam, math.radians(mode.peri), out=np.empty_like(r))
         term *= mode.m
         np.cos(term, out=term)
         term *= mode.amp
         r -= term
     if orbit.edge_wave is not None:
         r += compute_edge_wave_dr(lam, orbit.edge_wave, a=orbit.a)
-    return r
+    return ufunc_result(r)
 
 
 def compute_edge_wave_dr(
@@ -521,25 +556,21 @@ def ring_plane_from_sky(
     p = du
     q = -dv
     # dv and du may be a column and a row that broadcast to the grid, which leaves
-    # one grid-sized sum per coordinate.  The steps after that work in place on
-    # arrays this call owns; each is the IEEE operation the formula names, so the
-    # results match the plain expressions to the last bit.  The results are arrays
-    # whatever the inputs' dimensions, zero included.
-    x = np.asarray(p * math.cos(node) + q * math.sin(node), dtype=np.float64)
-    y = np.asarray(-p * math.sin(node) + q * math.cos(node), dtype=np.float64)
-    np.divide(y, sin_b, out=y)
-    # stable_hypot's sum of squares, in place.
-    r = np.multiply(x, x, out=np.empty_like(x))
-    r += y * y
-    np.sqrt(r, out=r)
-    lam = np.arctan2(y, x, out=np.empty_like(x))
-    np.mod(lam, 2.0 * math.pi, out=lam)
-    return (
-        r,
-        cast(NDArrayFloatType, lam),
-        cast(NDArrayFloatType, x),
-        cast(NDArrayFloatType, y),
-    )
+    # one grid-sized sum per coordinate.  The steps after that work in place on the
+    # arrays this call allocated; each is the IEEE operation the formula names, so the
+    # results match the plain expressions to the last bit.  For scalar offsets, where
+    # the sums are scalars, they are the plain expressions.
+    x = p * math.cos(node) + q * math.sin(node)
+    y = -p * math.sin(node) + q * math.cos(node)
+    if isinstance(y, np.ndarray) and y.ndim > 0:
+        y /= sin_b
+        lam = np.arctan2(y, x)
+        np.mod(lam, 2.0 * math.pi, out=lam)
+    else:
+        y = y / sin_b
+        lam = np.mod(np.arctan2(y, x), 2.0 * math.pi)
+    r = stable_hypot(x, y)
+    return r, cast(NDArrayFloatType, lam), cast(NDArrayFloatType, x), cast(NDArrayFloatType, y)
 
 
 def ring_los_depth(y: NDArrayFloatType, *, opening_deg_obs: float) -> NDArrayFloatType:
@@ -592,19 +623,23 @@ def ring_radial_scale(
         The dimensionless radial foreshortening scale, >= 1.
     """
     sin_b = math.sin(math.radians(opening_deg_obs))
-    # In place on this call's own arrays, which matches the plain expression
-    # sqrt(x*x + y*y / sin_b**2) / r to the last bit, and is an array whatever the
-    # inputs' dimensions, zero included.
-    shape = np.broadcast_shapes(np.shape(r), np.shape(x), np.shape(y))
-    scale = np.multiply(x, x, out=np.empty(shape))
+    # The plain expression is where(r > 0, sqrt(x*x + y*y / sin_b**2) / r, 1), an array
+    # whatever the inputs' dimensions.  It is built in place on this call's own arrays,
+    # which matches it to the last bit.  The square root has the type of x and y; the
+    # division takes r's into account, so it is done in place only when r's changes
+    # neither the type nor the shape.
+    scale = np.multiply(x, x, out=result_array(x, y))
     across = y * y
     across /= sin_b * sin_b
     scale += across
     np.sqrt(scale, out=scale)
-    positive = r > 0.0
-    np.divide(scale, r, out=scale, where=positive)
-    np.copyto(scale, 1.0, where=~positive)
-    return cast(NDArrayFloatType, scale)
+    positive = np.greater(r, 0.0)
+    shape = np.broadcast_shapes(scale.shape, np.shape(r))
+    dtype = np.result_type(scale, r)
+    quotient = scale if (shape, dtype) == (scale.shape, scale.dtype) else np.empty(shape, dtype)
+    np.divide(scale, r, out=quotient, where=positive)
+    np.copyto(quotient, 1.0, where=np.logical_not(positive))
+    return quotient
 
 
 def compute_antialiasing_shade(edge_dist: NDArrayFloatType, resolution: float) -> NDArrayFloatType:
