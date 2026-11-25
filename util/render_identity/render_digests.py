@@ -57,36 +57,53 @@ from spindoctor.sim.render.driver import clear_render_caches, render_scene  # no
 from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene  # noqa: E402
 
 
+def _field(digest: Any, tag: bytes, payload: bytes) -> None:
+    """Feed one tagged field, its length first, to a hash.
+
+    Parameters:
+        digest: The hash object.
+        tag: One byte saying what the field holds.
+        payload: The field's bytes.
+    """
+    digest.update(tag + len(payload).to_bytes(8, 'little') + payload)
+
+
 def _feed(digest: Any, value: Any) -> None:
     """Feed a value's exact bytes, and its structure, to a hash.
+
+    Every value goes in as a type tag followed by its length or item count, so the
+    stream reads back one way only: ``(3, 131)`` and ``(31, 31)`` feed different bytes.
 
     Parameters:
         digest: The hash object.
         value: An array, a scalar, a mapping, a sequence, or a dataclass.
     """
     if isinstance(value, np.ndarray):
-        digest.update(str(value.dtype).encode())
-        digest.update(str(value.shape).encode())
-        digest.update(np.ascontiguousarray(value).tobytes())
+        _field(digest, b'A', str(value.dtype).encode())
+        _field(digest, b'S', repr(value.shape).encode())
+        _field(digest, b'B', np.ascontiguousarray(value).tobytes())
     elif isinstance(value, dict):
+        _field(digest, b'D', str(len(value)).encode())
         for key in sorted(value, key=str):
-            digest.update(repr(key).encode())
+            _field(digest, b'K', repr(key).encode())
             _feed(digest, value[key])
     elif isinstance(value, list | tuple):
-        digest.update(b'[')
+        _field(digest, b'L' if isinstance(value, list) else b'T', str(len(value)).encode())
         for item in value:
             _feed(digest, item)
-        digest.update(b']')
     elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+        _field(digest, b'C', type(value).__qualname__.encode())
         _feed(digest, dataclasses.asdict(value))
     elif isinstance(value, float):
-        digest.update(np.float64(value).tobytes())
+        _field(digest, b'F', np.float64(value).tobytes())
     elif isinstance(value, np.floating | np.integer | np.bool_):
-        digest.update(np.asarray(value).tobytes())
+        _field(digest, b'N', str(value.dtype).encode())
+        _field(digest, b'B', np.asarray(value).tobytes())
     elif hasattr(value, '__dict__'):
+        _field(digest, b'O', type(value).__qualname__.encode())
         _feed(digest, vars(value))
     else:
-        digest.update(repr(value).encode())
+        _field(digest, b'R', repr(value).encode())
 
 
 def _render_digests(params: dict[str, Any], **kwargs: Any) -> list[str]:
