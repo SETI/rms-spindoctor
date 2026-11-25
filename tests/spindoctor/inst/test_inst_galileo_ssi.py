@@ -83,6 +83,11 @@ def test_a_label_without_a_known_gain_state_is_refused() -> None:
         _star_obs(gain=7).star_max_usable_vmag()
 
 
+def test_the_star_width_is_the_photometry_sections() -> None:
+    """The star PSF has the section's sigma."""
+    assert _star_obs().star_psf_sigma() == pytest.approx(0.65, abs=1e-12)
+
+
 def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:
     """The label's frame count is published in RIM counts, its finer fields a fraction.
 

@@ -4,7 +4,10 @@
 galileo_ssi:
   data_units: raw_dn
   extfov_margin_vu: [350, 350]
-  star_psf_sigma: 3.
+  # The simulator's copy of the star width: the navigator reads its own from
+  # galileo_ssi_star_photometry below, and this value matches it, so a simulated
+  # frame's stars have the width the navigator expects.
+  star_psf_sigma: 0.65
   # Fraction of the offset window, per axis, inside which
   # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
   # this camera: 0.6 is the Cassini NAC's value.  On the black-sky library

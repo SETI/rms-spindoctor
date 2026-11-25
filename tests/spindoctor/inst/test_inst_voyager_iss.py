@@ -171,6 +171,18 @@ def test_a_label_without_a_gain_state_is_refused() -> None:
         _star_obs(gain='XX').star_max_usable_vmag()
 
 
+@pytest.mark.parametrize(
+    ('spacecraft', 'detector', 'expected'),
+    [('1', 'NAC', 3.0), ('1', 'WAC', 3.0), ('2', 'NAC', 1.2), ('2', 'WAC', 1.1)],
+)
+def test_the_star_width_is_each_cameras_own(
+    spacecraft: str, detector: str, expected: float
+) -> None:
+    """Each camera's star PSF has the sigma of its own entry."""
+    obs = _star_obs(spacecraft=spacecraft, detector=detector)
+    assert obs.star_psf_sigma() == pytest.approx(expected, abs=1e-12)
+
+
 @REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_reports_spacecraft_digit() -> None:
     """The spacecraft digit is read from the image label."""

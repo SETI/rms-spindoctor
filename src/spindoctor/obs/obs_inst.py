@@ -122,18 +122,31 @@ class ObsInst(ABC):
         """Returns the point spread function (PSF) model appropriate for stars observed
         by this instrument.
 
-        This generic implementation uses the "star_psf_sigma" configuration value and
-        creates a Gaussian PSF with that sigma.
+        The PSF is a Gaussian whose sigma is :meth:`star_psf_sigma`.
 
         Returns:
             A PSF model appropriate for stars observed by this instrument.
         """
 
+        return GaussianPSF(sigma=self.star_psf_sigma())
+
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        This generic implementation reads the instrument configuration's
+        ``star_psf_sigma``.  An instrument whose star width depends on the camera or the
+        readout mode overrides it.
+
+        Returns:
+            The sigma in pixels of this observation's image.
+
+        Raises:
+            ValueError: If the instrument configuration is not set.
+        """
+
         if self._inst_config is None:
             raise ValueError('Instrument configuration not set')
-
-        sigma = self._inst_config['star_psf_sigma']
-        return GaussianPSF(sigma=sigma)
+        return float(self._inst_config['star_psf_sigma'])
 
     def star_psf_size(self, star: Star) -> tuple[int, int]:
         """Returns the size of the point spread function (PSF) to use for a star.

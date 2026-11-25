@@ -194,6 +194,25 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[binning])
         return dimmest_visible + photometry.search_depth_mag
 
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        Returns:
+            The ``star_psf_sigma`` of the ``newhorizons_lorri_star_photometry``
+            configuration section for the frame's binning mode.
+
+        Raises:
+            ValueError: If the frame's row count names no binning mode, or the section
+                has no width for its binning mode.
+        """
+        widths = self.config.newhorizons_lorri_star_photometry.lorri.star_psf_sigma
+        binning = self.binning
+        if binning not in widths:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no star_psf_sigma for the binning mode {binning!r}'
+            )
+        return widths[binning]
+
     @property
     def camera(self) -> str:
         """The camera that took this observation.

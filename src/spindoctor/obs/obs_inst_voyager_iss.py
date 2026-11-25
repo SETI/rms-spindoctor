@@ -293,6 +293,15 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
         return dimmest_visible - offsets[self.filter] + photometry.search_depth_mag
 
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        Returns:
+            The ``star_psf_sigma`` of the camera's entry in the
+            ``voyager_iss_star_photometry`` configuration section.
+        """
+        return self._star_photometry().star_psf_sigma
+
     @property
     def camera(self) -> str:
         """The camera that took this observation.

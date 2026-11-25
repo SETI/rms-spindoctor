@@ -58,6 +58,12 @@ def test_a_row_count_of_no_binning_mode_is_refused() -> None:
         _star_obs(rows=512).star_max_usable_vmag()
 
 
+@pytest.mark.parametrize(('rows', 'expected'), [(1024, 0.9), (256, 0.45)])
+def test_the_star_width_is_each_binning_modes_own(rows: int, expected: float) -> None:
+    """The star PSF has the sigma of the frame's binning mode, in its own pixels."""
+    assert _star_obs(rows=rows).star_psf_sigma() == pytest.approx(expected, abs=1e-12)
+
+
 def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> None:
     """The label's counts are published as clock seconds, and their mean as the midtime.
 

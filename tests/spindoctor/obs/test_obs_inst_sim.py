@@ -167,10 +167,10 @@ def _star_limit(instrument: str, exposure_sec: float, *, binning: int | None = N
 @pytest.mark.parametrize(
     ('instrument', 'exposure_sec', 'expected'),
     [
-        ('nhlorri', 5.0, 11.414754682632388),
+        ('nhlorri', 5.0, 14.029148409034075),
         ('coiss_nac', 1.0, 10.890967146275809),
         ('coiss_wac', 1.0, 8.734411020746549),
-        ('gossi', 1.0, 5.692403499719424),
+        ('gossi', 1.0, 9.013442990103458),
     ],
 )
 def test_unbinned_star_limit_is_unchanged(
@@ -190,9 +190,9 @@ def test_unbinned_star_limit_is_unchanged(
     ('instrument', 'binning', 'expected_shift_mag'),
     [
         # From the navigator's LORRI block: unbinned, 3.33e6 DN/s over 4.0 DN of read
-        # noise; binned 4x4, 3.61e6 DN/s over 1.19 DN, with the 3.0 px core shrunk to
-        # 0.75 px, so on a sixteenth of the pixels.
-        ('nhlorri', 4, 2.5 * math.log10((3.61e6 / 3.33e6) * (4.0 / 1.19) * 4**2)),
+        # noise; binned 4x4, 3.61e6 DN/s over 1.19 DN, with the 0.9 px core shrunk
+        # below one pixel, which then holds it all.
+        ('nhlorri', 4, 2.5 * math.log10((3.61e6 / 3.33e6) * (4.0 / 1.19) * 2.0 * math.pi * 0.9**2)),
         # From the navigator's NAC block: unbinned, 3.33e5 DN/s over 4.0 DN; summed
         # 2x2, the same zero point over 0.400 DN, which the 1 DN floor raises to 1.0,
         # and the 0.54 px core shrinks below one pixel, which then holds it all.
@@ -216,12 +216,13 @@ def test_binned_star_limit_reads_the_modes_values(
 def test_a_mode_without_values_reads_the_unbinned_ones() -> None:
     """With no entry for its mode, a binned frame's limit moves by its smaller core alone.
 
-    The LORRI 3.0 px core shrinks to 0.75 px on a 4x4-binned frame, so the peak pixel
-    holds 16 times the share of the star at the same zero point and read noise.
+    The LORRI 0.9 px core shrinks below one pixel on a 4x4-binned frame, so the peak
+    pixel holds the whole star, 2 pi 0.9**2 times its unbinned share, at the same zero
+    point and read noise.
     """
     obs = _star_limit_obs('nhlorri', 1.0, binning=4)
     assert obs._inst_config is not None
     noise = {k: v for k, v in obs._inst_config['noise'].items() if k != 'by_binning'}
     obs._inst_config = {**obs._inst_config, 'noise': noise}
     shift = obs.star_max_usable_vmag() - _star_limit('nhlorri', 1.0)
-    assert shift == pytest.approx(2.5 * math.log10(4**2), rel=0.0, abs=1e-9)
+    assert shift == pytest.approx(2.5 * math.log10(2.0 * math.pi * 0.9**2), rel=0.0, abs=1e-9)

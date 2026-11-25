@@ -7,7 +7,10 @@ newhorizons_lorri:
     256: [15, 15]
     512: [30, 30]
     1024: [60, 60]
-  star_psf_sigma: 3.
+  # The simulator's copy of the star width, in the pixels of an unbinned frame: the
+  # navigator reads its own from newhorizons_lorri_star_photometry below, per binning
+  # mode, and this value matches its unbinned one.
+  star_psf_sigma: 0.9
   # Fraction of the offset window, per axis, inside which
   # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
   # this camera: 0.6 is the Cassini NAC's value.

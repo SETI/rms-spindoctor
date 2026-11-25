@@ -5,6 +5,8 @@ voyager_iss:
   data_units: calibrated_if
   extfov_margin_vu:
     1000: [400, 400]
+  # Read by the simulator only, which emulates all four cameras from this block.  The
+  # navigator reads each camera's star width from voyager_iss_star_photometry below.
   star_psf_sigma: 3.
   # Fraction of the offset window, per axis, inside which
   # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
