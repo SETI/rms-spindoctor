@@ -2,19 +2,22 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.conftest import OVERRIDDEN_UPSAMPLE_FACTOR
 from tests.spindoctor.nav_technique.conftest import NavContextFactory
 
 import spindoctor.nav_technique.nav_technique_ring_annulus as annulus_module
+from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import RingAnnulusFlags
 from spindoctor.feature.geometry import RingAnnulusGeometry
+from spindoctor.nav_technique.correlation_tuning import NCCCovarianceTuning
 from spindoctor.nav_technique.diagnostics import RingAnnulusDiagnostics
-from spindoctor.nav_technique.nav_technique import NCCCovarianceTuning
 from spindoctor.nav_technique.nav_technique_ring_annulus import (
     RingAnnulusNav,
     _annulus_orbit_channel,
@@ -370,99 +373,26 @@ def test_ring_annulus_navigate_raises_when_no_eligible_features(
         technique.navigate([feature], context)
 
 
-def test_upsample_factor_returns_default_when_offset_block_missing() -> None:
-    """``_upsample_factor`` falls back to the module default when ``config.offset`` is None."""
-    from spindoctor.nav_technique.nav_technique_ring_annulus import _DEFAULT_UPSAMPLE_FACTOR
+def _install_covariance_terms(monkeypatch: pytest.MonkeyPatch, *, floor_px: float) -> None:
+    """Give :class:`RingAnnulusNav` a tuning whose only covariance term is the floor.
 
-    technique = RingAnnulusNav()
+    The configuration is read first, so the tuning the test replaces is the class's own
+    and is what ``monkeypatch`` restores.
 
-    class _StubConfig:
-        offset = None
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    assert technique._upsample_factor() == _DEFAULT_UPSAMPLE_FACTOR
-
-
-def test_upsample_factor_returns_default_when_value_missing() -> None:
-    """``_upsample_factor`` falls back when the offset block has no upsample key."""
-    from spindoctor.nav_technique.nav_technique_ring_annulus import _DEFAULT_UPSAMPLE_FACTOR
-
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        pass
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    assert technique._upsample_factor() == _DEFAULT_UPSAMPLE_FACTOR
-
-
-def test_upsample_factor_rejects_bool_value() -> None:
-    """Boolean values are rejected even though Python treats ``bool`` as ``int``."""
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = True
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'must be a real \(non-bool\) number'):
-        technique._upsample_factor()
-
-
-def test_upsample_factor_rejects_string_value() -> None:
-    """Non-numeric values raise ``ValueError`` naming the config key."""
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = 'abc'
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'correlation_fft_upsample_factor must be a real'):
-        technique._upsample_factor()
-
-
-def test_upsample_factor_rejects_zero() -> None:
-    """Values below 1 are out of range and raise ``ValueError``."""
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = 0
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'must lie in \[1,'):
-        technique._upsample_factor()
-
-
-def test_upsample_factor_rejects_overlarge_value() -> None:
-    """Values above the upper bound raise ``ValueError`` to prevent FFT overflow."""
-    from spindoctor.nav_technique.nav_technique_ring_annulus import _MAX_UPSAMPLE_FACTOR
-
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = _MAX_UPSAMPLE_FACTOR + 1
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'must lie in \[1,'):
-        technique._upsample_factor()
+    Parameters:
+        monkeypatch: Installs the tuning.
+        floor_px: The model-error floor in pixels.
+    """
+    RingAnnulusNav()
+    tuning = NCCCovarianceTuning(
+        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=floor_px
+    )
+    monkeypatch.setattr(RingAnnulusNav, 'tuning', tuning)
 
 
 def test_ring_annulus_model_error_floor_inflates_covariance(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """model_error_floor_px adds exactly its square to the covariance diagonal.
 
@@ -483,18 +413,46 @@ def test_ring_annulus_model_error_floor_inflates_covariance(
         planted_offset_vu=(2.0, -3.0),
     )
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
-    bare = RingAnnulusNav()
-    bare._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
-    )
-    floored = RingAnnulusNav()
-    floored._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=1.5
-    )
-    cov_bare = bare.navigate([feature], context).covariance_px2
-    cov_floored = floored.navigate([feature], context).covariance_px2
+    _install_covariance_terms(monkeypatch, floor_px=0.0)
+    cov_bare = RingAnnulusNav().navigate([feature], context).covariance_px2
+    _install_covariance_terms(monkeypatch, floor_px=1.5)
+    cov_floored = RingAnnulusNav().navigate([feature], context).covariance_px2
     for axis in (0, 1):
         assert cov_floored[axis, axis] == pytest.approx(cov_bare[axis, axis] + 1.5**2, rel=1e-9)
+
+
+def test_ring_annulus_passes_the_localization_scale_to_the_correlator(
+    make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The tuning's localization scale reaches the correlator that adds the term.
+
+    The correlator adds ``(scale * consistency)**2`` to the translation diagonal, so
+    if the technique dropped the scale, the covariance would lack that term.
+    """
+    shape = (180, 180)
+    image_center = (90.0, 90.0)
+    image = _render_annulus_image(shape, image_center, 14.0, 28.0)
+    feature = _make_annulus_feature(
+        'SATURN',
+        extfov_shape=shape,
+        image_center_vu=image_center,
+        inner_radius=14.0,
+        outer_radius=28.0,
+        planted_offset_vu=(2.0, -3.0),
+    )
+    scales: list[float] = []
+
+    def _spy(*args: Any, **kwargs: Any) -> Any:
+        scales.append(kwargs['localization_uncertainty_scale'])
+        return navigate_with_pyramid_kpeaks(*args, **kwargs)
+
+    technique = RingAnnulusNav()
+    tuning = dataclasses.replace(technique.tuning, localization_uncertainty_scale=1.7)
+    monkeypatch.setattr(RingAnnulusNav, 'tuning', tuning)
+    monkeypatch.setattr(annulus_module, 'navigate_with_pyramid_kpeaks', _spy)
+    technique.navigate([feature], make_nav_context(image, extfov_margin_vu=(16, 16)))
+    assert scales == [1.7]
 
 
 def _closed_ring_normals(count: int) -> NDArrayFloatType:
@@ -505,6 +463,7 @@ def _closed_ring_normals(count: int) -> NDArrayFloatType:
 
 def _orbit_channel_fixture(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
     *,
     orbit_normals_vu: NDArrayFloatType,
     sigma_orbit_radial_px: float,
@@ -518,9 +477,7 @@ def _orbit_channel_fixture(
     image_center = (90.0, 90.0)
     image = _render_annulus_image(shape, image_center, 14.0, 28.0)
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
-    tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
-    )
+    _install_covariance_terms(monkeypatch, floor_px=0.0)
 
     def _cov(sigma: float) -> NDArrayFloatType:
         feature = _make_annulus_feature(
@@ -533,15 +490,14 @@ def _orbit_channel_fixture(
             orbit_normals_vu=orbit_normals_vu,
             sigma_orbit_radial_px=sigma,
         )
-        technique = RingAnnulusNav()
-        technique._cov_tuning = tuning
-        return np.asarray(technique.navigate([feature], context).covariance_px2)
+        return np.asarray(RingAnnulusNav().navigate([feature], context).covariance_px2)
 
     return _cov(0.0), _cov(sigma_orbit_radial_px)
 
 
 def test_orbit_channel_inflates_isotropically_on_closed_ring(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A closed ring's normals cancel, so the orbit sigma widens every axis equally.
 
@@ -552,7 +508,10 @@ def test_orbit_channel_inflates_isotropically_on_closed_ring(
     """
     sigma = 5.0
     cov_off, cov_on = _orbit_channel_fixture(
-        make_nav_context, orbit_normals_vu=_closed_ring_normals(360), sigma_orbit_radial_px=sigma
+        make_nav_context,
+        monkeypatch,
+        orbit_normals_vu=_closed_ring_normals(360),
+        sigma_orbit_radial_px=sigma,
     )
     assert cov_on[0, 0] == pytest.approx(cov_off[0, 0] + sigma**2, rel=1e-6)
     assert cov_on[1, 1] == pytest.approx(cov_off[1, 1] + sigma**2, rel=1e-6)
@@ -560,12 +519,13 @@ def test_orbit_channel_inflates_isotropically_on_closed_ring(
 
 def test_orbit_channel_directional_on_parallel_normals(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Normals pointing one way widen only that axis (a short arc absorbs it fully)."""
     sigma = 5.0
     normals = np.tile(np.array([1.0, 0.0]), (200, 1))
     cov_off, cov_on = _orbit_channel_fixture(
-        make_nav_context, orbit_normals_vu=normals, sigma_orbit_radial_px=sigma
+        make_nav_context, monkeypatch, orbit_normals_vu=normals, sigma_orbit_radial_px=sigma
     )
     assert cov_on[0, 0] == pytest.approx(cov_off[0, 0] + sigma**2, rel=1e-6)
     assert cov_on[1, 1] == pytest.approx(cov_off[1, 1], rel=1e-6)
@@ -573,6 +533,7 @@ def test_orbit_channel_directional_on_parallel_normals(
 
 def test_orbit_channel_absent_when_sigma_zero(
     make_nav_context: NavContextFactory,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """No declared orbit sigma leaves the covariance and diagnostic untouched."""
     shape = (180, 180)
@@ -589,10 +550,8 @@ def test_orbit_channel_absent_when_sigma_zero(
         sigma_orbit_radial_px=0.0,
     )
     context = make_nav_context(image, extfov_margin_vu=(16, 16))
+    _install_covariance_terms(monkeypatch, floor_px=0.0)
     technique = RingAnnulusNav()
-    technique._cov_tuning = NCCCovarianceTuning(
-        localization_uncertainty_scale=0.0, model_error_size_frac=0.0, model_error_floor_px=0.0
-    )
     result = technique.navigate([feature], context)
     assert isinstance(result.diagnostics, RingAnnulusDiagnostics)
     assert result.diagnostics.sigma_orbit_radial_px == 0.0
@@ -687,3 +646,31 @@ def test_ring_annulus_refines_its_final_pass_on_the_ncc(
     )
     RingAnnulusNav().navigate([feature], make_nav_context(image, extfov_margin_vu=(16, 16)))
     assert calls == ['ncc_quadratic']
+
+
+def test_ring_annulus_correlation_reads_the_configured_upsample_factor(
+    monkeypatch: pytest.MonkeyPatch,
+    make_nav_context: NavContextFactory,
+    upsample_override_config: Config,
+) -> None:
+    """The correlation runs at the upsample factor the configuration sets."""
+    seen: list[int] = []
+
+    def _record(**kwargs: Any) -> Any:
+        seen.append(kwargs['upsample_factor'])
+        return navigate_with_pyramid_kpeaks(**kwargs)
+
+    monkeypatch.setattr(annulus_module, 'navigate_with_pyramid_kpeaks', _record)
+    shape = (180, 180)
+    feature = _make_annulus_feature(
+        'SATURN',
+        extfov_shape=shape,
+        image_center_vu=(90.0, 90.0),
+        inner_radius=14.0,
+        outer_radius=28.0,
+        planted_offset_vu=(2.0, -3.0),
+    )
+    image = _render_annulus_image(shape, (90.0, 90.0), 14.0, 28.0)
+    context = make_nav_context(image, extfov_margin_vu=(16, 16))
+    RingAnnulusNav(config=upsample_override_config).navigate([feature], context)
+    assert seen[0] == OVERRIDDEN_UPSAMPLE_FACTOR

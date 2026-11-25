@@ -8,15 +8,16 @@ would otherwise reach SPICE: the per-image body inventory, the full-frame
 ``oops.Backplane``, and the configuration object.
 """
 
-from collections.abc import Callable
-from types import SimpleNamespace
+from collections.abc import Callable, Sequence
 from typing import Any, cast
 
 import numpy as np
 import oops
 from oops.observation import Snapshot
+from tests.product_sections import packaged_backplanes
 
 from spindoctor.config import Config
+from spindoctor.config.sections_products import PlaneEntry
 from spindoctor.obs import Obs, ObsSnapshotInst
 from spindoctor.support.types import PathLike
 
@@ -333,34 +334,27 @@ def make_fake_body_backplane_cls(values_fn: BodyValuesFn) -> type:
 class FakeBackplanesConfig:
     """Duck-typed ``Config`` stand-in exposing only what the backplane modules read.
 
-    ``backplanes`` is a namespace whose ``bodies`` / ``rings`` attributes exist only
-    when configured, matching the modules' getattr-with-default access pattern.
-    Satellite queries are recorded on ``satellites_calls``.
+    ``backplanes`` is the packaged section with the given planes.  Satellite queries
+    are answered from a table of the test's own planets, and recorded on
+    ``satellites_calls``.
     """
 
     def __init__(
         self,
         *,
-        bodies: list[dict[str, Any]] | None = None,
-        rings: list[dict[str, Any]] | None = None,
+        bodies: Sequence[PlaneEntry] = (),
+        rings: Sequence[PlaneEntry] = (),
         satellites: dict[str, list[str]] | None = None,
-        masked_value: float = MASKED_VALUE,
     ) -> None:
         """Build the fake config.
 
         Parameters:
-            bodies: ``backplanes.bodies`` entry list, or None to omit the attribute.
-            rings: ``backplanes.rings`` entry list, or None to omit the attribute.
+            bodies: ``backplanes.bodies``.
+            rings: ``backplanes.rings``.
             satellites: Planet name to satellite-name-list map for
                 :meth:`satellites`.
-            masked_value: ``backplanes.masked_value``, the value a pixel carries
-                where the backplane has no valid measurement.
         """
-        self.backplanes = SimpleNamespace(masked_value=masked_value)
-        if bodies is not None:
-            self.backplanes.bodies = bodies
-        if rings is not None:
-            self.backplanes.rings = rings
+        self.backplanes = packaged_backplanes(bodies=tuple(bodies), rings=tuple(rings))
         self._satellites = satellites if satellites is not None else {}
         self.satellites_calls: list[str] = []
 

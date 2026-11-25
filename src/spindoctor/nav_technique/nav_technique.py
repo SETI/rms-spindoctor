@@ -12,7 +12,6 @@ from __future__ import annotations
 import fnmatch
 import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 import numpy as np
@@ -31,16 +30,13 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = [
-    'ROTATION_AT_EDGE_FRACTION',
     'ROTATION_UNOBSERVABLE_VARIANCE',
-    'NCCCovarianceTuning',
     'NavTechnique',
     'add_model_error_floor',
     'add_size_scaled_model_error',
     'embed_rotation_unobservable',
     'filter_technique_names',
     'load_model_error_floor',
-    'load_ncc_covariance_tuning',
     'log_confidence_breakdown',
     'reported_position_vu',
     'rotation_pivot_distance_px',
@@ -61,25 +57,6 @@ technique contributes no rotation constraint to the precision-weighted
 merge.  A literal ``+inf`` would break covariance validation
 (``np.linalg.eigvalsh`` returns NaN for non-finite matrices), so this
 finite sentinel is preferred.
-"""
-
-
-ROTATION_AT_EDGE_FRACTION: float = 0.95
-"""Default fraction of ``max_rotation_deg`` at which the rotation
-parameter trips the technique's ``at_edge`` flag.
-
-When the converged ``|theta|`` exceeds
-``rotation_at_edge_fraction * max_rotation_deg`` the LM (or Procrustes /
-NCC pyramid) is reporting a rotation right against the configured cap,
-which usually signals that the cap is too tight or the geometry is
-unobservable in the rotation direction.
-
-Each 3-DoF technique reads its threshold from
-``config_510_techniques.yaml`` under
-``techniques.<key>.tuning.rotation_at_edge_fraction``; this constant
-is the documented default that ships in the YAML.  Re-exported so
-tests and downstream tools can reference the canonical default
-without re-reading the YAML.
 """
 
 
@@ -457,69 +434,6 @@ def add_model_error_floor(covariance: NDArrayFloatType, floor_px: float) -> NDAr
     out[0, 0] += floor_px**2
     out[1, 1] += floor_px**2
     return out
-
-
-@dataclass(frozen=True)
-class NCCCovarianceTuning:
-    """Model-error terms folded into an NCC technique's translation covariance.
-
-    The bare peak-curvature (matched-filter) covariance measures only the
-    statistical precision at the correlation peak.  On a well-matched
-    template that precision is far smaller than the true registration error,
-    which is dominated by silhouette / photometric model error and by
-    localization ambiguity.  Three quadrature terms restore calibration:
-
-    - ``localization_uncertainty_scale`` multiplies the inter-pyramid-level
-      peak migration (applied inside the correlator, carried here for
-      completeness of the covariance model).
-    - ``model_error_size_frac`` scales a body / template size in pixels into
-      a size-proportional silhouette-error sigma (a coherent shape mismatch
-      displaces the peak by a roughly fixed *fraction* of the extent).
-    - ``model_error_floor_px`` is a size-independent absolute floor
-      (pointing, camera distortion, sub-pixel interpolation).
-
-    Parameters:
-        localization_uncertainty_scale: Multiplier on the correlator
-            ``consistency`` (px); ``0.0`` disables it.
-        model_error_size_frac: Fraction of the template extent (px) taken as
-            the silhouette-error sigma; ``0.0`` disables it.
-        model_error_floor_px: Absolute floor (px); ``0.0`` disables it.
-    """
-
-    localization_uncertainty_scale: float
-    model_error_size_frac: float
-    model_error_floor_px: float
-
-
-def load_ncc_covariance_tuning(tuning: dict[str, Any], technique_name: str) -> NCCCovarianceTuning:
-    """Read and validate an NCC technique's covariance model-error tunables from a mapping.
-
-    This function serves the techniques whose tuning is still a mapping of numbers.
-
-    Parameters:
-        tuning: The technique's YAML ``tuning`` mapping.
-        technique_name: Technique name for error messages.
-
-    Returns:
-        The validated :class:`NCCCovarianceTuning`.
-
-    Raises:
-        ValueError: If any term is negative or non-finite.
-    """
-    floor_px = load_model_error_floor(tuning, technique_name)
-    scale = float(tuning.get('localization_uncertainty_scale', 0.0))
-    size_frac = float(tuning.get('model_error_size_frac', 0.0))
-    for name, value in (
-        ('localization_uncertainty_scale', scale),
-        ('model_error_size_frac', size_frac),
-    ):
-        if not math.isfinite(value) or value < 0.0:
-            raise ValueError(f'{technique_name}: {name} must be finite and >= 0; got {value!r}')
-    return NCCCovarianceTuning(
-        localization_uncertainty_scale=scale,
-        model_error_size_frac=size_frac,
-        model_error_floor_px=floor_px,
-    )
 
 
 def add_size_scaled_model_error(

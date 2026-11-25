@@ -23,6 +23,7 @@ import pdslogger
 import pytest
 from filecache import FCPath
 from tests.conftest import child_interpreter_environment
+from tests.packaged_sections import packaged_tree_tuning
 
 from spindoctor.nav_records import (
     METADATA_SUFFIX,
@@ -30,7 +31,6 @@ from spindoctor.nav_records import (
     RECORDS_NO_MIDTIME,
     Selection,
     TreeRecordSource,
-    TreeTuning,
     UnreadableFile,
     read_document,
 )
@@ -56,7 +56,7 @@ from .conftest import (
     write_text,
 )
 
-_BATCH = TreeTuning().retrieve_batch_size
+_BATCH = packaged_tree_tuning().retrieve_batch_size
 """The default retrieval batch, which these fixtures are sized against.
 
 Derived rather than written out, so raising the default moves the tests
@@ -156,7 +156,9 @@ def test_one_stub_is_refused_by_a_source_holding_more_than_one_root(
     second = tmp_path / 'second'
     write_document(first, FIRST_STUB, document())
     write_document(second, FIRST_STUB, document())
-    source = TreeRecordSource([str(first), str(second)], logger=quiet_logger)
+    source = TreeRecordSource(
+        [str(first), str(second)], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     with pytest.raises(ValueError, match='key under one root'):
         source.record(FIRST_STUB)
 
@@ -169,7 +171,9 @@ def test_the_refusal_of_a_bare_stub_names_every_root_the_source_holds(
     second = tmp_path / 'second'
     write_document(first, FIRST_STUB, document())
     write_document(second, FIRST_STUB, document())
-    source = TreeRecordSource([str(first), str(second)], logger=quiet_logger)
+    source = TreeRecordSource(
+        [str(first), str(second)], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     with pytest.raises(ValueError) as excinfo:
         source.record(FIRST_STUB)
     assert first.as_posix() in str(excinfo.value)
@@ -284,7 +288,9 @@ def test_named_stubs_are_refused_by_a_source_holding_more_than_one_root(
     second = tmp_path / 'second'
     write_document(first, FIRST_STUB, document())
     write_document(second, FIRST_STUB, document())
-    source = TreeRecordSource([str(first), str(second)], logger=quiet_logger)
+    source = TreeRecordSource(
+        [str(first), str(second)], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     with pytest.raises(ValueError, match='under one root'):
         list(source.records(Selection(stubs=(FIRST_STUB,))))
 
@@ -297,7 +303,9 @@ def test_named_stubs_are_read_when_the_selection_narrows_to_one_root(
     second = tmp_path / 'second'
     write_document(first, FIRST_STUB, document())
     write_document(second, FIRST_STUB, document())
-    source = TreeRecordSource([str(first), str(second)], logger=quiet_logger)
+    source = TreeRecordSource(
+        [str(first), str(second)], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     selection = Selection(roots=(str(second),), stubs=(FIRST_STUB,))
     assert stubs_of(source.records(selection)) == [FIRST_STUB]
 
@@ -372,9 +380,13 @@ import sys
 
 import pdslogger
 
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_records import NavRecord, Selection, TreeRecordSource, UnreadableFile
 
-found = list(TreeRecordSource([sys.argv[1]], logger=pdslogger.NullLogger()).records(Selection()))
+source = TreeRecordSource(
+    [sys.argv[1]], logger=pdslogger.NullLogger(), tuning=DEFAULT_CONFIG.results_tree
+)
+found = list(source.records(Selection()))
 print(
     json.dumps(
         {
@@ -874,5 +886,7 @@ def test_two_spellings_of_one_root_bind_one_root(
 ) -> None:
     """A source holding one root twice would answer for every image twice."""
     root = two_volume_tree(tmp_path)
-    source = TreeRecordSource([root.as_posix(), f'{root.as_posix()}/'], logger=quiet_logger)
+    source = TreeRecordSource(
+        [root.as_posix(), f'{root.as_posix()}/'], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     assert len(source.roots) == 1

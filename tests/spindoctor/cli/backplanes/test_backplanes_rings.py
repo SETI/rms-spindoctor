@@ -17,11 +17,13 @@ import numpy.ma as ma
 import pytest
 from astropy.io import fits
 from filecache import FCPath
+from tests.product_sections import plane_entry
 
 from spindoctor.cli.backplanes.backplanes_rings import create_ring_backplanes
 from spindoctor.cli.backplanes.merge import merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import IMAGE_LOGGER
+from spindoctor.config.sections_products import PlaneEntry
 
 from .conftest import (
     MASKED_VALUE,
@@ -33,7 +35,9 @@ from .conftest import (
 
 SHAPE_VU = (6, 8)
 
-RADIUS_CFG = {'name': 'ring_radius', 'method': 'ring_radius', 'units': 'km'}
+RADIUS_CFG = plane_entry('ring_radius', 'km')
+
+DISTANCE_CFG = plane_entry('distance', 'km')
 
 RING_INCIDENCE_DEG = 37.5
 """The incidence angle of sunlight on the ring plane the fake Backplane serves, in degrees.
@@ -42,7 +46,7 @@ A stand-in: any angle from 0 to 90 degrees would do.
 """
 
 
-def _rings_config(entries: list[dict[str, Any]] | None = None) -> FakeBackplanesConfig:
+def _rings_config(entries: list[PlaneEntry] | None = None) -> FakeBackplanesConfig:
     """Build a fake config with the given (or default) ring backplane entries.
 
     Parameters:
@@ -115,30 +119,6 @@ def test_no_closest_planet_returns_none() -> None:
     snap = make_snapshot(shape_vu=SHAPE_VU, simulated=False, closest_planet=None)
     result = create_ring_backplanes(snap, _rings_config().as_config(), logger=IMAGE_LOGGER)
     assert result is None
-
-
-def test_missing_rings_config_section_raises() -> None:
-    """A config without backplanes.rings is rejected."""
-    snap, _ = _snapshot_with_fake_bp(_ring_arrays()[1])
-    config = FakeBackplanesConfig(bodies=[])
-    with pytest.raises(ValueError, match='no rings section'):
-        create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-
-
-def test_ring_entry_missing_method_raises() -> None:
-    """A ring backplane entry without a method is rejected."""
-    snap, _ = _snapshot_with_fake_bp(_ring_arrays()[1])
-    config = _rings_config([{'name': 'ring_radius', 'units': 'km'}])
-    with pytest.raises(ValueError, match='"method" is required'):
-        create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-
-
-def test_ring_entry_missing_units_raises() -> None:
-    """A ring backplane entry without units is rejected."""
-    snap, _ = _snapshot_with_fake_bp(_ring_arrays()[1])
-    config = _rings_config([{'name': 'ring_radius', 'method': 'ring_radius'}])
-    with pytest.raises(ValueError, match='"units" is required'):
-        create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
 
 
 def test_saturn_uses_main_rings_target() -> None:
@@ -239,7 +219,7 @@ def test_configured_distance_entry_feeds_merge_distance() -> None:
     """A configured 'distance' entry populates the per-pixel merge distance."""
     valid, method_values = _ring_arrays(distance=2.0e6)
     snap, _ = _snapshot_with_fake_bp(method_values)
-    config = _rings_config([{'name': 'distance', 'method': 'distance', 'units': 'km'}])
+    config = _rings_config([DISTANCE_CFG])
     result = create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
     assert result is not None
     assert np.all(result['distance'][valid] == np.float32(2.0e6))
@@ -264,7 +244,7 @@ def test_distance_entry_is_not_written_as_hdu(tmp_path: Path) -> None:
     """
     _, method_values = _ring_arrays(distance=2.0e6)
     snap, _ = _snapshot_with_fake_bp(method_values)
-    config = _rings_config([RADIUS_CFG, {'name': 'distance', 'method': 'distance', 'units': 'km'}])
+    config = _rings_config([RADIUS_CFG, DISTANCE_CFG])
     rings_result = create_ring_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
     master, body_id_map = merge_sources_into_master(
         snap, bodies_result={}, rings_result=rings_result

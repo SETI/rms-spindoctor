@@ -11,9 +11,10 @@ from typing import Any
 
 import pdslogger
 import pytest
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import index_url, ingest_tree, metadata_document, write_metadata
 
-from spindoctor.nav_records import TreeRecordSource, TreeTuning
+from spindoctor.nav_records import TreeRecordSource
 from spindoctor.results_index import open_record_source
 from spindoctor.results_index import open_source as open_source_module
 
@@ -51,7 +52,7 @@ def test_the_tuning_reaches_the_tree_source(
 ) -> None:
     """The opener passes on what the program resolved, rather than a value of its own."""
     handed = _recording_tree_source(monkeypatch)
-    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    configured = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     with open_record_source([tmp_path], tuning=configured):
         pass
     assert handed == [configured]
@@ -66,6 +67,6 @@ def test_a_run_that_reads_rows_builds_no_tree_source(
     write_metadata(root, 'VOL/N1454725799_1_CALIB', metadata_document())
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=pdslogger.NullLogger())
-    with open_record_source([root], results_index_db_url=url, tuning=TreeTuning()):
+    with open_record_source([root], results_index_db_url=url, tuning=packaged_tree_tuning()):
         pass
     assert handed == []

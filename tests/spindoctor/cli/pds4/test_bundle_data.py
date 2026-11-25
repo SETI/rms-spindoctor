@@ -26,6 +26,7 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
+from tests.product_sections import plane_entry
 
 from spindoctor.cli.pds4.bundle_data import BundleDataOutcome, generate_bundle_data_files
 from spindoctor.cli.pds4.targets import target_table
@@ -338,9 +339,7 @@ def test_missing_backplane_metadata_skips_generation(
     assert 'no backplane metadata at' in capsys.readouterr().out
 
 
-RING_RESOLUTION_PLANE: list[dict[str, Any]] = [
-    {'name': 'longitudinal_resolution', 'units': 'rad/pixel'}
-]
+RING_RESOLUTION_PLANE = [plane_entry('longitudinal_resolution', 'rad/pixel')]
 """A ring plane declared in radians per pixel, whose statistic is in degrees per pixel."""
 
 
@@ -398,7 +397,7 @@ def test_a_foreign_unit_on_an_undeclared_plane_is_ignored(tmp_path: Path) -> Non
     assert outcome is BundleDataOutcome.WRITTEN
 
 
-RESOLUTION_PLANE: list[dict[str, Any]] = [{'name': 'resolution', 'units': 'km/pixel'}]
+RESOLUTION_PLANE = [plane_entry('resolution', 'km/pixel')]
 """A body plane in kilometers per pixel, whose statistic keeps that unit."""
 
 

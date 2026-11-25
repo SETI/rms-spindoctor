@@ -1484,9 +1484,10 @@ asserts the generated half matches the registries.
   names. `NavTechnique.name` and every name in results and metadata stay
   as they are, and no rename shim is kept: an old block name in an
   override is refused as an unknown key. Applied for the DT family
-  (`body_limb`, `body_terminator`, `ring_edge`); the correlation and
-  centroid family and the star and haze family follow with their #1032
-  PRs, and #411 closes with the last of them.
+  (`body_limb`, `body_terminator`, `ring_edge`) and the correlation and
+  centroid family (`body_disc_correlate`, `body_blob`, `ring_annulus`);
+  the star and haze family follows with its #1032 PR, and #411 closes
+  with it.
 - **#427** — the config top-level namespace mixes domain objects, pipeline
   stages, instruments, output products, and infrastructure on no stated
   axis, with `general` as the catch-all. Lifting `logging` out of `general`
@@ -1588,8 +1589,15 @@ asserts the generated half matches the registries.
       `load_technique_tuning`, and `validate_registered_confidence_specs`
       deleted; the families not yet typed keep their class-named blocks
       and a mapping of numbers for their tuning)
-    - [ ] the correlation and centroid family (`BodyDiscCorrelateNav`,
+    - [x] the correlation and centroid family (`BodyDiscCorrelateNav`,
       `BodyBlobNav`, `RingAnnulusNav`), with `load_ncc_covariance_tuning`
+      (done: `NCCCovarianceTuning` is the schema type of the three
+      covariance terms; `RingAnnulusNav`'s `Tuning` is that type,
+      `BodyDiscTuning` extends it, and `BodyBlobTuning` declares the two
+      terms it reads; their blocks are `body_disc_correlate`, `body_blob`,
+      and `ring_annulus`; `load_ncc_covariance_tuning` and its three
+      0.0 fallbacks deleted; `load_model_error_floor` stays for the star
+      family and `TitanHazeNav`)
     - [ ] the star family and `TitanHazeNav`; `load_model_error_floor`
       and the mapping form of a technique's tuning go with the last family
   - [x] the logging section (done: parsed at load into `LoggingSection`,
@@ -1609,10 +1617,27 @@ asserts the generated half matches the registries.
     refused, and so is a `bodies.geometric_albedo` key not in upper case;
     it also made the FOV distortion tool's star cap take effect, #1176)
   - [ ] `rings` with the ring catalogs, and `body_shape` (step 6b)
-  - [ ] `general`, `environment`, `offset`, `results_tree`, `backplanes`,
-    and `pds4`
+  - [x] `general`, `environment`, `offset`, and `results_tree` (done:
+    parsed at load into `GeneralSection`, `EnvironmentSection` (every key
+    optional, a packaged file that sets none), `OffsetSection`, and `TreeTuning`;
+    `get_results_tree_tuning`, its unknown-key check, `TreeTuning`'s five
+    defaults, and the literal copies of the upsample factor 128 in three
+    modules deleted; the tree readers take the tuning as a required
+    argument; the flag, then config, then environment-variable order
+    unchanged)
+  - [ ] `backplanes` and `pds4`
   - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;
     no earlier step waits for it
+  - [x] `backplanes` and `pds4`, the second half of the step above (done:
+    parsed at load into `BackplanesSection` and a `Pds4Section` whose
+    fields come from each registered dataset class's `PDS4_CONFIG_KEY`, in
+    `config/sections_products.py`; a lower-case `target_lids` key, a
+    wrapped index range given one end, and a `pds4` entry under a key no
+    dataset gives are refused at load; the read-site `method`/`units`
+    checks, the getattr-with-default reads, the `str()`/`float()` casts,
+    Cassini's `_dataset_name_for_pds4_config` and
+    `_default_pds4_template_dir`, and the Voyager, Galileo, and LORRI
+    `pds4_bundle_template_dir`/`pds4_bundle_name` fallbacks deleted)
   - [ ] `load_nav_config`, `AttrDict` off the config path, and one test
     fixture for config overrides; #118 and #1001 close here. Until this
     step parses the whole tree, a top-level section nothing types (for

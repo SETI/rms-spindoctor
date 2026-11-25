@@ -1,0 +1,21 @@
+# Where a deployment keeps its files.
+#
+# Every location is optional, and this file leaves them all unset.  A location can
+# also come from a command-line flag or an environment variable.  To set one for every
+# run, put it in a configuration file you pass with --config-file: write a line
+# "environment:" and indent each location below it, as in the commented lines below.
+# Do not copy the "{}" from this file.  It makes the section an empty mapping, and a
+# location indented under it then fails to load.
+environment: {}
+# The root directory or URL of the PDS3 holdings that images are read from.
+#   pds3_holdings_root: /path/to/holdings
+# The root directory or URL navigation results are written to.
+#   nav_results_root: /path/to/nav-results
+# The root directory or URL backplanes are written to.
+#   backplane_results_root: /path/to/backplanes
+# The root directory or URL PDS4 bundles are written to.
+#   bundle_results_root: /path/to/bundles
+# The root directory or URL logs are written to.
+#   log_root: /path/to/logs
+# The connection URL of the results index, or none for no results index.
+#   results_index_db: sqlite:////path/to/index.sqlite3

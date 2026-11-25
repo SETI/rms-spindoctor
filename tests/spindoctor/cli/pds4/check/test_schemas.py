@@ -1,5 +1,6 @@
 """The schemas a label names, resolved by URL to the local copies the tests keep."""
 
+import dataclasses
 import shutil
 import warnings
 from pathlib import Path
@@ -25,11 +26,14 @@ XS_IMPORT = '{http://www.w3.org/2001/XMLSchema}import'
 
 def test_every_schema_the_configuration_names_has_a_local_copy() -> None:
     """Each dataset's configured schemas have their XML schema and Schematron copied."""
+    section = DEFAULT_CONFIG.pds4
+    bundles = [getattr(section, field.name) for field in dataclasses.fields(section)]
     missing = [
         url
-        for entry in DEFAULT_CONFIG.pds4.values()
-        for schema in entry['schemas'].values()
-        for url in (f'{schema["location"]}.xsd', f'{schema["location"]}.sch')
+        for entry in bundles
+        if entry is not None
+        for schema in entry.schemas.values()
+        for url in (schema.xsd, schema.sch)
         if not (SCHEMA_COPIES / url.rsplit('/', 1)[-1]).is_file()
     ]
     assert missing == []

@@ -15,6 +15,7 @@ from typing import Any
 import pdslogger
 import pytest
 import sqlalchemy
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import index_url, ingest_tree, metadata_document, write_metadata
 
 from spindoctor.nav_records import Selection
@@ -98,7 +99,9 @@ def test_a_question_about_many_named_stubs_fits_the_smallest_cap(
         question: Which of the three questions to ask about the named stubs.
     """
     root, url = _index_over_one_document(tmp_path)
-    with open_record_source([root], results_index_db_url=url) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, tuning=packaged_tree_tuning()
+    ) as source:
         list(getattr(source, question)(Selection(stubs=_MANY_STUBS)))
     assert max(parameter_counts) <= _SMALLEST_CAP
 
@@ -113,6 +116,8 @@ def test_the_named_listing_really_is_batched(tmp_path: Path, parameter_counts: l
     root, url = _index_over_one_document(tmp_path)
     # Only the listing's own statements count; the ingest above issued its own.
     parameter_counts.clear()
-    with open_record_source([root], results_index_db_url=url) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, tuning=packaged_tree_tuning()
+    ) as source:
         list(source.listing(Selection(stubs=_MANY_STUBS)))
     assert max(parameter_counts) > STUBS_PER_STATEMENT // 2

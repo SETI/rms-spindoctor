@@ -14,6 +14,7 @@ from filecache import FCPath
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.targets import Pds4Target, TargetScan, image_targets, target_table
 from spindoctor.config import MAIN_LOGGER, Config
+from spindoctor.config.sections_products import TargetEntry
 
 from .conftest import (
     PLUMBING_RING_TARGET,
@@ -135,15 +136,11 @@ def test_the_index_takes_the_targets_the_data_collection_s_members_name(tmp_path
     assert index.targets == (table['MOON_B'], table[PLUMBING_RING_TARGET])
 
 
-def test_the_table_s_entries_become_targets_in_order_each_version_as_text() -> None:
-    """Each entry is one target, in the configuration's order, its version as text.
-
-    A version YAML reads as a number is still stated as the text an inventory line gives
-    it.
-    """
+def test_the_table_s_entries_become_targets_in_order() -> None:
+    """Each entry is one target, in the configuration's order."""
     target_lids = {
-        'MOON_B': {'lid': 'urn:b', 'version': 1.2, 'name': 'B', 'type': 'Satellite'},
-        'MOON_A': {'lid': 'urn:a', 'version': '1.10', 'name': 'A', 'type': 'Satellite'},
+        'MOON_B': TargetEntry(lid='urn:b', version='1.2', name='B', type='Satellite'),
+        'MOON_A': TargetEntry(lid='urn:a', version='1.10', name='A', type='Satellite'),
     }
     config = cast(Config, SimpleNamespace(backplanes=SimpleNamespace(target_lids=target_lids)))
     assert list(target_table(config).values()) == [
