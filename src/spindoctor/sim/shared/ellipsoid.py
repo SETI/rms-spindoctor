@@ -352,11 +352,20 @@ def surface_normals(
     Returns:
         ``(normal_v, normal_u, normal_z)`` in image coordinates.
     """
+    # The arrays are built in place wherever this call owns them: the image side
+    # evaluates the normals over a large body on an oversampled grid, where a fresh
+    # temporary costs more than its arithmetic.  Every step is the IEEE operation of
+    # the plain expression, in the same operand order, so the normals are unchanged
+    # to the last bit.
     if geometry.sin_lat == 0.0:
-        z_coords = geometry.semi_c * np.sqrt(np.maximum(0.0, 1.0 - ellipse_dist_sq))
+        # semi_c * sqrt(maximum(0, 1 - ellipse_dist_sq)) / semi_c**2
+        normal_z_local = np.subtract(1.0, ellipse_dist_sq)
+        np.maximum(0.0, normal_z_local, out=normal_z_local)
+        np.sqrt(normal_z_local, out=normal_z_local)
+        normal_z_local *= geometry.semi_c
+        normal_z_local /= geometry.semi_c**2
         normal_v_local = v_rot / (geometry.semi_a**2)
         normal_u_local = u_rot / (geometry.semi_b**2)
-        normal_z_local = z_coords / (geometry.semi_c**2)
     else:
         x, y, z = surface_unit_coords(v_rot, u_rot, ellipse_dist_sq, geometry=geometry)
         normal_v_local, normal_u_local, normal_z_local = geometry.to_view(
@@ -367,18 +376,30 @@ def surface_normals(
         # last-bit residue, which a renderer would read as a lit sliver of sky.
         normal_z_local = np.where(ellipse_dist_sq >= 1.0, 0.0, normal_z_local)
 
-    # Normalize the normal vectors
-    normal_mag = np.sqrt(normal_v_local**2 + normal_u_local**2 + normal_z_local**2)
-    normal_mag = np.maximum(normal_mag, 1e-10)  # Avoid division by zero
-    normal_v_local = normal_v_local / normal_mag
-    normal_u_local = normal_u_local / normal_mag
-    normal_z_local = normal_z_local / normal_mag
+    # Normalize the normal vectors: sqrt(v**2 + u**2 + z**2), floored at 1e-10 to
+    # avoid a division by zero.
+    normal_mag = np.square(normal_v_local)
+    scratch = np.square(normal_u_local)
+    normal_mag += scratch
+    np.square(normal_z_local, out=scratch)
+    normal_mag += scratch
+    np.sqrt(normal_mag, out=normal_mag)
+    np.maximum(normal_mag, 1e-10, out=normal_mag)
+    normal_v_local /= normal_mag
+    normal_u_local /= normal_mag
+    normal_z_local /= normal_mag
 
     # Rotate normal back to image coordinates (only v and u components)
     # The z component stays in the depth direction
-    # Use inverse rotation (negate sin) to match the coordinate transformation
-    normal_v = normal_v_local * cos_rz + normal_u_local * sin_rz
-    normal_u = -normal_v_local * sin_rz + normal_u_local * cos_rz
+    # Use inverse rotation (negate sin) to match the coordinate transformation:
+    # normal_v = v * cos_rz + u * sin_rz and normal_u = -v * sin_rz + u * cos_rz.
+    normal_v = np.multiply(normal_v_local, cos_rz, out=scratch)
+    np.multiply(normal_u_local, sin_rz, out=normal_mag)
+    normal_v += normal_mag
+    normal_u = np.negative(normal_v_local, out=normal_v_local)
+    normal_u *= sin_rz
+    normal_u_local *= cos_rz
+    normal_u += normal_u_local
     return normal_v, normal_u, normal_z_local
 
 
@@ -451,7 +472,14 @@ def project_ellipsoid(
     u_rot = (v_axis * sin_rz)[:, np.newaxis] + (u_axis * cos_rz)[np.newaxis, :]
 
     # The projected outline is the ellipse (v_rot/a_outline)^2 + (u_rot/b)^2 = 1.
-    ellipse_dist_sq = (v_rot / semi_a_outline) ** 2 + (u_rot / semi_b) ** 2
+    # Built in place, which gives the same bits as the plain expression with three
+    # fewer grid-sized temporaries.
+    ellipse_dist_sq = v_rot / semi_a_outline
+    np.square(ellipse_dist_sq, out=ellipse_dist_sq)
+    across = u_rot / semi_b
+    np.square(across, out=across)
+    ellipse_dist_sq += across
+    del across
 
     return EllipsoidProjection(
         aa_scale=aa_scale,

@@ -25,22 +25,26 @@ it never reaches a crop edge inside the frame unless the plane itself ends there
 Outside the translated box the result is exactly ``cval``, where ``shift`` gives
 ``cval`` up to rounding.
 
-The box is resampled a strip of rows at a time, so the table of sample positions
-stays small when a body fills the frame.  Each output pixel is computed on its
-own, so the strips give the same bits as one pass over the whole box.
+The interpolation repeats the arithmetic ``shift`` and ``map_coordinates`` do at
+order 1, in the same order, so it gives their bits; a translation samples every
+row at one position and every column at one position, which lets it work on
+whole rows and columns at once where they work point by point.
+
+The box is resampled a strip of rows at a time, so the temporaries stay small
+when a body fills the frame.  Each output pixel is computed on its own, so the
+strips give the same bits as one pass over the whole box.
 """
 
 import math
 
 import numpy as np
-from scipy import ndimage
 
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = ['nonzero_box', 'shifted_box', 'translate_box']
 
-# Output rows resampled per pass.  The table of sample positions for one pass holds
-# two numbers per pixel of the strip, about 17 MB on a 4096-pixel-wide grid.
+# Output rows resampled per pass.  A temporary for one pass holds one number per
+# pixel of the strip, about 8 MB on a 4096-pixel-wide grid.
 _STRIP_ROWS = 256
 
 
@@ -159,14 +163,66 @@ def translate_box(
         strip = slice(first, min(first + _STRIP_ROWS, out_v.stop))
         src_v = _source_span(strip, dv, origin_v, origin_v + plane.shape[0])
         rows = (np.arange(strip.start, strip.stop, dtype=np.float64) - dv) - src_v.start
-        coords = np.empty((2, rows.size, cols.size))
-        coords[0] = rows[:, np.newaxis]
-        coords[1] = cols[np.newaxis, :]
-        out[strip.start - first_v : strip.stop - first_v, out_cols] = ndimage.map_coordinates(
-            plane[src_v.start - origin_v : src_v.stop - origin_v, plane_cols],
-            coords,
-            order=1,
-            mode='constant',
-            cval=cval,
+        out[strip.start - first_v : strip.stop - first_v, out_cols] = _linear_samples(
+            plane[src_v.start - origin_v : src_v.stop - origin_v, plane_cols], rows, cols, cval
         )
+    return out
+
+
+def _linear_samples(
+    crop: NDArrayFloatType, rows: NDArrayFloatType, cols: NDArrayFloatType, cval: float
+) -> NDArrayFloatType:
+    """Sample a crop by order-1 interpolation on the grid of ``rows`` by ``cols``.
+
+    The result is what ``scipy.ndimage.map_coordinates`` returns at order 1 in its
+    ``constant`` mode for the same positions, to the last bit: a position outside
+    the crop's first and last pixel on either axis takes ``cval`` without
+    interpolation, and any other is the sum, in the order ``map_coordinates`` adds
+    them, of its four neighbors, each times its row weight and then its column
+    weight.  A translation's positions form a grid, one position per row and one
+    per column, so each neighbor is a gather and each weight a row or a column of
+    values, which is far cheaper than ``map_coordinates`` working point by point.
+
+    Parameters:
+        crop: The values sampled.
+        rows: The row position of each output row, in crop pixels.
+        cols: The column position of each output column, in crop pixels.
+        cval: The value outside the crop.
+
+    Returns:
+        The ``(rows, columns)`` samples.
+    """
+    out = np.full((rows.size, cols.size), cval, dtype=np.float64)
+    last_v = crop.shape[0] - 1
+    last_u = crop.shape[1] - 1
+    row_in = np.flatnonzero((rows >= 0.0) & (rows <= last_v))
+    col_in = np.flatnonzero((cols >= 0.0) & (cols <= last_u))
+    if row_in.size == 0 or col_in.size == 0:
+        return out
+    row_pos = rows[row_in]
+    col_pos = cols[col_in]
+    v0 = np.floor(row_pos).astype(np.intp)
+    u0 = np.floor(col_pos).astype(np.intp)
+    # A position on the last pixel gives its far neighbor a weight of exactly 0, so
+    # that neighbor may be any value in the crop; the last pixel stands in for it.
+    v1 = np.minimum(v0 + 1, last_v)
+    u1 = np.minimum(u0 + 1, last_u)
+    weight_v1 = (row_pos - v0)[:, np.newaxis]
+    weight_u1 = (col_pos - u0)[np.newaxis, :]
+    weight_v0 = 1.0 - weight_v1
+    weight_u0 = 1.0 - weight_u1
+    total = crop[np.ix_(v0, u0)]
+    total *= weight_v0
+    total *= weight_u0
+    total += 0.0
+    for v_index, u_index, weight_v, weight_u in (
+        (v0, u1, weight_v0, weight_u1),
+        (v1, u0, weight_v1, weight_u0),
+        (v1, u1, weight_v1, weight_u1),
+    ):
+        term = crop[np.ix_(v_index, u_index)]
+        term *= weight_v
+        term *= weight_u
+        total += term
+    out[np.ix_(row_in, col_in)] = total
     return out

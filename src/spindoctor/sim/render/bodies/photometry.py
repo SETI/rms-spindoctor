@@ -95,7 +95,14 @@ def incidence_cosines(
     illum_v, illum_u, illum_z = illumination_vector(
         illumination_angle=illumination_angle, phase_angle=phase_angle
     )
-    return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)
+    # v * illum_v + u * illum_u + z * illum_z, summed in place in that order, which
+    # gives the same bits as the plain expression with two fewer temporaries.
+    cos_i = np.multiply(normal_v, illum_v)
+    term = np.multiply(normal_u, illum_u)
+    cos_i += term
+    np.multiply(normal_z, illum_z, out=term)
+    cos_i += term
+    return cast(NDArrayFloatType, cos_i)
 
 
 def surge_factor(phase_angle: float, *, amplitude: float, width_deg: float) -> float:
@@ -169,18 +176,25 @@ def shade_surface(
         blend = _lunar_lambert_blend(phase_angle)
         intensity = blend * _lommel_seeliger(mu0, mu) + (1.0 - blend) * mu0
 
+    # The product is a new array, so masking it in place leaves mu0 alone (it is the
+    # Lambert law's intensity), and matches where(visible, product, 0) to the last bit.
     intensity = intensity * surge_factor(
         phase_angle, amplitude=surge_amplitude, width_deg=surge_width_deg
     )
-    return cast(NDArrayFloatType, np.where(visible, intensity, 0.0))
+    np.copyto(intensity, 0.0, where=~visible)
+    return intensity
 
 
 def _lommel_seeliger(mu0: NDArrayFloatType, mu: NDArrayFloatType) -> NDArrayFloatType:
     """The Lommel-Seeliger term ``2 * mu0 / (mu0 + mu)``, 0 where degenerate."""
     denominator = mu0 + mu
+    # where(denominator > 0, 2 * mu0 / denominator, 0) with NaN set to 0, in place on
+    # this call's own arrays, which gives the same bits as the plain expression.
+    value = np.multiply(2.0, mu0)
     with np.errstate(divide='ignore', invalid='ignore'):
-        value = np.where(denominator > 0.0, 2.0 * mu0 / denominator, 0.0)
-    return cast(NDArrayFloatType, np.nan_to_num(value, nan=0.0))
+        np.divide(value, denominator, out=value)
+    np.copyto(value, 0.0, where=~(denominator > 0.0))
+    return cast(NDArrayFloatType, np.nan_to_num(value, copy=False, nan=0.0))
 
 
 def _lunar_lambert_blend(phase_angle: float) -> float:
