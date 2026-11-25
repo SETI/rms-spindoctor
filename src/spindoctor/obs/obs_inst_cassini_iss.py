@@ -138,7 +138,7 @@ product's.  The VICAR header of a calibrated image keeps the raw product's value
 its PDS3 label gives the calibrated product's own: the calibration's history and the
 date it ran, such as 2019-06-09.  The host's merged ``dict`` takes the label's, so these
 two are read from ``header_dict``, which the host keeps verbatim.  A time there loses the
-trailing ``Z`` the header writes, as the host's merged times do (see
+trailing ``Z`` the header writes, as every other published time does (see
 :func:`_raw_product_value`).
 """
 
@@ -149,9 +149,9 @@ _HEADER_TIME = re.compile(r'\d{4}-(?:\d{3}|\d{2}-\d{2})T\d{2}:\d{2}:\d{2}(?:\.\d
 def _raw_product_value(raw: Any) -> Any:
     """Return a raw-product keyword's header value in the form the PDS3 labels write.
 
-    The host writes every time it merges from the header without the header's trailing
-    ``Z``, and leaves out a placeholder.  ``header_dict`` is verbatim, so the same is done
-    here for the values read from it.
+    Every other published time is written without the header's trailing ``Z`` (see
+    :func:`_document_value`), and the host leaves out a placeholder.  ``header_dict`` is
+    verbatim, so the same is done here for the values read from it.
 
     Parameters:
         raw: The value as the VICAR header gives it, or None if the header lacks it.
