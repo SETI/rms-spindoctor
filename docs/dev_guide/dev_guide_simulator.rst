@@ -555,10 +555,10 @@ What it cannot do
   mitigation. Closing the gap it documents requires ensemble work (consuming
   declared model-error bars, cross-technique vetoes). The body-witness veto
   closes the shape-mismatch mode. It does not close the haze modes. In
-  ``titan_crescent_horns`` the disc correlation returns a low-tier success
-  2.40 px wrong and does not flag it spurious, so the veto has nothing to read.
+  ``titan_crescent_horns`` the disc correlation returns a medium-tier success
+  10.19 px wrong and does not flag it spurious, so the veto has nothing to read.
   In ``titan_haze_limb`` the ensemble returns a medium-tier success 7.35 to
-  7.54 px wrong. These two, the ring planted-orbit-error lock, and the other
+  7.55 px wrong. These two, the ring planted-orbit-error lock, and the other
   hazards under a known-error check (:ref:`sim-expected`) stand until their own
   fixes land (see the ensemble chapter, :doc:`dev_guide_orchestrator_ensemble`).
 - **Transfer its calibration to real frames by itself.** That path runs
@@ -2171,8 +2171,8 @@ not yet fixed. There are thirteen:
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
 - In ``titan_crescent_horns`` and its noiseless twin, the disc correlation,
-  whose template leaves the haze's ring of light out, carries a success 2.40 px
-  wrong on the coarse-grid point (0.5, 1.5).
+  whose template leaves the haze's ring of light out, locks onto that ring and
+  carries a medium-confidence success 10.19 px wrong.
 - In ``titan_haze_limb``, the disc correlation reads the edge of a haze the
   navigator does not model as the limb and carries a medium-confidence success
   7.3 to 7.6 px wrong.
@@ -2344,7 +2344,7 @@ render departs from it. The sweeps and their floors:
   ``albedo_texture`` spot of albedo factor 0 that covers the whole sphere. At
   albedo 0 the frame is blank, and up to albedo 0.3 no answer comes within 1 px:
   most draws fail, and the rest lock 41 to 59 px off. At albedo 0.6 every draw
-  lands 0.41 to 0.63 px off. This axis has no self-consistency floor, since its
+  lands 0.25 to 0.44 px off. This axis has no self-consistency floor, since its
   first step leaves nothing to navigate on.
 
 The remaining Section 8 axes are covered by pre-existing sweeps
@@ -3116,6 +3116,16 @@ then half the surface tangent depth, the near half of the column a line of sight
 just above the limb crosses. The incidence angle takes the same correction. Both
 angles are measured from the surface normal of the ellipsoid under the pixel.
 
+A line of sight that passes the limb crosses the tangent column in two halves:
+the near half, in front of the tangent point, and then the far half behind it.
+Each half scatters light once as a column of half the tangent depth does, and the
+far half's light reaches the camera through the near half's transmission
+``exp(-tau / 2)``. The near half takes the same angles as the disc beneath it.
+The far half shows only where the column is thin enough to see through, and its
+light then comes mostly from just behind the tangent point, where the path runs
+deepest, so it is lit as the limb point at that azimuth is. The light scattered
+more than once belongs to the whole column.
+
 **The reflectance.** The haze reflects sunlight as a layer of finite optical
 depth, by Hapke's isotropic multiple-scattering approximation
 (``haze_scattering.py``)::
@@ -3188,9 +3198,26 @@ brightness carries smoothly across the edge.
 transmission ``exp(-tau_vert * (1 / mu + 1 / mu0))`` of the sunlight coming in
 and the light going out, with ``mu`` and ``mu0`` the effective cosines at the
 surface. A haze one or two optical depths thick dims the surface, and one several
-optical depths thick hides it. Over a haze that thick, the haze is as bright just
-inside the solid limb as just outside it, so the solid limb does not show. Through
-a thinner haze the surface shows, and its limb with it.
+optical depths thick hides it.
+
+**The solid limb.** Across the solid limb the near half of the column is the same
+on both sides, and only what lies behind it changes: the lit surface just inside,
+the far half of the column just outside. Both reach the camera through the near
+half's transmission ``exp(-tau_s / 2)``, where ``tau_s`` is the tangent depth
+at the surface. So the brightness steps across the solid limb by that
+transmission times the difference between the two, plus the far half's share of
+the light scattered more than once. The solid limb is hidden when that step is
+small against the haze's own light: when ``exp(-tau_s / 2)`` times the brighter
+of the lit surface and the far half is a few percent of the haze or less, or when
+the two happen to match. At low phase the surface is lit nearly face-on and a
+forward-scattering haze is dim, so it takes a much thicker column to hide the
+limb than at high phase. Take a haze with a scale height of 8 px over an 85 px
+body, and a tangent depth of 3 at the surface. At phase 150 deg the lit surface and the far half
+nearly balance, and the brightness steps by under 1% across the solid limb. At
+phase 40 deg the surface just inside the limb is several times brighter than the
+haze just outside it, and the limb shows, as it does through a real haze that
+thin. Titan's haze, about 340 optical depths deep along the tangent at the
+surface, hides the solid limb at every phase.
 
 ``albedo`` is the haze's single-scattering albedo: it defaults to 0.6 and lies in
 [0, 1]. It sets how bright the haze is against the disc and the sky,
@@ -3218,6 +3245,23 @@ With isotropic scattering the same check runs 1 to 5% low, the error
 of the closed-form H-function. For layers of vertical optical depth 0.3 to 3 the
 reflectance runs 4 to 17% low, so the scaling by the column adds little to the
 shortfall of the semi-infinite layer.
+
+The brightness across the solid limb was checked against a reference that uses
+none of the renderer's formulas (``util/titan_haze/check_solid_limb.py``): the
+light the same haze scatters once, integrated along each line of sight through
+the body's shell, with the sunlight reaching every point integrated through the
+haze and cut off where the body shadows it, plus the lit surface seen through the
+column. It leaves out the light scattered more than once, so it compares the step
+across the limb rather than the brightness. For the haze above, with a scale
+height of 8 px and a tangent depth of 3 at the surface, at phase 150 deg, the reference
+steps by 1.0% across the sunward solid limb and the renderer by 0.6%. On the
+anti-sunward side both show the dark night-side limb against the far half of the
+column, lit from behind, which the reference puts at 0.008 just outside the limb
+and the renderer at 0.010. At phase 40 deg
+the lit surface makes the sunward limb show in both, and on the anti-sunward side
+the renderer steps by 10%, all of it light scattered more than once, which the
+reference leaves out. Under Titan's haze at 40, 60, and 155 deg neither steps by
+more than 0.6%.
 
 Compared with real frames of Titan, the rendered disc comes out darker at low and
 moderate phase, by an amount that depends on the filter, and the forward ring of
@@ -3371,7 +3415,7 @@ measured value. With Titan's haze the edge stands about 9 px above the 90 px
 radius of the low-phase ``titan_haze_limb`` scene. There the disc correlation
 lands 7.35 px off toward the sun, the limb DT fit 8.5 px off, and the blob
 centroid 1.4 px off. On every one of its 16 distinct draws the ensemble returns a
-medium-tier success 7.35 to 7.54 px off against a sigma of 1.07 to 1.17 px, an
+medium-tier success 7.35 to 7.55 px off against a sigma of 1.08 to 1.19 px, an
 error of 6 to 7 sigma, and the scene holds that error to a band.
 
 The Titan scenes are exposed so that the haze's peak fills as much of the
@@ -3385,27 +3429,27 @@ navigator does not model. The scenes that measure it carry a body named
 to the haze model and
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`, which
 is not haze-blind and measures something else entirely. The ``titan_haze`` scene
-is the one that drives that technique; with Titan's haze it lands 0.41 to 0.46 px
+is the one that drives that technique; with Titan's haze it lands 0.49 to 0.54 px
 off along the sun axis, toward the night side, an error that grows with the
 rendered scale height. At high phase the haze is outright hostile: in
 ``titan_crescent_horns`` (155 deg) the haze hides the surface and the only light
-is the ring of light, which peaks at 0.37 of a white disc lit face-on about 7 px
+is the ring of light, which peaks at 0.43 of a white disc lit face-on about 7 px
 above the solid limb. The predicted
 terminator arc is emitted but dropped by its feature reliability before any
 technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.24 against the 0.30
-``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands 16.5 to
-18.8 px off. The disc correlation, whose hard-limbed template leaves the ring of
-light out, answers on every draw the point (0.5, 1.5) of its half-pixel coarse
-grid, 2.40 px off, a low-tier success, and it does not flag that answer
-spurious. So the body-witness veto
+``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands 17.8 to
+20.1 px off. The disc correlation, whose hard-limbed template leaves the ring of
+light out, locks onto that ring on every draw, 10.19 px off toward the sun
+against a sigma of 1.03 px, a medium-tier success, and it does not flag that
+answer spurious. So the body-witness veto
 (see :doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
 surviving body offset is the centroid beside a spurious geometric fit, has
-nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its error to a band. The noiseless sibling
+nothing to read. The disc correlation sets a medium-confidence success, and the
+scene holds its error, and that error in sigmas, to bands. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
-and phase geometry -- pins both biases deterministically (blob centroid 17.2 px
-off, disc correlation 2.40 px off), so the ring of light alone drives them. The
+and phase geometry -- pins both biases deterministically (blob centroid 19.3 px
+off, disc correlation 10.19 px off), so the ring of light alone drives them. The
 haze evaluation is restricted to the bounding box of the body plus its halo (out
 to a detached shell's reach), so its cost scales with that box rather than the
 frame, and a body without an ``atmosphere`` block renders hard-limbed and
@@ -3749,8 +3793,9 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
 
    An atmospheric body (see :ref:`sim-atmosphere`): the haze softens the limb
    into an exponential ramp that reaches past the geometric edge, and the
-   terminator brightens instead of cutting off. The navigator still predicts a
-   hard limb at the reference radius.
+   terminator brightens instead of cutting off. The haze is thin enough that the
+   lit surface, and its limb, show through it (see :ref:`sim-atmosphere`). The
+   navigator still predicts a hard limb at the reference radius.
 
 .. figure:: _sim_images/haze_crescent_horns.png
    :width: 45%
@@ -3758,7 +3803,8 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
 
    The same haze at phase 150 deg: forward scattering lights the whole limb and
    extends the crescent horns past the terminator into a near-complete ring of
-   light.
+   light. Here the far half of the haze column, lit from behind, makes up for the
+   lit surface, so the solid limb does not show.
 
 .. figure:: _sim_images/banded_transit.png
    :width: 45%

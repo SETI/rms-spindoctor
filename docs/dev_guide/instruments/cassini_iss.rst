@@ -674,7 +674,7 @@ The ``CL1+VIO`` frame has no simulated twin, since the haze is not modeled there
      - 0.134 / 0.084
      - 0.266 / 0.168
      - -321 / 3
-     - 260 / 204
+     - 260 / 209
      - 0.020 / 0.019
    * - W1822132529
      - CL1, BL1
@@ -704,18 +704,18 @@ The ``CL1+VIO`` frame has no simulated twin, since the haze is not modeled there
      - CL1, CL2
      - 149.2
      - 0.005 / 0.000
-     - 0.847 / 0.251
+     - 0.847 / 0.282
      - 217 / 217
-     - 326 / 295
+     - 326 / 290
      - 0.028 / 0.000
    * - W1561790952
      - CL1, CL2
      - 166.5
      - 0.102 / 0.000
-     - 2.693 / 1.548
-     - 310 / 262
-     - 399 / 310
-     - 0.321 / 0.256
+     - 2.693 / 1.765
+     - 310 / 249
+     - 399 / 303
+     - 0.321 / 0.298
 
 The 0.102 at the center of W1561790952 is scattered light from the bright ring
 around it. The real haze's limb stands higher in the violet: at 60.6 deg the
@@ -723,9 +723,9 @@ around it. The real haze's limb stands higher in the violet: at 60.6 deg the
 ``RED``. The simulated haze's limb stands 61 km higher in ``BL1`` than in ``RED``,
 while the real ``BL1`` frame's half max, at 259 km, matches the ``RED`` frame's.
 From 60 to 107 deg the simulated disc runs 16 to 44% darker than the real one,
-least in ``BL1``, and in ``RED`` its sunward edge falls to half its peak 56 km
-lower. At 149 and 167 deg the ring of light is 3.4 and 1.7 times fainter than on
-the real frames and its peak sits up to 48 km lower, and at 149 deg no light
+least in ``BL1``, and in ``RED`` its sunward edge falls to half its peak 51 km
+lower. At 149 and 167 deg the ring of light is 3.0 and 1.5 times fainter than on
+the real frames and its peak sits up to 61 km lower, and at 149 deg no light
 reaches the anti-sunward side, where the real frame shows 0.028. The likely cause
 of the faint ring is light scattered forward more than once along the long limb
 path, which the renderer's isotropic multiple-scattering term cannot carry
@@ -742,8 +742,8 @@ The Titan scenes are exposed from these frames. The haze's peak stands 1933,
 above it on W1721822901 at 149.2 deg, the cohort frame nearest 155 deg. The
 low-phase scenes ``titan_haze`` (60 deg) and ``titan_haze_limb`` (40 deg) take
 7.3 s and 7.5 s, which put their haze's peak 2117 and 2114 DN above the sky, and
-``titan_crescent_horns`` and its noiseless twin (155 deg) take 4.1 s, which puts
-the ring of light 2775 DN above it. The noisy scenes carry the narrow angle
+``titan_crescent_horns`` and its noiseless twin (155 deg) take 3.6 s, which puts
+the ring of light 2782 DN above it. The noisy scenes carry the narrow angle
 camera's read noise, 12 e-, which is 0.4 DN at the 30 e-/DN of gain state 2.
 
 Image library and test coverage
