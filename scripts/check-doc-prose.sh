@@ -55,7 +55,13 @@ while [[ $# -gt 0 ]]; do
             DIFF_BASE="$2"
             shift
             ;;
-        --diff=*) DIFF_BASE="${1#--diff=}" ;;
+        --diff=*)
+            DIFF_BASE="${1#--diff=}"
+            if [[ -z "$DIFF_BASE" ]]; then
+                echo 'check-doc-prose: FAILED -- --diff needs a BASE commit' >&2
+                exit 1
+            fi
+            ;;
         # The usage text is the comment block at the top of this file.
         -h|--help) awk 'NR > 2 && !/^#/ { exit } NR > 2' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
         *) FILES+=("$1"); EXPLICIT=1 ;;
@@ -288,6 +294,7 @@ if [[ -n "$DIFF_BASE" ]]; then
 
     # Emit "path:line:text" for each added line, numbering from the hunk headers.
     if ! ADDED="$(printf '%s\n' "$diff_text" | python3 -c '
+import codecs
 import re
 import sys
 
@@ -304,6 +311,9 @@ for raw in sys.stdin:
     if not in_hunk:
         if line.startswith("+++ "):
             target = line[4:]
+            # Git quotes a path holding a non-ASCII or special character, C style.
+            if target.startswith("\"") and target.endswith("\""):
+                target = codecs.escape_decode(target[1:-1])[0].decode("utf-8")
             path = target[2:] if target.startswith("b/") else None
             continue
         m = HUNK.match(line)
