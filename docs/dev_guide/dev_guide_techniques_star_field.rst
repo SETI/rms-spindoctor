@@ -408,7 +408,7 @@ are the ones in the packaged file.
   re-centroided by a PSF fit; ``false`` keeps the brightness-weighted moment centroid
   everywhere.
 - ``psf_refine_box_px`` — int, packaged value ``11`` px. Square box side for the PSF fit
-  and the integrated-SNR estimate around each inlier. An even side, which has no center
+  and the integrated-SNR estimate around each inlier. An even side, which lacks a center
   pixel, is refused at load.
 - ``psf_refine_search_limit_px`` — float, packaged value ``2.0`` px. Maximum search
   distance from the moment centroid for the PSF fit; the moment is already within a pixel

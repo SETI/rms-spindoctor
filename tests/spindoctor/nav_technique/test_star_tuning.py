@@ -15,7 +15,7 @@ from spindoctor.schema import SchemaError
 
 
 def test_an_even_psf_refine_box_is_refused(tmp_path: Path) -> None:
-    """A PSF-fit box with an even side, which has no center pixel, is refused at load."""
+    """A PSF-fit box with an even side, which lacks a center pixel, is refused at load."""
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text(
         'techniques:\n  star_field_from_catalog:\n    tuning:\n      psf_refine_box_px: 10\n',
@@ -30,7 +30,7 @@ def test_an_even_psf_refine_box_is_refused(tmp_path: Path) -> None:
 
 
 def test_an_inverted_isolation_annulus_is_refused(tmp_path: Path) -> None:
-    """An inner isolation radius above the outer one is refused, naming both keys."""
+    """An inner isolation radius above the outer one is refused, and the message has both keys."""
     user_path = tmp_path / 'user_config.yaml'
     user_path.write_text(
         'techniques:\n  star_unique_match:\n    tuning:\n      source_isolation_inner_px: 7\n',

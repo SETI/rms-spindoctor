@@ -131,7 +131,7 @@ class StarUniqueMatchTuning(StarTuning):
         one_star_min_peak_ratio: The smallest ratio of a lone star's source's peak to that
             of every other source in its window.
         one_star_max_residual_px: The largest prediction-to-detection distance in pixels
-            the 1-star path accepts when its window has no rival source.
+            the 1-star path accepts when no rival source is in its window.
         one_star_max_peak_sharpness: The largest peak sharpness of a lone star, with no
             allowance for noise.
         one_star_absent_stars: A lone star's offset is refuted when at least this many
