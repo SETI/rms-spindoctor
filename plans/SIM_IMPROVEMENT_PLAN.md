@@ -196,10 +196,13 @@ around the haze of the Titan scenes, sharpens every occluding limb a limb techni
 loosened two mutual-event tolerances in the disc refinement work (#1053). It follows #890, whose
 coverage of a body too large for the frame the seam fix shares.
 
-With #893 done and #892, #894, and #875 under way in their own PRs, the next row not yet started
-is #842 with #646: no check compares where a simulated limb's brightness gradient peaks with a
-real limb, and the limb-bias harness measures a simulated ridge half a pixel from the deployed
-one. This phase's exit asks for that check.
+**Done (PR #1222).** With #893 done and #892, #894, and #875 under way in their own PRs, the next
+row not yet started was #842 with #646: no check compared where a simulated limb's brightness
+gradient peaks with a real limb, and the limb-bias harness measured a simulated ridge half a pixel
+from the deployed one. This phase's exit asks for that check, and the realism match now makes it.
+The rows still open are #1163, #1101 (under way in its own PR), #1106 (kept at 0 by the
+2026-11-22 ruling), #1110, the speed targets of #1127 (waiting on #1182), and three rows that
+affect no current scene (#1094, #1057, and #1115); their order is not yet set.
 
 | Issue | Subject |
 |---|---|
