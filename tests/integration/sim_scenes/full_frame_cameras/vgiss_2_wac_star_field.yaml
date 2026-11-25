@@ -12,8 +12,11 @@ exposure_sec: 0.48
 # and 400 px around it, the camera's search margin.  The real frame navigates
 # on a few bright stars: the star-field fit finds only 2 of 6 predicted stars
 # and returns spurious, and the two-star match and the refinement carry the
-# answer (fused confidence 0.83).  Its brightest star, V 2.6, peaks at I/F 0.27,
-# and the simulated one at I/F 0.23.  The sky_counts field adds the faint stars
+# answer (fused confidence 0.83).  Its brightest star, V 2.6, peaks 44 raw DN
+# above the sky (I/F 0.27), and the simulated one 42 DN (I/F 0.33); the
+# simulator's DN-to-I/F scale differs from the archive's at this exposure.  The
+# camera's star zero point is measured on its own star frames (see the
+# instrument catalog).  The sky_counts field adds the faint stars
 # no catalog lists.  instrument_defaults turns on the camera's vidicon chain:
 # the line and pixel read noise, the banding, and the PSF and distortion
 # residual.
@@ -27,12 +30,13 @@ exposure_sec: 0.48
 # the boresight, the frame center after the offset, and the roll moves them
 # 0.07 to 3.2 px; their mean position moves 1.6 px.
 #
-# The fused answer lands 1.02 to 1.42 px off over 24 distinct draws, at medium
-# tier (confidence 0.70 to 0.79), within 1.8 of its reported sigmas.  The
-# refinement carries it on 6 stars.  The two-star match lands 0.02 to 0.93 px
+# The fused answer lands 1.01 to 1.36 px off over 24 distinct draws, at medium
+# tier (confidence 0.70 to 0.80), within 1.7 of its reported sigmas.  The
+# refinement carries it on 6 stars.  The two-star match lands 0.03 to 0.72 px
 # off, and the star-field fit, locking on 3 stars by its wide-offset lock,
-# 0.13 to 0.64 px off.  Without the roll the committed draw lands 0.20 px off,
-# against 1.36 px with it.  That is the error the tolerance holds.
+# 0.12 to 0.62 px off.  Without the roll the committed draw lands 0.21 px off,
+# against 1.31 px with it.  That is the error the tolerance holds; a lost
+# twist still passes the tolerance and fails the baseline.
 artifacts:
   instrument_defaults: true
 sky_counts: {}

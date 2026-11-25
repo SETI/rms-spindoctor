@@ -15,10 +15,12 @@ exposure_sec: 0.48
 # chain: the line and pixel read noise, the banding, and the PSF and
 # distortion residual.
 #
-# Simulated Voyager stars are much fainter than real ones of the same
-# magnitude on this camera.  The brightest star in the frame, V 3.9, peaks at
-# I/F 0.07, where on the real frame it peaks near I/F 3; the four Voyager
-# cameras share one placeholder star zero point (#806, #907).
+# The camera's star zero point is measured on its own star frames (see the
+# instrument catalog).  The two brightest stars in the frame, V 3.86 and V
+# 4.28, peak 224 and 152 DN above the simulated sky, where on the real frame
+# the compressing vidicon holds them to 167 and 115 raw DN.  In I/F the
+# brightest peaks at 1.76, against 2.97 on the real frame: the simulator's
+# DN-to-I/F scale differs from the archive's at this exposure (#907).
 #
 # The planted offset, 48.6 px, is the size of the real frame's offset (48.7 px)
 # turned to point mostly along -u.  The roll is the camera's measured mean
@@ -26,12 +28,12 @@ exposure_sec: 0.48
 # the camera ships.  The twist varies from frame to frame by 0.28 px at the
 # corner, and the mean lies inside that spread.
 #
-# The fused answer lands 0.02 to 0.54 px off over 24 distinct draws, at medium
-# tier (confidence 0.74 to 0.83).  The refinement carries it on the 5 stars it
-# finds.  The star-field fit locks on 3 of 13 predicted stars by its
-# wide-offset lock at confidence 0.6, and flags its answer spurious on 5
-# draws.  Without the roll the committed draw lands 0.24 px off, against
-# 0.20 px with it.
+# The fused answer lands 0.03 to 0.26 px off over 24 distinct draws, at
+# medium tier on 19 and high tier on 5 (confidence 0.81 to 0.92).  As on the
+# real frame, the star-field fit locks normally, on 6 or 7 of 13 predicted
+# stars at confidence 0.93, and the refinement carries the answer on 6 or 7
+# stars.  Without the roll the committed draw lands 0.10 px off, against
+# 0.18 px with it.
 artifacts:
   instrument_defaults: true
 sky_counts: {}
