@@ -552,17 +552,19 @@ measured Voyager 1 twist may differ between the two cameras by far more than the
 placeholder. Roll fitting stays off, as the cameras ship.
 
 The simulated frames are in I/F, and the exposure does not change a simulated
-body's brightness. The simulated moon, shaded with the default Lommel-Seeliger law,
-peaks near I/F 1.6, and the Saturn disc near I/F 1, where the real frames peak at 0.3
-to 0.5. Neither reaches the 255 DN clip at I/F 1.85, so both bodies keep a normal
-albedo of 1.
+body's brightness. Each body's normal albedo sets its brightness from its real
+frame: the brightest 1% of the simulated disc matches the brightest 1% of the real
+one, both measured in I/F above the sky. The moon, shaded with the default
+Lommel-Seeliger law, takes 0.279 and peaks near I/F 0.44, where the real disc peaks
+near 0.5. Saturn takes 0.357, and its ring albedos are scaled with it, so each ring
+keeps its brightness relative to the disc.
 
 - ``vgiss_1_nac_disc``: a moon 197 px across at a phase of 32 degrees, after a
   Voyager 1 frame of Ganymede at 0.24 s, offset 42 px. The answer lands 0.34 to
   0.88 px off over 24 draws, at medium confidence, from the disc correlation, the
   limb fit, and the blob together. It lands toward the Sun, where the navigator's
   Lambert template meets the Lommel-Seeliger surface (see
-  :ref:`sim-photometric-laws`). On a Lambert surface it landed 0.06 to 0.57 px off.
+  :ref:`sim-photometric-laws`). On a Lambert surface it lands 0.04 to 0.58 px off.
 - ``vgiss_1_wac_saturn``: Saturn about 95 px across with its rings at an opening
   of 8.6 degrees, after two library frames at 7.68 s, offset 32 px. The scale,
   the ring radii, and the ring brightness follow the real frame, and the planet's
@@ -570,7 +572,7 @@ albedo of 1.
   navigate on the planet, and the navigator models the rings only as an annulus,
   which it flags spurious, so the scene marks no ring navigable. As on the real
   frame, the disc correlation passes its quality threshold. It carries the
-  answer, 0.18 to 0.69 px off over 24 draws, at medium confidence. The planet is
+  answer, 0.17 to 0.68 px off over 24 draws, at medium confidence. The planet is
   under 100 px across, so the simulated body model gives it no limb, and the limb
   fit does not run, where on the real frame it does.
 - ``vgiss_2_nac_star_field``: the Pleiades field of the library frame C1205021 at
