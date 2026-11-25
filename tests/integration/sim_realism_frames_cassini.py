@@ -99,9 +99,13 @@ def cassini_clipped_pixels(image_path: Any, conversion: str | None) -> NDArrayBo
     full_scale = _RAW_FULL_SCALE_DN.get(str(conversion))
     if '_CALIB' not in path.name or full_scale is None:
         return None
-    raw_path = FCPath(str(path.parent).replace('/calibrated/', '/volumes/', 1)) / (
-        path.name.replace('_CALIB', '')
-    )
+    # Built from the path's own parents so the raw path keeps its file cache and URL
+    # translators.  The topmost calibrated/ directory becomes volumes/.
+    raw_dir = path.parent
+    calibrated = [p for p in path.parent.parents if p.name == 'calibrated']
+    if calibrated:
+        raw_dir = calibrated[-1].parent / 'volumes' / path.parent.relative_to(calibrated[-1])
+    raw_path = raw_dir / path.name.replace('_CALIB', '')
     raw = np.asarray(vicar.VicarImage(raw_path).data_2d)
     return np.asarray(raw >= full_scale, dtype=bool)
 

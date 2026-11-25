@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 import pytest
 import vicar
+from filecache import FCPath, FileCache
 
 from tests.integration.sim_realism_frames_cassini import (
     IAU_MOON_RADII_KM,
@@ -40,6 +41,20 @@ def test_the_raw_product_lies_beside_the_calibrated_one(opened: list[str]) -> No
     """The raw product is under volumes/, with _CALIB dropped from its name."""
     cassini_clipped_pixels(_CALIB, 'TABLE')
     assert opened == [_RAW]
+
+
+def test_the_raw_product_keeps_the_calibrated_path_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The raw product is read through the file cache the calibrated path carries."""
+    caches: list[FileCache] = []
+
+    def vicar_image(path: FCPath) -> Any:
+        caches.append(path.filecache)
+        return SimpleNamespace(data_2d=np.array([[254, 255], [4094, 4095]]))
+
+    monkeypatch.setattr(vicar, 'VicarImage', vicar_image)
+    with FileCache(None) as cache:
+        cassini_clipped_pixels(FCPath(_CALIB, filecache=cache), 'TABLE')
+        assert caches == [cache]
 
 
 @pytest.mark.parametrize(
