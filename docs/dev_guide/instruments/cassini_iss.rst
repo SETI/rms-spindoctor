@@ -774,8 +774,9 @@ The five hooks that read configuration take the entry under the dataset's
 ``PDS4_CONFIG_KEY``, written ``<key>`` above. The Cruise and Saturn subclasses set it
 to ``coiss_cruise`` and ``coiss_saturn``. ``DataSetPDS3CassiniISS`` itself leaves it
 as None, so those five hooks and ``pds4_user_guide_file_name`` raise
-``NotImplementedError`` there, and ``sd_create_bundle`` refuses the undivided ``coiss``
-dataset before it runs a pass. A bundle belongs to one of the two halves, not
+``NotImplementedError`` there, and ``sd_create_bundle``
+(:doc:`/user_guide/user_guide_pds4_bundle`) refuses the undivided ``coiss`` dataset
+before it runs a pass. A bundle belongs to one of the two halves, not
 to both.
 
 The package ships only the ``coiss_saturn`` entry and its ``cassini_iss_saturn_1.0``
