@@ -770,11 +770,12 @@ This dataset is the reference implementation, and implements every hook.
   times from the navigation metadata, the product LIDs and LIDVIDs, and roughly
   sixty ``cassini:`` namespace variables read straight from the PDS3 index row.
 
-Each hook reads the entry under the dataset's ``PDS4_CONFIG_KEY``, written ``<key>``
-above. The Cruise and Saturn subclasses set it to ``coiss_cruise`` and
-``coiss_saturn``. ``DataSetPDS3CassiniISS`` itself leaves it as None, so every hook
-raises ``NotImplementedError`` there, and ``sd_create_bundle`` refuses the undivided
-``coiss`` dataset before it runs a pass. A bundle belongs to one of the two halves, not
+The five hooks that read configuration take the entry under the dataset's
+``PDS4_CONFIG_KEY``, written ``<key>`` above. The Cruise and Saturn subclasses set it
+to ``coiss_cruise`` and ``coiss_saturn``. ``DataSetPDS3CassiniISS`` itself leaves it
+as None, so those five hooks and ``pds4_user_guide_file_name`` raise
+``NotImplementedError`` there, and ``sd_create_bundle`` refuses the undivided ``coiss``
+dataset before it runs a pass. A bundle belongs to one of the two halves, not
 to both.
 
 The package ships only the ``coiss_saturn`` entry and its ``cassini_iss_saturn_1.0``
