@@ -1,6 +1,6 @@
-# Cassini ISS lossless-compressor check
+# Cassini ISS line-loss checks
 
-Two scripts that test the simulator's model of the Cassini ISS lossless compressor
+Two scripts test the simulator's model of the Cassini ISS lossless compressor
 against real frames. The model is the block-adaptive Rice coder in
 `spindoctor.sim.render.telemetry.lossless`: each line is coded as the differences
 between neighboring samples, in 16-sample blocks, each block with the cheapest of the
@@ -17,6 +17,13 @@ median. Seven more frames have 10 or more such lines but code to well under the
 budget, at a median of 0.3 to 0.7. Their labels give the cause as gaps in the ground
 link, and the list leaves them out.
 
+Two more scripts measure the groups of whole lines that packets lost on the way to
+the ground, on the frames in `gap_frames.txt`, and compare the simulator's
+`downlink_gaps` with them. `gap_census.py` prints the tables the camera entries
+take as shape defaults and writes the groups to a file; `gap_fit.py` renders
+simulated frames at the census frames' heights and readout modes, measures them the
+same way, and fits the share of groups that start a new cluster and the count law.
+
 ## Layout
 
 | File | Role |
@@ -25,6 +32,9 @@ link, and the list leaves them out.
 | `lossless_check.py` | Codes every pair whose first line is whole and compares the coded size with the budget. |
 | `twins.py` | Builds a simulated twin of a frame and compares the simulator's cuts on the twin with the frame's own. |
 | `lossless_frames.txt` | The frames, as paths under the PDS3 holdings root. |
+| `gap_census.py` | Measures the groups of lost lines on the frames in `gap_frames.txt` and prints the `downlink_gaps` tables. |
+| `gap_fit.py` | Compares simulated downlink gaps with the census, and fits the cluster share and the count law. |
+| `gap_frames.txt` | The 80 frames, 61 narrow angle and 19 wide angle, whose line ends the compressor did not cut and that lose groups of whole lines inside the frame. |
 
 ## Running
 
@@ -35,6 +45,9 @@ export PDS3_HOLDINGS_DIR=/path/to/holdings
 python util/coiss_line_loss/lossless_check.py
 python util/coiss_line_loss/twins.py            # the ten default frames
 python util/coiss_line_loss/twins.py N1490874834_1.IMG
+/seti/newnav/capped-run.sh python util/coiss_line_loss/gap_census.py census.json
+/seti/newnav/capped-run.sh python util/coiss_line_loss/gap_fit.py census.json coiss_nac 20000
+/seti/newnav/capped-run.sh python util/coiss_line_loss/gap_fit.py census.json coiss_nac --fit
 ```
 
 ## Results (2026-11-25)
@@ -56,3 +69,11 @@ their frames, their median lost share is within one block of the real one on nin
 and within two on the tenth, and their spread of lost share within a frame is
 within 35% of the real one. Where the content is sparse a twin cuts more of its
 pairs than its frame: 29% against 20%, 48% against 31%, and 13% against 4%.
+
+`gap_fit.py` over 20,000 simulated frames of each camera at the shape defaults:
+the narrow angle count has a mean of 6.1 (6.1 measured), a variance of 112 (127),
+and one group on 49% of the frames (49%); the gaps are 2, 6, 18, and 87 lines at the
+25th, 50th, 75th, and 90th percentiles (2, 6, 19, and 55); the span of a frame's
+groups is 0.17, 0.57, and 0.84 of the height at the quartiles (0.14, 0.56, and
+0.84); and 37.6% and 17.1% of the groups show a head and a tail line (37.8% and
+17.2%). The Cassini page of the developer guide gives the full comparison.
