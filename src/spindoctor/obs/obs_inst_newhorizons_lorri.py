@@ -1,5 +1,6 @@
+import math
 from fractions import Fraction
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 from filecache import FCPath
@@ -10,6 +11,13 @@ from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
+from .star_photometry_newhorizons_lorri import NewHorizonsLORRIBinning
+
+_STAR_PHOTOMETRY_SECTION = 'newhorizons_lorri_star_photometry'
+"""The configuration section holding the camera's star photometry."""
+
+_BINNING_BY_ROWS: dict[int, NewHorizonsLORRIBinning] = {1024: '1X1', 256: '4X4'}
+"""The binning mode of a frame of each row count, as the image host reads it."""
 
 # SCLK01_MODULI_98 and SCLK01_OFFSETS_98 of the New Horizons spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/New-Horizons/SCLK/new_horizons_2132.tsc: whole seconds, then
@@ -136,35 +144,55 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         """
         return 0.0
 
-    def star_max_usable_vmag(self) -> float:
-        """Returns the maximum usable magnitude for stars in this observation.
-
-        The limiting magnitude follows the Cassini Pogson-ratio form,
-
-            star_max_usable_vmag(texp) = anchor + log(texp) / log(2.512)
-
-        where ``anchor`` is the limiting magnitude at a 1 s exposure (each
-        2.512x increase in exposure buys +1 mag of depth).
-
-        The anchor is scaled from the Cassini NAC anchor (10.5 mag at 1 s,
-        aperture D = 0.19 m) by collecting-area.  New Horizons LORRI uses a
-        CCD (no detector-sensitivity penalty) and is panchromatic with no
-        filter, so a bandpass term of +1.0 mag is added to account for the
-        wider passband collecting more flux.  These are nominal optics
-        values; the terms are approximate and pending calibration against
-        real LORRI star fields.
-
-            anchor = 10.5 + 5*log10(0.208/0.19) (CCD) + 1.0 (panchromatic) ~= 11.7
+    @property
+    def binning(self) -> NewHorizonsLORRIBinning:
+        """The binning mode this observation was read out in.
 
         Returns:
-            The maximum usable magnitude for stars in this observation.
-        """
+            ``'1X1'`` for a 1024-row frame or ``'4X4'`` for a 256-row frame, the rule
+            the image host applies.
 
-        # Anchor (limiting mag at texp = 1 s) derived above; rounded to 0.1.
-        anchor = 11.7
-        if self.texp <= 0:
-            return anchor
-        return cast(float, anchor + np.log(self.texp) / np.log(2.512))
+        Raises:
+            ValueError: If the frame has any other row count.
+        """
+        rows = int(self.data_shape_vu[0])
+        if rows not in _BINNING_BY_ROWS:
+            raise ValueError(f'LORRI frame has {rows} rows, which names no binning mode')
+        return _BINNING_BY_ROWS[rows]
+
+    def star_max_usable_vmag(self) -> float:
+        """Returns the faintest V magnitude of a catalog star the star model uses.
+
+        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
+        class deposits ``rate * 10**(-0.4 * m) * texp / gain`` DN in the image, where
+        ``rate`` is the camera's electron rate for a V = 0 star, ``texp`` is the exposure
+        in seconds and ``gain`` is the electrons per DN of the frame's binning mode.  The
+        dimmest visible star deposits the binning mode's ``min_detectable_dn``, and the
+        limit is that star's magnitude plus ``search_depth_mag``.  Every quantity but
+        the exposure comes from the ``newhorizons_lorri_star_photometry`` configuration
+        section.
+
+        Returns:
+            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
+            records no starlight.
+
+        Raises:
+            ValueError: If the frame's row count names no binning mode, or the section
+                has no values for its binning mode.
+        """
+        if self.texp <= 0.0:
+            return -math.inf
+        photometry = self.config.newhorizons_lorri_star_photometry.lorri
+        binning = self.binning
+        if binning not in photometry.electrons_per_dn:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no values for the binning mode {binning!r}'
+            )
+        dn_vmag0 = (
+            photometry.flux_electrons_per_s_vmag0 * self.texp / photometry.electrons_per_dn[binning]
+        )
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[binning])
+        return dimmest_visible + photometry.search_depth_mag
 
     @property
     def camera(self) -> str:

@@ -1,3 +1,6 @@
+import math
+import re
+from collections.abc import Mapping
 from fractions import Fraction
 from typing import Any, cast
 
@@ -10,6 +13,17 @@ from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+from .star_photometry_voyager_iss import VoyagerISSStarPhotometry
+
+_STAR_PHOTOMETRY_SECTION = 'voyager_iss_star_photometry'
+"""The configuration section holding each camera's star photometry."""
+
+_LAB03_GAIN_RE = re.compile(r'\b(?P<gain>LO|HI) GAIN\b')
+"""The gain state in the VICAR label's ``LAB03`` record, as in ``LO GAIN``."""
+
+_GAIN_STATES = {'LO': 'LOW', 'HI': 'HIGH'}
+"""The gain state each ``LAB03`` spelling stands for, named as the PDS3 label's
+``GAIN_MODE_ID`` names it."""
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
@@ -220,38 +234,64 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         """
         return 0.0
 
-    def star_max_usable_vmag(self) -> float:
-        """Returns the maximum usable magnitude for stars in this observation.
-
-        The limiting magnitude follows the Cassini Pogson-ratio form,
-
-            star_max_usable_vmag(texp) = anchor + log(texp) / log(2.512)
-
-        where ``anchor`` is the limiting magnitude at a 1 s exposure (each
-        2.512x increase in exposure buys +1 mag of depth).
-
-        The anchor is scaled from the Cassini NAC anchor (10.5 mag at 1 s,
-        aperture D = 0.19 m) by collecting-area, with a detector-sensitivity
-        term for the Voyager vidicon (roughly 2 mag less sensitive than a
-        CCD).  These are nominal optics values; the terms are approximate and
-        pending calibration against real Voyager star fields.
-
-            anchor = 10.5 + 5*log10(D / 0.19) + detector_term
-
-        Per camera (apertures from the Voyager ISS optics; vidicon detector):
-
-            NAC: 10.5 + 5*log10(0.176/0.19) - 2.0 (vidicon) ~= 8.3
-            WAC: 10.5 + 5*log10(0.057/0.19) - 2.0 (vidicon) ~= 5.9
+    def _star_photometry(self) -> VoyagerISSStarPhotometry:
+        """Return the star photometry of the camera that took this observation.
 
         Returns:
-            The maximum usable magnitude for stars in this observation.
+            The camera's entry in the ``voyager_iss_star_photometry`` configuration
+            section, ``vg1_nac``, ``vg1_wac``, ``vg2_nac`` or ``vg2_wac``.
         """
+        camera = f'vg{self.spacecraft_digit}_{str(self.detector).lower()}'
+        photometry: VoyagerISSStarPhotometry = getattr(
+            self.config.voyager_iss_star_photometry, camera
+        )
+        return photometry
 
-        # Anchor (limiting mag at texp = 1 s) derived above; rounded to 0.1.
-        anchor = 5.9 if self.detector == 'WAC' else 8.3
-        if self.texp <= 0:
-            return anchor
-        return cast(float, anchor + np.log(self.texp) / np.log(2.512))
+    def star_max_usable_vmag(self) -> float:
+        """Returns the faintest V magnitude of a catalog star the star model uses.
+
+        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
+        class deposits ``rate * 10**(-0.4 * (m + offset)) * texp * factor`` raw DN, where
+        ``rate`` is the camera's DN rate for a V = 0 star through the clear filter in the
+        low gain state, ``offset`` is the frame's filter's magnitude offset from the
+        clear filter, ``texp`` is the exposure in seconds and ``factor`` is the frame's
+        gain state's DN factor.  The dimmest visible star deposits
+        ``min_detectable_dn``, and the limit is that star's magnitude plus
+        ``search_depth_mag``.  Every quantity but the exposure comes from the camera's
+        entry in the ``voyager_iss_star_photometry`` configuration section.  The filter
+        and the gain state are read from the VICAR label's ``LAB03`` record.
+
+        Returns:
+            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
+            records no starlight.
+
+        Raises:
+            ValueError: If the label states no gain state, or the camera's entry has no
+                magnitude offset for the frame's filter or no factor for its gain state.
+        """
+        if self.texp <= 0.0:
+            return -math.inf
+        photometry = self._star_photometry()
+        # The keys are the label's spellings, so a label's value is looked up as text.
+        offsets = cast(Mapping[str, float], photometry.filter_mag_offset)
+        if self.filter not in offsets:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no filter_mag_offset for the '
+                f'{self.detector} filter {self.filter!r}'
+            )
+        match = _LAB03_GAIN_RE.search(str(self.dict.get('LAB03', '')))
+        if match is None:
+            raise ValueError(f'{self.detector} label states no gain state in LAB03')
+        gain_state = _GAIN_STATES[match.group('gain')]
+        factors = cast(Mapping[str, float], photometry.dn_gain_factor)
+        if gain_state not in factors:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no dn_gain_factor for the '
+                f'{self.detector} gain state {gain_state!r}'
+            )
+        dn_vmag0 = photometry.flux_dn_per_s_vmag0 * self.texp * factors[gain_state]
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
+        return dimmest_visible - offsets[self.filter] + photometry.search_depth_mag
 
     @property
     def camera(self) -> str:

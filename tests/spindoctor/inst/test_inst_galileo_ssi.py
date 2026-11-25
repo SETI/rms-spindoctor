@@ -10,25 +10,25 @@ from tests.spindoctor.inst.conftest import (
 from tests.spindoctor.public_metadata_galileo_ssi import GALILEO_SSI_PUBLIC_METADATA
 
 import spindoctor.obs.obs_inst_galileo_ssi as obstgossi
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI
 
 # The marker is applied per test rather than module-wide: the tests of the star gate and
 # of clock counts fetch nothing, so they run even where the external trees are absent.
 
-# Documented anchor limiting magnitude (limiting mag at texp = 1 s).
-_GALILEO_ANCHOR = 10.3
 
+def _star_obs(*, filter_name: str = 'CLEAR', texp: float = 1.0, gain: int = 4) -> ObsGalileoSSI:
+    """Build a bare observation carrying what the star limit reads.
 
-def _make_obs(texp: float) -> ObsGalileoSSI:
-    """Build a bare ObsGalileoSSI carrying only texp.
-
-    The star-magnitude gate is a pure function of ``self.texp``, so a fully
-    constructed observation (and an external image fetch) is unnecessary for
-    testing it.
+    The VICAR ``GAIN`` item 4 is the 10K gain state.
     """
-    obs = object.__new__(ObsGalileoSSI)
-    obs.texp = texp
-    return obs
+    return bare_observation(
+        ObsGalileoSSI,
+        VicarLabelStandIn(GAIN=gain),
+        filter=filter_name,
+        texp=texp,
+        _config=DEFAULT_CONFIG,
+    )
 
 
 @REQUIRES_EXTERNAL_DATA
@@ -37,35 +37,50 @@ def test_galileo_ssi_basic() -> None:
     assert obs.midtime == -110923771.04177806
 
 
-def test_star_max_usable_vmag_anchor_at_unit_exposure() -> None:
-    """The limiting magnitude equals the anchor at texp = 1 s."""
-    obs = _make_obs(1.0)
-    assert obs.star_max_usable_vmag() == pytest.approx(_GALILEO_ANCHOR, abs=1e-6)
+def test_clear_one_second_limit_is_the_calibrated_value() -> None:
+    """At 1 s through CLEAR at 10K the limit is the dimmest visible star plus 1 mag.
+
+    2.34e8 e-/s over 38.7 e-/DN puts 6.05e6 DN/s in the image for V = 0, which is
+    140 DN, the dimmest visible star, at V 11.59.
+    """
+    assert _star_obs().star_max_usable_vmag() == pytest.approx(12.588, abs=0.001)
 
 
-def test_star_max_usable_vmag_gains_one_mag_per_pogson_ratio() -> None:
-    """A 2.512x longer exposure deepens the limit by ~1 mag."""
-    base = _make_obs(1.0).star_max_usable_vmag()
-    deeper = _make_obs(2.512).star_max_usable_vmag()
-    assert deeper - base == pytest.approx(1.0, abs=1e-3)
+def test_ten_times_the_exposure_deepens_the_limit_by_two_and_a_half_magnitudes() -> None:
+    """The limit moves with the exposure by 2.5 log10 of its ratio."""
+    deeper = _star_obs(texp=10.0).star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert deeper == pytest.approx(2.5, abs=1e-9)
 
 
-def test_star_max_usable_vmag_in_sane_range() -> None:
-    """The limiting magnitude stays within a sane 3..15 range."""
-    vmag = _make_obs(2.512).star_max_usable_vmag()
-    assert 3.0 <= vmag <= 15.0
+def test_the_gain_item_selects_the_gain_state() -> None:
+    """GAIN 2 is the 100K state, whose 378.1 e-/DN dims a star against 10K's 38.7."""
+    shift = _star_obs(gain=2).star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert shift == pytest.approx(-2.5 * math.log10(378.1 / 38.7), abs=1e-9)
 
 
-def test_star_max_usable_vmag_is_finite() -> None:
-    """The limiting magnitude is finite."""
-    vmag = _make_obs(2.512).star_max_usable_vmag()
-    assert math.isfinite(vmag)
+def test_a_filter_brightens_the_limit_by_its_magnitude_offset() -> None:
+    """IR-9680 passes less sunlight than CLEAR; its offset brightens the limit."""
+    shift = (
+        _star_obs(filter_name='IR-9680').star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    )
+    assert shift == pytest.approx(-5.77, abs=1e-9)
 
 
-def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
-    """A non-positive exposure falls back to the anchor magnitude."""
-    obs = _make_obs(0.0)
-    assert obs.star_max_usable_vmag() == pytest.approx(_GALILEO_ANCHOR, abs=1e-6)
+def test_a_non_positive_exposure_admits_no_star() -> None:
+    """A zero-length exposure records no starlight."""
+    assert _star_obs(texp=0.0).star_max_usable_vmag() == -math.inf
+
+
+def test_a_filter_without_an_offset_is_refused() -> None:
+    """A filter the photometry table does not carry names itself in the error."""
+    with pytest.raises(ValueError, match="no filter_mag_offset for the filter 'IR-1234'"):
+        _star_obs(filter_name='IR-1234').star_max_usable_vmag()
+
+
+def test_a_label_without_a_known_gain_state_is_refused() -> None:
+    """A GAIN item that names no gain state names itself in the error."""
+    with pytest.raises(ValueError, match='SSI label states no known gain state: GAIN is 7'):
+        _star_obs(gain=7).star_max_usable_vmag()
 
 
 def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:

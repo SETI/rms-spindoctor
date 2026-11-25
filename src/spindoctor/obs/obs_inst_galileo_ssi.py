@@ -1,3 +1,4 @@
+import math
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from typing import Any, cast
@@ -19,6 +20,13 @@ _SCLK_OFFSETS = (0, 0, 0, 0)
 
 _SCLK_FIELDS = ('RIM', 'MOD91', 'MOD10', 'MOD8')
 """The VICAR label items holding the four fields of an image's frame count."""
+
+_STAR_PHOTOMETRY_SECTION = 'galileo_ssi_star_photometry'
+"""The configuration section holding the camera's star photometry."""
+
+_GAIN_STATES = {1: '400K', 2: '100K', 3: '40K', 4: '10K'}
+"""The gain state each value of the VICAR label's ``GAIN`` item stands for, named as the
+PDS3 label's ``GAIN_MODE_ID`` names it."""
 
 
 def _sclk_count(fields: Sequence[int]) -> Fraction:
@@ -135,32 +143,51 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         return 0.0
 
     def star_max_usable_vmag(self) -> float:
-        """Returns the maximum usable magnitude for stars in this observation.
+        """Returns the faintest V magnitude of a catalog star the star model uses.
 
-        The limiting magnitude follows the Cassini Pogson-ratio form,
-
-            star_max_usable_vmag(texp) = anchor + log(texp) / log(2.512)
-
-        where ``anchor`` is the limiting magnitude at a 1 s exposure (each
-        2.512x increase in exposure buys +1 mag of depth).
-
-        The anchor is scaled from the Cassini NAC anchor (10.5 mag at 1 s,
-        aperture D = 0.19 m) by collecting-area.  Galileo SSI uses a CCD, so
-        no detector-sensitivity penalty is applied.  These are nominal optics
-        values; the term is approximate and pending calibration against real
-        Galileo star fields.
-
-            anchor = 10.5 + 5*log10(0.176/0.19) (CCD) ~= 10.3
+        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
+        class deposits ``rate * 10**(-0.4 * (m + offset)) * texp / gain`` DN in the
+        image, where ``rate`` is the camera's electron rate for a V = 0 star through the
+        clear filter, ``offset`` is the frame's filter's magnitude offset from the clear
+        filter, ``texp`` is the exposure in seconds and ``gain`` is the electrons per DN
+        of the frame's gain state.  The dimmest visible star deposits
+        ``min_detectable_dn``, and the limit is that star's magnitude plus
+        ``search_depth_mag``.  Every quantity but the exposure comes from the
+        ``galileo_ssi_star_photometry`` configuration section.  The filter is the label's
+        ``FILTER_NAME`` and the gain state is the VICAR label's ``GAIN`` item.
 
         Returns:
-            The maximum usable magnitude for stars in this observation.
-        """
+            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
+            records no starlight.
 
-        # Anchor (limiting mag at texp = 1 s) derived above; rounded to 0.1.
-        anchor = 10.3
-        if self.texp <= 0:
-            return anchor
-        return cast(float, anchor + np.log(self.texp) / np.log(2.512))
+        Raises:
+            ValueError: If the label states no gain state the camera has, or the section
+                has no magnitude offset for the frame's filter or no electrons per DN
+                for its gain state.
+        """
+        if self.texp <= 0.0:
+            return -math.inf
+        photometry = self.config.galileo_ssi_star_photometry.ssi
+        # The keys are the label's spellings, so a label's value is looked up as text.
+        offsets = cast(Mapping[str, float], photometry.filter_mag_offset)
+        if self.filter not in offsets:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no filter_mag_offset for the filter '
+                f'{self.filter!r}'
+            )
+        gain_item = self.dict.get('GAIN', None)
+        if gain_item not in _GAIN_STATES:
+            raise ValueError(f'SSI label states no known gain state: GAIN is {gain_item!r}')
+        gain_state = _GAIN_STATES[gain_item]
+        electrons_per_dn = cast(Mapping[str, float], photometry.electrons_per_dn)
+        if gain_state not in electrons_per_dn:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no electrons_per_dn for the gain state '
+                f'{gain_state!r}'
+            )
+        dn_vmag0 = photometry.flux_electrons_per_s_vmag0 * self.texp / electrons_per_dn[gain_state]
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
+        return dimmest_visible - offsets[self.filter] + photometry.search_depth_mag
 
     @property
     def camera(self) -> str:
