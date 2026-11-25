@@ -386,13 +386,13 @@ Reading an image through its host
 ---------------------------------
 
 Each real camera is read by a host package, one per mission, whose class method
-``from_file`` returns an ``oops`` ``Snapshot``. The four hosts behave alike:
+``from_file`` returns an ``oops`` ``Snapshot``. The hosts behave alike:
 
 - **What is read.** Given an image file, a host reads that file alone. Given the PDS3
   label, it reads the label and the image file beside it, and merges the metadata of
   the two under the PDS3 names. The data are the same either way. Some values come
-  only from the PDS3 label, such as a Voyager image's start clock count, so every
-  reader passes the label when there is one.
+  only from the PDS3 label, such as a clock count that the image file does not record,
+  so every reader passes the label when there is one.
   :func:`~spindoctor.obs.obs_snapshot_inst.host_input` makes that choice. Every
   reader's ``from_file`` takes the label as its ``label`` argument, and the programs
   that load an image from a dataset pass the label URL the dataset already holds
@@ -415,7 +415,7 @@ Each real camera is read by a host package, one per mission, whose class method
   gives as a placeholder such as ``UNK`` or ``N/A``: there is no subfield and no
   ``dict`` key, and never None. A reader therefore tests for the key, and publishes
   None, or an empty list, in its place. Inside a list the position stays: a missing
-  element is None, as in a Cassini ``OPTICS_TEMPERATURE`` whose rear reading is
+  element is None, as in a pair of temperature readings whose second reading is
   missing.
 - **Errors.** No host checks the pointing when it reads an image. Where the SPICE
   kernels lack what the image needs, such as its pointing, ``cspyce`` raises its error,
