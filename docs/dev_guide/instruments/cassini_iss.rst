@@ -620,7 +620,8 @@ give each mode's cameras. Both cameras' detector model is ``ccd``, and neither
 entry states an exclusion reason. On a raw camera ``instrument_defaults`` turns on
 ``hot_pixels``, ``banding``, ``readout_dark``, ``bias_structure``, and ``bloom``. The
 calibrated entries drop ``banding`` and ``bias_structure``, which CISSCAL removes, and
-lower the hot-pixel fraction to the 1.6e-5 the cohort measures.
+set the hot-pixel fraction to the calibrated populations described above: 3.3e-5 on
+the narrow angle camera and 7.9e-7 on the wide angle camera.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
