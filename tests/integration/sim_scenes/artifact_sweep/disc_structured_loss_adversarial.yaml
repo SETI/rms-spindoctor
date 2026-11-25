@@ -11,6 +11,11 @@ exposure_sec: 1.0
 # is the worst-case placement of a survivable loss; the disc correlation
 # still recovers the planted offset within tolerance because the surviving disc
 # edge remains well-conditioned.
+# The loss pattern is a stress axis, not a real form.  A real Cassini frame loses
+# groups of whole lines when packets are lost on the way to the ground, and the
+# ends of every second line when line pairs will not compress enough (the
+# downlink_gaps and compression_truncated_lines modes draw those).  It does not
+# lose scattered single lines, or lines cut at random columns.
 bodies:
   - name: RHEA
     center_v: 110.0

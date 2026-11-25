@@ -6,11 +6,16 @@ size_u: 220
 random_seed: 7
 exposure_sec: 1.0
 # A well-resolved disc under modest structured telemetry loss: a few whole
-# missing lines and a few truncated (partial) lines per frame, the shapes a
-# downlink dropout plants.  At this expected count the loss is a small fraction of
-# the 220-line frame, so the disc correlation still recovers the planted offset
-# within tolerance -- the artifact stress axis at a survivable level.  The
-# adversarial sibling plants the same expected count biased onto the disc.
+# missing lines and a few truncated (partial) lines per frame.  At this expected
+# count the loss is a small fraction of the 220-line frame, so the disc
+# correlation still recovers the planted offset within tolerance -- the
+# artifact stress axis at a survivable level.  The adversarial sibling plants
+# the same expected count biased onto the disc.
+# The loss pattern is a stress axis, not a real form.  A real Cassini frame loses
+# groups of whole lines when packets are lost on the way to the ground, and the
+# ends of every second line when line pairs will not compress enough (the
+# downlink_gaps and compression_truncated_lines modes draw those).  It does not
+# lose scattered single lines, or lines cut at random columns.
 bodies:
   - name: RHEA
     center_v: 110.0
