@@ -1,8 +1,8 @@
 """The detector stage: composed signal to digitized detector counts.
 
 This is the normative unit chain of the renderer.  For a CCD the composed
-intensive signal is converted to electrons through the exposure, the point-source
-electron plane is added, and the frame passes through Poisson shot noise,
+intensive signal is converted to electrons through the integration time, the
+point-source electron plane is added, and the frame passes through Poisson shot noise,
 electron-domain full-well bloom, read noise, banding, gain to DN, bias
 structure, quantization, and the ADC clip.  A camera's physical saturation
 therefore emerges from ``full_well_e / gain_e_per_dn`` (below the ADC ceiling for
@@ -26,6 +26,13 @@ frame -- while the stochastic and structured sub-effects (shot noise, read noise
 cosmic rays, dark/hot pixels, banding, bias structure) activate only when their
 scene block or ``instrument_defaults`` requests them, so a scene with no such
 block renders a clean DN frame (the self-consistency floor).
+
+Everything the detector collects over the exposure -- the light, the dark current,
+the cosmic rays and other radiation hits, and the frame-transfer smear share --
+collects over the integration time
+(:attr:`~spindoctor.sim.render.detector.params.DetectorParams.integration_sec`): the
+commanded exposure plus the camera's extra integration time, zero for a camera that
+states none.
 """
 
 from __future__ import annotations
@@ -114,10 +121,10 @@ def _feature_pool(
 
 
 def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArrayFloatType:
-    """Convert the intensive signal to electrons through the exposure.
+    """Convert the intensive signal to electrons through the integration time.
 
-    A signal of 1.0 fills ``signal_full_scale_frac`` of a native pixel's well at
-    the reference exposure; a binned frame pixel sums ``binning**2`` native
+    A signal of 1.0 fills ``signal_full_scale_frac`` of a native pixel's well when
+    the frame integrates for the reference exposure; a binned frame pixel sums ``binning**2`` native
     pixels of it.  A signal above 1 is converted in proportion, and the full-well
     cap that follows saturates it.
     """
@@ -125,7 +132,7 @@ def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArr
         dp.signal_full_scale_frac
         * dp.full_well_e
         * dp.binning**2
-        * (dp.exposure_sec / dp.exposure_ref_sec if dp.exposure_ref_sec > 0.0 else 1.0)
+        * (dp.integration_sec / dp.exposure_ref_sec if dp.exposure_ref_sec > 0.0 else 1.0)
     )
     # Radiance is never negative, so the conversion floors the signal at 0.
     return np.maximum(signal, 0.0) * scale
@@ -162,7 +169,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     add_dark_current(
         electrons,
         rate_e_per_sec=dp.dark_current_e_per_sec,
-        exposure_sec=dp.exposure_sec,
+        exposure_sec=dp.integration_sec,
     )
     if 'readout_dark' in modes:
         records['readout_dark'] = _apply_readout_dark(electrons, modes['readout_dark'], dp)
@@ -172,7 +179,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
             electrons,
             t_scrub_sec=float(cfg.get('t_scrub_sec') or 0.0),
             t_transfer_sec=float(cfg.get('t_transfer_sec') or 0.0),
-            exposure_sec=dp.exposure_sec,
+            exposure_sec=dp.integration_sec,
         )
     if 'hot_pixels' in modes:
         # Hot pixels are dark charge, so they join the collected charge before Poisson
@@ -207,7 +214,7 @@ def _apply_ccd(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator) ->
     add_cosmic_rays(
         electrons,
         events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
-        exposure_sec=dp.exposure_sec,
+        exposure_sec=dp.integration_sec,
         amplitude_e=dp.cosmic_ray_amplitude_e,
         rng=_stream_rng(dp, 'cosmic_rays'),
         readout_dwell_sec=dp.cosmic_ray_readout_dwell_sec,
@@ -340,10 +347,10 @@ def _apply_bright_dark_pairs(
     """Apply the bright_dark_pairs mode with exposure scaling and placement pool.
 
     ``expected_events_per_sec`` is a rate per second of exposure, so the frame's
-    expected pair count is that rate times the exposure time.
+    expected pair count is that rate times the integration time.
     """
     rng = _stream_rng(dp, 'bright_dark_pairs')
-    expected = float(cfg['expected_events_per_sec']) * dp.exposure_sec
+    expected = float(cfg['expected_events_per_sec']) * dp.integration_sec
     count = int(rng.poisson(expected)) if expected > 0.0 else 0
     return add_bright_dark_pairs(
         electrons,
@@ -380,7 +387,7 @@ def _apply_hot_pixels(
     return add_hot_pixels(
         electrons,
         population,
-        exposure_sec=dp.exposure_sec,
+        exposure_sec=dp.integration_sec,
         detector_id=dp.detector_id,
         rng=_stream_rng(dp, 'hot_pixels'),
         candidate_pool=_feature_pool(frame, dp, 'hot_pixels'),
@@ -398,15 +405,15 @@ def _apply_radiation_transients(
     collects hits during the exposure and during the readout dwell -- the dwell
     adds transients in proportion to its length, the regime that forced
     Galileo's faster summation readout -- so the expected spike count is
-    ``expected_events_per_sec * environment_factor * (exposure_sec +
-    readout_dwell_sec)``.  A non-positive exposure contributes zero time, so
+    ``expected_events_per_sec * environment_factor * (integration_sec +
+    readout_dwell_sec)``.  A non-positive integration contributes zero time, so
     such a frame collects only the dwell's hits (the scene validator refuses a
     non-positive ``exposure_sec``, so only a direct caller can pass one).
     """
     rate = float(cfg['expected_events_per_sec'])
     environment = float(cfg.get('environment_factor', 1.0))
     dwell = float(cfg.get('readout_dwell_sec', 0.0))
-    exposure = max(dp.exposure_sec, 0.0)
+    exposure = max(dp.integration_sec, 0.0)
     expected = rate * environment * (exposure + dwell)
     amplitude = cfg.get('amplitude_e')
     amplitude_e = float(amplitude) if amplitude is not None else dp.full_well_e
@@ -472,7 +479,7 @@ def _apply_vidicon(frame: SimFrame, dp: DetectorParams, rng: np.random.Generator
     add_cosmic_rays(
         hits,
         events_per_pixel_per_sec=dp.cosmic_ray_events_per_pixel_per_sec,
-        exposure_sec=dp.exposure_sec,
+        exposure_sec=dp.integration_sec,
         amplitude_e=dp.full_well_dn,
         rng=_stream_rng(dp, 'cosmic_rays'),
     )

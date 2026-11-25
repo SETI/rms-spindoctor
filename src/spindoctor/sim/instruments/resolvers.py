@@ -68,6 +68,7 @@ __all__ = [
     'resolve_distortion_residual',
     'resolve_downlink_table',
     'resolve_filter_throughput',
+    'resolve_integration_sec',
     'resolve_mode_with_catalog',
     'resolve_native_frame_size_px',
     'resolve_psf_kernel',
@@ -494,6 +495,29 @@ def resolve_detector_defaults(instrument: str | None, binning: int) -> Detector:
     """
     native = resolve_detector_defaults_native(instrument)
     return native.with_readout_mode(resolve_readout_mode(instrument, binning))
+
+
+def resolve_integration_sec(scene: Mapping[str, Any]) -> float:
+    """Return how long a scene's frame collects light.
+
+    The detector collects for the commanded ``exposure_sec`` plus its entry's
+    ``extra_integration_sec``, which is zero for a detector that states none and
+    the same in every readout mode.  The light, the dark current, the radiation
+    hits, and the frame-transfer smear share all follow this time; a calibration
+    divides by the commanded exposure, the only one a frame's label gives.
+
+    Parameters:
+        scene: The scene, whose ``instrument`` (absent for the generic entry) and
+            ``exposure_sec`` (1 s when absent) it reads.
+
+    Returns:
+        The integration time, in seconds.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    exposure_sec = float(scene.get('exposure_sec', 1.0))
+    return exposure_sec + instrument_entry(scene.get('instrument')).detector.extra_integration_sec
 
 
 def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] | None) -> str:

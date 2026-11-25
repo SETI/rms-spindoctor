@@ -1068,11 +1068,19 @@ The detector stage
 The detector stage (:mod:`spindoctor.sim.render.detector`, a package) is the
 normative unit chain of the renderer. For a CCD instrument the composed
 intensive signal passes through the electron unit chain in
-:func:`~spindoctor.sim.render.detector.chain.apply_detector`:
+:func:`~spindoctor.sim.render.detector.chain.apply_detector`.
+
+The chain runs on the integration time: the scene's ``exposure_sec`` plus the
+detector's ``extra_integration_sec``, which is zero for a camera that states none.
+Whatever the frame collects over its exposure, it collects over the integration time:
+the light of the scene and its stars, the dark current, the cosmic rays and other
+radiation hits, the hot pixels' rate charge, and the frame-transfer smear share. A
+calibrated product divides by ``exposure_sec`` alone, the only exposure its label
+gives.
 
 1. **Signal to electrons.** The intensive signal is scaled to electrons
-   through ``signal_full_scale_frac * full_well_e * (exposure_sec /
-   exposure_ref_sec)``. The signal is not capped first: a limb-brightened law or
+   through ``signal_full_scale_frac * full_well_e`` times the integration time over
+   ``exposure_ref_sec``. The signal is not capped first: a limb-brightened law or
    a bright albedo spot can carry it above 1, and the full well in step 4
    saturates it as a real camera does. A scene that sets a filter (see
    :ref:`sim-detector-block`) sets ``exposure_ref_sec`` from the filter's
@@ -1152,7 +1160,7 @@ intensive signal passes through the electron unit chain in
 5. **Cosmic rays and read noise.** Cosmic rays deposit after the bloom cap. The
    detector collects them during the exposure and while the frame waits to be
    read, so the event count is a Poisson draw with mean
-   ``cosmic_ray_events_per_pixel_per_sec`` x (``exposure_sec`` +
+   ``cosmic_ray_events_per_pixel_per_sec`` x (the integration time +
    ``cosmic_ray_readout_dwell_sec``) x pixel count. Each event deposits at least
    ``cosmic_ray_amplitude_e``, diffused by a Gaussian of sigma
    ``cosmic_ray_spread_px``. Without a deposit scale every hit is full-well
@@ -1647,7 +1655,9 @@ The keys of an entry, all directly under the instrument's top-level key:
        states the electron chain (``full_well_e``, ``gain_e_per_dn_by_state``,
        ``default_gain_state``, ``read_noise_e``, and ``dark_current_e_per_sec``); a
        ``vidicon`` entry states the ``vidicon`` read-noise sub-map, which only a vidicon
-       may carry. Optional: the cosmic-ray dwell, amplitude, and spread. Also optional are
+       may carry. Optional: the cosmic-ray dwell, amplitude, and spread, and
+       ``extra_integration_sec``, the time the detector collects light beyond the
+       commanded exposure (zero when left out; at least 0 and below 0.1 s). Also optional are
        the calibrated-product terms (``calibrated_sky_if``,
        ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``) and the
        realism match's dark-sky ceiling, ``dark_sky_ceiling_if``. Only an entry whose
@@ -1657,8 +1667,8 @@ The keys of an entry, all directly under the instrument's top-level key:
      - The binning factors at which the camera reads out. Each maps to the
        ``detector`` keys that its published characterization changes, and an
        empty map keeps every 1x1 value. Binning 1 is required. A readout mode
-       may not change ``detector_model`` or the ``vidicon`` block, and a vidicon has
-       binning 1 only.
+       may not change ``detector_model``, the ``vidicon`` block, or
+       ``extra_integration_sec``, and a vidicon has binning 1 only.
    * - ``native_frame_size_px``
      - no
      - The full unbinned frame's size on a side, from which the realism match

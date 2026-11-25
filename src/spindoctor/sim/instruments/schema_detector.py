@@ -47,8 +47,9 @@ _CCD_REQUIRED: tuple[str, ...] = (
 )
 
 # The detector keys a readout mode cannot change: a readout mode bins the same
-# detector, so its model and its vidicon chain are the unbinned mode's.
-_READOUT_FIXED_KEYS: tuple[str, ...] = ('detector_model', 'vidicon')
+# detector, so its model, its vidicon chain, and its exposure timing are the
+# unbinned mode's.
+_READOUT_FIXED_KEYS: tuple[str, ...] = ('detector_model', 'vidicon', 'extra_integration_sec')
 
 
 def _non_negative_key(value: int) -> int:
@@ -86,6 +87,21 @@ def _has_unbinned_mode(modes: dict[int, Any]) -> dict[int, Any]:
     if 1 not in modes:
         raise RuleError('binning 1 (the unbinned readout) is not defined', at=(), reads=((1,),))
     return modes
+
+
+def _extra_integration_range(value: float) -> float:
+    """Return an extra integration time if it lies in [0, 0.1) seconds, else raise.
+
+    A camera's timing slack is a few milliseconds at most, so the bound refuses
+    such a value written in milliseconds.
+    """
+    if not 0.0 <= value < 0.1:
+        raise RangeError('a number of seconds in [0, 0.1)')
+    return value
+
+
+#: The time, in seconds, a detector collects light beyond the commanded exposure.
+ExtraIntegrationSec = Annotated[Float, AfterValidator(_extra_integration_range)]
 
 
 #: A gain table: electrons per DN, keyed by gain state.  The states are non-negative
@@ -139,6 +155,10 @@ class Detector:
         default_gain_state: The gain state a scene gets when it sets none.
         read_noise_e: The read noise, in electrons.
         dark_current_e_per_sec: The dark current, in electrons per second.
+        extra_integration_sec: The time, in seconds, the detector collects light
+            beyond the commanded exposure; zero for a detector that states none.
+            Everything a frame collects over its exposure collects over the two
+            together.
         cosmic_ray_readout_dwell_sec: The time, in seconds, the frame sits exposed
             to cosmic rays during readout.
         cosmic_ray_amplitude_e: The smallest charge a cosmic ray deposits, in
@@ -170,6 +190,7 @@ class Detector:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
+    extra_integration_sec: ExtraIntegrationSec = 0.0
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None
@@ -225,9 +246,9 @@ class ReadoutMode:
     A b-by-b block of native pixels reads out as one pixel.  Each field is a
     :class:`Detector` key, optional, and the keys the mode leaves out keep the
     unbinned values.  A readout mode bins the same detector, so it cannot change
-    ``detector_model`` or the ``vidicon`` chain, and the realism match reads the
-    dark-sky ceiling from the detector block alone, so it cannot set
-    ``dark_sky_ceiling_if``.
+    ``detector_model``, the ``vidicon`` chain, or ``extra_integration_sec``, and
+    the realism match reads the dark-sky ceiling from the detector block alone, so
+    it cannot set ``dark_sky_ceiling_if``.
 
     Parameters:
         detector_model: Refused when set.
@@ -244,6 +265,7 @@ class ReadoutMode:
         default_gain_state: As :class:`Detector`.
         read_noise_e: As :class:`Detector`.
         dark_current_e_per_sec: As :class:`Detector`.
+        extra_integration_sec: Refused when set.
         cosmic_ray_readout_dwell_sec: As :class:`Detector`.
         cosmic_ray_amplitude_e: As :class:`Detector`.
         cosmic_ray_spread_px: As :class:`Detector`.
@@ -270,6 +292,7 @@ class ReadoutMode:
     default_gain_state: NonNegInt | None = None
     read_noise_e: NonNeg | None = None
     dark_current_e_per_sec: NonNeg | None = None
+    extra_integration_sec: ExtraIntegrationSec | None = None
     cosmic_ray_readout_dwell_sec: NonNeg | None = None
     cosmic_ray_amplitude_e: NonNeg | None = None
     cosmic_ray_spread_px: NonNeg | None = None

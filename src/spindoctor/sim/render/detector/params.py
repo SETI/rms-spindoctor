@@ -91,7 +91,8 @@ class DetectorParams:
         full_well_e: Full well in electrons (CCD path).
         exposure_ref_sec: Exposure the well fraction references; a scene
             ``detector.filter`` derives it from the filter's throughput.
-        exposure_sec: The scene exposure.
+        exposure_sec: The scene exposure, as commanded.  The calibration divides by it;
+            whatever the frame collects follows :attr:`integration_sec`.
         gain_e_per_dn: Resolved gain (electrons per DN) for the selected state.
         read_noise_e: Read-noise sigma in electrons (CCD path).
         bias_dn: Additive DN bias pedestal.
@@ -150,6 +151,8 @@ class DetectorParams:
         detector_modes: The resolved config of every active detector-stage
             artifact mode (registry defaults filled from the catalog), keyed by
             mode name; the chain applies each at its physical point and records it.
+        extra_integration_sec: The time the detector collects light beyond the
+            commanded exposure, from the instrument entry (zero when it states none).
     """
 
     detector_model: str
@@ -186,6 +189,12 @@ class DetectorParams:
     sqrt_lut: DownlinkCurve | None = None
     adversarial_modes: frozenset[str] = frozenset()
     detector_modes: dict[str, dict[str, Any]] = field(default_factory=dict)
+    extra_integration_sec: float = 0.0
+
+    @property
+    def integration_sec(self) -> float:
+        """The time the frame collects light: the exposure plus the extra integration."""
+        return self.exposure_sec + self.extra_integration_sec
 
 
 @dataclass(frozen=True)
@@ -663,4 +672,5 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         sqrt_lut=sqrt_lut,
         adversarial_modes=adversarial_modes,
         detector_modes=detector_modes,
+        extra_integration_sec=detector_defaults.extra_integration_sec,
     )

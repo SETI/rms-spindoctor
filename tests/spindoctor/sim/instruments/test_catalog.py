@@ -42,6 +42,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_data_units,
     resolve_detector_defaults_native,
     resolve_downlink_table,
+    resolve_integration_sec,
     resolve_readout_mode,
 )
 from spindoctor.sim.instruments.schema import DownlinkTable, parametric_decoded_dn
@@ -470,6 +471,25 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
     (
         {
             'cam.yaml': _cam(
+                _with(
+                    '  quantization: exact',
+                    '  quantization: exact\n  extra_integration_sec: 0.705',
+                )
+            )
+        },
+        r'^cam\.yaml: cam: detector\.extra_integration_sec: expected a number of seconds in '
+        r'\[0, 0\.1\), got 0\.705',
+        'extra-integration-in-milliseconds',
+    ),
+    (
+        {'cam.yaml': _cam(_with('  1: {}', '  1: {}\n  2: {extra_integration_sec: 1.0e-3}'))},
+        r'^cam\.yaml: cam: readout_modes\.2\.extra_integration_sec: a readout mode bins the '
+        r'same detector, so it cannot change detector\.extra_integration_sec',
+        'readout-mode-changing-the-extra-integration',
+    ),
+    (
+        {
+            'cam.yaml': _cam(
                 _with('  1: {}', '  1: {}\n  2: {gain_e_per_dn_by_state: {0: 2.0, 1: 1.0}}')
             )
         },
@@ -870,6 +890,11 @@ def test_a_readout_mode_types_each_detector_key_as_the_detector_does() -> None:
     detector = get_type_hints(Detector, include_extras=True)
     expected = {name: hint | None for name, hint in detector.items()}
     assert get_type_hints(ReadoutMode, include_extras=True) == expected
+
+
+def test_a_camera_that_states_no_extra_time_integrates_for_its_exposure() -> None:
+    """A camera whose entry states no extra integration time collects for its exposure."""
+    assert resolve_integration_sec({'instrument': 'coiss_nac', 'exposure_sec': 2.0}) == 2.0
 
 
 def test_changing_a_resolved_detector_leaves_the_catalog_unchanged() -> None:
