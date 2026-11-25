@@ -310,7 +310,8 @@ for raw in sys.stdin:
         continue
     if not in_hunk:
         if line.startswith("+++ "):
-            target = line[4:]
+            # Git ends the header with a tab when the path holds a space.
+            target = line[4:].rstrip("\t")
             # Git quotes a path holding a non-ASCII or special character, C style.
             if target.startswith("\"") and target.endswith("\""):
                 target = codecs.escape_decode(target[1:-1])[0].decode("utf-8")
