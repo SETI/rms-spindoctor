@@ -7,11 +7,20 @@ the census measures a real one: a group is a run of lost lines that touches neit
 first nor the last line, and its head and tail lines are the lines just above and below
 it that keep their start and lose their end.
 
+The comparison prints every statistic three times: over all of the camera's frames, over
+its full frames, and over its summed frames.  Each line gives the census value, the 90%
+interval of that value over resampled census frames (the frames drawn with replacement,
+each readout mode keeping its number of frames), the simulated value, and whether the
+simulated value lies inside the interval.  It then splits each readout mode's frames into
+sequences, frames less than a day apart on the spacecraft clock, and prints how much of the
+mode the largest sequence holds.
+
 ``--fit`` fits the two parameters that the census does not give directly:
 
-* ``cluster_probability``, at the value that minimizes the sum of the squared logarithmic
-  errors of the gaps' 25th, 50th, 75th, and 90th percentiles and the squared errors of the
-  span's quartiles in tenths of the height, at a quarter of the weight;
+* ``cluster_probability``, at the value on a grid from 0.20 to 0.70 that minimizes the sum
+  of the squared logarithmic errors of the gaps' 25th, 50th, 75th, and 90th percentiles
+  and the squared errors of the span's quartiles in tenths of the height, at a quarter of
+  the weight;
 * ``mean_groups`` and ``dispersion``: the dispersion gives the census's share of frames
   with one group, and the mean, searched on a grid, gives the census's mean count after
   the frames too small for their draw lose groups.
@@ -42,9 +51,20 @@ _BINNING = {'FULL': 1, 'SUM2': 2, 'SUM4': 4}
 _NONE = np.zeros(0, dtype=np.int64)
 _LOCI = FeatureLoci(rows=_NONE, pixel_v=_NONE, pixel_u=_NONE)
 _SHARES = (0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7)
+_SIZE_POINTS = (10, 25, 50, 75, 90, 99)
+_GAP_POINTS = (25, 50, 75, 90)
+_SPAN_POINTS = (25, 50, 75)
+# Resampled census sets per interval, and the generator's seed.
+_RESAMPLES = 2000
+_RESAMPLE_SEED = 1
+# Frames of one camera less than this far apart on the spacecraft clock, in seconds,
+# belong to one sequence.
+_SEQUENCE_GAP = 86400
+
+Item = tuple[int, list[tuple[int, int]], list[tuple[bool, bool]]]
 
 
-def census_items(frames: list[dict[str, Any]]) -> list[tuple[int, list, list]]:
+def census_items(frames: list[dict[str, Any]]) -> list[Item]:
     """Return the census frames as (lines, groups, head and tail flags) items.
 
     Parameters:
@@ -63,7 +83,7 @@ def census_items(frames: list[dict[str, Any]]) -> list[tuple[int, list, list]]:
     ]
 
 
-def measure_frame(signal: np.ndarray) -> tuple[int, list, list]:
+def measure_frame(signal: np.ndarray) -> Item:
     """Measure one simulated frame as the census measures a real one.
 
     Parameters:
@@ -94,7 +114,7 @@ def measure_frame(signal: np.ndarray) -> tuple[int, list, list]:
     return lines, groups, flags
 
 
-def statistics(items: list[tuple[int, list, list]], modes: list[str]) -> dict[str, Any]:
+def statistics(items: list[Item], modes: list[str]) -> dict[str, float]:
     """Return the statistics the census and the simulation are compared on.
 
     Parameters:
@@ -102,10 +122,11 @@ def statistics(items: list[tuple[int, list, list]], modes: list[str]) -> dict[st
         modes: Each item's readout mode.
 
     Returns:
-        The statistics by name.
+        The statistics by name.  A statistic with nothing to measure, such as the
+        summed sizes of full frames, is left out.
     """
     counts = np.array([len(g) for _, g, _ in items])
-    sizes = {False: [], True: []}
+    sizes: dict[bool, list[int]] = {False: [], True: []}
     gaps: list[int] = []
     spans: list[float] = []
     heads = tails = 0
@@ -118,25 +139,96 @@ def statistics(items: list[tuple[int, list, list]], modes: list[str]) -> dict[st
         heads += sum(h for h, _ in flags)
         tails += sum(t for _, t in flags)
     total = int(counts.sum())
-    return {
+    stats = {
         'count mean': float(counts.mean()),
         'count variance': float(counts.var()),
         'one group': float(np.mean(counts == 1)),
         'count p90': float(np.percentile(counts, 90)),
-        'full sizes p10/25/50/75/90/99': np.percentile(sizes[False], [10, 25, 50, 75, 90, 99]),
-        'summed sizes p10/25/50/75/90/99': np.percentile(sizes[True], [10, 25, 50, 75, 90, 99]),
-        'single-line share': float(np.mean(np.concatenate([sizes[False], sizes[True]]) == 1)),
-        'gaps p10/25/50/75/90': np.percentile(gaps, [10, 25, 50, 75, 90]),
-        'one-line gaps': float(np.mean(np.asarray(gaps) == 1)),
-        'span p25/50/75': np.percentile(spans, [25, 50, 75]),
-        'head rate': heads / total,
-        'tail rate': tails / total,
     }
+    for name, summed in (('full', False), ('summed', True)):
+        if sizes[summed]:
+            values = np.percentile(sizes[summed], _SIZE_POINTS)
+            stats |= {
+                f'{name} sizes p{p}': float(x) for p, x in zip(_SIZE_POINTS, values, strict=True)
+            }
+    every_size = np.asarray(sizes[False] + sizes[True])
+    stats['one-line groups'] = float(np.mean(every_size == 1))
+    if gaps:
+        values = np.percentile(gaps, _GAP_POINTS)
+        stats |= {f'gaps p{p}': float(x) for p, x in zip(_GAP_POINTS, values, strict=True)}
+        stats['one-line gaps'] = float(np.mean(np.asarray(gaps) == 1))
+    if spans:
+        values = np.percentile(spans, _SPAN_POINTS)
+        stats |= {f'span p{p}': float(x) for p, x in zip(_SPAN_POINTS, values, strict=True)}
+    stats['head rate'] = heads / total
+    stats['tail rate'] = tails / total
+    return stats
+
+
+def resampling_intervals(items: list[Item], modes: list[str]) -> dict[str, tuple[float, float]]:
+    """Return each statistic's 90% interval over resampled frames.
+
+    Each resampled set draws the frames of every readout mode with replacement, as many
+    as the mode has, and the interval runs from the 5th to the 95th percentile of the
+    statistic over the sets.
+
+    Parameters:
+        items: One (lines, groups, flags) item per frame with at least one group.
+        modes: Each item's readout mode.
+
+    Returns:
+        The interval of each statistic by name.
+    """
+    rng = np.random.default_rng(_RESAMPLE_SEED)
+    by_mode: dict[str, list[int]] = {}
+    for index, mode in enumerate(modes):
+        by_mode.setdefault(mode, []).append(index)
+    values: dict[str, list[float]] = {}
+    for _ in range(_RESAMPLES):
+        chosen = [int(i) for members in by_mode.values() for i in rng.choice(members, len(members))]
+        stats = statistics([items[i] for i in chosen], [modes[i] for i in chosen])
+        for key, value in stats.items():
+            values.setdefault(key, []).append(value)
+    return {
+        key: (float(np.percentile(v, 5)), float(np.percentile(v, 95))) for key, v in values.items()
+    }
+
+
+def sequence_summary(frames: list[dict[str, Any]]) -> str:
+    """Describe how a set of frames splits into sequences.
+
+    Parameters:
+        frames: Frames of one camera.
+
+    Returns:
+        The number of frames and sequences, and the largest sequence's frames, groups,
+        and gaps against the set's.
+    """
+    ordered = sorted(frames, key=lambda f: int(f['name'][1:11]))
+    sequences: list[list[dict[str, Any]]] = []
+    previous = None
+    for frame in ordered:
+        clock = int(frame['name'][1:11])
+        if previous is None or clock - previous >= _SEQUENCE_GAP:
+            sequences.append([])
+        sequences[-1].append(frame)
+        previous = clock
+
+    def groups(chosen: list[dict[str, Any]]) -> int:
+        return sum(len(f['groups']) for f in chosen)
+
+    largest = max(sequences, key=groups)
+    first, last = largest[0]['name'][:11], largest[-1]['name'][:11]
+    return (
+        f'{len(frames)} frames in {len(sequences)} sequences; the largest, {first} to '
+        f'{last}, holds {len(largest)} frames, {groups(largest)} of {groups(frames)} groups, '
+        f'and {groups(largest) - len(largest)} of {groups(frames) - len(frames)} gaps'
+    )
 
 
 def simulate(
     frames: list[dict[str, Any]], instrument: str, count: int, overrides: dict[str, Any]
-) -> tuple[list[tuple[int, list, list]], list[str]]:
+) -> tuple[list[Item], list[str]]:
     """Render and measure simulated frames at the census frames' heights and modes.
 
     Parameters:
@@ -150,7 +242,7 @@ def simulate(
     """
     cfg = resolve_mode_with_catalog('downlink_gaps', {'probability': 1.0}, instrument)
     cfg.update(overrides)
-    items: list[tuple[int, list, list]] = []
+    items: list[Item] = []
     modes: list[str] = []
     for seed in range(count):
         frame = frames[seed % len(frames)]
@@ -172,7 +264,7 @@ def simulate(
     return items, modes
 
 
-def fit_loss(census: dict[str, Any], simulated: dict[str, Any]) -> float:
+def fit_loss(census: dict[str, float], simulated: dict[str, float]) -> float:
     """Return the cluster-share fit's loss.
 
     Parameters:
@@ -182,10 +274,9 @@ def fit_loss(census: dict[str, Any], simulated: dict[str, Any]) -> float:
     Returns:
         The loss.
     """
-    gap_key, span_key = 'gaps p10/25/50/75/90', 'span p25/50/75'
-    gaps = np.log(simulated[gap_key][1:] / census[gap_key][1:])
-    spans = (simulated[span_key] - census[span_key]) / 0.1
-    return float(np.sum(gaps**2) + 0.25 * np.sum(spans**2))
+    gaps = [np.log(simulated[f'gaps p{p}'] / census[f'gaps p{p}']) for p in _GAP_POINTS]
+    spans = [(simulated[f'span p{p}'] - census[f'span p{p}']) / 0.1 for p in _SPAN_POINTS]
+    return float(np.sum(np.square(gaps)) + 0.25 * np.sum(np.square(spans)))
 
 
 def fit(frames: list[dict[str, Any]], instrument: str) -> None:
@@ -219,6 +310,51 @@ def fit(frames: list[dict[str, Any]], instrument: str) -> None:
         )
 
 
+def compare(
+    frames: list[dict[str, Any]], instrument: str, count: int, overrides: dict[str, Any]
+) -> None:
+    """Print the census, its intervals, and the simulated statistics, pooled and per mode.
+
+    Parameters:
+        frames: The census frames of one camera.
+        instrument: The simulated camera.
+        count: The number of simulated frames.
+        overrides: Parameters that replace the camera's shape defaults.
+    """
+    items = census_items(frames)
+    modes = [f['mode'] for f in frames]
+    sim_items, sim_modes = simulate(frames, instrument, count, overrides)
+    print(f'{instrument}, {count} simulated frames, {overrides or "shape defaults"}')
+    for label in ('all', 'full', 'summed'):
+
+        def chosen(mode: str, label: str = label) -> bool:
+            return label == 'all' or (mode != 'FULL') == (label == 'summed')
+
+        picked = [i for i, m in enumerate(modes) if chosen(m)]
+        sim_picked = [i for i, m in enumerate(sim_modes) if chosen(m)]
+        census = statistics([items[i] for i in picked], [modes[i] for i in picked])
+        intervals = resampling_intervals([items[i] for i in picked], [modes[i] for i in picked])
+        simulated = statistics(
+            [sim_items[i] for i in sim_picked], [sim_modes[i] for i in sim_picked]
+        )
+        print(f'== {label} frames: {len(picked)} real, {len(sim_picked)} simulated')
+        if label != 'all':
+            print('   ' + sequence_summary([frames[i] for i in picked]))
+        print(f'   {"statistic":18s} {"census":>9s} {"90% interval":>21s} {"simulated":>10s}')
+        outside = []
+        for key, value in census.items():
+            low, high = intervals[key]
+            sim = simulated.get(key, float('nan'))
+            inside = low <= sim <= high
+            if not inside:
+                outside.append(key)
+            print(
+                f'   {key:18s} {value:9.3f} {low:9.3f} .. {high:9.3f} {sim:10.3f}'
+                f'{"" if inside else "  outside"}'
+            )
+        print(f'   outside the interval: {", ".join(outside) or "none"}')
+
+
 def main() -> None:
     """Compare or fit one camera."""
     frames = json.loads(Path(sys.argv[1]).read_text())
@@ -231,19 +367,7 @@ def main() -> None:
     rest = sys.argv[3:]
     count = int(rest.pop(0)) if rest and '=' not in rest[0] else 3000
     overrides = {k: yaml.safe_load(v) for k, v in (a.split('=', 1) for a in rest)}
-    census = statistics(census_items(frames), [f['mode'] for f in frames])
-    simulated = statistics(*simulate(frames, instrument, count, overrides))
-    print(f'{instrument}, {count} simulated frames, {overrides or "shape defaults"}')
-    print(f'{"statistic":34s} {"census":>34s}   simulated')
-    for key, value in census.items():
-        if isinstance(value, float):
-            print(f'{key:34s} {value:34.3f}   {simulated[key]:.3f}')
-        else:
-            text = ' '.join(f'{x:.1f}' if key.startswith('gap') else f'{x:.2f}' for x in value)
-            sim = ' '.join(
-                f'{x:.1f}' if key.startswith('gap') else f'{x:.2f}' for x in simulated[key]
-            )
-            print(f'{key:34s} {text:>34s}   {sim}')
+    compare(frames, instrument, count, overrides)
 
 
 if __name__ == '__main__':
