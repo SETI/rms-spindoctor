@@ -33,6 +33,7 @@ def _content(cval: float, rows: slice, cols: slice) -> np.ndarray:
         pytest.param(-23.6, 41.2, slice(100, 160), slice(90, 200), id='many_pixels'),
         pytest.param(5.5, -7.25, slice(0, 40), slice(250, 280), id='frame_edge'),
         pytest.param(-25.3, 40.6, slice(10, 60), slice(220, 280), id='partly_off_the_frame'),
+        pytest.param(-0.3, -0.2, slice(0, 40), slice(250, 280), id='top_edge_sub_pixel'),
     ],
 )
 def test_translation_is_the_whole_frame_shift(

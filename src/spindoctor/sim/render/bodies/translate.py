@@ -207,10 +207,13 @@ def _linear_samples(
     # that neighbor may be any value in the crop; the last pixel stands in for it.
     v1 = np.minimum(v0 + 1, last_v)
     u1 = np.minimum(u0 + 1, last_u)
-    weight_v1 = (row_pos - v0)[:, np.newaxis]
-    weight_u1 = (col_pos - u0)[np.newaxis, :]
-    weight_v0 = 1.0 - weight_v1
-    weight_u0 = 1.0 - weight_u1
+    # map_coordinates' order-1 weights: the near neighbor's is 1 - t, for t the
+    # position past it, and the far neighbor's is 1 less the near one's.  In floating
+    # point 1 - (1 - t) is not always t, so the far weight must be taken this way.
+    weight_v0 = (1.0 - (row_pos - v0))[:, np.newaxis]
+    weight_u0 = (1.0 - (col_pos - u0))[np.newaxis, :]
+    weight_v1 = 1.0 - weight_v0
+    weight_u1 = 1.0 - weight_u0
     total = crop[np.ix_(v0, u0)]
     total *= weight_v0
     total *= weight_u0
