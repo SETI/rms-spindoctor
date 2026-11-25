@@ -172,6 +172,23 @@ def test_a_misplaced_limb_moves_the_translation_and_keeps_the_offset() -> None:
     assert peak == pytest.approx(-0.5, abs=0.03)
 
 
+def test_a_limb_at_zero_phase_is_measured() -> None:
+    """At zero phase the whole limb is lit, so even the half facing -u is measured."""
+    scene = _sphere_scene((60.5, 60.5), 30.0)
+    scene['bodies'][0]['phase_angle'] = 0.0
+    offsets = matched_silhouette_offsets(scene, _OBS)
+    image = _disc_image((60.0, 60.0), 30.0)
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=180.0)
+    peak = limb_peak_offset(
+        image,
+        limb,
+        'body_sim:REALISM_BODY',
+        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
+        silhouette_offsets=offsets,
+    )
+    assert peak == pytest.approx(0.0, abs=0.02)
+
+
 def test_a_limb_on_a_short_arc_gives_no_offset() -> None:
     """A noisy 30 degree arc fits, but knows its offset to worse than 0.2 px.
 

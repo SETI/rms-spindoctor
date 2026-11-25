@@ -193,7 +193,8 @@ def matched_silhouette_offsets(scene: dict[str, Any], obs: Any) -> SilhouetteOff
     cosine of the solar incidence is ``sin(phase)`` times the component of ``n`` along
     the direction the light comes from in the image (``illumination_angle`` 0 is the
     top of the image, 90 the right).  A vertex whose normal gives a cosine of 0 or less
-    gets NaN.
+    gets NaN.  At zero phase the light comes from behind the camera and lights the
+    whole limb, so every vertex keeps its silhouette.
 
     Parameters:
         scene: The matched scene the frame was rendered from.
@@ -222,7 +223,8 @@ def matched_silhouette_offsets(scene: dict[str, Any], obs: Any) -> SilhouetteOff
     )
     light_angle = np.radians(float(body['illumination_angle']))
     toward_light_vu = np.array([-np.cos(light_angle), np.sin(light_angle)])
-    sin_phase = float(np.sin(np.radians(float(body['phase_angle']))))
+    phase_deg = float(body['phase_angle'])
+    sin_phase = float(np.sin(np.radians(phase_deg)))
 
     def offsets(
         _model_name: str, vertices_vu: NDArrayFloatType, normals_vu: NDArrayFloatType
@@ -231,7 +233,7 @@ def matched_silhouette_offsets(scene: dict[str, Any], obs: Any) -> SilhouetteOff
         rel = vertices_vu - center
         along = np.sum(rel * unit, axis=1)
         discriminant = along**2 - (np.sum(rel * rel, axis=1) - radius**2)
-        lit = sin_phase * np.sum(unit * toward_light_vu, axis=1) > 0.0
+        lit = (phase_deg == 0.0) | (sin_phase * np.sum(unit * toward_light_vu, axis=1) > 0.0)
         out = np.full(vertices_vu.shape[0], np.nan)
         keep = (discriminant >= 0.0) & lit
         out[keep] = -along[keep] + np.sqrt(discriminant[keep])
