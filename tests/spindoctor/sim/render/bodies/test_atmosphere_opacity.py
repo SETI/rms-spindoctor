@@ -204,12 +204,13 @@ def test_the_glow_over_an_oblate_body_fades_smoothly_past_its_reflecting_level()
     diagonal itself, the glow would jump back up where the two meet.
     """
     semi_a, semi_b = 30.0, 90.0
+    spec = AtmosphereSpec(scale_height_px=6.0, tau_ref=20.0, g=0.3, albedo=0.9)
     projection = project_ellipsoid(
         (_SIZE, _SIZE), (_CENTER, _CENTER), semi_a, semi_b_px=semi_b, semi_c_px=semi_b
     )
     layers = apply_atmosphere(
         np.zeros((_SIZE, _SIZE)),
-        AtmosphereSpec(scale_height_px=6.0, tau_ref=20.0, g=0.3, albedo=0.9),
+        spec,
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a=semi_a,
@@ -222,6 +223,14 @@ def test_the_glow_over_an_oblate_body_fades_smoothly_past_its_reflecting_level()
         silhouette=(projection.ellipse_dist_sq < 1.0).astype(np.float64),
     )
     steps = np.arange(int(semi_a), int(semi_a) + 30)
-    glow = layers.halo.emission[int(_CENTER) - steps, int(_CENTER) + steps]
-    past_peak = glow[int(np.argmax(glow)) :]
-    assert np.all(np.diff(past_peak) < 0.0)
+    diagonal = (int(_CENTER) - steps, int(_CENTER) + steps)
+    # The tangent optical depth is 1 at H * ln(tau_ref) above the surface, and the
+    # renderer scales the body out to that level by its mean of semi-axes a and b.
+    level = 1.0 + spec.scale_height_px * math.log(spec.tau_ref) / (0.5 * (semi_a + semi_b))
+    outline_distance = np.sqrt(projection.ellipse_dist_sq[diagonal])
+    glow = layers.halo.emission[diagonal]
+    peak = int(np.argmax(glow))
+    assert outline_distance[0] < level
+    assert outline_distance[-1] > level
+    assert peak < len(glow) - 1
+    assert np.all(np.diff(glow[peak:]) < 0.0)

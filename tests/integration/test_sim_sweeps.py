@@ -27,6 +27,7 @@ step navigate nothing and run with the unit suite, in
 
 import copy
 import functools
+import itertools
 from pathlib import Path
 
 import numpy as np
@@ -896,7 +897,7 @@ def test_atmosphere_haze_raises_the_fused_error_with_thickness() -> None:
     errors = [row.offset_error_px for row in _rows('atmosphere_haze')[:4]]
     measured = [error for error in errors if error is not None]
     assert len(measured) == len(errors)
-    assert measured == sorted(measured)
+    assert all(thinner < thicker for thinner, thicker in itertools.pairwise(measured))
 
 
 def test_atmosphere_haze_thickest_step_is_conflicted() -> None:
