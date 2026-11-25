@@ -71,6 +71,7 @@ The host session owns this phase.
 | #1089 | 3 Important |  |  | Galileo dataset drops GO_0022 GARBLED and REPAIRED images |
 | #1090 | 4 Useful |  |  | Check the host packages' published values in CI |
 | #628 | 4 Useful |  |  | Choose the source of the observation block's clock counts |
+| #1208 | 4 Useful |  |  | Record the host's C-kernel facts in the metadata document and drop spice_ids |
 
 **Exit:** every camera is read through a released host package, the Cassini frames of #949 carry the right time, and a corrected kernel moves the pointing of the image it corrects.
 

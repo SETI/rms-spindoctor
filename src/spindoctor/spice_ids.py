@@ -1,3 +1,7 @@
+# The hosts give these facts on every observation as the ck_object_id, ck_sclk_id, and
+# spice_frame_is_frozen subfields, but the C-kernel writer never loads an observation, so it
+# keeps this table.  Recording the facts in the metadata document instead, and deleting this
+# module, is #1208.
 """SPICE ids the C-kernel writer reads.
 
 The first fact recorded here is which spacecraft clock a C-kernel object's time
