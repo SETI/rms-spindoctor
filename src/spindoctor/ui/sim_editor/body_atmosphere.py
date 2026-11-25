@@ -225,13 +225,15 @@ class BodyAtmosphereMixin(SimEditorBase):
     def _on_body_atmosphere_shell_toggled(self, idx: int, checked: bool) -> None:
         """Insert or remove the optional detached-shell altitude key."""
         w = self._body_tab_widget(idx)
-        if w is not None:
-            w.atmosphere_detached_spin.setEnabled(checked)  # type: ignore[attr-defined]
         body = self._body(idx)
-        if body is None:
-            return
-        atmosphere = body.get('atmosphere')
-        if not isinstance(atmosphere, dict) or _takes_named_model(atmosphere):
+        atmosphere = body.get('atmosphere') if body is not None else None
+        named = isinstance(atmosphere, dict) and _takes_named_model(atmosphere)
+        if w is not None:
+            # A named model owns its shell, so its spin stays disabled whatever the check says.
+            w.atmosphere_detached_spin.setEnabled(  # type: ignore[attr-defined]
+                checked and not named
+            )
+        if not isinstance(atmosphere, dict) or named:
             return
         if checked:
             atmosphere['detached_px'] = (

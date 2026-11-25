@@ -1193,6 +1193,13 @@ def test_body_atmosphere_named_model_ignores_the_shell_check(model: Any) -> None
     assert model.sim_params['bodies'][1]['atmosphere'] == {'haze_model': 'titan'}
 
 
+def test_body_atmosphere_named_model_keeps_the_detached_spin_off(model: Any) -> None:
+    """Checking the shell leaves a named-model block's detached-altitude spin disabled."""
+    tab = _named_haze_tab(model)
+    tab.atmosphere_shell_check.setChecked(True)
+    assert tab.atmosphere_detached_spin.isEnabled() is False
+
+
 def test_body_atmosphere_named_model_survives_a_toggle(model: Any) -> None:
     """Turning the group off and on restores a named-model block as it was."""
     tab = _named_haze_tab(model)
