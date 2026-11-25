@@ -126,6 +126,10 @@ returns the typed object:
 - ``feature_emission`` — :class:`~spindoctor.config.sections_models.FeatureEmissionSection`.
   A planet's entry under ``ring_annulus.planets`` may leave a key out, and that key
   keeps the ``default`` entry's value.
+- ``rings`` — :class:`~spindoctor.config.sections_rings.RingsSection`, holding the ring
+  model's settings and, under ``ring_features``, each planet's ring catalog as a
+  :class:`~spindoctor.config.sections_rings.RingCatalog`. The rules a catalog follows
+  are listed in :doc:`dev_guide_navigation_models_ring`.
 - ``general`` — :class:`~spindoctor.config.sections.GeneralSection`: the directory of
   TrueType fonts that annotation text and summary labels are drawn in
   (``truetype_font_dir``).
@@ -163,13 +167,13 @@ returns the typed object:
   :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` returns one bundle's
   entry; see :doc:`dev_guide_pds4`.
 
-Three mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
-and ``feature_emission.ring_annulus.planets``. Each of their keys must be a planet of
-``planets``, written in upper case as SPICE spells it. Every reader looks a planet up by
-its upper-case name, and would never read a key that is misspelled or in lower case, so
-such a key is refused at load. That rule reads two sections, so
-:class:`~spindoctor.config.sections.TypedSections` checks it. The message gives the key
-and the file that last set either it or ``planets``.
+Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
+``feature_emission.ring_annulus.planets``, and ``rings.ring_features``. Each of their
+keys must be a planet of ``planets``, written in upper case as SPICE spells it. Every
+reader looks a planet up by its upper-case name, and would never read a key that is
+misspelled or in lower case, so such a key is refused at load. That rule reads two
+sections, so :class:`~spindoctor.config.sections.TypedSections` checks it. The message
+gives the key and the file that last set either it or ``planets``.
 
 Keys come in two kinds, and each kind has its own spelling. A key for a setting,
 such as ``use_albedo`` or ``body_limb``, is a name the package chose, and it is in
@@ -246,7 +250,7 @@ Sections
 
 Top-level YAML keys other than the typed sections are exposed as
 :class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
-``cfg.rings.remove_planet_shadow`` instead of ``cfg['rings']['remove_planet_shadow']``. That
+``cfg.body_shape.MIMAS`` instead of ``cfg['body_shape']['MIMAS']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
@@ -270,7 +274,7 @@ removal. The shipping sections:
 - ``bodies`` — body rendering parameters; a typed section described in
   :doc:`dev_guide_navigation_models_body`.
 - ``rings`` — ring-model parameters (planet shadow removal, fade widths,
-  per-planet ``ring_features``); see
+  per-planet ``ring_features``); a typed section described in
   :doc:`dev_guide_navigation_models_ring`.
 - ``titan`` — Titan-specific parameters: the haze envelope height, the emission-side
   reliability floors and mask settings, and the two blocks of fit tunables the haze

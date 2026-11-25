@@ -1,22 +1,16 @@
-"""Ring feature domain object and cross-feature date-overlap validation.
+"""Ring feature domain object.
 
-This module is the core of the ring domain model. It defines:
+This module is the core of the ring domain model. It defines ``RingFeature``, an
+immutable domain object representing a single ring gap or ringlet. It owns
+backplane-based rendering via ``render(context)`` and provides query methods used by
+the filter and orchestrator.
 
-- ``RingFeature``: An immutable domain object representing a single ring gap
-  or ringlet. It owns backplane-based rendering via ``render(context)`` and
-  provides query methods used by the filter and orchestrator.
-
-- ``validate_no_date_overlaps()``: A cross-feature validation function that
-  detects authoring errors in the YAML config where two features cover the
-  same radial region with overlapping date ranges.
-
-**Validation philosophy**: ``from_config()`` raises ``ValueError`` on any
-malformed per-feature data (bad types, missing fields, out-of-range values).
-``validate_no_date_overlaps()`` raises ``ValueError`` on cross-feature date
-conflicts. Both are hard errors because bad config is an authoring mistake that
-should be caught immediately, not silently degraded at render time. The
-``RingFeatureFilter`` handles *valid* features that are not relevant to a
-particular observation.
+**Validation**: a ``RingFeature`` is built from a ring catalog entry by
+``from_entry()``.  The catalogs are checked when the configuration loads
+(:mod:`spindoctor.config.sections_rings`): each entry's keys and ranges, each edge's
+base orbit, each feature's dates, and the rule that two features at the same radii
+have dates that do not overlap.  The ``RingFeatureFilter`` handles features that are
+not relevant to a particular observation.
 
 **Immutability**: ``RingFeature`` is a frozen dataclass. All attributes are set
 at construction and never mutated. Derived cached fields (``_start_et``,
@@ -35,10 +29,8 @@ on feature type and edge availability:
   per present edge -> one ``RingRenderResult`` per edge
 """
 
-import math
-from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import numpy as np
 
@@ -49,6 +41,11 @@ from .ring_math import compute_antialiasing, compute_edge_fade
 from .ring_render_context import RingsRenderContext
 from .ring_render_result import RingRenderResult
 from .ring_types import RingBaseOrbitMode, RingEdgeData, RingFeatureType, RingPerturbationMode
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from spindoctor.config.sections_rings import RingFeatureEntry, RingModeEntry
+
+_T = TypeVar('_T')
 
 # ``compute_antialiasing`` varies only for |radius - edge| <= 0.5 * resolution;
 # beyond that it is clamped to 0 or 1. Applying those plateaus on every
@@ -85,35 +82,20 @@ class RingFeature:
     _end_et: float | None = field(init=False, repr=False, default=None)
 
     def __post_init__(self) -> None:
-        """Validate and cache date conversions.
+        """Cache the dates as ET.
 
         Uses ``object.__setattr__()`` to set derived fields on a frozen
         dataclass. This is the standard Python pattern for frozen dataclasses
         that need computed cached values -- ``__post_init__`` is the only place
         where this bypass is appropriate. After construction completes, all
         fields are truly frozen.
-
-        Raises:
-            ValueError: If both inner_edge and outer_edge are None, or if both
-                dates convert to ET and ``start_date`` does not strictly precede
-                ``end_date``.
         """
-        if self.inner_edge is None and self.outer_edge is None:
-            raise ValueError(
-                f'RingFeature {self.key!r}: at least one edge (inner or outer) is required'
-            )
-
         start_et: float | None = None
         end_et: float | None = None
         if self.start_date is not None:
             start_et = utc_to_et(self.start_date)
         if self.end_date is not None:
             end_et = utc_to_et(self.end_date)
-        if start_et is not None and end_et is not None and start_et >= end_et:
-            raise ValueError(
-                f'RingFeature {self.key!r}: start_date must be strictly before end_date '
-                f'([start_date, end_date) is half-open)'
-            )
         object.__setattr__(self, '_start_et', start_et)
         object.__setattr__(self, '_end_et', end_et)
 
@@ -269,7 +251,7 @@ class RingFeature:
             return inner_rms
         if outer_rms is not None:
             return outer_rms
-        return 0.0  # unreachable: __post_init__ ensures at least one edge
+        return 0.0  # unreachable: a catalog feature has at least one edge
 
     def edge_uncertainty(self, edge_type: str) -> float:
         """RMS (km) of one named edge's own orbit solution.
@@ -637,259 +619,71 @@ class RingFeature:
     # ------------------------------------------------------------------
 
     @classmethod
-    def from_config(cls, key: str, data: dict[str, Any]) -> 'RingFeature':
-        """Construct a RingFeature from a YAML feature dictionary.
-
-        Validates all fields at construction time. This follows the principle
-        that bad config is an authoring error that should fail loudly and
-        immediately, not silently degrade at render time.
+    def from_entry(cls, key: str, entry: 'RingFeatureEntry') -> 'RingFeature':
+        """Build a RingFeature from its entry in a ring catalog.
 
         Parameters:
-            key: Feature key (YAML dict key used as identifier).
-            data: Feature dictionary with keys:
-                - ``feature_type``: 'GAP' or 'RINGLET' (required)
-                - ``name``: Human-readable name (optional)
-                - ``inner_data``: List of mode dicts (optional)
-                - ``outer_data``: List of mode dicts (optional)
-                - ``start_date``: ISO date string (optional)
-                - ``end_date``: ISO date string (optional)
+            key: The feature's key in the catalog.
+            entry: The feature's catalog entry, checked when the configuration loaded.
 
         Returns:
-            Constructed ``RingFeature`` instance.
-
-        Raises:
-            TypeError: If ``key`` is not a ``str`` or ``data`` is not a ``dict``.
-            ValueError: On any structural or value error:
-                - feature_type not 'GAP' or 'RINGLET'
-                - neither inner_data nor outer_data present
-                - mode data is not a non-empty list
-                - mode-1 data missing or has non-positive 'a'
-                - rms < 0
-                - perturbation mode missing required fields
+            The feature, with each edge's base orbit and perturbations in catalog order.
         """
-        if not isinstance(key, str):
-            raise TypeError(f'Feature key must be str, got {type(key).__name__}')
-        if not isinstance(data, dict):
-            raise TypeError(f'Feature {key!r}: data must be a dict, got {type(data).__name__}')
-
-        # Validate feature_type
-        raw_type = data.get('feature_type')
-        try:
-            feature_type = RingFeatureType(raw_type)
-        except ValueError as exc:
-            raise ValueError(
-                f'Feature {key!r}: invalid feature_type {raw_type!r}; expected "GAP" or "RINGLET"'
-            ) from exc
-
-        name: str | None = data.get('name')
-        start_date: str | None = data.get('start_date')
-        end_date: str | None = data.get('end_date')
-
-        raw_inner = data.get('inner_data')
-        raw_outer = data.get('outer_data')
-
-        if raw_inner is None and raw_outer is None:
-            raise ValueError(
-                f'Feature {key!r}: at least one edge (inner_data or outer_data) is required'
-            )
-
-        inner_edge: RingEdgeData | None = None
-        outer_edge: RingEdgeData | None = None
-
-        if raw_inner is not None:
-            inner_edge = _parse_edge_data(key, 'inner', raw_inner)
-        if raw_outer is not None:
-            outer_edge = _parse_edge_data(key, 'outer', raw_outer)
-
         return cls(
             key=key,
-            name=name,
-            feature_type=feature_type,
-            inner_edge=inner_edge,
-            outer_edge=outer_edge,
-            start_date=start_date,
-            end_date=end_date,
+            name=entry.name,
+            feature_type=RingFeatureType(entry.feature_type),
+            inner_edge=_edge_from_modes(entry.inner_data),
+            outer_edge=_edge_from_modes(entry.outer_data),
+            start_date=entry.start_date,
+            end_date=entry.end_date,
         )
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
-
-
-def _integral_mode_num(feature_key: str, edge_type: str, index: int, mode_num: Any) -> int:
-    """Parse YAML ``mode`` as ``int``; reject ``bool`` and non-integral floats."""
-    if isinstance(mode_num, bool):
-        raise ValueError(
-            f'Feature {feature_key!r} {edge_type}_data[{index}]: '
-            f'mode_num must be int (not bool), got {mode_num!r}'
-        )
-    if isinstance(mode_num, int):
-        return mode_num
-    if isinstance(mode_num, float) and math.isfinite(mode_num) and mode_num == math.floor(mode_num):
-        return int(mode_num)
-    raise ValueError(
-        f'Feature {feature_key!r} {edge_type}_data[{index}]: '
-        f'mode_num must be an integer, got {mode_num!r}'
-    )
-
-
-def _parse_edge_data(feature_key: str, edge_type: str, mode_list: Any) -> RingEdgeData:
-    """Parse a list of mode dicts into a RingEdgeData.
+def _edge_from_modes(modes: 'tuple[RingModeEntry, ...] | None') -> RingEdgeData | None:
+    """Build one edge from its catalog mode entries.
 
     Parameters:
-        feature_key: Feature key for error messages.
-        edge_type: 'inner' or 'outer' for error messages.
-        mode_list: Should be a non-empty list of mode dicts.
+        modes: The edge's mode entries, which hold exactly one base orbit, or None if
+            the edge is not in the catalog.
 
     Returns:
-        Parsed ``RingEdgeData``.
-
-    Raises:
-        ValueError: On any structural or value error, including perturbation mode
-            dicts that omit ``amplitude``, ``phase``, or ``pattern_speed``.
+        The edge, or None if ``modes`` is None.
     """
-    if not isinstance(mode_list, list) or len(mode_list) == 0:
-        raise ValueError(
-            f'Feature {feature_key!r} {edge_type}_data: '
-            f'expected a non-empty list of mode dicts, got {type(mode_list).__name__!r}'
-        )
-
+    if modes is None:
+        return None
     base_orbit: RingBaseOrbitMode | None = None
     perturbations: list[RingPerturbationMode] = []
-
-    for i, mode in enumerate(mode_list):
-        if not isinstance(mode, dict):
-            raise ValueError(
-                f'Feature {feature_key!r} {edge_type}_data[{i}]: '
-                f'expected dict, got {type(mode).__name__!r}'
-            )
-
-        mode_num = mode.get('mode')
-        if mode_num is None:
-            raise ValueError(f'Feature {feature_key!r} {edge_type}_data[{i}]: missing "mode" field')
-
-        if 'a' in mode:
-            # Base-orbit entry: must be mode 1 (semi-major axis and related fields).
-            mode_n_base = _integral_mode_num(feature_key, edge_type, i, mode_num)
-            if mode_n_base != 1:
-                raise ValueError(
-                    f'Feature {feature_key!r} {edge_type}_data[{i}]: entry with "a" must use '
-                    f'mode 1 (base orbit), got mode {mode_num!r}'
-                )
-            if base_orbit is not None:
-                raise ValueError(
-                    f'Feature {feature_key!r} {edge_type}_data[{i}]: duplicate base-orbit entry '
-                    f'(only one mode dict with "a" allowed per edge); '
-                    f'earlier entry already defined the mode-1 base orbit'
-                )
+    for mode in modes:
+        if mode.a is not None:
             base_orbit = RingBaseOrbitMode(
-                a=mode['a'],
-                ae=mode.get('ae', 0.0),
-                long_peri=mode.get('long_peri', 0.0),
-                rate_peri=mode.get('rate_peri', 0.0),
-                rms=mode.get('rms', 0.0),
+                a=mode.a,
+                ae=_present(mode.ae),
+                long_peri=_present(mode.long_peri),
+                rate_peri=_present(mode.rate_peri),
+                rms=_present(mode.rms),
             )
         else:
-            # Perturbation mode: require explicit YAML keys; validation by
-            # ``RingPerturbationMode.__post_init__`` (no silent 0.0 defaults).
-            mode_n = _integral_mode_num(feature_key, edge_type, i, mode_num)
-            for field_name in ('amplitude', 'phase', 'pattern_speed'):
-                if field_name not in mode:
-                    raise ValueError(
-                        f'Feature {feature_key!r} {edge_type}_data[{i}]: '
-                        f'perturbation mode dict missing required key {field_name!r}'
-                    )
             perturbations.append(
                 RingPerturbationMode(
-                    mode_num=mode_n,
-                    amplitude=mode['amplitude'],
-                    phase=mode['phase'],
-                    pattern_speed=mode['pattern_speed'],
+                    mode_num=mode.mode,
+                    amplitude=_present(mode.amplitude),
+                    phase=_present(mode.phase),
+                    pattern_speed=_present(mode.pattern_speed),
                 )
             )
-
-    if base_orbit is None:
-        raise ValueError(
-            f'Feature {feature_key!r} {edge_type}_data: missing mode 1 (base orbit with "a" field)'
-        )
-
-    return RingEdgeData(base_orbit=base_orbit, perturbations=tuple(perturbations))
+    return RingEdgeData(base_orbit=_present(base_orbit), perturbations=tuple(perturbations))
 
 
-# ---------------------------------------------------------------------------
-# Cross-feature date-overlap validation
-# ---------------------------------------------------------------------------
-
-
-def validate_no_date_overlaps(features: Sequence[RingFeature]) -> None:
-    """Cross-feature validation: detect date-range overlaps in the same radial region.
-
-    Two features "overlap" if their date ranges intersect AND their radial
-    extents intersect. This catches authoring errors in the YAML config where
-    the same ring edge is defined twice with overlapping validity periods.
-
-    This function runs after all features are loaded via ``from_config()`` and
-    before the runtime filter. It is a hard error (``ValueError``) because
-    overlapping dates for the same radial region is a config authoring mistake,
-    not an observation-dependent condition. The filter handles *valid* features
-    that are not relevant for a particular observation.
+def _present(value: _T | None) -> _T:
+    """Return a value the catalog's rules guarantee is set, narrowed from optional.
 
     Parameters:
-        features: All features loaded from one planet's config.
+        value: A key that a mode entry of its kind must set, or an edge's base orbit,
+            which every edge has.
 
-    Raises:
-        ValueError: If any pair of features has overlapping dates AND overlapping
-            radial extents.
+    Returns:
+        ``value``.
     """
-    feature_list = list(features)
-    for i, feat_a in enumerate(feature_list):
-        for feat_b in feature_list[i + 1 :]:
-            if _radial_extents_overlap(feat_a, feat_b) and _dates_overlap(feat_a, feat_b):
-                raise ValueError(
-                    f'Ring config error: features {feat_a.key!r} and {feat_b.key!r} '
-                    f'have overlapping date ranges and overlapping radial extents. '
-                    f'Check the YAML config -- features should have non-overlapping '
-                    f'date ranges if they cover the same radial region.'
-                )
-
-
-def _radial_extents_overlap(a: RingFeature, b: RingFeature) -> bool:
-    """Return True if the radial extents of two features overlap."""
-    radii_a = [r for r, _ in a.all_base_radii()]
-    radii_b = [r for r, _ in b.all_base_radii()]
-    if not radii_a or not radii_b:
-        return False
-    min_a, max_a = min(radii_a), max(radii_a)
-    min_b, max_b = min(radii_b), max(radii_b)
-    # Two intervals [min_a, max_a] and [min_b, max_b] overlap iff
-    # one doesn't entirely lie below the other
-    return max_a >= min_b and max_b >= min_a
-
-
-def _dates_overlap(a: RingFeature, b: RingFeature) -> bool:
-    """Return True if two features with explicit date ranges overlap.
-
-    Only checks features that BOTH have explicit date ranges. If either feature
-    has no dates (always active), it is not considered a date-range conflict --
-    having a timeless feature alongside a dated feature is intentional
-    (e.g., a feature that exists throughout the mission alongside a dated
-    variant that replaces it for a specific period would be caught by the
-    radial overlap check alone, but both-active is a normal pattern in config).
-
-    The half-open interval check: [a_start, a_end) and [b_start, b_end) overlap
-    if a_start < b_end AND b_start < a_end.
-    """
-    # If either feature has no dates, skip the overlap check
-    if a._start_et is None and a._end_et is None:
-        return False
-    if b._start_et is None and b._end_et is None:
-        return False
-
-    # Both have at least one explicit date; treat None as infinite extent
-    a_start = a._start_et if a._start_et is not None else float('-inf')
-    a_end = a._end_et if a._end_et is not None else float('inf')
-    b_start = b._start_et if b._start_et is not None else float('-inf')
-    b_end = b._end_et if b._end_et is not None else float('inf')
-
-    return a_start < b_end and b_start < a_end
+    assert value is not None  # the catalog's rules require the value
+    return value
