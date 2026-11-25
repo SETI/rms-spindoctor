@@ -1778,11 +1778,12 @@ quantity it holds. The registry records which key each mode takes
 (``ArtifactMode.activation``):
 
 * **Count** modes draw a Poisson number of events per frame (lost lines, lost
-  blocks, spiked pixels, dead pixels, and dead columns). Their key is
+  blocks, downlink gaps, spiked pixels, dead pixels, and dead columns). Their key is
   ``expected_events``, the expected number of events per frame, any non-negative
   number. Each caps the draw at the number of places its events can land: the
-  frame's lines for a line loss, its columns for ``dead_columns``, its pixels
-  for a pixel loss, and the compression-block count for ``missing_blocks``.
+  frame's lines for a line loss or a downlink gap, its columns for ``dead_columns``,
+  its pixels for a pixel loss, and the compression-block count for
+  ``missing_blocks``.
 * **Rate** modes ``bright_dark_pairs`` and ``radiation_transients`` take
   ``expected_events_per_sec``, the expected number of events per second, any
   non-negative number, and their draws are uncapped. For ``bright_dark_pairs``
@@ -1855,6 +1856,11 @@ entries.
        (see :doc:`instruments/galileo_ssi`)
      - nac, wac, gossi
      - ``probability``
+   * - ``compression_truncated_lines``
+     - the second line of every line pair loses its end, in whole compressor
+       steps, from a chosen height to the bottom of the frame
+     - nac, wac
+     - ``probability``
    * - ``edited_frame``
      - only a centered column band of the camera's default width, or the top or
        bottom half of the frame, kept
@@ -1868,6 +1874,11 @@ entries.
    * - ``missing_blocks``
      - compression-block-aligned bands zeroed
      - nac, wac, gossi
+     - ``expected_events``
+   * - ``downlink_gaps``
+     - groups of whole lines of varying size, starting on any line, and the end
+       of the line above a group
+     - nac, wac
      - ``expected_events``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
@@ -1922,6 +1933,31 @@ corrected geometry (see :doc:`instruments/voyager_iss`)
 :data:`~spindoctor.sim.artifact_modes.TELEMETRY_POST_LOSS_ORDER`). The
 commanded ``truth_window`` is resolved before the loop and passed to
 ``missing_blocks`` as a protected rectangle.
+
+Two loss modes draw the forms that a camera's real frames show, with the
+distributions measured on them as the camera's shape defaults.
+
+``compression_truncated_lines`` draws the loss a lossless compressor leaves when
+it must fit each pair of lines into half its raw size: a pair that will not
+compress that far loses the end of its second line. The lines at odd row numbers
+lose their ends, from the first one at or below ``start_fraction`` of the frame's
+height down to the bottom. ``start_fraction`` is 0 by default, which covers the
+whole frame. Each line keeps a whole number of ``step_samples`` from its start
+and loses at least one sample. Its lost share is drawn on its own from
+``lost_share_percentiles``, a percentile table: the share of the line lost at the
+0th, 10th, 25th, 50th, 75th, 90th, and 100th percentiles, in rising order. A draw
+interpolates linearly between those points
+(:data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`).
+
+``downlink_gaps`` draws the groups of whole lines that a frame loses when packets
+are lost on the way to the ground. Each group's size is drawn from a log-normal
+distribution: ``median_lines`` is its median, and ``log_sigma`` is the standard
+deviation of the natural log of the size. A size rounds to a whole number of
+lines, at least one. A group starts on any line that keeps it inside the frame.
+With probability ``head_probability``, the line just above a group also loses its
+end, keeping a whole number of ``step_samples``, from one step up to all but the
+last, drawn uniformly. Groups that overlap merge in the frame and stay separate
+in the truth record.
 
 .. _sim-detector-modes:
 
@@ -2034,7 +2070,7 @@ placement onto the navigation features -- a lost line crosses the disc, a dead
 pixel lands on a star -- through the shared
 :mod:`spindoctor.sim.render.feature_loci` helpers; placement is uniform when the
 switch is off or absent. Purely periodic or commanded shapes (``alternating_lines``,
-the frame-level edits) ignore the switch: their geometry is fixed once active.
+``compression_truncated_lines``, the frame-level edits) ignore the switch: their geometry is fixed once active.
 The switch is one scene-level flag, and it applies to every mode the scene sets
 itself. A mode that only ``instrument_defaults`` turns on keeps the camera's own
 placement. A raw Cassini camera's hot pixels therefore stay on the detector's fixed map

@@ -23,8 +23,8 @@ to exercise any shape.
 **Activation.**  Every mode carries exactly one activation key, and the key's name
 says what quantity it holds, so a scene line reads the same way on every mode:
 
-* ``expected_events`` (count modes: lost lines, lost blocks, spiked pixels,
-  dead pixels and columns): the expected number of events per frame, drawn
+* ``expected_events`` (count modes: lost lines, lost blocks, downlink gaps, spiked
+  pixels, dead pixels and columns): the expected number of events per frame, drawn
   Poisson.  It is a non-negative number.  Each of these modes caps the draw at
   the number of places its events can land (the frame's lines, columns, or
   pixels, or ``missing_blocks``'s compression blocks).
@@ -66,6 +66,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import itertools
 import keyword
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal, get_args, get_origin
@@ -92,6 +93,7 @@ __all__ = [
     'EXPECTED_EVENTS',
     'EXPECTED_EVENTS_PER_SEC',
     'MODE_KEYS',
+    'PERCENTILE_POINTS',
     'PIXEL_FRACTION',
     'PROBABILITY',
     'QUANTIZATION_MODES',
@@ -107,6 +109,7 @@ __all__ = [
     'int_list',
     'mode_scene_map',
     'parse_mode_params',
+    'unit_list',
 ]
 
 
@@ -118,7 +121,8 @@ class ModeParam:
         name: The parameter key inside the mode's scene map.
         annotation: The value's type, written with the schema core's aliases:
             ``Bool``, ``NonNeg``, ``Unit``, ``NonNegInt``, ``PositiveInt``, a
-            ``Literal`` of strings, :func:`int_choice`, or :func:`int_list`.
+            ``Literal`` of strings, :func:`int_choice`, :func:`int_list`, or
+            :func:`unit_list`.
         default: The value used when the key is absent.  ``None`` marks an
             optional parameter with no default shape (the renderer supplies its
             own fallback, e.g. a centered window).
@@ -145,6 +149,14 @@ class ModeParam:
             if isinstance(marker, Len):
                 return int(marker.min_length)
         return None
+
+    @property
+    def item_annotation(self) -> Any:
+        """The type of each item of a list parameter; None for any other parameter."""
+        if self.length is None:
+            return None
+        list_type = get_args(self.annotation)[0]
+        return get_args(list_type)[0]
 
 
 @dataclass(frozen=True)
@@ -193,6 +205,38 @@ def int_list(length: int) -> Any:
         ``Annotated[list[Int], Len(length, length)]``.
     """
     return Annotated[list[Int], Len(length, length)]
+
+
+def _nondecreasing(values: list[float]) -> list[float]:
+    """Return ``values`` if no item is smaller than the one before it.
+
+    Raises:
+        ValueError: If one is.
+    """
+    if any(later < earlier for earlier, later in itertools.pairwise(values)):
+        raise ValueError(f'{values!r} decreases; each value must be at least the one before it')
+    return values
+
+
+def unit_list(length: int) -> Any:
+    """The type of a parameter that is a nondecreasing list of ``length`` numbers in [0, 1].
+
+    A percentile table takes this type: its values rise with the percentile.
+
+    Parameters:
+        length: The number of items.
+
+    Returns:
+        ``Annotated[list[Unit], Len(length, length), AfterValidator(...)]``, which
+        refuses a list whose values decrease.
+    """
+    return Annotated[list[Unit], Len(length, length), AfterValidator(_nondecreasing)]
+
+
+# The cumulative probabilities of a percentile table: a mode parameter that gives a
+# distribution by its values at the 0th, 10th, 25th, 50th, 75th, 90th, and 100th
+# percentiles.  A renderer draws from it by interpolating linearly between the points.
+PERCENTILE_POINTS: tuple[float, ...] = (0.0, 0.10, 0.25, 0.50, 0.75, 0.90, 1.0)
 
 
 # The detector models, each a chain the detector stage implements: the CCD
@@ -446,6 +490,23 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
         activation_semantics='per-frame probability the periodic line pattern is active',
     ),
     _telemetry_mode(
+        'compression_truncated_lines',
+        # A lossless compressor that must fit each pair of lines into half its raw
+        # size drops the end of the pair's second line when the pair will not
+        # compress that far.  The generic fallbacks cut at any sample and lose up
+        # to half the line, uniformly; a camera's config states its compressor's
+        # step and its measured lost shares as shape defaults.
+        ModeParam('step_samples', PositiveInt, 1),
+        ModeParam(
+            'lost_share_percentiles', unit_list(7), (0.0, 0.05, 0.125, 0.25, 0.375, 0.45, 0.5)
+        ),
+        ModeParam('start_fraction', Unit, 0.0),
+        activation=PROBABILITY,
+        activation_semantics=(
+            'per-frame probability that the second line of every line pair loses its end'
+        ),
+    ),
+    _telemetry_mode(
         'edited_frame',
         # A generic fallback band width, so a bare probability keeps a centered
         # band; a camera's config states its own as a shape default.  An
@@ -474,6 +535,22 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('start_mid_line', Bool, False),
         activation=EXPECTED_EVENTS,
         activation_semantics='a Poisson expected count of compression blocks lost per frame',
+    ),
+    _telemetry_mode(
+        'downlink_gaps',
+        # Packets lost on the way to the ground take a group of whole lines that
+        # starts on any line.  The generic fallbacks lose 8-line groups and keep
+        # the line above each group whole; a camera's config states its measured
+        # group sizes and head-line losses as shape defaults.
+        ModeParam('median_lines', NonNeg, 8.0),
+        ModeParam('log_sigma', NonNeg, 0.0),
+        ModeParam('head_probability', Unit, 0.0),
+        ModeParam('step_samples', PositiveInt, 1),
+        activation=EXPECTED_EVENTS,
+        activation_semantics=(
+            'a Poisson expected count of downlink gaps per frame, each losing a group of '
+            'whole lines'
+        ),
     ),
     _telemetry_mode(
         'line_garble',
@@ -718,8 +795,8 @@ globals().update({mode.params_type.__name__: mode.params_type for mode in ARTIFA
 MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
 
 # The fixed order the telemetry stage applies its implemented loss modes in:
-# frame-level commanded shapes, then line losses, then block losses, then
-# garble, then per-pixel losses, then the row-0 header last.  ``truth_window``
+# frame-level commanded shapes, then line losses, then block losses and downlink
+# gaps, then garble, then per-pixel losses, then the row-0 header last.  ``truth_window``
 # is not here: it is a protective carve-out resolved before the loop and passed
 # to ``missing_blocks``, not a signal-mutating loss.
 STRUCTURED_LOSS_ORDER: tuple[str, ...] = (
@@ -729,7 +806,9 @@ STRUCTURED_LOSS_ORDER: tuple[str, ...] = (
     'missing_lines',
     'partial_lines',
     'alternating_lines',
+    'compression_truncated_lines',
     'missing_blocks',
+    'downlink_gaps',
     'line_garble',
     'dead_columns',
     'pixel_spikes',

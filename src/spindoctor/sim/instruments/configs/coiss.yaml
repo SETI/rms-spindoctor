@@ -176,8 +176,10 @@ coiss_nac:
       - missing_lines
       - partial_lines
       - alternating_lines
+      - compression_truncated_lines
       - truncated_frame
       - missing_blocks
+      - downlink_gaps
       - dead_pixels
       - dead_columns
       - hot_pixels
@@ -259,6 +261,31 @@ coiss_nac:
       radiation_transients: {amplitude_e: 4.0e+4}
       # Dust donuts (<1% each) accumulating over the mission.
       fixed_pattern: {dust_donut_count: 5}
+      # Measured 2026-11-24 from the binary line prefixes, which give each line's
+      # valid samples, of every lossless 12-bit NAC frame with lost lines in the
+      # current metadata indexes of COISS_2010, 2023, 2050, and 2068: 321 frames,
+      # 233 full and 88 summed 2x2.  No 12-bit uncompressed frame lost lines.
+      # - 61 frames lose the ends of alternating lines, 13,788 lines in all.  13,782
+      #   of them are the second line of a pair (odd row numbers), and every one
+      #   keeps a whole number of 16 samples from its start.  The lost share of the
+      #   line is 1.6, 6.3, 10.9, 18.8, 34.4, and 37.5% at the 0th, 10th, 25th, 50th,
+      #   75th, and 90th percentiles.  The table ends at the 99.5th percentile,
+      #   40.6%; the largest share, 90.6%, is one frame's.  Within one frame the
+      #   share varies less: its standard deviation is a median 2.6% of the line,
+      #   where over all the frames it is 11.8%.  On 32 frames the lines lose their
+      #   ends from the first pair down.  The rest start lower, as low as 89% of the
+      #   way down the frame, which is the scene's start_fraction.
+      compression_truncated_lines:
+        step_samples: 16
+        lost_share_percentiles: [0.015625, 0.0625, 0.109375, 0.1875, 0.34375, 0.375, 0.40625]
+      # - 62 frames lose 374 groups of whole lines inside the frame, 1 to 59 groups
+      #   per frame.  A group is 2, 3, 5, 8, and 15 lines at the 10th, 25th, 50th,
+      #   75th, and 90th percentiles, and up to 373.  median_lines is the median
+      #   size, and log_sigma the standard deviation of the natural log of the sizes.
+      #   A group starts on any line: the starts fall evenly on the eight residues
+      #   modulo 8.  131 of the 374 groups (35%) also lose the end of the line just
+      #   above them, which keeps a whole number of 16 samples.
+      downlink_gaps: {median_lines: 5.0, log_sigma: 0.87, head_probability: 0.35, step_samples: 16}
 
 # Cassini ISS wide-angle camera, raw DN products.
 #
@@ -380,8 +407,10 @@ coiss_wac:
       - missing_lines
       - partial_lines
       - alternating_lines
+      - compression_truncated_lines
       - truncated_frame
       - missing_blocks
+      - downlink_gaps
       - dead_pixels
       - dead_columns
       - hot_pixels
@@ -434,6 +463,20 @@ coiss_wac:
       bright_dark_pairs: {amplitude_e: 3.5e+3}
       radiation_transients: {amplitude_e: 3.5e+4}
       fixed_pattern: {dust_donut_count: 5}
+      # Measured 2026-11-24 as for the NAC, on the 82 lossless 12-bit WAC frames with
+      # lost lines in the same four volumes.  One frame loses the ends of
+      # alternating lines: 100 second lines of a pair, each keeping a whole number
+      # of 16 samples and losing 6.3 or 12.5% of the line.  One frame cannot give a
+      # distribution, so the lost shares are the NAC's.
+      compression_truncated_lines:
+        step_samples: 16
+        lost_share_percentiles: [0.015625, 0.0625, 0.109375, 0.1875, 0.34375, 0.375, 0.40625]
+      # 19 frames lose 83 groups of whole lines inside the frame.  A group is 2, 5,
+      # 7, 18, and 50 lines at the 10th, 25th, 50th, 75th, and 90th percentiles, and
+      # up to 504; the natural log of the sizes has a standard deviation of 1.18.
+      # 22 of the 83 groups (27%) also lose the end of the line just above them,
+      # which keeps a whole number of 16 samples.
+      downlink_gaps: {median_lines: 7.0, log_sigma: 1.18, head_probability: 0.27, step_samples: 16}
 
 # Cassini ISS narrow-angle camera, calibrated (CALIB, I/F) products.
 #

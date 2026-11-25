@@ -35,6 +35,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.artifact_modes import PERCENTILE_POINTS
 from spindoctor.sim.render.detector.chain import keep_off_marker
 from spindoctor.sim.render.detector.params import CalibrationMap
 from spindoctor.sim.render.feature_loci import FeatureLoci, choose_pixels, choose_rows
@@ -43,9 +44,11 @@ from spindoctor.support.types import NDArrayFloatType
 __all__ = [
     'LOSS_APPLIERS',
     'apply_alternating_lines',
+    'apply_compression_truncated_lines',
     'apply_cutout_window',
     'apply_dead_columns',
     'apply_dead_pixels',
+    'apply_downlink_gaps',
     'apply_edited_frame',
     'apply_embedded_header',
     'apply_line_garble',
@@ -113,6 +116,29 @@ def _as_valid_frame(
 def _word_bits(dn_ceiling: float) -> int:
     """The ADC word width in bits for a given DN ceiling (255 -> 8, 4095 -> 12)."""
     return max(1, int(math.log2(max(dn_ceiling, 1.0))) + 1)
+
+
+def _percentile_draws(rng: np.random.Generator, percentiles: Any, count: int) -> NDArrayFloatType:
+    """Draw ``count`` values from the distribution a percentile table gives.
+
+    Parameters:
+        rng: The mode's seeded generator; ``count`` uniform draws are taken.
+        percentiles: The distribution's values at
+            :data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`.
+        count: The number of values to draw.
+
+    Returns:
+        The values, linear in probability between the table's points.
+    """
+    values: NDArrayFloatType = np.interp(
+        rng.random(count), PERCENTILE_POINTS, np.asarray(percentiles, dtype=np.float64)
+    )
+    return values
+
+
+def _max_kept_steps(size_u: int, step: int) -> int:
+    """The most whole steps a cut line keeps while still losing at least one sample."""
+    return (size_u - 1) // step
 
 
 def apply_missing_lines(
@@ -226,6 +252,46 @@ def apply_alternating_lines(
         lines = list(range(phase, size_v, period))
     signal[lines, :] = marker_dn
     return {'active': True, 'mode': line_mode, 'period': period, 'phase': phase, 'lines': lines}
+
+
+def apply_compression_truncated_lines(
+    signal: NDArrayFloatType,
+    cfg: dict[str, Any],
+    *,
+    marker_dn: float,
+    rng: np.random.Generator,
+    **_ignored: Any,
+) -> dict[str, Any]:
+    """Lose the end of the second line of every line pair, in whole compressor steps.
+
+    A lossless compressor that must fit each pair of lines into half its raw size
+    drops the end of the pair's second line when the pair will not compress that
+    far.  The lines at odd row numbers lose their ends, from the first one at or below
+    ``start_fraction`` of the frame height down to the bottom of the frame.  Each
+    line's lost share is drawn on its own from ``lost_share_percentiles``, the share
+    of the line lost at the 0th, 10th, 25th, 50th, 75th, 90th, and 100th percentiles.
+    The kept start of each line is a whole number of ``step_samples``, rounded to the
+    nearest step, and each line loses at least one sample.  The pattern follows the
+    line pairs, so adversarial placement does not steer it; the probability decides
+    whether it fires this frame.
+    """
+    probability = float(cfg['probability'])
+    if not mode_activated(rng, probability):
+        return {'active': False, 'cuts': []}
+    size_v, size_u = signal.shape
+    step = int(cfg['step_samples'])
+    first = math.ceil(float(cfg['start_fraction']) * size_v)
+    rows = list(range(first + 1 - first % 2, size_v, 2))
+    shares = _percentile_draws(rng, cfg['lost_share_percentiles'], len(rows))
+    kept_steps = np.clip(
+        np.rint((1.0 - shares) * size_u / step), 0, _max_kept_steps(size_u, step)
+    ).astype(np.int64)
+    cuts: list[dict[str, int]] = []
+    for row, steps in zip(rows, kept_steps.tolist(), strict=True):
+        kept = int(steps) * step
+        signal[row, kept:] = marker_dn
+        cuts.append({'row': row, 'lost_from': kept, 'lost_to': size_u})
+    return {'active': True, 'step_samples': step, 'cuts': cuts}
 
 
 def apply_edited_frame(
@@ -364,6 +430,54 @@ def apply_missing_blocks(
         signal[pv0:pv1, pu0:pu1] = saved
 
     return {'blocks': blocks, 'block_lines': block_lines}
+
+
+def apply_downlink_gaps(
+    signal: NDArrayFloatType,
+    cfg: dict[str, Any],
+    *,
+    marker_dn: float,
+    rng: np.random.Generator,
+    loci: FeatureLoci,
+    adversarial: bool,
+    **_ignored: Any,
+) -> dict[str, Any]:
+    """Zero-fill groups of whole lines that packets lost on the way to the ground.
+
+    Each gap loses a group of whole lines whose size is drawn log-normal: its median
+    is ``median_lines`` and the natural log of its size has the standard deviation
+    ``log_sigma``.  A size rounds to the nearest whole line, at least one and at most
+    the frame's height.  A group starts on any line that keeps it inside the frame,
+    or, with adversarial placement, on a feature row.  With ``head_probability``, the
+    line just above a group loses its end too: it keeps a whole number of
+    ``step_samples``, from one step to all but the last, drawn uniformly.  Groups
+    that overlap merge in the frame and stay separate in the record.
+    """
+    size_v, size_u = signal.shape
+    n = _poisson_count(rng, float(cfg['expected_events']), size_v)
+    if n == 0:
+        return {'groups': []}
+    median = float(cfg['median_lines'])
+    sizes = np.clip(
+        np.rint(median * np.exp(float(cfg['log_sigma']) * rng.standard_normal(n))), 1, size_v
+    ).astype(np.int64)
+    head_probability = float(cfg['head_probability'])
+    step = int(cfg['step_samples'])
+    max_steps = _max_kept_steps(size_u, step)
+    groups: list[dict[str, int]] = []
+    for size in sizes.tolist():
+        if adversarial and loci.has_rows:
+            start = min(int(rng.choice(loci.rows)), size_v - size)
+        else:
+            start = int(rng.integers(0, size_v - size + 1))
+        signal[start : start + size, :] = marker_dn
+        group = {'row_start': start, 'row_end': start + size}
+        if start > 0 and mode_activated(rng, head_probability):
+            kept = int(rng.integers(min(1, max_steps), max_steps + 1)) * step
+            signal[start - 1, kept:] = marker_dn
+            group['head_lost_from'] = kept
+        groups.append(group)
+    return {'groups': groups}
 
 
 def apply_line_garble(
@@ -576,9 +690,11 @@ LOSS_APPLIERS: dict[str, Any] = {
     'missing_lines': apply_missing_lines,
     'partial_lines': apply_partial_lines,
     'alternating_lines': apply_alternating_lines,
+    'compression_truncated_lines': apply_compression_truncated_lines,
     'edited_frame': apply_edited_frame,
     'truncated_frame': apply_truncated_frame,
     'missing_blocks': apply_missing_blocks,
+    'downlink_gaps': apply_downlink_gaps,
     'line_garble': apply_line_garble,
     'pixel_spikes': apply_pixel_spikes,
     'dead_columns': apply_dead_columns,

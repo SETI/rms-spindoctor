@@ -34,12 +34,13 @@ from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.types import NDArrayFloatType
 
 # The modes whose activation key is a Poisson expected event count per frame: the
-# line, block, garble, spike, and dead-pixel losses.
+# line, block, downlink-gap, garble, spike, and dead-pixel losses.
 _COUNT_MODES = frozenset(
     {
         'missing_lines',
         'partial_lines',
         'missing_blocks',
+        'downlink_gaps',
         'line_garble',
         'pixel_spikes',
         'dead_pixels',
