@@ -257,10 +257,11 @@ The rules for a typed section:
 Sections
 --------
 
-Top-level YAML keys other than the typed sections are exposed as
-:class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
-``cfg.offset.correlation_fft_upsample_factor`` instead of
-``cfg['offset']['correlation_fft_upsample_factor']``. That
+Top-level YAML keys other than the typed sections, such as each camera's block, are read
+through :meth:`~spindoctor.config.Config.category`, which returns an
+:class:`~spindoctor.support.attrdict.AttrDict` so code can write
+``cfg.category('voyager_iss').star_psf_sigma`` instead of
+``cfg.category('voyager_iss')['star_psf_sigma']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
