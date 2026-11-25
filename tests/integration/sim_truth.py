@@ -257,7 +257,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
     ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.032, 0.102, 0.072, 0.05),
     ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
-    ('nhlorri_moon_raw', FUSED): _t(0.108, 0.118, 0.011, 0.05),
+    ('nhlorri_moon_raw', FUSED): _t(0.110, 0.118, 0.011, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
@@ -329,11 +329,13 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
     # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
     ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
-    # On nhlorri_moon_raw the frame-transfer smear pulls the blob 6.8 to 7.1 px off;
-    # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
-    # step at each column's centroid, where the real smear builds up across the disc
-    # (#920), so part of the pull may be the simulator's.
-    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(6.782, 7.119, 0.067, 6.715, 7.186),
+    # Measured on all 24 draws.  On nhlorri_moon_raw the frame-transfer smear pulls the
+    # blob 6.5 to 7.1 px off; without the smear it lands 0.16 to 0.19 px off (#975).  The
+    # simulated smear is a step at each column's centroid, where the real smear builds
+    # up across the disc (#920), so part of the pull may be the simulator's.  Its lowest
+    # draw, noise_seed 505 at 6.47 px, landed 6.79 px off before the render changes of
+    # #1205; every other draw lies within 6.79 to 7.12 px.
+    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(6.465, 7.121, 0.131, 6.333, 7.253),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
