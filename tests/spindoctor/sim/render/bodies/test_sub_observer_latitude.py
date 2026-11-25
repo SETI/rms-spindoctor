@@ -222,9 +222,7 @@ def test_a_scaled_oblate_body_covering_some_pixels_matches_them_at_phase_zero() 
     np.testing.assert_allclose(emission[covered], incidence[covered], rtol=0.0, atol=1e-12)
 
 
-def test_the_incidence_on_a_turned_triaxial_body_is_continuous_across_the_scaled_outline() -> (
-    None
-):
+def test_the_incidence_on_a_turned_triaxial_body_is_continuous_across_the_scaled_outline() -> None:
     """Just inside and just outside a scaled outline the incidence cosines agree.
 
     The body is triaxial, turned in the image and tipped to a sub-observer latitude.
