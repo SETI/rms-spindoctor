@@ -404,12 +404,26 @@ vgiss_2_nac:
   # a camera's measurement replaces it when locked frames exist for that camera.
   distortion_residual: {k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}
 
-  # The vidicon has no electron domain, so its zero point is DN a magnitude-0
-  # star deposits per second.  Estimated: sized so stars at the vidicon's
-  # published limiting magnitudes land at the matched-filter boundary in the DN
-  # chain.  Not yet measured for the Voyager 2 narrow angle camera.
+  # The vidicon has no electron domain, so its zero point is the raw DN a
+  # magnitude-0 star deposits per second through the clear filter.  The
+  # simulator's vidicon chain works in raw DN (its bias, 8-bit full scale, and
+  # read noise are raw values), so the zero point is a raw DN rate.  Measured
+  # 2026-11-25 on this camera's star frames (VGISS_8xxx; each frame pointed by
+  # its own stars, independent of the navigator's star techniques; the DN read
+  # on the CLEANED product at each star's position): 8.7e+4 DN/s, +-0.07 mag,
+  # fitted on 53 stars (48 through the clear filter), mostly fainter than
+  # V 9.5, which peak at 35 to 70 DN, where the vidicon is linear.  Brighter stars
+  # read low because the vidicon compresses at high signal: on C1205021 (the
+  # Pleiades, 0.48 s) the V 3.86 and V 4.28 stars peak at 190 and 140 DN and
+  # hold 0.64 of what this rate predicts.  The simulated vidicon is linear up
+  # to its full scale, so it takes the linear rate, and its bright stars read
+  # brighter than real ones, up to the full scale, where they clip.  The archive's
+  # calibration of C1205021 maps about 30 raw DN to I/F 1, where the simulator
+  # maps 127.5 DN to I/F 1 at every exposure, so a simulated star of the same
+  # raw DN reads about 4 times fainter in I/F than the real one (#907).  The
+  # value replaces the 3.0e+3 estimate from the published limiting magnitudes.
   star_flux:
-    dn_per_s_vmag0: 3.0e+3
+    dn_per_s_vmag0: 8.7e+4
 
   # Plate scale from the published narrow angle value, ~9.3 urad/px.
   # This is the narrow angle camera's value; it is not yet measured for the Voyager 2 narrow angle camera.
@@ -570,12 +584,27 @@ vgiss_2_wac:
   # a camera's measurement replaces it when locked frames exist for that camera.
   distortion_residual: {k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}
 
-  # The vidicon has no electron domain, so its zero point is DN a magnitude-0
-  # star deposits per second.  Estimated: sized so stars at the vidicon's
-  # published limiting magnitudes land at the matched-filter boundary in the DN
-  # chain.  Not yet measured for the Voyager 2 wide angle camera.
+  # The vidicon has no electron domain, so its zero point is the raw DN a
+  # magnitude-0 star deposits per second through the clear filter.  The
+  # simulator's vidicon chain works in raw DN (its bias, 8-bit full scale, and
+  # read noise are raw values), so the zero point is a raw DN rate.  Measured
+  # 2026-11-25 on this camera's star frames (VGISS_8xxx; each frame pointed by
+  # its own stars, independent of the navigator's star techniques; the DN read
+  # on the CLEANED product at each star's position): 4.6e+3 DN/s, +-0.20 mag,
+  # fitted on 13 Tycho-2 stars of V 2 to 4.  These stars peak at 140 to 200 DN,
+  # where the vidicon compresses, and 55 fainter catalog stars of V 4 to 7
+  # (peaks near 85 DN) give the same rate, 4.0e+3 to 5.1e+3.  Stars of V 8 to
+  # 9 read 2.8 to 3.9 times brighter (1.3e+4 to 1.8e+4), but part of that is
+  # the catalog's own error at those magnitudes (0.5 to 0.9 mag too faint), so
+  # the camera's linear rate for faint stars is not settled.  The simulated
+  # vidicon is linear up to its full scale and has no compression, so it takes
+  # the rate of the V 2 to 7 stars that this camera's frames navigate on.  The
+  # archive's calibration of C1204825 (0.48 s) maps about 150 raw DN to I/F 1,
+  # near the simulator's fixed 127.5 DN per unit I/F, so a simulated star of
+  # the same raw DN has about the real star's I/F at that exposure.  The value
+  # replaces the 3.0e+3 estimate from the published limiting magnitudes.
   star_flux:
-    dn_per_s_vmag0: 3.0e+3
+    dn_per_s_vmag0: 4.6e+3
 
   # Plate scale from the published narrow angle value, ~9.3 urad/px.
   # This is the narrow angle value, so it does not match the wide angle optics and is not yet measured for the Voyager 2 wide angle camera.
