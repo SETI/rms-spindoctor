@@ -34,6 +34,10 @@ meets the budget; that absorbs transient contention, but not the sustained
 kind, which is why ``scripts/run-all-checks.sh`` excludes this file from its
 parallel pytest run and executes it as a dedicated serial step afterwards.
 Run this file on its own (not under a concurrent battery) when measuring.
+The host's memory state also counts: a fresh frame-sized array costs several
+times more CPU time to fill while the kernel compacts fragmented memory into
+the huge pages NumPy asks for (see the simulator developer guide), which can
+double a render's CPU time on a long-running, busy host.
 A breach across all attempts on an otherwise-quiet host is a real
 regression to investigate, not to bless by raising the budget.  Wall time
 is measured and reported alongside CPU time in the failure message for
@@ -296,11 +300,22 @@ def _assert_cold_render_budget(scene: dict[str, Any], budget_s: float, label: st
     )
 
 
+# Each budget below carries the CPU time its scene measured on the development
+# machine (i9-13900K) on 2026-11-25 (#1066): nine cold renders, each in a fresh
+# process pinned to one core, while up to three other heavy runs shared the host.
+# The best of them is what the check's best-of-three reads on a host whose memory
+# is not fragmented; the margin is the budget's headroom over that best.  The
+# median and worst show the same render while the host's memory was fragmented
+# (see the module docstring).
+
+
+# Measured: best 0.66 s (67% margin), median 1.48 s, worst 1.89 s.
 def test_512_psf_detector_render_under_2s() -> None:
     """A 512x512 PSF + detector scene renders in under 2 s single-core (cold)."""
     _assert_cold_render_budget(_psf_detector_scene(512), 2.0, '512x512')
 
 
+# Measured: best 2.36 s (70% margin), median 4.97 s, worst 5.73 s.
 def test_1024_cassini_render_under_8s() -> None:
     """A 1024x1024 Cassini-class scene renders in under 8 s single-core (cold)."""
     _assert_cold_render_budget(_psf_detector_scene(1024), 8.0, '1024x1024')
@@ -312,26 +327,31 @@ def test_1024_cassini_render_under_8s() -> None:
 # hold them.
 
 
+# Measured: best 1.29 s (36% margin), median 2.04 s, worst 2.44 s.
 def test_512_body_render_under_2s() -> None:
     """A 512x512 lit-body scene with relief renders in under 2 s single-core."""
     _assert_cold_render_budget(_body_psf_detector_scene(512), 2.0, '512x512 body')
 
 
+# Measured: best 5.01 s (37% margin), median 12.22 s, worst 13.98 s.
 def test_1024_body_render_under_8s() -> None:
     """A 1024x1024 lit-body scene with relief renders in under 8 s single-core."""
     _assert_cold_render_budget(_body_psf_detector_scene(1024), 8.0, '1024x1024 body')
 
 
+# Measured: best 1.23 s (39% margin), median 1.41 s, worst 1.72 s.
 def test_512_haze_body_render_under_2s() -> None:
     """A 512x512 haze-body scene renders in under 2 s single-core (cold)."""
     _assert_cold_render_budget(_haze_body_psf_detector_scene(512), 2.0, '512x512 haze body')
 
 
+# Measured: best 4.75 s (41% margin), median 12.66 s, worst 15.09 s.
 def test_1024_haze_body_render_under_8s() -> None:
     """A 1024x1024 haze-body scene renders in under 8 s single-core (cold)."""
     _assert_cold_render_budget(_haze_body_psf_detector_scene(1024), 8.0, '1024x1024 haze body')
 
 
+# Measured: best 4.66 s (42% margin), median 7.99 s, worst 11.40 s.
 def test_1024_ring_system_render_under_8s() -> None:
     """A 1024x1024 twelve-feature ring scene renders in under 8 s single-core."""
     _assert_cold_render_budget(_ring_psf_detector_scene(1024), 8.0, '1024x1024 ring')
