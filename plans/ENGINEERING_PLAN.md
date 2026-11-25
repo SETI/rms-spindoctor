@@ -49,8 +49,9 @@ carries (checked 2026-11-25: W1294561143_1 ends at `IMAGE_TIME`, a 46 s
 exposure, from its label and from its image file). Until a fixed release
 ships, every navigation of those frames with 0.1.1 is at the wrong time, which
 matters for any full Cassini run. When it ships: raise the floor in
-`pyproject.toml`, confirm that N1459611003_1 and a COISS_1001 frame such as
-W1294561143_1 end at `IMAGE_TIME`, and re-navigate any of these frames
+`pyproject.toml`, confirm that N1459611003_1 (shutter disabled) starts at
+`START_TIME` and that a COISS_1001 frame such as W1294561143_1 ends at
+`IMAGE_TIME`, and re-navigate any of these frames
 navigated in the meantime. Their documents also fail the C-matrix reader's
 midtime check against documents written before the move.
 
