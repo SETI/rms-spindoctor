@@ -149,13 +149,11 @@ def _haze_body_psf_detector_scene(size: int) -> dict[str, Any]:
     single-core budgets as the plain body scene.
     """
     scene = _body_psf_detector_scene(size)
-    # The body shrinks from the plain scene's 0.7 frame widths across to 0.55: at
-    # 0.7 the thin-haze 1024 render measured 7.0-7.7 s CPU against the 8 s
-    # budget on quiet serial runs of the reference host (as little as ~4%
-    # headroom on the slower runs -- flake territory); at 0.55 it measures
-    # 6.0-6.3 s best-of-3 across quiet serial runs on the same host (21-25%
-    # headroom), while the disc still dominates the frame and the full haze
-    # stack stays exercised.
+    # The body shrinks from the plain scene's 0.7 frame widths across to 0.55, so
+    # the render with the haze and its halo costs about what the plain body's does,
+    # while the disc still dominates the frame and the full haze stack stays
+    # exercised.
+    # The time the 1024 render measures is recorded beside its check below.
     for axis_key in ('semi_a_px', 'semi_b_px', 'semi_c_px'):
         scene['bodies'][0][axis_key] = size * 0.275
     # A realistically thin haze (scale height a few pixels) relative to the
@@ -301,21 +299,25 @@ def _assert_cold_render_budget(scene: dict[str, Any], budget_s: float, label: st
 
 
 # Each budget below carries the CPU time its scene measured on the development
-# machine (i9-13900K) on 2026-11-25 (#1066): nine cold renders, each in a fresh
-# process pinned to one core, while up to three other heavy runs shared the host.
-# The best of them is what the check's best-of-three reads on a host whose memory
-# is not fragmented; the margin is the budget's headroom over that best.  The
-# median and worst show the same render while the host's memory was fragmented
-# (see the module docstring).
+# machine (i9-13900K) on 2026-11-25 (#1066): five cold renders, each in a fresh
+# process pinned to one core, taken in one session that alternated with main, once
+# with NumPy's huge pages and once with NUMPY_MADVISE_HUGEPAGE=0, which comes close
+# to the kernel's `defer` huge-page setting (see the simulator developer guide).
+# The margin is the budget's headroom over the median.  With huge pages the host's
+# memory was fragmented for part of the session; there the 1024 haze and ring
+# medians exceed their budgets and the 1024 body median sits at its budget, so
+# those three checks pass on this host only while its memory is unfragmented or
+# when an attempt lands in such a moment.  Without huge pages every median is
+# under its budget.
 
 
-# Measured: best 0.66 s (67% margin), median 1.48 s, worst 1.89 s.
+# Measured: median 0.99 s (50% margin), best 0.68, worst 2.35; without huge pages 0.77 s (61%).
 def test_512_psf_detector_render_under_2s() -> None:
     """A 512x512 PSF + detector scene renders in under 2 s single-core (cold)."""
     _assert_cold_render_budget(_psf_detector_scene(512), 2.0, '512x512')
 
 
-# Measured: best 2.36 s (70% margin), median 4.97 s, worst 5.73 s.
+# Measured: median 3.73 s (53% margin), best 2.39, worst 6.69; without huge pages 2.85 s (64%).
 def test_1024_cassini_render_under_8s() -> None:
     """A 1024x1024 Cassini-class scene renders in under 8 s single-core (cold)."""
     _assert_cold_render_budget(_psf_detector_scene(1024), 8.0, '1024x1024')
@@ -327,31 +329,31 @@ def test_1024_cassini_render_under_8s() -> None:
 # hold them.
 
 
-# Measured: best 1.29 s (36% margin), median 2.04 s, worst 2.44 s.
+# Measured: median 1.48 s (26% margin), best 1.37, worst 3.18; without huge pages 1.47 s (27%).
 def test_512_body_render_under_2s() -> None:
     """A 512x512 lit-body scene with relief renders in under 2 s single-core."""
     _assert_cold_render_budget(_body_psf_detector_scene(512), 2.0, '512x512 body')
 
 
-# Measured: best 5.01 s (37% margin), median 12.22 s, worst 13.98 s.
+# Measured: median 7.98 s (0% margin), best 5.11, worst 14.76; without huge pages 5.50 s (31%).
 def test_1024_body_render_under_8s() -> None:
     """A 1024x1024 lit-body scene with relief renders in under 8 s single-core."""
     _assert_cold_render_budget(_body_psf_detector_scene(1024), 8.0, '1024x1024 body')
 
 
-# Measured: best 1.23 s (39% margin), median 1.41 s, worst 1.72 s.
+# Measured: median 1.90 s (5% margin), best 1.63, worst 3.34; without huge pages 1.46 s (27%).
 def test_512_haze_body_render_under_2s() -> None:
     """A 512x512 haze-body scene renders in under 2 s single-core (cold)."""
     _assert_cold_render_budget(_haze_body_psf_detector_scene(512), 2.0, '512x512 haze body')
 
 
-# Measured: best 4.75 s (41% margin), median 12.66 s, worst 15.09 s.
+# Measured: median 8.84 s (-11% margin), best 6.65, worst 15.32; without huge pages 5.40 s (32%).
 def test_1024_haze_body_render_under_8s() -> None:
     """A 1024x1024 haze-body scene renders in under 8 s single-core (cold)."""
     _assert_cold_render_budget(_haze_body_psf_detector_scene(1024), 8.0, '1024x1024 haze body')
 
 
-# Measured: best 4.66 s (42% margin), median 7.99 s, worst 11.40 s.
+# Measured: median 9.55 s (-19% margin), best 4.66, worst 10.35; without huge pages 5.02 s (37%).
 def test_1024_ring_system_render_under_8s() -> None:
     """A 1024x1024 twelve-feature ring scene renders in under 8 s single-core."""
     _assert_cold_render_budget(_ring_psf_detector_scene(1024), 8.0, '1024x1024 ring')

@@ -3510,8 +3510,9 @@ working-grid shading with the relief tilt interpolated from the detector grid, s
 :ref:`sim-shading-grids`), a smaller body of the same kind wrapped in a haze layer
 (the haze and its halo screen on top of the body), and, at 1024x1024 only, a
 twelve-feature ring system (the ring stage's cost as features are added). Each
-check states the CPU time its scene measured on the development machine and the
-margin that leaves under the budget. The budget is a *cold-render* budget:
+check states the median CPU time of five cold renders of its scene on the
+development machine, with huge pages and without them (see below), and the margin
+each median leaves under the budget. The budget is a *cold-render* budget:
 the render caches are cleared so the timed render pays the kernel-build and
 compile costs a first render pays, while one-time non-render costs (the lazy
 config-YAML load) are paid by an untimed warm-up first. The harness pins
@@ -3531,17 +3532,30 @@ blessed by raising the budget.
 
 On an oversampled 1024x1024 frame, one frame-sized array of 64-bit floats holds
 about 140 MB, and on Linux a new one can cost more than the arithmetic that fills
-it. NumPy asks the kernel for huge pages for large arrays, and when the host's
-memory is fragmented, the kernel compacts memory to supply them as the array is
-first written. On the development machine a new 140 MB array then took 0.12 to
-0.18 s of CPU time to fill, against 0.015 s to write the same values into an
+it. NumPy asks the kernel to back large arrays with huge pages, and how the kernel
+answers depends on its ``/sys/kernel/mm/transparent_hugepage/defrag`` setting. The
+development machine sets it to ``madvise``, under which a process that asked for
+huge pages waits, on the first write to each new array, while the kernel compacts
+memory to supply them. Once the host's memory is fragmented, after weeks of uptime
+and heavy jobs, the render is charged that wait as CPU time: a new 140 MB array
+then took 0.12 to 0.25 s to fill, against 0.015 s to write the same values into an
 array that already existed, and the ring scene spent more than half of its render
-time this way. So the renderer builds its frame-sized maps in place, with NumPy's
-``out=`` arguments and in-place operators, and works over large regions a strip of
-rows at a time, which keeps each temporary to a few megabytes. Each such step
-keeps the operation and the operand order of the expression it replaces, so the
-result is the same to the last bit. A render's CPU time still depends on the state
-of the host's memory as well as on its load.
+time this way. The setting ``defer`` removes the wait: the process gets ordinary
+pages at once, and the kernel compacts memory in the background. Running with
+``NUMPY_MADVISE_HUGEPAGE=0`` comes close to it without root, since NumPy then asks
+for no huge pages.
+
+So the renderer builds its large maps in place, with NumPy's ``out=`` arguments and
+in-place operators, and works over large regions a strip of rows at a time, which
+keeps each temporary to a few megabytes. A plane that starts as zeros comes from
+``np.zeros``, whose pages the kernel supplies already zeroed, so only the part a
+render writes is touched. Each in-place step keeps the operation and the operand
+order of the expression it replaces, so the result is the same to the last bit.
+``tests/spindoctor/sim/test_sim_inplace_forms.py`` compares each such form with its
+plain expression, and ``util/render_identity/render_digests.py`` digests every
+committed render, so a change meant to keep every render as it was can show that it
+does. A render's CPU time still depends on the state of the host's memory as well as
+on its load.
 
 Scene ingredients
 =================
