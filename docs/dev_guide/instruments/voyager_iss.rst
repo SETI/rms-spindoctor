@@ -651,7 +651,7 @@ Open items
   simulator converts vidicon DN to I/F at one scale for every exposure and
   filter, so for equal raw DN a simulated star's I/F is the real one's times
   the archive's scale divided by the simulator's (about 30 / 127.5 for the
-  narrow angle camera at 0.48 s).
+  narrow angle camera at 0.48 s through the clear filter).
 * The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the
   real GEOMED sky level varies about 50x between frames.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of
