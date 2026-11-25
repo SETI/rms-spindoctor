@@ -287,11 +287,14 @@ def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
         whole_v, whole_u = slice(0, size_v), slice(0, size_u)
         _warp_crop(plane, whole_v, whole_u, warp, output=plane)
         return
-    source = plane.copy()
+    # Every crop is warped before the plane is written, so each reads the plane as it
+    # was, without a copy of the whole plane.
+    warped = [
+        _warp_crop(cluster_crop(clusters, plane, index, in_v, in_u), in_v, in_u, warp)
+        for index, (in_v, in_u) in enumerate(crops)
+    ]
     plane[:] = 0.0
-    for index, (in_v, in_u) in enumerate(crops):
-        crop = cluster_crop(clusters, source, index, in_v, in_u)
-        out_v, out_u, values = _warp_crop(crop, in_v, in_u, warp)
+    for out_v, out_u, values in warped:
         plane[out_v, out_u] += values
 
 

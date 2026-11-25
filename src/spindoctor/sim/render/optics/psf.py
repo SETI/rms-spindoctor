@@ -184,10 +184,14 @@ def _blur_plane(plane: NDArrayFloatType, kernel: NDArrayFloatType) -> None:
         # The 'same' convolution is the full one less ``half`` on every side.
         plane[:] = _full_convolution(plane, kernel)[half : half + size_v, half : half + size_u]
         return
-    source = plane.copy()
+    # Every crop is blurred before the plane is written, so each reads the plane as it
+    # was, without a copy of the whole plane.
+    blurs = [
+        _full_convolution(cluster_crop(clusters, plane, index, rows, cols), kernel)
+        for index, (rows, cols) in enumerate(clusters.boxes)
+    ]
     plane[:] = 0.0
-    for index, (rows, cols) in enumerate(clusters.boxes):
-        blurred = _full_convolution(cluster_crop(clusters, source, index, rows, cols), kernel)
+    for (rows, cols), blurred in zip(clusters.boxes, blurs, strict=True):
         # The full convolution's first sample sits ``half`` pixels before the
         # crop; clip it to the frame.
         out_v = slice(max(rows.start - half, 0), min(rows.stop + half, size_v))

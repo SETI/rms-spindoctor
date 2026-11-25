@@ -34,6 +34,7 @@ laid out, so the margin changes no pixel of the frame.
 
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any
 
 import numpy as np
@@ -90,16 +91,18 @@ class BodyCoverage:
     box_u: slice
     coverage: NDArrayFloatType
 
-    @property
+    @cached_property
     def transmission(self) -> NDArrayFloatType:
         """The box-sized fraction of each pixel the body leaves uncovered.
 
         It is what shows through from behind the body: ``1 - coverage``, and exactly
         0 where the uncovered fraction is below 1e-12.  Starlight and everything the
-        body passes in front of are scaled by it.
+        body passes in front of are scaled by it.  It is computed once, on first
+        use, and is read-only.
         """
         uncovered = 1.0 - self.coverage
         uncovered[uncovered < _FULL_COVERAGE_TOLERANCE] = 0.0
+        uncovered.setflags(write=False)
         return uncovered
 
 
