@@ -2212,6 +2212,37 @@ measured errors, and the failures they hold.
 field takes a few seconds to navigate, and a frame with a disc takes up to half
 a minute, since the disc correlation searches the camera's whole offset window.
 
+.. _sim-mixed-defects:
+
+Mixed-defect scenes
+-------------------
+
+Real frames rarely carry one defect at a time. A frame that lost part of its
+downlink was often compressed too, and every raw frame carries its camera's whole
+detector chain under whatever else went wrong. The ``mixed_defects`` scene class
+(``tests/integration/sim_scenes/mixed_defects/``) holds full-size frames that
+carry several defects at once: the camera's detector chain under
+``instrument_defaults``, plus the artifact modes and optics effects that real
+frames of that camera carry together. Each scene follows real frames, which its
+comments cite with their exposures, compression, and lost lines, and says which
+of its values are measured and which are illustrative. Each plants a pointing
+error of the size real frames of its camera carry and the camera's measured
+twist, with roll fitting off.
+
+Each scene's fused answer is held to a tolerance measured over 16 seeds, as for
+the other validation scenes. The seed also places the lost lines and blocks, so
+the 16 seeds cover 16 placements of the damage as well as 16 noise draws. Where
+one technique fails on a scene, the scene says whether the failure is the
+simulator's or the navigator's, from controls that each remove one defect. The
+same controls show which defects move the answer at all. Some realistic defects do
+not, and a scene that carries one says so: it shows that the navigator is
+unaffected by that defect, which is all it can show about it. The instrument
+chapters (:doc:`instruments/instruments`) describe each camera's scene and its
+results.
+
+``test_sim_mixed_defects.py`` navigates each scene once per run and takes about a
+minute on one worker.
+
 .. _sim-floor:
 
 The self-consistency floor
@@ -3696,8 +3727,8 @@ The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
 ``star_confounder``, ``ring_system``, ``expected_fail``, ``full_frame_cameras``,
-``mixed_content``, ``dense_rings``) scope what each scene is testing and are
-enforced by the structural test. The scene README at
+``mixed_content``, ``dense_rings``, ``mixed_defects``) scope what each scene is
+testing and are enforced by the structural test. The scene README at
 ``tests/integration/sim_scenes/README.txt`` documents the schema alongside the
 code.
 
