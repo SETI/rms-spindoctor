@@ -1,0 +1,187 @@
+"""Render every committed simulator scene and digest each render's exact bytes.
+
+A change meant to leave every render as it was (a speedup, a restructuring) is
+checked by digesting the renders before and after it on one machine and comparing
+the two files.  The renders covered are every scene of the catalog, twice (as the
+render-diff images render it, without its planted offset, and as the navigator
+reads it, with the offset), every point of every sweep, the developer-guide gallery
+scenes, and the seven render-budget scenes of ``tests/integration/test_sim_perf.py``.
+Each digest covers the float image and every array and scalar of the truth
+metadata, recursively, so a change in the last bit of any value changes it.
+
+Run it from the root of the checkout whose renders are digested; it imports that
+checkout's ``src`` and ``tests``.  Rendering everything takes about five minutes on
+one core.
+
+Usage::
+
+    python util/render_identity/render_digests.py OUT.json [--only PREFIX]
+        [--compare BASE.json]
+
+``--only`` digests only the renders whose names start with ``PREFIX`` (``catalog/``,
+``sweep/``, ``gallery/``, or ``perf/``).  ``--compare`` then lists every render whose
+digest differs from ``BASE.json`` and exits with status 1 if any does.  Floating-point
+results can differ between machines and library builds, so compare only digests
+taken on one machine with one environment.
+
+``main_c6815cfc.json`` beside this script holds the digests of main at commit
+c6815cfc, taken on the development machine (NumPy 2.5.1, SciPy 1.17.0, Python
+3.12).  On that machine a checkout descended from that commit can compare with it
+directly; anywhere else, or once main's renders have moved, digest the base commit
+first.
+"""
+
+import argparse
+import dataclasses
+import hashlib
+import importlib.util
+import json
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+ROOT = Path.cwd()
+sys.path.insert(0, str(ROOT / 'src'))
+sys.path.insert(0, str(ROOT))
+
+import numpy as np  # noqa: E402
+from tests.integration import sim_doc_images  # noqa: E402
+from tests.integration.sim_sweep import (  # noqa: E402
+    build_sweep_params,
+    iter_sweep_paths,
+    load_sweep,
+)
+
+from spindoctor.sim.render.driver import clear_render_caches, render_scene  # noqa: E402
+from spindoctor.sim.scene.io import iter_scene_paths, load_sim_scene  # noqa: E402
+
+
+def _feed(digest: Any, value: Any) -> None:
+    """Feed a value's exact bytes, and its structure, to a hash.
+
+    Parameters:
+        digest: The hash object.
+        value: An array, a scalar, a mapping, a sequence, or a dataclass.
+    """
+    if isinstance(value, np.ndarray):
+        digest.update(str(value.dtype).encode())
+        digest.update(str(value.shape).encode())
+        digest.update(np.ascontiguousarray(value).tobytes())
+    elif isinstance(value, dict):
+        for key in sorted(value, key=str):
+            digest.update(repr(key).encode())
+            _feed(digest, value[key])
+    elif isinstance(value, list | tuple):
+        digest.update(b'[')
+        for item in value:
+            _feed(digest, item)
+        digest.update(b']')
+    elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+        _feed(digest, dataclasses.asdict(value))
+    elif isinstance(value, float):
+        digest.update(np.float64(value).tobytes())
+    elif isinstance(value, np.floating | np.integer | np.bool_):
+        digest.update(np.asarray(value).tobytes())
+    elif hasattr(value, '__dict__'):
+        _feed(digest, vars(value))
+    else:
+        digest.update(repr(value).encode())
+
+
+def _render_digests(params: dict[str, Any], **kwargs: Any) -> list[str]:
+    """Render a scene from cold caches and digest its image and its truth metadata.
+
+    Parameters:
+        params: The scene.
+        **kwargs: Keyword arguments for the render.
+
+    Returns:
+        The image's digest and the metadata's, 16 hex digits each.
+    """
+    clear_render_caches()
+    image, metadata = render_scene(params, **kwargs)
+    image_digest = hashlib.sha256()
+    _feed(image_digest, image)
+    metadata_digest = hashlib.sha256()
+    _feed(metadata_digest, metadata)
+    return [image_digest.hexdigest()[:16], metadata_digest.hexdigest()[:16]]
+
+
+def _jobs() -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
+    """Every render to digest: its name, its scene, and its render arguments.
+
+    Returns:
+        The renders, in a fixed order.
+    """
+    jobs: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    for path in iter_scene_paths(ROOT / 'tests/integration/sim_scenes'):
+        params = load_sim_scene(path)
+        name = f'catalog/{path.parent.name}/{path.stem}'
+        jobs.append((name + '#display', params, {'ignore_offset': True}))
+        jobs.append((name + '#nav', params, {}))
+    for path in iter_sweep_paths(ROOT / 'tests/integration/sim_sweeps'):
+        for value, params in build_sweep_params(load_sweep(path)):
+            jobs.append((f'sweep/{path.stem}/{value!r}', params, {}))
+    for name, params, _ in sim_doc_images._GUI_GALLERY:
+        jobs.append((f'gallery/{name}', params, {}))
+    spec = importlib.util.spec_from_file_location(
+        'sim_perf', ROOT / 'tests/integration/test_sim_perf.py'
+    )
+    assert spec is not None
+    assert spec.loader is not None
+    perf = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(perf)
+    for label, builder, size in (
+        ('star', perf._psf_detector_scene, 512),
+        ('star', perf._psf_detector_scene, 1024),
+        ('body', perf._body_psf_detector_scene, 512),
+        ('body', perf._body_psf_detector_scene, 1024),
+        ('haze', perf._haze_body_psf_detector_scene, 512),
+        ('haze', perf._haze_body_psf_detector_scene, 1024),
+        ('ring', perf._ring_psf_detector_scene, 1024),
+    ):
+        jobs.append((f'perf/{label}{size}', builder(size), {}))
+    return jobs
+
+
+def main() -> int:
+    """Digest the renders, write them, and compare them with a base file if asked.
+
+    Returns:
+        The exit status: 1 when a compared render differs or a render fails, else 0.
+    """
+    parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
+    parser.add_argument('out', type=Path, help='the JSON file to write the digests to')
+    parser.add_argument('--only', default='', help='digest only names with this prefix')
+    parser.add_argument('--compare', type=Path, help='a digest file to compare with')
+    args = parser.parse_args()
+
+    results: dict[str, list[str]] = {}
+    start = time.time()
+    for name, params, kwargs in _jobs():
+        if not name.startswith(args.only):
+            continue
+        try:
+            results[name] = _render_digests(params, **kwargs)
+        except Exception as exc:  # A failing render is reported, not fatal.
+            results[name] = ['error', f'{type(exc).__name__}: {exc}'[:200]]
+    args.out.write_text(json.dumps(results, indent=1, sort_keys=True) + '\n')
+    print(f'{len(results)} renders in {time.time() - start:.0f} s')
+
+    failed = [name for name, value in results.items() if value[0] == 'error']
+    for name in failed:
+        print(f'FAILED {name}: {results[name][1]}')
+    if args.compare is None:
+        return 1 if failed else 0
+    base = json.loads(args.compare.read_text())
+    common = sorted(set(base) & set(results))
+    differ = [name for name in common if base[name] != results[name]]
+    for name in differ:
+        print(f'DIFFERS {name}')
+    print(f'{len(common)} compared, {len(differ)} differ, {len(set(results) - set(base))} new')
+    return 1 if differ or failed else 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
