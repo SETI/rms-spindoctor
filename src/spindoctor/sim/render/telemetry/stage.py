@@ -11,8 +11,9 @@ grid.  It applies its sub-effects in the physical order of transmission:
    the DN the spacecraft transmitted, then mapped back to I/F.
 2. Structured data loss: the registry loss modes in
    :data:`~spindoctor.sim.artifact_modes.STRUCTURED_LOSS_ORDER`
-   (commanded frame shapes, then line losses, then block losses and downlink gaps,
-   then garble, then per-pixel losses, then the row-0 header), with the commanded
+   (commanded frame shapes, then the lossless compressor's cuts, then line losses,
+   then block losses and downlink gaps, then garble, then per-pixel losses, then the
+   row-0 header), with the commanded
    ``truth_window`` carve-out resolved first and passed to ``missing_blocks``.
    Each mode is honored only where the instrument entry offers it, and its shape
    parameters resolve scene value over the instrument entry's shape default over the

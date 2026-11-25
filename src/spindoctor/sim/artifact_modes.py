@@ -23,8 +23,8 @@ to exercise any shape.
 **Activation.**  Every mode carries exactly one activation key, and the key's name
 says what quantity it holds, so a scene line reads the same way on every mode:
 
-* ``expected_events`` (count modes: lost lines, lost blocks, downlink gaps, spiked
-  pixels, dead pixels and columns): the expected number of events per frame, drawn
+* ``expected_events`` (count modes: lost lines, lost blocks, spiked pixels,
+  dead pixels and columns): the expected number of events per frame, drawn
   Poisson.  It is a non-negative number.  Each of these modes caps the draw at
   the number of places its events can land (the frame's lines, columns, or
   pixels, or ``missing_blocks``'s compression blocks).
@@ -35,9 +35,10 @@ says what quantity it holds, so a scene line reads the same way on every mode:
   dwell as well as the exposure, in an environment scaled by its
   ``environment_factor``: it expects ``expected_events_per_sec *
   environment_factor * (exposure_sec + readout_dwell_sec)``.
-* ``probability`` (commanded and periodic modes, and every deterministic-shape
-  detector mode): the per-frame probability, in [0, 1], that the mode activates at
-  all.
+* ``probability`` (commanded, periodic, and frame-level modes, and every
+  deterministic-shape detector mode): the per-frame probability, in [0, 1], that the
+  mode activates at all.  ``downlink_gaps`` uses it too: a frame that loses packets
+  loses at least one group of lines, and the mode's own parameters draw how many.
 * ``pixel_fraction`` (``hot_pixels`` alone): the fraction of detector pixels that
   are hot, a spatial density in [0, 1].
 
@@ -77,17 +78,21 @@ from pydantic import AfterValidator, Field
 from spindoctor.schema import (
     SCHEMA_CONFIG,
     Bool,
+    Float,
     Int,
     NonNeg,
     NonNegInt,
+    Positive,
     PositiveInt,
     Unit,
     parse,
 )
+from spindoctor.schema.errors import RangeError
 
 __all__ = [
     'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
+    'AT_LEAST_ONE',
     'DETECTOR_MODELS',
     'DETECTOR_MODE_ORDER',
     'EXPECTED_EVENTS',
@@ -109,6 +114,7 @@ __all__ = [
     'int_list',
     'mode_scene_map',
     'parse_mode_params',
+    'positive_list',
     'unit_list',
 ]
 
@@ -120,9 +126,9 @@ class ModeParam:
     Parameters:
         name: The parameter key inside the mode's scene map.
         annotation: The value's type, written with the schema core's aliases:
-            ``Bool``, ``NonNeg``, ``Unit``, ``NonNegInt``, ``PositiveInt``, a
-            ``Literal`` of strings, :func:`int_choice`, :func:`int_list`, or
-            :func:`unit_list`.
+            ``Bool``, ``NonNeg``, ``Unit``, ``NonNegInt``, ``PositiveInt``,
+            :data:`AT_LEAST_ONE`, a ``Literal`` of strings, :func:`int_choice`,
+            :func:`int_list`, :func:`unit_list`, or :func:`positive_list`.
         default: The value used when the key is absent.  ``None`` marks an
             optional parameter with no default shape (the renderer supplies its
             own fallback, e.g. a centered window).
@@ -219,9 +225,9 @@ def _nondecreasing(values: list[float]) -> list[float]:
 
 
 def unit_list(length: int) -> Any:
-    """The type of a parameter that is a nondecreasing list of ``length`` numbers in [0, 1].
+    """The type of a nondecreasing list parameter of ``length`` numbers in [0, 1].
 
-    A percentile table takes this type: its values rise with the percentile.
+    A percentile table of shares takes this type: its values rise with the percentile.
 
     Parameters:
         length: The number of items.
@@ -233,10 +239,44 @@ def unit_list(length: int) -> Any:
     return Annotated[list[Unit], Len(length, length), AfterValidator(_nondecreasing)]
 
 
+def positive_list(length: int) -> Any:
+    """The type of a nondecreasing list parameter of ``length`` positive numbers.
+
+    A percentile table of sizes takes this type: its values rise with the percentile.
+
+    Parameters:
+        length: The number of items.
+
+    Returns:
+        ``Annotated[list[Positive], Len(length, length), AfterValidator(...)]``, which
+        refuses a list whose values decrease.
+    """
+    return Annotated[list[Positive], Len(length, length), AfterValidator(_nondecreasing)]
+
+
+def _at_least_one(value: float) -> float:
+    """Return ``value`` if it is at least 1.
+
+    Raises:
+        RangeError: If it is less.
+    """
+    if value < 1.0:
+        raise RangeError('a number of at least 1')
+    return value
+
+
+# The type of a mean count that includes one certain event, such as the groups of lines
+# a frame loses once it loses any.
+AT_LEAST_ONE: Any = Annotated[Float, AfterValidator(_at_least_one)]
+
 # The cumulative probabilities of a percentile table: a mode parameter that gives a
-# distribution by its values at the 0th, 10th, 25th, 50th, 75th, 90th, and 100th
-# percentiles.  A renderer draws from it by interpolating linearly between the points.
-PERCENTILE_POINTS: tuple[float, ...] = (0.0, 0.10, 0.25, 0.50, 0.75, 0.90, 1.0)
+# distribution by its values at the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th,
+# and 100th percentiles.  A renderer draws from it by interpolating between the points.
+PERCENTILE_POINTS: tuple[float, ...] = (0.0, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99, 1.0)
+
+# A percentile table of a share that is uniform over [0, 1]: each value is its own
+# percentile.
+_UNIFORM_TABLE: tuple[float, ...] = PERCENTILE_POINTS
 
 
 # The detector models, each a chain the detector stage implements: the CCD
@@ -491,20 +531,17 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
     ),
     _telemetry_mode(
         'compression_truncated_lines',
-        # A lossless compressor that must fit each pair of lines into half its raw
-        # size drops the end of the pair's second line when the pair will not
-        # compress that far.  The generic fallbacks cut at any sample and lose up
-        # to half the line, uniformly; a camera's config states its compressor's
-        # step and its measured lost shares as shape defaults.
-        ModeParam('step_samples', PositiveInt, 1),
-        ModeParam(
-            'lost_share_percentiles', unit_list(7), (0.0, 0.05, 0.125, 0.25, 0.375, 0.45, 0.5)
-        ),
-        ModeParam('start_fraction', Unit, 0.0),
+        # A lossless line compressor whose output must fit each pair of lines into
+        # one uncompressed line: block-adaptive Rice coding of horizontal first
+        # differences (Rice and Lee, JPL Publication 83-17).  The defaults are that
+        # coder's block size and code options on 16-bit words; the content of the
+        # frame decides which line pairs lose the end of their second line.
+        ModeParam('block_samples', PositiveInt, 16),
+        ModeParam('word_bits', PositiveInt, 16),
+        ModeParam('id_bits', NonNegInt, 4),
+        ModeParam('max_split', NonNegInt, 13),
         activation=PROBABILITY,
-        activation_semantics=(
-            'per-frame probability that the second line of every line pair loses its end'
-        ),
+        activation_semantics='per-frame probability that the frame was compressed losslessly',
     ),
     _telemetry_mode(
         'edited_frame',
@@ -538,18 +575,23 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
     ),
     _telemetry_mode(
         'downlink_gaps',
-        # Packets lost on the way to the ground take a group of whole lines that
-        # starts on any line.  The generic fallbacks lose 8-line groups and keep
-        # the line above each group whole; a camera's config states its measured
-        # group sizes and head-line losses as shape defaults.
-        ModeParam('median_lines', NonNeg, 8.0),
-        ModeParam('log_sigma', NonNeg, 0.0),
+        # Packets lost on the way to the ground take groups of whole lines that start
+        # on any line.  The generic fallbacks lose one 8-line group at a uniform start
+        # and keep the lines beside it whole; a camera's config states its measured
+        # count, sizes, spacing, and partial lines as shape defaults.
+        ModeParam('mean_groups', AT_LEAST_ONE, 1.0),
+        ModeParam('dispersion', NonNeg, 0.0),
+        ModeParam('size_percentiles', positive_list(10), (8.0,) * 10),
+        ModeParam('gap_percentiles', positive_list(10)),
         ModeParam('head_probability', Unit, 0.0),
+        ModeParam('head_kept_percentiles', unit_list(10), _UNIFORM_TABLE),
+        ModeParam('tail_probability', Unit, 0.0),
+        ModeParam('tail_kept_percentiles', unit_list(10), _UNIFORM_TABLE),
         ModeParam('step_samples', PositiveInt, 1),
-        activation=EXPECTED_EVENTS,
+        activation=PROBABILITY,
         activation_semantics=(
-            'a Poisson expected count of downlink gaps per frame, each losing a group of '
-            'whole lines'
+            'per-frame probability that the downlink lost packets, which loses at least '
+            'one group of whole lines'
         ),
     ),
     _telemetry_mode(
@@ -795,18 +837,19 @@ globals().update({mode.params_type.__name__: mode.params_type for mode in ARTIFA
 MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
 
 # The fixed order the telemetry stage applies its implemented loss modes in:
-# frame-level commanded shapes, then line losses, then block losses and downlink
-# gaps, then garble, then per-pixel losses, then the row-0 header last.  ``truth_window``
-# is not here: it is a protective carve-out resolved before the loop and passed
-# to ``missing_blocks``, not a signal-mutating loss.
+# frame-level commanded shapes, then the lossless compressor's cuts (on board, on the
+# full frame), then line losses, then block losses and downlink gaps, then garble,
+# then per-pixel losses, then the row-0 header last.  ``truth_window`` is not here: it
+# is a protective carve-out resolved before the loop and passed to ``missing_blocks``,
+# not a signal-mutating loss.
 STRUCTURED_LOSS_ORDER: tuple[str, ...] = (
     'cutout_window',
     'edited_frame',
     'truncated_frame',
+    'compression_truncated_lines',
     'missing_lines',
     'partial_lines',
     'alternating_lines',
-    'compression_truncated_lines',
     'missing_blocks',
     'downlink_gaps',
     'line_garble',

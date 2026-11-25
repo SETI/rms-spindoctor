@@ -261,31 +261,45 @@ coiss_nac:
       radiation_transients: {amplitude_e: 4.0e+4}
       # Dust donuts (<1% each) accumulating over the mission.
       fixed_pattern: {dust_donut_count: 5}
+      # The lossless compressor (ISS User's Guide sections 2.3 and 3.6; Calibration
+      # Report section 5.5.2): block-adaptive Rice coding (Rice and Lee, JPL
+      # Publication 83-17) of horizontal first differences of the 12-bit DN, packed
+      # in 16-bit words, with at most one uncompressed line's bits for each pair of
+      # lines; the end of the pair's second line is dropped where the pair does not
+      # fit.  The 16-sample blocks, the 4 option bits, and the options 0 to 13 are
+      # the model that reproduces the real cuts: on the 61 NAC frames and the one
+      # WAC frame of the census below that lose the ends of alternating lines, 14,038
+      # cut pairs code to 0.970 to 1.009 of the budget (99.9th percentile range) and
+      # 5,245 whole pairs to at most 1.017 of it (util/coiss_line_loss).
+      compression_truncated_lines: {block_samples: 16, word_bits: 16, id_bits: 4, max_split: 13}
       # Measured 2026-11-24 from the binary line prefixes, which give each line's
       # valid samples, of every lossless 12-bit NAC frame with lost lines in the
       # current metadata indexes of COISS_2010, 2023, 2050, and 2068: 321 frames,
-      # 233 full and 88 summed 2x2.  No 12-bit uncompressed frame lost lines.
-      # - 61 frames lose the ends of alternating lines, 13,788 lines in all.  13,782
-      #   of them are the second line of a pair (odd row numbers), and every one
-      #   keeps a whole number of 16 samples from its start.  The lost share of the
-      #   line is 1.6, 6.3, 10.9, 18.8, 34.4, and 37.5% at the 0th, 10th, 25th, 50th,
-      #   75th, and 90th percentiles.  The table ends at the 99.5th percentile,
-      #   40.6%; the largest share, 90.6%, is one frame's.  Within one frame the
-      #   share varies less: its standard deviation is a median 2.6% of the line,
-      #   where over all the frames it is 11.8%.  On 32 frames the lines lose their
-      #   ends from the first pair down.  The rest start lower, as low as 89% of the
-      #   way down the frame, which is the scene's start_fraction.
-      compression_truncated_lines:
+      # 233 full and 88 summed 2x2.  No 12-bit uncompressed frame lost lines.  The
+      # tables are at the 0, 5, 10, 25, 50, 75, 90, 95, 99, and 100th percentiles,
+      # measured on the 260 frames whose line ends the compressor did not cut, where
+      # 61 frames lose 373 groups of whole lines inside the frame.  A size is in
+      # lines of its own frame, full or summed.
+      # - A frame loses a mean 6.1 groups (variance 127): one on 49% of the frames,
+      #   16 at the 90th percentile, and up to 59.  One group plus a negative
+      #   binomial of mean 5.1 and dispersion 4.65 has that mean and variance.
+      # - Groups cluster: the kept lines between one group and the next are the
+      #   gap table, and the groups start on any line.
+      # - 141 of the 373 groups (38%) lose the end of the line just above them, and
+      #   64 (17%) the end of the line just below; each such line keeps a whole
+      #   number of 16 samples, the share of the line in the kept tables.
+      downlink_gaps:
+        mean_groups: 6.1
+        dispersion: 4.65
+        size_percentiles: [1.0, 2.0, 2.0, 3.0, 5.0, 8.0, 15.0, 30.2, 83.2, 373.0]
+        gap_percentiles: [1.0, 1.0, 1.0, 2.0, 6.0, 19.0, 54.8, 114.3, 331.5, 822.0]
+        head_probability: 0.38
+        head_kept_percentiles: [0.0156, 0.0312, 0.0781, 0.2031, 0.3438, 0.5625,
+                                0.75, 0.875, 0.9688, 0.9688]
+        tail_probability: 0.17
+        tail_kept_percentiles: [0.0312, 0.0805, 0.125, 0.2188, 0.375, 0.6016,
+                                0.7094, 0.8547, 0.875, 0.875]
         step_samples: 16
-        lost_share_percentiles: [0.015625, 0.0625, 0.109375, 0.1875, 0.34375, 0.375, 0.40625]
-      # - 62 frames lose 374 groups of whole lines inside the frame, 1 to 59 groups
-      #   per frame.  A group is 2, 3, 5, 8, and 15 lines at the 10th, 25th, 50th,
-      #   75th, and 90th percentiles, and up to 373.  median_lines is the median
-      #   size, and log_sigma the standard deviation of the natural log of the sizes.
-      #   A group starts on any line: the starts fall evenly on the eight residues
-      #   modulo 8.  131 of the 374 groups (35%) also lose the end of the line just
-      #   above them, which keeps a whole number of 16 samples.
-      downlink_gaps: {median_lines: 5.0, log_sigma: 0.87, head_probability: 0.35, step_samples: 16}
 
 # Cassini ISS wide-angle camera, raw DN products.
 #
@@ -463,20 +477,29 @@ coiss_wac:
       bright_dark_pairs: {amplitude_e: 3.5e+3}
       radiation_transients: {amplitude_e: 3.5e+4}
       fixed_pattern: {dust_donut_count: 5}
+      # The NAC's lossless compressor; see the NAC entry.
+      compression_truncated_lines: {block_samples: 16, word_bits: 16, id_bits: 4, max_split: 13}
       # Measured 2026-11-24 as for the NAC, on the 82 lossless 12-bit WAC frames with
-      # lost lines in the same four volumes.  One frame loses the ends of
-      # alternating lines: 100 second lines of a pair, each keeping a whole number
-      # of 16 samples and losing 6.3 or 12.5% of the line.  One frame cannot give a
-      # distribution, so the lost shares are the NAC's.
-      compression_truncated_lines:
+      # lost lines in the same four volumes, of which 19 lose 83 groups of whole
+      # lines inside the frame and one loses line ends to the compressor.
+      # - A frame loses a mean 4.4 groups (variance 28.7): one on 47% of the frames
+      #   and up to 20.  One group plus a negative binomial of mean 3.4 and
+      #   dispersion 2.23 has that mean and variance.
+      # - 23 of the 83 groups (28%) lose the end of the line just above them, and 10
+      #   (12%) the end of the line just below.  Ten lines cannot give a table, so
+      #   the lines below keep the NAC's shares.
+      downlink_gaps:
+        mean_groups: 4.4
+        dispersion: 2.23
+        size_percentiles: [1.0, 2.0, 2.2, 5.0, 7.0, 18.0, 50.4, 71.6, 220.3, 504.0]
+        gap_percentiles: [1.0, 1.2, 2.3, 6.0, 11.5, 30.0, 180.9, 237.7, 334.7, 375.0]
+        head_probability: 0.28
+        head_kept_percentiles: [0.0312, 0.0953, 0.1125, 0.2578, 0.4531, 0.6562,
+                                0.8125, 0.8547, 0.9203, 0.9375]
+        tail_probability: 0.12
+        tail_kept_percentiles: [0.0312, 0.0805, 0.125, 0.2188, 0.375, 0.6016,
+                                0.7094, 0.8547, 0.875, 0.875]
         step_samples: 16
-        lost_share_percentiles: [0.015625, 0.0625, 0.109375, 0.1875, 0.34375, 0.375, 0.40625]
-      # 19 frames lose 83 groups of whole lines inside the frame.  A group is 2, 5,
-      # 7, 18, and 50 lines at the 10th, 25th, 50th, 75th, and 90th percentiles, and
-      # up to 504; the natural log of the sizes has a standard deviation of 1.18.
-      # 22 of the 83 groups (27%) also lose the end of the line just above them,
-      # which keeps a whole number of 16 samples.
-      downlink_gaps: {median_lines: 7.0, log_sigma: 1.18, head_probability: 0.27, step_samples: 16}
 
 # Cassini ISS narrow-angle camera, calibrated (CALIB, I/F) products.
 #

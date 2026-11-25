@@ -10,7 +10,8 @@ checkbox maps to the mode key's presence, the activation-key spin
 ``pixel_fraction``, whichever the registry assigns) and one widget per parameter map
 to that mode's map keys, and each parameter's type picks the widget (a spin, a
 checkbox, a choice combo, or a group of spins for a list: integers for a
-rect or window, fractions for a percentile table).
+rect or window, and numbers for a percentile table, fractions where its values are
+shares).
 
 The fixed ``count`` that ``dead_pixels`` and ``dead_columns`` take in place of
 ``expected_events`` carries a "set" box, like a list parameter, so a count of 0
@@ -46,8 +47,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from spindoctor.schema import Bool, NonNeg, NonNegInt, PositiveInt, Unit
+from spindoctor.schema import Bool, NonNeg, NonNegInt, Positive, PositiveInt, Unit
 from spindoctor.sim.artifact_modes import (
+    AT_LEAST_ONE,
     PIXEL_FRACTION,
     ArtifactMode,
     ModeParam,
@@ -192,6 +194,11 @@ class ModeRow:
             )
             spin.setRange(0.0, 1.0 if param.annotation is Unit else _NUMBER_MAX)
             return spin
+        if param.annotation is AT_LEAST_ONE:
+            spin = QDoubleSpinBox()
+            spin.setDecimals(_NUMBER_DECIMALS)
+            spin.setRange(1.0, _NUMBER_MAX)
+            return spin
         if param.annotation is PositiveInt or param.annotation is NonNegInt:
             spin_int = QSpinBox()
             spin_int.setRange(1 if param.annotation is PositiveInt else 0, _INT_MAX)
@@ -202,7 +209,8 @@ class ModeRow:
         """Build a checkable group of spins for a list param.
 
         A list of integers (a rect, a window position, or an offset) gets integer
-        spins, and a list of fractions (a percentile table) gets spins over [0, 1].
+        spins; a percentile table gets number spins, over [0, 1] where its values are
+        shares and above 0 where they are sizes.
         The list key stays absent until the small enable box is checked, so the row
         keeps the absent-key discipline for its list parameters too.
         """
@@ -218,6 +226,10 @@ class ModeRow:
                 spin = QDoubleSpinBox()
                 spin.setDecimals(_PIXEL_FRACTION_DECIMALS)
                 spin.setRange(0.0, 1.0)
+            elif param.item_annotation is Positive:
+                spin = QDoubleSpinBox()
+                spin.setDecimals(_NUMBER_DECIMALS)
+                spin.setRange(10.0**-_NUMBER_DECIMALS, _NUMBER_MAX)
             else:
                 spin = QSpinBox()
                 # The validator accepts any integers in a list parameter (a ghost
