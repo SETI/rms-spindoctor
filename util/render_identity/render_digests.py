@@ -95,7 +95,7 @@ def _feed(digest: Any, value: Any) -> None:
             _feed(digest, item)
     elif dataclasses.is_dataclass(value) and not isinstance(value, type):
         _field(digest, b'C', type(value).__qualname__.encode())
-        _feed(digest, dataclasses.asdict(value))
+        _feed(digest, {f.name: getattr(value, f.name) for f in dataclasses.fields(value)})
     elif isinstance(value, float):
         _field(digest, b'F', np.float64(value).tobytes())
     elif isinstance(value, np.floating | np.integer | np.bool_):

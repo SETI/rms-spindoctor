@@ -4,6 +4,7 @@ The check lives in ``util/render_identity/render_digests.py``, outside the impor
 package, and is loaded from its path.
 """
 
+import dataclasses
 import hashlib
 import importlib.util
 import sys
@@ -41,6 +42,25 @@ def _digest(value: Any) -> str:
 def test_integer_tuples_with_the_same_digits_digest_apart() -> None:
     """Two tuples whose digits run together the same way have different digests."""
     assert _digest((3, 131)) != _digest((31, 31))
+
+
+@dataclasses.dataclass
+class _Point:
+    """A dataclass to nest."""
+
+    x: int
+
+
+@dataclasses.dataclass
+class _Wrapper:
+    """A dataclass holding one value."""
+
+    inner: Any
+
+
+def test_a_nested_dataclass_digests_apart_from_a_dict() -> None:
+    """A dataclass inside a dataclass keeps its type, so it differs from its dict."""
+    assert _digest(_Wrapper(_Point(1))) != _digest(_Wrapper({'x': 1}))
 
 
 def test_a_missing_selected_render_fails_the_comparison() -> None:
