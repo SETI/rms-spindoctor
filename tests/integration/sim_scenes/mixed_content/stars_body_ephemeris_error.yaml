@@ -14,22 +14,24 @@ exposure_sec: 1.2
 # frames of this class show body and star answers 0.8 to 1.8 px apart, and the
 # result-combining step has to reconcile them.
 #
-# BodyDiscCorrelateNav and BodyLimbNav land 1.81 to 1.84 px off on every draw, which
-# is the planted error, and are held to bands on it, so the scene fails if the error
-# stops reaching them.  With spk_error removed they land 0.03 px and 0.09 to 0.10 px
-# off.
+# BodyDiscCorrelateNav and BodyLimbNav land 1.70 to 1.71 px and 1.83 px off on every
+# draw, which is the planted error together with the Lambert template's pull toward
+# the Sun on the Lommel-Seeliger body (#1110), and are held to bands on it, so the
+# scene fails if the error stops reaching them.  With spk_error removed they land
+# 0.33 px and 0.32 px off on the committed draw, the template's pull alone.
 #
 # The stars navigate on their own.  StarFieldFromCatalogNav finds too few stars on
 # every draw (#1146), but StarUniqueMatchNav answers on 13 of the 16 draws, 0.04 to
 # 0.24 px off, and StarRefineNav, which starts from the body's pass-1 answer, lands
-# 0.01 to 0.11 px off and gives the same answer on every draw with spk_error removed.
+# 0.01 to 0.11 px off and gives the same answer on the committed draw with spk_error
+# removed.
 # With the body removed the committed draw navigates on the stars alone, 0.02 px off.
 #
 # The fused answer combines the star answers with the body's, so it lands between
-# them, 0.16 to 0.26 px from the truth over the 16 draws in the direction of the
-# body's error, within 0.9 of its reported sigmas.  With spk_error removed it lands
-# 0.01 to 0.10 px off.  The tolerance, 0.32 px, sits far below the 1.81 px of a
-# body-only answer, so a fused answer that drops the stars fails.
+# them, 0.11 to 0.22 px from the truth over the 16 draws in the direction of the
+# body's error, within 0.8 of its reported sigmas.  With spk_error removed it lands
+# 0.03 px off on the committed draw.  The tolerance, 0.27 px, sits far below the
+# 1.7 to 1.8 px of a body-only answer, so a fused answer that drops the stars fails.
 #
 # The pointing error is the size real NAC frames carry, pointing up and to the right,
 # and the twist is the NAC's measured 0.0115 degrees, unfit, as the camera ships.

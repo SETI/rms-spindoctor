@@ -13,15 +13,21 @@ exposure_sec: 0.3
 # correctly sized planet of the whole-system frames, so the shadows the simulator
 # does not draw between rings and planet (#896) would cover only a small part of it.
 #
-# RingEdgeNav carries the fused answer and lands 0.03 to 0.10 px off over the 16
-# draws, while it reports a sigma of 0.04 to 0.05 px; the fused error is 0.9 to 2.6 of
-# its reported sigmas.  The planet adds to the error: on the committed seed, removing
-# it lowers the ring error from 0.10 to 0.08 px.  The simulated rings are about 4
-# times too faint against Saturn (#895).
+# RingEdgeNav lands 0.02 to 0.09 px off over the 16 draws, BodyLimbNav 0.16 to
+# 0.23 px off, and BodyDiscCorrelateNav 0.55 to 0.56 px off.  The simulated rings
+# are about 4 times too faint against Saturn (#895).  BodyBlobNav lands 9.43 to
+# 9.44 px off at confidence 0 and does not flag it (#975), and RingAnnulusNav flags
+# its answer spurious on every draw.
 #
-# BodyLimbNav lands 0.12 to 0.29 px off and BodyDiscCorrelateNav 0.10 to 0.11 px off,
-# both with wider sigmas.  BodyBlobNav lands 6.86 to 6.88 px off at confidence 0 and
-# does not flag it (#975), and RingAnnulusNav flags its answer spurious on every draw.
+# The frame ends conflicted on every draw.  The planet shades with the default
+# Lommel-Seeliger law: the Lambert template pulls the disc correlation toward the
+# Sun (#1110), and the blob centroid lands 9.4 px off.  The body-witness veto reads
+# the pose-free blob as its witness, finds the geometric consensus of the disc
+# correlation, the limb fit, and the ring edges more than the shape-lock tolerance
+# from it, and reports conflicted (body_shape_lock_suspect), though the ring edges
+# hold the right answer.  The wrong blob decides the outcome (#975).  On the same
+# frame with a Lambert planet the blob lands 6.9 px off, the veto does not act, and
+# the frame is a high-tier success 0.10 px off, carried by the ring edges.
 #
 # The pointing error is a WAC-sized one, pointing up and to the right, and the twist
 # is the WAC's measured -0.0115 degrees, unfit, as the camera ships.
@@ -71,3 +77,7 @@ ring_system:
 offset_v: -1.21
 offset_u: 1.73
 offset_rotation_deg: -0.0115
+expected:
+  status: conflicted
+  confidence_tier: conflicted
+  status_reason: body_shape_lock_suspect

@@ -9,8 +9,10 @@ exposure_sec: 1.0
 # partial-line expected counts, but with adversarial placement on, so the loss biases
 # onto the disc's own rows rather than falling uniformly across the frame.  This
 # is the worst-case placement of a survivable loss; the disc correlation
-# still recovers the planted offset within tolerance because the surviving disc
-# edge remains well-conditioned.
+# still navigates because the surviving disc edge remains well-conditioned.  The
+# body shades with the default Lommel-Seeliger law, and the navigator's Lambert
+# template pulls the answer 0.55 px toward the Sun (#1110), which the expected
+# block holds to a band.
 bodies:
   - name: RHEA
     center_v: 110.0
@@ -32,3 +34,10 @@ artifacts:
 offset_v: 1.43
 offset_u: -0.61
 offset_rotation_deg: 0.0
+expected:
+  status: success
+  # The body shades with the default Lommel-Seeliger law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the seeds, measured as sim_truth.py describes.
+  known_offset_error_px: 0.5535
+  known_offset_error_tol_px: 0.0505

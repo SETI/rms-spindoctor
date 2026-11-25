@@ -167,29 +167,20 @@ def _b(smallest: float, largest: float, margin: float, low: float, high: float) 
 # Columns: error on the committed seed, worst error over the seeds, spread over the
 # seeds, margin.  All in pixels; the tolerance is worst + margin.
 TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
-    # algorithmic_invariants, fused answer (disc and star scenes).  The disc rows were
-    # re-measured when the disc correlation's final pass moved to the high-pass
-    # refinement, which reaches the planted 1.43 px where the half-pixel window around
-    # the whole pixel stopped at 1.5 (#791).
-    ('planted_offset_disc', FUSED): _t(0.001, 0.011, 0.010, 0.05),
-    ('planted_offset_disc_if', FUSED): _t(0.001, 0.011, 0.010, 0.05),
+    # algorithmic_invariants, fused answer (disc and star scenes).  The ellipsoid disc
+    # and limb scenes carry a known error instead (see KNOWN_ERRORS).
     ('planted_offset_irregular', FUSED): _t(0.007, 0.011, 0.010, 0.05),
-    ('planted_offset_limb', FUSED): _t(0.019, 0.025, 0.006, 0.05),
     ('planted_offset_limb_mesh', FUSED): _t(0.053, 0.058, 0.006, 0.05),
     # The prediction is the smooth limit of the rendered lumpy mesh.  This error is the
     # cost of that mismatch.  The high-pass disc refinement weighs the mismatched limb
     # more than the raw one did, so the error grew from 0.657 to 0.792 px (#791).
     ('planted_offset_shapemismatch', FUSED): _t(0.792, 0.798, 0.007, 0.16),
-    ('planted_offset_small', FUSED): _t(0.001, 0.011, 0.010, 0.05),
     ('planted_offset_star_field', FUSED): _t(0.018, 0.019, 0.003, 0.05),
     ('planted_offset_star_field_bright', FUSED): _t(0.040, 0.041, 0.001, 0.05),
     # algorithmic_invariants, one technique navigated alone.  StarRefineNav is read from
-    # the fused run, because it needs the pass-1 prior.
-    ('planted_offset_blob', 'BodyBlobNav'): _t(0.002, 0.005, 0.004, 0.05),
-    ('planted_offset_blob_crescent', 'BodyBlobNav'): _t(0.013, 0.017, 0.011, 0.05),
-    ('planted_offset_blob_crescent_displaced', 'BodyBlobNav'): _t(0.006, 0.019, 0.013, 0.05),
+    # the fused run, because it needs the pass-1 prior.  The ellipsoid blob and limb
+    # scenes carry a known error instead (see KNOWN_ERRORS).
     ('planted_offset_blob_mesh_crescent', 'BodyBlobNav'): _t(0.800, 0.805, 0.016, 0.17),
-    ('planted_offset_limb', 'BodyLimbNav'): _t(0.197, 0.197, 0.022, 0.05),
     ('planted_offset_limb_mesh', 'BodyLimbNav'): _t(0.429, 0.433, 0.030, 0.09),
     ('planted_offset_ring', 'RingEdgeNav'): _t(0.029, 0.033, 0.005, 0.05),
     ('planted_unique_star_single', 'StarUniqueMatchNav'): _t(0.054, 0.058, 0.006, 0.05),
@@ -198,21 +189,13 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # render 16 different losses.  These rows keep the lost lines where the committed
     # seed puts them and vary only the noise draw.  The telemetry stages derive their own
     # sub-seeds from the scene seed, and the measurement fixed those at the committed
-    # value.
-    # The disc rows were re-measured for the high-pass disc refinement (#791).  On
-    # disc_structured_loss a lost line across the disc pulls its maximum 0.12 px in v;
-    # the raw refinement's maximum was as far off the other way, and its 0.080 px came
-    # from stopping at its window edge.
-    ('disc_structured_loss', FUSED): _t(0.134, 0.144, 0.010, 0.05),
-    ('disc_structured_loss_adversarial', FUSED): _t(0.011, 0.011, 0.010, 0.05),
+    # value.  disc_structured_loss and its adversarial twin carry a known error in their
+    # expected blocks instead (#1110).
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
-    # atmosphere.  In titan_haze_limb, a haze-blind navigator fits a hard limb under a
-    # soft haze limb, and the high-pass disc refinement ignores the haze's smooth glow
-    # (#791).  titan_crescent_horns and its noiseless twin carry a known error in their
-    # expected blocks instead (#1050).
-    ('titan_haze', FUSED): _t(0.046, 0.063, 0.020, 0.05),
-    ('titan_haze_limb', FUSED): _t(0.008, 0.014, 0.006, 0.05),
+    # atmosphere.  Every atmosphere scene holds its fused outcome in its expected block:
+    # titan_haze and titan_haze_limb a known error from the Lommel-Seeliger surface
+    # under the haze (#1110), and titan_crescent_horns and its noiseless twin a failure.
     # full_frame_cameras.  On these scenes a noise_seed draw gives the same answer as the
     # random_seed of the same value: random_seed reaches the noise and, apart from that,
     # only the fixed-pattern and sky streams, which change a few pixels of the render.
@@ -221,27 +204,22 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # the scene about the boresight, the frame center after the offset.  In
     # nhlorri_star_field the +0.19 deg twist moves the four measured stars' mean
     # position, about 280 px from the boresight, by about 0.94 px.  gossi_star_field
-    # lands 0.05 px off with its twist and 0.02 px off without it, and gossi_disc
-    # 0.17 px off with its twist and 0.04 px off without it.  coiss_wac_disc's error is
-    # the limb fit's own: 0.16 px with the roll, 0.17 px without.  The three
-    # short-exposure and large-offset scenes fail as their expected blocks declare
-    # (#342, #785, #1153).
-    ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
+    # lands 0.05 px off with its twist and 0.02 px off without it.  The three disc scenes
+    # shade Lommel-Seeliger and carry a known error in their expected blocks (#1110).
+    # The three short-exposure and large-offset scenes fail as their expected blocks
+    # declare (#342, #785, #1153).
     ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
     ('coiss_nac_star_field', FUSED): _t(0.017, 0.231, 0.220, 0.05),
-    ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
-    ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
     ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
     ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
-    # stars put it, and the fused answer lies between the two, 0.16 to 0.26 px from the
-    # truth toward the body; the tolerance stays well below the body's own 1.81 px
-    # error.  In crescent_stars the fused answer follows the stars, a little off the
-    # disc's 0.01 px.  moon_over_ring_sheet is expected to conflict (#755).
-    # saturn_rings_wac follows its ring edges.
-    ('crescent_stars', FUSED): _t(0.013, 0.179, 0.166, 0.05),
-    ('saturn_rings_wac', FUSED): _t(0.101, 0.101, 0.070, 0.05),
-    ('stars_body_ephemeris_error', FUSED): _t(0.220, 0.258, 0.100, 0.06),
+    # stars put it, and the fused answer lies between the two, 0.11 to 0.22 px from the
+    # truth; the tolerance stays well below the body techniques' own 1.7 to 1.8 px
+    # errors.  In crescent_stars the fused answer follows the stars, a little off the
+    # disc's 0.01 px.  moon_over_ring_sheet and saturn_rings_wac are expected to
+    # conflict, the first on its ring edges (#755) and the second on its blob (#975).
+    ('crescent_stars', FUSED): _t(0.012, 0.169, 0.157, 0.05),
+    ('stars_body_ephemeris_error', FUSED): _t(0.162, 0.217, 0.110, 0.05),
     # mixed_content, one technique read from the fused run.  StarRefineNav starts from
     # the body's pass-1 answer, which carries the planted 1.81 px error, and still lands
     # within 0.12 px of the truth, with the same answer on every draw as with the planted
@@ -251,32 +229,31 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.023, 0.113, 0.107, 0.05),
     # mixed_defects.  The seed also places the lost lines and blocks, so the 16 seeds
     # cover 16 placements of the damage; every noise_seed draw also lies inside each
-    # tolerance.  coiss_nac_lossy_moon seeds nothing but the noise, so its noise_seed
-    # draws repeat random_seed 101 to 808.  Where a band of lost slices crosses the
-    # disc on gossi_ict_moon, the frame still lands within 0.08 px.
-    ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
-    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.032, 0.102, 0.072, 0.05),
-    ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
-    ('nhlorri_moon_raw', FUSED): _t(0.108, 0.118, 0.011, 0.05),
-    # multi_body_geometry.
-    ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
+    # tolerance.  coiss_nac_lossy_moon, gossi_ict_moon, and nhlorri_moon_raw shade
+    # Lommel-Seeliger and carry a known error in their expected blocks (#1110).  On the
+    # gibbous Iapetus of coiss_nac_stars_moon_lost_lines the fused answer follows the
+    # stars.
+    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.038, 0.108, 0.076, 0.05),
+    # multi_body_geometry.  two_moons carries a known error in its expected block
+    # (#1110).
     # mutual_event.  All three scenes carry a known error in their expected blocks
     # instead.  In mutual_deep the far body's crescent, which the disc template leaves
-    # out, pulls the disc correlation 0.24 to 0.26 px off (#1050).  In mutual_grazing and
-    # mutual_half the composite disc template keeps a dark outline at the near body's
-    # limb, which the image does not have, and it pulls the disc correlation 0.12 to
-    # 0.13 px and 0.41 px off (#1099).
-    # regression, fused answer.  relief_psf_stray_light carries a known error in its
-    # expected block instead (#1050).
-    ('banded_planet_transit', FUSED): _t(0.076, 0.084, 0.012, 0.05),
-    ('disc_subpixel_offset', FUSED): _t(0.000, 0.008, 0.008, 0.05),
-    ('low_phase_limb_misconverge', FUSED): _t(0.054, 0.054, 0.000, 0.05),
+    # out, pulls the disc correlation off (#1050).  In mutual_grazing and mutual_half
+    # the composite disc template keeps a dark outline at the near body's limb, which
+    # the image does not have (#1099).  Both bodies also shade Lommel-Seeliger, and the
+    # Lambert template's bias (#1110) adds to those pulls: the fused answers land 0.50 to
+    # 0.52 px, 0.47 px, and 0.46 px off, toward the Sun.
+    # regression, fused answer.  banded_planet_transit, disc_subpixel_offset,
+    # low_phase_limb_misconverge, and relief_psf_stray_light carry a known error in
+    # their expected blocks instead (#1110, and #1050 for the relief).
     ('star_equal_brightness', FUSED): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
-    # Measured on the 16 noise draws, which keep the albedo texture: 0.363 to 0.368 px.
-    ('textured_moon_offset', FUSED): _t(0.364, 0.368, 0.005, 0.08),
-    # regression, one technique navigated alone.
-    ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.008, 0.008, 0.05),
+    # Measured on the 16 noise draws, which keep the albedo texture: 0.169 to 0.175 px.
+    # The Lambert template's pull toward the Sun (#1110) partly offsets the texture's
+    # pull, which left 0.363 to 0.368 px on a Lambert surface.
+    ('textured_moon_offset', FUSED): _t(0.175, 0.175, 0.005, 0.05),
+    # regression, one technique navigated alone.  disc_subpixel_offset's disc
+    # correlation carries a known error instead (see KNOWN_ERRORS).
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', 'StarFieldFromCatalogNav'): _t(0.041, 0.041, 0.003, 0.05),
     # ring_system.  orbit_error_ringlet carries a known error in its expected block.
@@ -301,21 +278,37 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
 # fused run.  It also asserts that the answer is not flagged spurious, so a change that
 # flags it fails too.
 KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
+    # The ellipsoid invariant scenes shade with the default Lommel-Seeliger law, and the
+    # navigator's Lambert template biases its body techniques on them (#1110).  The
+    # disc correlation, which carries the fused answer, and the limb fit land toward
+    # the Sun; the blob centroid lands away from it.
+    ('planted_offset_disc', FUSED): _b(0.556, 0.559, 0.05, 0.506, 0.609),
+    ('planted_offset_disc_if', FUSED): _b(0.549, 0.549, 0.05, 0.499, 0.600),
+    ('planted_offset_small', FUSED): _b(0.556, 0.559, 0.05, 0.506, 0.609),
+    ('planted_offset_limb', FUSED): _b(0.483, 0.485, 0.05, 0.433, 0.535),
+    ('planted_offset_limb', 'BodyLimbNav'): _b(0.317, 0.327, 0.05, 0.266, 0.377),
+    ('planted_offset_blob', 'BodyBlobNav'): _b(0.383, 0.388, 0.05, 0.332, 0.438),
+    ('planted_offset_blob_crescent', 'BodyBlobNav'): _b(0.895, 0.901, 0.05, 0.844, 0.951),
+    ('planted_offset_blob_crescent_displaced', 'BodyBlobNav'): _b(0.895, 0.900, 0.05, 0.845, 0.951),
+    # The same bias on the regression scene's whole-pixel offset (#1110).
+    ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _b(0.528, 0.528, 0.05, 0.477, 0.578),
     # BodyBlobNav answers far from the truth and does not flag these answers spurious
     # (#975).
-    ('two_moons', 'BodyBlobNav'): _b(36.293, 36.309, 0.05, 36.243, 36.359),
-    ('mutual_deep', 'BodyBlobNav'): _b(6.720, 6.729, 0.05, 6.670, 6.780),
-    ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
-    ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(25.091, 25.123, 0.05, 25.041, 25.174),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.151, 25.151, 0.05, 25.100, 25.201),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(1.474, 1.482, 0.05, 1.424, 1.532),
-    ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.942, 1.543, 0.1202, 0.821, 1.664),
-    ('saturn_rings_wac', 'BodyBlobNav'): _b(6.863, 6.879, 0.05, 6.812, 6.929),
+    ('two_moons', 'BodyBlobNav'): _b(35.634, 36.181, 0.1094, 35.524, 36.291),
+    ('mutual_deep', 'BodyBlobNav'): _b(4.804, 4.811, 0.05, 4.753, 4.861),
+    ('mutual_half', 'BodyBlobNav'): _b(10.910, 12.005, 0.219, 10.690, 12.224),
+    ('mutual_grazing', 'BodyBlobNav'): _b(3.867, 3.871, 0.05, 3.816, 3.922),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(24.792, 24.826, 0.05, 24.741, 24.876),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(24.826, 24.826, 0.05, 24.775, 24.876),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(0.714, 0.719, 0.05, 0.663, 0.769),
+    # On moon_over_ring_sheet the blob lands 0.01 to 0.02 px off on 6 of the 24 draws
+    # and 2.06 to 2.08 px off on the rest, so the band reaches below zero.
+    ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.012, 2.077, 0.413, -0.402, 2.490),
+    ('saturn_rings_wac', 'BodyBlobNav'): _b(9.427, 9.436, 0.05, 9.377, 9.487),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
-    # the limb relief.  The spreads are 0.006 px and 0.055 px.
-    ('textured_moon_offset', 'BodyBlobNav'): _b(0.597, 0.604, 0.05, 0.547, 0.654),
-    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.794, 1.850, 0.05, 1.744, 1.900),
+    # the limb relief.  The spreads are 0.005 px and 0.040 px.
+    ('textured_moon_offset', 'BodyBlobNav'): _b(0.903, 0.908, 0.05, 0.852, 0.959),
+    ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.210, 1.250, 0.05, 1.160, 1.300),
     # The annulus correlation lands 0.58 px off on the saturated B ring, unflagged; the
     # saturated edge (#1145) and the unfit twist (#1143) share the edge fit's error.
     ('b_ring_saturated_plateau', 'RingAnnulusNav'): _b(0.573, 0.579, 0.05, 0.522, 0.629),
@@ -326,27 +319,28 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
-    # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
+    # coiss_nac_stars_moon_lost_lines the blob lands 11.0 to 14.5 px off with every
+    # defect present (#975).
+    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(10.999, 14.459, 0.692, 10.307, 15.152),
     # On nhlorri_moon_raw the frame-transfer smear pulls the blob 6.8 to 7.1 px off;
     # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
     # step at each column's centroid, where the real smear builds up across the disc
     # (#920), so part of the pull may be the simulator's.
-    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(6.782, 7.119, 0.067, 6.715, 7.186),
+    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(7.502, 7.828, 0.0653, 7.436, 7.894),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
-    # RingEdgeNav slides 8.4 to 9.3 px along gently curved arcs, with a sigma along them
+    # RingEdgeNav slides 8.6 to 9.5 px along gently curved arcs, with a sigma along them
     # near 0.1 px (#755).
-    ('moon_over_ring_sheet', 'RingEdgeNav'): _b(8.432, 9.252, 0.1641, 8.267, 9.417),
+    ('moon_over_ring_sheet', 'RingEdgeNav'): _b(8.558, 9.454, 0.1793, 8.378, 9.634),
     # These two are wrong by design.  The scene plants a spacecraft-ephemeris error
     # (spk_error) that moves the body 1.81 px from where the pointing puts it, and the
     # body techniques answer the pointing plus that error.  The bands hold the planted
     # error, so the scene fails if it stops reaching the body techniques: without it
-    # they land 0.03 px and 0.09 to 0.10 px off.
-    ('stars_body_ephemeris_error', 'BodyDiscCorrelateNav'): _b(1.811, 1.811, 0.05, 1.761, 1.862),
-    ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(1.831, 1.836, 0.05, 1.781, 1.887),
+    # they land 0.33 px and 0.32 px off, the Lambert template's pull toward the Sun on
+    # the Lommel-Seeliger body (#1110).
+    ('stars_body_ephemeris_error', 'BodyDiscCorrelateNav'): _b(1.701, 1.712, 0.05, 1.651, 1.763),
+    ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(1.826, 1.826, 0.05, 1.775, 1.876),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
     ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.029, 5.088, 0.05, 4.979, 5.138),

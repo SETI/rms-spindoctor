@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8279252454754168,
+  "confidence": 0.8065564118023412,
   "confidence_rank": "medium",
-  "offset_du_px": 0.0,
-  "offset_dv_px": 0.0,
+  "offset_du_px": 0.11718750000000001,
+  "offset_dv_px": -0.42968749999999994,
   "scene_name": "clean_disc_readnoise_04",
   "status": "success"
 }

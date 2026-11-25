@@ -55,3 +55,9 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
+  # The surface under the haze shades with the default Lommel-Seeliger law, and the
+  # symmetry fit lands 0.13 px off, away from the Sun, where it landed 0.05 px off on
+  # a Lambert surface (#1110).  The band holds the fused error over the seeds,
+  # measured as sim_truth.py describes.
+  known_offset_error_px: 0.131
+  known_offset_error_tol_px: 0.056

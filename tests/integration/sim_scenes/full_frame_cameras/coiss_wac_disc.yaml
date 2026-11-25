@@ -6,10 +6,13 @@ size_u: 1024
 random_seed: 7
 exposure_sec: 0.005
 # A raw Cassini WAC frame of a moon 128 px across, at a phase of 50 deg.  The
-# CL1+CL2 filter at the camera's shortest exposures puts the disc near I/F
-# 0.6 to 0.9, under the full well.  instrument_defaults turns on the camera's
-# whole raw chain: shot, read, and readout-dark noise, hot pixels, cosmic rays,
-# banding, bias structure, bloom, and the fitted PSF and distortion residual.
+# CL1+CL2 filter at the camera's shortest exposures put the disc near I/F 0.6 to
+# 0.9, under the full well, when the body shaded with the Lambert law.  With the
+# default Lommel-Seeliger law the limb brightens, and 260 pixels at the sunlit limb
+# fill the full well before the detector caps them.  instrument_defaults turns on
+# the camera's whole raw chain: shot, read, and readout-dark noise, hot pixels,
+# cosmic rays, banding, bias structure, bloom, and the fitted PSF and distortion
+# residual.
 #
 # Real WAC pointing errors stay within about 12 px on each axis, and the
 # camera's search window is 13 px.  The planted offset, 6.8 px down and 11.3 px
@@ -31,14 +34,21 @@ bodies:
 offset_v: 6.83
 offset_u: -11.29
 offset_rotation_deg: -0.0115
-# The disc correlation finds the offset to 0.09 px but discards it on every draw
+# The disc correlation lands 0.47 px off but discards that answer on every draw
 # (#1147).  The correlation marks any answer within 2 px of its search window's edge
 # spurious, and the WAC window is 13 px, so every answer past 11 px on an axis is
 # thrown away; real WAC errors reach 12.4 px.  The limb fit carries the frame alone,
-# 0.13 to 0.17 px off over 16 seeds, at low tier with a 2.6 px sigma.  The block holds
+# 0.39 to 0.40 px off over 16 seeds toward the Sun, at low tier with a 2.6 px sigma.
+# The Lambert template's bias on the Lommel-Seeliger body (#1110) sets most of that
+# error.  The block holds
 # the low tier, so a fix that keeps the disc answer fails here until the block is
 # retired.  The star techniques' margin test has the same effect on WAC star frames
 # (#785).
 expected:
   status: success
   confidence_tier: low
+  # The body shades with the default Lommel-Seeliger law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the seeds, measured as sim_truth.py describes.
+  known_offset_error_px: 0.3965
+  known_offset_error_tol_px: 0.0565

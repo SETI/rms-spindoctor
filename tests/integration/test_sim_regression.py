@@ -4,7 +4,8 @@ Each test pins the affected technique on one dedicated scene under
 ``sim_scenes/regression/`` and asserts the correct behavior, so the defect is
 guarded in the normal pytest run without executing the full (slow,
 runner-only) sweep suite.  Each recovered offset is held to the scene's truth
-tolerance for the pinned technique (:mod:`tests.integration.sim_truth`).  These
+check for the pinned technique (:mod:`tests.integration.sim_truth`): a tolerance, or
+a band around a known error.  These
 tests are in-process and unmarked, so they run in the default suite.
 """
 
@@ -41,7 +42,7 @@ def _pin_technique(scene_name: str, technique: str) -> NavTechniqueResult:
 
 
 def _assert_technique_recovers(scene_name: str, technique: str) -> None:
-    """Pin one technique on a regression scene; assert it recovers the planted offset."""
+    """Pin one technique on a regression scene; assert it meets the scene's truth check."""
     scene = load_sim_scene(_REGRESSION_DIR / f'{scene_name}.yaml')
     pinned = _pin_technique(scene_name, technique)
     assert not pinned.spurious
@@ -49,11 +50,13 @@ def _assert_technique_recovers(scene_name: str, technique: str) -> None:
 
 
 def test_disc_recovers_whole_pixel_offset() -> None:
-    """The disc correlation recovers a whole-pixel offset to within a fraction of a pixel.
+    """The disc correlation's answer on a whole-pixel offset stays in its known band.
 
     Guards the gradient-magnitude NCC sub-pixel bias: the integer peak is found on
     the gradient surfaces but the sub-pixel offset is refined on raw intensity, so
     a whole-pixel offset no longer carries the ~0.3 px-per-axis rectification bias.
+    The disc shades Lommel-Seeliger, so the answer carries the navigator's Lambert
+    template bias instead, 0.53 px toward the Sun, and is held to a band around it.
     """
     _assert_technique_recovers('disc_subpixel_offset', 'BodyDiscCorrelateNav')
 

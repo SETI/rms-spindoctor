@@ -12,13 +12,14 @@ exposure_sec: 0.68
 # stars_body_ephemeris_error, and the terminator takes up most of the body's outline.
 #
 # The simulated body model emits no limb arc above 60 degrees phase, so the body is
-# navigated by BodyDiscCorrelateNav, which lands 0.01 px from the truth on every
-# draw.  StarFieldFromCatalogNav finds too few stars on every draw, but
-# StarUniqueMatchNav and StarRefineNav navigate on the stars, 0.01 to 0.30 px and 0.02
-# to 0.22 px off; on the committed seed StarRefineNav reports confidence 0.95, above
-# the disc's 0.79.  The fused answer follows the stars, 0.01 to 0.18 px from the truth
-# over the 16 draws, within 0.6 of its reported sigmas.  BodyBlobNav lands 0.01 to
-# 0.09 px off.
+# navigated by BodyDiscCorrelateNav, which lands 0.008 to 0.016 px from the truth.
+# StarFieldFromCatalogNav finds too few stars on every draw, but StarUniqueMatchNav
+# and StarRefineNav navigate on the stars, 0.01 to 0.30 px and 0.02 to 0.22 px off.
+# The fused answer follows the stars, 0.01 to 0.17 px from the truth over the 16
+# draws, within 0.5 of its reported sigmas.  BodyBlobNav lands 3.0 to 3.6 px off
+# without flagging it (#975); it landed 0.01 to 0.09 px off when the body shaded
+# with the Lambert law.  Under the default Lommel-Seeliger law the crescent's sunlit
+# limb reaches the 4,095 DN top of the range.
 #
 # The pointing error is the size real NAC frames carry, halved for the summed pixels
 # and pointing down and to the right, and the twist is the NAC's measured 0.0115

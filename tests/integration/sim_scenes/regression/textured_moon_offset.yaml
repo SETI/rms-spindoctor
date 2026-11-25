@@ -10,9 +10,11 @@ exposure_sec: 1.0
 # circular albedo spot.  The texture is truth-side, so the disc correlation
 # sees realistic surface contrast against its smooth Lambert template while
 # the silhouette the limb fit uses is untouched.  Measured behavior: still
-# an accurate success (fused offset within ~0.3 px of the planted value;
-# the texture pulls the correlation peak slightly, which is exactly the
-# realistic-contrast degradation this scene measures).
+# an accurate success, 0.17 to 0.18 px from the planted value.  The texture pulls
+# the correlation peak, which is the realistic-contrast degradation this scene
+# measures, and the Lambert template's pull toward the Sun on the default
+# Lommel-Seeliger surface (#1110) partly offsets it: on a Lambert surface the fused
+# answer landed 0.36 to 0.37 px off.
 bodies:
   - name: DAPPLED
     shape_model: ellipsoid

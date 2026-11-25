@@ -34,19 +34,17 @@ offset_rotation_deg: 0.0
 # the terminator feature is dropped by the reliability gate (0.26 vs the 0.30
 # threshold, the sin(155 deg) phase cap doing most of the capping), and the
 # disc correlation, pulled by the ring of light its template leaves out
-# (#1050), answers (1.20, -3.79) at the edge of its refinement window along u
-# (#1061) without flagging it spurious.  The noiseless twin removes read and
-# Poisson noise as a confound and pins both biases deterministically: the haze
-# alone, not the noise, decides them.
-# Known error: 2.989 px on the committed draw and on random_seed 101, 202, ...,
-# 1515 alike, giving the band [2.939, 3.040] px with the 0.05 px margin.
+# (#1050), answers 4.81 px off and flags it spurious, so the body-witness veto
+# declines the frame.  The noiseless twin removes read and Poisson noise as a
+# confound and pins both biases deterministically: the haze alone, not the
+# noise, decides them.  The outcome is the same on the committed draw and on
+# random_seed 101, 202, ..., 1515 and noise_seed 101 to 808.
 # The ring of light saturates because the simulated haze is about four times
 # too bright: its single-scattering source lacks the factor of 1/4 (#1101).
 # The recorded error moves when #1101 is fixed; at a quarter of the haze
 # brightness the same correlation is 2.87 px off.
 expected:
   # Depends on the haze brightness #1101 corrects.
-  status: success
-  confidence_tier: low
-  known_offset_error_px: 2.9895
-  known_offset_error_tol_px: 0.0505
+  status: failed
+  confidence_tier: failed
+  status_reason: lone_blob_in_collapsed_regime

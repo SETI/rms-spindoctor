@@ -257,7 +257,9 @@ def test_invariant_scene_navigates(path: Path) -> None:
 def test_disc_scene_recovers_planted_offset(path: Path) -> None:
     """Each disc scene's fused offset meets its truth check.
 
-    A truth check is a tolerance, or a band around a known error.
+    A truth check is a tolerance, or a band around a known error.  The ellipsoid scenes
+    shade Lommel-Seeliger, which biases the navigator's Lambert template, so they are
+    held to bands around their errors.
     """
     scene = load_sim_scene(path)
     result = _navigate(scene)
@@ -273,7 +275,11 @@ def test_blob_scene_navigates_via_blob_alone(path: Path) -> None:
 
 @pytest.mark.parametrize('path', _BLOB_PATHS, ids=_BLOB_IDS)
 def test_blob_alone_recovers_planted_offset(path: Path) -> None:
-    """BodyBlobNav alone recovers each blob scene's planted offset within tolerance.
+    """BodyBlobNav alone meets each blob scene's truth check.
+
+    The ellipsoid scenes shade Lommel-Seeliger, so their centroid carries a known error
+    from the navigator's Lambert template and is held to a band around it.  The mesh
+    scene is held to a tolerance.
 
     Guards the BODY_BLOB feature emission, the background-pedestal subtraction,
     and the sky-noise threshold; without the latter two the thresholded observed
@@ -333,7 +339,11 @@ def test_rotation_scene_recovers_planted_roll(path: Path) -> None:
 
 @pytest.mark.parametrize('path', _LIMB_PATHS, ids=_LIMB_IDS)
 def test_limb_alone_recovers_planted_offset(path: Path) -> None:
-    """BodyLimbNav alone recovers each limb scene's planted offset within tolerance.
+    """BodyLimbNav alone meets each limb scene's truth check.
+
+    The ellipsoid scene shades Lommel-Seeliger, so its limb fit carries a known error
+    from the navigator's Lambert template and is held to a band around it.  The mesh
+    scene is held to a tolerance.
 
     Guards the LIMB_ARC emission from the simulated body: the silhouette boundary
     is sampled into a vertex polyline with outward normals, and BodyLimbNav's

@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8708553960016112,
+  "confidence": 0.873559844152872,
   "confidence_rank": "medium",
-  "offset_du_px": -0.574474637121304,
-  "offset_dv_px": 0.32387804333309994,
+  "offset_du_px": -0.6947461703449084,
+  "offset_dv_px": 0.30804604653827217,
   "scene_name": "titan_haze",
   "status": "success"
 }

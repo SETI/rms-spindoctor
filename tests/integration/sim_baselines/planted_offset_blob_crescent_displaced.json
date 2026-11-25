@@ -1,8 +1,8 @@
 {
   "confidence": 0.4,
   "confidence_rank": "medium",
-  "offset_du_px": 21.40183062423229,
-  "offset_dv_px": -18.605792101080283,
+  "offset_du_px": 21.137131801039985,
+  "offset_dv_px": -17.74115794793495,
   "scene_name": "planted_offset_blob_crescent_displaced",
   "status": "success"
 }
