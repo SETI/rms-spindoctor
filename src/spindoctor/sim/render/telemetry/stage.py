@@ -140,6 +140,7 @@ def apply_telemetry(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
             loci=loci,
             adversarial=adversarial,
             protect=protect,
+            binning=dp.binning,
         )
         records[mode_name] = result
 

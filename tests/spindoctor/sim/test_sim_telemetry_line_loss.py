@@ -3,8 +3,8 @@
 ``compression_truncated_lines`` codes each pair of lines with a block-adaptive Rice
 coder and cuts the second line where the pair exceeds its budget, so the frame's
 content decides what is lost.  ``downlink_gaps`` loses groups of whole lines: one plus
-a negative-binomial number of them, sized from a table, clustered by a gap table, with
-partial lines above and below.  Each test here covers one property.
+a negative-binomial number of them, sized from a table, in clusters that fall at uniform
+positions, with partial lines above and below.  Each test here covers one property.
 """
 
 import itertools
@@ -14,11 +14,19 @@ import numpy as np
 import pytest
 from tests.spindoctor.sim.scenes import disc_body, frame_scene
 
-from spindoctor.sim.instruments.resolvers import instrument_default_modes, mode_available
+from spindoctor.sim.instruments.resolvers import (
+    instrument_default_modes,
+    mode_available,
+    resolve_mode_with_catalog,
+)
 from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.render.feature_loci import FeatureLoci
 from spindoctor.sim.render.stages import SimFrame
-from spindoctor.sim.render.telemetry.loss import apply_compression_truncated_lines
+from spindoctor.sim.render.telemetry.loss import (
+    apply_compression_truncated_lines,
+    apply_downlink_gaps,
+)
 from spindoctor.sim.render.telemetry.stage import apply_telemetry
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
@@ -27,6 +35,7 @@ _FILL = 500.0
 _RICE = {'block_samples': 16, 'word_bits': 16, 'id_bits': 4, 'max_split': 13}
 _NAC_SIZES = [1.0, 2.0, 2.0, 3.0, 5.0, 8.0, 15.0, 30.2, 83.2, 373.0]
 _NAC_GAPS = [1.0, 1.0, 1.0, 2.0, 6.0, 19.0, 54.8, 114.3, 331.5, 822.0]
+_NO_ROWS = np.zeros(0, dtype=np.int64)
 _NAC_HEAD_KEPT = [0.0156, 0.0312, 0.0781, 0.2031, 0.3438, 0.5625, 0.75, 0.875, 0.9688, 0.9688]
 
 
@@ -235,30 +244,112 @@ def test_gap_groups_start_on_any_line() -> None:
 
 
 def test_clustered_groups_are_a_drawn_gap_apart() -> None:
-    """Within a cluster the kept lines between groups follow the gap table."""
+    """Within a cluster the gaps reproduce the table, interpolated in the logarithm.
+
+    Halfway in probability between the 95th and 99th percentiles, 114.3 and 331.5 lines,
+    the logarithmic interpolation gives 194.7 lines, where a linear one would give 222.9.
+    """
     params = {
-        'mean_groups': 40.0,
-        'size_percentiles': [3.0] * 10,
+        'mean_groups': 20000.0,
+        'size_percentiles': [1.0] * 10,
+        'cluster_probability': 0.0,
         'gap_percentiles': _NAC_GAPS,
     }
-    gaps: list[int] = []
-    for seed in range(20):
-        groups = _gaps(params, size_v=16384, seed=seed)[1]
-        gaps += [b['row_start'] - a['row_end'] for a, b in itertools.pairwise(groups)]
-    within = [g for g in gaps if g > 0]
-    assert np.percentile(within, [50, 75]).tolist() == pytest.approx([6.0, 19.0], rel=0.25)
+    groups = _gaps(params, size_v=2**21, size_u=4)[1]
+    gaps = [b['row_start'] - a['row_end'] for a, b in itertools.pairwise(groups)]
+    assert np.percentile(gaps, [50, 75]).tolist() == [6.0, 19.0]
+    assert abs(float(np.percentile(gaps, 97)) - 194.7) < 12.0
 
 
-def test_a_cluster_that_reaches_the_bottom_starts_again_inside_the_frame() -> None:
-    """Groups that would run past the bottom start a new cluster, so all stay inside."""
+def test_the_cluster_probability_sets_the_share_of_groups_that_start_a_cluster() -> None:
+    """With a cluster probability of 0.3, about 30% of the gaps fall between clusters.
+
+    Inside a cluster every gap is 3 lines; between clusters on a tall frame a gap is
+    almost never exactly 3.
+    """
     params = {
-        'mean_groups': 60.0,
-        'size_percentiles': [9.0] * 10,
-        'gap_percentiles': [30.0] * 10,
+        'mean_groups': 400.0,
+        'size_percentiles': [2.0] * 10,
+        'cluster_probability': 0.3,
+        'gap_percentiles': [3.0] * 10,
     }
-    groups = _gaps(params, size_v=512)[1]
-    assert len(groups) > 15
-    assert max(g['row_end'] for g in groups) <= 512
+    groups = _gaps(params, size_v=65536)[1]
+    gaps = np.array([b['row_start'] - a['row_end'] for a, b in itertools.pairwise(groups)])
+    assert abs(float(np.mean(gaps != 3)) - 0.3) < 0.05
+
+
+def test_clusters_fall_at_uniform_positions() -> None:
+    """Clusters spread evenly down the frame: their quartiles sit at its quarters."""
+    params = {'mean_groups': 400.0, 'size_percentiles': [1.0] * 10}
+    starts = [g['row_start'] for g in _gaps(params, size_v=8192)[1]]
+    quartiles = np.percentile(starts, [25, 50, 75]) / 8192
+    assert quartiles.tolist() == pytest.approx([0.25, 0.5, 0.75], abs=0.04)
+
+
+def test_no_two_groups_touch() -> None:
+    """Groups keep a kept line between them, so the frame shows each one on its own."""
+    params = {'mean_groups': 100.0, 'size_percentiles': [4.0] * 10}
+    signal, groups = _gaps(params, size_v=1024)
+    lost = np.all(signal == 0.0, axis=1).astype(np.int8)
+    runs = int(np.count_nonzero(np.diff(lost) == 1))
+    assert runs == len(groups)
+
+
+def test_no_group_reaches_the_first_or_last_line() -> None:
+    """A group always keeps at least one line above and below it in the frame."""
+    params = {'mean_groups': 30.0, 'size_percentiles': [20.0] * 10}
+    edges = [_gaps(params, size_v=640, seed=seed)[0][[0, -1]] for seed in range(30)]
+    assert np.all(np.asarray(edges) == _FILL)
+
+
+def test_a_frame_too_small_for_its_draw_loses_fewer_groups() -> None:
+    """Ten 5-line groups, one line apart, fill a 64-line frame inside its edges."""
+    params = {'mean_groups': 100.0, 'size_percentiles': [5.0] * 10}
+    groups = _gaps(params, size_v=64)[1]
+    assert len(groups) == 10
+
+
+def test_a_summed_frame_draws_sizes_from_the_summed_table() -> None:
+    """A 2x2-summed frame draws its group sizes from the summed table."""
+    cfg = {
+        'probability': 1.0,
+        'mean_groups': 20.0,
+        'size_percentiles': [3.0] * 10,
+        'summed_size_percentiles': [7.0] * 10,
+    }
+    frame = SimFrame(
+        signal=np.full((512, 64), _FILL, dtype=np.float64),
+        point_e=np.zeros((512, 64), dtype=np.float64),
+        oversample=1,
+        truth={},
+    )
+    params = {
+        'instrument': 'coiss_nac',
+        'random_seed': 3,
+        'detector': {'binning': 2},
+        'artifacts': {'downlink_gaps': cfg},
+    }
+    apply_telemetry(frame, params=params)
+    groups = frame.truth['artifacts']['downlink_gaps']['groups']
+    assert {g['row_end'] - g['row_start'] for g in groups} == {7}
+
+
+def test_a_summed_frame_without_a_summed_table_draws_from_the_size_table() -> None:
+    """Without a summed table, a summed frame draws from the size table."""
+    scene_cfg = {'probability': 1.0, 'mean_groups': 20.0, 'size_percentiles': [3.0] * 10}
+    cfg = resolve_mode_with_catalog('downlink_gaps', scene_cfg, 'generic')
+    signal = np.full((512, 64), _FILL, dtype=np.float64)
+    loci = FeatureLoci(rows=_NO_ROWS, pixel_v=_NO_ROWS, pixel_u=_NO_ROWS)
+    record = apply_downlink_gaps(
+        signal,
+        cfg,
+        marker_dn=0.0,
+        rng=np.random.default_rng(3),
+        loci=loci,
+        adversarial=False,
+        binning=2,
+    )
+    assert {g['row_end'] - g['row_start'] for g in record['groups']} == {3}
 
 
 def test_the_head_probability_sets_the_share_of_groups_with_a_head_line() -> None:

@@ -576,13 +576,18 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
     _telemetry_mode(
         'downlink_gaps',
         # Packets lost on the way to the ground take groups of whole lines that start
-        # on any line.  The generic fallbacks lose one 8-line group at a uniform start
-        # and keep the lines beside it whole; a camera's config states its measured
-        # count, sizes, spacing, and partial lines as shape defaults.
+        # on any line.  The generic fallbacks lose one 8-line group at a uniform line
+        # and keep the lines beside it whole; every group starts a cluster of its own,
+        # and a cluster's groups would lie one kept line apart.  A camera's config
+        # states its measured count, sizes, clustering, and partial lines as shape
+        # defaults.  summed_size_percentiles is unset by default, and a binned frame
+        # then draws from size_percentiles.
         ModeParam('mean_groups', AT_LEAST_ONE, 1.0),
         ModeParam('dispersion', NonNeg, 0.0),
         ModeParam('size_percentiles', positive_list(10), (8.0,) * 10),
-        ModeParam('gap_percentiles', positive_list(10)),
+        ModeParam('summed_size_percentiles', positive_list(10)),
+        ModeParam('cluster_probability', Unit, 1.0),
+        ModeParam('gap_percentiles', positive_list(10), (1.0,) * 10),
         ModeParam('head_probability', Unit, 0.0),
         ModeParam('head_kept_percentiles', unit_list(10), _UNIFORM_TABLE),
         ModeParam('tail_probability', Unit, 0.0),

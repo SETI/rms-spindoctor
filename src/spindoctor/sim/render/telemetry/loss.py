@@ -484,61 +484,107 @@ def _group_count(rng: np.random.Generator, mean_groups: float, dispersion: float
     return 1 + int(rng.poisson(extra))
 
 
-# How many uniform lines a group that starts a new cluster tries before it settles for
-# one that overlaps a group already placed.
-_FRESH_START_TRIES = 20
+# How many times a frame redraws its groups' sizes and gaps when they do not fit, before
+# it loses one group fewer.
+_LAYOUT_TRIES = 10
 
 
-def _group_starts(
-    rng: np.random.Generator,
-    sizes: list[int],
-    gap_percentiles: Any,
-    size_v: int,
-    first_rows: NDArrayIntType | None,
-) -> list[int]:
-    """Place groups of the given sizes down a frame; return each group's first line.
+def _clusters(
+    rng: np.random.Generator, sizes: list[int], cfg: dict[str, Any]
+) -> list[tuple[list[int], list[int]]]:
+    """Split a frame's groups into clusters; return each cluster's sizes and inner gaps.
 
-    Without ``gap_percentiles`` every group starts a cluster of its own.  With them the
-    groups cluster: the first starts a cluster, and each later group starts a gap after
-    the end of the one before, the gap drawn from the table in kept lines, interpolated
-    in the logarithm, at least one.  A group that would run past the bottom of the
-    frame starts a new cluster.  A group that starts a cluster starts on a uniform line
-    that keeps it inside the frame, chosen where it neither overlaps nor touches a
-    group already placed if such a line turns up in a few tries; with ``first_rows``,
-    it starts on one of those rows instead.
+    The first group starts a cluster, and each later group starts a new one with
+    ``cluster_probability``.  Otherwise it joins the cluster before it, a gap drawn
+    from ``gap_percentiles`` after the group before, in kept lines, interpolated in the
+    logarithm and rounded to a whole line, at least one.
     """
-    lost = np.zeros(size_v + 2, dtype=bool)
+    probability = float(cfg['cluster_probability'])
+    clusters: list[tuple[list[int], list[int]]] = [([sizes[0]], [])]
+    for size in sizes[1:]:
+        if rng.random() < probability:
+            clusters.append(([size], []))
+            continue
+        gap = float(_percentile_draws(rng, cfg['gap_percentiles'], 1, log=True)[0])
+        clusters[-1][0].append(size)
+        clusters[-1][1].append(max(1, int(np.rint(gap))))
+    return clusters
 
-    def place(start: int, size: int) -> int:
-        """Record a group's lines, with a margin of one, and return its start."""
-        lost[start : start + size + 2] = True
-        return start
 
-    def fresh(size: int) -> int:
-        """A cluster's first line: a feature row, or a uniform line keeping it inside."""
-        last = size_v - size
-        if first_rows is not None:
-            return min(int(rng.choice(first_rows)), last)
-        start = int(rng.integers(0, last + 1))
-        for _ in range(_FRESH_START_TRIES):
-            if not lost[start : start + size + 2].any():
-                break
-            start = int(rng.integers(0, last + 1))
-        return start
+def _uniform_starts(rng: np.random.Generator, lengths: list[int], size_v: int) -> list[int] | None:
+    """Place blocks of lines at random inside a frame; return each block's first line.
 
-    starts: list[int] = []
-    cursor: int | None = None
-    for size in sizes:
-        if gap_percentiles is None or cursor is None:
-            start = fresh(size)
-        else:
-            gap = max(1, int(np.rint(_percentile_draws(rng, gap_percentiles, 1, log=True)[0])))
-            start = cursor + gap
-            if start + size > size_v:
-                start = fresh(size)
-        starts.append(place(start, size))
-        cursor = start + size
+    The blocks fall in a random order at uniform positions, each at least one line from
+    the next and from the frame's first and last lines, so no two touch and none
+    reaches an edge.
+
+    Returns:
+        The first line of each block, in the order of ``lengths``, or None when the
+        blocks and the lines between them do not fit.
+    """
+    free = size_v - 2 - sum(lengths) - (len(lengths) - 1)
+    if free < 0:
+        return None
+    offsets = np.sort(rng.integers(0, free + 1, len(lengths)))
+    starts = [0] * len(lengths)
+    line, previous = 1, 0
+    order = rng.permutation(len(lengths)).tolist()
+    for offset, index in zip(offsets.tolist(), order, strict=True):
+        line += offset - previous
+        previous = offset
+        starts[index] = line
+        line += lengths[index] + 1
     return starts
+
+
+def _feature_starts(
+    rng: np.random.Generator, lengths: list[int], rows: NDArrayIntType, size_v: int
+) -> list[int]:
+    """Start each block of lines on a feature row, kept off the frame's first and last lines."""
+    return [int(np.clip(rng.choice(rows), 1, max(1, size_v - 1 - length))) for length in lengths]
+
+
+def _group_layout(
+    rng: np.random.Generator,
+    count: int,
+    size_table: Any,
+    cfg: dict[str, Any],
+    size_v: int,
+    rows: NDArrayIntType | None,
+) -> list[tuple[int, int]]:
+    """Draw a frame's groups and place them; return each group's first line and size.
+
+    Each group's size is drawn from ``size_table``, in lines, interpolated in the
+    logarithm and rounded to a whole line, at least one and at most the frame's
+    inner lines.  The groups form clusters (:func:`_clusters`), and the clusters fall
+    at uniform positions (:func:`_uniform_starts`), so every group the frame draws
+    shows in it as a group of its own.  When the clusters do not fit, the frame
+    redraws the sizes and gaps a few times, then loses one group fewer.  With
+    ``rows`` each cluster starts on one of those rows instead, and clusters may
+    overlap.
+    """
+    inner = size_v - 2
+    count = min(count, (inner + 1) // 2)
+    while count > 0:
+        for _ in range(_LAYOUT_TRIES):
+            draws = _percentile_draws(rng, size_table, count, log=True)
+            sizes = np.clip(np.rint(draws), 1, inner).astype(np.int64).tolist()
+            clusters = _clusters(rng, sizes, cfg)
+            lengths = [sum(members) + sum(gaps) for members, gaps in clusters]
+            if rows is not None:
+                starts: list[int] | None = _feature_starts(rng, lengths, rows, size_v)
+            else:
+                starts = _uniform_starts(rng, lengths, size_v)
+            if starts is None:
+                continue
+            groups: list[tuple[int, int]] = []
+            for start, (members, gaps) in zip(starts, clusters, strict=True):
+                for size, gap in zip(members, [*gaps, 0], strict=True):
+                    groups.append((start, size))
+                    start += size + gap
+            return sorted(groups)
+        count -= 1
+    return []
 
 
 def apply_downlink_gaps(
@@ -549,6 +595,7 @@ def apply_downlink_gaps(
     rng: np.random.Generator,
     loci: FeatureLoci,
     adversarial: bool,
+    binning: int = 1,
     **_ignored: Any,
 ) -> dict[str, Any]:
     """Zero-fill groups of whole lines that packets lost on the way to the ground.
@@ -556,30 +603,47 @@ def apply_downlink_gaps(
     A frame that lost packets, with the mode's probability, loses one group plus a
     negative-binomial number more, with the mean ``mean_groups`` in all and the
     ``dispersion`` that widens the count beyond Poisson.  Each group's size is drawn
-    from ``size_percentiles``, in lines, interpolated in the logarithm and rounded to a
-    whole line, at least one and at most the frame's height.  The groups start where
-    the placement puts them: on uniform lines, or, with ``gap_percentiles``, in
-    clusters with drawn gaps between them; with adversarial placement each cluster
-    starts on a feature row.  With ``head_probability`` the line just above a group
-    loses its end, and with ``tail_probability`` the line just below does; such a line
-    keeps a whole number of ``step_samples``, its kept share drawn from
-    ``head_kept_percentiles`` or ``tail_kept_percentiles``.  Groups that overlap merge
-    in the frame and stay separate in the record.
+    from ``size_percentiles``, or on a binned frame from ``summed_size_percentiles``
+    when the map sets it.  The groups form clusters, each later group starting a new
+    one with ``cluster_probability`` and otherwise following the group before at a
+    gap drawn from ``gap_percentiles``.  The clusters fall at uniform positions, apart
+    from each other and from the frame's first and last lines, so the frame shows as
+    many groups as it drew; a frame too small for its draw loses fewer groups.  With
+    adversarial placement each cluster starts on a feature row and clusters may
+    merge.  With ``head_probability`` the line just above a group loses its end, and
+    with ``tail_probability`` the line just below does; such a line keeps a whole
+    number of ``step_samples``, its kept share drawn from ``head_kept_percentiles`` or
+    ``tail_kept_percentiles``.  A single kept line between two groups can lose its end
+    as either group's neighbor.
+
+    Parameters:
+        signal: The frame's DN image, changed in place.
+        cfg: The mode's resolved parameters.
+        marker_dn: The value a lost pixel takes.
+        rng: The mode's seeded generator.
+        loci: The frame's feature rows, for adversarial placement.
+        adversarial: Whether the clusters start on feature rows.
+        binning: The readout binning; above 1 the frame is summed.
+        **_ignored: The other appliers' arguments.
+
+    Returns:
+        Whether the mode fired, and each group's first line, end line (exclusive), and
+        the kept samples of a head or tail line where one lost its end.
     """
     probability = float(cfg['probability'])
     if not mode_activated(rng, probability):
         return {'active': False, 'groups': []}
     size_v, size_u = signal.shape
-    n = min(_group_count(rng, float(cfg['mean_groups']), float(cfg['dispersion'])), size_v)
-    sizes = np.clip(
-        np.rint(_percentile_draws(rng, cfg['size_percentiles'], n, log=True)), 1, size_v
-    ).astype(np.int64)
-    first_rows = loci.rows if adversarial and loci.has_rows else None
-    starts = _group_starts(rng, sizes.tolist(), cfg['gap_percentiles'], size_v, first_rows)
+    count = _group_count(rng, float(cfg['mean_groups']), float(cfg['dispersion']))
+    size_table = cfg['size_percentiles']
+    if binning > 1 and cfg['summed_size_percentiles'] is not None:
+        size_table = cfg['summed_size_percentiles']
+    rows = loci.rows if adversarial and loci.has_rows else None
+    layout = _group_layout(rng, count, size_table, cfg, size_v, rows)
     step = int(cfg['step_samples'])
     groups: list[dict[str, int]] = []
-    for start, size in zip(starts, sizes.tolist(), strict=True):
-        end = start + int(size)
+    for start, size in layout:
+        end = start + size
         signal[start:end, :] = marker_dn
         groups.append({'row_start': start, 'row_end': end})
     for group in groups:
