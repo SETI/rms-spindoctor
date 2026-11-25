@@ -28,11 +28,11 @@ scene block or ``instrument_defaults`` requests them, so a scene with no such
 block renders a clean DN frame (the self-consistency floor).
 
 Everything the detector collects over the exposure -- the light, the dark current,
-the cosmic rays and other radiation hits, and the frame-transfer smear share --
-collects over the integration time
+and the cosmic rays and other radiation hits -- collects over the integration time
 (:attr:`~spindoctor.sim.render.detector.params.DetectorParams.integration_sec`): the
 commanded exposure plus the camera's extra integration time, zero for a camera that
-states none.
+states none and for the vidicon chain.  The frame-transfer smear's share of each
+column falls as the integration time grows.
 """
 
 from __future__ import annotations
@@ -124,9 +124,9 @@ def _convert_to_electrons(signal: NDArrayFloatType, dp: DetectorParams) -> NDArr
     """Convert the intensive signal to electrons through the integration time.
 
     A signal of 1.0 fills ``signal_full_scale_frac`` of a native pixel's well when
-    the frame integrates for the reference exposure; a binned frame pixel sums ``binning**2`` native
-    pixels of it.  A signal above 1 is converted in proportion, and the full-well
-    cap that follows saturates it.
+    the frame integrates for the reference exposure; a binned frame pixel sums
+    ``binning**2`` native pixels of it.  A signal above 1 is converted in proportion,
+    and the full-well cap that follows saturates it.
     """
     scale = (
         dp.signal_full_scale_frac

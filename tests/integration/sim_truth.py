@@ -16,8 +16,8 @@ confounder stars of ``lock_single_dense``, and the catalog scatter of ``wrong_ca
 ``textured_moon_offset`` and ``relief_psf_stray_light`` were measured on 16 draws of the
 detector noise alone instead: the committed draw and the scene key ``noise_seed`` at 101,
 202, ..., 1515.  Those draws keep the albedo texture and the limb relief the test
-renders, which a new ``random_seed`` would redraw.  Every check also holds on 9 draws of
-the detector noise alone, ``noise_seed`` at 101 to 808.
+renders, which a new ``random_seed`` would redraw.  Every check also holds on 8 draws of
+the detector noise alone, ``noise_seed`` at 101, 202, ..., 808.
 
 The two rules.
 
