@@ -219,20 +219,23 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # The unfit twist sets the larger errors on the star fields and the Galileo disc,
     # since a translation follows the turned stars or disc it measures.  The roll turns
     # the scene about the boresight, the frame center after the offset.  In
-    # nhlorri_star_field the +0.19 deg twist moves the four measured stars' mean
-    # position, about 280 px from the boresight, by about 0.94 px.  gossi_star_field
-    # lands 0.05 px off with its twist and 0.02 px off without it, and gossi_disc
-    # 0.17 px off with its twist and 0.04 px off without it.  coiss_wac_disc's error is
-    # the limb fit's own: 0.16 px with the roll, 0.17 px without.  The three
-    # short-exposure and large-offset scenes fail as their expected blocks declare
-    # (#342, #785, #1153).
+    # nhlorri_star_field the +0.19 deg twist moves the eighteen measured stars' mean
+    # position by about 0.41 px, and in nhlorri_star_field_short_exposure the seven
+    # brightest stars' by about 0.56 px.  gossi_star_field lands 0.05 px off with its
+    # twist and 0.02 px off without it, and gossi_disc 0.17 px off with its twist and
+    # 0.04 px off without it.  coiss_wac_disc's error is the limb fit's own: 0.16 px
+    # with the roll, 0.17 px without.  The two Galileo and LORRI short-exposure scenes
+    # navigate with the measured star blur (#342); the remaining short-exposure and
+    # large-offset scenes fail as their expected blocks declare (#785).
     ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
     ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
     ('coiss_nac_star_field', FUSED): _t(0.017, 0.231, 0.220, 0.05),
     ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
     ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
     ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
-    ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),
+    ('gossi_star_field_short_exposure', FUSED): _t(0.107, 0.200, 0.185, 0.05),
+    ('nhlorri_star_field', FUSED): _t(0.406, 0.454, 0.051, 0.20),
+    ('nhlorri_star_field_short_exposure', FUSED): _t(0.557, 0.606, 0.126, 0.20),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
     # stars put it, and the fused answer lies between the two, 0.16 to 0.26 px from the
     # truth toward the body; the tolerance stays well below the body's own 1.81 px
