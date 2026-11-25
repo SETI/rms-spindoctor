@@ -735,8 +735,10 @@ real frames of this camera carry together:
   table and lossy compression. In the metadata indexes of COISS_2010, COISS_2023,
   COISS_2050, and COISS_2068, every lossy frame of either camera is an 8-bit
   frame, and lossy labels give no count of lost lines. The simulator's codec steps
-  every frequency alike, so its 128 DN step is illustrative: it matches the block
-  edges of real lossy frames and zeroes more of the fine detail than they lose.
+  every frequency alike, so its 128 DN step is illustrative: it leaves the block
+  edges inside the disc sharper than on three real lossy Rhea frames (1.72 times
+  the contrast inside the blocks, against 1.04 to 1.51), and it zeroes more of the
+  fine detail than they lose.
   The brightest 1% of the disc reads the same DN as on the real frame the scene
   follows. The scene seeds only the noise, so it has 16 distinct draws, and the
   fused answer lands 0.48 px off over them, toward the Sun, where the navigator's

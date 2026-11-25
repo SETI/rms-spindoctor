@@ -26,13 +26,13 @@ exposure_sec: 0.06
 # Rhea brightens toward its sunlit limb less than the Lommel-Seeliger law does.
 #
 # The simulator's codec steps every DCT frequency alike, where the real one does
-# not, so its step is illustrative.  On a Lambert disc as bright in the middle as
-# N1488892945's, a step of 128 DN made the contrast across block edges inside the
-# disc 1.28 times the contrast inside the blocks, and that disc without compression
-# showed 0.94.  Three real lossy Rhea frames (N1488892945, N1489304826, and
-# N1489436684) show 1.04 to 1.51.  The step zeroed more coefficients than the real
-# codec does: 90% of the disc's AC coefficients fell below 5 DN, against 41 to 52%
-# on those frames.
+# not, so its step is illustrative.  A step of 128 DN makes the contrast across block
+# edges inside the disc 1.72 times the contrast inside the blocks, and the disc without
+# compression shows 0.86.  Three real lossy Rhea frames (N1488892945, N1489304826, and
+# N1489436684) show 1.51, 1.10, and 1.04, so the step leaves sharper block edges than
+# any of them; steps of 64 and 96 DN give 1.15 and 1.37.  The step also zeroes more
+# coefficients than the real codec does: 96% of the disc's AC coefficients fall below
+# 5 DN, against 41 to 52% on those frames.
 #
 # The planted offset, 20.8 px, lies between the median and the 90th percentile
 # of the operator-verified NAC offsets in the image library (15.9 and 33.9 px),
