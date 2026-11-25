@@ -89,6 +89,12 @@ A saved PNG image always comes from the full render. If you save an image while 
 preview is on screen, the editor draws the full render first, which can take a few
 seconds on a full-size frame, and then shows it in place of the preview.
 
+On a Linux machine that has run heavy jobs for weeks, a full render can take much
+longer than it should, because the kernel spends the time rearranging memory. If renders
+are slow, ask whoever administers the machine to set the kernel's huge-page ``defrag``
+setting to ``defer``, or set the environment variable ``NUMPY_MADVISE_HUGEPAGE=0`` before
+you start the program. The developer guide's :ref:`thp-defrag` section gives the commands.
+
 On screen, the status bar's units and verdict wait for the full render too, and so does
 the saturation overlay. Until it arrives, the status bar says the verdict is pending,
 and the saturation overlay says it is waiting for the full render. If the full render

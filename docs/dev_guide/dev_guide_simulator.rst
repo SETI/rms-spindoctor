@@ -3532,18 +3532,12 @@ blessed by raising the budget.
 
 On an oversampled 1024x1024 frame, one frame-sized array of 64-bit floats holds
 about 140 MB, and on Linux a new one can cost more than the arithmetic that fills
-it. NumPy asks the kernel to back large arrays with huge pages, and how the kernel
-answers depends on its ``/sys/kernel/mm/transparent_hugepage/defrag`` setting. The
-development machine sets it to ``madvise``, under which a process that asked for
-huge pages waits, on the first write to each new array, while the kernel compacts
-memory to supply them. Once the host's memory is fragmented, after weeks of uptime
-and heavy jobs, the render is charged that wait as CPU time: a new 140 MB array
-then took 0.12 to 0.25 s to fill, against 0.015 s to write the same values into an
-array that already existed, and the ring scene spent more than half of its render
-time this way. The setting ``defer`` removes the wait: the process gets ordinary
-pages at once, and the kernel compacts memory in the background. Running with
-``NUMPY_MADVISE_HUGEPAGE=0`` comes close to it without root, since NumPy then asks
-for no huge pages.
+it. NumPy asks the kernel to back large arrays with huge pages. On a machine whose
+memory is fragmented, the kernel's answer can stall each first write to a new array
+and charge the wait to the render as CPU time. :ref:`thp-defrag` describes the stall
+and the two ways to remove it. A new 140 MB array then took 0.12 to 0.25 s to fill,
+against 0.015 s to write the same values into an array that already existed, and the
+ring scene spent more than half of its render time this way.
 
 So the renderer builds its large maps in place, with NumPy's ``out=`` arguments and
 in-place operators, and works over large regions a strip of rows at a time, which
