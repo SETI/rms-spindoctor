@@ -10,13 +10,16 @@ ingest writes rather than the tree it reads, applies to every storage.
 
 The useful values belong to a machine, its link to the root and what the
 service will do concurrently, not to this program, so they are configuration:
-the ``results_tree`` section carries them, and the defaults here are what that
-section ships with.  A program resolves the section once, through
-:func:`spindoctor.config.get_results_tree_tuning`, and passes the result down.
-This package reads no configuration itself.
+the ``results_tree`` section carries them, and the configuration parses that
+section into a :class:`TreeTuning` when it loads.  Every value lives in the
+packaged YAML, so the type has no defaults.  A program reads the parsed section
+once, as ``config.results_tree``, and passes it down.  This package does not read
+the configuration itself.
 """
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass
+
+from spindoctor.schema import SCHEMA_CONFIG, PositiveInt, RuleError
 
 __all__ = ['TreeTuning']
 
@@ -24,6 +27,9 @@ __all__ = ['TreeTuning']
 @dataclass(frozen=True)
 class TreeTuning:
     """How much of a pass over a results tree runs at once.
+
+    This is the ``results_tree`` configuration section, which the configuration parses
+    into this type when it loads.  Every setting is a positive integer.
 
     Parameters:
         walk_threads: How many directories are listed at the same time.
@@ -37,35 +43,35 @@ class TreeTuning:
         ingest_commit_batches: How many retrieval batches one database
             transaction of an ingest covers.  Read by the results-index ingest
             alone; a reader of the tree writes nothing.
+
+    Raises:
+        RuleError: If a round of work is smaller than the pool it feeds:
+            ``walk_directories_at_once`` below ``walk_threads``, or
+            ``retrieve_batch_size`` below ``retrieve_threads``.  Threads would then
+            be idle at every setting rather than running slowly.  The error is
+            reported against the round's setting.
     """
 
-    walk_threads: int = 32
-    walk_directories_at_once: int = 256
-    retrieve_threads: int = 64
-    retrieve_batch_size: int = 1024
-    ingest_commit_batches: int = 2
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    walk_threads: PositiveInt
+    walk_directories_at_once: PositiveInt
+    retrieve_threads: PositiveInt
+    retrieve_batch_size: PositiveInt
+    ingest_commit_batches: PositiveInt
 
     def __post_init__(self) -> None:
-        """Refuse a value no pass can run at.
-
-        Raises:
-            ValueError: If a setting is not a positive integer, or if a round
-                of work is smaller than the pool it feeds, which leaves threads
-                idle at every setting rather than running slowly.  The message
-                names the setting.
-        """
-        for field in fields(self):
-            value = getattr(self, field.name)
-            if not isinstance(value, int) or isinstance(value, bool) or value < 1:
-                raise ValueError(f'{field.name} must be a positive integer; got {value!r}')
+        """Refuse a round of work smaller than the pool it feeds."""
         for pool, work in (
             ('walk_threads', 'walk_directories_at_once'),
             ('retrieve_threads', 'retrieve_batch_size'),
         ):
             if getattr(self, work) < getattr(self, pool):
-                raise ValueError(
-                    f'{work} must be at least {pool}, or the pool never fills; '
-                    f'got {getattr(self, work)} against {getattr(self, pool)} threads'
+                raise RuleError(
+                    f'must be at least {pool}, or the pool never fills; '
+                    f'got {getattr(self, work)} against {getattr(self, pool)} threads',
+                    at=work,
+                    reads=(pool, work),
                 )
 
     @property

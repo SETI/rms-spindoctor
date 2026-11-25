@@ -21,6 +21,7 @@ import numpy as np
 import pdslogger
 import pytest
 import sqlalchemy
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.cli.reproj.conftest import (
     CMATRIX,
     CMATRIX_ORIGINAL,
@@ -38,7 +39,6 @@ from tests.spindoctor.cli.reproj.conftest import (
 from spindoctor.cli.reproj.offsets import PointingMechanism
 from spindoctor.cli.reproj.pointing_source import IndexPointingSource
 from spindoctor.cli.results_index import ingest_metadata_files
-from spindoctor.nav_records import TreeTuning
 from spindoctor.results_index import normalize_root_url, open_index
 
 pytestmark = pytest.mark.postgres
@@ -55,7 +55,10 @@ def _ingested(url: str, roots: list[Path], *, logger: pdslogger.PdsLogger) -> No
     engine = open_index(url, create=True)
     try:
         ingest_metadata_files(
-            engine, [root.as_posix() for root in roots], logger=logger, tuning=TreeTuning()
+            engine,
+            [root.as_posix() for root in roots],
+            logger=logger,
+            tuning=packaged_tree_tuning(),
         )
     finally:
         engine.dispose()

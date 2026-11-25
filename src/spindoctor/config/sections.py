@@ -19,6 +19,9 @@ import dataclasses
 import functools
 from collections.abc import Iterable
 from dataclasses import dataclass
+from typing import Annotated
+
+from annotated_types import Le
 
 from spindoctor.config.logging_keys import LoggingSection
 from spindoctor.config.sections_models import (
@@ -29,19 +32,96 @@ from spindoctor.config.sections_models import (
 )
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig
+from spindoctor.nav_records.tuning import TreeTuning
 from spindoctor.nav_technique.confidence_config import (
     TechniquesSection,
     shipped_techniques,
     techniques_section_type,
 )
 from spindoctor.nav_technique.nav_technique import NavTechnique
-from spindoctor.schema import SCHEMA_CONFIG, RuleError, Str
+from spindoctor.schema import SCHEMA_CONFIG, PositiveInt, RuleError, Str
 
 __all__ = [
+    'MAX_UPSAMPLE_FACTOR',
+    'EnvironmentSection',
+    'GeneralSection',
+    'OffsetSection',
     'OrchestratorSection',
     'TypedSections',
     'typed_sections_type',
 ]
+
+MAX_UPSAMPLE_FACTOR = 1000
+"""The largest FFT upsample factor the ``offset`` section accepts.
+
+The subpixel refinement evaluates a window of ``factor + 1`` samples on each axis, so its
+allocation grows with the square of the factor.  At this bound, the window and the two DFT
+matrices that produce it take about 65 MB for a 1024-pixel image; at a factor of a
+million the window alone would need about 16 TB, which hangs the process rather than
+failing it.  A factor of 1000 already resolves a thousandth of a pixel, far finer than any
+correlation peak can be located, so the bound never clips a useful setting.
+"""
+
+
+@dataclass(frozen=True)
+class GeneralSection:
+    """The ``general`` section: settings that no single part of the pipeline owns.
+
+    Parameters:
+        truetype_font_dir: The directory searched for the TrueType fonts that annotation
+            text is drawn in.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    truetype_font_dir: Str
+
+
+@dataclass(frozen=True)
+class EnvironmentSection:
+    """The ``environment`` section: where a deployment keeps its files.
+
+    Every key is optional, and a key left out reads as None; the packaged file leaves
+    them all unset.  A reader resolves each location from its command line, from here, and from
+    an environment variable.  Each reader applies its own order, and the helpers in
+    :mod:`spindoctor.config.config_helper` define the usual one: command line, then this
+    section, then the environment variable.
+
+    Parameters:
+        pds3_holdings_root: The root directory or URL of the PDS3 holdings that images
+            are read from.
+        nav_results_root: The root directory or URL navigation results are written to.
+        backplane_results_root: The root directory or URL backplanes are written to.
+        bundle_results_root: The root directory or URL PDS4 bundles are written to.
+        log_root: The root directory or URL logs are written to.
+        results_index_db: The connection URL of the results index, or ``none`` for no
+            results index.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    pds3_holdings_root: Str | None = None
+    nav_results_root: Str | None = None
+    backplane_results_root: Str | None = None
+    bundle_results_root: Str | None = None
+    log_root: Str | None = None
+    results_index_db: Str | None = None
+
+
+@dataclass(frozen=True)
+class OffsetSection:
+    """The ``offset`` section: how finely an image correlation resolves its peak.
+
+    Parameters:
+        correlation_fft_upsample_factor: How many steps of the upsampled correlation
+            grid make one pixel, from 1 to :data:`MAX_UPSAMPLE_FACTOR`.  The disc
+            correlation, the ring annulus correlation, and the manual navigation
+            dialog's automatic match all read it.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    correlation_fft_upsample_factor: Annotated[PositiveInt, Le(MAX_UPSAMPLE_FACTOR)]
 
 
 @dataclass(frozen=True)
@@ -87,6 +167,11 @@ class TypedSections:
         logging: The ``logging`` section.
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
+        general: The ``general`` section.
+        environment: The ``environment`` section.  The packaged file leaves its
+            locations unset.
+        offset: The ``offset`` section.
+        results_tree: The ``results_tree`` section.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -100,6 +185,10 @@ class TypedSections:
     feature_emission: FeatureEmissionSection
     logging: LoggingSection
     techniques: TechniquesSection
+    general: GeneralSection
+    offset: OffsetSection
+    results_tree: TreeTuning
+    environment: EnvironmentSection
 
     def __post_init__(self) -> None:
         """Refuse a planet or satellite name that is not in upper case, and a planet key

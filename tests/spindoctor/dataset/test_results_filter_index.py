@@ -20,6 +20,7 @@ import pytest
 import sqlalchemy
 from filecache import FCPath
 from sqlalchemy.pool import QueuePool
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import (
     index_url,
     ingest_tree,
@@ -175,7 +176,12 @@ def test_an_error_filter_passes_over_an_image_with_no_document(tree: Path, flag:
     """
     flags: dict[str, Any] = {flag: True}
     results_filter = ResultsFilter(
-        VOLUMES, str(tree), logger=null_logger(), results_index_db_url=None, **flags
+        VOLUMES,
+        str(tree),
+        logger=null_logger(),
+        results_index_db_url=None,
+        tuning=packaged_tree_tuning(),
+        **flags,
     )
     assert results_filter.passes(NO_RESULT) is False
 
@@ -280,7 +286,12 @@ def test_the_tree_reads_a_document_naming_no_outcome(
     root = tmp_path / 'results'
     images = _naming_no_outcome(root, status)
     results_filter = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), results_index_db_url=None, **flags
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=None,
+        tuning=packaged_tree_tuning(),
+        **flags,
     )
     assert select_from(results_filter, images) == expected
 
@@ -310,7 +321,12 @@ def test_the_index_reads_a_document_naming_no_outcome_the_same_way(
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=null_logger())
     results_filter = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, **flags
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=url,
+        tuning=packaged_tree_tuning(),
+        **flags,
     )
     assert select_from(results_filter, images) == expected
 
@@ -369,7 +385,12 @@ def _selecting_one_object(
         url = index_url(tmp_path / 'index.sqlite3')
         ingest_tree(url, [root], logger=null_logger())
     results_filter = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, **flags
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=url,
+        tuning=packaged_tree_tuning(),
+        **flags,
     )
     return select_from(results_filter, images)
 
@@ -465,7 +486,13 @@ def _index_after_a_document_left_the_tree(
 def test_a_document_that_left_the_tree_reads_as_absent_in_the_tree(tmp_path: Path) -> None:
     """The walk finds what is there now, which is the answer the index is held to."""
     root, images, _url = _index_after_a_document_left_the_tree(tmp_path)
-    results_filter = ResultsFilter(VOLUMES, str(root), logger=null_logger(), has_offset_file=True)
+    results_filter = ResultsFilter(
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        has_offset_file=True,
+        tuning=packaged_tree_tuning(),
+    )
     assert select_from(results_filter, images) == [SECOND_SUCCESS]
 
 
@@ -477,7 +504,12 @@ def test_a_document_that_left_the_tree_reads_as_absent_in_the_index(tmp_path: Pa
     """
     root, images, url = _index_after_a_document_left_the_tree(tmp_path)
     results_filter = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=url,
+        has_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     assert select_from(results_filter, images) == [SECOND_SUCCESS]
 
@@ -486,7 +518,11 @@ def test_the_tree_offers_a_document_that_left_it_to_the_absence_filter(tmp_path:
     """Nothing has been written for that image now, so the resume idiom picks it up."""
     root, images, _url = _index_after_a_document_left_the_tree(tmp_path)
     results_filter = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     assert select_from(results_filter, images) == [SPICE_ERROR]
 
@@ -501,7 +537,12 @@ def test_the_index_offers_a_document_that_left_the_tree_to_the_absence_filter(
     """
     root, images, url = _index_after_a_document_left_the_tree(tmp_path)
     results_filter = ResultsFilter(
-        VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=url,
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     assert select_from(results_filter, images) == [SPICE_ERROR]
 
@@ -556,7 +597,12 @@ def test_a_document_the_database_would_not_store_leaves_the_root_unreadable(
     monkeypatch.undo()
     with pytest.raises(SelectionError, match='no completed ingest'):
         ResultsFilter(
-            VOLUMES, str(root), logger=null_logger(), results_index_db_url=url, has_offset_file=True
+            VOLUMES,
+            str(root),
+            logger=null_logger(),
+            results_index_db_url=url,
+            has_offset_file=True,
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -623,7 +669,12 @@ def _engines_built_answering(
     monkeypatch.setattr(sqlalchemy, 'create_engine', recording)
     monkeypatch.setattr(sqlalchemy.Engine, 'dispose', counting)
     ResultsFilter(
-        VOLUMES, str(tree), logger=null_logger(), results_index_db_url=indexed, has_offset_file=True
+        VOLUMES,
+        str(tree),
+        logger=null_logger(),
+        results_index_db_url=indexed,
+        has_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     assert built != []
     return built

@@ -394,7 +394,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             extfov_shape = context.image_ext.shape
             template_img, template_mask = compose_template_features(eligible, extfov_shape)
             margin_v, margin_u = search_window_for_obs(context)
-            up_factor = self._upsample_factor()
+            up_factor = self.config.offset.correlation_fft_upsample_factor
             consistency_tol = self._consistency_tol_for(eligible)
             self.logger.debug(
                 'Composite template: %d painted pixels; search window (v, u) = (%d, %d) px; '
@@ -888,13 +888,6 @@ class BodyDiscCorrelateNav(NavTechnique):
             unobservable pending a calibrated curvature -> variance map.
         """
         return None
-
-    def _upsample_factor(self) -> int:
-        """Return the FFT upsample factor configured under ``config.offset``."""
-        offset_block = getattr(self.config, 'offset', None)
-        if offset_block is None:
-            return 128
-        return int(getattr(offset_block, 'correlation_fft_upsample_factor', 128))
 
 
 class _DiscConfidenceContext:
