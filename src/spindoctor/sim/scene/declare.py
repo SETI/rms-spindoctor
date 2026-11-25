@@ -8,10 +8,8 @@ declared once, on its field: its boundary class, what it means, what a scene tha
 leaves it out gets, and the scene editor's control for it.
 
 An optional key's dataclass default is None, because the typed scene keeps the
-difference between a key a scene leaves out and a key it sets.  The renderer, the
-scene editor, and the generated schema reference read the declarations
-(:func:`spindoctor.schema.walk_metadata` collects them, and :func:`declaration_of`
-reads one field's).
+difference between a key a scene leaves out and a key it sets.  The generated schema
+reference reads the declarations, through :func:`declaration_of`.
 """
 
 from __future__ import annotations
@@ -94,7 +92,9 @@ class EditorHint:
     """The scene editor's numeric control for a key.
 
     The control's range is what the editor offers, which may be narrower than what the
-    field accepts.
+    field accepts.  Its minimum may also sit below the field's range when the editor
+    shows that value for a scene that leaves the key out, as ``noise_seed``'s control
+    shows -1.
 
     Parameters:
         minimum: The smallest value the control offers.

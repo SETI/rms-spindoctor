@@ -256,7 +256,7 @@ class OpticsStrayLight:
     """The smooth scattered-light field, applied last before the detector stage.
 
     Parameters:
-        amplitude: The field's peak, as a fraction of full scale.
+        amplitude: The field's peak, in the units of the signal.
         direction_deg: The direction the linear ramp rises toward, in degrees.
         model: The field's shape.
         center_v: The radial bump's center v, in pixels.

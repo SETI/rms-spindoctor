@@ -35,6 +35,16 @@ and :mod:`spindoctor.sim.scene.truth_detector`).  The top level, the optics, det
 and noise blocks, and the ``spk_error`` block are typed so far.  The blocks not yet
 typed are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and checked by
 the rules modules until their types land.
+
+One value crosses from a truth block into the navigator's view: the readout binning.
+A real frame's label states its readout mode, so a real pipeline knows it, but a
+scene sets it in the truth ``detector`` block, beside the detector values it selects.
+The navigator's view carries it as a top-level ``binning`` key.  So that the view can
+be built from the idealized types alone, :class:`IdealizedScene` gets a ``binning``
+field that a scene never writes: the parse fills it from ``detector.binning``, and
+from that key's default when the scene leaves it out.  The field lands with the
+navigator's view, along with a rule that refuses a top-level ``binning`` key in a
+scene.
 """
 
 from __future__ import annotations
@@ -66,8 +76,8 @@ class IdealizedScene:
         exposure_sec: The exposure time, in seconds.
         midtime_utc: The observation midtime the frame reports.
         closest_planet: The planet the frame reports as closest.
-        time: The observation time, in days.
-        ring_epoch: The epoch of the ring orbits, in days.
+        time: The observation time, in TDB seconds.
+        ring_epoch: The epoch of the ring orbits, in TDB seconds.
         fit_camera_rotation: Whether the navigator fits the camera's rotation.
     """
 
@@ -75,18 +85,20 @@ class IdealizedScene:
 
     schema_version: Int | None = optional(
         'idealized',
-        'The scene format version. Only the current version, 2, is accepted.',
+        'The scene format version. Only the current version, 2, is accepted, and a scene '
+        'file must set it.',
         when_absent='the current version',
     )
     scene_name: NonEmptyStr | None = optional(
         'idealized',
-        "The scene's name. A scene file's name must equal its file name without the extension.",
+        "The scene's name. A scene file must set it to the file's name without the extension.",
         when_absent='no name',
     )
     instrument: NonEmptyStr = required(
         'idealized',
         'The simulated camera, by its name or one of its aliases in the instrument '
-        'catalog. It sets the detector chain, the PSF, and the navigator block.',
+        "catalog. The camera's catalog entry supplies the detector values, the navigator "
+        'block, and the optics that ``artifacts.instrument_defaults`` turns on.',
     )
     size_v: PositiveInt = required(
         'idealized',
@@ -119,13 +131,14 @@ class IdealizedScene:
     )
     time: Float | None = optional(
         'idealized',
-        'The observation time, in days. A ring edge precesses over the time since ``ring_epoch``.',
+        'The observation time, in TDB seconds. A ring edge precesses over the time since '
+        '``ring_epoch``.',
         default=0.0,
         editor=EditorHint(minimum=-1e10, maximum=1e10, decimals=1),
     )
     ring_epoch: Float | None = optional(
         'idealized',
-        'The epoch of the ring orbits, in days: catalog knowledge both sides read.',
+        'The epoch of the ring orbits, in TDB seconds: catalog knowledge both sides read.',
         default=0.0,
         editor=EditorHint(minimum=-1e10, maximum=1e10, decimals=1),
     )

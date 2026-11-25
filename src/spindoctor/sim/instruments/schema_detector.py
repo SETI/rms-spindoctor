@@ -121,6 +121,10 @@ FullWellDn = Positive
 SignalFullScaleFrac = Positive
 #: The fraction of the pixels lost at random in the downlink.
 MissingDataRate = Unit
+# The cosmic-ray rate, the cosmic-ray spread, and the dark current each type a camera
+# value, stated per native pixel, and a scene value, stated per frame pixel, so a
+# binned frame reads the two in different units.  Their range is only "not negative",
+# which fits both; a tighter physical bound would fit only one of them.
 #: The expected cosmic-ray events per pixel per second.
 CosmicRayEventsPerPixelPerSec = NonNeg
 #: The time, in seconds, the frame sits exposed to cosmic rays during readout.

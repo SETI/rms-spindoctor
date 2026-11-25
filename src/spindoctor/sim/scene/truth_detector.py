@@ -113,58 +113,65 @@ class Noise:
 
     poisson: Bool | None = optional(
         'truth',
-        'Whether the electron image gets Poisson shot noise.',
+        'Whether the CCD chain adds Poisson shot noise to its electron image.',
         when_absent='on under instrument_defaults, else off',
     )
     read_noise_dn: NonNeg | None = optional(
         'truth',
-        'The Gaussian read-noise sigma, in DN, converted to electrons through the '
-        "frame's gain. Under instrument_defaults the camera's value in electrons is used "
-        'instead.',
-        when_absent=_CAMERA_DEFAULT,
+        "The CCD chain's Gaussian read-noise sigma, in DN, converted to electrons "
+        "through the frame's gain.",
+        when_absent="the camera's value in electrons under instrument_defaults, else 0",
         editor=EditorHint(minimum=0.0, maximum=50.0, decimals=2),
     )
     cosmic_ray_events_per_pixel_per_sec: CosmicRayEventsPerPixelPerSec | None = optional(
         'truth',
-        'The expected cosmic-ray events per pixel per second. A frame draws its count '
-        'from a Poisson distribution whose mean is the rate times the exposure plus the '
-        'readout dwell, times the pixel count.',
+        'The expected cosmic-ray events per frame pixel per second. A frame draws its '
+        'count from a Poisson distribution whose mean is the rate times the collection '
+        'time, times the pixel count. The collection time is the exposure plus the '
+        'readout dwell on the CCD chain, and the exposure alone on the vidicon chain. The '
+        'camera states its rate per native pixel, so a binned frame multiplies the '
+        "camera's rate by the native pixels in a frame pixel.",
         when_absent=_CAMERA_DEFAULT,
         editor=EditorHint(minimum=0.0, maximum=0.01, decimals=5, step=0.0001),
     )
     cosmic_ray_readout_dwell_sec: CosmicRayReadoutDwellSec | None = optional(
         'truth',
         'The time, in seconds, the frame collects cosmic rays outside the exposure, '
-        'while it waits to be read.',
+        'while it waits to be read. Only the CCD chain reads it.',
         when_absent=_CAMERA_DEFAULT,
     )
     cosmic_ray_amplitude_e: CosmicRayAmplitudeE | None = optional(
         'truth',
         'The smallest charge a cosmic ray deposits, in electrons. A hit leaves this '
-        'times one plus a standard lognormal draw.',
+        'times one plus a standard lognormal draw. Only the CCD chain reads it: every '
+        "vidicon hit fills the chain's full scale.",
         when_absent="the camera's value under instrument_defaults, else the full well",
     )
     cosmic_ray_spread_px: CosmicRaySpreadPx | None = optional(
         'truth',
-        "The sigma of a hit's charge diffusion, in frame pixels. The camera states it in "
-        'native pixels, so a binned frame sees the camera value shrink by the binning.',
+        "The sigma of a hit's charge diffusion on the CCD chain, in frame pixels. The "
+        'camera states it in native pixels, so a binned frame sees the camera value '
+        'shrink by the binning.',
         when_absent=_CAMERA_DEFAULT,
     )
     dark_current_e_per_sec: DarkCurrentEPerSec | None = optional(
         'truth',
-        'The dark current, in electrons per second. It is the same on every line, and it is '
-        'added before the shot noise.',
+        "The CCD chain's dark current, in electrons per frame pixel per second. It is "
+        'the same on every line, and it is added before the shot noise. The camera '
+        "states it per native pixel, so a binned frame multiplies the camera's value by "
+        'the native pixels in a frame pixel.',
         when_absent=_CAMERA_DEFAULT,
     )
     calibration_column_residual_e: CalibrationColumnResidualE | None = optional(
         'truth',
         "The sigma of a calibrated frame's fixed residual per column, in electrons per "
-        'native pixel.',
+        'native pixel. Only a calibrated frame reads it.',
         when_absent=_CAMERA_DEFAULT,
     )
     calibration_pixel_residual_e: CalibrationPixelResidualE | None = optional(
         'truth',
-        "The sigma of a calibrated frame's residual per pixel, in electrons per native pixel.",
+        "The sigma of a calibrated frame's residual per pixel, in electrons per native "
+        'pixel. Only a calibrated frame reads it.',
         when_absent=_CAMERA_DEFAULT,
     )
     vidicon: NoiseVidicon | None = optional(
@@ -218,8 +225,8 @@ class DetectorOverride:
     )
     bias_dn: BiasDn | None = optional(
         'truth',
-        'The additive bias pedestal, in DN. It lifts dark sky off zero, the missing-data '
-        'marker, and a calibrated frame subtracts it again.',
+        'The additive bias pedestal, in DN. It lifts dark sky off zero, which is the '
+        'missing-data marker, and a calibrated frame subtracts it again.',
         when_absent="the camera's value",
     )
     saturation_dn: SaturationDn | None = optional(
@@ -241,7 +248,7 @@ class DetectorOverride:
     exposure_ref_sec: ExposureRefSec | None = optional(
         'truth',
         'The reference exposure, in seconds. A scene sets this or ``filter``, never both.',
-        when_absent="the camera's value, or the filter's",
+        when_absent="the camera's value, or the one the filter sets",
     )
     filter: Str | None = optional(
         'truth',

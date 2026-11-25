@@ -3,9 +3,10 @@
 :class:`Scene` extends :class:`~spindoctor.sim.scene.idealized.IdealizedScene`, the
 keys a real pipeline could know, with the keys only the test knows: the planted
 pointing error, the seeds, the render settings, and the blocks that plant the optics,
-the detector, and its noise.  It also holds ``published_equals_truth``, a key that the
-validator alone reads.  :func:`~spindoctor.sim.scene.validate.parse_scene` builds a
-:class:`Scene` from a scene's mapping, which stays the scene's saved form.
+the detector, and its noise.  It also holds ``published_equals_truth``, a key that
+neither the renderer nor the navigator reads.
+:func:`~spindoctor.sim.scene.validate.parse_scene` builds a :class:`Scene` from a
+scene's mapping, which stays the scene's saved form.
 
 The scene's blocks land in the typed scene one at a time.  A block not typed yet is
 listed in :data:`UNTYPED_BLOCKS` with its boundary class, left out of :class:`Scene`,
@@ -104,7 +105,8 @@ class Scene(IdealizedScene):
 
     random_seed: Int = required(
         'truth',
-        "The scene's seed. Every stage's and effect's seed derives from it.",
+        "The scene's seed. Every stage's and effect's seed derives from it, except the "
+        "detector noise's when the scene sets ``noise_seed``.",
         editor=EditorHint(minimum=0, maximum=2147483647),
     )
     noise_seed: NoiseSeed | None = optional(
@@ -169,6 +171,7 @@ class Scene(IdealizedScene):
     published_equals_truth: tuple[Str, ...] | None = optional(
         'test',
         "The truth paths, such as ``noise.read_noise_dn``, whose value the scene's "
-        '``instrument_config`` repeats on purpose. Only the validator reads it.',
+        '``instrument_config`` repeats on purpose. The validator checks it, and neither '
+        'the renderer nor the navigator reads it.',
         when_absent='none',
     )
