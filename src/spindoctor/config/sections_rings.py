@@ -52,6 +52,11 @@ __all__ = [
 _BASE_ORBIT_KEYS = ('a', 'rms', 'ae', 'long_peri', 'rate_peri')
 _PERTURBATION_KEYS = ('amplitude', 'phase', 'pattern_speed')
 
+# The one key an entry may leave out: a catalog that fitted no residual for a base orbit
+# leaves out rms, and the edge's whole-edge orbit term then takes
+# rings.default_orbit_radial_sigma_km.
+_OPTIONAL_KEYS = frozenset({'rms'})
+
 
 def _listed(keys: Sequence[str]) -> str:
     """Return keys as an English list, such as ``'a'``, ``'a and b'``, or ``'a, b, and c'``.
@@ -94,9 +99,11 @@ UtcTime = Annotated[Str, AfterValidator(_check_utc)]
 class RingModeEntry:
     """One entry of a ring edge's mode list: the edge's base orbit, or one perturbation.
 
-    An entry that sets ``a`` is the edge's base orbit.  It is mode 1 and sets every
-    base-orbit key: ``a``, ``rms``, ``ae``, ``long_peri``, and ``rate_peri``.  Any other
-    entry is a perturbation and sets ``amplitude``, ``phase``, and ``pattern_speed``.
+    An entry that sets ``a`` is the edge's base orbit.  It is mode 1, sets ``a``, ``ae``,
+    ``long_peri``, and ``rate_peri``, and may set ``rms``; an edge whose base orbit leaves
+    out ``rms`` takes ``rings.default_orbit_radial_sigma_km`` for its whole-edge orbit
+    term.  Any other entry is a perturbation and sets ``amplitude``, ``phase``, and
+    ``pattern_speed``.
     The mode number alone cannot tell the two apart, because a catalog may perturb an
     edge with a mode-1 term as well.
 
@@ -104,7 +111,8 @@ class RingModeEntry:
         mode: The mode number.  A mode above 90 is an inclination mode, which the ring
             model keeps but does not render.
         a: The semi-major axis of the base orbit, in km.
-        rms: The residual of the base orbit's fit, in km.
+        rms: The residual of the base orbit's fit, in km, or None when the catalog gives
+            none.
         ae: The base orbit's radial eccentricity amplitude, in km.
         long_peri: The base orbit's longitude of pericenter at the catalog's epoch, in
             degrees.
@@ -152,10 +160,11 @@ class RingModeEntry:
                 f'{_listed(_PERTURBATION_KEYS)}',
                 at=(),
             )
-        missing = [key for key in own if getattr(self, key) is None]
+        required = [key for key in own if key not in _OPTIONAL_KEYS]
+        missing = [key for key in required if getattr(self, key) is None]
         if missing:
             raise RuleError(
-                f'a {kind} entry must set {_listed(own)}, but this one leaves out '
+                f'a {kind} entry must set {_listed(required)}, but this one leaves out '
                 f'{_listed(missing)}',
                 at=(),
             )
