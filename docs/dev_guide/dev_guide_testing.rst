@@ -176,18 +176,30 @@ below applies it now as well:
    sudo systemd-tmpfiles --create /etc/tmpfiles.d/thp-defrag.conf
    cat /sys/kernel/mm/transparent_hugepage/defrag
 
-To undo it, delete ``/etc/tmpfiles.d/thp-defrag.conf`` and write ``madvise`` back to
-the same ``defrag`` file.
+Before you change the ``defrag`` file, note its current value, because that value
+may not be ``madvise``. To undo the change, delete ``/etc/tmpfiles.d/thp-defrag.conf``
+and write the noted value back to the same file.
 
 Without root, set ``NUMPY_MADVISE_HUGEPAGE=0`` in the environment of the job. NumPy
 then asks for no huge pages, so the kernel has nothing to compact. This comes close
 to what ``defer`` gives, for that job only.
 
+The variable works only when the kernel's ``enabled`` setting is ``madvise`` or
+``never``. At ``always``, the kernel tries to give every process huge pages whether
+or not it asked, and with ``defrag`` at ``always`` it still stalls. Check it with:
+
+.. code-block:: bash
+
+   cat /sys/kernel/mm/transparent_hugepage/enabled
+
+If it shows ``[always]``, the variable does not help, and ``defer`` is the fix.
+
 Continuous integration is unaffected. The GitHub runners are fresh virtual machines
-whose memory is not fragmented, and CI does not run the integration tier. On a
-fragmented machine without the setting, the render-time checks can fail, and the
-1024 by 1024 body and haze checks are the likeliest to. The renders themselves are
-the same either way.
+whose memory is not fragmented. CI runs the integration tests marked
+``sim_integration``, but not the render-time checks in ``test_sim_perf.py``, which are
+marked ``integration`` only. On a fragmented machine without the setting, those checks
+can fail, and the 1024 by 1024 body and haze checks are the likeliest to. The renders
+themselves are the same either way.
 
 Test kinds
 ==========
