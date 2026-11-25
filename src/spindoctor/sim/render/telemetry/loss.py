@@ -616,7 +616,8 @@ def apply_downlink_gaps(
     with ``tail_probability`` the line just below does; such a line keeps a whole
     number of ``step_samples``, its kept share drawn from ``head_kept_percentiles`` or
     ``tail_kept_percentiles``.  A single kept line between two groups can lose its end
-    as either group's neighbor.
+    as either group's neighbor.  A frame whose lines are no wider than one step keeps
+    the lines beside its groups whole.
 
     Parameters:
         signal: The frame's DN image, changed in place.
@@ -643,6 +644,8 @@ def apply_downlink_gaps(
     rows = loci.rows if adversarial and loci.has_rows else None
     layout = _group_layout(rng, count, size_table, cfg, size_v, rows)
     step = int(cfg['step_samples'])
+    # A line no wider than one step cannot keep a step and lose the rest.
+    partial = step < size_u
     groups: list[dict[str, int]] = []
     for start, size in layout:
         end = start + size
@@ -650,11 +653,11 @@ def apply_downlink_gaps(
         groups.append({'row_start': start, 'row_end': end})
     for group in groups:
         start, end = group['row_start'], group['row_end']
-        if start > 0 and mode_activated(rng, float(cfg['head_probability'])):
+        if partial and start > 0 and mode_activated(rng, float(cfg['head_probability'])):
             kept = _kept_samples(rng, cfg['head_kept_percentiles'], size_u, step)
             signal[start - 1, kept:] = marker_dn
             group['head_lost_from'] = kept
-        if end < size_v and mode_activated(rng, float(cfg['tail_probability'])):
+        if partial and end < size_v and mode_activated(rng, float(cfg['tail_probability'])):
             kept = _kept_samples(rng, cfg['tail_kept_percentiles'], size_u, step)
             signal[end, kept:] = marker_dn
             group['tail_lost_from'] = kept

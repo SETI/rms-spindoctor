@@ -431,6 +431,20 @@ def test_a_tail_line_keeps_its_start_and_loses_its_end() -> None:
     assert all(np.all(signal[g['row_end'], : g['tail_lost_from']] == _FILL) for g in tails)
 
 
+def test_a_line_no_wider_than_a_step_loses_no_end() -> None:
+    """Lines one step wide cannot keep a step and lose the rest, so they stay whole."""
+    params = {
+        'mean_groups': 6.0,
+        'size_percentiles': [3.0] * 10,
+        'head_probability': 1.0,
+        'tail_probability': 1.0,
+        'step_samples': 16,
+    }
+    groups = _gaps(params, size_u=16)[1]
+    assert not any('head_lost_from' in g for g in groups)
+    assert not any('tail_lost_from' in g for g in groups)
+
+
 @pytest.mark.parametrize(
     ('key', 'value', 'message'),
     [

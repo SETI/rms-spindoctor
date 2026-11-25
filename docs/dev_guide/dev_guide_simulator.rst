@@ -1991,7 +1991,9 @@ With ``head_probability`` the line just above a group loses its end, and with
 ``step_samples`` from its start, at least one step and all but one at most, its
 kept share drawn from ``head_kept_percentiles`` or ``tail_kept_percentiles``. A
 single kept line between two groups is the line below one and the line above the
-other, and it loses its end when either draw says it does.
+other, and it loses its end when either draw says it does. A frame whose lines
+are no wider than one step keeps the lines beside its groups whole, since such a
+line cannot keep a step and lose the rest.
 
 .. _sim-detector-modes:
 
