@@ -595,12 +595,12 @@ class Config:
             The sections parsed when the configuration was installed.
 
         Raises:
-            RuntimeError: If the configuration is read but holds no parsed sections.
+            RuntimeError: If the configuration is read but its sections were not parsed.
         """
 
         self.read_config()
         if self._sections is None:
-            raise RuntimeError('the configuration is read but holds no parsed sections')
+            raise RuntimeError('the configuration is read but its sections were not parsed')
         return self._sections
 
     @property
@@ -635,7 +635,7 @@ class Config:
 
         self.read_config()
         if self._sections is None:
-            raise RuntimeError('the configuration is read but holds no parsed sections')
+            raise RuntimeError('the configuration is read but its sections were not parsed')
         return self._sections.backplanes
 
     @property
@@ -648,7 +648,7 @@ class Config:
 
         self.read_config()
         if self._sections is None:
-            raise RuntimeError('the configuration is read but holds no parsed sections')
+            raise RuntimeError('the configuration is read but its sections were not parsed')
         return self._sections.pds4
 
 

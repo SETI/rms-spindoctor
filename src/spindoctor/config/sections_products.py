@@ -186,7 +186,7 @@ class TargetEntry:
 
 @dataclass(frozen=True)
 class BackplanesSection:
-    """The ``backplanes`` section: the planes each image gets, and how a bundle names them.
+    """The ``backplanes`` section: each image's planes, and how a bundle labels them.
 
     Parameters:
         bodies: The planes each body in view gets, in the order the products give them.

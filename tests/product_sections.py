@@ -75,7 +75,7 @@ def plane_entry(name: str, units: str, *, method: str | None = None) -> PlaneEnt
             None.
 
     Returns:
-        The entry, with an index block naming its two columns ``minimum_<name>`` and
+        The entry, with an index block that gives its two columns ``minimum_<name>`` and
         ``maximum_<name>``, each ``ASCII_Real`` and described.
     """
     return PlaneEntry(

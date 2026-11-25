@@ -80,7 +80,7 @@ def test_default_config_methods_exist_on_oops_backplane(kind: str) -> None:
     for entry in _config_entries(kind):
         method = entry.method
         assert callable(getattr(Backplane, method, None)), (
-            f'{kind} backplane {entry.name} names unknown oops method {method}'
+            f'{kind} backplane {entry.name} asks for unknown oops method {method}'
         )
 
 
