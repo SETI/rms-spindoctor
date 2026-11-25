@@ -121,7 +121,7 @@ def test_lorri_instrument_defaults_injects_frame_transfer_smear() -> None:
         }
     )
     assert 'frame_transfer_smear' in dp.detector_modes
-    assert dp.detector_modes['frame_transfer_smear']['t_transfer_sec'] == 0.011
+    assert dp.detector_modes['frame_transfer_smear']['t_transfer_sec'] == 0.01235
 
 
 def test_lorri_floor_does_not_inject_frame_transfer_smear() -> None:

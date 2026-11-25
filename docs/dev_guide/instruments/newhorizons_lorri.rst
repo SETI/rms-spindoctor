@@ -291,8 +291,8 @@ lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
 cameras. Its detector model is ``ccd``. The entry lists ``frame_transfer_smear``,
 ``banding``, and ``bias_structure`` under ``artifact_modes.instrument_defaults``, so
-``instrument_defaults`` turns them on: the smear at its nominal scrub and transfer
-times, and the banding as the camera's two published patterns. The first is a
+``instrument_defaults`` turns them on: the smear at its measured transfer times
+(below), and the banding as the camera's two published patterns. The first is a
 random horizontal striping of at most 1 DN that moves from frame to frame (Weaver et
 al. 2020): each row takes its own offset, drawn evenly from within 21 e- of zero.
 The second is vertical banding near the low column numbers, which Cheng et al.
@@ -303,6 +303,31 @@ from the bias frame Weaver et al. show, so both are estimates. A binned frame
 column takes the mean of the wave over the native columns it holds. The entry's
 shape defaults give ``embedded_header`` a 34-pixel header, the binary housekeeping at the
 start of row 0 of every image.
+
+**Frame transfer and integration time.** Both were measured on raw frames. The
+camera collects light for 0.705 ms beyond the commanded exposure, which the entry
+states as ``extra_integration_sec``, and its two frame transfers last 12.35 and
+11.31 ms. On 21 unsaturated full-resolution frames of Io, Europa, Ganymede, Callisto,
+Charon, and Pluto, taken at 3 to 150 ms, each row above or below a bright source
+carries a share of its column's charge. Those shares fit a fixed transfer time
+spread over 1,024 rows and divided by the exposure plus 0.705 ms, to within 0.14 ms.
+Three pairs of Europa frames taken at 5 and 10 ms show the same smear in DN, within
+0.4%, while the exposure doubles. So the transfer time stays fixed, and the extra
+time is light the frame collects. The pipeline's desmear times for short exposures
+show the same effect: the SOC-to-Instrument Pipeline ICD gives 7.1, 8.75, 9.65, and
+10.5 ms at 1, 2, 3, and 6 ms, and the fit gives 6.94, 8.75, 9.58, and 10.59 ms. The
+ICD's 10.7 ms for nominal exposures is below the 11.6 to 11.9 ms that frames at 100
+to 150 ms show, and the reason is not known.
+
+The rows above a source, toward line 0, carry the larger share. On every clean frame
+it is 1.092 times the share of the rows below, the ratio Cheng et al. (2008) give for
+the two transfers (1.044 and 0.956 of their mean). The entry gives the larger time to
+``t_transfer_sec``, which the simulator draws above the source, and the smaller to
+``t_scrub_sec``, which it draws below. Cheng et al. call the larger time the scrub.
+The frames show which side carries which share, but not which transfer causes it, so
+the key names say only where each time is drawn. A simulated 5 ms frame of a bright
+disc carries 2.12e-3 of its column's charge in each row above the disc and 1.94e-3
+in each row below it. The real frame lor_0034849319 carries 2.115e-3 and 1.937e-3.
 
 The entry states an explicit **exclusion reason** for three modes:
 
