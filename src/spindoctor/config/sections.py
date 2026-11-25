@@ -51,12 +51,15 @@ __all__ = [
     'typed_sections_type',
 ]
 
-MAX_UPSAMPLE_FACTOR = 1_000_000
+MAX_UPSAMPLE_FACTOR = 1000
 """The largest FFT upsample factor the ``offset`` section accepts.
 
-A factor above it would push the upsampled correlation peak grid into allocations of
-several gigabytes, which hangs the process rather than failing it.  The bound is far above
-any useful factor, so it never clips a real setting.
+The subpixel refinement evaluates a window of ``factor + 1`` samples on each axis, so its
+allocation grows with the square of the factor.  At this bound, the window and the two DFT
+matrices that produce it take about 65 MB for a 1024-pixel image; at a factor of a
+million the window alone would need about 16 TB, which hangs the process rather than
+failing it.  A factor of 1000 already resolves a thousandth of a pixel, far finer than any
+correlation peak can be located, so the bound never clips a useful setting.
 """
 
 

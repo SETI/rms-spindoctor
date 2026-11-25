@@ -137,7 +137,7 @@ index stores.
       }
 
       class TreeRecordSource {
-          +\_\_init\_\_(roots, *, logger=None, tuning=None)
+          +\_\_init\_\_(roots, *, logger=None, tuning)
           +roots: tuple[str, ...]
       }
 
