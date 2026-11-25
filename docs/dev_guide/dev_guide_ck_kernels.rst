@@ -32,11 +32,15 @@ mechanism is :func:`~spindoctor.support.cmatrix.apply_cmatrix_to_obs` (see
 so the pipeline's own downstream products are built on the same attitude a
 kernel consumer sees.
 
-The two halves share exactly one table -- which spacecraft clock each C-kernel
-object's time tags are encoded against -- and it lives in
+Both halves need to know which spacecraft clock each C-kernel object's time
+tags are encoded against. The attitude computation reads it from the
+observation, where each host gives the CK object and its clock as the
+``ck_object_id`` and ``ck_sclk_id`` subfields, and whether it froze the camera
+frame from one pointing lookup as ``spice_frame_is_frozen``. The writer works
+from navigation records and kernel files rather than observations, and takes
+the clock from :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID` in
 :mod:`spindoctor.spice_ids`, a constants module importing only the standard
-library. Both sides read :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`;
-neither keeps its own copy.
+library. Both check the clock against what ``ckmeta`` resolves.
 
 Frames, and the trap this section exists to avoid
 =================================================
@@ -328,7 +332,7 @@ batch while every image still reported ``status=success``.
 
 Anything that degrades or omits a solution goes to **both** logs: the detail to
 the image log, one line to the run log. A registered instrument that reaches
-navigation with no entry in the frame table is a build defect and warns to both;
+navigation without a CK object from its host is a build defect and warns to both;
 a simulated image, which has no spacecraft and no furnished camera frame, is
 expected and logs at debug.
 
@@ -821,8 +825,9 @@ Invariants
 * **The spacecraft clock table is the resolver; ckmeta is the cross-check.**
   ``ckmeta`` computes rather than validates -- it answers -999 for the
   nonexistent object -999999 and raises for neither -- so both call sites return
-  the value recorded in :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID` even
-  though the check has just proved the two equal. Weakening the check later
+  the value recorded in :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`, or for
+  the attitude computation the value the host gives, even though the check has
+  just proved the two equal. Weakening the check later
   cannot quietly promote ``ckmeta`` back to being the source.
 * **The cspyce error regime is process-wide.** ``cspyce.use_errors()`` /
   ``use_flags()`` is shared with ``oops``; the writer assumes the exceptions
@@ -870,11 +875,14 @@ Adding a mission
 A mission needs four things before its images can carry a corrected attitude,
 and the first two are the ones most easily missed.
 
-1. **A frame identity** in :mod:`spindoctor.support.cmatrix`: the SPICE camera
-   frame name, the CK object a corrected kernel targets, and the constant
-   rotation ``R`` between the ``oops`` observation frame and the SPICE camera
-   frame. Without it, no image of that instrument records a corrected attitude,
-   and the orchestrator warns to both logs when one reaches navigation.
+1. **A frame identity** from the host: the SPICE camera frame name and id
+   (``spice_frame_name`` and ``spice_frame_id``), the CK object a corrected
+   kernel targets and its clock (``ck_object_id`` and ``ck_sclk_id``), whether
+   the frame is frozen (``spice_frame_is_frozen``), and the constant rotation
+   ``R`` between the ``oops`` observation frame and the SPICE camera frame
+   (``spice_to_frame``). Without the CK object, no image of that instrument
+   records a corrected attitude, and the orchestrator warns to both logs when
+   one reaches navigation.
 2. **A row in** :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID` pairing that CK
    object with its spacecraft clock. The clock is not derivable from the object
    by arithmetic: ``-31100 // 1000`` is -32 in Python, which is the other
@@ -884,7 +892,7 @@ and the first two are the ones most easily missed.
    the observation registry, which would drag every host class into a program
    that needs only their names.
 4. **An integration assertion** that the measured ``R`` equals the constant the
-   frame table claims, on a real frame. That is the one check hermetic tests
+   host declares, on a real frame. That is the one check hermetic tests
    cannot make, and the flip is the dominant risk in this subsystem.
 
 An instrument whose observation frame is frozen from a tolerance-snapped lookup,

@@ -1,14 +1,14 @@
-"""SPICE ids shared by the attitude computation and the C-kernel writer.
+"""SPICE ids the C-kernel writer reads.
 
 The first fact recorded here is which spacecraft clock a C-kernel object's time
 tags are encoded against.  ``cspyce.ckmeta`` computes that mapping rather than
 validating it -- it answers -999 for the nonexistent object -999999 without
 raising -- so a wrong CK object id yields a plausible clock id, a successful
-encoding, and silently wrong time tags on every record.  Every consumer
-therefore checks what ``ckmeta`` resolves against the mapping below instead of
-trusting it, and every consumer reads this one mapping: a second copy of these
-numbers is a way for one side's check to rot while the other side's keeps
-passing.
+encoding, and silently wrong time tags on every record.  The writer therefore
+checks what ``ckmeta`` resolves against the mapping below instead of trusting
+it.  The attitude computation makes the same check against the clock each host
+names in an observation's ``ck_sclk_id`` subfield; the writer reads navigation
+records and kernel files rather than observations, so it keeps this copy.
 
 The second is which CK object each Voyager spacecraft's scan platform is, and
 the set of objects whose navigated attitude is frozen across the exposure.

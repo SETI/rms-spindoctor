@@ -4,7 +4,7 @@ Every test builds its own FOV, attitudes and observation stub, so nothing here
 depends on SPICE kernels or holdings.  Each directional test is named for the
 mutation it pins: a change that flips a sign, transposes a matrix, skips the
 conjugation, or removes the identity short-circuit must fail the named test.
-The instrument table lookup is injected via ``_frame_identity`` so a synthetic
+The lookup of the host's frame facts is injected via ``_frame_identity`` so a synthetic
 flip -- including the non-involutory quarter turn no real instrument has -- can
 pin the conjugation's direction.
 """
@@ -328,11 +328,11 @@ def test_a_foreign_midtime_is_refused(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_an_unmapped_host_is_refused() -> None:
-    """An observation whose instrument the frame table does not know is refused.
+    """An observation whose host names no CK object is refused.
 
-    The real table lookup runs here: the stub is no registered instrument, so
-    no expected flip exists to gate against and applying anything would be a
-    guess.
+    The real lookup runs here: the stub carries none of the host's frame
+    subfields, so no expected flip exists to gate against and applying anything
+    would be a guess.
     """
     cmatrix, original, c_oops = _navigated_record(_CASSINI_FLIP)
     obs = _FrameOnlyObs(c_oops)

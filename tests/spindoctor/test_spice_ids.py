@@ -1,11 +1,9 @@
-"""Tests for the shared CK-object-to-spacecraft-clock mapping.
+"""Tests for the C-kernel writer's CK-object-to-spacecraft-clock mapping.
 
 The mapping exists because ``cspyce.ckmeta`` computes a clock id from a CK
-object id instead of validating one, so both the attitude computation and the
-C-kernel writer check what it resolves against a recorded table rather than
-trusting it.  These tests pin the table against SPICE and pin both consumers
-to the table, so the two checks cannot drift apart into one that bites and one
-that no longer does.
+object id instead of validating one, so the C-kernel writer checks what it
+resolves against a recorded table rather than trusting it.  These tests pin the
+table against SPICE and pin the writer to the table.
 
 ``ckmeta`` needs no furnished kernels, so all of this is hermetic.
 """
@@ -21,7 +19,6 @@ from spindoctor.spice_ids import (
     FROZEN_ATTITUDE_CK_IDS,
     VOYAGER_CK_OBJECT_ID,
 )
-from spindoctor.support.cmatrix import _CASSINI_CK_FRAME_ID, _ck_object_sclk_id
 
 # The recorded pairs, in a stable order so a failure names the same case run
 # to run.  Voyager 1 is the pair integer division gets wrong: ``-31100 //
@@ -44,21 +41,6 @@ def test_every_recorded_pair_agrees_with_spice(ck_frame_id: int, sclk_id: int) -
         sclk_id: Spacecraft clock that object's time tags are encoded against.
     """
     assert int(cspyce.ckmeta(ck_frame_id, 'SCLK')) == sclk_id
-
-
-@pytest.mark.parametrize(('ck_frame_id', 'sclk_id'), _RECORDED_PAIRS)
-def test_the_attitude_computation_reads_the_recorded_pair(ck_frame_id: int, sclk_id: int) -> None:
-    """The attitude computation's clock for an object is the recorded one.
-
-    It reads the table rather than computing the clock from the object id,
-    which is the whole point of the table: ``-31100 // 1000`` is -32, the other
-    Voyager, and ``-77001 // 1000`` is -78, which is no spacecraft at all.
-
-    Parameters:
-        ck_frame_id: SPICE id of the object a corrected kernel targets.
-        sclk_id: Spacecraft clock that object's time tags are encoded against.
-    """
-    assert _ck_object_sclk_id(ck_frame_id) == sclk_id
 
 
 @pytest.mark.parametrize(('ck_frame_id', 'sclk_id'), _RECORDED_PAIRS)
@@ -102,6 +84,6 @@ def test_ckmeta_computes_a_clock_for_a_ck_object_that_does_not_exist() -> None:
 
 
 def test_the_recorded_table_is_read_only() -> None:
-    """Neither consumer can edit the table the other one checks against."""
+    """No consumer can edit the table the writer checks against."""
     with pytest.raises(TypeError, match='does not support item assignment'):
-        cast(dict[int, int], CK_OBJECT_SCLK_ID)[_CASSINI_CK_FRAME_ID] = -1
+        cast(dict[int, int], CK_OBJECT_SCLK_ID)[-82000] = -1

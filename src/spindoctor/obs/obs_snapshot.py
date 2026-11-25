@@ -62,6 +62,15 @@ class ObsSnapshot(Obs, Snapshot):
     spice_frame_id: int
     """The SPICE id of the camera frame the observation was built on."""
 
+    ck_object_id: int
+    """The SPICE id of the object whose C kernels give the observation's pointing."""
+
+    ck_sclk_id: int
+    """The SPICE id of the spacecraft clock those C kernels are tagged against."""
+
+    spice_frame_is_frozen: bool
+    """Whether the host froze the camera frame from one pointing lookup."""
+
     def __init__(
         self,
         snapshot: Snapshot,

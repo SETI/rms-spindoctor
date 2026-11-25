@@ -204,8 +204,8 @@ An instrument also needs, in the same change:
    thresholds, extended-FOV margins, PSF parameters, rotation-fitting flag, and
    lone-star ellipse fraction (``one_star_ellipse_fraction``, which loading the
    configuration requires of every camera).
-2. **A SPICE frame identity** in ``_frame_identity``
-   (:mod:`spindoctor.support.cmatrix`) and a clock row in
+2. **A SPICE frame identity** from the host, as the ``ck_object_id``,
+   ``ck_sclk_id``, and ``spice_frame_is_frozen`` subfields, and a clock row in
    :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`, without which no image of
    the instrument records a corrected attitude and none can reach a C-kernel.
    See :doc:`dev_guide_ck_kernels` for the full list of what a mission needs
