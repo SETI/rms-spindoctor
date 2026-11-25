@@ -54,12 +54,12 @@ Scene classes
                                 star scattered off catalog, or a lone star drowned
                                 in clutter); each carries an ``expected`` block
                                 asserted by the sim expected-outcome machinery
-  full_frame_cameras          - one realistic frame per camera it covers (not
-                                every cataloged camera has one): the
-                                camera's real frame size, its detector chain on,
-                                a realistic exposure, a pointing error the size
-                                real frames carry, and the camera's measured
-                                twist with roll fitting off as the cameras ship;
+  full_frame_cameras          - realistic frames from every cataloged flight
+                                camera, each at the camera's real frame size,
+                                with its detector chain on, a realistic
+                                exposure, a pointing error the size real frames
+                                carry, and the camera's measured twist with
+                                roll fitting off as the cameras ship;
                                 its own test module navigates each scene once
                                 and applies all of its checks
   mixed_content               - two kinds of navigable content on one realistic

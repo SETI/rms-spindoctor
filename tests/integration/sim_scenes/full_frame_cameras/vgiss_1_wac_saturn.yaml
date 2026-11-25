@@ -1,0 +1,93 @@
+schema_version: 2
+scene_name: vgiss_1_wac_saturn
+instrument: vgiss_1_wac
+size_v: 1000
+size_u: 1000
+random_seed: 7
+exposure_sec: 7.68
+# A Voyager 1 wide angle GEOMED frame of Saturn on approach, modeled on the
+# library frames C3446143 and C3448723 (VGISS_6108, CH4_JS, 7.68 s).  The
+# planet is 100 px across at a range of 21.7 million km (1,196 km/px), seen
+# at a phase of 13 deg, with its C, B, and A rings at their real radii and the
+# real ring openings: 8.6 deg to the spacecraft and 3.6 deg to the Sun.  The
+# real frames navigate on the planet's disc and limb.  Their navigator models
+# the rings only as an annulus, which it flags spurious, and fits no ring edge,
+# so the scene marks no ring navigable.  The rings are drawn and the navigator
+# does not model them.  The ring plane and the planet's equator lie about
+# 59 deg from the frame's u axis, as in C3446143.  instrument_defaults turns on
+# the camera's vidicon chain: the line and pixel read noise, the banding, and
+# the PSF and distortion residual.
+#
+# A Voyager frame renders in I/F, and the simulator's vidicon DN scale has no
+# exposure term (#907), so the exposure does not change the planet.  The disc
+# peaks near I/F 1.0, where the real one peaks near I/F 0.37: a body takes no
+# albedo key (#895).  The simulated rings read I/F 0.08 to 0.10, a tenth of the
+# disc, where the real rings read 0.1 to 0.2, a third to a half of it.
+#
+# The planted offset, 31.7 px down and left, matches the library frames' 28.8
+# and 33.4 px, which point up and left.  The roll, +0.0227 deg, is 0.28 px at
+# the corner, the frame-to-frame twist scatter measured on both Voyager 2
+# cameras.  No Voyager 1 twist is measured, since no Voyager 1 star frame
+# locks, and the two cameras of one spacecraft share their rotation, so the
+# scene plants the size of the frame-varying twist and both Voyager 1 scenes
+# plant the same value.  Roll fitting is off, as the camera ships.
+artifacts:
+  instrument_defaults: true
+bodies:
+  - name: SATURN
+    center_v: 540.0
+    center_u: 520.0
+    semi_a_px: 45.45
+    semi_b_px: 50.39
+    semi_c_px: 50.39
+    sub_observer_lat_deg: -8.64
+    rotation_z: 58.6
+    illumination_angle: 250.0
+    phase_angle: 13.0
+    range_km: 21700000.0
+ring_system:
+  range_km: 21700000.0
+  km_per_pixel: 1196.0
+  phase_deg: 13.0
+  geometry:
+    center_v: 540.0
+    center_u: 520.0
+    opening_deg_obs: 8.64
+    opening_deg_sun: 3.63
+    node_deg: -58.6
+  features:
+    - name: C_RING
+      kind: ringlet
+      tau: 0.1
+      width_px: 14.50
+      orbit: {a_px: 69.67, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+    - name: B_RING
+      kind: ringlet
+      tau: 1.5
+      width_px: 21.39
+      orbit: {a_px: 87.62, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+    - name: A_RING
+      kind: ringlet
+      tau: 0.6
+      width_px: 12.21
+      orbit: {a_px: 108.25, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+offset_v: 19.63
+offset_u: -24.87
+offset_rotation_deg: 0.0227
+# The disc correlation flags its answer spurious on all 24 distinct draws: its
+# peak lands 25.9 to 26.5 px off, with a peak quality of 3.4 against the
+# threshold of 6, and the coarse and fine passes disagree by 26 px (#TBD).
+# The rings, which the navigator does not model, lower the peak: on the
+# committed draw without them the planet gives a quality of 8.2 and the disc
+# correlation lands 0.20 px off, and with the rings laid along u it lands
+# 0.22 px off at a quality of 3.7, still below the threshold.  On the real
+# frame C3446143,
+# rings and all, the disc correlation reaches a quality of 7.2 and carries the
+# answer.  The limb fit carries the frame alone, 0.40 to 1.05 px off over the
+# 24 draws, at low tier with a 2.5 px sigma; on one draw (random_seed 909) it
+# is flagged spurious too and the blob carries the frame, 0.86 px off.  The
+# block holds the low tier, so a fix that keeps the disc answer fails here
+# until the block is retired.
+expected:
+  status: success
+  confidence_tier: low

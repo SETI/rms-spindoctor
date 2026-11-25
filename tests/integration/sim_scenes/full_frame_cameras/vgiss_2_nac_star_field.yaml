@@ -1,0 +1,55 @@
+schema_version: 2
+scene_name: vgiss_2_nac_star_field
+instrument: vgiss_2_nac
+size_v: 1000
+size_u: 1000
+random_seed: 7
+exposure_sec: 0.48
+# A Voyager 2 narrow angle GEOMED star field, the library frame C1205021
+# (VGISS_8210, the Pleiades, CLEAR, 0.48 s).  The stars are that frame's
+# catalog stars, V 3.7 to 7.7, at the positions the navigator predicts for
+# them at the frame's recorded pointing, over the frame and 400 px around it,
+# the camera's search margin.  On the real frame the star-field fit locks on 7
+# of 11 predicted stars at confidence 0.94.  The sky_counts field adds the faint
+# stars no catalog lists.  instrument_defaults turns on the camera's vidicon
+# chain: the line and pixel read noise, the banding, and the PSF and
+# distortion residual.
+#
+# Simulated Voyager stars are much fainter than real ones of the same
+# magnitude on this camera.  The brightest star in the frame, V 3.9, peaks at
+# I/F 0.07, where on the real frame it peaks near I/F 3; the four Voyager
+# cameras share one placeholder star zero point (#806, #907).
+#
+# The planted offset, 48.6 px, is the size of the real frame's offset (48.7 px)
+# turned to point mostly along -u.  The roll is the camera's measured mean
+# twist, +0.030 deg (0.37 px at the corner), planted with roll fitting off as
+# the camera ships.  The twist varies from frame to frame by 0.28 px at the
+# corner, and the mean lies inside that spread.
+#
+# The fused answer lands 0.02 to 0.54 px off over 24 distinct draws, at medium
+# tier (confidence 0.74 to 0.83).  The refinement carries it on the 5 stars it
+# finds.  The star-field fit locks on 3 of 13 predicted stars by its
+# wide-offset lock at confidence 0.6, and flags its answer spurious on 5
+# draws.  Without the roll the committed draw lands 0.24 px off, against
+# 0.20 px with it.
+artifacts:
+  instrument_defaults: true
+sky_counts: {}
+bodies: []
+stars:
+  - {name: S1, v: 1330.07, u: 886.10, vmag: 3.68}
+  - {name: S2, v: 757.08, u: 411.51, vmag: 3.86}
+  - {name: S3, v: 540.09, u: 728.04, vmag: 4.28}
+  - {name: S4, v: 938.51, u: 927.82, vmag: 5.46}
+  - {name: S5, v: -287.53, u: 762.65, vmag: 5.64}
+  - {name: S6, v: 340.78, u: 376.64, vmag: 5.76}
+  - {name: S7, v: 1304.14, u: -370.65, vmag: 6.27}
+  - {name: S8, v: 398.98, u: 304.67, vmag: 6.42}
+  - {name: S9, v: 408.57, u: -172.23, vmag: 6.82}
+  - {name: S10, v: 830.05, u: 510.29, vmag: 7.18}
+  - {name: S11, v: 1003.07, u: 89.28, vmag: 7.33}
+  - {name: S12, v: 1135.00, u: 201.66, vmag: 7.58}
+  - {name: S13, v: 252.95, u: -377.61, vmag: 7.67}
+offset_v: -12.84
+offset_u: -46.93
+offset_rotation_deg: 0.030

@@ -1,0 +1,60 @@
+schema_version: 2
+scene_name: vgiss_2_wac_star_field
+instrument: vgiss_2_wac
+size_v: 1000
+size_u: 1000
+random_seed: 7
+exposure_sec: 0.48
+# A Voyager 2 wide angle GEOMED star field, modeled on C1204825 (VGISS_8210,
+# Scorpius, CLEAR, 0.48 s), a frame of the twist measurement's cohort.  The
+# stars are that frame's catalog stars, V 2.3 to 6.5, at the positions the
+# navigator predicts for them at the frame's recorded pointing, over the frame
+# and 400 px around it, the camera's search margin.  The real frame navigates
+# on a few bright stars: the star-field fit finds only 2 of 6 predicted stars
+# and returns spurious, and the two-star match and the refinement carry the
+# answer (fused confidence 0.83).  Its brightest star, V 2.6, peaks at I/F 0.27,
+# and the simulated one at I/F 0.23.  The sky_counts field adds the faint stars
+# no catalog lists.  instrument_defaults turns on the camera's vidicon chain:
+# the line and pixel read noise, the banding, and the PSF and distortion
+# residual.
+#
+# The planted offset, 35.2 px up and right, lies inside the 28 to 49 px of the
+# image library's Voyager frames.  The roll is the camera's measured mean
+# twist, +0.358 deg (4.42 px at the corner), planted with roll fitting off as
+# the camera ships.  The 14 locked frames of the twist measurement give 0.30 to
+# 0.39 deg.  A translation cannot undo a roll, so the answer lands where the
+# turned stars it measures moved.  The stars in the frame lie 11 to 512 px from
+# the boresight, the frame center after the offset, and the roll moves them
+# 0.07 to 3.2 px; their mean position moves 1.6 px.
+#
+# The fused answer lands 1.02 to 1.42 px off over 24 distinct draws, at medium
+# tier (confidence 0.70 to 0.79), within 1.8 of its reported sigmas.  The
+# refinement carries it on 6 stars.  The two-star match lands 0.02 to 0.93 px
+# off, and the star-field fit, locking on 3 stars by its wide-offset lock,
+# 0.13 to 0.64 px off.  Without the roll the committed draw lands 0.20 px off,
+# against 1.36 px with it.  That is the error the tolerance holds.
+artifacts:
+  instrument_defaults: true
+sky_counts: {}
+bodies: []
+stars:
+  - {name: S1, v: -84.05, u: 56.58, vmag: 2.28}
+  - {name: S2, v: 767.00, u: 375.80, vmag: 2.60}
+  - {name: S3, v: 513.87, u: 480.41, vmag: 3.93}
+  - {name: S4, v: 456.03, u: 523.94, vmag: 4.32}
+  - {name: S5, v: 884.07, u: 831.36, vmag: 4.35}
+  - {name: S6, v: 768.07, u: 376.14, vmag: 4.52}
+  - {name: S7, v: 884.18, u: 831.36, vmag: 5.30}
+  - {name: S8, v: 394.15, u: -149.63, vmag: 5.84}
+  - {name: S9, v: -378.39, u: 642.35, vmag: 5.86}
+  - {name: S10, v: -360.85, u: 462.95, vmag: 5.89}
+  - {name: S11, v: 860.20, u: -360.02, vmag: 5.96}
+  - {name: S12, v: 669.66, u: 1335.17, vmag: 6.30}
+  - {name: S13, v: 1164.06, u: 1011.55, vmag: 6.33}
+  - {name: S14, v: 398.90, u: 1016.77, vmag: 6.40}
+  - {name: S15, v: 700.90, u: 1184.92, vmag: 6.43}
+  - {name: S16, v: 1213.02, u: 676.13, vmag: 6.44}
+  - {name: S17, v: 887.15, u: 829.88, vmag: 6.50}
+offset_v: -21.46
+offset_u: 27.93
+offset_rotation_deg: 0.358

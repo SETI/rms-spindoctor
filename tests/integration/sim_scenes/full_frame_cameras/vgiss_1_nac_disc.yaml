@@ -1,0 +1,52 @@
+schema_version: 2
+scene_name: vgiss_1_nac_disc
+instrument: vgiss_1_nac
+size_v: 1000
+size_u: 1000
+random_seed: 7
+exposure_sec: 0.24
+# A Voyager 1 narrow angle GEOMED frame of a large icy moon, modeled on
+# C1630824 (VGISS_5115, Ganymede at Jupiter, CLEAR, 0.24 s): the disc is 197 px
+# across at a phase of 32 deg, lit from the lower left, and the frame
+# navigates on the disc correlation and the limb fit (fused confidence 0.99,
+# the two 0.3 px apart).  Of the 444 Voyager 1 narrow angle frames of a moon
+# 100 to 400 px across in the metadata indexes of VGISS_5101 to 6121, 375 show a
+# Galilean satellite or Titan, and 90% were exposed 0.24 to 3.8 s.
+# instrument_defaults turns on the camera's vidicon chain: the line and pixel
+# read noise, the banding, and the PSF and distortion residual.
+#
+# A Voyager frame renders in I/F, and the simulator's vidicon DN scale has no
+# exposure term (#907), so the exposure does not change the disc.  The disc
+# peaks near I/F 1.0, where the real one peaks at 0.5: a body takes no albedo
+# key (#895).
+#
+# The planted offset, 41.6 px down and right, lies inside the 28 to 49 px of
+# the image library's Voyager frames.  The roll, +0.0227 deg, is 0.28 px at the
+# corner, the frame-to-frame twist scatter measured on both Voyager 2 cameras.
+# No Voyager 1 twist is measured, since no Voyager 1 star frame locks, and the
+# two cameras of one spacecraft share their rotation, so the scene plants the
+# size of the frame-varying twist and both Voyager 1 scenes plant the same
+# value.  Roll fitting is off, as the camera ships.
+#
+# The fused answer lands 0.06 to 0.57 px off over 24 distinct draws, at medium
+# tier with confidence 0.99 on every one, from the disc correlation (0.09 to
+# 0.60 px off), the limb fit (0.04 to 0.57 px), and the blob (0.03 to 0.52
+# px).  The random_seed draws spread far wider than the noise_seed draws
+# (0.24 to 0.25 px), so the spread comes from the streams only random_seed
+# reaches.  Without the roll the committed draw lands 0.24 px off, against
+# 0.25 px with it.  The disc correlation searches the camera's 400 px window,
+# so the frame takes one to two minutes to render and navigate.
+artifacts:
+  instrument_defaults: true
+bodies:
+  - name: GANYMEDE
+    center_v: 610.0
+    center_u: 330.0
+    semi_a_px: 98.6
+    semi_b_px: 98.6
+    semi_c_px: 98.6
+    illumination_angle: 250.0
+    phase_angle: 32.0
+offset_v: 33.71
+offset_u: 24.38
+offset_rotation_deg: 0.0227
