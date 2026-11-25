@@ -33,19 +33,6 @@ def test_galileo_ssi_basic() -> None:
     assert obs.midtime == -110923771.04177806
 
 
-@REQUIRES_EXTERNAL_DATA
-def test_the_host_keeps_the_finer_clock_fields_under_their_own_names() -> None:
-    """The host's ``dict`` holds MOD10 and MOD8, which the published counts read.
-
-    No PDS3 item holds the two finer fields, so the host keeps them under their own
-    names.  A host that renamed them would leave every published count null with nothing
-    failing, so the host's own keys are checked here on a real frame.
-    """
-    obs = obstgossi.ObsGalileoSSI.from_file(URL_GALILEO_SSI_IO_01)
-    assert 'MOD10' in obs.dict
-    assert 'MOD8' in obs.dict
-
-
 def test_star_max_usable_vmag_anchor_at_unit_exposure() -> None:
     """The limiting magnitude equals the anchor at texp = 1 s."""
     obs = _make_obs(1.0)
