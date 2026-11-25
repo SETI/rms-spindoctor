@@ -23,6 +23,7 @@ from typing import Any
 import numpy as np
 import pytest
 
+from spindoctor.sim.render.bodies.ellipsoid_grid import cubic_upsample
 from spindoctor.sim.render.bodies.photometry import (
     _lommel_seeliger,
     incidence_cosines,
@@ -360,6 +361,13 @@ def test_starlight_scaled_over_the_covered_box_is_the_whole_frame_scaled() -> No
     scaled = frame.copy()
     scaled[box] *= fraction
     _assert_identical(scaled, frame * transmission)
+
+
+def test_cubic_upsample_into_a_buffer_keeps_a_float32_fields_samples() -> None:
+    """A float32 field upsampled into a reused buffer has the bits it has without one."""
+    field = np.array([[0.0, 1.0], [2.0, 4.0]], dtype=np.float32)
+    buffer = np.full((4, 4), np.nan)
+    _assert_identical(cubic_upsample(field, 2, out=buffer), cubic_upsample(field, 2))
 
 
 # The inputs the plain expressions accept, and what they return for them.

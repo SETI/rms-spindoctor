@@ -273,8 +273,13 @@ def cubic_upsample(
     """
     if factor == 1:
         return field
-    if out is not None:
+    if out is not None and field.dtype == np.float64:
         ndimage.zoom(field, factor, output=out, order=3, grid_mode=True, mode='nearest')
+        return out
+    if out is not None:
+        # Another dtype is interpolated in its own dtype and then converted, as it is
+        # without out, so reusing a buffer leaves every sample as it was.
+        np.copyto(out, ndimage.zoom(field, factor, order=3, grid_mode=True, mode='nearest'))
         return out
     return np.asarray(
         ndimage.zoom(field, factor, order=3, grid_mode=True, mode='nearest'),
