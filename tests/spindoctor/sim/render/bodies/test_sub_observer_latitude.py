@@ -222,6 +222,88 @@ def test_a_scaled_oblate_body_covering_some_pixels_matches_them_at_phase_zero() 
     np.testing.assert_allclose(emission[covered], incidence[covered], rtol=0.0, atol=1e-12)
 
 
+def test_the_incidence_on_a_turned_triaxial_body_is_continuous_across_the_scaled_outline() -> (
+    None
+):
+    """Just inside and just outside a scaled outline the incidence cosines agree.
+
+    The body is triaxial, turned in the image and tipped to a sub-observer latitude.
+    Inside the scaled outline the incidence comes from the scaled surface's normal and
+    outside it from the limb, so they meet only if the limb's normal is the surface's.
+    The outline's radial direction would differ from it by up to 0.6 in cosine.
+    """
+    geometry = EllipsoidGeometry(
+        semi_a=20.0, semi_b=60.0, semi_c=45.0, cos_lat=math.cos(0.5), sin_lat=math.sin(0.5)
+    )
+    rotation, scale = 0.3, 1.3
+    cos_rz, sin_rz = math.cos(rotation), math.sin(rotation)
+    semi_a_outline = math.hypot(20.0 * geometry.cos_lat, 45.0 * geometry.sin_lat)
+    angles = np.linspace(0.0, 2.0 * math.pi, 24, endpoint=False)
+    light_v, light_u, light_z = illumination_vector(illumination_angle=0.4, phase_angle=1.2)
+
+    def incidence(stretch: float) -> NDArrayFloatType:
+        """The incidence cosine at the scaled outline's points moved out by ``stretch``."""
+        v_rot = scale * stretch * semi_a_outline * np.cos(angles)
+        u_rot = scale * stretch * 60.0 * np.sin(angles)
+        e2 = (v_rot / semi_a_outline) ** 2 + (u_rot / 60.0) ** 2
+        limb = haze_geometry.limb_incidence(
+            v_rot * cos_rz + u_rot * sin_rz,
+            -v_rot * sin_rz + u_rot * cos_rz,
+            v_rot,
+            u_rot,
+            e2,
+            geometry=geometry,
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+            illum_v=light_v,
+            illum_u=light_u,
+        )
+        _emission, mu0 = haze_geometry.scaled_body_cosines(
+            v_rot,
+            u_rot,
+            e2,
+            scale=scale,
+            limb_incidence=limb,
+            geometry=geometry,
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+            illum_v=light_v,
+            illum_u=light_u,
+            illum_z=light_z,
+        )
+        return mu0
+
+    np.testing.assert_allclose(incidence(1.0 - 1e-10), incidence(1.0 + 1e-10), rtol=0.0, atol=1e-4)
+
+
+def test_a_pixel_inside_a_turned_body_takes_the_limb_incidence_at_its_azimuth() -> None:
+    """Halfway in from the outline a pixel has the incidence of the outline point beyond it."""
+    projection = project_ellipsoid(
+        (140, 140), (70.0, 70.0), 20.0, semi_b_px=60.0, semi_c_px=45.0, sub_observer_lat=0.5
+    )
+    angles = np.linspace(0.0, 2.0 * math.pi, 12, endpoint=False)
+    light_v, light_u, _light_z = illumination_vector(illumination_angle=0.4, phase_angle=1.2)
+
+    def incidence(fraction: float) -> NDArrayFloatType:
+        """The limb incidence at the outline's points moved in to ``fraction`` of it."""
+        v_rot = fraction * projection.semi_a_outline * np.cos(angles)
+        u_rot = fraction * 60.0 * np.sin(angles)
+        return haze_geometry.limb_incidence(
+            v_rot,
+            u_rot,
+            v_rot,
+            u_rot,
+            np.full(angles.shape, fraction * fraction),
+            geometry=projection.geometry,
+            cos_rz=1.0,
+            sin_rz=0.0,
+            illum_v=light_v,
+            illum_u=light_u,
+        )
+
+    np.testing.assert_allclose(incidence(0.5), incidence(1.0), rtol=0.0, atol=1e-12)
+
+
 def test_faint_relief_on_a_turned_body_shades_like_the_smooth_body() -> None:
     """Relief a millionth of the radius high changes no pixel of a turned body by 1e-4.
 

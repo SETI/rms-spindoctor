@@ -16,9 +16,16 @@ from spindoctor.sim.shared.ellipsoid import (
     surface_normals,
     surface_unit_coords,
 )
+from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['band_bbox', 'column_latitude_sine', 'disc_cosines', 'scaled_body_cosines']
+__all__ = [
+    'band_bbox',
+    'column_latitude_sine',
+    'disc_cosines',
+    'limb_incidence',
+    'scaled_body_cosines',
+]
 
 
 def band_bbox(
@@ -145,6 +152,57 @@ def disc_cosines(
     return emission, incidence
 
 
+def limb_incidence(
+    v_ctr: NDArrayFloatType,
+    u_ctr: NDArrayFloatType,
+    v_rot: NDArrayFloatType,
+    u_rot: NDArrayFloatType,
+    e2: NDArrayFloatType,
+    *,
+    geometry: EllipsoidGeometry,
+    cos_rz: float,
+    sin_rz: float,
+    illum_v: float,
+    illum_u: float,
+) -> NDArrayFloatType:
+    """The incidence cosine of the limb point at each pixel's azimuth on the outline.
+
+    The limb point is where the line from the body center through the pixel crosses the
+    outline.  Its surface normal lies in the image plane, perpendicular to the outline
+    there (:func:`~spindoctor.sim.shared.ellipsoid.surface_normals`), so the incidence
+    cosine is that normal's dot product with the in-plane part of the illumination
+    direction.  A scaled copy of the body has the same incidence cosine where that line
+    crosses the scaled outline, so a pixel's incidence varies smoothly as the scaled
+    outline passes it.  On a sphere the normal points along the line itself, and it is
+    computed that way.
+
+    Parameters:
+        v_ctr: Each pixel's v coordinate relative to the body center, before rotation.
+        u_ctr: Each pixel's u coordinate relative to the body center, before rotation.
+        v_rot: Each pixel's coordinate along the rotated first axis.
+        u_rot: Each pixel's coordinate along the rotated second axis.
+        e2: Each pixel's squared normalized outline distance.
+        geometry: The body's shape and orientation.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+        illum_v: V component of the unit illumination direction.
+        illum_u: U component of the unit illumination direction.
+
+    Returns:
+        The incidence cosine per pixel, negative where the limb faces away from the
+        light.
+    """
+    if geometry.semi_a == geometry.semi_b == geometry.semi_c:
+        rho = np.maximum(stable_hypot(v_ctr, u_ctr), 1e-9)
+        return cast(NDArrayFloatType, (v_ctr * illum_v + u_ctr * illum_u) / rho)
+    # A pixel inside the outline moves out onto it along its azimuth, as one outside
+    # moves in, so every pixel takes the normal of a limb point.
+    normal_v, normal_u, _normal_z = surface_normals(
+        v_rot, u_rot, np.maximum(e2, 1.0), geometry=geometry, cos_rz=cos_rz, sin_rz=sin_rz
+    )
+    return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u)
+
+
 def scaled_body_cosines(
     v_rot: NDArrayFloatType,
     u_rot: NDArrayFloatType,
@@ -165,7 +223,7 @@ def scaled_body_cosines(
     at an image point is the body's own normal at that point divided by the scale
     (:func:`disc_cosines`).  A pixel outside it is a grazing line of sight (emission
     cosine 0) whose incidence is that of the limb at the pixel's azimuth, the column
-    standing above the limb there.
+    standing above the limb there (:func:`limb_incidence`).
 
     Parameters:
         v_rot: Rotated-frame first-axis coordinate of each pixel.

@@ -192,3 +192,36 @@ def test_haze_on_an_oblate_body_follows_its_surface_normal() -> None:
         layers.disc[center, long_axis][long_order],
     )
     np.testing.assert_allclose(layers.disc[short_axis, center], expected, rtol=1e-3)
+
+
+def test_the_glow_over_an_oblate_body_fades_smoothly_past_its_reflecting_level() -> None:
+    """Along a diagonal of an oblate body the glow falls at every pixel past its peak.
+
+    The body is three times wider than it is tall and lit from the side at phase 90.  A
+    thick haze reflects from a level about 1.3 times the body's size, which the diagonal
+    crosses on its way out.  Inside that level the glow takes the scaled surface's
+    incidence and outside it the limb's.  Had the limb's incidence followed the
+    diagonal itself, the glow would jump back up where the two meet.
+    """
+    semi_a, semi_b = 30.0, 90.0
+    projection = project_ellipsoid(
+        (_SIZE, _SIZE), (_CENTER, _CENTER), semi_a, semi_b_px=semi_b, semi_c_px=semi_b
+    )
+    layers = apply_atmosphere(
+        np.zeros((_SIZE, _SIZE)),
+        AtmosphereSpec(scale_height_px=6.0, tau_ref=20.0, g=0.3, albedo=0.9),
+        center_v=_CENTER,
+        center_u=_CENTER,
+        semi_a=semi_a,
+        semi_b=semi_b,
+        semi_c=semi_b,
+        rotation_z=0.0,
+        sub_observer_lat=0.0,
+        illumination_angle=math.radians(90.0),
+        phase_angle=math.radians(90.0),
+        silhouette=(projection.ellipse_dist_sq < 1.0).astype(np.float64),
+    )
+    steps = np.arange(int(semi_a), int(semi_a) + 30)
+    glow = layers.halo.emission[int(_CENTER) - steps, int(_CENTER) + steps]
+    past_peak = glow[int(np.argmax(glow)) :]
+    assert np.all(np.diff(past_peak) < 0.0)

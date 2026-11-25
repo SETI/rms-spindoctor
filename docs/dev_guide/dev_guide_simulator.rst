@@ -3142,7 +3142,10 @@ The haze reflects from the level where the tangent optical depth is 1, or from
 the surface when the column is thinner than that. A thick haze therefore looks
 like a sphere that much larger than the body: across the disc the brightness
 varies as a haze layer's does, out to that sphere's edge, and beyond it the glow
-falls off with the thinning tangent column.
+falls off with the thinning tangent column. Beyond the edge, a pixel takes the
+incidence angle of the edge point on the line from the body center through it,
+measured from the surface normal there, so on an ellipsoid as on a sphere the
+brightness carries smoothly across the edge.
 
 **The surface beneath.** The disc's own shading is multiplied by the direct
 transmission ``exp(-tau_vert * (1 / mu + 1 / mu0))`` of the sunlight coming in

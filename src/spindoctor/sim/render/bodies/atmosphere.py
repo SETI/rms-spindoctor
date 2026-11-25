@@ -116,6 +116,7 @@ from spindoctor.sim.render.bodies.haze import (
 from spindoctor.sim.render.bodies.haze_geometry import (
     band_bbox,
     column_latitude_sine,
+    limb_incidence,
     scaled_body_cosines,
 )
 from spindoctor.sim.render.bodies.haze_scattering import (
@@ -132,7 +133,6 @@ from spindoctor.sim.shared.ellipsoid import (
 )
 from spindoctor.sim.shared.lighting import henyey_greenstein_phase, illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
-from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -750,11 +750,22 @@ def apply_atmosphere(
         """The rotated coordinates, ``e2``, and limb incidence of some pixels, once."""
         key = id(pixels)
         if key not in gathered:
-            v_px = np.broadcast_to(v_ctr, e2.shape)[pixels]
-            u_px = np.broadcast_to(u_ctr, e2.shape)[pixels]
-            rho = np.maximum(stable_hypot(v_px, u_px), 1e-9)
-            limb_mu0 = (v_px * illum_v + u_px * illum_u) / rho
-            gathered[key] = (v_rot[pixels], u_rot[pixels], e2[pixels], limb_mu0)
+            v_rot_px = v_rot[pixels]
+            u_rot_px = u_rot[pixels]
+            e2_px = e2[pixels]
+            limb_mu0 = limb_incidence(
+                np.broadcast_to(v_ctr, e2.shape)[pixels],
+                np.broadcast_to(u_ctr, e2.shape)[pixels],
+                v_rot_px,
+                u_rot_px,
+                e2_px,
+                geometry=geometry,
+                cos_rz=cos_rz,
+                sin_rz=sin_rz,
+                illum_v=illum_v,
+                illum_u=illum_u,
+            )
+            gathered[key] = (v_rot_px, u_rot_px, e2_px, limb_mu0)
         return gathered[key]
 
     def _incidence(
