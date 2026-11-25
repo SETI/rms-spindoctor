@@ -9,8 +9,13 @@ exposure_sec: 1.0
 # (rms 0.25, correlation 12 px on the disc) plus a dark and a bright
 # circular albedo spot.  The texture is truth-side, so the disc correlation
 # sees realistic surface contrast against its smooth Lambert template while
-# the silhouette the limb fit uses is untouched.  Measured behavior: still
-# an accurate success, 0.17 to 0.18 px from the planted value.  The texture pulls
+# the silhouette the limb fit uses is untouched.  The body is as bright as Dione
+# in N1481737141, at 34 deg phase: normal_albedo, 0.455, is that disc's median I/F
+# over the Lommel-Seeliger law's value, counting the pixels where the Sun and the
+# camera are both within about 73 deg of overhead, as the realism match measures
+# it.  The brightest pixel fills 54% of the full well, and no pixel of the real
+# disc reads full scale in its raw product.  Measured behavior: still
+# an accurate success, 0.16 to 0.17 px from the planted value.  The texture pulls
 # the correlation peak, which is the realistic-contrast degradation this scene
 # measures, and the Lambert template's pull toward the Sun on the default
 # Lommel-Seeliger surface (#1110) partly offsets it: on a Lambert surface the fused
@@ -25,6 +30,7 @@ bodies:
     semi_c_px: 70.0
     illumination_angle: 20.0
     phase_angle: 35.0
+    normal_albedo: 0.455
     albedo_texture:
       rms: 0.25
       corr_px: 12.0

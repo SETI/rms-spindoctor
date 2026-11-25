@@ -7,10 +7,13 @@ random_seed: 7
 exposure_sec: 0.18
 # A calibrated Cassini NAC frame of a mid-sized icy moon, 280 px across, at a
 # phase of 35 deg, the kind of frame most of the image library's NAC body
-# frames are.  The CL1+GRN filter and the 0.18 s exposure put the disc at I/F
-# 0.7 to 1.0, under the full well, when the body shaded with the Lambert law.  With
-# the default Lommel-Seeliger law the limb brightens to I/F 1.5, and 607 pixels at
-# the sunlit limb fill the full well.  instrument_defaults turns on the CALIB
+# frames are.  The body is as bright as Dione in N1481737141, at 34 deg phase
+# through RED+GRN: normal_albedo, 0.455, is that disc's median I/F over the
+# Lommel-Seeliger law's value, counting the pixels where the Sun and the camera
+# are both within about 73 deg of overhead, as the realism match measures it.
+# Through CL1+GRN for 0.18 s the brightest pixel at the sunlit limb fills 48% of
+# the full well, and no pixel of the real disc reads full scale in its raw
+# product.  instrument_defaults turns on the CALIB
 # chain: shot, read, and readout-dark noise, the calibration residual, cosmic
 # rays, the calibrated hot-pixel population, and the fitted PSF and distortion
 # residual.
@@ -32,6 +35,7 @@ bodies:
     semi_c_px: 140.0
     illumination_angle: 120.0
     phase_angle: 35.0
+    normal_albedo: 0.455
 offset_v: -31.27
 offset_u: -47.62
 offset_rotation_deg: 0.0115
@@ -40,5 +44,5 @@ expected:
   # The body shades with the default Lommel-Seeliger law, and the navigator's
   # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
   # fused error over the seeds, measured as sim_truth.py describes.
-  known_offset_error_px: 0.3455
-  known_offset_error_tol_px: 0.0585
+  known_offset_error_px: 0.2805
+  known_offset_error_tol_px: 0.0535

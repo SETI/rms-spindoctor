@@ -215,10 +215,11 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
     # stars put it, and the fused answer lies between the two, 0.11 to 0.22 px from the
     # truth; the tolerance stays well below the body techniques' own 1.7 to 1.8 px
-    # errors.  In crescent_stars the fused answer follows the stars, a little off the
-    # disc's 0.01 px.  moon_over_ring_sheet and saturn_rings_wac are expected to
-    # conflict, the first on its ring edges (#755) and the second on its blob (#975).
-    ('crescent_stars', FUSED): _t(0.012, 0.169, 0.157, 0.05),
+    # errors.  In crescent_stars the fused answer follows the stars, which land a
+    # little further off than the disc's 0.03 px.  moon_over_ring_sheet and
+    # saturn_rings_wac are expected to conflict, the first on its ring edges (#755) and
+    # the second on its blob (#975).
+    ('crescent_stars', FUSED): _t(0.016, 0.176, 0.160, 0.05),
     ('stars_body_ephemeris_error', FUSED): _t(0.162, 0.217, 0.110, 0.05),
     # mixed_content, one technique read from the fused run.  StarRefineNav starts from
     # the body's pass-1 answer, which carries the planted 1.81 px error, and still lands
@@ -248,10 +249,10 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # their expected blocks instead (#1110, and #1050 for the relief).
     ('star_equal_brightness', FUSED): _t(0.033, 0.033, 0.002, 0.05),
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
-    # Measured on the 16 noise draws, which keep the albedo texture: 0.169 to 0.175 px.
+    # Measured on the 16 noise draws, which keep the albedo texture: 0.165 to 0.174 px.
     # The Lambert template's pull toward the Sun (#1110) partly offsets the texture's
     # pull, which left 0.363 to 0.368 px on a Lambert surface.
-    ('textured_moon_offset', FUSED): _t(0.175, 0.175, 0.005, 0.05),
+    ('textured_moon_offset', FUSED): _t(0.174, 0.174, 0.008, 0.05),
     # regression, one technique navigated alone.  disc_subpixel_offset's disc
     # correlation carries a known error instead (see KNOWN_ERRORS).
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.033, 0.033, 0.002, 0.05),
@@ -307,7 +308,7 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('saturn_rings_wac', 'BodyBlobNav'): _b(9.427, 9.436, 0.05, 9.377, 9.487),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
     # the limb relief.  The spreads are 0.005 px and 0.040 px.
-    ('textured_moon_offset', 'BodyBlobNav'): _b(0.903, 0.908, 0.05, 0.852, 0.959),
+    ('textured_moon_offset', 'BodyBlobNav'): _b(0.897, 0.905, 0.05, 0.846, 0.956),
     ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.210, 1.250, 0.05, 1.160, 1.300),
     # The annulus correlation lands 0.58 px off on the saturated B ring, unflagged; the
     # saturated edge (#1145) and the unfit twist (#1143) share the edge fit's error.
@@ -322,11 +323,12 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # coiss_nac_stars_moon_lost_lines the blob lands 11.0 to 14.5 px off with every
     # defect present (#975).
     ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(10.999, 14.459, 0.692, 10.307, 15.152),
-    # On nhlorri_moon_raw the frame-transfer smear pulls the blob 6.8 to 7.1 px off;
-    # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
+    # On nhlorri_moon_raw the frame-transfer smear pulls the blob 7.5 to 7.8 px off.  On
+    # a Lambert surface it landed 6.8 to 7.1 px off, and 0.17 to 0.19 px off without the
+    # smear (#975).  The simulated smear is a
     # step at each column's centroid, where the real smear builds up across the disc
     # (#920), so part of the pull may be the simulator's.
-    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(7.502, 7.828, 0.0653, 7.436, 7.894),
+    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(7.502, 7.830, 0.0656, 7.436, 7.896),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),

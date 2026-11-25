@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8118191350250425,
+  "confidence": 0.80898770026766,
   "confidence_rank": "medium",
-  "offset_du_px": 12.38394847869452,
-  "offset_dv_px": 7.719818481275689,
+  "offset_du_px": 12.378508708642567,
+  "offset_dv_px": 7.7217870890784495,
   "scene_name": "crescent_stars",
   "status": "success"
 }

@@ -17,30 +17,33 @@ exposure_sec: 0.06
 # pixels, cosmic rays, banding, bias structure, bloom, and the fitted PSF and
 # distortion residual.
 #
-# The exposure is scaled to the simulator's brightness scale (#895): at the real
-# 100 ms the simulated disc saturates, and at 60 ms a Lambert disc's middle read a
-# median 2,320 DN, where the real disc reads a median 2,230 DN through the table.
-# With the default Lommel-Seeliger law the middle reads about 9% more and 858
-# pixels at the sunlit limb fill the full well.
+# The scene exposes for 60 ms, and normal_albedo, 0.722, makes the disc as bright
+# as N1488892945's once the real frame's codes are decoded through the table: the
+# brightest 1% of the disc reads 2,930 DN above the sky on both frames.  Neither
+# disc fills the full well or reaches the table's top code; the brightest disc
+# pixel reads 3,085 DN here and 3,082 DN on the real frame.  The middle third of
+# the disc reads 2,010 DN, where the real one reads 2,600 DN, because the real
+# Rhea brightens toward its sunlit limb less than the Lommel-Seeliger law does.
 #
 # The simulator's codec steps every DCT frequency alike, where the real one does
-# not, so its step is illustrative.  A step of 128 DN makes the contrast across
-# block edges inside the disc 1.28 times the contrast inside the blocks.  Three
-# real lossy Rhea frames (N1488892945, N1489304826, N1489436684) show 1.04 to
-# 1.51, and this frame without compression 0.94.  The step zeroes more
-# coefficients than the real codec does: 90% of the disc's AC coefficients fall
-# below 5 DN, against 41 to 52% on those frames.
+# not, so its step is illustrative.  On a Lambert disc as bright in the middle as
+# N1488892945's, a step of 128 DN made the contrast across block edges inside the
+# disc 1.28 times the contrast inside the blocks, and that disc without compression
+# showed 0.94.  Three real lossy Rhea frames (N1488892945, N1489304826, and
+# N1489436684) show 1.04 to 1.51.  The step zeroed more coefficients than the real
+# codec does: 90% of the disc's AC coefficients fell below 5 DN, against 41 to 52%
+# on those frames.
 #
 # The planted offset, 20.8 px, lies between the median and the 90th percentile
 # of the operator-verified NAC offsets in the image library (15.9 and 33.9 px),
 # pointing down and right.  The roll is the camera's measured twist,
 # +0.0115 deg, planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.62 to 0.63 px off over 16 distinct draws, toward the
-# Sun, at medium tier on all of them: the scene seeds nothing but the noise, so its
-# noise_seed draws repeat random_seed 101 to 808.  The disc correlation lands 0.68 to
-# 0.69 px off and BodyLimbNav 0.37 to 0.38 px off, and the Lambert template's bias on
-# the Lommel-Seeliger body (#1110) sets those errors.  The table and the compression
+# The fused answer lands 0.48 px off over 16 distinct draws, toward the Sun, at
+# medium tier on all of them: the scene seeds nothing but the noise, so its
+# noise_seed draws repeat random_seed 101 to 808.  The disc correlation lands 0.55 px
+# off and BodyLimbNav 0.25 to 0.28 px off, and the Lambert template's bias on the
+# Lommel-Seeliger body (#1110) sets those errors.  The table and the compression
 # are realistic but did not move the answer on a Lambert surface, where the fused
 # answer landed 0.034 to 0.050 px off: with the compression removed it landed 0.045
 # to 0.047 px off on four draws, and with the table removed 0.041 to 0.042 px.
@@ -59,6 +62,7 @@ bodies:
     semi_c_px: 72.0
     illumination_angle: 70.0
     phase_angle: 29.0
+    normal_albedo: 0.722
 offset_v: 18.43
 offset_u: 9.67
 offset_rotation_deg: 0.0115
@@ -67,5 +71,5 @@ expected:
   # The body shades with the default Lommel-Seeliger law, and the navigator's
   # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
   # fused error over the seeds, measured as sim_truth.py describes.
-  known_offset_error_px: 0.6225
-  known_offset_error_tol_px: 0.0555
+  known_offset_error_px: 0.4795
+  known_offset_error_tol_px: 0.0535
