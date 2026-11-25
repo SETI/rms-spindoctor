@@ -414,7 +414,9 @@ Each real camera is read by a host package, one per mission, whose class method
 - **Missing values.** A host leaves out a value that no label gives, or that a label
   gives as a placeholder such as ``UNK`` or ``N/A``: there is no subfield and no
   ``dict`` key, and never None. A reader therefore tests for the key, and publishes
-  None, or an empty list, in its place.
+  None, or an empty list, in its place. Inside a list the position stays: a missing
+  element is None, as in a Cassini ``OPTICS_TEMPERATURE`` whose rear reading is
+  missing.
 - **Errors.** No host checks the pointing when it reads an image. Where the SPICE
   kernels lack what the image needs, such as its pointing, ``cspyce`` raises its error,
   with the SPICE code, when the observation is first used, which is while the reader
