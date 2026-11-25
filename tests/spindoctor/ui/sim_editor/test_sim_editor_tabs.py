@@ -1157,6 +1157,50 @@ def test_body_atmosphere_detached_spin_disabled_without_shell(model: Any) -> Non
     assert tab.atmosphere_detached_spin.isEnabled() is False
 
 
+def _named_haze_tab(model: Any) -> Any:
+    """Add a second body whose atmosphere takes Titan's haze by name; return its tab."""
+    _body_tab(model)
+    model._add_body_tab({**_body(model), 'name': 'Titan', 'atmosphere': {'haze_model': 'titan'}})
+    return model._tabs.widget(model._find_tab_by_properties('body', 1))
+
+
+def test_body_atmosphere_named_model_disables_the_column_controls(model: Any) -> None:
+    """A named haze model disables every control that would set a column key or a shell."""
+    tab = _named_haze_tab(model)
+    controls = [
+        tab.atmosphere_scale_height_spin,
+        tab.atmosphere_tau_ref_spin,
+        tab.atmosphere_ref_altitude_spin,
+        tab.atmosphere_g_spin,
+        tab.atmosphere_albedo_spin,
+        tab.atmosphere_shell_check,
+        tab.atmosphere_detached_spin,
+    ]
+    assert [control.isEnabled() for control in controls] == [False] * len(controls)
+
+
+def test_body_atmosphere_named_model_ignores_a_spin_edit(model: Any) -> None:
+    """A spin edit leaves a named-model block without a column key."""
+    tab = _named_haze_tab(model)
+    tab.atmosphere_albedo_spin.setValue(0.25)
+    assert model.sim_params['bodies'][1]['atmosphere'] == {'haze_model': 'titan'}
+
+
+def test_body_atmosphere_named_model_ignores_the_shell_check(model: Any) -> None:
+    """Checking the shell leaves a named-model block without a detached shell."""
+    tab = _named_haze_tab(model)
+    tab.atmosphere_shell_check.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere'] == {'haze_model': 'titan'}
+
+
+def test_body_atmosphere_named_model_survives_a_toggle(model: Any) -> None:
+    """Turning the group off and on restores a named-model block as it was."""
+    tab = _named_haze_tab(model)
+    tab.atmosphere_group.setChecked(False)
+    tab.atmosphere_group.setChecked(True)
+    assert model.sim_params['bodies'][1]['atmosphere'] == {'haze_model': 'titan'}
+
+
 def test_body_albedo_toggle_inserts_and_removes(model: Any) -> None:
     """The albedo-texture group inserts the map with a spots list and removes it."""
     tab = _body_tab(model)
