@@ -156,6 +156,13 @@ kernel compacts memory in the background, and the process's memory is upgraded t
 pages later, when a block is free. ``defer+madvise`` does not help, because it keeps
 the stall for the processes that asked for huge pages, and NumPy is one of them.
 
+Before you change anything, note the current value, because it may not be
+``madvise``; undoing the change means writing that value back:
+
+.. code-block:: bash
+
+   cat /sys/kernel/mm/transparent_hugepage/defrag
+
 To apply ``defer`` now, which lasts until the next reboot, and to check it:
 
 .. code-block:: bash
@@ -176,23 +183,29 @@ below applies it now as well:
    sudo systemd-tmpfiles --create /etc/tmpfiles.d/thp-defrag.conf
    cat /sys/kernel/mm/transparent_hugepage/defrag
 
-Before you change the ``defrag`` file, note its current value, because that value
-may not be ``madvise``. To undo the change, delete ``/etc/tmpfiles.d/thp-defrag.conf``
-and write the noted value back to the same file.
+To undo the change, delete ``/etc/tmpfiles.d/thp-defrag.conf`` and write the value you
+noted back to the same file.
 
 Without root, set ``NUMPY_MADVISE_HUGEPAGE=0`` in the environment of the job. NumPy
 then asks for no huge pages, so the kernel has nothing to compact. This comes close
 to what ``defer`` gives, for that job only.
 
-The variable works only when the kernel's ``enabled`` setting is ``madvise`` or
-``never``. At ``always``, the kernel tries to give every process huge pages whether
-or not it asked, and with ``defrag`` at ``always`` it still stalls. Check it with:
+The variable stops NumPy asking, so whether it removes the stall depends on what the
+kernel does for a process that did not ask. Check both settings, and on kernels that
+have them, the per-size settings for 2 MB pages, which can override the top-level
+``enabled``:
 
 .. code-block:: bash
 
    cat /sys/kernel/mm/transparent_hugepage/enabled
+   cat /sys/kernel/mm/transparent_hugepage/defrag
+   cat /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled
 
-If it shows ``[always]``, the variable does not help, and ``defer`` is the fix.
+If huge pages are given only on request (``enabled``, and the 2 MB setting where it
+exists, at ``[madvise]`` or ``[never]``), the variable removes the stall. It also
+removes it when ``enabled`` is ``[always]`` but ``defrag`` is ``[madvise]``, because the
+kernel then compacts only for processes that asked. Only with both at ``[always]`` does
+every process still stall, and then ``defer`` is the fix.
 
 Continuous integration is unaffected. The GitHub runners are fresh virtual machines
 whose memory is not fragmented. CI runs the integration tests marked
