@@ -164,15 +164,15 @@ label. The values have the PDS3 label's types: reals as the label prints them,
 to six decimal places, ``IMAGE_NUMBER`` as text, a time as a ``datetime``, and
 ``IMAGE_OBSERVATION_TYPE`` as a set. A metadata document cannot hold the last
 two, so ``_document_value`` writes them in the form the label parser keeps
-beside each value. A time, a ``datetime`` or a ``date``, is written as the
-parser's PDS3 form of it, which the parser keeps under the keyword with ``_fmt``
-appended. A set is written as a list in the label's order, which the parser
-keeps under the keyword with ``_list`` appended. A time or a set the host took
-from the VICAR label alone has neither. A time is then written as the VICAR
-label writes it, without its trailing ``Z``, a date as ``YYYY-DDD``, and a set
-as a sorted list. A value that a label gives as a
-placeholder (``N/A``, ``UNK``, or ``-999`` in a temperature, a data rate, or a
-compression ratio) is left out, so its attribute is ``None``. The
+beside each value. A time, whether a ``datetime`` or a ``date``, is written as
+the parser's PDS3 form of it, which the parser keeps under the keyword with
+``_fmt`` appended. A set is written as a list in the label's order, which the
+parser keeps under the keyword with ``_list`` appended. A time or a set the host
+took from the VICAR label alone has neither. Then a time is written as the VICAR
+label writes it but without the trailing ``Z``, a date is written as
+``YYYY-DDD``, and a set is written as a sorted list. A value that a label gives
+as a placeholder (``N/A``, ``UNK``, or ``-999`` in a temperature, a data rate,
+or a compression ratio) is left out, so its attribute is ``None``. The
 rms-host-cassini user guide lists the merge rules.
 
 The ``_CALIB.LBL`` describes the calibrated product: its ``DESCRIPTION`` is the

@@ -192,14 +192,15 @@ def _document_value(label: Mapping[str, Any], keyword: str) -> Any:
 
     The host gives each value the type the label parser gives it.  Two kinds of value
     have no form in a metadata document, and the parser keeps a written form of each
-    beside the value.  A time, a :class:`~datetime.datetime` or a
+    beside the value.  A time, whether a :class:`~datetime.datetime` or a
     :class:`~datetime.date`, is written as the parser's PDS3 form of it, which the parser
     keeps under the keyword with ``_fmt`` appended.  A set is written as a list in the
     label's order, which the parser keeps under the keyword with ``_list`` appended.  A
     time or a set that the host took from the VICAR header has neither, because the label
-    parser did not read the header.  A time is then written as the header writes it,
-    ``YYYY-DDDTHH:MM:SS.sss`` without the final ``Z``, a date as ``YYYY-DDD``, and a set
-    as a sorted list.  Every other value is returned as it is.
+    parser did not read the header.  Then a time is written as the header writes it,
+    ``YYYY-DDDTHH:MM:SS.sss``, but without the final ``Z``; a date is written as
+    ``YYYY-DDD``; and a set is written as a sorted list.  Every other value is returned as
+    it is.
 
     Parameters:
         label: The image's metadata, the host's ``dict``.
