@@ -18,6 +18,7 @@ from typing import Any
 import pdslogger
 import pytest
 import sqlalchemy
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.cli.results_index.conftest import (
     rows_of,
 )
@@ -714,6 +715,7 @@ def _selecting_against(url: str, tmp_path: Path, quiet_logger: pdslogger.PdsLogg
         logger=quiet_logger,
         results_index_db_url=url,
         has_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
 
 

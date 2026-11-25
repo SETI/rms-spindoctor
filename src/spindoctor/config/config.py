@@ -33,8 +33,18 @@ from spindoctor.schema import (
 from spindoctor.support.attrdict import AttrDict
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    # nav_records is imported whole so the results_tree annotation is qualified: the
+    # documentation lists its class where it is defined and where it is re-exported, and
+    # a bare name would match both.
+    import spindoctor.nav_records
     from spindoctor.config.logging_keys import LoggingSection
-    from spindoctor.config.sections import OrchestratorSection, TypedSections
+    from spindoctor.config.sections import (
+        EnvironmentSection,
+        GeneralSection,
+        OffsetSection,
+        OrchestratorSection,
+        TypedSections,
+    )
     from spindoctor.config.sections_models import (
         BodiesSection,
         FeatureEmissionSection,
@@ -230,12 +240,8 @@ class Config:
         self._override_paths: list[str] = []
         self._sections: TypedSections | None = None
         self._typed_origins: dict[KeyPath, str] = {}
-        self._config_environment: dict[str, Any] = AttrDict({})
-        self._config_general: dict[str, Any] = AttrDict({})
-        self._config_offset: dict[str, Any] = AttrDict({})
         self._config_body_shape: dict[str, Any] = AttrDict({})
         self._config_rings: dict[str, Any] = AttrDict({})
-        self._config_results_tree: dict[str, Any] = AttrDict({})
 
     @property
     def is_loaded(self) -> bool:
@@ -262,12 +268,8 @@ class Config:
         # category() rebuilds them from the fresh dict (mirrors the named
         # section properties below being reassigned here).
         self._category_cache = {}
-        self._config_environment = AttrDict(self._config_dict.get('environment', {}))
-        self._config_general = AttrDict(self._config_dict.get('general', {}))
-        self._config_offset = AttrDict(self._config_dict.get('offset', {}))
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
         self._config_rings = AttrDict(self._config_dict.get('rings', {}))
-        self._config_results_tree = AttrDict(self._config_dict.get('results_tree', {}))
 
     def _install(
         self,
@@ -480,18 +482,23 @@ class Config:
         return cached
 
     @property
-    def general(self) -> Any:
-        """Returns the general configuration settings."""
+    def general(self) -> GeneralSection:
+        """Returns the general section: settings no single part of the pipeline owns."""
 
-        self.read_config()
-        return self._config_general
+        return self._typed_sections().general
 
     @property
-    def environment(self) -> Any:
-        """Returns the environment configuration settings."""
+    def environment(self) -> EnvironmentSection:
+        """Returns the environment section, which says where a deployment keeps its files.
 
-        self.read_config()
-        return self._config_environment
+        The packaged file leaves every location unset, so a location is None unless an
+        override sets it.  The helpers in :mod:`spindoctor.config.config_helper` define
+        the usual order for a location: the command line, then here, then an environment
+        variable.  A reader may apply its own order, but each takes its location from one
+        of those three places.
+        """
+
+        return self._typed_sections().environment
 
     @property
     def logging(self) -> LoggingSection:
@@ -526,11 +533,10 @@ class Config:
         return list(self._typed_sections().satellites.get(planet.upper(), ()))
 
     @property
-    def offset(self) -> Any:
-        """Returns the offset configuration settings."""
+    def offset(self) -> OffsetSection:
+        """Returns the offset section, which sets how finely a correlation resolves a peak."""
 
-        self.read_config()
-        return self._config_offset
+        return self._typed_sections().offset
 
     @property
     def bodies(self) -> BodiesSection:
@@ -615,15 +621,15 @@ class Config:
         return self._typed_sections().techniques
 
     @property
-    def results_tree(self) -> Any:
+    def results_tree(self) -> spindoctor.nav_records.TreeTuning:
         """Returns how much of a pass over a results tree runs at once.
 
-        :func:`~spindoctor.config.get_results_tree_tuning` is what reads this
-        section into a :class:`~spindoctor.nav_records.TreeTuning`.
+        These settings have no command-line option or environment variable, because they
+        describe a machine rather than a run.  A program reads the section once and
+        passes it to whatever reads the tree.
         """
 
-        self.read_config()
-        return self._config_results_tree
+        return self._typed_sections().results_tree
 
     @property
     def backplanes(self) -> BackplanesSection:

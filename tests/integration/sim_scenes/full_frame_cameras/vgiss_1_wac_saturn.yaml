@@ -1,0 +1,113 @@
+schema_version: 2
+scene_name: vgiss_1_wac_saturn
+instrument: vgiss_1_wac
+size_v: 1000
+size_u: 1000
+random_seed: 7
+exposure_sec: 7.68
+# A Voyager 1 wide angle GEOMED frame of Saturn on approach, modeled on the
+# library frames C3446143 and C3448723 (VGISS_6108, CH4_JS, 7.68 s).  At the
+# SPICE range of 21.7 million km the navigator's camera model gives 58.73 urad
+# per pixel, 1,274.4 km/px, so the planet is 94.6 px across (47.29 px
+# equatorial radius, as measured on C3446143), seen at a phase of 13 deg with
+# the real ring openings: 8.6 deg to the spacecraft and 3.6 deg to the Sun.  The
+# C, B, and A rings run from their inner edges (74,658, 92,000, and 122,170 km)
+# outward by their widths, so the Cassini division falls at 92.3 to 95.9 px, as
+# on the real frame.  The ring plane and the planet's equator lie about 59 deg
+# from the frame's u axis, as in C3446143.  instrument_defaults turns on the
+# camera's vidicon chain: the line and pixel read noise, the banding, and the
+# PSF and distortion residual.
+#
+# The real frames navigate on the planet's disc and limb.  Their navigator
+# models the rings only as an annulus, which it flags spurious, and fits no
+# ring edge, so the scene marks no ring navigable.  The rings are drawn and the
+# navigator does not model them.
+#
+# Brightness follows C3446143.  The real B ring reads about 0.36 of the disc
+# and the C ring 0.15 to 0.25 of it; the ring albedos (C 0.8, B 2.0, A 1.8)
+# give 0.15, 0.39, and 0.35 of the simulated disc at this opening.  The real
+# methane-band disc is much flatter toward the lit limb than a Lambert disc.
+# Normalized to the disc's peak, its profiles along the equator and the polar
+# axis fit a Minnaert disc of k 0.75 best taken together (rms 0.05 and 0.11,
+# against 0.07 and 0.19 for Lambert; k 0.8 fits the equator a little better
+# and the polar axis worse, and k 0.7 fits both a little worse), so the planet
+# takes that law.  A Voyager frame renders in I/F, and the simulator's vidicon DN
+# scale has no exposure term (#907), so the exposure does not change the
+# planet.  The disc peaks near I/F 1.0, where the real one peaks near I/F 0.36:
+# a body takes no albedo key (#895), so the rings' albedos are set against the
+# simulated disc.
+#
+# Not drawn: the real frames sit in the image library's scattered-light class,
+# but their sky glow is faint, 0.005 to 0.008 I/F across C3446143 against a
+# disc peak of 0.33, and the scene does not draw it.  No ring shadow falls on
+# the planet (#896).  The planet is under 100 px across, so the simulated body
+# model emits no limb for it and the limb fit does not run, where the
+# production model fits this limb on C3446143 (#1209).
+#
+# The planted offset, 31.7 px down and left, matches the library frames' 28.8
+# and 33.4 px, which point up and left.  No Voyager 1 twist is measured, since
+# no Voyager 1 star frame locks.  The roll, +0.0227 deg (0.28 px at the
+# corner), is a placeholder: the size of the frame-to-frame twist scatter on
+# both Voyager 2 cameras.  Both Voyager 1 scenes plant it, because rotation is
+# grouped per spacecraft (operator ruling, 2026-11-23).  The only measurement
+# points the other way: the two Voyager 2 cameras' mean twists differ, +0.030
+# and +0.358 deg, so a measured Voyager 1 value may differ between the cameras
+# by far more than the placeholder.  Roll fitting is off, as the camera ships.
+#
+# As on the real frame, the disc correlation passes its quality threshold and
+# carries the answer: over 24 distinct draws its peak quality is 7.34 to 7.48
+# against the threshold of 6 (7.16 on C3446143), and the fused answer lands
+# 0.18 to 0.69 px off at medium tier (confidence 0.81 to 0.84), within 0.93 of
+# its reported sigmas.  The blob lands 0.68 to 1.28 px off.  The navigator's
+# predicted disc is a Lambert disc, since the photometric law is a truth key,
+# so the correlation of a Minnaert disc lands farther off than the 0.2 px of a
+# Lambert one.  Without the roll the committed draw lands 0.36 px off, against
+# 0.34 px with it.
+artifacts:
+  instrument_defaults: true
+bodies:
+  - name: SATURN
+    center_v: 540.0
+    center_u: 520.0
+    semi_a_px: 42.66
+    semi_b_px: 47.29
+    semi_c_px: 47.29
+    sub_observer_lat_deg: -8.64
+    rotation_z: 58.6
+    illumination_angle: 250.0
+    phase_angle: 13.0
+    range_km: 21700000.0
+    photometric_law: minnaert
+    minnaert_k: 0.75
+ring_system:
+  range_km: 21700000.0
+  km_per_pixel: 1274.4
+  phase_deg: 13.0
+  geometry:
+    center_v: 540.0
+    center_u: 520.0
+    opening_deg_obs: 8.64
+    opening_deg_sun: 3.63
+    node_deg: -58.6
+  features:
+    - name: C_RING
+      kind: ringlet
+      tau: 0.1
+      albedo: 0.8
+      width_px: 13.61
+      orbit: {a_px: 58.58, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+    - name: B_RING
+      kind: ringlet
+      tau: 1.5
+      albedo: 2.0
+      width_px: 20.07
+      orbit: {a_px: 72.19, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+    - name: A_RING
+      kind: ringlet
+      tau: 0.6
+      albedo: 1.8
+      width_px: 11.46
+      orbit: {a_px: 95.86, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
+offset_v: 19.63
+offset_u: -24.87
+offset_rotation_deg: 0.0227

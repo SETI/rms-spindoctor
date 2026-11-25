@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import ClassVar, cast
+from typing import ClassVar
 
 import numpy as np
 from PIL import Image, ImageDraw
@@ -166,7 +166,7 @@ class Annotations(NavBase):
             if not annotation.text_info_list:
                 continue
 
-            tt_dir = cast(str, annotation.config.general.truetype_font_dir)
+            tt_dir = annotation.config.general.truetype_font_dir
 
             # We first try to place the label avoiding the masked pixels, but if that
             # fails we go ahead and put the text in those places.

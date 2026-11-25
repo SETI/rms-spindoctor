@@ -25,11 +25,13 @@ lookup so the repository's real user-config file is never picked up.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import re
 from collections.abc import Callable
 from pathlib import Path
 
 import pytest
+from tests.packaged_sections import packaged_sections
 
 from spindoctor.config import Config
 from spindoctor.config.config_helper import (
@@ -40,6 +42,7 @@ from spindoctor.config.config_helper import (
     get_results_index_db_url,
     load_default_and_user_config,
 )
+from spindoctor.config.sections import EnvironmentSection
 
 RootGetter = Callable[[argparse.Namespace, Config], str]
 
@@ -100,8 +103,9 @@ def _clear_root_env(monkeypatch: pytest.MonkeyPatch) -> None:
 def _config_with_environment(environment: dict[str, str | None] | None) -> Config:
     """Build a ``Config`` whose ``environment`` section holds the given keys.
 
-    The internal config dict is seeded directly so ``read_config`` never
-    loads the bundled defaults, keeping the getter tests fast and hermetic.
+    The configuration is seeded directly, over the packaged typed sections, so
+    ``read_config`` never loads the bundled defaults again, keeping the getter tests
+    fast and hermetic.
 
     Parameters:
         environment: Mapping to expose as ``config.environment``, or None for
@@ -113,7 +117,9 @@ def _config_with_environment(environment: dict[str, str | None] | None) -> Confi
 
     config = Config()
     config._config_dict = {'environment': dict(environment or {})}
-    config._update_attrdicts()
+    config._sections = dataclasses.replace(
+        packaged_sections(), environment=EnvironmentSection(**(environment or {}))
+    )
     return config
 
 
@@ -729,7 +735,7 @@ def test_load_explicit_config_files_skip_user_default(
     config = Config()
     load_default_and_user_config(argparse.Namespace(config_file=[str(explicit)]), config)
     assert config.environment.nav_results_root == '/explicit'
-    assert 'backplane_results_root' not in config.environment
+    assert config.environment.backplane_results_root is None
 
 
 def test_load_missing_explicit_config_file_raises(

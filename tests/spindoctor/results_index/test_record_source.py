@@ -27,6 +27,7 @@ import pdslogger
 import pytest
 import sqlalchemy
 from sqlalchemy.engine import Engine
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import (
     index_url,
     ingest_tree,
@@ -232,7 +233,9 @@ def _index_over(held: TwoRoots, *which: Path) -> IndexRecordSource:
     Returns:
         The source, which the caller closes.
     """
-    source = open_record_source(list(which), results_index_db_url=held.url, columns=COLUMNS)
+    source = open_record_source(
+        list(which), results_index_db_url=held.url, columns=COLUMNS, tuning=packaged_tree_tuning()
+    )
     assert isinstance(source, IndexRecordSource)
     return source
 
@@ -543,7 +546,9 @@ def test_a_time_bound_drops_a_row_recording_no_midtime(
     write_metadata(root, FIRST_STUB, metadata_document(instrument=MISSION, times=None))
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=quiet_logger)
-    with open_record_source([root], results_index_db_url=url, columns=COLUMNS) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, columns=COLUMNS, tuning=packaged_tree_tuning()
+    ) as source:
         found = list(source.records(Selection(start_et=0.0)))
     assert found == []
 
@@ -1032,7 +1037,7 @@ def _tree_over(held: TwoRoots) -> TreeRecordSource:
     Returns:
         The source.
     """
-    return TreeRecordSource([held.first])
+    return TreeRecordSource([held.first], tuning=packaged_tree_tuning())
 
 
 def test_the_two_storages_list_the_same_files(two_roots: TwoRoots) -> None:
@@ -1160,7 +1165,7 @@ def test_the_two_storages_refuse_a_bare_stub_alike(two_roots: TwoRoots) -> None:
     Parameters:
         two_roots: The two ingested roots and their index.
     """
-    tree = TreeRecordSource([two_roots.first, two_roots.second])
+    tree = TreeRecordSource([two_roots.first, two_roots.second], tuning=packaged_tree_tuning())
     with (
         _index_over(two_roots, two_roots.first, two_roots.second) as source,
         pytest.raises(ValueError) as from_index,
@@ -1324,7 +1329,7 @@ def test_no_index_url_reads_the_documents(tmp_path: Path) -> None:
     """
     root = tmp_path / 'results'
     write_metadata(root, FIRST_STUB, metadata_document())
-    with open_record_source([root]) as source:
+    with open_record_source([root], tuning=packaged_tree_tuning()) as source:
         assert isinstance(source, TreeRecordSource)
 
 
@@ -1335,7 +1340,10 @@ def test_an_index_url_reads_the_index(two_roots: TwoRoots) -> None:
         two_roots: The two ingested roots and their index.
     """
     with open_record_source(
-        [two_roots.first], results_index_db_url=two_roots.url, columns=COLUMNS
+        [two_roots.first],
+        results_index_db_url=two_roots.url,
+        columns=COLUMNS,
+        tuning=packaged_tree_tuning(),
     ) as source:
         assert isinstance(source, IndexRecordSource)
 
@@ -1347,7 +1355,7 @@ def test_a_source_opened_over_no_root_at_all_is_refused(tmp_path: Path) -> None:
         tmp_path: Directory the test would otherwise write under.
     """
     with pytest.raises(ValueError, match='at least one results root'):
-        open_record_source([])
+        open_record_source([], tuning=packaged_tree_tuning())
 
 
 def test_every_root_is_checked_before_anything_is_read(
@@ -1367,7 +1375,12 @@ def test_every_root_is_checked_before_anything_is_read(
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [first], logger=quiet_logger)
     with pytest.raises(ValueError, match='no completed ingest'):
-        open_record_source([first, second], results_index_db_url=url, columns=COLUMNS)
+        open_record_source(
+            [first, second],
+            results_index_db_url=url,
+            columns=COLUMNS,
+            tuning=packaged_tree_tuning(),
+        )
 
 
 def test_opening_for_a_root_nobody_ingested_is_refused(tmp_path: Path) -> None:
@@ -1381,7 +1394,9 @@ def test_opening_for_a_root_nobody_ingested_is_refused(tmp_path: Path) -> None:
     url = index_url(tmp_path / 'index.sqlite3')
     open_index(url, create=True).dispose()
     with pytest.raises(ValueError, match='no completed ingest'):
-        open_record_source([root], results_index_db_url=url, columns=COLUMNS)
+        open_record_source(
+            [root], results_index_db_url=url, columns=COLUMNS, tuning=packaged_tree_tuning()
+        )
 
 
 class _WatchedEngine:
@@ -1459,7 +1474,7 @@ def test_the_documents_are_read_through_the_callers_own_logger(
     (root / 'VOL2').mkdir(parents=True, exist_ok=True)
     (root / 'VOL2' / 'again').symlink_to(root / 'VOL1', target_is_directory=True)
     logger = pdslogger.PdsLogger('record_source_test', lognames=False)
-    with open_record_source([root], logger=logger) as source:
+    with open_record_source([root], logger=logger, tuning=packaged_tree_tuning()) as source:
         list(source.listing(Selection()))
     assert 'reached a second way' in capsys.readouterr().out
 
@@ -1471,7 +1486,10 @@ def test_an_index_backed_run_reads_the_columns_it_declared(two_roots: TwoRoots) 
         two_roots: The two ingested roots and their index.
     """
     with open_record_source(
-        [two_roots.first], results_index_db_url=two_roots.url, columns=(IMAGES.c.status,)
+        [two_roots.first],
+        results_index_db_url=two_roots.url,
+        columns=(IMAGES.c.status,),
+        tuning=packaged_tree_tuning(),
     ) as source:
         rebuilt = source.record(FIRST_STUB).metadata
     assert 'offset' not in rebuilt
@@ -1516,7 +1534,7 @@ def test_a_stub_that_escapes_the_root_is_refused_by_the_document_source(tmp_path
     write_metadata(root, FIRST_STUB, metadata_document())
     (tmp_path / f'elsewhere{METADATA_SUFFIX}').write_text(json.dumps({'status': 'success'}))
     with (
-        open_record_source([root]) as source,
+        open_record_source([root], tuning=packaged_tree_tuning()) as source,
         pytest.raises(FileNotFoundError, match='names a parent directory'),
     ):
         source.record('../elsewhere')

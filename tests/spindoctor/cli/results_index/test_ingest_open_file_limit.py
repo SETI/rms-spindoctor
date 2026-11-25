@@ -15,6 +15,7 @@ tested beside it, in ``tests/spindoctor/nav_records/test_descriptors.py``.
 from typing import Any, cast
 
 import pytest
+from tests.packaged_sections import packaged_tree_tuning
 
 from spindoctor.cli.results_index import driver, tasks
 from spindoctor.config import MAIN_LOGGER
@@ -55,7 +56,7 @@ def test_an_ingest_is_bounded_before_it_walks_a_root(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(driver, 'within_open_file_limit', _recording(seen))
     with pytest.raises(_Bounded):
         driver.ingest_metadata_files(
-            cast(Any, None), [ROOT], logger=MAIN_LOGGER, tuning=TreeTuning()
+            cast(Any, None), [ROOT], logger=MAIN_LOGGER, tuning=packaged_tree_tuning()
         )
     assert seen == [[ROOT]]
 
@@ -72,7 +73,10 @@ def test_a_fan_out_is_bounded_once_for_every_root_it_divides(
     monkeypatch.setattr(tasks, 'within_open_file_limit', _recording(seen))
     with pytest.raises(_Bounded):
         tasks.fan_out_ingest_tasks(
-            cast(Any, None), [ROOT, ROOT + '-two'], logger=MAIN_LOGGER, tuning=TreeTuning()
+            cast(Any, None),
+            [ROOT, ROOT + '-two'],
+            logger=MAIN_LOGGER,
+            tuning=packaged_tree_tuning(),
         )
     assert seen == [[ROOT, ROOT + '-two']]
 
@@ -93,5 +97,7 @@ def test_a_task_share_is_bounded_by_its_own_root(monkeypatch: pytest.MonkeyPatch
         ),
     )
     with pytest.raises(_Bounded):
-        tasks.ingest_task_share(cast(Any, None), {}, logger=MAIN_LOGGER, tuning=TreeTuning())
+        tasks.ingest_task_share(
+            cast(Any, None), {}, logger=MAIN_LOGGER, tuning=packaged_tree_tuning()
+        )
     assert seen == [[ROOT]]

@@ -24,6 +24,7 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import (
     index_url,
     ingest_tree,
@@ -43,7 +44,6 @@ from spindoctor.nav_records import (
     ImageFacts,
     ListedRecord,
     Selection,
-    TreeTuning,
     UnreadableFile,
 )
 
@@ -261,7 +261,12 @@ def _answering(
     root = _write_roots(tmp_path)
     url = _ingested(tmp_path, root) if from_an_index else None
     results_filter = ResultsFilter(
-        volumes, str(root), logger=null_logger(), results_index_db_url=url, **flags
+        volumes,
+        str(root),
+        logger=null_logger(),
+        results_index_db_url=url,
+        tuning=packaged_tree_tuning(),
+        **flags,
     )
     return select_from(results_filter, _candidate_files(root))
 
@@ -486,7 +491,12 @@ def test_a_relative_results_root_names_the_root_the_ingest_recorded(
     url = _ingested(tmp_path, root)
     monkeypatch.chdir(tmp_path)
     results_filter = ResultsFilter(
-        VOLUMES, root.name, logger=null_logger(), results_index_db_url=url, has_offset_file=True
+        VOLUMES,
+        root.name,
+        logger=null_logger(),
+        results_index_db_url=url,
+        has_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     assert select_from(results_filter, _candidate_files(root)) == [
         SELECTED,
@@ -516,6 +526,7 @@ def test_a_root_named_through_a_parent_segment_is_the_root_the_ingest_recorded(
         logger=null_logger(),
         results_index_db_url=url,
         has_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     assert select_from(results_filter, _candidate_files(root)) == [
         SELECTED,
@@ -710,7 +721,12 @@ def _subtrees_asked_about(
 
     monkeypatch.setattr(results_filter, 'open_record_source', recording)
     ResultsFilter(
-        iter(VOLUMES), str(tmp_path), logger=null_logger(), results_index_db_url=None, **flags
+        iter(VOLUMES),
+        str(tmp_path),
+        logger=null_logger(),
+        results_index_db_url=None,
+        tuning=packaged_tree_tuning(),
+        **flags,
     )
     return asked
 
@@ -736,7 +752,11 @@ def _stubs_named_by_a_batch(
 
     monkeypatch.setattr(results_filter, 'open_record_source', recording)
     with ResultsFilter(
-        VOLUMES, str(tmp_path), logger=null_logger(), has_offset_error=True
+        VOLUMES,
+        str(tmp_path),
+        logger=null_logger(),
+        has_offset_error=True,
+        tuning=packaged_tree_tuning(),
     ) as results_filter_under_test:
         results_filter_under_test.filter_batch(
             [
@@ -773,7 +793,11 @@ def _stubs_listed_by_a_batch(
 
     monkeypatch.setattr(results_filter, 'open_record_source', recording)
     with ResultsFilter(
-        VOLUMES, str(tmp_path), logger=null_logger(), has_no_offset_file=True
+        VOLUMES,
+        str(tmp_path),
+        logger=null_logger(),
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     ) as results_filter_under_test:
         results_filter_under_test.filter_batch(
             [
@@ -884,7 +908,12 @@ def _source_of(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, **flags: Any) ->
 
     monkeypatch.setattr(results_filter, 'open_record_source', recording)
     with ResultsFilter(
-        VOLUMES, str(tmp_path), logger=null_logger(), results_index_db_url=None, **flags
+        VOLUMES,
+        str(tmp_path),
+        logger=null_logger(),
+        results_index_db_url=None,
+        tuning=packaged_tree_tuning(),
+        **flags,
     ):
         pass
     return source
@@ -964,7 +993,12 @@ def test_only_a_filter_that_reads_documents_asks_the_enumeration_to_batch(
         batches: Whether this filter has anything left to ask per batch.
     """
     with ResultsFilter(
-        VOLUMES, str(tmp_path), logger=null_logger(), results_index_db_url=None, **flags
+        VOLUMES,
+        str(tmp_path),
+        logger=null_logger(),
+        results_index_db_url=None,
+        tuning=packaged_tree_tuning(),
+        **flags,
     ) as results_filter_under_test:
         assert results_filter_under_test.needs_batch_filtering is batches
 
@@ -997,7 +1031,7 @@ def test_the_tuning_the_filter_is_given_reaches_the_storage_it_opens(
         return _RecordingSource([], [])
 
     monkeypatch.setattr(results_filter, 'open_record_source', recording)
-    tuning = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    tuning = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     with ResultsFilter(
         VOLUMES, str(tmp_path), logger=null_logger(), has_offset_file=True, tuning=tuning
     ):
