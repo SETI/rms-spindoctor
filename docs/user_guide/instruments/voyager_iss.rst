@@ -163,6 +163,20 @@ saturation threshold applies: the reported saturation fraction is always zero
 and the early-out that abandons a fully overexposed image never fires. There is
 no raw Voyager product the pipeline can navigate instead.
 
+**Stars.** The faintest catalog star the navigator looks for depends on the
+camera, the exposure, the filter, and the gain state. At 1 s through the clear
+filter at low gain it is magnitude 8.2 for the Voyager 2 narrow-angle camera, 6.3 for
+the Voyager 2 wide-angle camera, 7.8 for the Voyager 1 narrow-angle camera, and 5.7
+for the Voyager 1 wide-angle camera. Each factor of ten in exposure reaches 2.5
+magnitudes deeper, high gain reaches about 1.5 magnitudes deeper, and the other
+filters reach 0.7 to 5.4 magnitudes less deep than the clear one. The navigator
+expects a star's light to spread with a Gaussian sigma of 1.2 pixels on the Voyager 2
+narrow-angle camera and 1.1 pixels on the Voyager 2 wide-angle camera. The Voyager 2
+values were measured on star fields whose pointing the stars alone fixed. Only three
+Voyager 1 frames could be fixed that way, so the Voyager 1 limits are scaled from
+Voyager 2's by the cameras' sensitivities measured before launch, and the Voyager 1
+star width is a placeholder of 3 pixels.
+
 **Missing pixels.** The marker is ``0``.
 
 **Classification thresholds.** An image whose data stays below 1.0e-4 in I/F is
@@ -333,6 +347,9 @@ Known limitations
   enough that the numbers themselves are of low confidence.
 * The Voyager 1 cameras have no twist or distortion measurement at all: the
   cohort holds no Voyager 1 frame that locked.
+* The Voyager 1 star limits are scaled from Voyager 2 rather than measured, and the
+  Voyager 1 star width is a placeholder, about two and a half times the Voyager 2
+  values.
 * The four simulator cameras carry the same distortion parameters, taken
   from the Voyager 2 wide angle measurement, which under-represents the spread
   between the four cameras' optics.

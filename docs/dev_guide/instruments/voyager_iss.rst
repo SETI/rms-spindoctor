@@ -186,30 +186,106 @@ and should move with the flag if the flag moves.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** The Pogson-ratio form,
-``anchor + log(texp) / log(2.512)``, with a **per-camera anchor** selected from
-the oops detector. Both are **derived rather than measured**, from the
-project's reference anchor of 10.5 magnitudes at a 1 s exposure for a 0.19 m
-aperture, scaled by collecting area and then penalized for the detector:
+**Limiting magnitude.** Photometric, from the ``voyager_iss_star_photometry`` section
+(:class:`~spindoctor.obs.star_photometry_voyager_iss.VoyagerISSStarPhotometrySection`),
+which has one entry per camera, ``vg1_nac``, ``vg1_wac``, ``vg2_nac``, and
+``vg2_wac``, chosen by the label's spacecraft digit and the oops detector. A vidicon
+counts no electrons, so the rate is in raw DN, and the gain state multiplies it. A
+star of V magnitude ``m`` puts
 
-.. code-block:: text
+.. math::
 
-   NAC: 10.5 + 5*log10(0.176/0.19) - 2.0 (vidicon)  ~= 8.3
-   WAC: 10.5 + 5*log10(0.057/0.19) - 2.0 (vidicon)  ~= 5.9
+    \mathrm{DN} = R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}} \cdot k
 
-The -2.0 vidicon term is there because a vidicon is roughly two magnitudes less
-sensitive than a CCD. Combined with the wide angle camera's small aperture, it
-puts the wide angle anchor at 5.9, which is why star navigation locks on so few
-of these frames. All of it is a nominal-optics estimate pending calibration
-against real star fields. A non-positive exposure time falls back to the
-anchor.
+in the raw frame, where ``R`` is the camera's ``flux_dn_per_s_vmag0`` (raw DN per
+second for a V = 0 star through CLEAR at low gain), ``f`` is the frame's filter's
+``filter_mag_offset``, and ``k`` is the ``dn_gain_factor`` of its gain state. The
+dimmest visible star puts ``min_detectable_dn`` in the frame, and the limit is that
+star's magnitude plus ``search_depth_mag`` (1.0). The navigator's image is in I/F,
+but the limit depends only on the ratio of the rate to ``min_detectable_dn``, and
+those share a scale. The filter and the gain state (``LO GAIN`` or ``HI GAIN``, read
+as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame whose
+filter or gain state the camera's entry lacks is refused, and a non-positive
+exposure returns ``-inf``, since it records no starlight.
+
+.. list-table:: Each camera's values, and its limit at 1 s through CLEAR at low gain
+   :header-rows: 1
+
+   * - Camera
+     - Rate (DN/s)
+     - High-gain factor
+     - ``min_detectable_dn``
+     - Limit at 1 s
+   * - Voyager 1 narrow angle
+     - 5.61e4
+     - 3.92
+     - 110
+     - V 7.8
+   * - Voyager 1 wide angle
+     - 2.74e3
+     - 3.94
+     - 35
+     - V 5.7
+   * - Voyager 2 narrow angle
+     - 8.66e4
+     - 4.24
+     - 110
+     - V 8.2
+   * - Voyager 2 wide angle
+     - 4.6e3
+     - 4.04
+     - 35
+     - V 6.3
+
+The Voyager 2 values were measured in 2026 on star fields of its cruise and
+encounters, read through the navigator's own reader and photometered on the raw
+vidicon frame. Each frame's pointing was found from the stars alone, by a vote over
+star and peak pairs refined to a translation and a rotation, and a frame was kept
+when three or more stars agreed within 1.5 px and the chance of such a cluster
+anywhere in the 400 px search window was below one in a thousand. That kept 37
+narrow-angle and 51 wide-angle frames, and one frame in three was held out of the
+fit.
+
+- The narrow-angle rate is the fit of 53 stars (+-0.07 mag). The wide-angle rate
+  rests on 13 bright Tycho stars (+-0.20 mag). Fainter wide-angle stars, V 8 to 10,
+  read 1.1 to 1.5 mag brighter than that rate predicts, which points to a
+  compressive vidicon response at high signal.
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to every clean
+  star, reaches 80% of the way from its floor to its plateau: 109 +- 67 DN on the
+  narrow-angle camera and 35 +- 15 DN on the wide-angle camera.
+- Every measured frame is at low gain, so the high-gain factor is the published
+  constant ``g`` of Benesh and Jepsen (1978, Table 4-3) for the camera's serial
+  number.
+- The filter offsets are 2.5 log10 of each camera's solar filter factors (Benesh
+  and Jepsen 1978). The narrow-angle VIOLET offset is measured instead, 1.68 +- 0.24
+  mag from 4 stars, against the published 1.34.
+
+Voyager 1 gave only three such frames, too few to fit. Its rates are Voyager 2's for
+the same kind of camera, scaled by the bench sensitivities Benesh and Jepsen (1978)
+measured before launch: the clear, low-gain light-transfer slope in DN per
+foot-lambert-second over the solar conversion factor of each serial number. Voyager
+1's cameras are S/N 07 (narrow angle) and S/N 06 (wide angle), Voyager 2's S/N 05
+and S/N 04, so the narrow-angle rate is scaled by 0.648 and the wide-angle rate by
+0.600. Voyager 1 keeps its own filter factors and high-gain constants, and takes
+Voyager 2's ``min_detectable_dn``.
+
+On the held-out Voyager 2 frames, the faintest star detected lies a median 0.02 mag
+inside the predicted dimmest visible star on the narrow-angle camera, and 1.37 mag
+past it on the wide-angle camera, with broad spreads, so the limit carries about half
+a magnitude of uncertainty.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** ``star_psf_sigma`` is 3.0 and ``star_psf_sizes`` is a single
-``100: [7, 7]``, so every star gets a 7x7 cutout regardless of magnitude and
-regardless of camera.
+**PSF.** Each camera's star sigma is its entry's ``star_psf_sigma``, in pixels of the
+geometrically corrected image. On Voyager 2 it is the median Gaussian sigma of stars
+on frames read out at 5:1: 1.2 px for the narrow-angle camera (53 stars on 15
+frames) and 1.1 px for the wide-angle camera (213 stars on 26 frames). A star's core
+is about 0.8 px, and platform motion elongates a long exposure. The Voyager 1 values
+are a 3.0 px placeholder, since its three frames hold too few stars to fit. The
+camera block's ``star_psf_sigma`` is read only by the simulator, which emulates all
+four cameras from that block. ``star_psf_sizes`` is a single ``100: [7, 7]``, so
+every star gets a 7x7 cutout regardless of magnitude and regardless of camera.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
 entry with a default of 0.0. Both are placeholders.
@@ -218,12 +294,12 @@ entry with a default of 0.0. Both are placeholders.
 comment records why the units are DN rather than electrons: a vidicon has no
 electron domain, so it renders point sources directly in DN.
 
-**Recalibrating.** The cohort holds one star frame for this instrument, and the
-geometric resampling the navigated product has been through defeats a kernel
-fit made through it -- eight usable cutouts survive, and the flat-top guard
-leaves only two simulated cutouts to compare against. Recalibration therefore
-needs more star frames, and per-camera anchors need star frames on each camera
-of each spacecraft.
+**Recalibrating.** The measurement tools are in ``util/star_photometry``; its Voyager
+frame selection and the fit are described in its module docstrings. The cohort's one
+star frame cannot constrain a kernel through the geometric resampling: eight usable
+cutouts survive, and the flat-top guard leaves only two simulated cutouts to compare
+against. Rerun the fit on new star fields, on each camera of each spacecraft, and
+update the camera's entry and its comments together.
 
 Frames, attitude, and rotation fitting
 ======================================
@@ -512,7 +588,10 @@ the correction already furnished.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
 spacecraft-digit parser and all four of its refusals, the I/F factor parser and
-all three of its refusals, the per-camera limiting-magnitude anchors, the
+all three of its refusals, each camera's star limit at 1 s through CLEAR at low gain
+and its shifts with exposure, gain state, and filter, ``-inf`` for a non-positive
+exposure, the refusal of a filter or gain state the camera's entry lacks, each
+camera's star sigma, the
 per-spacecraft metadata LIDs, and the published clock counts: fractional
 leading units with no midtime count, read from the PDS3 label beside the image.
 
@@ -565,8 +644,11 @@ Open items
   should be on. Revisiting it means both speeding the rotation search and
   accepting the loss of corrected C-kernels for this instrument, or recording
   the rotation pivot so the two can coexist.
-* Both limiting-magnitude anchors are nominal-optics derivations rather than
-  measurements, and the cohort holds one star frame.
+* The Voyager 1 star limits are scaled from Voyager 2 by bench sensitivities, and
+  the Voyager 1 star sigma is a placeholder: only three Voyager 1 star frames gave a
+  pointing fix.
+* The wide-angle rate rests on 13 bright stars, and fainter stars read brighter than
+  it predicts.
 * The four simulator cameras carry the same distortion block and PSF kernel
   numbers, although each camera's optics are its own.
 * The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the

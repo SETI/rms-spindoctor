@@ -133,6 +133,15 @@ returns the typed object:
   accepts is known only when the program runs; see :doc:`dev_guide_logging`.
 - ``techniques`` — one block per technique the package ships: its confidence formula
   and its tuning (see :ref:`config-techniques-section`).
+- ``<instrument>_star_photometry`` — an instrument's star photometry: the DN rate of a
+  V = 0 star, the gain and filter terms, the minimum detectable DN, the search depth,
+  and the star sigma, with one entry per camera. An instrument with such a section
+  computes its star limit in the photometric form (see
+  :doc:`dev_guide_navigation_models_star`) and reads its star sigma there. Each section
+  has its own dataclass, because the instruments' detectors differ in what they state,
+  and the instrument's chapter under :doc:`/dev_guide/instruments/instruments`
+  describes it. A key that names a filter, a gain state, or a readout mode is spelled
+  the way the image label spells it, and one the instrument doesn't have is refused.
 
 Three mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
 and ``feature_emission.ring_annulus.planets``. Each of their keys must be a planet of
@@ -260,6 +269,9 @@ removal. The shipping sections:
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
   (``noise``, ``mag_offset``, ``image_quality_thresholds``,
   ``source_image_filter``, etc.).
+- ``<instrument>_star_photometry`` — an instrument's star photometry and star sigma; a
+  typed section (see :ref:`config-typed-sections`), written in the instrument's own
+  ``4xx`` file beside its camera block.
 - ``techniques`` — per-:class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   tunables and confidence-formula
   coefficients; see :doc:`dev_guide_techniques`.

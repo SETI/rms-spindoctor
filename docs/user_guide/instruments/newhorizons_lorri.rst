@@ -124,6 +124,13 @@ are missing or more than 80% are overexposed.
 
 **Corrections applied at load.** None beyond what the host reader does.
 
+**Stars.** The faintest catalog star the navigator looks for depends on the exposure
+and the binning mode. At 1 s it is magnitude 14.8 on an unbinned frame and 15.5 on a
+frame binned four by four, and each factor of ten in exposure reaches 2.5 magnitudes
+deeper. The navigator expects a star's light to spread with a Gaussian sigma of 0.9
+pixels on an unbinned frame and 0.45 pixels on a binned one. Both were measured on
+cruise and Pluto-approach star fields, on frames whose pointing the stars alone fixed.
+
 **Provisional values.** The blank and noisy thresholds, the full-well figure,
 the expected-noise and read-noise figures, and the magnitude-offset table are
 all placeholders awaiting calibration. Only the 4095 DN ADC ceiling and the
@@ -286,6 +293,8 @@ Known limitations
   value.
 * The blank and noisy thresholds and the full-well figure are placeholders, so
   the blank and noisy classifications are provisional.
+* On a long binned exposure the faintest star the navigator looks for is deeper than
+  the star catalog is complete, so some stars on the frame have no catalog entry.
 * The simulator's point-spread function for this instrument is a published
   estimate for unbinned frames; the curated image cohort's frames are binned
   four by four and cannot constrain it, and no per-readout-mode kernel exists.

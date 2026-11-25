@@ -126,6 +126,14 @@ are missing or more than 80% are overexposed.
 
 **Corrections applied at load.** None beyond what the host reader does.
 
+**Stars.** The faintest catalog star the navigator looks for depends on the
+exposure, the filter, and the gain state. At 1 s through the clear filter it is
+magnitude 12.6 at the 10K gain state and 10.1 at 100K. Each factor of ten in
+exposure reaches 2.5 magnitudes deeper, and the other filters reach 2 to 6 magnitudes
+less deep than the clear one. The navigator expects a star's light to spread with a
+Gaussian sigma of 0.65 pixels. Both were measured on the 1990 and 1992 cruise star
+fields, on frames whose pointing the stars alone fixed.
+
 **Provisional values.** The blank and noisy thresholds, the expected-noise and
 read-noise figures, and the magnitude-offset table are all placeholders
 awaiting calibration. Only the 255 DN ceiling is a hard fact rather than a
@@ -248,6 +256,10 @@ Known limitations
   against a model that is that far off.
 * The blank and noisy thresholds are placeholders, so the blank and noisy
   classifications are provisional.
+* The 1990 cruise star frames record stars 0.4 to 1.7 magnitudes fainter than the
+  1992 frames at the same settings, for no reason found yet. The star limit follows
+  the 1992 frames, so on a 1990 frame the navigator looks for stars somewhat fainter
+  than the frame shows.
 * The simulator's point-spread function for this instrument is an unverified
   published estimate: the curated image cohort holds no star frames, so nothing
   independent has constrained it.
