@@ -57,3 +57,54 @@ galileo_ssi:
     fallback_combo: 'CL'
     mag_offset_table:
       'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+
+# Star photometry of the Galileo SSI camera, read by ObsGalileoSSI for its star limit
+# and star width.  A star of V magnitude m and the default spectral class deposits
+#     flux_electrons_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[FILTER_NAME]))
+#         * texp / electrons_per_dn[gain state]
+# DN.  The dimmest visible star deposits min_detectable_dn, and the catalog search reaches
+# search_depth_mag past it.  The gain state is the label's GAIN item (1 = 400K, 2 = 100K,
+# 3 = 40K, 4 = 10K).  A summation-mode frame reads the same values: summing on the chip
+# keeps a star's charge, and no star field was measured in that mode.
+#
+# Measured on star fields of the 1990 and 1992 cruise (#130): 101 frames with an
+# independent pointing fix from three or more agreeing stars, one frame in three held
+# out; util/star_photometry and its fit commands give the method.
+galileo_ssi_star_photometry:
+  ssi:
+    # Fit: 6.05e6 DN/s for V = 0 through CLEAR at 10K (+-0.11 mag, 64 stars), times the
+    # 38.7 e-/DN of 10K.  Klaasen et al. 1999's absolute response (Table 2) gives
+    # 5.9e6 DN/s.  The scale is the 1992 frames': the 1990 frames read 0.4-1.7 mag
+    # fainter at the same settings, unexplained (#1211).
+    flux_electrons_per_s_vmag0: 2.34e+08
+    # Klaasen 1993 (JPL D-5880, Tables 3-1 and 3-2): 38.7 e-/DN at 10K and the published
+    # ratios 4.824, 9.771 and 47.135 of the other states.  The stars measure 100K/10K at
+    # 0.070 (+-0.27 mag, 7 stars) against 0.102 published; the others are unmeasured.
+    electrons_per_dn:
+      '10K': 38.7
+      '40K': 186.7
+      '100K': 378.1
+      '400K': 1824.1
+    # Fit: 142 +- 63 DN, the DN at 80% of the way from the detection floor to the
+    # plateau of a detection-probability curve fitted to every clean star.
+    min_detectable_dn: 140.0
+    # As in the earlier navigation software, which searched 1 mag past the dimmest
+    # visible star.
+    search_depth_mag: 1.0
+    # Klaasen et al. 1999 (Table 3): 2.5 log10 of each filter's solar filter factor.  The
+    # stars measured are few and mostly hot Pleiades members, far bluer than the Sun,
+    # so the measured values (beside each) are not used.
+    filter_mag_offset:
+      CLEAR: 0.0
+      VIOLET: 3.84    # measured 2.64 +- 0.65 (1 star)
+      GREEN: 2.10     # not measured
+      RED: 2.01       # measured 3.52 +- 0.53 (2 stars)
+      IR-7270: 4.69   # measured 5.42 +- 0.39 (3 stars)
+      IR-7560: 3.99   # not measured
+      IR-8890: 5.68   # not measured
+      IR-9680: 5.77   # measured 7.69 +- 0.33 (5 stars)
+    # Gaussian sigma (px) of a star: the median of 517 unsaturated stars on 75 full
+    # frames (p16-p84 0.41-1.10).  The core is about 0.4 px across and 1.0 px along the
+    # direction of smear; Klaasen et al. 1999's line-spread FWHM of 1.39 px is sigma
+    # 0.59.
+    star_psf_sigma: 0.65

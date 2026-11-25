@@ -42,6 +42,11 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         TitanSection,
     )
     from spindoctor.nav_technique.confidence_config import TechniquesSection
+    from spindoctor.obs.star_photometry_galileo_ssi import GalileoSSIStarPhotometrySection
+    from spindoctor.obs.star_photometry_newhorizons_lorri import (
+        NewHorizonsLORRIStarPhotometrySection,
+    )
+    from spindoctor.obs.star_photometry_voyager_iss import VoyagerISSStarPhotometrySection
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
 """The directory of the packaged configuration files, merged in filename order."""
@@ -616,6 +621,24 @@ class Config:
         """
 
         return self._typed_sections().techniques
+
+    @property
+    def galileo_ssi_star_photometry(self) -> GalileoSSIStarPhotometrySection:
+        """Returns the Galileo SSI camera's star photometry and star width."""
+
+        return self._typed_sections().galileo_ssi_star_photometry
+
+    @property
+    def newhorizons_lorri_star_photometry(self) -> NewHorizonsLORRIStarPhotometrySection:
+        """Returns the LORRI camera's star photometry and star width."""
+
+        return self._typed_sections().newhorizons_lorri_star_photometry
+
+    @property
+    def voyager_iss_star_photometry(self) -> VoyagerISSStarPhotometrySection:
+        """Returns each Voyager camera's star photometry and star width."""
+
+        return self._typed_sections().voyager_iss_star_photometry
 
     @property
     def results_tree(self) -> Any:

@@ -35,6 +35,11 @@ from spindoctor.nav_technique.confidence_config import (
     techniques_section_type,
 )
 from spindoctor.nav_technique.nav_technique import NavTechnique
+from spindoctor.obs.star_photometry_galileo_ssi import GalileoSSIStarPhotometrySection
+from spindoctor.obs.star_photometry_newhorizons_lorri import (
+    NewHorizonsLORRIStarPhotometrySection,
+)
+from spindoctor.obs.star_photometry_voyager_iss import VoyagerISSStarPhotometrySection
 from spindoctor.schema import SCHEMA_CONFIG, RuleError, Str
 
 __all__ = [
@@ -87,6 +92,9 @@ class TypedSections:
         logging: The ``logging`` section.
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
+        galileo_ssi_star_photometry: The Galileo SSI camera's star photometry.
+        newhorizons_lorri_star_photometry: The LORRI camera's star photometry.
+        voyager_iss_star_photometry: Each Voyager camera's star photometry.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -100,6 +108,9 @@ class TypedSections:
     feature_emission: FeatureEmissionSection
     logging: LoggingSection
     techniques: TechniquesSection
+    galileo_ssi_star_photometry: GalileoSSIStarPhotometrySection
+    newhorizons_lorri_star_photometry: NewHorizonsLORRIStarPhotometrySection
+    voyager_iss_star_photometry: VoyagerISSStarPhotometrySection
 
     def __post_init__(self) -> None:
         """Refuse a planet or satellite name that is not in upper case, and a planet key
