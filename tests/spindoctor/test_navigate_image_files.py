@@ -19,14 +19,17 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+import host_new_horizons
 import numpy as np
+import oops
 import pytest
 from filecache import FCPath
-from oops import OopsSpiceError
 from oops.host import HostFormatError
+from oops.observation import Snapshot
 from PIL import Image
 
 from spindoctor.annotation import Annotation, Annotations
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
@@ -38,6 +41,7 @@ from spindoctor.navigate_image_files import (
     navigate_image_files,
     write_summary_png,
 )
+from spindoctor.obs import ObsNewHorizonsLORRI
 from spindoctor.support.memory import peak_resident_bytes
 from spindoctor.support.status_reason import NavStatusReason
 from spindoctor.support.summary_png import (
@@ -413,13 +417,75 @@ def test_navigate_image_files_spice_load_failure_records_missing_kernel(
     assert metadata['status_error'] == 'missing_spice_data'
 
 
-def test_navigate_image_files_host_spice_error_records_missing_kernel(tmp_path: Path) -> None:
-    """A host's OopsSpiceError is ``missing_spice_data`` whatever its message says."""
-    obs_class = _make_fake_obs_class(raise_on_load=OopsSpiceError('no NAC pointing'))
-    image_files = _make_image_files(tmp_path)
+class _FrameWithoutPointing(oops.frame.Cmatrix):
+    """A camera frame for which the C kernels hold no pointing.
+
+    A host builds the frame without checking it, and cspyce reports the gap, with its
+    SPICE code, when the frame is first used.
+    """
+
+    def __init__(self) -> None:
+        """Build the frame; its attitude is never reached."""
+        super().__init__(oops.Matrix3.IDENTITY)
+
+    def transform_at_time(self, time: Any, *, quick: Any = False) -> Any:
+        """Fail as cspyce fails for a frame with no pointing.
+
+        Parameters:
+            time: The time asked for.
+            quick: The oops speed-up option, unused.
+
+        Raises:
+            RuntimeError: Always, carrying SPICE(NOFRAMECONNECT).
+        """
+        raise RuntimeError('SPICE(NOFRAMECONNECT) -- pxform -- no pointing at this time')
+
+
+@pytest.fixture
+def _planets_without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Register every configured planet on a fixed path, in registries of this test's own.
+
+    Building an observation measures the distance to each planet, which is where the
+    camera frame is first used.  The planets are placed on fixed paths so that no kernel
+    is needed, in copies of the oops registries that the test leaves behind.
+    """
+    for owner, registry in (
+        (oops.Body, 'BODY_REGISTRY'),
+        (oops.path.Path, '_PATH_REGISTRY'),
+        (oops.path.Path, '_PATH_CACHE'),
+        (oops.path.LinearPath, '_WAYPOINTS'),
+    ):
+        monkeypatch.setattr(owner, registry, dict(vars(owner)[registry]))
+    linear = oops.path.LinearPath
+    for au, planet in enumerate(DEFAULT_CONFIG.planets, start=1):
+        position = oops.Vector3((1.5e8 * au, 0.0, 0.0))
+        path = linear(position, 0.0, 'SSB', frame='J2000', path_id=planet)
+        oops.Body(planet, path, 'J2000')
+
+
+@pytest.mark.usefixtures('_planets_without_kernels')
+def test_a_frame_without_pointing_from_the_host_records_missing_kernel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An image whose host loads it without pointing is ``missing_spice_data``.
+
+    The host makes no pointing check, so the gap is raised while the reader builds the
+    observation, by cspyce, and the load step records it from the SPICE code.
+    """
+    snapshot = Snapshot(
+        axes=('v', 'u'),
+        cadence=oops.cadence.SnapCadence(0.0, 1.0),
+        fov=oops.fov.FlatFOV((1e-5, 1e-5), (256, 256)),
+        path='SSB',
+        frame=_FrameWithoutPointing(),
+    )
+    snapshot.insert_subfield('data', np.zeros((256, 256)))
+    monkeypatch.setattr(
+        host_new_horizons.NewHorizonsLORRI, 'from_file', lambda *_args, **_kwargs: snapshot
+    )
     _success, metadata = navigate_image_files(
-        obs_class,
-        image_files,
+        ObsNewHorizonsLORRI,
+        _make_image_files(tmp_path),
         FCPath(str(tmp_path / 'results')),
         write_output_files=False,
     )

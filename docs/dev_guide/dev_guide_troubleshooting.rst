@@ -50,16 +50,15 @@ classification is the top-level ``status_error`` and the evidence is
 ``status_exception`` with the traceback in ``status_traceback``.
 
 ``missing_spice_data``
-    The load raised ``oops.OopsSpiceError``, which every host raises when the
-    kernels cannot supply what the image needs, or a SPICE error straight from
-    ``cspyce``, such as ``SPICE(SPKINSUFFDATA)``. A host's message reads like
-    "no Cassini ISS NAC pointing at 2005-01-15T12:00:00.000 for <image file>:
-    SPICE(CKINSUFFDATA)". The document records no epoch of its own, since an
-    epoch is the midtime of the observation the load never built, but the
-    exception text gives the epoch and the SPICE error code. Check that the
-    kernel set covers that epoch: attitude gaps in reconstructed C-kernels are
-    the common case, and an epoch outside every loaded CK's coverage bounds
-    cannot be navigated at all.
+    The load raised a SPICE coverage error (``CKINSUFFDATA``, ``SPKINSUFFDATA``,
+    or ``NOFRAMECONNECT``). No host checks the pointing when it reads an image,
+    so the error comes from ``cspyce`` when the observation is first used, which
+    is while the reader builds it. The document records no epoch of its own,
+    since an epoch is the midtime of the observation the load never built, but
+    the exception text gives both the frame and the epoch. Check that the kernel
+    set covers that epoch: attitude gaps in reconstructed C-kernels are the
+    common case, and an epoch outside every loaded CK's coverage bounds cannot
+    be navigated at all.
 
 ``image_read_error``
     The load raised any other ``OSError`` or ``RuntimeError``, or a subclass of

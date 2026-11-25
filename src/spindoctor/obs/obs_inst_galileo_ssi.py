@@ -105,7 +105,8 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
             An ObsGalileoSSI object containing the image data and metadata.
 
         Raises:
-            oops.OopsSpiceError: If the SPICE kernels cannot supply the image's pointing.
+            OSError, RuntimeError: If the SPICE kernels lack data the image needs, such as
+                its pointing, which cspyce reports when the observation is first used.
             oops.host.HostError: If the host cannot read the image or its label.
         """
 

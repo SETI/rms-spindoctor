@@ -3,6 +3,7 @@ from typing import Any, cast
 
 import host_new_horizons
 import numpy as np
+from oops.observation import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
@@ -92,7 +93,8 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             An ObsNewHorizonsLORRI object containing the image data and metadata.
 
         Raises:
-            oops.OopsSpiceError: If the SPICE kernels cannot supply the image's pointing.
+            OSError, RuntimeError: If the SPICE kernels lack data the image needs, such as
+                its pointing, which cspyce reports when the observation is first used.
             oops.host.HostError: If the host cannot read the image or its label.
         """
 
@@ -100,11 +102,15 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         logger = IMAGE_LOGGER
 
         logger.debug(f'Reading New Horizons LORRI image {path}')
-        # The host gives the data as the FITS file stores them, in DN, and attaches the
-        # conversion to I/F as a calibration, which is not applied: the navigation
-        # pipeline treats image brightness scale-invariantly (NCC correlation,
-        # image-derived MAD noise thresholds, magnitude-based star gate).
-        obs = host_new_horizons.NewHorizonsLORRI.from_file(host_input(path, label=label))
+        # The host gives the data as the FITS file stores them, in DN, and where it
+        # can, attaches the conversion to I/F as a calibration, which is not applied:
+        # the navigation pipeline treats image brightness scale-invariantly (NCC
+        # correlation, image-derived MAD noise thresholds, magnitude-based star gate).
+        # The host's stub types every result as a Snapshot or a tuple of Snapshots,
+        # whatever select is; a call without select returns the one Snapshot.
+        obs = cast(
+            Snapshot, host_new_horizons.NewHorizonsLORRI.from_file(host_input(path, label=label))
+        )
         # The host inserts the image as the data subfield, which the Snapshot it returns
         # does not declare.
         data: NDArrayAnyType = obs.subfields['data']
