@@ -668,12 +668,15 @@ measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
   brighter than the simulator draws them through that filter, and about twice
   as bright as it draws them through the clear filter.
 - ``coiss_calib_nac_disc``: a calibrated narrow angle frame of a moon 280 px
-  across, offset 57 px. The answer lands 0.09 to 0.10 px off.
+  across, offset 57 px, as bright as Dione in a real frame at 34 degrees phase.
+  The answer lands 0.28 px off, toward the Sun, where the navigator's Lambert
+  template meets the Lommel-Seeliger surface (see :ref:`sim-photometric-laws`).
 - ``coiss_wac_disc``: a raw wide angle frame of a moon 128 px across, offset
-  13 px. The disc correlation finds the offset to 0.09 px but marks it
-  spurious, because it lies within 2 px of the edge of the 13 px search window.
-  The limb fit carries the frame at low confidence, 0.13 to 0.17 px off, and
-  the scene's expected block holds the low tier.
+  13 px, as bright as Rhea in a real frame taken through the same filters at the
+  same 5 ms exposure. The disc correlation finds the offset to 0.42 px but marks
+  it spurious, because it lies within 2 px of the edge of the 13 px search window.
+  The limb fit carries the frame at low confidence, 0.33 to 0.37 px off, and the
+  scene's expected block holds the low tier.
 - ``coiss_calib_wac_star_field``: a calibrated wide angle star field, 95 stars
   of V 7.4 to 10.4 at 26 s, offset 12 px. The answer lands 0.01 to 0.03 px off.
 - ``coiss_calib_wac_star_field_large_offset``: the same field with the offset at
@@ -734,11 +737,14 @@ real frames of this camera carry together:
   frame, and lossy labels give no count of lost lines. The simulator's codec steps
   every frequency alike, so its 128 DN step is illustrative: it matches the block
   edges of real lossy frames and zeroes more of the fine detail than they lose.
-  The scene seeds only the noise, so it has 16 distinct draws, and the fused
-  answer lands 0.034 to 0.050 px off over them. The table and the compression are
-  realistic but leave the answer where it is: with either one removed, the fused
-  answer lands 0.041 to 0.047 px off. So the scene shows that the navigator is
-  unaffected by them.
+  The brightest 1% of the disc reads the same DN as on the real frame the scene
+  follows. The scene seeds only the noise, so it has 16 distinct draws, and the
+  fused answer lands 0.48 px off over them, toward the Sun, where the navigator's
+  Lambert template meets the Lommel-Seeliger surface. The table and the
+  compression are realistic but leave the answer where it is: on a Lambert
+  surface the fused answer landed 0.034 to 0.050 px off, and 0.041 to 0.047 px off
+  with either one removed. So the scene shows that the navigator is unaffected by
+  them.
 - ``coiss_nac_stars_moon_lost_lines`` is a frame of stars and a gibbous moon that
   lost its last 41 lines and several groups of whole lines down the frame, and whose
   scene drifts 2 px during the exposure. In those four volumes, 321 of the 5,489

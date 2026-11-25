@@ -367,7 +367,10 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
   a simulated frame also spreads the simulator's star brightness over a 3.0 px
   placeholder blur, so it reaches only V 3.2 at 0.1 s, against V 7.8 on the
   real frames.
-- ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
+- ``gossi_disc``: a moon 240 px across, offset 286 px, as bright as Europa in a
+  real frame at 27 degrees phase. The answer lands 0.36 to 0.37 px off, toward the
+  Sun, where the navigator's Lambert template meets the Lommel-Seeliger surface
+  (see :ref:`sim-photometric-laws`). On a Lambert surface it landed 0.17 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
 
