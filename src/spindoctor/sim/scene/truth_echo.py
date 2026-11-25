@@ -126,12 +126,11 @@ def _declared_paths(sim_params: Mapping[str, Any]) -> list[str]:
     return list(sim_params.get('published_equals_truth', []))
 
 
-def stale_truth_declarations(sim_params: Mapping[str, Any], *, source: str) -> list[str]:
+def stale_truth_declarations(sim_params: Mapping[str, Any]) -> list[str]:
     """List the ``published_equals_truth`` paths whose two values don't coincide.
 
     Parameters:
         sim_params: A scene mapping whose block types have been validated.
-        source: Label used in the error message.
 
     Returns:
         The listed truth paths that ``instrument_config`` doesn't repeat, sorted.
@@ -153,7 +152,7 @@ def check_truth_echo(sim_params: Mapping[str, Any], *, source: str) -> None:
             ``published_equals_truth`` lists a path whose values don't coincide.
     """
     declared = _declared_paths(sim_params)
-    stale = stale_truth_declarations(sim_params, source=source)
+    stale = stale_truth_declarations(sim_params)
     if stale:
         raise SimSceneValidationError(
             f"{source}: published_equals_truth lists {stale}, but instrument_config doesn't "

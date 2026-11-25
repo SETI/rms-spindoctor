@@ -26,6 +26,7 @@ from functools import lru_cache
 from typing import Any
 
 from spindoctor.schema import SchemaError, parse
+from spindoctor.schema.errors import describe_value
 from spindoctor.sim.scene.boundary import _OBJECT_BLOCKS
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import scene_binning
@@ -106,8 +107,9 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
     This is the scene validator.  A scene either sets a key or leaves it out to take
     its default.  A null is refused at any depth, as a key of the scene, of a block,
     or of a mapping in a list, and as a list entry, and the message gives the full key
-    path, such as ``bodies[1].nav_override.mesh_lumpiness``.  Every other problem with
-    a typed block is reported at once, one line each, in the form
+    path, such as ``bodies[1].nav_override.mesh_lumpiness``.  A typed key that holds a
+    list takes a list, as a scene file writes it, and refuses a tuple or a set.  Every
+    other problem with a typed block is reported at once, one line each, in the form
     ``source: key.path: message``.
 
     The typed scene is a read-only product of the mapping, which stays the scene's
@@ -131,11 +133,12 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
         The typed scene.
 
     Raises:
-        SimSceneValidationError: On any unknown or invalid key, or a null at any
-            depth.
+        SimSceneValidationError: On any unknown or invalid key, a null at any depth,
+            or a tuple or a set in a typed key.
     """
     _refuse_nulls(raw, '', source=source)
     typed = {key: value for key, value in raw.items() if key not in UNTYPED_BLOCKS}
+    _refuse_tuples_and_sets(typed, '', source=source)
     try:
         scene = parse(Scene, typed, source=source)
     except SchemaError as exc:
@@ -146,6 +149,33 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
         _require_ranges_for_spk_error(raw, source=source)
     check_truth_echo(raw, source=source)
     return scene
+
+
+def _refuse_tuples_and_sets(value: Any, path: str, *, source: str) -> None:
+    """Refuse a tuple or a set at any depth of the typed blocks, which take lists.
+
+    A scene file holds lists, as YAML gives them.  A tuple or a set can come only from
+    a scene built in Python, and a set's order is arbitrary, so the typed scene refuses
+    both rather than read them as lists.
+
+    Parameters:
+        value: The value to search: a mapping, a list, or a scalar.
+        path: The value's key path, or an empty string for the whole scene.
+        source: The label that begins the error message.
+
+    Raises:
+        SimSceneValidationError: If a value at any depth is a tuple or a set.
+    """
+    if isinstance(value, tuple | set | frozenset):
+        raise SimSceneValidationError(
+            f'{source}: {path}: expected a list, got {describe_value(value)}'
+        )
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            _refuse_tuples_and_sets(item, f'{path}.{key}' if path else str(key), source=source)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _refuse_tuples_and_sets(item, f'{path}[{index}]', source=source)
 
 
 def _check_untyped_blocks(raw: Mapping[str, Any], *, instrument: str, source: str) -> None:

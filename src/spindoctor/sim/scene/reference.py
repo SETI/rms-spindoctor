@@ -214,6 +214,6 @@ def write_scene_reference(path: Path) -> None:
         path: The page's path.
     """
     text = scene_reference()
-    if path.exists() and path.read_text() == text:
+    if path.exists() and path.read_text(encoding='utf-8') == text:
         return
-    path.write_text(text)
+    path.write_text(text, encoding='utf-8')
