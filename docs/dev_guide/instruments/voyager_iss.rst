@@ -46,24 +46,19 @@ The label gives more than the start clock count. Some VICAR headers have no
 usable time, and some give a clock count one or two FDS minutes late, at which
 the C kernels hold no pointing. The host takes both values from the label.
 
-It also **modifies the pixel data**, in two steps, in ``_if_data``:
-
-1. **I/F scaling.** The data are multiplied by the host's ``if_scale``
-   subfield, the factor that converts a calibrated product's data to I/F. The
-   host takes it from the VICAR header's line ``FOR (I/F)*10000., MULTIPLY DN
-   VALUE BY x``. A product whose header has no such line, such as a RAW or
-   CLEANED product, has no ``if_scale``, and the load raises ``ValueError``.
-   Refusing is right here: silently skipping the scaling would produce a frame
-   in the wrong units that every threshold downstream would then judge.
-2. **The Voyager 1 Saturn correction.** When the host's ``spacecraft``
-   subfield is ``1`` and its ``planet`` subfield is ``SATURN``, the data are
-   multiplied by a further **3.345**. The archive's calibration pipeline
-   computed I/F for Voyager 1 as though every image had been taken at
-   Jupiter's heliocentric distance, so the Saturn frames come out too dim by
-   the square of the distance ratio. Voyager 1 visited only Jupiter and
-   Saturn, and Voyager 2 was calibrated correctly at each of its encounters,
-   so this is the only case, and the constant is written out rather than
-   computed from distances.
+It also **modifies the pixel data**, in ``_if_data``: the data are multiplied
+by the host's ``if_scale`` subfield, the factor that converts the data to I/F.
+When the host reads the label, it takes the label's
+``REFLECTANCE_SCALING_FACTOR``. When it reads the image file alone, it takes
+the factor in the VICAR header's line ``FOR (I/F)*10000., MULTIPLY DN VALUE BY
+x``, divided by 10000, and applies the Voyager 1 corrections the archive
+documents: 3.345 at Saturn, where the archive's calibration computed I/F as
+though the image had been taken at Jupiter's distance from the Sun, 40 for the
+SODIUM filter, and 12.5 for CH4_U. The label's factor already includes them, so
+the reader applies no correction of its own. An image for which no file gives a
+factor has no ``if_scale``, and the load raises ``ValueError``. Refusing is
+right here: silently skipping the scaling would produce a frame in the wrong
+units that every threshold downstream would then judge.
 
 Beyond that it reads the flat ``voyager_iss`` config section and resolves the
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
@@ -81,7 +76,7 @@ Label and index dependencies
   image. This one value decides the SPICE frame names, the CK object, the
   spacecraft clock, and both metadata LIDs; the ``spacecraft_digit`` property
   gives it as text.
-* ``planet`` -- the planet of the encounter, for the Saturn correction.
+* ``planet`` -- the planet of the encounter, written to the load log.
 * ``filter`` -- for the single ``filters`` entry. The host leaves it out when no
   label gives a filter, and then ``filters`` is empty.
 * ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count`` -- the
@@ -227,15 +222,16 @@ Voyager frame kernel spells the cameras ``ISSNA`` and ``ISSWA``, so the oops
 detector names ``NAC`` and ``WAC`` contribute only their first letter -- an
 abbreviation that happens to work and is worth not "fixing".
 
-**CK object and clock.** Read from
-:data:`~spindoctor.spice_ids.VOYAGER_CK_OBJECT_ID` by the spacecraft digit:
--31100 for Voyager 1's scan platform and -32100 for Voyager 2's. The clock then
-follows from the object through
-:data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`, giving -31 and -32, rather
-than from the same digit -- so a wrong pairing is refused instead of producing
-a self-consistent wrong one. The clock is **not derivable by arithmetic**:
-``-31100 // 1000`` is -32 in Python, which is the other spacecraft. That is
-why both tables are written out.
+**CK object and clock.** The host gives them as the ``ck_object_id`` and
+``ck_sclk_id`` subfields: -31100 and -31 for Voyager 1's scan platform, -32100
+and -32 for Voyager 2's. The attitude computation checks the clock the host
+gives against what ``ckmeta`` resolves for the object, so a wrong pairing is
+refused instead of producing a self-consistent wrong one. The clock is **not
+derivable by arithmetic**: ``-31100 // 1000`` is -32 in Python, which is the
+other spacecraft. The C-kernel writer, which reads navigation records rather
+than observations, keeps the same pairs in
+:data:`~spindoctor.spice_ids.VOYAGER_CK_OBJECT_ID` and
+:data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`.
 
 **The oops-from-SPICE flip.** The identity, by construction rather than by
 measurement, for the reason in the next paragraph.
@@ -264,9 +260,10 @@ the exposure start, midtime, and stop. The host does not look there, so a
 corrected kernel written for a Voyager image does not change the frame the host
 builds.
 
-Everything downstream follows from that. ``_frame_identity`` sets
-``frozen_oops_attitude=True``, and ``_attitude_baseline`` takes the frozen
-branch: ``cmatrix_original`` is the observation frame's own attitude, the flip
+Everything downstream follows from that. The host sets the
+``spice_frame_is_frozen`` subfield to ``True`` for such a frame, so
+``_frame_identity`` sets ``frozen_oops_attitude=True``, and
+``_attitude_baseline`` takes the frozen branch: ``cmatrix_original`` is the observation frame's own attitude, the flip
 is the identity by construction, and neither the flip check nor the
 across-the-exposure constancy check runs, because there is nothing evaluated to
 compare. In the C-kernel steps' midtime lookup, the tick conversion is
@@ -519,7 +516,7 @@ because the corrected records are not where the host looks (see "Frame
 evaluation" above).
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
-I/F scaling, the Saturn correction, and the refusal of a product lacking an
+I/F scaling by the host's factor alone and the refusal of a product lacking an
 I/F factor; the spacecraft digit; the per-camera limiting-magnitude anchors; the
 per-spacecraft metadata LIDs; and the published clock counts: fractional
 leading units with no midtime count, with no start count when the label was
@@ -564,9 +561,6 @@ explanatory string instead of a limit. The report's image-name rule is
 Open items
 ==========
 
-* ``from_file`` carries a TODO recording that the I/F scaling and the Voyager 1
-  Saturn correction belong in the host once the host grows them, at which point
-  this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
   ``read_noise_dn``, ``blank_max_if``,
   ``noisy_threshold_if``, and the ``mag_offset_table`` entry.

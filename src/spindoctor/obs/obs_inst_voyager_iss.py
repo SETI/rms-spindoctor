@@ -65,41 +65,31 @@ def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | No
     )
 
 
-# The Voyager 1 SEDR/PDS3 calibration pipeline always computed I/F as if the
-# image had been taken at Jupiter's heliocentric distance, so V1 @ Saturn
-# images come out too dim by (~9.54 / 5.20)**2.  Multiply by this factor to
-# recover Saturn-correct I/F.  V1 only visited Jupiter and Saturn, and V2 was
-# calibrated correctly at each of its encounters, so this is the only case.
-_V1_SATURN_IF_CORRECTION = 3.345
-
-
 def _if_data(data: NDArrayAnyType, subfields: Mapping[str, Any]) -> NDArrayFloatType:
     """Return a calibrated Voyager image's data in units of I/F.
 
-    The host gives the factor that converts a calibrated product's data to I/F as the
-    ``if_scale`` subfield, from the VICAR header.  A Voyager 1 image of Saturn is then
-    brightened by ``_V1_SATURN_IF_CORRECTION``.
+    The host gives the factor that converts the data to I/F as the ``if_scale``
+    subfield: the PDS3 label's REFLECTANCE_SCALING_FACTOR when the label is read, and
+    otherwise the factor the VICAR header states, with the documented Voyager 1
+    corrections already applied.
 
     Parameters:
         data: The image's data, as the host read it.
-        subfields: The host's subfields of the image: ``if_scale``, ``spacecraft`` (1 or
-            2) and ``planet``, the planet of the encounter.
+        subfields: The host's subfields of the image.
 
     Returns:
         The data in units of I/F.
 
     Raises:
-        ValueError: If the host gives no ``if_scale``, as for a RAW or CLEANED product,
-            whose VICAR header states no I/F factor.
+        ValueError: If the host gives no ``if_scale``, because no file it read states an
+            I/F factor.
     """
     if 'if_scale' not in subfields:
         raise ValueError(
-            'the VICAR header gives no I/F factor; Voyager ISS images are navigated from '
-            'calibrated GEOMED products'
+            'no label of the image gives an I/F factor; Voyager ISS images are navigated '
+            'from calibrated GEOMED products'
         )
     if_data: NDArrayFloatType = data * subfields['if_scale']
-    if subfields['spacecraft'] == 1 and subfields['planet'] == 'SATURN':
-        if_data = if_data * _V1_SATURN_IF_CORRECTION
     return if_data
 
 
@@ -152,10 +142,10 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
             An ObsVoyagerISS object containing the image data and metadata.
 
         Raises:
-            oops.OopsSpiceError: If the SPICE kernels cannot supply the image's pointing.
+            OSError, RuntimeError: If the SPICE kernels lack data the image needs, such as
+                its pointing, which cspyce reports when the observation is first used.
             oops.host.HostError: If the host cannot read the image or its label.
-            ValueError: If the image is not a calibrated product, so that its VICAR
-                header gives no I/F factor.
+            ValueError: If no label of the image gives an I/F factor.
         """
 
         config = config or DEFAULT_CONFIG

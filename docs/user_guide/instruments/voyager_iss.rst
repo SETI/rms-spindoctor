@@ -143,19 +143,18 @@ Image data and units
 ====================
 
 **Units.** I/F. The GEOMED products are archived as scaled integers, and the
-loader converts them. Each image's own VICAR label states its scaling factor, as
-``FOR (I/F)*10000., MULTIPLY DN VALUE BY`` followed by the factor, and the data
-are multiplied by that factor divided by 10000.
+loader converts them. The data are multiplied by the reflectance scaling factor
+of the image's PDS3 label. An image read without its label uses the factor its
+VICAR header states, as ``FOR (I/F)*10000., MULTIPLY DN VALUE BY`` followed by
+the factor, divided by 10000.
 
-**The Voyager 1 Saturn correction.** One further factor of **3.345** is applied
-to Voyager 1 frames whose target system is Saturn, and to no others. The
-archive's calibration pipeline computed I/F for Voyager 1 as though every image
-had been taken at Jupiter's heliocentric distance, so the Saturn frames come
-out too dim by the square of the distance ratio. Voyager 1 visited only Jupiter
-and Saturn, and Voyager 2 was calibrated correctly at each of its encounters,
-so this is the only case. A user comparing an I/F value from a Voyager 1 Saturn
-frame against the archive's own number will find them differing by exactly this
-factor, and the pipeline's is the corrected one.
+**The Voyager 1 corrections.** The archive's documentation gives three
+corrections to the Voyager 1 factors in the VICAR headers: a factor of 3.345 for frames taken at
+Saturn, where the calibration computed I/F as though every image had been taken
+at Jupiter's distance from the Sun, 40 for the SODIUM filter, and 12.5 for the
+CH4_U filter. The label's factor already includes them, and the factor of an
+image read without its label has them applied, so a Voyager 1 Saturn frame's
+I/F is the corrected one either way.
 
 **Saturation.** The configuration records a 255 DN ceiling, the 8-bit ADC
 limit, but that is a raw-DN quantity and the navigated product is in I/F. As
