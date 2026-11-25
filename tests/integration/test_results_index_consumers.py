@@ -64,7 +64,6 @@ from spindoctor.cli.reproj.pointing_source import (  # noqa: E402  (guarded impo
 from spindoctor.cli.results_index import ingest_metadata_files  # noqa: E402  (guarded import)
 from spindoctor.config import Config  # noqa: E402  (guarded import)
 from spindoctor.dataset.dataset import ImageFile, ImageFiles  # noqa: E402  (guarded import)
-from spindoctor.nav_records import TreeTuning  # noqa: E402  (guarded import)
 from spindoctor.navigate_image_files import (  # noqa: E402  (guarded import)
     navigate_image_files,
 )
@@ -87,6 +86,7 @@ from tests.integration.ck_round_trip import (  # noqa: E402  (guarded import)
     holdings_url,
     sidecar_for,
 )
+from tests.packaged_sections import packaged_tree_tuning  # noqa: E402  (guarded import)
 
 # A Cassini NAC frame of the main rings, navigated by the ring-edge technique:
 # it carries a recorded corrected attitude and has ring content to reproject.
@@ -222,7 +222,7 @@ def _index_source(root: Path, database: Path) -> IndexPointingSource:
     engine = open_index(url, create=True)
     try:
         ingest_metadata_files(
-            engine, [root.as_posix()], logger=_quiet_logger(), tuning=TreeTuning()
+            engine, [root.as_posix()], logger=_quiet_logger(), tuning=packaged_tree_tuning()
         )
     finally:
         engine.dispose()

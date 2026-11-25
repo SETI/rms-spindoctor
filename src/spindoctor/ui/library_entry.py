@@ -138,6 +138,7 @@ def compute_image_url(obs: Any, config: Any = None) -> str:
     if not image_url:
         return ''
     image_url = str(image_url)
+    # The dataset code reads the configuration before the variable; see #612.
     holdings_root = _resolve_pds3_holdings_root(config)
     if holdings_root:
         rel = _relative_to_holdings(image_url, holdings_root)
@@ -149,10 +150,9 @@ def compute_image_url(obs: Any, config: Any = None) -> str:
 def _resolve_pds3_holdings_root(config: Any) -> str:
     """Return the configured PDS3 holdings root or ``''`` if unknown.
 
-    Order matches :class:`spindoctor.dataset.dataset_pds3.DataSetPDS3`:
-    ``PDS3_HOLDINGS_DIR`` env var, then
-    ``config.environment.pds3_holdings_root``.  Missing or empty
-    configurations yield ``''``.
+    The ``PDS3_HOLDINGS_DIR`` environment variable wins, then
+    ``config.environment.pds3_holdings_root``.  An unset or empty root
+    yields ``''``.
     """
     env_root = os.environ.get('PDS3_HOLDINGS_DIR')
     if env_root:
@@ -164,11 +164,7 @@ def _resolve_pds3_holdings_root(config: Any) -> str:
             config = DEFAULT_CONFIG
         except Exception:  # pragma: no cover - bootstrap sandbox
             return ''
-    try:
-        environment = config.environment
-    except Exception:  # pragma: no cover - partial-config sandbox
-        return ''
-    cfg_root = getattr(environment, 'pds3_holdings_root', None)
+    cfg_root = config.environment.pds3_holdings_root
     if not cfg_root:
         return ''
     return str(cfg_root).rstrip('/')

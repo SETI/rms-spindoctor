@@ -86,7 +86,10 @@ The sections are:
     roots that navigation results, backplanes, and PDS4 bundles are written to, the log
     root, and the results index.
 
-``general``, ``planets``, ``satellites``
+``general``
+    The directory of TrueType fonts that labels on summary images are drawn in.
+
+``planets``, ``satellites``
     Which planets and moons SpinDoctor knows about, and how each is grouped. Change these
     to add a moon that is not modeled, or to leave one out.
 

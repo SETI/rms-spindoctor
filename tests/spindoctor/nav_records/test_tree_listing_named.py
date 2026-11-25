@@ -27,6 +27,7 @@ from typing import Any
 import pdslogger
 import pytest
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 
 from spindoctor.nav_records import (
     ListedRecord,
@@ -73,7 +74,7 @@ def remote_source(remote: RemoteTree, logger: pdslogger.PdsLogger) -> TreeRecord
     """
     write_document(remote.backing, FIRST_STUB, document())
     write_document(remote.backing, SECOND_STUB, document())
-    return TreeRecordSource([remote.url], logger=logger)
+    return TreeRecordSource([remote.url], logger=logger, tuning=packaged_tree_tuning())
 
 
 def forbid_walking(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -646,7 +647,11 @@ def test_a_remote_listing_answers_out_of_the_root_it_was_asked_about(
     write_document(remote_tree.backing, FIRST_STUB, document())
     write_document(second_remote_tree.backing, FIRST_STUB, document())
     write_document(second_remote_tree.backing, MISSING_STUB, document())
-    source = TreeRecordSource([remote_tree.url, second_remote_tree.url], logger=quiet_logger)
+    source = TreeRecordSource(
+        [remote_tree.url, second_remote_tree.url],
+        logger=quiet_logger,
+        tuning=packaged_tree_tuning(),
+    )
     list(source.listing(Selection(roots=(second_remote_tree.url,), stubs=(MISSING_STUB,))))
     selection = Selection(roots=(remote_tree.url,), stubs=(FIRST_STUB, MISSING_STUB))
     assert stubs_of(source.listing(selection)) == [FIRST_STUB]
@@ -665,7 +670,11 @@ def test_a_remote_listing_of_the_second_root_answers_for_that_root(
     write_document(remote_tree.backing, FIRST_STUB, document())
     write_document(second_remote_tree.backing, FIRST_STUB, document())
     write_document(second_remote_tree.backing, MISSING_STUB, document())
-    source = TreeRecordSource([remote_tree.url, second_remote_tree.url], logger=quiet_logger)
+    source = TreeRecordSource(
+        [remote_tree.url, second_remote_tree.url],
+        logger=quiet_logger,
+        tuning=packaged_tree_tuning(),
+    )
     list(source.listing(Selection(roots=(remote_tree.url,), stubs=(FIRST_STUB,))))
     selection = Selection(roots=(second_remote_tree.url,), stubs=(FIRST_STUB, MISSING_STUB))
     assert stubs_of(source.listing(selection)) == [FIRST_STUB, MISSING_STUB]
@@ -684,6 +693,8 @@ def test_a_listing_of_stubs_under_two_roots_is_refused(
     second = tmp_path / 'second'
     write_document(first, FIRST_STUB, document())
     write_document(second, FIRST_STUB, document())
-    source = TreeRecordSource([str(first), str(second)], logger=quiet_logger)
+    source = TreeRecordSource(
+        [str(first), str(second)], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     with pytest.raises(ValueError, match='under one root'):
         list(source.listing(Selection(stubs=(FIRST_STUB,))))

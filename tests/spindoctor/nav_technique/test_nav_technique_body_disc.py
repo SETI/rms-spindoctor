@@ -7,12 +7,14 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.conftest import OVERRIDDEN_UPSAMPLE_FACTOR
 from tests.spindoctor.nav_technique.conftest import (
     DiscImageFactory,
     NavContextFactory,
 )
 
 import spindoctor.nav_technique.nav_technique_body_disc as disc_module
+from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import BodyDiscFlags
@@ -760,3 +762,30 @@ def test_body_disc_rotation_samples_refine_on_the_highpass_cross_power(
     inputs = {**_ROTATION_STUB_INPUTS, 'image': np.ones((8, 8))}
     BodyDiscCorrelateNav()._ncc_at_rotation(theta_rad=0.0, **inputs)
     assert calls == ['highpass_cross_power']
+
+
+def test_body_disc_correlation_reads_the_configured_upsample_factor(
+    monkeypatch: pytest.MonkeyPatch,
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+    upsample_override_config: Config,
+) -> None:
+    """The correlation runs at the upsample factor the configuration sets."""
+    seen: list[int] = []
+
+    def _record(**kwargs: Any) -> Any:
+        seen.append(kwargs['upsample_factor'])
+        return navigate_with_pyramid_kpeaks(**kwargs)
+
+    monkeypatch.setattr(disc_module, 'navigate_with_pyramid_kpeaks', _record)
+    shape = (160, 160)
+    feature = _make_disc_feature(
+        'moonA',
+        extfov_shape=shape,
+        image_center_vu=(80.0, 80.0),
+        radius=20.0,
+        planted_offset_vu=(2.0, -3.0),
+    )
+    context = make_nav_context(disc_image(shape, (80.0, 80.0), 20.0), extfov_margin_vu=(16, 16))
+    BodyDiscCorrelateNav(config=upsample_override_config).navigate([feature], context)
+    assert seen == [OVERRIDDEN_UPSAMPLE_FACTOR]

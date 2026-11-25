@@ -7,9 +7,11 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.conftest import OVERRIDDEN_UPSAMPLE_FACTOR
 from tests.spindoctor.nav_technique.conftest import NavContextFactory
 
 import spindoctor.nav_technique.nav_technique_ring_annulus as annulus_module
+from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import RingAnnulusFlags
@@ -371,97 +373,6 @@ def test_ring_annulus_navigate_raises_when_no_eligible_features(
         technique.navigate([feature], context)
 
 
-def test_upsample_factor_returns_default_when_offset_block_missing() -> None:
-    """``_upsample_factor`` falls back to the module default when ``config.offset`` is None."""
-    from spindoctor.nav_technique.nav_technique_ring_annulus import _DEFAULT_UPSAMPLE_FACTOR
-
-    technique = RingAnnulusNav()
-
-    class _StubConfig:
-        offset = None
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    assert technique._upsample_factor() == _DEFAULT_UPSAMPLE_FACTOR
-
-
-def test_upsample_factor_returns_default_when_value_missing() -> None:
-    """``_upsample_factor`` falls back when the offset block has no upsample key."""
-    from spindoctor.nav_technique.nav_technique_ring_annulus import _DEFAULT_UPSAMPLE_FACTOR
-
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        pass
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    assert technique._upsample_factor() == _DEFAULT_UPSAMPLE_FACTOR
-
-
-def test_upsample_factor_rejects_bool_value() -> None:
-    """Boolean values are rejected even though Python treats ``bool`` as ``int``."""
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = True
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'must be a real \(non-bool\) number'):
-        technique._upsample_factor()
-
-
-def test_upsample_factor_rejects_string_value() -> None:
-    """Non-numeric values raise ``ValueError`` naming the config key."""
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = 'abc'
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'correlation_fft_upsample_factor must be a real'):
-        technique._upsample_factor()
-
-
-def test_upsample_factor_rejects_zero() -> None:
-    """Values below 1 are out of range and raise ``ValueError``."""
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = 0
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'must lie in \[1,'):
-        technique._upsample_factor()
-
-
-def test_upsample_factor_rejects_overlarge_value() -> None:
-    """Values above the upper bound raise ``ValueError`` to prevent FFT overflow."""
-    from spindoctor.nav_technique.nav_technique_ring_annulus import _MAX_UPSAMPLE_FACTOR
-
-    technique = RingAnnulusNav()
-
-    class _StubOffset:
-        correlation_fft_upsample_factor = _MAX_UPSAMPLE_FACTOR + 1
-
-    class _StubConfig:
-        offset = _StubOffset()
-
-    technique._config = _StubConfig()  # type: ignore[assignment]
-    with pytest.raises(ValueError, match=r'must lie in \[1,'):
-        technique._upsample_factor()
-
-
 def _install_covariance_terms(monkeypatch: pytest.MonkeyPatch, *, floor_px: float) -> None:
     """Give :class:`RingAnnulusNav` a tuning whose only covariance term is the floor.
 
@@ -735,3 +646,31 @@ def test_ring_annulus_refines_its_final_pass_on_the_ncc(
     )
     RingAnnulusNav().navigate([feature], make_nav_context(image, extfov_margin_vu=(16, 16)))
     assert calls == ['ncc_quadratic']
+
+
+def test_ring_annulus_correlation_reads_the_configured_upsample_factor(
+    monkeypatch: pytest.MonkeyPatch,
+    make_nav_context: NavContextFactory,
+    upsample_override_config: Config,
+) -> None:
+    """The correlation runs at the upsample factor the configuration sets."""
+    seen: list[int] = []
+
+    def _record(**kwargs: Any) -> Any:
+        seen.append(kwargs['upsample_factor'])
+        return navigate_with_pyramid_kpeaks(**kwargs)
+
+    monkeypatch.setattr(annulus_module, 'navigate_with_pyramid_kpeaks', _record)
+    shape = (180, 180)
+    feature = _make_annulus_feature(
+        'SATURN',
+        extfov_shape=shape,
+        image_center_vu=(90.0, 90.0),
+        inner_radius=14.0,
+        outer_radius=28.0,
+        planted_offset_vu=(2.0, -3.0),
+    )
+    image = _render_annulus_image(shape, (90.0, 90.0), 14.0, 28.0)
+    context = make_nav_context(image, extfov_margin_vu=(16, 16))
+    RingAnnulusNav(config=upsample_override_config).navigate([feature], context)
+    assert seen[0] == OVERRIDDEN_UPSAMPLE_FACTOR

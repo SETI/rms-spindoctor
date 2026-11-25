@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import metadata_document, write_metadata
 
 from spindoctor.cli.stats.report import build_report
@@ -59,7 +60,7 @@ def _report_text(tmp_path: Path, documents: dict[str, dict[str, Any]], **options
     root = _tree_of(tmp_path / 'results', documents)
     out = tmp_path / 'report'
     out.mkdir(parents=True, exist_ok=True)
-    with TreeRecordSource([root.as_posix()]) as source:
+    with TreeRecordSource([root.as_posix()], tuning=packaged_tree_tuning()) as source:
         build_report(source, out, **options)
     return (out / 'report.md').read_text(encoding='utf-8')
 
@@ -420,7 +421,7 @@ def _facts_by_stub(tmp_path: Path, documents: dict[str, dict[str, Any]]) -> dict
             replay below one image short without saying so.
     """
     root = _tree_of(tmp_path / 'results', documents)
-    with TreeRecordSource([root.as_posix()]) as source:
+    with TreeRecordSource([root.as_posix()], tuning=packaged_tree_tuning()) as source:
         found = list(source.facts(Selection()))
     refused = [one.stub for one in found if isinstance(one, UnreadableFile)]
     if len(refused) > 0:
