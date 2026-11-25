@@ -1,4 +1,4 @@
-"""Tests of the clipped pixels the realism match reads from a Cassini ISS raw product.
+"""Tests of what the realism match reads for a Cassini ISS frame beyond its label.
 
 The raw product is a stand-in, so nothing reads holdings and the file runs in the plain
 unit tier.
@@ -13,7 +13,11 @@ import numpy as np
 import pytest
 import vicar
 
-from tests.integration.sim_realism_frames_cassini import cassini_clipped_pixels
+from tests.integration.sim_realism_frames_cassini import (
+    IAU_MOON_RADII_KM,
+    cassini_clipped_pixels,
+    cassini_frame_settings,
+)
 
 _CALIB = '/holdings/calibrated/COISS_2xxx/COISS_2009/data/1486900812/N1486991973_1_CALIB.IMG'
 _RAW = '/holdings/volumes/COISS_2xxx/COISS_2009/data/1486900812/N1486991973_1.IMG'
@@ -55,3 +59,12 @@ def test_the_full_scale_follows_the_conversion_type(
 def test_a_raw_product_gives_no_mask(opened: list[str]) -> None:
     """A product that is not calibrated has no raw product beside it to read."""
     assert cassini_clipped_pixels(_RAW, 'TABLE') is None
+
+
+def test_the_silhouettes_take_the_iau_moon_radii() -> None:
+    """A Cassini frame's real silhouettes are measured against the IAU radii."""
+    obs = SimpleNamespace(filter1='CL1', filter2='CL2', gain_mode=2, dict={})
+    settings = cassini_frame_settings(
+        obs, image_id='N1597846115_2', instrument='coiss_calib_nac', image_path=_RAW
+    )
+    assert settings.silhouette_radii_km == IAU_MOON_RADII_KM

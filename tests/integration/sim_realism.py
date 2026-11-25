@@ -46,6 +46,7 @@ import dataclasses
 import os
 import time
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, cast
@@ -434,6 +435,7 @@ def _frame_samples_real(
     saturation = saturation_level(instrument)
     clipped = data >= saturation if np.isfinite(saturation) else None
     reader = frame_settings_reader(sidecar.mission)
+    silhouette_radii_km: Mapping[str, tuple[float, float, float]] = {}
     if reader is not None:
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
@@ -447,6 +449,7 @@ def _frame_samples_real(
         record.filter_name = settings.filter_name
         record.gain_state = settings.gain_state
         record.quantization = settings.quantization
+        silhouette_radii_km = settings.silhouette_radii_km
         if clipped is None:
             clipped = settings.clipped
     if scene_class in STAR_CLASSES:
@@ -480,7 +483,7 @@ def _frame_samples_real(
                 offset_vu=offset,
                 extfov_margin_vu=obs.extfov_margin_vu,
                 saturation_level=saturation,
-                silhouette_offsets=real_silhouette_offsets(obs),
+                silhouette_offsets=real_silhouette_offsets(obs, radii_km=silhouette_radii_km),
                 limb_peak_model=None if body is None else body.limb_peak_model,
             )
         )

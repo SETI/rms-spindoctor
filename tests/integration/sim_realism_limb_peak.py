@@ -9,7 +9,8 @@ the point where the brightness falls fastest, reduced to one radial offset per l
 
 The silhouette comes from each side's own geometry.  On a real frame it is where the
 rays along each vertex's normal stop hitting the body, from the SPICE geometry through
-oops (:func:`real_silhouette_offsets`).  On a matched frame it is the circle the scene
+oops (:func:`real_silhouette_offsets`), with the body radii the mission's frame reader
+gives where they differ from the kernels'.  On a matched frame it is the circle the scene
 states (:func:`matched_silhouette_offsets`).  The fit solves for a translation of the
 whole limb beside the radial offset, so the frame's offset error, the body's ephemeris
 error, and the half pixel between two coordinate conventions all move the translation
@@ -24,13 +25,15 @@ and says whether the matched frames' median lies within it.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from oops import Meshgrid
+from oops import Body, Meshgrid
 from oops.backplane import Backplane
+from oops.surface.ellipsoid import Ellipsoid
 from polymath import Pair
 
 from spindoctor.feature.geometry import LimbPolyline
@@ -39,7 +42,6 @@ from spindoctor.support.constants import HALFPI, PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'KNOWN_OUTSIDE_BINS',
     'LIMB_PEAK_KIND_PREFIX',
     'LimbPeakBin',
     'SilhouetteOffsets',
@@ -54,18 +56,6 @@ __all__ = [
 
 LIMB_PEAK_KIND_PREFIX = 'limb_peak_'
 """The prefix of the per-bin limb gradient-peak sample kinds."""
-
-# The Cassini NAC bin at 60 to 120 degrees phase and 100 to 400 px: its 4 real Dione and
-# Tethys limbs peak 0.01 to 0.43 px inside their matched limbs, so the matched median
-# (+0.02 px) lies 0.15 px from the real one (-0.13 px), outside the 0.12 px band.  The
-# photometric law explains at most part of it, and the 0.43 px Tethys limb lies beyond
-# every law tried (#TBD).
-KNOWN_OUTSIDE_BINS: frozenset[tuple[str, str]] = frozenset({('coiss_calib_nac', 'p1_r1')})
-"""The (instrument, bin) pairs whose matched median is known to lie outside its band.
-
-The record check holds each of them outside, so a change that brings one inside shows up
-as clearly as one that pushes another bin out.
-"""
 
 # A function that takes a body model's name, the (N, 2) limb vertices in extended-FOV
 # pixel-centric coordinates, and their (N, 2) outward normals, and returns the (N,)
@@ -94,7 +84,41 @@ MIN_BIN_LIMBS_FOR_SCATTER = 3
 _MAD_TO_SIGMA = 1.4826
 
 
-def real_silhouette_offsets(obs: Any) -> SilhouetteOffsets:
+@contextmanager
+def _body_radii(body_name: str, radii_km: tuple[float, float, float] | None) -> Iterator[None]:
+    """Give a body an ellipsoid of other radii for as long as the block runs.
+
+    The ellipsoid keeps the body's center and frame.  oops caches each body's surface for
+    its backplanes, so the cache is cleared when the surface changes and again when the
+    body's own surface comes back.
+
+    Parameters:
+        body_name: The body, as oops knows it.
+        radii_km: The ellipsoid's three radii in km, longest first, or None to leave the
+            body as it is.
+    """
+    if radii_km is None:
+        yield
+        return
+    # oops types neither the surface's center and frame nor the backplane's surface cache.
+    body: Any = Body.lookup(body_name)
+    surface_cache: Any = Backplane.get_surface
+    ellipsoid: Any = Ellipsoid
+    saved = (body.surface, body.radius, body.inner_radius)
+    body.apply_surface(
+        ellipsoid(body.surface.origin, body.surface.frame, radii_km), radii_km[0], radii_km[2]
+    )
+    surface_cache.cache_clear()
+    try:
+        yield
+    finally:
+        body.apply_surface(*saved)
+        surface_cache.cache_clear()
+
+
+def real_silhouette_offsets(
+    obs: Any, *, radii_km: Mapping[str, tuple[float, float, float]] | None = None
+) -> SilhouetteOffsets:
     """The silhouette of a real frame's bodies from its SPICE geometry.
 
     Along each vertex's normal, points from 3 px inside the vertex to 3 px outside it
@@ -104,13 +128,20 @@ def real_silhouette_offsets(obs: Any) -> SilhouetteOffsets:
     horizon at the last point that hits the body: only the lit limb has an edge to
     measure.
 
+    A body listed in ``radii_km`` is traced as an ellipsoid of those radii, with the
+    body's own center and frame, in place of the shape the frame's kernels give it.  The
+    body's shape is restored afterward, so nothing else the frame computes sees it.
+
     Parameters:
         obs: The real observation the body models were built from.
+        radii_km: Radii in km, longest first, keyed by body name, for the bodies whose
+            silhouette takes other radii than the kernels give.
 
     Returns:
         A :data:`SilhouetteOffsets` for the frame.  The body is the part of the model's
         name after its colon (``body:DIONE`` gives ``DIONE``).
     """
+    radii_by_body = dict(radii_km or {})
     margin_v, margin_u = obs.extfov_margin_vu
     steps = np.arange(
         -_SILHOUETTE_REACH_PX, _SILHOUETTE_REACH_PX + _SILHOUETTE_STEP_PX / 2.0, _SILHOUETTE_STEP_PX
@@ -131,9 +162,12 @@ def real_silhouette_offsets(obs: Any) -> SilhouetteOffsets:
             ],
             axis=-1,
         )
-        backplane = Backplane(obs, meshgrid=Meshgrid(obs.fov, Pair(uv)))
-        hits = np.asarray(backplane.where_intercepted(body).vals, dtype=bool).reshape(track_v.shape)
-        incidence = backplane.incidence_angle(body).mvals
+        with _body_radii(body, radii_by_body.get(body)):
+            backplane = Backplane(obs, meshgrid=Meshgrid(obs.fov, Pair(uv)))
+            hits = np.asarray(backplane.where_intercepted(body).vals, dtype=bool).reshape(
+                track_v.shape
+            )
+            incidence = backplane.incidence_angle(body).mvals
         incidence_rad = np.ma.filled(incidence, np.pi).reshape(track_v.shape)
         out = np.full(vertices_vu.shape[0], np.nan)
         leaves = hits[:, :-1] & ~hits[:, 1:]
@@ -351,34 +385,20 @@ def compare_limb_peaks(
     return out
 
 
-def record_limb_peak_problems(
-    record: dict[str, Any], *, known_outside: frozenset[tuple[str, str]] = frozenset()
-) -> list[str]:
-    """The bins of a realism record whose verdict differs from the one expected.
-
-    A bin is expected within its band unless it is in ``known_outside``.
+def record_limb_peak_problems(record: dict[str, Any]) -> list[str]:
+    """The bins of a realism record whose matched median lies outside its band.
 
     Parameters:
         record: A realism summary, as
             :func:`tests.integration.realism_regression.load_record` reads it.
-        known_outside: The (instrument, bin) pairs expected to lie outside their bands.
 
     Returns:
-        One line per bin that lies outside its band and is not expected to, giving the
-        instrument, the bin, both medians, the band, and both counts, and one line per
-        bin expected outside that is not.  Bins without a verdict are left out, except
-        that a bin expected outside must have one.
+        One line per bin that lies outside its band, giving the instrument, the bin, both
+        medians, the band, and both counts.  Bins without a verdict are left out.
     """
     problems: list[str] = []
     for instrument, entry in sorted(record.get('instruments', {}).items()):
         for label, peak in sorted(entry.get('limb_peaks', {}).items()):
-            if (instrument, label) in known_outside:
-                if peak['within_band'] is not False:
-                    problems.append(
-                        f'{instrument} {label}: expected outside its band, but its verdict '
-                        f'is {peak["within_band"]}'
-                    )
-                continue
             if peak['within_band'] is not False:
                 continue
             problems.append(

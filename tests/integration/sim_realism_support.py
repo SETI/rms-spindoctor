@@ -20,7 +20,7 @@ from __future__ import annotations
 import importlib
 import pkgutil
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -128,12 +128,15 @@ class FrameSettings:
             ``detector.quantization`` spells it, or None for the instrument's own.
         clipped: Which of the frame's pixels read the camera's full scale in its raw
             product, in the frame's shape, or None when the reader cannot tell.
+        silhouette_radii_km: Radii in km, longest first, keyed by body name, that the
+            real silhouettes use in place of the radii the frame's kernels give.
     """
 
     filter_name: str | None = None
     gain_state: int | None = None
     quantization: str | None = None
     clipped: NDArrayBoolType | None = None
+    silhouette_radii_km: Mapping[str, tuple[float, float, float]] = field(default_factory=dict)
 
 
 # A reader of a real frame's commanded settings: it takes the real observation and

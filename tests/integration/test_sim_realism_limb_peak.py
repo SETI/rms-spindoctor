@@ -20,7 +20,6 @@ from spindoctor.feature.geometry import LimbPolyline
 from tests.integration import sim_realism_limb_peak
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
 from tests.integration.sim_realism_limb_peak import (
-    KNOWN_OUTSIDE_BINS,
     compare_limb_peaks,
     limb_peak_offset,
     matched_silhouette_offsets,
@@ -241,6 +240,72 @@ def test_the_real_silhouette_leaves_out_the_unlit_limb() -> None:
     assert np.all(np.isnan(distances))
 
 
+class _MoonBody:
+    """A stand-in for oops' MOON body: a sphere whose radius, in km, is 1 px."""
+
+    def __init__(self) -> None:
+        self.surface = SimpleNamespace(origin='MOON', frame='IAU_MOON', radii=(30.0, 30.0, 30.0))
+        self.radius = 30.0
+        self.inner_radius = 30.0
+
+    def apply_surface(self, surface: Any, radius: float, inner_radius: float) -> None:
+        self.surface = surface
+        self.radius = radius
+        self.inner_radius = inner_radius
+
+
+class _MoonBackplane(_CircleBackplane):
+    """A circle backplane whose radius is the MOON body's surface radius at the time."""
+
+    moon = _MoonBody()
+    get_surface = SimpleNamespace(cache_clear=lambda: None)
+
+    def __init__(self, _obs: Any, *, meshgrid: np.ndarray) -> None:
+        super().__init__(_obs, meshgrid=meshgrid)
+        radius = self.moon.surface.radii[0]
+        self.hits = np.hypot(meshgrid[:, 0] - 60.5, meshgrid[:, 1] - 60.5) < radius
+
+
+@pytest.fixture
+def moon_body(monkeypatch: pytest.MonkeyPatch) -> _MoonBody:
+    """The real silhouette's oops calls, replaced by :class:`_MoonBackplane`."""
+    moon = _MoonBody()
+    monkeypatch.setattr(_MoonBackplane, 'moon', moon)
+    monkeypatch.setattr(sim_realism_limb_peak, 'Pair', lambda uv: uv)
+    monkeypatch.setattr(sim_realism_limb_peak, 'Meshgrid', lambda _fov, uv: uv)
+    monkeypatch.setattr(sim_realism_limb_peak, 'Backplane', _MoonBackplane)
+    monkeypatch.setattr(sim_realism_limb_peak, 'Body', SimpleNamespace(lookup=lambda _n: moon))
+    monkeypatch.setattr(
+        sim_realism_limb_peak,
+        'Ellipsoid',
+        lambda origin, frame, radii: SimpleNamespace(origin=origin, frame=frame, radii=radii),
+    )
+    return moon
+
+
+def test_a_body_given_radii_is_traced_at_them(moon_body: _MoonBody) -> None:
+    """A body 0.5 px larger puts the silhouette 0.5 px further out."""
+    offsets = real_silhouette_offsets(
+        SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None),
+        radii_km={'MOON': (30.5, 30.5, 30.5)},
+    )
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=0.0)
+    distances = offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
+    assert np.max(np.abs(distances - 0.9)) <= 1.0 / 64.0
+
+
+def test_a_body_given_radii_gets_its_own_shape_back(moon_body: _MoonBody) -> None:
+    """After the trace the body has the surface it had before."""
+    surface = moon_body.surface
+    offsets = real_silhouette_offsets(
+        SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None),
+        radii_km={'MOON': (30.5, 30.5, 30.5)},
+    )
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=0.0)
+    offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
+    assert moon_body.surface is surface
+
+
 def test_a_frame_pair_that_both_measured_the_limb_keeps_both_offsets() -> None:
     """One offset on each side, in the same bin, enters the pools."""
     real = {'limb_peak_p0_r0': [-0.02], 'limb_width_p0_r0': [1.1]}
@@ -319,24 +384,6 @@ def _record_bin(within: bool | None) -> dict[str, Any]:
     }
 
 
-def test_a_known_outside_bin_outside_its_band_is_not_a_problem() -> None:
-    """A bin expected outside its band is left out when it lies outside."""
-    record = {'instruments': {'coiss_calib_nac': {'limb_peaks': {'p1_r1': _record_bin(False)}}}}
-    problems = record_limb_peak_problems(
-        record, known_outside=frozenset({('coiss_calib_nac', 'p1_r1')})
-    )
-    assert problems == []
-
-
-def test_a_known_outside_bin_within_its_band_is_a_problem() -> None:
-    """A bin expected outside its band is reported when it lies within it."""
-    record = {'instruments': {'coiss_calib_nac': {'limb_peaks': {'p1_r1': _record_bin(True)}}}}
-    problems = record_limb_peak_problems(
-        record, known_outside=frozenset({('coiss_calib_nac', 'p1_r1')})
-    )
-    assert problems == ['coiss_calib_nac p1_r1: expected outside its band, but its verdict is True']
-
-
 def test_a_record_bin_outside_its_band_is_a_problem() -> None:
     """Only the bin whose verdict is False is reported."""
     record = {
@@ -363,7 +410,7 @@ def test_a_record_bin_outside_its_band_is_a_problem() -> None:
 )
 def test_the_recorded_limb_peaks_lie_within_their_bands() -> None:
     """In every bin with a verdict, the matched median lies within the real band."""
-    problems = record_limb_peak_problems(_RECORD, known_outside=KNOWN_OUTSIDE_BINS)
+    problems = record_limb_peak_problems(_RECORD)
     assert not problems, (
         f'The limb gradient peaks of the record made at {made_at(_RECORD)} leave their '
         'bands:\n' + '\n'.join(problems) + f'\n{REGENERATE_HINT}'
