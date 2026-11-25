@@ -406,19 +406,22 @@ Each real camera is read by a host package, one per mission, whose class method
 - **Where values are.** A reader takes what it needs from the host's documented
   subfields by name, such as ``detector``, ``filter``, and the clock counts
   ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count``, which every
-  host spells as the PDS3 label does. Everything else is in ``dict``, the merged
-  metadata. The two raw sources stay in ``label_dict`` and ``header_dict``.
+  host spells as the PDS3 label does, and the C-kernel object, its clock, and whether
+  the camera frame is frozen (``ck_object_id``, ``ck_sclk_id``, and
+  ``spice_frame_is_frozen``). Everything else is in ``dict``, the merged metadata, with
+  the types the label parser gives. The two raw sources stay in ``label_dict`` and
+  ``header_dict``.
 - **Missing values.** A host leaves out a value that no label gives, or that a label
   gives as a placeholder such as ``UNK`` or ``N/A``: there is no subfield and no
   ``dict`` key, and never None. A reader therefore tests for the key, and publishes
   None, or an empty list, in its place.
-- **Errors.** Every host raises ``oops.OopsSpiceError`` when the SPICE kernels cannot
-  supply what the image needs, such as its pointing, and a subclass of
-  ``oops.host.HostError`` when it cannot read or use a file.
-  :func:`~spindoctor.navigate_image_files.navigate_image_files` records the first as
-  ``missing_spice_data`` and the second as ``image_read_error``. A SPICE error that
-  reaches the loader directly from ``cspyce`` counts as ``missing_spice_data`` as well,
-  by the rule ``oops.OopsSpiceError.is_spice_error`` applies.
+- **Errors.** No host checks the pointing when it reads an image. Where the SPICE
+  kernels lack what the image needs, such as its pointing, ``cspyce`` raises its error,
+  with the SPICE code, when the observation is first used, which is while the reader
+  builds it. A host raises a subclass of ``oops.host.HostError`` when it cannot read or
+  use a file. :func:`~spindoctor.navigate_image_files.navigate_image_files` records an
+  error carrying ``CKINSUFFDATA``, ``SPKINSUFFDATA``, or ``NOFRAMECONNECT`` as
+  ``missing_spice_data``, and a ``HostError`` as ``image_read_error``.
 
 Each host documents its subfields, its merge rules, and its errors in its own user
 guide.
