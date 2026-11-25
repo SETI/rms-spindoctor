@@ -23,16 +23,13 @@ from typing import Any
 from ruamel.yaml import YAML
 
 from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.idealized import CURRENT_SCHEMA_VERSION
 from spindoctor.sim.scene.rules_common import (
     _refuse_nulls,
     _require_int,
     _require_str,
 )
-from spindoctor.sim.scene.validate import (
-    CURRENT_SCHEMA_VERSION,
-    validate_scene,
-    validate_sim_params,
-)
+from spindoctor.sim.scene.validate import validate_scene, validate_sim_params
 
 __all__ = [
     'DECLARED_SIM_SCENE_CLASSES',

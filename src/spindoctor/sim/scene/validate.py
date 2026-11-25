@@ -1,69 +1,56 @@
-"""Validate a sim scene against the schema.
+"""Validate a sim scene, and build its typed form.
 
-``validate_sim_params`` validates an in-memory ``sim_params`` dict; programmatic
-scene authors call it directly, and loading and saving a scene file
+:func:`parse_scene` is the scene validator: it checks a scene's mapping and returns the
+typed :class:`~spindoctor.sim.scene.truth.Scene`.  The typed blocks are checked by
+their types (:mod:`spindoctor.sim.scene.truth` and the modules it builds on) and by the
+catalog rules of :mod:`spindoctor.sim.scene.rules_detector`.  The blocks not typed yet
+(:data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`) are checked by their rules
+modules: body entries by :mod:`spindoctor.sim.scene.rules_body`, the ring_system block
+by :mod:`spindoctor.sim.scene.rules_ring`, the artifacts block by
+:mod:`spindoctor.sim.scene.rules_artifacts`, the instrument_config block by
+:mod:`spindoctor.sim.scene.rules_instrument_config`, and the rest by
+:mod:`spindoctor.sim.scene.rules_common`.
+
+``validate_sim_params`` validates an in-memory ``sim_params`` dict and returns it;
+programmatic scene authors call it directly, and loading and saving a scene file
 (:mod:`spindoctor.sim.scene.io`) call it too.  ``validate_scene`` puts that check
 behind a small cache, which loading a file and every render share, so a scene is
-not checked twice while its contents and label stay the same.  The validator is
-written by hand: the key inventory and boundary classification live in
-:mod:`spindoctor.sim.scene.boundary` and the per-field type checks in
-:mod:`spindoctor.sim.scene.rules_common` (body entries:
-:mod:`spindoctor.sim.scene.rules_body`; the ring_system block:
-:mod:`spindoctor.sim.scene.rules_ring`; the artifacts block:
-:mod:`spindoctor.sim.scene.rules_artifacts`; the instrument_config block:
-:mod:`spindoctor.sim.scene.rules_instrument_config`).
+not checked twice while its contents and label stay the same.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from functools import lru_cache
 from typing import Any
 
-from spindoctor.sim.instruments.catalog import load_instrument_catalog
-from spindoctor.sim.scene.boundary import _ALLOWED_KEYS, _OBJECT_BLOCKS
+from spindoctor.schema import SchemaError, parse
+from spindoctor.sim.scene.boundary import _OBJECT_BLOCKS
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import scene_binning
 from spindoctor.sim.scene.rules_artifacts import _check_artifacts
 from spindoctor.sim.scene.rules_body import _check_body_names_unique, _check_body_object
 from spindoctor.sim.scene.rules_common import (
-    _check_detector,
-    _check_downlink_table_ceiling,
     _check_expected,
-    _check_noise,
-    _check_optics,
-    _check_optional_bool,
     _check_optional_mapping_list,
-    _check_optional_number,
-    _check_optional_positive_int,
-    _check_optional_positive_number,
-    _check_optional_str,
-    _check_quantization_keys_used,
     _check_sky_counts,
-    _check_spk_error,
-    _check_star_catalog_scatter,
     _check_star_object,
     _refuse_nulls,
-    _require_int,
-    _require_positive_int,
     _require_ranges_for_spk_error,
-    _require_str,
 )
+from spindoctor.sim.scene.rules_detector import check_scene_camera
 from spindoctor.sim.scene.rules_instrument_config import _check_instrument_config
 from spindoctor.sim.scene.rules_ring import _check_ring_system
+from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
 from spindoctor.sim.scene.truth_echo import check_truth_echo
 
 __all__ = [
-    'CURRENT_SCHEMA_VERSION',
     'clear_validation_cache',
+    'parse_scene',
     'validate_scene',
     'validate_sim_params',
 ]
-
-CURRENT_SCHEMA_VERSION: int = 2
-
-# The largest noise_seed the scene editor's control can show and save.
-_NOISE_SEED_MAX = 2**31 - 1
 
 
 # A handful of entries.  Validation is cheap next to a render, so a scene that has
@@ -113,10 +100,100 @@ def clear_validation_cache() -> None:
     _validate_scene_json.cache_clear()
 
 
+def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
+    """Check a scene's mapping and build its typed form.
+
+    This is the scene validator.  A scene either sets a key or leaves it out to take
+    its default.  A null is refused at any depth, as a key of the scene, of a block,
+    or of a mapping in a list, and as a list entry, and the message gives the full key
+    path, such as ``bodies[1].nav_override.mesh_lumpiness``.  Every other problem with
+    a typed block is reported at once, one line each, in the form
+    ``source: key.path: message``.
+
+    The typed scene is a read-only product of the mapping, which stays the scene's
+    saved form: a key the scene leaves out stays out of the mapping, and is None in
+    the typed scene.  So ``optics.psf: {match_navigator: true}`` keeps its authored
+    form, and the renderer resolves it into the navigator's Gaussian when it builds
+    the kernel.
+
+    A truth value that ``instrument_config`` repeats, such as the planted read
+    noise copied into ``instrument_config.noise``, isn't an error, but it warns
+    with :class:`~spindoctor.sim.scene.truth_echo.SimSceneTruthEchoWarning`
+    unless the scene lists its path in ``published_equals_truth`` (see
+    :mod:`spindoctor.sim.scene.truth_echo`).
+
+    Parameters:
+        raw: The scene's mapping.
+        source: The label that begins each error message, such as the path of the
+            scene file.
+
+    Returns:
+        The typed scene.
+
+    Raises:
+        SimSceneValidationError: On any unknown or invalid key, or a null at any
+            depth.
+    """
+    _refuse_nulls(raw, '', source=source)
+    typed = {key: value for key, value in raw.items() if key not in UNTYPED_BLOCKS}
+    try:
+        scene = parse(Scene, typed, source=source)
+    except SchemaError as exc:
+        raise SimSceneValidationError(str(exc)) from exc
+    check_scene_camera(scene, source=source)
+    _check_untyped_blocks(raw, instrument=scene.instrument, source=source)
+    if scene.spk_error is not None:
+        _require_ranges_for_spk_error(raw, source=source)
+    check_truth_echo(raw, source=source)
+    return scene
+
+
+def _check_untyped_blocks(raw: Mapping[str, Any], *, instrument: str, source: str) -> None:
+    """Check the blocks that the typed scene does not hold yet with their rules.
+
+    Parameters:
+        raw: The scene's mapping, whose typed part has been checked.
+        instrument: The scene's camera, which the catalog holds.
+        source: The label that begins each error message.
+
+    Raises:
+        SimSceneValidationError: On any unknown or invalid key in those blocks.
+    """
+    _check_ring_system(raw.get('ring_system'), source=source)
+    _check_instrument_config(
+        raw.get('instrument_config'),
+        instrument=instrument,
+        binning=scene_binning(raw),
+        source=source,
+    )
+    _check_artifacts(
+        raw.get('artifacts'),
+        instrument=instrument,
+        detector=raw.get('detector'),
+        source=source,
+    )
+    _check_sky_counts(raw.get('sky_counts'), source=source)
+    _check_expected(raw.get('expected'), source=source)
+    for block in ('bodies', 'stars'):
+        _check_optional_mapping_list(raw.get(block), block, source=source)
+        allowed = _OBJECT_BLOCKS[block][0]
+        for index, obj in enumerate(raw.get(block) or []):
+            unknown = set(obj) - allowed
+            if unknown:
+                raise SimSceneValidationError(
+                    f'{source}: {block}[{index}]: unknown keys: {sorted(unknown)}'
+                )
+            if block == 'bodies':
+                _check_body_object(obj, index=index, source=source)
+            else:
+                _check_star_object(obj, index=index, source=source)
+    _check_body_names_unique(raw.get('bodies') or [], source=source)
+
+
 def validate_sim_params(
     sim_params: dict[str, Any], *, source: str = 'sim_params'
 ) -> dict[str, Any]:
-    """Validate a flat ``sim_params`` mapping against the schema inventory.
+    """Validate a flat ``sim_params`` mapping with :func:`parse_scene`.
 
     This is the validation core shared by
     :func:`~spindoctor.sim.scene.io.load_sim_scene`,
@@ -124,22 +201,6 @@ def validate_sim_params(
     (the calibration campaign generator, the doc-image galleries), which build dicts
     rather than files.  ``schema_version`` and ``scene_name`` are optional here (a
     dict author has no filename); when present, the version must be current.
-
-    A scene either sets a key or leaves it out to take its default.  A null is
-    refused at any depth, as a key of the scene, of a block, or of a mapping in a
-    list, and as a list entry, and the message gives the full key path, such as
-    ``bodies[1].nav_override.mesh_lumpiness``.
-
-    Validation never rewrites the scene: ``optics.psf: {match_navigator: true}``
-    stays in its authored form (the renderer resolves it into the navigator's
-    concrete Gaussian when it builds the kernel), so an editor's live mapping
-    and the persisted file both keep the author's intent.
-
-    A truth value that ``instrument_config`` repeats, such as the planted read
-    noise copied into ``instrument_config.noise``, isn't an error, but it warns
-    with :class:`~spindoctor.sim.scene.truth_echo.SimSceneTruthEchoWarning`
-    unless the scene lists its path in ``published_equals_truth`` (see
-    :mod:`spindoctor.sim.scene.truth_echo`).
 
     Parameters:
         sim_params: The flat scene parameter mapping.
@@ -152,93 +213,5 @@ def validate_sim_params(
         SimSceneValidationError: On any unknown or invalid field, or a null at any
             depth.
     """
-    _refuse_nulls(sim_params, '', source=source)
-    unknown = set(sim_params) - _ALLOWED_KEYS
-    if unknown:
-        raise SimSceneValidationError(f'{source}: unknown scene keys: {sorted(unknown)}')
-
-    if 'schema_version' in sim_params:
-        schema_version = _require_int(sim_params, 'schema_version', source=source)
-        if schema_version != CURRENT_SCHEMA_VERSION:
-            raise SimSceneValidationError(
-                f'{source}: schema_version must be {CURRENT_SCHEMA_VERSION}, got {schema_version}'
-            )
-    if 'scene_name' in sim_params:
-        _require_str(sim_params, 'scene_name', source=source)
-
-    instrument = _require_str(sim_params, 'instrument', source=source)
-    # The names a scene may write: every instrument in the catalog, plus the
-    # aliases the entries declare.
-    allowed = load_instrument_catalog().allowed_names()
-    if instrument not in allowed:
-        raise SimSceneValidationError(
-            f'{source}: instrument {instrument!r} is not one of {sorted(allowed)}'
-        )
-    _require_positive_int(sim_params, 'size_v', source=source)
-    _require_positive_int(sim_params, 'size_u', source=source)
-    _require_int(sim_params, 'random_seed', source=source)
-    # The scene editor shows -1 as an absent noise_seed, so a negative value could not
-    # be told apart from leaving the key out, and its control stops at the 32-bit limit.
-    if 'noise_seed' in sim_params and not (
-        0 <= _require_int(sim_params, 'noise_seed', source=source) <= _NOISE_SEED_MAX
-    ):
-        raise SimSceneValidationError(
-            f'{source}: noise_seed must be an integer from 0 to {_NOISE_SEED_MAX}'
-        )
-    _check_optional_positive_number(sim_params.get('exposure_sec'), 'exposure_sec', source=source)
-    _check_optional_number(sim_params.get('offset_v'), 'offset_v', source=source)
-    _check_optional_number(sim_params.get('offset_u'), 'offset_u', source=source)
-    _check_optional_number(
-        sim_params.get('offset_rotation_deg'), 'offset_rotation_deg', source=source
-    )
-    _check_optional_number(sim_params.get('time'), 'time', source=source)
-    _check_optional_number(sim_params.get('ring_epoch'), 'ring_epoch', source=source)
-    _check_optional_str(sim_params.get('midtime_utc'), 'midtime_utc', source=source)
-    _check_optional_str(sim_params.get('closest_planet'), 'closest_planet', source=source)
-    _check_optional_bool(
-        sim_params.get('fit_camera_rotation'), 'fit_camera_rotation', source=source
-    )
-    _check_noise(sim_params.get('noise'), source=source)
-    _check_optional_positive_int(sim_params.get('oversample'), 'oversample', source=source)
-    _check_ring_system(sim_params.get('ring_system'), source=source)
-    _check_optics(sim_params.get('optics'), source=source)
-    _check_detector(sim_params.get('detector'), instrument=instrument, source=source)
-    _check_instrument_config(
-        sim_params.get('instrument_config'),
-        instrument=instrument,
-        binning=scene_binning(sim_params),
-        source=source,
-    )
-    _check_artifacts(
-        sim_params.get('artifacts'),
-        instrument=instrument,
-        detector=sim_params.get('detector'),
-        source=source,
-    )
-    _check_quantization_keys_used(sim_params.get('detector'), instrument=instrument, source=source)
-    _check_downlink_table_ceiling(sim_params.get('detector'), instrument=instrument, source=source)
-    _check_spk_error(sim_params.get('spk_error'), source=source)
-    _check_sky_counts(sim_params.get('sky_counts'), source=source)
-    _check_star_catalog_scatter(sim_params.get('star_catalog_scatter_px'), source=source)
-    _check_expected(sim_params.get('expected'), source=source)
-
-    for block in ('bodies', 'stars'):
-        _check_optional_mapping_list(sim_params.get(block), block, source=source)
-        allowed = _OBJECT_BLOCKS[block][0]
-        for index, obj in enumerate(sim_params.get(block) or []):
-            unknown = set(obj) - allowed
-            if unknown:
-                raise SimSceneValidationError(
-                    f'{source}: {block}[{index}]: unknown keys: {sorted(unknown)}'
-                )
-            if block == 'bodies':
-                _check_body_object(obj, index=index, source=source)
-            else:
-                _check_star_object(obj, index=index, source=source)
-    _check_body_names_unique(sim_params.get('bodies') or [], source=source)
-
-    if sim_params.get('spk_error') is not None:
-        _require_ranges_for_spk_error(sim_params, source=source)
-    check_truth_echo(sim_params, source=source)
-
+    parse_scene(sim_params, source=source)
     return sim_params

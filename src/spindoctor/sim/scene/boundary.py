@@ -1,147 +1,99 @@
 """Key inventory and information-boundary classification for sim scenes.
 
-Every top-level and per-object key a scene may carry is inventoried here
-(unknown keys fail validation so typos do not silently render the default
-scene), and every inventory key is classified as either idealized
-(information the production pipeline could know from catalogs, SPICE, labels,
-or config: exposed to the navigator through ``obs.nav_params``), truth
-(nature's values, planted errors, variance knobs, and contaminants: readable
-only by the image-side renderer), or test-only (the scene's expected
-navigation outcome: read by the integration-test assertion machinery, and by
-neither the renderer nor the navigator).  :data:`TRUTH_KEYS` is the
-machine-readable truth set the ObsSim boundary filter strips and the
-structural boundary test iterates; the test-only keys are likewise stripped
-from the navigator view (default-deny), so they never reach the navigator
-either.  The import-time completeness assertion below keeps the classification
-complete and disjoint over all three classes, so a key added to the schema
-without a classification fails everything loudly, not just one test.
+Every top-level and per-object key a scene may carry is inventoried here, and every
+key is classified as idealized (information the production pipeline could know from
+catalogs, SPICE, labels, or config: exposed to the navigator through
+``obs.nav_params``), truth (nature's values, planted errors, variance knobs, and
+contaminants: readable only by the image-side renderer), or test-only (read by the
+integration tests and the validator, and by neither the renderer nor the navigator).
 
-:func:`build_nav_params` builds the filtered navigator view from the
-classification, and :mod:`spindoctor.sim.scene.validate` refuses a scene key that
-is not in the inventory.
+The top-level sets are derived from the typed scene: a key of
+:class:`~spindoctor.sim.scene.idealized.IdealizedScene` is idealized, and a key that
+:class:`~spindoctor.sim.scene.truth.Scene` adds is truth or test-only, as its field
+declares.  A block the typed scene does not hold yet takes its class from
+:data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`.  The per-object sets of the
+``bodies``, ``stars``, and ``ring_system`` blocks are written out below until those
+blocks are typed, and an import-time assertion keeps them complete and disjoint.
+
+:data:`TRUTH_KEYS` is the machine-readable truth set the ObsSim boundary filter strips
+and the structural boundary test iterates; the test-only keys are likewise stripped
+from the navigator view (default-deny), so they never reach the navigator either.
+:func:`build_nav_params` builds the filtered navigator view from the classification.
 """
 
 import copy
+import dataclasses
 from typing import Any
 
+from spindoctor.sim.scene.declare import Boundary, declaration_of
 from spindoctor.sim.scene.fields import scene_binning
+from spindoctor.sim.scene.idealized import IdealizedScene
+from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
 
 __all__ = [
     'PLANTED_POINTING_KEYS',
     'TOP_LEVEL_IDEALIZED_KEYS',
+    'TOP_LEVEL_KEYS',
     'TOP_LEVEL_TEST_ONLY_KEYS',
     'TOP_LEVEL_TRUTH_KEYS',
     'TRUTH_KEYS',
     'build_nav_params',
 ]
 
-# ---------------------------------------------------------------------------
-# Key inventory and information-boundary classification.
-#
-# _ALLOWED_KEYS / _*_KEYS are the complete inventory (unknown keys fail
-# validation so typos do not silently render the default scene).  The
-# *_IDEALIZED_KEYS / *_TRUTH_KEYS sets classify every inventory key for the
-# information boundary; the import-time assertion below keeps the
-# classification complete and disjoint.
-# ---------------------------------------------------------------------------
 
-# Every top-level key a scene may carry.  These are the flat runtime sim_params
-# names the renderer / ObsSim consume directly, plus the schema_version /
-# scene_name metadata the renderer ignores.
-_ALLOWED_KEYS: frozenset[str] = frozenset(
-    {
-        'schema_version',
-        'scene_name',
-        'instrument',
-        'size_v',
-        'size_u',
-        'random_seed',
-        'noise_seed',
-        'exposure_sec',
-        'offset_v',
-        'offset_u',
-        'offset_rotation_deg',
-        'midtime_utc',
-        'closest_planet',
-        'time',
-        'ring_epoch',
-        'oversample',
-        'optics',
-        'detector',
-        'artifacts',
-        'spk_error',
-        'sky_counts',
-        'star_catalog_scatter_px',
-        'expected',
-        'published_equals_truth',
-        'bodies',
-        'ring_system',
-        'stars',
-        'noise',
-        'instrument_config',
-        'fit_camera_rotation',
-    }
-)
+def _top_level_keys(boundary: Boundary) -> frozenset[str]:
+    """The top-level keys of one boundary class.
 
-# Top-level idealized keys: frame identity, emulated-instrument configuration,
-# and epoch/timing values the production pipeline reads from labels and
-# published models.  'ring_epoch' is deliberately idealized: the precessing
-# ring model's epoch is catalog knowledge the navigator-side ring model reads.
-TOP_LEVEL_IDEALIZED_KEYS: frozenset[str] = frozenset(
-    {
-        'schema_version',
-        'scene_name',
-        'instrument',
-        'size_v',
-        'size_u',
-        'exposure_sec',
-        'midtime_utc',
-        'closest_planet',
-        'time',
-        'ring_epoch',
-        'bodies',
-        'ring_system',
-        'stars',
-        'instrument_config',
-        'fit_camera_rotation',
-    }
+    A field of :class:`~spindoctor.sim.scene.idealized.IdealizedScene` is idealized.
+    A field :class:`~spindoctor.sim.scene.truth.Scene` adds belongs to the class its
+    declaration gives, which is truth or test.  An untyped block belongs to the class
+    :data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS` gives it.
+
+    Parameters:
+        boundary: The boundary class.
+
+    Returns:
+        The keys of that class.
+    """
+    idealized = {item.name for item in dataclasses.fields(IdealizedScene)}
+    if boundary == 'idealized':
+        typed = idealized
+    else:
+        typed = {
+            item.name
+            for item in dataclasses.fields(Scene)
+            if item.name not in idealized and declaration_of(item).boundary == boundary
+        }
+    untyped = {name for name, block_class in UNTYPED_BLOCKS.items() if block_class == boundary}
+    return frozenset(typed | untyped)
+
+
+# Top-level idealized keys: frame identity, emulated-instrument configuration, and
+# epoch and timing values the production pipeline reads from labels and published
+# models.
+TOP_LEVEL_IDEALIZED_KEYS: frozenset[str] = _top_level_keys('idealized')
+
+# Top-level truth keys: the planted pointing error the navigator must recover, the RNG
+# realizations, and the contaminant and noise blocks.  One value inside the 'detector'
+# block is published: build_nav_params echoes the readout binning, which a real frame's
+# label states, as a top-level 'binning' key of the navigator view.
+TOP_LEVEL_TRUTH_KEYS: frozenset[str] = _top_level_keys('truth')
+
+# Top-level test-only keys: the scene's expected navigation outcome, read only by the
+# sim integration suite's assertion machinery, and the truth paths the author declares
+# equal to the published instrument_config on purpose, read only by the validator's
+# truth-echo check.  The boundary filter's default-deny keeps them out of 'nav_params'
+# alongside the truth keys.
+TOP_LEVEL_TEST_ONLY_KEYS: frozenset[str] = _top_level_keys('test')
+
+# Every top-level key a scene may carry.
+TOP_LEVEL_KEYS: frozenset[str] = (
+    TOP_LEVEL_IDEALIZED_KEYS | TOP_LEVEL_TRUTH_KEYS | TOP_LEVEL_TEST_ONLY_KEYS
 )
 
 # The planted pointing keys: the navigated frame applies them, and an offset-free
 # render zeroes them and leaves them out of its cache key.
 PLANTED_POINTING_KEYS: tuple[str, ...] = ('offset_v', 'offset_u', 'offset_rotation_deg')
-
-# Top-level truth keys: the planted pointing error the navigator must recover,
-# the RNG realizations, and the contaminant / noise fields.  One value inside the
-# 'detector' block is published: build_nav_params echoes the readout binning, which
-# a real frame's label states, as a top-level 'binning' key of the navigator view.
-TOP_LEVEL_TRUTH_KEYS: frozenset[str] = frozenset(
-    {
-        'random_seed',
-        'noise_seed',
-        'offset_v',
-        'offset_u',
-        'offset_rotation_deg',
-        'oversample',
-        'optics',
-        'detector',
-        'artifacts',
-        'spk_error',
-        'sky_counts',
-        'star_catalog_scatter_px',
-        'noise',
-    }
-)
-
-# Top-level test-only keys: the scene's expected navigation outcome, read only
-# by the sim integration suite's assertion machinery, and the truth paths the
-# author declares equal to the published instrument_config on purpose, read
-# only by the validator's truth-echo check.  Neither the image-side renderer
-# nor the navigator consumes them, so they are neither idealized information
-# the pipeline could know nor planted truth the renderer draws.  They are a
-# third, disjoint class; the boundary filter's default-deny keeps them out of
-# ``nav_params`` alongside the truth keys.
-TOP_LEVEL_TEST_ONLY_KEYS: frozenset[str] = frozenset({'expected', 'published_equals_truth'})
 
 # Per-body idealized keys: the ellipsoid/mesh geometry, pose, lighting, and
 # physical scale the production pipeline knows from SPICE and shape catalogs.
@@ -344,32 +296,12 @@ TRUTH_KEYS: frozenset[str] = (
 
 
 def _assert_boundary_classification_complete() -> None:
-    """Every schema key must be classified idealized, truth, or test-only.
+    """Every key of an untyped object block must be classified idealized or truth.
 
-    The three top-level classes must partition the inventory: every key falls
-    in exactly one, and no key falls in two.  Runs at import so a schema change
-    that adds a key without classifying it fails everything loudly, not just one
-    test.
+    Runs at import so a schema change that adds a key without classifying it fails
+    everything loudly, not just one test.  The typed blocks are classified by their
+    types.
     """
-    classes = {
-        'idealized': TOP_LEVEL_IDEALIZED_KEYS,
-        'truth': TOP_LEVEL_TRUTH_KEYS,
-        'test-only': TOP_LEVEL_TEST_ONLY_KEYS,
-    }
-    for (name_a, set_a), (name_b, set_b) in (
-        (('idealized', classes['idealized']), ('truth', classes['truth'])),
-        (('idealized', classes['idealized']), ('test-only', classes['test-only'])),
-        (('truth', classes['truth']), ('test-only', classes['test-only'])),
-    ):
-        overlap = set_a & set_b
-        assert not overlap, (
-            f'top-level keys classified both {name_a} and {name_b}: {sorted(overlap)}'
-        )
-    classified = TOP_LEVEL_IDEALIZED_KEYS | TOP_LEVEL_TRUTH_KEYS | TOP_LEVEL_TEST_ONLY_KEYS
-    unclassified = _ALLOWED_KEYS - classified
-    assert not unclassified, f'top-level keys with no boundary class: {sorted(unclassified)}'
-    unknown = classified - _ALLOWED_KEYS
-    assert not unknown, f'classified top-level keys not in the inventory: {sorted(unknown)}'
     blocks: dict[str, tuple[frozenset[str], frozenset[str], frozenset[str]]] = {
         **_OBJECT_BLOCKS,
         'ring_system': (_RING_SYSTEM_KEYS, _RING_SYSTEM_IDEALIZED_KEYS, _RING_SYSTEM_TRUTH_KEYS),

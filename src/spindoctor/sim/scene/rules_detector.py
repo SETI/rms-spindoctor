@@ -1,0 +1,141 @@
+"""The rules that check a scene's camera and ``detector`` block against the catalog.
+
+The typed scene checks every key on its own and the rules inside one block
+(:mod:`spindoctor.sim.scene.truth_detector`).  The rules here read the instrument
+catalog as well: the scene's camera must be cataloged, and so must the gain state,
+readout mode, filter, and downlink table its ``detector`` block selects.  A key that
+the frame's quantization never reads is refused, and so is a downlink table that
+decodes above the frame's ADC ceiling.
+
+:func:`spindoctor.sim.scene.validate.parse_scene` runs :func:`check_scene_camera`
+after the typed scene is built.
+"""
+
+from __future__ import annotations
+
+from spindoctor.sim.instruments.catalog import load_instrument_catalog
+from spindoctor.sim.instruments.resolvers import (
+    FilterCatalogError,
+    cataloged_binnings,
+    downlink_table_names,
+    resolve_detector_defaults,
+    resolve_detector_defaults_native,
+    resolve_downlink_table,
+    resolve_filter_throughput,
+)
+from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.truth import Scene
+from spindoctor.sim.scene.truth_detector import DetectorOverride
+
+__all__ = ['check_scene_camera']
+
+# The detector keys that one quantization alone reads, with that quantization.
+_QUANTIZATION_KEYS: dict[str, str] = {
+    'downlink_table': 'sqrt_lut',
+    'contour_step': 'contour_8bit',
+}
+
+
+def check_scene_camera(scene: Scene, *, source: str) -> None:
+    """Check a scene's camera, and its ``detector`` block, against the catalog.
+
+    Parameters:
+        scene: The typed scene.
+        source: The label that begins each error message.
+
+    Raises:
+        SimSceneValidationError: If the catalog has no such camera; if the
+            ``detector`` block selects a gain state, readout mode, filter, or
+            downlink table the camera does not catalog, or sets a key that the
+            frame's quantization never reads; or if the frame's downlink table
+            decodes above its ADC ceiling.
+    """
+    instrument = scene.instrument
+    allowed = load_instrument_catalog().allowed_names()
+    if instrument not in allowed:
+        raise SimSceneValidationError(
+            f'{source}: instrument {instrument!r} is not one of {sorted(allowed)}'
+        )
+    detector = scene.detector or DetectorOverride()
+    _check_cataloged(detector, instrument=instrument, source=source)
+    _check_quantization_keys_used(detector, instrument=instrument, source=source)
+    _check_downlink_table_ceiling(detector, instrument=instrument, source=source)
+
+
+def _check_cataloged(detector: DetectorOverride, *, instrument: str, source: str) -> None:
+    """Refuse a gain state, readout mode, filter, or downlink table the camera lacks."""
+    if detector.gain_state is not None:
+        native = resolve_detector_defaults_native(instrument)
+        table = native.gain_e_per_dn_by_state or {0: 1.0}
+        if detector.gain_state not in table:
+            raise SimSceneValidationError(
+                f'{source}: detector.gain_state {detector.gain_state} is not cataloged for '
+                f'instrument {instrument!r}; available states: {sorted(table)}'
+            )
+    if detector.binning is not None:
+        available = cataloged_binnings(instrument)
+        if detector.binning not in available:
+            raise SimSceneValidationError(
+                f'{source}: detector.binning {detector.binning} is not a cataloged readout '
+                f'mode of instrument {instrument!r}; available binnings: {list(available)}'
+            )
+    if detector.filter is not None:
+        try:
+            resolve_filter_throughput(instrument, detector.filter)
+        except FilterCatalogError as exc:
+            raise SimSceneValidationError(f'{source}: detector.filter: {exc}') from exc
+    if detector.downlink_table is not None:
+        tables = downlink_table_names(instrument)
+        if detector.downlink_table not in tables:
+            raise SimSceneValidationError(
+                f'{source}: detector.downlink_table {detector.downlink_table!r} is not listed '
+                f'for instrument {instrument!r}; available tables: {list(tables)}'
+            )
+
+
+def _check_quantization_keys_used(
+    detector: DetectorOverride, *, instrument: str, source: str
+) -> None:
+    """Refuse a detector key that the frame's quantization never reads.
+
+    Only the ``sqrt_lut`` quantization decodes through ``downlink_table``, and only
+    ``contour_8bit`` posterizes to ``contour_step``.  The frame's quantization is the
+    block's own, else the camera's for the selected readout mode.
+    """
+    quantization = detector.quantization
+    if quantization is None:
+        quantization = resolve_detector_defaults(instrument, detector.binning or 1).quantization
+    for key, reader in _QUANTIZATION_KEYS.items():
+        value = getattr(detector, key)
+        if value is not None and quantization != reader:
+            raise SimSceneValidationError(
+                f'{source}: detector.{key} {value!r} has no effect: only the {reader} '
+                f'quantization reads it, and this scene quantizes with {quantization!r}; set '
+                f'detector.quantization: {reader}, or drop the key'
+            )
+
+
+def _check_downlink_table_ceiling(
+    detector: DetectorOverride, *, instrument: str, source: str
+) -> None:
+    """Refuse a companded frame whose downlink table decodes above the ADC ceiling.
+
+    The quantizer snaps each DN, already clipped at the ceiling, to the nearest decoded
+    value, so a level above the ceiling would put DN in the frame that the ADC can never
+    produce.  The ceiling is the block's ``saturation_dn``, else the camera's.  Only the
+    ``sqrt_lut`` quantization decodes through a table.
+    """
+    defaults = resolve_detector_defaults(instrument, detector.binning or 1)
+    if (detector.quantization or defaults.quantization) != 'sqrt_lut':
+        return
+    table = resolve_downlink_table(instrument, detector.downlink_table)
+    if table is None:
+        return
+    saturation_dn = detector.saturation_dn or defaults.saturation_dn
+    top_dn = table.top_decoded_dn()
+    if top_dn > saturation_dn:
+        raise SimSceneValidationError(
+            f'{source}: detector.saturation_dn {saturation_dn:g}: the downlink table decodes '
+            f'up to {top_dn:g} DN, above the ADC ceiling (saturation_dn) of {saturation_dn:g} '
+            f'DN; raise the ceiling or choose another downlink table'
+        )
