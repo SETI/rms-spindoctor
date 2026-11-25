@@ -217,6 +217,31 @@ tests need none of the archive environment above.
        technique has a known wrong answer, that answer stays in its band. Each
        fused error stays within 3 times the reported sigma, or inside the
        scene's known band in sigmas.
+   * - Full-frame guard classes (``test_sim_<class>.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Full-size frames, each class in a module of its own, each scene
+       navigated once per run. The one answer meets every check the
+       truth-check, expected-outcome, and baseline modules apply to the smaller
+       scenes, and those modules skip the class when they navigate.
+   * - Mixed-content guards (``test_sim_mixed_content.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Realistic frames that put two kinds of content in view, such as stars
+       with a body or a moon in front of a ring sheet, navigated once per run
+       and held to the same checks as the other guard classes.
+   * - Dense ring guards (``test_sim_dense_rings.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Saturn's rings at real scale on full-size frames, with structure the
+       navigator doesn't know about beside the cataloged edges,
+       navigated once per run and held to the same checks as the camera guards.
+   * - Mixed-defect guards (``test_sim_mixed_defects.py``)
+     - integration (``sim_integration``)
+     - nothing
+     - Realistic frames that carry several detector, readout, and downlink
+       defects at once, as real frames do. Each scene is navigated once per
+       run and held to the same checks as the other guard classes.
    * - Sim regression baselines (``test_sim_baselines.py``)
      - integration (``sim_integration``)
      - nothing

@@ -1,0 +1,64 @@
+schema_version: 2
+scene_name: coiss_nac_lossy_moon
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 0.06
+# A raw Cassini NAC frame of a moon, lossy-compressed after the 12-to-8-bit
+# downlink table, over the camera's whole raw chain.  It follows N1488892945
+# (Rhea, 143 px across at 29 deg phase, CL1+CL2, 100 ms, gain state 2,
+# DATA_CONVERSION_TYPE TABLE, INST_CMPRS_TYPE LOSSY, compression ratio 52.8).
+# In the metadata indexes of COISS_2010, 2023, 2050, and 2068, all 375 lossy NAC
+# frames and all 255 lossy WAC frames are 8-bit: TABLE, except 52 NAC frames
+# that are 8LSB.  Their labels give no count of
+# lost lines (MISSING_LINES N/A), and N1488892945 has none, so the scene loses
+# none.  instrument_defaults turns on shot, read, and readout-dark noise, hot
+# pixels, cosmic rays, banding, bias structure, bloom, and the fitted PSF and
+# distortion residual.
+#
+# The exposure is scaled to the simulator's brightness scale (#895): at the real
+# 100 ms the simulated disc saturates, and at 60 ms its middle reads a median
+# 2,320 DN, where the real disc reads a median 2,230 DN through the table.
+#
+# The simulator's codec steps every DCT frequency alike, where the real one does
+# not, so its step is illustrative.  A step of 128 DN makes the contrast across
+# block edges inside the disc 1.28 times the contrast inside the blocks.  Three
+# real lossy Rhea frames (N1488892945, N1489304826, N1489436684) show 1.04 to
+# 1.51, and this frame without compression 0.94.  The step zeroes more
+# coefficients than the real codec does: 90% of the disc's AC coefficients fall
+# below 5 DN, against 41 to 52% on those frames.
+#
+# The planted offset, 20.8 px, lies between the median and the 90th percentile
+# of the operator-verified NAC offsets in the image library (15.9 and 33.9 px),
+# pointing down and right.  The roll is the camera's measured twist,
+# +0.0115 deg, planted with roll fitting off as the camera ships.
+#
+# The fused answer lands 0.034 to 0.050 px off over 16 distinct draws, at medium
+# tier on all of them: the scene seeds nothing but the noise, so its noise_seed
+# draws repeat random_seed 101 to 808.  The table and the compression are
+# realistic but do not move the answer, so the scene shows the navigator
+# unaffected by them: with the compression removed the fused answer lands 0.045
+# to 0.047 px off on four draws, and with the table removed 0.041 to 0.042 px.
+# Without the hot pixels it lands 0.041 to 0.050 px off, the disc correlation
+# 0.010 to 0.021 px.  The disc correlation lands 0.008 to 0.024 px off with every
+# defect present.  BodyLimbNav lands 0.29 to 0.33 px off, and 0.33 to 0.35 px
+# without the compression.
+artifacts:
+  instrument_defaults: true
+  compression_dct: {probability: 1.0, scale_factor: 128.0}
+detector:
+  filter: CL1+CL2
+  quantization: sqrt_lut
+bodies:
+  - name: RHEA
+    center_v: 470.0
+    center_u: 560.0
+    semi_a_px: 72.0
+    semi_b_px: 72.0
+    semi_c_px: 72.0
+    illumination_angle: 70.0
+    phase_angle: 29.0
+offset_v: 18.43
+offset_u: 9.67
+offset_rotation_deg: 0.0115

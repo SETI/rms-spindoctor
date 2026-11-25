@@ -8,6 +8,10 @@ the tolerances :mod:`tests.integration.sim_baseline` sets, so a last-bit change
 upstream that moves an answer by a step of a technique's grid does not fail the
 scene.
 
+The classes in :data:`~tests.integration.sim_truth.OWN_MODULE_CLASSES` are left out
+of the navigation here: their own modules navigate each scene once and compare that
+result with its baseline.  Every scene, theirs included, still needs a baseline.
+
 Regenerate the baselines with ``python -m tests.integration.update_sim_baselines``
 after a deliberate change, and review the diff before committing.
 """
@@ -27,6 +31,7 @@ from tests.integration.sim_baseline import (
     discover_sim_baseline_paths,
     load_sim_baseline,
 )
+from tests.integration.sim_scene_checks import has_own_module
 
 # Exact-match navigation reproduction is fragile under parallel load (the same
 # reason the real-image baseline test is integration-marked), so this runs in
@@ -39,7 +44,12 @@ _BASELINES_DIR = Path(__file__).parent / 'sim_baselines'
 
 _SCENE_BY_NAME = {p.stem: p for p in iter_scene_paths(_SCENES_ROOT)}
 _BASELINE_PATHS = discover_sim_baseline_paths(_BASELINES_DIR)
-_BASELINE_IDS = [p.stem for p in _BASELINE_PATHS]
+_NAVIGATED_BASELINE_PATHS = [
+    p
+    for p in _BASELINE_PATHS
+    if p.stem in _SCENE_BY_NAME and not has_own_module(_SCENE_BY_NAME[p.stem])
+]
+_NAVIGATED_BASELINE_IDS = [p.stem for p in _NAVIGATED_BASELINE_PATHS]
 
 
 def test_every_scene_has_a_baseline() -> None:
@@ -54,7 +64,7 @@ def test_no_orphan_baselines() -> None:
     assert baselined <= set(_SCENE_BY_NAME)
 
 
-@pytest.mark.parametrize('baseline_path', _BASELINE_PATHS, ids=_BASELINE_IDS)
+@pytest.mark.parametrize('baseline_path', _NAVIGATED_BASELINE_PATHS, ids=_NAVIGATED_BASELINE_IDS)
 def test_scene_matches_baseline(baseline_path: Path) -> None:
     """Re-navigating each scene reproduces its recorded baseline within tolerance."""
     baseline = load_sim_baseline(baseline_path)

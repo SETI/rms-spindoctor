@@ -54,6 +54,46 @@ Scene classes
                                 star scattered off catalog, or a lone star drowned
                                 in clutter); each carries an ``expected`` block
                                 asserted by the sim expected-outcome machinery
+  full_frame_cameras          - one realistic frame per camera it covers (not
+                                every cataloged camera has one): the
+                                camera's real frame size, its detector chain on,
+                                a realistic exposure, a pointing error the size
+                                real frames carry, and the camera's measured
+                                twist with roll fitting off as the cameras ship;
+                                its own test module navigates each scene once
+                                and applies all of its checks
+  mixed_content               - two kinds of navigable content on one realistic
+                                frame, whose answers the navigator has to
+                                reconcile: stars with a body whose predicted
+                                position is wrong, stars with a crescent, a moon
+                                in front of a ring sheet, and a distant Saturn
+                                with its rings; each uses its camera's real
+                                frame size or a real binned readout, its
+                                detector chain, a pointing error the size real
+                                frames carry, and the camera's measured twist
+                                with roll fitting off; test_sim_mixed_content.py
+                                navigates each scene once and applies all of its
+                                checks
+  dense_rings                 - Saturn's main rings at real scale on full-size
+                                narrow-angle frames: the cataloged edges at
+                                their measured radii, the navigator told only
+                                about those, and structure it doesn't know
+                                about drawn beside them (a radial profile
+                                measured on a navigated frame, the F ring and
+                                the Encke gap ringlet, a ringlet drawn
+                                eccentric while the navigator's orbit is
+                                circular, a ring sheet that saturates the
+                                detector), one scene at a ring opening of 2.5
+                                degrees; each scene's comments say where its
+                                radii come from; its own test module
+                                navigates each scene once and applies all of
+                                its checks
+  mixed_defects               - realistic full-size frames, each carrying its
+                                camera's detector chain together with several
+                                downlink and readout defects at once, in a
+                                combination real frames of that camera carry;
+                                its own test module navigates each scene once
+                                and applies all of its checks
 
 Pixel convention
 ----------------

@@ -25,6 +25,11 @@ code to accomplish a documented task.
   with a shared prefix (`user_guide_<topic>.rst`).
 - Put instrument-, platform-, or format-specific material that would clutter the
   main chapters into clearly named appendix pages (`user_guide_appendix_*.rst`).
+- In SpinDoctor, per-instrument details live only in the instrument chapters
+  under `user_guide/instruments/`. The other chapters are shared prose: they never
+  assume which instruments exist or which of them turn a feature on, and no chapter
+  compares one instrument with another. `doc_prose_style.mdc` section 2 states
+  these instrument rules at the level of the sentence.
 - The landing page is reachable from the documentation root `toctree` (via its
   subdirectory path, e.g. `user_guide/user_guide`).
 - Because the chapters live in a subdirectory, references to pages OUTSIDE it

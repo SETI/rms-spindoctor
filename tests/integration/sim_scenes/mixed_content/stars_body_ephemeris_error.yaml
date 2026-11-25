@@ -1,0 +1,63 @@
+schema_version: 2
+scene_name: stars_body_ephemeris_error
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 1.2
+# Stars and a body whose predicted position is wrong, on a full Cassini NAC frame,
+# modeled on the image library's stars_plus_body frames (N1488823805: Dione 139 px
+# across at 50 degrees phase, 1.2 s, eight stars of vmag 8.4 to 10.2).  The planted
+# spacecraft-ephemeris error parallax-shifts the body (1.13, -1.41) px, 1.81 px in all,
+# and leaves the stars where the camera pointing puts them, so the body techniques
+# answer the pointing plus 1.81 px and the star techniques answer the pointing.  Real
+# frames of this class show body and star answers 0.8 to 1.8 px apart, and the
+# result-combining step has to reconcile them.
+#
+# BodyDiscCorrelateNav and BodyLimbNav land 1.81 to 1.84 px off on every draw, which
+# is the planted error, and are held to bands on it, so the scene fails if the error
+# stops reaching them.  With spk_error removed they land 0.03 px and 0.09 to 0.10 px
+# off.
+#
+# The stars navigate on their own.  StarFieldFromCatalogNav finds too few stars on
+# every draw (#1146), but StarUniqueMatchNav answers on 13 of the 16 draws, 0.04 to
+# 0.24 px off, and StarRefineNav, which starts from the body's pass-1 answer, lands
+# 0.01 to 0.11 px off and gives the same answer on every draw with spk_error removed.
+# With the body removed the committed draw navigates on the stars alone, 0.02 px off.
+#
+# The fused answer combines the star answers with the body's, so it lands between
+# them, 0.16 to 0.26 px from the truth over the 16 draws in the direction of the
+# body's error, within 0.9 of its reported sigmas.  With spk_error removed it lands
+# 0.01 to 0.10 px off.  The tolerance, 0.32 px, sits far below the 1.81 px of a
+# body-only answer, so a fused answer that drops the stars fails.
+#
+# The pointing error is the size real NAC frames carry, pointing up and to the right,
+# and the twist is the NAC's measured 0.0115 degrees, unfit, as the camera ships.
+artifacts:
+  instrument_defaults: true
+spk_error:
+  dv_px: 1.13
+  du_px: -1.41
+  reference_range_km: 600000.0
+bodies:
+  - name: DIONE
+    center_v: 430.0
+    center_u: 610.0
+    semi_a_px: 70.0
+    semi_b_px: 70.0
+    semi_c_px: 70.0
+    illumination_angle: 120.0
+    phase_angle: 50.0
+    range_km: 600000.0
+stars:
+  - {name: S01, v: 132.3, u: 211.7, vmag: 8.37}
+  - {name: S02, v: 801.6, u: 152.4, vmag: 9.02}
+  - {name: S03, v: 245.8, u: 905.1, vmag: 9.82}
+  - {name: S04, v: 902.2, u: 811.9, vmag: 9.85}
+  - {name: S05, v: 611.4, u: 377.6, vmag: 9.87}
+  - {name: S06, v: 78.9, u: 640.3, vmag: 10.13}
+  - {name: S07, v: 708.7, u: 951.2, vmag: 10.14}
+  - {name: S08, v: 455.1, u: 98.6, vmag: 10.2}
+offset_v: -11.63
+offset_u: 21.27
+offset_rotation_deg: 0.0115
