@@ -570,7 +570,7 @@ Call path traced through
    ``psf_refine_snr_max`` integrated-SNR ceiling, replace its moment centroid with a
    maximum-likelihood PSF fit (``obs.star_psf().find_position``, half-pixel-corrected);
    brighter inliers and failed fits keep the moment. Skipped entirely when
-   ``psf_refine_enabled`` is ``0`` or the obs exposes no ``star_psf()``.
+   ``psf_refine_enabled`` is ``false`` or the obs exposes no ``star_psf()``.
 6. Refit on the (refined) inlier correspondences: with ``fit_camera_rotation`` false a
    Tukey-biweight-reweighted mean translation (an unweighted pass seeds the residual scale,
    then one biweight-reweighted pass); with it true, the same two-pass Tukey reweighting
