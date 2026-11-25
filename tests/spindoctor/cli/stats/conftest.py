@@ -21,6 +21,7 @@ from typing import Any
 
 import pdslogger
 import pytest
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.cli.results_index.conftest import (
     build_tree,
     complete,
@@ -230,7 +231,7 @@ def walked_tree() -> Iterator[RecordSource]:
     Yields:
         The open source, reading documents.
     """
-    with TreeRecordSource([RESULTS_TREE.as_posix()]) as source:
+    with TreeRecordSource([RESULTS_TREE.as_posix()], tuning=packaged_tree_tuning()) as source:
         yield source
 
 
@@ -269,6 +270,6 @@ def report_from_the_tree(out: Path, **options: Any) -> Path:
         The directory the report was written into.
     """
     out.mkdir(parents=True, exist_ok=True)
-    with TreeRecordSource([RESULTS_TREE.as_posix()]) as source:
+    with TreeRecordSource([RESULTS_TREE.as_posix()], tuning=packaged_tree_tuning()) as source:
         build_report(source, out, **options)
     return out

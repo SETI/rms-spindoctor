@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 import sqlalchemy
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.results_index.conftest import (
     BOTH_ROOTS,
     COLUMNS,
@@ -279,7 +280,10 @@ def test_a_selection_naming_a_root_the_source_does_not_hold_is_refused(
     """
     with (
         open_record_source(
-            [two_roots.first], results_index_db_url=two_roots.url, columns=COLUMNS
+            [two_roots.first],
+            results_index_db_url=two_roots.url,
+            columns=COLUMNS,
+            tuning=packaged_tree_tuning(),
         ) as source,
         pytest.raises(ValueError, match='does not hold'),
     ):

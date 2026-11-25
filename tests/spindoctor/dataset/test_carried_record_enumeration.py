@@ -26,6 +26,7 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import index_url, ingest_tree, metadata_document, write_metadata
 from tests.spindoctor.dataset.conftest import (
     coiss_filespecs,
@@ -429,7 +430,11 @@ def test_a_candidate_the_filter_dropped_is_left_carrying_nothing(results_root: P
     """
     offered = candidates(results_root)
     results_filter = ResultsFilter(
-        [VOLUME], str(results_root), logger=null_logger(), has_no_offset_error=True
+        [VOLUME],
+        str(results_root),
+        logger=null_logger(),
+        has_no_offset_error=True,
+        tuning=packaged_tree_tuning(),
     )
     results_filter.filter_batch(offered)
 
@@ -440,7 +445,11 @@ def test_the_candidate_the_filter_kept_does_carry_one(results_root: Path) -> Non
     """Stated so the assertion above is about a batch that read anything at all."""
     offered = candidates(results_root)
     results_filter = ResultsFilter(
-        [VOLUME], str(results_root), logger=null_logger(), has_no_offset_error=True
+        [VOLUME],
+        str(results_root),
+        logger=null_logger(),
+        has_no_offset_error=True,
+        tuning=packaged_tree_tuning(),
     )
     results_filter.filter_batch(offered)
 

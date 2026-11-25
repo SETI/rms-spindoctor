@@ -367,7 +367,7 @@ class ResultsFilter:
         has_offset_nonspice_error: bool = False,
         results_index_db_url: str | None = None,
         logger: PdsLogger,
-        tuning: TreeTuning | None = None,
+        tuning: TreeTuning,
     ) -> None:
         """Validates the flag combination and asks what the results root holds.
 
@@ -405,8 +405,8 @@ class ResultsFilter:
                 could be read for, and for the one line the seam has to say
                 about a directory it declined to descend twice.
             tuning: How much of a pass over the results tree runs at once,
-                which the enumeration resolves from its configuration; None is
-                the library's own defaults.  Ignored when an index answers.
+                which the enumeration reads from its configuration.  Ignored
+                when an index answers.
 
         Raises:
             SelectionError: If the flag combination is contradictory, or if the

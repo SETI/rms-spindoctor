@@ -282,11 +282,20 @@ validation scenes that YAML can express today, so they guard the churn of Phases
 are the authorable parts of #904 and the ring-only part of #377:
 
 - every camera the simulator catalogs, at real frame sizes and real offsets, with twist;
-  **Done (PR #1154), apart from Voyager, which follows the four-camera split (#806, PR #1118):**
+  **Done (PR #1154; Voyager in PR #1218, after the four-camera split, #806, PR #1118):**
   the `full_frame_cameras` class holds ten full-frame scenes on the Cassini NAC and WAC (raw
   and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
   measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
-  them are expected failures tied to #342, #785, and #1153;
+  them are expected failures tied to #342, #785, and #1153. Four Voyager scenes, one per
+  camera at the 1000 px GEOMED size and 32 to 49 px offsets, follow real frames: a
+  Voyager 1 NAC moon (0.06 to 0.57 px off), a Voyager 1 WAC Saturn at the real frame's
+  scale, ring radii, ring brightness, and limb profile with unmodeled rings, where the disc
+  correlation carries the frame at medium tier as on the real frame (0.18 to 0.69 px off;
+  the planet is too small for a simulated limb, #1209), a Voyager 2 NAC Pleiades field
+  (0.03 to 0.26 px, the star-field fit locking normally as on the real frame), and a
+  Voyager 2 WAC Scorpius field whose unfit +0.358 deg twist puts the answer 1.0 to 1.4 px
+  off. The same PR sets the Voyager 2 NAC and WAC star zero points from their own star
+  frames (8.7e4 and 4.6e3 raw DN/s for V = 0);
 - star fields with a body, and rings with a body; **Done (PR #1155).** The `mixed_content` class
   holds stars with a body 1.81 px off its predicted position (fused 0.16-0.26 px off, pulled
   from the stars toward the body), stars with a crescent on a summed 512 px frame (fused
@@ -301,7 +310,7 @@ are the authorable parts of #904 and the ring-only part of #377:
   saturated B ring), each held to a known-error band (#755 for the Keeler gap, #1143 for the
   unfit twist, #1152 for the low opening, #1144 for the hidden eccentricity, where the frame
   conflicts, #1145 for the saturated edge);
-- interleaved defect modes on one frame. **Done (PR #TBD).** The `mixed_defects` class holds a
+- interleaved defect modes on one frame. **Done (PR #1198).** The `mixed_defects` class holds a
   lossy table NAC moon, a NAC stars-and-moon frame with groups of lost lines down the frame, a
   truncated bottom, and 2 px of smear, a Galileo moon with compression and lost 8-line slices,
   and a raw LORRI moon with frame-transfer smear; all four navigate within 0.12 px over 24
@@ -473,6 +482,7 @@ it cannot be measured there.
 |---|---|
 | #918 | Render simulated frames from a real frame's geometry and navigate them with production models |
 | #897, #843 | Production ring, star, Titan, and body models never run on simulated frames |
+| #1209 | **Affects `vgiss_1_wac_saturn` at its real scale: a Saturn of 94.6 px emits no simulated limb, where the production model fits it.** The simulated body model emits no limb for a body under 100 px across (`_MIN_LIMB_DIAMETER_PX` in `nav_model/simulated/body_arcs.py`), where the production model gates on the uncertainty of its ellipsoid fit. On the real frame C3446143 the production model emits the limb (BodyLimbNav, 168 vertices, visible-arc fraction 1.0, confidence 0.61, 0.33 px from the disc answer); on the simulated frame the limb fit does not run, and the disc correlation and the blob are the only body techniques |
 | #311 | Parity guard between the simulated models and the production models |
 | #227 | Umbrella: de-circularize the simulator |
 

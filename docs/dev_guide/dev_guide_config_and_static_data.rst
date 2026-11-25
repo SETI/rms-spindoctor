@@ -126,6 +126,24 @@ returns the typed object:
 - ``feature_emission`` — :class:`~spindoctor.config.sections_models.FeatureEmissionSection`.
   A planet's entry under ``ring_annulus.planets`` may leave a key out, and that key
   keeps the ``default`` entry's value.
+- ``general`` — :class:`~spindoctor.config.sections.GeneralSection`: the directory of
+  TrueType fonts that annotation text and summary labels are drawn in
+  (``truetype_font_dir``).
+- ``offset`` — :class:`~spindoctor.config.sections.OffsetSection`: the FFT upsample
+  factor of the image correlation (``correlation_fft_upsample_factor``), from 1 to
+  :data:`~spindoctor.config.sections.MAX_UPSAMPLE_FACTOR`. The disc correlation, the ring
+  annulus correlation, and the manual navigation dialog read it from here.
+- ``results_tree`` — a :class:`~spindoctor.nav_records.TreeTuning`: how much of a pass
+  over a navigation results tree runs at once; see :doc:`dev_guide_results_index`. It
+  refuses a round of work smaller than the thread pool that the round feeds.
+- ``environment`` — :class:`~spindoctor.config.sections.EnvironmentSection`: deployment
+  locations (``pds3_holdings_root``, ``nav_results_root``, ``backplane_results_root``,
+  ``bundle_results_root``, ``log_root``, and ``results_index_db``). Every key is
+  optional, and a key left out reads as None. The packaged file
+  (``config_005_environment.yaml``) leaves every key unset and lists each as a
+  commented-out line. The schema does not decide whether the command line, this section,
+  or an environment variable wins. Each reader applies its own order, and the helpers in
+  :mod:`spindoctor.config.config_helper` define the usual one.
 - ``logging`` — :class:`~spindoctor.config.logging_keys.LoggingSection`, holding the
   levels and terminal settings of the two loggers, with each program's overrides under
   ``programs`` as a :class:`~spindoctor.config.logging_keys.ProgramLogging`. Its
@@ -226,12 +244,13 @@ The class carries ``oops``'s own opt-out marker to prevent that; it is a
 workaround for one package rather than a general convention, and is tracked for
 removal. The shipping sections:
 
-- ``general`` — global settings shared across programs.
+- ``general`` — global settings shared across programs; a typed section (see
+  :ref:`config-typed-sections`).
 - ``planets`` — the planets the navigator knows, by SPICE name; a typed section.
 - ``logging`` — logger defaults, per-module levels, and per-program
   overrides; a typed section (see :ref:`config-typed-sections`).
 - ``offset`` — the FFT upsample factor of the image correlation
-  (``correlation_fft_upsample_factor``).
+  (``correlation_fft_upsample_factor``); a typed section.
 - ``stars`` — star-model and ring-occlusion parameters; a typed section (see
   :ref:`config-typed-sections`) described in :doc:`dev_guide_navigation_models_star`.
 - ``bodies`` — body rendering parameters; a typed section described in
@@ -248,13 +267,6 @@ removal. The shipping sections:
   :doc:`dev_guide_backplanes`.
 - ``pds4`` — per-dataset PDS4 template directories and bundle names; see
   :doc:`dev_guide_pds4`.
-- ``environment`` — deployment locations (``pds3_holdings_root``,
-  ``nav_results_root``, ``backplane_results_root``, ``bundle_results_root``,
-  ``results_index_db``).
-- ``results_tree`` — how much of a pass over a navigation results tree runs at
-  once, read into a :class:`~spindoctor.nav_records.TreeTuning` by
-  :func:`~spindoctor.config.get_results_tree_tuning`; see
-  :doc:`dev_guide_results_index`.
 - ``body_shape`` — static per-body shape catalog (see
   :ref:`static-data-citations` below).
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks

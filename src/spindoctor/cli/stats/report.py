@@ -59,7 +59,6 @@ from spindoctor.config import (
     DEFAULT_CONFIG,
     get_nav_results_root,
     get_results_index_db_url,
-    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from spindoctor.nav_records import (
@@ -877,9 +876,7 @@ def main_report(cmdline: list[str] | None = None) -> int:
         _to_stderr(str(exc))
         return 1
     if url is None:
-        # Resolved once here; the configuration was validated when it was
-        # loaded, so this cannot refuse.
-        return _report_over_a_tree(arguments, parser, get_results_tree_tuning(DEFAULT_CONFIG))
+        return _report_over_a_tree(arguments, parser, DEFAULT_CONFIG.results_tree)
     return _report_from_an_index(url, arguments, parser)
 
 

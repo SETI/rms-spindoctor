@@ -7,6 +7,7 @@ from typing import Any
 import pdslogger
 import pytest
 from filecache import FCPath
+from tests.packaged_sections import configure_tree_tuning, packaged_tree_tuning
 from tests.spindoctor.conftest import metadata_document
 from tests.spindoctor.dataset.conftest import coiss_filespecs, install_fake_index
 
@@ -17,7 +18,7 @@ from spindoctor.dataset.dataset_pds3 import DataSetPDS3
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISS
 from spindoctor.dataset.dataset_pds3_galileo_ssi import DataSetPDS3GalileoSSI
 from spindoctor.dataset.results_filter import ResultsFilter, SelectionError
-from spindoctor.nav_records import TreeTuning, UnlistableDirectoryError
+from spindoctor.nav_records import UnlistableDirectoryError
 from spindoctor.results_index import open_index
 
 
@@ -194,7 +195,10 @@ def _ingest_results_tree(results_root: Path, index_path: Path) -> str:
     engine = open_index(url, create=True)
     try:
         ingest_metadata_files(
-            engine, [results_root.as_posix()], logger=pdslogger.NullLogger(), tuning=TreeTuning()
+            engine,
+            [results_root.as_posix()],
+            logger=pdslogger.NullLogger(),
+            tuning=packaged_tree_tuning(),
         )
     finally:
         engine.dispose()
@@ -828,6 +832,7 @@ def test_results_scan_propagates_non_missing_oserror(
             str(tmp_path),
             has_offset_file=True,
             logger=pdslogger.NullLogger(),
+            tuning=packaged_tree_tuning(),
         )
 
 
@@ -857,6 +862,7 @@ def test_results_scan_passes_over_a_volume_with_no_results_directory(tmp_path: P
         str(tmp_path),
         has_offset_file=True,
         logger=pdslogger.NullLogger(),
+        tuning=packaged_tree_tuning(),
     )
 
     assert results_filter.passes('COISS_2002/data/1000000100_1000000102/N1000000100_1_CALIB')
@@ -1172,7 +1178,7 @@ def test_the_enumeration_hands_the_filter_the_tuning_the_configuration_names(
     """
     _install_two_camera_index(ds, monkeypatch)
     results_root, url = _indexed_tree_and_late_document(tmp_path)
-    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    configured = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     handed: list[Any] = []
 
     class Recording(ResultsFilter):
@@ -1188,7 +1194,7 @@ def test_the_enumeration_hands_the_filter_the_tuning_the_configuration_names(
             handed.append(kwargs.get('tuning'))
             super().__init__(*args, **kwargs)
 
-    monkeypatch.setattr(dataset_pds3_module, 'get_results_tree_tuning', lambda config: configured)
+    configure_tree_tuning(monkeypatch, ds.config, configured)
     monkeypatch.setattr(dataset_pds3_module, 'ResultsFilter', Recording)
     list(
         ds.yield_image_files_index(
