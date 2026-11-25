@@ -25,19 +25,19 @@ exposure_sec: 0.085
 #
 # The exposure runs 85 ms, 17 times the real frame's, because simulated
 # brightness has no shared scale with real frames (#895): at 85 ms the inner third
-# of the simulated disc reads a median 2,012 DN above the bias, and that of the
+# of the simulated disc reads a median 2,010 DN above the bias, and that of the
 # real one 1,865 DN, so the simulated disc is 8% brighter.
 # The smear timings are set here instead of taken from the catalog, because the
 # exposure stands in for the real 5 ms frame and only the share of each column's
 # charge the smear carries can match it.  Against a per-row sky, the rows above
 # the disc on lor_0034849319 carry 2.115e-3 of their column's charge and the rows
-# below it 1.937e-3.  The camera collects light for its catalog's 0.705 ms beyond
-# the exposure, so this frame collects for 85.705 ms, and each timing is that
-# share times 1,024 rows times 85.705 ms: t_transfer_sec 0.186 above the disc and
-# t_scrub_sec 0.170 below it.  They carry 2.117e-3 and 1.935e-3 of their
-# column's charge, measured the same way.  The extra 0.705 ms is not scaled with
-# the exposure: it is part of the camera, and a 12 ms stand-in would only make
-# the disc 14% brighter while leaving those shares as set.  The radiation rate is
+# below it 1.937e-3.  The camera collects light for its catalog's 0.63 ms beyond
+# the exposure, so this frame collects for 85.63 ms, and each timing is that
+# share times 1,024 rows times 85.63 ms: t_transfer_sec 0.1855 above the disc and
+# t_scrub_sec 0.1698 below it.  They carry 2.113e-3 and 1.934e-3 of their
+# column's charge, measured the same way.  The extra 0.63 ms is not scaled with
+# the exposure: it is part of the camera, and a 10.7 ms stand-in would only make
+# the disc 12% brighter while leaving those shares as set.  The radiation rate is
 # scaled down by the exposure's factor to keep about 16 hits.
 #
 # The planted offset, 1.21 px, is the size of the image library's LORRI offsets
@@ -48,10 +48,10 @@ exposure_sec: 0.085
 # from the disc correlation and the limb fit together.  The disc correlation
 # lands 0.18 to 0.19 px off on every draw without flagging it, with the smear
 # removed too, and 0.004 to 0.022 px off without the roll.  The limb fit lands
-# 0.25 to 0.31 px off, and 0.43 to 0.49 px without the roll, so the twist offsets
+# 0.25 to 0.32 px off, and 0.43 to 0.48 px without the roll, so the twist offsets
 # part of its own error.  Each range spans 24 draws.
 #
-# BodyBlobNav lands 6.5 to 7.1 px off without flagging it (#975).  The smear
+# BodyBlobNav lands 6.8 to 7.1 px off without flagging it (#975).  The smear
 # causes it: without the smear it lands 0.16 to 0.19 px off.  Real raw frames
 # carry the smear too, but the simulated smear is a step at each column's
 # centroid where the real one builds up across the disc (#920).  The fixed
@@ -64,7 +64,7 @@ artifacts:
   instrument_defaults: true
   embedded_header: {probability: 1.0}
   fixed_pattern: {probability: 1.0}
-  frame_transfer_smear: {probability: 1.0, t_scrub_sec: 0.170, t_transfer_sec: 0.186}
+  frame_transfer_smear: {probability: 1.0, t_scrub_sec: 0.1698, t_transfer_sec: 0.1855}
   radiation_transients: {expected_events_per_sec: 188.0}
 bodies:
   - name: EUROPA

@@ -403,17 +403,18 @@ the simulated disc is 8% brighter than the real one. The rate of radiation hits 
 scaled down by the same factor, and about 16 hits land in the frame. The scene sets
 its own smear times, so that each row above and below the disc carries the share of
 its column's charge that the real frame shows: 2.115e-3 above and 1.937e-3 below.
-With the camera's extra 0.705 ms the frame collects light for 85.705 ms, and the
-times that give those shares are 0.186 s above the disc and 0.170 s below it. The
-simulated rows carry 2.117e-3 and 1.935e-3. The extra time stays 0.705 ms rather
-than growing with the exposure, since it belongs to the camera. The simulated header holds values up to 255, where the real one reaches
-4,038 DN.
+With the camera's extra 0.63 ms the frame collects light for 85.63 ms, and the
+times that give those shares are 0.1855 s above the disc and 0.1698 s below it.
+The simulated rows carry 2.113e-3 and 1.934e-3. The extra time stays 0.63 ms
+rather than growing with the exposure, since it belongs to the camera. The
+simulated header holds values up to 255, where the real one reaches 4,038 DN.
 
 The fused answer lands 0.11 to 0.12 px off over 24 draws, at medium confidence,
 from the disc correlation and the limb fit together. The disc correlation lands
 0.18 to 0.19 px off without flagging its answer, with the smear or without it.
-Without the twist it lands 0.004 to 0.022 px off. The blob technique lands 6.5 to 7.1 px
-off without flagging it, pulled by the smear columns, and 0.16 to 0.19 px off
+Without the twist it lands 0.004 to 0.022 px off. The limb fit lands 0.25 to
+0.32 px off, and 0.43 to 0.48 px without the twist. The blob technique lands 6.8
+to 7.1 px off without flagging it, pulled by the smear columns, and 0.16 to 0.19 px off
 without the smear. The simulated smear is a step at each column's centroid, where
 the real smear builds up across the disc, so part of that pull may be the
 simulator's. The fixed pattern and the radiation hits are realistic, and each
