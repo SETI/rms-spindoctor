@@ -271,7 +271,10 @@ def _covering_index_map(index_map: Any, os: int) -> Any:
     best_count = np.zeros((size_v, size_u), dtype=np.int64)
     best_label = np.zeros((size_v, size_u), dtype=dtype)
     covered = np.zeros((size_v, size_u), dtype=np.int64)
-    for label in sorted(int(value) for value in np.unique(index_map) if int(value) != 0):
+    # The labels are small non-negative integers, so counting them finds the ones
+    # present, in ascending order, without sorting the whole map.
+    present = np.flatnonzero(np.bincount(index_map.ravel()))
+    for label in (int(value) for value in present if int(value) != 0):
         counts = np.count_nonzero((index_map == label).reshape(size_v, os, size_u, os), axis=(1, 3))
         covered += counts
         wins = counts > best_count
@@ -325,13 +328,25 @@ def _downsample_truth(truth: dict[str, Any], os: int) -> None:
     index_map = truth.get('body_index_map')
     if index_map is not None:
         truth['body_index_map'] = _covering_index_map(index_map, os)
+    # The body masks and the body mask map hold the same arrays, so each array is
+    # reduced once; a repeat gets a copy, which keeps the entries independent.
+    # The cache holds each source array too, so no id is reused while it is read.
+    reduced: dict[int, tuple[Any, Any]] = {}
+
+    def _reduce(mask: Any) -> Any:
+        """The mask reduced to the detector grid, computed once per source array."""
+        if id(mask) in reduced:
+            return reduced[id(mask)][1].copy()
+        reduced[id(mask)] = (mask, _covering_mask(mask, os))
+        return reduced[id(mask)][1]
+
     for key in _TRUTH_MASK_KEYS:
         masks = truth.get(key)
         if masks is not None:
-            truth[key] = [_covering_mask(mask, os) for mask in masks]
+            truth[key] = [_reduce(mask) for mask in masks]
     mask_map = truth.get('body_mask_map')
     if isinstance(mask_map, dict):
-        truth['body_mask_map'] = {name: _covering_mask(mask, os) for name, mask in mask_map.items()}
+        truth['body_mask_map'] = {name: _reduce(mask) for name, mask in mask_map.items()}
     inventory = truth.get('inventory')
     if isinstance(inventory, dict):
         for item in inventory.values():
