@@ -199,8 +199,8 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``9c14bdc0`` on
-2026-11-24.
+code that made it.  The current record was made at commit ``dcd5fd83`` on
+2026-11-25.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -208,7 +208,7 @@ the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (2026-11-24 record, 75 frames).  A label counts the frames that
+Cohort support (2026-11-25 record, 75 frames).  A label counts the frames that
 contribute to the figure of merit on each side, real and simulated, and the
 smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 *supported* for 8 or more.
@@ -366,7 +366,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-24; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-25; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -477,7 +477,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-24; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-25; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -745,7 +745,7 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-24 pairs:
+2026-11-25 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
