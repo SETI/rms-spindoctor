@@ -1,0 +1,80 @@
+schema_version: 2
+scene_name: nhlorri_moon_raw
+instrument: nhlorri
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 0.085
+# A raw New Horizons LORRI frame of a moon at the full 1x1 frame, with the
+# camera's whole raw chain and the defects of its raw (_eng) products.  It
+# follows lor_0034849319_0x630_eng (Europa 197 px across at 28 deg phase, 5 ms,
+# lossless, Jupiter flyby).
+#
+# instrument_defaults turns on the frame-transfer smear, the random row striping
+# and amplifier ringing, and the bias structure.  The scene adds:
+# - the embedded header: the first 34 pixels of row 0 are housekeeping in every
+#   raw frame, as in lor_0034849319, whose row 0 holds housekeeping values as
+#   high as 4,038 DN in its first 34 pixels and the 543 DN bias after them.  The
+#   simulated header holds random values from 0 to 255, and the header key cannot
+#   set their range;
+# - the fixed pattern (vignetting, response pattern, jail bars, dust donuts),
+#   which the raw product keeps;
+# - radiation hits in the Jovian environment, 16 expected in the frame from the
+#   catalog's estimate of about 16 per short exposure (188 per second over the
+#   85 ms exposure; illustrative).
+#
+# The exposure runs 85 ms, 17 times the real frame's, because simulated
+# brightness has no shared scale with real frames (#895): at 85 ms the middle
+# third of the simulated disc reads a median 1,975 DN above the bias, and that of
+# the real one 1,833 DN.
+# Both timings that depend on the exposure are scaled with it.  The frame
+# transfer gives every row above and below the disc the same share of its
+# column's charge, the transfer time per row over the exposure.  On
+# lor_0034849319 the rows above the disc carry 2.14e-3 of the disc's charge in
+# their column (476 DN) and the rows below it 1.96e-3 (437 DN), which over 1,024
+# rows make transfer times of 10.95 and 10.03 ms; Cheng et al. (2008, section
+# 3.3.5) give the camera's two frame transfers as 10.96 and 10.04 ms.  The scene
+# gives the rows above the disc 17 times 10.95 ms (t_transfer_sec 0.186) and the
+# rows below it 17 times 10.03 ms (t_scrub_sec 0.171), and they carry 2.16e-3
+# and 1.98e-3 of their column's disc charge (520 and 478 DN, from a disc that
+# holds 8% more charge than the real one).  The radiation rate is scaled down by
+# the same factor to keep about 16 hits.
+#
+# The planted offset, 1.21 px, is the size of the image library's LORRI offsets
+# (about 1.2 px each).  The roll is the camera's measured twist, +0.1912 deg,
+# planted with roll fitting off as the camera ships.
+#
+# The fused answer lands 0.11 to 0.12 px off over 24 draws, at medium tier,
+# from the disc correlation and the limb fit together.  The disc correlation
+# lands 0.18 to 0.19 px off on every draw without flagging it, with the smear
+# removed too, and 0.004 to 0.005 px off without the roll.  The limb fit lands
+# 0.26 to 0.32 px off, and 0.47 to 0.48 px without the roll, so the twist offsets
+# part of its own error.
+#
+# BodyBlobNav lands 6.8 to 7.1 px off without flagging it (#975).  The smear
+# causes it: without the smear it lands 0.17 to 0.19 px off.  Real raw frames
+# carry the smear too, but the simulated smear is a step at each column's
+# centroid where the real one builds up across the disc (#920).  The fixed
+# pattern and the radiation hits are realistic, and each moves the fused answer
+# by at most 0.01 px, so the scene shows the navigator unaffected by them.  The
+# simulated header also moves it by at most 0.01 px, but its values reach only
+# 255 DN where the real header reaches 4,038 DN, so the scene shows only that the
+# navigator ignores this approximation of the header.
+artifacts:
+  instrument_defaults: true
+  embedded_header: {probability: 1.0}
+  fixed_pattern: {probability: 1.0}
+  frame_transfer_smear: {probability: 1.0, t_scrub_sec: 0.171, t_transfer_sec: 0.186}
+  radiation_transients: {expected_events_per_sec: 188.0}
+bodies:
+  - name: EUROPA
+    center_v: 461.0
+    center_u: 488.0
+    semi_a_px: 98.5
+    semi_b_px: 98.5
+    semi_c_px: 98.5
+    illumination_angle: 230.0
+    phase_angle: 28.0
+offset_v: 0.77
+offset_u: -0.94
+offset_rotation_deg: 0.1912

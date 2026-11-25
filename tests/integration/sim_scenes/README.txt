@@ -88,6 +88,12 @@ Scene classes
                                 radii come from; its own test module
                                 navigates each scene once and applies all of
                                 its checks
+  mixed_defects               - realistic full-size frames, each carrying its
+                                camera's detector chain together with several
+                                downlink and readout defects at once, in a
+                                combination real frames of that camera carry;
+                                its own test module navigates each scene once
+                                and applies all of its checks
 
 Pixel convention
 ----------------
