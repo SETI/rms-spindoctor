@@ -8,7 +8,6 @@ import host_cassini
 import numpy as np
 from filecache import FCPath
 from oops.host import is_pds3_null
-from oops.observation import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
@@ -367,15 +366,10 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         logger.debug(f'Reading Cassini ISS image {path}')
         logger.debug(f'  Fast distortion: {fast_distortion}')
         logger.debug(f'  Return all planets: {return_all_planets}')
-        # The host's stub types every result as a Snapshot or a tuple of Snapshots,
-        # whatever select is; a call without select returns the one Snapshot.
-        obs = cast(
-            Snapshot,
-            host_cassini.CassiniISS.from_file(
-                host_input(path, label=label),
-                fast_distortion=fast_distortion,
-                return_all_planets=return_all_planets,
-            ),
+        obs = host_cassini.CassiniISS.from_file(
+            host_input(path, label=label),
+            fast_distortion=fast_distortion,
+            return_all_planets=return_all_planets,
         )
         # The host inserts the camera and the image as subfields, which the Snapshot it
         # returns does not declare.
