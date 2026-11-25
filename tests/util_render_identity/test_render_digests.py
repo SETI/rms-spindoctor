@@ -6,9 +6,12 @@ package, and is loaded from its path.
 
 import hashlib
 import importlib.util
+import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+
+import pytest
 
 _SCRIPT_PATH = (
     Path(__file__).resolve().parents[2] / 'util' / 'render_identity' / 'render_digests.py'
@@ -38,3 +41,27 @@ def _digest(value: Any) -> str:
 def test_integer_tuples_with_the_same_digits_digest_apart() -> None:
     """Two tuples whose digits run together the same way have different digests."""
     assert _digest((3, 131)) != _digest((31, 31))
+
+
+def test_a_missing_selected_render_fails_the_comparison() -> None:
+    """A base render the run selected but did not make gives status 1."""
+    base = {'catalog/a#nav': ['1', '2'], 'catalog/b#nav': ['3', '4']}
+    results = {'catalog/a#nav': ['1', '2']}
+    assert render_digests._compare(base, results, only='catalog/') == 1
+
+
+def test_a_prefix_limited_run_passes_without_the_other_renders() -> None:
+    """Base renders outside the run's prefix are not expected in it."""
+    base = {'catalog/a#nav': ['1', '2'], 'sweep/s/1': ['3', '4']}
+    results = {'catalog/a#nav': ['1', '2']}
+    assert render_digests._compare(base, results, only='catalog/') == 0
+
+
+def test_a_run_matching_no_render_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A prefix no render name starts with gives status 1 and says so."""
+    out = tmp_path / 'digests.json'
+    monkeypatch.setattr(sys, 'argv', ['render_digests.py', str(out), '--only', 'nothing/'])
+    assert render_digests.main() == 1
+    assert "no render name starts with 'nothing/'" in capsys.readouterr().out

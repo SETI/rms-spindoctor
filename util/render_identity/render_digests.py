@@ -19,10 +19,12 @@ Usage::
         [--compare BASE.json]
 
 ``--only`` digests only the renders whose names start with ``PREFIX`` (``catalog/``,
-``sweep/``, ``gallery/``, or ``perf/``).  ``--compare`` then lists every render whose
-digest differs from ``BASE.json`` and exits with status 1 if any does.  Floating-point
-results can differ between machines and library builds, so compare only digests
-taken on one machine with one environment.
+``sweep/``, ``gallery/``, or ``perf/``), and exits with status 1 if no name does.
+``--compare`` then lists every render whose digest differs from ``BASE.json`` and
+every render of ``BASE.json`` within the prefix that this run did not make, and
+exits with status 1 if there is either.  Floating-point results can differ between
+machines and library builds, so compare only digests taken on one machine with one
+environment.
 
 ``main_c6815cfc.json`` beside this script holds the digests of main at commit
 c6815cfc, taken on the development machine (NumPy 2.5.1, SciPy 1.17.0, Python
@@ -162,11 +164,40 @@ def _jobs() -> list[tuple[str, dict[str, Any], dict[str, Any]]]:
     return jobs
 
 
+def _compare(base: dict[str, Any], results: dict[str, list[str]], *, only: str) -> int:
+    """Compare digests with a base file's and print every difference.
+
+    Parameters:
+        base: The base file's digests.
+        results: The digests of this run.
+        only: The prefix this run was limited to; base renders outside it are not
+            expected in the run.
+
+    Returns:
+        The exit status: 1 when a render differs from the base or a base render the
+        run selected is missing from it, else 0.
+    """
+    selected = {name for name in base if name.startswith(only)}
+    missing = sorted(selected - set(results))
+    common = sorted(selected & set(results))
+    differ = [name for name in common if base[name] != results[name]]
+    for name in differ:
+        print(f'DIFFERS {name}')
+    for name in missing:
+        print(f'MISSING {name}')
+    print(
+        f'{len(common)} compared, {len(differ)} differ, {len(missing)} missing, '
+        f'{len(set(results) - set(base))} new'
+    )
+    return 1 if differ or missing else 0
+
+
 def main() -> int:
     """Digest the renders, write them, and compare them with a base file if asked.
 
     Returns:
-        The exit status: 1 when a compared render differs or a render fails, else 0.
+        The exit status: 1 when no render matches ``--only``, a render fails, a
+        compared render differs, or a selected base render is missing; else 0.
     """
     parser = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     parser.add_argument('out', type=Path, help='the JSON file to write the digests to')
@@ -183,6 +214,9 @@ def main() -> int:
             results[name] = _render_digests(params, **kwargs)
         except Exception as exc:  # A failing render is reported, not fatal.
             results[name] = ['error', f'{type(exc).__name__}: {exc}'[:200]]
+    if not results:
+        print(f'no render name starts with {args.only!r}')
+        return 1
     args.out.write_text(json.dumps(results, indent=1, sort_keys=True) + '\n')
     print(f'{len(results)} renders in {time.time() - start:.0f} s')
 
@@ -191,13 +225,8 @@ def main() -> int:
         print(f'FAILED {name}: {results[name][1]}')
     if args.compare is None:
         return 1 if failed else 0
-    base = json.loads(args.compare.read_text())
-    common = sorted(set(base) & set(results))
-    differ = [name for name in common if base[name] != results[name]]
-    for name in differ:
-        print(f'DIFFERS {name}')
-    print(f'{len(common)} compared, {len(differ)} differ, {len(set(results) - set(base))} new')
-    return 1 if differ or failed else 0
+    status = _compare(json.loads(args.compare.read_text()), results, only=args.only)
+    return 1 if status or failed else 0
 
 
 if __name__ == '__main__':
