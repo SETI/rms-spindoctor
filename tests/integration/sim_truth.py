@@ -253,9 +253,11 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # cover 16 placements of the damage; every noise_seed draw also lies inside each
     # tolerance.  coiss_nac_lossy_moon seeds nothing but the noise, so its noise_seed
     # draws repeat random_seed 101 to 808.  Where a band of lost slices crosses the
-    # disc on gossi_ict_moon, the frame still lands within 0.08 px.
+    # disc on gossi_ict_moon, the frame still lands within 0.08 px.  On
+    # coiss_nac_stars_moon_lost_lines the worst draw, random seed 808, loses a group of
+    # lines across the brightest star, and the star refinement there lands 0.31 px off.
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
-    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.032, 0.102, 0.072, 0.05),
+    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.028, 0.270, 0.241, 0.06),
     ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
     ('nhlorri_moon_raw', FUSED): _t(0.108, 0.118, 0.011, 0.05),
     # multi_body_geometry.
@@ -326,9 +328,10 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
-    # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
+    # coiss_nac_stars_moon_lost_lines the blob lands 3.3 to 15.7 px off with every
+    # defect present, and 4.1 to 8.5 px off with each one removed in turn (#975).
+    # Lost groups across the disc move the blob, which widens its range.
+    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(3.319, 15.669, 2.470, 0.848, 18.139),
     # On nhlorri_moon_raw the frame-transfer smear pulls the blob 6.8 to 7.1 px off;
     # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
     # step at each column's centroid, where the real smear builds up across the disc

@@ -3,7 +3,7 @@ scene_name: coiss_nac_stars_moon_lost_lines
 instrument: coiss_nac
 size_v: 1024
 size_u: 1024
-random_seed: 26
+random_seed: 3
 exposure_sec: 1.0
 # A raw Cassini NAC frame of stars and a moon whose readout lost lines and whose
 # pointing drifted during the exposure, over the camera's whole raw chain.
@@ -37,15 +37,18 @@ exposure_sec: 1.0
 # group is 2 to 15 lines (10th to 90th percentile, median 5).
 #
 # The scene truncates the last 41 lines, as on N1526130404, and loses groups of
-# whole lines as N1526044304 does: missing_blocks with block_lines 7 loses
-# 7-line groups, a Poisson-drawn number of them, 6 expected, at places the seed
-# draws.  N1526044304's six groups average 7.2 lines.  The mode differs from the
-# real loss in two ways: every group is 7 lines long, and a group starts on a
-# multiple of 7 lines, where a real one starts on any line.  The committed seed
-# loses seven groups, lines 231-237, 420-426, 462-468, 644-650, 721-727,
-# 749-755, and 847-853, three of them across the disc; groups cross the disc on
-# 10 of the other 15 seeds too.  The truncated lines hold dark sky, as on
-# N1526130404.
+# whole lines with downlink_gaps, a Poisson-drawn number of them, 6 expected, as
+# N1526044304 lost six.  The group sizes, the starts, and the losses on the line
+# just above a group are the camera's measured defaults: a size is drawn
+# log-normal about the census median of 5 lines, a group starts on any line, and
+# 35% of the groups also lose the end of the line just above.  None of
+# N1526044304's lines is partial, so the scene draws no compression-truncated
+# lines.  The committed seed, 3, loses eight groups, lines 69-75, 218-224,
+# 327-332, 421-438, 629-634, 648-653, 780-784, and 829-831 (7, 7, 6, 18, 6, 6,
+# 5, and 3 lines), and lines 217 and 326 lose their ends.  Three of the groups
+# cross the disc, 30 lines in all, as groups crossed the planet on N1526044304;
+# groups cross the disc on 11 of the other 15 seeds too.  The truncated lines
+# hold dark sky, as on N1526130404.
 #
 # The whole scene drifts 2.0 px during the exposure.  Measured streaks on real
 # NAC frames run under 2 px on sequences predicted at 6 px, and about 0.6 times
@@ -58,37 +61,36 @@ exposure_sec: 1.0
 # left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
 # fitting off as the camera ships.
 #
-# The fused answer lands 0.028 to 0.10 px off over 24 draws, carried by the disc
-# correlation (0.016 to 0.050 px off) and the star refinement (0.028 to 0.11 px).
-# The worst draw, 0.10 px, is random seed 1212, where StarRefineNav lands 0.11 px
-# off.  The tier is high on 13 of the 24 draws and medium on 11.  The high draws
-# are the committed seed with its 8 noise draws and random seeds 101, 505, 909,
-# and 1212: StarUniqueMatchNav returns spurious on 9 of them and lands 0.28 to
-# 0.47 px off on the other 4, and the fused confidence there is 0.86 to 0.93,
-# against 0.80 to 0.83 on the rest.  On the committed seed the lost groups move
-# the disc correlation from 0.019 to 0.050 px off and turn StarUniqueMatchNav
-# from 0.13 px off to spurious, which raises the tier from medium to high; the
-# fused answer moves from 0.038 to 0.032 px.  On the committed seed and seeds
-# 101 to 303, which land 0.032 to 0.089 px off, removing any one defect (the
-# truncation, the lost groups, the smear, the hot pixels, or the cosmic rays)
-# leaves the fused answer 0.030 to 0.089 px off.  The truncation is realistic
-# but does not move the fused answer, so the scene shows the navigator
+# The fused answer lands 0.028 to 0.27 px off over 24 distinct draws, carried by
+# the disc correlation (0.019 to 0.21 px off) and the star refinement (0.032 to
+# 0.31 px).  The worst draw, 0.27 px, is random seed 808, which loses lines
+# 278-291 across the brightest star, S1: StarUniqueMatchNav returns spurious and
+# StarRefineNav lands 0.31 px off, at 0.57 times the fused sigma.  The tier is
+# high on 6 of the 24 draws and medium on 18.  The high draws are the committed
+# seed, its noise draws 505 and 808, and random seeds 505, 1212, and 1313, with
+# a fused confidence of 0.88 to 0.93, against 0.79 to 0.85 on the rest.  On the
+# committed seed the lost groups move the disc correlation from 0.026 to 0.16 px
+# off, and the fused answer from 0.043 to 0.028 px.  On the committed seed and
+# seeds 101 to 303, which land 0.028 to 0.088 px off, removing any one defect
+# (the truncation, the lost groups, the smear, the hot pixels, or the cosmic
+# rays) leaves the fused answer 0.028 to 0.088 px off.  The truncation is
+# realistic but does not move the fused answer, so the scene shows the navigator
 # unaffected by it.
 #
 # StarFieldFromCatalogNav returns spurious on every draw, which is #1146: the hot
 # pixels and cosmic rays together crowd the stars out of the 30 sources it
-# matches.  With both removed it navigates on seeds 101 to 303 (0.087 to 0.16 px
-# off) and stays spurious on the committed seed; with either one removed alone it
-# stays spurious, except on seed 202 without the cosmic rays (0.049 px).
-# StarUniqueMatchNav returns spurious on 9 of the 24 draws: the committed seed,
-# 7 of its 8 noise draws, and random seed 909.  BodyBlobNav lands 5.2 to 9.6 px
-# off the gibbous disc without flagging it (#975), and 6.5 to 9.7 px off with
-# each defect removed, so the defects do not cause it; sim_truth holds it to a
-# band.
+# matches.  With both removed it navigates on the committed seed and seeds 101 to
+# 303 (0.070 to 0.16 px off); with either one removed alone it stays spurious,
+# except on seed 303 without the cosmic rays (0.048 px).  StarUniqueMatchNav
+# returns spurious on 4 of the 24 draws: random seeds 808 and 1313 and noise
+# seeds 505 and 808.  BodyBlobNav lands 3.3 to 15.7 px off the gibbous disc
+# without flagging it (#975), and 4.1 to 8.5 px off with each defect removed in
+# turn.  The lost groups move it: on the committed seed it lands 4.6 px off with
+# them and 7.4 px off without.  sim_truth holds it to a band.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}
-  missing_blocks: {expected_events: 6.0, block_lines: 7}
+  downlink_gaps: {expected_events: 6.0}
 optics:
   smear:
     - {dv_px: 1.2, du_px: 1.6, object_class: all}
