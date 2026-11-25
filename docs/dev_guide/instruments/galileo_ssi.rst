@@ -394,15 +394,17 @@ expected, so some seeds lose none and some lose two. On the committed seed one
 band crosses the middle of the disc.
 
 The scene plants a 260 px offset and the camera's twist. The fused answer lands
-0.036 to 0.072 px off over 24 draws. The disc correlation lands 0.020 to
-0.046 px off on every draw, including the six seeds whose band of lost slices
-crosses the disc, so the slices leave the answer where it is. On one draw, whose
-band covers the bottom limb, the limb fit flags its answer. The fused answer
-rests on the disc correlation alone, at low confidence; the other 23 draws are
-at medium. The blob technique lands up to 6 px off without flagging it when a
-band crosses the disc. The twist moves the answer by at most 0.02 px. The
-compression is realistic but moves the answer by at most 0.01 px, so the scene
-shows that the navigator is unaffected by it.
+0.26 to 0.30 px off over 24 draws, all at medium confidence, toward the Sun, where
+the navigator's Lambert template meets the Lommel-Seeliger surface (see
+:ref:`sim-photometric-laws`). The disc correlation lands 0.31 to 0.34 px off and the
+limb fit 0.22 to 0.30 px off. The blob technique lands 4.6 to 8.5 px off without
+flagging it. On a Lambert surface the fused answer landed 0.036 to 0.072 px off and
+the disc correlation 0.020 to 0.046 px off on every draw, including the six seeds
+whose band of lost slices crosses the disc, so the slices leave the answer where it
+is; there the blob landed 0.14 to 6.2 px off, and 0.18 to 0.22 px off without the
+lost slices. The twist moved the fused answer by at most 0.02 px. The compression is
+realistic but moved it by at most 0.01 px, so the scene shows that the navigator is
+unaffected by it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
