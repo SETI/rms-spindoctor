@@ -3794,8 +3794,10 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    An atmospheric body (see :ref:`sim-atmosphere`): the haze softens the limb
    into an exponential ramp that reaches past the geometric edge, and the
    terminator brightens instead of cutting off. The haze is thin enough that the
-   lit surface, and its limb, show through it (see :ref:`sim-atmosphere`). The
-   navigator still predicts a hard limb at the reference radius.
+   lit surface, and its limb, show through it (see :ref:`sim-atmosphere`). On the
+   night side the limb also steps up by about 10%, all of it light scattered more
+   than once, and that step remains. The navigator still predicts a hard limb at
+   the reference radius.
 
 .. figure:: _sim_images/haze_crescent_horns.png
    :width: 45%
