@@ -1968,16 +1968,28 @@ values at the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
 percentiles, in rising order
 (:data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`); a size table is
 interpolated in the logarithm, so its top decile does not crowd toward the
-largest size. Without ``gap_percentiles`` each group starts on a uniform line.
-With them the groups cluster: each group after the first starts a drawn gap after
-the end of the one before, and a group that would run past the bottom starts a new
-cluster. A group that starts a cluster takes a uniform line, preferring one that
-no other group covers or touches. With ``head_probability`` the line just above a
-group loses its end, and with ``tail_probability`` the line just below does. Such
-a line keeps a whole number of ``step_samples`` from its start, at least one step
-and all but one at most, its kept share drawn from ``head_kept_percentiles`` or
-``tail_kept_percentiles``. Groups that overlap merge in the frame and stay
-separate in the truth record.
+largest size. A binned frame draws its sizes from ``summed_size_percentiles``
+when the map sets it, and from ``size_percentiles`` otherwise.
+
+The groups form clusters. The first group starts a cluster, and each later group
+starts a new one with ``cluster_probability``. Otherwise it joins the cluster
+before it, after a gap of kept lines drawn from ``gap_percentiles``, which is
+interpolated in the logarithm too and rounds to at least one line. The clusters
+then fall in a random order at uniform positions down the frame, with at least one
+kept line between two clusters and between a cluster and the frame's first or last
+line. So no two groups touch, none reaches the edge of the frame, and the frame
+shows as many groups as it drew. When the clusters do not fit, the frame draws
+the sizes and gaps again, a few times, and then loses one group fewer. With a
+``cluster_probability`` of 1, the default, every group falls on its own. With
+adversarial placement each cluster starts on a feature row instead, and clusters
+that overlap merge in the frame and stay separate in the truth record.
+
+With ``head_probability`` the line just above a group loses its end, and with
+``tail_probability`` the line just below does. Such a line keeps a whole number of
+``step_samples`` from its start, at least one step and all but one at most, its
+kept share drawn from ``head_kept_percentiles`` or ``tail_kept_percentiles``. A
+single kept line between two groups is the line below one and the line above the
+other, and it loses its end when either draw says it does.
 
 .. _sim-detector-modes:
 

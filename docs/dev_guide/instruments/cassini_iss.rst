@@ -667,43 +667,116 @@ the content is sparse, a twin cuts somewhat more of its pairs than its frame doe
 
 *Downlink gaps.* Packets lost on the way to the ground take groups of whole lines.
 The shape defaults are measured on the 260 narrow angle frames whose line ends the
-compressor did not cut, where 61 frames lose 373 groups inside the frame, and on
-the 81 such wide angle frames, where 19 frames lose 83 groups. Sizes are in lines
-of their own frame, full or summed. The tables give the 0th, 5th, 10th, 25th,
-50th, 75th, 90th, 95th, 99th, and 100th percentiles.
+compressor did not cut, where 61 frames (39 full and 22 summed) lose 373 groups
+inside the frame, and on the 81 such wide angle frames, where 19 frames (13 full
+and 6 summed) lose 83 groups. ``util/coiss_line_loss/gap_census.py`` measures
+them, and ``util/coiss_line_loss/gap_fit.py`` fits the values that the frames do
+not give directly and compares simulated frames with the real ones. The tables
+give the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
+percentiles. In a size or gap table each measured whole number is spread evenly
+over the half line on either side of it, so a draw rounded to a whole line comes
+out at each number as often as on the real frames.
 
-- A narrow angle frame loses a mean 6.1 groups with a variance of 127: one group on
-  49% of the frames, 16 at the 90th percentile, and up to 59. One group plus a
-  negative binomial of mean 5.1 and dispersion 4.65 has that mean and variance,
-  and draws one group on 50% of the frames. A wide angle frame loses a mean 4.4
-  groups with a variance of 28.7, one on 47% of the frames, which gives a
-  dispersion of 2.23.
-- A narrow angle group is 1, 2, 2, 3, 5, 8, 15, 30.2, 83.2, and 373 lines at those
-  percentiles, and a wide angle group 1, 2, 2.2, 5, 7, 18, 50.4, 71.6, 220, and 504.
-- The groups cluster. The kept lines between one group and the next are 1, 1, 1,
-  2, 6, 19, 54.8, 114, 332, and 822 on the narrow angle camera and 1, 1.2, 2.3, 6,
-  11.5, 30, 181, 238, 335, and 375 on the wide angle camera. A group starts on any
-  line: the starts fall evenly on the residues of every grid.
-- 38% of the narrow angle groups lose the end of the line just above them, and 17%
-  the end of the line just below. On the wide angle camera the shares are 28% and
-  12%. Every such line keeps a whole number of 16 samples. A narrow angle line
-  above a group keeps a median 34% of the line, and one below 38%. The wide angle
-  lines above keep a median 45%; its 10 lines below cannot give a table, so that
-  entry takes the narrow angle table for them.
+- Sizes are in lines of their own frame. Full and summed frames each have their
+  own table, because summed groups have other sizes. A narrow angle group on a
+  full frame is 2, 3, 5, 10, and 20.7 lines at the 10th, 25th, 50th, 75th, and 90th
+  percentiles, and on a summed frame 3, 4, 4, 6, and 11. A sequence of 13 summed
+  frames from 2008 holds 145 of the 181 summed groups, and the summed groups still
+  differ from the full ones without it. None of the narrow angle frames is summed
+  4x4, so 4x4 frames take the 2x2 table. A wide angle group is 2, 3, 5, 11.5,
+  and 18.8 lines on a full frame, and 5, 6, 13, 30, and 52 on a summed one. The
+  wide angle summed table rests on six frames (five summed 2x2 and one 4x4), too
+  few to give each mode its own.
+- A narrow angle frame loses a mean 6.1 groups with a variance of 127: one group
+  on 49% of the frames, 16 at the 90th percentile, and up to 59. A wide angle
+  frame loses a mean 4.4 with a variance of 28.7, one on 47% of the frames. The
+  count, the clustering, and the partial lines pool full and summed frames. Each
+  readout mode's count and spacing come mostly from one sequence, so the frames
+  cannot give each mode a law of its own: four full narrow angle frames from 2011
+  hold 115 of the 192 full-frame groups.
+- Groups cluster. On the narrow angle camera the kept lines between neighboring
+  groups are 1, 2, 6, 19, and 55 at the 10th, 25th, 50th, 75th, and 90th
+  percentiles. On a frame with more than one group, the first and last span 14%,
+  56%, and 84% of its height at the quartiles. Frames that lose many groups
+  spread them over the whole frame, and frames that lose a few hold them close
+  together or far apart. The gap table inside a cluster is the gaps of 20 lines or
+  less, 241 of the 312. The chance that a group starts a new cluster, 0.40, is the
+  value at which simulated frames best match the gaps and the span together. On
+  the wide angle camera the gap table is the 42 gaps of 20 lines or less of the
+  64, and the chance is 0.60.
+- The count law is fitted on simulated frames, because a frame too small for its
+  groups loses some of them: a negative binomial of mean 5.11 and dispersion 4.47
+  beyond the first group gives the measured mean and share of frames with one
+  group on the narrow angle camera, and one of mean 3.37 and dispersion 3.36 on the
+  wide angle camera.
+- 36.6% of the narrow angle lines just above one group lose their end, and 12.7%
+  of those just below. A single kept line between two groups is the line below
+  one and the line above the other, and 23 of the 51 such lines lost their end,
+  the 45% that two independent draws give. So
+  38% of the groups show a head line and 17% a tail line. On the wide angle camera
+  the shares are 27.8% and 11.4%, and 28% and 12% with the shared lines. Every such
+  line keeps a whole number of 16 samples. A narrow angle line above a group keeps
+  a median 34% of the line, and one below 38%. A wide angle line above keeps a
+  median 45%, and one below 20%, from its own 10 lines; that is lower than the
+  narrow angle share at a rank-sum p of 0.02.
 
-Over 1,000 simulated narrow angle frames measured the same way, a frame loses a
-mean 5.3 groups with a variance of 54, one group on 48% of them, and 15 at the 90th
-percentile. The heaviest draws fill the frame, and their groups merge, which
-lowers the mean and the variance. The sizes match the table to the 95th
-percentile, and the kept lines between groups are 2, 5, and 17 at the 25th, 50th,
-and 75th percentiles, against 2, 6, and 19. 39% of the drawn groups lose the end of
-the line above and 22% the end of the line below, the second higher than measured
-because a single kept line between two groups can be cut by either. The drawn
-groups of a frame span less of it: on a frame with more than one group, the first
-and last span a median 17% of the height, against 56% on the real frames. The
-measured gaps come mostly from six frames that lose 19 to 59 groups each, where
-the gaps are short, while the real frames with a few groups spread them farther
-apart than those gaps do.
+Over 20,000 simulated frames of each camera, at the heights and readout modes of
+the real frames in turn, and measured the same way:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Statistic
+     - Narrow angle, real
+     - Narrow angle, simulated
+     - Wide angle, real
+     - Wide angle, simulated
+   * - Groups per frame: mean, variance
+     - 6.1, 127
+     - 6.1, 112
+     - 4.4, 28.7
+     - 4.4, 38.5
+   * - Frames with one group; 90th percentile
+     - 49%; 16
+     - 49%; 17
+     - 47%; 10.6
+     - 47%; 11
+   * - Full-frame sizes, 25th, 50th, 75th, 90th percentiles
+     - 3, 5, 10, 20.7
+     - 3, 5, 10, 21
+     - 3, 5, 11.5, 18.8
+     - 3, 5, 12, 19
+   * - Summed-frame sizes, same
+     - 4, 4, 6, 11
+     - 4, 4, 6, 11
+     - 6, 13, 30, 52
+     - 6, 13, 27, 48
+   * - Gaps, 25th, 50th, 75th, 90th percentiles
+     - 2, 6, 19, 55
+     - 2, 6, 18, 87
+     - 6, 11.5, 30, 181
+     - 5, 12, 49, 155
+   * - Span, quartiles
+     - 0.14, 0.56, 0.84
+     - 0.17, 0.57, 0.84
+     - 0.24, 0.80, 0.87
+     - 0.30, 0.63, 0.86
+   * - Groups with a head line; with a tail line
+     - 37.8%; 17.2%
+     - 37.6%; 17.1%
+     - 27.7%; 12.0%
+     - 28.0%; 12.7%
+
+Simulated narrow angle frames have more long gaps than the real ones, 87 against
+55 lines at the 90th percentile. One-line groups are 5.0% of the simulated narrow
+angle groups against 3.8% of the real ones, because the size table cannot tell
+the share of one-line groups apart from that of two-line groups below its 5th
+percentile. The wide angle span and gaps rest on only 10 frames with more than one
+group. Resampling the frames puts 90% of the real median spans between 0.28 and
+0.87, and 90% of the 75th percentiles of the gaps between 16 and 182 lines, so the
+simulated wide angle values lie within what the frames can tell. The same holds
+for the count variance: 40 to 222 on the narrow angle camera and 5 to 50 on the
+wide angle one.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
