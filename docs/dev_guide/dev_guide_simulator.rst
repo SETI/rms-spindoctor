@@ -6123,8 +6123,8 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run takes 32 to 39 minutes on a workstation with local
-holdings.  The committed record of 2026-11-22 took 32 minutes (1,894 seconds).
+The full-cohort run takes 32 to 43 minutes on a workstation with local
+holdings.  The committed record of 2026-11-24 took 43 minutes (2,603 seconds).
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on
 W1580760393).  The cost is
