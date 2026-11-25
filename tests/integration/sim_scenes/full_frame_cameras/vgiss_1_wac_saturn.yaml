@@ -24,18 +24,21 @@ exposure_sec: 7.68
 # navigator does not model them.
 #
 # Brightness follows C3446143.  The real B ring reads about 0.36 of the disc
-# and the C ring 0.15 to 0.25 of it; the ring albedos (C 0.8, B 2.0, A 1.8)
-# give 0.15, 0.39, and 0.35 of the simulated disc at this opening.  The real
-# methane-band disc is much flatter toward the lit limb than a Lambert disc.
+# and the C ring 0.15 to 0.25 of it; the ring albedos (C 0.286, B 0.714, A
+# 0.643) give 0.15, 0.39, and 0.35 of the simulated disc at this opening.  The
+# real methane-band disc is much flatter toward the lit limb than a Lambert disc.
 # Normalized to the disc's peak, its profiles along the equator and the polar
 # axis fit a Minnaert disc of k 0.75 best taken together (rms 0.05 and 0.11,
 # against 0.07 and 0.19 for Lambert; k 0.8 fits the equator a little better
 # and the polar axis worse, and k 0.7 fits both a little worse), so the planet
 # takes that law.  A Voyager frame renders in I/F, and the simulator's vidicon DN
 # scale has no exposure term (#907), so the exposure does not change the
-# planet.  The disc peaks near I/F 1.0, where the real one peaks near I/F 0.36.
-# The planet keeps a normal albedo of 1, and the rings' albedos are set against
-# the simulated disc.
+# planet.  The planet's normal albedo of 0.357 puts the brightest 1% of its
+# disc where the real frame's is, 0.36 I/F above the sky, measured on both
+# frames as in vgiss_1_nac_disc, and the ring albedos are scaled with it, so
+# each ring keeps its fraction of the disc.  At a normal albedo of 1, with ring
+# albedos of 0.8, 2.0, and 1.8, the disc peaked near I/F 1.0, almost three
+# times the real one.
 #
 # Not drawn: the real frames sit in the image library's scattered-light class,
 # but their sky glow is faint, 0.005 to 0.008 I/F across C3446143 against a
@@ -55,10 +58,10 @@ exposure_sec: 7.68
 # by far more than the placeholder.  Roll fitting is off, as the camera ships.
 #
 # As on the real frame, the disc correlation passes its quality threshold and
-# carries the answer: over 24 distinct draws its peak quality is 7.34 to 7.48
+# carries the answer: over 24 distinct draws its peak quality is 7.57 to 7.74
 # against the threshold of 6 (7.16 on C3446143), and the fused answer lands
-# 0.18 to 0.69 px off at medium tier (confidence 0.81 to 0.84), within 0.93 of
-# its reported sigmas.  The blob lands 0.68 to 1.28 px off.  The navigator's
+# 0.17 to 0.68 px off at medium tier (confidence 0.81 to 0.84), within 0.92 of
+# its reported sigmas.  The blob lands 0.69 to 1.28 px off.  The navigator's
 # predicted disc is a Lambert disc, since the photometric law is a truth key,
 # so the correlation of a Minnaert disc lands farther off than the 0.2 px of a
 # Lambert one.  Without the roll the committed draw lands 0.36 px off, against
@@ -79,6 +82,7 @@ bodies:
     range_km: 21700000.0
     photometric_law: minnaert
     minnaert_k: 0.75
+    normal_albedo: 0.357
 ring_system:
   range_km: 21700000.0
   km_per_pixel: 1274.4
@@ -93,19 +97,19 @@ ring_system:
     - name: C_RING
       kind: ringlet
       tau: 0.1
-      albedo: 0.8
+      albedo: 0.286
       width_px: 13.61
       orbit: {a_px: 58.58, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
     - name: B_RING
       kind: ringlet
       tau: 1.5
-      albedo: 2.0
+      albedo: 0.714
       width_px: 20.07
       orbit: {a_px: 72.19, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
     - name: A_RING
       kind: ringlet
       tau: 0.6
-      albedo: 1.8
+      albedo: 0.643
       width_px: 11.46
       orbit: {a_px: 95.86, ae_px: 0.0, long_peri_deg: 0.0, rate_peri_deg_per_day: 0.0}
 offset_v: 19.63

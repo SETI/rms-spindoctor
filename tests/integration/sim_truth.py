@@ -219,10 +219,10 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # it lands 0.21 px off, so a lost twist passes this tolerance and fails the
     # baseline.  The other three twists move their answers by 0.08 px at most.
     # vgiss_1_wac_saturn's error is the disc correlation's own: the navigator's
-    # Lambert prediction finds the scene's Minnaert disc 0.18 to 0.69 px off.
+    # Lambert prediction finds the scene's Minnaert disc 0.17 to 0.68 px off.
     # vgiss_1_nac_disc shades Lommel-Seeliger and carries a known error in its
     # expected block (#1110).
-    ('vgiss_1_wac_saturn', FUSED): _t(0.343, 0.686, 0.507, 0.14),
+    ('vgiss_1_wac_saturn', FUSED): _t(0.343, 0.678, 0.510, 0.14),
     ('vgiss_2_nac_star_field', FUSED): _t(0.177, 0.259, 0.233, 0.06),
     ('vgiss_2_wac_star_field', FUSED): _t(1.310, 1.361, 0.356, 0.28),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
