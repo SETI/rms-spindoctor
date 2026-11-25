@@ -71,7 +71,7 @@ _RAW_FULL_SCALE_DN = {'12BIT': 4095, 'TABLE': 255}
 # al. (2007, Icarus 190, 573-584) radii: Tethys 540.4 x 531.1 x 527.5 and Rhea 767.2 x
 # 762.5 x 763.1.  Against those, four of the cohort's five real Tethys limbs lay 0.24%
 # to 0.35% of their radius inside the silhouette; against these, all five lie within
-# 0.16 px of their matched limbs.  Only the realism match's silhouettes use
+# 0.19 px of their matched limbs.  Only the realism match's silhouettes use
 # these radii; real navigation still fits the Cassini PCK's (#1216).
 IAU_MOON_RADII_KM: dict[str, tuple[float, float, float]] = {
     'MIMAS': (207.8, 196.7, 190.6),
