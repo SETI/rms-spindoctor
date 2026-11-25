@@ -55,7 +55,6 @@ from typing import Any, cast
 import numpy as np
 
 from spindoctor.sim.scene.fields import scene_value
-from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -172,14 +171,19 @@ def compute_edge_radii_array(
     days_since_epoch = (time - epoch) / 86400.0
     current_long_peri = math.radians(long_peri + rate_peri * days_since_epoch)
 
-    # Compute true anomaly (angle relative to pericenter)
-    true_anomaly = angles - current_long_peri
-
     # Compute radius using elliptical orbit equation: r = a(1 - e^2) / (1 + e*cos(v))
-    # where e = ae / a
+    # where e = ae / a and v is the true anomaly (angle relative to pericenter).
     e = _edge_eccentricity(a=a, ae=ae)
-    r = a * (1.0 - e * e) / (1.0 + e * np.cos(true_anomaly))
-
+    # One array carries every step in place: the renderer evaluates this over most of
+    # an oversampled frame, where each fresh temporary costs more than its arithmetic.
+    # Each step is the same IEEE operation the closed form names, so the radii are
+    # unchanged to the last bit.
+    r = np.array(angles, dtype=np.float64)
+    r -= current_long_peri
+    np.cos(r, out=r)
+    r *= e
+    r += 1.0
+    np.divide(a * (1.0 - e * e), r, out=r)
     return cast(NDArrayFloatType, r)
 
 
@@ -397,10 +401,16 @@ def compute_orbit_radii(
         epoch=epoch,
         time=time,
     )
+    # In place, as in compute_edge_radii_array: r is this call's own array.
     for mode in orbit.modes:
-        r = r - mode.amp * np.cos(mode.m * (lam - math.radians(mode.peri)))
+        term = np.array(lam, dtype=np.float64)
+        term -= math.radians(mode.peri)
+        term *= mode.m
+        np.cos(term, out=term)
+        term *= mode.amp
+        r -= term
     if orbit.edge_wave is not None:
-        r = r + compute_edge_wave_dr(lam, orbit.edge_wave, a=orbit.a)
+        r += compute_edge_wave_dr(lam, orbit.edge_wave, a=orbit.a)
     return r
 
 
@@ -510,10 +520,19 @@ def ring_plane_from_sky(
     node = math.radians(node_deg)
     p = du
     q = -dv
+    # dv and du may be a column and a row that broadcast to the grid, which leaves
+    # one grid-sized sum per coordinate.  The steps after that work in place on
+    # arrays this call owns; each is the IEEE operation the formula names, so the
+    # results match the plain expressions to the last bit.
     x = p * math.cos(node) + q * math.sin(node)
-    y = (-p * math.sin(node) + q * math.cos(node)) / sin_b
-    r = stable_hypot(x, y)
-    lam = np.mod(np.arctan2(y, x), 2.0 * math.pi)
+    y = -p * math.sin(node) + q * math.cos(node)
+    y /= sin_b
+    # stable_hypot's sum of squares, in place.
+    r = x * x
+    r += y * y
+    np.sqrt(r, out=r)
+    lam = np.arctan2(y, x)
+    np.mod(lam, 2.0 * math.pi, out=lam)
     return (
         r,
         cast(NDArrayFloatType, lam),
@@ -572,8 +591,17 @@ def ring_radial_scale(
         The dimensionless radial foreshortening scale, >= 1.
     """
     sin_b = math.sin(math.radians(opening_deg_obs))
-    scale = np.sqrt(x * x + (y * y) / (sin_b * sin_b))
-    return cast(NDArrayFloatType, np.where(r > 0.0, scale / np.where(r > 0.0, r, 1.0), 1.0))
+    # In place on this call's own arrays, which matches the plain expression
+    # sqrt(x*x + y*y / sin_b**2) / r to the last bit.
+    scale = x * x
+    across = y * y
+    across /= sin_b * sin_b
+    scale += across
+    np.sqrt(scale, out=scale)
+    positive = r > 0.0
+    np.divide(scale, r, out=scale, where=positive)
+    np.copyto(scale, 1.0, where=~positive)
+    return cast(NDArrayFloatType, scale)
 
 
 def compute_antialiasing_shade(edge_dist: NDArrayFloatType, resolution: float) -> NDArrayFloatType:

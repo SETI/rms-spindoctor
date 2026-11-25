@@ -64,12 +64,33 @@ def ring_reflection_factor(
     Returns:
         The per-pixel geometric factor.
     """
+    # Each form is built in place on this call's own arrays, since the renderer
+    # evaluates it over a whole oversampled frame.  Every step is the IEEE operation
+    # of the plain closed form, so the factor is unchanged to the last bit.
     if lit:
-        return mu0 / (mu0 + mu) * (1.0 - np.exp(-tau * (1.0 / mu0 + 1.0 / mu)))
+        factor = np.negative(tau)
+        factor *= 1.0 / mu0 + 1.0 / mu
+        np.exp(factor, out=factor)
+        np.subtract(1.0, factor, out=factor)
+        factor *= mu0 / (mu0 + mu)
+        return factor
     if abs(mu0 - mu) < _UNLIT_MU_MATCH_TOL:
-        # The mu0 -> mu limit of the unlit form (the closed form is 0/0).
-        return (tau / mu) * np.exp(-tau / mu)
-    return mu0 / (mu0 - mu) * (np.exp(-tau / mu0) - np.exp(-tau / mu))
+        # The mu0 -> mu limit of the unlit form (the closed form is 0/0):
+        # (tau / mu) * exp(-tau / mu).
+        scaled = tau / mu
+        factor = np.negative(scaled)
+        np.exp(factor, out=factor)
+        factor *= scaled
+        return factor
+    factor = np.negative(tau)
+    factor /= mu0
+    np.exp(factor, out=factor)
+    behind = np.negative(tau)
+    behind /= mu
+    np.exp(behind, out=behind)
+    factor -= behind
+    factor *= mu0 / (mu0 - mu)
+    return factor
 
 
 def _mean_exp_fraction(x: NDArrayFloatType) -> NDArrayFloatType:

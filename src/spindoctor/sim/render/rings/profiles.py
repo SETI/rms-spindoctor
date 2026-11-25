@@ -197,11 +197,21 @@ def feature_tau(
         damping = float(scene_value(feature, 'density_wave_damping_px', 0.0)) * os
         # Clipping x at zero makes the profile exactly zero inward of the launch
         # radius (sin(0) = 0) and keeps the envelope from growing without bound there.
-        x = np.clip(r - r_edge, 0.0, None)
-        return cast(
-            NDArrayFloatType,
-            tau * np.exp(-x / damping) * np.sin(2.0 * math.pi * x / wavelength),
-        )
+        x = r - r_edge
+        np.clip(x, 0.0, None, out=x)
+        # tau * exp(-x / damping) * sin(2 * pi * x / wavelength), built in place: a
+        # wave train reaches over most of an oversampled frame, where each fresh
+        # temporary costs more than its arithmetic.  Every step is the IEEE operation
+        # of that expression, so the profile is unchanged to the last bit.
+        envelope = np.negative(x)
+        envelope /= damping
+        np.exp(envelope, out=envelope)
+        envelope *= tau
+        x *= 2.0 * math.pi
+        x /= wavelength
+        np.sin(x, out=x)
+        envelope *= x
+        return cast(NDArrayFloatType, envelope)
     raise ValueError(f'ring feature kind {kind!r} is not renderable')
 
 
