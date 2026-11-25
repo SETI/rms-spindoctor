@@ -238,10 +238,10 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # vgiss_2_wac_star_field the +0.358 deg twist moves the mean position of the stars
     # it measures by 1.6 px, and the answer lands 1.0 to 1.4 px off; without the twist
     # it lands 0.20 px off.  The other three twists move their answers by 0.04 px at
-    # most.  vgiss_1_wac_saturn's error is the limb fit's own, at the low tier its
-    # expected block holds: the disc correlation is flagged spurious on every draw.
+    # most.  vgiss_1_wac_saturn's error is the disc correlation's own: the navigator's
+    # Lambert prediction finds the scene's Minnaert disc 0.18 to 0.69 px off.
     ('vgiss_1_nac_disc', FUSED): _t(0.246, 0.569, 0.509, 0.12),
-    ('vgiss_1_wac_saturn', FUSED): _t(0.717, 1.050, 0.653, 0.22),
+    ('vgiss_1_wac_saturn', FUSED): _t(0.343, 0.686, 0.507, 0.14),
     ('vgiss_2_nac_star_field', FUSED): _t(0.199, 0.536, 0.514, 0.11),
     ('vgiss_2_wac_star_field', FUSED): _t(1.356, 1.416, 0.394, 0.29),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the

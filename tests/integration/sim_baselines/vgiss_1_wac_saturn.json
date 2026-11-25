@@ -1,8 +1,8 @@
 {
-  "confidence": 0.568418612002138,
-  "confidence_rank": "low",
-  "offset_du_px": -24.153132859292977,
-  "offset_dv_px": 19.65779310619798,
+  "confidence": 0.8390655254067766,
+  "confidence_rank": "medium",
+  "offset_du_px": -25.09375,
+  "offset_dv_px": 19.890625,
   "scene_name": "vgiss_1_wac_saturn",
   "status": "success"
 }
