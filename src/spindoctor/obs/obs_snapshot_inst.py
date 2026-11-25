@@ -67,9 +67,9 @@ def host_input(image: PathLike, *, label: PathLike | None = None) -> FCPath:
     """Return the file to give a host to read an image: its PDS3 label, if it has one.
 
     A host given an image file reads that file alone, so it lacks every value that only
-    the PDS3 label gives, such as a Voyager image's start clock count or the clock counts
-    of an early Cassini cruise image.  Given the label, the host reads the label and the
-    image file together and merges what the two say.  The data are the same either way.
+    the PDS3 label gives, such as a Voyager image's start clock count.  Given the label,
+    the host reads the label and the image file together and merges what the two say.
+    The data are the same either way.
 
     A label the caller names, as a dataset does from the PDS3 index, is the file read.
     Otherwise the label is the file beside the image with the image's name and the

@@ -71,9 +71,9 @@ Label and index dependencies
 * The ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count``
   subfields, read in
   :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`.
-  The host spells them as the PDS3 label does, and computes the start count of
-  an early cruise image, whose labels give a wrong one, from the stop count and
-  the exposure.
+  The host spells them as the PDS3 label does, and computes both counts of an
+  early cruise image, whose labels give a wrong start count, from the image
+  number and the exposure, whichever file it reads.
   A count is ``SECONDS.TICKS``: whole seconds, then the 1/256-second ticks
   past them written as three digits. ``_sclk_count`` converts it to an exact
   number of seconds through :func:`~spindoctor.support.sclk.fractional_count`,
