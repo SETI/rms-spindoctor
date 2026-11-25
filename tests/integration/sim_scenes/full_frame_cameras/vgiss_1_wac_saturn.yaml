@@ -33,9 +33,9 @@ exposure_sec: 7.68
 # and the polar axis worse, and k 0.7 fits both a little worse), so the planet
 # takes that law.  A Voyager frame renders in I/F, and the simulator's vidicon DN
 # scale has no exposure term (#907), so the exposure does not change the
-# planet.  The disc peaks near I/F 1.0, where the real one peaks near I/F 0.36:
-# a body takes no albedo key (#895), so the rings' albedos are set against the
-# simulated disc.
+# planet.  The disc peaks near I/F 1.0, where the real one peaks near I/F 0.36.
+# The planet keeps a normal albedo of 1, and the rings' albedos are set against
+# the simulated disc.
 #
 # Not drawn: the real frames sit in the image library's scattered-light class,
 # but their sky glow is faint, 0.005 to 0.008 I/F across C3446143 against a

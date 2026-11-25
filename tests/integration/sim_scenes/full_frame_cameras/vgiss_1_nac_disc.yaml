@@ -16,9 +16,10 @@ exposure_sec: 0.24
 # read noise, the banding, and the PSF and distortion residual.
 #
 # A Voyager frame renders in I/F, and the simulator's vidicon DN scale has no
-# exposure term (#907), so the exposure does not change the disc.  The disc
-# peaks near I/F 1.0, where the real one peaks at 0.5: a body takes no albedo
-# key (#895).
+# exposure term (#907), so the exposure does not change the disc.  The body
+# shades with the default Lommel-Seeliger law, and the disc peaks near I/F 1.6,
+# where the real one peaks at 0.5.  The camera's 255 DN clip sits at I/F 1.85,
+# so the disc does not saturate, and the body keeps a normal albedo of 1.
 #
 # The planted offset, 41.6 px down and right, lies inside the 28 to 49 px of
 # the image library's Voyager frames.  No Voyager 1 twist is measured, since no
@@ -30,15 +31,18 @@ exposure_sec: 0.24
 # and +0.358 deg, so a measured Voyager 1 value may differ between the cameras
 # by far more than the placeholder.  Roll fitting is off, as the camera ships.
 #
-# The fused answer lands 0.06 to 0.57 px off over 24 distinct draws, at medium
-# tier with confidence 0.99 on every one, from the disc correlation (0.09 to
-# 0.60 px off), the limb fit (0.04 to 0.57 px), and the blob (0.03 to 0.52
-# px).  The random_seed draws spread far wider than the noise_seed draws
-# (0.24 to 0.25 px), so the spread comes from the streams only random_seed
-# reaches.  Without the roll the committed draw lands 0.24 px off, against
-# 0.25 px with it.  The disc correlation searches the camera's 400 px window,
-# so the frame takes about 45 s to render and navigate on a quiet machine and
-# about 140 s on a busy one.
+# The fused answer lands 0.34 to 0.88 px off over 24 distinct draws, at medium
+# tier with confidence 0.99 on every one, from the disc correlation (0.41 to
+# 1.01 px off), the limb fit (0.19 to 0.73 px), and the blob (1.26 to 1.87
+# px).  The navigator's Lambert template pulls the disc and limb answers toward
+# the Sun on the Lommel-Seeliger body (#1110): on a Lambert surface the answer
+# lands 0.06 to 0.57 px off, the disc 0.09 to 0.60, the limb 0.04 to 0.57, and
+# the blob 0.03 to 0.52.  The random_seed draws spread far wider than the
+# noise_seed draws (0.69 to 0.70 px), so the spread comes from the streams only
+# random_seed reaches.  Measured on a Lambert surface, the committed draw lands
+# 0.24 px off without the roll and 0.25 px with it.  The disc correlation
+# searches the camera's 400 px window, so the frame takes about 45 s to render
+# and navigate on a quiet machine and about 140 s on a busy one.
 artifacts:
   instrument_defaults: true
 bodies:
@@ -53,3 +57,10 @@ bodies:
 offset_v: 33.71
 offset_u: 24.38
 offset_rotation_deg: 0.0227
+expected:
+  status: success
+  # The body shades with the default Lommel-Seeliger law, and the navigator's
+  # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
+  # fused error over the 24 distinct draws, measured as sim_truth.py describes.
+  known_offset_error_px: 0.6095
+  known_offset_error_tol_px: 0.3775
