@@ -3,7 +3,7 @@ scene_name: coiss_nac_stars_moon_lost_lines
 instrument: coiss_nac
 size_v: 1024
 size_u: 1024
-random_seed: 3
+random_seed: 27
 exposure_sec: 1.0
 # A raw Cassini NAC frame of stars and a moon whose readout lost lines and whose
 # pointing drifted during the exposure, over the camera's whole raw chain.
@@ -37,18 +37,17 @@ exposure_sec: 1.0
 # group is 2 to 15 lines (10th to 90th percentile, median 5).
 #
 # The scene truncates the last 41 lines, as on N1526130404, and loses groups of
-# whole lines with downlink_gaps, a Poisson-drawn number of them, 6 expected, as
-# N1526044304 lost six.  The group sizes, the starts, and the losses on the line
-# just above a group are the camera's measured defaults: a size is drawn
-# log-normal about the census median of 5 lines, a group starts on any line, and
-# 35% of the groups also lose the end of the line just above.  None of
-# N1526044304's lines is partial, so the scene draws no compression-truncated
-# lines.  The committed seed, 3, loses eight groups, lines 69-75, 218-224,
-# 327-332, 421-438, 629-634, 648-653, 780-784, and 829-831 (7, 7, 6, 18, 6, 6,
-# 5, and 3 lines), and lines 217 and 326 lose their ends.  Three of the groups
-# cross the disc, 30 lines in all, as groups crossed the planet on N1526044304;
-# groups cross the disc on 11 of the other 15 seeds too.  The truncated lines
-# hold dark sky, as on N1526130404.
+# whole lines with downlink_gaps at the camera's measured sizes, gaps, and partial
+# lines.  N1526044304 lost six groups, so the scene sets a mean of 6 groups and a
+# dispersion of 0: the count of one frame, without the spread over all frames.
+# None of N1526044304's lines lost its end to the compressor, so the scene leaves
+# compression_truncated_lines off; with it on, the draws below lose no line to it.
+# The committed seed, 27, is the first of seeds 1 to 50 whose draw loses five to
+# seven groups and 35 to 50 lines, as N1526044304 lost six groups and 43 lines,
+# with at least two groups across the disc, as the real groups crossed the planet.
+# It loses lines 377-383, 402-406, 485, 489-493, and 503-525 (7, 5, 1, 5, and 23
+# lines, 41 in all), four of the groups crossing the disc, and lines 376 and 484
+# lose their ends.  The truncated lines hold dark sky, as on N1526130404.
 #
 # The whole scene drifts 2.0 px during the exposure.  Measured streaks on real
 # NAC frames run under 2 px on sequences predicted at 6 px, and about 0.6 times
@@ -61,36 +60,37 @@ exposure_sec: 1.0
 # left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
 # fitting off as the camera ships.
 #
-# The fused answer lands 0.028 to 0.27 px off over 24 distinct draws, carried by
-# the disc correlation (0.019 to 0.21 px off) and the star refinement (0.032 to
-# 0.31 px).  The worst draw, 0.27 px, is random seed 808, which loses lines
-# 278-291 across the brightest star, S1: StarUniqueMatchNav returns spurious and
-# StarRefineNav lands 0.31 px off, at 0.57 times the fused sigma.  The tier is
-# high on 6 of the 24 draws and medium on 18.  The high draws are the committed
-# seed, its noise draws 505 and 808, and random seeds 505, 1212, and 1313, with
-# a fused confidence of 0.88 to 0.93, against 0.79 to 0.85 on the rest.  On the
-# committed seed the lost groups move the disc correlation from 0.026 to 0.16 px
-# off, and the fused answer from 0.043 to 0.028 px.  On the committed seed and
-# seeds 101 to 303, which land 0.028 to 0.088 px off, removing any one defect
-# (the truncation, the lost groups, the smear, the hot pixels, or the cosmic
-# rays) leaves the fused answer 0.028 to 0.088 px off.  The truncation is
-# realistic but does not move the fused answer, so the scene shows the navigator
-# unaffected by it.
+# The fused answer lands 0.019 to 0.17 px off over 24 distinct draws, carried by
+# the disc correlation (0.016 to 0.45 px off) and the star refinement (0.021 to
+# 0.17 px).  The worst draw, random seed 909, lands 0.17 px off with its lost
+# groups or without them, where the star refinement lands 0.17 px off.  The next,
+# random seed 101, loses lines 278-286 across the brightest star, S1, and lands
+# 0.16 px off, against 0.069 px without the groups: the star refinement centroids
+# the lost lines as zeros (#1207).  On random seed 303 a 75-line group crosses the
+# disc and the disc correlation lands 0.45 px off, against 0.019 px without the
+# groups (#1164); the stars hold the fused answer at 0.081 px.  The tier is high
+# on 5 of the 24 draws: the committed seed, noise seed 505, and random seeds 505,
+# 808, and 1212, at a fused confidence of 0.86 to 0.93, against 0.77 to 0.85 on
+# the rest.  On the committed seed the lost groups leave the fused answer at 0.060
+# px off (0.059 without them).  On the committed seed and seeds 101 to 303, which
+# land 0.060 to 0.16 px off, removing any one defect (the truncation, the lost
+# groups, the smear, the hot pixels, or the cosmic rays) leaves the fused answer
+# 0.056 to 0.16 px off.  The truncation is realistic but does not move the fused
+# answer, so the scene shows the navigator unaffected by it.
 #
 # StarFieldFromCatalogNav returns spurious on every draw, which is #1146: the hot
 # pixels and cosmic rays together crowd the stars out of the 30 sources it
 # matches.  With both removed it navigates on the committed seed and seeds 101 to
-# 303 (0.070 to 0.16 px off); with either one removed alone it stays spurious,
-# except on seed 303 without the cosmic rays (0.048 px).  StarUniqueMatchNav
-# returns spurious on 4 of the 24 draws: random seeds 808 and 1313 and noise
-# seeds 505 and 808.  BodyBlobNav lands 3.3 to 15.7 px off the gibbous disc
-# without flagging it (#975), and 4.1 to 8.5 px off with each defect removed in
-# turn.  The lost groups move it: on the committed seed it lands 4.6 px off with
-# them and 7.4 px off without.  sim_truth holds it to a band.
+# 303 (0.087 to 0.12 px off); with either one removed alone it stays spurious.
+# StarUniqueMatchNav returns spurious on 1 of the 24 draws, random seed 808.
+# BodyBlobNav lands 5.7 to 37.7 px off the gibbous disc without flagging it
+# (#975).  The lost groups move it most (#1207): on random seed 303 it lands 37.7
+# px off with them and 7.4 px off without, and without the groups the committed
+# seed and seeds 101 to 303 land 7.4 to 8.5 px off.  sim_truth holds it to a band.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}
-  downlink_gaps: {expected_events: 6.0}
+  downlink_gaps: {probability: 1.0, mean_groups: 6.0, dispersion: 0.0}
 optics:
   smear:
     - {dv_px: 1.2, du_px: 1.6, object_class: all}

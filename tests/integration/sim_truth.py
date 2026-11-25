@@ -254,10 +254,13 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # tolerance.  coiss_nac_lossy_moon seeds nothing but the noise, so its noise_seed
     # draws repeat random_seed 101 to 808.  Where a band of lost slices crosses the
     # disc on gossi_ict_moon, the frame still lands within 0.08 px.  On
-    # coiss_nac_stars_moon_lost_lines the worst draw, random seed 808, loses a group of
-    # lines across the brightest star, and the star refinement there lands 0.31 px off.
+    # coiss_nac_stars_moon_lost_lines the worst draw, random seed 909, lands 0.167 px
+    # off with its lost groups and 0.166 px without them: the star refinement, 0.172 px
+    # off, carries it either way.  The next, random seed 101, loses lines 278 to 286
+    # across the brightest star, and the star refinement centroids them as zeros
+    # (#1207): 0.158 px off with the groups, 0.069 px without.
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
-    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.028, 0.270, 0.241, 0.06),
+    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.060, 0.167, 0.148, 0.05),
     ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
     ('nhlorri_moon_raw', FUSED): _t(0.108, 0.118, 0.011, 0.05),
     # multi_body_geometry.
@@ -328,10 +331,14 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 3.3 to 15.7 px off with every
-    # defect present, and 4.1 to 8.5 px off with each one removed in turn (#975).
-    # Lost groups across the disc move the blob, which widens its range.
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(3.319, 15.669, 2.470, 0.848, 18.139),
+    # coiss_nac_stars_moon_lost_lines the blob lands 5.7 to 37.7 px off with every
+    # defect present (#975).  The lost groups widen that range, because the blob
+    # centroids lost lines as zeros (#1207): on random seed 303 a 75-line group crosses
+    # the disc and the blob lands 37.7 px off, against 7.4 px without the groups, and
+    # without the groups the four control draws land 7.4 to 8.5 px off.  The spread
+    # sets a margin of 6.4 px, so the band's low end falls below zero and the band
+    # also accepts a correct answer; it shows a fix of #975 or #1207 only at its top.
+    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.690, 37.711, 6.404, -0.714, 44.115),
     # On nhlorri_moon_raw the frame-transfer smear pulls the blob 6.8 to 7.1 px off;
     # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
     # step at each column's centroid, where the real smear builds up across the disc
