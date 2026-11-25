@@ -371,6 +371,36 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
 
+**Mixed-defect guard scene.** ``gossi_ict_moon`` in the ``mixed_defects`` scene
+class (see :ref:`sim-mixed-defects`) is a full frame of a moon 400 px across with
+the camera's chain and its fitted cosmic rays on, lossy compression, and a band of
+lost 8-line compression slices. In the metadata indexes of GO_0017, GO_0019, and
+GO_0023, 1,318 of 1,865 frames use the camera's lossy codec, at a median
+compression ratio of 9.5. In a sample of 40 of those frames showing a moon, 34
+have zero bands in multiples of 8 lines. Most of them are frames cut short at the
+top or bottom, and 10 lose bands of 8 to 24 lines inside the frame or at its top
+edge. The three moon-filled frames the scene follows each lost one band of 3 or 4
+slices.
+
+The simulator has no model of the lossy codec, so the scene uses the generic one
+with a step of 4 DN, which leaves block edges no sharper than the inside of the
+blocks, as on the real frame the disc follows. The simulator also cannot plant
+exactly one band of slices that starts on any slice. The scene loses whole bands
+of three slices on a 24-line grid instead, a random number of them with one
+expected, so some seeds lose none and some lose two. On the committed seed one
+band crosses the middle of the disc.
+
+The scene plants a 260 px offset and the camera's twist. The fused answer lands
+0.036 to 0.072 px off over 24 draws. The disc correlation lands 0.020 to
+0.046 px off on every draw, including the six seeds whose band of lost slices
+crosses the disc, so the slices leave the answer where it is. On one draw, whose
+band covers the bottom limb, the limb fit flags its answer. The fused answer
+rests on the disc correlation alone, at low confidence; the other 23 draws are
+at medium. The blob technique lands up to 6 px off without flagging it when a
+band crosses the disc. The twist moves the answer by at most 0.02 px. The
+compression is realistic but moves the answer by at most 0.01 px, so the scene
+shows that the navigator is unaffected by it.
+
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
 Pogson ratio, the non-positive-exposure fallback, and finiteness. It also pins
