@@ -22,7 +22,9 @@ It writes the groups to a JSON file for ``gap_fit.py`` and prints the tables the
 A table gives the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
 percentiles.  Size and gap tables are percentiles of the integers spread evenly over
 each one's rounding interval (a size of 3 lines over 2.5 to 3.5), so that a draw rounded
-to a whole line gives each integer its measured share.
+to a whole line gives each integer its measured share; the 0th percentile is raised
+where the smallest integer is rarer than the 5th percentile (see
+:func:`spread_percentiles`).
 
 Usage (the holdings root may be a local directory or a URL)::
 
@@ -33,6 +35,7 @@ from __future__ import annotations
 
 import itertools
 import json
+import math
 import os
 import sys
 from pathlib import Path
@@ -87,6 +90,13 @@ def frame_groups(frame: RawFrame) -> dict[str, Any]:
 def spread_percentiles(values: list[int]) -> list[float]:
     """Return a table of integers spread evenly over each one's rounding interval.
 
+    The simulator draws between a size or gap table's points in the logarithm of the
+    value.  When the smallest integer is rarer than the table's 5th percentile, the
+    stretch from the 0th to the 5th percentile holds it and part of the next integer,
+    and a logarithmic draw over that stretch gives the smallest integer more than its
+    share.  The 0th percentile is then raised to the value at which the logarithmic
+    draw gives the smallest integer exactly its measured share.
+
     Parameters:
         values: The measured integers.
 
@@ -100,6 +110,12 @@ def spread_percentiles(values: list[int]) -> list[float]:
     for point in PERCENTILE_POINTS:
         i = min(int(np.searchsorted(cumulative, point, side='right')) - 1, ks.size - 1)
         table.append(float(ks[i] - 0.5 + min(1.0, (point - cumulative[i]) / weights[i])))
+    ratio = float(weights[0]) / PERCENTILE_POINTS[1]
+    if ratio < 1.0:
+        # Solve log(top / x) = ratio * log(table[1] / x) for x, where top is the half
+        # line above the smallest integer, so the draws below top hold its share.
+        top = math.log(float(ks[0]) + 0.5)
+        table[0] = math.exp((top - ratio * math.log(table[1])) / (1.0 - ratio))
     return table
 
 
