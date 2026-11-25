@@ -301,16 +301,21 @@ def downsample_to_detector(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             is accepted because every stage takes the same arguments.
     """
     del params
-    crop_to_frame(frame)
     os = frame.oversample
     if os == 1:
+        crop_to_frame(frame)
         return
-    size_v = frame.signal.shape[0] // os
-    size_u = frame.signal.shape[1] // os
-    frame.signal = frame.signal.reshape(size_v, os, size_u, os).mean(axis=(1, 3))
+    # The frame is averaged straight from the planes: a view of the frame's rows and
+    # columns reshapes into blocks without a copy, and its mean sums each block in
+    # the order a copied frame's would, so the result is the same to the last bit.
+    box = frame.frame_box
+    size_v = frame.frame_shape[0] // os
+    size_u = frame.frame_shape[1] // os
+    frame.signal = frame.signal[box].reshape(size_v, os, size_u, os).mean(axis=(1, 3))
     # The point-source plane carries extensive electron weights scaled by
     # os**2 at deposition, so the mean conserves the per-star electron sum.
-    frame.point_e = frame.point_e.reshape(size_v, os, size_u, os).mean(axis=(1, 3))
+    frame.point_e = frame.point_e[box].reshape(size_v, os, size_u, os).mean(axis=(1, 3))
+    frame.margin = 0
     frame.oversample = 1
     _downsample_truth(frame.truth, os)
 

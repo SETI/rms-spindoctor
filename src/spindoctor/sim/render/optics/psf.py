@@ -29,6 +29,7 @@ from collections.abc import Mapping
 from functools import lru_cache
 
 import numpy as np
+from scipy import fft as sp_fft
 from scipy.signal import fftconvolve
 
 from spindoctor.sim.render.optics.lit_clusters import cluster_crop, find_lit_clusters
@@ -134,6 +135,34 @@ def apply_psf(
     _blur_plane(point_e, kernel)
 
 
+def _full_convolution(image: NDArrayFloatType, kernel: NDArrayFloatType) -> NDArrayFloatType:
+    """The full linear convolution of an image with a kernel, by FFT.
+
+    These are the steps ``scipy.signal.fftconvolve`` takes for two real 2-D arrays,
+    so the result is the same to the last bit, without its copies: the spectra are
+    multiplied in place, the inverse transform may reuse the product's memory, and
+    the result is a view of the inverse transform.  On an oversampled frame each of
+    those copies costs about as much as a transform.  An image one pixel wide or tall
+    goes to ``fftconvolve`` itself, which transforms only the other axis.
+
+    Parameters:
+        image: The image.
+        kernel: The kernel, at least two pixels on each side.
+
+    Returns:
+        The ``(rows + kernel rows - 1, columns + kernel columns - 1)`` convolution.
+    """
+    if 1 in image.shape:
+        whole: NDArrayFloatType = fftconvolve(image, kernel)
+        return whole
+    shape = [image.shape[axis] + kernel.shape[axis] - 1 for axis in (0, 1)]
+    fshape = [sp_fft.next_fast_len(size, True) for size in shape]
+    spectrum = sp_fft.rfftn(image, fshape, axes=[0, 1])
+    spectrum *= sp_fft.rfftn(kernel, fshape, axes=[0, 1])
+    full: NDArrayFloatType = sp_fft.irfftn(spectrum, fshape, axes=[0, 1], overwrite_x=True)
+    return full[: shape[0], : shape[1]]
+
+
 def _blur_plane(plane: NDArrayFloatType, kernel: NDArrayFloatType) -> None:
     """Convolve one plane with an odd-sized kernel in place, cluster by cluster.
 
@@ -152,12 +181,13 @@ def _blur_plane(plane: NDArrayFloatType, kernel: NDArrayFloatType) -> None:
         (v.stop - v.start + 2 * half) * (u.stop - u.start + 2 * half) for v, u in clusters.boxes
     )
     if cluster_area >= (size_v + 2 * half) * (size_u + 2 * half):
-        plane[:] = fftconvolve(plane, kernel, mode='same')
+        # The 'same' convolution is the full one less ``half`` on every side.
+        plane[:] = _full_convolution(plane, kernel)[half : half + size_v, half : half + size_u]
         return
     source = plane.copy()
     plane[:] = 0.0
     for index, (rows, cols) in enumerate(clusters.boxes):
-        blurred = fftconvolve(cluster_crop(clusters, source, index, rows, cols), kernel)
+        blurred = _full_convolution(cluster_crop(clusters, source, index, rows, cols), kernel)
         # The full convolution's first sample sits ``half`` pixels before the
         # crop; clip it to the frame.
         out_v = slice(max(rows.start - half, 0), min(rows.stop + half, size_v))

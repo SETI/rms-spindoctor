@@ -203,11 +203,23 @@ def _source_coords(
     """
     rv = (np.arange(out_v.start, out_v.stop, dtype=np.float64) - warp.center_v)[:, np.newaxis]
     ru = (np.arange(out_u.start, out_u.stop, dtype=np.float64) - warp.center_u)[np.newaxis, :]
-    rho2 = (rv**2 + ru**2) / (warp.rho_ref**2)
-    factor = 1.0 + warp.k1 * rho2 + warp.k2 * rho2**2
+    # factor = 1 + k1 * rho2 + k2 * rho2**2 and center + r * factor, built in place:
+    # over a whole oversampled frame a fresh temporary costs more than the arithmetic
+    # in it.  Every step is the IEEE operation of the plain expression, so the
+    # positions are unchanged to the last bit.
+    factor = rv**2 + ru**2
+    factor /= warp.rho_ref**2
+    quartic = np.square(factor)
+    quartic *= warp.k2
+    factor *= warp.k1
+    factor += 1.0
+    factor += quartic
+    del quartic
     coords = np.empty((2, out_v.stop - out_v.start, out_u.stop - out_u.start))
-    coords[0] = warp.center_v + rv * factor
-    coords[1] = warp.center_u + ru * factor
+    np.multiply(rv, factor, out=coords[0])
+    coords[0] += warp.center_v
+    np.multiply(ru, factor, out=coords[1])
+    coords[1] += warp.center_u
     if warp.field_v is not None and warp.field_u is not None:
         coords[0] += warp.field_v[out_v, out_u]
         coords[1] += warp.field_u[out_v, out_u]
@@ -219,7 +231,12 @@ def _source_coords(
 
 
 def _warp_crop(
-    crop: NDArrayFloatType, in_v: slice, in_u: slice, warp: _Warp
+    crop: NDArrayFloatType,
+    in_v: slice,
+    in_u: slice,
+    warp: _Warp,
+    *,
+    output: NDArrayFloatType | None = None,
 ) -> tuple[slice, slice, NDArrayFloatType]:
     """Warp a crop of a plane, treating the rest of the plane as zero.
 
@@ -228,6 +245,9 @@ def _warp_crop(
         in_v: The crop's rows in the plane.
         in_u: The crop's columns in the plane.
         warp: The resolved warp.
+        output: An array to write the warped values into, shaped like the output
+            box; it may be ``crop`` itself, which is read only before the write.
+            None allocates one.
 
     Returns:
         The output rows and columns the crop's light can reach, and the warped
@@ -238,7 +258,7 @@ def _warp_crop(
     coeffs = ndimage.spline_filter(crop, order=3, output=np.float64, mode='constant')
     coords = _source_coords(warp, out_v, out_u, in_v.start, in_u.start)
     values = ndimage.map_coordinates(
-        coeffs, coords, order=3, mode='constant', cval=0.0, prefilter=False
+        coeffs, coords, output=output, order=3, mode='constant', cval=0.0, prefilter=False
     )
     return out_v, out_u, values
 
@@ -265,8 +285,7 @@ def _warp_plane(plane: NDArrayFloatType, warp: _Warp) -> None:
     ]
     if sum((v.stop - v.start) * (u.stop - u.start) for v, u in outputs) >= size_v * size_u:
         whole_v, whole_u = slice(0, size_v), slice(0, size_u)
-        _, _, values = _warp_crop(plane, whole_v, whole_u, warp)
-        plane[:] = values
+        _warp_crop(plane, whole_v, whole_u, warp, output=plane)
         return
     source = plane.copy()
     plane[:] = 0.0
