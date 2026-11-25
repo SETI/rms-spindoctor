@@ -488,6 +488,12 @@ _REFUSED: list[tuple[dict[str, str], str, str]] = [
         'readout-mode-changing-the-extra-integration',
     ),
     (
+        {'cam.yaml': _cam('base: vgiss_1_nac\ndetector: {extra_integration_sec: 1.0e-3}\n')},
+        r'^cam\.yaml: cam: detector\.extra_integration_sec: a vidicon detector does not scale '
+        r'its signal by the exposure, so it cannot take an extra integration time',
+        'extra-integration-on-a-vidicon',
+    ),
+    (
         {
             'cam.yaml': _cam(
                 _with('  1: {}', '  1: {}\n  2: {gain_e_per_dn_by_state: {0: 2.0, 1: 1.0}}')

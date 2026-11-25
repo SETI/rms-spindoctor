@@ -158,7 +158,8 @@ class Detector:
         extra_integration_sec: The time, in seconds, the detector collects light
             beyond the commanded exposure; zero for a detector that states none.
             Everything a frame collects over its exposure collects over the two
-            together.
+            together.  Only a CCD may state it, since a vidicon's signal does not
+            scale with the exposure.
         cosmic_ray_readout_dwell_sec: The time, in seconds, the frame sits exposed
             to cosmic rays during readout.
         cosmic_ray_amplitude_e: The smallest charge a cosmic ray deposits, in
@@ -201,7 +202,10 @@ class Detector:
     vidicon: VidiconChain | None = None
 
     def __post_init__(self) -> None:
-        """Refuse a detector without its model's keys, or a default state not cataloged."""
+        """Refuse a detector without its model's keys, or with a key its model cannot use.
+
+        A detector is also refused when its default gain state is not cataloged.
+        """
         model = self.detector_model
         required = _CCD_REQUIRED if model == 'ccd' else ('vidicon',)
         missing = sorted(key for key in required if getattr(self, key) is None)
@@ -216,6 +220,13 @@ class Detector:
                 f'a {model} detector has no vidicon chain to configure',
                 at='vidicon',
                 reads=('vidicon', 'detector_model'),
+            )
+        if model == 'vidicon' and self.extra_integration_sec != 0.0:
+            raise RuleError(
+                'a vidicon detector does not scale its signal by the exposure, so it '
+                'cannot take an extra integration time',
+                at='extra_integration_sec',
+                reads=('extra_integration_sec', 'detector_model'),
             )
         table = self.gain_e_per_dn_by_state or {}
         state = self.default_gain_state

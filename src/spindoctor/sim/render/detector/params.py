@@ -152,7 +152,8 @@ class DetectorParams:
             artifact mode (registry defaults filled from the catalog), keyed by
             mode name; the chain applies each at its physical point and records it.
         extra_integration_sec: The time the detector collects light beyond the
-            commanded exposure, from the instrument entry (zero when it states none).
+            commanded exposure, from the instrument entry (zero when it states none,
+            and for the vidicon chain, whose signal does not scale with the exposure).
     """
 
     detector_model: str
@@ -586,14 +587,16 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     scene_vidicon = scene_noise.get('vidicon') or {}
     vidicon = {**default_vidicon, **{k: float(v) for k, v in scene_vidicon.items()}}
 
-    # Derived I/F calibration scale: a noise-free signal of 1.0 round-trips
-    # through the inverse transform to I/F 1.0.  Uses the image-side DN well
-    # (frac * full_well_e / gain for the CCD path, frac * full_well_dn for the
-    # vidicon path).  The shared inverse divides by scale * exposure_sec; the
-    # CCD forward chain scales electrons by exposure_sec / exposure_ref_sec, so
-    # its scale carries 1 / exposure_ref_sec, while the vidicon forward mapping
-    # has no exposure term at all, so its scale folds in 1 / exposure_sec and
-    # the exposure cancels (the inverse divides by the DN full scale alone).
+    # Derived I/F calibration scale.  Uses the image-side DN well (frac *
+    # full_well_e / gain for the CCD path, frac * full_well_dn for the vidicon
+    # path).  The shared inverse divides by scale * exposure_sec.  The CCD forward
+    # chain scales electrons by the integration time over exposure_ref_sec, so its
+    # scale carries 1 / exposure_ref_sec, and a noise-free signal of 1.0
+    # round-trips to I/F (exposure_sec + extra_integration_sec) / exposure_sec:
+    # 1.0 for a camera that states no extra integration time.  The vidicon forward
+    # mapping has no exposure term at all, so its scale folds in 1 / exposure_sec,
+    # the exposure cancels (the inverse divides by the DN full scale alone), and a
+    # signal of 1.0 round-trips to I/F 1.0.
     if detector_model == 'vidicon':
         image_well_dn = signal_full_scale_frac * full_well_dn
         calibration_scale = image_well_dn / exposure_sec if exposure_sec > 0.0 else image_well_dn
@@ -672,5 +675,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         sqrt_lut=sqrt_lut,
         adversarial_modes=adversarial_modes,
         detector_modes=detector_modes,
-        extra_integration_sec=detector_defaults.extra_integration_sec,
+        extra_integration_sec=(
+            detector_defaults.extra_integration_sec if detector_model == 'ccd' else 0.0
+        ),
     )
