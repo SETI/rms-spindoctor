@@ -78,6 +78,12 @@ def test_the_fit_separates_the_radial_offset_from_a_translation() -> None:
     assert fit.translation_vu == pytest.approx((0.7, -1.1), abs=1e-9)
 
 
+def test_a_limb_whose_normals_all_point_one_way_gives_no_fit() -> None:
+    """Forty peaks along one normal cannot tell the offset from the translation."""
+    normals = np.tile([1.0, 0.0], (40, 1))
+    assert fit_limb_peak_offset(np.ones(40), normals) is None
+
+
 def test_the_fit_drops_outlying_peaks() -> None:
     """A few peaks on a crater rim leave the offset where the rest put it."""
     rng = np.random.default_rng(3)

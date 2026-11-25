@@ -207,8 +207,9 @@ def fit_limb_peak_offset(
         normals_vu: ``(N, 2)`` outward normals at the same vertices.
 
     Returns:
-        The fit, or None when fewer than 20 vertices have a peak or the fit keeps fewer
-        than 20 of them.
+        The fit, or None when fewer than 20 vertices have a peak, the fit keeps fewer
+        than 20 of them, or the kept normals cannot tell the offset from the
+        translation.
     """
     x_all = np.asarray(peaks_px, dtype=np.float64)
     measured = np.isfinite(x_all)
@@ -235,7 +236,13 @@ def fit_limb_peak_offset(
     n_kept = int(np.count_nonzero(weights > 0.0))
     if n_kept < MIN_FIT_VERTICES:
         return None
-    covariance = np.linalg.pinv(_normal_matrix(design, weights)) * scale**2
+    normal = _normal_matrix(design, weights)
+    # When the kept normals all point one way, the offset and the translation move every
+    # peak alike.  The solve above still returns one split between them, but its
+    # covariance would leave out the direction the data cannot fix.
+    if np.linalg.matrix_rank(normal) < design.shape[1]:
+        return None
+    covariance = np.linalg.inv(normal) * scale**2
     return LimbPeakFit(
         offset_px=float(coef[0]),
         offset_sigma_px=float(np.sqrt(covariance[0, 0])),
