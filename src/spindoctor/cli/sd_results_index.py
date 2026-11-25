@@ -92,7 +92,6 @@ from spindoctor.config import (
     build_run_logging,
     get_nav_results_root,
     get_results_index_db_url,
-    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from spindoctor.config.program_names import SD_RESULTS_INDEX
@@ -688,9 +687,8 @@ def main() -> None:
         MAIN_LOGGER.info('Force: %s', arguments.force)
     MAIN_LOGGER.info('Arguments: %s', masked_command_line(command_list))
 
-    # Resolved once here and passed to whatever reads the tree.  The
-    # configuration was validated when it was loaded, so this cannot refuse.
-    tuning = get_results_tree_tuning(DEFAULT_CONFIG)
+    # Read once here and passed to whatever reads the tree.
+    tuning = DEFAULT_CONFIG.results_tree
 
     try:
         engine = open_index(url, create=not completing)

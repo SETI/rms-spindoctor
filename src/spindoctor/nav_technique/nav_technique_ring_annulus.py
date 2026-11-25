@@ -58,21 +58,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 __all__ = ['RingAnnulusNav']
 
 
-_DEFAULT_UPSAMPLE_FACTOR: int = 128
-"""Default FFT upsample factor when ``config.offset`` is missing."""
-
-
-_MAX_UPSAMPLE_FACTOR: int = 1_000_000
-"""Upper bound on the FFT upsample factor.
-
-A misconfigured value above this would push the upsampled correlation
-peak grid into multi-gigabyte allocations and effectively hang the
-process; raise ``ValueError`` instead.  The bound is generous — the
-shipped default is 128 — so legitimate per-instrument tuning is never
-clipped.
-"""
-
-
 # Measured against reference pointing on real Cassini ring frames, the NCC fit lowered
 # the median error of this technique's offset from 0.56 to 0.33 px on the narrow-angle
 # camera and from 0.56 to 0.42 px on the wide-angle camera.  Under the cross-power
@@ -269,7 +254,7 @@ class RingAnnulusNav(NavTechnique):
             extfov_shape = context.image_ext.shape
             template_img, template_mask = compose_template_features(eligible, extfov_shape)
             margin_v, margin_u = search_window_for_obs(context)
-            up_factor = self._upsample_factor()
+            up_factor = self.config.offset.correlation_fft_upsample_factor
             self.logger.debug(
                 'Composite annulus template: %d painted pixels; '
                 'search window (v, u) = (%d, %d) px; upsample factor = %d',
@@ -379,33 +364,6 @@ class RingAnnulusNav(NavTechnique):
                 rotation_rad=0.0 if fit_rotation else None,
                 sigma_rotation_rad=(rotation_unobservable_sigma_rad() if fit_rotation else None),
             )
-
-    def _upsample_factor(self) -> int:
-        """Return the FFT upsample factor configured under ``config.offset``.
-
-        Validates the raw value: must be a real (non-bool) number, must
-        coerce to ``int >= 1``, and must lie below
-        :data:`_MAX_UPSAMPLE_FACTOR` so a malformed config cannot push
-        the FFT into a multi-gigabyte allocation.
-        """
-        offset_block = getattr(self.config, 'offset', None)
-        if offset_block is None:
-            return _DEFAULT_UPSAMPLE_FACTOR
-        raw = getattr(offset_block, 'correlation_fft_upsample_factor', None)
-        if raw is None:
-            return _DEFAULT_UPSAMPLE_FACTOR
-        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-            raise ValueError(
-                f'config.offset.correlation_fft_upsample_factor must be a '
-                f'real (non-bool) number; got {type(raw).__name__} {raw!r}'
-            )
-        coerced = int(raw)
-        if coerced < 1 or coerced > _MAX_UPSAMPLE_FACTOR:
-            raise ValueError(
-                f'config.offset.correlation_fft_upsample_factor must lie in '
-                f'[1, {_MAX_UPSAMPLE_FACTOR}]; got {raw!r}'
-            )
-        return coerced
 
 
 class _AnnulusConfidenceContext:

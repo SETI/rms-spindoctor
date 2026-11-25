@@ -20,6 +20,7 @@ import pdslogger
 import pytest
 import sqlalchemy
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.cli.ck.ck_helpers import KernelPool, image_metadata
 from tests.spindoctor.conftest import (
     index_url,
@@ -145,9 +146,11 @@ def _both_sources(tmp_path: Path) -> tuple[TreeRecordSource, IndexRecordSource]:
     root = _tree(tmp_path)
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=null_logger())
-    index_source = open_record_source([root], results_index_db_url=url, columns=RECORD_COLUMNS)
+    index_source = open_record_source(
+        [root], results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+    )
     assert isinstance(index_source, IndexRecordSource)
-    return TreeRecordSource([root]), index_source
+    return TreeRecordSource([root], tuning=packaged_tree_tuning()), index_source
 
 
 def _one_mission(source: RecordSource) -> tuple[list[NavRecord], list[UnreadableFile]]:
@@ -233,7 +236,9 @@ def test_the_run_orders_the_records_rather_than_trusting_their_order(tmp_path: P
             connection.execute(IMAGES.insert(), list(reversed(stored)))
     finally:
         engine.dispose()
-    with open_record_source([root], results_index_db_url=url, columns=RECORD_COLUMNS) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+    ) as source:
         # The premise, asserted rather than assumed: an unordered query is the
         # server's to answer how it likes, and one that handed them back already
         # sorted would leave the run's own sort untested and this test unable to
@@ -374,7 +379,9 @@ def test_another_roots_images_are_not_this_runs(tmp_path: Path) -> None:
     write_metadata(other, 'COISS_2002/data/N1454999999_1_CALIB', _navigated('N1454999999_1.IMG'))
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root, other], logger=null_logger())
-    with open_record_source([root], results_index_db_url=url, columns=RECORD_COLUMNS) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+    ) as source:
         documents, _unreadable = _one_mission(source)
     assert [document.stub for document in documents] == [
         'COISS_2001/data/N1454725799_1_CALIB',
@@ -393,7 +400,9 @@ def test_a_document_the_ingest_refused_is_reported_as_unreadable(tmp_path: Path)
     (root / 'COISS_2001' / 'data' / 'junk_metadata.json').write_text('{}', encoding='utf-8')
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=null_logger())
-    with open_record_source([root], results_index_db_url=url, columns=RECORD_COLUMNS) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+    ) as source:
         _documents, unreadable = _one_mission(source)
     assert [entry.path.as_posix() for entry in unreadable] == [
         (root / 'COISS_2001' / 'data' / 'junk_metadata.json').as_posix()
@@ -406,7 +415,9 @@ def test_the_refusal_reason_travels_with_the_file(tmp_path: Path) -> None:
     (root / 'COISS_2001' / 'data' / 'junk_metadata.json').write_text('{}', encoding='utf-8')
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=null_logger())
-    with open_record_source([root], results_index_db_url=url, columns=RECORD_COLUMNS) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+    ) as source:
         _documents, unreadable = _one_mission(source)
     assert 'navigation document' in unreadable[0].reason
 
@@ -419,13 +430,17 @@ def test_a_root_with_no_completed_ingest_is_refused(tmp_path: Path) -> None:
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [other], logger=null_logger())
     with pytest.raises(ValueError, match='no completed ingest'):
-        open_record_source([root], results_index_db_url=url, columns=RECORD_COLUMNS)
+        open_record_source(
+            [root], results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+        )
 
 
 def test_no_index_url_reads_the_tree(tmp_path: Path) -> None:
     """Reading files is the default, and nothing opens a database to do it."""
     root = _tree(tmp_path)
-    with open_record_source([root], results_index_db_url=None, columns=RECORD_COLUMNS) as source:
+    with open_record_source(
+        [root], results_index_db_url=None, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+    ) as source:
         assert isinstance(source, TreeRecordSource)
 
 
@@ -479,7 +494,9 @@ def test_a_value_the_ingest_could_not_store_reads_as_one_never_recorded(
     )
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=null_logger())
-    with open_record_source([root], results_index_db_url=url, columns=RECORD_COLUMNS) as source:
+    with open_record_source(
+        [root], results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
+    ) as source:
         documents, _unreadable = _one_mission(source)
     assert read_image_report_facts(documents[0].metadata).offset_dv is None
 
@@ -497,6 +514,6 @@ def test_the_tree_path_refuses_the_same_document(tmp_path: Path, pool: KernelPoo
         'COISS_2001/data/N1454725799_1_CALIB',
         _navigated('N1454725799_1.IMG', offset=(1.5, -2.5, 0.5)),
     )
-    documents, _unreadable = _one_mission(TreeRecordSource([root]))
+    documents, _unreadable = _one_mission(TreeRecordSource([root], tuning=packaged_tree_tuning()))
     with pytest.raises(ValueError, match='offset'):
         read_image_report_facts(documents[0].metadata)

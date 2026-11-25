@@ -73,7 +73,6 @@ from spindoctor.config import (
     build_run_logging,
     get_nav_results_root,
     get_results_index_db_url,
-    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from spindoctor.config.program_names import SD_CREATE_CK
@@ -732,7 +731,7 @@ def main() -> None:
 
     nav_results_root = FileCache(None).new_path(get_nav_results_root(arguments, DEFAULT_CONFIG))
     results_index_db_url = get_results_index_db_url(arguments, DEFAULT_CONFIG)
-    tuning = get_results_tree_tuning(DEFAULT_CONFIG)
+    tuning = DEFAULT_CONFIG.results_tree
     # Resolved to absolute, both of them, because the meta-kernel names the
     # kernels it furnishes by these paths and SPICE resolves a relative name
     # against the *consumer's* working directory.  A meta-kernel written with

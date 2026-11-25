@@ -17,7 +17,6 @@ from spindoctor.config import (
     Config,
     get_nav_results_root,
     get_results_index_db_url,
-    get_results_tree_tuning,
 )
 from spindoctor.support.misc import flatten_list
 
@@ -166,11 +165,7 @@ class DataSetPDS3(DataSet):
         if self._resolved_pds3_holdings_root is not None:
             return self._resolved_pds3_holdings_root
 
-        pds3_holdings_root = None
-        try:
-            pds3_holdings_root = self.config.environment.pds3_holdings_root
-        except AttributeError:
-            pass
+        pds3_holdings_root = self.config.environment.pds3_holdings_root
         if pds3_holdings_root is None:
             pds3_holdings_root = os.getenv('PDS3_HOLDINGS_DIR')
         if pds3_holdings_root is None:
@@ -852,7 +847,7 @@ class DataSetPDS3(DataSet):
                 nav_results_root,
                 logger=logger,
                 results_index_db_url=results_index_db_url,
-                tuning=get_results_tree_tuning(self.config),
+                tuning=self.config.results_tree,
                 **results_filter_flags,
             )
 

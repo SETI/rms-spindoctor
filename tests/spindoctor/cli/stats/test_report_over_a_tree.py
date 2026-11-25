@@ -31,6 +31,7 @@ from typing import Any
 import pdslogger
 import pytest
 import sqlalchemy
+from tests.packaged_sections import configure_tree_tuning, packaged_tree_tuning
 from tests.spindoctor.conftest import (
     index_url,
     ingest_tree,
@@ -42,11 +43,11 @@ from tests.spindoctor.conftest import (
 
 from spindoctor.cli.stats import report as report_module
 from spindoctor.cli.stats.report import build_report, main_report
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_records import (
     ImageFacts,
     Selection,
     TreeRecordSource,
-    TreeTuning,
     UnreadableFile,
 )
 from spindoctor.results_index import IMAGES, INGEST_RUNS, SCHEMA_VERSION, open_index
@@ -391,7 +392,9 @@ def _report_over_roots(roots: Sequence[Path], out: Path, **options: Any) -> Path
         The directory the report was written into.
     """
     out.mkdir(parents=True, exist_ok=True)
-    with TreeRecordSource([root.as_posix() for root in roots]) as source:
+    with TreeRecordSource(
+        [root.as_posix() for root in roots], tuning=packaged_tree_tuning()
+    ) as source:
         build_report(source, out, **options)
     return out
 
@@ -630,7 +633,9 @@ def shuffled_reports(tmp_path_factory: pytest.TempPathFactory) -> _ShuffledRun:
     """
     root = tmp_path_factory.mktemp('shuffled')
     roots = _shuffled_fixture(root)
-    with TreeRecordSource([one.as_posix() for one in roots]) as source:
+    with TreeRecordSource(
+        [one.as_posix() for one in roots], tuning=packaged_tree_tuning()
+    ) as source:
         found = list(source.facts(Selection()))
     written = []
     for index, order in enumerate(_ORDERS):
@@ -839,7 +844,7 @@ def test_a_technique_carries_its_diagnostics_through_either_storage(
     write_metadata(root, 'VOL/N1294561202_1_CALIB', _document_with_every_json_column())
     url = index_url(tmp_path / 'index.sqlite3')
     ingest_tree(url, [root], logger=quiet_logger)
-    with TreeRecordSource([root.as_posix()]) as walked:
+    with TreeRecordSource([root.as_posix()], tuning=packaged_tree_tuning()) as walked:
         from_tree = list(walked.facts(Selection()))
     with index_source(url, [root]) as indexed:
         from_index = list(indexed.facts(Selection()))
@@ -869,7 +874,7 @@ def test_the_diagnostics_reaching_the_seam_are_the_recorded_ones(
     """Otherwise the comparison above is two storages agreeing on an empty mapping."""
     root = tmp_path / 'results'
     write_metadata(root, 'VOL/N1294561202_1_CALIB', _document_with_every_json_column())
-    with TreeRecordSource([root.as_posix()]) as walked:
+    with TreeRecordSource([root.as_posix()], tuning=packaged_tree_tuning()) as walked:
         found = list(walked.facts(Selection()))
     assert _diagnostics_of(found) == [_DIAGNOSTICS]
 
@@ -1104,7 +1109,7 @@ def test_the_report_reads_the_tree_at_the_tuning_the_configuration_names(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A report over a tree is a front end onto it like any other, and honors the section."""
-    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    configured = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     handed: list[Any] = []
 
     class Recording(TreeRecordSource):
@@ -1120,7 +1125,7 @@ def test_the_report_reads_the_tree_at_the_tuning_the_configuration_names(
             handed.append(kwargs.get('tuning'))
             super().__init__(roots, **kwargs)
 
-    monkeypatch.setattr(report_module, 'get_results_tree_tuning', lambda config: configured)
+    configure_tree_tuning(monkeypatch, DEFAULT_CONFIG, configured)
     monkeypatch.setattr(report_module, 'TreeRecordSource', Recording)
     assert _from_the_tree_at(RESULTS_TREE, tmp_path / 'report') == 0
     assert handed == [configured]
