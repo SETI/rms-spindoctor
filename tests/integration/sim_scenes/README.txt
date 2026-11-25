@@ -403,9 +403,17 @@ The appearance keys are truth, which the navigator never sees:
                        most 0.1 (default 0, no relief)
   limb_relief_corr_deg the relief's correlation length, in degrees of surface
                        arc (default 15)
-  photometric_law      lambert (the default), lommel_seeliger, minnaert, or
-                       lunar_lambert
+  photometric_law      lommel_seeliger (the default), lambert, minnaert, or
+                       lunar_lambert.  The navigator's template is Lambert, so
+                       a scene that must match it states lambert, as the
+                       model-mismatch floors and the bases of the
+                       single-setting sweeps do; at zero phase craters and
+                       relief slopes show only under lambert
   minnaert_k           the Minnaert exponent, a number (default 0.5)
+  normal_albedo        the surface's I/F when lit and viewed head-on at zero
+                       phase, a positive number that multiplies the law
+                       (default 1, a white surface; a haze layer's glow does
+                       not take it)
   shading             (polyhedral_mesh) flat (the default) or gouraud
   opposition_surge, albedo_texture, disc_texture, transits, atmosphere, and
   pose_scatter are blocks; the developer guide's simulator chapter describes
@@ -417,8 +425,8 @@ photometric_law, minnaert_k, opposition_surge, albedo_texture, disc_texture,
 transits, crater_fill, crater_min_radius, crater_max_radius,
 crater_power_law_exponent, and crater_relief_scale, and sub_observer_lat_deg,
 since a mesh body is turned by its pose_euler_deg instead. A mesh body's
-appearance keys are shading, limb_relief_rms, limb_relief_corr_deg,
-mesh_detail_octaves, and pose_scatter. The scene editor disables the controls
+appearance keys are shading, normal_albedo, limb_relief_rms,
+limb_relief_corr_deg, mesh_detail_octaves, and pose_scatter. The scene editor disables the controls
 for the refused keys on a mesh body. Switching a body to polyhedral_mesh in the
 editor moves the refused keys it carries out of the scene, and the status bar
 names them; switching it back to ellipsoid in the same session restores them,

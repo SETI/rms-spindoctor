@@ -132,8 +132,9 @@ matches the other techniques (recovery holds to a few hundredths of a pixel out 
 extfov margin on the low-phase ``small_sphere_base`` sweep). The template tracks phase:
 a filled disc at or below half phase, and a synthesized crescent above it, oriented
 along the sub-solar direction the blob feature carries. A high-phase crescent displaced
-~20 px beyond its bounding box recovers to a few hundredths of a pixel on the
-``planted_offset_blob_crescent_displaced`` invariant scene. See
+~20 px beyond its bounding box is found on the
+``planted_offset_blob_crescent_displaced`` invariant scene, 0.90 px from the planted
+offset, the same error as the crescent inside its box (see the invariant table). See
 :doc:`../dev_guide/dev_guide_techniques_body_blob`.
 
 Running the sweeps
@@ -538,8 +539,10 @@ The FOM 3 strata behind the pooled number (2026-11-23; p = phase bin
 The record predates the limb gradient-peak comparison
 (:ref:`sim-realism-limb-peak`), which measures how far each limb's steepest
 brightness fall lies from the body's true silhouette.  A check run of the Cassini
-cohorts on 2026-11-21, which isn't in the record, gives these NAC bins (offsets in
-pixels, negative inside the silhouette; the band is set from the real limbs alone):
+cohorts on 2026-11-24, which isn't in the record, gives these NAC bins (offsets in
+pixels, negative inside the silhouette; the band is set from the real limbs alone,
+and only a bin with at least 3 real limbs has one).  Each frame contributes the limb
+of the body its matched frame renders, and only when both frames measured it:
 
 .. list-table::
    :header-rows: 1
@@ -553,75 +556,78 @@ pixels, negative inside the silhouette; the band is set from the real limbs alon
      - n sim
      - within
    * - p0 r0
-     - -0.02
-     - +0.33
-     - 0.10
-     - 5
-     - 7
-     - no
+     - -0.10
+     - -0.06
+     - --
+     - 2
+     - 2
+     - --
    * - p0 r1
      - +0.50
-     - -0.20
-     - 0.15
+     - -0.12
+     - --
      - 2
      - 2
-     - no
+     - --
    * - p0 r2
      - +0.11
-     - -0.13
+     - -0.09
      - 1.06
      - 4
      - 4
      - yes
    * - p1 r0
-     - -0.02
-     - +0.36
-     - 0.10
-     - 5
+     - -0.06
+     - -0.05
+     - --
      - 2
-     - no
+     - 2
+     - --
    * - p1 r1
-     - -0.11
-     - +0.24
-     - 0.16
-     - 5
+     - -0.13
+     - +0.02
+     - 0.12
+     - 4
      - 4
      - no
    * - p1 r2
-     - -0.67
-     - +0.42
-     - 0.15
-     - 2
+     - -0.29
+     - -0.01
+     - --
      - 1
-     - no
+     - 1
+     - --
    * - p2 r0
      - +0.01
+     - +0.08
      - --
-     - 0.21
      - 1
-     - 0
+     - 1
      - --
    * - p2 r1
      - -0.08
-     - +0.37
-     - 0.21
+     - +0.14
+     - --
      - 1
      - 1
-     - no
+     - --
 
-The matched bodies are drawn white, and 9 of the 24 matched limb frames overflow
-the detector's full well.  The charge spreads along the columns and pushes those
-limbs' gradient peaks 0.3 to 0.9 px outside the silhouette, which carries most of
-the bins out of their bands.  Rendered at a quarter of the exposure, those frames
-peak within 0.2 px of the silhouette like the rest, and the matched and real
-medians agree to 0.02 px over the 17 frames measured both ways.  The 2-limb bins
-p0 r1 and p1 r2 are set by single limbs whose real offsets (+1.08 px for a 377 px
-Mimas, -1.05 px for a 1264 px Dione) mostly measure the shape models.  The same
-check rules out the Lambert law for these limbs below 30 degrees phase, where it
-puts the peak 0.34 to 0.53 px inside the silhouette and the real limbs peak 0.02 to
-0.17 px inside it.
-
-.. Matched bodies drawn white are issue 895.
+Each matched body takes the real body's brightness, measured from the real disc's
+I/F, and is shaded with the Lommel-Seeliger law.  Of the two bins with a verdict, p0
+r2 lies within its band, and p1 r1's matched median lies 0.15 px from the real one,
+outside its 0.12 px band.  Its four real limbs, of Dione and Tethys between 74 and
+111 degrees phase, each lie 0.01 to 0.43 px inside their matched limbs.  At a quarter
+exposure the Lambert law would put that bin's median within the band, but the Lambert
+law does not match the limbs below 30 degrees phase, and one of the four, a Tethys
+limb, lies beyond the reach of every law tried.  Three real NAC discs are clipped at
+the camera's full scale; they give no real limb and no albedo, and their matched
+bodies render white.  Prometheus and Pan have no limb in the real frames, because the
+navigator places none on their shapes, so their matched limbs are not measured.  Of the 23 matched bodies with an unclipped real disc, two still overflow
+the detector's full well, where the law brightens the limb up to twice the disc
+interior the albedo is measured on; in both the real limb peaks about 1 px outside
+its shape model's silhouette.  The bins without a verdict are set by one or two limbs,
+such as a 377 px Mimas whose real limb peaks +1.08 px outside.  The WAC cohort's one
+limb peaks -0.60 px real against +0.05 px matched.
 
 The headline reading: each matched star frame now holds the catalog stars
 of its real frame's field, and the simulated star cutouts number 9, from 6
@@ -1001,7 +1007,10 @@ Algorithmic-invariant recovery
 **Self-consistency floor (not accuracy).** The scenes in this section and the
 sub-pixel sweeps that follow plant a rigid transform but no *model* mismatch:
 the frame is rendered from exactly the geometry, and through exactly the
-point-spread function, the navigator assumes.  The recovery error such a frame
+point-spread function, the navigator assumes.  One mismatch remains in the
+ellipsoid scenes of this section: their bodies shade with the scene default, the
+Lommel-Seeliger law, while the navigator's template shades with the Lambert law.
+Their errors measure that template bias rather than the floor.  The recovery error such a frame
 yields is the *self-consistency floor* -- a bound on how reproducibly the
 solver returns its own input, not a bound on accuracy against a real frame.
 The zero-mismatch render is defined by equality with the navigator's
@@ -1036,8 +1045,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_disc``
      - BodyDiscCorrelateNav
      - (1.43, -0.61) px
-     - (1.50, -0.60) px
-     - 0.07 px
+     - (0.90, -0.44) px
+     - 0.56 px
    * - ``planted_offset_irregular``
      - BodyDiscCorrelateNav (mesh)
      - (1.43, -0.61) px
@@ -1046,13 +1055,13 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_blob``
      - BodyBlobNav
      - (1.43, -0.61) px
-     - (1.43, -0.61) px
-     - 0.01 px
+     - (1.80, -0.73) px
+     - 0.38 px
    * - ``planted_offset_blob_crescent``
      - BodyBlobNav (120 deg)
      - (1.43, -0.61) px
-     - (1.42, -0.60) px
-     - 0.01 px
+     - (2.29, -0.87) px
+     - 0.90 px
    * - ``planted_offset_star_field``
      - StarField + UniqueMatch + Refine
      - (1.43, -0.61) px
@@ -1061,8 +1070,8 @@ recovers the same offset as the full ensemble.
    * - ``planted_offset_limb``
      - BodyLimbNav
      - (1.43, -0.61) px
-     - (1.56, -0.76) px
-     - 0.20 px
+     - (1.18, -0.41) px
+     - 0.32 px
    * - ``planted_offset_ring``
      - RingEdgeNav
      - (1.43, -0.61) px
@@ -1081,19 +1090,20 @@ Observations:
   Each scene has its own truth check, measured over 16 noise seeds. Most scenes
   are held to a tolerance: the largest error over the seeds plus a margin of
   0.05 px or a fifth of that error, whichever is larger. The roll is held to
-  0.03 deg. The disc correlation stops at the edge of its sub-pixel search
-  window, so the disc scene's error is held to a band from 0.020 to 0.121 px.
-  Every technique recovers inside its check.
-* At this phase (2026-11-22 measurement) the mesh disc recovers exactly, the
-  blob to ~0.01 px, at 120 deg phase too, the ring edge to ~0.03 px, the fused star
-  field to ~0.04 px, the disc to ~0.07 px, and the limb to ~0.20 px. The limb fit
-  has only the lit half of the outline, and its inward bias there has nothing on
-  the other side to cancel it. The full ensemble on the same scene fuses it with
-  the disc correlation and recovers (1.51, -0.61), 0.08 px off.
+  0.03 deg. The ellipsoid disc, blob, and limb scenes are held to bands around
+  their known errors instead, because their Lommel-Seeliger bodies bias the
+  navigator's Lambert template. Every technique lands inside its check.
+* At this phase (2026-11-24 measurement) the mesh disc recovers exactly, the ring
+  edge to ~0.03 px, and the fused star field to ~0.04 px. On the ellipsoid bodies
+  the template bias puts the disc 0.56 px and the limb 0.32 px toward the Sun, and
+  the blob centroid 0.38 px away from it, 0.90 px at 120 deg phase. Each error
+  varies by 0.01 px or less over the noise seeds. The full ensemble on the limb
+  scene fuses the limb fit with the disc correlation and lands 0.48 px off.
 * These are single-phase samples, so a given technique can sit above or below its
-  multi-offset median in the offset-accuracy section (e.g. the disc's ~0.07 px here
-  versus its ~0.006 px sweep median); the table is a same-phase comparison and a
-  correctness check, not the precision benchmark.
+  multi-offset median in the offset-accuracy section. The sweeps' disc and blob
+  bodies shade with the Lambert law, so the disc's sweep median is ~0.006 px; the
+  table is a same-phase comparison and a correctness check, not the precision
+  benchmark.
 
 Single-variable sensitivity
 ===========================
@@ -1339,10 +1349,13 @@ swept across the dense sub-pixel set and the wide range described under
 
 This table and the two sweep figures in this section were measured before the
 simulator drew each limb pixel by how much of it the body covers, left night sides
-black, and fitted the limb on its lit part alone, and they have not been regenerated
-since. Sweeps run after those changes put the haze symmetry fit between 0.02 and
-0.07 px and the limb at a median of 0.22 px on the dense sweep (0.17 to 0.29 px) and
-0.21 px on the wide one, the values the text below quotes.
+black, fitted the limb on its lit part alone, and shaded bodies with the
+Lommel-Seeliger law by default, and they have not been regenerated since. Sweeps run
+after those changes put the haze symmetry fit between 0.11 and 0.14 px and the limb
+at a median of 0.31 px on the dense sweep (0.25 to 0.36 px) and 0.31 px on the wide
+one (0.24 to 0.35 px), the values the text below quotes. The limb and haze sweeps'
+bodies shade with the Lommel-Seeliger law, which the navigator's Lambert template
+does not match (see the invariant table above).
 
 The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
@@ -1351,16 +1364,19 @@ pixel; the distance-transform techniques carry a larger sub-pixel residual:
   to ~0.005 px -- the tightest. A zero shift between identical frames recovers
   the disc exactly at ``(0, 0)`` -- the self-consistency floor (not accuracy), a
   reproducibility bound rather than a real-frame result.
-- **The ring edge holds a ~0.03 px residual** and **the limb a ~0.22 px residual**
-  across the dense sweep, both distance-transform effects that vary with the
-  sub-pixel phase; they stay inside the scenes' truth tolerances. See
-  :doc:`/dev_guide/dev_guide_techniques_body_limb` for the mechanism.
-- **The haze symmetry fit holds a 0.02 to 0.07 px residual** across the dense sweep, and
+- **The ring edge holds a ~0.03 px residual** and **the limb a ~0.31 px residual**
+  across the dense sweep. Both are distance-transform effects that vary with the
+  sub-pixel phase. On a Lambert body the limb's is 0.22 px, and the Lambert
+  template's pull toward the Sun on the sweep's Lommel-Seeliger body adds about
+  0.09 px. See :doc:`/dev_guide/dev_guide_techniques_body_limb` for the
+  mechanism.
+- **The haze symmetry fit holds a 0.11 to 0.14 px residual** across the dense sweep, and
   it is a floor rather than a fraction-dependent wobble: the swept axis on the
   ``titan_haze`` scene is pure cross-track, and the scene deliberately renders a
   soft optical limb a few pixels above the solid radius, so the free-radius arc
   fit is absorbing a real altitude mismatch at every step rather than fitting the
-  circle it assumes. See
+  circle it assumes. Over a Lambert surface the floor is 0.02 to 0.07 px; the
+  Lommel-Seeliger surface under the haze raises it. See
   :doc:`/dev_guide/dev_guide_techniques_titan_haze`.
 - **The star field is pinned here**, so its sub-pixel rows below ~1 px are absent:
   the field matcher alone does not recover a sub-pixel translation of the whole
@@ -1380,7 +1396,7 @@ The wide-range sweep confirms each technique recovers across the navigable range
    the body across the full window via its coarse acquisition.
 
 The disc, ring, limb, and star recover with the same accuracy out to their
-ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.02 to 0.07 px floor
+ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.11 to 0.15 px floor
 flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the
 method: the mirror-correlation scan searches the whole margin and the arc fit
 recentres once, so nothing degrades across the range. The **blob now holds across the navigable
@@ -1578,10 +1594,11 @@ it is 0.11 px, so the relief adds about 0.07 px. Over mesh seeds 0 to 12 it
 ranges from 0.10 to 0.44 px, and this shape's 0.18 px is the median, so the
 shape is typical. Tessellation matters too: at the default 16 by 32 the same
 fit errs 0.50 px on this shape and 0.70 px on the smooth mesh, which is one
-reason the mesh scenes use 64 by 128. The mesh crescent is the loosest at
-0.49 px, against 0.25 px for the ellipsoid crescent: its body is clearly
-irregular (``mesh_lumpiness`` 0.2), and only a thin lit sliver of it constrains
-the centroid. Over mesh seeds 0 to 12 the same pinned blob errs 0.33 to 0.56 px
+reason the mesh scenes use 64 by 128. The mesh crescent is the loosest of the
+three at 0.49 px: its body is clearly irregular (``mesh_lumpiness`` 0.2), and only
+a thin lit sliver of it constrains the centroid. The ellipsoid crescent errs more,
+0.90 px, because it shades with the Lommel-Seeliger law, which the navigator's
+Lambert template does not match, while a mesh body shades Lambert. Over mesh seeds 0 to 12 the same pinned blob errs 0.33 to 0.56 px
 (median 0.45 px), and 5 of the 13 shapes land above half a pixel, so this
 shape is typical and about half a pixel is the crescent's typical error, not a
 bound.
@@ -1773,8 +1790,9 @@ I/F-calibrated vs raw-DN navigation
 ===================================
 
 Every sweep and scene above renders in raw DN. The ``planted_offset_disc_if``
-invariant scene confirms navigation is unit-agnostic: the same body on the
-I/F-calibrated ``coiss_calib_nac`` instrument recovers the planted offset exactly.
+invariant scene confirms navigation is unit-agnostic: the same kind of body on the
+I/F-calibrated ``coiss_calib_nac`` instrument lands 0.55 px from the planted offset,
+the error the raw-DN disc scenes show.
 That scene carries no ``artifacts`` block, so it renders through the stage floor
 (noise-free); a ``calibrated_if`` scene with ``instrument_defaults`` runs the
 full DN detector chain and then the calibration inverse, so calibrated frames
@@ -1966,16 +1984,19 @@ Summary
 * All eight feature techniques (disc, mesh disc, blob, high-phase blob, star
   field, limb, ring edge, haze symmetry) plus the camera-roll fit recover their
   planted transform to within a pixel and half a degree on clean simulated
-  frames. For every technique but the haze symmetry fit that is the
-  self-consistency floor; the haze scene deliberately renders a limb that
-  isn't the circle the fit assumes.
+  frames. For the mesh disc, the star field, the ring edge, and the roll that is
+  the self-consistency floor. The ellipsoid disc, blob, and limb scenes shade
+  with the Lommel-Seeliger law, which biases the navigator's Lambert template by
+  0.32 to 0.90 px, and the haze scene deliberately renders a limb that isn't the
+  circle the fit assumes.
 * The disc, blob, ring edge, and star field are quantization-free: they recover
   any offset -- whole, near-boundary, or arbitrary fraction -- to a few hundredths
-  of a pixel. The disc and blob recover most tightly (~0.01 px). The limb holds a
-  ~0.22 px distance-transform residual and the ring a ~0.03 px residual.
+  of a pixel. The disc and blob recover most tightly (~0.01 px) on the sweeps'
+  Lambert bodies. The limb holds a ~0.31 px residual on its Lommel-Seeliger sweep
+  body and the ring a ~0.03 px residual.
 * The star field improves with SNR: a dim field recovers to ~0.02 px and a bright
   field to ~0.005 px, the tightest of any technique.
-* The haze symmetry fit recovers a hazy body to within 0.07 px across both the dense
+* The haze symmetry fit recovers a hazy body to within 0.15 px across both the dense
   sub-pixel sweep and the full navigable range, against a rendered haze limb that
   is deliberately not the circle it fits. Its randomized planted-truth campaign
   (700 scenes over offset, phase, size, noise, clouds, star fields,
@@ -1984,8 +2005,7 @@ Summary
   0.17 px cross-track and 0.82 px along-track on clean scenes.
 * On the three mesh scenes whose predicted geometry matches the rendered one,
   irregular (mesh) bodies navigate to half a pixel or better (mesh disc
-  0.00 px, limb 0.18 px, and crescent 0.49 px, against 0.25 px for the
-  ellipsoid crescent). Over 13 mesh shapes the crescent's error ranges from
+  0.00 px, limb 0.18 px, and crescent 0.49 px). Over 13 mesh shapes the crescent's error ranges from
   0.33 to 0.56 px. When the navigator predicts the wrong shape, the error tends
   to grow with the rendered relief, though on 7 of 13 mesh shapes it falls at
   some step: over the 13 shapes it ends 2.7 to 12.7 px off at an 8.75% RMS

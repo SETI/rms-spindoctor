@@ -54,7 +54,10 @@ from tests.integration.sim_realism_support import FrameSettings, register_frame_
 __all__ = ['cassini_clipped_pixels', 'cassini_frame_settings']
 
 # The raw product's full scale, by the label's DATA_CONVERSION_TYPE.  A frame sent
-# through the 12-to-8-bit table tops out at the table's last entry.
+# through the 12-to-8-bit table tops out at the table's last entry.  If a real gain-2
+# frame fills its full well below the ADC limit (#854), a disc clipped there plateaus
+# lower and is not caught.  On 2026-11-22 no NAC or WAC limb disc whose highest DN fell
+# short of these levels had more than 4 pixels at that DN, so none plateaus there.
 _RAW_FULL_SCALE_DN = {'12BIT': 4095, 'TABLE': 255}
 
 

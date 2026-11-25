@@ -9,7 +9,8 @@ negative / scattered-light frames.  Matching content class and exposure is
 what makes the FOM 5 strata and the FOM 3 bins compare the forward model
 rather than what the spacecraft happened to point at.  A matched body is as
 bright as the real one: its normal albedo is measured from the real disc's
-I/F where the real product is calibrated, and it is white otherwise.
+I/F where the real product is calibrated and its disc is not clipped, and it
+is white otherwise.
 
 Scenes are deterministic: the random seed derives from the real frame's
 image_id, so re-running the runner re-renders identical frames.

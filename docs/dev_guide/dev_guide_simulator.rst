@@ -2143,23 +2143,29 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are twelve:
+not yet fixed. There are 24. In 14 of them an ellipsoid body shades with the
+default Lommel-Seeliger law, and the navigator's Lambert template pulls the answer
+toward the Sun (see :ref:`sim-photometric-laws`): ``disc_subpixel_offset``,
+``low_phase_limb_misconverge``, ``banded_planet_transit``, ``disc_structured_loss``
+and its adversarial twin, ``two_moons``, the full-frame discs
+``coiss_calib_nac_disc``, ``coiss_wac_disc``, and ``gossi_disc``, the damaged moons
+``coiss_nac_lossy_moon``, ``gossi_ict_moon``, and ``nhlorri_moon_raw``, and the
+hazy bodies ``titan_haze`` and ``titan_haze_limb``. These land 0.13 to 0.63 px off.
+The other ten:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
 - In ``relief_psf_stray_light``, the disc correlation lands on the maximum of its
-  high-pass surface, 0.88 to 0.90 px off, pulled by the relief that the smooth
-  template lacks.
+  high-pass surface, 1.09 px off, pulled by the relief that the smooth template
+  lacks and by the same template bias.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
-- In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
-  pulls the disc correlation, which carries a low-tier success 2.99 px wrong. The
-  correlation stops at the edge of its half-pixel refinement window on every seed,
-  with the surface still rising beyond it.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
   outline that the image doesn't have, and the disc correlation lands on the
-  maximum of its high-pass surface, pulled by that outline.
-- In ``mutual_deep``, the far body's crescent pulls the disc correlation.
+  maximum of its high-pass surface, pulled by that outline and by the template
+  bias.
+- In ``mutual_deep``, the far body's crescent and the template bias pull the disc
+  correlation.
 - In ``keeler_gap_unlit_ansa``, the edge fit slides along nearly straight edges.
 - In ``a_ring_edge_f_ring``, the unfit camera twist slides the curved edges along
   themselves.
@@ -2293,9 +2299,14 @@ recovery-error-vs-mismatch curve is the product. The floor is equality with the
 navigator's configuration (for the PSF axis, a pure Gaussian at the instrument's
 ``star_psf_sigma`` with the wing weight at zero; for the photometric axis,
 Minnaert ``k = 1``, which is exactly Lambert; for the ephemeris and smear axes, a
-zero planted error). The mismatch parameter is a render-side truth key the
-boundary filter strips, so the navigator keeps its default belief while the
-render departs from it. The sweeps and their floors:
+zero planted error). The base bodies of the PSF, ephemeris, and haze sweeps state
+the Lambert law, the navigator's own, so their floors carry no photometric
+mismatch. So do the base bodies of the noise, exposure, phase, range, offset, and
+missing-line sweeps, ``regular_sphere_base``, ``regular_sphere_calib_base``, and
+``small_sphere_base``, so that each of those sweeps varies only its own setting.
+The mismatch parameter is a render-side truth key the boundary filter strips, so
+the navigator keeps its default belief while the render departs from it. The
+sweeps and their floors:
 
 - ``psf_limb_mismatch`` -- rendered PSF sigma broadened above the navigator's
   Gaussian; the softened limb edge biases the distance-transform fit, and at a
@@ -2337,11 +2348,12 @@ The body renderer
 A body is drawn by one of two renderers chosen by ``shape_model``: the
 ellipsoid renderer (``bodies/ellipsoid.py``) and the polyhedral-mesh renderer
 (``bodies/mesh.py``), both sharing the axis convention below. The ellipsoid
-renderer draws every ellipsoid body, whatever its settings: a smooth Lambert disc,
-a limb-relief field, a non-Lambert photometric law or opposition surge, craters,
-and surface textures and transits. All of those extra ingredients are truth keys:
-the navigator predicts an ellipsoid body as the smooth Lambert template, so every
-one plants a known model error the technique must survive. The navigator predicts a
+renderer draws every ellipsoid body, whatever its settings: a smooth disc, a
+limb-relief field, any photometric law, an opposition surge, craters, surface
+textures, and transits. All of those ingredients are truth keys: the
+navigator predicts an ellipsoid body as the smooth Lambert template, so every one
+plants a known model error the technique must survive, the default
+Lommel-Seeliger law included. The navigator predicts a
 mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
 pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
 and ``pose_scatter`` are among the errors it plants.
@@ -2808,12 +2820,15 @@ the disc correlation a steady error of about 0.015 px.
    The line-of-sight reading and the fine-relief cutover are #875 and #1068
    (2026-11-21).
 
+.. _sim-photometric-laws:
+
 Photometric laws
 ----------------
 
 The ellipsoid renderer shades a body with a scene-selected law
 (``photometry.py``), each normalized to 1 at disc center under head-on
-illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
+illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``.
+A body that leaves ``photometric_law`` out shades with ``lommel_seeliger``:
 
 .. list-table::
    :widths: 22 10 68
@@ -2828,7 +2843,7 @@ illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``:
    * - ``lommel_seeliger``
      - truth
      - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, rising to 2 at the sunlit
-       limb.
+       limb. The default.
    * - ``minnaert``
      - truth
      - ``I = mu0**k mu**(k - 1)`` with ``minnaert_k``; ``k = 1`` is Lambert,
@@ -2845,8 +2860,41 @@ An optional ``opposition_surge`` (truth) multiplies the law by a normalized
 exponential ``(1 + amplitude exp(-a / width)) / (1 + amplitude)`` -- 1 at exact
 opposition, ``1 / (1 + amplitude)`` far from it -- so it plants the
 brightness-versus-phase surge signature. Because the navigator always shades
-Lambert, any non-Lambert law or surge moves the terminator and the limb-darkening
-profile by a known amount.
+Lambert, every other law, the default included, and any surge move the terminator
+and the limb-darkening profile by a known amount.
+
+The default is Lommel-Seeliger because the limbs of real airless icy moons follow
+it at low phase. On three real Cassini frames below 30 degrees phase, the steepest
+brightness fall across the lit limb lies 0.02 to 0.17 px inside the body's
+silhouette. A Lommel-Seeliger disc puts it 0.05 to 0.07 px inside, and a Lambert
+disc puts it 0.35 to 0.53 px inside (see :ref:`sim-realism-limb-peak`). At zero phase
+the Lommel-Seeliger law is 1 wherever the surface faces, so craters and relief slopes
+add no shading there. A scene or test that needs them to show at full illumination
+states the Lambert law. Scenes and tests whose purpose is a match with the
+navigator's own template also state it, such as the floors of the model-mismatch
+sweeps and the base scenes of the single-setting sweeps.
+
+Every other ellipsoid scene shades with Lommel-Seeliger, and the navigator's Lambert
+template is biased on it. On the clean spheres of the algorithmic-invariant scenes,
+the disc correlation lands 0.53 to 0.56 px toward the Sun and the limb fit 0.32 to
+0.33 px toward it. The blob centroid lands 0.38 px away from the Sun on a full disc
+and 0.90 px away on a 120 degree crescent. Over noise draws each of these errors
+varies by 0.01 px or less. The truth checks hold these answers to bands around their
+known errors, so a change to the template shows up as a change. A mesh body has no
+law key and always shades Lambert, through the rasterizer the navigator's predicted
+mesh shares.
+
+.. The template bias is tracked in #1110.
+
+**Normal albedo.**  A body's ``normal_albedo`` (truth) sets how bright its surface
+is: its I/F when lit and viewed head-on at zero phase. The law is 1 there, so the
+surface renders as ``normal_albedo`` times the law, times the opposition surge and
+any texture. The default, 1, is a white surface. The key scales an ellipsoid and a
+mesh body alike, and leaves a haze layer's glow as it is, since the haze is not the
+surface. It must be a positive, finite number. It is the body half of a radiometric
+scale that stars, bodies, and rings will share. A Sun distance and measured star zero
+points are its other parts, and they are not yet in the schema. A matched realism
+scene sets it from the real frame's disc (see :ref:`sim-realism-limb-peak`).
 
 No law is capped at 1. The body stages carry the brightness uncapped to the
 detector, which saturates at its full well. A scene's albedo spot brighter than 1
@@ -3535,7 +3583,7 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   Ellipsoidal body (Lambertian, moderate phase). ``semi_a_px`` is half the
+   Ellipsoidal body (Lommel-Seeliger, moderate phase). ``semi_a_px`` is half the
    vertical extent, and ``semi_b_px`` is half the horizontal extent.
 
 .. figure:: _sim_images/mesh_body.png
@@ -4226,9 +4274,13 @@ keys and the mesh extras. A key in a row marked
        surface's ragged outline, its slope shading, and its cast shadows; on a
        mesh, the same field displaces the vertices.
    * - ``photometric_law``, ``minnaert_k``
-     - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
-       ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent. *Ellipsoid
-       only.*
+     - The surface-scattering law (``lommel_seeliger``, the default, /
+       ``lambert`` / ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent.
+       *Ellipsoid only.*
+   * - ``normal_albedo``
+     - The surface's I/F when lit and viewed head-on at zero phase, which
+       multiplies the law (default 1, a white surface). A positive, finite
+       number. The haze layer's glow does not take it.
    * - ``opposition_surge``
      - ``{amplitude, width_deg}`` -- the normalized brightness surge near
        opposition. *Ellipsoid only.*
@@ -6110,16 +6162,14 @@ stop hitting the body in its SPICE shape.  On a matched frame, the silhouette is
 the circle the scene states.  Only the lit half of the limb is measured, because
 the unlit half has no edge against the sky.  On a real frame a vertex counts when the
 Sun is above the horizon just inside the silhouette.  On a matched frame it counts
-when its normal leans toward the light.  The simulated body model's limb runs all
-the way around the body, so this step matters on that side.
-
-.. The simulated body model's limb holding unlit vertices is issue 1056.
+when its normal leans toward the light.
 
 The image is sampled along each normal from 4 px inside the silhouette point to 4 px
 outside it, every 0.05 px, by cubic spline interpolation.  The peak is where the
 brightness falls fastest within 3 px of the silhouette, refined by a parabola
 through the three samples around it.  A vertex gets no peak when its samples leave
-the frame or the disc side is not brighter than the sky side.
+the frame, when the disc side is not brighter than the sky side, or when the
+steepest fall lies at either end of the 3 px search.
 
 The vertices' peak distances are then fitted with one radial offset for the whole
 limb and a translation of the limb, using a robust fit (a Tukey biweight) that drops
@@ -6132,52 +6182,148 @@ doesn't have to be star-navigated to contribute.  A limb whose radial offset is
 known to worse than 0.2 px, which happens on a short arc of a body that runs off the
 frame, is left out.
 
+**Pairs of limbs.**  A matched frame renders one body, the largest body of its real
+frame, so each frame measures the limb of that body alone.  A pair of frames
+contributes only when both of them measured it, and then each gives one offset.
+The navigator places no limb at all for some bodies: a resolved body it treats as
+highly irregular, such as Prometheus, or one whose shape lies too far from its
+ellipsoid, such as Pan.  The matched sphere always has a limb, so for such a body the
+matched frame's limbs are not measured at all, in the rise widths as in the peaks.
+Other bodies in a real frame are left out, since their matched frame doesn't hold
+them.
+
+**Clipped discs.**  A real disc that reaches the camera's full scale reads one flat
+level over its brightest part, so its limb rises to a plateau and its I/F is the
+clip level.  A disc counts as clipped when at least 1% of its interior pixels read
+the full scale.  For a calibrated Cassini frame the test reads the raw product beside
+the calibrated one, at DN 255 for a frame sent through the 12-to-8-bit table and DN
+4095 for a 12-bit frame, because calibration rescales each pixel and the flat top no
+longer reads one value.  On a raw-DN cohort the test reads the frame itself, at the
+camera's saturation level.  A clipped disc gives no real limb and no albedo.  Of the
+26 Cassini frames whose matched frame renders a body (25 NAC and 1 WAC), three have
+one, with 51% to 93% of their disc interior at DN 255, while no other frame has more
+than 0.07% of its disc at full scale.
+
 **Bins and band.**  Each limb's radial offset is one sample of kind
 ``limb_peak_<bin>``, in the same phase and diameter bins as the rise widths.  The
 JSON summary's ``limb_peaks`` block gives, for each instrument and bin, the number of
 real and matched limbs, the median of each, the band, and whether the matched median
-lies within it.  The band comes from the real limbs alone.  It is 2 standard errors
-of the real median: the robust scatter of the real offsets (1.4826 times their
-median absolute deviation) divided by the square root of their number, and never
-less than 0.1 px.  A bin with fewer than 3 real limbs borrows the scatter of all
-the instrument's real limbs, and an instrument with fewer than 3 real limbs has no
-band.  ``tests/integration/test_sim_realism_limb_peak.py`` holds the record to the
-bands: it fails when a bin's matched median lies outside its band.  It reads only the
-record, or the summary that ``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it
-skips on a record that predates the statistic.
+lies within it.  The band comes from the real limbs alone, and only a bin with at
+least 3 real limbs has one.  It is centered on the real median, and its half-width is
+2 standard errors of the mean: the robust scatter of the bin's own real offsets (1.4826
+times their median absolute deviation) divided by the square root of their number,
+and never less than 0.1 px.  In a bin with one or two real limbs, a single limb that
+the body's shape pulls off its shape model's silhouette sets the median, so such a bin
+records both medians and no band or verdict.
+``tests/integration/test_sim_realism_limb_peak.py`` holds the record to the bands: it
+fails when a bin's matched median lies outside its band.  It reads only the record, or
+the summary that ``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it skips on a record
+that predates the statistic.  The committed record predates it, so the check is not
+live until the record is regenerated.
 
-**What the real limbs show.**  On 2026-11-21 the Cassini NAC cohort gave 25 real
-limbs and the WAC cohort 1.  The real limbs of bodies under 400 px across lie close
-to the silhouette.  Over 19 limbs of Mimas, Enceladus, Tethys, Dione, and Rhea,
-between 15 and 136 degrees phase, their median offset is -0.02 px, with a robust
-scatter of 0.08 px.  The 7 limbs of bodies over 400 px across scatter by about a
-pixel, from -1.10 to +0.97 px.  At those scales a pixel is 0.6 to 1.8 km, so the
-difference between a body's shape model and its true shape is a large part of a
-pixel, and the scatter mostly measures that.  Their band is wide accordingly.  There
-are too few real limbs to bin by the incidence angle at the limb as well.
+**What the real limbs show.**  On 2026-11-24 the Cassini NAC cohort gave 17 paired
+real limbs and the WAC cohort 1.  The real limbs of bodies under 400 px across lie
+close to the silhouette.  Over 12 limbs of Mimas, Tethys, Dione, and Rhea, between 15
+and 136 degrees phase, their median offset is -0.08 px, with a robust scatter of
+0.10 px.  The 6 limbs of bodies over 400 px across scatter by about a pixel, from
+-1.10 to +0.97 px.  At those scales a pixel is 0.6 to 1.8 km, so the difference
+between a body's shape model and its true shape is a large part of a pixel, and the
+scatter mostly measures that.  Their band is wide accordingly.  There are too few
+real limbs to bin by the incidence angle at the limb as well.
 
-**What the matched limbs show.**  The matched bodies are white Lommel-Seeliger
-spheres.  In 9 of the 24 matched limb frames they are bright enough to overflow the
-detector's full well, and the overflowing charge spreads along the columns.  That
-pushes the gradient peak 0.3 to 0.9 px outside the silhouette.  Rendered at a
-quarter of the real exposure, the 7 of those frames that have a real limb to compare
-peak 0.06 to 0.17 px inside the silhouette, like the frames that don't overflow.  So
-in the 2026-11-21 run, 6 of the 7 NAC bins that have a verdict lie outside their
-bands.  The cause is the body's brightness, which no scene key sets yet.
+**How bright the matched bodies are.**  A matched body takes the real body's
+brightness, through its ``normal_albedo``.  On a calibrated real frame, each disc
+pixel's I/F divided by the Lommel-Seeliger law's value at that pixel's incidence and
+emission angles is one estimate of the normal albedo, and the median over the disc
+sets it (:func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).  A pixel counts
+when it survives three steps of erosion of the body's mask, each to a pixel's four
+neighbors, which puts it at least 3.5 px inside the silhouette along a row or a column
+and about 2.1 px inside along a diagonal.  It also needs the cosines of incidence and
+emission both at least 0.3.  The angles come from the real frame's SPICE geometry,
+moved onto the image by its verified offset (``tests/integration/sim_realism_body.py``).
+The value includes the surface's darkening with phase, since the laws have no phase
+function: a Dione disc at 34 degrees phase in the RED and GRN filters measures 0.45,
+and a methane-band frame 0.08.  A raw product is not in I/F, and a clipped disc's I/F
+is the clip level, so either leaves its matched body white.  On four NAC limb frames,
+the matched frame gives back the measured albedo to 0.2%.
 
-Where nothing overflows, the matched limbs agree with the real ones.  Over the 17
-NAC frames measured every way, the median offset is -0.10 px at a quarter of the
-exposure against -0.08 px real.  The same frames drawn with a Lambert law, the
-default for a scene body, give a median of -0.20 px at a quarter of the exposure.
-The difference lies at low phase.  Below 30 degrees, five frames show bodies under
-400 px across.  In four of them the real limb peaks 0.02 to 0.17 px inside the
-silhouette, the matched Lommel-Seeliger limb 0.07 to 0.20 px inside, and the
-Lambert limb 0.34 to 0.53 px inside.  The fifth, a 377 px Mimas, peaks 1.08 px
-outside its shape model's silhouette in the real image.  So the real limbs agree
-with the Lommel-Seeliger law the matched scenes use, and rule out the Lambert law
-at low phase.
+**What the matched limbs show.**  On 2026-11-24, with each matched body at its real
+body's brightness, two NAC bins have at least 3 real limbs.  One lies within its band
+and one outside it (offsets in pixels, negative inside the silhouette):
 
-.. Matched bodies drawn white and overflowing the full well are issue 895.
+.. list-table::
+   :header-rows: 1
+   :widths: 16 14 14 14 14 14 14
+
+   * - Bin
+     - real median
+     - real scatter
+     - band
+     - matched median
+     - n real / matched
+     - verdict
+   * - phase below 60, over 400 px
+     - +0.11
+     - 1.06
+     - 1.06
+     - -0.09
+     - 4 / 4
+     - within
+   * - phase 60 to 120, 100 to 400 px
+     - -0.13
+     - 0.12
+     - 0.12
+     - +0.02
+     - 4 / 4
+     - outside
+
+In the bin outside its band, the four real limbs, of Dione and Tethys between 74 and
+111 degrees phase, peak 0.11 to 0.43 px inside the silhouette in three frames and on
+it in the fourth, while every matched limb peaks within 0.07 px of it.  Each real limb
+lies inside its own matched limb, by 0.01 to 0.43 px.  The photometric law accounts
+for at most part of the difference, as the paragraphs on the law below show, and the
+rest is not yet explained.
+
+The other bins hold one or two paired limbs and have no verdict: below 60 degrees
+under 100 px, -0.10 real against -0.06 matched (2 limbs each); below 60 degrees at
+100 to 400 px, +0.50 against -0.12 (2 each); 60 to 120 degrees under 100 px, -0.06
+against -0.05 (2 each); 60 to 120 degrees over 400 px, -0.29 against -0.01 (1 each);
+above 120 degrees, +0.01 against +0.08 under 100 px and -0.08 against +0.14 at 100 to
+400 px (1 each); and the WAC's one limb, -0.60 against +0.05.
+
+The three matched bodies whose real disc is clipped render white and overflow the full
+well; their limbs are not compared.  Of the 23 others, two still overflow somewhere
+before the detector caps them: their albedo comes from the disc interior, and the
+Lommel-Seeliger law brightens toward the sunlit limb up to twice that.  In both, the
+real limb peaks well outside its shape model's silhouette (+0.97 and +1.08 px).  The
+real camera clips a disc without visible bloom, while the simulator spreads the charge
+above its full well along the columns, so a matched frame that overflows does not look
+like a real clipped frame.
+
+**Which law the limbs follow.**  On 2026-11-24 the matched frames of the 17 paired NAC
+limbs were also rendered at a quarter of the real exposure, where none of them
+overflows, once with each law.  The albedo of each matched body was measured with the
+same law its disc was shaded with.  Below 30 degrees phase, four paired bodies are
+under 400 px across.  In three of them the real limb peaks 0.02 to 0.17 px inside the
+silhouette, the Lommel-Seeliger limb 0.05 to 0.07 px inside, and the Lambert limb 0.35
+to 0.53 px inside.  The fourth, a 377 px Mimas, peaks 1.08 px outside its shape model's
+silhouette in the real image, which no law explains.  The real limbs of the three
+therefore agree with the Lommel-Seeliger law, the scene default, and rule out the
+Lambert law at low phase.
+
+Above 60 degrees the two laws lie closer together, and the limbs do not separate them.
+The eight bodies under 400 px across have a median offset of -0.09 px, against +0.03 px
+with the Lommel-Seeliger law and -0.03 px with the Lambert law.  The mean distance of
+each real limb from its matched limb is 0.15 px with the first law and 0.13 px with the
+second.  In the bin outside its band, the Lambert limbs have a median of -0.03 px, which
+would lie within the band.  The laws differ by 0.06 to 0.13 px in those four frames, so
+the choice of law can account for part of the 0.15 px by which the medians differ.  A
+Minnaert law with an exponent of 0.5, 0.6, or 0.7 moves these limbs outward in 11 of the
+12 renders, by up to 0.17 px, which widens the difference.  The Tethys limb, 0.43 px
+inside the silhouette, lies beyond the reach of all of these laws, so something other
+than the law, most likely the body's shape, contributes there.
+
+Over 400 px across, the shape models' errors cover any difference between the laws.
 
 The FOM 7 firewall
 ------------------
