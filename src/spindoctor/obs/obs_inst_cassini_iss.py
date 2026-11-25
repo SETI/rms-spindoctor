@@ -1,6 +1,6 @@
 import re
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime
 from fractions import Fraction
 from typing import Any, cast
 
@@ -190,15 +190,16 @@ def _element(value: Any, index: int) -> Any:
 def _document_value(label: Mapping[str, Any], keyword: str) -> Any:
     """Return a keyword's value from the host's metadata in a form a document can hold.
 
-    The host gives each value the type the label parser gives it.  Two of those types
-    have no form in a metadata document, and the parser keeps the label's own form of
-    each beside the value: a time is a :class:`~datetime.datetime`, written as the
-    label's text, which the parser keeps under the keyword with ``_fmt`` appended; and a
-    set is written as a list in the label's order, which the parser keeps under the
-    keyword with ``_list`` appended.  A time or a set that the host took from the VICAR
-    header has no such text, because the header was not read by the label parser: a time
-    is then written as the header writes it, ``YYYY-DDDTHH:MM:SS.sss`` without the final
-    ``Z``, and a set as a sorted list.  Every other value is returned as it is.
+    The host gives each value the type the label parser gives it.  Two kinds of value
+    have no form in a metadata document, and the parser keeps a written form of each
+    beside the value.  A time, a :class:`~datetime.datetime` or a
+    :class:`~datetime.date`, is written as the parser's PDS3 form of it, which the parser
+    keeps under the keyword with ``_fmt`` appended.  A set is written as a list in the
+    label's order, which the parser keeps under the keyword with ``_list`` appended.  A
+    time or a set that the host took from the VICAR header has neither, because the label
+    parser did not read the header.  A time is then written as the header writes it,
+    ``YYYY-DDDTHH:MM:SS.sss`` without the final ``Z``, a date as ``YYYY-DDD``, and a set
+    as a sorted list.  Every other value is returned as it is.
 
     Parameters:
         label: The image's metadata, the host's ``dict``.
@@ -212,6 +213,8 @@ def _document_value(label: Mapping[str, Any], keyword: str) -> Any:
         return label.get(
             f'{keyword}_fmt', f'{value:%Y-%jT%H:%M:%S}.{value.microsecond // 1000:03d}'
         )
+    if isinstance(value, date):
+        return label.get(f'{keyword}_fmt', f'{value:%Y-%j}')
     if isinstance(value, set | frozenset):
         return label.get(f'{keyword}_list', sorted(value))
     return value

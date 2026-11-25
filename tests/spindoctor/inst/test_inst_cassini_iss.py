@@ -1,7 +1,7 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -727,22 +727,25 @@ def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
 
 
 def _w1521598221_metadata() -> dict[str, Any]:
-    """Return part of the merged metadata the host gives W1521598221_1_CALIB (COISS_2021).
+    """Return merged metadata modeled on the host's for W1521598221_1_CALIB (COISS_2021).
 
-    The values are those the host gives when it reads the PDS3 label with the image: a
-    time is a ``datetime``, with the label's text beside it under ``_fmt``; a set is a
-    set, with the label's order beside it under ``_list``; and a value the labels give
-    as a placeholder, such as the -999.0 of the wide angle camera's missing rear optics
-    sensor or the N/A of an uncompressed frame's compression parameters, is missing.
+    The values have the types the host gives when it reads the PDS3 label with the image:
+    a time is a ``datetime``, with the parser's PDS3 form of it beside it under ``_fmt``;
+    a set is a set, with the label's order beside it under ``_list``; and a value the
+    labels give as a placeholder, such as the -999.0 of the wide angle camera's missing
+    rear optics sensor or the N/A of an uncompressed frame's compression parameters, is
+    missing.  The time is a whole second, which the parser writes without a fraction, and
+    the set's label order is not sorted, so neither matches what the reader writes when
+    the parser's form is absent.
 
     Returns:
         The merged metadata.
     """
     return {
-        'IMAGE_TIME': datetime(2006, 3, 21, 1, 40, 16, 112000),
-        'IMAGE_TIME_fmt': '2006-080T01:40:16.112',
-        'IMAGE_OBSERVATION_TYPE': {'SCIENCE'},
-        'IMAGE_OBSERVATION_TYPE_list': ['SCIENCE'],
+        'IMAGE_TIME': datetime(2006, 3, 21, 1, 40, 16),
+        'IMAGE_TIME_fmt': '2006-080T01:40:16',
+        'IMAGE_OBSERVATION_TYPE': {'SCIENCE', 'OPNAV'},
+        'IMAGE_OBSERVATION_TYPE_list': ['SCIENCE', 'OPNAV'],
         'GAIN_MODE_ID': '29 ELECTRONS PER DN',
         'EXPOSURE_DURATION': 1500.0,
         'FILTER_NAME': ['CL1', 'VIO'],
@@ -751,7 +754,7 @@ def _w1521598221_metadata() -> dict[str, Any]:
 
 
 def test_the_hosts_metadata_is_published_in_the_documents_form() -> None:
-    """The merged metadata reaches the block, a time as its label text, a set as a list.
+    """The merged metadata reaches the block, a time in the parser's form, a set as a list.
 
     The two-element keywords reach the attributes their positions name, a missing value
     is null, and W1521598221_1_CALIB.IMG's own name states its version.
@@ -772,8 +775,8 @@ def test_the_hosts_metadata_is_published_in_the_documents_form() -> None:
             'cassini:pre-pds_version_number',
         )
     } == {
-        'cassini:image_time': '2006-080T01:40:16.112',
-        'cassini:image_observation_type': ['SCIENCE'],
+        'cassini:image_time': '2006-080T01:40:16',
+        'cassini:image_observation_type': ['SCIENCE', 'OPNAV'],
         'cassini:gain_mode_id': '29 ELECTRONS PER DN',
         'cassini:exposure_duration': 1500.0,
         'cassini:filter_name_1': 'CL1',
@@ -786,15 +789,29 @@ def test_the_hosts_metadata_is_published_in_the_documents_form() -> None:
 
 
 def test_a_time_only_the_header_gives_is_written_as_the_header_writes_it() -> None:
-    """A time with no label text beside it is written as the VICAR header writes it.
+    """A time with no parser form beside it is written as the VICAR header writes it.
 
     The host converts a header's time to a ``datetime`` as well, but the label parser
-    never saw it, so there is no ``_fmt`` text; the header's form, without its ``Z``, is
+    never saw it, so there is no ``_fmt`` value; the header's form, without its ``Z``, is
     written instead.
     """
     metadata = {'IMAGE_TIME': datetime(1999, 1, 9, 7, 24, 50, 52000)}
     block = _label_metadata(metadata, 'W1294561143_1.IMG')
     assert block['cassini:image_time'] == '1999-009T07:24:50.052'
+
+
+def test_a_date_is_written_in_the_parsers_form() -> None:
+    """A date the label parser read is written as the parser's PDS3 form of it."""
+    metadata = {'IMAGE_TIME': date(2006, 3, 21), 'IMAGE_TIME_fmt': '2006-03-21'}
+    block = _label_metadata(metadata, 'W1521598221_1_CALIB.IMG')
+    assert block['cassini:image_time'] == '2006-03-21'
+
+
+def test_a_date_without_the_parsers_form_is_written_as_a_day_of_year() -> None:
+    """A date with no parser form beside it is written as ``YYYY-DDD``."""
+    metadata = {'IMAGE_TIME': date(2006, 3, 21)}
+    block = _label_metadata(metadata, 'W1521598221_1_CALIB.IMG')
+    assert block['cassini:image_time'] == '2006-080'
 
 
 def test_a_set_only_the_header_gives_is_written_as_a_sorted_list() -> None:

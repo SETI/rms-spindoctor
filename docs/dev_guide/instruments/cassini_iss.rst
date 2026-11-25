@@ -105,12 +105,13 @@ Label and index dependencies
   bundle, and whether the image file was raw or calibrated. It is the one place in
   the library that lists PDS4 attributes, and it is deliberate.
 
-  The value is what the host's ``dict`` holds, unconverted: numbers as numbers, text
-  as text, and times as the label's day-of-year text. The one transformation is the
-  positional split the attribute names require: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``,
-  ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and
-  ``VALID_MAXIMUM`` fill several attributes each, and ``_element`` takes the value at the
-  attribute's position.
+  Each value is written as SpinDoctor's conversion step, ``_document_value``, writes
+  it: numbers as numbers, text as text, a time in the label parser's PDS3 form, and a
+  set as a list. "Which label is read" below describes that step. The one other
+  transformation is the positional split the attribute names require:
+  ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
+  ``OPTICS_TEMPERATURE``, and ``VALID_MAXIMUM`` fill several attributes each, and
+  ``_element`` takes the value at the attribute's position.
 
   A label may state a single value where another states a sequence, and ``_element``
   reads that as the first position: the value fills the first attribute and the later
@@ -162,12 +163,14 @@ agree, it is that value; where they disagree, it is the ``_CALIB.LBL``'s, except
 label. The values have the PDS3 label's types: reals as the label prints them,
 to six decimal places, ``IMAGE_NUMBER`` as text, a time as a ``datetime``, and
 ``IMAGE_OBSERVATION_TYPE`` as a set. A metadata document cannot hold the last
-two, so ``_document_value`` writes them in the label's own form, which the label
-parser keeps beside each value: a time as the label's text, under the keyword
-with ``_fmt`` appended, and a set as a list in the label's order, under the
-keyword with ``_list`` appended. A time or a set the host took from the VICAR
-label alone has neither, and is written as the VICAR label writes a time,
-without its trailing ``Z``, or as a sorted list. A value that a label gives as a
+two, so ``_document_value`` writes them in the form the label parser keeps
+beside each value. A time, a ``datetime`` or a ``date``, is written as the
+parser's PDS3 form of it, which the parser keeps under the keyword with ``_fmt``
+appended. A set is written as a list in the label's order, which the parser
+keeps under the keyword with ``_list`` appended. A time or a set the host took
+from the VICAR label alone has neither. A time is then written as the VICAR
+label writes it, without its trailing ``Z``, a date as ``YYYY-DDD``, and a set
+as a sorted list. A value that a label gives as a
 placeholder (``N/A``, ``UNK``, or ``-999`` in a temperature, a data rate, or a
 compression ratio) is left out, so its attribute is ``None``. The
 rms-host-cassini user guide lists the merge rules.
