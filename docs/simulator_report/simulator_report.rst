@@ -200,8 +200,8 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``7ceaf98c`` on
-2026-11-23.
+code that made it.  The current record was made at commit ``27dbe85c`` on
+2026-11-24.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -209,7 +209,7 @@ the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (2026-11-23 record, 75 frames).  A label counts the frames that
+Cohort support (2026-11-24 record, 75 frames).  A label counts the frames that
 contribute to the figure of merit on each side, real and simulated, and the
 smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 *supported* for 8 or more.
@@ -363,7 +363,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-23; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-24; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -381,19 +381,19 @@ real IQR):
      - 10.0
      - 0.73 [#table]_
      - 4585
-     - 7514
+     - 7349
    * - sky level above floor (FOM 1)
      - 3.3e-4 I/F
      - 13.9
-     - 1.61 [#tail]_
+     - 1.60 [#tail]_
      - 4585
-     - 7514
+     - 7349
    * - noise at signal (FOM 1)
      - 2.8e-4 I/F
      - 13.8
-     - 1.61
+     - 1.63
      - 15700
-     - 33852
+     - 33326
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
@@ -409,15 +409,15 @@ real IQR):
    * - limb rise width, co-populated strata (FOM 3)
      - 2.54 px
      - -- [#copop]_
-     - 0.54
+     - 0.72
      - 3742
-     - 3489
+     - 3128
    * - ring-edge rise width (FOM 4)
      - 3.36 px
      - 0.47
      - 0.50
      - 3163
-     - 21962
+     - 21965
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
@@ -427,13 +427,13 @@ real IQR):
    * - p99 - p50 stretch, 0.05-0.5 s (FOM 5)
      - 0.104 I/F
      - 0.89
-     - 0.26
+     - 0.14
      - 27
      - 27
    * - spike fraction (FOM 6)
      - 1.1e-4
      - 11.0
-     - 0.87
+     - 0.78
      - 58
      - 58
 
@@ -447,9 +447,9 @@ real IQR):
    NAC frame pairs.  The 12-bit frames keep 28 of 32: 3 are dropped
    because one of the two frames has no patch on dark sky, and 1 has no
    real sky patch.  Their per-frame ratio of simulated to real median sky
-   sigma has a median of 0.88 (quartiles 0.81-1.03).  The TABLE frames
+   sigma has a median of 0.88 (quartiles 0.81-1.02).  The TABLE frames
    keep 12 of 26: 5 are dropped, and 9 have no real sky patch.  Their
-   ratio has a median of 0.37 (quartiles 0.25-0.59), so on dark sky the
+   ratio has a median of 0.36 (quartiles 0.25-0.60), so on dark sky the
    simulated TABLE frames are still far quieter than the real ones.  The
    real TABLE skies also sit 4.5e-4 to 2.3e-3 I/F above the residual,
    while the matched frames' skies sit within 5e-5 I/F of it.  Whether
@@ -474,7 +474,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-23; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-24; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -488,60 +488,59 @@ The FOM 3 strata behind the pooled number (2026-11-23; p = phase bin
      - n real
      - n sim
    * - p0 r0
-     - 0.83
+     - 0.86
      - 2.87
-     - 2.13
+     - 2.12
      - 522
-     - 890
+     - 538
    * - p0 r1
-     - 1.26
+     - 1.36
      - 2.75
-     - 2.23
+     - 2.20
      - 400
      - 400
    * - p0 r2
-     - 1.48
+     - 1.47
      - 3.09
      - 2.25
      - 733
      - 782
    * - p1 r0
-     - 0.78
+     - 1.27
      - 2.18
-     - 2.08
+     - 1.88
      - 435
      - 246
    * - p1 r1
-     - 0.56
+     - 1.02
      - 2.24
-     - 2.13
+     - 1.94
      - 909
-     - 771
+     - 770
    * - p1 r2
-     - 0.52
+     - 0.87
      - 2.58
-     - 2.30
+     - 2.04
      - 525
-     - 191
+     - 189
    * - p2 r0
-     - 0.46
+     - 1.69
      - 1.75
-     - 1.87
+     - 1.38
      - 70
      - 61
    * - p2 r1
-     - 2.46
+     - 0.75
      - 1.71
-     - 2.61
+     - 1.51
      - 148
-     - 148
+     - 142
 
-The record predates the limb gradient-peak comparison
+The record also holds the limb gradient-peak comparison
 (:ref:`sim-realism-limb-peak`), which measures how far each limb's steepest
-brightness fall lies from the body's true silhouette.  A check run of the Cassini
-cohorts on 2026-11-24, which isn't in the record, gives these NAC bins (offsets in
-pixels, negative inside the silhouette; the band is set from the real limbs alone,
-and only a bin with at least 3 real limbs has one).  Each frame contributes the limb
+brightness fall lies from the body's true silhouette.  It gives these NAC bins
+(offsets in pixels, negative inside the silhouette; the band is set from the real
+limbs alone, and only a bin with at least 3 real limbs has one).  Each frame contributes the limb
 of the body its matched frame renders, and only when both frames measured it:
 
 .. list-table::
@@ -642,24 +641,24 @@ artifact rate matches (1.6e-5 of pixels on both sides, hot pixels recurring
 at fixed detector positions on both sides), while the transient
 (cosmic-ray) share comes from the catalog's fitted cosmic-ray terms (see
 the measured-transients known gap).  Limb rise widths differ in the
-like-for-like pool (co-populated-strata medians 2.19 sim vs 2.54 px
-real, W1/IQR 0.54) with per-stratum divergences from 0.46 to 2.46.  At
-low phase the simulated limb measures narrower than the real one (2.13-2.25
-px vs 2.75-3.09 px medians), and in the high-phase, mid-size stratum it
-measures *wider* (2.61 vs 1.71 px).  Ring-edge widths
+like-for-like pool (co-populated-strata medians 2.10 sim vs 2.54 px
+real, W1/IQR 0.72) with per-stratum divergences from 0.75 to 1.69.  The
+simulated limb measures narrower than the real one in every stratum: at low
+phase 2.12-2.25 px against 2.75-3.09 px, and above 60 degrees phase 1.38-2.04 px
+against 1.71-2.58 px.  The matched bodies shade with the Lommel-Seeliger law,
+which keeps the brightness up to the limb and so steepens the rise.  Ring-edge widths
 differ by 1.0 px (2.41 sim vs 3.36 px real, W1/IQR 0.50).  The sky-noise
 distribution matches closer than in the 2026-11-07 record (W1/IQR 0.73,
 from 1.44), with the simulated median below the real one (1.7e-4 vs
 1.9e-4 I/F).  Only patches on dark sky enter it now, and the split by
 downlink format remains (the table's first footnote).  The record doesn't
-separate the causes of the low-phase limb residual.  Limb content may
+separate the causes of the narrow simulated limbs.  Limb content may
 contribute (real topography, the Lommel-Seeliger approximation), and so may
 the rendered PSF, since the simulated star cutouts are narrower than the
-real ones at both EE50 and EE80.  The high-phase excess runs the other way
-and points at the crescent shading model.  The curve *shapes* agree
+real ones at both EE50 and EE80.  The curve *shapes* agree
 closer than the scalar samples: the density-W1 of the frame-averaged
-curves is 0.06 for the sky power spectrum, 0.19 for the star radial
-profile, 0.11 for the limb profile, and 0.08 for the ring radial profile
+curves is 0.05 for the sky power spectrum, 0.19 for the star radial
+profile, 0.07 for the limb profile, and 0.08 for the ring radial profile
 (axis units over the real IQR; ``curve_divergences`` in the summary).
 The sky power spectrum's distance fell from 0.29 in the 2026-11-07
 record.  A tile's spectrum now enters only when all four of its patches
@@ -830,7 +829,7 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-23 pairs:
+2026-11-24 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
@@ -845,8 +844,8 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   errs optimistic on ring-scene sharpness.
 - Both limb pairs succeed on both sides, and on both the simulated fit is
   the tighter.  On the NAC pair (0.77 real vs 0.79 sim) the DT RMS is 0.24
-  px simulated against 0.34 px real; on the WAC pair (0.76 real vs 0.82
-  sim) it is 0.35 against 0.62 px.
+  px simulated against 0.34 px real; on the WAC pair (0.76 real vs 0.83
+  sim) it is 0.29 against 0.62 px.
 - The NAC and Voyager star pairs lock weakly or not at all on the simulated
   side.  The NAC
   frame, an H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks

@@ -3281,16 +3281,14 @@ technique runs (its reliability, computed as the SPICE-backed model does and
 capped by ``sin(155 deg)`` = 0.42, scores 0.24 against the 0.30
 ``TERMINATOR_ARC`` threshold), and the haze-dragged blob centroid lands roughly
 25 px off in ``du``. The ring of light, which the disc correlation's
-hard-limbed template leaves out, also pulls the correlation 2.99 px off, to the
-edge of its half-pixel refinement window, and the correlation does not flag that
-answer spurious. So the body-witness veto (see
-:doc:`dev_guide_orchestrator_ensemble`), which declines a frame whose only
-surviving body offset is the centroid beside a spurious geometric fit, has
-nothing to read. The disc correlation sets a low-confidence success, and the
-scene holds its 2.99 px error to a band. The noiseless sibling
+hard-limbed template leaves out, also pulls the correlation 4.81 px off, and the
+correlation flags that answer spurious. That leaves the centroid as the only
+surviving body offset beside a spurious geometric fit, so the body-witness veto
+(see :doc:`dev_guide_orchestrator_ensemble`) declines the frame, and the scene
+asserts that failure on every noise draw. The noiseless sibling
 ``titan_crescent_horns_noiseless`` -- Poisson and read noise off, the same haze
 and phase geometry -- pins both biases deterministically (planted ``du`` -0.8,
-blob centroid near -26.0, and the same 2.99 px disc correlation error), so the
+blob centroid near -25.5, and the same 4.81 px disc correlation error), so the
 ring of light alone drives them. The haze evaluation
 is restricted to the bounding box of the
 body plus its halo (out to a detached shell's reach), so its cost scales with
@@ -6216,10 +6214,13 @@ and never less than 0.1 px.  In a bin with one or two real limbs, a single limb 
 the body's shape pulls off its shape model's silhouette sets the median, so such a bin
 records both medians and no band or verdict.
 ``tests/integration/test_sim_realism_limb_peak.py`` holds the record to the bands: it
-fails when a bin's matched median lies outside its band.  It reads only the record, or
-the summary that ``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it skips on a record
-that predates the statistic.  The committed record predates it, so the check is not
-live until the record is regenerated.
+fails when a bin's matched median lies outside its band.  One bin is known to lie
+outside, the NAC bin at 60 to 120 degrees phase and 100 to 400 px (see below), and
+``KNOWN_OUTSIDE_BINS`` in ``tests/integration/sim_realism_limb_peak.py`` lists it.  The
+check fails if that bin comes inside its band, so a fix shows up as clearly as a
+regression.  The check reads only the record, or the summary that
+``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it skips on a record that predates
+the statistic.
 
 **What the real limbs show.**  On 2026-11-24 the Cassini NAC cohort gave 17 paired
 real limbs and the WAC cohort 1.  The real limbs of bodies under 400 px across lie
@@ -6353,8 +6354,9 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run takes 32 to 39 minutes on a workstation with local
-holdings.  The committed record of 2026-11-22 took 32 minutes (1,894 seconds).
+The full-cohort run takes 32 to 43 minutes on a workstation with local
+holdings.  The committed record of 2026-11-24 took 43 minutes (2,583 seconds), with
+other heavy runs sharing the machine.
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on
 W1580760393).  The cost is
