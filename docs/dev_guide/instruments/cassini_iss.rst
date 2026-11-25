@@ -739,22 +739,26 @@ real frames of this camera carry together:
   realistic but leave the answer where it is: with either one removed, the fused
   answer lands 0.041 to 0.047 px off. So the scene shows that the navigator is
   unaffected by them.
-- ``coiss_nac_stars_moon_lost_lines`` is a frame of stars and a gibbous moon whose
-  readout lost its last 41 lines and one run of lines mid-frame, and whose scene
-  drifts 2 px during the exposure. Real 12-bit frames lose lines that way: in
-  those four volumes, 321 of the 5,489 12-bit narrow angle frames lost lines, all
-  of them losslessly compressed. On the committed seed the run crosses the middle
-  of the disc, as runs cross the planet on the real frame it follows, and moves
-  the disc correlation by 0.007 px. The truncated lines hold dark sky, as they do
-  on the real truncated frame, so the scene shows that the navigator is unaffected
-  by the truncation. The fused answer lands 0.019 to 0.17 px off over 24 draws,
-  at medium confidence on 19 of them and high on 5. The worst draw comes from star
-  noise on one seed, and removing any one defect on four draws leaves the answer
-  0.052 to 0.088 px off, where all the defects together leave it 0.054 to 0.088 px
-  off. The star-field technique returns
-  spurious on every draw, because hot pixels and cosmic rays crowd the stars out
-  of the sources it matches, and the blob technique lands 6 to 9 px off the
-  gibbous disc without flagging it.
+- ``coiss_nac_stars_moon_lost_lines`` is a frame of stars and a gibbous moon that
+  lost its last 41 lines and several groups of whole lines down the frame, and whose
+  scene drifts 2 px during the exposure. In those four volumes, 321 of the 5,489
+  12-bit narrow angle frames lost lines, all of them losslessly compressed, in three
+  ways. 195 lost lines at the bottom, most of them when the readout window closed
+  before the camera finished. 62 lost groups of whole lines inside the frame, when
+  packets were lost on the way to the ground. 61 lost the ends of alternating lines,
+  where a pair of lines would not compress to half its size. The scene follows one
+  real frame of each of the first two kinds: one lost its last 41 lines, and the
+  other lost 43 lines in six groups of 4 to 11 lines. The simulator draws groups of
+  7 lines on a 7-line grid, 6 expected in each frame. On the committed seed three of
+  the seven groups cross the disc and move the disc correlation from 0.019 to 0.050
+  px off. The truncated lines hold dark sky, as they do on the real truncated frame,
+  so the scene shows that the navigator is unaffected by the truncation. The fused
+  answer lands 0.028 to 0.10 px off over 24 draws, at high confidence on 13 of them
+  and medium on 11. Removing any one defect on four draws leaves the answer 0.030 to
+  0.089 px off, where all the defects together leave it 0.032 to 0.089 px off. The
+  star-field technique returns spurious on every draw, because hot pixels and cosmic
+  rays together crowd the stars out of the sources it matches, and the blob
+  technique lands 5 to 10 px off the gibbous disc without flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.

@@ -255,7 +255,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # draws repeat random_seed 101 to 808.  Where a band of lost slices crosses the
     # disc on gossi_ict_moon, the frame still lands within 0.08 px.
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
-    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.054, 0.166, 0.147, 0.05),
+    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.032, 0.102, 0.072, 0.05),
     ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
     ('nhlorri_moon_raw', FUSED): _t(0.104, 0.114, 0.011, 0.05),
     # multi_body_geometry.
@@ -326,9 +326,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 6.1 to 9.2 px off with every
-    # defect present and 7.4 to 8.8 px off with each one removed in turn (#975).
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(6.055, 9.215, 0.632, 5.423, 9.847),
+    # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
+    # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
+    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
     # On nhlorri_moon_raw the frame-transfer smear pulls the blob 4.7 to 5.1 px off;
     # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
     # step at each column's centroid, where the real smear builds up along the column

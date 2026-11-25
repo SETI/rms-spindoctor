@@ -3,7 +3,7 @@ scene_name: coiss_nac_stars_moon_lost_lines
 instrument: coiss_nac
 size_v: 1024
 size_u: 1024
-random_seed: 19
+random_seed: 26
 exposure_sec: 1.0
 # A raw Cassini NAC frame of stars and a moon whose readout lost lines and whose
 # pointing drifted during the exposure, over the camera's whole raw chain.
@@ -16,19 +16,36 @@ exposure_sec: 1.0
 # and the stars at the camera's clear-filter brightness, closer to real stars
 # than the simulator draws them through UV3 (#895).
 #
-# The lost lines follow the 12-bit lossless NAC frames of COISS_2023, whose
-# readouts often end early and lose runs of lines mid-frame.  N1526130404 lost
-# its last 41 lines (983-1023; its index says MISSING_LINES 42, but the image has
-# 41 zero lines), and the lines above them hold dark sky.  N1526044304 lost runs
-# of 4 to 11 lines (311-315, 327-330, 338-348, ...) across the bright planet.  In
-# the metadata indexes of COISS_2010, 2023, 2050, and 2068, 321 of the 5,489
+# The lost lines follow two 12-bit lossless NAC frames of COISS_2023, read with
+# their line prefixes, which give each line's valid samples.  N1526130404's
+# readout window closed early: it lost its last 41 lines (983-1023) whole, and
+# line 982 kept only its first 384 samples, which makes the index's
+# MISSING_LINES 42.  The lines above them hold dark sky.  N1526044304 lost
+# packets on the ground link (its label says "DSN gap truncation"): 43 whole
+# lines in six groups spread down the frame, lines 311-315, 327-330, 338-348,
+# 369-376, 473-480, and 816-822 (5, 4, 11, 8, 8, and 7 lines), across the bright
+# planet.  The ISS User's Guide (section 3.6, "Truncated Images") gives both
+# causes, and a third: a lossless line pair that will not compress 2:1 loses
+# the end of its second line, so such a frame loses the ends of alternating lines.
+#
+# In the metadata indexes of COISS_2010, 2023, 2050, and 2068, 321 of the 5,489
 # 12-bit NAC frames lost lines; all 321 are among the 5,473 lossless ones, and
-# none of the 16 uncompressed ones lost any.  The scene truncates the last 41
-# lines and loses one run of a Poisson-drawn length, 11 lines expected, at a
-# place the seed draws.  The committed seed loses lines 541-554, across the
-# middle of the disc, as N1526044304's runs cross the planet; the run crosses
-# the disc on 4 of the other 15 seeds too.  The truncated lines hold dark sky,
-# as on N1526130404.
+# none of the 16 uncompressed ones lost any.  Read line by line, 195 of the 321
+# lose lines at the bottom, 62 lose groups of whole lines inside the frame, and
+# 61 lose the ends of alternating lines (some frames show two of these).  The 62
+# frames lose a median of 1.5 groups each, 1 on half of them and up to 59; a
+# group is 2 to 15 lines (10th to 90th percentile, median 5).
+#
+# The scene truncates the last 41 lines, as on N1526130404, and loses groups of
+# whole lines as N1526044304 does: missing_blocks with block_lines 7 loses
+# 7-line groups, a Poisson-drawn number of them, 6 expected, at places the seed
+# draws.  N1526044304's six groups average 7.2 lines.  The mode differs from the
+# real loss in two ways: every group is 7 lines long, and a group starts on a
+# multiple of 7 lines, where a real one starts on any line.  The committed seed
+# loses seven groups, lines 231-237, 420-426, 462-468, 644-650, 721-727,
+# 749-755, and 847-853, three of them across the disc; groups cross the disc on
+# 10 of the other 15 seeds too.  The truncated lines hold dark sky, as on
+# N1526130404.
 #
 # The whole scene drifts 2.0 px during the exposure.  Measured streaks on real
 # NAC frames run under 2 px on sequences predicted at 6 px, and about 0.6 times
@@ -41,33 +58,37 @@ exposure_sec: 1.0
 # left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
 # fitting off as the camera ships.
 #
-# The fused answer lands 0.019 to 0.17 px off over 24 draws, carried by the disc
-# correlation (0.016 to 0.026 px off) and the star refinement (0.02 to 0.17 px).
-# The worst draw, 0.17 px, is seed 909, whose star noise sends StarRefineNav
-# 0.17 px off; the defects do not set it.  The tier is medium on 19 of the 24
-# draws and high on 5 (random seeds 505, 808, and 1212, and noise seeds 505 and
-# 808): StarUniqueMatchNav lands 0.28 to 0.38 px off on three of them and returns
-# spurious on seed 808, and the fused confidence there is 0.88 to 0.92, against
-# 0.77 to 0.83 on the rest.  On the committed seed the run of lost lines moves the
-# disc correlation from 0.019 to 0.026 px off and leaves the fused answer at
-# 0.054 px.  On the committed seed and seeds 101 to 303, which land 0.054 to
-# 0.088 px off, removing any one defect (the truncation, the run of lost lines,
-# the smear, the hot pixels, or the cosmic rays) leaves the fused answer 0.052 to
-# 0.088 px off.  The truncation is realistic but does not move the fused answer,
-# so the scene shows the navigator unaffected by it.
+# The fused answer lands 0.028 to 0.10 px off over 24 draws, carried by the disc
+# correlation (0.016 to 0.050 px off) and the star refinement (0.028 to 0.11 px).
+# The worst draw, 0.10 px, is random seed 1212, where StarRefineNav lands 0.11 px
+# off.  The tier is high on 13 of the 24 draws and medium on 11.  The high draws
+# are the committed seed with its 8 noise draws and random seeds 101, 505, 909,
+# and 1212: StarUniqueMatchNav returns spurious on 9 of them and lands 0.28 to
+# 0.47 px off on the other 4, and the fused confidence there is 0.86 to 0.93,
+# against 0.80 to 0.83 on the rest.  On the committed seed the lost groups move
+# the disc correlation from 0.019 to 0.050 px off and turn StarUniqueMatchNav
+# from 0.13 px off to spurious, which raises the tier from medium to high; the
+# fused answer moves from 0.038 to 0.032 px.  On the committed seed and seeds
+# 101 to 303, which land 0.032 to 0.089 px off, removing any one defect (the
+# truncation, the lost groups, the smear, the hot pixels, or the cosmic rays)
+# leaves the fused answer 0.030 to 0.089 px off.  The truncation is realistic
+# but does not move the fused answer, so the scene shows the navigator
+# unaffected by it.
 #
-# StarFieldFromCatalogNav returns spurious on every draw, with each of those
-# defects removed in turn too, which is #1146: the hot pixels and cosmic rays
-# crowd the stars out of the 30 sources it matches, and either one alone is
-# enough.  The simulated hot pixels are overstrong (#906).  StarUniqueMatchNav
-# returns spurious on 2 of the 24 draws, the two that repeat seed 808.
-# BodyBlobNav lands 6.1 to 9.2 px off the gibbous disc without flagging it (#975),
-# and 7.4 to 8.8 px off with each defect removed, so the defects do not cause it;
-# sim_truth holds it to a band.
+# StarFieldFromCatalogNav returns spurious on every draw, which is #1146: the hot
+# pixels and cosmic rays together crowd the stars out of the 30 sources it
+# matches.  With both removed it navigates on seeds 101 to 303 (0.087 to 0.16 px
+# off) and stays spurious on the committed seed; with either one removed alone it
+# stays spurious, except on seed 202 without the cosmic rays (0.049 px).
+# StarUniqueMatchNav returns spurious on 9 of the 24 draws: the committed seed,
+# 7 of its 8 noise draws, and random seed 909.  BodyBlobNav lands 5.2 to 9.6 px
+# off the gibbous disc without flagging it (#975), and 6.5 to 9.7 px off with
+# each defect removed, so the defects do not cause it; sim_truth holds it to a
+# band.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}
-  missing_lines: {expected_events: 11.0, contiguous_run: true}
+  missing_blocks: {expected_events: 6.0, block_lines: 7}
 optics:
   smear:
     - {dv_px: 1.2, du_px: 1.6, object_class: all}

@@ -303,11 +303,11 @@ are the authorable parts of #904 and the ring-only part of #377:
   unfit twist, #1152 for the low opening, #1144 for the hidden eccentricity, where the frame
   conflicts, #1145 for the saturated edge);
 - interleaved defect modes on one frame. **Done (PR #TBD).** The `mixed_defects` class holds a
-  lossy table NAC moon, a NAC stars-and-moon frame with lost and truncated lines and 2 px of
-  smear, a Galileo moon with compression and lost 8-line slices, and a raw LORRI moon with
-  frame-transfer smear; all four navigate within 0.17 px over 24 distinct draws (16 for the
-  lossy moon, which seeds only its noise). The Galileo frame's lost slices leave its answer
-  within 0.08 px.
+  lossy table NAC moon, a NAC stars-and-moon frame with groups of lost lines down the frame, a
+  truncated bottom, and 2 px of smear, a Galileo moon with compression and lost 8-line slices,
+  and a raw LORRI moon with frame-transfer smear; all four navigate within 0.12 px over 24
+  distinct draws (16 for the lossy moon, which seeds only its noise). The Galileo frame's lost
+  slices leave its answer within 0.08 px.
 
 Each scene asserts against its planted truth (#905). Scenes that expose a navigator failure are
 committed as expected failures with the issue they reproduce.
