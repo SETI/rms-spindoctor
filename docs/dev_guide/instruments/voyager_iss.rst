@@ -510,6 +510,49 @@ freezes the observation frame during ``from_file``, a kernel furnished after
 that call cannot be seen at all, so the image is loaded a **second** time with
 the correction already furnished.
 
+**Simulator guard scenes.** The ``full_frame_cameras`` scene class (see
+:ref:`sim-full-frame-cameras`) holds one scene for each of the four cameras, each
+at the full 1000 px GEOMED frame with the camera's vidicon chain. Each follows a
+real frame of its camera, which its comments cite, and holds what that frame
+navigates on: a moon, Saturn, or stars. The offsets are 32 to 49 px, the size of
+the image library's Voyager offsets, and point in four different directions. The
+Voyager 2 scenes plant each camera's measured mean twist. No Voyager 1 twist is
+measured, so the two Voyager 1 scenes plant the same roll of 0.023 degrees, the
+size of the frame-to-frame twist scatter on the Voyager 2 cameras (0.28 pixels
+at the corner). Roll fitting stays off, as the cameras ship.
+
+The simulated frames are in I/F, and the exposure does not change a simulated
+body's brightness. A simulated moon or planet peaks near I/F 1, where the real
+frames peak at 0.4 to 0.5.
+
+- ``vgiss_1_nac_disc``: a moon 197 px across at a phase of 32 degrees, after a
+  Voyager 1 frame of Ganymede at 0.24 s, offset 42 px. The answer lands 0.06 to
+  0.57 px off over 24 draws, at medium confidence, from the disc correlation, the
+  limb fit, and the blob together.
+- ``vgiss_1_wac_saturn``: Saturn 100 px across with its rings at an opening of
+  8.6 degrees, after two library frames at 7.68 s, offset 32 px. The real frames
+  navigate on the planet, and the navigator does not model the rings, so the
+  scene marks none of them navigable. The rings lower the disc correlation's
+  peak below its quality threshold, and on every draw the correlation lands about
+  26 px off and flags its answer spurious. Without the rings it lands 0.20 px off.
+  On the real frame the same correlation passes the threshold and carries the
+  answer. The limb fit carries the simulated frame at low confidence, 0.40 to
+  1.05 px off over 24 draws, and the scene's expected block holds the low tier.
+- ``vgiss_2_nac_star_field``: the Pleiades field of the library frame C1205021 at
+  0.48 s, offset 49 px. The simulated stars are much fainter than the real ones:
+  the brightest peaks at I/F 0.07, where on the real frame it peaks near I/F 3.
+  The answer still lands 0.02 to 0.54 px off over 24 draws, at medium confidence,
+  from the refinement on 5 stars.
+- ``vgiss_2_wac_star_field``: a Scorpius field at 0.48 s, after a frame of the
+  twist measurement, offset 35 px. Its brightest star peaks at I/F 0.23, near the
+  real frame's 0.27. The twist of +0.358 degrees moves the stars the navigator
+  measures by 0.07 to 3.2 px, and their mean position by 1.6 px, so the answer
+  lands 1.0 to 1.4 px off over 24 draws. Without the twist it lands 0.20 px off.
+
+The two scenes with a disc take one to two minutes each to render and navigate,
+because the disc correlation searches the camera's 400 px window. The star fields
+take a few seconds.
+
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
 spacecraft-digit parser and all four of its refusals, the I/F factor parser and
 all three of its refusals, the per-camera limiting-magnitude anchors, the

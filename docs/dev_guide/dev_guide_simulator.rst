@@ -2209,8 +2209,8 @@ The instrument chapters list each camera's scenes, with their content, their
 measured errors, and the failures they hold.
 
 ``test_sim_full_frame_cameras.py`` navigates each scene once per run. A star
-field takes a few seconds to navigate, and a frame with a disc takes up to half
-a minute, since the disc correlation searches the camera's whole offset window.
+field takes a few seconds to navigate, and a frame with a disc takes up to two
+minutes, since the disc correlation searches the camera's whole offset window.
 
 .. _sim-mixed-defects:
 

@@ -283,11 +283,17 @@ validation scenes that YAML can express today, so they guard the churn of Phases
 are the authorable parts of #904 and the ring-only part of #377:
 
 - every camera the simulator catalogs, at real frame sizes and real offsets, with twist;
-  **Done (PR #1154), apart from Voyager, which follows the four-camera split (#806, PR #1118):**
+  **Done (PR #1154; Voyager in PR #TBD, after the four-camera split, #806, PR #1118):**
   the `full_frame_cameras` class holds ten full-frame scenes on the Cassini NAC and WAC (raw
   and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
   measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
-  them are expected failures tied to #342, #785, and #1153;
+  them are expected failures tied to #342, #785, and #1153. Four Voyager scenes, one per
+  camera at the 1000 px GEOMED size and 32 to 49 px offsets, follow real frames: a
+  Voyager 1 NAC moon (0.06 to 0.57 px off), a Voyager 1 WAC Saturn with unmodeled rings,
+  where the disc correlation flags its answer spurious and the limb fit carries the frame
+  at low tier, 0.40 to 1.05 px off (an expected low tier tied to #TBD), a Voyager 2 NAC
+  Pleiades field (0.02 to 0.54 px), and a Voyager 2 WAC Scorpius field whose unfit
+  +0.358 deg twist puts the answer 1.0 to 1.4 px off;
 - star fields with a body, and rings with a body; **Done (PR #1155).** The `mixed_content` class
   holds stars with a body 1.81 px off its predicted position (fused 0.16-0.26 px off, pulled
   from the stars toward the body), stars with a crescent on a summed 512 px frame (fused
