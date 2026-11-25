@@ -552,13 +552,17 @@ measured Voyager 1 twist may differ between the two cameras by far more than the
 placeholder. Roll fitting stays off, as the cameras ship.
 
 The simulated frames are in I/F, and the exposure does not change a simulated
-body's brightness. A simulated moon or planet peaks near I/F 1, where the real
-frames peak at 0.3 to 0.5.
+body's brightness. The simulated moon, shaded with the default Lommel-Seeliger law,
+peaks near I/F 1.6, and the Saturn disc near I/F 1, where the real frames peak at 0.3
+to 0.5. Neither reaches the 255 DN clip at I/F 1.85, so both bodies keep a normal
+albedo of 1.
 
 - ``vgiss_1_nac_disc``: a moon 197 px across at a phase of 32 degrees, after a
-  Voyager 1 frame of Ganymede at 0.24 s, offset 42 px. The answer lands 0.06 to
-  0.57 px off over 24 draws, at medium confidence, from the disc correlation, the
-  limb fit, and the blob together.
+  Voyager 1 frame of Ganymede at 0.24 s, offset 42 px. The answer lands 0.34 to
+  0.88 px off over 24 draws, at medium confidence, from the disc correlation, the
+  limb fit, and the blob together. It lands toward the Sun, where the navigator's
+  Lambert template meets the Lommel-Seeliger surface (see
+  :ref:`sim-photometric-laws`). On a Lambert surface it landed 0.06 to 0.57 px off.
 - ``vgiss_1_wac_saturn``: Saturn about 95 px across with its rings at an opening
   of 8.6 degrees, after two library frames at 7.68 s, offset 32 px. The scale,
   the ring radii, and the ring brightness follow the real frame, and the planet's
