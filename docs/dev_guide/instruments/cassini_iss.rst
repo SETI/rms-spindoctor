@@ -754,18 +754,20 @@ real frames of this camera carry together:
   table and lossy compression. In the metadata indexes of COISS_2010, COISS_2023,
   COISS_2050, and COISS_2068, every lossy frame of either camera is an 8-bit
   frame, and lossy labels give no count of lost lines. The simulator's codec steps
-  every frequency alike, so its 128 DN step is illustrative: it leaves the block
-  edges inside the disc sharper than on three real lossy Rhea frames (1.72 times
-  the contrast inside the blocks, against 1.04 to 1.51), and it zeroes more of the
-  fine detail than they lose.
+  every frequency alike, so its step is illustrative. The step is set by one
+  figure, the contrast across block edges inside the disc divided by the contrast
+  inside the blocks. Three real lossy Rhea frames show 1.04, 1.10, and 1.51, and the
+  scene's 80 DN step gives 1.18 to 1.24, near their middle. The figure depends on how much fine detail
+  each disc carries, so the step follows all three frames rather than the one the
+  scene copies, which shows the sharpest block edges. A step of 128 DN gives 1.72.
+  The step zeroes more of the fine detail than the real frames lose.
   The brightest 1% of the disc reads the same DN as on the real frame the scene
   follows. The scene seeds only the noise, so it has 16 distinct draws, and the
-  fused answer lands 0.48 px off over them, toward the Sun, where the navigator's
-  Lambert template meets the Lommel-Seeliger surface. The table and the
-  compression are realistic but leave the answer where it is: on a Lambert
-  surface the fused answer landed 0.034 to 0.050 px off, and 0.041 to 0.047 px off
-  with either one removed. So the scene shows that the navigator is unaffected by
-  them.
+  fused answer lands 0.48 to 0.49 px off over them, toward the Sun, where the
+  navigator's Lambert template meets the Lommel-Seeliger surface. The table and the
+  compression are realistic but leave the answer where it is: on a Lambert surface
+  the fused answer lands 0.043 to 0.054 px off, and 0.046 to 0.057 px off with
+  either one removed. So the scene shows that the navigator is unaffected by them.
 - ``coiss_nac_stars_moon_lost_lines`` is a frame of stars and a gibbous moon that
   lost its last 41 lines and several groups of whole lines down the frame, and whose
   scene drifts 2 px during the exposure. In those four volumes, 321 of the 5,489

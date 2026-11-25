@@ -26,30 +26,34 @@ exposure_sec: 0.06
 # Rhea brightens toward its sunlit limb less than the Lommel-Seeliger law does.
 #
 # The simulator's codec steps every DCT frequency alike, where the real one does
-# not, so its step is illustrative.  A step of 128 DN makes the contrast across block
-# edges inside the disc 1.72 times the contrast inside the blocks, and the disc without
-# compression shows 0.86.  Three real lossy Rhea frames (N1488892945, N1489304826, and
-# N1489436684) show 1.51, 1.10, and 1.04, so the step leaves sharper block edges than
-# any of them; steps of 64 and 96 DN give 1.15 and 1.37.  The step also zeroes more
-# coefficients than the real codec does: 96% of the disc's AC coefficients fall below
-# 5 DN, against 41 to 52% on those frames.
+# not, so its step is illustrative.  The step is set by one figure, the contrast
+# across block edges inside the disc divided by the contrast inside the blocks,
+# aimed at the middle of three real lossy Rhea frames (N1488892945, N1489304826,
+# and N1489436684), which show 1.51, 1.10, and 1.04, a mean of 1.22.  The figure
+# depends on how much fine detail each disc carries, so the step follows all three
+# frames and not N1488892945 alone.  A step of 80 DN gives 1.21 on the committed
+# draw and 1.18 to 1.24 on noise draws 101, 404, and 808, and the disc without
+# compression shows 0.85 to 0.89.  Steps of 64 and 96 DN give 1.15 and 1.37, and
+# 128 DN gives 1.72, sharper than any of the real frames.  The step also zeroes more
+# coefficients than the real codec does: 95% of the disc's AC coefficients fall
+# below 5 DN, against 41 to 52% on those frames.
 #
 # The planted offset, 20.8 px, lies between the median and the 90th percentile
 # of the operator-verified NAC offsets in the image library (15.9 and 33.9 px),
 # pointing down and right.  The roll is the camera's measured twist,
 # +0.0115 deg, planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.48 px off over 16 distinct draws, toward the Sun, at
-# medium tier on all of them: the scene seeds nothing but the noise, so its
+# The fused answer lands 0.48 to 0.49 px off over 16 distinct draws, toward the
+# Sun, at medium tier on all of them: the scene seeds nothing but the noise, so its
 # noise_seed draws repeat random_seed 101 to 808.  The disc correlation lands 0.55 px
-# off and BodyLimbNav 0.25 to 0.28 px off, and the Lambert template's bias on the
+# off and BodyLimbNav 0.26 to 0.30 px off, and the Lambert template's bias on the
 # Lommel-Seeliger body (#1110) sets those errors.  The table and the compression
-# are realistic but did not move the answer on a Lambert surface, where the fused
-# answer landed 0.034 to 0.050 px off: with the compression removed it landed 0.045
-# to 0.047 px off on four draws, and with the table removed 0.041 to 0.042 px.
+# are realistic but leave the answer where it is: on a Lambert surface the fused
+# answer lands 0.043 to 0.054 px off, and on four draws 0.046 to 0.047 px off with
+# the compression removed and 0.046 to 0.057 px off with the table removed.
 artifacts:
   instrument_defaults: true
-  compression_dct: {probability: 1.0, scale_factor: 128.0}
+  compression_dct: {probability: 1.0, scale_factor: 80.0}
 detector:
   filter: CL1+CL2
   quantization: sqrt_lut
@@ -71,5 +75,5 @@ expected:
   # The body shades with the default Lommel-Seeliger law, and the navigator's
   # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
   # fused error over the seeds, measured as sim_truth.py describes.
-  known_offset_error_px: 0.4795
-  known_offset_error_tol_px: 0.0535
+  known_offset_error_px: 0.483
+  known_offset_error_tol_px: 0.056
