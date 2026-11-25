@@ -4,7 +4,7 @@ The section's type is :class:`spindoctor.nav_records.TreeTuning`, whose own rule
 tested beside it in ``tests/spindoctor/nav_records/test_tuning.py``.  The schema core
 checks each key's type and range, and is tested in its own suite.  What is tested here
 is that the packaged section parses, and that the loader every program passes through
-refuses a bad override, naming the file and the key, before any program has written
+refuses a bad override, giving the file and the key, before any program has written
 anything.
 """
 
