@@ -55,7 +55,6 @@ from spindoctor.nav_model.rings import (
     RingFeature,
     RingFeatureFilter,
     RingsRenderContext,
-    validate_no_date_overlaps,
 )
 from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
@@ -117,46 +116,6 @@ from that cached array. The ring model's transient floor is therefore still set
 by those calls, and striping bounds only the three quantities named here -- the
 ring-plane distance, the planet shadow and the planet's occlusion of the rings.
 """
-
-
-def _require_positive_finite_planet_scalar(
-    planet: str, key: str, planet_config: dict[str, Any]
-) -> float:
-    """Return a positive finite float from ``planet_config[key]``.
-
-    Performs explicit type and finiteness checks so misconfigured YAML
-    fails at config-read, not in the math.
-
-    Parameters:
-        planet: Planet name (used in error messages).
-        key: Config key to read.
-        planet_config: The per-planet config dict.
-
-    Returns:
-        A positive finite float.
-
-    Raises:
-        ValueError: If ``key`` is missing or the value is not a positive
-            finite float.
-    """
-    if key not in planet_config:
-        raise ValueError(f'Missing required ring configuration key {key!r} for planet {planet}')
-    raw: Any = planet_config[key]
-    if isinstance(raw, bool):
-        raise ValueError(
-            f'Invalid {key} for planet {planet}: expected a finite numeric value, got bool'
-        )
-    try:
-        v = float(raw)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            f'Invalid {key} for planet {planet}: expected a finite numeric value, got {raw!r}'
-        ) from exc
-    if not math.isfinite(v):
-        raise ValueError(f'Invalid {key} {v} for planet {planet} (must be finite)')
-    if v <= 0.0:
-        raise ValueError(f'Invalid {key} {v} for planet {planet}')
-    return v
 
 
 @dataclass(frozen=True)
@@ -254,8 +213,7 @@ class NavModelRings(NavModelRingsBase):
         if not hasattr(obs, 'extdata_shape_vu') or not hasattr(obs, 'ext_bp'):
             return []
         rings_config = (config if config is not None else DEFAULT_CONFIG).rings
-        ring_features_dict = getattr(rings_config, 'ring_features', None)
-        if not ring_features_dict or planet not in ring_features_dict:
+        if planet not in rings_config.ring_features:
             return []
         return [cls(f'rings:{planet}', obs, config=config)]
 
@@ -322,62 +280,16 @@ class NavModelRings(NavModelRingsBase):
         )
 
         rings_config = self._config.rings
-        ring_features_dict = getattr(rings_config, 'ring_features', {})
-        if planet not in ring_features_dict:
+        catalog = rings_config.ring_features.get(planet)
+        if catalog is None:
             self._logger.info('No ring features configured for planet %s', planet)
             return
-        planet_config = ring_features_dict[planet]
-        if not isinstance(planet_config, dict):
-            raise ValueError(
-                f'Ring config error: rings.ring_features entry for planet {planet!r} must be '
-                f'a dict (got {type(planet_config).__name__!r})'
-            )
-        epoch_str = planet_config.get('epoch')
-        if epoch_str is None:
-            raise ValueError(f'No epoch configured for planet {planet}')
-        if not isinstance(epoch_str, str):
-            raise ValueError(
-                f'Ring config error: epoch for planet {planet!r} must be a string, '
-                f'got {type(epoch_str).__name__!r}'
-            )
-        try:
-            epoch = utc_to_et(epoch_str)
-        except ValueError as exc:
-            raise ValueError(
-                f'Ring config error: epoch for planet {planet!r} is not a valid UTC '
-                f'string ({epoch_str!r}): {exc}'
-            ) from exc
-        fade_width_pix = _require_positive_finite_planet_scalar(
-            planet, 'fade_width_pix', planet_config
-        )
-        min_allowed_fade_width_pix = _require_positive_finite_planet_scalar(
-            planet, 'min_allowed_fade_width_pix', planet_config
-        )
-        min_feature_pixels = _require_positive_finite_planet_scalar(
-            planet, 'min_feature_pixels', planet_config
-        )
-        if 'features' not in planet_config:
-            raise ValueError(
-                f'Missing required ring configuration key "features" for planet {planet}'
-            )
-        features_raw = planet_config['features']
-        if not isinstance(features_raw, dict):
-            raise ValueError(
-                f'Ring config error: "features" for planet {planet!r} must be a dict '
-                f'(got {type(features_raw).__name__!r})'
-            )
-        if not features_raw:
+        epoch_str = catalog.epoch
+        epoch = utc_to_et(epoch_str)
+        if not catalog.features:
             self._logger.info('Empty ring features dict for planet %s', planet)
             return
-        features: list[RingFeature] = []
-        for key, data in features_raw.items():
-            if not isinstance(data, dict):
-                raise ValueError(
-                    f'Ring config error: planet {planet!r} features.{key!r} must be a dict '
-                    f'(got {type(data).__name__!r})'
-                )
-            features.append(RingFeature.from_config(key, data))
-        validate_no_date_overlaps(features)
+        features = [RingFeature.from_entry(key, entry) for key, entry in catalog.features.items()]
         max_feature_extent = max(f.max_extent_radius for f in features)
         ring_target = f'{planet.lower()}:ring'
         # Cheap visibility pre-check: skips the dense extended-frame
@@ -457,9 +369,9 @@ class NavModelRings(NavModelRingsBase):
             min_radius=min_radius,
             max_radius=max_radius,
             min_res_at_radius=min_res_at_radius,
-            fade_width_pix=fade_width_pix,
-            min_allowed_fade_width_pix=min_allowed_fade_width_pix,
-            min_feature_pixels=min_feature_pixels,
+            fade_width_pix=catalog.fade_width_pix,
+            min_allowed_fade_width_pix=catalog.min_allowed_fade_width_pix,
+            min_feature_pixels=catalog.min_feature_pixels,
             logger=self._logger,
         )
         surviving = feature_filter.filter(features)
@@ -485,7 +397,7 @@ class NavModelRings(NavModelRingsBase):
                 failure=f'Ring-plane distance for {planet}',
             )
         ]
-        remove_planet_shadow = bool(rings_config.get('remove_planet_shadow', False))
+        remove_planet_shadow = rings_config.remove_planet_shadow
         if remove_planet_shadow:
             quantities.append(
                 _StripQuantity(
@@ -537,7 +449,7 @@ class NavModelRings(NavModelRingsBase):
             ring_target=ring_target,
             epoch=epoch,
             resolutions=resolutions,
-            fade_width_pix=fade_width_pix,
+            fade_width_pix=catalog.fade_width_pix,
             all_edge_radii=tuple(all_edge_radii),
             logger=self._logger,
         )
@@ -723,19 +635,12 @@ class NavModelRings(NavModelRingsBase):
             # compensates (wide-arc coverage shrinks the absorbed sensitivity
             # in RingEdgeNav) and the over-severity is accepted and stated
             # rather than modeled away.
-            default_orbit_sigma_km = float(self._config.rings['default_orbit_radial_sigma_km'])
+            default_orbit_sigma_km = self._config.rings.default_orbit_radial_sigma_km
             # Operator-tunable severity for the contested assumption below:
             # the fraction of the catalog rms treated as coherent.  1.0 is
             # today's fully-correlated behavior; lowering it is the reversible
             # lever pending the mode-aware decomposition.
-            correlated_fraction = float(
-                self._config.rings['orbit_radial_sigma_correlated_fraction']
-            )
-            if not 0.0 <= correlated_fraction <= 1.0:
-                raise ValueError(
-                    'rings.orbit_radial_sigma_correlated_fraction must be in [0, 1]; '
-                    f'got {correlated_fraction!r}'
-                )
+            correlated_fraction = self._config.rings.orbit_radial_sigma_correlated_fraction
             # System-level annulus gate: at or above the per-planet
             # km/px threshold the whole ring system routes to the annulus
             # composite and every surviving feature is emitted as part
