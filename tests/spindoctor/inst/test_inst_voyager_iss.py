@@ -1,8 +1,11 @@
 import math
+from pathlib import Path
 
+import host_voyager
 import numpy as np
 import pytest
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
+from tests.spindoctor.host_stand_ins import HostCall, host_snapshot, place_planets_without_kernels
 from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 
 import spindoctor.obs.obs_inst_voyager_iss as obstvgiss
@@ -169,3 +172,15 @@ def test_voyager_iss_metadata_clock_counts_are_the_pds3_labels() -> None:
         None,
         pytest.approx(20621 + 33 / 60, abs=1e-9),
     ]
+
+
+def test_the_reader_scales_the_hosts_image_by_its_factor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reader hands the host the label, and scales the image the host returns."""
+    place_planets_without_kernels(monkeypatch)
+    raw = np.full((1000, 1000), 200, dtype=np.uint8)
+    snapshot = host_snapshot(raw, if_scale=0.0003345, spacecraft=1, planet='SATURN')
+    monkeypatch.setattr(host_voyager.VoyagerISS, 'from_file', HostCall(snapshot))
+    obs = ObsVoyagerISS.from_file(tmp_path / 'C3421729_GEOMED.IMG', label=tmp_path / 'x.LBL')
+    assert float(obs.data[0, 0]) == pytest.approx(0.0669, rel=1e-12)

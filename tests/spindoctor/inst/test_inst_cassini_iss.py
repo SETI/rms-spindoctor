@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
+import host_cassini
+import numpy as np
 import pytest
 import vicar
 from filecache import FCPath
@@ -13,6 +15,7 @@ from tests.config import (
     URL_CASSINI_ISS_CRUISE_01,
     URL_CASSINI_ISS_RHEA_01,
 )
+from tests.spindoctor.host_stand_ins import HostCall, host_snapshot, place_planets_without_kernels
 from tests.spindoctor.inst.conftest import (
     VicarLabelStandIn,
     bare_observation,
@@ -898,3 +901,18 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
         for attribute, keyword, element in _LABEL_METADATA
         if keyword is not None and keyword in section and element is None
     }
+
+
+def test_the_reader_hands_the_host_the_label_and_its_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reader hands the host the label, the fast distortion, and every planet."""
+    place_planets_without_kernels(monkeypatch)
+    host = HostCall(host_snapshot(np.zeros((1024, 1024)), detector='NAC'))
+    monkeypatch.setattr(host_cassini.CassiniISS, 'from_file', host)
+    label = tmp_path / 'N1635282917_1_CALIB.LBL'
+    ObsCassiniISS.from_file(tmp_path / 'N1635282917_1_CALIB.IMG', label=label)
+    assert (host.args, host.kwargs) == (
+        (FCPath(label),),
+        {'fast_distortion': True, 'return_all_planets': True},
+    )

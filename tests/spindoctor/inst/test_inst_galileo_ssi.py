@@ -1,7 +1,12 @@
 import math
+from pathlib import Path
 
+import host_galileo
+import numpy as np
 import pytest
+from filecache import FCPath
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_GALILEO_SSI_IO_01
+from tests.spindoctor.host_stand_ins import HostCall, host_snapshot, place_planets_without_kernels
 from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 from tests.spindoctor.public_metadata_galileo_ssi import GALILEO_SSI_PUBLIC_METADATA
 
@@ -116,3 +121,17 @@ def test_an_image_with_no_filter_publishes_no_filters() -> None:
     """When no label gives the filter, no filter is published."""
     obs = bare_observation(ObsGalileoSSI, {}, subfields={})
     assert obs.get_public_metadata()['filters'] == []
+
+
+def test_the_reader_asks_the_host_for_the_full_field_of_view(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reader hands the host the label and asks for the image's full field of view."""
+    place_planets_without_kernels(monkeypatch)
+    host = HostCall(host_snapshot(np.zeros((800, 800))))
+    monkeypatch.setattr(host_galileo.GalileoSSI, 'from_file', host)
+    ObsGalileoSSI.from_file(tmp_path / 'C0349673965R.IMG', label=tmp_path / 'C0349673965R.LBL')
+    assert (host.args, host.kwargs) == (
+        (FCPath(tmp_path / 'C0349673965R.LBL'),),
+        {'full_fov': True},
+    )

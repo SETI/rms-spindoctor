@@ -25,11 +25,10 @@ import oops
 import pytest
 from filecache import FCPath
 from oops.host import HostFormatError
-from oops.observation import Snapshot
 from PIL import Image
+from tests.spindoctor.host_stand_ins import HostCall, host_snapshot, place_planets_without_kernels
 
 from spindoctor.annotation import Annotation, Annotations
-from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
@@ -441,29 +440,6 @@ class _FrameWithoutPointing(oops.frame.Cmatrix):
         raise RuntimeError('SPICE(NOFRAMECONNECT) -- pxform -- no pointing at this time')
 
 
-@pytest.fixture
-def _planets_without_kernels(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Register every configured planet on a fixed path, in registries of this test's own.
-
-    Building an observation measures the distance to each planet, which is where the
-    camera frame is first used.  The planets are placed on fixed paths so that no kernel
-    is needed, in copies of the oops registries that the test leaves behind.
-    """
-    for owner, registry in (
-        (oops.Body, 'BODY_REGISTRY'),
-        (oops.path.Path, '_PATH_REGISTRY'),
-        (oops.path.Path, '_PATH_CACHE'),
-        (oops.path.LinearPath, '_WAYPOINTS'),
-    ):
-        monkeypatch.setattr(owner, registry, dict(vars(owner)[registry]))
-    linear = oops.path.LinearPath
-    for au, planet in enumerate(DEFAULT_CONFIG.planets, start=1):
-        position = oops.Vector3((1.5e8 * au, 0.0, 0.0))
-        path = linear(position, 0.0, 'SSB', frame='J2000', path_id=planet)
-        oops.Body(planet, path, 'J2000')
-
-
-@pytest.mark.usefixtures('_planets_without_kernels')
 def test_a_frame_without_pointing_from_the_host_records_missing_kernel(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -472,17 +448,9 @@ def test_a_frame_without_pointing_from_the_host_records_missing_kernel(
     The host makes no pointing check, so the gap is raised while the reader builds the
     observation, by cspyce, and the load step records it from the SPICE code.
     """
-    snapshot = Snapshot(
-        axes=('v', 'u'),
-        cadence=oops.cadence.SnapCadence(0.0, 1.0),
-        fov=oops.fov.FlatFOV((1e-5, 1e-5), (256, 256)),
-        path='SSB',
-        frame=_FrameWithoutPointing(),
-    )
-    snapshot.insert_subfield('data', np.zeros((256, 256)))
-    monkeypatch.setattr(
-        host_new_horizons.NewHorizonsLORRI, 'from_file', lambda *_args, **_kwargs: snapshot
-    )
+    place_planets_without_kernels(monkeypatch)
+    snapshot = host_snapshot(np.zeros((256, 256)), frame=_FrameWithoutPointing())
+    monkeypatch.setattr(host_new_horizons.NewHorizonsLORRI, 'from_file', HostCall(snapshot))
     _success, metadata = navigate_image_files(
         ObsNewHorizonsLORRI,
         _make_image_files(tmp_path),
