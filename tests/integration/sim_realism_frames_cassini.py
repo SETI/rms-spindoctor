@@ -70,7 +70,7 @@ _RAW_FULL_SCALE_DN = {'12BIT': 4095, 'TABLE': 255}
 # the Cassini PCK cpck15Dec2017_saturn_only.tpc after NAIF's, and it gives the Thomas et
 # al. (2007, Icarus 190, 573-584) radii: Tethys 540.4 x 531.1 x 527.5 and Rhea 767.2 x
 # 762.5 x 763.1.  Against those, four of the cohort's five real Tethys limbs lay 0.24%
-# to 0.35% of their radius inside the silhouette; against these, all five lie within
+# to 0.35% of their radius inside their matched limbs; against these, all five lie within
 # 0.19 px of their matched limbs.  Only the realism match's silhouettes use
 # these radii; real navigation still fits the Cassini PCK's (#1216).
 IAU_MOON_RADII_KM: dict[str, tuple[float, float, float]] = {

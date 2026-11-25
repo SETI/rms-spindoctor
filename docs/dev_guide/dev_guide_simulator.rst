@@ -2865,7 +2865,7 @@ and the limb-darkening profile by a known amount.
 
 The default is Lommel-Seeliger because the limbs of real airless icy moons follow
 it at low phase. On three real Cassini frames below 30 degrees phase, the steepest
-brightness fall across the lit limb lies 0.02 to 0.17 px inside the body's
+brightness fall across the lit limb lies 0.01 to 0.08 px inside the body's
 silhouette. A Lommel-Seeliger disc puts it 0.05 to 0.07 px inside, and a Lambert
 disc puts it 0.35 to 0.53 px inside (see :ref:`sim-realism-limb-peak`). At zero phase
 the Lommel-Seeliger law is 1 wherever the surface faces, so craters and relief slopes
@@ -6156,8 +6156,12 @@ the body in exact geometry.  The measurement is in
 places, the same one the rise widths use.  For each of its vertices, the silhouette
 point along the vertex's outward normal comes from each side's own geometry.  On a
 real frame, oops traces rays along the normal every 1/64 px and finds where they
-stop hitting the body in its SPICE shape.  On a matched frame, the silhouette is
-the circle the scene states.  Only the lit half of the limb is measured, because
+stop hitting the body in its SPICE shape.  A mission's frame reader can give some
+bodies other radii for this trace than the frame's kernels do, when the kernels' radii
+are known to be out of date; the shape returns to the kernels' once the trace is done,
+so nothing else sees the change.  The instrument chapters say which bodies and why (see
+:doc:`instruments/cassini_iss`).  On a matched frame, the silhouette is the circle the
+scene states.  Only the lit half of the limb is measured, because
 the unlit half has no edge against the sky.  On a real frame a vertex counts when the
 Sun is above the horizon just inside the silhouette.  On a matched frame it counts
 when its normal leans toward the light.
@@ -6214,20 +6218,16 @@ and never less than 0.1 px.  In a bin with one or two real limbs, a single limb 
 the body's shape pulls off its shape model's silhouette sets the median, so such a bin
 records both medians and no band or verdict.
 ``tests/integration/test_sim_realism_limb_peak.py`` holds the record to the bands: it
-fails when a bin's matched median lies outside its band.  One bin is known to lie
-outside, the NAC bin at 60 to 120 degrees phase and 100 to 400 px (see below), and
-``KNOWN_OUTSIDE_BINS`` in ``tests/integration/sim_realism_limb_peak.py`` lists it.  The
-check fails if that bin comes inside its band, so a fix shows up as clearly as a
-regression.  The check reads only the record, or the summary that
-``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it skips on a record that predates
-the statistic.
+fails when a bin's matched median lies outside its band.  The check reads only the
+record, or the summary that ``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it skips on
+a record that predates the statistic.
 
-**What the real limbs show.**  On 2026-11-24 the Cassini NAC cohort gave 17 paired
+**What the real limbs show.**  On 2026-11-25 the Cassini NAC cohort gave 17 paired
 real limbs and the WAC cohort 1.  The real limbs of bodies under 400 px across lie
 close to the silhouette.  Over 12 limbs of Mimas, Tethys, Dione, and Rhea, between 15
-and 136 degrees phase, their median offset is -0.08 px, with a robust scatter of
-0.10 px.  The 6 limbs of bodies over 400 px across scatter by about a pixel, from
--1.10 to +0.97 px.  At those scales a pixel is 0.6 to 1.8 km, so the difference
+and 136 degrees phase, their median offset is -0.01 px, with a robust scatter of
+0.10 px.  The 6 limbs of bodies over 400 px across scatter more, from -0.44 to
++0.97 px.  At those scales a pixel is 0.6 to 1.8 km, so the difference
 between a body's shape model and its true shape is a large part of a pixel, and the
 scatter mostly measures that.  Their band is wide accordingly.  There are too few
 real limbs to bin by the incidence angle at the limb as well.
@@ -6248,9 +6248,9 @@ and a methane-band frame 0.08.  A raw product is not in I/F, and a clipped disc'
 is the clip level, so either leaves its matched body white.  On four NAC limb frames,
 the matched frame gives back the measured albedo to 0.2%.
 
-**What the matched limbs show.**  On 2026-11-24, with each matched body at its real
-body's brightness, two NAC bins have at least 3 real limbs.  One lies within its band
-and one outside it (offsets in pixels, negative inside the silhouette):
+**What the matched limbs show.**  On 2026-11-25, with each matched body at its real
+body's brightness, two NAC bins have at least 3 real limbs, and both lie within their
+bands (offsets in pixels, negative inside the silhouette):
 
 .. list-table::
    :header-rows: 1
@@ -6264,39 +6264,39 @@ and one outside it (offsets in pixels, negative inside the silhouette):
      - n real / matched
      - verdict
    * - phase below 60, over 400 px
-     - +0.11
-     - 1.06
-     - 1.06
+     - +0.28
+     - 0.82
+     - 0.82
      - -0.09
      - 4 / 4
      - within
    * - phase 60 to 120, 100 to 400 px
-     - -0.13
-     - 0.12
-     - 0.12
+     - +0.03
+     - 0.11
+     - 0.11
      - +0.02
      - 4 / 4
-     - outside
+     - within
 
-In the bin outside its band, the four real limbs, of Dione and Tethys between 74 and
-111 degrees phase, peak 0.11 to 0.43 px inside the silhouette in three frames and on
-it in the fourth, while every matched limb peaks within 0.07 px of it.  Each real limb
-lies inside its own matched limb, by 0.01 to 0.43 px.  The photometric law accounts
-for at most part of the difference, as the paragraphs on the law below show, and the
-rest is not yet explained.
+In the bin at 60 to 120 degrees and 100 to 400 px, the four real limbs, of Dione and
+Tethys between 74 and 111 degrees phase, lie from 0.06 px inside the silhouette to
+0.19 px outside it, and every matched limb within 0.07 px of it.  Three real limbs lie
+on or outside their matched limbs, by 0.00 to 0.19 px.  The fourth, a Dione limb at
+107 degrees phase through a polarizer and a methane-band filter, lies 0.12 px inside
+its matched limb, and that is not explained.  The Cassini chapter gives the frame.
 
 The other bins hold one or two paired limbs and have no verdict: below 60 degrees
-under 100 px, -0.10 real against -0.06 matched (2 limbs each); below 60 degrees at
-100 to 400 px, +0.50 against -0.12 (2 each); 60 to 120 degrees under 100 px, -0.06
+under 100 px, -0.06 real against -0.06 matched (2 limbs each); below 60 degrees at
+100 to 400 px, +0.51 against -0.12 (2 each); 60 to 120 degrees under 100 px, +0.02
 against -0.05 (2 each); 60 to 120 degrees over 400 px, -0.29 against -0.01 (1 each);
-above 120 degrees, +0.01 against +0.08 under 100 px and -0.08 against +0.14 at 100 to
-400 px (1 each); and the WAC's one limb, -0.60 against +0.05.
+above 120 degrees, -0.00 against +0.08 under 100 px and +0.07 against +0.14 at 100 to
+400 px (1 each); and the WAC's one limb, -0.12 against +0.05.
 
 The three matched bodies whose real disc is clipped render white and overflow the full
 well; their limbs are not compared.  Of the 23 others, two still overflow somewhere
 before the detector caps them: their albedo comes from the disc interior, and the
 Lommel-Seeliger law brightens toward the sunlit limb up to twice that.  In both, the
-real limb peaks well outside its shape model's silhouette (+0.97 and +1.08 px).  The
+real limb peaks well outside its shape model's silhouette (+0.97 and +1.02 px).  The
 real camera clips a disc without visible bloom, while the simulator spreads the charge
 above its full well along the columns, so a matched frame that overflows does not look
 like a real clipped frame.
@@ -6305,24 +6305,21 @@ like a real clipped frame.
 limbs were also rendered at a quarter of the real exposure, where none of them
 overflows, once with each law.  The albedo of each matched body was measured with the
 same law its disc was shaded with.  Below 30 degrees phase, four paired bodies are
-under 400 px across.  In three of them the real limb peaks 0.02 to 0.17 px inside the
+under 400 px across.  In three of them the real limb peaks 0.01 to 0.08 px inside the
 silhouette, the Lommel-Seeliger limb 0.05 to 0.07 px inside, and the Lambert limb 0.35
-to 0.53 px inside.  The fourth, a 377 px Mimas, peaks 1.08 px outside its shape model's
+to 0.53 px inside.  The fourth, a 377 px Mimas, peaks 1.02 px outside its shape model's
 silhouette in the real image, which no law explains.  The real limbs of the three
 therefore agree with the Lommel-Seeliger law, the scene default, and rule out the
 Lambert law at low phase.
 
-Above 60 degrees the two laws lie closer together, and the limbs do not separate them.
-The eight bodies under 400 px across have a median offset of -0.09 px, against +0.03 px
-with the Lommel-Seeliger law and -0.03 px with the Lambert law.  The mean distance of
-each real limb from its matched limb is 0.15 px with the first law and 0.13 px with the
-second.  In the bin outside its band, the Lambert limbs have a median of -0.03 px, which
-would lie within the band.  The laws differ by 0.06 to 0.13 px in those four frames, so
-the choice of law can account for part of the 0.15 px by which the medians differ.  A
-Minnaert law with an exponent of 0.5, 0.6, or 0.7 moves these limbs outward in 11 of the
-12 renders, by up to 0.17 px, which widens the difference.  The Tethys limb, 0.43 px
-inside the silhouette, lies beyond the reach of all of these laws, so something other
-than the law, most likely the body's shape, contributes there.
+Above 60 degrees the two laws lie closer together.  The eight bodies under 400 px
+across have a median offset of +0.03 px, against +0.03 px with the Lommel-Seeliger law
+and -0.03 px with the Lambert law, and the mean distance of each real limb from its
+matched limb is 0.09 px with the first law and 0.12 px with the second.  So the high
+phase limbs lean toward the Lommel-Seeliger law too, though less clearly than the low
+phase ones.  In the bin at 60 to 120 degrees and 100 to 400 px the laws differ by 0.06
+to 0.13 px from frame to frame.  A Minnaert law with an exponent of 0.5, 0.6, or 0.7
+moves these limbs outward in 11 of the 12 renders, by up to 0.17 px.
 
 Over 400 px across, the shape models' errors cover any difference between the laws.
 

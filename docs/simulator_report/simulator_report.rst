@@ -555,40 +555,40 @@ of the body its matched frame renders, and only when both frames measured it:
      - n sim
      - within
    * - p0 r0
-     - -0.10
+     - -0.06
      - -0.06
      - --
      - 2
      - 2
      - --
    * - p0 r1
-     - +0.50
+     - +0.51
      - -0.12
      - --
      - 2
      - 2
      - --
    * - p0 r2
-     - +0.11
+     - +0.28
      - -0.09
-     - 1.06
+     - 0.82
      - 4
      - 4
      - yes
    * - p1 r0
-     - -0.06
+     - +0.02
      - -0.05
      - --
      - 2
      - 2
      - --
    * - p1 r1
-     - -0.13
+     - +0.03
      - +0.02
-     - 0.12
+     - 0.11
      - 4
      - 4
-     - no
+     - yes
    * - p1 r2
      - -0.29
      - -0.01
@@ -597,14 +597,14 @@ of the body its matched frame renders, and only when both frames measured it:
      - 1
      - --
    * - p2 r0
-     - +0.01
+     - -0.00
      - +0.08
      - --
      - 1
      - 1
      - --
    * - p2 r1
-     - -0.08
+     - +0.07
      - +0.14
      - --
      - 1
@@ -612,21 +612,22 @@ of the body its matched frame renders, and only when both frames measured it:
      - --
 
 Each matched body takes the real body's brightness, measured from the real disc's
-I/F, and is shaded with the Lommel-Seeliger law.  Of the two bins with a verdict, p0
-r2 lies within its band, and p1 r1's matched median lies 0.15 px from the real one,
-outside its 0.12 px band.  Its four real limbs, of Dione and Tethys between 74 and
-111 degrees phase, each lie 0.01 to 0.43 px inside their matched limbs.  At a quarter
-exposure the Lambert law would put that bin's median within the band, but the Lambert
-law does not match the limbs below 30 degrees phase, and one of the four, a Tethys
-limb, lies beyond the reach of every law tried.  Three real NAC discs are clipped at
-the camera's full scale; they give no real limb and no albedo, and their matched
-bodies render white.  Prometheus and Pan have no limb in the real frames, because the
-navigator places none on their shapes, so their matched limbs are not measured.  Of the 23 matched bodies with an unclipped real disc, two still overflow
+I/F, and is shaded with the Lommel-Seeliger law.  Each real limb is measured against
+a silhouette whose radii, for the mid-sized Saturnian moons, are the IAU values; the
+Cassini kernels give older radii, which put four of the five real Tethys limbs
+inside their matched limbs by 0.24% to 0.35% of the radius.  Both bins with a verdict
+lie within their bands.  In p1 r1, three of the four real limbs lie on or outside
+their matched limbs, and one, a Dione limb taken through a methane-band filter, lies
+0.12 px inside its matched limb for no reason yet found.  Three real NAC discs are
+clipped at the camera's full scale; they give no real limb and no albedo, and their
+matched bodies render white.  Prometheus and Pan have no limb in the real frames,
+because the navigator places none on their shapes, so their matched limbs are not
+measured.  Of the 23 matched bodies with an unclipped real disc, two still overflow
 the detector's full well, where the law brightens the limb up to twice the disc
-interior the albedo is measured on; in both the real limb peaks about 1 px outside
-its shape model's silhouette.  The bins without a verdict are set by one or two limbs,
-such as a 377 px Mimas whose real limb peaks +1.08 px outside.  The WAC cohort's one
-limb peaks -0.60 px real against +0.05 px matched.
+interior the albedo is measured on; in both the real limb peaks about 1 px outside its
+shape model's silhouette.  The bins without a verdict are set by one or two limbs, such
+as a 377 px Mimas whose real limb peaks +1.02 px outside.  The WAC cohort's one limb
+peaks -0.12 px real against +0.05 px matched.
 
 The headline reading: each matched star frame now holds the catalog stars
 of its real frame's field, and the simulated star cutouts number 9, from 6
