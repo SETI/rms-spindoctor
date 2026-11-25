@@ -410,17 +410,22 @@ end count, and no count at all from a label lacking one of the four items.
 PDS4 hooks
 ==========
 
-Not supported. Two hooks are implemented --
-``pds4_bundle_template_dir``, which falls back to ``galileo_ssi_1.0``, and
-``pds4_bundle_name``, which falls back to
-``galileo_ssi_backplanes_rsfrench2027`` -- and every remaining hook raises
-``NotImplementedError``. Neither the template directory nor a ``pds4.gossi``
-configuration entry is shipped; the configuration file carries the entry as a
-commented-out stub.
+Not supported. The dataset leaves ``PDS4_CONFIG_KEY`` as None, so
+``sd_create_bundle`` refuses it before it runs a pass, and the loader refuses a ``pds4``
+entry written for it. Every PDS4 hook raises ``NotImplementedError``.
 
-Making bundles work here means implementing ``pds4_bundle_path_for_image``,
-``pds4_path_stub``, ``pds4_lid_part_to_image_name``, the four LID and LIDVID
-builders and ``pds4_template_variables``, and adding a template directory.
+To make bundles here:
+
+* add a template directory;
+* set ``PDS4_CONFIG_KEY``, and add a ``pds4`` entry under that key;
+* implement ``pds4_bundle_template_dir``, ``pds4_bundle_name``, ``pds4_bundle_version``,
+  ``pds4_information_model_version``, and ``pds4_schemas``, which read the entry;
+* implement ``pds4_required_templates``, which names the templates and files each
+  pass takes from the template directory, and ``pds4_user_guide_file_name``, which
+  names the bundle's user guide in it; and
+* implement ``pds4_bundle_path_for_image``, ``pds4_path_stub``,
+  ``pds4_lid_part_to_image_name``, the four LID and LIDVID builders, and
+  ``pds4_template_variables``.
 
 Backplanes, mosaics, and statistics
 ===================================

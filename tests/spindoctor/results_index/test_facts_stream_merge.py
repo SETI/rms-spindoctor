@@ -22,6 +22,7 @@ from typing import Any
 
 import pytest
 import sqlalchemy
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import index_url
 from tests.spindoctor.results_index.conftest import (
     COLUMNS,
@@ -337,7 +338,10 @@ def test_a_child_row_belonging_to_no_yielded_image_fails_the_read(
     )
     with (
         open_record_source(
-            [two_roots.first], results_index_db_url=two_roots.url, columns=COLUMNS
+            [two_roots.first],
+            results_index_db_url=two_roots.url,
+            columns=COLUMNS,
+            tuning=packaged_tree_tuning(),
         ) as source,
         pytest.raises(ValueError, match='did not answer from one state'),
     ):

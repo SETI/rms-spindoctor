@@ -22,7 +22,7 @@ handle ``len(features) > 1``.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -32,13 +32,13 @@ from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import RingAnnulusGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
+from spindoctor.nav_technique.correlation_tuning import NCCCovarianceTuning
 from spindoctor.nav_technique.diagnostics import RingAnnulusDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     add_size_scaled_model_error,
     embed_rotation_unobservable,
-    load_ncc_covariance_tuning,
     log_confidence_breakdown,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
@@ -56,21 +56,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = ['RingAnnulusNav']
-
-
-_DEFAULT_UPSAMPLE_FACTOR: int = 128
-"""Default FFT upsample factor when ``config.offset`` is missing."""
-
-
-_MAX_UPSAMPLE_FACTOR: int = 1_000_000
-"""Upper bound on the FFT upsample factor.
-
-A misconfigured value above this would push the upsampled correlation
-peak grid into multi-gigabyte allocations and effectively hang the
-process; raise ``ValueError`` instead.  The bound is generous — the
-shipped default is 128 — so legitimate per-instrument tuning is never
-clipped.
-"""
 
 
 # Measured against reference pointing on real Cassini ring frames, the NCC fit lowered
@@ -175,6 +160,8 @@ class RingAnnulusNav(NavTechnique):
     """
 
     name = 'RingAnnulusNav'
+    Tuning = NCCCovarianceTuning
+    tuning: ClassVar[NCCCovarianceTuning]
     accepts_feature_types = frozenset({NavFeatureType.RING_ANNULUS})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -189,9 +176,16 @@ class RingAnnulusNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Its tuning holds the covariance model-error terms only.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._cov_tuning = load_ncc_covariance_tuning(self.tuning, self.name)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable RING_ANNULUS feature.
@@ -269,7 +263,7 @@ class RingAnnulusNav(NavTechnique):
             extfov_shape = context.image_ext.shape
             template_img, template_mask = compose_template_features(eligible, extfov_shape)
             margin_v, margin_u = search_window_for_obs(context)
-            up_factor = self._upsample_factor()
+            up_factor = self.config.offset.correlation_fft_upsample_factor
             self.logger.debug(
                 'Composite annulus template: %d painted pixels; '
                 'search window (v, u) = (%d, %d) px; upsample factor = %d',
@@ -286,7 +280,7 @@ class RingAnnulusNav(NavTechnique):
                 max_offset_vu=(margin_v, margin_u),
                 data_mask=context.sensor_mask_ext,
                 use_gradient='auto',
-                localization_uncertainty_scale=self._cov_tuning.localization_uncertainty_scale,
+                localization_uncertainty_scale=self.tuning.localization_uncertainty_scale,
                 logger=self.logger,
                 final_refinement=_FINAL_REFINEMENT,
             )
@@ -303,8 +297,8 @@ class RingAnnulusNav(NavTechnique):
             covariance_2x2 = add_size_scaled_model_error(
                 covariance_2x2,
                 size_px=_annulus_span_px(eligible),
-                size_frac=self._cov_tuning.model_error_size_frac,
-                floor_px=self._cov_tuning.model_error_floor_px,
+                size_frac=self.tuning.model_error_size_frac,
+                floor_px=self.tuning.model_error_floor_px,
             )
             # Radial orbit-uncertainty channel: the NCC covariance describes the
             # statistical lock onto the MODELED annulus, but a catalog-orbit
@@ -379,33 +373,6 @@ class RingAnnulusNav(NavTechnique):
                 rotation_rad=0.0 if fit_rotation else None,
                 sigma_rotation_rad=(rotation_unobservable_sigma_rad() if fit_rotation else None),
             )
-
-    def _upsample_factor(self) -> int:
-        """Return the FFT upsample factor configured under ``config.offset``.
-
-        Validates the raw value: must be a real (non-bool) number, must
-        coerce to ``int >= 1``, and must lie below
-        :data:`_MAX_UPSAMPLE_FACTOR` so a malformed config cannot push
-        the FFT into a multi-gigabyte allocation.
-        """
-        offset_block = getattr(self.config, 'offset', None)
-        if offset_block is None:
-            return _DEFAULT_UPSAMPLE_FACTOR
-        raw = getattr(offset_block, 'correlation_fft_upsample_factor', None)
-        if raw is None:
-            return _DEFAULT_UPSAMPLE_FACTOR
-        if isinstance(raw, bool) or not isinstance(raw, (int, float)):
-            raise ValueError(
-                f'config.offset.correlation_fft_upsample_factor must be a '
-                f'real (non-bool) number; got {type(raw).__name__} {raw!r}'
-            )
-        coerced = int(raw)
-        if coerced < 1 or coerced > _MAX_UPSAMPLE_FACTOR:
-            raise ValueError(
-                f'config.offset.correlation_fft_upsample_factor must lie in '
-                f'[1, {_MAX_UPSAMPLE_FACTOR}]; got {raw!r}'
-            )
-        return coerced
 
 
 class _AnnulusConfidenceContext:

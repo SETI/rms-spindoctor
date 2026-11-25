@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.packaged_sections import configure_tree_tuning, packaged_tree_tuning
 from tests.spindoctor.conftest import (
     index_url,
     metadata_document,
@@ -30,8 +31,7 @@ from tests.spindoctor.conftest import (
 
 from spindoctor.cli import sd_results_index
 from spindoctor.cli.results_index import FanOut, IngestCounts
-from spindoctor.config import MAIN_LOGGER
-from spindoctor.nav_records import TreeTuning
+from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
 
 PASSWORD = 'sup3rs3cr3t'
 """A password distinctive enough that finding it anywhere is proof of a leak."""
@@ -478,14 +478,14 @@ def test_the_ingest_is_handed_the_tuning_the_configuration_names(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The driver resolves the tuning once, at its top, and the pass reads what it was handed."""
-    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    configured = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     handed: list[Any] = []
 
     def recording(*args: Any, **kwargs: Any) -> IngestCounts:
         handed.append(kwargs.get('tuning'))
         return IngestCounts()
 
-    monkeypatch.setattr(sd_results_index, 'get_results_tree_tuning', lambda config: configured)
+    configure_tree_tuning(monkeypatch, DEFAULT_CONFIG, configured)
     monkeypatch.setattr(sd_results_index, 'ingest_metadata_files', recording)
     root = tmp_path / 'results'
     root.mkdir()
@@ -514,14 +514,14 @@ def test_a_divide_is_handed_the_same_tuning(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Both subcommands that list a tree read the one resolution the driver made."""
-    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    configured = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     handed: list[Any] = []
 
     def recording(*args: Any, **kwargs: Any) -> FanOut:
         handed.append(kwargs.get('tuning'))
         return FanOut()
 
-    monkeypatch.setattr(sd_results_index, 'get_results_tree_tuning', lambda config: configured)
+    configure_tree_tuning(monkeypatch, DEFAULT_CONFIG, configured)
     monkeypatch.setattr(sd_results_index, 'fan_out_ingest_tasks', recording)
     root = tmp_path / 'results'
     root.mkdir()

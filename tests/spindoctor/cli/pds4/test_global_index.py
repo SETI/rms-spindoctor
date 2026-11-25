@@ -25,10 +25,12 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
+from tests.product_sections import plane_entry
 
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.index_columns import IndexValueFormat
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
+from spindoctor.config.sections_products import PlaneEntry
 
 from .conftest import (
     BROKEN_TEMPLATE,
@@ -36,7 +38,6 @@ from .conftest import (
     GLOBAL_INDEX_TEMPLATE,
     PLUMBING_RING_TARGET,
     BundleEnv,
-    index_entry,
     make_bundle_env,
     read_csv_rows,
     read_index_rows,
@@ -72,14 +73,14 @@ def _run_global_index(env: BundleEnv) -> int:
 def _index_env(
     tmp_path: Path,
     *,
-    bodies: list[dict[str, Any]] | None = None,
-    rings: list[dict[str, Any]] | None = None,
+    bodies: list[PlaneEntry] | None = None,
+    rings: list[PlaneEntry] | None = None,
 ) -> BundleEnv:
     """Build an environment with body/ring backplane types configured.
 
     Parameters:
         tmp_path: Base temporary directory.
-        bodies: ``config.backplanes.bodies`` entries, each as :func:`index_entry`
+        bodies: ``config.backplanes.bodies`` entries, each as ``plane_entry``
             builds one.  When None, a 'latitude' in radians and a 'resolution' in
             kilometers per pixel.
         rings: ``config.backplanes.rings`` entries on the same terms.  When
@@ -90,11 +91,11 @@ def _index_env(
     """
     if bodies is None:
         bodies = [
-            index_entry('latitude', 'rad'),
-            index_entry('resolution', 'km/pixel'),
+            plane_entry('latitude', 'rad'),
+            plane_entry('resolution', 'km/pixel'),
         ]
     if rings is None:
-        rings = [index_entry('radius', 'km')]
+        rings = [plane_entry('radius', 'km')]
     return make_bundle_env(tmp_path, bodies=bodies, rings=rings)
 
 
@@ -127,7 +128,7 @@ MISCELLANEOUS = f'urn:nasa:pds:{DEFAULT_BUNDLE_NAME}:miscellaneous'
 """The miscellaneous collection's LID, which each index product's LID begins with."""
 
 RING_LONGITUDE_ENTRY = next(
-    entry for entry in DEFAULT_CONFIG.backplanes.rings if entry['name'] == 'ring_longitude'
+    entry for entry in DEFAULT_CONFIG.backplanes.rings if entry.name == 'ring_longitude'
 )
 """The shipped ring longitude plane, whose index block gives it two wrapped columns."""
 
@@ -187,7 +188,7 @@ def test_a_partial_incidence_block_gives_each_member_it_records(tmp_path: Path) 
 
 
 BODY_LONGITUDE_ENTRY = next(
-    entry for entry in DEFAULT_CONFIG.backplanes.bodies if entry['name'] == 'body_longitude'
+    entry for entry in DEFAULT_CONFIG.backplanes.bodies if entry.name == 'body_longitude'
 )
 """The shipped body longitude plane, whose index block gives it two wrapped columns."""
 
@@ -298,7 +299,7 @@ def test_each_field_is_as_long_as_the_longest_value_in_its_column(tmp_path: Path
     left-justified, a comma separates the fields, and every line ends in a line feed.
     The header line names the columns, unpadded.
     """
-    env = _index_env(tmp_path, bodies=[index_entry('latitude', 'rad')], rings=[])
+    env = _index_env(tmp_path, bodies=[plane_entry('latitude', 'rad')], rings=[])
     two_bodies: dict[str, Any] = {
         'A': {'backplanes': {'latitude': {'min': 1.0, 'max': 2.0, 'units': 'deg'}}},
         'MOON_B': {'backplanes': {'latitude': {'min': -12.5, 'max': 45.25, 'units': 'deg'}}},
@@ -360,7 +361,7 @@ def test_a_degrees_per_pixel_column_keeps_a_value_far_smaller_than_one(tmp_path:
     checked, since a format applied to one and not the other is the way a table
     half-rounds.
     """
-    env = _index_env(tmp_path, rings=[index_entry('longitudinal_resolution', 'rad/pixel')])
+    env = _index_env(tmp_path, rings=[plane_entry('longitudinal_resolution', 'rad/pixel')])
     fine = ring_metadata(
         {'longitudinal_resolution': {'min': 0.00015470, 'max': 0.00080214, 'units': 'deg/pixel'}}
     )
@@ -453,7 +454,7 @@ def _ring_resolution_env(tmp_path: Path) -> BundleEnv:
     Returns:
         The environment, whose ring statistic is expected in degrees per pixel.
     """
-    return _index_env(tmp_path, rings=[index_entry('longitudinal_resolution', 'rad/pixel')])
+    return _index_env(tmp_path, rings=[plane_entry('longitudinal_resolution', 'rad/pixel')])
 
 
 def _ring_resolution_stats(units: str) -> dict[str, Any]:
@@ -837,8 +838,8 @@ def test_the_miscellaneous_inventory_lists_the_tables_and_what_the_documents_cit
     env = make_bundle_env(
         tmp_path,
         template_contents={'collection_document.csv': document},
-        bodies=[index_entry('latitude', 'rad')],
-        rings=[index_entry('radius', 'km')],
+        bodies=[plane_entry('latitude', 'rad')],
+        rings=[plane_entry('radius', 'km')],
     )
     _write_image(env.bundle_dir / 'data', 'shard0/1234567890w', bodies=BODY_STATS, rings=RING_STATS)
     _run_global_index(env)
