@@ -249,17 +249,17 @@ once, in the format that stays. The same changes build the shared schema core th
 (Phase 3b) uses. Renders move here only where an issue says so, and each moved baseline is
 explained.
 
-The navigator config is left alone for now (operator, 2026-11-17). Typing it is deferred and
-tracked in `ENGINEERING_PLAN.md`: the camera blocks (#1029), and every other section with the
-deletion of the keys nothing reads (#1032). No issue in this plan changes navigator code; #1023
-edits the navigator's config files only to delete the camera-block keys nothing reads.
+The navigator config work resumed on 2026-11-23 (operator) and is tracked in
+`PROGRAM_PLAN.md`: the camera blocks (#1029), and every other section with the deletion of the
+keys nothing reads (#1032). The operator ruled on 2026-11-23 that the navigator config will
+refuse null keys, as scenes do. No issue in this plan changes navigator code; #1023 edits the
+navigator's config files only to delete the camera-block keys nothing reads.
 
 | Issue | Subject | Why now |
 |---|---|---|
 | #988, #986, #987, #990 | **Done (PR #1116): the validator refuses a null anywhere in a scene with its key path, and each nav_override value passes the check of the body key it replaces.** Refuse null keys in simulated scenes (operator ruling, 2026-11-15); a null noise value crashes the renderer; values inside `nav_override` are not validated | The typed scene needs "unset" to mean absent, never null. A null inside `nav_override` is refused like any other. |
 | #1021 | **Done (PR #1109).** The core is the `spindoctor/schema/` package: schemas are frozen dataclasses that pydantic parses, each problem is one line naming the file and key path, and a layer merge applies the REMOVE and REFUSE null policies. One typed schema core for configuration and scene files: plain frozen dataclasses parsed by pydantic (operator decision, 2026-11-16), and one layered YAML merge with a null policy per family | Every later typing step builds on it. Its first consumer is the instrument catalog (#1022). It changes nothing in the navigator config. |
 | #1022 | **Done (PR #1114).** Catalog entries are typed frozen dataclasses parsed through the core, with their cross-checks as `__post_init__` rules, and each artifact mode's parameters are annotated types checked by one parse for scenes and catalog entries alike; every committed render reproduces unchanged. The instrument catalog and the artifact-mode parameters, parsed through the core | Typed detector fields, which the scene's noise and detector blocks reuse. One mode-parameter interpreter, not two. |
-| #1029 | The navigator camera blocks typed through the core, and a scene's `instrument_config` overlay parsed through the same types | **Deferred (operator, 2026-11-17).** Navigator config work, tracked with #1032 in `ENGINEERING_PLAN.md`. Until it lands, the typed scene (#1024) gives the scene's `instrument_config` overlay its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
 | #806, naming part | **Done (PR #1118).** `vgiss.yaml` holds `vgiss_1_nac`, `vgiss_1_wac`, `vgiss_2_nac`, and `vgiss_2_wac`, each stating every value itself with the same numbers, so nothing renders differently; `instrument: vgiss` now fails as unknown. Split the `vgiss` entry into four per-camera entries, renaming the scene's instrument value | Renames a scene value before Phase 2b writes Voyager scenes. The per-camera values stay in Phase 4e. |
 | #1017 | **Done (PR #1124).** Banding, hot pixels, and the readout dark are one effect each, set by one artifact mode; dark current stays a separate effect in the noise block, shutter shading becomes a mode of its own, bias structure, bloom, and quantization each keep one setting, and the detector modules are grouped by physics. No committed scene, sweep, or baseline moves. Under `instrument_defaults` Galileo's bands turn vertical and Voyager's take a new phase, and LORRI's banding is drawn as published (random row striping within 1 DN plus a damped amplifier ringing from the first column), which moves the realism match's Galileo, Voyager, and LORRI statistics; the realism record and LORRI's regression bands are regenerated. Detector effects modeled twice, once in the noise block and once as an artifact mode | Removes or merges scene keys. |
 | #1023 | **Done (PR #1138, with #1139).** The instrument entries are the only image-side source of detector physics, a scene's `detector` block sets the ceiling, well, bias, signal scale, and loss rate, the `noise` block holds only noise, the renderer reads the navigator config only for the marker and a scene's matched PSF, and the camera-block keys nothing reads are deleted; no committed render moves. Image-side detector physics comes from two configuration trees, and the noise block holds keys that are not noise | Moves scene keys, and lets a scene plant a mismatch between the true and believed saturation ceilings. It also deletes the camera-block keys nothing reads, the image-side keys it stops reading among them. |
@@ -271,9 +271,9 @@ Order: #988 and #1021 first, then #1022, #1017, and #1023, one at a time; #806's
 Decisions needed before the work starts, asked one at a time: for #1017, whether each pair (banding,
 dark signal, hot pixels) is one effect or two.
 
-**Exit:** the issues above are closed, except the deferred #1029. No scene key is renamed or moved
-after this phase except by an issue that adds new physics. The simulator's instrument catalog is
-typed. Image-side detector physics has one source.
+**Exit:** the issues above are closed. No
+scene key is renamed or moved after this phase except by an issue that adds new physics. The
+simulator's instrument catalog is typed. Image-side detector physics has one source.
 
 ## Phase 2b: realistic guard scenes
 
@@ -282,10 +282,31 @@ validation scenes that YAML can express today, so they guard the churn of Phases
 are the authorable parts of #904 and the ring-only part of #377:
 
 - every camera the simulator catalogs, at real frame sizes and real offsets, with twist;
-- star fields with a body, and rings with a body;
+  **Done (PR #1154), apart from Voyager, which follows the four-camera split (#806, PR #1118):**
+  the `full_frame_cameras` class holds ten full-frame scenes on the Cassini NAC and WAC (raw
+  and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
+  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
+  them are expected failures tied to #342, #785, and #1153;
+- star fields with a body, and rings with a body; **Done (PR #1155).** The `mixed_content` class
+  holds stars with a body 1.81 px off its predicted position (fused 0.16-0.26 px off, pulled
+  from the stars toward the body), stars with a crescent on a summed 512 px frame (fused
+  0.01-0.18 px off, the disc 0.01 px), a moon over a ring sheet, which conflicts because
+  RingEdgeNav slides 8.4-9.3 px along the arcs at a 0.1 px sigma (#755), and a distant Saturn
+  with its rings on the WAC (fused 0.03-0.10 px off, within 2.6 reported sigmas); a nearer
+  planet with rings waits on #896;
 - dense ring profiles at real scale and low opening, with only catalog edges navigable and
-  unmodeled structure beside them;
-- interleaved defect modes on one frame.
+  unmodeled structure beside them; **Done (PR #1156).** The `dense_rings` class holds five
+  full-size NAC scenes (a navigated Keeler-gap profile, the F ring beside the A ring's edge,
+  the same rings at an opening of 2.5 degrees, a hidden Maxwell-ringlet eccentricity, a
+  saturated B ring), each held to a known-error band (#755 for the Keeler gap, #1143 for the
+  unfit twist, #1152 for the low opening, #1144 for the hidden eccentricity, where the frame
+  conflicts, #1145 for the saturated edge);
+- interleaved defect modes on one frame. **Done (PR #TBD).** The `mixed_defects` class holds a
+  lossy table NAC moon, a NAC stars-and-moon frame with groups of lost lines down the frame, a
+  truncated bottom, and 2 px of smear, a Galileo moon with compression and lost 8-line slices,
+  and a raw LORRI moon with frame-transfer smear; all four navigate within 0.12 px over 24
+  distinct draws (16 for the lossy moon, which seeds only its noise). The Galileo frame's lost
+  slices leave its answer within 0.08 px.
 
 Each scene asserts against its planted truth (#905). Scenes that expose a navigator failure are
 committed as expected failures with the issue they reproduce.
@@ -330,7 +351,7 @@ its stars toward pixel centers (no committed scene does); each such move is expl
 
 | Issue | Subject | Why now |
 |---|---|---|
-| #1024 | Parse every scene into typed scene dataclasses that are its field table, and make that parse the only validation (3 to 5 PRs, block by block) | Each Phase 4 key is then declared once: type, range, default, boundary class, and editor hint. The boundary is structural: truth types extend idealized types. |
+| #1024 | Parse every scene into typed scene dataclasses that are its field table, and make that parse the only validation (3 to 5 PRs, block by block) | Each Phase 4 key is then declared once: type, range, default, boundary class, and editor hint. The boundary is structural: truth types extend idealized types. Until the navigator camera blocks are typed (navigator config work in `PROGRAM_PLAN.md`), the scene's `instrument_config` overlay gets its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
 | #1028 | Resolve each render's settings once into a `RenderSettings` record on the frame (after #1024) | One place interprets switches such as `instrument_defaults`; the detector parameters resolve once per render. |
 | #1027 | Every render stage reads the typed scene (after #1024 and #1028; a few PRs, by stage) | Deletes about 200 raw scene reads in the image-side stages and the render-time validation backstops. |
 | #1015 | Render through a grid object that owns oversampling (after #1028) | Removes the factor from 14 modules before Phase 4 adds pixel-unit keys. |
@@ -369,6 +390,7 @@ gap affects, from the critique's population counts.
 | Issue | Subject |
 |---|---|
 | #895 | Stars, bodies, and rings share no radiometric scale. **Carries #925's star-count criterion (operator, 2026-11-18):** the matched NAC star twins should give a star cutout count comparable to the real frames' 25; the 2026-11-17 record gives 9, because simulated NAC stars are about 3.5 mag fainter than real ones at the same catalog magnitude. |
+| #1153 | **Affects `gossi_star_field_short_exposure`, held as an expected failure.** At the real Pleiades frames' 0.1 s the navigator predicts only the V 2.8 star of a simulated Galileo field, where the real frames lock on three stars: simulated Galileo stars are about 12 times fainter than real ones of the same magnitude (4e7 to 7e7 electrons per second at V 0 on the real frames against 4.0e6), and the simulated-frame star limit spreads that zero point over the 3.0 px placeholder blur (#342), reaching V 3.2 against V 7.8 on the real frames |
 | #896 | No ring-body shadows; the planet's shadow is a fixed wedge |
 | #921 | Background star counts 3 to 10 times too sparse |
 | #899 | Navigator star limit: 30.0 on calibrated frames, filter ignored on raw ones (the Cassini part here; the Voyager part follows #907, and the Galileo, Voyager, and LORRI limits follow #342). **Carries #925's star-count criterion (operator, 2026-11-18):** the navigator on the NAC star twin N1459552012 should predict a number of stars comparable to the real frame's 4; in the 2026-11-17 record its star-field fit ranks 30, the most it takes. |
@@ -499,6 +521,18 @@ Those classes are eligible for retirement in Phase 7.
 | #1092 | **Affects `planted_rank1_ring_flat`, held as a known error.** Ring-edge vertices sit at border-pixel centers, which biases the fit for straight edges (navigator work) |
 | #1099 | **Affects `mutual_grazing` and `mutual_half`, held as known errors.** Overlapping body templates are painted by a yes-or-no mask, which leaves a dark outline at the occluding limb (navigator work) |
 | #1103 | **Affects the widest step of the PSF sweep.** The limb fit reports a confident answer a pixel wrong under a blur the navigator does not model (navigator work) |
+| #1146 | **Affects `coiss_nac_star_field`, where the other star techniques carry the answer.** StarFieldFromCatalogNav passes only its 30 brightest sources to the matcher, and on a raw frame cosmic rays take those places, so it returns spurious (navigator work) |
+| #1147 | **Affects `coiss_wac_disc`, held at low tier.** The disc correlation discards any answer within 2 px of its search limit, so with the WAC's 13 px window a correct answer past 11 px is thrown away (navigator work) |
+| #1148 | **Affects no current scene: the Galileo guard scenes plant the measured sky noise of #979, because real Galileo skies are that noisy.** A quantized 8-bit sky measures zero noise, and the star model then draws no stars. The Galileo star field at the real Pleiades frames' 0.1 s exposure and the catalog read noise reproduces it (navigator work) |
+| #1149 | **Affects no current scene: with the hot pixels scaled to the exposure (#906, PR #1168), `saturn_rings_wac` sits at 0.9 to 2.6 sigma and needs no sigma band.** On a whole-system WAC frame RingEdgeNav answered 0.15 to 0.23 px off at a sigma of about 0.04 px, 3 to 5 sigma, with the simulated hot pixels near full well whatever the exposure. Re-measured on PR #1168 it answers 0.03 to 0.10 px off at a sigma of 0.04 to 0.05 px; the planet in view still adds to the error (0.10 against 0.08 px on the committed seed) |
+| #1150 | **Affects no current scene: with the hot pixels scaled to the exposure (#906, PR #1168), `stars_body_ephemeris_error` shows no such draw.** StarUniqueMatchNav answered 114 px off at 0.70 confidence on one draw of 16 and did not flag it (navigator work). Re-measured on PR #1168 it flags 5 of its 25 answers spurious, and the rest lie within 0.25 px of the truth |
+| #1143 | **Affects `a_ring_edge_f_ring`, held as a known error, and the other `dense_rings` scenes in part.** The NAC's unfit twist of 0.0115 degrees slides ring answers along curved edges by about 0.3 px, and moves weakly determined answers by more, and the reported sigma leaves it out (navigator work) |
+| #1144 | **Affects `maxwell_hidden_eccentricity`, held as a conflicted frame with a known-error band on each technique.** RingEdgeNav follows an eccentric ringlet whose catalog orbit is circular and answers 6.8 px off at 120 sigma; RingAnnulusNav, pulled by the same ringlet, answers 11.8 px off without flagging it, so the frame conflicts (navigator work) |
+| #1145 | **Affects `b_ring_saturated_plateau`, held as a known error.** A saturated ring edge pulls the answer 0.06 px farther out across the edges than the same frame unsaturated, about five times the reported sigma (navigator work) |
+| #1152 | **Affects `a_ring_low_opening`, held as a known error.** At a low ring opening a narrow gap is resolved only near the ansa, yet both its edges are fitted along the whole arc, and the answer lands 0.84 px off at 16 sigma (navigator work) |
+| #1164 | **Affects no current scene.** When lost 8-line slices of zero data cross a body's disc, the disc correlation does not exclude them or flag the answer. It now lands 0.020 to 0.046 px off on `gossi_ict_moon`, including the six seeds whose lost band crosses the disc, where the same scene once held it up to 0.91 px off. Exclude missing rows from the correlation, or flag the answer when they cover enough of the disc |
+| #1204 | The simulator cannot draw Cassini's compression-truncated lines (alternating lines that lose their ends, 19% of the NAC frames with loss) or lost-line groups of varying size at any start line; `coiss_nac_stars_moon_lost_lines` uses fixed 7-line groups as the nearest form |
+| #1205 | LORRI's catalog frame-transfer smear timings are about 10% long and on the wrong sides against lor_0034849319 and the instrument paper; `nhlorri_moon_raw` sets measured timings itself |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling
@@ -519,7 +553,7 @@ retired and retained library classes.
 
 | Issue | Subject |
 |---|---|
-| #915 | **Now tracked through its slices, each its own issue: #1005 to #1030, #901, #923, and #310, in Phases 1b, 2, 2a, and 3b (#1029 is deferred; see Phase 2a).** It closes when its slices close, except the deferred #1029, which moved to the navigator config work in `ENGINEERING_PLAN.md`. Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
+| #915 | **Now tracked through its slices, each its own issue: #1005 to #1030, #901, #923, and #310, in Phases 1b, 2, 2a, and 3b, and the navigator camera blocks (#1029), which the navigator config work in `PROGRAM_PLAN.md` carries.** It closes when its slices close. Restructure below the core: typed specs (begun in #900), one body path (begun in #901), and smaller stages |
 | #1020 | **Moved to Phase 3b.** Build the simulated-image editor from per-block panels driven by the typed scene's field metadata (#1024) |
 | #923 | **Moved to Phase 1b.** Duplicate classifier, test-only module, missing fixtures, and codenames |
 | #902 | **Closes with #1020 (Phase 3b).** 26 scene keys without editor controls |
@@ -558,7 +592,7 @@ Code-structure critique items not taken, with the reason for each:
   `schema/nodes.py`.**
   The artifact registry stays one module (`artifact_modes.py`), `stages.py` keeps `SimFrame`, and
   the schema core is the top-level `spindoctor/schema/` package (#1021), which the navigator config
-  will share once its deferred typing (#1029 and #1032) lands.
+  will share once its typing (#1029 and #1032) lands.
 
 #856, #1000, #957, and #816 can land whenever their fixes are ready.
 

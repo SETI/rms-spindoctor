@@ -1,0 +1,35 @@
+schema_version: 2
+scene_name: coiss_calib_nac_disc
+instrument: coiss_calib_nac
+size_v: 1024
+size_u: 1024
+random_seed: 7
+exposure_sec: 0.18
+# A calibrated Cassini NAC frame of a mid-sized icy moon, 280 px across, at a
+# phase of 35 deg, the kind of frame most of the image library's NAC body
+# frames are.  The CL1+GRN filter and the 0.18 s exposure put the disc at I/F
+# 0.7 to 1.0, under the full well.  instrument_defaults turns on the CALIB
+# chain: shot, read, and readout-dark noise, the calibration residual, cosmic
+# rays, the calibrated hot-pixel population, and the fitted PSF and distortion
+# residual.
+#
+# The planted offset, 57 px, is near the largest operator-verified NAC offset
+# (60 px), inside the camera's 50 by 140 px search window.  The roll is the
+# camera's measured twist, +0.0115 deg, planted with roll fitting off as the
+# camera ships.
+artifacts:
+  instrument_defaults: true
+detector:
+  filter: CL1+GRN
+bodies:
+  - name: DIONE
+    center_v: 470.0
+    center_u: 560.0
+    semi_a_px: 140.0
+    semi_b_px: 140.0
+    semi_c_px: 140.0
+    illumination_angle: 120.0
+    phase_angle: 35.0
+offset_v: -31.27
+offset_u: -47.62
+offset_rotation_deg: 0.0115

@@ -1,0 +1,111 @@
+schema_version: 2
+scene_name: maxwell_hidden_eccentricity
+instrument: coiss_nac
+size_v: 1024
+size_u: 1024
+random_seed: 31
+exposure_sec: 2.0
+# The Maxwell gap and ringlet in the C ring at 2 km/px, lit, near the ansa,
+# with the ringlet drawn eccentric while the navigator's orbit for it is
+# circular: a hidden eccentricity.
+#
+# The radii, all from config_310_saturn_rings.yaml: the Maxwell gap from
+# 87,342.77 to 87,610.12 km, and the Maxwell ringlet from 87,480.29 to
+# 87,539.36 km.  The catalog gives the ringlet's inner edge ae = 18.93 km
+# and its outer edge ae = 58.02 km.  One ringlet orbit carries one
+# eccentricity here, so the drawn ringlet takes their mean, 38.475 km
+# (19.2375 px), through orbit_error, with its pericenter 75 deg from the
+# node.  Along the ringlet's arc in the frame (longitudes -2.9 to +2.7
+# deg) that draws it 4.04 to 5.86 px inward of the navigator's circular
+# orbit, 4.95 px on average.  The gap's outer edge has ae = 1.11 km in the
+# catalog (0.6 px); the gap is drawn circular, as the navigator knows it.
+# The rest of the C ring is a uniform sheet at tau 0.1.  The navigator is
+# given no orbit error bars, as for a catalog that takes its orbits to be
+# exact.  The catalog's ringlet also has m = 2 and 4 terms; the schema can
+# withhold only the mode-1 ellipse (#910).
+#
+# The frame spans 86,496 to 88,817 km and holds three more cataloged
+# structures, all circular in the catalog:
+# - the outer edge of a plateau at 88,592.74 km (feature_28_oer), which
+#   crosses a 566 px arc.  The catalog has no inner edge for it, so the
+#   scene draws a ramp that rises over 150 km to tau 0.3 above the sheet
+#   and ends in a sharp step at the cataloged radius.  Only that step is
+#   known to the navigator.  The ramp's width and depth are illustrative.
+# - the Bond gap, 88,686.01 to 88,723.04 km, and the Bond ringlet inside
+#   it, 88,701.89 to 88,719.24 km (tau 0.3, illustrative), whose edges
+#   cross 179 to 261 px arcs in the frame's corner.  They are drawn but not
+#   known to the navigator.  The ringlet's outer edge sits 1.9 px inside
+#   the gap's outer edge.  With both navigable, the frame with the ringlet
+#   drawn circular and the twist removed lands 0.68 px off at 12 sigma
+#   instead of 0.09 px, a separate failure (#1152) that would mix with the
+#   hidden eccentricity this scene holds.
+#
+# Geometry: B = +14 deg to the observer and +20 deg to the Sun (the lit
+# face), phase 40 deg, frame longitudes -3.3 to +3.0 deg, so the edges are
+# curved arcs.  The planted twist, +0.0115 deg, is the NAC's measured
+# twist, with roll fitting off as the camera ships.
+#
+# Measured outcome (2026-11-24): conflicted on every draw.  RingEdgeNav
+# answers 6.80 px from the planted offset at confidence 0.90 with a
+# reported sigma of 0.048 to 0.073 px: 120 sigma.  The error is 5.00 px
+# across the edges, matching the ringlet's displacement, so the fit
+# followed the ringlet and gave up the gap's correct edges, and 4.61 px
+# along them.  With the ringlet drawn circular the committed draw is
+# 0.599 px off (0.089 px with the twist removed too), so the hidden
+# eccentricity carries the error, and the reported sigma does not cover it
+# (#1144).  With only the twist removed it is 6.48 px off at 144 sigma.
+# RingAnnulusNav answers 11.80 px off at confidence 0.86 on every draw and
+# does not flag it (#1144).  The ensemble sees the two disagree and returns
+# conflicted.  The annulus error also comes from the hidden eccentricity:
+# with the ringlet drawn circular the annulus answer is 0.40 px off and
+# flagged, and with only the twist removed it is 6.62 px off and flagged,
+# and the frame succeeds on RingEdgeNav alone.  The measurement covers the
+# committed seed and random_seed 101, 202, ..., 1515: 16 distinct draws.
+# noise_seed 101 to 808 repeats random_seed 101 to 808 exactly, because the
+# random seed draws only the detector noise here.  RingEdgeNav is 6.801 to
+# 6.820 px off and RingAnnulusNav 11.804 px off on every draw; each is held
+# to a band with ends max(0.05 px, a fifth of the spread) outside the
+# measured range.
+expected:
+  status: conflicted
+  status_reason: conflicted_techniques
+artifacts:
+  instrument_defaults: true
+bodies: []
+ring_system:
+  phase_deg: 40.0
+  geometry:
+    center_v: 7354.162
+    center_u: -42729.71
+    opening_deg_obs: 14.0
+    opening_deg_sun: 20.0
+    node_deg: 9.0
+  features:
+    - {name: C_RING, kind: ringlet, tau: 0.1, width_px: 1600.0, albedo: 0.9, orbit: {a_px: 43000.0}}
+    - name: MAXWELL_GAP
+      kind: gap
+      tau: 0.1
+      width_px: 133.675
+      navigable: true
+      orbit: {a_px: 43671.385}
+    - name: MAXWELL_RINGLET
+      kind: ringlet
+      tau: 1.5
+      width_px: 29.535
+      albedo: 0.9
+      navigable: true
+      orbit: {a_px: 43740.145}
+      orbit_error: {delta_ae_px: 19.2375, delta_long_peri_deg: 75.0}
+    - name: PLATEAU_OUTER_EDGE
+      kind: ramp
+      side: out
+      tau: 0.3
+      width_px: 75.0
+      albedo: 0.9
+      navigable: true
+      orbit: {a_px: 44221.368}
+    - {kind: gap, tau: 0.1, width_px: 18.515, orbit: {a_px: 44343.005}}
+    - {kind: ringlet, tau: 0.3, width_px: 8.675, albedo: 0.9, orbit: {a_px: 44350.945}}
+offset_v: -21.37
+offset_u: -16.83
+offset_rotation_deg: 0.0115

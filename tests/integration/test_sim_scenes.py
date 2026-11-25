@@ -2,7 +2,10 @@
 
 These tests only parse and render in-process (no holdings or SPICE), so they run
 in the default suite.  They assert every scene validates, every directory is a
-declared class, names are consistent and unique, and every scene renders.
+declared class, names are consistent and unique, and every scene renders.  They also
+check the wiring of each class that a test module of its own navigates: the class is a
+declared validation class with scenes, its module builds its tests from the shared
+checks, and every module that does so belongs to such a class.
 """
 
 from pathlib import Path
@@ -17,6 +20,13 @@ from spindoctor.sim.scene.io import (
     load_sim_scene,
     scene_class_for_path,
 )
+from tests.integration.sim_scene_checks import (
+    class_for_module,
+    class_module_path,
+    class_module_paths,
+    class_scene_paths,
+)
+from tests.integration.sim_truth import OWN_MODULE_CLASSES, VALIDATION_CLASSES
 
 # The catalog root is co-located with this test module.
 _SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
@@ -34,6 +44,33 @@ def test_subdirectories_are_declared_classes() -> None:
     classes = {p.parent.name for p in _SCENE_PATHS}
     unknown = classes - DECLARED_SIM_SCENE_CLASSES
     assert not unknown, f'undeclared scene classes: {sorted(unknown)}'
+
+
+def test_own_module_classes_are_validation_classes() -> None:
+    """Every class with a module of its own is a validation class."""
+    assert sorted(OWN_MODULE_CLASSES - VALIDATION_CLASSES) == []
+
+
+def test_own_module_classes_are_declared_classes() -> None:
+    """Every class with a module of its own is a declared scene class."""
+    assert sorted(OWN_MODULE_CLASSES - DECLARED_SIM_SCENE_CLASSES) == []
+
+
+def test_own_module_classes_have_scenes() -> None:
+    """Every class with a module of its own holds at least one scene."""
+    assert [c for c in sorted(OWN_MODULE_CLASSES) if not class_scene_paths(c)] == []
+
+
+def test_own_module_classes_have_their_modules() -> None:
+    """Every class with a module of its own has test_sim_<class>.py building its tests."""
+    modules = set(class_module_paths())
+    assert [c for c in sorted(OWN_MODULE_CLASSES) if class_module_path(c) not in modules] == []
+
+
+def test_class_modules_belong_to_own_module_classes() -> None:
+    """Every module that builds class tests is named for a class with a module of its own."""
+    stray = [p.name for p in class_module_paths() if class_for_module(p) not in OWN_MODULE_CLASSES]
+    assert stray == []
 
 
 def test_scene_names_are_unique() -> None:

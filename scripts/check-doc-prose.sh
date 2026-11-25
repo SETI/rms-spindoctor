@@ -10,6 +10,16 @@
 #   scripts/check-doc-prose.sh              # check every documentation file
 #   scripts/check-doc-prose.sh FILE...      # check only the named files
 #   scripts/check-doc-prose.sh --warnings   # include the heuristic tier
+#   scripts/check-doc-prose.sh --diff BASE  # check the lines a branch adds outside docs/
+#
+# --diff BASE reads the lines added in every file outside docs/, plans/, README.md,
+# and CONTRIBUTING.md since the commit where the current branch left BASE (git
+# merge-base BASE HEAD), including changes not yet committed. It runs two warnings-tier checks over them: a verb
+# followed by "no" and a noun, and "names" used as a verb. Those lines hold code
+# as well as docstrings, comments, and messages, so read each hit before changing
+# it. Use it on a branch before opening a pull request, for example
+# "scripts/check-doc-prose.sh --diff origin/main". It always checks the
+# repository this script belongs to, whatever the working directory.
 #
 # The rule that defines each check, and the review checklist no script can run,
 # is .cursor/rules/doc_prose_style.mdc.
@@ -32,16 +42,39 @@ fi
 
 SHOW_WARNINGS=0
 EXPLICIT=0
+DIFF_BASE=""
 FILES=()
-for arg in "$@"; do
-    case "$arg" in
+while [[ $# -gt 0 ]]; do
+    case "$1" in
         --warnings|-w) SHOW_WARNINGS=1 ;;
-        -h|--help) sed -n '3,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-        *) FILES+=("$arg"); EXPLICIT=1 ;;
+        --diff)
+            if [[ $# -lt 2 || -z "$2" ]]; then
+                echo 'check-doc-prose: FAILED -- --diff needs a BASE commit' >&2
+                exit 1
+            fi
+            DIFF_BASE="$2"
+            shift
+            ;;
+        --diff=*)
+            DIFF_BASE="${1#--diff=}"
+            if [[ -z "$DIFF_BASE" ]]; then
+                echo 'check-doc-prose: FAILED -- --diff needs a BASE commit' >&2
+                exit 1
+            fi
+            ;;
+        # The usage text is the comment block at the top of this file.
+        -h|--help) awk 'NR > 2 && !/^#/ { exit } NR > 2' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+        *) FILES+=("$1"); EXPLICIT=1 ;;
     esac
+    shift
 done
 
-if [[ ${#FILES[@]} -eq 0 ]]; then
+if [[ -n "$DIFF_BASE" && ${#FILES[@]} -gt 0 ]]; then
+    echo 'check-doc-prose: FAILED -- --diff cannot be combined with FILE arguments' >&2
+    exit 1
+fi
+
+if [[ ${#FILES[@]} -eq 0 && -z "$DIFF_BASE" ]]; then
     if ! found=$(find docs \( -name '*.rst' -o -name '*.md' \) \
             -not -path 'docs/_build/*' -not -path 'docs/api_reference/*'); then
         echo 'check-doc-prose: FAILED -- could not list the documentation tree' >&2
@@ -179,6 +212,135 @@ hits() {
     printf '%s\n' "$stream" | grep -P -- "$pat" 2>/dev/null
     return 0
 }
+
+# Patterns shared by the documentation checks and --diff.
+
+# A verb followed by "no" and a noun, where "does not" with the verb reads better.
+# "Has no" usually reads naturally, so it is left out of the list.
+VERB_NO='(?i)\b(makes|gives|accepts|sets|reads|writes|holds|takes|needs|carries|leaves|names) no\b'
+VERB_NO_MSG='verb + "no" + noun -- write "does not make a", "has no", or say what does happen'
+
+# Two ways to match the verb. "names the", "naming a", "names no" and the like are
+# almost always the verb, whatever comes before them, so they are always flagged.
+# Otherwise "names" is a noun after a word like these ("file names", "its names")
+# and before a word like these ("names are", "names of"), and what is left is
+# mostly the verb, including at the end of a sentence ("the defects it names.").
+# Words that are usually the subject of the verb ("the scene names", "the label
+# names") are left out of the first list on purpose.
+names_object='the|a|an|no|each|every|its|their|any|it|them|one|both|all|none'
+names_noun_before='file|class|function|key|column|module|instrument|camera|detector|'
+names_noun_before+='model|technique|mode|method|component|field|program|option|'
+names_noun_before+='variable|member|attribute|parameter|section|kernel|mission|'
+names_noun_before+='dataset|path|host|URL|type|flag|metric|plot|stub|bar|chapter|'
+names_noun_before+='feature|product|target|filter|frame|image|body|volume|bundle|'
+names_noun_before+='logger|setting|the|its|their|these|those|whose|our|your|of|by|'
+names_noun_before+='with|for|no|all|both|any|other|own|many|such|same|different|'
+names_noun_before+='exact|explicit|full|short|valid|internal|unique|plain|two|six'
+names_noun_after='are|is|of|in|and|or|for|with|to|as|were|from|on|there\s+are|must|'
+names_noun_after+='can|may|should|will|match|differ|appear|used|given|listed|end|'
+names_noun_after+='cover|carrying|separated|share|stubs|per|such|rather|'
+names_noun_after+='conventions?|schemes?|rules?'
+NAMES_VERB="(?i)\\bnam(es|ing)\\s+(?:${names_object})\\b"
+NAMES_VERB+="|(?<!${names_noun_before//|/ |} )\\bnam(es|ing)\\b"
+NAMES_VERB+="(?!\\s+(?:${names_noun_after})\\b)"
+NAMES_VERB_MSG='"names" as a verb -- say sets, lists, selects, asks for, or refers to'
+
+plural() { [[ "$1" -eq 1 ]] && echo category || echo categories; }
+
+# finish  -- print the summary and exit with the script's status
+finish() {
+    echo
+    if [[ $ERRORS -gt 0 ]]; then
+        echo "check-doc-prose: FAILED -- $ERRORS error $(plural $ERRORS)"
+        [[ $WARNINGS -gt 0 ]] && echo "check-doc-prose: $WARNINGS warning $(plural $WARNINGS)"
+        exit 1
+    fi
+
+    if [[ $WARNINGS -gt 0 ]]; then
+        echo "check-doc-prose: passed with $WARNINGS warning $(plural $WARNINGS) to review by hand"
+    else
+        echo 'check-doc-prose: passed'
+        [[ $SHOW_WARNINGS -eq 0 ]] && echo 'check-doc-prose: rerun with --warnings for the heuristic tier'
+    fi
+    exit 0
+}
+
+# ------------------------------------------------------------------ --diff ----
+
+# The docstrings, comments, and messages a branch adds outside docs/ are prose too.
+# git diff from the merge base, rather than from BASE itself, so that a change
+# made on BASE after the branch left it does not read as a line the branch added.
+# The working tree is the other side, so uncommitted changes count.
+if [[ -n "$DIFF_BASE" ]]; then
+    SHOW_WARNINGS=1
+    if ! git rev-parse --verify --quiet "${DIFF_BASE}^{commit}" > /dev/null; then
+        echo "check-doc-prose: FAILED -- not a commit: $DIFF_BASE" >&2
+        exit 1
+    fi
+    if ! merge_base=$(git merge-base "$DIFF_BASE" HEAD); then
+        echo "check-doc-prose: FAILED -- no merge base between $DIFF_BASE and HEAD" >&2
+        exit 1
+    fi
+    # The prefixes are set explicitly, because diff.noprefix or diff.mnemonicPrefix in
+    # a user's git config would otherwise change the "+++ b/" header the parser reads.
+    # Every file outside the documentation is checked, except plans/, whose backlog
+    # the prose checks deliberately leave alone.
+    if ! diff_text=$(git diff -U0 --no-color --no-ext-diff --src-prefix=a/ \
+            --dst-prefix=b/ "$merge_base" -- . ':(exclude)docs' ':(exclude)plans' \
+            ':(exclude)README.md' ':(exclude)CONTRIBUTING.md'); then
+        echo "check-doc-prose: FAILED -- git diff against $DIFF_BASE did not run" >&2
+        exit 1
+    fi
+
+    # Emit "path:line:text" for each added line, numbering from the hunk headers.
+    if ! ADDED="$(printf '%s\n' "$diff_text" | python3 -c '
+import codecs
+import re
+import sys
+
+HUNK = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
+path = None
+line_no = 0
+in_hunk = False
+for raw in sys.stdin:
+    line = raw.rstrip("\n")
+    if line.startswith("diff --git "):
+        path = None
+        in_hunk = False
+        continue
+    if not in_hunk:
+        if line.startswith("+++ "):
+            # Git ends the header with a tab when the path holds a space.
+            target = line[4:].rstrip("\t")
+            # Git quotes a path holding a non-ASCII or special character, C style.
+            if target.startswith("\"") and target.endswith("\""):
+                target = codecs.escape_decode(target[1:-1])[0].decode("utf-8")
+            path = target[2:] if target.startswith("b/") else None
+            continue
+        m = HUNK.match(line)
+        if m:
+            in_hunk = True
+            line_no = int(m.group(1))
+        continue
+    m = HUNK.match(line)
+    if m:
+        line_no = int(m.group(1))
+    elif line.startswith("+"):
+        if path is not None:
+            print(f"{path}:{line_no}:{line[1:]}")
+        line_no += 1
+    elif line.startswith(" "):
+        line_no += 1
+')"; then
+        echo 'check-doc-prose: FAILED -- could not read the added lines' >&2
+        exit 1
+    fi
+
+    echo "check-doc-prose: lines added outside docs/ since $DIFF_BASE ($(git rev-parse --short "$merge_base"))"
+    report WARNING "$VERB_NO_MSG" "$(hits "$VERB_NO" "$ADDED")"
+    report WARNING "$NAMES_VERB_MSG" "$(hits "$NAMES_VERB" "$ADDED")"
+    finish
+fi
 
 USER_FILES=()
 ALL_FILES=()
@@ -401,31 +563,9 @@ if [[ $SHOW_WARNINGS -eq 1 ]]; then
     report WARNING 'a clause after "so" that restates the obvious should be deleted' \
         "$(hits '\bso (what|that means|you|it) \w+' "$PROSE_ALL")"
 
-    # Two ways to match the verb. "names the", "naming a", "names no" and the like are
-    # almost always the verb, whatever comes before them, so they are always flagged.
-    # Otherwise "names" is a noun after a word like these ("file names", "its names")
-    # and before a word like these ("names are", "names of"), and what is left is
-    # mostly the verb, including at the end of a sentence ("the defects it names.").
-    # Words that are usually the subject of the verb ("the scene names", "the label
-    # names") are left out of the first list on purpose.
-    names_object='the|a|an|no|each|every|its|their|any|it|them|one|both|all|none'
-    names_noun_before='file|class|function|key|column|module|instrument|camera|detector|'
-    names_noun_before+='model|technique|mode|method|component|field|program|option|'
-    names_noun_before+='variable|member|attribute|parameter|section|kernel|mission|'
-    names_noun_before+='dataset|path|host|URL|type|flag|metric|plot|stub|bar|chapter|'
-    names_noun_before+='feature|product|target|filter|frame|image|body|volume|bundle|'
-    names_noun_before+='logger|setting|the|its|their|these|those|whose|our|your|of|by|'
-    names_noun_before+='with|for|no|all|both|any|other|own|many|such|same|different|'
-    names_noun_before+='exact|explicit|full|short|valid|internal|unique|plain|two|six'
-    names_noun_after='are|is|of|in|and|or|for|with|to|as|were|from|on|there\s+are|must|'
-    names_noun_after+='can|may|should|will|match|differ|appear|used|given|listed|end|'
-    names_noun_after+='cover|carrying|separated|share|stubs|per|such|rather|'
-    names_noun_after+='conventions?|schemes?|rules?'
-    NAMES_VERB="(?i)\\bnam(es|ing)\\s+(?:${names_object})\\b"
-    NAMES_VERB+="|(?<!${names_noun_before//|/ |} )\\bnam(es|ing)\\b"
-    NAMES_VERB+="(?!\\s+(?:${names_noun_after})\\b)"
-    report WARNING '"names" as a verb -- say sets, lists, selects, asks for, or refers to' \
-        "$(hits "$NAMES_VERB" "$PROSE_ALL")"
+    report WARNING "$NAMES_VERB_MSG" "$(hits "$NAMES_VERB" "$PROSE_ALL")"
+
+    report WARNING "$VERB_NO_MSG" "$(hits "$VERB_NO" "$PROSE_ALL")"
 
     if [[ ${#USER_FILES[@]} -gt 0 ]]; then
         report WARNING 'qualify "document" -- metadata document, PDS4 label, and so on' \
@@ -447,19 +587,4 @@ fi
 
 # ----------------------------------------------------------------- summary ----
 
-plural() { [[ "$1" -eq 1 ]] && echo category || echo categories; }
-
-echo
-if [[ $ERRORS -gt 0 ]]; then
-    echo "check-doc-prose: FAILED -- $ERRORS error $(plural $ERRORS)"
-    [[ $WARNINGS -gt 0 ]] && echo "check-doc-prose: $WARNINGS warning $(plural $WARNINGS)"
-    exit 1
-fi
-
-if [[ $WARNINGS -gt 0 ]]; then
-    echo "check-doc-prose: passed with $WARNINGS warning $(plural $WARNINGS) to review by hand"
-else
-    echo 'check-doc-prose: passed'
-    [[ $SHOW_WARNINGS -eq 0 ]] && echo 'check-doc-prose: rerun with --warnings for the heuristic tier'
-fi
-exit 0
+finish

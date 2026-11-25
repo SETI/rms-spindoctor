@@ -11,6 +11,10 @@ unmitigated hazard: ``known_offset_error_px`` bands the measured error so a
 worsening regression fails, and a genuine fix fails loudly so that someone
 re-measures the known error).
 
+The classes in :data:`~tests.integration.sim_truth.OWN_MODULE_CLASSES` are left
+out: their own modules navigate each scene once and assert its expected block on
+that result.
+
 Navigation is heavier than the structural checks (each scene renders and runs
 the full ensemble), so the module is ``@pytest.mark.integration`` -- the same
 deliberate tier as the baselines and sweeps.  It needs no holdings or SPICE.
@@ -21,17 +25,12 @@ from pathlib import Path
 import pytest
 
 from spindoctor.sim.scene.io import load_sim_scene
-from tests.integration.sim_expected import (
-    assert_result_matches_expected,
-    expected_from_scene,
-    iter_expected_scene_paths,
-    navigate_scene,
-)
+from tests.integration.sim_expected import iter_expected_scene_paths, navigate_scene
+from tests.integration.sim_scene_checks import SCENES_ROOT, assert_expected_outcome, has_own_module
 
 pytestmark = [pytest.mark.integration, pytest.mark.sim_integration]
 
-_SCENES_ROOT = Path(__file__).parent / 'sim_scenes'
-_EXPECTED_PATHS = iter_expected_scene_paths(_SCENES_ROOT)
+_EXPECTED_PATHS = [p for p in iter_expected_scene_paths(SCENES_ROOT) if not has_own_module(p)]
 _EXPECTED_IDS = [f'{p.parent.name}/{p.stem}' for p in _EXPECTED_PATHS]
 
 
@@ -44,10 +43,4 @@ def test_expected_scenes_exist() -> None:
 def test_scene_matches_expected_outcome(path: Path) -> None:
     """Each scene with an expected block navigates to its declared outcome."""
     scene = load_sim_scene(path)
-    expected = expected_from_scene(scene)
-    assert expected is not None
-    result = navigate_scene(scene)
-    planted = (float(scene.get('offset_v', 0.0)), float(scene.get('offset_u', 0.0)))
-    assert_result_matches_expected(
-        scene_name=scene['scene_name'], expected=expected, result=result, planted_offset_vu=planted
-    )
+    assert_expected_outcome(scene, navigate_scene(scene))
