@@ -125,7 +125,7 @@ def test_from_entry_single_outer_edge() -> None:
 
 
 def test_from_entry_reads_a_missing_rms_as_zero() -> None:
-    """An edge whose base orbit gives no fitted residual has an RMS of zero."""
+    """An edge whose base orbit leaves out the fitted residual has an RMS of zero."""
     edge = _make_edge_data(a=100_000.0)
     del edge[0]['rms']
     feature = ring_feature('no_rms', {'feature_type': 'GAP', 'inner_data': edge})

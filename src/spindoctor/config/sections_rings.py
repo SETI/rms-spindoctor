@@ -52,8 +52,8 @@ __all__ = [
 _BASE_ORBIT_KEYS = ('a', 'rms', 'ae', 'long_peri', 'rate_peri')
 _PERTURBATION_KEYS = ('amplitude', 'phase', 'pattern_speed')
 
-# The one key an entry may leave out: a catalog that fitted no residual for a base orbit
-# leaves out rms, and the edge's whole-edge orbit term then takes
+# The one key an entry may leave out: a catalog without a fitted residual for a base
+# orbit leaves out rms, and the edge's whole-edge orbit term then takes
 # rings.default_orbit_radial_sigma_km.
 _OPTIONAL_KEYS = frozenset({'rms'})
 
