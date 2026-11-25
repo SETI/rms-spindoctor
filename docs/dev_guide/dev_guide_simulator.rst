@@ -2201,12 +2201,13 @@ with the camera's whole detector chain, and uses an exposure a real frame of
 that kind uses. Each offset is as large as the camera's real pointing errors,
 or larger where those are small, and the offsets point in different directions.
 Each scene also plants
-the camera's measured twist and leaves roll fitting off, as the cameras ship.
+the camera's measured twist, or, where none is measured, a placeholder its
+instrument chapter states, and leaves roll fitting off, as the cameras ship.
 Together the scenes guard the renderer and the navigator, so a change that moves
 a realistic frame's answer shows up.
 
 Each scene that navigates has its fused answer held to a tolerance measured
-over 16 seeds, like the other validation scenes. A scene the navigator fails is
+over 16 seeds or more, like the other validation scenes. A scene the navigator fails is
 an expected failure: its expected block holds the failure, so a fix fails the
 scene until the block is retired. A scene whose answer depends on a navigator
 weakness says so in its comments and in ``sim_truth.py``.
@@ -2215,8 +2216,9 @@ The instrument chapters list each camera's scenes, with their content, their
 measured errors, and the failures they hold.
 
 ``test_sim_full_frame_cameras.py`` navigates each scene once per run. A star
-field takes a few seconds to navigate, and a frame with a disc takes up to half
-a minute, since the disc correlation searches the camera's whole offset window.
+field takes a few seconds to navigate. A frame with a disc takes up to a minute
+on a quiet machine and about three times as long on a busy one, since the disc
+correlation searches the camera's whole offset window.
 
 .. _sim-mixed-defects:
 
