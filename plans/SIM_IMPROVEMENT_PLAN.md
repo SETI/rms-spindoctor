@@ -302,7 +302,12 @@ are the authorable parts of #904 and the ring-only part of #377:
   saturated B ring), each held to a known-error band (#755 for the Keeler gap, #1143 for the
   unfit twist, #1152 for the low opening, #1144 for the hidden eccentricity, where the frame
   conflicts, #1145 for the saturated edge);
-- interleaved defect modes on one frame.
+- interleaved defect modes on one frame. **Done (PR #TBD).** The `mixed_defects` class holds a
+  lossy table NAC moon, a NAC stars-and-moon frame with groups of lost lines down the frame, a
+  truncated bottom, and 2 px of smear, a Galileo moon with compression and lost 8-line slices,
+  and a raw LORRI moon with frame-transfer smear; all four navigate within 0.12 px over 24
+  distinct draws (16 for the lossy moon, which seeds only its noise). The Galileo frame's lost
+  slices leave its answer within 0.08 px.
 
 Each scene asserts against its planted truth (#905). Scenes that expose a navigator failure are
 committed as expected failures with the issue they reproduce.
@@ -526,6 +531,9 @@ Those classes are eligible for retirement in Phase 7.
 | #1144 | **Affects `maxwell_hidden_eccentricity`, held as a conflicted frame with a known-error band on each technique.** RingEdgeNav follows an eccentric ringlet whose catalog orbit is circular and answers 6.8 px off at 120 sigma; RingAnnulusNav, pulled by the same ringlet, answers 11.8 px off without flagging it, so the frame conflicts (navigator work) |
 | #1145 | **Affects `b_ring_saturated_plateau`, held as a known error.** A saturated ring edge pulls the answer 0.06 px farther out across the edges than the same frame unsaturated, about five times the reported sigma (navigator work) |
 | #1152 | **Affects `a_ring_low_opening`, held as a known error.** At a low ring opening a narrow gap is resolved only near the ansa, yet both its edges are fitted along the whole arc, and the answer lands 0.84 px off at 16 sigma (navigator work) |
+| #1164 | **Affects no current scene.** When lost 8-line slices of zero data cross a body's disc, the disc correlation does not exclude them or flag the answer. It now lands 0.020 to 0.046 px off on `gossi_ict_moon`, including the six seeds whose lost band crosses the disc, where the same scene once held it up to 0.91 px off. Exclude missing rows from the correlation, or flag the answer when they cover enough of the disc |
+| #1204 | The simulator cannot draw Cassini's compression-truncated lines (alternating lines that lose their ends, 19% of the NAC frames with loss) or lost-line groups of varying size at any start line; `coiss_nac_stars_moon_lost_lines` uses fixed 7-line groups as the nearest form |
+| #1205 | LORRI's catalog frame-transfer smear timings are about 10% long and on the wrong sides against lor_0034849319 and the instrument paper; `nhlorri_moon_raw` sets measured timings itself |
 
 Build the validation catalog from twins and from idealized scenes that the transfer check
 supports: every camera, real frame sizes and offsets, twist, compound content, frame-filling
