@@ -6,6 +6,11 @@ values one binning changes.  A readout mode may state any detector key except th
 three that belong to the detector as a whole, and each key it leaves out keeps the
 unbinned value.  :meth:`Detector.with_readout_mode` merges one over the other.  The
 rest of an entry's schema is in :mod:`spindoctor.sim.instruments.schema`.
+
+Each detector value has one type, declared here, such as :data:`BiasDn`.  The
+detector block, a readout mode, and a scene's ``detector`` and ``noise`` blocks
+(:mod:`spindoctor.sim.scene.truth_detector`) all type the value with it, so the
+value has one range wherever it is written.
 """
 
 from __future__ import annotations
@@ -30,10 +35,26 @@ from spindoctor.schema.errors import RangeError
 from spindoctor.sim.artifact_modes import DetectorModel, QuantizationMode
 
 __all__ = [
+    'BiasDn',
+    'CalibrationColumnResidualE',
+    'CalibrationPixelResidualE',
+    'CosmicRayAmplitudeE',
+    'CosmicRayEventsPerPixelPerSec',
+    'CosmicRayReadoutDwellSec',
+    'CosmicRaySpreadPx',
+    'DarkCurrentEPerSec',
     'Detector',
+    'ExposureRefSec',
+    'FullWellDn',
+    'GainState',
     'GainTable',
+    'MissingDataRate',
+    'ReadNoiseLineDn',
+    'ReadNoisePixelDn',
     'ReadoutMode',
     'ReadoutModes',
+    'SaturationDn',
+    'SignalFullScaleFrac',
     'VidiconChain',
 ]
 
@@ -88,6 +109,39 @@ def _has_unbinned_mode(modes: dict[int, Any]) -> dict[int, Any]:
     return modes
 
 
+#: The reference exposure, in seconds, at which a signal of 1.0 fills the scaled well.
+ExposureRefSec = Positive
+#: The bias pedestal, in DN.
+BiasDn = NonNeg
+#: The ADC ceiling, in DN, at which the frame is clipped.
+SaturationDn = Positive
+#: The DN full scale of the vidicon chain, or a CCD pixel's full well in DN.
+FullWellDn = Positive
+#: The fraction of the well that a signal of 1.0 fills at the reference exposure.
+SignalFullScaleFrac = Positive
+#: The fraction of the pixels lost at random in the downlink.
+MissingDataRate = Unit
+#: The expected cosmic-ray events per pixel per second.
+CosmicRayEventsPerPixelPerSec = NonNeg
+#: The time, in seconds, the frame sits exposed to cosmic rays during readout.
+CosmicRayReadoutDwellSec = NonNeg
+#: The smallest charge a cosmic ray deposits, in electrons.
+CosmicRayAmplitudeE = NonNeg
+#: The sigma, in pixels, of a cosmic-ray hit's diffusion.
+CosmicRaySpreadPx = NonNeg
+#: The dark current, in electrons per second.
+DarkCurrentEPerSec = NonNeg
+#: The calibration's residual column pattern, in electrons.
+CalibrationColumnResidualE = NonNeg
+#: The calibration's residual per-pixel noise, in electrons.
+CalibrationPixelResidualE = NonNeg
+#: The vidicon's per-line read noise, in DN.
+ReadNoiseLineDn = NonNeg
+#: The vidicon's per-pixel read noise, in DN.
+ReadNoisePixelDn = NonNeg
+#: An electron-chain gain state.
+GainState = NonNegInt
+
 #: A gain table: electrons per DN, keyed by gain state.  The states are non-negative
 #: integers that run without a gap from the lowest one.
 GainTable = Annotated[
@@ -107,8 +161,8 @@ class VidiconChain:
 
     __pydantic_config__ = SCHEMA_CONFIG
 
-    read_noise_line_dn: NonNeg
-    read_noise_pixel_dn: NonNeg
+    read_noise_line_dn: ReadNoiseLineDn
+    read_noise_pixel_dn: ReadNoisePixelDn
 
 
 @dataclass(frozen=True)
@@ -157,26 +211,26 @@ class Detector:
     __pydantic_config__ = SCHEMA_CONFIG
 
     detector_model: DetectorModel
-    exposure_ref_sec: Positive
-    bias_dn: NonNeg
-    saturation_dn: Positive
-    full_well_dn: Positive
-    signal_full_scale_frac: Positive
-    missing_data_rate: Unit
+    exposure_ref_sec: ExposureRefSec
+    bias_dn: BiasDn
+    saturation_dn: SaturationDn
+    full_well_dn: FullWellDn
+    signal_full_scale_frac: SignalFullScaleFrac
+    missing_data_rate: MissingDataRate
     quantization: QuantizationMode
-    cosmic_ray_events_per_pixel_per_sec: NonNeg
+    cosmic_ray_events_per_pixel_per_sec: CosmicRayEventsPerPixelPerSec
     full_well_e: Positive | None = None
     gain_e_per_dn_by_state: GainTable | None = None
-    default_gain_state: NonNegInt | None = None
+    default_gain_state: GainState | None = None
     read_noise_e: NonNeg | None = None
-    dark_current_e_per_sec: NonNeg | None = None
-    cosmic_ray_readout_dwell_sec: NonNeg | None = None
-    cosmic_ray_amplitude_e: NonNeg | None = None
-    cosmic_ray_spread_px: NonNeg | None = None
+    dark_current_e_per_sec: DarkCurrentEPerSec | None = None
+    cosmic_ray_readout_dwell_sec: CosmicRayReadoutDwellSec | None = None
+    cosmic_ray_amplitude_e: CosmicRayAmplitudeE | None = None
+    cosmic_ray_spread_px: CosmicRaySpreadPx | None = None
     calibrated_sky_if: Float | None = None
     dark_sky_ceiling_if: Positive | None = None
-    calibration_column_residual_e: NonNeg | None = None
-    calibration_pixel_residual_e: NonNeg | None = None
+    calibration_column_residual_e: CalibrationColumnResidualE | None = None
+    calibration_pixel_residual_e: CalibrationPixelResidualE | None = None
     vidicon: VidiconChain | None = None
 
     def __post_init__(self) -> None:
@@ -257,26 +311,26 @@ class ReadoutMode:
     __pydantic_config__ = SCHEMA_CONFIG
 
     detector_model: DetectorModel | None = None
-    exposure_ref_sec: Positive | None = None
-    bias_dn: NonNeg | None = None
-    saturation_dn: Positive | None = None
-    full_well_dn: Positive | None = None
-    signal_full_scale_frac: Positive | None = None
-    missing_data_rate: Unit | None = None
+    exposure_ref_sec: ExposureRefSec | None = None
+    bias_dn: BiasDn | None = None
+    saturation_dn: SaturationDn | None = None
+    full_well_dn: FullWellDn | None = None
+    signal_full_scale_frac: SignalFullScaleFrac | None = None
+    missing_data_rate: MissingDataRate | None = None
     quantization: QuantizationMode | None = None
-    cosmic_ray_events_per_pixel_per_sec: NonNeg | None = None
+    cosmic_ray_events_per_pixel_per_sec: CosmicRayEventsPerPixelPerSec | None = None
     full_well_e: Positive | None = None
     gain_e_per_dn_by_state: GainTable | None = None
-    default_gain_state: NonNegInt | None = None
+    default_gain_state: GainState | None = None
     read_noise_e: NonNeg | None = None
-    dark_current_e_per_sec: NonNeg | None = None
-    cosmic_ray_readout_dwell_sec: NonNeg | None = None
-    cosmic_ray_amplitude_e: NonNeg | None = None
-    cosmic_ray_spread_px: NonNeg | None = None
+    dark_current_e_per_sec: DarkCurrentEPerSec | None = None
+    cosmic_ray_readout_dwell_sec: CosmicRayReadoutDwellSec | None = None
+    cosmic_ray_amplitude_e: CosmicRayAmplitudeE | None = None
+    cosmic_ray_spread_px: CosmicRaySpreadPx | None = None
     calibrated_sky_if: Float | None = None
     dark_sky_ceiling_if: Positive | None = None
-    calibration_column_residual_e: NonNeg | None = None
-    calibration_pixel_residual_e: NonNeg | None = None
+    calibration_column_residual_e: CalibrationColumnResidualE | None = None
+    calibration_pixel_residual_e: CalibrationPixelResidualE | None = None
     vidicon: VidiconChain | None = None
 
     def __post_init__(self) -> None:

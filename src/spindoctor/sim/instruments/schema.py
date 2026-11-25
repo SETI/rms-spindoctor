@@ -340,6 +340,16 @@ class DownlinkTable:
             )
         _check_decoded_levels(parametric_decoded_dn(self))
 
+    def top_decoded_dn(self) -> float:
+        """The largest DN any code of the table decodes to.
+
+        Returns:
+            The table's top level, in DN.
+        """
+        if self.decoded_dn is not None:
+            return float(max(self.decoded_dn))
+        return float(parametric_decoded_dn(self).max())
+
 
 def parametric_decoded_dn(table: DownlinkTable) -> np.ndarray[Any, np.dtype[np.float64]]:
     """The DN each code of a parametric table decodes to, in code order.
