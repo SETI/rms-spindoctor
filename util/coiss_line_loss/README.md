@@ -48,10 +48,13 @@ export PDS3_HOLDINGS_DIR=/path/to/holdings
 python util/coiss_line_loss/lossless_check.py
 python util/coiss_line_loss/twins.py            # the ten default frames
 python util/coiss_line_loss/twins.py N1490874834_1.IMG
-/seti/newnav/capped-run.sh python util/coiss_line_loss/gap_census.py census.json
-/seti/newnav/capped-run.sh python util/coiss_line_loss/gap_fit.py census.json coiss_nac 20000
-/seti/newnav/capped-run.sh python util/coiss_line_loss/gap_fit.py census.json coiss_nac --fit
+python util/coiss_line_loss/gap_census.py census.json
+python util/coiss_line_loss/gap_fit.py census.json coiss_nac 20000
+python util/coiss_line_loss/gap_fit.py census.json coiss_nac --fit
 ```
+
+The census reads all 80 frames, and the comparison and the fit render thousands of
+simulated frames, so on a shared machine it is wise to run them under a memory cap.
 
 ## Results (2026-11-25)
 
