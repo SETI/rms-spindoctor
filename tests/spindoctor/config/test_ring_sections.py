@@ -210,7 +210,7 @@ def test_the_least_fade_may_equal_the_fade() -> None:
 
 
 def test_two_features_at_the_same_radii_and_time_are_refused() -> None:
-    """Two features whose radii and dates overlap are refused, naming both."""
+    """Two features whose radii and dates overlap are refused; the message gives both."""
     features = {
         'alpha': _ringlet(1000.0, 1010.0, start_date='2008-01-01', end_date='2011-01-01'),
         'beta': _ringlet(1005.0, 1015.0, start_date='2009-01-01'),
