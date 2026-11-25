@@ -8,12 +8,13 @@ first nor the last line, and its head and tail lines are the lines just above an
 it that keep their start and lose their end.
 
 The comparison prints every statistic three times: over all of the camera's frames, over
-its full frames, and over its summed frames.  Each line gives the census value, the 90%
-interval of that value over resampled census frames (the frames drawn with replacement,
-each readout mode keeping its number of frames), the simulated value, and whether the
-simulated value lies inside the interval.  It then splits each readout mode's frames into
-sequences, frames less than a day apart on the spacecraft clock, and prints how much of the
-mode the largest sequence holds.
+its full frames, and over its summed frames, and skips a set of frames that the census or
+the simulation lacks.  Each line gives the census value, the 90% interval of that value
+over resampled census frames (the frames drawn with replacement, each readout mode
+keeping its number of frames), the simulated value, and whether the simulated value lies
+inside the interval.  It then splits each readout mode's frames into sequences, frames
+less than a day apart on the spacecraft clock, and prints how much of the mode the
+largest sequence holds.
 
 ``--fit`` fits the two parameters that the census does not give directly:
 
@@ -315,6 +316,9 @@ def compare(
 ) -> None:
     """Print the census, its intervals, and the simulated statistics, pooled and per mode.
 
+    A set of frames that the census or the simulation lacks, such as the summed frames
+    of a census of full frames, is skipped.
+
     Parameters:
         frames: The census frames of one camera.
         instrument: The simulated camera.
@@ -332,6 +336,9 @@ def compare(
 
         picked = [i for i, m in enumerate(modes) if chosen(m)]
         sim_picked = [i for i, m in enumerate(sim_modes) if chosen(m)]
+        if not picked or not sim_picked:
+            print(f'== {label} frames: {len(picked)} real, {len(sim_picked)} simulated; skipped')
+            continue
         census = statistics([items[i] for i in picked], [modes[i] for i in picked])
         intervals = resampling_intervals([items[i] for i in picked], [modes[i] for i in picked])
         simulated = statistics(
