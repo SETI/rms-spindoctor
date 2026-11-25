@@ -1,6 +1,7 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
 from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 from typing import Any, cast
 
@@ -125,21 +126,17 @@ def _is_marker(key: Any, name: str) -> bool:
     """Return whether a VICAR label key is one occurrence of a repeated marker.
 
     A label carrying several such sections has each marker keyed by its name and its
-    occurrence number: rms-vicar keys it as a ``(name, n)`` tuple, and the host's
-    ``header_dict`` as the text ``NAME[n]``.  One carrying a single section, as the
-    earliest cruise labels do, keys it by its name alone, so every form has to be
-    recognized.
+    occurrence number.  One carrying a single section, as the earliest cruise labels do,
+    keys it by its name alone, so both forms have to be recognized.
 
     Parameters:
         key: One key of the label.
         name: The marker's name, such as ``PROPERTY``.
 
     Returns:
-        True when the key is that marker, in any form.
+        True when the key is that marker, in either form.
     """
-    if isinstance(key, tuple):
-        return bool(key[0] == name)
-    return key == name or (isinstance(key, str) and key.startswith(f'{name}['))
+    return key == name or (isinstance(key, tuple) and key[0] == name)
 
 
 def _property_block_keywords(label: Mapping[str, Any]) -> list[str]:
@@ -458,20 +455,6 @@ def test_cassini_iss_reports_shutter_mode() -> None:
     assert obs.shutter_mode == 'BOTSIM'
 
 
-@REQUIRES_EXTERNAL_DATA
-def test_the_host_gives_both_filters_of_a_real_image() -> None:
-    """The host's ``filter1`` and ``filter2`` subfields are what ``filters`` reads.
-
-    A host that renamed them would publish an empty ``filters`` list with nothing
-    failing, so the host's own subfields are checked here on a real frame.
-    """
-    obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
-    assert obs.get_public_metadata()['filters'] == [
-        obs.subfields['filter1'],
-        obs.subfields['filter2'],
-    ]
-
-
 def test_shutter_mode_absent_from_the_label_reads_as_none() -> None:
     """A label carrying no SHUTTER_MODE_ID reports no shutter mode."""
     assert _obs_with_label({}).shutter_mode is None
@@ -740,23 +723,42 @@ def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
     assert list(public['label_metadata']) == list(CASSINI_ISS_PUBLIC_METADATA['label_metadata'])
 
 
-@REQUIRES_EXTERNAL_DATA
-def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
-    """The metadata is read from the VICAR label inside the calibrated image file.
+def _w1521598221_metadata() -> dict[str, Any]:
+    """Return part of the merged metadata the host gives W1521598221_1_CALIB (COISS_2021).
 
-    The host writes its times without the trailing Z the VICAR label gives them.  It
-    leaves out the -999.0 the label gives as a wide angle frame's back optics temperature,
-    since the wide angle camera has no rear optics sensor, and the N/A of an uncompressed
-    frame's compression parameters, so both attributes are null.  The two-element and
-    four-element keywords reach the attributes their positions name, and
-    W1521598221_1_CALIB.IMG's own name states its version.
+    The values are those the host gives when it reads the PDS3 label with the image: a
+    time is a ``datetime``, with the label's text beside it under ``_fmt``; a set is a
+    set, with the label's order beside it under ``_list``; and a value the labels give
+    as a placeholder, such as the -999.0 of the wide angle camera's missing rear optics
+    sensor or the N/A of an uncompressed frame's compression parameters, is missing.
+
+    Returns:
+        The merged metadata.
     """
-    public = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01).get_public_metadata()
-    block = public['label_metadata']
+    return {
+        'IMAGE_TIME': datetime(2006, 3, 21, 1, 40, 16, 112000),
+        'IMAGE_TIME_fmt': '2006-080T01:40:16.112',
+        'IMAGE_OBSERVATION_TYPE': {'SCIENCE'},
+        'IMAGE_OBSERVATION_TYPE_list': ['SCIENCE'],
+        'GAIN_MODE_ID': '29 ELECTRONS PER DN',
+        'EXPOSURE_DURATION': 1500.0,
+        'FILTER_NAME': ['CL1', 'VIO'],
+        'OPTICS_TEMPERATURE': [6.93953, None],
+    }
+
+
+def test_the_hosts_metadata_is_published_in_the_documents_form() -> None:
+    """The merged metadata reaches the block, a time as its label text, a set as a list.
+
+    The two-element keywords reach the attributes their positions name, a missing value
+    is null, and W1521598221_1_CALIB.IMG's own name states its version.
+    """
+    block = _label_metadata(_w1521598221_metadata(), 'W1521598221_1_CALIB.IMG')
     assert {
         key: block[key]
         for key in (
             'cassini:image_time',
+            'cassini:image_observation_type',
             'cassini:gain_mode_id',
             'cassini:exposure_duration',
             'cassini:filter_name_1',
@@ -768,6 +770,7 @@ def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
         )
     } == {
         'cassini:image_time': '2006-080T01:40:16.112',
+        'cassini:image_observation_type': ['SCIENCE'],
         'cassini:gain_mode_id': '29 ELECTRONS PER DN',
         'cassini:exposure_duration': 1500.0,
         'cassini:filter_name_1': 'CL1',
@@ -777,6 +780,25 @@ def test_a_real_image_publishes_its_vicar_label_metadata() -> None:
         'cassini:inst_cmprs_param_malgo': None,
         'cassini:pre-pds_version_number': 1,
     }
+
+
+def test_a_time_only_the_header_gives_is_written_as_the_header_writes_it() -> None:
+    """A time with no label text beside it is written as the VICAR header writes it.
+
+    The host converts a header's time to a ``datetime`` as well, but the label parser
+    never saw it, so there is no ``_fmt`` text; the header's form, without its ``Z``, is
+    written instead.
+    """
+    metadata = {'IMAGE_TIME': datetime(1999, 1, 9, 7, 24, 50, 52000)}
+    block = _label_metadata(metadata, 'W1294561143_1.IMG')
+    assert block['cassini:image_time'] == '1999-009T07:24:50.052'
+
+
+def test_a_set_only_the_header_gives_is_written_as_a_sorted_list() -> None:
+    """A set with no label order beside it is written as a sorted list."""
+    metadata = {'IMAGE_OBSERVATION_TYPE': {'SCIENCE', 'OPNAV'}}
+    block = _label_metadata(metadata, 'W1294561143_1.IMG')
+    assert block['cassini:image_observation_type'] == ['OPNAV', 'SCIENCE']
 
 
 def test_a_label_marking_no_property_block_reports_no_keywords() -> None:

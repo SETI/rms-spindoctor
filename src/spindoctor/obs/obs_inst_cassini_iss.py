@@ -1,5 +1,6 @@
 import re
 from collections.abc import Mapping
+from datetime import datetime
 from fractions import Fraction
 from typing import Any, cast
 
@@ -7,6 +8,7 @@ import host_cassini
 import numpy as np
 from filecache import FCPath
 from oops.host import is_pds3_null
+from oops.observation import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
@@ -111,14 +113,15 @@ bundle, and whether the image file was raw or calibrated.
 
 The values are read from the host's ``dict``, which merges the PDS3 label and the VICAR
 header under the PDS3 names, except the two raw-product keywords of
-``_RAW_PRODUCT_KEYWORDS``, which are read from the header.  A keyword filling several
-attributes is split by position, which is the only transformation made here:
-``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``,
-``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` give their values in the label's own order,
-and each is published as the host gives it.  A keyword given as one value fills the
-first of its attributes and leaves the rest None (see :func:`_element`).  Everything else
-keeps the form the host gives: a number stays a number, text stays text, and a time stays
-the label's own text.
+``_RAW_PRODUCT_KEYWORDS``, which are read from the header.  The host gives each value the
+type the label parser gives it, and the two that a metadata document cannot hold are
+written as text and a list (see :func:`_document_value`).  A keyword filling several
+attributes is then split by position: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``,
+``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM``
+give their values in the label's own order, and each is published as the host gives it.
+A keyword given as one value fills the first of its attributes and leaves the rest None
+(see :func:`_element`).  Everything else keeps the form the host gives: a number stays a
+number and text stays text.
 
 ``pre-pds_version_number`` is stated by no keyword, which is what its ``None`` keyword
 records; the image's file name states it instead (see :func:`_version_number`).  Every
@@ -185,6 +188,36 @@ def _element(value: Any, index: int) -> Any:
     return value[index] if index < len(value) else None
 
 
+def _document_value(label: Mapping[str, Any], keyword: str) -> Any:
+    """Return a keyword's value from the host's metadata in a form a document can hold.
+
+    The host gives each value the type the label parser gives it.  Two of those types
+    have no form in a metadata document, and the parser keeps the label's own form of
+    each beside the value: a time is a :class:`~datetime.datetime`, written as the
+    label's text, which the parser keeps under the keyword with ``_fmt`` appended; and a
+    set is written as a list in the label's order, which the parser keeps under the
+    keyword with ``_list`` appended.  A time or a set that the host took from the VICAR
+    header has no such text, because the header was not read by the label parser: a time
+    is then written as the header writes it, ``YYYY-DDDTHH:MM:SS.sss`` without the final
+    ``Z``, and a set as a sorted list.  Every other value is returned as it is.
+
+    Parameters:
+        label: The image's metadata, the host's ``dict``.
+        keyword: The keyword to read.
+
+    Returns:
+        The value, or None when the metadata does not give the keyword.
+    """
+    value = label.get(keyword, None)
+    if isinstance(value, datetime):
+        return label.get(
+            f'{keyword}_fmt', f'{value:%Y-%jT%H:%M:%S}.{value.microsecond // 1000:03d}'
+        )
+    if isinstance(value, set | frozenset):
+        return label.get(f'{keyword}_list', sorted(value))
+    return value
+
+
 def _label_metadata(
     label: Mapping[str, Any], image_name: str, *, header: Mapping[str, Any] | None = None
 ) -> dict[str, Any]:
@@ -213,9 +246,9 @@ def _label_metadata(
             # header_dict is verbatim, so it keeps the placeholders the host leaves out.
             value = None if is_pds3_null(header[keyword]) else header[keyword]
         elif element is None:
-            value = label.get(keyword, None)
+            value = _document_value(label, keyword)
         else:
-            value = _element(label.get(keyword, None), element)
+            value = _element(_document_value(label, keyword), element)
         metadata[f'{_METADATA_PREFIX}{attribute}'] = value
     return metadata
 
@@ -319,7 +352,8 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
             An ObsCassiniISS object containing the image data and metadata.
 
         Raises:
-            oops.OopsSpiceError: If the SPICE kernels cannot supply the image's pointing.
+            OSError, RuntimeError: If the SPICE kernels lack data the image needs, such as
+                its pointing, which cspyce reports when the observation is first used.
             oops.host.HostError: If the host cannot read the image or its label.
             ValueError: If the configuration has no section for the image's camera.
         """
@@ -333,10 +367,15 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         logger.debug(f'Reading Cassini ISS image {path}')
         logger.debug(f'  Fast distortion: {fast_distortion}')
         logger.debug(f'  Return all planets: {return_all_planets}')
-        obs = host_cassini.CassiniISS.from_file(
-            host_input(path, label=label),
-            fast_distortion=fast_distortion,
-            return_all_planets=return_all_planets,
+        # The host's stub types every result as a Snapshot or a tuple of Snapshots,
+        # whatever select is; a call without select returns the one Snapshot.
+        obs = cast(
+            Snapshot,
+            host_cassini.CassiniISS.from_file(
+                host_input(path, label=label),
+                fast_distortion=fast_distortion,
+                return_all_planets=return_all_planets,
+            ),
         )
         # The host inserts the camera and the image as subfields, which the Snapshot it
         # returns does not declare.

@@ -159,21 +159,27 @@ Label and index dependencies
 and the VICAR label inside the ``_CALIB.IMG`` file. Where the two give an item and
 agree, it is that value; where they disagree, it is the ``_CALIB.LBL``'s, except
 ``MISSION_PHASE_NAME`` and ``METHOD_DESC``, which the host takes from the VICAR
-label. The values are in the PDS3 label's spelling: reals as the label prints
-them, to six decimal places, times without the VICAR label's trailing ``Z``,
-``IMAGE_NUMBER`` as text, and ``IMAGE_OBSERVATION_TYPE`` as a list. A value that
-a label gives as a placeholder (``N/A``, ``UNK``, or ``-999`` in a temperature, a
-data rate, or a compression ratio) is left out, so its attribute is ``None``.
-The rms-host-cassini user guide lists the merge rules.
+label. The values have the PDS3 label's types: reals as the label prints them,
+to six decimal places, ``IMAGE_NUMBER`` as text, a time as a ``datetime``, and
+``IMAGE_OBSERVATION_TYPE`` as a set. A metadata document cannot hold the last
+two, so ``_document_value`` writes them in the label's own form, which the label
+parser keeps beside each value: a time as the label's text, under the keyword
+with ``_fmt`` appended, and a set as a list in the label's order, under the
+keyword with ``_list`` appended. A time or a set the host took from the VICAR
+label alone has neither, and is written as the VICAR label writes a time,
+without its trailing ``Z``, or as a sorted list. A value that a label gives as a
+placeholder (``N/A``, ``UNK``, or ``-999`` in a temperature, a data rate, or a
+compression ratio) is left out, so its attribute is ``None``. The
+rms-host-cassini user guide lists the merge rules.
 
 The ``_CALIB.LBL`` describes the calibrated product: its ``DESCRIPTION`` is the
 calibration's history and its ``PRODUCT_CREATION_TIME`` is the calibration's,
 such as ``2019-06-09T12:39:25``. The VICAR label keeps the raw product's values,
 which are what ``cassini:limitations`` and ``cassini:pds3_product_creation_time``
 mean, so ``_RAW_PRODUCT_KEYWORDS`` reads those two keywords from the host's
-``header_dict`` instead, and a placeholder there is ``None`` as well. Where the
-VICAR label repeats a keyword, such as ``DAT_TIM``, ``header_dict`` keys each
-occurrence as ``DAT_TIM[0]``, ``DAT_TIM[1]``, and so on. Every read here looks a
+``header_dict`` instead, as the VICAR label writes them, and a placeholder there
+is ``None`` as well. Where the VICAR label repeats a keyword, such as
+``DAT_TIM``, ``header_dict`` holds its first value. Every read here looks a
 keyword up by name, and none reads a repeated one.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
