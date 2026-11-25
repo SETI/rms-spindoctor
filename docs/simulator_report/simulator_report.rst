@@ -8,21 +8,23 @@ navigation responds as a single scene parameter is swept. It is a standalone
 chapter, separate from the user and developer guides, and is regenerable on
 demand from the simulator scene catalog and sweep harness.
 
-**What these numbers measure.** Every recovery error in this chapter is measured
-on simulated frames, mostly Cassini NAC frames with a few Voyager ISS ones, and
-none is a real-frame accuracy.  A recovery on a clean frame is a
-self-consistency floor; a sweep that plants a deliberate mismatch (a shape, a
-ring orbit, a PSF, a haze altitude) measures sensitivity to that one mismatch.
-On a simulated frame the navigator's body, ring, and
-star models are simulated counterparts that share the renderer's geometry,
-shading, point-spread function, ring projection, and star flux; the production
-models that navigate real frames never run.  A recovery therefore says how
-tightly a technique converges on a frame drawn by its own kind of model, and
-how that changes as one parameter moves.  A simulated number becomes a
-statement about real frames only for a class of frame where simulated error
-has been shown to predict real error, and no such comparison has been made
-yet.  The confidence values the navigator reports are provisional: their
-coefficients and tier boundaries were fitted on one simulated campaign.
+**What these numbers measure.** Every recovery error in this chapter is measured on
+simulated frames, mostly Cassini NAC frames with a few Voyager ISS ones, and none is a
+real-frame accuracy. A recovery on a clean frame is a self-consistency floor, except where
+a body shades differently from the navigator's template (see below); a sweep that plants a
+deliberate mismatch (a shape, a ring orbit, a PSF, a haze altitude) measures sensitivity
+to that one mismatch. On a simulated frame the navigator's body, ring, and star models are
+simulated counterparts that share the renderer's geometry, point-spread function, ring
+projection, and star flux; the production models that navigate real frames never run. They
+do not share its body shading. A body renders with the Lommel-Seeliger law unless its
+scene states another, and the navigator's body template shades with the Lambert law, so on
+a Lommel-Seeliger body a clean recovery measures the template's bias as well as the floor.
+A recovery therefore says how tightly a technique converges on a frame drawn by its own
+kind of model, and how that changes as one parameter moves. A simulated number becomes a
+statement about real frames only for a class of frame where simulated error has been shown
+to predict real error, and no such comparison has been made yet. The confidence values the
+navigator reports are provisional: their coefficients and tier boundaries were fitted on
+one simulated campaign.
 
 The numbers below are representative measurements from the committed scene
 catalog and sweeps. The technique solvers carry sub-millipixel floating-point
@@ -1005,21 +1007,26 @@ Algorithmic-invariant recovery
 ==============================
 
 **Self-consistency floor (not accuracy).** The scenes in this section and the
-sub-pixel sweeps that follow plant a rigid transform but no *model* mismatch:
-the frame is rendered from exactly the geometry, and through exactly the
-point-spread function, the navigator assumes.  One mismatch remains in the
-ellipsoid scenes of this section: their bodies shade with the scene default, the
-Lommel-Seeliger law, while the navigator's template shades with the Lambert law.
-Their errors measure that template bias rather than the floor.  The recovery error such a frame
-yields is the *self-consistency floor* -- a bound on how reproducibly the
-solver returns its own input, not a bound on accuracy against a real frame.
-The zero-mismatch render is defined by equality with the navigator's
-configuration: a pure Gaussian PSF (no wings, no field variation, sigma_v =
-sigma_u) at the instrument's configured ``star_psf_sigma``, never an empirical
-kernel -- an empirical PSF, or wings the navigator does not model, would plant
-a hidden mismatch into the floor itself.  Read every clean-recovery number
-below as this floor; the *Model-mismatch sensitivity* section is where those
-floors become the first point of an error-vs-mismatch curve.
+sub-pixel sweeps that follow plant a rigid transform.  A frame rendered from
+exactly the geometry, the shading, and the point-spread function the navigator
+assumes has no *model* mismatch, and the recovery error it yields is the
+*self-consistency floor* -- a bound on how reproducibly the solver returns its
+own input, not a bound on accuracy against a real frame.  The zero-mismatch
+render is defined by equality with the navigator's configuration: a pure
+Gaussian PSF (no wings, no field variation, sigma_v = sigma_u) at the
+instrument's configured ``star_psf_sigma``, never an empirical kernel -- an
+empirical PSF, or wings the navigator does not model, would plant a hidden
+mismatch into the floor itself.
+
+Some of these frames keep one mismatch, in the shading.  The bodies of the
+ellipsoid scenes in this section and of the limb sweeps shade with the scene
+default, the Lommel-Seeliger law, while the navigator's template shades with the
+Lambert law.  Their errors include the template's bias and lie above the floor.
+The haze sweep's surface shades with the Lommel-Seeliger law too, which raises the
+haze fit's error (see the offset-accuracy section).  Read every other
+clean-recovery number below as the floor; the *Model-mismatch sensitivity*
+section is where those floors become the first point of an error-vs-mismatch
+curve.
 
 Each scene below plants a known transform and the navigator predicts the
 unshifted geometry, so the recovered offset (or roll) should equal the planted
@@ -1353,9 +1360,13 @@ black, fitted the limb on its lit part alone, and shaded bodies with the
 Lommel-Seeliger law by default, and they have not been regenerated since. Sweeps run
 after those changes put the haze symmetry fit between 0.11 and 0.14 px and the limb
 at a median of 0.31 px on the dense sweep (0.25 to 0.36 px) and 0.31 px on the wide
-one (0.24 to 0.35 px), the values the text below quotes. The limb and haze sweeps'
-bodies shade with the Lommel-Seeliger law, which the navigator's Lambert template
-does not match (see the invariant table above).
+one (0.24 to 0.35 px), the values the text below quotes. The limb sweep's body
+shades with the Lommel-Seeliger law, which the navigator's Lambert template does not
+match (see the invariant table above). The haze symmetry fit does not use that
+template. It fits the frame's own brightness, with a mirror correlation across the
+line toward the Sun and a circle fit to the sunward limb arc. The Lommel-Seeliger
+surface under the haze changes that brightness, and with it the fit's floor (see
+below).
 
 The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
@@ -1399,13 +1410,16 @@ The disc, ring, limb, and star recover with the same accuracy out to their
 ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.11 to 0.15 px floor
 flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the
 method: the mirror-correlation scan searches the whole margin and the arc fit
-recentres once, so nothing degrades across the range. The **blob now holds across the navigable
+recenters once, so nothing degrades across the range. The **blob now holds across the navigable
 range too**: for the 20 px body it stays under ~0.01 px out to ~45 px, where it
 was previously a ~6 px small-offset technique (degrading to ~5.8 px at 20 px) --
 the blob-shaped-disc coarse acquisition re-centers the integration window on the
 body before the centroid, so the body no longer clips out of the predicted bbox.
-The disc template models only a near-full disc, so this holds for bodies at least
-half-lit; a high-phase crescent beyond its bbox still needs a prior. See
+Past half phase the acquisition correlates a synthesized crescent in place of the
+disc, so a high-phase crescent beyond its bbox is found as well: on the
+``planted_offset_blob_crescent_displaced`` scene, ~20 px beyond its box, the blob
+lands 0.90 px off, the same error as the crescent inside its box. Only a body past
+half phase whose sun direction is unknown still needs a prior. See
 :doc:`/dev_guide/dev_guide_techniques_body_blob`.
 
 Star-field centroiding: dim vs bright
@@ -1813,9 +1827,11 @@ Model-mismatch sensitivity
 ==========================
 
 Most recovery errors above are measured on frames that plant a rigid
-transform but no model mismatch (the shape- and pose-mismatch sweeps are the
-exceptions), so each clean-recovery number is a point on the self-consistency
-floor.  On a real frame the navigator always works against a model that differs
+transform but no model mismatch, and each of those clean-recovery numbers is a
+point on the self-consistency floor.  The exceptions are the shape- and
+pose-mismatch sweeps and the Lommel-Seeliger bodies, whose shading the
+navigator's Lambert template does not match (see the algorithmic-invariant
+section).  On a real frame the navigator always works against a model that differs
 from the scene.  The sweeps here drive one render-vs-navigate mismatch at a
 time -- the axes cataloged below -- and report the recovery error as a function
 of that mismatch; the error-vs-mismatch curve is the product.  It measures
