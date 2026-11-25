@@ -258,7 +258,7 @@ What the host supplies
 An ``oops`` host reads the image file and stores what it learns as attributes of the
 snapshot it returns. :class:`~spindoctor.obs.obs_snapshot.ObsSnapshot` declares the ones
 this package reads on every observation: the image array (``data``), the image file on
-local storage and as the caller gave it (``abspath`` and ``image_url``), and the SPICE
+local storage and as the caller gave it (``image_abspath`` and ``image_url``), and the SPICE
 camera frame the host built the observation on (``spice_to_frame``,
 ``spice_frame_name``, and ``spice_frame_id``). An attribute that only some hosts
 supply, such as the two Cassini ISS filter wheels, is declared on the class of each
@@ -266,11 +266,11 @@ instrument whose host supplies it. :class:`~spindoctor.obs.obs_snapshot_inst.Hos
 label that the Cassini ISS, Voyager ISS, and Galileo SSI hosts keep. Together these
 declarations list everything the package relies on a host for.
 
-A host resolves every symlink in ``abspath``, so an image reached through a link with a
+A host resolves every symlink in ``image_abspath``, so an image reached through a link with a
 name of its own has its target's name there. The published image name has to be the name
 the caller used, so
 :attr:`~spindoctor.obs.obs_snapshot.ObsSnapshot.image_name` takes it from ``image_url``,
-and ``abspath`` serves only to read the file.
+and ``image_abspath`` serves only to read the file.
 
 When it wraps a snapshot, :class:`~spindoctor.obs.obs_snapshot.ObsSnapshot` finds the
 planet nearest the observer by measuring the distance to each planet in the

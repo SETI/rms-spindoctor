@@ -90,7 +90,7 @@ class ObsSim(ObsSnapshotInst):
             The :class:`ObsSim` wrapping the rendered scene: the rendered
             image as ``data``, the full scene and renderer truth metadata on
             the snapshot, and the navigator view as ``nav_params``.
-            Its ``abspath`` is the local file the scene was read from, or,
+            Its ``image_abspath`` is the local file the scene was read from, or,
             for a scene supplied in memory, ``path`` rendered absolute
             without any storage being touched.
 
@@ -176,7 +176,7 @@ class ObsSim(ObsSnapshotInst):
         )
         new_obs._inst_config = cast(dict[str, Any], inst_config)
         new_obs.image_url = str(scene_path.absolute())
-        new_obs.abspath = abspath
+        new_obs.image_abspath = abspath
 
         # The full scene (truth included) stays on the observation for the
         # renderer-side consumers: the test harnesses that score recovery
