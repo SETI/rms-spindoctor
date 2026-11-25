@@ -720,7 +720,7 @@ The ``CL1+VIO`` frame has no simulated twin, since the haze is not modeled there
 The 0.102 at the center of W1561790952 is scattered light from the bright ring
 around it. The real haze's limb stands higher in the violet: at 60.6 deg the
 ``VIO`` frame's sunward edge falls to half its peak at 347 km, against 260 km in
-``RED``. The simulated haze's limb stands 61 km higher in ``BL1`` than in ``RED``,
+``RED``. The simulated haze's limb stands 56 km higher in ``BL1`` than in ``RED``,
 while the real ``BL1`` frame's half max, at 259 km, matches the ``RED`` frame's.
 From 60 to 107 deg the simulated disc runs 16 to 44% darker than the real one,
 least in ``BL1``, and in ``RED`` its sunward edge falls to half its peak 51 km
