@@ -54,10 +54,12 @@ exposure_sec: 0.085
 # BodyBlobNav lands 6.8 to 7.1 px off without flagging it (#975).  The smear
 # causes it: without the smear it lands 0.17 to 0.19 px off.  Real raw frames
 # carry the smear too, but the simulated smear is a step at each column's
-# centroid where the real one builds up across the disc (#920).  The header,
-# the fixed pattern, and the radiation hits are realistic but each moves the
-# fused answer by at most 0.01 px, so the scene shows the navigator unaffected
-# by them.
+# centroid where the real one builds up across the disc (#920).  The fixed
+# pattern and the radiation hits are realistic, and each moves the fused answer
+# by at most 0.01 px, so the scene shows the navigator unaffected by them.  The
+# simulated header also moves it by at most 0.01 px, but its values reach only
+# 255 DN where the real header reaches 4,038 DN, so the scene shows only that the
+# navigator ignores this approximation of the header.
 artifacts:
   instrument_defaults: true
   embedded_header: {probability: 1.0}

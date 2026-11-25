@@ -381,9 +381,11 @@ Without the twist it lands 0.004 to 0.005 px off. The blob technique lands 6.8 t
 off without flagging it, pulled by the smear columns, and 0.17 to 0.19 px off
 without the smear. The simulated smear is a step at each column's centroid, where
 the real smear builds up across the disc, so part of that pull may be the
-simulator's. The header, the fixed pattern, and the radiation hits are realistic
-but each moves the fused answer by at most 0.01 px, so the scene shows that the
-navigator is unaffected by them.
+simulator's. The fixed pattern and the radiation hits are realistic, and each
+moves the fused answer by at most 0.01 px, so the scene shows that the navigator
+is unaffected by them. The simulated header also moves it by at most 0.01 px,
+but its values reach only 255 DN where the real header reaches 4,038 DN, so the
+scene shows only that the navigator ignores this approximation of the header.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
 the limiting-magnitude form: the anchor at unit exposure, one magnitude gained
