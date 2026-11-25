@@ -675,7 +675,12 @@ not give directly and compares simulated frames with the real ones. The tables
 give the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
 percentiles. In a size or gap table each measured whole number is spread evenly
 over the half line on either side of it, so a draw rounded to a whole line comes
-out at each number as often as on the real frames.
+out at each number as often as on the real frames. The simulator draws between
+a table's points in the logarithm of the value. On full narrow angle frames
+one-line groups are only 2.1% of the groups, so the lowest 5% of the table holds
+two-line groups too, and a logarithmic draw starting from half a line would come
+out at one line about twice as often as the frames do. That table therefore
+starts at 1.38 lines, where the draw gives one-line groups their 2.1%.
 
 - Sizes are in lines of their own frame. Full and summed frames each have their
   own table, because summed groups have other sizes. A narrow angle group on a
@@ -690,20 +695,25 @@ out at each number as often as on the real frames.
 - A narrow angle frame loses a mean 6.1 groups with a variance of 127: one group
   on 49% of the frames, 16 at the 90th percentile, and up to 59. A wide angle
   frame loses a mean 4.4 with a variance of 28.7, one on 47% of the frames. The
-  count, the clustering, and the partial lines pool full and summed frames. Each
-  readout mode's count and spacing come mostly from one sequence, so the frames
-  cannot give each mode a law of its own: four full narrow angle frames from 2011
-  hold 115 of the 192 full-frame groups.
+  count, the clustering, and the partial lines pool full and summed frames; the
+  check of each readout mode below says why.
 - Groups cluster. On the narrow angle camera the kept lines between neighboring
   groups are 1, 2, 6, 19, and 55 at the 10th, 25th, 50th, 75th, and 90th
   percentiles. On a frame with more than one group, the first and last span 14%,
   56%, and 84% of its height at the quartiles. Frames that lose many groups
   spread them over the whole frame, and frames that lose a few hold them close
   together or far apart. The gap table inside a cluster is the gaps of 20 lines or
-  less, 241 of the 312. The chance that a group starts a new cluster, 0.40, is the
-  value at which simulated frames best match the gaps and the span together. On
-  the wide angle camera the gap table is the 42 gaps of 20 lines or less of the
-  64, and the chance is 0.60.
+  less, 241 of the 312. On the wide angle camera it is the 42 gaps of 20 lines or
+  less of the 64.
+- The chance that a group starts a new cluster is fitted on simulated frames, 3,000
+  for each value from 0.20 to 0.70 in steps of 0.05. The fit takes the value with
+  the smallest loss: the sum of the squared logarithms of the ratios of simulated
+  to real gaps at the 25th, 50th, 75th, and 90th percentiles, plus a quarter of the
+  sum of the squared differences of the span's quartiles, in tenths of the height.
+  On the narrow angle camera the loss is 0.43, 0.33, and 0.40 at 0.35, 0.40, and
+  0.45, against 0.84 at 0.30 and at 0.50, so the fit is flat from 0.35 to 0.45 and
+  takes 0.40. On the wide angle camera it is 1.48 at 0.60 and 1.60, 1.51, and 1.57
+  at 0.55, 0.65, and 0.70, so that fit takes 0.60 and is flat from 0.55 to 0.70.
 - The count law is fitted on simulated frames, because a frame too small for its
   groups loses some of them: a negative binomial of mean 5.11 and dispersion 4.47
   beyond the first group gives the measured mean and share of frames with one
@@ -721,7 +731,11 @@ out at each number as often as on the real frames.
   narrow angle share at a rank-sum p of 0.02.
 
 Over 20,000 simulated frames of each camera, at the heights and readout modes of
-the real frames in turn, and measured the same way:
+the real frames in turn, and measured the same way, every statistic lies inside
+the real frames' 90% interval. The interval comes from resampling: 2,000 sets of
+the real frames drawn with replacement, each readout mode keeping its number of
+frames, and the interval runs from the 5th to the 95th percentile of the statistic
+over the sets. Each real value below is followed by its interval.
 
 .. list-table::
    :header-rows: 1
@@ -731,52 +745,147 @@ the real frames in turn, and measured the same way:
      - Narrow angle, simulated
      - Wide angle, real
      - Wide angle, simulated
-   * - Groups per frame: mean, variance
-     - 6.1, 127
-     - 6.1, 112
-     - 4.4, 28.7
-     - 4.4, 38.5
-   * - Frames with one group; 90th percentile
-     - 49%; 16
-     - 49%; 17
-     - 47%; 10.6
-     - 47%; 11
-   * - Full-frame sizes, 25th, 50th, 75th, 90th percentiles
-     - 3, 5, 10, 20.7
-     - 3, 5, 10, 21
-     - 3, 5, 11.5, 18.8
-     - 3, 5, 12, 19
-   * - Summed-frame sizes, same
-     - 4, 4, 6, 11
-     - 4, 4, 6, 11
-     - 6, 13, 30, 52
-     - 6, 13, 27, 48
-   * - Gaps, 25th, 50th, 75th, 90th percentiles
-     - 2, 6, 19, 55
-     - 2, 6, 18, 87
-     - 6, 11.5, 30, 181
-     - 5, 12, 49, 155
-   * - Span, quartiles
-     - 0.14, 0.56, 0.84
-     - 0.17, 0.57, 0.84
-     - 0.24, 0.80, 0.87
-     - 0.30, 0.63, 0.86
-   * - Groups with a head line; with a tail line
-     - 37.8%; 17.2%
-     - 37.6%; 17.1%
-     - 27.7%; 12.0%
-     - 28.0%; 12.7%
+   * - Groups per frame, mean
+     - 6.1 (3.9 to 8.6)
+     - 6.1
+     - 4.4 (2.6 to 6.4)
+     - 4.4
+   * - Groups per frame, variance
+     - 127 (40 to 225)
+     - 112
+     - 28.7 (5.0 to 50.2)
+     - 38.5
+   * - Frames with one group
+     - 49% (39 to 59%)
+     - 49%
+     - 47% (32 to 63%)
+     - 47%
+   * - Groups per frame, 90th percentile
+     - 16 (7 to 29)
+     - 17
+     - 10.6 (5.2 to 20)
+     - 11
+   * - Full-frame sizes, 25th percentile
+     - 3 (2 to 3)
+     - 3
+     - 3 (2 to 4)
+     - 3
+   * - Full-frame sizes, 50th percentile
+     - 5 (4 to 7)
+     - 5
+     - 5 (4 to 7)
+     - 5
+   * - Full-frame sizes, 75th percentile
+     - 10 (7 to 15)
+     - 10
+     - 11.5 (7 to 18)
+     - 12
+   * - Full-frame sizes, 90th percentile
+     - 20.7 (12 to 42)
+     - 21
+     - 18.8 (13 to 158)
+     - 19
+   * - Summed-frame sizes, 25th percentile
+     - 4 (4 to 4)
+     - 4
+     - 6 (5 to 10)
+     - 6
+   * - Summed-frame sizes, 50th percentile
+     - 4 (4 to 5)
+     - 4
+     - 13 (8 to 27)
+     - 13
+   * - Summed-frame sizes, 75th percentile
+     - 6 (6 to 8)
+     - 6
+     - 30 (16 to 51)
+     - 27
+   * - Summed-frame sizes, 90th percentile
+     - 11 (8 to 14)
+     - 11
+     - 52 (30 to 59)
+     - 48
+   * - One-line groups
+     - 3.8% (2.2 to 5.8%)
+     - 3.4%
+     - 3.6% (1.1 to 7.4%)
+     - 5.4%
+   * - Gaps, 25th percentile
+     - 2 (2 to 4)
+     - 2
+     - 6 (5 to 7)
+     - 5
+   * - Gaps, 50th percentile
+     - 6 (4 to 11)
+     - 6
+     - 11.5 (9 to 16)
+     - 12
+   * - Gaps, 75th percentile
+     - 19 (11 to 34)
+     - 18
+     - 30 (16 to 162)
+     - 49
+   * - Gaps, 90th percentile
+     - 55 (31 to 113)
+     - 87
+     - 181 (41 to 244)
+     - 155
+   * - Span, 25th percentile
+     - 0.14 (0.08 to 0.45)
+     - 0.17
+     - 0.24 (0.05 to 0.82)
+     - 0.30
+   * - Span, 50th percentile
+     - 0.56 (0.41 to 0.71)
+     - 0.57
+     - 0.80 (0.16 to 0.87)
+     - 0.63
+   * - Span, 75th percentile
+     - 0.84 (0.70 to 0.93)
+     - 0.84
+     - 0.87 (0.76 to 0.91)
+     - 0.86
+   * - Groups with a head line
+     - 37.8% (28.4 to 45.0%)
+     - 37.6%
+     - 27.7% (23.1 to 33.3%)
+     - 28.0%
+   * - Groups with a tail line
+     - 17.2% (11.8 to 21.2%)
+     - 17.1%
+     - 12.0% (7.5 to 15.4%)
+     - 12.7%
 
-Simulated narrow angle frames have more long gaps than the real ones, 87 against
-55 lines at the 90th percentile. One-line groups are 5.0% of the simulated narrow
-angle groups against 3.8% of the real ones, because the size table cannot tell
-the share of one-line groups apart from that of two-line groups below its 5th
-percentile. The wide angle span and gaps rest on only 10 frames with more than one
-group. Resampling the frames puts 90% of the real median spans between 0.28 and
-0.87, and 90% of the 75th percentiles of the gaps between 16 and 182 lines, so the
-simulated wide angle values lie within what the frames can tell. The same holds
-for the count variance: 40 to 222 on the narrow angle camera and 5 to 50 on the
-wide angle one.
+The largest differences are the narrow angle 90th percentile of the gaps, 87
+lines against 55, and the wide angle median span, 0.63 against 0.80, and 75th
+percentile of the gaps, 49 lines against 30. The wide angle frames with more than
+one group are only 10, so their span and gaps are loosely known.
+
+*Each readout mode.* The check is repeated on the full frames alone and on the
+summed frames alone, with the pooled count, clustering, and partial-line laws. A
+sequence here is a run of frames less than a day apart.
+
+- On the 39 full narrow angle frames, in 15 sequences, every statistic lies inside
+  its interval. The simulated frames lose a mean 6.2 groups against 4.9 (2.0 to
+  8.3), one group on 49% of the frames against 59% (46 to 72%), and their gaps reach
+  112 lines at the 90th percentile against 30 (12 to 316).
+- On the 22 summed narrow angle frames five statistics miss their intervals: the
+  gaps are 2, 5, and 14 lines at the quartiles against 4, 10, and 27 (3 to 6, 8 to
+  18, and 19 to 54), 18% of the gaps are one line against 5.7% (3.3 to 8.3%), and
+  38% of the groups show a head line against 31% (26 to 37%). One sequence of 13 frames from 2008
+  (N1606722214 to N1606787565) holds 145 of the 181 summed groups and 132 of the 159
+  gaps, so these statistics are mostly that sequence's. The other nine summed
+  frames hold their groups closer together than the pooled law does, at 2, 3, and 7
+  lines between groups at the quartiles. The frames therefore cannot give summed
+  frames a law of their own, and they take the pooled one.
+- On the 13 full wide angle frames, in nine sequences, the gaps' 25th percentile
+  misses: 6 lines against 8.75 (7 to 101.5). Three frames of one 2011 sequence
+  (W1683625725 to W1683626155) hold 29 of the 43 groups and 26 of the 30 gaps.
+- On the six summed wide angle frames, in three sequences, two statistics miss: the
+  gaps' 25th percentile, 3 lines against 5 (5 to 5.5), and the one-line gaps, 11%
+  against 5.9% (0 to 10.3%). Two frames of one 2011 sequence (W1683220339 and
+  W1683220356) hold 23 of the 40 groups and 21 of the 34 gaps. Both wide angle modes
+  therefore take the pooled law too.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.

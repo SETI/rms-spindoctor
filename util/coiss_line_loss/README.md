@@ -23,6 +23,9 @@ the ground, on the frames in `gap_frames.txt`, and compare the simulator's
 take as shape defaults and writes the groups to a file; `gap_fit.py` renders
 simulated frames at the census frames' heights and readout modes, measures them the
 same way, and fits the share of groups that start a new cluster and the count law.
+Its comparison gives each statistic with its 90% interval over resampled census
+frames, over all of a camera's frames and over each readout mode alone, and says how
+much of each mode its largest sequence holds.
 
 ## Layout
 
@@ -33,7 +36,7 @@ same way, and fits the share of groups that start a new cluster and the count la
 | `twins.py` | Builds a simulated twin of a frame and compares the simulator's cuts on the twin with the frame's own. |
 | `lossless_frames.txt` | The frames, as paths under the PDS3 holdings root. |
 | `gap_census.py` | Measures the groups of lost lines on the frames in `gap_frames.txt` and prints the `downlink_gaps` tables. |
-| `gap_fit.py` | Compares simulated downlink gaps with the census, and fits the cluster share and the count law. |
+| `gap_fit.py` | Compares simulated downlink gaps with the census and its resampling intervals, and fits the cluster share and the count law. |
 | `gap_frames.txt` | The 80 frames, 61 narrow angle and 19 wide angle, whose line ends the compressor did not cut and that lose groups of whole lines inside the frame. |
 
 ## Running
@@ -76,4 +79,7 @@ and one group on 49% of the frames (49%); the gaps are 2, 6, 18, and 87 lines at
 25th, 50th, 75th, and 90th percentiles (2, 6, 19, and 55); the span of a frame's
 groups is 0.17, 0.57, and 0.84 of the height at the quartiles (0.14, 0.56, and
 0.84); and 37.6% and 17.1% of the groups show a head and a tail line (37.8% and
-17.2%). The Cassini page of the developer guide gives the full comparison.
+17.2%). Every statistic of both cameras lies inside its 90% resampling interval.
+Per readout mode, five statistics of the summed narrow angle frames miss, mostly
+those of one 2008 sequence that holds 145 of their 181 groups. The Cassini page of
+the developer guide gives the full comparison.

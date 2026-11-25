@@ -291,10 +291,11 @@ coiss_nac:
       #   summed 4x4, so 4x4 frames take the 2x2 table.
       # - A frame loses a mean 6.1 groups (variance 127): one on 49% of the frames,
       #   16 at the 90th percentile, and up to 59.  The count, the clustering, and
-      #   the partial-line rates pool full and summed frames: each readout mode's
-      #   count and spacing come mostly from one sequence (4 full frames of 2011 hold
-      #   115 of the 192 full-frame groups, and the 2008 sequence above 145 of the
-      #   181 summed-frame groups).
+      #   the partial-line rates pool full and summed frames.  With them, every
+      #   statistic of the full frames lies inside its 90% resampling interval; the
+      #   summed frames miss on their gaps and head lines, but the 2008 sequence
+      #   above holds 145 of their 181 groups and 132 of their 159 gaps, so they
+      #   hold too few independent sequences for a law of their own.
       # - Groups cluster.  The gap table is the kept lines between neighboring
       #   groups 20 lines apart or less (241 of the 312 gaps).  cluster_probability
       #   is fitted so that simulated frames match the gaps' quartiles and 90th
@@ -513,8 +514,11 @@ coiss_wac:
       #   frames are too few to split 2x2 from 4x4.
       # - A frame loses a mean 4.4 groups (variance 28.7): one on 47% of the frames
       #   and up to 20.  Like the NAC's, the count, the clustering, and the
-      #   partial-line rates pool full and summed frames, since 19 frames cannot
-      #   support a law for each readout mode.
+      #   partial-line rates pool full and summed frames.  Per readout mode, the
+      #   gaps miss their 90% resampling intervals at the 25th percentile, and the
+      #   summed frames' share of one-line gaps misses too, but one 2011 sequence
+      #   holds 26 of the 30 full-frame gaps and another 23 of the 40 summed-frame
+      #   groups, so neither mode can support a law of its own.
       # - The gap table is the 42 gaps of 20 lines or less of the 64, and
       #   cluster_probability and the count law are fitted as for the NAC.  The
       #   quartiles of the span come from only 10 frames: 0.24, 0.80, and 0.87.
