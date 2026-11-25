@@ -498,7 +498,8 @@ mode reads the image size.
    * - ``cassini:pds3_product_creation_time``
      - When the raw image product was built on the ground, as the label
        inside the file states it. The archive states this time in Pacific
-       local time, not UTC, although some labels end it with ``Z``.
+       local time, not UTC. Some labels end it with ``Z``, which is left out
+       here as it is from every other time.
      - Pacific local time
    * - ``cassini:pds3_product_version_type``
      - The product's version type; ``FINAL`` for every archived product.

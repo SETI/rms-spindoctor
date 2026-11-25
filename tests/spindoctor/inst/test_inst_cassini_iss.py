@@ -26,8 +26,10 @@ from tests.spindoctor.public_metadata_cassini_iss import CASSINI_ISS_PUBLIC_META
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
 from spindoctor.obs.obs_inst_cassini_iss import (
     _LABEL_METADATA,
+    _RAW_PRODUCT_KEYWORDS,
     ObsCassiniISS,
     _label_metadata,
+    _raw_product_value,
     _sclk_count,
 )
 
@@ -68,7 +70,9 @@ def _obs_with_label(label: dict[str, Any]) -> ObsCassiniISS:
 def _subfields(label: Mapping[str, Any], filter1: str, filter2: str) -> dict[str, Any]:
     """Return the subfields the host gives an image with this label and these filters.
 
-    The host gives the label's clock counts as subfields as well as in ``dict``.
+    The host gives the label's clock counts as subfields as well as in ``dict``.  The
+    label items stand for the VICAR header as well, which the host always reads and keeps
+    as ``header_dict``.
 
     Parameters:
         label: The image's label items.
@@ -76,9 +80,9 @@ def _subfields(label: Mapping[str, Any], filter1: str, filter2: str) -> dict[str
         filter2: The filter in the second wheel.
 
     Returns:
-        The ``filter1``, ``filter2``, and clock count subfields.
+        The ``filter1``, ``filter2``, ``header_dict``, and clock count subfields.
     """
-    subfields = {'filter1': filter1, 'filter2': filter2}
+    subfields: dict[str, Any] = {'filter1': filter1, 'filter2': filter2, 'header_dict': label}
     for keyword in ('SPACECRAFT_CLOCK_START_COUNT', 'SPACECRAFT_CLOCK_STOP_COUNT'):
         if keyword in label:
             subfields[keyword.lower()] = label[keyword]
@@ -261,7 +265,8 @@ _W1573251410_METADATA: dict[str, Any] = {
     'cassini:spacecraft_clock_count_partition': 1,
     'cassini:spacecraft_clock_start_count': '1573251410.115',
     'cassini:spacecraft_clock_stop_count': '1573251410.122',
-    'cassini:limitations': 'N/A',
+    # Read from the VICAR header, verbatim there, where N/A is a placeholder
+    'cassini:limitations': None,
     'cassini:antiblooming_state_flag': 'ON',
     'cassini:bias_strip_mean': 22.0,
     'cassini:calibration_lamp_state_flag': 'OFF',
@@ -516,9 +521,10 @@ def test_every_attribute_is_published_with_the_value_its_keyword_states() -> Non
     """A label stating every keyword publishes all of the attributes, with its values.
 
     W1573251410_1_CALIB's numbers stay numbers, its times are its own day-of-year
-    spellings with their trailing Z, its gain mode is its text, its missing-line count is
-    the text N/A, and each of its sequence keywords is split into the attributes its
-    elements hold.
+    spellings as this stand-in gives them, its gain mode is its text, its missing-line
+    count is the text N/A, its description, read from the header where N/A is a
+    placeholder, is null, and each of its sequence keywords is split into the attributes
+    its elements hold.
     """
     public = _wide_angle_observation(_w1573251410_label()).get_public_metadata()
     assert public['label_metadata'] == _W1573251410_METADATA
@@ -675,15 +681,14 @@ def test_a_lossy_label_states_its_compression_parameters_as_numbers() -> None:
     assert block['cassini:inst_cmprs_param_quant'] == 0
 
 
-def test_the_product_creation_time_keeps_the_trailing_z_its_label_writes() -> None:
-    """The creation time is published exactly as the label writes it, ``Z`` and all.
+def test_the_product_creation_time_loses_the_header_s_trailing_z() -> None:
+    """The creation time is published without the VICAR header's ``Z``, like every time.
 
-    The archive states this time in Pacific local time rather than UTC, and writes it
-    with a trailing ``Z`` on some labels and without one on others. Neither is corrected,
-    so a reader sees which form its own image carries.
+    The host writes every time it merges from the header without the ``Z``, and this one
+    is read from the header directly, so it is written the same way.
     """
     block = _cassini_observation(_n1454725799_label()).get_public_metadata()['label_metadata']
-    assert block['cassini:pds3_product_creation_time'] == '2004-038T19:26:35.000Z'
+    assert block['cassini:pds3_product_creation_time'] == '2004-038T19:26:35.000'
 
 
 def test_the_raw_product_keywords_come_from_the_vicar_header() -> None:
@@ -704,8 +709,22 @@ def test_the_raw_product_keywords_come_from_the_vicar_header() -> None:
     }
     block = _label_metadata(merged, 'N1481269570_1_CALIB.IMG', header=header)
     assert block['cassini:limitations'] == header['DESCRIPTION']
-    assert block['cassini:pds3_product_creation_time'] == header['PRODUCT_CREATION_TIME']
+    assert block['cassini:pds3_product_creation_time'] == '2004-345T03:30:36.000'
     assert block['cassini:sequence_id'] == 'S06'
+
+
+def test_a_raw_product_keyword_the_header_lacks_is_null() -> None:
+    """A header without a description publishes none, never the calibrated label's."""
+    merged = {'DESCRIPTION': 'Calibrated using CISSCAL 4.0beta'}
+    block = _label_metadata(merged, 'N1481269570_1_CALIB.IMG', header={})
+    assert block['cassini:limitations'] is None
+
+
+def test_raw_product_keywords_are_null_when_no_header_was_read() -> None:
+    """Without the VICAR header, the calibrated label's values are never published."""
+    merged = {'PRODUCT_CREATION_TIME': '2019-06-09T12:39:25'}
+    block = _label_metadata(merged, 'N1481269570_1_CALIB.IMG')
+    assert block['cassini:pds3_product_creation_time'] is None
 
 
 def test_a_placeholder_raw_product_description_is_null() -> None:
@@ -888,7 +907,7 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
     # The attributes read a label by key, the way they read ``obs.dict``; a VicarLabel
     # answers that way without being a Mapping, so it is handed over as the one they take.
     label = cast(Mapping[str, Any], image.label)
-    published = _label_metadata(label, 'N1294562651_1_CALIB.IMG')
+    published = _label_metadata(label, 'N1294562651_1_CALIB.IMG', header=label)
     section = _property_block_keywords(label)
     absent = [
         (attribute, keyword)
@@ -914,7 +933,12 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
         for attribute, keyword, element in _LABEL_METADATA
         if keyword is not None and keyword in section and element is None
     } == {
-        f'cassini:{attribute}': label.get(keyword, None)
+        # The raw-product keywords are read from the header in the PDS3 label's form
+        f'cassini:{attribute}': (
+            _raw_product_value(label.get(keyword, None))
+            if keyword in _RAW_PRODUCT_KEYWORDS
+            else label.get(keyword, None)
+        )
         for attribute, keyword, element in _LABEL_METADATA
         if keyword is not None and keyword in section and element is None
     }

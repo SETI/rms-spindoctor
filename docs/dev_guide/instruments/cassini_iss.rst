@@ -180,10 +180,13 @@ calibration's history and its ``PRODUCT_CREATION_TIME`` is the calibration's,
 such as ``2019-06-09T12:39:25``. The VICAR label keeps the raw product's values,
 which are what ``cassini:limitations`` and ``cassini:pds3_product_creation_time``
 mean, so ``_RAW_PRODUCT_KEYWORDS`` reads those two keywords from the host's
-``header_dict`` instead, as the VICAR label writes them, and a placeholder there
-is ``None`` as well. Where the VICAR label repeats a keyword, such as
-``DAT_TIM``, ``header_dict`` holds its first value. Every read here looks a
-keyword up by name, and none reads a repeated one.
+``header_dict`` instead. ``_raw_product_value`` writes each as the header writes
+it, except that a placeholder is ``None`` and a time loses its trailing ``Z``, as
+a time the host took from the header alone does. If the host did not read the
+header, both are ``None``, never the calibrated label's values. Where the VICAR
+label repeats a keyword, such as ``DAT_TIM``, ``header_dict`` holds its first
+value. Every read here looks a keyword up by name, and none reads a repeated
+one.
 
 :meth:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS.get_public_metadata`
 also refuses a detector that is neither ``NAC`` nor ``WAC``, because the

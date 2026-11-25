@@ -551,5 +551,6 @@ def cassini_public_metadata(
         'camera': camera,
         'exposure_time': exposure.exposure_s,
         'filters': list(filters),
-        'label_metadata': _label_metadata(label, image_name),
+        # The label stands for the VICAR header too, which the host always reads
+        'label_metadata': _label_metadata(label, image_name, header=label),
     }
