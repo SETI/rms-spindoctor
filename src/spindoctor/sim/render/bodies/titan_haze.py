@@ -58,6 +58,7 @@ from typing import Any
 import numpy as np
 
 from spindoctor.sim.instruments.passbands import Passband, solar_weighted_passband
+from spindoctor.sim.render.bodies.spec import body_semi_axes_px
 from spindoctor.sim.render.bodies.titan_haze_table import TITAN_HAZE_ROWS
 from spindoctor.support.types import NDArrayFloatType
 
@@ -211,11 +212,15 @@ def methane_band_fraction(passband: Passband) -> float:
 
 
 def _km_per_pixel(body: Mapping[str, Any]) -> float:
-    """The body's kilometers per pixel: its own, or Titan's radius over its size."""
+    """The body's kilometers per pixel: its own, or Titan's radius over its mean semi-axis.
+
+    The semi-axes take the renderer's defaults, so a body that leaves out an axis
+    and one that states the default value get the same scale.
+    """
     stated = body.get('km_per_pixel')
     if stated is not None:
         return float(stated)
-    axes = [float(body[key]) for key in ('semi_a_px', 'semi_b_px', 'semi_c_px') if key in body]
+    axes = body_semi_axes_px(body)
     return TITAN_MEAN_RADIUS_KM / (sum(axes) / len(axes))
 
 

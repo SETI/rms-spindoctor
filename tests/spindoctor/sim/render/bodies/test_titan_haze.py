@@ -99,6 +99,18 @@ def test_a_titan_body_stands_for_titan_at_its_own_size() -> None:
     assert resolved['atmosphere']['scale_height_px'] == pytest.approx(expected, rel=1e-12)
 
 
+def test_an_omitted_axis_scales_the_haze_as_its_stated_default_does() -> None:
+    """Leaving out semi-axis c gives the haze the scale of stating c as min(a, b)."""
+    omitted = _titan_body(semi_a_px=100.0, semi_b_px=50.0)
+    del omitted['semi_c_px']
+    stated = _titan_body(semi_a_px=100.0, semi_b_px=50.0, semi_c_px=50.0)
+    resolved_omitted = resolve_model_atmosphere(omitted, instrument='coiss_nac', filter_name=None)
+    resolved_stated = resolve_model_atmosphere(stated, instrument='coiss_nac', filter_name=None)
+    assert resolved_omitted['atmosphere']['scale_height_px'] == pytest.approx(
+        resolved_stated['atmosphere']['scale_height_px'], rel=1e-12
+    )
+
+
 def test_a_titan_body_uses_its_stated_scale() -> None:
     """A body that sets km_per_pixel takes its reference altitude from it."""
     body = _titan_body(km_per_pixel=20.0)
