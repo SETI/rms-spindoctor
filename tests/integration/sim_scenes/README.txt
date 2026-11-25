@@ -58,8 +58,10 @@ Scene classes
                                 camera, each at the camera's real frame size,
                                 with its detector chain on, a realistic
                                 exposure, a pointing error the size real frames
-                                carry, and the camera's measured twist with
-                                roll fitting off as the cameras ship;
+                                carry, and the camera's measured twist (or,
+                                where none is measured, a placeholder its
+                                instrument chapter states) with roll fitting
+                                off as the cameras ship;
                                 its own test module navigates each scene once
                                 and applies all of its checks
   mixed_content               - two kinds of navigable content on one realistic

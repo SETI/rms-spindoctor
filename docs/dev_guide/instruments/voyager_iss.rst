@@ -649,8 +649,9 @@ Open items
   numbers, although each camera's optics are its own.
 * The Voyager 1 simulator cameras keep an estimated star zero point, and the
   simulator converts vidicon DN to I/F at one scale for every exposure and
-  filter, so a simulated star's I/F differs from a real one's by the ratio of
-  that scale to the archive's.
+  filter, so for equal raw DN a simulated star's I/F is the real one's times
+  the archive's scale divided by the simulator's (about 30 / 127.5 for the
+  narrow angle camera at 0.48 s).
 * The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the
   real GEOMED sky level varies about 50x between frames.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of
