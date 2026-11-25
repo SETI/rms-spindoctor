@@ -14,11 +14,11 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.spindoctor.sim.fictional_camera import catalog_dir_with, keyed
 
 from spindoctor.sim.instruments import catalog as instrument_catalog
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.radiance.compose import sky_star_faint_cutoff_mag
-from tests.spindoctor.sim.fictional_camera import catalog_dir_with, keyed
 
 # Binary fractions, so the commanded exposure plus the extra time is exact.
 _EXPOSURE_SEC = 0.0625
