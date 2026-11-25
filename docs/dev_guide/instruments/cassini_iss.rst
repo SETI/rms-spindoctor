@@ -622,6 +622,44 @@ entry states an exclusion reason. On a raw camera ``instrument_defaults`` turns 
 calibrated entries drop ``banding`` and ``bias_structure``, which CISSCAL removes, and
 lower the hot-pixel fraction to the 1.6e-5 the cohort measures.
 
+**Lost lines.** The raw entries offer ``compression_truncated_lines`` and
+``downlink_gaps`` with shape defaults measured on real frames, and the calibrated
+entries inherit them. The measurement read the binary line prefixes, which give
+each line's valid samples, of every losslessly compressed 12-bit frame with lost
+lines in the current metadata indexes of COISS_2010, COISS_2023, COISS_2050, and
+COISS_2068: 321 narrow angle frames and 82 wide angle frames. No uncompressed
+12-bit frame in them lost lines.
+
+- 61 narrow angle frames lose the ends of alternating lines, 13,788 lines in all.
+  All but 6 are the second line of a pair, at an odd row number, and every one
+  keeps a whole number of 16 samples from its start, so ``step_samples`` is 16. The
+  lost share of the line is 1.6, 6.3, 10.9, 18.8, 34.4, and 37.5% at the 0th, 10th,
+  25th, 50th, 75th, and 90th percentiles, and the table ends at the 99.5th
+  percentile, 40.6%. One frame's lines lose up to 90.6%. Within one frame the share
+  varies less than over all of them: its standard deviation is a median 2.6% of the
+  line, against 11.8% over all the lines. On 32 of the frames the lost ends start
+  at the top of the frame, and on the rest they start lower, as low as 89% of the
+  way down. One wide angle frame shows the form, on 100 lines that lose 6.3 or 12.5%
+  in 16-sample steps. One frame cannot give a distribution, so the wide angle entry
+  takes the narrow angle table.
+- 62 narrow angle frames lose 374 groups of whole lines inside the frame, 1 to 59
+  groups per frame and 1 on half of them. A group is 2, 3, 5, 8, and 15 lines at
+  the 10th, 25th, 50th, 75th, and 90th percentiles, and up to 373. ``median_lines``
+  is 5, the median, and ``log_sigma`` is 0.87, the standard deviation of the
+  natural log of the sizes. The starts fall evenly on every line. 131 of the 374
+  groups (35%) also lose the end of the line just above, which keeps a whole
+  number of 16 samples, so ``head_probability`` is 0.35. On 19 wide angle frames
+  the 83 groups are larger, 2, 5, 7, 18, and 50 lines at the same percentiles, so
+  that entry's ``median_lines`` is 7 and its ``log_sigma`` 1.18, and 22 of the
+  groups (27%) lose the end of the line above.
+
+The drawn losses differ from the real ones in three ways. Each drawn line's lost
+share comes from the table for all frames, so one drawn frame shows the spread of
+all of them, where a real frame keeps its lines' shares close together. Real
+groups cluster: their starts lie a median 14.5 lines apart, where the drawn starts
+fall independently anywhere in the frame. And a real head line keeps a median 34%
+of the line, where the drawn one keeps 50%.
+
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
 
