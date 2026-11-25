@@ -1778,12 +1778,11 @@ quantity it holds. The registry records which key each mode takes
 (``ArtifactMode.activation``):
 
 * **Count** modes draw a Poisson number of events per frame (lost lines, lost
-  blocks, downlink gaps, spiked pixels, dead pixels, and dead columns). Their key is
+  blocks, spiked pixels, dead pixels, and dead columns). Their key is
   ``expected_events``, the expected number of events per frame, any non-negative
   number. Each caps the draw at the number of places its events can land: the
-  frame's lines for a line loss or a downlink gap, its columns for ``dead_columns``,
-  its pixels for a pixel loss, and the compression-block count for
-  ``missing_blocks``.
+  frame's lines for a line loss, its columns for ``dead_columns``, its pixels
+  for a pixel loss, and the compression-block count for ``missing_blocks``.
 * **Rate** modes ``bright_dark_pairs`` and ``radiation_transients`` take
   ``expected_events_per_sec``, the expected number of events per second, any
   non-negative number, and their draws are uncapped. For ``bright_dark_pairs``
@@ -1796,9 +1795,11 @@ quantity it holds. The registry records which key each mode takes
   a frame collects only the dwell's hits. The scene validator refuses a
   non-positive ``exposure_sec``, so only a direct caller of the detector stage
   can pass one.
-* **Probability** modes are commanded or periodic (a frame edit, a cutout, most
-  detector effects). Their key is ``probability``, the per-frame probability in [0, 1]
-  that the mode activates at all.
+* **Probability** modes are commanded, periodic, or frame-level (a frame edit, a
+  cutout, the lossless compressor's cuts, downlink gaps, most detector effects).
+  Their key is ``probability``, the per-frame probability in [0, 1] that the mode
+  activates at all. A frame that ``downlink_gaps`` activates on loses at least one
+  group of lines, and the mode's own parameters draw how many.
 * **Density** mode ``hot_pixels`` takes ``pixel_fraction``, the fraction of
   detector pixels that are hot, in [0, 1].
 
@@ -1857,8 +1858,8 @@ entries.
      - nac, wac, gossi
      - ``probability``
    * - ``compression_truncated_lines``
-     - the second line of every line pair loses its end, in whole compressor
-       steps, from a chosen height to the bottom of the frame
+     - the second line of each line pair that does not fit the lossless
+       compressor's budget loses its end, in whole coded blocks
      - nac, wac
      - ``probability``
    * - ``edited_frame``
@@ -1876,10 +1877,10 @@ entries.
      - nac, wac, gossi
      - ``expected_events``
    * - ``downlink_gaps``
-     - groups of whole lines of varying size, starting on any line, and the end
-       of the line above a group
+     - clustered groups of whole lines of varying size, starting on any line, and
+       the ends of the lines above and below a group
      - nac, wac
-     - ``expected_events``
+     - ``probability``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
      - gossi, vgiss_*
@@ -1934,30 +1935,49 @@ corrected geometry (see :doc:`instruments/voyager_iss`)
 commanded ``truth_window`` is resolved before the loop and passed to
 ``missing_blocks`` as a protected rectangle.
 
-Two loss modes draw the forms that a camera's real frames show, with the
-distributions measured on them as the camera's shape defaults.
+Two loss modes draw the forms that a camera's real frames show. One computes its
+loss from the frame's content, and the other draws it from distributions measured on
+real frames, which the camera's entry gives as shape defaults.
 
-``compression_truncated_lines`` draws the loss a lossless compressor leaves when
-it must fit each pair of lines into half its raw size: a pair that will not
-compress that far loses the end of its second line. The lines at odd row numbers
-lose their ends, from the first one at or below ``start_fraction`` of the frame's
-height down to the bottom. ``start_fraction`` is 0 by default, which covers the
-whole frame. Each line keeps a whole number of ``step_samples`` from its start
-and loses at least one sample. Its lost share is drawn on its own from
-``lost_share_percentiles``, a percentile table: the share of the line lost at the
-0th, 10th, 25th, 50th, 75th, 90th, and 100th percentiles, in rising order. A draw
-interpolates linearly between those points
-(:data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`).
+``compression_truncated_lines`` cuts the lines a lossless compressor cannot fit.
+The compressor codes the differences between neighboring samples of a line in
+blocks of ``block_samples``. Each block takes whichever of its code options spends
+the fewest bits: option ``k``, from 0 to ``max_split``, sends the low ``k`` bits of
+each difference as they are and the rest in unary, and ``id_bits`` name the option.
+A pair of lines may use ``word_bits`` bits for each sample of one line. The
+compressor codes the pair's first line, then the second line's blocks in order
+while they still fit, and the second line loses the rest. If the first line alone
+does not fit, it keeps the blocks that do, and the second line is lost whole. A
+smooth frame loses nothing. Noise and fine detail cut the pairs they cross, so the
+cut lines start and stop where such content does, and neighboring cut lines lose
+nearly the same share. The mode codes the DN the camera sent, after the detector
+stage and before every downlink loss. On a calibrated frame it codes the DN that
+the calibration maps back to. The scene validator refuses the mode on a frame that
+quantizes to 8 bits, because the budget for 8-bit frames was never measured. No
+camera turns the mode on under ``instrument_defaults``; a scene turns it on itself.
+The coder lives in :mod:`spindoctor.sim.render.telemetry.lossless`.
 
 ``downlink_gaps`` draws the groups of whole lines that a frame loses when packets
-are lost on the way to the ground. Each group's size is drawn from a log-normal
-distribution: ``median_lines`` is its median, and ``log_sigma`` is the standard
-deviation of the natural log of the size. A size rounds to a whole number of
-lines, at least one. A group starts on any line that keeps it inside the frame.
-With probability ``head_probability``, the line just above a group also loses its
-end, keeping a whole number of ``step_samples``, from one step up to all but the
-last, drawn uniformly. Groups that overlap merge in the frame and stay separate
-in the truth record.
+are lost on the way to the ground. A frame that the mode activates on loses one
+group plus a negative-binomial number more. ``mean_groups`` is the mean number of
+groups in all. The extra groups' variance is their mean plus ``dispersion`` times
+its square, and a dispersion of 0 draws them Poisson. Each group's size is drawn
+from ``size_percentiles``, a percentile table in lines, and rounds to a whole
+number of lines, at least one. A percentile table gives a distribution by its
+values at the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
+percentiles, in rising order
+(:data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`); a size table is
+interpolated in the logarithm, so its top decile does not crowd toward the
+largest size. Without ``gap_percentiles`` each group starts on a uniform line.
+With them the groups cluster: each group after the first starts a drawn gap after
+the end of the one before, and a group that would run past the bottom starts a new
+cluster. A group that starts a cluster takes a uniform line, preferring one that
+no other group covers or touches. With ``head_probability`` the line just above a
+group loses its end, and with ``tail_probability`` the line just below does. Such
+a line keeps a whole number of ``step_samples`` from its start, at least one step
+and all but one at most, its kept share drawn from ``head_kept_percentiles`` or
+``tail_kept_percentiles``. Groups that overlap merge in the frame and stay
+separate in the truth record.
 
 .. _sim-detector-modes:
 
@@ -2070,7 +2090,8 @@ placement onto the navigation features -- a lost line crosses the disc, a dead
 pixel lands on a star -- through the shared
 :mod:`spindoctor.sim.render.feature_loci` helpers; placement is uniform when the
 switch is off or absent. Purely periodic or commanded shapes (``alternating_lines``,
-``compression_truncated_lines``, the frame-level edits) ignore the switch: their geometry is fixed once active.
+the frame-level edits) ignore the switch: their geometry is fixed once active. So
+does ``compression_truncated_lines``, whose cuts follow the frame's content.
 The switch is one scene-level flag, and it applies to every mode the scene sets
 itself. A mode that only ``instrument_defaults`` turns on keeps the camera's own
 placement. A raw Cassini camera's hot pixels therefore stay on the detector's fixed map
