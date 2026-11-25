@@ -99,6 +99,7 @@ PARAMS = MeasureParams(
     psf_half=8,
     ee_r_max=10.0,
     ee_n_bins=20,
+    missing_value=0.0,
 )
 
 

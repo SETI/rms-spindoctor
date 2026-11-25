@@ -120,6 +120,7 @@ PARAMS = MeasureParams(
     ee_r_max=8.0,
     ee_n_bins=16,
     highpass_subsample=2,
+    missing_value=0.0,
 )
 
 

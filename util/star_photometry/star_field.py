@@ -740,6 +740,7 @@ class ApertureResult:
         sky_sigma: Noise of the sky annulus per pixel (see :func:`noise_sigma`).
         flux_sigma: One-sigma uncertainty of ``flux`` from the sky noise alone.
         max_value: Largest raw pixel value inside the aperture.
+        min_value: Smallest raw pixel value inside the aperture or the sky annulus.
         n_pixels: Pixels inside the aperture.
     """
 
@@ -748,6 +749,7 @@ class ApertureResult:
     sky_sigma: float
     flux_sigma: float
     max_value: float
+    min_value: float
     n_pixels: int
 
 
@@ -800,6 +802,7 @@ def aperture_photometry(
         sky_sigma=sky_sigma,
         flux_sigma=flux_sigma,
         max_value=float(cut[inside].max()),
+        min_value=float(cut[inside | ring].min()),
         n_pixels=n_in,
     )
 

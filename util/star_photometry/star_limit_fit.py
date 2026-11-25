@@ -10,14 +10,16 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
 2. **Zero point.**  A star's DN is its large-aperture DN, which holds a smeared or elongated
    star's light where the small aperture would lose a varying part of it.  For every clean,
    unsaturated star detected at a large-aperture flux SNR of at least ``FIT_MIN_FLUX_SNR``,
-   ``2.5 log10(DN / texp) + V`` is a zero point; a robust least-squares fit
+   ``2.5 log10(DN / texp) + V`` is a zero point (UCAC4 stars brighter than
+   ``UCAC4_MIN_VMAG_FOR_FIT`` are left out); a robust least-squares fit
    (Tukey biweight) of the zero points on an intercept, one term per filter but the reference
    filter, and one term per gain state but the reference state gives the reference rate (DN
    per second for a V = 0 star through the reference filter in the reference gain state), the
    filter magnitude offsets, and the gain-state DN ratios.
 3. **Detection limit.**  Every clean star of the fitting frames gets a predicted DN from the
-   fit; the detection fraction in bins of predicted DN gives the smallest DN detected at least
-   ``COMPLETENESS`` of the time (``min_detectable_dn``), with a bootstrap over frames for its
+   fit; a detection-probability model (a floor, a plateau and a normal-integral rise in log
+   DN) fitted to the stars' detections gives the DN at which detection is ``COMPLETENESS`` of
+   the way from floor to plateau (``min_detectable_dn``), with a bootstrap over frames for its
    uncertainty.
 4. **Held-out check.**  On the frames held out of steps 2 and 3 (one in three, chosen by a hash
    of the image ID), the predicted dimmest visible magnitude is compared with the faintest
@@ -50,6 +52,8 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import scipy.optimize
+import scipy.special
 from numpy.typing import NDArray
 from util.star_photometry.star_field import encircled_energy_radii, integrated_gaussian
 
@@ -59,6 +63,11 @@ FloatArray = NDArray[np.float64]
 
 #: Smallest flux SNR of a star used in the zero-point fit.
 FIT_MIN_FLUX_SNR = 10.0
+
+#: UCAC4 stars brighter than this are left out of the zero-point fit: the catalog's
+#: magnitudes there read too faint (by 0.5-0.9 mag at V 8-9 on all three cameras measured),
+#: past the reach of the catalog reduction's bright-end correction.
+UCAC4_MIN_VMAG_FOR_FIT = 9.5
 
 #: Smallest flux SNR of a star used for the aperture correction.
 APCORR_MIN_FLUX_SNR = 30.0
@@ -144,6 +153,7 @@ def _clean(star: dict[str, Any]) -> bool:
         'detected' in star
         and 'flux' in star
         and not star['saturated']
+        and not star.get('no_data', False)
         and not star['blended']
         and star['conflict'] == ''
         and not star['photometry_saturated']
@@ -168,14 +178,18 @@ class FitResult:
         zp_scatter_mag: Robust scatter of the zero-point residuals.
         n_zp_stars: Stars in the zero-point fit.
         color_slope: Slope of the zero-point residual against B - V (mag per mag).
-        min_detectable_dn: Smallest predicted DN detected ``COMPLETENESS`` of the time.
-        min_detectable_dn_sigma: Bootstrap standard deviation of ``min_detectable_dn``.
-        min_detectable_dn_50: The same at a detection fraction of one half.
+        min_detectable_dn: Predicted DN at which the fitted detection probability covers
+            ``COMPLETENESS`` of its span from floor to plateau.
+        min_detectable_dn_sigma: Bootstrap (over frames) standard deviation of it.
+        min_detectable_dn_50: The same at half the span.
         min_detectable_dn_by_mode: Per readout mode with enough stars, ``[DN at
-            COMPLETENESS, bootstrap sigma, DN at one half, stars]``; a frame of such a mode
-            takes its mode's DN.
+            COMPLETENESS, bootstrap sigma, DN at one half, stars, floor, plateau, mu,
+            width]``; a frame of such a mode takes its mode's DN.
+        min_detectable_dn_empirical: The smallest DN above which the binned detection
+            fraction stays at or above ``COMPLETENESS`` (a check on the model).
+        completeness_model: ``[floor, plateau, mu, width]`` of the camera's fit.
         completeness: Rows ``[log10 DN, n, detected fraction]`` of the completeness curve.
-        false_detection_rate: Detected fraction of stars predicted under a tenth of the limit.
+        false_detection_rate: The fitted detection probability's floor.
         holdout: The held-out check.
         frames: Per-frame rows.
         psf: PSF summary per mode (and filter).
@@ -200,6 +214,8 @@ class FitResult:
     min_detectable_dn_sigma: float = float('nan')
     min_detectable_dn_50: float = float('nan')
     min_detectable_dn_by_mode: dict[str, list[float]] = field(default_factory=dict)
+    min_detectable_dn_empirical: float = float('nan')
+    completeness_model: list[float] = field(default_factory=list)
     completeness: list[list[float]] = field(default_factory=list)
     false_detection_rate: float = float('nan')
     holdout: dict[str, Any] = field(default_factory=dict)
@@ -331,6 +347,7 @@ def fit_camera(
         and r['flux_big'] > 0.0
         and r['flux_big_sigma'] > 0.0
         and r['flux_big'] / r['flux_big_sigma'] >= FIT_MIN_FLUX_SNR
+        and not (r['catalog'] == 'ucac4' and r['vmag'] < UCAC4_MIN_VMAG_FOR_FIT)
     ]
     result.n_fit_frames = len(
         {r['frame']['image_id'] for r in accepted if not is_held_out(r['frame']['image_id'])}
@@ -493,6 +510,54 @@ def _crossing(centers: FloatArray, counts: FloatArray, fraction: FloatArray, lev
     return float(10 ** (c[i] + t * (c[i + 1] - c[i])))
 
 
+def _fit_completeness_model(rows: list[dict[str, Any]]) -> tuple[float, float, float, float]:
+    """Fit the detection probability of stars against their predicted DN.
+
+    The model is ``p = floor + (plateau - floor) * Phi((log10 DN - mu) / width)``, with
+    ``Phi`` the standard normal integral: ``floor`` is the chance that noise or an unrelated
+    source passes the detection test at a faint star's position, and ``plateau`` the detected
+    fraction of bright stars, below 1 when some bright stars are missed for reasons unrelated
+    to their signal (a catalog magnitude in error, a cosmetic defect).  The fit maximizes the
+    likelihood of the individual detections.
+
+    Parameters:
+        rows: Star rows with ``pred_dn`` and ``detected``.
+
+    Returns:
+        ``(floor, plateau, mu, width)``.
+    """
+    x = np.array([math.log10(r['pred_dn']) for r in rows])
+    y = np.array([bool(r['detected']) for r in rows], dtype=float)
+
+    def neg_log_likelihood(q: FloatArray) -> float:
+        floor, plateau, mu, width = q
+        p = floor + (plateau - floor) * 0.5 * (
+            1.0 + scipy.special.erf((x - mu) / (math.sqrt(2.0) * width))
+        )
+        p = np.clip(p, 1e-9, 1.0 - 1e-9)
+        return float(-np.sum(y * np.log(p) + (1.0 - y) * np.log(1.0 - p)))
+
+    start = np.array([0.01, 0.95, float(np.median(x)), 0.2])
+    bounds = [(0.0, 0.3), (0.5, 1.0), (float(x.min()), float(x.max())), (0.02, 2.0)]
+    best = scipy.optimize.minimize(neg_log_likelihood, start, bounds=bounds, method='L-BFGS-B')
+    floor, plateau, mu, width = (float(v) for v in best.x)
+    return floor, plateau, mu, width
+
+
+def _model_dn(model: tuple[float, float, float, float], level: float) -> float:
+    """Return the DN at which the fitted detection probability covers ``level`` of its span.
+
+    Parameters:
+        model: ``(floor, plateau, mu, width)`` from :func:`_fit_completeness_model`.
+        level: The fraction of the span from the floor to the plateau, in (0, 1).
+
+    Returns:
+        The DN.
+    """
+    _floor, _plateau, mu, width = model
+    return float(10 ** (mu + width * math.sqrt(2.0) * scipy.special.erfinv(2.0 * level - 1.0)))
+
+
 def _bootstrap_sigma(rows: list[dict[str, Any]], value: float) -> float:
     """Return the bootstrap (over frames) standard deviation of the detection limit.
 
@@ -501,7 +566,7 @@ def _bootstrap_sigma(rows: list[dict[str, Any]], value: float) -> float:
         value: The limit fitted on all of them.
 
     Returns:
-        The standard deviation in DN, or NaN when fewer than half the resamples cross.
+        The standard deviation in DN.
     """
     by_frame: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in rows:
@@ -512,19 +577,17 @@ def _bootstrap_sigma(rows: list[dict[str, Any]], value: float) -> float:
     for _ in range(N_BOOTSTRAP):
         pick = rng.integers(0, len(frames), len(frames))
         sample = [r for k in pick for r in by_frame[frames[k]]]
-        crossing = _crossing(*_completeness_curve(sample), COMPLETENESS)
-        if math.isfinite(crossing):
-            samples.append(math.log10(crossing))
-    if len(samples) < N_BOOTSTRAP // 2:
-        return float('nan')
+        samples.append(math.log10(_model_dn(_fit_completeness_model(sample), COMPLETENESS)))
     return float(value * math.log(10) * np.std(samples))
 
 
 def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
     """Fit ``min_detectable_dn`` from the completeness of the fitting frames' stars.
 
-    The limit is fitted on all the camera's stars and, where a readout mode has enough
-    stars, on that mode's alone.
+    The detection probability model of :func:`_fit_completeness_model` is fitted, and the
+    limit is the DN at which it covers ``COMPLETENESS`` of its span from floor to plateau.
+    The limit is fitted on all the camera's stars and, where a readout mode has enough stars,
+    on that mode's alone.  The binned curve and its empirical crossings are kept as a check.
 
     Parameters:
         result: The camera's result, updated in place.
@@ -539,26 +602,25 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
         for c, n, f in zip(centers, counts, fraction, strict=True)
         if n > 0
     ]
-    result.min_detectable_dn = _crossing(centers, counts, fraction, COMPLETENESS)
-    result.min_detectable_dn_50 = _crossing(centers, counts, fraction, 0.5)
-    if math.isfinite(result.min_detectable_dn):
-        faint = [r for r in rows if r['pred_dn'] < 0.1 * result.min_detectable_dn]
-        if faint:
-            result.false_detection_rate = float(np.mean([r['detected'] for r in faint]))
-        result.min_detectable_dn_sigma = _bootstrap_sigma(rows, result.min_detectable_dn)
+    result.min_detectable_dn_empirical = _crossing(centers, counts, fraction, COMPLETENESS)
+    model = _fit_completeness_model(rows)
+    result.completeness_model = list(model)
+    result.min_detectable_dn = _model_dn(model, COMPLETENESS)
+    result.min_detectable_dn_50 = _model_dn(model, 0.5)
+    result.false_detection_rate = model[0]
+    result.min_detectable_dn_sigma = _bootstrap_sigma(rows, result.min_detectable_dn)
     for mode in sorted({r['mode'] for r in rows}):
         members = [r for r in rows if r['mode'] == mode]
         if len(members) < MIN_STARS_PER_BIN * 3:
             continue
-        curve = _completeness_curve(members)
-        value = _crossing(*curve, COMPLETENESS)
-        if not math.isfinite(value):
-            continue
+        mode_model = _fit_completeness_model(members)
+        value = _model_dn(mode_model, COMPLETENESS)
         result.min_detectable_dn_by_mode[mode] = [
             value,
             _bootstrap_sigma(members, value),
-            _crossing(*curve, 0.5),
+            _model_dn(mode_model, 0.5),
             float(len(members)),
+            *mode_model,
         ]
 
 

@@ -133,6 +133,9 @@ class MeasureParams:
         ee_n_bins: Radial bins of the encircled-energy profile.
         highpass_subsample: Pixel step of the high-pass filter's median (see
             :func:`util.star_photometry.star_field.highpass`).
+        missing_value: A photometric-image pixel at or below this value carries no data (a
+            lost line or a part of the frame not returned); a star with one in its large
+            aperture or sky annulus is flagged ``no_data``.  None when every value is data.
     """
 
     catalog_depth_mag: float
@@ -164,6 +167,7 @@ class MeasureParams:
     ee_r_max: float
     ee_n_bins: int
     highpass_subsample: int = 1
+    missing_value: float | None = None
 
 
 #: Maps navigator-image array-index positions to photometric-image positions.
@@ -495,12 +499,16 @@ def _measure_star(
             sky_sigma=small.sky_sigma,
             max_dn=big.max_value,
             saturated=bool(big.max_value >= params.saturation_dn),
+            no_data=bool(
+                params.missing_value is not None and big.min_value <= params.missing_value
+            ),
         )
     clean = (
         det is not None
         and small is not None
         and out['peak_snr'] >= params.psf_min_snr
         and not out.get('saturated', True)
+        and not out.get('no_data', False)
         and not out['blended']
         and not out['smeared']
         and out['conflict'] == ''
