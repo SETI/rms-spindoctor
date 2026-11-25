@@ -363,21 +363,24 @@ instead reaches half the camera's search window.
 class (see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px
 across, following a real Jupiter-flyby frame taken at 5 ms. It carries the
 camera's chain, including the frame-transfer smear, plus the housekeeping header
-at the start of row 0, the fixed pattern, and radiation hits. Simulated
-brightness has no shared scale with real frames, so the scene runs 85 ms, where
-the simulated disc is as bright as the real one. The smear timing and the rate of
-radiation hits are scaled by the same factor, so the columns through the disc
-carry 0.26 of the disc's level, against 0.24 on the real frame, and about 16 hits
-land in the frame. The simulated header holds values up to 255, where the real
-one reaches 4,038 DN.
+at the start of row 0, the fixed pattern, and radiation hits. Simulated brightness
+has no shared scale with real frames, so the scene runs 85 ms, where the middle of
+the simulated disc is 8% brighter than the real one. The smear timing and the rate
+of radiation hits are scaled by the same factor. On the real frame the rows above
+the disc carry 2.14e-3 of their column's disc charge and the rows below it
+1.96e-3, which make frame transfers of 10.95 and 10.03 ms, as the camera paper
+gives (10.96 and 10.04 ms). The scene's smear times are 17 times those, and its
+rows above and below the disc carry 2.16e-3 and 1.98e-3. About 16 hits land in the
+frame. The simulated header holds values up to 255, where the real one reaches
+4,038 DN.
 
-The fused answer lands 0.10 to 0.11 px off over 24 draws, at medium confidence,
+The fused answer lands 0.11 to 0.12 px off over 24 draws, at medium confidence,
 from the disc correlation and the limb fit together. The disc correlation lands
 0.18 to 0.19 px off without flagging its answer, with the smear or without it.
-Without the twist it lands 0.004 to 0.005 px off. The blob technique lands 4.7 to 5.1 px
+Without the twist it lands 0.004 to 0.005 px off. The blob technique lands 6.8 to 7.1 px
 off without flagging it, pulled by the smear columns, and 0.17 to 0.19 px off
 without the smear. The simulated smear is a step at each column's centroid, where
-the real smear builds up along the column, so part of that pull may be the
+the real smear builds up across the disc, so part of that pull may be the
 simulator's. The header, the fixed pattern, and the radiation hits are realistic
 but each moves the fused answer by at most 0.01 px, so the scene shows that the
 navigator is unaffected by them.
