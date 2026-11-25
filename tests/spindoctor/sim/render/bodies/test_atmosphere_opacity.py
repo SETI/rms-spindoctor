@@ -20,14 +20,18 @@ _RADIUS = 60.0
 _THICK = AtmosphereSpec(scale_height_px=3.0, tau_ref=60.0, g=0.6, albedo=0.95)
 
 
-def _shifted_layers(spec: AtmosphereSpec, body: float, *, shift_u: float, phase_deg: float) -> Any:
+def _shifted_layers(
+    spec: AtmosphereSpec, body: float, *, shift_u: float, phase_deg: float, lit: bool = False
+) -> Any:
     """The haze layers of a sphere of radius ``_RADIUS`` moved ``shift_u`` px along u.
 
     Parameters:
         spec: The haze spec.
-        body: The uniform brightness the sphere is painted with, under its haze.
+        body: The brightness the sphere is painted with, under its haze.
         shift_u: How far the sphere moves from ``_CENTER`` along u, in pixels.
-        phase_deg: The phase angle in degrees.
+        phase_deg: The phase angle in degrees; the sun lies along +u.
+        lit: Whether the sphere is a Lambert surface of albedo ``body`` lit by the
+            sun, in place of a uniform paint.
 
     Returns:
         The ``AtmosphereLayers`` ``apply_atmosphere`` produces for it.
@@ -37,8 +41,18 @@ def _shifted_layers(spec: AtmosphereSpec, body: float, *, shift_u: float, phase_
     offsets_u = np.arange(_SIZE, dtype=np.float64) + (PIXEL_CENTER_TO_CORNER_PX - center_u)
     radius2 = offsets_v[:, None] ** 2 + offsets_u[None, :] ** 2
     outline = (radius2 < _RADIUS * _RADIUS).astype(np.float64)
+    paint = body * outline
+    if lit:
+        illum_v, illum_u, illum_z = illumination_vector(
+            illumination_angle=math.radians(90.0), phase_angle=math.radians(phase_deg)
+        )
+        normal_z = np.sqrt(np.maximum(_RADIUS * _RADIUS - radius2, 0.0))
+        cos_incidence = (
+            offsets_v[:, None] * illum_v + offsets_u[None, :] * illum_u + normal_z * illum_z
+        ) / _RADIUS
+        paint = paint * np.maximum(cos_incidence, 0.0)
     return apply_atmosphere(
-        body * outline,
+        paint,
         spec,
         center_v=_CENTER,
         center_u=center_u,
@@ -71,6 +85,42 @@ def test_a_thick_haze_hides_the_solid_limb() -> None:
     inside = _shifted_layers(_THICK, 0.9, shift_u=shift_to(_RADIUS - 1e-6), phase_deg=155.0)
     outside = _shifted_layers(_THICK, 0.9, shift_u=shift_to(_RADIUS + 1e-6), phase_deg=155.0)
     assert float(inside.disc[pixel]) == pytest.approx(float(outside.halo.emission[pixel]), rel=1e-3)
+
+
+@pytest.mark.parametrize(('tau_ref', 'phase_deg'), [(3.0, 150.0), (16.0, 40.0)])
+def test_a_haze_hides_a_lit_solid_limb_where_a_line_of_sight_sees_none(
+    tau_ref: float, phase_deg: float
+) -> None:
+    """Where a real haze hides the solid limb, the rendered one steps by under 3%.
+
+    A white Lambert sphere under a haze 8 px high is put 1e-6 px inside and then
+    outside the limb of one pixel.  Inside, the line of sight crosses the near half of
+    the tangent column and meets the lit surface; outside, it crosses the near half
+    and then the far half, both dimmed by the near half's transmission.  At phase 40
+    the surface is lit nearly face-on and the haze is dim, so it takes a column 16
+    optical depths deep, exp(-8) through its near half, to hide the surface.  At phase
+    150 the haze is bright and the far half, lit from behind, makes up for the
+    surface, so a column 3 deep, exp(-1.5) through its near half, hides it.  A
+    numerical integration of the same haze's single scattering along each line of
+    sight steps by 0.1% and 0.2% there.  Had the halo scattered as one column of the
+    whole tangent depth, its far half would all but vanish and the limb would step by
+    21% at phase 150.
+    """
+    spec = AtmosphereSpec(scale_height_px=8.0, tau_ref=tau_ref, g=0.75, albedo=0.6)
+    pixel = (int(_CENTER), int(_CENTER + _RADIUS))
+    pixel_u = pixel[1] + PIXEL_CENTER_TO_CORNER_PX - _CENTER
+
+    def shift_to(radius: float) -> float:
+        """The shift along u that puts the pixel's center at ``radius``."""
+        return pixel_u - math.sqrt(radius * radius - PIXEL_CENTER_TO_CORNER_PX**2)
+
+    inside = _shifted_layers(
+        spec, 1.0, shift_u=shift_to(_RADIUS - 1e-6), phase_deg=phase_deg, lit=True
+    )
+    outside = _shifted_layers(
+        spec, 1.0, shift_u=shift_to(_RADIUS + 1e-6), phase_deg=phase_deg, lit=True
+    )
+    assert float(inside.disc[pixel]) == pytest.approx(float(outside.halo.emission[pixel]), rel=0.03)
 
 
 def test_a_thick_haze_dims_smoothly_across_the_solid_limb() -> None:

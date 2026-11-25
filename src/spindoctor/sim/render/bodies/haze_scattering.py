@@ -16,7 +16,7 @@ Hapke's closed-form approximation to the H-function (Hapke 1981; Chandrasekhar 1
 *Radiative Transfer*, Dover).  ``I/F`` is 1 for a white Lambert surface lit and
 seen face-on.
 
-Three extensions fit the formula to a haze over a solid body:
+Four extensions fit the formula to a haze over a solid body:
 
 - **A finite column.**  A layer of optical depth ``tau`` along the line of sight
   scatters the fraction ``f = 1 - exp(-tau * (1 + mu / mu0))`` of what a
@@ -42,6 +42,15 @@ Three extensions fit the formula to a haze over a solid body:
   overhead and ``sqrt(c)`` at the horizon, where ``1 / sqrt(c)`` is the Chapman
   grazing-incidence enhancement ``sqrt(pi R / (2 H))`` of an exponential atmosphere
   (Chapman 1931, Proc. Phys. Soc. 43, 483).
+- **A tangent column.**  A line of sight past the limb crosses the near half of the
+  tangent column, in front of the tangent point, and then the far half behind it.
+  Each half scatters light once as a column of half the tangent depth does, lit at
+  its own incidence, and the far half's light reaches the observer through the near
+  half's transmission ``exp(-tau / 2)`` (:func:`tangent_reflectance`).  A line of
+  sight just inside the limb crosses the same near half and then meets the surface,
+  so the solid limb shows only by the difference between the lit surface and the far
+  half, both dimmed by that transmission.  The multiply scattered light belongs to
+  the whole column.
 
 What the model leaves out: the surface beneath the haze is lit only by the sunlight
 that crosses the column unscattered and is seen only through the same direct beam
@@ -88,6 +97,7 @@ __all__ = [
     'grazing_constant',
     'haze_reflectance',
     'mean_cosine',
+    'tangent_reflectance',
     'twilight_weight',
 ]
 
@@ -181,6 +191,97 @@ def haze_reflectance(
     Returns:
         The column's I/F, before the twilight weight.
     """
+    geometry, single, multiple = _scattering_terms(
+        tau_los, mu, mu0, albedo=albedo, g=g, phase_function=phase_function
+    )
+    reflectance: NDArrayFloatType = 0.25 * albedo * geometry * (single + multiple)
+    return reflectance
+
+
+def tangent_reflectance(
+    tau_tangent: NDArrayFloatType,
+    mu: NDArrayFloatType,
+    mu0: NDArrayFloatType,
+    mu0_far: NDArrayFloatType,
+    *,
+    albedo: float,
+    g: float,
+    phase_function: float,
+    weight: NDArrayFloatType,
+    weight_far: NDArrayFloatType,
+) -> NDArrayFloatType:
+    """The radiance factor of a tangent column, seen along a line of sight past the limb.
+
+    The line of sight crosses the near half of the column, in front of the tangent
+    point, and then the far half behind it.  Each half scatters light once as a column
+    of half the tangent depth does (:func:`haze_reflectance`), lit at its own
+    incidence, and the far half's light reaches the observer through the near half's
+    transmission ``exp(-tau / 2)``.  A line of sight just inside the limb crosses the
+    same near half and meets the surface, so across the limb only what lies behind the
+    near half changes.  The multiply scattered light belongs to the whole column and
+    takes its whole depth, lit as the near half is.  A thin, fully lit column reflects
+    ``albedo * P * tau / 4``, as :func:`haze_reflectance` does.
+
+    Parameters:
+        tau_tangent: The optical depth of the whole tangent column.
+        mu: The effective emission cosine (:func:`effective_cosine`), above 0.
+        mu0: The effective incidence cosine of the near half, above 0.
+        mu0_far: The effective incidence cosine of the far half, above 0.
+        albedo: The single-scattering albedo ``w``.
+        g: The Henyey-Greenstein asymmetry parameter, in (-1, 1).
+        phase_function: The phase function ``P`` at the scene's phase angle.
+        weight: The twilight weight (:func:`twilight_weight`) of the near half.
+        weight_far: The twilight weight of the far half.
+
+    Returns:
+        The column's I/F, the twilight weights included.
+    """
+    half = 0.5 * tau_tangent
+    _geometry, single_near, _multiple_half = _scattering_terms(
+        half, mu, mu0, albedo=albedo, g=g, phase_function=phase_function
+    )
+    geometry, _single_whole, multiple = _scattering_terms(
+        tau_tangent, mu, mu0, albedo=albedo, g=g, phase_function=phase_function
+    )
+    geometry_far, single_far, _multiple_far = _scattering_terms(
+        half, mu, mu0_far, albedo=albedo, g=g, phase_function=phase_function
+    )
+    reflectance: NDArrayFloatType = (
+        0.25
+        * albedo
+        * (
+            geometry * (single_near + multiple) * weight
+            + geometry_far * single_far * weight_far * np.exp(-half)
+        )
+    )
+    return reflectance
+
+
+def _scattering_terms(
+    tau_los: NDArrayFloatType,
+    mu: NDArrayFloatType,
+    mu0: NDArrayFloatType,
+    *,
+    albedo: float,
+    g: float,
+    phase_function: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """The geometric factor and the two scattering terms of a column's radiance factor.
+
+    Parameters:
+        tau_los: The optical depth of the column along the line of sight.
+        mu: The effective emission cosine, above 0.
+        mu0: The effective incidence cosine, above 0.
+        albedo: The single-scattering albedo ``w``.
+        g: The Henyey-Greenstein asymmetry parameter, in (-1, 1).
+        phase_function: The phase function ``P`` at the scene's phase angle.
+
+    Returns:
+        ``(geometry, single, multiple)``: the factor ``mu0 / (mu0 + mu)``, the
+        single-scattering term ``P * f``, and the multiple-scattering term
+        ``(H(mu0) * H(mu) - 1) * f**2``.  The radiance factor is ``albedo / 4`` times
+        the factor times the sum of the terms.
+    """
     geometry = mu0 / (mu0 + mu)
     path = tau_los * (1.0 + mu / mu0)
     single = phase_function * -np.expm1(-path)
@@ -189,8 +290,7 @@ def haze_reflectance(
     multiple = (
         chandrasekhar_h(mu0, similar_albedo) * chandrasekhar_h(mu, similar_albedo) - 1.0
     ) * (multiple_fraction * multiple_fraction)
-    reflectance: NDArrayFloatType = 0.25 * albedo * geometry * (single + multiple)
-    return reflectance
+    return geometry, single, multiple
 
 
 def twilight_weight(mu0: NDArrayFloatType, delta_wrap: float) -> NDArrayFloatType:

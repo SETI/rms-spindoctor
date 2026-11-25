@@ -53,23 +53,40 @@ brightens past 90 deg incidence instead of cutting off).
 
 The column a line of sight crosses depends on where it goes.  Above the limb it
 is the tangent optical depth, so the limb becomes a soft exponential ramp whose
-apparent radius grows with the haze brightness (hence with phase).  On the disc
-it is the slant column from the top of the haze down to the surface, the
-vertical depth
+apparent radius grows with the haze brightness (hence with phase).  The tangent
+column is taken as two halves, the near one in front of the tangent point and the
+far one behind it: each scatters light once as a column of half the tangent depth
+does, the far half's light reaching the observer through the near half's
+transmission ``exp(-tau / 2)``, and the multiply scattered light belongs to the
+whole column.  The far half shows only where the column is thin enough, and its
+light then comes mostly from just behind the tangent point, where the path runs
+deepest, so it is lit as the limb point at the pixel's azimuth is.  On the disc it
+is the slant column from the top of the haze down to the surface, the vertical
+depth
 
     ``tau_vert = tau_ref * exp(ref_altitude_px / H) / sqrt(2 * pi * R / H)``
 
 (the surface tangent depth divided by the grazing enhancement, ``R`` the mean
 radius and ``H`` the scale height in pixels) over the effective emission cosine,
-which is half the surface tangent depth at the limb.  The surface beneath is
-seen through the haze: its brightness is multiplied by the direct transmission
+which is half the surface tangent depth at the limb: the near half of the column
+a line of sight just above the limb crosses.  The surface beneath is seen through
+the haze: its brightness is multiplied by the direct transmission
 ``exp(-tau_vert * (1 / mu + 1 / mu0))`` of the sunlight coming in and the light
 going out, with ``mu`` and ``mu0`` the effective emission and incidence cosines.
 So a thin haze adds light over the disc that grows toward the limb, and a haze
-several optical depths thick hides the surface altogether: the disc and its edge
-are then haze, and the solid limb does not show, because a thick column
-reflects the same light just inside the limb and just outside it.  Both sides
-describe one atmosphere at any reference altitude.
+several optical depths thick hides the surface altogether.
+
+Across the solid limb the near half of the column is the same on both sides, and
+only what lies behind it changes: the far half of the column just outside, the
+lit surface just inside, each dimmed by the near half's transmission
+``exp(-tau_s / 2)`` with ``tau_s`` the surface tangent depth.  The brightness
+steps there by that transmission times the difference between the two, plus the
+far half's share of the multiply scattered light, which a thick column saturates.
+So a haze thick along the grazing path, one whose ``exp(-tau_s / 2)`` times the
+brighter of the two is small against the haze's own light, hides the solid limb;
+the disc and its edge are then haze.  Through a thinner haze the limb shows, brighter inside
+where the lit surface outshines the far half, as a line of sight through a real
+haze sees it.  Both sides describe one atmosphere at any reference altitude.
 
 The haze reflects from the level where the tangent optical depth is 1 (the
 surface, when the column is thinner): the emission and incidence cosines of its
@@ -125,6 +142,7 @@ from spindoctor.sim.render.bodies.haze_scattering import (
     grazing_constant,
     haze_reflectance,
     mean_cosine,
+    tangent_reflectance,
     twilight_weight,
 )
 from spindoctor.sim.shared.ellipsoid import (
@@ -435,11 +453,12 @@ def _phase_factor(spec: AtmosphereSpec, phase_angle: float) -> float:
 
 
 def _source_scale(spec: AtmosphereSpec, hg: float) -> float:
-    """An upper bound on the I/F of a fully lit haze column.
+    """An upper bound on the I/F of a fully lit tangent column.
 
-    The single-scattering source ``albedo * P / 4`` plus the most the multiple
-    scattering adds, ``albedo * (H(1)**2 - 1) / 4`` at the similarity albedo (see
-    :func:`~spindoctor.sim.render.bodies.haze_scattering.haze_reflectance`); the
+    The single-scattering source ``albedo * P / 4`` once for each half of the column
+    plus the most the multiple scattering adds, ``albedo * (H(1)**2 - 1) / 4`` at the
+    similarity albedo (see
+    :func:`~spindoctor.sim.render.bodies.haze_scattering.tangent_reflectance`); the
     geometric factor ``mu0 / (mu0 + mu)`` stays below 1.
 
     Parameters:
@@ -452,7 +471,7 @@ def _source_scale(spec: AtmosphereSpec, hg: float) -> float:
     g_mean = mean_cosine(spec.g, spec.g2, spec.g2_fraction)
     similar_albedo = spec.albedo * (1.0 - g_mean) / max(1.0 - spec.albedo * g_mean, 1e-12)
     h_overhead = float(chandrasekhar_h(np.array(1.0), similar_albedo))
-    return spec.albedo * (hg + h_overhead * h_overhead - 1.0) * _SINGLE_SCATTERING_FACTOR
+    return spec.albedo * (2.0 * hg + h_overhead * h_overhead - 1.0) * _SINGLE_SCATTERING_FACTOR
 
 
 def _outer_scale(spec: AtmosphereSpec, *, hg: float, r_mean: float) -> float:
@@ -720,29 +739,47 @@ def apply_atmosphere(
         cosines: tuple[NDArrayFloatType, NDArrayFloatType],
         surface: tuple[NDArrayFloatType, NDArrayFloatType],
         height: float | NDArrayFloatType,
+        *,
+        far_incidence: NDArrayFloatType | None = None,
     ) -> tuple[NDArrayFloatType, NDArrayFloatType]:
         """The haze's I/F over a column and the column's direct transmission.
 
         ``cosines`` are the emission and incidence cosines at the level the haze
         reflects from and ``surface`` those at the solid surface beneath; each
-        enters through the effective cosine the column's curvature gives.
+        enters through the effective cosine the column's curvature gives.  A
+        column given ``far_incidence`` is a whole tangent column seen past the
+        limb, whose near half takes ``cosines`` and whose far half is lit at that
+        incidence cosine (:func:`tangent_reflectance`).
         """
         c = grazing_constant(height, r_mean)
         mu_eff = effective_cosine(cosines[0], c)
         mu0_eff = effective_cosine(cosines[1], c)
         tau = np.minimum(tau_los, _MAX_EXP_ARG)
-        haze = haze_reflectance(
-            tau,
-            mu_eff,
-            mu0_eff,
-            albedo=spec.albedo,
-            g=mean_cosine(spec.g, spec.g2, spec.g2_fraction),
-            phase_function=hg,
-        ) * twilight_weight(cosines[1], delta_wrap)
+        g_mean = mean_cosine(spec.g, spec.g2, spec.g2_fraction)
+        weight = twilight_weight(cosines[1], delta_wrap)
+        if far_incidence is not None:
+            haze = tangent_reflectance(
+                tau,
+                mu_eff,
+                mu0_eff,
+                effective_cosine(far_incidence, c),
+                albedo=spec.albedo,
+                g=g_mean,
+                phase_function=hg,
+                weight=weight,
+                weight_far=twilight_weight(far_incidence, delta_wrap),
+            )
+        else:
+            haze = (
+                haze_reflectance(
+                    tau, mu_eff, mu0_eff, albedo=spec.albedo, g=g_mean, phase_function=hg
+                )
+                * weight
+            )
         mu_surface = effective_cosine(surface[0], c)
         mu0_surface = effective_cosine(surface[1], c)
         direct = np.exp(-np.minimum(tau * (1.0 + mu_surface / mu0_surface), _MAX_EXP_ARG))
-        return cast(NDArrayFloatType, haze), cast(NDArrayFloatType, direct)
+        return haze, cast(NDArrayFloatType, direct)
 
     gathered: dict[int, tuple[NDArrayFloatType, ...]] = {}
 
@@ -861,11 +898,22 @@ def apply_atmosphere(
             _add_covered_haze(out_box, outline_box, solid_out, haze_solid)
 
         halo = halo_mask[band_out]
+        # The tangent column's near half, in front of the tangent point, is the
+        # column a line of sight just inside the limb crosses on its way to the
+        # surface, and it takes the same angles as the disc does.  The far half's
+        # single scattering reaches the observer through the near half's
+        # transmission, which dims that surface alike, so across the solid limb only
+        # what lies behind the near half changes, and a column thick along that
+        # grazing path hides both.  The far half is seen only where the column is
+        # thin enough to show it, and its light then comes mostly from just behind
+        # the tangent point, where the path runs deepest, so it is lit as the limb
+        # point at the pixel's azimuth is.
         haze_halo, _direct = _column(
             tau_out[halo],
             _incidence(halo_mask, _reflecting_scale(height_each[halo])),
             _incidence(halo_mask, 1.0),
             height_each[halo],
+            far_incidence=_gather(halo_mask)[3],
         )
         emission[box_v, box_u][halo_mask] = haze_halo
         # The screen's transmission is exp(-tau) of the tangent column.
