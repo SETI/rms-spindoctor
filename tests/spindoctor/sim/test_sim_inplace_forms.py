@@ -28,6 +28,7 @@ from spindoctor.sim.render.bodies.photometry import (
     incidence_cosines,
     shade_surface,
 )
+from spindoctor.sim.render.bodies.placement import BodyCoverage, uncovered_fraction
 from spindoctor.sim.render.rings.photometry import ring_reflection_factor
 from spindoctor.sim.render.rings.profiles import FeatureBoundaries, feature_tau
 from spindoctor.sim.render.rings.render import _GRID_STRIP_ROWS, _ring_plane_grid
@@ -204,10 +205,10 @@ def _plain_normals(
 
 
 def _projection(sub_observer_lat: float) -> EllipsoidProjection:
-    """A tilted, rotated ellipsoid at a sub-pixel center."""
+    """A tilted, rotated ellipsoid at a sub-pixel center, taller than two strips."""
     return project_ellipsoid(
-        (61, 57),
-        (30.3, 28.7),
+        (301, 57),
+        (150.3, 28.7),
         25.3,
         semi_b_px=23.1,
         semi_c_px=21.7,
@@ -319,7 +320,7 @@ def test_shading_is_its_plain_expression() -> None:
 
 @pytest.mark.parametrize('sub_observer_lat', [0.0, 0.43], ids=['equatorial', 'tilted'])
 def test_surface_normals_are_their_plain_expression(sub_observer_lat: float) -> None:
-    """The unit normals have the plain expressions' bits, at either latitude branch."""
+    """Normals worked in strips of rows have the plain expressions' bits, at either latitude."""
     proj = _projection(sub_observer_lat)
     results = surface_normals(
         proj.v_rot,
@@ -334,10 +335,31 @@ def test_surface_normals_are_their_plain_expression(sub_observer_lat: float) -> 
 
 
 def test_ellipse_distance_is_its_plain_expression() -> None:
-    """The projection's squared outline distance has the plain expression's bits."""
+    """The outline distance, its second term added in strips, has the plain bits."""
     proj = _projection(0.43)
     expected = (proj.v_rot / proj.semi_a_outline) ** 2 + (proj.u_rot / proj.semi_b) ** 2
     _assert_identical(proj.ellipse_dist_sq, expected)
+
+
+def test_starlight_scaled_over_the_covered_box_is_the_whole_frame_scaled() -> None:
+    """Scaling starlight over the bodies' box gives the frame of transmissions' bits."""
+    frame = _decimal(0.0, 9.0, (40, 37), seed=9)
+    coverages = [
+        BodyCoverage(
+            box_v=slice(3, 20), box_u=slice(5, 30), coverage=_decimal(0, 1, (17, 25), seed=10)
+        ),
+        BodyCoverage(
+            box_v=slice(12, 35), box_u=slice(2, 18), coverage=_decimal(0, 1, (23, 16), seed=11)
+        ),
+        BodyCoverage(box_v=slice(0, 0), box_u=slice(0, 0), coverage=np.zeros((0, 0))),
+    ]
+    transmission = np.ones(frame.shape)
+    for coverage in coverages:
+        transmission[coverage.box_v, coverage.box_u] *= coverage.transmission
+    box, fraction = uncovered_fraction(coverages)
+    scaled = frame.copy()
+    scaled[box] *= fraction
+    _assert_identical(scaled, frame * transmission)
 
 
 # The inputs the plain expressions accept, and what they return for them.

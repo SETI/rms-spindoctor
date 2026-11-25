@@ -150,7 +150,7 @@ def translate_box(
     size_v, size_u = plane.shape if shape is None else shape
     origin_v, origin_u = origin
     first_v, first_u = out_origin
-    out = np.full((size_v, size_u), cval, dtype=np.float64)
+    out = _filled((size_v, size_u), cval)
     out_v = shifted_box(box_v, dv, size_v, low=first_v)
     out_u = shifted_box(box_u, du, size_u, low=first_u)
     if out_v.start >= out_v.stop or out_u.start >= out_u.stop:
@@ -167,6 +167,25 @@ def translate_box(
             plane[src_v.start - origin_v : src_v.stop - origin_v, plane_cols], rows, cols, cval
         )
     return out
+
+
+def _filled(shape: tuple[int, int], cval: float) -> NDArrayFloatType:
+    """A new plane of ``cval``.
+
+    A fill of +0 comes from ``np.zeros``, whose memory the operating system supplies
+    already zeroed, so only the pages the translated box writes are touched.  Writing
+    every page of a large frame can cost more than the interpolation.
+
+    Parameters:
+        shape: The plane's rows and columns.
+        cval: The fill value.
+
+    Returns:
+        The plane.
+    """
+    if cval == 0.0 and not math.copysign(1.0, cval) < 0.0:
+        return np.zeros(shape, dtype=np.float64)
+    return np.full(shape, cval, dtype=np.float64)
 
 
 def _linear_samples(
