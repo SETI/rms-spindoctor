@@ -144,9 +144,9 @@ model-error terms added in quadrature, following the same derivation as
 content on unit-std-normalized surfaces (amplitude-invariant, inflated by the residual
 correlation area), and a ``localization_uncertainty_scale * consistency`` localization-spread
 term plus a ``model_error_floor_px`` absolute floor carry the template model error that
-dominates the true registration error. The ring annulus size (``model_error_size_frac``)
-term is set to zero in the packaged configuration because the ring bulk error does not
-track the annulus radial span.
+dominates the true registration error. The size term (``model_error_size_frac``, a
+fraction of the largest bounding-box dimension of the annulus templates) is set to zero in
+the packaged configuration because the ring bulk error does not track that size.
 
 Radial orbit-uncertainty channel
 ---------------------------------
@@ -197,8 +197,9 @@ ones in the packaged file.
 - ``localization_uncertainty_scale`` — float, packaged value ``1.0`` (dimensionless).
   Multiplies the inter-pyramid-level peak migration (``consistency``, px) into an added
   translation sigma.
-- ``model_error_size_frac`` — float, packaged value ``0.0`` (fraction of the annulus radial
-  span). It is zero because the ring bulk error does not track the span.
+- ``model_error_size_frac`` — float, packaged value ``0.0`` (fraction of the largest
+  bounding-box dimension of the annulus templates). It is zero because the ring bulk error
+  does not track that size.
 - ``model_error_floor_px`` — float, packaged value ``0.13`` px. Absolute floor added in
   quadrature.
 
