@@ -368,9 +368,10 @@ The four entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``.
 Each entry states every value itself and none takes a value from another, because each
 vidicon and telescope is unique. The optical values (the PSF, the residual
 distortion, the plate scale, the star zero point, and the vidicon detector values)
-are per camera. They hold the same numbers in all four entries today, and a
-comment beside each says where the number comes from and that it is not yet
-measured for that camera. The values that do not describe a camera's optics (the
+are per camera. Apart from the Voyager 2 cameras' star zero points, they hold the
+same numbers in all four entries today, and a comment beside each says where the
+number comes from and that it is not yet measured for that camera. The values
+that do not describe a camera's optics (the
 data units, the navigator link, the readout modes, and the artifact-mode
 availability) are repeated in each entry as well, because a shared parent would
 have to be one of the cameras. Every analysis is per camera too: the realism match,
@@ -411,6 +412,31 @@ about four times as noisy as the wide angle frames'. Neither sky comparison is
 like for like. The real frames are resampled, which correlates neighboring
 pixels, so the paired-difference estimate reads their noise about a third low,
 and the matched scenes don't turn on the simulator's resampling mode.
+
+**Star zero points.** The Voyager 2 zero points are measured on each camera's own
+star frames. Each frame is pointed by its own stars, and each star's raw DN is
+read on the archive's cleaned product. Through the clear filter, a magnitude-0 star
+gives 8.7e4 raw DN per second on the narrow angle camera and 4.6e3 on the wide
+angle camera. The narrow angle value comes from faint stars, where the vidicon
+responds linearly. Brighter stars read low, because the vidicon compresses at
+high signal: on C1205021 the two brightest Pleiades stars peak at 190 and 140 DN
+and hold about two thirds of what the linear rate predicts. The wide angle value
+comes from stars of magnitude 2 to 7, the stars its frames navigate on. Fainter
+stars read brighter for their magnitude, but part of that is the catalog's own
+error at magnitudes 8 to 9, so the wide angle camera's rate for faint stars is
+not settled. The simulated vidicon is linear up to its full scale, so a bright
+simulated star reads brighter than a real one, up to the full scale, where it
+clips. The Voyager 1 cameras keep the
+3.0e3 estimate from the published limiting magnitudes, since no Voyager 1 star
+frame has been measured.
+
+The simulator's vidicon chain works in raw DN, and it converts DN to I/F at 127.5
+DN per unit I/F at every exposure. The archive's calibration depends on the
+exposure and the filter: at 0.48 s through the clear filter it maps about 30 raw
+DN to I/F 1 on the narrow angle camera and about 150 on the wide angle camera. So
+a simulated narrow angle star at that exposure has the real star's raw DN but
+reads about four times fainter in I/F, while a wide angle star reads about the
+same.
 
 **PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
 a **retained interim estimate**. The cohort's one star frame gives eight usable
@@ -517,41 +543,50 @@ real frame of its camera, which its comments cite, and holds what that frame
 navigates on: a moon, Saturn, or stars. The offsets are 32 to 49 px, the size of
 the image library's Voyager offsets, and point in four different directions. The
 Voyager 2 scenes plant each camera's measured mean twist. No Voyager 1 twist is
-measured, so the two Voyager 1 scenes plant the same roll of 0.023 degrees, the
-size of the frame-to-frame twist scatter on the Voyager 2 cameras (0.28 pixels
-at the corner). Roll fitting stays off, as the cameras ship.
+measured, so the two Voyager 1 scenes plant a placeholder roll of 0.023 degrees,
+the size of the frame-to-frame twist scatter on the Voyager 2 cameras (0.28
+pixels at the corner). Both Voyager 1 scenes plant the same value because
+rotation is grouped per spacecraft. The only measurement points the other way:
+the mean twists of the two Voyager 2 cameras differ (0.030 and 0.358 degrees), so a
+measured Voyager 1 twist may differ between the two cameras by far more than the
+placeholder. Roll fitting stays off, as the cameras ship.
 
 The simulated frames are in I/F, and the exposure does not change a simulated
 body's brightness. A simulated moon or planet peaks near I/F 1, where the real
-frames peak at 0.4 to 0.5.
+frames peak at 0.3 to 0.5.
 
 - ``vgiss_1_nac_disc``: a moon 197 px across at a phase of 32 degrees, after a
   Voyager 1 frame of Ganymede at 0.24 s, offset 42 px. The answer lands 0.06 to
   0.57 px off over 24 draws, at medium confidence, from the disc correlation, the
   limb fit, and the blob together.
-- ``vgiss_1_wac_saturn``: Saturn 100 px across with its rings at an opening of
-  8.6 degrees, after two library frames at 7.68 s, offset 32 px. The real frames
-  navigate on the planet, and the navigator does not model the rings, so the
-  scene marks none of them navigable. The rings lower the disc correlation's
-  peak below its quality threshold, and on every draw the correlation lands about
-  26 px off and flags its answer spurious. Without the rings it lands 0.20 px off.
-  On the real frame the same correlation passes the threshold and carries the
-  answer. The limb fit carries the simulated frame at low confidence, 0.40 to
-  1.05 px off over 24 draws, and the scene's expected block holds the low tier.
+- ``vgiss_1_wac_saturn``: Saturn about 95 px across with its rings at an opening
+  of 8.6 degrees, after two library frames at 7.68 s, offset 32 px. The scale,
+  the ring radii, and the ring brightness follow the real frame, and the planet's
+  disc follows the real frame's flatter limb with a Minnaert law. The real frames
+  navigate on the planet, and the navigator models the rings only as an annulus,
+  which it flags spurious, so the scene marks no ring navigable. As on the real
+  frame, the disc correlation passes its quality threshold. It carries the
+  answer, 0.18 to 0.69 px off over 24 draws, at medium confidence. The planet is
+  under 100 px across, so the simulated body model gives it no limb, and the limb
+  fit does not run, where on the real frame it does.
 - ``vgiss_2_nac_star_field``: the Pleiades field of the library frame C1205021 at
-  0.48 s, offset 49 px. The simulated stars are much fainter than the real ones:
-  the brightest peaks at I/F 0.07, where on the real frame it peaks near I/F 3.
-  The answer still lands 0.02 to 0.54 px off over 24 draws, at medium confidence,
-  from the refinement on 5 stars.
+  0.48 s, offset 49 px. With the camera's measured star zero point, the star-field
+  fit locks on 6 or 7 of 13 predicted stars at confidence 0.93, as on the real
+  frame, and the answer lands 0.03 to 0.26 px off over 24 draws, at medium or high
+  confidence. The two brightest stars peak at 224 and 152 DN above the sky,
+  against 167 and 115 raw DN on the real frame, because the simulated vidicon
+  does not compress them.
 - ``vgiss_2_wac_star_field``: a Scorpius field at 0.48 s, after a frame of the
-  twist measurement, offset 35 px. Its brightest star peaks at I/F 0.23, near the
-  real frame's 0.27. The twist of +0.358 degrees moves the stars the navigator
-  measures by 0.07 to 3.2 px, and their mean position by 1.6 px, so the answer
-  lands 1.0 to 1.4 px off over 24 draws. Without the twist it lands 0.20 px off.
+  twist measurement, offset 35 px. Its brightest star peaks 42 DN above the
+  simulated sky, near the real frame's 44. The twist of +0.358 degrees moves the
+  stars the navigator measures by 0.07 to 3.2 px, and their mean position by 1.6
+  px, so the answer lands 1.0 to 1.4 px off over 24 draws. Without the twist it
+  lands 0.21 px off.
 
-The two scenes with a disc take one to two minutes each to render and navigate,
-because the disc correlation searches the camera's 400 px window. The star fields
-take a few seconds.
+The two scenes with a disc are the slowest in the class. Each takes about a
+minute to render and navigate on a quiet machine and two to three minutes on a
+busy one, because the disc correlation searches the camera's 400 px window. The
+star fields take a few seconds.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
 spacecraft-digit parser and all four of its refusals, the I/F factor parser and
@@ -612,6 +647,10 @@ Open items
   measurements, and the cohort holds one star frame.
 * The four simulator cameras carry the same distortion block and PSF kernel
   numbers, although each camera's optics are its own.
+* The Voyager 1 simulator cameras keep an estimated star zero point, and the
+  simulator converts vidicon DN to I/F at one scale for every exposure and
+  filter, so a simulated star's I/F differs from a real one's by the ratio of
+  that scale to the archive's.
 * The simulator's calibrated sky residual is one constant, 0.0118 I/F, where the
   real GEOMED sky level varies about 50x between frames.
 * The Voyager 1 cameras have no twist or distortion measurement: no frame of

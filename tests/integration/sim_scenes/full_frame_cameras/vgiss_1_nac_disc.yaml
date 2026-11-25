@@ -21,12 +21,14 @@ exposure_sec: 0.24
 # key (#895).
 #
 # The planted offset, 41.6 px down and right, lies inside the 28 to 49 px of
-# the image library's Voyager frames.  The roll, +0.0227 deg, is 0.28 px at the
-# corner, the frame-to-frame twist scatter measured on both Voyager 2 cameras.
-# No Voyager 1 twist is measured, since no Voyager 1 star frame locks, and the
-# two cameras of one spacecraft share their rotation, so the scene plants the
-# size of the frame-varying twist and both Voyager 1 scenes plant the same
-# value.  Roll fitting is off, as the camera ships.
+# the image library's Voyager frames.  No Voyager 1 twist is measured, since no
+# Voyager 1 star frame locks.  The roll, +0.0227 deg (0.28 px at the corner),
+# is a placeholder: the size of the frame-to-frame twist scatter on both
+# Voyager 2 cameras.  Both Voyager 1 scenes plant it, because rotation is
+# grouped per spacecraft (operator ruling, 2026-11-23).  The only measurement
+# points the other way: the two Voyager 2 cameras' mean twists differ, +0.030
+# and +0.358 deg, so a measured Voyager 1 value may differ between the cameras
+# by far more than the placeholder.  Roll fitting is off, as the camera ships.
 #
 # The fused answer lands 0.06 to 0.57 px off over 24 distinct draws, at medium
 # tier with confidence 0.99 on every one, from the disc correlation (0.09 to
@@ -35,7 +37,8 @@ exposure_sec: 0.24
 # (0.24 to 0.25 px), so the spread comes from the streams only random_seed
 # reaches.  Without the roll the committed draw lands 0.24 px off, against
 # 0.25 px with it.  The disc correlation searches the camera's 400 px window,
-# so the frame takes one to two minutes to render and navigate.
+# so the frame takes about 45 s to render and navigate on a quiet machine and
+# about 140 s on a busy one.
 artifacts:
   instrument_defaults: true
 bodies:
