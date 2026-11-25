@@ -899,23 +899,24 @@ real frames of this camera carry together:
   lost its last 41 lines and several groups of whole lines down the frame, and whose
   scene drifts 2 px during the exposure. It follows two real frames, one that lost
   its last 41 lines and one that lost 43 lines in six groups of 4 to 11 lines. The
-  scene draws groups with ``downlink_gaps`` at this camera's measured sizes, gaps,
-  and partial lines (see **Lost lines** above), with a mean of six groups. Neither
-  real frame lost line ends to the compressor, and with the compressor on the
-  scene's draws lose none either, so the scene leaves it off. The committed seed
-  loses five groups, 41 lines, and four of them cross the disc, as the real groups
-  crossed the planet. The truncated lines hold dark sky, as they do on the real
-  truncated frame, so the scene shows that the navigator is unaffected by the
-  truncation. The fused answer lands 0.019 to 0.17 px off over 24 draws, at high
-  confidence on 5 of them and medium on 19. On one draw a group of lines crosses
-  the brightest star, and the star refinement, which treats the lost lines as
-  zeros, moves the answer from 0.069 to 0.16 px off. On another a 75-line group
-  crosses the disc, and the disc correlation lands 0.45 px off, where the stars
-  hold the answer. On four draws the answer lands 0.060 to 0.16 px off with all
-  the defects, and 0.056 to 0.16 px off with any one of them removed. The
-  star-field technique returns spurious on every draw, because hot pixels and
-  cosmic rays together crowd the stars out of the sources it matches, and the blob
-  technique lands 6 to 38 px off the gibbous disc without flagging it.
+  scene draws groups with ``downlink_gaps`` at this camera's measured sizes,
+  clustering, and partial lines (see **Lost lines** above), with a mean of six
+  groups. Neither real frame lost line ends to the compressor, and with the
+  compressor on the scene's draws lose none either, so the scene leaves it off. The
+  committed seed loses seven groups and 50 lines in two clusters, as the real frame
+  lost four of its six groups in one cluster, and four of the groups cross the
+  disc, as the real groups crossed the planet. The truncated lines hold dark sky,
+  as they do on the real truncated frame. The fused answer lands 0.019 to 0.17 px
+  off over 24 draws, at high confidence on 6 of them and medium on 18. On the
+  committed seed the disc correlation, which treats the lost lines as zeros, lands
+  0.10 px off where it lands 0.019 px off without the groups, and the stars hold
+  the answer at 0.098 px either way. On four draws the answer lands 0.069 to 0.098
+  px off with all the defects, and 0.063 to 0.098 px off with any one of them
+  removed, so the scene shows that the fused answer is unaffected by the
+  truncation and the lost groups. The star-field technique returns spurious on every draw,
+  because hot pixels and cosmic rays together crowd the stars out of the sources it
+  matches, and the blob technique lands 3 to 13 px off the gibbous disc without
+  flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.
