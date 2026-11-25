@@ -171,6 +171,9 @@ class FitResult:
         min_detectable_dn: Smallest predicted DN detected ``COMPLETENESS`` of the time.
         min_detectable_dn_sigma: Bootstrap standard deviation of ``min_detectable_dn``.
         min_detectable_dn_50: The same at a detection fraction of one half.
+        min_detectable_dn_by_mode: Per readout mode with enough stars, ``[DN at
+            COMPLETENESS, bootstrap sigma, DN at one half, stars]``; a frame of such a mode
+            takes its mode's DN.
         completeness: Rows ``[log10 DN, n, detected fraction]`` of the completeness curve.
         false_detection_rate: Detected fraction of stars predicted under a tenth of the limit.
         holdout: The held-out check.
@@ -196,6 +199,7 @@ class FitResult:
     min_detectable_dn: float = float('nan')
     min_detectable_dn_sigma: float = float('nan')
     min_detectable_dn_50: float = float('nan')
+    min_detectable_dn_by_mode: dict[str, list[float]] = field(default_factory=dict)
     completeness: list[list[float]] = field(default_factory=list)
     false_detection_rate: float = float('nan')
     holdout: dict[str, Any] = field(default_factory=dict)
@@ -230,11 +234,13 @@ def _tukey_lstsq(a: FloatArray, b: FloatArray) -> tuple[FloatArray, FloatArray, 
     return x, np.sqrt(np.clip(np.diag(cov), 0.0, None)), resid
 
 
-def _star_rows(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+def _star_rows(records: Iterable[dict[str, Any]], *, gain_field: str) -> list[dict[str, Any]]:
     """Flatten accepted frames into one row per star with its frame's state.
 
     Parameters:
         records: Frame records.
+        gain_field: The frame field that names the gain state (``gain_state``, or ``mode``
+            for a camera whose DN per electron changes with the readout mode).
 
     Returns:
         The rows.
@@ -250,10 +256,11 @@ def _star_rows(records: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
                     **star,
                     'image_id': frame['image_id'],
                     'filter': frame['filter_name'],
-                    'gain': frame['gain_state'],
+                    'gain': frame[gain_field],
                     'mode': frame['mode'],
                     'texp': float(frame['texp']),
                     'held_out': is_held_out(frame['image_id']),
+                    'target': frame['extra'].get('target', ''),
                 }
             )
     return rows
@@ -284,6 +291,9 @@ def fit_camera(
     *,
     reference_filter: str,
     reference_gain: str,
+    gain_field: str = 'gain_state',
+    min_texp: float = 0.0,
+    limit_exclude_targets: frozenset[str] = frozenset(),
 ) -> FitResult:
     """Fit one camera's photometric limit and summarize its PSF.
 
@@ -292,6 +302,14 @@ def fit_camera(
         records: The camera's frame records.
         reference_filter: The filter the rate refers to (offsets are relative to it).
         reference_gain: The gain state the rate refers to (ratios are relative to it).
+        gain_field: The frame field naming the gain state (see :func:`_star_rows`).
+        min_texp: Frames exposed less than this (seconds) are left out of the zero point and
+            the detection limit (they stay in the per-frame table): a camera whose shortest
+            exposures do not scale with the commanded time, such as one without a shutter
+            whose frame transfer adds a fixed exposure, would bias both.
+        limit_exclude_targets: Frames of these targets are left out of the detection limit
+            and the held-out check (crowded star-cluster fields, whose unresolved light and
+            neighbors lower the completeness at a given DN below that of a navigation field).
 
     Returns:
         The fit.
@@ -299,18 +317,20 @@ def fit_camera(
     result = FitResult(camera=camera)
     accepted = [r for r in records if r['fix']['accepted']]
     result.n_frames = len(accepted)
-    rows = _star_rows(accepted)
+    rows = _star_rows(accepted, gain_field=gain_field)
     result.apcorr = _apcorr(rows)
     for row in rows:
         row['total_dn'] = row.get('flux_big', float('nan'))
     fit_rows = [
         r
         for r in rows
-        if not r['held_out']
+        if r['texp'] >= min_texp
+        and not r['held_out']
         and _clean(r)
         and r['detected']
         and r['flux_big'] > 0.0
-        and r['flux_big'] / max(r['flux_big_sigma'], 1e-9) >= FIT_MIN_FLUX_SNR
+        and r['flux_big_sigma'] > 0.0
+        and r['flux_big'] / r['flux_big_sigma'] >= FIT_MIN_FLUX_SNR
     ]
     result.n_fit_frames = len(
         {r['frame']['image_id'] for r in accepted if not is_held_out(r['frame']['image_id'])}
@@ -324,9 +344,14 @@ def fit_camera(
     )
     for row in rows:
         row['pred_dn'] = _predict_dn(result, row)
-    _fit_detection_limit(result, [r for r in rows if not r['held_out'] and _clean(r)])
-    result.holdout = _holdout_check(result, [r for r in rows if r['held_out'] and _clean(r)])
-    result.frames = _frame_table(result, accepted, rows)
+    limit_rows = [
+        r
+        for r in rows
+        if r['texp'] >= min_texp and r['target'] not in limit_exclude_targets and _clean(r)
+    ]
+    _fit_detection_limit(result, [r for r in limit_rows if not r['held_out']])
+    result.holdout = _holdout_check(result, [r for r in limit_rows if r['held_out']])
+    result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
     result.psf = _psf_summary(rows)
     return result
 
@@ -468,8 +493,38 @@ def _crossing(centers: FloatArray, counts: FloatArray, fraction: FloatArray, lev
     return float(10 ** (c[i] + t * (c[i + 1] - c[i])))
 
 
+def _bootstrap_sigma(rows: list[dict[str, Any]], value: float) -> float:
+    """Return the bootstrap (over frames) standard deviation of the detection limit.
+
+    Parameters:
+        rows: Star rows with ``pred_dn``.
+        value: The limit fitted on all of them.
+
+    Returns:
+        The standard deviation in DN, or NaN when fewer than half the resamples cross.
+    """
+    by_frame: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for r in rows:
+        by_frame[r['image_id']].append(r)
+    frames = sorted(by_frame)
+    rng = np.random.default_rng(130)
+    samples = []
+    for _ in range(N_BOOTSTRAP):
+        pick = rng.integers(0, len(frames), len(frames))
+        sample = [r for k in pick for r in by_frame[frames[k]]]
+        crossing = _crossing(*_completeness_curve(sample), COMPLETENESS)
+        if math.isfinite(crossing):
+            samples.append(math.log10(crossing))
+    if len(samples) < N_BOOTSTRAP // 2:
+        return float('nan')
+    return float(value * math.log(10) * np.std(samples))
+
+
 def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
     """Fit ``min_detectable_dn`` from the completeness of the fitting frames' stars.
+
+    The limit is fitted on all the camera's stars and, where a readout mode has enough
+    stars, on that mode's alone.
 
     Parameters:
         result: The camera's result, updated in place.
@@ -490,44 +545,47 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
         faint = [r for r in rows if r['pred_dn'] < 0.1 * result.min_detectable_dn]
         if faint:
             result.false_detection_rate = float(np.mean([r['detected'] for r in faint]))
-    by_frame: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for r in rows:
-        by_frame[r['image_id']].append(r)
-    frames = sorted(by_frame)
-    rng = np.random.default_rng(130)
-    samples = []
-    for _ in range(N_BOOTSTRAP):
-        pick = rng.integers(0, len(frames), len(frames))
-        sample = [r for k in pick for r in by_frame[frames[k]]]
-        value = _crossing(*_completeness_curve(sample), COMPLETENESS)
-        if math.isfinite(value):
-            samples.append(math.log10(value))
-    if len(samples) >= N_BOOTSTRAP // 2:
-        result.min_detectable_dn_sigma = float(
-            result.min_detectable_dn * math.log(10) * np.std(samples)
-        )
+        result.min_detectable_dn_sigma = _bootstrap_sigma(rows, result.min_detectable_dn)
+    for mode in sorted({r['mode'] for r in rows}):
+        members = [r for r in rows if r['mode'] == mode]
+        if len(members) < MIN_STARS_PER_BIN * 3:
+            continue
+        curve = _completeness_curve(members)
+        value = _crossing(*curve, COMPLETENESS)
+        if not math.isfinite(value):
+            continue
+        result.min_detectable_dn_by_mode[mode] = [
+            value,
+            _bootstrap_sigma(members, value),
+            _crossing(*curve, 0.5),
+            float(len(members)),
+        ]
 
 
-def _dimmest_visible(result: FitResult, filter_name: str, gain: str, texp: float) -> float:
-    """Return the V magnitude whose predicted DN is ``min_detectable_dn``.
+def _dimmest_visible(
+    result: FitResult, filter_name: str, gain: str, texp: float, mode: str
+) -> float:
+    """Return the V magnitude whose predicted DN is the detection limit.
+
+    The limit is the mode's ``min_detectable_dn`` when the mode has one, else the camera's.
 
     Parameters:
         result: The camera's fit.
         filter_name: The frame's filter.
         gain: The frame's gain state.
         texp: The frame's exposure.
+        mode: The frame's readout mode.
 
     Returns:
         The magnitude, or NaN for an unfitted filter or gain state.
     """
     if filter_name not in result.filter_offsets or gain not in result.gain_ratio:
         return float('nan')
-    if not math.isfinite(result.min_detectable_dn) or texp <= 0.0:
+    limit = result.min_detectable_dn_by_mode.get(mode, [result.min_detectable_dn])[0]
+    if not math.isfinite(limit) or texp <= 0.0:
         return float('nan')
     dn_vmag0 = result.rate_vmag0 * result.gain_ratio[gain] * texp
-    return (
-        2.5 * math.log10(dn_vmag0 / result.min_detectable_dn) - result.filter_offsets[filter_name]
-    )
+    return 2.5 * math.log10(dn_vmag0 / limit) - result.filter_offsets[filter_name]
 
 
 def _faintest_detected(stars: list[dict[str, Any]], rank: int = 2) -> float:
@@ -566,7 +624,9 @@ def _holdout_check(result: FitResult, rows: list[dict[str, Any]]) -> dict[str, A
     brighter, between = [], []
     for stars in by_frame.values():
         first = stars[0]
-        limit = _dimmest_visible(result, first['filter'], first['gain'], first['texp'])
+        limit = _dimmest_visible(
+            result, first['filter'], first['gain'], first['texp'], first['mode']
+        )
         if not math.isfinite(limit):
             continue
         faint = _faintest_detected(stars)
@@ -589,7 +649,11 @@ def _holdout_check(result: FitResult, rows: list[dict[str, Any]]) -> dict[str, A
 
 
 def _frame_table(
-    result: FitResult, accepted: list[dict[str, Any]], rows: list[dict[str, Any]]
+    result: FitResult,
+    accepted: list[dict[str, Any]],
+    rows: list[dict[str, Any]],
+    *,
+    gain_field: str,
 ) -> list[dict[str, Any]]:
     """Return the per-frame current-versus-proposed table.
 
@@ -597,6 +661,7 @@ def _frame_table(
         result: The camera's fit.
         accepted: The accepted frame records.
         rows: Every star row.
+        gain_field: The frame field naming the gain state.
 
     Returns:
         One row per accepted frame.
@@ -609,14 +674,14 @@ def _frame_table(
     for record in accepted:
         frame = record['frame']
         dimmest = _dimmest_visible(
-            result, frame['filter_name'], frame['gain_state'], float(frame['texp'])
+            result, frame['filter_name'], frame[gain_field], float(frame['texp']), frame['mode']
         )
         stars = by_frame.get(frame['image_id'], [])
         table.append(
             {
                 'image_id': frame['image_id'],
                 'filter': frame['filter_name'],
-                'gain': frame['gain_state'],
+                'gain': frame[gain_field],
                 'mode': frame['mode'],
                 'texp': float(frame['texp']),
                 'held_out': is_held_out(frame['image_id']),
@@ -731,6 +796,24 @@ def main() -> None:
     parser.add_argument('--reference-filter', required=True)
     parser.add_argument('--reference-gain', required=True)
     parser.add_argument(
+        '--gain-field',
+        default='gain_state',
+        choices=('gain_state', 'mode'),
+        help='The frame field naming the gain state',
+    )
+    parser.add_argument(
+        '--min-texp',
+        type=float,
+        default=0.0,
+        help='Leave frames exposed less than this (s) out of the fits',
+    )
+    parser.add_argument(
+        '--limit-exclude-targets',
+        nargs='*',
+        default=[],
+        help='Leave frames of these targets out of the detection limit',
+    )
+    parser.add_argument(
         '--ee-geometry',
         nargs='*',
         default=[],
@@ -753,6 +836,9 @@ def main() -> None:
             members,
             reference_filter=args.reference_filter,
             reference_gain=args.reference_gain,
+            gain_field=args.gain_field,
+            min_texp=args.min_texp,
+            limit_exclude_targets=frozenset(args.limit_exclude_targets),
         )
         frame_rows += [{'camera': camera, **row} for row in result.frames]
         for name, group in result.psf.items():
@@ -767,7 +853,7 @@ def main() -> None:
         {'camera': camera_key(r), **s}
         for r in records
         if r['fix']['accepted']
-        for s in _star_rows([r])
+        for s in _star_rows([r], gain_field=args.gain_field)
     ]
     _write_csv(args.out_dir / 'stars.csv', star_rows)
     print(

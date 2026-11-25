@@ -41,6 +41,7 @@ __all__ = [
     'fit_gaussian_psf',
     'highpass',
     'integrated_gaussian',
+    'noise_sigma',
     'robust_sigma',
 ]
 
@@ -66,6 +67,50 @@ def robust_sigma(values: FloatArray) -> float:
     if finite.size == 0:
         return float('nan')
     return float(MAD_TO_SIGMA * np.median(np.abs(finite - np.median(finite))))
+
+
+#: A sample with fewer distinct values than this fraction of its size is treated as quantized.
+QUANTIZED_FRACTION = 0.25
+
+#: Clipping threshold (in standard deviations) of the clipped standard deviation.
+CLIP_SIGMA = 3.0
+
+#: Iterations of the clipped standard deviation.
+CLIP_ITERATIONS = 5
+
+
+def noise_sigma(values: FloatArray) -> float:
+    """Return the noise of a sample of background pixels, robust to a few bright outliers.
+
+    For a sample of continuous values this is :func:`robust_sigma`.  An 8-bit image whose
+    noise is about one DN holds only a handful of distinct values, where the median absolute
+    deviation jumps between 0 and 1 DN; for such a quantized sample (fewer distinct values than
+    ``QUANTIZED_FRACTION`` of its size) the noise is instead the standard deviation after
+    iteratively clipping values more than ``CLIP_SIGMA`` standard deviations from the mean,
+    but never less than the quantization noise, the quantization step over the square root of
+    12 (a step of one unit when the sample holds a single value).
+
+    Parameters:
+        values: The sample; non-finite values are ignored.
+
+    Returns:
+        The noise, or NaN for an empty sample.
+    """
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        return float('nan')
+    if np.unique(finite).size >= QUANTIZED_FRACTION * finite.size:
+        return robust_sigma(finite)
+    kept = finite
+    for _ in range(CLIP_ITERATIONS):
+        mean, std = float(kept.mean()), float(kept.std())
+        inside = np.abs(finite - mean) <= CLIP_SIGMA * std
+        if std == 0.0 or inside.sum() == kept.size:
+            break
+        kept = finite[inside]
+    levels = np.unique(finite)
+    step = float(np.min(np.diff(levels))) if levels.size > 1 else 1.0
+    return max(float(kept.std()), step / math.sqrt(12.0))
 
 
 def highpass(image: FloatArray, size: int, *, subsample: int = 1) -> FloatArray:
@@ -692,7 +737,7 @@ class ApertureResult:
     Attributes:
         flux: Background-subtracted sum inside the aperture.
         sky: Median of the sky annulus, per pixel.
-        sky_sigma: Robust standard deviation of the sky annulus, per pixel.
+        sky_sigma: Noise of the sky annulus per pixel (see :func:`noise_sigma`).
         flux_sigma: One-sigma uncertainty of ``flux`` from the sky noise alone.
         max_value: Largest raw pixel value inside the aperture.
         n_pixels: Pixels inside the aperture.
@@ -745,7 +790,7 @@ def aperture_photometry(
     inside = r <= radius
     ring = (r >= sky_inner) & (r <= sky_outer)
     sky = float(np.median(cut[ring]))
-    sky_sigma = robust_sigma(cut[ring])
+    sky_sigma = noise_sigma(cut[ring])
     n_in = int(inside.sum())
     flux = float((cut[inside] - sky).sum())
     flux_sigma = sky_sigma * math.sqrt(n_in * (1.0 + math.pi / 2.0 * n_in / int(ring.sum())))
@@ -772,8 +817,7 @@ def detection_test(
     """Measure the detection statistics of a star expected at ``(v, u)`` in a high-passed image.
 
     The peak is the brightest pixel within ``search_px`` of the expected position.  The noise
-    is the robust standard deviation of the annulus ``noise_inner``-``noise_outer`` about that
-    peak, or its plain standard deviation when the robust one is zero (a quantized image).
+    is :func:`noise_sigma` of the annulus ``noise_inner``-``noise_outer`` about that peak.
     The count is the number of pixels in the ``(2 * box_half + 1)``-square box about the peak
     above three times the noise.
 
@@ -806,11 +850,7 @@ def detection_test(
     nv, nu = np.mgrid[pv - o : pv + o + 1, pu - o : pu + o + 1]
     r = np.hypot(nv - pv, nu - pu)
     ring = hp[pv - o : pv + o + 1, pu - o : pu + o + 1][(r >= noise_inner) & (r <= noise_outer)]
-    noise = robust_sigma(ring)
-    if not noise > 0.0:
-        # In a heavily quantized image most of the annulus can share one value, which gives
-        # a zero median absolute deviation; the standard deviation still measures the noise.
-        noise = float(np.std(ring))
+    noise = noise_sigma(ring)
     if not noise > 0.0:
         return None
     box = hp[pv - box_half : pv + box_half + 1, pu - box_half : pu + box_half + 1]
