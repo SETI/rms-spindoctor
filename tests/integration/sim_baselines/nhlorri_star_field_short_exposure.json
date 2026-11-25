@@ -1,8 +1,8 @@
 {
-  "confidence": 0.0,
-  "confidence_rank": "failed",
-  "offset_du_px": null,
-  "offset_dv_px": null,
+  "confidence": 0.841750207648881,
+  "confidence_rank": "medium",
+  "offset_du_px": -26.629033966214955,
+  "offset_dv_px": -18.271403012659643,
   "scene_name": "nhlorri_star_field_short_exposure",
-  "status": "failed"
+  "status": "success"
 }

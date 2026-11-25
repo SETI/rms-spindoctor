@@ -6,14 +6,11 @@ size_u: 1024
 random_seed: 7
 exposure_sec: 1.0
 # nhlorri_star_field at 1 s instead of 5 s.  The brightest star, V 10.5, still
-# peaks about 20 times the sky noise, but the navigator predicts every star too
-# faint to detect and draws no star features, so navigation fails.  The
-# navigator's LORRI star blur, star_psf_sigma, is a 3.0 px placeholder against
-# a published core near 1 px (#342), and the wide blur spreads each predicted
-# star over about nine times the pixels, which drops its predicted signal to
-# noise below the cut.  With star_psf_sigma at 1.0 px the same frame emits 7
-# star features and navigates.  The expected block holds the failure, so a fix
-# to the blur fails this scene until the block is retired.
+# peaks about 20 times the sky noise.  With the navigator's LORRI star blur at
+# the measured 0.9 px (#342) it predicts the seven brightest stars visible, and
+# the star-field technique locks on all seven.  At the earlier 3.0 px
+# placeholder the blur spread each predicted star over about nine times the
+# pixels, the navigator predicted none visible, and the frame failed.
 artifacts:
   instrument_defaults: true
 sky_counts: {}
@@ -40,7 +37,3 @@ stars:
 offset_v: -17.83
 offset_u: -26.29
 offset_rotation_deg: 0.1912
-expected:
-  status: failed
-  confidence_tier: failed
-  status_reason: no_features_extracted
