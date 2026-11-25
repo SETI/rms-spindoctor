@@ -40,6 +40,7 @@ __all__ = [
     'outline_semi_a',
     'project_ellipsoid',
     'render_lambert_ellipsoid',
+    'supersampling_scale',
     'surface_normals',
     'surface_unit_coords',
 ]
@@ -222,6 +223,18 @@ class EllipsoidGeometry:
             second,
             -first * self.sin_lat + toward * self.cos_lat,
         )
+
+
+def supersampling_scale(anti_aliasing: float) -> int:
+    """Pixels per input pixel, along each axis, of the grid :func:`project_ellipsoid` builds.
+
+    Parameters:
+        anti_aliasing: Anti-aliasing amount in [0, 1].
+
+    Returns:
+        ``int(1 + 3 * anti_aliasing)`` above 0, up to 4, and 1 at 0.
+    """
+    return int(1 + 3 * anti_aliasing) if anti_aliasing > 0 else 1
 
 
 def outline_semi_a(semi_a: float, semi_c: float, sub_observer_lat: float) -> float:
@@ -477,7 +490,7 @@ def project_ellipsoid(
         The :class:`EllipsoidProjection` on the supersampled grid.
     """
     size_v, size_u = size
-    aa_scale = int(1 + 3 * anti_aliasing) if anti_aliasing > 0 else 1
+    aa_scale = supersampling_scale(anti_aliasing)
 
     center_v = center[0] * aa_scale
     center_u = center[1] * aa_scale

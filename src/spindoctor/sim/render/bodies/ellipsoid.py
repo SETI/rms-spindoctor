@@ -96,6 +96,7 @@ from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
     ellipsoid_image_normals,
     project_ellipsoid,
+    supersampling_scale,
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -286,85 +287,51 @@ def render_ellipsoid_body(
     # At oversample 1 the anti-aliasing knob supersamples the body; an oversampled
     # scene already resolves the limb, so its work grid IS the render grid.
     anti_aliasing = spec.anti_aliasing if os_in == 1 else 0.0
+    aa_scale = supersampling_scale(anti_aliasing)
+    up_factor = os_in * aa_scale
     # The detector grid is where craters are drawn and where surface detail is laid
-    # out.  On an oversampled grid it comes first: when the detail is laid out there,
-    # only the rectangle the body covers is projected onto the working grid, since
-    # every pixel outside it is 0.
-    detector_grid: EllipsoidProjection | None = None
-    if os_in > 1:
+    # out.  It comes first: when the detail is laid out there, only the rectangle the
+    # body covers is projected onto the working grid, since every pixel outside it
+    # is 0.
+    work_grid: EllipsoidProjection | None = None
+    if up_factor > 1:
         detector_grid = _detector_projection(size, center, spec, os_in=os_in)
-        craters = _crater_layout(detector_grid, spec, crater_plane)
+    else:
+        work_grid = detector_grid = _project_box(size, center, spec, anti_aliasing=anti_aliasing)
+    craters = _crater_layout(detector_grid, spec, crater_plane)
+    shading_spec = spec
+    if up_factor > 1:
+        # A surface setting that changes nothing (a crater fill that places no
+        # crater on the detector grid, a texture with no contrast and no spots, a
+        # transit with neither a moon nor a shadow) is dropped from the spec the
+        # body is shaded with, so it renders exactly as the smooth body.
         shading_spec = _without_inert_surface(spec, crater_count=craters.count)
-        if _lays_detail_on_detector_grid(shading_spec, field):
-            box = body_box(detector_grid, field)
-            if box is None:
-                return EllipsoidBodyRender(intensity=np.zeros(size), silhouette=np.zeros(size))
-            rows, cols = box
-            work_box = _project_box(
+
+    if up_factor > 1 and _lays_detail_on_detector_grid(shading_spec, field):
+        box = body_box(detector_grid, field)
+        if box is None:
+            return EllipsoidBodyRender(intensity=np.zeros(size), silhouette=np.zeros(size))
+        rows, cols = box
+        intensity_work, mask = _shade_body_box(
+            _project_box(
                 size,
                 center,
                 spec,
-                rows=slice(rows.start * os_in, rows.stop * os_in),
-                cols=slice(cols.start * os_in, cols.stop * os_in),
-            )
-            intensity_work, mask = _shade_body_box(
-                work_box,
-                detector_grid,
-                shading_spec,
-                field,
-                box=box,
-                up_factor=os_in,
-                craters=craters,
-                shape=size,
-            )
-            return EllipsoidBodyRender(intensity=intensity_work, silhouette=mask)
-    work_grid = project_ellipsoid(
-        size,
-        center,
-        spec.semi_a_px,
-        semi_b_px=spec.semi_b_px,
-        semi_c_px=spec.semi_c_px,
-        rotation_z=spec.rotation_z,
-        sub_observer_lat=spec.sub_observer_lat,
-        anti_aliasing=anti_aliasing,
-    )
-    aa_scale = work_grid.aa_scale
-    up_factor = os_in * aa_scale
-    if detector_grid is None:
-        detector_grid = work_grid
-        shading_spec = spec
-        if up_factor > 1:
-            detector_grid = _detector_projection(size, center, spec, os_in=os_in)
-        craters = _crater_layout(detector_grid, spec, crater_plane)
-        if up_factor > 1:
-            # A surface setting that changes nothing (a crater fill that places no
-            # crater on the detector grid, a texture with no contrast and no spots, a
-            # transit with neither a moon nor a shadow) is dropped from the spec the
-            # body is shaded with, so it renders exactly as the smooth body.
-            shading_spec = _without_inert_surface(spec, crater_count=craters.count)
-
-    if up_factor > 1 and _lays_detail_on_detector_grid(shading_spec, field):
-        # Only a supersampled body reaches here; an oversampled one returned above.
-        box = body_box(detector_grid, field)
-        if box is None:
-            intensity_work = np.zeros(work_grid.ellipse_dist_sq.shape)
-            mask = np.zeros(work_grid.ellipse_dist_sq.shape)
-        else:
-            rows, cols = box
-            intensity_work, mask = _shade_body_box(
-                work_grid.crop(
-                    slice(rows.start * up_factor, rows.stop * up_factor),
-                    slice(cols.start * up_factor, cols.stop * up_factor),
-                ),
-                detector_grid,
-                shading_spec,
-                field,
-                box=box,
-                up_factor=up_factor,
-                craters=craters,
-                shape=work_grid.ellipse_dist_sq.shape,
-            )
+                anti_aliasing=anti_aliasing,
+                rows=slice(rows.start * up_factor, rows.stop * up_factor),
+                cols=slice(cols.start * up_factor, cols.stop * up_factor),
+            ),
+            detector_grid,
+            shading_spec,
+            field,
+            box=box,
+            up_factor=up_factor,
+            craters=craters,
+            shape=(size_v * aa_scale, size_u * aa_scale),
+        )
     else:
+        if work_grid is None:
+            work_grid = _project_box(size, center, spec, anti_aliasing=anti_aliasing)
         # Only the boolean silhouette is held through the shading; the float mask is
         # built after it, which keeps the shading's peak memory down.
         inside = silhouette_mask(work_grid, field) > 0.0
@@ -418,52 +385,58 @@ def _project_box(
     center: tuple[float, float],
     spec: EllipsoidBodySpec,
     *,
-    rows: slice,
-    cols: slice,
+    anti_aliasing: float,
+    rows: slice | None = None,
+    cols: slice | None = None,
 ) -> EllipsoidProjection:
-    """Project the body onto a box of the incoming grid, without supersampling.
+    """Project the body onto the working grid, or onto a box of it.
 
-    The result equals the whole grid's projection cropped to the box, to the last bit.
-    Each pixel's coordinate is its index less the center.  When moving the box's first
-    row and column from the index to the center is exact, only the box is projected,
-    and each coordinate is the same difference rounded once; otherwise the whole grid
-    is projected and cropped.  The center is stated on the whole grid either way, as
+    The working grid is the incoming grid supersampled by ``anti_aliasing``.  A box's
+    projection equals the whole grid's projection cropped to the box, to the last bit.
+    Each pixel's coordinate is its index less the center.  On a grid that is not
+    supersampled, when moving the box's first row and column from the index to the
+    center is exact, only the box is projected, and each coordinate is the same
+    difference rounded once; otherwise the whole grid is projected and cropped.  The
+    center is stated on the whole grid either way, as
     :meth:`~spindoctor.sim.shared.ellipsoid.EllipsoidProjection.crop` keeps it.
 
     Parameters:
-        size: The whole grid's dimensions.
-        center: Body center (v, u) in pixels of the whole grid.
+        size: Frame dimensions (rows, columns) on the incoming grid.
+        center: Body center (v, u) in incoming-grid pixels.
         spec: The body spec.
-        rows: The box's rows on the whole grid.
-        cols: The box's columns on the whole grid.
+        anti_aliasing: The anti-aliasing amount that supersamples the grid.
+        rows: The box's rows on the working grid; None, with ``cols`` None, for the
+            whole grid.
+        cols: The box's columns on the working grid.
 
     Returns:
         The projection over the box.
     """
-    box_center = (center[0] - rows.start, center[1] - cols.start)
-    exact = all(
-        Fraction(moved) == Fraction(whole) - first
-        for moved, whole, first in zip(box_center, center, (rows.start, cols.start), strict=True)
-    )
-    if not exact:
+
+    def project(
+        grid_size: tuple[int, int], grid_center: tuple[float, float]
+    ) -> EllipsoidProjection:
         return project_ellipsoid(
-            size,
-            center,
+            grid_size,
+            grid_center,
             spec.semi_a_px,
             semi_b_px=spec.semi_b_px,
             semi_c_px=spec.semi_c_px,
             rotation_z=spec.rotation_z,
             sub_observer_lat=spec.sub_observer_lat,
-        ).crop(rows, cols)
-    projection = project_ellipsoid(
-        (rows.stop - rows.start, cols.stop - cols.start),
-        box_center,
-        spec.semi_a_px,
-        semi_b_px=spec.semi_b_px,
-        semi_c_px=spec.semi_c_px,
-        rotation_z=spec.rotation_z,
-        sub_observer_lat=spec.sub_observer_lat,
+            anti_aliasing=anti_aliasing,
+        )
+
+    if rows is None or cols is None:
+        return project(size, center)
+    box_center = (center[0] - rows.start, center[1] - cols.start)
+    exact = supersampling_scale(anti_aliasing) == 1 and all(
+        Fraction(moved) == Fraction(whole) - first
+        for moved, whole, first in zip(box_center, center, (rows.start, cols.start), strict=True)
     )
+    if not exact:
+        return project(size, center).crop(rows, cols)
+    projection = project((rows.stop - rows.start, cols.stop - cols.start), box_center)
     return replace(projection, center=(center[0], center[1]))
 
 
