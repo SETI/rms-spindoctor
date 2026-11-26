@@ -53,8 +53,8 @@ voyager_iss:
 # rate to min_detectable_dn, which share a scale.
 #
 # Voyager 2's cameras are measured on star fields of its cruise and encounters (#130):
-# 37 narrow-angle and 51 wide-angle frames with an independent pointing fix from three or
-# more agreeing stars, one frame in three held out.  Voyager 1 gave only 3 such frames,
+# 36 narrow-angle and 47 wide-angle frames with an independent pointing fix from three or
+# more agreeing stars, one frame in three held out.  Voyager 1 gave only 1 such frame,
 # so its rates are Voyager 2's scaled by the bench sensitivities of Benesh and Jepsen 1978
 # (JPL 618-802).  Its cameras are S/N 07 (narrow angle) and S/N 06 (wide angle);
 # Voyager 2's are S/N 05 and S/N 04.  util/star_photometry and its fit commands give the
@@ -65,7 +65,7 @@ voyager_iss_star_photometry:
     # Voyager 2's narrow-angle rate times 0.648, S/N 07's clear, low-gain, 1:1 bench
     # response over S/N 05's (light-transfer slopes 2.10 and 3.27 DN/fLs, Figures 4-3
     # and 4-5, over the solar conversion factors 6.88e-9 and 6.94e-9, Table 4-2).
-    flux_dn_per_s_vmag0: 5.61e+04
+    flux_dn_per_s_vmag0: 5.60e+04
     # Benesh and Jepsen 1978, Table 4-3 (S/N 07).
     dn_gain_factor:
       LOW: 1.0
@@ -83,7 +83,7 @@ voyager_iss_star_photometry:
       GREEN: 1.48
       ORANGE: 2.51
       UV: 4.03
-    # PLACEHOLDER: not measured.  Only 3 Voyager 1 frames gave a pointing fix, too few
+    # PLACEHOLDER: not measured.  Only 1 Voyager 1 frame gave a pointing fix, too few
     # stars to fit a width.
     star_psf_sigma: 3.0
   vg1_wac:
@@ -110,17 +110,17 @@ voyager_iss_star_photometry:
       CH4_JS: 4.82
       SODIUM: 5.18
       CH4_U: 4.08
-    # PLACEHOLDER: not measured.  Only 3 Voyager 1 frames gave a pointing fix, too few
+    # PLACEHOLDER: not measured.  Only 1 Voyager 1 frame gave a pointing fix, too few
     # stars to fit a width.
     star_psf_sigma: 3.0
   vg2_nac:
-    # Fit: 8.66e4 raw DN/s for V = 0 through CLEAR at low gain (+-0.07 mag, 53 stars).
-    flux_dn_per_s_vmag0: 8.66e+04
+    # Fit: 8.64e4 raw DN/s for V = 0 through CLEAR at low gain (+-0.07 mag, 53 stars).
+    flux_dn_per_s_vmag0: 8.64e+04
     # Benesh and Jepsen 1978, Table 4-3 (S/N 05).  Every measured frame is low gain.
     dn_gain_factor:
       LOW: 1.0
       HIGH: 4.24
-    # Fit: 109 +- 67 DN, the DN at 80% of the way from the detection floor to the
+    # Fit: 109 +- 58 DN, the DN at 80% of the way from the detection floor to the
     # plateau of a detection-probability curve fitted to every clean star.
     min_detectable_dn: 110.0
     # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
@@ -131,7 +131,7 @@ voyager_iss_star_photometry:
       CLEAR: 0.0
       VIOLET: 1.68    # measured (+-0.24, 4 stars); the solar filter factor gives 1.34
       BLUE: 1.01
-      GREEN: 1.61     # measured 2.26 +- 0.45 (1 star)
+      GREEN: 1.61     # measured 2.25 +- 0.45 (1 star)
       ORANGE: 2.49
       UV: 3.98
     # Gaussian sigma of a star, in pixels of the geometrically corrected image: the
@@ -147,7 +147,7 @@ voyager_iss_star_photometry:
     dn_gain_factor:
       LOW: 1.0
       HIGH: 4.04
-    # Fit: 35 +- 15 DN, measured as for the narrow-angle camera.
+    # Fit: 35 +- 18 DN, measured as for the narrow-angle camera.
     min_detectable_dn: 35.0
     # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
     # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the

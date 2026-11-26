@@ -168,10 +168,10 @@ lacks is refused, and a frame whose exposure is not positive gets a limit of
 The values were measured in 2026 on the cruise star fields of 1990 and 1992, read
 through the navigator's own reader. Each frame's pointing was found from the stars
 alone, by a vote over star and peak pairs refined to a translation and a rotation, and
-a frame was kept when three or more stars agreed within 1 px and the chance of such a
-cluster anywhere in the 350 px search window was below one in a thousand. That kept
-101 of 1,419 measured frames, 80 full frames in the HCM format and 21 summed frames in
-AI8, and one frame in three was held out of the fit.
+a frame was kept when three or more stars, each on its own image peak, agreed within
+1 px and the chance of such a cluster anywhere in the 350 px search window was below
+one in a thousand. That kept 98 of 1,419 measured frames, 77 full frames in the HCM
+format and 21 summed frames in AI8, and one frame in three was held out of the fit.
 
 - The rate is the fit of 64 stars at CLEAR and 10K, 6.05e6 DN per second for V = 0
   (+-0.11 mag), times the 38.7 electrons per DN of 10K. Klaasen et al. (1999) give an
@@ -182,9 +182,9 @@ AI8, and one frame in three was held out of the fit.
   other three states. The stars measure the 100K to 10K ratio at 0.070 (+-0.27 mag,
   7 stars) against the published 0.102.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to every clean
-  star of the mode, reaches 80% of the way from its floor to its plateau: 167 +- 94 DN
-  on the full frames (2,114 stars) and 67 +- 22 DN on the summed frames (260 stars).
-  One curve fitted to both modes gives 142 +- 63 DN.
+  star of the mode, reaches 80% of the way from its floor to its plateau: 167 +- 96 DN
+  on the full frames (2,108 stars) and 67 +- 22 DN on the summed frames (260 stars).
+  One curve fitted to both modes gives 142 +- 70 DN.
 - The filter offsets are 2.5 log10 of the solar filter factors of Klaasen et al.
   (1999). The stars measured through filters are few and mostly hot Pleiades members,
   far bluer than the Sun, so their offsets (beside each value in the file) are not

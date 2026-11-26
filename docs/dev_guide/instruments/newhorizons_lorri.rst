@@ -158,13 +158,14 @@ unbinned and V 15.5 binned. A frame whose exposure is not positive gets a limit 
 The values were measured in 2026 on star fields of the cruise and the Pluto
 approach, read through the navigator's own reader. Each frame's pointing was found
 from the stars alone, by a vote over star and peak pairs refined to a translation and
-a rotation, and a frame was kept when three or more stars agreed within 1 px and the
-chance of such a cluster anywhere in the search window (100 px unbinned, 40 px
-binned) was below one in a thousand. That kept 341 of 468 measured frames, and one
-frame in three was held out of the fit. Frames shorter than 50 ms were left out: the
-camera has no shutter, so the frame transfer adds light to a short exposure.
+a rotation, and a frame was kept when three or more stars, each on its own image peak,
+agreed within 1 px and the chance of such a cluster anywhere in the search window
+(100 px unbinned, 40 px binned) was below one in a thousand. That kept 341 of 468
+measured frames, and one frame in three was held out of the fit. Frames shorter than
+50 ms were left out: the camera has no shutter, so the frame transfer adds light to a
+short exposure.
 
-- The rate is the fit of 4,321 stars, 3.605e7 DN per second for V = 0 unbinned
+- The rate is the fit of 4,319 stars, 3.605e7 DN per second for V = 0 unbinned
   (+-0.01 mag), times 21.0 electrons per DN. The zero point of Weaver et al. (2020)
   gives 3.2e7 DN per second.
 - The electrons per DN are those of Weaver et al. (2020), 21.0 unbinned and 19.4
@@ -172,7 +173,7 @@ camera has no shutter, so the frame transfer adds light to a short exposure.
   1.082 these give.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to every
   clean star of the mode, reaches 80% of the way from its floor to its plateau:
-  110 +- 7 DN unbinned and 60 +- 3 DN binned.
+  110 +- 7 DN unbinned and 60 +- 4 DN binned.
 
 On the held-out frames, the faintest star detected lies a median 0.04 mag past the
 predicted dimmest visible star.

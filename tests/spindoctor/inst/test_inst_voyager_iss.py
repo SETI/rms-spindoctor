@@ -122,7 +122,7 @@ def test_if_factor_non_string_raises() -> None:
 
 @pytest.mark.parametrize(
     ('spacecraft', 'detector', 'expected'),
-    [('1', 'NAC', 8.769), ('1', 'WAC', 6.734), ('2', 'NAC', 9.240), ('2', 'WAC', 7.297)],
+    [('1', 'NAC', 8.767), ('1', 'WAC', 6.734), ('2', 'NAC', 9.238), ('2', 'WAC', 7.297)],
 )
 def test_clear_one_second_limit_is_each_cameras_calibrated_value(
     spacecraft: str, detector: str, expected: float
@@ -130,7 +130,7 @@ def test_clear_one_second_limit_is_each_cameras_calibrated_value(
     """At 1 s through CLEAR at low gain each camera reaches its own limit.
 
     Each is 2.5 log10 of the camera's V = 0 rate over its dimmest visible DN, plus 2 mag:
-    8.66e4 / 110 for the Voyager 2 narrow-angle camera, for example.
+    8.64e4 / 110 for the Voyager 2 narrow-angle camera, for example.
     """
     obs = _star_obs(spacecraft=spacecraft, detector=detector)
     assert obs.star_max_usable_vmag() == pytest.approx(expected, abs=0.001)

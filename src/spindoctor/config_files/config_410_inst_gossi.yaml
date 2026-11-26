@@ -75,8 +75,8 @@ galileo_ssi:
 # electrons per DN hold in both modes; it changes the noise of a pixel and the width of
 # a star in pixels, so min_detectable_dn and star_psf_sigma are given per mode.
 #
-# Measured on star fields of the 1990 and 1992 cruise (#130): 101 frames with an
-# independent pointing fix from three or more agreeing stars (80 full frames in the HCM
+# Measured on star fields of the 1990 and 1992 cruise (#130): 98 frames with an
+# independent pointing fix from three or more agreeing stars (77 full frames in the HCM
 # format and 21 summed frames in AI8), one frame in three held out; util/star_photometry
 # and its fit commands give the method.
 galileo_ssi_star_photometry:
@@ -95,9 +95,9 @@ galileo_ssi_star_photometry:
       '100K': 378.1
       '400K': 1824.1
     # The DN at 80% of the way from the detection floor to the plateau of a
-    # detection-probability curve fitted to every clean star of the mode: 167 +- 94 DN
-    # on the full frames (2114 stars) and 67 +- 22 DN on the summed frames (260 stars).
-    # One curve fitted to both gives 142 +- 63.
+    # detection-probability curve fitted to every clean star of the mode: 167 +- 96 DN
+    # on the full frames (2108 stars) and 67 +- 22 DN on the summed frames (260 stars).
+    # One curve fitted to both gives 142 +- 70.
     min_detectable_dn:
       FULL: 167.0
       SUMMED: 67.0
