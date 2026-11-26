@@ -17,6 +17,9 @@ image-library cohort and matched simulated frames:
   relative to the body's silhouette (FOM 3).
 - :mod:`spindoctor.sim.realism.albedo`: a real body's normal albedo from the I/F of
   its disc, which sets the brightness of the matched simulated body.
+- :mod:`spindoctor.sim.realism.disc_profile`: how a body's brightness falls across
+  its disc (Minnaert's exponent, the lunar-Lambert blend, and the profile along the
+  photometric equator), which the photometric-law study compares.
 - :mod:`spindoctor.sim.realism.dynamic_range`: exposure-stratified dynamic
   range statistics (FOM 5) and the stratification logic itself.
 - :mod:`spindoctor.sim.realism.artifact_rates`: measured artifact rates
@@ -36,6 +39,15 @@ from spindoctor.sim.realism.albedo import disc_normal_albedo
 from spindoctor.sim.realism.artifact_rates import (
     ArtifactRates,
     measure_artifact_rates,
+)
+from spindoctor.sim.realism.disc_profile import (
+    LunarLambertFit,
+    MinnaertFit,
+    equator_profile,
+    fit_lunar_lambert,
+    fit_minnaert,
+    profile_residual,
+    select_disc_pixels,
 )
 from spindoctor.sim.realism.divergence import (
     CohortSupport,
@@ -75,24 +87,31 @@ __all__ = [
     'CohortSupport',
     'DynamicRangeStats',
     'LimbPeakFit',
+    'LunarLambertFit',
+    'MinnaertFit',
     'SkyPatch',
     'W1Result',
     'cohort_support',
     'disc_normal_albedo',
     'edge_normal_profiles',
     'encircled_energy',
+    'equator_profile',
     'find_uniform_patches',
     'fit_limb_peak_offset',
+    'fit_lunar_lambert',
+    'fit_minnaert',
     'frame_dynamic_range',
     'gradient_peak_positions',
     'lattice_noise_sigma',
     'measure_artifact_rates',
     'paired_difference_sigma',
     'patch_noise_sigma',
+    'profile_residual',
     'profile_rise_width',
     'quantization_step',
     'radial_power_spectrum',
     'radial_profile',
+    'select_disc_pixels',
     'stratify_by_exposure',
     'w1_between_densities',
     'w1_divergence',

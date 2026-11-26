@@ -63,6 +63,7 @@ __all__ = [
     'PHOTOMETRIC_LAWS',
     'PHOTOMETRIC_LAW_DEFAULT',
     'incidence_cosines',
+    'lunar_lambert_blend',
     'shade_surface',
     'surge_factor',
 ]
@@ -179,7 +180,7 @@ def shade_surface(
             intensity = np.where(mu > 0.0, mu0**minnaert_k * mu ** (minnaert_k - 1.0), 0.0)
         intensity = np.minimum(np.nan_to_num(intensity, nan=0.0), MINNAERT_CEILING)
     else:  # lunar_lambert
-        blend = _lunar_lambert_blend(phase_angle)
+        blend = lunar_lambert_blend(phase_angle)
         intensity = blend * _lommel_seeliger(mu0, mu) + (1.0 - blend) * mu0
 
     intensity = intensity * surge_factor(
@@ -196,8 +197,15 @@ def _lommel_seeliger(mu0: NDArrayFloatType, mu: NDArrayFloatType) -> NDArrayFloa
     return cast(NDArrayFloatType, np.nan_to_num(value, nan=0.0))
 
 
-def _lunar_lambert_blend(phase_angle: float) -> float:
-    """The McEwen cubic blend L(alpha), clipped to [0, 1]."""
+def lunar_lambert_blend(phase_angle: float) -> float:
+    """McEwen's blend L(alpha) at a phase angle, clipped to [0, 1].
+
+    Parameters:
+        phase_angle: Phase angle in radians.
+
+    Returns:
+        The Lommel-Seeliger share of the lunar-Lambert law at that phase.
+    """
     alpha_deg = abs(math.degrees(phase_angle))
     blend = 1.0 + _LL_A * alpha_deg + _LL_B * alpha_deg**2 + _LL_C * alpha_deg**3
     return float(min(1.0, max(0.0, blend)))

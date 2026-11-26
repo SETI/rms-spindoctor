@@ -456,6 +456,11 @@ spindoctor.sim.realism
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.realism.disc_profile
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.realism.divergence
    :members:
    :undoc-members:
