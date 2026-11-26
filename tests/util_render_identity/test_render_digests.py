@@ -12,6 +12,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
+import numpy as np
 import pytest
 
 _SCRIPT_PATH = (
@@ -42,6 +43,34 @@ def _digest(value: Any) -> str:
 def test_integer_tuples_with_the_same_digits_digest_apart() -> None:
     """Two tuples whose digits run together the same way have different digests."""
     assert _digest((3, 131)) != _digest((31, 31))
+
+
+_BASE_ARRAY = np.arange(6, dtype=np.uint16).reshape(2, 3)
+
+
+def test_equal_arrays_digest_alike() -> None:
+    """Two arrays with the same dtype, shape, and bytes have the same digest."""
+    assert _digest(_BASE_ARRAY) == _digest(_BASE_ARRAY.copy())
+
+
+def _flip_one_bit(array: np.ndarray) -> np.ndarray:
+    """Return a copy of the array with the lowest bit of its first element flipped."""
+    changed = array.copy()
+    changed.flat[0] ^= 1
+    return changed
+
+
+@pytest.mark.parametrize(
+    'changed',
+    [
+        pytest.param(_flip_one_bit(_BASE_ARRAY), id='one_payload_bit'),
+        pytest.param(_BASE_ARRAY.astype(np.int16), id='dtype'),
+        pytest.param(_BASE_ARRAY.reshape(3, 2), id='shape'),
+    ],
+)
+def test_a_changed_array_digests_apart(changed: np.ndarray) -> None:
+    """An array that differs in one payload bit, its dtype, or its shape digests apart."""
+    assert _digest(changed) != _digest(_BASE_ARRAY)
 
 
 @dataclasses.dataclass
