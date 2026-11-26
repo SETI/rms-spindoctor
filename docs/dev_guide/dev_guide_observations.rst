@@ -414,19 +414,23 @@ Each real camera is read by a host package, one per mission, whose class method
 - **Missing values.** A host leaves out a value that no label gives, or that a label
   gives as a placeholder such as ``UNK`` or ``N/A``: there is no subfield and no
   ``dict`` key, and never None. A reader therefore tests for the key, and publishes
-  None, or an empty list, in its place. Inside a list the position stays: a missing
-  element is None, as in a pair of temperature readings whose second reading is
-  missing.
+  None, or an empty list, in its place. A list some of whose elements are missing is
+  given as each host's documentation says: a host may make each missing element None,
+  or keep the list as the label gives it, placeholders included. A reader that
+  publishes such a list follows its host's rule and never publishes a placeholder as a
+  value.
 - **Errors.** No host checks the pointing when it reads an image. Where the SPICE
   kernels lack what the image needs, such as its pointing, ``cspyce`` raises its error,
   with the SPICE code, when the observation is first used, which is while the reader
   builds it. A host raises a subclass of ``oops.host.HostError`` when it cannot read or
-  use a file. :func:`~spindoctor.navigate_image_files.navigate_image_files` records an
-  error carrying ``CKINSUFFDATA``, ``SPKINSUFFDATA``, or ``NOFRAMECONNECT`` as
-  ``missing_spice_data``, and a ``HostError`` as ``image_read_error``.
+  use a file, and ``OSError`` when the file cannot be found or retrieved.
+  :func:`~spindoctor.navigate_image_files.navigate_image_files` records an error
+  carrying ``CKINSUFFDATA``, ``SPKINSUFFDATA``, or ``NOFRAMECONNECT`` as
+  ``missing_spice_data``, and any other ``HostError`` or ``OSError`` as
+  ``image_read_error``.
 
-Each host documents its subfields, its merge rules, and its errors in its own user
-guide.
+Each host documents its subfields, its merge rules, and its errors in its own
+documentation, a user guide or the API reference.
 
 Simulated-image instrument config: inherit / override / self-specify
 --------------------------------------------------------------------
