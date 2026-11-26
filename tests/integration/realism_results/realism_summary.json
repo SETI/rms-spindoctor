@@ -1,5 +1,5 @@
 {
-  "code_commit": "ef805da155e6bbeaf6661b558b25757d914a2af0",
+  "code_commit": "74f1d17048d02d7d855f4f696d2f8d32644d3263",
   "code_dirty": false,
   "instruments": {
     "coiss_calib_nac": {
@@ -3528,8 +3528,8 @@
           "n": 7
         },
         "Enceladus": {
-          "median_abs_delta_k": 0.173141,
-          "median_delta_k": -0.173141,
+          "median_abs_delta_k": 0.171437,
+          "median_delta_k": -0.171437,
           "median_profile_residual": 0.11069,
           "n": 3
         },
@@ -3574,7 +3574,7 @@
         "Enceladus": {
           "median_abs_delta_k": 0.0285889,
           "median_delta_k": 0.00357207,
-          "median_profile_residual": 0.068745,
+          "median_profile_residual": 0.0696534,
           "n": 3
         },
         "Iapetus (bright terrain)": {
@@ -3616,8 +3616,8 @@
           "n": 7
         },
         "Enceladus": {
-          "median_abs_delta_k": 0.025706,
-          "median_delta_k": -0.025706,
+          "median_abs_delta_k": 0.0229636,
+          "median_delta_k": -0.0229636,
           "median_profile_residual": 0.0748302,
           "n": 3
         },
@@ -3659,7 +3659,7 @@
           "lambert": 0.327738,
           "lommel_seeliger": 0.139752,
           "lunar_lambert": 0.037229,
-          "minnaert": 0.0228161
+          "minnaert": 0.0225209
         },
         "band_k": 0.0318672,
         "default_best": true,
@@ -3705,6 +3705,7 @@
         "phase_deg": 33.864,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.314691,
             "k": 1.00034,
             "limb_peak_px": -0.113814,
@@ -3714,6 +3715,7 @@
             "real_k": 0.685648
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.130671,
             "k": 0.554977,
             "limb_peak_px": 0.0293048,
@@ -3723,6 +3725,7 @@
             "real_k": 0.685648
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0219732,
             "k": 0.707622,
             "limb_peak_px": 0.015979,
@@ -3732,6 +3735,7 @@
             "real_k": 0.685648
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0120826,
             "k": 0.697731,
             "limb_peak_px": 0.0883807,
@@ -3751,43 +3755,47 @@
         "instrument": "coiss_calib_nac",
         "k": 0.823164,
         "k_sigma": 0.00106343,
-        "limb_peak_kind": null,
-        "limb_peak_px": null,
+        "limb_peak_kind": "limb_peak_p1_r2",
+        "limb_peak_px": -0.359543,
         "n_pixels": 47612,
         "part": null,
         "phase_deg": 79.238,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.176954,
             "k": 1.00027,
-            "limb_peak_px": null,
+            "limb_peak_px": 0.0714048,
             "minnaert_k": null,
             "normal_albedo": 0.519286,
             "profile_residual": 0.0907824,
             "real_k": 0.823318
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.130747,
             "k": 0.692571,
-            "limb_peak_px": null,
+            "limb_peak_px": 0.182524,
             "minnaert_k": null,
             "normal_albedo": 0.356994,
             "profile_residual": 0.151461,
             "real_k": 0.823318
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0363524,
             "k": 0.85967,
-            "limb_peak_px": null,
+            "limb_peak_px": 0.150912,
             "minnaert_k": null,
             "normal_albedo": 0.459398,
             "profile_residual": 0.110756,
             "real_k": 0.823318
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.00230074,
             "k": 0.821017,
-            "limb_peak_px": null,
+            "limb_peak_px": 0.207578,
             "minnaert_k": 0.820794,
             "normal_albedo": 0.450273,
             "profile_residual": 0.148286,
@@ -3811,6 +3819,7 @@
         "phase_deg": 126.287,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.125294,
             "k": 0.975031,
             "limb_peak_px": 0.30271,
@@ -3820,6 +3829,7 @@
             "real_k": 0.849737
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.0927166,
             "k": 0.75702,
             "limb_peak_px": 0.424571,
@@ -3829,6 +3839,7 @@
             "real_k": 0.849737
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.125294,
             "k": 0.975031,
             "limb_peak_px": 0.30271,
@@ -3838,6 +3849,7 @@
             "real_k": 0.849737
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0782151,
             "k": 0.927952,
             "limb_peak_px": 0.322985,
@@ -3864,6 +3876,7 @@
         "phase_deg": 92.32,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0273105,
             "k": 0.998181,
             "limb_peak_px": 0.0196879,
@@ -3873,6 +3886,7 @@
             "real_k": 0.97087
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.191415,
             "k": 0.779455,
             "limb_peak_px": 0.145145,
@@ -3882,6 +3896,7 @@
             "real_k": 0.97087
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0339577,
             "k": 0.936912,
             "limb_peak_px": 0.0771649,
@@ -3891,6 +3906,7 @@
             "real_k": 0.97087
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.114509,
             "k": 0.856362,
             "limb_peak_px": 0.09,
@@ -3917,6 +3933,7 @@
         "phase_deg": 92.2976,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.217811,
             "k": 1.00363,
             "limb_peak_px": null,
@@ -3926,6 +3943,7 @@
             "real_k": 0.785815
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.248065,
             "k": 0.53775,
             "limb_peak_px": null,
@@ -3935,6 +3953,7 @@
             "real_k": 0.785815
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.103415,
             "k": 0.889229,
             "limb_peak_px": null,
@@ -3944,6 +3963,7 @@
             "real_k": 0.785815
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0734201,
             "k": 0.859235,
             "limb_peak_px": null,
@@ -3970,6 +3990,7 @@
         "phase_deg": 50.5189,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.250294,
             "k": 1.0013,
             "limb_peak_px": null,
@@ -3979,6 +4000,7 @@
             "real_k": 0.751007
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.132416,
             "k": 0.61859,
             "limb_peak_px": null,
@@ -3988,6 +4010,7 @@
             "real_k": 0.751007
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0333874,
             "k": 0.784394,
             "limb_peak_px": null,
@@ -3997,6 +4020,7 @@
             "real_k": 0.751007
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.00477303,
             "k": 0.746234,
             "limb_peak_px": null,
@@ -4023,6 +4047,7 @@
         "phase_deg": 106.88,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0423339,
             "k": 0.996845,
             "limb_peak_px": 0.079582,
@@ -4032,6 +4057,7 @@
             "real_k": 0.954511
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.148136,
             "k": 0.806375,
             "limb_peak_px": 0.176192,
@@ -4041,6 +4067,7 @@
             "real_k": 0.954511
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0423339,
             "k": 0.996845,
             "limb_peak_px": 0.079582,
@@ -4050,6 +4077,7 @@
             "real_k": 0.954511
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0602127,
             "k": 0.894298,
             "limb_peak_px": 0.129876,
@@ -4076,6 +4104,7 @@
         "phase_deg": 74.1495,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.252839,
             "k": 0.99953,
             "limb_peak_px": null,
@@ -4085,6 +4114,7 @@
             "real_k": 0.746691
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.0829398,
             "k": 0.663751,
             "limb_peak_px": null,
@@ -4094,6 +4124,7 @@
             "real_k": 0.746691
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0995568,
             "k": 0.846248,
             "limb_peak_px": null,
@@ -4103,6 +4134,7 @@
             "real_k": 0.746691
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0634262,
             "k": 0.810117,
             "limb_peak_px": null,
@@ -4129,6 +4161,7 @@
         "phase_deg": 73.9845,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.118012,
             "k": 1.00098,
             "limb_peak_px": null,
@@ -4138,6 +4171,7 @@
             "real_k": 0.882964
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.218682,
             "k": 0.664282,
             "limb_peak_px": null,
@@ -4147,6 +4181,7 @@
             "real_k": 0.882964
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0257508,
             "k": 0.857214,
             "limb_peak_px": null,
@@ -4156,6 +4191,7 @@
             "real_k": 0.882964
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0668135,
             "k": 0.816151,
             "limb_peak_px": null,
@@ -4182,6 +4218,7 @@
         "phase_deg": 74.204,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.284361,
             "k": 0.996501,
             "limb_peak_px": -0.0832455,
@@ -4191,6 +4228,7 @@
             "real_k": 0.712139
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": 0.00242014,
             "k": 0.71456,
             "limb_peak_px": 0.126671,
@@ -4200,6 +4238,7 @@
             "real_k": 0.712139
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.152575,
             "k": 0.864714,
             "limb_peak_px": 0.0640627,
@@ -4209,6 +4248,7 @@
             "real_k": 0.712139
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0956985,
             "k": 0.807838,
             "limb_peak_px": 0.0224316,
@@ -4235,6 +4275,7 @@
         "phase_deg": 87.2428,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.141221,
             "k": 0.997363,
             "limb_peak_px": -0.00627672,
@@ -4244,6 +4285,7 @@
             "real_k": 0.856142
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.0879016,
             "k": 0.76824,
             "limb_peak_px": 0.186194,
@@ -4253,6 +4295,7 @@
             "real_k": 0.856142
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0565353,
             "k": 0.912677,
             "limb_peak_px": 0.119503,
@@ -4262,6 +4305,7 @@
             "real_k": 0.856142
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0129116,
             "k": 0.84323,
             "limb_peak_px": 0.0855374,
@@ -4288,6 +4332,7 @@
         "phase_deg": 74.4602,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.107946,
             "k": 1.00065,
             "limb_peak_px": -0.0716523,
@@ -4297,6 +4342,7 @@
             "real_k": 0.892705
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.181422,
             "k": 0.711284,
             "limb_peak_px": 0.129432,
@@ -4306,6 +4352,7 @@
             "real_k": 0.892705
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0261929,
             "k": 0.866512,
             "limb_peak_px": 0.0758902,
@@ -4315,6 +4362,7 @@
             "real_k": 0.892705
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0827658,
             "k": 0.80994,
             "limb_peak_px": 0.0414214,
@@ -4341,6 +4389,7 @@
         "phase_deg": 74.4091,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.196993,
             "k": 0.995204,
             "limb_peak_px": null,
@@ -4350,6 +4399,7 @@
             "real_k": 0.798211
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.0842144,
             "k": 0.713996,
             "limb_peak_px": null,
@@ -4359,6 +4409,7 @@
             "real_k": 0.798211
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0761627,
             "k": 0.874373,
             "limb_peak_px": null,
@@ -4368,6 +4419,7 @@
             "real_k": 0.798211
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0121594,
             "k": 0.81037,
             "limb_peak_px": null,
@@ -4394,6 +4446,7 @@
         "phase_deg": 17.7107,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.465708,
             "k": 1.00392,
             "limb_peak_px": -0.384155,
@@ -4403,6 +4456,7 @@
             "real_k": 0.538209
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.0255742,
             "k": 0.512635,
             "limb_peak_px": 0.0799513,
@@ -4412,6 +4466,7 @@
             "real_k": 0.538209
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.078893,
             "k": 0.617102,
             "limb_peak_px": 0.0587442,
@@ -4421,6 +4476,7 @@
             "real_k": 0.538209
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.12043,
             "k": 0.658639,
             "limb_peak_px": -0.0206912,
@@ -4447,6 +4503,7 @@
         "phase_deg": 24.5328,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.330672,
             "k": 1.00682,
             "limb_peak_px": -0.469886,
@@ -4456,6 +4513,7 @@
             "real_k": 0.676149
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.153949,
             "k": 0.5222,
             "limb_peak_px": 0.0852384,
@@ -4465,6 +4523,7 @@
             "real_k": 0.676149
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0121522,
             "k": 0.663996,
             "limb_peak_px": 0.0457419,
@@ -4474,6 +4533,7 @@
             "real_k": 0.676149
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.00580591,
             "k": 0.681954,
             "limb_peak_px": -0.077289,
@@ -4500,6 +4560,7 @@
         "phase_deg": 110.537,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0665084,
             "k": 0.99928,
             "limb_peak_px": 0.0740604,
@@ -4509,6 +4570,7 @@
             "real_k": 0.932772
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.108472,
             "k": 0.8243,
             "limb_peak_px": 0.143744,
@@ -4518,6 +4580,7 @@
             "real_k": 0.932772
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0665084,
             "k": 0.99928,
             "limb_peak_px": 0.0740604,
@@ -4527,6 +4590,7 @@
             "real_k": 0.932772
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0273115,
             "k": 0.90546,
             "limb_peak_px": 0.117062,
@@ -4553,6 +4617,7 @@
         "phase_deg": 15.271,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.373111,
             "k": 1.01027,
             "limb_peak_px": -0.594746,
@@ -4562,6 +4627,7 @@
             "real_k": 0.637164
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.116458,
             "k": 0.520706,
             "limb_peak_px": -0.023144,
@@ -4571,6 +4637,7 @@
             "real_k": 0.637164
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0239903,
             "k": 0.613173,
             "limb_peak_px": -0.0618035,
@@ -4580,6 +4647,7 @@
             "real_k": 0.637164
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0220782,
             "k": 0.659242,
             "limb_peak_px": -0.161328,
@@ -4606,6 +4674,7 @@
         "phase_deg": 135.747,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.158309,
             "k": 0.972552,
             "limb_peak_px": 0.256686,
@@ -4615,6 +4684,7 @@
             "real_k": 0.814243
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": 0.0858258,
             "k": 0.900069,
             "limb_peak_px": 0.301767,
@@ -4624,6 +4694,7 @@
             "real_k": 0.814243
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.158309,
             "k": 0.972552,
             "limb_peak_px": 0.256686,
@@ -4633,6 +4704,7 @@
             "real_k": 0.814243
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.135057,
             "k": 0.9493,
             "limb_peak_px": 0.265228,
@@ -4659,6 +4731,7 @@
         "phase_deg": 1.5319,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.448353,
             "k": 1.00082,
             "limb_peak_px": -0.659002,
@@ -4668,6 +4741,7 @@
             "real_k": 0.552465
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.0517726,
             "k": 0.500692,
             "limb_peak_px": -0.0172686,
@@ -4677,6 +4751,7 @@
             "real_k": 0.552465
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0436918,
             "k": 0.508773,
             "limb_peak_px": -0.0182499,
@@ -4686,6 +4761,7 @@
             "real_k": 0.552465
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0577993,
             "k": 0.610264,
             "limb_peak_px": -0.142536,
@@ -4712,6 +4788,7 @@
         "phase_deg": 40.397,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.266428,
             "k": 1.00046,
             "limb_peak_px": -0.123121,
@@ -4721,6 +4798,7 @@
             "real_k": 0.734028
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.158968,
             "k": 0.57506,
             "limb_peak_px": 0.0662144,
@@ -4730,6 +4808,7 @@
             "real_k": 0.734028
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.00357207,
             "k": 0.7376,
             "limb_peak_px": 0.0461424,
@@ -4739,6 +4818,7 @@
             "real_k": 0.734028
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0184275,
             "k": 0.715601,
             "limb_peak_px": 0.0744387,
@@ -4765,6 +4845,7 @@
         "phase_deg": 80.628,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0921271,
             "k": 1.01001,
             "limb_peak_px": null,
@@ -4774,6 +4855,7 @@
             "real_k": 1.10213
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.443637,
             "k": 0.658495,
             "limb_peak_px": null,
@@ -4783,6 +4865,7 @@
             "real_k": 1.10213
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.213031,
             "k": 0.889101,
             "limb_peak_px": null,
@@ -4792,6 +4875,7 @@
             "real_k": 1.10213
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.269844,
             "k": 0.832289,
             "limb_peak_px": null,
@@ -4818,40 +4902,44 @@
         "phase_deg": 21.2693,
         "twins": {
           "lambert": {
-            "delta_k": 0.310731,
-            "k": 1.00016,
-            "limb_peak_px": -0.225556,
+            "clipped_px": 12057,
+            "delta_k": 0.309477,
+            "k": 1.00056,
+            "limb_peak_px": null,
             "minnaert_k": null,
             "normal_albedo": 1.21174,
-            "profile_residual": 0.221366,
-            "real_k": 0.689428
+            "profile_residual": 0.206971,
+            "real_k": 0.691079
           },
           "lommel_seeliger": {
-            "delta_k": -0.173141,
-            "k": 0.516287,
-            "limb_peak_px": 0.0731786,
+            "clipped_px": 4446,
+            "delta_k": -0.171437,
+            "k": 0.51185,
+            "limb_peak_px": null,
             "minnaert_k": null,
             "normal_albedo": 0.912084,
-            "profile_residual": 0.117481,
-            "real_k": 0.689428
+            "profile_residual": 0.128273,
+            "real_k": 0.683286
           },
           "lunar_lambert": {
-            "delta_k": -0.0525135,
-            "k": 0.636915,
-            "limb_peak_px": 0.00484277,
+            "clipped_px": 1193,
+            "delta_k": -0.0485583,
+            "k": 0.635695,
+            "limb_peak_px": null,
             "minnaert_k": null,
             "normal_albedo": 0.98468,
-            "profile_residual": 0.068745,
-            "real_k": 0.689428
+            "profile_residual": 0.0696534,
+            "real_k": 0.684254
           },
           "minnaert": {
-            "delta_k": -0.025706,
-            "k": 0.663722,
-            "limb_peak_px": -0.0384615,
+            "clipped_px": 625,
+            "delta_k": -0.0229636,
+            "k": 0.663681,
+            "limb_peak_px": null,
             "minnaert_k": 0.663249,
             "normal_albedo": 0.995089,
-            "profile_residual": 0.0642647,
-            "real_k": 0.689428
+            "profile_residual": 0.0651727,
+            "real_k": 0.686645
           }
         }
       },
@@ -4871,6 +4959,7 @@
         "phase_deg": 17.071,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.324803,
             "k": 1.00018,
             "limb_peak_px": null,
@@ -4880,15 +4969,17 @@
             "real_k": 0.675377
           },
           "lommel_seeliger": {
-            "delta_k": -0.158682,
-            "k": 0.516695,
+            "clipped_px": 2018,
+            "delta_k": -0.15062,
+            "k": 0.516319,
             "limb_peak_px": null,
             "minnaert_k": null,
             "normal_albedo": 0.8345,
-            "profile_residual": 0.0937587,
-            "real_k": 0.675377
+            "profile_residual": 0.0798047,
+            "real_k": 0.666939
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0605999,
             "k": 0.614777,
             "limb_peak_px": null,
@@ -4898,6 +4989,7 @@
             "real_k": 0.675377
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.023554,
             "k": 0.651823,
             "limb_peak_px": null,
@@ -4924,6 +5016,7 @@
         "phase_deg": 58.0652,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.165104,
             "k": 1.01271,
             "limb_peak_px": null,
@@ -4933,6 +5026,7 @@
             "real_k": 0.84761
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.216285,
             "k": 0.631325,
             "limb_peak_px": null,
@@ -4942,6 +5036,7 @@
             "real_k": 0.84761
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": -0.0410706,
             "k": 0.806539,
             "limb_peak_px": null,
@@ -4951,6 +5046,7 @@
             "real_k": 0.84761
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0742692,
             "k": 0.773341,
             "limb_peak_px": null,
@@ -4977,6 +5073,7 @@
         "phase_deg": 28.9108,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.334357,
             "k": 1.00071,
             "limb_peak_px": -0.231201,
@@ -4986,6 +5083,7 @@
             "real_k": 0.666358
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.147088,
             "k": 0.519269,
             "limb_peak_px": 0.0754131,
@@ -4995,6 +5093,7 @@
             "real_k": 0.666358
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.00895968,
             "k": 0.675317,
             "limb_peak_px": 0.0613985,
@@ -5004,6 +5103,7 @@
             "real_k": 0.666358
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0183743,
             "k": 0.684732,
             "limb_peak_px": 0.0290165,
@@ -5030,6 +5130,7 @@
         "phase_deg": 117.102,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0285889,
             "k": 0.99967,
             "limb_peak_px": 0.0551418,
@@ -5039,6 +5140,7 @@
             "real_k": 0.971081
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.176151,
             "k": 0.79493,
             "limb_peak_px": 0.10845,
@@ -5048,6 +5150,7 @@
             "real_k": 0.971081
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0285889,
             "k": 0.99967,
             "limb_peak_px": 0.0551418,
@@ -5057,6 +5160,7 @@
             "real_k": 0.971081
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": -0.0476489,
             "k": 0.923432,
             "limb_peak_px": 0.0965499,
@@ -5083,6 +5187,7 @@
         "phase_deg": 26.8622,
         "twins": {
           "lambert": {
+            "clipped_px": 0,
             "delta_k": 0.403789,
             "k": 1.00075,
             "limb_peak_px": -0.244788,
@@ -5092,6 +5197,7 @@
             "real_k": 0.596966
           },
           "lommel_seeliger": {
+            "clipped_px": 0,
             "delta_k": -0.0657679,
             "k": 0.531198,
             "limb_peak_px": 0.104117,
@@ -5101,6 +5207,7 @@
             "real_k": 0.596966
           },
           "lunar_lambert": {
+            "clipped_px": 0,
             "delta_k": 0.0706082,
             "k": 0.667574,
             "limb_peak_px": 0.0838856,
@@ -5110,6 +5217,7 @@
             "real_k": 0.596966
           },
           "minnaert": {
+            "clipped_px": 0,
             "delta_k": 0.0822497,
             "k": 0.679215,
             "limb_peak_px": 0.0973384,
@@ -5613,11 +5721,11 @@
           "within_band": null
         },
         "p0_r2": {
-          "band_px": 0.421448,
-          "n_real": 5,
-          "n_sim": 5,
-          "real_median_px": -0.116966,
-          "sim_median_px": -0.225556,
+          "band_px": 0.235596,
+          "n_real": 4,
+          "n_sim": 4,
+          "real_median_px": -0.125135,
+          "sim_median_px": -0.183955,
           "within_band": true
         },
         "p1_r0": {
@@ -5638,10 +5746,10 @@
         },
         "p1_r2": {
           "band_px": null,
-          "n_real": 1,
-          "n_sim": 1,
-          "real_median_px": -0.293843,
-          "sim_median_px": 0.0551418,
+          "n_real": 2,
+          "n_sim": 2,
+          "real_median_px": -0.326693,
+          "sim_median_px": 0.0632733,
           "within_band": null
         },
         "p2_r0": {
@@ -5679,11 +5787,11 @@
           "within_band": null
         },
         "p0_r2": {
-          "band_px": 0.421448,
-          "n_real": 5,
-          "n_sim": 5,
-          "real_median_px": -0.116966,
-          "sim_median_px": 0.0662144,
+          "band_px": 0.235596,
+          "n_real": 4,
+          "n_sim": 4,
+          "real_median_px": -0.125135,
+          "sim_median_px": 0.0477596,
           "within_band": true
         },
         "p1_r0": {
@@ -5704,10 +5812,10 @@
         },
         "p1_r2": {
           "band_px": null,
-          "n_real": 1,
-          "n_sim": 1,
-          "real_median_px": -0.293843,
-          "sim_median_px": 0.10845,
+          "n_real": 2,
+          "n_sim": 2,
+          "real_median_px": -0.326693,
+          "sim_median_px": 0.145487,
           "within_band": null
         },
         "p2_r0": {
@@ -5745,11 +5853,11 @@
           "within_band": null
         },
         "p0_r2": {
-          "band_px": 0.421448,
-          "n_real": 5,
-          "n_sim": 5,
-          "real_median_px": -0.116966,
-          "sim_median_px": 0.015979,
+          "band_px": 0.235596,
+          "n_real": 4,
+          "n_sim": 4,
+          "real_median_px": -0.125135,
+          "sim_median_px": 0.0310607,
           "within_band": true
         },
         "p1_r0": {
@@ -5770,10 +5878,10 @@
         },
         "p1_r2": {
           "band_px": null,
-          "n_real": 1,
-          "n_sim": 1,
-          "real_median_px": -0.293843,
-          "sim_median_px": 0.0551418,
+          "n_real": 2,
+          "n_sim": 2,
+          "real_median_px": -0.326693,
+          "sim_median_px": 0.103027,
           "within_band": null
         },
         "p2_r0": {
@@ -5811,11 +5919,11 @@
           "within_band": null
         },
         "p0_r2": {
-          "band_px": 0.421448,
-          "n_real": 5,
-          "n_sim": 5,
-          "real_median_px": -0.116966,
-          "sim_median_px": 0.0744387,
+          "band_px": 0.235596,
+          "n_real": 4,
+          "n_sim": 4,
+          "real_median_px": -0.125135,
+          "sim_median_px": 0.0814097,
           "within_band": true
         },
         "p1_r0": {
@@ -5836,10 +5944,10 @@
         },
         "p1_r2": {
           "band_px": null,
-          "n_real": 1,
-          "n_sim": 1,
-          "real_median_px": -0.293843,
-          "sim_median_px": 0.0965499,
+          "n_real": 2,
+          "n_sim": 2,
+          "real_median_px": -0.326693,
+          "sim_median_px": 0.152064,
           "within_band": null
         },
         "p2_r0": {
@@ -5927,7 +6035,7 @@
       },
       "minnaert": {
         "p0": {
-          "median_abs_delta_k": 0.0228161,
+          "median_abs_delta_k": 0.0225209,
           "median_delta_k": 0.00894428,
           "median_profile_residual": 0.0577583,
           "n": 12
@@ -5947,5 +6055,5 @@
       }
     }
   },
-  "runtime_sec": 3816.1
+  "runtime_sec": 5089.2
 }

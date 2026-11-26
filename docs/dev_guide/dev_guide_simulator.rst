@@ -6795,9 +6795,19 @@ their twins also count, their exponents are 0.85 and 0.81, where the Lambert twi
 Those two crescents show why each pair is fitted over the same pixels.  The Mimas disc
 is 55 px across, its real fit keeps only 176 pixels, and its twin's sphere does not
 count some of them.  Over all of its counted pixels the real disc fits 0.75, and over
-the pixels its twin also counts, 0.85.  In all, 36 of the study's 108 twins leave
-out some of their real disc's pixels, and only these two discs' exponents move by more
-than 0.005 when they are fitted again.
+the pixels its twin also counts, 0.85.  In all, 41 of the study's 108 twins leave
+out some of their real disc's pixels.  Only these two discs' exponents move by more
+than 0.01 when they are fitted again, by +0.10 and -0.03; the clipped twins below move
+theirs by 0.005 to 0.008.
+
+Two discs' twins reach the camera's ceiling, both bright moons at low phase.  On the
+Enceladus frame at 21 degrees, of the 50,706 pixels the real fits count, the Lambert
+twin reads 12,057 at the ceiling, the Lommel-Seeliger twin 4,446, the default's 1,193,
+and the Minnaert twin 625.  Each of those twins is clipped by the real disc's test, so
+none of them gives a limb peak.  On the Tethys frame at 17 degrees the Lommel-Seeliger
+twin reads 2,018 of 57,044 pixels at the ceiling.  Leaving those pixels out moves no
+twin's exponent difference by more than 0.008 and no phase-bin statistic by more than
+0.0003.
 
 The default law's disc-profile check: on the narrow-angle camera the twins' exponents
 differ from the real ones by a median of -0.012 below 60 degrees (11 discs, band 0.028)
@@ -6818,11 +6828,15 @@ the dark terrain's between 0.84 and 0.93, so the caps' size does not decide eith
 finding.  One frame of each terrain cannot say what law it follows.
 
 The limb peaks of the twins, where the realism match measured the real limb, bin as the
-limb-peak check does.  In the two bins with a verdict, the real medians are -0.12 px
-(phase below 60 degrees, over 400 px, 5 limbs) and +0.03 px (60 to 120 degrees, 100 to
-400 px, 4 limbs).  The default's twins give +0.02 and +0.08 px, within both bands
-(0.42 and 0.11 px); Lambert's -0.23 and +0.05 px, within both; Minnaert's +0.07 and
-+0.10 px, within both; and Lommel-Seeliger's +0.07 and +0.14 px, outside the second band.
+limb-peak check does.  In the two bins with a verdict, the real medians are -0.13 px
+(phase below 60 degrees, over 400 px, 4 limbs) and +0.03 px (60 to 120 degrees, 100 to
+400 px, 4 limbs).  The default's twins give +0.03 and +0.08 px, within both bands
+(0.24 and 0.11 px); Lambert's -0.18 and +0.05 px, within both; Minnaert's +0.08 and
++0.10 px, within both; and Lommel-Seeliger's +0.05 and +0.14 px, outside the second band.
+The first bin holds 4 limbs because the Enceladus twins at 21 degrees are clipped.  The
+Rhea limb at 79 degrees, 1,581 px across, peaks 0.36 px inside its silhouette; its
+matched frame did not measure a limb peak, and it shares its bin with one other limb,
+so that bin has no verdict.
 On the two limbs under 100 px across below 60 degrees, without a verdict, the real median
 is -0.06 px, the default's -0.01 px, and Lambert's -0.53 px.
 
@@ -6859,8 +6873,8 @@ navigation pairs.  Outputs:
   labels, FOM 7 rows, runtime).
 
 The full-cohort run takes 32 to 54 minutes on a workstation with local
-holdings without the photometric-law study, and about 90 minutes with it: the
-committed record of 2026-11-25 took 90 minutes (5,424 seconds), with other heavy runs
+holdings without the photometric-law study, and 60 to 90 minutes with it: the
+committed record of 2026-11-26 took 85 minutes (5,089 seconds), with other heavy runs
 sharing the machine.  ``--skip-law-study`` leaves the study out.
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on

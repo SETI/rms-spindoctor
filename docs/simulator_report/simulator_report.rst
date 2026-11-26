@@ -202,7 +202,7 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``ef805da1`` on
+code that made it.  The current record was made at commit ``74f1d170`` on
 2026-11-26.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
