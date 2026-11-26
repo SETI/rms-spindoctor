@@ -25,6 +25,7 @@ from typing import Annotated
 from annotated_types import Le
 
 from spindoctor.config.logging_keys import LoggingSection
+from spindoctor.config.sections_body_shape import BodyShapeEntry
 from spindoctor.config.sections_models import (
     BodiesSection,
     FeatureEmissionSection,
@@ -154,12 +155,13 @@ class TypedSections:
 
     A mapping keyed by planet must name only planets of the ``planets`` section, as
     SPICE spells them, so a key in lower case or misspelled is refused rather than
-    left unread.
+    left unread.  A mapping keyed by body, ``bodies.geometric_albedo`` or
+    ``body_shape``, must spell each body in upper case, for the same reason.
 
     The ``techniques`` and ``pds4`` fields are declared here by their base types, which
     have no fields, so this class is never parsed itself: :func:`typed_sections_type`
-    returns the type to parse. That type is a subclass, so it inherits the planet-key
-    rule below.
+    returns the type to parse. That type is a subclass, so it inherits the key rules
+    below.
 
     Parameters:
         planets: The SPICE names of the planets the navigator knows.
@@ -170,6 +172,7 @@ class TypedSections:
         satellites: Each planet's satellites, keyed by the planet's SPICE name.
         feature_emission: The ``feature_emission`` section.
         rings: The ``rings`` section, with each planet's ring catalog.
+        body_shape: The body-shape table, keyed by each body's SPICE name.
         logging: The ``logging`` section.
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
@@ -193,6 +196,7 @@ class TypedSections:
     satellites: dict[Str, tuple[Str, ...]]
     feature_emission: FeatureEmissionSection
     rings: RingsSection
+    body_shape: dict[Str, BodyShapeEntry]
     logging: LoggingSection
     techniques: TechniquesSection
     general: GeneralSection
@@ -203,12 +207,25 @@ class TypedSections:
     pds4: Pds4Section
 
     def __post_init__(self) -> None:
-        """Refuse a planet or satellite name that is not in upper case, and a planet key
+        """Refuse a planet, satellite, or body key not in upper case, and a planet key
         that names no planet of ``planets``.
 
-        Every reader looks a planet up by its upper-case SPICE name, so a lower-case name
-        would be accepted and never read, even where ``planets`` lists it the same way.
+        Every reader looks a planet or body up by its upper-case SPICE name, so a
+        lower-case name would be accepted and never read, even where ``planets`` lists it
+        the same way.
         """
+        keyed_by_body: tuple[tuple[tuple[str, ...], Iterable[str]], ...] = (
+            (('bodies', 'geometric_albedo'), self.bodies.geometric_albedo),
+            (('body_shape',), self.body_shape),
+        )
+        for at, bodies in keyed_by_body:
+            for body in bodies:
+                if body != body.upper():
+                    raise RuleError(
+                        f'{body!r} is not in upper case; a body is written in upper case, as '
+                        'SPICE spells it',
+                        at=(*at, body),
+                    )
         for index, name in enumerate(self.planets):
             if name != name.upper():
                 raise RuleError(

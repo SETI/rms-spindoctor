@@ -28,11 +28,11 @@ techniques:
       spurious_dt_floor_px: 30.0
       spurious_min_inliers: 3
       spurious_min_inlier_fraction: 0.05
-  StarUniqueMatchNav:
+  star_unique_match:
     alpha0: 1.0
-  StarRefineNav:
+  star_refine:
     alpha0: 1.0
-  StarFieldFromCatalogNav:
+  star_field_from_catalog:
     alpha0: 0.5
 orchestrator:
   ensemble:
