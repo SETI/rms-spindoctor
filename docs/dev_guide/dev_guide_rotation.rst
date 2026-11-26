@@ -193,7 +193,7 @@ The metadata curator converts ``rotation_rad`` to ``rotation_deg`` and
 fields are omitted entirely when ``fit_camera_rotation`` is False, so
 2-DoF runs do not litter the JSON with null fields. The ``rank``
 derivation only consults the translation sigma — ``max_sigma_px``
-compares ``max(sigma_dv, sigma_du)`` — so a low rotation sigma can
+compares the major semi-axis of the translation error ellipse — so a low rotation sigma can
 never inflate a tier above what the translation accuracy supports.
 
 at_edge for rotation

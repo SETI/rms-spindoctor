@@ -182,7 +182,7 @@ def test_inflation_major_eigenvalue_is_sigma_squared_below_unit_sensitivity() ->
     """For ``|g| <= 1`` the major axis is exactly sigma**2 whatever ``g`` is.
 
     This is why the derived direction alone cannot move a tier outcome in that
-    regime -- the tier gate reads ``max(sigma_dv, sigma_du)``.  The geometry
+    regime -- the tier gate reads the major semi-axis.  The geometry
     sets the MINOR axis, i.e. the isotropic floor.
     """
     for magnitude in (0.0, 0.25, 0.5, 0.9, 1.0):

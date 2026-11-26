@@ -394,7 +394,7 @@ def _orbit_inflated_covariance(
     term's MAJOR eigenvalue is exactly ``sigma**2`` whatever direction ``g``
     points (``|g|**2 + (1 - |g|**2) = 1``), and only its minor eigenvalue,
     ``sigma**2 (1 - ||g||**2)``, depends on the geometry.  Since the tier gate
-    reads ``max(sigma_dv, sigma_du)``, within that regime the derived
+    reads the major semi-axis of the error ellipse, within that regime the derived
     direction cannot by itself change a tier outcome -- the behavioral change
     against the earlier dominant-eigenvector construction is the ISOTROPIC
     FLOOR it puts under the minor axis, which is what stops a demotable frame

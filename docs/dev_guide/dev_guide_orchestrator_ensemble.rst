@@ -231,7 +231,8 @@ combined confidence so the JSON sidecar reflects the conflict's severity.
 Step 8 — confidence-rank assignment
 -----------------------------------
 
-The fused confidence and the per-axis sigma are mapped to a five-bucket rank
+The fused confidence and the major semi-axis of the fused error ellipse (the square root
+of the largest eigenvalue of the translation covariance) are mapped to a five-bucket rank
 (``'high'`` / ``'medium'`` / ``'low'`` / ``'conflicted'`` / ``'failed'``) by
 :func:`~spindoctor.nav_orchestrator.ensemble.derive_confidence_rank` against the per-rank
 ``min_confidence`` / ``max_sigma_px`` thresholds. Below the ``min_confidence`` floor the
@@ -301,14 +302,16 @@ check each step that reads such an ellipse against a closed-form answer.
   both disagreements group. Against that star fix the Mahalanobis test accepts at most
   about 2.05 px in any direction, which is inside the floor, so the floor alone decides
   whether the two group.
-- **Tier.** Step 8 compares the larger of the two image-axis sigmas,
-  :math:`\max(\sqrt{\Sigma_{vv}}, \sqrt{\Sigma_{uu}})`, with ``max_sigma_px``. For a
-  tilted ellipse that value is smaller than the major semi-axis, by up to a factor of
-  :math:`\sqrt{2}` at 45 degrees, so the tier of a fused frame can change as the ellipse
-  turns in the image. The haze fit fused with a 0.6 px star fix gives a 0.52 px by
-  0.31 px ellipse: ``'medium'`` when its long axis lies along an image axis, ``'high'``
-  at 45 degrees. A frame with the haze fit alone never reaches ``'high'``, because its
-  image-axis sigmas are smallest at 45 degrees and are still 0.77 px there.
+- **Tier.** Step 8 compares the major semi-axis of the fused ellipse, the square root of
+  the largest eigenvalue of the translation covariance, with ``max_sigma_px``, so a
+  tilted ellipse earns the same tier at every angle. The larger of the two image-axis
+  sigmas, :math:`\max(\sqrt{\Sigma_{vv}}, \sqrt{\Sigma_{uu}})`, would not do that: for a
+  tilted ellipse it falls short of the major semi-axis, by up to a factor of
+  :math:`\sqrt{2}` at 45 degrees. The haze fit fused with a 0.6 px star fix gives a
+  0.52 px by 0.31 px ellipse, which is ``'medium'`` at every angle; at 45 degrees its
+  image-axis sigmas are 0.43 px, inside the ``'high'`` limit. A frame with the haze fit
+  alone is ``'medium'`` at best, because its major semi-axis is 1.02 px. On the library
+  frames the two readings give the same tier everywhere.
 
 
 Confident-wrong results: what the tiers price and what they cannot
