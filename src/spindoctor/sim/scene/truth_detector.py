@@ -127,8 +127,9 @@ class Noise:
         'truth',
         'The expected cosmic-ray events per frame pixel per second. A frame draws its '
         'count from a Poisson distribution whose mean is the rate times the collection '
-        'time, times the pixel count. The collection time is the exposure plus the '
-        'readout dwell on the CCD chain, and the exposure alone on the vidicon chain. The '
+        'time, times the pixel count. On the CCD chain the collection time is the '
+        "exposure, the camera's extra integration time, and the readout dwell together; "
+        'on the vidicon chain it is the exposure alone. The '
         'camera states its rate per native pixel, so a binned frame multiplies the '
         "camera's rate by the native pixels in a frame pixel.",
         when_absent=_CAMERA_DEFAULT,
@@ -136,7 +137,7 @@ class Noise:
     )
     cosmic_ray_readout_dwell_sec: CosmicRayReadoutDwellSec | None = optional(
         'truth',
-        'The time, in seconds, the frame collects cosmic rays outside the exposure, '
+        'The time, in seconds, the frame collects cosmic rays outside its integration, '
         'while it waits to be read. Only the CCD chain reads it.',
         when_absent=_CAMERA_DEFAULT,
     )

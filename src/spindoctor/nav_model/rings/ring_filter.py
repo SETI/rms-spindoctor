@@ -78,19 +78,19 @@ class RingFeatureFilter:
             min_res_at_radius: Callable mapping radius (km) to minimum radial
                 resolution (km/pixel) at that radius, or None if not resolvable.
                 Typically derived from ``obs.ext_bp.ring_radial_resolution``.
-            fade_width_pix: Desired fade extent in pixels (from config).
+            fade_width_pix: Desired fade extent in pixels, from the planet's ring
+                catalog, which the configuration checks when it loads.
             min_allowed_fade_width_pix: Minimum allowed fade width in pixels after
-                conflict reduction. Edges adjusted below this threshold are excluded.
+                conflict reduction, no more than ``fade_width_pix``. Edges adjusted
+                below this threshold are excluded.
             min_feature_pixels: Minimum resolvable feature width in pixels. Two-edge
                 features narrower than ``min_feature_pixels * min_res`` km are excluded.
             logger: ``PdsLogger`` from the ring ``NavModel`` (same as
                 ``NavModelRings._logger``) for filter pass debug output.
 
         Raises:
-            TypeError: If a parameter has an invalid type.
-            ValueError: If ``logger`` is None, numeric parameters violate range
-                constraints (including ``fade_width_pix`` not strictly positive), or
-                ``min_allowed_fade_width_pix`` exceeds ``fade_width_pix``.
+            TypeError: If an observation parameter has an invalid type.
+            ValueError: If ``logger`` is None or ``min_radius`` exceeds ``max_radius``.
         """
         if isinstance(obs_time_et, bool) or not isinstance(obs_time_et, (int, float)):
             raise TypeError(f'obs_time_et must be int or float, not {type(obs_time_et).__name__}')
@@ -105,23 +105,6 @@ class RingFeatureFilter:
             )
         if not callable(min_res_at_radius):
             raise TypeError('min_res_at_radius must be callable')
-        for name, val in (
-            ('fade_width_pix', fade_width_pix),
-            ('min_allowed_fade_width_pix', min_allowed_fade_width_pix),
-            ('min_feature_pixels', min_feature_pixels),
-        ):
-            if isinstance(val, bool) or not isinstance(val, (int, float)):
-                raise TypeError(f'{name} must be int or float, not {type(val).__name__}')
-            if val < 0:
-                raise ValueError(f'{name} must be non-negative, got {val}')
-        if float(fade_width_pix) <= 0.0:
-            raise ValueError(f'fade_width_pix must be > 0, got {fade_width_pix}')
-        if min_allowed_fade_width_pix > fade_width_pix:
-            raise ValueError(
-                'min_allowed_fade_width_pix must be <= fade_width_pix, got '
-                f'min_allowed_fade_width_pix={min_allowed_fade_width_pix}, '
-                f'fade_width_pix={fade_width_pix}'
-            )
         if logger is None:
             raise ValueError('logger must not be None')
 

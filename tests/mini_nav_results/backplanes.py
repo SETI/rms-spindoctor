@@ -247,12 +247,10 @@ def write_backplanes(
         config: The configuration whose declared planes, units and masked value
             the products are built from.
     """
-    masked_value = float(config.backplanes.masked_value)
-    body_units = {entry['name']: str(entry.get('units', '')) for entry in config.backplanes.bodies}
+    masked_value = config.backplanes.masked_value
+    body_units = {entry.name: entry.units for entry in config.backplanes.bodies}
     ring_units = {
-        entry['name']: str(entry.get('units', ''))
-        for entry in config.backplanes.rings
-        if entry['name'] != 'distance'
+        entry.name: entry.units for entry in config.backplanes.rings if entry.name != 'distance'
     }
 
     # Every pixel some body covers, which is where the rings are not seen.

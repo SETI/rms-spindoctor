@@ -428,6 +428,10 @@ class Filters:
         clear: The clear combination the star zero point refers to.
         polarizer_clear: The clear element each polarizer folds onto, keyed by the
             polarizer.
+        passbands: The name of the camera's passband table in
+            ``spindoctor/sim/instruments/passbands/`` (see
+            :mod:`spindoctor.sim.instruments.passbands`), or None for a camera whose
+            passbands are not cataloged.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -435,6 +439,7 @@ class Filters:
     throughput_e_per_s_per_if: dict[FilterCombination, Positive]
     clear: Str
     polarizer_clear: dict[Polarizer, Str] = field(default_factory=dict)
+    passbands: Str | None = None
 
     def __post_init__(self) -> None:
         """Refuse a key no scene could select, a missing clear filter, or polarizer.

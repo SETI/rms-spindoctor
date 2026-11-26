@@ -118,10 +118,11 @@ The sections are:
 ``techniques``
     Per-technique settings: how much work each technique does, and how it turns what it
     measured into a confidence. Each technique has its own block. The blocks of the
-    body-limb, body-terminator, and ring-edge techniques are ``body_limb``,
-    ``body_terminator``, and ``ring_edge``, the same keys the ``logging`` section uses
-    for them. Every other technique's block is named after the technique, as in
-    ``BodyBlobNav``.
+    body-blob, body-disc, body-limb, body-terminator, ring-annulus, and ring-edge
+    techniques are ``body_blob``, ``body_disc_correlate``, ``body_limb``,
+    ``body_terminator``, ``ring_annulus``, and ``ring_edge``, the same keys the
+    ``logging`` section uses for them. Every other technique's block is named after the
+    technique, as in ``StarRefineNav``.
 
 ``orchestrator``
     How the per-technique answers are combined into the one offset reported for the image,
@@ -156,6 +157,11 @@ and the setting. Your file cannot unset a default. It can only give it another v
 When your file is read, a setting that SpinDoctor does not know, or a value it cannot use,
 such as a fraction above 1 or a star count of 0, is refused too, and the message gives the
 file and the setting.
+
+In a ring catalog, each gap or ringlet needs at least one edge, and each edge needs
+exactly one base orbit, the entry that gives its semi-major axis. A gap or ringlet that
+has dates must start before it ends. If two of them overlap in radius and both have
+dates, their dates cannot overlap.
 
 Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
 or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be

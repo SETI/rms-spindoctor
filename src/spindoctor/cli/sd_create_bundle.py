@@ -40,6 +40,7 @@ from spindoctor.config import (
     load_default_and_user_config,
 )
 from spindoctor.config.program_names import SD_CREATE_BUNDLE
+from spindoctor.config.sections_products import Pds4BundleEntryError
 from spindoctor.dataset import dataset_name_to_class, dataset_names
 from spindoctor.dataset.dataset import DataSet, ImageFile, ImageFiles, Pds4Pass
 
@@ -374,9 +375,15 @@ def main_labels() -> None:
 
     assert DATASET is not None
 
+    try:
+        bundle_name = DATASET.pds4_bundle_name()
+    except Pds4BundleEntryError as err:
+        MAIN_LOGGER.error('%s, so no bundle can be made', err)
+        sys.exit(1)
+
     _exit_on_missing_templates(DATASET, 'labels')
 
-    bundle_root = bundle_results_root / DATASET.pds4_bundle_name()
+    bundle_root = bundle_results_root / bundle_name
     if _bundle_root_holds_anything(bundle_root):
         MAIN_LOGGER.error(
             'The bundle root %s already holds files; a bundle is written into an empty '
@@ -691,6 +698,28 @@ def main_check() -> None:
         sys.exit(1)
 
 
+def _refuse_dataset_without_bundles(subcommand_arguments: list[str]) -> None:
+    """Stop when the dataset on the command line does not make PDS4 bundles.
+
+    Every pass reads the dataset's bundle hooks, so the check is made once, before any
+    pass runs.  If the name is not a dataset, the pass reports that itself.
+
+    Parameters:
+        subcommand_arguments: The arguments after the subcommand, the dataset name first.
+
+    Raises:
+        SystemExit: With status 1 when the dataset class has no ``PDS4_CONFIG_KEY``.
+    """
+    if len(subcommand_arguments) == 0:
+        return
+    name = subcommand_arguments[0].lower()
+    if name not in dataset_names():
+        return
+    if dataset_name_to_class(name).PDS4_CONFIG_KEY is None:
+        print(f'The dataset {name} does not produce PDS4 bundles')
+        sys.exit(1)
+
+
 def main() -> None:
     """Main entry point with subparsers."""
     if len(sys.argv) < 2:
@@ -699,15 +728,21 @@ def main() -> None:
 
     subcommand = sys.argv[1].lower()
 
-    if subcommand == 'labels':
-        main_labels()
-    elif subcommand == 'summary':
-        main_summary()
-    elif subcommand == 'check':
-        main_check()
-    else:
+    if subcommand not in ('labels', 'summary', 'check'):
         print(f'Unknown subcommand "{subcommand}"')
         print('Usage: sd_create_bundle <labels|summary|check> [args]')
+        sys.exit(1)
+
+    _refuse_dataset_without_bundles(sys.argv[2:])
+    try:
+        if subcommand == 'labels':
+            main_labels()
+        elif subcommand == 'summary':
+            main_summary()
+        else:
+            main_check()
+    except Pds4BundleEntryError as err:
+        print(f'{err}, so no bundle can be made')
         sys.exit(1)
 
 

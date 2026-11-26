@@ -236,7 +236,7 @@ def test_the_bundle_takes_the_configured_name_and_version(
         tmp_path / 'other',
         {'bundle_name': OTHER_NAME, 'bundle_version': OTHER_VERSION},
     )
-    shipped_name = DEFAULT_CONFIG.pds4['coiss_saturn']['bundle_name']
+    shipped_name = DEFAULT_CONFIG.pds4.bundle('coiss_saturn').bundle_name
     bundle_lid = f'urn:nasa:pds:{OTHER_NAME}'
     texts = _texts(env.bundle_dir)
     shipped_externals = _external_lidvids(
@@ -296,7 +296,7 @@ def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
         tmp_path: Base temporary directory.
         prefix: The dictionary whose schema is moved, by its namespace's prefix.
     """
-    shipped = DEFAULT_CONFIG.pds4['coiss_saturn']['schemas']
+    shipped = DEFAULT_CONFIG.pds4.bundle('coiss_saturn').schemas
     moved = {
         'location': f'https://example.invalid/{prefix}/v1/PDS4_MOVED',
         'lidvid': f'urn:nasa:pds:system_bundle:xml_schema:{prefix}-moved::9.9',
@@ -319,9 +319,9 @@ def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
     assert declaring != []
     assert without_schematron == []
     assert without_schema == []
-    assert [path for path, text in labels.items() if shipped[prefix]['location'] in text] == []
+    assert [path for path, text in labels.items() if shipped[prefix].location in text] == []
     assert [lidvid for _, lidvid in inventory] == [
-        moved['lidvid'] if name == prefix else entry['lidvid'] for name, entry in shipped.items()
+        moved['lidvid'] if name == prefix else entry.lidvid for name, entry in shipped.items()
     ]
 
 
@@ -358,7 +358,7 @@ def test_the_shipped_configuration_gives_a_schema_for_each_dictionary_the_templa
         for template in template_dir.glob('*.lblx')
         for prefix in SCHEMA_VARIABLE.findall(template.read_text(encoding='utf-8'))
     }
-    assert set(DEFAULT_CONFIG.pds4['coiss_saturn']['schemas']) == declared
+    assert set(DEFAULT_CONFIG.pds4.bundle('coiss_saturn').schemas) == declared
 
 
 def test_the_shipped_pds_schema_is_of_the_shipped_information_model() -> None:
@@ -370,16 +370,16 @@ def test_the_shipped_pds_schema_is_of_the_shipped_information_model() -> None:
     parts, ``::1.24``.  Every other dictionary's file name carries the same code, the build
     it was generated from, before its own.
     """
-    entry = DEFAULT_CONFIG.pds4['coiss_saturn']
-    version = entry['information_model_version']
+    entry = DEFAULT_CONFIG.pds4.bundle('coiss_saturn')
+    version = entry.information_model_version
     code = _version_code(version)
-    schemas = entry['schemas']
+    schemas = entry.schemas
     of_another_build = [
         name
         for name, schema in schemas.items()
         if name != 'pds'
-        and not schema['location'].rsplit('/', 1)[-1].startswith(f'PDS4_{name.upper()}_{code}_')
+        and not schema.location.rsplit('/', 1)[-1].startswith(f'PDS4_{name.upper()}_{code}_')
     ]
-    assert schemas['pds']['location'].rsplit('/', 1)[-1] == f'PDS4_PDS_{code}'
-    assert schemas['pds']['lidvid'].rsplit('::', 1)[-1] == '.'.join(version.split('.')[:2])
+    assert schemas['pds'].location.rsplit('/', 1)[-1] == f'PDS4_PDS_{code}'
+    assert schemas['pds'].lidvid.rsplit('::', 1)[-1] == '.'.join(version.split('.')[:2])
     assert of_another_build == []

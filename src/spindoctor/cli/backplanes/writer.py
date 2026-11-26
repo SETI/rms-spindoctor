@@ -148,18 +148,15 @@ def write_fits(
         id_hdu = fits.ImageHDU(data=body_id_map.astype('int32'), name=BODY_ID_MAP_HDU_NAME)
         hdus.append(id_hdu)
 
-    # Backplane arrays
-    units_map: dict[str, str] = {}
-    # Try to pull declared units from config
-    for bp in getattr(config.backplanes, 'bodies', []):
-        units_map[bp['name']] = bp.get('units', '')
-    for rp in getattr(config.backplanes, 'rings', []):
-        if rp['name'] != 'distance':  # not written as a master backplane type
-            units_map[rp['name']] = rp.get('units', '')
+    # The planes each statistic is taken from, in the configuration's order, with the
+    # units each declares.  The ring distance is not written as a master backplane type.
+    body_units = {bp.name: bp.units for bp in config.backplanes.bodies}
+    ring_units = {rp.name: rp.units for rp in config.backplanes.rings if rp.name != 'distance'}
+    units_map = body_units | ring_units
 
     # Filter out backplanes with no valid pixels (unclaimed pixels carry the
     # configured masked value; non-finite values never count as valid)
-    masked_value = float(config.backplanes.masked_value)
+    masked_value = config.backplanes.masked_value
     filtered_master = {
         k: v for k, v in master_by_type.items() if np.any((v != masked_value) & np.isfinite(v))
     }
@@ -196,14 +193,6 @@ def write_fits(
             inv = cast(dict[str, Any], snapshot.inventory(body_list, return_type='full'))
         else:
             inv = {}
-
-    # The planes each statistic is taken from, in the configuration's order
-    body_units = {bp['name']: bp['units'] for bp in getattr(config.backplanes, 'bodies', [])}
-    ring_units = {
-        rp['name']: rp['units']
-        for rp in getattr(config.backplanes, 'rings', [])
-        if rp['name'] != 'distance'
-    }
 
     # Each body's statistics and inventory information
     for body_name in bodies_result:

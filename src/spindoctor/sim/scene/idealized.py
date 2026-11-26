@@ -73,7 +73,7 @@ class IdealizedScene:
         instrument: The simulated camera.
         size_v: The frame's height, in pixels.
         size_u: The frame's width, in pixels.
-        exposure_sec: The exposure time, in seconds.
+        exposure_sec: The commanded exposure time, in seconds.
         midtime_utc: The observation midtime the frame reports.
         closest_planet: The planet the frame reports as closest.
         time: The observation time, in TDB seconds.
@@ -112,10 +112,13 @@ class IdealizedScene:
     )
     exposure_sec: Positive | None = optional(
         'idealized',
-        "The exposure time, in seconds. It scales each star's flux and the counts of "
-        'cosmic rays, radiation transients, and bright-dark pairs. On the CCD chain it '
-        'also scales the charge from extended sources, as a ratio to the reference '
-        'exposure, and the charge from the dark current.',
+        'The commanded exposure time, in seconds, which a calibrated frame divides by. '
+        "On the CCD chain the frame collects light for this time plus the camera's "
+        'extra integration time, and on the vidicon chain for this time alone. That '
+        "integration time scales each star's flux and the counts of cosmic rays, "
+        'radiation transients, and bright-dark pairs. On the CCD chain it also scales '
+        'the charge from extended sources, as a ratio to the reference exposure, and '
+        'the charge from the dark current.',
         default=DEFAULT_EXPOSURE_SEC,
         editor=EditorHint(minimum=0.001, maximum=100000.0, decimals=3),
     )

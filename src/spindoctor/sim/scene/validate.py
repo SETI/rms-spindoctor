@@ -31,7 +31,11 @@ from spindoctor.sim.scene.boundary import _OBJECT_BLOCKS
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import scene_binning
 from spindoctor.sim.scene.rules_artifacts import _check_artifacts
-from spindoctor.sim.scene.rules_body import _check_body_names_unique, _check_body_object
+from spindoctor.sim.scene.rules_body import (
+    _check_body_names_unique,
+    _check_body_object,
+    check_model_atmosphere_filters,
+)
 from spindoctor.sim.scene.rules_common import (
     _check_expected,
     _check_optional_mapping_list,
@@ -218,6 +222,7 @@ def _check_untyped_blocks(raw: Mapping[str, Any], *, instrument: str, source: st
             else:
                 _check_star_object(obj, index=index, source=source)
     _check_body_names_unique(raw.get('bodies') or [], source=source)
+    check_model_atmosphere_filters(raw, instrument=instrument, source=source)
 
 
 def validate_sim_params(

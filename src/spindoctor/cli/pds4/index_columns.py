@@ -21,6 +21,7 @@ from typing import Any, Self
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.config import Config
+from spindoctor.config.sections_products import IncidenceEntry, IndexColumnEntry, PlaneEntry
 
 
 @dataclass(frozen=True)
@@ -149,8 +150,8 @@ class IndexColumn:
 
 
 def _column(
-    index: Mapping[str, Any],
-    key: str,
+    entry: IndexColumnEntry,
+    data_type: str,
     *,
     unit: str,
     value_format: IndexValueFormat,
@@ -159,20 +160,20 @@ def _column(
     """Return one statistic column, as its configuration's index block describes it.
 
     Parameters:
-        index: The index block.
-        key: The column's key in the block, as in ``minimum`` or ``wrapped_maximum``,
-            under which the block gives its name and its description.
+        entry: The column's entry in the index block, which gives its name and its
+            description.
+        data_type: The data type the block gives all its columns.
         unit: The unit of the column's values.
         value_format: The format they are written in.
         missing: What a cell of the column holds where an image records no value for it.
 
     Returns:
-        The column, of the data type the block gives all its columns.
+        The column.
     """
     return IndexColumn(
-        name=index[key]['name'],
-        data_type=index['data_type'],
-        description=index[key]['description'],
+        name=entry.name,
+        data_type=data_type,
+        description=entry.description,
         unit=unit,
         value_format=value_format,
         missing_constant=missing,
@@ -200,9 +201,6 @@ def _recorded_cell(
         return missing
     return value_format.render(recorded[key])
 
-
-_WRAPPED_COLUMNS = ('wrapped_minimum', 'wrapped_maximum')
-"""The keys of an index block giving a plane of longitudes its two wrapped columns."""
 
 _WRAPPED_VALUES = ('wrapped_min', 'wrapped_max')
 """Where a statistic records its range wrapped at zero: its start and its end."""
@@ -232,7 +230,7 @@ class IndexPlane:
     wrapped: tuple[IndexColumn, ...] = ()
 
     @classmethod
-    def from_entry(cls, entry: Mapping[str, Any], *, masked_value: float) -> Self:
+    def from_entry(cls, entry: PlaneEntry, *, masked_value: float) -> Self:
         """Return a configured plane and its columns, as its entry describes them.
 
         Each column takes its name and its description from the entry's ``index``
@@ -256,20 +254,19 @@ class IndexPlane:
         Raises:
             KeyError: If the plane's statistic is in a unit the index has no format for.
         """
-        value_format = index_value_format(entry['units'])
-        unit = statistics_units(entry['units'])
+        value_format = index_value_format(entry.units)
+        unit = statistics_units(entry.units)
         # The value every masked pixel of the arrays holds, in the column's own format,
         # so every value of a column, a missing one included, is written in one form
         # and the label declares it in that form (#601).
         missing = value_format.render(masked_value)
-        index = entry['index']
-        wrapped = _WRAPPED_COLUMNS if _WRAPPED_COLUMNS[0] in index else ()
+        index = entry.index
         minimum, maximum, *wrapped_columns = (
-            _column(index, key, unit=unit, value_format=value_format, missing=missing)
-            for key in ('minimum', 'maximum', *wrapped)
+            _column(column, index.data_type, unit=unit, value_format=value_format, missing=missing)
+            for column in (index.minimum, index.maximum, *index.wrapped)
         )
         return cls(
-            name=entry['name'],
+            name=entry.name,
             value_format=value_format,
             missing=missing,
             minimum=minimum,
@@ -321,9 +318,9 @@ class IndexPlane:
         return cells
 
 
-_INCIDENCE_COLUMNS = (('minimum', 'min'), ('maximum', 'max'), ('mean', 'mean'))
-"""Each ring incidence column's key in its index block, and the key of its value in the
-rings block's ``incidence_angle``, in the order the rings table gives them."""
+_INCIDENCE_VALUES = ('min', 'max', 'mean')
+"""The key of each ring incidence column's value in the rings block's
+``incidence_angle``, in the order the rings table gives the columns."""
 
 
 @dataclass(frozen=True)
@@ -347,7 +344,7 @@ class RingIncidence:
     columns: tuple[IndexColumn, ...]
 
     @classmethod
-    def from_entry(cls, entry: Mapping[str, Any], *, masked_value: float) -> Self:
+    def from_entry(cls, entry: IncidenceEntry, *, masked_value: float) -> Self:
         """Return the columns ``backplanes.ring_incidence_angle`` describes.
 
         Each takes its name and its description from the entry's ``index`` block, and the
@@ -365,20 +362,21 @@ class RingIncidence:
         Raises:
             KeyError: If the angle is in a unit the index has no format for.
         """
-        value_format = index_value_format(entry['units'])
+        value_format = index_value_format(entry.units)
         missing = value_format.render(masked_value)
+        index = entry.index
         return cls(
             value_format=value_format,
             missing=missing,
             columns=tuple(
                 _column(
-                    entry['index'],
-                    key,
-                    unit=statistics_units(entry['units']),
+                    column,
+                    index.data_type,
+                    unit=statistics_units(entry.units),
                     value_format=value_format,
                     missing=missing,
                 )
-                for key, _ in _INCIDENCE_COLUMNS
+                for column in (index.minimum, index.maximum, index.mean)
             ),
         )
 
@@ -402,7 +400,7 @@ class RingIncidence:
         """
         return [
             _recorded_cell(incidence, key, value_format=self.value_format, missing=self.missing)
-            for _, key in _INCIDENCE_COLUMNS
+            for key in _INCIDENCE_VALUES
         ]
 
 
@@ -436,7 +434,7 @@ def configured_columns(
         KeyError: If a column's values are in a unit the index has no format for.
     """
     backplanes = config.backplanes
-    masked_value = float(backplanes.masked_value)
+    masked_value = backplanes.masked_value
     return (
         [IndexPlane.from_entry(entry, masked_value=masked_value) for entry in backplanes.bodies],
         [IndexPlane.from_entry(entry, masked_value=masked_value) for entry in backplanes.rings],

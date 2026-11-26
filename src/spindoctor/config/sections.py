@@ -7,7 +7,8 @@ dataclass, and each of its fields gives a key's type and range.  A key that has 
 default is required, and its value lives in the packaged YAML files only.
 
 The ``techniques`` section's fields come from the technique registry
-(:mod:`spindoctor.nav_technique.confidence_config`), so the type to parse is
+(:mod:`spindoctor.nav_technique.confidence_config`), and the ``pds4`` section's from the
+dataset registry (:func:`spindoctor.dataset.pds4_config_keys`), so the type to parse is
 :func:`typed_sections_type`, which adds them.
 
 The module imports the types of the sections it holds, and those import the
@@ -30,6 +31,9 @@ from spindoctor.config.sections_models import (
     StarsSection,
     TitanSection,
 )
+from spindoctor.config.sections_products import BackplanesSection, Pds4Section, pds4_section_type
+from spindoctor.config.sections_rings import RingsSection
+from spindoctor.dataset import pds4_config_keys
 from spindoctor.feature.reliability import FeatureReliabilityGate
 from spindoctor.nav_orchestrator.ensemble import EnsembleConfig
 from spindoctor.nav_records.tuning import TreeTuning
@@ -152,9 +156,10 @@ class TypedSections:
     SPICE spells them, so a key in lower case or misspelled is refused rather than
     left unread.
 
-    The ``techniques`` field is declared here by its base type, which has no fields,
-    so this class is never parsed itself: :func:`typed_sections_type` returns the type
-    to parse.  That type is a subclass, so it inherits the planet-key rule below.
+    The ``techniques`` and ``pds4`` fields are declared here by their base types, which
+    have no fields, so this class is never parsed itself: :func:`typed_sections_type`
+    returns the type to parse. That type is a subclass, so it inherits the planet-key
+    rule below.
 
     Parameters:
         planets: The SPICE names of the planets the navigator knows.
@@ -164,6 +169,7 @@ class TypedSections:
         titan: The ``titan`` section.
         satellites: Each planet's satellites, keyed by the planet's SPICE name.
         feature_emission: The ``feature_emission`` section.
+        rings: The ``rings`` section, with each planet's ring catalog.
         logging: The ``logging`` section.
         techniques: The ``techniques`` section: each technique's confidence formula and
             tuning.
@@ -172,6 +178,9 @@ class TypedSections:
             locations unset.
         offset: The ``offset`` section.
         results_tree: The ``results_tree`` section.
+        backplanes: The ``backplanes`` section.
+        pds4: The ``pds4`` section: each bundle's entry, keyed by its dataset class's
+            ``PDS4_CONFIG_KEY``.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -183,12 +192,15 @@ class TypedSections:
     titan: TitanSection
     satellites: dict[Str, tuple[Str, ...]]
     feature_emission: FeatureEmissionSection
+    rings: RingsSection
     logging: LoggingSection
     techniques: TechniquesSection
     general: GeneralSection
     offset: OffsetSection
     results_tree: TreeTuning
     environment: EnvironmentSection
+    backplanes: BackplanesSection
+    pds4: Pds4Section
 
     def __post_init__(self) -> None:
         """Refuse a planet or satellite name that is not in upper case, and a planet key
@@ -211,6 +223,7 @@ class TypedSections:
                 ('feature_emission', 'ring_annulus', 'planets'),
                 self.feature_emission.ring_annulus.planets,
             ),
+            (('rings', 'ring_features'), self.rings.ring_features),
         )
         for at, planets in keyed_by_planet:
             for planet in planets:
@@ -234,21 +247,27 @@ class TypedSections:
 @functools.cache
 def _typed_sections_type(
     techniques: tuple[type[NavTechnique], ...],
+    pds4_bundles: tuple[str, ...],
 ) -> type[TypedSections]:
-    """Return the type to parse for a set of shipped techniques.
+    """Return the type to parse for a set of shipped techniques and of bundles.
 
-    The result is cached, so one set of techniques always gets the same type.
+    The result is cached, so one set of techniques and bundles always gets the same type.
 
     Parameters:
         techniques: The shipped technique classes, in registry order.
+        pds4_bundles: The ``PDS4_CONFIG_KEY`` of each dataset class that makes bundles.
 
     Returns:
         A subclass of :class:`TypedSections` whose ``techniques`` field has the section
-        type for ``techniques``.
+        type for ``techniques``, and whose ``pds4`` field has the section type for
+        ``pds4_bundles``.
     """
     sections_type: type[TypedSections] = dataclasses.make_dataclass(
         'TypedSections',
-        [('techniques', techniques_section_type(techniques))],
+        [
+            ('techniques', techniques_section_type(techniques)),
+            ('pds4', pds4_section_type(pds4_bundles)),
+        ],
         bases=(TypedSections,),
         frozen=True,
         namespace={'__pydantic_config__': SCHEMA_CONFIG},
@@ -261,9 +280,11 @@ def typed_sections_type() -> type[TypedSections]:
 
     It is :class:`TypedSections` with the ``techniques`` field typed by the section
     type of the shipped techniques
-    (:func:`~spindoctor.nav_technique.confidence_config.techniques_section_type`).
+    (:func:`~spindoctor.nav_technique.confidence_config.techniques_section_type`), and
+    the ``pds4`` field by the section type of the registered datasets' bundles
+    (:func:`~spindoctor.config.sections_products.pds4_section_type`).
 
     Returns:
         A subclass of :class:`TypedSections`.
     """
-    return _typed_sections_type(shipped_techniques())
+    return _typed_sections_type(shipped_techniques(), pds4_config_keys())

@@ -4,7 +4,11 @@ instrument: coiss_nac
 size_v: 260
 size_u: 260
 random_seed: 7
-exposure_sec: 1.0
+exposure_sec: 3.6
+# The exposure puts the ring of light 2782 DN above the sky, 68% of the 12-bit
+# range, where the cohort frame nearest this phase puts it: W1721822901 (CL1+CL2,
+# 149.2 deg) peaks 2787 DN above its sky.  The read noise is the camera's own,
+# 12 e- at the 30 e-/DN of gain state 2, which is 0.4 DN.
 # The body is named HAZEMOON, not TITAN, deliberately: this scene is a
 # body-navigation fidelity record for a haze-BLIND navigator.  A body named
 # TITAN routes to the haze model and its symmetry technique instead, which
@@ -20,41 +24,36 @@ bodies:
     illumination_angle: 90.0
     phase_angle: 155.0
     atmosphere:
-      scale_height_px: 10.0
-      tau_ref: 3.0
-      ref_altitude_px: 0.0
-      g: 0.75
+      haze_model: titan
 noise:
   poisson: true
-  read_noise_dn: 4.0
+  read_noise_dn: 0.4
 offset_v: 1.2
 offset_u: -0.8
 offset_rotation_deg: 0.0
-# At 155 deg phase the forward-scattering haze defeats every body technique.
-# The ring of light drags the lit-weighted blob centroid 25 px from the planted
-# offset.  The predicted TERMINATOR_ARC is emitted but never fitted: with its
-# reliability computed as the SPICE-backed model does (visible-arc fraction
-# ~1.0, the albedo penalty, and the sin(155 deg) = 0.42 phase cap), it scores
-# 0.26 against the 0.30 TERMINATOR_ARC reliability gate.  The ring of light is
-# brighter than a white disc lit face-on, and the detector saturates on it.
-# The disc correlation is pulled by the ring of light, which its hard-limbed
-# template leaves out (#1050): it answers (1.20, -3.80), 3.00 px from the
-# planted offset, at the edge of its half-pixel refinement window along u
-# (#1061).  It does not flag that answer spurious, so the body-witness veto
-# has nothing to read, the blob is dropped as a fallback, and the disc
-# correlation alone sets a low-tier success.  The status: success asserted
-# below is a hazard held in view, not an endorsement.
-# Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 2.989 to 2.997 px (spread 0.008 px).  Each end of the
-# band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [2.939, 3.047] px.
-# The ring of light saturates because the simulated haze is about four times
-# too bright: its single-scattering source lacks the factor of 1/4 (#1101).
-# The recorded error moves when #1101 is fixed; at a quarter of the haze
-# brightness the same correlation is 2.87 px off.
+# The body takes Titan's published haze by name, the 85 px radius standing for
+# Titan's 2575 km (30.3 km/px): see titan_haze.  It hides the surface, so the only
+# light is the haze's own, and at 155 deg phase that is the ring of light, which
+# peaks at 0.43 of a white disc lit face-on about 7 px above the solid limb.
+# At this phase the haze defeats every body technique.  The ring of light drags
+# the lit-weighted blob centroid 17.8 to 20.1 px from the planted offset.  The
+# predicted TERMINATOR_ARC is emitted but never fitted: with its reliability
+# computed as the SPICE-backed model does (visible-arc fraction ~1.0, the albedo
+# penalty, and the sin(155 deg) = 0.42 phase cap), it scores 0.26 against the
+# 0.30 TERMINATOR_ARC reliability gate.
+# The disc correlation's hard-limbed template leaves the ring of light out
+# (#1050), and it locks onto that ring.  On all 16 distinct draws (the committed
+# seed and random_seed 101 to 1515; with no random content but the detector noise,
+# noise_seed 101 to 808 repeat random_seed draws) it lands 10.19 px from the
+# planted offset toward the sun, at a reported sigma of 1.02 to 1.03 px, as the
+# noiseless twin does: a medium-tier success 9.9 sigma off.  It does not flag that
+# answer spurious, so the body-witness veto has nothing to read, the blob is
+# dropped as a fallback, and the disc correlation alone sets the answer.  The
+# status: success asserted below is a hazard held in view, not an endorsement.
+# Known error: 10.191 px on every draw, giving the band [10.140, 10.241] px with
+# the 0.05 px margin.
 expected:
-  # Depends on the haze brightness #1101 corrects.
   status: success
-  confidence_tier: low
-  known_offset_error_px: 2.993
-  known_offset_error_tol_px: 0.054
+  confidence_tier: medium
+  known_offset_error_px: 10.1905
+  known_offset_error_tol_px: 0.0505

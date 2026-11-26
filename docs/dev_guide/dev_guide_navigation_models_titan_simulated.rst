@@ -140,7 +140,8 @@ Examples
 
 The ``titan_haze`` base scene (``tests/integration/sim_scenes/atmosphere/titan_haze.yaml``) is
 the reference case: a body named ``TITAN`` at 60 degrees phase with a rendered haze whose
-optical limb sits a few pixels above the solid radius, driving the standing dense and wide
+optical limb sits about 6 px above the solid radius, Titan's published haze at that scale,
+driving the standing dense and wide
 offset sweeps for
 :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav`.
 
