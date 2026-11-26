@@ -961,18 +961,18 @@ techniques:
       # (4.7-19.9 px off, all LORRI) are left out.  A third of each
       # camera's frames is held out.  The floor is the smallest, on a
       # 0.005 px grid, that leaves at most a two-axis Gaussian's 1.1% beyond
-      # a Mahalanobis distance of 3 on the other two thirds (248 answers:
-      # 2.4% beyond 3 at no floor, 0.8% at this value).  Held out (124
-      # answers): 0.8% beyond 3 at no floor and at this value, 3.2% beyond 2
+      # a Mahalanobis distance of 3 on the other two thirds (250 answers:
+      # 2.0% beyond 3 at no floor, 0.8% at this value).  Held out (122
+      # answers): 1.6% beyond 3 at no floor and at this value, 3.3% beyond 2
       # (a Gaussian gives 13.5%).
       # All frames, share beyond 3 at this value: Galileo 4.8% (n 21), VG2
-      # NAC 0% (17), VG2 WAC 0% (13), LORRI 1X1 0.7% (140), LORRI 4X4 0.6%
-      # (181).  The median squared distance is 0.08 at either value, against
+      # NAC 0% (17), VG2 WAC 0% (13), LORRI 1X1 0.7% (141), LORRI 4X4 1.1%
+      # (180).  The median squared distance is 0.08 at either value, against
       # a Gaussian's 1.39: for most answers the reported covariance is
       # already wider than the scatter (median reported sigma 0.29 px,
       # median error 0.08 px), and a floor only widens it.  The floor
       # reaches the answers whose covariance is a small two-star residual.
-      model_error_floor_px: 0.035
+      model_error_floor_px: 0.030
 
   StarRefineNav:
     # Pass-2 refinement on the pass-1 ensemble's prior offset.  Fit on
