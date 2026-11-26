@@ -118,6 +118,21 @@ def test_zero_point_fixes_a_filter_with_too_few_stars() -> None:
     assert result.filters_not_measured == ['RED']
 
 
+def test_zero_point_keeps_an_exact_majority() -> None:
+    """Sixteen stars with one zero point and four 1 mag off give the sixteen's rate."""
+    rows = [_zp_row('CLEAR', '10K', 8.0)] * 16 + [_zp_row('CLEAR', '10K', 8.0, 1.0)] * 4
+    result = _fit(rows)
+    assert result.zero_point_identified
+    assert result.rate_vmag0 == pytest.approx(10 ** (0.4 * ZERO_POINT), rel=1e-9)
+
+
+def test_zero_point_of_identical_stars() -> None:
+    """Twenty stars with one zero point give that zero point's rate."""
+    result = _fit([_zp_row('CLEAR', '10K', 8.0)] * 20)
+    assert result.zero_point_identified
+    assert result.rate_vmag0 == pytest.approx(10 ** (0.4 * ZERO_POINT), rel=1e-9)
+
+
 def test_zero_point_drops_a_filter_left_without_its_gain_states() -> None:
     """RED's 15 stars, all at gain states with too few stars, leave the CLEAR fit standing."""
     rows = _rows([('CLEAR', '10K')] * 5)

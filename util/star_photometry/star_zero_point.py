@@ -37,6 +37,9 @@ FloatArray = NDArray[np.float64]
 #: Tukey biweight tuning constant (in robust sigmas).
 TUKEY_C = 4.685
 
+#: A residual scatter (magnitudes) below this counts as zero.
+ZERO_SCALE = 1e-9
+
 
 def _tukey_lstsq(
     a: FloatArray, b: FloatArray
@@ -46,6 +49,10 @@ def _tukey_lstsq(
     Parameters:
         a: Design matrix.
         b: Observations.
+
+    When more than half the residuals agree exactly, their median absolute deviation is
+    zero and gives the biweight no scale; the weights then keep the stars at the median
+    residual, the consensus, and drop the rest.
 
     Returns:
         ``(x, sigma_x, residuals, weights)``; ``sigma_x`` from the weighted normal equations
@@ -57,8 +64,12 @@ def _tukey_lstsq(
         sw = np.sqrt(weights)
         x, *_ = np.linalg.lstsq(a * sw[:, None], b * sw, rcond=None)
         resid = b - a @ x
-        scale = 1.4826 * np.median(np.abs(resid - np.median(resid))) + 1e-9
-        u = resid / (TUKEY_C * scale)
+        deviation = np.abs(resid - np.median(resid))
+        mad = 1.4826 * np.median(deviation)
+        if mad < ZERO_SCALE:
+            weights = (deviation < ZERO_SCALE).astype(np.float64)
+            continue
+        u = resid / (TUKEY_C * (mad + ZERO_SCALE))
         weights = np.where(np.abs(u) < 1.0, (1.0 - u**2) ** 2, 0.0)
     resid = b - a @ x
     scale = 1.4826 * np.median(np.abs(resid - np.median(resid)))
