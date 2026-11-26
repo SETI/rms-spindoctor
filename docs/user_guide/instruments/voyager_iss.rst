@@ -168,7 +168,8 @@ camera, the exposure, the filter, and the gain state. At 1 s through the clear
 filter at low gain it is magnitude 9.2 for the Voyager 2 narrow-angle camera, 7.3 for
 the Voyager 2 wide-angle camera, 8.8 for the Voyager 1 narrow-angle camera, and 6.7
 for the Voyager 1 wide-angle camera. These limits lie 2 magnitudes past the faintest
-star each camera was measured to show: the measurement is good only to about half a
+star each camera shows, which was measured for the two Voyager 2 cameras and is an
+estimate scaled from them for Voyager 1: the measurement is good only to about half a
 magnitude, and the published navigation of Voyager images reached stars about 2
 magnitudes fainter. Each factor of ten in exposure reaches 2.5
 magnitudes deeper, high gain reaches about 1.5 magnitudes deeper, and the other
