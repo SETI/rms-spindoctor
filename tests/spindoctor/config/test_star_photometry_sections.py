@@ -1,14 +1,17 @@
 """Tests for the typed star photometry sections of the Galileo, LORRI, and Voyager cameras.
 
 The schema core checks each key's type and range, and is tested in its own suite.  What
-is tested here is that each packaged section parses, and the LORRI section's cross-field
-rule.
+is tested here is that each packaged section parses, and the Galileo and LORRI sections'
+cross-field rules.
 """
 
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.obs.star_photometry_galileo_ssi import GalileoSSIStarPhotometrySection
+from spindoctor.obs.star_photometry_galileo_ssi import (
+    GalileoSSIStarPhotometry,
+    GalileoSSIStarPhotometrySection,
+)
 from spindoctor.obs.star_photometry_newhorizons_lorri import (
     NewHorizonsLORRIStarPhotometry,
     NewHorizonsLORRIStarPhotometrySection,
@@ -44,4 +47,17 @@ def test_lorri_tables_must_give_the_same_binning_modes() -> None:
             min_detectable_dn={'1X1': 110.0},
             search_depth_mag=1.0,
             star_psf_sigma={'1X1': 0.9, '4X4': 0.45},
+        )
+
+
+def test_galileo_tables_must_give_the_same_readout_modes() -> None:
+    """A readout mode one table gives and the other leaves out is refused."""
+    with pytest.raises(RuleError, match=r"gives the readout modes \['FULL'\], but"):
+        GalileoSSIStarPhotometry(
+            flux_electrons_per_s_vmag0=2.34e8,
+            electrons_per_dn={'10K': 38.7},
+            min_detectable_dn={'FULL': 167.0, 'SUMMED': 67.0},
+            search_depth_mag=1.0,
+            filter_mag_offset={'CLEAR': 0.0},
+            star_psf_sigma={'FULL': 0.65},
         )

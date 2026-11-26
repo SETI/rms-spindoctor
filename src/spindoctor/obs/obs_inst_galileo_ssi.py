@@ -11,6 +11,7 @@ from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayAnyType, PathLike
 
 from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+from .star_photometry_galileo_ssi import GalileoSSIReadoutMode
 
 # SCLK01_MODULI_77 and SCLK01_OFFSETS_77 of the Galileo spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Galileo/SCLK/mk00062a.tsc: the RIM count, then its 91 MOD91
@@ -27,6 +28,22 @@ _STAR_PHOTOMETRY_SECTION = 'galileo_ssi_star_photometry'
 _GAIN_STATES = {1: '400K', 2: '100K', 3: '40K', 4: '10K'}
 """The gain state each value of the VICAR label's ``GAIN`` item stands for, named as the
 PDS3 label's ``GAIN_MODE_ID`` spells it."""
+
+_READOUT_MODES: dict[str, GalileoSSIReadoutMode] = {
+    'AI8': 'SUMMED',
+    'HIS': 'SUMMED',
+    'HCA': 'FULL',
+    'HCJ': 'FULL',
+    'HCM': 'FULL',
+    'HIM': 'FULL',
+    'HMA': 'FULL',
+    'IM4': 'FULL',
+    'IM8': 'FULL',
+    'XCM': 'FULL',
+}
+"""The readout mode of each telemetry format the VICAR label's ``TLMFMT`` item gives: every
+format the Galileo SSI volumes use.  The image host gives the two summed formats, AI8 and
+HIS, a 400 x 400 field of view and every other format the full 800 x 800 one."""
 
 
 def _sclk_count(fields: Sequence[int]) -> Fraction:
@@ -150,24 +167,30 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         image, where ``rate`` is the camera's electron rate for a V = 0 star through the
         clear filter, ``offset`` is the frame's filter's magnitude offset from the clear
         filter, ``texp`` is the exposure in seconds and ``gain`` is the electrons per DN
-        of the frame's gain state.  The dimmest visible star deposits
+        of the frame's gain state.  The dimmest visible star deposits the readout mode's
         ``min_detectable_dn``, and the limit is that star's magnitude plus
         ``search_depth_mag``.  Every quantity but the exposure comes from the
         ``galileo_ssi_star_photometry`` configuration section.  The filter is the label's
         ``FILTER_NAME`` and the gain state is the VICAR label's ``GAIN`` item.
 
         Returns:
-            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
-            records no starlight.
+            The limiting magnitude, or ``-inf`` for a frame whose exposure is not
+            positive.
 
         Raises:
-            ValueError: If the label states no gain state the camera has, or the section
-                has no magnitude offset for the frame's filter or no electrons per DN
-                for its gain state.
+            ValueError: If the label does not give a gain state or telemetry format the
+                camera has, or the section lacks a magnitude offset for the frame's
+                filter, electrons per DN for its gain state, or values for its readout
+                mode.
         """
         if self.texp <= 0.0:
             return -math.inf
         photometry = self.config.galileo_ssi_star_photometry.ssi
+        mode = self.readout_mode
+        if mode not in photometry.min_detectable_dn:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no values for the readout mode {mode!r}'
+            )
         # The keys are the label's spellings, so a label's value is looked up as text.
         offsets = cast(Mapping[str, float], photometry.filter_mag_offset)
         if self.filter not in offsets:
@@ -177,7 +200,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
             )
         gain_item = self.dict.get('GAIN', None)
         if gain_item not in _GAIN_STATES:
-            raise ValueError(f'SSI label states no known gain state: GAIN is {gain_item!r}')
+            raise ValueError(f'SSI label does not give a known gain state: GAIN is {gain_item!r}')
         gain_state = _GAIN_STATES[gain_item]
         electrons_per_dn = cast(Mapping[str, float], photometry.electrons_per_dn)
         if gain_state not in electrons_per_dn:
@@ -186,17 +209,45 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
                 f'{gain_state!r}'
             )
         dn_vmag0 = photometry.flux_electrons_per_s_vmag0 * self.texp / electrons_per_dn[gain_state]
-        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[mode])
         return dimmest_visible - offsets[self.filter] + photometry.search_depth_mag
+
+    @property
+    def readout_mode(self) -> GalileoSSIReadoutMode:
+        """The readout mode this observation was read out in.
+
+        Returns:
+            ``'SUMMED'`` for a frame read out in 2x2 summation, ``'FULL'`` for a full
+            frame, from the telemetry format the VICAR label's ``TLMFMT`` item gives.
+
+        Raises:
+            ValueError: If the label does not give a telemetry format the camera has.
+        """
+        format_item = self.dict.get('TLMFMT', None)
+        if format_item not in _READOUT_MODES:
+            raise ValueError(
+                f'SSI label does not give a known telemetry format: TLMFMT is {format_item!r}'
+            )
+        return _READOUT_MODES[format_item]
 
     def star_psf_sigma(self) -> float:
         """Returns the Gaussian sigma, in pixels, of a star in this observation.
 
         Returns:
             The ``star_psf_sigma`` of the ``galileo_ssi_star_photometry`` configuration
-            section.
+            section for the frame's readout mode.
+
+        Raises:
+            ValueError: If the label does not give a telemetry format the camera has, or
+                the section lacks a width for the frame's readout mode.
         """
-        return self.config.galileo_ssi_star_photometry.ssi.star_psf_sigma
+        widths = self.config.galileo_ssi_star_photometry.ssi.star_psf_sigma
+        mode = self.readout_mode
+        if mode not in widths:
+            raise ValueError(
+                f'{_STAR_PHOTOMETRY_SECTION} has no star_psf_sigma for the readout mode {mode!r}'
+            )
+        return widths[mode]
 
     @property
     def camera(self) -> str:

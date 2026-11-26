@@ -127,11 +127,13 @@ are missing or more than 80% are overexposed.
 **Corrections applied at load.** None beyond what the host reader does.
 
 **Stars.** The faintest catalog star the navigator looks for depends on the
-exposure, the filter, and the gain state. At 1 s through the clear filter it is
-magnitude 12.6 at the 10K gain state and 10.1 at 100K. Each factor of ten in
-exposure reaches 2.5 magnitudes deeper, and the other filters reach 2 to 6 magnitudes
-less deep than the clear one. The navigator expects a star's light to spread with a
-Gaussian sigma of 0.65 pixels. Both were measured on the 1990 and 1992 cruise star
+exposure, the filter, the gain state, and whether the frame was read out in full or
+in 2x2 summation. At 1 s through the clear filter a full frame reaches magnitude 12.4
+at the 10K gain state and 9.9 at 100K, and a summed frame reaches 1.0 magnitude
+deeper. Each factor of ten in exposure reaches 2.5 magnitudes deeper, and the other
+filters reach 2 to 6 magnitudes less deep than the clear one. The navigator expects a
+star's light to spread with a Gaussian sigma of 0.65 pixels on a full frame and 0.40
+pixels on a summed frame. All of these were measured on the 1990 and 1992 cruise star
 fields, on frames whose pointing the stars alone fixed.
 
 **Provisional values.** The blank and noisy thresholds, the expected-noise and

@@ -17,14 +17,17 @@ from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI
 # of clock counts fetch nothing, so they run even where the external trees are absent.
 
 
-def _star_obs(*, filter_name: str = 'CLEAR', texp: float = 1.0, gain: int = 4) -> ObsGalileoSSI:
+def _star_obs(
+    *, filter_name: str = 'CLEAR', texp: float = 1.0, gain: int = 4, tlmfmt: str = 'HCM'
+) -> ObsGalileoSSI:
     """Build a bare observation carrying what the star limit reads.
 
-    The VICAR ``GAIN`` item 4 is the 10K gain state.
+    The VICAR ``GAIN`` item 4 is the 10K gain state, and the ``TLMFMT`` item HCM is a
+    full-frame format.
     """
     return bare_observation(
         ObsGalileoSSI,
-        VicarLabelStandIn(GAIN=gain),
+        VicarLabelStandIn(GAIN=gain, TLMFMT=tlmfmt),
         filter=filter_name,
         texp=texp,
         _config=DEFAULT_CONFIG,
@@ -37,13 +40,16 @@ def test_galileo_ssi_basic() -> None:
     assert obs.midtime == -110923771.04177806
 
 
-def test_clear_one_second_limit_is_the_calibrated_value() -> None:
-    """At 1 s through CLEAR at 10K the limit is the dimmest visible star plus 1 mag.
+@pytest.mark.parametrize(('tlmfmt', 'expected'), [('HCM', 12.397), ('AI8', 13.389)])
+def test_clear_one_second_limit_is_each_readout_modes_calibrated_value(
+    tlmfmt: str, expected: float
+) -> None:
+    """At 1 s through CLEAR at 10K each readout mode reaches its own limit.
 
-    2.34e8 e-/s over 38.7 e-/DN puts 6.05e6 DN/s in the image for V = 0, which is
-    140 DN, the dimmest visible star, at V 11.59.
+    2.34e8 e-/s over 38.7 e-/DN puts 6.05e6 DN/s in the image for V = 0, so the dimmest
+    visible star of a full frame, 167 DN, is V 11.40, and of a summed frame, 67 DN, V 12.39.
     """
-    assert _star_obs().star_max_usable_vmag() == pytest.approx(12.588, abs=0.001)
+    assert _star_obs(tlmfmt=tlmfmt).star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
 
 
 def test_ten_times_the_exposure_deepens_the_limit_by_two_and_a_half_magnitudes() -> None:
@@ -67,7 +73,7 @@ def test_a_filter_brightens_the_limit_by_its_magnitude_offset() -> None:
 
 
 def test_a_non_positive_exposure_admits_no_star() -> None:
-    """A zero-length exposure records no starlight."""
+    """A zero-length exposure gets a limit of -inf."""
     assert _star_obs(texp=0.0).star_max_usable_vmag() == -math.inf
 
 
@@ -79,13 +85,22 @@ def test_a_filter_without_an_offset_is_refused() -> None:
 
 def test_a_label_without_a_known_gain_state_is_refused() -> None:
     """A GAIN item outside 1 to 4 appears in the error."""
-    with pytest.raises(ValueError, match='SSI label states no known gain state: GAIN is 7'):
+    with pytest.raises(ValueError, match='SSI label does not give a known gain state: GAIN is 7'):
         _star_obs(gain=7).star_max_usable_vmag()
 
 
-def test_the_star_width_is_the_photometry_sections() -> None:
-    """The star PSF has the section's sigma."""
-    assert _star_obs().star_psf_sigma() == pytest.approx(0.65, abs=1e-12)
+def test_a_label_without_a_known_telemetry_format_is_refused() -> None:
+    """A TLMFMT item outside the camera's telemetry formats appears in the error."""
+    with pytest.raises(
+        ValueError, match="SSI label does not give a known telemetry format: TLMFMT is 'XYZ'"
+    ):
+        _star_obs(tlmfmt='XYZ').star_max_usable_vmag()
+
+
+@pytest.mark.parametrize(('tlmfmt', 'expected'), [('HCM', 0.65), ('AI8', 0.40)])
+def test_the_star_width_is_each_readout_modes_own(tlmfmt: str, expected: float) -> None:
+    """The star PSF has the sigma of the frame's readout mode, in its own pixels."""
+    assert _star_obs(tlmfmt=tlmfmt).star_psf_sigma() == pytest.approx(expected, abs=1e-12)
 
 
 def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:

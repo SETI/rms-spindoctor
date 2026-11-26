@@ -4,9 +4,10 @@
 galileo_ssi:
   data_units: raw_dn
   extfov_margin_vu: [350, 350]
-  # The simulator's copy of the star width: the navigator reads its own from
-  # galileo_ssi_star_photometry below, and this value matches it, so a simulated
-  # frame's stars have the width the navigator expects.
+  # The simulator's copy of the star width, in the pixels of a full frame: the navigator
+  # reads its own from galileo_ssi_star_photometry below, per readout mode, and this
+  # value matches its full-frame one.  On a simulated summed frame the simulator takes
+  # half this width, 0.325 px, while the navigator uses 0.40 px on a real summed frame.
   star_psf_sigma: 0.65
   # Fraction of the offset window, per axis, inside which
   # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
@@ -65,14 +66,19 @@ galileo_ssi:
 # and star width.  A star of V magnitude m and the default spectral class deposits
 #     flux_electrons_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[FILTER_NAME]))
 #         * texp / electrons_per_dn[gain state]
-# DN.  The dimmest visible star deposits min_detectable_dn, and the catalog search reaches
-# search_depth_mag past it.  The gain state is the label's GAIN item (1 = 400K, 2 = 100K,
-# 3 = 40K, 4 = 10K).  A summation-mode frame reads the same values: summing on the chip
-# keeps a star's charge, and no star field was measured in that mode.
+# DN.  The dimmest visible star deposits min_detectable_dn[readout mode], and the catalog
+# search reaches search_depth_mag past it.  The gain state is the VICAR label's GAIN item
+# (1 = 400K, 2 = 100K, 3 = 40K, 4 = 10K).  The readout mode follows from the telemetry
+# format, the VICAR label's TLMFMT item: AI8 and HIS are read out in 2x2 summation
+# (SUMMED, 400 x 400), every other format as a full 800 x 800 frame (FULL), as the image
+# host reads it.  Summing on the chip keeps a star's charge, so the rate and the
+# electrons per DN hold in both modes; it changes the noise of a pixel and the width of
+# a star in pixels, so min_detectable_dn and star_psf_sigma are given per mode.
 #
 # Measured on star fields of the 1990 and 1992 cruise (#130): 101 frames with an
-# independent pointing fix from three or more agreeing stars, one frame in three held
-# out; util/star_photometry and its fit commands give the method.
+# independent pointing fix from three or more agreeing stars (80 full frames in the HCM
+# format and 21 summed frames in AI8), one frame in three held out; util/star_photometry
+# and its fit commands give the method.
 galileo_ssi_star_photometry:
   ssi:
     # Fit: 6.05e6 DN/s for V = 0 through CLEAR at 10K (+-0.11 mag, 64 stars), times the
@@ -88,9 +94,13 @@ galileo_ssi_star_photometry:
       '40K': 186.7
       '100K': 378.1
       '400K': 1824.1
-    # Fit: 142 +- 63 DN, the DN at 80% of the way from the detection floor to the
-    # plateau of a detection-probability curve fitted to every clean star.
-    min_detectable_dn: 140.0
+    # The DN at 80% of the way from the detection floor to the plateau of a
+    # detection-probability curve fitted to every clean star of the mode: 167 +- 94 DN
+    # on the full frames (2114 stars) and 67 +- 22 DN on the summed frames (260 stars).
+    # One curve fitted to both gives 142 +- 63.
+    min_detectable_dn:
+      FULL: 167.0
+      SUMMED: 67.0
     # As in the earlier navigation software, which searched 1 mag past the dimmest
     # visible star.
     search_depth_mag: 1.0
@@ -106,8 +116,11 @@ galileo_ssi_star_photometry:
       IR-7560: 3.99   # not measured
       IR-8890: 5.68   # not measured
       IR-9680: 5.77   # measured 7.69 +- 0.33 (5 stars)
-    # Gaussian sigma (px) of a star: the median of 517 unsaturated stars on 75 full
-    # frames (p16-p84 0.41-1.10).  The core is about 0.4 px across and 1.0 px along the
-    # direction of smear; Klaasen et al. 1999's line-spread FWHM of 1.39 px is sigma
-    # 0.59.
-    star_psf_sigma: 0.65
+    # Gaussian sigma of a star, in the frame's own pixels.  FULL: the median of 517
+    # unsaturated stars on 75 full frames (p16-p84 0.41-1.10); the core is about 0.4 px
+    # across and 1.0 px along the direction of smear, and Klaasen et al. 1999's
+    # line-spread FWHM of 1.39 px is sigma 0.59.  SUMMED: the median of 21 unsaturated
+    # stars on 9 summed frames (p16-p84 0.28-0.54).
+    star_psf_sigma:
+      FULL: 0.65
+      SUMMED: 0.40

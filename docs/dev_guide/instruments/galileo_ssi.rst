@@ -150,21 +150,28 @@ A star of V magnitude ``m`` puts
 in the image, where ``R`` is ``flux_electrons_per_s_vmag0`` (2.34e8 electrons per
 second for a V = 0 star through CLEAR), ``f`` is the frame's filter's
 ``filter_mag_offset``, and ``g`` is the ``electrons_per_dn`` of its gain state. The
-dimmest visible star puts ``min_detectable_dn`` (140 DN) in the image, and the limit
-is that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s through CLEAR the
-limit is V 12.6 at the 10K gain state and V 10.1 at 100K. The filter is the label's
-``FILTER_NAME``, and the gain state is the VICAR label's ``GAIN`` item: 1 is 400K, 2
-is 100K, 3 is 40K, and 4 is 10K. A frame whose filter or gain state the section lacks
-is refused, and a non-positive exposure returns ``-inf``, since it records no
-starlight. A summation-mode frame reads the same values: summing on the chip keeps a
-star's charge, and no summation-mode star field has been measured.
+dimmest visible star puts the readout mode's ``min_detectable_dn`` in the image (167
+DN on a full frame, 67 DN on a summed one), and the limit is that star's magnitude
+plus ``search_depth_mag`` (1.0). At 1 s through CLEAR a full frame's limit is V 12.4
+at the 10K gain state and V 9.9 at 100K, and a summed frame's is 1.0 mag deeper. The
+filter is the label's ``FILTER_NAME``, and the gain state is the VICAR label's
+``GAIN`` item: 1 is 400K, 2 is 100K, 3 is 40K, and 4 is 10K. The readout mode follows
+from the telemetry format, the VICAR label's ``TLMFMT`` item: AI8 and HIS are read out
+in 2x2 summation (``SUMMED``), and every other format is a full frame (``FULL``), the
+same split the image host makes when it gives a summed frame a 400 x 400 field of
+view. Summing on the chip keeps a star's charge, so the rate and the electrons per DN
+hold in both modes, but summation changes the noise of a pixel and the width of a star
+in pixels, so ``min_detectable_dn`` and ``star_psf_sigma`` are given per mode. A frame whose filter, gain state, telemetry format, or readout mode the section
+lacks is refused, and a frame whose exposure is not positive gets a limit of
+``-inf``.
 
 The values were measured in 2026 on the cruise star fields of 1990 and 1992, read
 through the navigator's own reader. Each frame's pointing was found from the stars
 alone, by a vote over star and peak pairs refined to a translation and a rotation, and
 a frame was kept when three or more stars agreed within 1 px and the chance of such a
 cluster anywhere in the 350 px search window was below one in a thousand. That kept
-101 of 1,419 measured frames, and one frame in three was held out of the fit.
+101 of 1,419 measured frames, 80 full frames in the HCM format and 21 summed frames in
+AI8, and one frame in three was held out of the fit.
 
 - The rate is the fit of 64 stars at CLEAR and 10K, 6.05e6 DN per second for V = 0
   (+-0.11 mag), times the 38.7 electrons per DN of 10K. Klaasen et al. (1999) give an
@@ -175,7 +182,9 @@ cluster anywhere in the 350 px search window was below one in a thousand. That k
   other three states. The stars measure the 100K to 10K ratio at 0.070 (+-0.27 mag,
   7 stars) against the published 0.102.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to every clean
-  star, reaches 80% of the way from its floor to its plateau: 142 +- 63 DN.
+  star of the mode, reaches 80% of the way from its floor to its plateau: 167 +- 94 DN
+  on the full frames (2,114 stars) and 67 +- 22 DN on the summed frames (260 stars).
+  One curve fitted to both modes gives 142 +- 63 DN.
 - The filter offsets are 2.5 log10 of the solar filter factors of Klaasen et al.
   (1999). The stars measured through filters are few and mostly hot Pleiades members,
   far bluer than the Sun, so their offsets (beside each value in the file) are not
@@ -188,12 +197,15 @@ magnitude of uncertainty.
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** The navigator's star sigma is the section's ``star_psf_sigma``, 0.65 px: the
+**PSF.** The navigator's star sigma is the section's ``star_psf_sigma`` for the
+frame's readout mode, in that frame's own pixels. On a full frame it is 0.65 px: the
 median Gaussian sigma of 517 unsaturated stars on 75 full frames (16th to 84th
 percentile 0.41 to 1.10). A star's core is about 0.4 px across and 1.0 px along the
 direction of smear. Klaasen et al. (1999) give a line-spread FWHM of 1.39 px through
-CLEAR, a sigma of 0.59. The camera block's own ``star_psf_sigma`` holds the same
-value for the simulator, which reads it there. ``star_psf_sizes`` is a single
+CLEAR, a sigma of 0.59. On a summed frame it is 0.40 px, the median of 21 unsaturated
+stars on 9 summed frames (16th to 84th percentile 0.28 to 0.54). The camera block's
+own ``star_psf_sigma`` holds the full-frame value for the simulator, which reads it
+there and takes half of it on a simulated summed frame. ``star_psf_sizes`` is a single
 ``100: [7, 7]``, so every star gets a 7x7 cutout regardless of magnitude.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
