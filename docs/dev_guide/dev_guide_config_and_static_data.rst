@@ -166,9 +166,9 @@ returns the typed object:
   that key, and the loader refuses an entry under any other key.
   :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` returns one bundle's
   entry; see :doc:`dev_guide_pds4`.
-- ``<instrument>_star_photometry`` — an instrument's star photometry: the DN rate of a
-  V = 0 star, the gain and filter terms, the minimum detectable DN, the search depth,
-  and the star sigma, with one entry per camera. An instrument with such a section
+- ``<instrument>_star_photometry`` — an instrument's star photometry: the rate of a
+  V = 0 star, in the unit the instrument's chapter gives, the gain and filter terms, the
+  minimum detectable DN, the search depth, and the star sigma, with one entry per camera. An instrument with such a section
   computes its star limit in the photometric form (see
   :doc:`dev_guide_navigation_models_star`) and reads its star sigma there. Each section
   has its own dataclass, because the instruments' detectors differ in what they state,
