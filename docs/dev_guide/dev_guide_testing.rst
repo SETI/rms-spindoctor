@@ -193,9 +193,9 @@ systemd-tmpfiles ignores the others. Save a copy of any file before changing it.
   ``/etc/tmpfiles.d`` under the same name and change the value in the copy.
 * If no rule writes the file, add one. The commands below write
   ``/etc/tmpfiles.d/thp-defrag.conf``; if any of the three directories already holds a
-  file of that name, use a name none of them holds, in both commands, since the new file
-  would replace a file of its name in the other two. The second command applies the
-  rule now as well:
+  file of that name, use a name none of them holds that ends in ``.conf``, in both
+  commands, since the new file would replace a file of its name in the other two. The
+  second command applies the rule now as well:
 
 .. code-block:: bash
 
