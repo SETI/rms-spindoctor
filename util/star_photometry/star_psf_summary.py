@@ -53,7 +53,7 @@ def psf_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         rows: Star rows.
 
     Returns:
-        Group name to its summary.
+        Group name to its summary, which carries the group's readout mode as ``mode``.
     """
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in rows:
@@ -73,6 +73,7 @@ def psf_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         ee80 = np.array([m['psf']['ee80'] for m in members])
         resid = np.array([m['psf']['rms_residual'] for m in members])
         out[name] = {
+            'mode': members[0]['mode'],
             'n_stars': len(members),
             'n_frames': len({m['image_id'] for m in members}),
             'sigma_median': float(np.median(sig)),

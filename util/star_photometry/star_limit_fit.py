@@ -923,8 +923,8 @@ def main() -> None:
             limit_exclude_targets=frozenset(args.limit_exclude_targets),
         )
         frame_rows += [{'camera': camera, **row} for row in result.frames]
-        for name, group in result.psf.items():
-            r_max, n_bins = geometry.get(name.split()[1], (8.0, 16))
+        for group in result.psf.values():
+            r_max, n_bins = geometry.get(group['mode'], (8.0, 16))
             group['gaussian_ee50_ee80'] = list(gaussian_ee(group['sigma_median'], r_max, n_bins))
         summary[camera] = {k: v for k, v in result.__dict__.items() if k != 'frames'} | {
             'n_frames_measured': len(members)
