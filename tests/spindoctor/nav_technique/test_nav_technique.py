@@ -14,8 +14,8 @@ from spindoctor.nav_technique.nav_technique import (
     add_model_error_floor,
     add_size_scaled_model_error,
     filter_technique_names,
-    load_model_error_floor,
 )
+from spindoctor.nav_technique.star_tuning import StarTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 
 
@@ -54,11 +54,23 @@ def test_navtechnique_registry_records_subclass() -> None:
     class _RegistrationProbe(_ConcreteTechniqueForTest):
         name = '_RegistrationProbe'
         _abstract = False
+        Tuning = StarTuning
 
     try:
         assert _RegistrationProbe in NavTechnique._registry
     finally:
         NavTechnique._registry.remove(_RegistrationProbe)
+
+
+def test_registering_a_technique_without_tuning_is_refused() -> None:
+    """A concrete technique that does not declare ``Tuning`` fails at its class statement."""
+    with pytest.raises(TypeError, match=r'_NoTuningProbe .* does not declare Tuning'):
+
+        class _NoTuningProbe(_ConcreteTechniqueForTest):
+            name = '_NoTuningProbe'
+            _abstract = False
+
+    assert not [cls for cls in NavTechnique._registry if cls.__name__ == '_NoTuningProbe']
 
 
 def test_navtechnique_abstract_subclass_stays_out_of_registry() -> None:
@@ -124,23 +136,6 @@ def test_filter_technique_names_rejects_empty_patterns() -> None:
 
 
 # --- model-error floor helpers (#210) ---
-
-
-def test_load_model_error_floor_defaults_to_disabled() -> None:
-    """A tuning block without the key yields a disabled (0.0) floor."""
-    assert load_model_error_floor({}, 'SomeNav') == 0.0
-
-
-def test_load_model_error_floor_accepts_positive_value() -> None:
-    """A configured positive floor is returned unchanged."""
-    assert load_model_error_floor({'model_error_floor_px': 0.92}, 'SomeNav') == 0.92
-
-
-@pytest.mark.parametrize('bad', [-0.5, float('nan'), float('inf')])
-def test_load_model_error_floor_rejects_invalid_values(bad: float) -> None:
-    """Negative and non-finite floors raise instead of silently misbehaving."""
-    with pytest.raises(ValueError, match='model_error_floor_px must be finite'):
-        load_model_error_floor({'model_error_floor_px': bad}, 'SomeNav')
 
 
 def test_add_model_error_floor_adds_in_quadrature() -> None:

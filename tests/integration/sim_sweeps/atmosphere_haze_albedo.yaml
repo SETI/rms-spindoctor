@@ -1,14 +1,22 @@
 sweep_name: atmosphere_haze_albedo
-# Haze-brightness mismatch axis: the atmosphere_haze base scene's haze at its
-# full tau_ref 4 column, with the haze albedo walked up from 0.  At albedo 0 the
-# haze adds no light (its halo only dims the black sky behind it), so the limb
-# renders as the bare surface and that point is the self-consistency floor.  A
-# brighter haze lifts the limb farther above the reference radius the navigator
-# predicts.  The disc correlation's high-pass refinement weakens the haze's smooth
-# glow, so the error dips to about 0.01 px at the 0.15 point and grows to 0.08 to
-# 0.10 px at albedo 1.0 (9 noise draws).  The 0.6 point is the base scene's default
-# albedo, the atmosphere_haze sweep's tau_ref 4 point.
-base_scene: model_mismatch/haze_limb_base.yaml
+# Haze-brightness axis: the atmosphere_haze sweep's generic haze at its full tau_ref 4
+# column, on the same body with its surface painted black, and the haze albedo walked
+# up from 0.  The only light in the frame is the haze's own, so the edge the navigator
+# sees is the haze's and the albedo sets how bright it is.  The navigator predicts a
+# lit body with a hard limb.  The sweep measures how bright the haze must be before
+# the body navigates on it.
+#
+# Over 25 noise draws (the scene's own and noise seeds 101 to 2424):
+# - albedo 0 leaves a blank frame.  20 draws fail; the other 5 report a success 45.6
+#   to 59.4 px off.
+# - albedo 0.15 and 0.3 light a haze ring that peaks 10 and 24 DN above the sky,
+#   against 4 DN of read noise.  They fail on 19 and 16 draws and lock 41.2 to 42.5
+#   px off on the rest.
+# - albedo 0.6, the base scene's default, lands 0.25 to 0.44 px off on every draw,
+#   conflicted on 19 and a success on 6.
+# - albedo 1.0 lands 0.48 to 0.49 px off on 22 draws and is conflicted 3.8 to 4.5 px
+#   off on 3.
+base_scene: model_mismatch/haze_limb_black_base.yaml
 parameters: [bodies.0.atmosphere.albedo]
 values: [0.0, 0.15, 0.3, 0.6, 1.0]
 technique: '*'

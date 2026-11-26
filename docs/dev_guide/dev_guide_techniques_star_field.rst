@@ -291,118 +291,134 @@ gate forces confidence to zero. When the inlier count falls below
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.StarFieldFromCatalogNav.tuning``
-in ``src/spindoctor/config_files/config_510_techniques.yaml``.
+The technique's ``tuning`` keys live in ``techniques.star_field_from_catalog.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
+the schema core parses them into
+:class:`~spindoctor.nav_technique.star_tuning.StarFieldTuning` and refuses a value of the
+wrong type or out of range. None of them has a default in the code, so the values below
+are the ones in the packaged file.
 
-- ``max_sources`` — int, default ``30`` (count). Maximum number of brightest detected
-  sources / brightest catalog stars per side feeding the matcher. Triplet count is
-  :math:`O(M^{3})`, so 30 keeps the candidate list bounded at ~27,000 triplets per side.
-- ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
+- ``max_sources`` — int, packaged value ``30`` (count). Maximum number of brightest
+  detected sources / brightest catalog stars per side feeding the matcher. Triplet count
+  is :math:`O(M^{3})`, so 30 keeps the candidate list bounded at ~27,000 triplets per
+  side.
+- ``detection_sigma`` — float, packaged value ``4.0`` (dimensionless). Detection-threshold
   multiplier on the per-image noise sigma; matched-filter peaks above this threshold are
   candidate detections.
-- ``psf_sigma_px`` — float, default ``1.0`` px. Gaussian PSF sigma for the matched-filter
-  kernel. Matches the typical ungroomed star PSF; per-instrument overrides may tighten or
-  loosen this once the integration library exercises the full instrument set.
-- ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
-  moment box around each accepted peak.
-- ``source_isolation_inner_px`` — int, default ``4`` px. Inner radius of the annulus over
-  which a candidate source's isolation is measured.
-- ``source_isolation_outer_px`` — int, default ``6`` px. Outer radius of that annulus.
-- ``source_isolation_max_ratio`` — float, default ``0.5`` (dimensionless). Largest allowed
-  excess of the annulus maximum over the annulus mean, as a fraction of the candidate's
-  own height above that mean. The matched-filter response to a star of sigma 1 px is
-  under 2 percent of its peak at 4 px, so a star's ratio is set by the noise; a ridge's is
-  close to 1.
-- ``hash_match_tolerance`` — float, default ``0.05`` (dimensionless). Match radius in the
-  (ratio, ratio, angle_rad) hash space; weighted Euclidean. Empirical default for centroid
-  sigma ~0.1 px against typical triplet scales.
-- ``hash_ratio_weight`` — float, default ``1.0`` (dimensionless). Per-axis weight on the
-  ratio dimensions in the hash distance metric.
-- ``hash_angle_weight`` — float, default ``1.0`` (dimensionless). Per-axis weight on the
-  angle dimension in the hash distance metric.
-- ``inlier_tolerance_px`` — float, default ``2.0`` px. Maximum residual for a
+- ``psf_sigma_px`` — float, packaged value ``1.0`` px. Gaussian PSF sigma for the
+  matched-filter kernel. Matches the typical ungroomed star PSF; per-instrument overrides
+  may tighten or loosen this once the integration library exercises the full instrument
+  set.
+- ``centroid_box_half_px`` — int, packaged value ``3`` px. Half-width of the
+  brightness-weighted moment box around each accepted peak.
+- ``source_isolation_inner_px`` — int, packaged value ``4`` px. Inner radius of the
+  annulus over which a candidate source's isolation is measured.
+- ``source_isolation_outer_px`` — int, packaged value ``6`` px. Outer radius of that
+  annulus; the inner radius may not exceed it.
+- ``source_isolation_max_ratio`` — float, packaged value ``0.5`` (dimensionless). Largest
+  allowed excess of the annulus maximum over the annulus mean, as a fraction of the
+  candidate's own height above that mean. The matched-filter response to a star of sigma 1
+  px is under 2 percent of its peak at 4 px, so a star's ratio is set by the noise; a
+  ridge's is close to 1.
+- ``hash_match_tolerance`` — float, packaged value ``0.05`` (dimensionless). Match radius
+  in the (ratio, ratio, angle_rad) hash space; weighted Euclidean. An empirical value for
+  centroid sigma ~0.1 px against typical triplet scales.
+- ``hash_ratio_weight`` — float, packaged value ``1.0`` (dimensionless). Per-axis weight
+  on the ratio dimensions in the hash distance metric.
+- ``hash_angle_weight`` — float, packaged value ``1.0`` (dimensionless). Per-axis weight
+  on the angle dimension in the hash distance metric.
+- ``inlier_tolerance_px`` — float, packaged value ``2.0`` px. Maximum residual for a
   detection-to-catalog correspondence to count as an inlier under a candidate similarity
   transform.
-- ``pattern_match_min_inliers`` — int, default ``6`` (count). Minimum inlier count for the
-  strong-tier triplet RANSAC to accept a transform; below this the technique tries the
-  wide-offset asterism fallback before returning spurious. The floor is 6 because the RANSAC
-  evaluates thousands of triplet seeds, so a three-inlier coincidence is reachable by chance;
-  six inliers is the level at which a lock over that many trials is statistically decisive.
-  Must be at least 3 (the matcher needs at least one triplet per side).
-- ``wide_offset_enabled`` — int flag, default ``1``. ``1`` enables the wide-offset asterism
-  fallback for sparse few-bright-star fields; ``0`` keeps the strong-tier RANSAC only.
-- ``wide_offset_min_inliers`` — int, default ``3`` (count). Minimum inlier count for a
-  wide-offset lock. Validated to be at least 3 at load time: two stars cannot cross-check a
-  rigid translation, so at least one corroborating star beyond the anchor pair is required.
-- ``wide_offset_anchor_catalog`` — int, default ``3`` (count). Number of brightest
-  photometry-trusted catalog stars used as seed anchors. A ``photometry_saturated`` star is
-  skipped as an anchor (its brightness ordering is uncertain) but can still be a corroborating
-  inlier.
-- ``wide_offset_anchor_detections`` — int, default ``6`` (count). Number of brightest
-  detections paired against each catalog anchor to form the seed offsets. The product with
-  ``wide_offset_anchor_catalog`` bounds the seed (trial) count entering the false-lock model.
-- ``wide_offset_false_lock_budget`` — float, default ``0.01`` (expected count). Maximum
-  expected number of chance locks (of the achieved inlier count, over the evaluated
-  bright-anchor seeds) under a uniform-random-detection null; a candidate is accepted only
-  when its computed expectation falls at or below this. A genuine three-inlier anchor lock on
-  a sparse field sits several orders of magnitude below it, while a two-inlier lock sits above
-  it and is rejected.
-- ``wide_offset_max_residual_rms_px`` — float, default ``1.5`` px. Maximum inlier residual RMS
-  for a wide-offset lock. A lock whose corroborating inliers sit near the match-tolerance edge
-  is a scattered near-chance alignment, not a rigid asterism; genuine locks cluster well
-  inside the tolerance.
-- ``wide_offset_confidence_cap`` — float, default ``0.6`` (dimensionless, in ``[0, 1]``).
-  Post-formula confidence cap for a wide-offset lock. Fewer corroborating stars than a
-  strong-tier match means the result cannot claim the high tier on its own; it must still
-  reach the ensemble's minimum confidence to navigate. 0.6 lands a clean lock in the
-  medium / low tier.
-- ``wide_offset_one_star_enabled`` — int flag, default ``0``. ``1`` enables the
-  single-bright-star wide-offset acquisition (a one-inlier lock from a uniquely-bright anchor
-  pair); ``0`` disables it. Off by default pending an image-library false-lock sweep.
-- ``wide_offset_one_star_catalog_margin_mag`` — float, default ``1.0`` mag. Minimum
+- ``pattern_match_min_inliers`` — int, packaged value ``6`` (count). Minimum inlier count
+  for the strong-tier triplet RANSAC to accept a transform; below this the technique tries
+  the wide-offset asterism fallback before returning spurious. The floor is 6 because the
+  RANSAC evaluates thousands of triplet seeds, so a three-inlier coincidence is reachable
+  by chance; six inliers is the level at which a lock over that many trials is
+  statistically decisive. Must be at least 3 (the matcher needs at least one triplet per
+  side).
+- ``wide_offset_enabled`` — boolean, packaged value ``true``. Whether the wide-offset
+  asterism fallback for sparse few-bright-star fields runs; ``false`` keeps the
+  strong-tier RANSAC only.
+- ``wide_offset_min_inliers`` — int, packaged value ``3`` (count). Minimum inlier count
+  for a wide-offset lock. Validated to be at least 3 at load time: two stars cannot
+  cross-check a rigid translation, so at least one corroborating star beyond the anchor
+  pair is required.
+- ``wide_offset_anchor_catalog`` — int, packaged value ``3`` (count). Number of brightest
+  photometry-trusted catalog stars used as seed anchors. A ``photometry_saturated`` star
+  is skipped as an anchor (its brightness ordering is uncertain) but can still be a
+  corroborating inlier.
+- ``wide_offset_anchor_detections`` — int, packaged value ``6`` (count). Number of
+  brightest detections paired against each catalog anchor to form the seed offsets. The
+  product with ``wide_offset_anchor_catalog`` bounds the seed (trial) count entering the
+  false-lock model.
+- ``wide_offset_false_lock_budget`` — float, packaged value ``0.01`` (expected count).
+  Maximum expected number of chance locks (of the achieved inlier count, over the
+  evaluated bright-anchor seeds) under a uniform-random-detection null; a candidate is
+  accepted only when its computed expectation falls at or below this. A genuine
+  three-inlier anchor lock on a sparse field sits several orders of magnitude below it,
+  while a two-inlier lock sits above it and is rejected.
+- ``wide_offset_max_residual_rms_px`` — float, packaged value ``1.5`` px. Maximum inlier
+  residual RMS for a wide-offset lock. A lock whose corroborating inliers sit near the
+  match-tolerance edge is a scattered near-chance alignment, not a rigid asterism; genuine
+  locks cluster well inside the tolerance.
+- ``wide_offset_confidence_cap`` — float, packaged value ``0.6`` (dimensionless, in
+  ``[0, 1]``). Post-formula confidence cap for a wide-offset lock. Fewer corroborating
+  stars than a strong-tier match means the result cannot claim the high tier on its own;
+  it must still reach the ensemble's minimum confidence to navigate. 0.6 lands a clean
+  lock in the medium / low tier.
+- ``wide_offset_one_star_enabled`` — boolean, packaged value ``false``. Whether the
+  single-bright-star wide-offset acquisition (a one-inlier lock from a uniquely-bright
+  anchor pair) runs. It is off in the packaged configuration until an image-library
+  false-lock sweep has been run.
+- ``wide_offset_one_star_catalog_margin_mag`` — float, packaged value ``1.0`` mag. Minimum
   predicted-brightness margin of the catalog anchor over the next predictable star for a
   one-star lock; a smaller margin leaves more than one plausible anchor, so the pairing is
   ambiguous and the lock is refused.
-- ``wide_offset_one_star_detection_margin_ratio`` — float, default ``3.0`` (dimensionless).
-  Minimum peak-DN ratio of the brightest detection to the next for a one-star lock; below this
-  the dominant peak is not uniquely bright and the lock is refused.
-- ``wide_offset_one_star_confidence_cap`` — float, default ``0.4`` (dimensionless, in
-  ``[0, 1]``). Post-formula confidence cap for a one-star lock. A single uncorroborated anchor
-  pairing sits below even the ``>= 3``-inlier wide-offset cap; 0.4 lands a clean one-star lock
-  in the low tier.
-- ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
-  distance from any search-window axis bound falls within this tolerance is flagged
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
-- ``rotation_at_edge_fraction`` — float, default ``0.95`` (dimensionless). When
-  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true, the
-  converged rotation magnitude trips
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it crosses
-  this fraction of the per-image
+- ``wide_offset_one_star_detection_margin_ratio`` — float, packaged value ``3.0``
+  (dimensionless). Minimum peak-DN ratio of the brightest detection to the next for a
+  one-star lock; below this the dominant peak is not uniquely bright and the lock is
+  refused.
+- ``wide_offset_one_star_confidence_cap`` — float, packaged value ``0.4`` (dimensionless,
+  in ``[0, 1]``). Post-formula confidence cap for a one-star lock. A single uncorroborated
+  anchor pairing sits below even the ``>= 3``-inlier wide-offset cap; 0.4 lands a clean
+  one-star lock in the low tier.
+- ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. A converged offset whose
+  absolute distance from any search-window axis bound falls within this tolerance is
+  flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
+- ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). When
+  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.fit_camera_rotation` is true,
+  the converged rotation magnitude trips
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` once it
+  crosses this fraction of the per-image
   :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` cap.
-- ``rotation_separability_floor_deg`` — float, default ``0.75`` deg. Roll/translation
-  separability floor: the camera-roll analysis in the simulator performance report shows
-  the matcher cannot separate a roll below ~0.75 deg from a pure translation, so a fitted
-  rotation magnitude below this floor is reported with the rotation-unobservable sentinel
-  variance and the
+- ``rotation_separability_floor_deg`` — float, packaged value ``0.75`` deg.
+  Roll/translation separability floor: the camera-roll analysis in the simulator
+  performance report shows the matcher cannot separate a roll below ~0.75 deg from a pure
+  translation, so a fitted rotation magnitude below this floor is reported with the
+  rotation-unobservable sentinel variance and the
   :attr:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics.rotation_below_separability_floor`
   diagnostics flag instead of a confident near-zero value.
-- ``model_error_floor_px`` — float, default ``0.0`` px. Uncalibrated model-error floor,
-  added in quadrature to the reported covariance diagonal
+- ``model_error_floor_px`` — float, packaged value ``0.0`` px. Uncalibrated model-error
+  floor, added in quadrature to the reported covariance diagonal
   (``reported_cov = CRLB-form (+) model_error_floor_px**2``). Captures the SPICE pointing
   residual and body-shape error that the pattern-match residual scatter does not. The
-  default 0.0 is a no-op pending an integration-library calibration sweep.
-- ``psf_refine_enabled`` — int flag, default ``1``. ``1`` enables the PSF-fit re-centroiding
-  of matched inliers; ``0`` keeps the brightness-weighted moment centroid everywhere.
-- ``psf_refine_box_px`` — int, default ``11`` px (odd). Square box side for the PSF fit and
-  the integrated-SNR estimate around each inlier.
-- ``psf_refine_search_limit_px`` — float, default ``2.0`` px. Maximum search distance from
-  the moment centroid for the PSF fit; the moment is already within a pixel of truth.
-- ``psf_refine_snr_max`` — float, default ``30.0`` (dimensionless). Integrated-SNR ceiling
-  for the moment/PSF crossover: an inlier whose box SNR exceeds this keeps its moment
-  centroid (its noise has already fallen below the PSF fit's sub-pixel-phase bias floor);
-  fainter inliers are refined with the PSF fit. The default is tuned to the field-level
-  crossover on a nominal background; elevated read noise or a stray-light gradient pulls the
-  optimum down toward ~16-21 (see the simulator performance report).
+  packaged 0.0 adds nothing until an integration-library calibration sweep sets it.
+- ``psf_refine_enabled`` — boolean, packaged value ``true``. Whether matched inliers are
+  re-centroided by a PSF fit; ``false`` keeps the brightness-weighted moment centroid
+  everywhere.
+- ``psf_refine_box_px`` — int, packaged value ``11`` px. Square box side for the PSF fit
+  and the integrated-SNR estimate around each inlier. An even side, which lacks a center
+  pixel, is refused at load.
+- ``psf_refine_search_limit_px`` — float, packaged value ``2.0`` px. Maximum search
+  distance from the moment centroid for the PSF fit; the moment is already within a pixel
+  of truth.
+- ``psf_refine_snr_max`` — float, packaged value ``30.0`` (dimensionless). Integrated-SNR
+  ceiling for the moment/PSF crossover: an inlier whose box SNR exceeds this keeps its
+  moment centroid (its noise has already fallen below the PSF fit's sub-pixel-phase bias
+  floor); fainter inliers are refined with the PSF fit. The packaged value is tuned to the
+  field-level crossover on a nominal background; elevated read noise or a stray-light
+  gradient pulls the optimum down toward ~16-21 (see the simulator performance report).
 
 Per-instrument overrides
 ------------------------
@@ -415,7 +431,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared
 sigmoid combination; see :doc:`dev_guide_techniques_confidence`. Spec is
-``techniques.StarFieldFromCatalogNav``; consumes attributes off
+``techniques.star_field_from_catalog``; consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.StarFieldDiagnostics` plus
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious`.
@@ -554,7 +570,7 @@ Call path traced through
    ``psf_refine_snr_max`` integrated-SNR ceiling, replace its moment centroid with a
    maximum-likelihood PSF fit (``obs.star_psf().find_position``, half-pixel-corrected);
    brighter inliers and failed fits keep the moment. Skipped entirely when
-   ``psf_refine_enabled`` is ``0`` or the obs exposes no ``star_psf()``.
+   ``psf_refine_enabled`` is ``false`` or the obs exposes no ``star_psf()``.
 6. Refit on the (refined) inlier correspondences: with ``fit_camera_rotation`` false a
    Tukey-biweight-reweighted mean translation (an unweighted pass seeds the residual scale,
    then one biweight-reweighted pass); with it true, the same two-pass Tukey reweighting

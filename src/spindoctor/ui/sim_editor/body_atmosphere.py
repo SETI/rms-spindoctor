@@ -6,7 +6,9 @@ runs long, following the same sibling-mixin pattern the ring tab uses for its
 advanced groups.  The group follows the editor-wide absent-key discipline: the
 enable checkbox writes the ``atmosphere`` map only when active, the optional
 detached-shell altitude key exists only while its own checkbox is on, and each
-widget writes only its own key.
+widget writes only its own key.  A block that takes a published haze by name
+(``haze_model``) gets its column from the model, so while it does, the column
+spins and the shell controls are disabled and write nothing.
 
 Every widget reference the round-trip and per-widget tests reach for is stored
 on the tab widget ``w`` (``w.atmosphere_group``, ``w.atmosphere_shell_check``,
@@ -35,6 +37,11 @@ _DETACHED_ENABLE_PX = 8.0
 
 If the scene leaves out ``detached_px``, the renderer does not draw a shell, so the
 key has no renderer default.  Turning the shell on writes this value."""
+
+
+def _takes_named_model(atmosphere: dict[str, Any]) -> bool:
+    """Return whether the block takes a published haze by name, which sets its column."""
+    return 'haze_model' in atmosphere
 
 
 def _shown(atmosphere: dict[str, Any], key: str) -> float:
@@ -90,7 +97,10 @@ class BodyAtmosphereMixin(SimEditorBase):
             decimals=3,
             step=0.05,
             value=_shown(atmosphere, 'albedo'),
-            tooltip='Haze brightness scale (0 adds no light; the halo still dims what is behind).',
+            tooltip=(
+                'Haze single-scattering albedo (0 adds no light; the halo still dims '
+                'what is behind).'
+            ),
         )
         shell_check = QCheckBox('Detached shell')
         detached = make_dspin(
@@ -103,6 +113,15 @@ class BodyAtmosphereMixin(SimEditorBase):
         )
         shell_check.setChecked(atmosphere.get('detached_px') is not None)
         detached.setEnabled(shell_check.isChecked())
+        if _takes_named_model(atmosphere):
+            # The named model sets the column, and validation refuses a block that
+            # also sets a column key or a detached shell.
+            for control in (scale_height, tau_ref, ref_altitude, asymmetry, albedo, shell_check):
+                control.setEnabled(False)
+                control.setToolTip(
+                    f'The {atmosphere["haze_model"]} haze model sets this, so it cannot be edited.'
+                )
+            detached.setEnabled(False)
         form.addRow('Scale height (px):', scale_height)
         form.addRow('Tau ref:', tau_ref)
         form.addRow('Ref altitude (px):', ref_altitude)
@@ -168,6 +187,10 @@ class BodyAtmosphereMixin(SimEditorBase):
                 spins['detached_px'] = w.atmosphere_detached_spin  # type: ignore[attr-defined]
             # The tab carries a removed map only after the group was turned off once.
             removed = getattr(w, 'atmosphere_removed', None) or {}
+            if _takes_named_model(removed):
+                body['atmosphere'] = dict(removed)
+                self._updater.request_update()
+                return
             restored: dict[str, Any] = {
                 key: value
                 for key, value in removed.items()
@@ -190,7 +213,7 @@ class BodyAtmosphereMixin(SimEditorBase):
         if body is None:
             return
         atmosphere = body.get('atmosphere')
-        if not isinstance(atmosphere, dict):
+        if not isinstance(atmosphere, dict) or _takes_named_model(atmosphere):
             return
         # A detached-shell edit writes only while the shell is enabled, so the
         # spin cannot resurrect the optional key when the shell is off.
@@ -202,13 +225,15 @@ class BodyAtmosphereMixin(SimEditorBase):
     def _on_body_atmosphere_shell_toggled(self, idx: int, checked: bool) -> None:
         """Insert or remove the optional detached-shell altitude key."""
         w = self._body_tab_widget(idx)
-        if w is not None:
-            w.atmosphere_detached_spin.setEnabled(checked)  # type: ignore[attr-defined]
         body = self._body(idx)
-        if body is None:
-            return
-        atmosphere = body.get('atmosphere')
-        if not isinstance(atmosphere, dict):
+        atmosphere = body.get('atmosphere') if body is not None else None
+        named = isinstance(atmosphere, dict) and _takes_named_model(atmosphere)
+        if w is not None:
+            # A named model owns its shell, so its spin stays disabled whatever the check says.
+            w.atmosphere_detached_spin.setEnabled(  # type: ignore[attr-defined]
+                checked and not named
+            )
+        if not isinstance(atmosphere, dict) or named:
             return
         if checked:
             atmosphere['detached_px'] = (

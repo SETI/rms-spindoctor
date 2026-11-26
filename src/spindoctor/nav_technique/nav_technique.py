@@ -36,7 +36,6 @@ __all__ = [
     'add_size_scaled_model_error',
     'embed_rotation_unobservable',
     'filter_technique_names',
-    'load_model_error_floor',
     'log_confidence_breakdown',
     'reported_position_vu',
     'rotation_pivot_distance_px',
@@ -275,18 +274,16 @@ class NavTechnique(NavBase, ABC):
     #: ``NavTechniqueManual``) and for techniques defined outside the
     #: package, whose spec their own code sets.
     confidence_spec: ClassVar[ConfidenceSpec | None] = None
-    #: The frozen schema dataclass of the technique's tuning keys.  The
-    #: loader parses the ``tuning`` mapping of the technique's block into
-    #: it, and the block is named by the technique's snake_case key
+    #: The frozen schema dataclass of the technique's tuning keys.  Every
+    #: technique the package ships declares it: the loader parses the
+    #: ``tuning`` mapping of the technique's block into it, and the block sits
+    #: under the technique's snake_case key
     #: (:func:`~spindoctor.nav_technique.confidence_config.technique_config_key`).
-    #: ``None`` for a technique whose family is not typed yet: its block is
-    #: named by ``name`` and its tuning is a mapping of numbers.
-    Tuning: ClassVar[type | None] = None
-    #: The technique's tuning, assigned each time a configuration is
-    #: installed: an instance of ``Tuning``, or a mapping of numbers when
-    #: ``Tuning`` is ``None``.  A technique that declares ``Tuning`` also
-    #: declares this attribute's type, so its reads are checked.
-    tuning: ClassVar[Any] = {}
+    Tuning: ClassVar[type]
+    #: The technique's tuning, an instance of ``Tuning`` assigned each time a
+    #: configuration is installed.  Each technique declares this attribute's
+    #: type as its own ``Tuning``, so its reads are checked.
+    tuning: ClassVar[Any]
     #: Names of every attribute the technique's confidence spec may read
     #: (diagnostics fields plus side-channel flags such as ``at_edge``).
     #: The loader refuses a technique block whose terms or ``hard_zero_if``
@@ -295,9 +292,19 @@ class NavTechnique(NavBase, ABC):
     confidence_attributes: ClassVar[frozenset[str]] = frozenset()
 
     def __init_subclass__(cls, **kwargs: Any) -> None:
-        """Auto-register concrete subclasses."""
+        """Auto-register concrete subclasses.
+
+        Raises:
+            TypeError: If a concrete technique does not declare ``Tuning``, since the
+                configuration loader could not then parse its block.
+        """
         super().__init_subclass__(**kwargs)
         if not cls.__dict__.get('_abstract', False):
+            if not hasattr(cls, 'Tuning'):
+                raise TypeError(
+                    f'{cls.__name__} is registered for autonomous navigation but does not '
+                    'declare Tuning, the schema dataclass of its tuning keys'
+                )
             NavTechnique._registry.append(cls)
 
     @abstractmethod
@@ -379,51 +386,20 @@ class NavTechnique(NavBase, ABC):
         )
 
 
-def load_model_error_floor(tuning: dict[str, Any], technique_name: str) -> float:
-    """Read and validate a technique's ``model_error_floor_px`` tunable from a mapping.
-
-    A technique whose tuning is typed declares ``model_error_floor_px`` as a field of
-    its tuning type instead; this function serves the techniques whose tuning is still
-    a mapping of numbers.
-
-    The floor is added in quadrature to the technique's reported translation
-    covariance (#210): robust-fit and NCC covariances measure statistical
-    precision only and under-report the model error the fit cannot see
-    (silhouette mismatch, photometric error, template pivot), leaving those
-    results over-weighted in the ensemble.
-
-    Parameters:
-        tuning: The technique's YAML ``tuning`` mapping.
-        technique_name: Technique name for the error message.
-
-    Returns:
-        The floor in pixels; ``0.0`` (disabled) when the key is absent.
-
-    Raises:
-        ValueError: If the configured value is negative or non-finite (a
-            negative or NaN floor would silently disable the quadrature sum;
-            an infinite floor would poison the covariance and tier gates).
-    """
-    raw = float(tuning.get('model_error_floor_px', 0.0))
-    if not math.isfinite(raw) or raw < 0.0:
-        raise ValueError(
-            f'{technique_name}: model_error_floor_px must be finite and >= 0; got {raw!r}'
-        )
-    return raw
-
-
 def add_model_error_floor(covariance: NDArrayFloatType, floor_px: float) -> NDArrayFloatType:
     """Return ``covariance`` with ``floor_px**2`` added to the translation diagonal.
 
-    Shared by every technique that applies the #210 model-error floor, so the
-    quadrature-sum convention and its rationale live in one place (see
-    :func:`load_model_error_floor`).  The input is not mutated.
+    Shared by every technique that applies a model-error floor, so the quadrature-sum
+    convention and its rationale live in one place.  Robust-fit and NCC covariances
+    measure statistical precision only and under-report the model error the fit cannot
+    see (silhouette mismatch, photometric error, template pivot), which would leave
+    those results over-weighted in the ensemble.  Each such technique declares
+    ``model_error_floor_px`` in its tuning.  The input is not mutated.
 
     Parameters:
         covariance: ``(2, 2)`` or ``(3, 3)`` covariance; only the leading two
             diagonal entries (the translation axes) are floored.
-        floor_px: Validated floor in pixels; ``0.0`` returns the input
-            unchanged.
+        floor_px: The floor in pixels; ``0.0`` returns the input unchanged.
 
     Returns:
         The floored covariance (a copy when ``floor_px > 0``).

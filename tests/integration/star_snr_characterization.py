@@ -20,6 +20,7 @@ simulated.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from pathlib import Path
 from typing import Any
@@ -79,8 +80,11 @@ def _install_mode_patch() -> dict[str, Any]:
 
     def patched(self: StarFieldFromCatalogNav, *, config: Any = None) -> None:
         original_init(self, config=config)
-        self._psf_refine_enabled = bool(override['enabled'])
-        self._psf_refine_snr_max = float(override['snr_max'])
+        star_field_mod.StarFieldFromCatalogNav.tuning = dataclasses.replace(
+            star_field_mod.StarFieldFromCatalogNav.tuning,
+            psf_refine_enabled=bool(override['enabled']),
+            psf_refine_snr_max=float(override['snr_max']),
+        )
 
     star_field_mod.StarFieldFromCatalogNav.__init__ = patched  # type: ignore[method-assign]
     return override

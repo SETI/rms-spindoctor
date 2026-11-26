@@ -117,12 +117,11 @@ The sections are:
 
 ``techniques``
     Per-technique settings: how much work each technique does, and how it turns what it
-    measured into a confidence. Each technique has its own block. The blocks of the
-    body-blob, body-disc, body-limb, body-terminator, ring-annulus, and ring-edge
-    techniques are ``body_blob``, ``body_disc_correlate``, ``body_limb``,
-    ``body_terminator``, ``ring_annulus``, and ``ring_edge``, the same keys the
-    ``logging`` section uses for them. Every other technique's block is named after the
-    technique, as in ``StarRefineNav``.
+    measured into a confidence. Each technique has its own block, under the same key
+    the ``logging`` section uses for it: ``body_blob``, ``body_disc_correlate``,
+    ``body_limb``, ``body_terminator``, ``ring_annulus``, ``ring_edge``,
+    ``star_field_from_catalog``, ``star_refine``, ``star_unique_match``, and
+    ``titan_haze``.
 
 ``orchestrator``
     How the per-technique answers are combined into the one offset reported for the image,
