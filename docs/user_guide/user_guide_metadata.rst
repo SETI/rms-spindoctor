@@ -806,7 +806,9 @@ The image-quality verdict for this frame:
      - Fraction of pixels equal to the missing-data marker, 3 decimals.
    * - ``noise_sigma``
      - number
-     - Per-image MAD-based noise sigma in DN units, 3 decimals.
+     - Per-image MAD-based noise sigma in DN units, 3 decimals. Areas where every pixel
+       holds the same value, such as the zero-filled lines of a truncated readout, do not
+       count toward it.
    * - ``max_dn``
      - number
      - Maximum DN observed in the image, 3 decimals.
