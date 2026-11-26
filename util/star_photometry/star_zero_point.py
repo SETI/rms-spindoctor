@@ -8,8 +8,8 @@ magnitude offsets, and the gain-state DN ratios.  :mod:`util.star_photometry.sta
 calls it for each camera.
 
 A filter or gain state with fewer fitting stars than the minimum gets no term: the stars
-cannot pin it down, so it takes the calibration document's value, fixed, and the fit reports
-it as not measured.  Its stars are left out of the fit, as they
+cannot pin it down, so the fit reports it as not measured, and it takes the calibration
+document's value, fixed, when one is given.  Its stars are left out of the fit, as they
 would add nothing to the other terms had the term been fitted: a calibration value the stars
 disagree with would otherwise move the reference rate.  Leaving out one state's stars can
 take another state below the minimum (a filter whose stars were all taken in unmeasured gain
@@ -125,6 +125,12 @@ def fit_zero_point(
         if kept_filters == filters and kept_gains == gains:
             break
         filters, gains = kept_filters, kept_gains
+    result.filters_not_measured = sorted(
+        (observed_filters | set(calibration_offsets)) - set(filters) - {reference_filter}
+    )
+    result.gains_not_measured = sorted(
+        (observed_gains | set(calibration_gain_ratios)) - set(gains) - {reference_gain}
+    )
     result.n_zp_stars = len(rows)
     n = len(rows)
     a = np.zeros((n, 1 + len(filters) + len(gains)))
@@ -157,14 +163,12 @@ def fit_zero_point(
     for k, name in enumerate(gains):
         result.gain_ratio[name] = float(10 ** (0.4 * x[1 + len(filters) + k]))
         result.gain_ratio_sigma_mag[name] = float(sx[1 + len(filters) + k])
-    for name, value in sorted(calibration_offsets.items()):
-        if name not in filters and name != reference_filter:
-            result.filter_offsets[name] = value
-            result.filters_not_measured.append(name)
-    for name, value in sorted(calibration_gain_ratios.items()):
-        if name not in gains and name != reference_gain:
-            result.gain_ratio[name] = value
-            result.gains_not_measured.append(name)
+    for name in result.filters_not_measured:
+        if name in calibration_offsets:
+            result.filter_offsets[name] = calibration_offsets[name]
+    for name in result.gains_not_measured:
+        if name in calibration_gain_ratios:
+            result.gain_ratio[name] = calibration_gain_ratios[name]
     result.zp_scatter_mag = float(1.4826 * np.median(np.abs(resid - np.median(resid))))
     bv = np.array([r['bmag'] - r['vmag'] if r['bmag'] is not None else np.nan for r in rows])
     good = np.isfinite(bv) & (np.abs(resid) < 1.0)

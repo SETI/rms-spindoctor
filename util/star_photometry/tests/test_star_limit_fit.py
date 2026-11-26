@@ -125,6 +125,18 @@ def test_zero_point_drops_a_filter_left_without_its_gain_states() -> None:
     result = _fit(rows, calibrated=False)
     assert result.zero_point_identified
     assert result.n_zp_stars == 100
+    assert result.filters_not_measured == ['RED']
+    assert result.gains_not_measured == ['100K', '40K']
+
+
+def test_zero_point_reports_uncalibrated_states_not_measured() -> None:
+    """A filter and a gain state with too few stars and no calibration value are reported."""
+    rows = _rows([('CLEAR', '10K')]) + _rows([('RED', '10K')])[:3] + _rows([('CLEAR', '40K')])[:3]
+    result = _fit(rows, calibrated=False)
+    assert result.filters_not_measured == ['RED']
+    assert result.gains_not_measured == ['40K']
+    assert 'RED' not in result.filter_offsets
+    assert '40K' not in result.gain_ratio
 
 
 def test_detection_limit_leaves_out_unmeasured_terms() -> None:
