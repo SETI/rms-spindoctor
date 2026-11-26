@@ -208,8 +208,8 @@ and the limit searches a fixed depth past it:
     m_{\mathrm{limit}} = m_{\mathrm{dim}} + \Delta m_{\mathrm{search}}.
 
 Each factor of ten in exposure moves the limit 2.5 magnitudes deeper, and a filter
-moves it by the filter's offset. A non-positive exposure records no starlight, so its
-limit is :math:`-\infty`. The values come from a configuration section of the
+moves it by the filter's offset. A frame whose exposure is not positive gets a limit
+of :math:`-\infty`. The values come from a configuration section of the
 instrument's own, described in its chapter under :doc:`/dev_guide/instruments/instruments`,
 and a frame whose filter, gain state, or readout mode the section lacks is refused.
 

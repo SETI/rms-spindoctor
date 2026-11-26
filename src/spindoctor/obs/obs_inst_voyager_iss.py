@@ -262,12 +262,12 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         and the gain state are read from the VICAR label's ``LAB03`` record.
 
         Returns:
-            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
-            records no starlight.
+            The limiting magnitude, or ``-inf`` for a frame whose exposure is not
+            positive.
 
         Raises:
-            ValueError: If the label states no gain state, or the camera's entry has no
-                magnitude offset for the frame's filter or no factor for its gain state.
+            ValueError: If the label does not give a gain state, or the camera's entry lacks
+                a magnitude offset for the frame's filter or a factor for its gain state.
         """
         if self.texp <= 0.0:
             return -math.inf
@@ -281,7 +281,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
             )
         match = _LAB03_GAIN_RE.search(str(self.dict.get('LAB03', '')))
         if match is None:
-            raise ValueError(f'{self.detector} label states no gain state in LAB03')
+            raise ValueError(f'{self.detector} label does not give a gain state in LAB03')
         gain_state = _GAIN_STATES[match.group('gain')]
         factors = cast(Mapping[str, float], photometry.dn_gain_factor)
         if gain_state not in factors:

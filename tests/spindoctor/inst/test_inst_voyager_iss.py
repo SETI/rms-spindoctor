@@ -155,7 +155,7 @@ def test_a_filter_brightens_the_limit_by_its_magnitude_offset() -> None:
 
 
 def test_a_non_positive_exposure_admits_no_star() -> None:
-    """A zero-length exposure records no starlight."""
+    """A zero-length exposure gets a limit of -inf."""
     assert _star_obs(texp=0.0).star_max_usable_vmag() == -math.inf
 
 
@@ -167,7 +167,7 @@ def test_a_filter_the_camera_lacks_is_refused() -> None:
 
 def test_a_label_without_a_gain_state_is_refused() -> None:
     """The limit needs the gain state, so a LAB03 record without one is refused."""
-    with pytest.raises(ValueError, match='NAC label states no gain state in LAB03'):
+    with pytest.raises(ValueError, match='NAC label does not give a gain state in LAB03'):
         _star_obs(gain='XX').star_max_usable_vmag()
 
 

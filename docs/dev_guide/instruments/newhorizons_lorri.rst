@@ -152,8 +152,8 @@ in the image, where ``R`` is ``flux_electrons_per_s_vmag0`` (7.57e8 electrons pe
 second for a V = 0 star) and ``g`` is the mode's ``electrons_per_dn``. The dimmest
 visible star puts the mode's ``min_detectable_dn`` in the image, and the limit is
 that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.8
-unbinned and V 15.5 binned. A non-positive exposure returns ``-inf``, since it
-records no starlight.
+unbinned and V 15.5 binned. A frame whose exposure is not positive gets a limit of
+``-inf``.
 
 The values were measured in 2026 on star fields of the cruise and the Pluto
 approach, read through the navigator's own reader. Each frame's pointing was found

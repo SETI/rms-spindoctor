@@ -48,7 +48,7 @@ def test_ten_times_the_exposure_deepens_the_limit_by_two_and_a_half_magnitudes()
 
 
 def test_a_non_positive_exposure_admits_no_star() -> None:
-    """A zero-length exposure records no starlight."""
+    """A zero-length exposure gets a limit of -inf."""
     assert _star_obs(texp=0.0).star_max_usable_vmag() == -math.inf
 
 

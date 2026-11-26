@@ -173,8 +173,8 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         section.
 
         Returns:
-            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
-            records no starlight.
+            The limiting magnitude, or ``-inf`` for a frame whose exposure is not
+            positive.
 
         Raises:
             ValueError: If the frame has neither 1024 nor 256 rows, or the section lacks

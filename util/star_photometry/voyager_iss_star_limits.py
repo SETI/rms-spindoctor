@@ -72,9 +72,9 @@ EXCLUDED_TARGETS = frozenset({'DARK', 'CAL LAMPS', 'PLAQUE'})
 #: Inventory entries that mean a planet is in the field.
 PLANETS = frozenset({'JUPITER', 'SATURN', 'URANUS', 'NEPTUNE'})
 
-#: Shortest exposure sampled per camera (seconds): below it the camera records no star in the
-#: field at the depth the navigator expects (a V 7-8 star in the NAC's 0.4 degree field), so
-#: the frame cannot be fixed from stars.
+#: Shortest exposure sampled per camera (seconds): below it a star bright enough to show
+#: (V 7-8 in the NAC) is rarely in the field (0.4 degree in the NAC), so the frame cannot be
+#: fixed from stars.
 MIN_EXPOSURE_S = {'NAC': 0.5, 'WAC': 0.1}
 
 #: The 8-bit DN at which the vidicon's ADC saturates.
