@@ -229,6 +229,7 @@ one. This phase's exit asks for that check.
 | #1220 | **Affects the limb height of every Titan scene in RED.** The simulated sunward limb falls to half its peak 51 km lower than real in CL1+RED (209 against 260 km on W1552216540), and it moves 56 km between BL1 and RED where the real limb does not move |
 | #1224 | **Affects `haze_limb_body` and the guide image of it, not Titan: under a moderate haze at low phase the night-side solid limb steps up about 10%.** The far half of the tangent column is lit as the near half for the light scattered more than once, so that light does not see the limb the way a line of sight does |
 | #1192 | **Affects no current scene.** Only the Cassini cameras have filter passbands, so a Titan haze on a Voyager, Galileo, or New Horizons camera is refused |
+| #1236 | **Affects no render.** The night-side haze tests also read halo pixels above the limb, `AtmosphereSpec`'s optional fields are positional, and three haze and passband modules have no API reference entry |
 | #1193 | **Affects the `util/` Titan truth and calibration campaigns; no committed scene.** Their scene generators give Titan a generic thin haze through which the surface shows, in place of Titan's published haze |
 | #1196 | **Affects the draw counts of every scene whose only random content is the detector noise; no tolerance or band moves.** The truth procedure's noise draws repeat its random draws there, so such a scene is measured on 16 distinct draws, not 24 |
 | #1197 | **Affects the albedo of every Titan scene, by an amount not yet known.** The Titan haze albedo table is a transcription of Tomasko et al. 2008 Table 2 that has not been checked against the paper, and its notes disagree with its rows |
@@ -373,6 +374,7 @@ its stars toward pixel centers (no committed scene does); each such move is expl
 | Issue | Subject | Why now |
 |---|---|---|
 | #1024 | Parse every scene into typed scene dataclasses that are its field table, and make that parse the only validation (3 to 5 PRs, block by block) | Each Phase 4 key is then declared once: type, range, default, boundary class, and editor hint. The boundary is structural: truth types extend idealized types. Until the navigator camera blocks are typed (navigator config work in `PROGRAM_PLAN.md`), the scene's `instrument_config` overlay gets its own type, which repeats the camera keys' ranges (the operator accepted the duplication), and replaces the simulator's 378-line overlay validator. |
+| #1237 | Type the navigator's simulated-camera block (`config_440_sim.yaml`) with the generic camera type that #1029 defines for the real camera blocks, and build the scene's `instrument_config` overlay type from that type's fields (after #1029) | The navigator types only the real camera blocks; this block is the simulator's. With it typed, the overlay imports the camera keys' ranges instead of repeating them. |
 | #1028 | Resolve each render's settings once into a `RenderSettings` record on the frame (after #1024) | One place interprets switches such as `instrument_defaults`; the detector parameters resolve once per render. |
 | #1027 | Every render stage reads the typed scene (after #1024 and #1028; a few PRs, by stage) | Deletes about 200 raw scene reads in the image-side stages and the render-time validation backstops. |
 | #1015 | Render through a grid object that owns oversampling (after #1028) | Removes the factor from 14 modules before Phase 4 adds pixel-unit keys. |
@@ -455,6 +457,7 @@ model does not gain them.
 | #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
 | #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
 | #1136 | **Affects no render; the code and its description disagree.** A cosmic-ray streak or splatter deposits the sampled charge on every pixel of its footprint, where the docstrings and the guide call it the charge per event, and the catalog amplitudes were fitted with the per-pixel behavior |
+| #1235 | **Affects no current scene noticeably; only LORRI states an extra integration time (0.705 ms).** The calibrated inverse subtracts dark current over the commanded exposure while the frame collects it over the integration time, leaving a small dark pedestal in a calibrated frame |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |
