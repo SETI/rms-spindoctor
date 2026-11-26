@@ -8,11 +8,14 @@ Frames come from the cumulative supplemental index of the calibrated volumes
 (``NHxxLO_2999``), inside the epochs the local SPICE kernels cover (before 2016), leaving out
 the targets whose disk or rings fill much of the field (Jupiter and its Galilean moons, the
 Jovian rings, the Sun), Pluto and Charon after 2015-07-04 (when Pluto spans more than a few
-dozen pixels), and the cover-closed noise and bias tests.  What remains is star calibrations
-(M7, NGC 3532), optical-navigation and satellite-search frames in which Pluto, a small moon or
-a distant Kuiper-belt object is a point among the stars, and similar fields.  Every target
-group, binning mode and exposure octave present is sampled: up to ``--per-group`` frames each,
-evenly spaced in the index.  LORRI has one gain state and no filter.
+dozen pixels), and the cover-closed noise and bias tests.  What remains is star calibrations,
+optical-navigation and satellite-search frames in which Pluto, a small moon or a distant
+Kuiper-belt object is a point among the stars, and similar fields; the star-cluster
+calibrations (M7, NGC 3532) all fall after the kernels end.  Every target group, binning mode
+and exposure octave present is sampled: up to ``--per-group`` frames each, evenly spaced in
+the index.  The target group is the target, except that minor planets (Kuiper-belt objects
+and centaurs, named by a number or a provisional designation) share one.  LORRI has one gain
+state and no filter.
 
 Usage::
 
@@ -26,6 +29,7 @@ import argparse
 import csv
 import math
 import os
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -67,6 +71,12 @@ SATURATION_DN = 3000.0
 
 #: The catalog's star budget for the deep query.
 DEEP_MAX_STARS = 3000
+
+#: A minor planet's index target: a number or a provisional designation's year, then a
+#: space (``15810 ARAWN (1994 JR1)``, ``2014 PN70``, ``ASTEROID 486958 (2014 MU69)``).  A
+#: star or cluster named by a catalog number (``NGC 3532``, ``HD 37962``, ``M7``) does not
+#: match.
+_MINOR_PLANET = re.compile(r'(ASTEROID )?\d+ ')
 
 #: Columns of ``NHxxLO_2999_supplemental_index.tab``.
 _COL_VOLUME, _COL_FILE, _COL_TARGET, _COL_START = 0, 1, 6, 9
@@ -130,7 +140,7 @@ PARAMS_BY_BINNING: dict[str, MeasureParams] = {
 
 
 def _target_group(target: str) -> str:
-    """Return the sampling group of a target: the target itself, Kuiper-belt objects pooled.
+    """Return the sampling group of a target: the target itself, minor planets pooled.
 
     Parameters:
         target: The index's ``TARGET_NAME``.
@@ -138,7 +148,7 @@ def _target_group(target: str) -> str:
     Returns:
         The group name.
     """
-    return 'KBO' if any(ch.isdigit() for ch in target) else target
+    return 'KBO' if _MINOR_PLANET.match(target) else target
 
 
 def lorri_frames(holdings: Path, per_group: int) -> list[FrameInput]:
