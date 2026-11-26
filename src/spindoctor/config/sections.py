@@ -9,7 +9,9 @@ default is required, and its value lives in the packaged YAML files only.
 The ``techniques`` section's fields come from the technique registry
 (:mod:`spindoctor.nav_technique.confidence_config`), and the ``pds4`` section's from the
 dataset registry (:func:`spindoctor.dataset.pds4_config_keys`), so the type to parse is
-:func:`typed_sections_type`, which adds them.
+:func:`typed_sections_type`, which adds them.  It also adds a field for each section
+of the configuration that holds camera blocks
+(:func:`~spindoctor.config.sections_camera.camera_sections`).
 
 The module imports the types of the sections it holds, and those import the
 configuration package, so :mod:`spindoctor.config.config` imports this module only
@@ -18,13 +20,14 @@ when it installs a configuration.
 
 import dataclasses
 import functools
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, Any, ClassVar
 
 from annotated_types import Le
 
 from spindoctor.config.logging_keys import LoggingSection
+from spindoctor.config.sections_camera import CameraBlock, camera_sections
 from spindoctor.config.sections_models import (
     BodiesSection,
     FeatureEmissionSection,
@@ -159,7 +162,9 @@ class TypedSections:
     The ``techniques`` and ``pds4`` fields are declared here by their base types, which
     have no fields, so this class is never parsed itself: :func:`typed_sections_type`
     returns the type to parse. That type is a subclass, so it inherits the planet-key
-    rule below.
+    rule below.  It also has a field for each camera section, named as the files write
+    it, and lists their names in :attr:`CAMERA_SECTIONS`; :meth:`camera_block` gives one
+    camera's block.
 
     Parameters:
         planets: The SPICE names of the planets the navigator knows.
@@ -184,6 +189,9 @@ class TypedSections:
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
+
+    CAMERA_SECTIONS: ClassVar[tuple[str, ...]] = ()
+    """The names of the sections that hold camera blocks, each a field of the type."""
 
     planets: tuple[Str, ...]
     orchestrator: OrchestratorSection
@@ -243,48 +251,93 @@ class TypedSections:
                         at=('satellites', planet, index),
                     )
 
+    def camera_block(self, section: str, camera: str | None = None) -> CameraBlock:
+        """Return one camera's block.
+
+        Parameters:
+            section: The camera section, one of :attr:`CAMERA_SECTIONS`.
+            camera: The camera's name inside a section that holds several cameras; None
+                for a section that is one camera's block.
+
+        Returns:
+            The camera's block.
+
+        Raises:
+            KeyError: If ``section`` is not a camera section, or does not hold a camera
+                named ``camera``.
+        """
+        if section not in self.CAMERA_SECTIONS:
+            raise KeyError(f'{section!r} is not a camera section of the configuration')
+        value: CameraBlock | dict[str, CameraBlock] = getattr(self, section)
+        if isinstance(value, CameraBlock):
+            return value
+        if camera not in value:
+            raise KeyError(f'{section} has no camera {camera!r}; it has {sorted(value)}')
+        return value[camera]
+
 
 @functools.cache
 def _typed_sections_type(
     techniques: tuple[type[NavTechnique], ...],
     pds4_bundles: tuple[str, ...],
+    cameras: tuple[tuple[str, bool], ...],
 ) -> type[TypedSections]:
-    """Return the type to parse for a set of shipped techniques and of bundles.
+    """Return the type to parse for a set of shipped techniques, bundles, and cameras.
 
-    The result is cached, so one set of techniques and bundles always gets the same type.
+    The result is cached, so one set of techniques, bundles, and camera sections always
+    gets the same type.
 
     Parameters:
         techniques: The shipped technique classes, in registry order.
         pds4_bundles: The ``PDS4_CONFIG_KEY`` of each dataset class that makes bundles.
+        cameras: ``(name, holds_several)`` for each camera section, as
+            :func:`~spindoctor.config.sections_camera.camera_sections` gives them.
 
     Returns:
         A subclass of :class:`TypedSections` whose ``techniques`` field has the section
-        type for ``techniques``, and whose ``pds4`` field has the section type for
-        ``pds4_bundles``.
+        type for ``techniques``, whose ``pds4`` field has the section type for
+        ``pds4_bundles``, and which has a field for each camera section: a
+        :class:`~spindoctor.config.sections_camera.CameraBlock`, or a mapping of camera
+        name to one for a section that holds several cameras.
     """
+    camera_fields: list[tuple[str, Any]] = [
+        (name, dict[Str, CameraBlock] if holds_several else CameraBlock)
+        for name, holds_several in cameras
+    ]
     sections_type: type[TypedSections] = dataclasses.make_dataclass(
         'TypedSections',
         [
             ('techniques', techniques_section_type(techniques)),
             ('pds4', pds4_section_type(pds4_bundles)),
+            *camera_fields,
         ],
         bases=(TypedSections,),
         frozen=True,
-        namespace={'__pydantic_config__': SCHEMA_CONFIG},
+        namespace={
+            '__pydantic_config__': SCHEMA_CONFIG,
+            'CAMERA_SECTIONS': tuple(name for name, _ in cameras),
+        },
     )
     return sections_type
 
 
-def typed_sections_type() -> type[TypedSections]:
-    """Return the type the typed sections are parsed into.
+def typed_sections_type(config: Mapping[str, Any]) -> type[TypedSections]:
+    """Return the type the typed sections of a configuration are parsed into.
 
     It is :class:`TypedSections` with the ``techniques`` field typed by the section
     type of the shipped techniques
-    (:func:`~spindoctor.nav_technique.confidence_config.techniques_section_type`), and
-    the ``pds4`` field by the section type of the registered datasets' bundles
-    (:func:`~spindoctor.config.sections_products.pds4_section_type`).
+    (:func:`~spindoctor.nav_technique.confidence_config.techniques_section_type`), the
+    ``pds4`` field by the section type of the registered datasets' bundles
+    (:func:`~spindoctor.config.sections_products.pds4_section_type`), and a field for
+    each section of ``config`` that holds camera blocks
+    (:func:`~spindoctor.config.sections_camera.camera_sections`).
+
+    Parameters:
+        config: The merged configuration.
 
     Returns:
         A subclass of :class:`TypedSections`.
     """
-    return _typed_sections_type(shipped_techniques(), pds4_config_keys())
+    static = frozenset(item.name for item in dataclasses.fields(TypedSections))
+    cameras = camera_sections(config, typed=static)
+    return _typed_sections_type(shipped_techniques(), pds4_config_keys(), cameras)

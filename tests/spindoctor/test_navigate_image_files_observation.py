@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 from filecache import FCPath
+from tests.camera_sections import raw_camera
 
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
@@ -51,6 +52,7 @@ class _BlankSnapshot:
         self.data = np.zeros((32, 48), np.float64)
         self.extdata = self.data
         self.midtime = 1234.8178901
+        self.inst_config = raw_camera()
         self.camera = 'CAM'
         self.shutter_mode = None
 

@@ -8,9 +8,11 @@ from typing import Any
 
 import numpy as np
 import pytest
+from tests.camera_sections import calibrated_camera, raw_camera, raw_thresholds
 
 from spindoctor.annotation import Annotations
 from spindoctor.config import LogLevels, set_log_levels
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.feature.feature import (
     NavFeature,
     NavReliabilityBreakdown,
@@ -34,7 +36,6 @@ from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.cmatrix import PointingSolution
 from spindoctor.support.exceptions import NavContractError, NavPointingError
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
-from spindoctor.support.image_class import ImageQualityThresholds
 from spindoctor.support.status_reason import NavStatusReason
 
 
@@ -48,9 +49,9 @@ class _FakeObs:
         sensor_mask: np.ndarray | None = None,
         midtime: float = 0.0,
         extfov_margin: tuple[int, int] = (0, 0),
-        inst_config: dict[str, Any] | None = None,
+        inst_config: CameraBlock | None = None,
     ) -> None:
-        self.inst_config = inst_config
+        self.inst_config = raw_camera() if inst_config is None else inst_config
         if image is None:
             rng = np.random.default_rng(seed=42)
             image = rng.standard_normal(size=(64, 64)) + 100.0
@@ -686,7 +687,7 @@ def test_orchestrator_passes_classifier_thresholds_through(fake_obs: _FakeObs) -
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator(
         [model],
-        image_quality_thresholds=ImageQualityThresholds(saturation_threshold_dn=4095.0),
+        image_quality_thresholds=raw_thresholds(saturation_threshold_dn=4095.0),
     )
     result = orch.navigate(obs)  # type: ignore[arg-type]
     assert result.status_reason == NavStatusReason.IMAGE_OVEREXPOSED
@@ -1273,27 +1274,10 @@ def test_orchestrator_runs_fallback_when_primary_is_spurious() -> None:
 # --- Calibrated-IF NaN missing-data sentinel regression tests (CODE-ORCH-003) ---
 
 
-def _nan_marker_calibrated_inst_config() -> dict[str, Any]:
-    """Return a calibrated_if inst_config whose missing-data marker is NaN.
-
-    Mirrors the shape ``instrument_settings_from_obs`` expects for a
-    calibrated-IF camera: ``data_units='calibrated_if'``,
-    ``noise.marker_value: NaN`` (the marker a calibrated block gets when it
-    leaves the key out; the shipped blocks all set 0), and the I/F-keyed
-    ``image_quality_thresholds`` block (no DN-keyed fields, no
-    ``saturation_threshold_if``).
-    """
-    return {
-        'data_units': 'calibrated_if',
-        'noise': {'marker_value': 'NaN'},
-        'image_quality_thresholds': {
-            'max_overexposed_frac_clean': 0.80,
-            'max_missing_frac_clean': 0.30,
-            'partial_dropout_min_frac': 0.05,
-            'blank_max_if': 1.0e-4,
-            'noisy_threshold_if': 0.01,
-        },
-    }
+def _nan_marker_calibrated_inst_config() -> CameraBlock:
+    """Return a calibrated_if camera block whose missing-data marker is NaN."""
+    camera = calibrated_camera()
+    return replace(camera, noise=replace(camera.noise, marker_value='NaN'))
 
 
 def test_orchestrator_calibrated_if_nan_pixels_do_not_raise() -> None:
@@ -1397,7 +1381,7 @@ def test_overexposed_image_failure_emits_status_reason_info(
     model = _FakeStarModel(obs, feature_count=3)
     orch = NavOrchestrator(
         [model],
-        image_quality_thresholds=ImageQualityThresholds(saturation_threshold_dn=4095.0),
+        image_quality_thresholds=raw_thresholds(saturation_threshold_dn=4095.0),
     )
     result = orch.navigate(obs)  # type: ignore[arg-type]
     captured = capsys.readouterr()

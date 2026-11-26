@@ -108,19 +108,15 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         # does not declare.
         data: NDArrayAnyType = obs.subfields['data']
 
-        inst_config = config.category('galileo_ssi')
+        camera = config.camera_block('galileo_ssi')
         if extfov_margin_vu is None:
-            if isinstance(inst_config.extfov_margin_vu, dict):
-                # TODO Do this a better way
-                extfov_margin_vu = inst_config.extfov_margin_vu[data.shape[0]]
-            else:
-                extfov_margin_vu = inst_config.extfov_margin_vu
+            extfov_margin_vu = camera.extfov_margin_for(data.shape[0])
         logger.debug(f'  Data shape: {data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
         logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsGalileoSSI(obs, config=config, extfov_margin_vu=extfov_margin_vu)
-        new_obs._inst_config = inst_config
+        new_obs._camera_block = camera
         return new_obs
 
     def star_min_usable_vmag(self) -> float:

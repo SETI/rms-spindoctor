@@ -180,7 +180,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
         fc_path = FCPath(path)
 
-        inst_config = config.category('voyager_iss')
+        camera = config.camera_block('voyager_iss')
 
         factor = _voyager_if_factor(obs.dict.get('LABEL3', None))
         obs.data = obs.data * factor / 10000
@@ -194,16 +194,13 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         # TODO Calibrate once oops.hosts is fixed.
 
         if extfov_margin_vu is None:
-            if isinstance(inst_config.extfov_margin_vu, dict):
-                extfov_margin_vu = inst_config.extfov_margin_vu[obs.data.shape[0]]
-            else:
-                extfov_margin_vu = inst_config.extfov_margin_vu
+            extfov_margin_vu = camera.extfov_margin_for(obs.data.shape[0])
         logger.debug(f'  Data shape: {obs.data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
         logger.debug(f'  Data min: {np.min(obs.data)}, max: {np.max(obs.data)}')
 
         new_obs = ObsVoyagerISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
-        new_obs._inst_config = inst_config
+        new_obs._camera_block = camera
         # The spacecraft clock counts are in the PDS3 label, which the VICAR label the
         # observation keeps does not carry.
         new_obs._label_clock_counts = pds3_label_clock_counts(fc_path)

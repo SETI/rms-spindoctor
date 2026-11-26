@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+from typing import Any
+
 import numpy as np
 import pytest
 from tests.spindoctor.nav_technique.conftest import (
@@ -314,6 +317,7 @@ def test_lone_star_refuses_a_source_brighter_than_the_camera_bound(
     draw_gaussian_star(image, (101.0, 102.0), peak_dn=200.0, sigma=1.2)
     feature = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=40.0)
     context = make_nav_context(image)
-    context.obs.inst_config['star_max_peak_per_predicted_snr'] = bound  # type: ignore[attr-defined]
+    obs: Any = context.obs
+    obs.inst_config = replace(obs.inst_config, star_max_peak_per_predicted_snr=bound)
     result = StarUniqueMatchNav().navigate([feature], context)
     assert result.spurious is spurious
