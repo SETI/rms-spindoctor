@@ -23,13 +23,13 @@ from typing import Any
 import pdslogger
 import pytest
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 
 from spindoctor.nav_records import (
     METADATA_SUFFIX,
     ListedRecord,
     Selection,
     TreeRecordSource,
-    TreeTuning,
     UnlistableDirectoryError,
     UnlistableRootError,
 )
@@ -352,7 +352,9 @@ def test_a_tree_wider_than_one_round_is_still_listed_whole(
     """
     root, stubs = _wide_tree(tmp_path, 7)
     source = tree_source(
-        root, quiet_logger, tuning=TreeTuning(walk_threads=1, walk_directories_at_once=at_once)
+        root,
+        quiet_logger,
+        tuning=packaged_tree_tuning(walk_threads=1, walk_directories_at_once=at_once),
     )
     assert sorted(stubs_of(source.listing(Selection()))) == sorted(stubs)
 
@@ -371,7 +373,7 @@ def test_no_directory_is_listed_twice_across_rounds(
 
     monkeypatch.setattr(FCPath, 'iterdir_metadata', recording)
     source = tree_source(
-        root, quiet_logger, tuning=TreeTuning(walk_threads=1, walk_directories_at_once=2)
+        root, quiet_logger, tuning=packaged_tree_tuning(walk_threads=1, walk_directories_at_once=2)
     )
     list(source.listing(Selection()))
     assert sorted(listed) == sorted(set(listed))
@@ -574,7 +576,9 @@ def test_two_roots_are_listed_in_the_order_the_source_holds_them(
     second = tmp_path / 'second'
     write_document(first, 'VOL1/N1454725799_1_CALIB', document())
     write_document(second, 'VOL1/N1454725800_1_CALIB', document())
-    source = TreeRecordSource([str(first), str(second)], logger=quiet_logger)
+    source = TreeRecordSource(
+        [str(first), str(second)], logger=quiet_logger, tuning=packaged_tree_tuning()
+    )
     selection = Selection(roots=(str(second), str(first)))
     assert stubs_of(source.listing(selection)) == [
         'VOL1/N1454725799_1_CALIB',
@@ -615,4 +619,4 @@ def test_the_refusal_of_an_unheld_root_names_what_is_held(
 def test_a_source_over_no_root_at_all_is_refused(quiet_logger: pdslogger.PdsLogger) -> None:
     """A source that held no root would answer every question with nothing."""
     with pytest.raises(ValueError, match='at least one results root'):
-        TreeRecordSource([], logger=quiet_logger)
+        TreeRecordSource([], logger=quiet_logger, tuning=packaged_tree_tuning())

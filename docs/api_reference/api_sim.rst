@@ -273,6 +273,16 @@ spindoctor.sim.render.bodies
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.bodies.haze_scattering
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.bodies.haze_geometry
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.render.bodies.translate
    :members:
    :undoc-members:

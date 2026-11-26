@@ -19,6 +19,7 @@ from pathlib import Path
 
 import pytest
 from pdslogger import PdsLogger
+from tests.packaged_sections import packaged_tree_tuning
 
 from spindoctor.nav_records import TreeRecordSource, TreeTuning, within_open_file_limit
 from spindoctor.nav_records import descriptors as descriptors_module
@@ -84,13 +85,13 @@ def _logger() -> PdsLogger:
 def test_a_limit_that_covers_the_tuning_leaves_it_alone(monkeypatch: pytest.MonkeyPatch) -> None:
     """A pass the machine can run is the pass the operator configured."""
     _at_limit(monkeypatch, 65536)
-    assert within_open_file_limit(TreeTuning(), _REMOTE) == TreeTuning()
+    assert within_open_file_limit(packaged_tree_tuning(), _REMOTE) == packaged_tree_tuning()
 
 
 def test_a_limit_too_low_for_the_batch_shrinks_it(monkeypatch: pytest.MonkeyPatch) -> None:
     """The stock login-shell limit is what the shipped batch size cannot run under."""
     _at_limit(monkeypatch, 1024)
-    assert within_open_file_limit(TreeTuning(), _REMOTE).retrieve_batch_size < 1024
+    assert within_open_file_limit(packaged_tree_tuning(), _REMOTE).retrieve_batch_size < 1024
 
 
 def test_the_pass_leaves_room_for_the_files_it_does_not_count(
@@ -98,7 +99,7 @@ def test_the_pass_leaves_room_for_the_files_it_does_not_count(
 ) -> None:
     """The index, the logs and the streams are open too, and none of them is in the sum."""
     _at_limit(monkeypatch, 1024)
-    assert _peak(within_open_file_limit(TreeTuning(), _REMOTE)) <= 768
+    assert _peak(within_open_file_limit(packaged_tree_tuning(), _REMOTE)) <= 768
 
 
 def test_the_threads_are_charged_for_the_files_they_hold_as_well(
@@ -106,7 +107,7 @@ def test_the_threads_are_charged_for_the_files_they_hold_as_well(
 ) -> None:
     """A download holds a temporary file and a connection, so a thread costs two."""
     _at_limit(monkeypatch, 1024)
-    bounded = within_open_file_limit(TreeTuning(), _REMOTE)
+    bounded = within_open_file_limit(packaged_tree_tuning(), _REMOTE)
     assert bounded.retrieve_batch_size <= 1024 - RESERVED_DESCRIPTORS - 2 * bounded.retrieve_threads
 
 
@@ -116,7 +117,7 @@ def test_a_thread_count_the_limit_cannot_cover_is_held_down_too(
     """A pool larger than the limit would exhaust it before a single batch was locked."""
     _at_limit(monkeypatch, 1024)
     bounded = within_open_file_limit(
-        TreeTuning(retrieve_threads=512, retrieve_batch_size=4096), _REMOTE
+        packaged_tree_tuning(retrieve_threads=512, retrieve_batch_size=4096), _REMOTE
     )
     assert bounded.retrieve_threads < 512
 
@@ -125,7 +126,7 @@ def test_the_threads_never_take_the_whole_budget(monkeypatch: pytest.MonkeyPatch
     """A batch left with nothing is a pass that retrieves one document at a time."""
     _at_limit(monkeypatch, 1024)
     bounded = within_open_file_limit(
-        TreeTuning(retrieve_threads=512, retrieve_batch_size=4096), _REMOTE
+        packaged_tree_tuning(retrieve_threads=512, retrieve_batch_size=4096), _REMOTE
     )
     assert bounded.retrieve_batch_size > bounded.retrieve_threads
 
@@ -133,7 +134,7 @@ def test_the_threads_never_take_the_whole_budget(monkeypatch: pytest.MonkeyPatch
 def test_a_shrunken_pass_still_fills_its_download_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     """A batch below the pool size leaves threads idle, which no limit is a reason for."""
     _at_limit(monkeypatch, MINIMUM_DESCRIPTORS)
-    bounded = within_open_file_limit(TreeTuning(), _REMOTE)
+    bounded = within_open_file_limit(packaged_tree_tuning(), _REMOTE)
     assert bounded.retrieve_batch_size >= bounded.retrieve_threads
 
 
@@ -141,7 +142,7 @@ def test_a_limit_too_low_for_one_document_is_refused(monkeypatch: pytest.MonkeyP
     """No setting runs under it, so answering with one would only move the failure later."""
     _at_limit(monkeypatch, MINIMUM_DESCRIPTORS - 1)
     with pytest.raises(ValueError) as caught:
-        within_open_file_limit(TreeTuning(), _REMOTE)
+        within_open_file_limit(packaged_tree_tuning(), _REMOTE)
     assert str(MINIMUM_DESCRIPTORS) in str(caught.value)
 
 
@@ -150,7 +151,7 @@ def test_the_smallest_limit_that_is_not_refused_yields_a_pass_that_can_run(
 ) -> None:
     """The boundary is the point of the refusal, so the pass just above it has to work."""
     _at_limit(monkeypatch, MINIMUM_DESCRIPTORS)
-    assert within_open_file_limit(TreeTuning(), _REMOTE).retrieve_batch_size >= 1
+    assert within_open_file_limit(packaged_tree_tuning(), _REMOTE).retrieve_batch_size >= 1
 
 
 def test_a_platform_with_no_limit_to_read_changes_nothing(
@@ -158,7 +159,7 @@ def test_a_platform_with_no_limit_to_read_changes_nothing(
 ) -> None:
     """Where nothing bounds the open files, nothing bounds the batch either."""
     _at_limit(monkeypatch, None)
-    assert within_open_file_limit(TreeTuning(), _REMOTE) == TreeTuning()
+    assert within_open_file_limit(packaged_tree_tuning(), _REMOTE) == packaged_tree_tuning()
 
 
 def test_a_pass_over_local_roots_is_left_entirely_alone(
@@ -166,7 +167,7 @@ def test_a_pass_over_local_roots_is_left_entirely_alone(
 ) -> None:
     """A local file is read where it lies, so no lock and no descriptor is spent on it."""
     _at_limit(monkeypatch, 1024)
-    assert within_open_file_limit(TreeTuning(), [str(tmp_path)]) == TreeTuning()
+    assert within_open_file_limit(packaged_tree_tuning(), [str(tmp_path)]) == packaged_tree_tuning()
 
 
 def test_a_pass_over_local_roots_does_not_raise_the_process_limit(
@@ -180,15 +181,15 @@ def test_a_pass_over_local_roots_does_not_raise_the_process_limit(
         return 1024
 
     monkeypatch.setattr(descriptors_module, 'raise_open_file_limit', noting)
-    within_open_file_limit(TreeTuning(), [str(tmp_path)])
+    within_open_file_limit(packaged_tree_tuning(), [str(tmp_path)])
     assert asked == []
 
 
 def test_one_remote_root_among_local_ones_is_enough(monkeypatch: pytest.MonkeyPatch) -> None:
     """A pass reads every root it was given, so one that downloads settles it for all."""
     _at_limit(monkeypatch, 1024)
-    bounded = within_open_file_limit(TreeTuning(), ['/tmp', 'gs://a-bucket/a-root'])
-    assert bounded != TreeTuning()
+    bounded = within_open_file_limit(packaged_tree_tuning(), ['/tmp', 'gs://a-bucket/a-root'])
+    assert bounded != packaged_tree_tuning()
 
 
 def test_holding_a_pass_back_is_said_out_loud(
@@ -196,7 +197,7 @@ def test_holding_a_pass_back_is_said_out_loud(
 ) -> None:
     """A pass slower than it was configured to be is not a thing to discover later."""
     _at_limit(monkeypatch, 1024)
-    within_open_file_limit(TreeTuning(), _REMOTE, logger=_logger())
+    within_open_file_limit(packaged_tree_tuning(), _REMOTE, logger=_logger())
     assert 'Open file limit of 1024' in capsys.readouterr().out
 
 
@@ -205,7 +206,7 @@ def test_the_line_names_the_limit_that_would_have_to_be_raised(
 ) -> None:
     """The soft limit is already at the hard one, so ulimit -n would advise nothing."""
     _at_limit(monkeypatch, 1024)
-    within_open_file_limit(TreeTuning(), _REMOTE, logger=_logger())
+    within_open_file_limit(packaged_tree_tuning(), _REMOTE, logger=_logger())
     assert 'ulimit -Hn' in capsys.readouterr().out
 
 
@@ -214,7 +215,7 @@ def test_a_refused_raise_is_not_reported_as_the_system_ceiling(
 ) -> None:
     """Telling an operator to raise a hard limit that is already high wastes their time."""
     _at_limit(monkeypatch, 1024, at_hard_limit=False)
-    within_open_file_limit(TreeTuning(), _REMOTE, logger=_logger())
+    within_open_file_limit(packaged_tree_tuning(), _REMOTE, logger=_logger())
     written = capsys.readouterr().out
     assert 'ulimit -n before the run' in written
 
@@ -224,7 +225,7 @@ def test_a_refused_raise_does_not_advise_the_hard_limit(
 ) -> None:
     """The two remedies are different, so naming the wrong one is worse than naming none."""
     _at_limit(monkeypatch, 1024, at_hard_limit=False)
-    within_open_file_limit(TreeTuning(), _REMOTE, logger=_logger())
+    within_open_file_limit(packaged_tree_tuning(), _REMOTE, logger=_logger())
     assert 'ulimit -Hn' not in capsys.readouterr().out
 
 
@@ -233,7 +234,7 @@ def test_a_pass_the_limit_covers_says_nothing(
 ) -> None:
     """An ordinary run would otherwise carry a line about a limit that never applied."""
     _at_limit(monkeypatch, 65536)
-    within_open_file_limit(TreeTuning(), _REMOTE, logger=_logger())
+    within_open_file_limit(packaged_tree_tuning(), _REMOTE, logger=_logger())
     assert 'Open file limit' not in capsys.readouterr().out
 
 
@@ -293,8 +294,8 @@ def test_a_source_over_a_remote_root_runs_at_the_bounded_tuning(
 ) -> None:
     """The bound reaches the retrieval, rather than being computed and dropped."""
     _at_limit(monkeypatch, 1024)
-    source = TreeRecordSource(_REMOTE, tuning=TreeTuning())
-    assert source._tuning.retrieve_batch_size < TreeTuning().retrieve_batch_size
+    source = TreeRecordSource(_REMOTE, tuning=packaged_tree_tuning())
+    assert source._tuning.retrieve_batch_size < packaged_tree_tuning().retrieve_batch_size
 
 
 def test_a_source_over_a_local_root_runs_at_the_tuning_it_was_given(
@@ -302,5 +303,5 @@ def test_a_source_over_a_local_root_runs_at_the_tuning_it_was_given(
 ) -> None:
     """A local pass is the one the open-file limit has nothing to say about."""
     _at_limit(monkeypatch, 1024)
-    source = TreeRecordSource([str(tmp_path)], tuning=TreeTuning())
-    assert source._tuning == TreeTuning()
+    source = TreeRecordSource([str(tmp_path)], tuning=packaged_tree_tuning())
+    assert source._tuning == packaged_tree_tuning()

@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.packaged_sections import configure_tree_tuning, packaged_tree_tuning
 from tests.spindoctor.cli.results_index.ingest_driver_helpers import (
     STUB,
     fanned_out,
@@ -32,7 +33,7 @@ from tests.spindoctor.conftest import (
 )
 
 from spindoctor.cli import sd_results_index, sd_results_index_cloud_tasks
-from spindoctor.nav_records import TreeTuning
+from spindoctor.config import DEFAULT_CONFIG
 
 # ---------------------------------------------------------------------------
 # Who creates the schema
@@ -208,16 +209,14 @@ def test_a_worker_hands_its_share_the_tuning_the_configuration_names(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The worker resolves the tuning per share, as the interactive driver does per run."""
-    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    configured = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     handed: list[Any] = []
 
     def recording(*args: Any, **kwargs: Any) -> dict[str, Any]:
         handed.append(kwargs.get('tuning'))
         return {'status': 'ok'}
 
-    monkeypatch.setattr(
-        sd_results_index_cloud_tasks, 'get_results_tree_tuning', lambda config: configured
-    )
+    configure_tree_tuning(monkeypatch, DEFAULT_CONFIG, configured)
     monkeypatch.setattr(sd_results_index_cloud_tasks, 'ingest_task_share', recording)
     url = fanned_out(tmp_path, monkeypatch)
     tasks = tasks_of(tmp_path / 'tasks.json')
@@ -235,18 +234,15 @@ def test_a_worker_named_a_configuration_file_that_is_not_there_reports_it(tmp_pa
     assert result['status_error'] == 'unusable_configuration'
 
 
-def test_a_worker_under_a_configuration_no_pass_can_run_at_reports_it(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_a_worker_under_a_configuration_no_pass_can_run_at_reports_it(tmp_path: Path) -> None:
     """Reported like every other refusal, so the completing run can tally it."""
-
-    def refusing(config: Any) -> TreeTuning:
-        raise ValueError('configuration section results_tree: walk_threads must be a positive')
-
-    monkeypatch.setattr(sd_results_index_cloud_tasks, 'get_results_tree_tuning', refusing)
-    url = fanned_out(tmp_path, monkeypatch)
-    tasks = tasks_of(tmp_path / 'tasks.json')
-    _retry, result = process(tasks[0]['data'], url)
+    override = tmp_path / 'override.yaml'
+    override.write_text('results_tree:\n  walk_threads: 0\n')
+    _retry, result = sd_results_index_cloud_tasks.process_task(
+        'ingest-1-000000',
+        {},
+        worker_data(config_file=[str(override)], results_index_db='sqlite://'),
+    )
     assert result['status_error'] == 'unusable_configuration'
 
 

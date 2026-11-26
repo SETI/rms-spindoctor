@@ -103,7 +103,7 @@ def create_ring_backplanes(
         pixels a nearer body covers.
     """
 
-    masked_value = float(config.backplanes.masked_value)
+    masked_value = config.backplanes.masked_value
 
     result: dict[str, Any] = {
         'planet': None,
@@ -120,10 +120,6 @@ def create_ring_backplanes(
     if closest_planet is None:
         # No planet, no rings
         return None
-
-    rings_cfg = getattr(config.backplanes, 'rings', None)
-    if rings_cfg is None:
-        raise ValueError('Configuration has no rings section for backplanes')
 
     target_key = ring_target(closest_planet)
 
@@ -144,14 +140,9 @@ def create_ring_backplanes(
     pixel_incidence = bp.ring_incidence_angle(target_key)
     result['pixel_incidence'] = np.ma.filled(pixel_incidence.mvals, fill_value=masked_value)
 
-    for bp_cfg in rings_cfg:
-        bp_name = bp_cfg['name']
-        method = bp_cfg.get('method')
-        if method is None:
-            raise ValueError(f'Ring backplane "method" is required: {bp_name}')
-        units = bp_cfg.get('units')
-        if units is None:
-            raise ValueError(f'Ring backplane "units" is required: {bp_name}')
+    for bp_cfg in config.backplanes.rings:
+        bp_name = bp_cfg.name
+        method = bp_cfg.method
 
         logger.debug(f'{closest_planet}: Creating ring backplane {bp_name}')
         func = getattr(bp, method)

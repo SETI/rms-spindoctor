@@ -386,7 +386,7 @@ apart. The entry states ``data_units: calibrated_if``, the units of the
 GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
 
 **Realism match.** The match compares each camera with its own library frames
-(the 2026-11-23 record in ``tests/integration/realism_results/``). The two
+(the 2026-11-25 record in ``tests/integration/realism_results/``). The two
 entries without a library frame have no row.
 
 * ``vgiss_1_wac``, two Saturn frames. The simulated sky noise is 3.1e-3 I/F
@@ -597,19 +597,24 @@ leading units with no midtime count, read from the PDS3 label beside the image.
 PDS4 hooks
 ==========
 
-Not supported. Two hooks are implemented --
-``pds4_bundle_template_dir``, which falls back to ``voyager_iss_1.0``, and
-``pds4_bundle_name``, which falls back to
-``voyager_iss_backplanes_rsfrench2027`` -- and every remaining hook raises
-``NotImplementedError``. Neither the template directory nor a ``pds4.vgiss``
-configuration entry is shipped; the configuration file carries the entry as a
-commented-out stub.
+Not supported. The dataset leaves ``PDS4_CONFIG_KEY`` as None, so
+``sd_create_bundle`` refuses it before it runs a pass, and the loader refuses a ``pds4``
+entry written for it. Every PDS4 hook raises ``NotImplementedError``.
 
-Making bundles work here means implementing ``pds4_bundle_path_for_image``,
-``pds4_path_stub``, ``pds4_lid_part_to_image_name``, the four LID and LIDVID
-builders and ``pds4_template_variables``, and adding a template directory. It
-also means deciding whether one bundle covers both spacecraft or each gets its
-own.
+To make bundles here:
+
+* add a template directory;
+* set ``PDS4_CONFIG_KEY``, and add a ``pds4`` entry under that key;
+* implement ``pds4_bundle_template_dir``, ``pds4_bundle_name``, ``pds4_bundle_version``,
+  ``pds4_information_model_version``, and ``pds4_schemas``, which read the entry;
+* implement ``pds4_required_templates``, which names the templates and files each
+  pass takes from the template directory, and ``pds4_user_guide_file_name``, which
+  names the bundle's user guide in it; and
+* implement ``pds4_bundle_path_for_image``, ``pds4_path_stub``,
+  ``pds4_lid_part_to_image_name``, the four LID and LIDVID builders, and
+  ``pds4_template_variables``.
+
+It also means deciding whether one bundle covers both spacecraft or each gets its own.
 
 Backplanes, mosaics, and statistics
 ===================================

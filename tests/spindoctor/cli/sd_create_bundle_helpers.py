@@ -14,9 +14,10 @@ from types import SimpleNamespace
 from typing import Any, NoReturn
 
 from filecache import FCPath
+from tests.product_sections import packaged_backplanes
 
-from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass, Pds4Schema
+from spindoctor.config.sections_products import Pds4Schema
+from spindoctor.dataset.dataset import ImageFile, ImageFiles, Pds4Pass
 
 
 def image_file(name: str, *, base_dir: Path | None = None) -> ImageFile:
@@ -121,13 +122,7 @@ class StubDataset:
         self._batch_count = batch_count
         self._base_dir = base_dir
         self.config = SimpleNamespace(
-            backplanes=SimpleNamespace(
-                bodies=[],
-                rings=[],
-                ring_incidence_angle=DEFAULT_CONFIG.backplanes.ring_incidence_angle,
-                masked_value=DEFAULT_CONFIG.backplanes.masked_value,
-                target_lids={},
-            )
+            backplanes=packaged_backplanes(bodies=(), rings=(), target_lids={})
         )
 
     def pds4_bundle_name(self) -> str:

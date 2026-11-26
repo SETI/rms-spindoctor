@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 from scipy.ndimage import rotate as ndimage_rotate
@@ -30,13 +30,13 @@ from spindoctor.feature.feature import NavFeature, body_names_from_features
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyDiscGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
+from spindoctor.nav_technique.correlation_tuning import BodyDiscTuning
 from spindoctor.nav_technique.diagnostics import BodyDiscDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     ROTATION_UNOBSERVABLE_VARIANCE,
     NavTechnique,
     add_size_scaled_model_error,
-    load_ncc_covariance_tuning,
     log_confidence_breakdown,
     search_window_for_obs,
 )
@@ -308,6 +308,8 @@ class BodyDiscCorrelateNav(NavTechnique):
     """
 
     name = 'BodyDiscCorrelateNav'
+    Tuning = BodyDiscTuning
+    tuning: ClassVar[BodyDiscTuning]
     accepts_feature_types = frozenset({NavFeatureType.BODY_DISC})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -324,15 +326,14 @@ class BodyDiscCorrelateNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._consistency_max_fraction_of_diameter = float(
-            self.tuning['consistency_max_fraction_of_diameter']
-        )
-        self._consistency_max_px = float(self.tuning['consistency_max_px'])
-        self._refine_lowpass_sigma_px = float(self.tuning['refine_lowpass_sigma_px'])
-        self._cov_tuning = load_ncc_covariance_tuning(self.tuning, self.name)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable BODY_DISC feature.
@@ -394,7 +395,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             extfov_shape = context.image_ext.shape
             template_img, template_mask = compose_template_features(eligible, extfov_shape)
             margin_v, margin_u = search_window_for_obs(context)
-            up_factor = self._upsample_factor()
+            up_factor = self.config.offset.correlation_fft_upsample_factor
             consistency_tol = self._consistency_tol_for(eligible)
             self.logger.debug(
                 'Composite template: %d painted pixels; search window (v, u) = (%d, %d) px; '
@@ -431,11 +432,9 @@ class BodyDiscCorrelateNav(NavTechnique):
                     max_offset_vu=(margin_v, margin_u),
                     data_mask=context.sensor_mask_ext,
                     use_gradient='auto',
-                    refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+                    refine_lowpass_sigma_px=self.tuning.refine_lowpass_sigma_px,
                     final_refinement=_FINAL_REFINEMENT,
-                    localization_uncertainty_scale=(
-                        self._cov_tuning.localization_uncertainty_scale
-                    ),
+                    localization_uncertainty_scale=self.tuning.localization_uncertainty_scale,
                     logger=self.logger,
                 )
             dv = float(ncc_result['offset'][0])
@@ -455,8 +454,8 @@ class BodyDiscCorrelateNav(NavTechnique):
             covariance_2x2 = add_size_scaled_model_error(
                 covariance_2x2,
                 size_px=self._max_body_extent_px(eligible),
-                size_frac=self._cov_tuning.model_error_size_frac,
-                floor_px=self._cov_tuning.model_error_floor_px,
+                size_frac=self.tuning.model_error_size_frac,
+                floor_px=self.tuning.model_error_floor_px,
             )
             spurious = bool(ncc_result['spurious'])
             at_edge_translation = bool(ncc_result['at_edge'])
@@ -485,7 +484,7 @@ class BodyDiscCorrelateNav(NavTechnique):
             if fit_rotation:
                 max_rotation_rad = math.radians(context.max_rotation_deg)
                 rotation_at_edge = (
-                    abs(best_theta_rad) >= self._rotation_at_edge_fraction * max_rotation_rad
+                    abs(best_theta_rad) >= self.tuning.rotation_at_edge_fraction * max_rotation_rad
                 )
                 cov = np.zeros((3, 3), dtype=np.float64)
                 cov[:2, :2] = covariance_2x2
@@ -556,9 +555,11 @@ class BodyDiscCorrelateNav(NavTechnique):
         ext-FOV bbox extent across the consumed BODY_DISC features.
         """
         if not features:
-            return self._consistency_max_px
-        scaled_px = self._consistency_max_fraction_of_diameter * self._max_body_extent_px(features)
-        return max(self._consistency_max_px, scaled_px)
+            return self.tuning.consistency_max_px
+        scaled_px = self.tuning.consistency_max_fraction_of_diameter * self._max_body_extent_px(
+            features
+        )
+        return max(self.tuning.consistency_max_px, scaled_px)
 
     @staticmethod
     def _max_body_extent_px(features: list[NavFeature]) -> float:
@@ -841,9 +842,9 @@ class BodyDiscCorrelateNav(NavTechnique):
             max_offset_vu=max_offset_vu,
             data_mask=data_mask,
             use_gradient='auto',
-            refine_lowpass_sigma_px=self._refine_lowpass_sigma_px,
+            refine_lowpass_sigma_px=self.tuning.refine_lowpass_sigma_px,
             final_refinement=_FINAL_REFINEMENT,
-            localization_uncertainty_scale=self._cov_tuning.localization_uncertainty_scale,
+            localization_uncertainty_scale=self.tuning.localization_uncertainty_scale,
             logger=self.logger,
         )
 
@@ -888,13 +889,6 @@ class BodyDiscCorrelateNav(NavTechnique):
             unobservable pending a calibrated curvature -> variance map.
         """
         return None
-
-    def _upsample_factor(self) -> int:
-        """Return the FFT upsample factor configured under ``config.offset``."""
-        offset_block = getattr(self.config, 'offset', None)
-        if offset_block is None:
-            return 128
-        return int(getattr(offset_block, 'correlation_fft_upsample_factor', 128))
 
 
 class _DiscConfidenceContext:

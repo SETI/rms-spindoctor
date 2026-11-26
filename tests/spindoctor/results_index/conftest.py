@@ -38,6 +38,7 @@ import pdslogger
 import pytest
 import sqlalchemy
 from sqlalchemy.engine import Engine
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import index_url, ingest_tree, metadata_document, write_metadata
 
 from spindoctor.nav_records import (
@@ -788,7 +789,9 @@ def facts_from_tree(
     Returns:
         What the stream yielded, in stub order.
     """
-    return _in_order(TreeRecordSource([held.root(which)]).facts(selection))
+    return _in_order(
+        TreeRecordSource([held.root(which)], tuning=packaged_tree_tuning()).facts(selection)
+    )
 
 
 def facts_from_index(
@@ -805,7 +808,10 @@ def facts_from_index(
         What the stream yielded, in stub order.
     """
     with open_record_source(
-        [held.root(which)], results_index_db_url=held.url, columns=COLUMNS
+        [held.root(which)],
+        results_index_db_url=held.url,
+        columns=COLUMNS,
+        tuning=packaged_tree_tuning(),
     ) as source:
         return _in_order(source.facts(selection))
 
@@ -828,7 +834,10 @@ def named_facts_from_index(
         What the stream yielded, in the order it yielded it.
     """
     with open_record_source(
-        [held.root(which)], results_index_db_url=held.url, columns=COLUMNS
+        [held.root(which)],
+        results_index_db_url=held.url,
+        columns=COLUMNS,
+        tuning=packaged_tree_tuning(),
     ) as source:
         return list(source.facts(selection))
 

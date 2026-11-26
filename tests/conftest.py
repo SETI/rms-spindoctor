@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import os
 import shutil
 from collections.abc import Iterator
@@ -135,8 +136,14 @@ def no_ambient_results_index(
     # override file, or by one that ran before the working directory moved --
     # outlives it: the merge is into a process-global configuration and nothing
     # takes it back out.
-    monkeypatch.delitem(DEFAULT_CONFIG.environment, 'results_index_db', raising=False)
-    monkeypatch.delitem(DEFAULT_CONFIG.environment, 'nav_results_root', raising=False)
+    sections = DEFAULT_CONFIG._sections
+    if sections is not None:
+        environment = dataclasses.replace(
+            sections.environment, results_index_db=None, nav_results_root=None
+        )
+        # Not restored afterwards: a later test gets the same clearing, and putting
+        # the old sections back could undo a configuration the test installed.
+        DEFAULT_CONFIG._sections = dataclasses.replace(sections, environment=environment)
     yield
     left_behind = sorted(entry.name for entry in directory_naming_no_index.iterdir())
     for entry in directory_naming_no_index.iterdir():

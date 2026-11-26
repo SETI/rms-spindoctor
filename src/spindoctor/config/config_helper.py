@@ -1,10 +1,7 @@
 import argparse
 import os
-from dataclasses import fields
 
 from filecache import FCPath
-
-from spindoctor.nav_records.tuning import TreeTuning
 
 from .config import Config
 
@@ -26,8 +23,8 @@ def get_backplane_results_root(arguments: argparse.Namespace, config: Config) ->
     NAV_BACKPLANE_RESULTS_ROOT.
 
     Parameters:
-        arguments: The parsed arguments. config: The configuration possibly containing the
-        environment section.
+        arguments: The parsed arguments.
+        config: The configuration possibly containing the environment section.
 
     Returns:
         The backplane results root.
@@ -41,10 +38,7 @@ def get_backplane_results_root(arguments: argparse.Namespace, config: Config) ->
     except AttributeError:
         pass
     if backplane_results_root_str is None:
-        try:
-            backplane_results_root_str = config.environment.backplane_results_root
-        except AttributeError:
-            pass
+        backplane_results_root_str = config.environment.backplane_results_root
     if backplane_results_root_str is None:
         backplane_results_root_str = os.getenv('NAV_BACKPLANE_RESULTS_ROOT')
     if backplane_results_root_str is None:
@@ -63,8 +57,8 @@ def get_nav_results_root(arguments: argparse.Namespace, config: Config) -> str:
     then in the environment variable NAV_RESULTS_ROOT.
 
     Parameters:
-        arguments: The parsed arguments. config: The configuration possibly containing the
-        environment section.
+        arguments: The parsed arguments.
+        config: The configuration possibly containing the environment section.
 
     Returns:
         The navigation results root.
@@ -78,10 +72,7 @@ def get_nav_results_root(arguments: argparse.Namespace, config: Config) -> str:
     except AttributeError:
         pass
     if nav_results_root_str is None:
-        try:
-            nav_results_root_str = config.environment.nav_results_root
-        except AttributeError:
-            pass
+        nav_results_root_str = config.environment.nav_results_root
     if nav_results_root_str is None:
         nav_results_root_str = os.getenv('NAV_RESULTS_ROOT')
     if nav_results_root_str is None:
@@ -119,10 +110,7 @@ def get_log_root(arguments: argparse.Namespace, config: Config) -> str:
     except AttributeError:
         pass
     if log_root_str is None:
-        try:
-            log_root_str = config.environment.log_root
-        except AttributeError:
-            pass
+        log_root_str = config.environment.log_root
     if log_root_str is None:
         log_root_str = os.getenv('NAV_LOG_ROOT')
     if log_root_str is None:
@@ -140,8 +128,8 @@ def get_pds4_bundle_results_root(arguments: argparse.Namespace, config: Config) 
     NAV_BUNDLE_RESULTS_ROOT.
 
     Parameters:
-        arguments: The parsed arguments. config: The configuration possibly containing the
-        environment section.
+        arguments: The parsed arguments.
+        config: The configuration possibly containing the environment section.
 
     Returns:
         The PDS4 bundle root.
@@ -155,10 +143,7 @@ def get_pds4_bundle_results_root(arguments: argparse.Namespace, config: Config) 
     except AttributeError:
         pass
     if pds4_bundle_root_str is None:
-        try:
-            pds4_bundle_root_str = config.environment.bundle_results_root
-        except AttributeError:
-            pass
+        pds4_bundle_root_str = config.environment.bundle_results_root
     if pds4_bundle_root_str is None:
         pds4_bundle_root_str = os.getenv('NAV_BUNDLE_RESULTS_ROOT')
     if pds4_bundle_root_str is None:
@@ -209,15 +194,15 @@ def get_results_index_db_url(arguments: argparse.Namespace, config: Config) -> s
         ValueError: If a level supplied a value that is empty or nothing but
             spaces.
     """
-    # Absence is the ordinary case at both levels -- most programs define no
-    # --results-index-db argument, and most configurations name no index -- so each is
-    # asked for the key rather than made to raise for it, which would also hide an
-    # AttributeError raised by something other than the lookup.
+    # Absence is the ordinary case on the command line, since most programs do not
+    # define --results-index-db.  So the namespace is asked for the key rather than made
+    # to raise for it, which would also hide an AttributeError raised by something other
+    # than the lookup.
     named_by = '--results-index-db'
     results_index_db_str = vars(arguments).get('results_index_db')
     if results_index_db_str is None:
         named_by = 'the environment.results_index_db configuration variable'
-        results_index_db_str = config.environment.get('results_index_db')
+        results_index_db_str = config.environment.results_index_db
     if results_index_db_str is None:
         named_by = 'the NAV_RESULTS_INDEX_DB environment variable'
         results_index_db_str = os.getenv('NAV_RESULTS_INDEX_DB')
@@ -235,50 +220,12 @@ def get_results_index_db_url(arguments: argparse.Namespace, config: Config) -> s
     return url
 
 
-def get_results_tree_tuning(config: Config) -> TreeTuning:
-    """Get how much of a pass over a results tree runs at once from the configuration.
-
-    Read from ``config.results_tree`` alone: no command-line option or
-    environment variable names these, because they describe a machine rather
-    than a run.  A program resolves them once, here, and passes the result to
-    whatever reads the tree.
-
-    Parameters:
-        config: The configuration, whose ``results_tree`` section is read.
-
-    Returns:
-        The tuning, with every setting the section omits at its default.
-
-    Raises:
-        ValueError: If the section names a setting that does not exist, or a
-            value no pass can run at -- one that is not a positive integer, or
-            a round of work smaller than the pool it feeds.  The message names
-            the section and the setting.
-    """
-    section = config.results_tree
-    known = [field.name for field in fields(TreeTuning)]
-    # Sorted as text: a YAML key can be a number, and a number does not sort
-    # against a string.
-    unknown = sorted(str(name) for name in section if name not in known)
-    if unknown:
-        raise ValueError(
-            f'configuration section results_tree names no setting called {unknown[0]!r}; '
-            f'the settings are {", ".join(known)}'
-        )
-    try:
-        return TreeTuning(**section)
-    except ValueError as exc:
-        raise ValueError(f'configuration section results_tree: {exc}') from exc
-
-
 def load_default_and_user_config(arguments: argparse.Namespace, config: Config) -> None:
     """Load the default and user configuration (if any).
 
-    The merged result's ``results_tree`` section is validated before returning,
-    so a misspelled tuning setting fails here rather than having no effect at the
-    point it was meant to apply, and a value no pass can run at fails before a run
-    has written anything.  The typed sections, ``logging`` among them, are checked
-    as each file loads.
+    The typed sections are checked as each file is merged, so a misspelled key, a
+    value of the wrong type, or a value no pass can run at fails here rather than having
+    no effect at the point it was meant to apply.
 
     A named file that cannot be read is not skipped in favor of the defaults;
     ``Config``'s own diagnostic propagates, so a missing file still raises
@@ -292,9 +239,7 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
         config: The configuration to update.
 
     Raises:
-        ValueError: If the merged ``results_tree`` section is not valid.
-        SchemaError: If a file breaks the schema of a typed section, as with a
-            misspelled module key, program name, or level name under ``logging``.
+        SchemaError: If a file breaks the schema of a typed section.
     """
     config.read_config()
     # If the user specified one or more config files, load them; if they didn't,
@@ -311,6 +256,3 @@ def load_default_and_user_config(arguments: argparse.Namespace, config: Config) 
             config.update_config('nav_default_config.yaml')
         except FileNotFoundError:
             pass
-    # Built for the check alone and discarded.  The loader runs before a
-    # program has written anything, so an unusable value is refused here.
-    get_results_tree_tuning(config)

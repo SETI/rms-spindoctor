@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 from pdslogger import PdsLogger
@@ -30,12 +30,12 @@ from spindoctor.feature.feature import NavFeature, body_names_from_features
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyBlobGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
+from spindoctor.nav_technique.correlation_tuning import BodyBlobTuning
 from spindoctor.nav_technique.diagnostics import BodyBlobDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     embed_rotation_unobservable,
-    load_ncc_covariance_tuning,
     log_confidence_breakdown,
     reported_position_vu,
     rotation_unobservable_sigma_rad,
@@ -701,6 +701,8 @@ class BodyBlobNav(NavTechnique):
     """
 
     name = 'BodyBlobNav'
+    Tuning = BodyBlobTuning
+    tuning: ClassVar[BodyBlobTuning]
     accepts_feature_types = frozenset({NavFeatureType.BODY_BLOB})
     requires_prior = False
     tier = 'fallback'
@@ -718,15 +720,14 @@ class BodyBlobNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        # Covariance model-error terms: the brightness-weighted centroid is a
-        # biased estimator of the geometric center (lit-hemisphere offset,
-        # shape irregularity), and that bias scales with the body radius --
-        # a term the photon-only per-blob CRLB cannot see.  ``model_error_size_frac``
-        # carries it; ``model_error_floor_px`` is the absolute floor.
-        self._cov_tuning = load_ncc_covariance_tuning(self.tuning, self.name)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries any usable BODY_BLOB feature.
@@ -844,12 +845,12 @@ class BodyBlobNav(NavTechnique):
                 )
             fit = _joint_offset_from_residuals(
                 residuals,
-                model_error_floor_px=self._cov_tuning.model_error_floor_px,
-                centroid_model_error_frac=self._cov_tuning.model_error_size_frac,
+                model_error_floor_px=self.tuning.model_error_floor_px,
+                centroid_model_error_frac=self.tuning.model_error_size_frac,
             )
             at_edge = (
-                abs(fit.dv) >= margin_v - self._at_edge_tolerance_px
-                or abs(fit.du) >= margin_u - self._at_edge_tolerance_px
+                abs(fit.dv) >= margin_v - self.tuning.at_edge_tolerance_px
+                or abs(fit.du) >= margin_u - self.tuning.at_edge_tolerance_px
             )
             fit_rotation = bool(context.fit_camera_rotation)
             covariance = (

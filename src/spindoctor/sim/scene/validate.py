@@ -25,7 +25,11 @@ from spindoctor.sim.scene.boundary import _ALLOWED_KEYS, _OBJECT_BLOCKS
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import scene_binning
 from spindoctor.sim.scene.rules_artifacts import _check_artifacts
-from spindoctor.sim.scene.rules_body import _check_body_names_unique, _check_body_object
+from spindoctor.sim.scene.rules_body import (
+    _check_body_names_unique,
+    _check_body_object,
+    check_model_atmosphere_filters,
+)
 from spindoctor.sim.scene.rules_common import (
     _check_detector,
     _check_downlink_table_ceiling,
@@ -236,6 +240,7 @@ def validate_sim_params(
             else:
                 _check_star_object(obj, index=index, source=source)
     _check_body_names_unique(sim_params.get('bodies') or [], source=source)
+    check_model_atmosphere_filters(sim_params, instrument=instrument, source=source)
 
     if sim_params.get('spk_error') is not None:
         _require_ranges_for_spk_error(sim_params, source=source)

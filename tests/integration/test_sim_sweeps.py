@@ -27,6 +27,7 @@ step navigate nothing and run with the unit suite, in
 
 import copy
 import functools
+import itertools
 from pathlib import Path
 
 import numpy as np
@@ -885,48 +886,64 @@ def test_atmosphere_haze_floor_recovers() -> None:
     assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
 
 
-# The fused answer is the disc correlation's, whose high-pass refinement weakens the
-# haze's smooth glow, so the haze barely biases it (#791).  Over 25 noise draws the
-# thickest haze's largest rise above the bare limb's error is 0.025 px, and a brighter
-# haze never raises the error above it.  The rows record only the error's size, so
-# these tests bound how much the error grows.
-_HAZE_FUSED_RISE_BOUND_PX = 0.1
+def test_atmosphere_haze_raises_the_fused_error_with_thickness() -> None:
+    """Up to tau_ref 4 each thicker haze moves the fused answer farther off.
 
-
-def test_atmosphere_haze_barely_raises_the_fused_error() -> None:
-    """The thickest haze raises the fused error less than 0.1 px above the bare limb's.
-
-    A single-draw tripwire: over 9 noise draws the last step's error runs from 0.005 px
-    below the floor's to 0.007 px above it.
+    The haze dims the surface toward the limb and lifts the level it reflects from,
+    and the navigator predicts neither.  A single-draw tripwire: over 25 noise draws
+    the first four steps sit 0.033 to 0.035, 0.182 to 0.195, 0.396 to 0.408, and
+    0.899 to 1.051 px off, so the steps never overlap.
     """
-    rows = _rows('atmosphere_haze')
-    assert rows[0].offset_error_px is not None
-    assert rows[-1].offset_error_px is not None
-    assert rows[-1].offset_error_px < rows[0].offset_error_px + _HAZE_FUSED_RISE_BOUND_PX
+    errors = [row.offset_error_px for row in _rows('atmosphere_haze')[:4]]
+    measured = [error for error in errors if error is not None]
+    assert len(measured) == len(errors)
+    assert all(thinner < thicker for thinner, thicker in itertools.pairwise(measured))
 
 
-def test_atmosphere_haze_albedo_floor_recovers() -> None:
-    """An albedo-0 haze adds no light, so the bare limb recovers the offset.
+def test_atmosphere_haze_thickest_step_is_conflicted() -> None:
+    """At tau_ref 6 the haze lifts the limb so far that the techniques disagree.
 
-    A single-draw tripwire: over 25 noise draws the error is 0.033 to 0.035 px.
+    The level the haze reflects from stands about 21 px above the 90 px radius.  A
+    single-draw tripwire: 24 of 25 noise draws report the frame conflicted, 20.7 to
+    40.4 px off, and on noise_seed 303 it is a success 6.9 px off.
     """
-    rows = _rows('atmosphere_haze_albedo')
-    assert rows[0].value == 0.0
-    assert rows[0].status == 'success'
-    assert rows[0].offset_error_px is not None
-    assert rows[0].offset_error_px < _RECOVERY_TOLERANCE_PX
+    assert _rows('atmosphere_haze')[-1].status == 'conflicted'
 
 
-def test_atmosphere_haze_albedo_barely_raises_the_fused_error() -> None:
-    """The brightest haze raises the fused error less than 0.1 px above the bare limb's.
+# The haze albedo sweep runs at tau_ref 4 on a body whose surface is black, so the only
+# light is the haze's own.  Up to albedo 0.3 the haze is too faint to navigate on, and
+# from albedo 0.6 its edge puts the answer about half a pixel off.
+_HAZE_ALBEDO_FAINT_STEPS = 3
+_HAZE_ALBEDO_FAINT_BOUND_PX = 1.0
+_HAZE_ALBEDO_BRIGHT_BAND_PX = (0.200, 0.494)
 
-    A single-draw tripwire: over 9 noise draws the last step is 0.023 to 0.031 px
-    closer than the floor.
+
+def test_atmosphere_haze_albedo_faint_haze_gives_no_answer_near_the_truth() -> None:
+    """Up to albedo 0.3 no answer comes within 1 px of the planted offset.
+
+    A single-draw tripwire: over 25 noise draws the albedo 0, 0.15, and 0.3 steps fail
+    on 20, 19, and 16 draws.  The rest report a success far off: 45.6 to 59.4 px at
+    albedo 0, where the frame is blank, and 41.2 to 42.5 px at 0.15 and 0.3.
     """
-    rows = _rows('atmosphere_haze_albedo')
-    assert rows[0].offset_error_px is not None
-    assert rows[-1].offset_error_px is not None
-    assert rows[-1].offset_error_px < rows[0].offset_error_px + _HAZE_FUSED_RISE_BOUND_PX
+    rows = _rows('atmosphere_haze_albedo')[:_HAZE_ALBEDO_FAINT_STEPS]
+    assert rows[-1].value == 0.3
+    for row in rows:
+        assert row.offset_error_px is None or row.offset_error_px > _HAZE_ALBEDO_FAINT_BOUND_PX
+
+
+def test_atmosphere_haze_albedo_bright_haze_edge_sits_in_its_band() -> None:
+    """At albedo 0.6 the haze's own edge puts the fused answer about half a pixel off.
+
+    A single-draw tripwire: over 25 noise draws the error is 0.250 to 0.443 px, with the
+    frame conflicted on 19 draws and a success on 6.  The band is that range with a 0.05
+    px margin each side.  The albedo 1.0 step is not asserted: over the same draws it
+    lands 0.48 to 0.49 px off on 22 and is conflicted 3.8 to 4.5 px off on 3.
+    """
+    row = _rows('atmosphere_haze_albedo')[_HAZE_ALBEDO_FAINT_STEPS]
+    low, high = _HAZE_ALBEDO_BRIGHT_BAND_PX
+    assert row.value == 0.6
+    assert row.offset_error_px is not None
+    assert low <= row.offset_error_px <= high
 
 
 # The per-technique dense and wide offset sweeps (``*_offset_fine`` /

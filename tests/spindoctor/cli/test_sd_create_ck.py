@@ -22,6 +22,7 @@ import cspyce
 import numpy as np
 import pytest
 from tests.kernel_pool import isolated_kernel_pool
+from tests.packaged_sections import configure_tree_tuning, packaged_tree_tuning
 from tests.spindoctor.cli.ck.ck_helpers import CASSINI_CK_FRAME_ID, write_ck
 from tests.spindoctor.cli.sd_create_ck_helpers import (
     BASELINE_A,
@@ -36,7 +37,7 @@ from tests.spindoctor.cli.sd_create_ck_helpers import (
 from spindoctor.cli import sd_create_ck
 from spindoctor.cli.ck.comments import read_comment_area
 from spindoctor.cli.ck.segment import CkSegment
-from spindoctor.nav_records import TreeTuning
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.results_index import open_record_source
 
 
@@ -423,7 +424,7 @@ def test_the_records_are_read_at_the_tuning_the_configuration_names(
     run_tree: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The driver resolves the tuning once, at its top, and opens its source with it."""
-    configured = TreeTuning(walk_threads=3, walk_directories_at_once=3)
+    configured = packaged_tree_tuning(walk_threads=3, walk_directories_at_once=3)
     handed: list[Any] = []
 
     def recording(roots: Any, **kwargs: Any) -> Any:
@@ -439,7 +440,7 @@ def test_the_records_are_read_at_the_tuning_the_configuration_names(
         handed.append(kwargs.get('tuning'))
         return open_record_source(roots, **kwargs)
 
-    monkeypatch.setattr(sd_create_ck, 'get_results_tree_tuning', lambda config: configured)
+    configure_tree_tuning(monkeypatch, DEFAULT_CONFIG, configured)
     monkeypatch.setattr(sd_create_ck, 'open_record_source', recording)
     run_driver(run_tree, monkeypatch)
     assert handed == [configured]

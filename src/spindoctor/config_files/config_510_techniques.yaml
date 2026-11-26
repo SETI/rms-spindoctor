@@ -4,9 +4,9 @@
 # rather than mid-image.  The one exception is a tuning key of a technique
 # whose tuning is not yet typed: its tuning is a mapping of numbers, so a
 # misspelled key there is accepted and never read.  A technique whose
-# tuning is typed is keyed by its snake_case name (body_limb,
-# body_terminator, ring_edge), the key
-# logging.techniques uses; the others are keyed by class name until
+# tuning is typed is keyed by its snake_case name (body_disc_correlate,
+# body_blob, body_limb, body_terminator, ring_edge, ring_annulus), the
+# key logging.techniques uses; the others are keyed by class name until
 # their tuning is typed.  Each technique block looks like:
 #
 #   <technique_key>:
@@ -72,7 +72,7 @@
 # util/calibration/README.md describes how to regenerate them.
 
 techniques:
-  BodyDiscCorrelateNav:
+  body_disc_correlate:
     # Sim campaign (seed 20260718, full-truth-axis renderer): n=1376
     # usable, base rate 0.77, AUC 0.82 -> 0.83, Brier 0.155 -> 0.153.
     alpha0: 0.429
@@ -168,7 +168,7 @@ techniques:
       at_edge: true
       spurious: true
 
-  BodyBlobNav:
+  body_blob:
     # Sim campaign (seed 20260718, full-truth-axis renderer; the
     # detection-SNR reliability gate admits the full emitted size range
     # down to the sub-resolution design regime): n=876 usable, base
@@ -244,8 +244,8 @@ techniques:
       #    multi-blob fit tightens correctly (campaign corr(error, radius)
       #    ~ 0.34).
       #  - model_error_floor_px is the size-independent floor (pointing).
-      # localization_uncertainty_scale is unused here (no correlation
-      # pyramid) and left at its 0.0 default.
+      # The centroid has no correlation pyramid, so this block has no
+      # localization_uncertainty_scale.
       model_error_size_frac: 0.05
       model_error_floor_px: 0.1
 
@@ -362,7 +362,7 @@ techniques:
       # at-edge check.  See ``ring_edge.at_edge_tolerance_px``.
       at_edge_tolerance_px: 1.0
       # Rotation-axis ``at_edge`` fraction; see
-      # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
+      # ``body_disc_correlate.rotation_at_edge_fraction``.
       rotation_at_edge_fraction: 0.95
       # Model-error floor (px), added in quadrature to the covariance's
       # translation diagonal (#210).  The Tukey-weighted DT covariance
@@ -485,7 +485,7 @@ techniques:
       # at-edge check.  See ``ring_edge.at_edge_tolerance_px``.
       at_edge_tolerance_px: 1.0
       # Rotation-axis ``at_edge`` fraction; see
-      # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
+      # ``body_disc_correlate.rotation_at_edge_fraction``.
       rotation_at_edge_fraction: 0.95
       # Model-error floor (px), solved on the technique's own campaign
       # rows for the first time (#210, seed 20260718): the DT fit's
@@ -667,7 +667,7 @@ techniques:
       # the refine is a no-op there.)
       gradient_ridge_refine: true
       # Rotation-axis ``at_edge`` fraction; see
-      # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
+      # ``body_disc_correlate.rotation_at_edge_fraction``.
       rotation_at_edge_fraction: 0.95
       # The coarse seed is the mask-overlap search's unless the image edges
       # under it are clearly weaker than the strongest alignment in the
@@ -946,7 +946,7 @@ techniques:
       # the bilinear-DT half-cell width used elsewhere in the pipeline.
       at_edge_tolerance_px: 1.0
       # Rotation-axis ``at_edge`` fraction; see
-      # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.  Only used
+      # ``body_disc_correlate.rotation_at_edge_fraction``.  Only used
       # by the 2-star Procrustes path; the 1-star path always reports
       # rotation as unobservable so the threshold has no effect there.
       rotation_at_edge_fraction: 0.95
@@ -1014,7 +1014,7 @@ techniques:
       # numeric value; the structural cap stays.
       single_inlier_confidence_cap: 0.5
       # Rotation-axis ``at_edge`` fraction; see
-      # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.  Only the
+      # ``body_disc_correlate.rotation_at_edge_fraction``.  Only the
       # multi-inlier Procrustes path uses it; a 1-inlier refine always
       # reports rotation as unobservable.
       rotation_at_edge_fraction: 0.95
@@ -1196,7 +1196,7 @@ techniques:
       # at-edge check (see StarUniqueMatchNav.at_edge_tolerance_px).
       at_edge_tolerance_px: 1.0
       # Rotation-axis ``at_edge`` fraction; see
-      # ``BodyDiscCorrelateNav.rotation_at_edge_fraction``.
+      # ``body_disc_correlate.rotation_at_edge_fraction``.
       rotation_at_edge_fraction: 0.95
       # Roll / translation separability floor (deg).  The camera-roll
       # separability analysis in
@@ -1248,7 +1248,7 @@ techniques:
       # centroiding section of the simulator performance report).
       psf_refine_snr_max: 30.0
 
-  RingAnnulusNav:
+  ring_annulus:
     # Sim campaign (seed 20260718, ring-vocabulary family): n=489
     # usable, base rate 0.92, AUC 0.93 (the previous fit already ranked
     # these rows well), Brier 0.062.  Inclined projections and planted
@@ -1284,7 +1284,7 @@ techniques:
       #  - localization_uncertainty_scale multiplies the inter-pyramid-level
       #    peak migration (consistency, px), the dominant per-scene
       #    localization-uncertainty signal.
-      #  - model_error_size_frac (off by default) would scale the annulus
+      #  - model_error_size_frac (0.0 turns it off) would scale the annulus
       #    radial span; the ring-annulus bulk error does not track span,
       #    so it stays 0.0 and the floor carries the template model error.
       #  - model_error_floor_px is the size-independent floor.

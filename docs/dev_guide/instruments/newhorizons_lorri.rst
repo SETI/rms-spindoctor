@@ -291,8 +291,8 @@ lists its modes, and the simulator guide's mode tables
 (:ref:`sim-telemetry-modes` and :ref:`sim-detector-modes`) give each mode's
 cameras. Its detector model is ``ccd``. The entry lists ``frame_transfer_smear``,
 ``banding``, and ``bias_structure`` under ``artifact_modes.instrument_defaults``, so
-``instrument_defaults`` turns them on: the smear at its nominal scrub and transfer
-times, and the banding as the camera's two published patterns. The first is a
+``instrument_defaults`` turns them on: the smear at its measured transfer times
+(below), and the banding as the camera's two published patterns. The first is a
 random horizontal striping of at most 1 DN that moves from frame to frame (Weaver et
 al. 2020): each row takes its own offset, drawn evenly from within 21 e- of zero.
 The second is vertical banding near the low column numbers, which Cheng et al.
@@ -303,6 +303,40 @@ from the bias frame Weaver et al. show, so both are estimates. A binned frame
 column takes the mean of the wave over the native columns it holds. The entry's
 shape defaults give ``embedded_header`` a 34-pixel header, the binary housekeeping at the
 start of row 0 of every image.
+
+**Frame transfer and integration time.** Both were measured on raw frames. In a raw
+frame, each row above or below a bright source carries a share of its column's
+charge, the frame-transfer smear. That share is a fixed transfer time spread over
+1,024 rows and divided by the time the frame collects light. The fit uses 14
+unsaturated full-resolution frames of Io, Europa, Ganymede, and Callisto, taken at 3
+to 16 ms, whose smear is 34 to 510 DN in each row. It gives a mean transfer time of
+11.66 ms and 0.63 ms of collected light beyond the commanded exposure, with
+residuals of at most 0.09 ms. Leaving out any one frame moves the extra time between
+0.61 and 0.64 ms. The entry states the extra time as ``extra_integration_sec``.
+
+Four Charon frames taken at 100 and 150 ms carry only 2 to 5 DN of smear in each
+row, so a sky error of 0.1 DN moves them by 2% to 5%. They read 1% to 3% above the
+fit. Fitting them too gives an extra time of 0.70 ms and a transfer time of 11.83 ms,
+so the extra time lies between 0.6 and 0.7 ms.
+
+Three pairs of Europa frames taken at 5 and 10 ms show the same smear in DN, within
+0.4%, while the exposure doubles. So the transfer time stays fixed, and the extra
+time is light the frame collects. The 10 ms frames, measured on their unsaturated
+edge columns and left out of the fit, match it within 0.2%. The pipeline's desmear
+times for short exposures show the same effect: the SOC-to-Instrument Pipeline ICD
+gives 7.1, 8.75, 9.65, and 10.5 ms at 1, 2, 3, and 6 ms, and the fit gives 7.16,
+8.87, 9.64, and 10.55 ms. The ICD's 10.7 ms for nominal exposures is below the
+11.6 ms that the fit gives at 100 ms, and the reason is not known.
+
+The rows above a source, toward line 0, carry the larger share. On the 14 frames it
+is 1.090 to 1.093 times the share of the rows below, and on the four Charon frames
+1.088 to 1.096. Cheng et al. (2008) give the two transfers as 1.044 and 0.956 of
+their mean, a ratio of 1.092, which splits the mean into 12.17 ms above the source
+and 11.15 ms below it. The simulator draws ``t_transfer_sec`` above the source, so
+the entry gives it the larger time, although Cheng et al. attribute the larger time
+to the scrub. A simulated 5 ms frame of a bright disc carries 2.106e-3 of its
+column's charge in each row above the disc and 1.936e-3 in each row below it. The
+real frame lor_0034849319 carries 2.115e-3 and 1.937e-3.
 
 The entry states an explicit **exclusion reason** for three modes:
 
@@ -365,20 +399,22 @@ across, following a real Jupiter-flyby frame taken at 5 ms. It carries the
 camera's chain, including the frame-transfer smear, plus the housekeeping header
 at the start of row 0, the fixed pattern, and radiation hits. Simulated brightness
 has no shared scale with real frames, so the scene runs 85 ms, where the middle of
-the simulated disc is 8% brighter than the real one. The smear timing and the rate
-of radiation hits are scaled by the same factor. On the real frame the rows above
-the disc carry 2.14e-3 of their column's disc charge and the rows below it
-1.96e-3, which make frame transfers of 10.95 and 10.03 ms, as the camera paper
-gives (10.96 and 10.04 ms). The scene's smear times are 17 times those, and its
-rows above and below the disc carry 2.16e-3 and 1.98e-3. About 16 hits land in the
-frame. The simulated header holds values up to 255, where the real one reaches
-4,038 DN.
+the simulated disc is 8% brighter than the real one. The rate of radiation hits is
+scaled down by the same factor, and about 16 hits land in the frame. The scene sets
+its own smear times, so that each row above and below the disc carries the share of
+its column's charge that the real frame shows: 2.115e-3 above and 1.937e-3 below.
+With the camera's extra 0.63 ms the frame collects light for 85.63 ms, and the
+times that give those shares are 0.1855 s above the disc and 0.1698 s below it.
+The simulated rows carry 2.113e-3 and 1.934e-3. The extra time stays 0.63 ms
+rather than growing with the exposure, since it belongs to the camera. The
+simulated header holds values up to 255, where the real one reaches 4,038 DN.
 
 The fused answer lands 0.11 to 0.12 px off over 24 draws, at medium confidence,
 from the disc correlation and the limb fit together. The disc correlation lands
 0.18 to 0.19 px off without flagging its answer, with the smear or without it.
-Without the twist it lands 0.004 to 0.005 px off. The blob technique lands 6.8 to 7.1 px
-off without flagging it, pulled by the smear columns, and 0.17 to 0.19 px off
+Without the twist it lands 0.004 to 0.022 px off. The limb fit lands 0.25 to
+0.32 px off, and 0.43 to 0.48 px without the twist. The blob technique lands 6.8
+to 7.1 px off without flagging it, pulled by the smear columns, and 0.16 to 0.19 px off
 without the smear. The simulated smear is a step at each column's centroid, where
 the real smear builds up across the disc, so part of that pull may be the
 simulator's. The fixed pattern and the radiation hits are realistic, and each
@@ -397,17 +433,22 @@ the image.
 PDS4 hooks
 ==========
 
-Not supported. Two hooks are implemented --
-``pds4_bundle_template_dir``, which falls back to ``newhorizons_lorri_1.0``,
-and ``pds4_bundle_name``, which falls back to
-``newhorizons_lorri_backplanes_rsfrench2027`` -- and every remaining hook
-raises ``NotImplementedError``. Neither the template directory nor a
-``pds4.nhlorri`` configuration entry is shipped; the configuration file carries
-the entry as a commented-out stub.
+Not supported. The dataset leaves ``PDS4_CONFIG_KEY`` as None, so
+``sd_create_bundle`` refuses it before it runs a pass, and the loader refuses a ``pds4``
+entry written for it. Every PDS4 hook raises ``NotImplementedError``.
 
-Making bundles work here means implementing ``pds4_bundle_path_for_image``,
-``pds4_path_stub``, ``pds4_lid_part_to_image_name``, the four LID and LIDVID
-builders and ``pds4_template_variables``, and adding a template directory.
+To make bundles here:
+
+* add a template directory;
+* set ``PDS4_CONFIG_KEY``, and add a ``pds4`` entry under that key;
+* implement ``pds4_bundle_template_dir``, ``pds4_bundle_name``, ``pds4_bundle_version``,
+  ``pds4_information_model_version``, and ``pds4_schemas``, which read the entry;
+* implement ``pds4_required_templates``, which names the templates and files each
+  pass takes from the template directory, and ``pds4_user_guide_file_name``, which
+  names the bundle's user guide in it; and
+* implement ``pds4_bundle_path_for_image``, ``pds4_path_stub``,
+  ``pds4_lid_part_to_image_name``, the four LID and LIDVID builders, and
+  ``pds4_template_variables``.
 
 Backplanes, mosaics, and statistics
 ===================================
