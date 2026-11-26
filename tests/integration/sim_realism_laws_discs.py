@@ -221,9 +221,12 @@ def _exclusion_by_kind(body: str) -> str | None:
     """Why a moon is left out whatever the frame, or None."""
     if body == TITAN_BODY_NAME:
         return 'its atmosphere hides the surface'
+    # Each twin is a sphere, so only a moon known to be regular can be paired with one.
     shape = load_body_shape(body).shape_class_hint
+    if shape == 'unknown':
+        return 'its shape is not known, so a spherical twin may not match it'
     if shape != 'regular':
-        return f'{shape.replace("_", " ")} shape, which the simulator does not model'
+        return f'{shape.replace("_", " ")} shape, which a spherical twin cannot match'
     return None
 
 
