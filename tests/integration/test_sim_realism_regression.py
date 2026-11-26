@@ -63,7 +63,7 @@ def test_the_realism_match_holds_to_the_record(
             f'The record made at {made_at(realism_record)} holds no {instrument} entry, '
             f'though the band table lists it.\n{REMEASURE_HINT}'
         )
-    results = run_realism_match(instruments=[instrument], skip_fom7=True)
+    results = run_realism_match(instruments=[instrument], skip_fom7=True, skip_law_study=True)
     fresh = summary_dict(results)['instruments'][instrument]
     problems = compare_with_record(fresh, record_entry, _BANDS[instrument].statistics)
     assert not problems, (

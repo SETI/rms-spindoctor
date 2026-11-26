@@ -17,6 +17,7 @@ runner averages for the overlay figures and the density-W1 statistic.
 
 from __future__ import annotations
 
+import dataclasses
 import importlib
 import pkgutil
 import warnings
@@ -65,12 +66,16 @@ __all__ = [
     'FrameSettingsReader',
     'FrameSky',
     'add_sky_samples',
+    'diagnostic_rows',
     'extract_feature_samples',
     'extract_pixel_samples',
     'frame_settings_reader',
     'largest_body',
+    'mean_curve_density',
+    'median_patch_sigma',
     'prepare_frame_features',
     'register_frame_settings_reader',
+    'reported_sky_level',
 ]
 
 # Phase-angle bin edges (degrees) for the FOM 3 limb-width stratification.
@@ -130,6 +135,10 @@ class FrameSettings:
             product, in the frame's shape, or None when the reader cannot tell.
         silhouette_radii_km: Radii in km, longest first, keyed by body name, that the
             real silhouettes use in place of the radii the frame's kernels give.
+        dark_hemisphere_west_lon_deg: For a body whose two hemispheres differ in
+            albedo, keyed by body name, the west longitude in degrees at the middle of
+            its dark hemisphere.  The photometric-law study measures each hemisphere of
+            such a body on its own.
     """
 
     filter_name: str | None = None
@@ -137,6 +146,7 @@ class FrameSettings:
     quantization: str | None = None
     clipped: NDArrayBoolType | None = None
     silhouette_radii_km: Mapping[str, tuple[float, float, float]] = field(default_factory=dict)
+    dark_hemisphere_west_lon_deg: Mapping[str, float] = field(default_factory=dict)
 
 
 # A reader of a real frame's commanded settings: it takes the real observation and
@@ -715,3 +725,59 @@ def extract_feature_samples(
             mean_star = np.nanmean(np.stack(star_profiles), axis=0)
         out.add_curve('star_profile', star_radius, mean_star)
     return out
+
+
+def diagnostic_rows(instrument: str, image_id: str, side: str, result: Any) -> list[dict[str, Any]]:
+    """Flatten one NavResult's per-technique diagnostics into rows."""
+    rows: list[dict[str, Any]] = []
+    for tech in result.per_technique:
+        row: dict[str, Any] = {
+            'instrument': instrument,
+            'image_id': image_id,
+            'side': side,
+            'technique': tech.technique_name,
+            'confidence': float(tech.confidence),
+        }
+        diag = tech.diagnostics
+        if dataclasses.is_dataclass(diag) and not isinstance(diag, type):
+            for key, value in dataclasses.asdict(diag).items():
+                if isinstance(value, (int, float, bool)) or value is None:
+                    row[key] = value
+        rows.append(row)
+    return rows
+
+
+def median_patch_sigma(patches: list[SkyPatch]) -> float:
+    """The median noise sigma of some sky patches, NaN for none."""
+    if not patches:
+        return float('nan')
+    return float(np.median([p.sigma for p in patches]))
+
+
+def reported_sky_level(kept: list[SkyPatch], patches: list[SkyPatch]) -> float:
+    """A frame's reported sky level: the median mean of its kept patches.
+
+    If the frame didn't keep any patch, the level is the median mean of all its sky
+    patches.  If the frame has no sky patches, the level is NaN.
+    """
+    chosen = kept or patches
+    if not chosen:
+        return float('nan')
+    return float(np.median([p.mean for p in chosen]))
+
+
+def mean_curve_density(
+    curves: list[tuple[NDArrayFloatType, NDArrayFloatType]],
+) -> NDArrayFloatType:
+    """Frame-averaged curve as a nonnegative density over its axis.
+
+    Bins that are NaN in every frame drop to zero mass, and negative
+    excursions (background over-subtraction, normalized gap edges) are
+    clipped: a density-W1 comparison needs nonnegative mass.
+    """
+    stack = np.stack([y for _x, y in curves])
+    with warnings.catch_warnings():
+        # A bin empty in every frame is legitimately all-NaN.
+        warnings.simplefilter('ignore', category=RuntimeWarning)
+        mean = np.nanmean(stack, axis=0)
+    return np.asarray(np.clip(np.nan_to_num(mean, nan=0.0), 0.0, None), dtype=np.float64)

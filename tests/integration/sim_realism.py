@@ -10,6 +10,9 @@ seven figures of merit:
    star frames.
 3. Normalized limb profiles, 10-90% rise widths, and gradient-peak offsets
    from the silhouette, binned by resolution and phase.
+   Every resolved moon of a calibrated frame also enters the photometric-law
+   study, which renders twins of its disc under every law and compares how the
+   brightness falls across it (:mod:`tests.integration.sim_realism_laws`).
 4. Ring-edge profiles and rise widths (Cassini).
 5. Exposure-stratified dynamic-range statistics (never unstratified).
 6. Artifact rates vs the catalog defaults.
@@ -30,7 +33,7 @@ distribution.
 Run standalone (not under pytest)::
 
     python -m tests.integration.sim_realism [--instrument coiss_calib_nac]
-        [--max-frames N] [--skip-fom7]
+        [--max-frames N] [--skip-fom7] [--skip-law-study]
 
 Requires ``PDS3_HOLDINGS_DIR`` (and star-catalog env vars for the star
 frames).  Full-cohort runtime is dominated by the navigator's feature
@@ -42,10 +45,8 @@ the JSON summary in ``tests/integration/realism_results/``.
 from __future__ import annotations
 
 import argparse
-import dataclasses
 import os
 import time
-import warnings
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -76,10 +77,16 @@ from spindoctor.sim.realism.divergence import (
 )
 from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
 from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patches
-from spindoctor.support.types import NDArrayFloatType
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
 from tests.integration.sim_realism_body import real_body, saturation_level
+from tests.integration.sim_realism_laws import (
+    LawStudy,
+    LawStudyInputs,
+    StudyFrame,
+    collect_real_discs,
+    run_law_study,
+)
 from tests.integration.sim_realism_limb_peak import (
     LimbPeakBin,
     compare_limb_peaks,
@@ -91,10 +98,14 @@ from tests.integration.sim_realism_scenes import STAR_CLASSES, matched_scene
 from tests.integration.sim_realism_support import (
     FrameSamples,
     add_sky_samples,
+    diagnostic_rows,
     extract_feature_samples,
     extract_pixel_samples,
     frame_settings_reader,
+    mean_curve_density,
+    median_patch_sigma,
     prepare_frame_features,
+    reported_sky_level,
 )
 from tests.integration.sim_realism_twin_stars import catalog_twin_stars
 
@@ -179,6 +190,7 @@ class FrameRecord:
             calibrated frame whose disc is not clipped, else None.
         limb_emitted: Whether the navigator placed that body's limb in the real
             frame; the matched frame's limb is measured only when it did.
+        body_name: That body, as SPICE knows it, or None without one.
         frame_shape_vu: The frame's (v, u) shape.
         filter_name: The frame's filter combination (``'CL1+CL2'``) on a
             camera the sim's filter catalog covers, else None.
@@ -201,6 +213,7 @@ class FrameRecord:
     phase_angle_deg: float = 45.0
     normal_albedo: float | None = None
     limb_emitted: bool = True
+    body_name: str | None = None
     frame_shape_vu: tuple[int, int] = (512, 512)
     filter_name: str | None = None
     gain_state: int | None = None
@@ -368,10 +381,13 @@ class RealismResults:
     Parameters:
         comparisons: Per-instrument comparison, keyed by instrument name.
         runtime_sec: Wall-clock runtime of the match.
+        law_study: The photometric-law study, or None when it did not run or found
+            no disc (:mod:`tests.integration.sim_realism_laws`).
     """
 
     comparisons: dict[str, InstrumentComparison]
     runtime_sec: float
+    law_study: LawStudy | None = None
 
 
 def _resolve_image_url(url: str) -> Any:
@@ -412,9 +428,13 @@ def _stratum_label(exposure_sec: float | None) -> str:
 
 
 def _frame_samples_real(
-    sidecar: Sidecar, instrument: str
+    sidecar: Sidecar, instrument: str, *, study: LawStudyInputs | None = None
 ) -> tuple[FrameSamples, FrameRecord, ArtifactRates]:
-    """Extract every sample the FOMs need from one real frame."""
+    """Extract every sample the FOMs need from one real frame.
+
+    A calibrated frame's moons are also measured for the photometric-law study when
+    ``study`` is given.
+    """
     obs = _load_real_obs(sidecar)
     exposure = sidecar.exposure_time_sec
     if exposure is None:
@@ -436,6 +456,7 @@ def _frame_samples_real(
     clipped = data >= saturation if np.isfinite(saturation) else None
     reader = frame_settings_reader(sidecar.mission)
     silhouette_radii_km: Mapping[str, tuple[float, float, float]] = {}
+    dark_hemispheres: Mapping[str, float] = {}
     if reader is not None:
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
@@ -450,8 +471,21 @@ def _frame_samples_real(
         record.gain_state = settings.gain_state
         record.quantization = settings.quantization
         silhouette_radii_km = settings.silhouette_radii_km
+        dark_hemispheres = settings.dark_hemisphere_west_lon_deg
         if clipped is None:
             clipped = settings.clipped
+    if study is not None and resolve_data_units(instrument) == 'calibrated_if':
+        frame = StudyFrame(
+            sidecar.image_id,
+            instrument,
+            offset,
+            record.exposure_sec,
+            record.frame_shape_vu,
+            filter_name=record.filter_name,
+            gain_state=record.gain_state,
+            quantization=record.quantization,
+        )
+        collect_real_discs(study, obs, frame, clipped=clipped, dark_hemispheres=dark_hemispheres)
     if scene_class in STAR_CLASSES:
         record.stars = catalog_twin_stars(
             obs, instrument=instrument, exposure_sec=float(exposure), offset_vu=offset
@@ -475,6 +509,7 @@ def _frame_samples_real(
             record.phase_angle_deg = body.phase_angle_deg
             record.normal_albedo = body.normal_albedo
             record.limb_emitted = body.limb_emitted
+            record.body_name = body.name
         samples.merge(
             extract_feature_samples(
                 image,
@@ -541,26 +576,6 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
     return samples, rates
 
 
-def _diagnostic_row(instrument: str, image_id: str, side: str, result: Any) -> list[dict[str, Any]]:
-    """Flatten one NavResult's per-technique diagnostics into rows."""
-    rows: list[dict[str, Any]] = []
-    for tech in result.per_technique:
-        row: dict[str, Any] = {
-            'instrument': instrument,
-            'image_id': image_id,
-            'side': side,
-            'technique': tech.technique_name,
-            'confidence': float(tech.confidence),
-        }
-        diag = tech.diagnostics
-        if dataclasses.is_dataclass(diag) and not isinstance(diag, type):
-            for key, value in dataclasses.asdict(diag).items():
-                if isinstance(value, (int, float, bool)) or value is None:
-                    row[key] = value
-        rows.append(row)
-    return rows
-
-
 def _run_fom7(
     records: list[FrameRecord], sidecars_by_id: dict[str, Sidecar]
 ) -> list[dict[str, Any]]:
@@ -577,30 +592,11 @@ def _run_fom7(
     for record in chosen:
         real_obs = _load_real_obs(sidecars_by_id[record.image_id])
         real_result = NavOrchestrator(build_models_for_obs(real_obs)).navigate(real_obs)
-        rows.extend(_diagnostic_row(record.instrument, record.image_id, 'real', real_result))
+        rows.extend(diagnostic_rows(record.instrument, record.image_id, 'real', real_result))
         sim_obs, _scene = _sim_obs_for_record(record)
         sim_result = NavOrchestrator(build_models_for_obs(sim_obs)).navigate(sim_obs)
-        rows.extend(_diagnostic_row(record.instrument, record.image_id, 'sim', sim_result))
+        rows.extend(diagnostic_rows(record.instrument, record.image_id, 'sim', sim_result))
     return rows
-
-
-def _median_sigma(patches: list[SkyPatch]) -> float:
-    """The median noise sigma of some sky patches, NaN for none."""
-    if not patches:
-        return float('nan')
-    return float(np.median([p.sigma for p in patches]))
-
-
-def _sky_level(kept: list[SkyPatch], patches: list[SkyPatch]) -> float:
-    """A frame's reported sky level: the median mean of its kept patches.
-
-    If the frame didn't keep any patch, the level is the median mean of all its sky
-    patches.  If the frame has no sky patches, the level is NaN.
-    """
-    chosen = kept or patches
-    if not chosen:
-        return float('nan')
-    return float(np.median([p.mean for p in chosen]))
 
 
 def _sky_patches(frame: FrameSamples) -> list[SkyPatch]:
@@ -716,14 +712,14 @@ def pair_sky(
         image_id=record.image_id,
         quantization=record.quantization,
         status=status,
-        real_level=_sky_level(real_kept, real_patches),
-        sim_level=_sky_level(sim_kept, sim_patches),
+        real_level=reported_sky_level(real_kept, real_patches),
+        sim_level=reported_sky_level(sim_kept, sim_patches),
         n_real_patches=len(real_patches),
         n_sim_patches=len(sim_patches),
         n_real_kept=len(real_kept),
         n_sim_kept=len(sim_kept),
-        real_sigma=_median_sigma(added_real),
-        sim_sigma=_median_sigma(added_sim),
+        real_sigma=median_patch_sigma(added_real),
+        sim_sigma=median_patch_sigma(added_sim),
     )
 
 
@@ -733,23 +729,6 @@ def _fom_for_kind(kind: str) -> str | None:
         if any(kind.startswith(prefix) for prefix in prefixes):
             return fom
     return None
-
-
-def _mean_curve_density(
-    curves: list[tuple[NDArrayFloatType, NDArrayFloatType]],
-) -> NDArrayFloatType:
-    """Frame-averaged curve as a nonnegative density over its axis.
-
-    Bins that are NaN in every frame drop to zero mass, and negative
-    excursions (background over-subtraction, normalized gap edges) are
-    clipped: a density-W1 comparison needs nonnegative mass.
-    """
-    stack = np.stack([y for _x, y in curves])
-    with warnings.catch_warnings():
-        # A bin empty in every frame is legitimately all-NaN.
-        warnings.simplefilter('ignore', category=RuntimeWarning)
-        mean = np.nanmean(stack, axis=0)
-    return np.asarray(np.clip(np.nan_to_num(mean, nan=0.0), 0.0, None), dtype=np.float64)
 
 
 def _pool_copopulated_limb_bins(comparison: InstrumentComparison) -> list[str]:
@@ -843,8 +822,8 @@ def _aggregate(comparison: InstrumentComparison) -> None:
             continue
         comparison.curve_divergences[kind] = w1_between_densities(
             real_curves[0][0],
-            _mean_curve_density(real_curves),
-            _mean_curve_density(sim_curves),
+            mean_curve_density(real_curves),
+            mean_curve_density(sim_curves),
         )
     for fom in FOM_KIND_PREFIXES:
         comparison.fom_support[fom] = _two_sided_support(comparison.fom_frames, fom)
@@ -906,6 +885,7 @@ def run_realism_match(
     instruments: list[str] | None = None,
     max_frames_per_instrument: int | None = None,
     skip_fom7: bool = False,
+    skip_law_study: bool = False,
 ) -> RealismResults:
     """Run the full realism match and return the per-instrument comparisons.
 
@@ -914,6 +894,7 @@ def run_realism_match(
         max_frames_per_instrument: Cap the cohort per instrument (for smoke
             runs); None processes every frame.
         skip_fom7: Skip the matched-pair navigation runs.
+        skip_law_study: Skip the photometric-law study.
 
     Returns:
         The aggregated results.
@@ -921,6 +902,7 @@ def run_realism_match(
     start = time.monotonic()
     cohort = discover_cohort()
     comparisons: dict[str, InstrumentComparison] = {}
+    study = None if skip_law_study else LawStudyInputs()
     for instrument, sidecars in sorted(cohort.items()):
         if instruments is not None and instrument not in instruments:
             continue
@@ -930,7 +912,7 @@ def run_realism_match(
         sidecars_by_id = {s.image_id: s for s in sidecars}
         real_frames: list[FrameSamples] = []
         for sidecar in sidecars:
-            frame_samples, record, rates = _frame_samples_real(sidecar, instrument)
+            frame_samples, record, rates = _frame_samples_real(sidecar, instrument, study=study)
             comparison.records.append(record)
             real_frames.append(frame_samples)
             comparison.real_rates.append(rates)
@@ -940,11 +922,17 @@ def run_realism_match(
             sim_frames.append(sim_samples)
             comparison.sim_rates.append(sim_frame_rates)
         pool_frame_pairs(comparison, real_frames, sim_frames)
+        for record, real_samples in zip(comparison.records, real_frames, strict=True):
+            if study is not None:
+                study.add_limb_peak(record.image_id, record.body_name, real_samples.samples)
         if not skip_fom7:
             comparison.fom7_rows = _run_fom7(comparison.records, sidecars_by_id)
         _aggregate(comparison)
         comparisons[instrument] = comparison
-    return RealismResults(comparisons=comparisons, runtime_sec=time.monotonic() - start)
+    law_study = run_law_study(study) if study is not None and study.discs else None
+    return RealismResults(
+        comparisons=comparisons, runtime_sec=time.monotonic() - start, law_study=law_study
+    )
 
 
 def main() -> None:
@@ -965,6 +953,9 @@ def main() -> None:
         '--max-frames', type=int, default=None, help='cap cohort frames per instrument'
     )
     parser.add_argument('--skip-fom7', action='store_true', help='skip the navigation pairs')
+    parser.add_argument(
+        '--skip-law-study', action='store_true', help='skip the photometric-law study'
+    )
     args = parser.parse_args()
     try:
         provenance = require_code_provenance()
@@ -974,6 +965,7 @@ def main() -> None:
         instruments=args.instrument,
         max_frames_per_instrument=args.max_frames,
         skip_fom7=args.skip_fom7,
+        skip_law_study=args.skip_law_study,
     )
     write_figures(results)
     summary_path = write_summary(results, provenance)

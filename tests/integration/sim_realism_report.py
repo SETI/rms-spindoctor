@@ -9,7 +9,8 @@ from and whether its checkout was dirty, per-kind W1 divergences, per-curve
 density-W1 divergences, support labels with each side's frame counts, the
 FOM 3 one-sided-stratum disclosure, the FOM 1 sky pairing with its per-frame
 sigma ratios, the FOM 7 diagnostic rows, and the artifact-rate comparison
-against the catalog defaults).
+against the catalog defaults).  The photometric-law study's figures and record block
+come from :mod:`tests.integration.sim_realism_laws_report`.
 
 Two fixed series colors carry sides everywhere: real cohort in blue,
 simulated frames in orange -- a colorblind-safe pair, never cycled.
@@ -41,6 +42,11 @@ from tests.integration.sim_realism import (
     RealismResults,
     SkyPair,
     SkyPairStatus,
+)
+from tests.integration.sim_realism_laws_report import (
+    disc_profile_entries,
+    law_study_summary,
+    write_law_figures,
 )
 from tests.integration.sim_realism_limb_peak import LimbPeakBin
 
@@ -432,6 +438,8 @@ def write_figures(results: RealismResults, *, figures_root: Path | None = None) 
             out = root / f'realism_{instrument}_{fom_name}.png'
             if maker(comparison, out):
                 written.append(out)
+    if results.law_study is not None:
+        written.extend(write_law_figures(results.law_study, root))
     return written
 
 
@@ -653,6 +661,11 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
                 label: _limb_peak_entry(peak)
                 for label, peak in sorted(comparison.limb_peaks.items())
             },
+            'disc_profiles': disc_profile_entries(
+                results.law_study.disc_check.get(instrument, {})
+                if results.law_study is not None
+                else {}
+            ),
             'limb_bins_real_only': list(comparison.limb_bins_real_only),
             'limb_bins_sim_only': list(comparison.limb_bins_sim_only),
             'spike_split_real': [
@@ -671,6 +684,8 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
             'fom7_rows': comparison.fom7_rows,
             'sky_comparison': _sky_comparison(comparison),
         }
+    if results.law_study is not None:
+        out['law_study'] = law_study_summary(results.law_study)
     return out
 
 

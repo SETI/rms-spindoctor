@@ -22,7 +22,7 @@ from tests.integration.sim_realism_body import (
     real_body,
     real_normal_albedo,
 )
-from tests.integration.sim_realism_scenes import matched_scene
+from tests.integration.sim_realism_scenes import MATCHED_BODY_LAW, matched_scene
 
 _SIZE = 100
 _CENTER = 50.0
@@ -87,7 +87,10 @@ def _real_frame(albedo: float, *, rim_if: float | None = None) -> Any:
     """
     backplane = _Backplane()
     shaded = shade_surface(
-        np.cos(backplane.incidence), np.cos(backplane.emission), law='lommel_seeliger'
+        np.cos(backplane.incidence),
+        np.cos(backplane.emission),
+        law=MATCHED_BODY_LAW,
+        phase_angle=math.radians(_PHASE_DEG),
     )
     surface = albedo * np.where(backplane.on_body, shaded, 0.0)
     if rim_if is not None:
