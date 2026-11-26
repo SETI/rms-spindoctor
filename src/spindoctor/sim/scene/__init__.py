@@ -6,7 +6,9 @@
   through a cache that loading and rendering share.
 - The typed scene: :mod:`spindoctor.sim.scene.idealized` (the keys a real pipeline
   could know), :mod:`spindoctor.sim.scene.truth` (the whole scene, which extends them
-  with the keys only the test knows), :mod:`spindoctor.sim.scene.truth_optics`, and
+  with the truth keys the renderer reads, such as the planted offset and the detector and
+  noise blocks, and with the test-only keys the integration tests read),
+  :mod:`spindoctor.sim.scene.truth_optics`, and
   :mod:`spindoctor.sim.scene.truth_detector`.  :mod:`spindoctor.sim.scene.declare`
   states how a field declares itself, and :mod:`spindoctor.sim.scene.reference` writes
   the schema reference page from the declarations.
