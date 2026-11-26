@@ -24,21 +24,21 @@ exposure_sec: 0.085
 #   85 ms exposure; illustrative).
 #
 # The exposure runs 85 ms, 17 times the real frame's, because simulated
-# brightness has no shared scale with real frames (#895): at 85 ms the middle
-# third of the simulated disc reads a median 1,975 DN above the bias, and that of
-# the real one 1,833 DN.
-# Both timings that depend on the exposure are scaled with it.  The frame
-# transfer gives every row above and below the disc the same share of its
-# column's charge, the transfer time per row over the exposure.  On
-# lor_0034849319 the rows above the disc carry 2.14e-3 of the disc's charge in
-# their column (476 DN) and the rows below it 1.96e-3 (437 DN), which over 1,024
-# rows make transfer times of 10.95 and 10.03 ms; Cheng et al. (2008, section
-# 3.3.5) give the camera's two frame transfers as 10.96 and 10.04 ms.  The scene
-# gives the rows above the disc 17 times 10.95 ms (t_transfer_sec 0.186) and the
-# rows below it 17 times 10.03 ms (t_scrub_sec 0.171), and they carry 2.16e-3
-# and 1.98e-3 of their column's disc charge (520 and 478 DN, from a disc that
-# holds 8% more charge than the real one).  The radiation rate is scaled down by
-# the same factor to keep about 16 hits.
+# brightness has no shared scale with real frames (#895): at 85 ms the inner third
+# of the simulated disc reads a median 2,010 DN above the bias, and that of the
+# real one 1,865 DN, so the simulated disc is 8% brighter.
+# The smear timings are set here instead of taken from the catalog, because the
+# exposure stands in for the real 5 ms frame and only the share of each column's
+# charge the smear carries can match it.  Against a per-row sky, the rows above
+# the disc on lor_0034849319 carry 2.115e-3 of their column's charge and the rows
+# below it 1.937e-3.  The camera collects light for its catalog's 0.63 ms beyond
+# the exposure, so this frame collects for 85.63 ms, and each timing is that
+# share times 1,024 rows times 85.63 ms: t_transfer_sec 0.1855 above the disc and
+# t_scrub_sec 0.1698 below it.  They carry 2.113e-3 and 1.934e-3 of their
+# column's charge, measured the same way.  The extra 0.63 ms is not scaled with
+# the exposure: it is part of the camera, and a 10.7 ms stand-in would only make
+# the disc 12% brighter while leaving those shares as set.  The radiation rate is
+# scaled down by the exposure's factor to keep about 16 hits.
 #
 # The planted offset, 1.21 px, is the size of the image library's LORRI offsets
 # (about 1.2 px each).  The roll is the camera's measured twist, +0.1912 deg,
@@ -47,12 +47,12 @@ exposure_sec: 0.085
 # The fused answer lands 0.11 to 0.12 px off over 24 draws, at medium tier,
 # from the disc correlation and the limb fit together.  The disc correlation
 # lands 0.18 to 0.19 px off on every draw without flagging it, with the smear
-# removed too, and 0.004 to 0.005 px off without the roll.  The limb fit lands
-# 0.26 to 0.32 px off, and 0.47 to 0.48 px without the roll, so the twist offsets
-# part of its own error.
+# removed too, and 0.004 to 0.022 px off without the roll.  The limb fit lands
+# 0.25 to 0.32 px off, and 0.43 to 0.48 px without the roll, so the twist offsets
+# part of its own error.  Each range spans 24 draws.
 #
 # BodyBlobNav lands 6.8 to 7.1 px off without flagging it (#975).  The smear
-# causes it: without the smear it lands 0.17 to 0.19 px off.  Real raw frames
+# causes it: without the smear it lands 0.16 to 0.19 px off.  Real raw frames
 # carry the smear too, but the simulated smear is a step at each column's
 # centroid where the real one builds up across the disc (#920).  The fixed
 # pattern and the radiation hits are realistic, and each moves the fused answer
@@ -64,7 +64,7 @@ artifacts:
   instrument_defaults: true
   embedded_header: {probability: 1.0}
   fixed_pattern: {probability: 1.0}
-  frame_transfer_smear: {probability: 1.0, t_scrub_sec: 0.171, t_transfer_sec: 0.186}
+  frame_transfer_smear: {probability: 1.0, t_scrub_sec: 0.1698, t_transfer_sec: 0.1855}
   radiation_transients: {expected_events_per_sec: 188.0}
 bodies:
   - name: EUROPA

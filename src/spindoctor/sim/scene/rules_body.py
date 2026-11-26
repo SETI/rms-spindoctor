@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from spindoctor.sim.instruments.passbands import has_passbands, solar_weighted_passband
 from spindoctor.sim.render.bodies.haze import (
     CLOUD_BLOB_KEYS,
     HAZE_STRUCTURE_KEYS,
@@ -25,6 +26,13 @@ from spindoctor.sim.render.bodies.haze import (
 from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS
 from spindoctor.sim.render.bodies.relief import MAX_LIMB_RELIEF_RMS, MIN_LIMB_RELIEF_CORR_DEG
 from spindoctor.sim.render.bodies.spec import CRATER_MAX_RADIUS_DEFAULT, CRATER_MIN_RADIUS_DEFAULT
+from spindoctor.sim.render.bodies.titan_haze import (
+    MAX_METHANE_BAND_FRACTION,
+    MAX_UNCOVERED_FRACTION,
+    TITAN_HAZE_MODEL,
+    methane_band_fraction,
+    uncovered_fraction,
+)
 from spindoctor.sim.scene.boundary import _BODY_IDEALIZED_KEYS
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import (
@@ -364,13 +372,28 @@ def _check_body_relief_and_photometry(obj: dict[str, Any], *, label: str, source
 # reference-altitude tangent optical depth (required, non-negative; zero is a
 # clear atmosphere that leaves the limb hard) define the column; the
 # reference altitude, the Henyey-Greenstein asymmetry (forward-scattering
-# when positive), an optional detached-shell altitude, and the haze's
+# when positive) and an optional second term's asymmetry and share, an
+# optional detached-shell altitude, and the haze's
 # single-scattering albedo (in [0, 1]) are optional.  The
 # structure keys folded in from the renderer break the column's mirror
 # symmetry (axis tilt, hemispheric and azimuthal falloff scaling, hemispheric
-# brightness, an axial interior ramp, and clouds); all are optional.
+# brightness, an axial interior ramp, and clouds); all are optional.  Instead of the
+# column's keys, ``haze_model: titan`` takes Titan's published haze, which depends on the
+# scene's filter.
 ATMOSPHERE_KEYS: frozenset[str] = (
-    frozenset({'scale_height_px', 'tau_ref', 'ref_altitude_px', 'g', 'detached_px', 'albedo'})
+    frozenset(
+        {
+            'haze_model',
+            'scale_height_px',
+            'tau_ref',
+            'ref_altitude_px',
+            'g',
+            'g2',
+            'g2_fraction',
+            'detached_px',
+            'albedo',
+        }
+    )
     | HAZE_STRUCTURE_KEYS
 )
 """Every key one body's ``atmosphere`` block may carry.
@@ -379,6 +402,14 @@ Public because the boundary tests iterate it: the whole block is ONE entry of
 the schema's truth-key inventory, so a key added here would otherwise be
 invisible to the boundary suite's completeness check.
 """
+
+# The column keys a named haze model sets, which its block may not also set.
+_MODEL_SET_KEYS = frozenset(
+    {'scale_height_px', 'tau_ref', 'ref_altitude_px', 'g', 'g2', 'g2_fraction', 'albedo'}
+)
+
+# The filter elements that pass a methane band or a methane window, by name.
+_METHANE_FILTER_PREFIXES = ('MT', 'CB')
 
 MIN_SECTOR_SHARPNESS_GRADIENT: float = -SECTOR_REFERENCE_HALF_ANGLE_DEG / 180.0
 """Exclusive lower bound on ``sector_sharpness_gradient``.
@@ -404,6 +435,10 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
         raise SimSceneValidationError(
             f'{source}: {label}.atmosphere: unknown keys: {sorted(unknown)}'
         )
+    if 'haze_model' in value:
+        _check_atmosphere_model(value, label=label, source=source)
+        _check_haze_structure(value, label=label, source=source)
+        return
     for required in ('scale_height_px', 'tau_ref'):
         if value.get(required) is None:
             raise SimSceneValidationError(f'{source}: {label}.atmosphere.{required} is required')
@@ -431,7 +466,123 @@ def _check_atmosphere(value: Any, *, label: str, source: str) -> None:
         raise SimSceneValidationError(
             f'{source}: {label}.atmosphere.g must lie in (-1, 1); got {g!r}'
         )
+    _check_second_phase_term(value, label=label, source=source)
     _check_haze_structure(value, label=label, source=source)
+
+
+def _check_second_phase_term(value: dict[str, Any], *, label: str, source: str) -> None:
+    """Validate the second term of a two-term Henyey-Greenstein phase function.
+
+    ``g2`` and ``g2_fraction`` come together or not at all: one without the other
+    states half a phase function.
+    """
+    g2 = value.get('g2')
+    fraction = value.get('g2_fraction')
+    if (g2 is None) != (fraction is None):
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.g2 and {label}.atmosphere.g2_fraction '
+            'must be given together'
+        )
+    if g2 is None:
+        return
+    _check_optional_number(g2, f'{label}.atmosphere.g2', source=source)
+    if not -1.0 < float(g2) < 1.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.g2 must lie in (-1, 1); got {g2!r}'
+        )
+    _check_optional_nonnegative_number(fraction, f'{label}.atmosphere.g2_fraction', source=source)
+    if fraction is not None and float(fraction) > 1.0:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.g2_fraction must lie in [0, 1]; got {fraction!r}'
+        )
+
+
+def _check_atmosphere_model(value: dict[str, Any], *, label: str, source: str) -> None:
+    """Validate an ``atmosphere`` block that takes a published haze by name.
+
+    The model sets the column, so a block that names one may not also set the
+    column's own keys.  Nor may it add a detached shell: the shell's depth is a
+    multiple of the column's reference depth, which for Titan's haze would make the
+    shell about 15 tangent optical depths deep, far deeper than Titan's detached
+    layer.
+    """
+    haze_model = value.get('haze_model')
+    if haze_model != TITAN_HAZE_MODEL:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.haze_model must be {TITAN_HAZE_MODEL!r}; '
+            f'got {haze_model!r}'
+        )
+    stated = sorted(set(value) & _MODEL_SET_KEYS)
+    if stated:
+        raise SimSceneValidationError(
+            f'{source}: {label}.atmosphere.haze_model sets the haze, so the block may not also '
+            f'set {stated}'
+        )
+    if 'detached_px' in value:
+        raise SimSceneValidationError(
+            f"{source}: {label}.atmosphere.detached_px cannot join a haze_model: the shell's "
+            "depth follows the column's reference depth, which would make it as opaque as "
+            "Titan's main haze"
+        )
+
+
+def check_model_atmosphere_filters(
+    sim_params: dict[str, Any], *, instrument: str, source: str
+) -> None:
+    """Refuse a Titan haze in a filter the haze is not modeled in.
+
+    Titan's haze depends on wavelength, so it needs the camera's passbands, and its
+    model leaves out methane absorption and covers 430 to 1078 nm.
+
+    Parameters:
+        sim_params: The scene.
+        instrument: The scene's instrument.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If a body takes Titan's haze and the camera has no
+            passband table, or the scene's filter is a methane-band or methane-window
+            filter, or too much of its light falls outside the modeled span.
+    """
+    hazy = [
+        body
+        for body in sim_params.get('bodies') or []
+        if isinstance(body.get('atmosphere'), dict) and 'haze_model' in body['atmosphere']
+    ]
+    if not hazy:
+        return
+    if not has_passbands(instrument):
+        raise SimSceneValidationError(
+            f"{source}: Titan's haze depends on wavelength, and sim instrument "
+            f'{instrument!r} has no passband table'
+        )
+    detector_filter = (sim_params.get('detector') or {}).get('filter')
+    passband = solar_weighted_passband(
+        instrument, None if detector_filter is None else str(detector_filter)
+    )
+    # Methane-band and methane-window filters are out of scope (#1189).
+    in_methane = any(
+        element.startswith(_METHANE_FILTER_PREFIXES) for element in passband.filter_name.split('+')
+    )
+    if in_methane:
+        raise SimSceneValidationError(
+            f"{source}: Titan's haze is not modeled in methane-band or methane-window "
+            f'filters, whose light methane absorbs or lets through to the surface; '
+            f'the scene uses {passband.filter_name!r}'
+        )
+    in_bands = methane_band_fraction(passband)
+    if in_bands > MAX_METHANE_BAND_FRACTION:
+        raise SimSceneValidationError(
+            f"{source}: Titan's haze is not modeled where methane absorbs, and "
+            f'{in_bands:.0%} of the light of {passband.filter_name!r} falls in the cores of '
+            f'the methane bands'
+        )
+    outside = uncovered_fraction(passband)
+    if outside > MAX_UNCOVERED_FRACTION:
+        raise SimSceneValidationError(
+            f"{source}: Titan's haze is modeled from 430 to 1078 nm, and "
+            f'{outside:.0%} of the light of {passband.filter_name!r} lies outside that span'
+        )
 
 
 def _check_haze_structure(value: dict[str, Any], *, label: str, source: str) -> None:

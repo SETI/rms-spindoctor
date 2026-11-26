@@ -30,11 +30,12 @@ says what quantity it holds, so a scene line reads the same way on every mode:
   pixels, or ``missing_blocks``'s compression blocks).
 * ``expected_events_per_sec`` (rate modes: ``bright_dark_pairs`` and
   ``radiation_transients``): the expected number of events per second, drawn
-  Poisson and uncapped.  ``bright_dark_pairs`` expects this times
-  ``exposure_sec``.  ``radiation_transients`` counts hits during the readout
-  dwell as well as the exposure, in an environment scaled by its
-  ``environment_factor``: it expects ``expected_events_per_sec *
-  environment_factor * (exposure_sec + readout_dwell_sec)``.
+  Poisson and uncapped.  Each counts over the integration time, ``exposure_sec``
+  plus the camera's extra integration time.  ``bright_dark_pairs`` expects this
+  rate times the integration time.  ``radiation_transients`` counts hits during
+  the readout dwell as well as the integration time, in an environment scaled by
+  its ``environment_factor``: it expects ``expected_events_per_sec *
+  environment_factor * (integration time + readout_dwell_sec)``.
 * ``probability`` (commanded, periodic, and frame-level modes, and every
   deterministic-shape detector mode): the per-frame probability, in [0, 1], that the
   mode activates at all.  ``downlink_gaps`` uses it too: a frame that loses packets
@@ -732,7 +733,8 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         activation=EXPECTED_EVENTS_PER_SEC,
         activation_semantics=(
             'a Poisson expected count of radiation spikes per second; the frame expects this '
-            'times environment_factor times (exposure_sec + readout_dwell_sec)'
+            'times environment_factor times (the integration time + readout_dwell_sec), the '
+            "integration time being exposure_sec plus the camera's extra integration time"
         ),
         detector_models=_CCD_ONLY,
     ),
@@ -742,7 +744,8 @@ _DETECTOR_MODES: tuple[ArtifactMode, ...] = (
         activation=EXPECTED_EVENTS_PER_SEC,
         activation_semantics=(
             'a Poisson expected count of bright/dark pairs per second of exposure; the frame '
-            'expects this times exposure_sec'
+            "expects this times the integration time, exposure_sec plus the camera's extra "
+            'integration time'
         ),
         detector_models=_CCD_ONLY,
     ),
