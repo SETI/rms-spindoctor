@@ -170,15 +170,6 @@ returns the typed object:
 - the camera sections — each camera's block, a
   :class:`~spindoctor.config.sections_camera.CameraBlock`, under the section the files
   give it; see :ref:`config-camera-blocks`.
-- ``<instrument>_star_photometry`` — an instrument's star photometry: the rate of a
-  V = 0 star, in the unit the instrument's chapter gives, the gain and filter terms, the
-  minimum detectable DN, the search depth, and the star sigma, with one entry per camera. An instrument with such a section
-  computes its star limit in the photometric form (see
-  :doc:`dev_guide_navigation_models_star`) and reads its star sigma there. Each section
-  has its own dataclass, because the instruments' detectors differ in what they state,
-  and the instrument's chapter under :doc:`/dev_guide/instruments/instruments`
-  describes it. A key for a filter, a gain state, or a readout mode is spelled
-  the way the image label spells it, and one the instrument doesn't have is refused.
 
 Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
 ``feature_emission.ring_annulus.planets``, and ``rings.ring_features``. Each of their
@@ -212,15 +203,17 @@ are read in (``data_units``), the margin its offset search may reach
 (``extfov_margin_vu``), its star PSF (``star_psf_sigma`` and ``star_psf_sizes``), the
 share of the offset window in which a lone star is believed
 (``one_star_ellipse_fraction``), the rotation settings (``fit_camera_rotation`` and
-``max_rotation_deg``), and its ``noise``, ``image_quality_thresholds``,
-``source_image_filter``, and ``mag_offset`` blocks. Every camera's block has the same
-keys and parses into one type, :class:`~spindoctor.config.sections_camera.CameraBlock`.
+``max_rotation_deg``), its ``noise``, ``image_quality_thresholds``,
+``source_image_filter``, and ``mag_offset`` blocks, and, for a camera whose star
+photometry has been measured, its ``star_photometry`` block. Every camera's block has
+the same keys and parses into one type, :class:`~spindoctor.config.sections_camera.CameraBlock`.
 Each of its blocks has a type of its own:
 :class:`~spindoctor.config.sections_camera.Noise`, with a
 :class:`~spindoctor.config.sections_camera.BinnedNoise` for each binned readout mode;
 :class:`~spindoctor.config.sections_camera.QualityThresholds`;
-:class:`~spindoctor.config.sections_camera.MagOffset`; and a source-image filter chosen
-by its ``kind``, either a :class:`~spindoctor.config.sections_camera.BandpassFilter` or a
+:class:`~spindoctor.config.sections_camera.MagOffset`;
+:class:`~spindoctor.config.sections_camera.StarPhotometry`; and a source-image filter
+chosen by its ``kind``, either a :class:`~spindoctor.config.sections_camera.BandpassFilter` or a
 :class:`~spindoctor.config.sections_camera.BlurFilter`. Adding a camera never needs a new
 type. Each field's type is also exported under a name of its own, such as
 :data:`~spindoctor.config.sections_camera.ReadNoiseDn`, so code that states some of the
@@ -233,7 +226,8 @@ several cameras, keyed by camera name, and parses into a mapping of camera name 
 block. Each camera section becomes a field of the typed sections under its own name, so
 the key path of a problem starts at the section, followed by the camera in a section
 that holds several. :meth:`~spindoctor.config.config.Config.camera_block` returns one
-camera's block, and an observation carries its camera's block as
+camera's block, :meth:`~spindoctor.config.config.Config.camera_names` gives the names of
+a section's cameras, and an observation carries its camera's block as
 :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config`.
 
 Whether a camera uses a key depends on its ``data_units``, and on nothing else about the
@@ -251,11 +245,49 @@ camera:
   a camera has no saturation limit.
 - Every other key is either set by every camera or optional by nature. A camera that
   leaves out ``star_max_peak_per_predicted_snr`` puts no bound on a lone star's peak.
+  A camera without measured star photometry leaves out ``star_photometry``, and a reader
+  that needs it refuses the image, giving the block's key path.
 
 A key that the camera's units do not read is refused at load, and so is a missing key
 that they do read. Two more rules tie keys together: the magnitude offset's
 ``fallback_combo`` must have an entry in ``mag_offset_table``, and a bandpass filter's
 heavy blur (``lo_sigma_px``) must be wider than its light one (``hi_sigma_px``).
+
+The ``star_photometry`` block gives a camera's star limit and star width in one form for
+every camera, from which the star model's limiting magnitude follows (see
+:doc:`dev_guide_navigation_models_star`):
+
+- ``flux_unit`` — what the rate counts: ``electrons``, or ``dn`` for a detector that
+  counts no electrons.
+- ``flux_per_s_vmag0`` — the rate per second of a V = 0 star through the reference
+  filter (at the reference gain state, when the unit is ``dn``).
+- ``gain`` — a table keyed by gain state: the electrons per DN when the rate counts
+  electrons, or the factor a star's DN is multiplied by, against the reference gain
+  state, when it counts DN.
+- ``filter_mag_offset`` — a table of the magnitudes each filter dims a star by, against
+  the reference filter. A camera whose reader does not read a filter leaves it out.
+- ``min_detectable_dn`` and ``psf_sigma`` — tables keyed by readout mode: the DN of the
+  dimmest star a frame shows, and the Gaussian sigma of a star in the frame's own
+  pixels. A camera whose star limit and star width do not depend on the readout gives
+  each one entry. The two tables must give the same modes.
+- ``search_depth_mag`` — how many magnitudes past the dimmest visible star the catalog
+  search reaches.
+
+A star of V magnitude ``m`` puts ``flux_per_s_vmag0 * 10**(-0.4 * (m + offset)) * texp``
+in the image, divided or multiplied by its gain state's entry, and the dimmest visible
+star puts ``min_detectable_dn`` there. The keys of the gain, filter, and mode tables are
+spelled the way the camera's observation class spells the image's gain state, filter,
+and readout mode, so the loader cannot tell a misspelled key from one the camera never
+reads. The observation class
+(:meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag` and
+:meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_sigma`) refuses an image whose gain
+state, filter, or mode the tables leave out, giving the block's key path. The width key
+is ``psf_sigma`` rather than ``star_psf_sigma`` because the block's own
+``star_psf_sigma`` is a single number that the simulator reads; the instrument chapters
+under :doc:`/dev_guide/instruments/instruments` say which of the two each camera's
+navigator reads. In the same way, ``noise.star_flux_dn_per_s_vmag0`` is a separate key
+from ``star_photometry.flux_per_s_vmag0``: the simulator reads the first for simulated
+frames, and the navigator reads the second for real ones.
 
 The simulator's camera section is left untyped when the configuration loads, so an
 override of it is read as written.
@@ -339,8 +371,8 @@ Sections
 Top-level YAML keys other than the typed sections, such as each camera's block, are read
 through :meth:`~spindoctor.config.Config.category`, which returns an
 :class:`~spindoctor.support.attrdict.AttrDict` so code can write
-``cfg.category('voyager_iss').star_psf_sigma`` instead of
-``cfg.category('voyager_iss')['star_psf_sigma']``. That
+``cfg.category('galileo_ssi').star_psf_sigma`` instead of
+``cfg.category('galileo_ssi')['star_psf_sigma']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
@@ -381,9 +413,6 @@ removal. The shipping sections:
 - the camera sections — each camera's block (``noise``, ``mag_offset``,
   ``image_quality_thresholds``, ``source_image_filter``, and the rest); typed, except
   the simulator's (see :ref:`config-camera-blocks`).
-- ``<instrument>_star_photometry`` — an instrument's star photometry and star sigma; a
-  typed section (see :ref:`config-typed-sections`), written in the instrument's own
-  ``4xx`` file beside its camera block.
 - ``techniques`` — per-:class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   tunables and confidence-formula
   coefficients; see :doc:`dev_guide_techniques`.

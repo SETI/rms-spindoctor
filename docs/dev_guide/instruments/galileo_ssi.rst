@@ -139,17 +139,17 @@ to fit are real; :doc:`/dev_guide/dev_guide_rotation` carries the reasoning.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** Photometric, from the ``galileo_ssi_star_photometry``
-section (:class:`~spindoctor.obs.star_photometry_galileo_ssi.GalileoSSIStarPhotometrySection`).
-A star of V magnitude ``m`` puts
+**Limiting magnitude.** Photometric, from the camera block's ``star_photometry``
+(see :ref:`config-camera-blocks`), whose rate counts electrons. A star of V magnitude
+``m`` puts
 
 .. math::
 
     \mathrm{DN} = \frac{R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}}}{g}
 
-in the image, where ``R`` is ``flux_electrons_per_s_vmag0`` (2.34e8 electrons per
-second for a V = 0 star through CLEAR), ``f`` is the frame's filter's
-``filter_mag_offset``, and ``g`` is the ``electrons_per_dn`` of its gain state. The
+in the image, where ``R`` is ``flux_per_s_vmag0`` (2.34e8 electrons per second for
+a V = 0 star through CLEAR), ``f`` is the frame's filter's ``filter_mag_offset``, and
+``g`` is the ``gain`` entry of its gain state, in electrons per DN. The
 dimmest visible star puts the readout mode's ``min_detectable_dn`` in the image (167
 DN on a full frame, 67 DN on a summed one), and the limit is that star's magnitude
 plus ``search_depth_mag`` (1.0). At 1 s through CLEAR a full frame's limit is V 12.4
@@ -159,11 +159,14 @@ filter is the label's ``FILTER_NAME``, and the gain state is the VICAR label's
 from the telemetry format, the VICAR label's ``TLMFMT`` item: AI8 and HIS are read out
 in 2x2 summation (``SUMMED``), and every other format is a full frame (``FULL``), the
 same split the image host makes when it gives a summed frame a 400 x 400 field of
-view. Summing on the chip keeps a star's charge, so the rate and the electrons per DN
-hold in both modes, but summation changes the noise of a pixel and the width of a star
-in pixels, so ``min_detectable_dn`` and ``star_psf_sigma`` are given per mode. A frame whose filter, gain state, telemetry format, or readout mode the section
-lacks is refused, and a frame whose exposure is not positive gets a limit of
-``-inf``.
+view. These are the keys of the gain and mode tables. Summing on the chip keeps a
+star's charge, so the rate and the electrons per DN hold in both modes, but summation
+changes the noise of a pixel and the width of a star in pixels, so
+``min_detectable_dn`` and ``psf_sigma`` are given per mode. A frame whose ``GAIN`` or
+``TLMFMT`` item is not one the camera has is refused, and so is a frame whose filter,
+gain state, or readout mode the tables leave out, with the key path
+(``galileo_ssi.star_photometry...``) in the message. A frame whose exposure is not
+positive gets a limit of ``-inf``.
 
 The rate, the detection thresholds, and the star widths were measured in 2026 on the
 cruise star fields of 1990 and 1992, read through the navigator's own reader. Each
@@ -201,8 +204,8 @@ magnitude of uncertainty.
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** The navigator's star sigma is the section's ``star_psf_sigma`` for the
-frame's readout mode, in that frame's own pixels. On a full frame it is 0.65 px: the
+**PSF.** The navigator's star sigma is ``star_photometry.psf_sigma`` for the frame's
+readout mode, in that frame's own pixels. On a full frame it is 0.65 px: the
 median Gaussian sigma of 520 unsaturated stars on 76 full frames (16th to 84th
 percentile 0.41 to 1.09). A star's core is about 0.4 px across and 1.0 px along the
 direction of smear. Klaasen et al. (1999) give a line-spread FWHM of 1.39 px through
@@ -231,7 +234,8 @@ limit to a summed one's, 1.5 mag, comes from the narrower star core alone.
 **Recalibrating.** The measurement tools are in ``util/star_photometry``; its
 Galileo frame selection, the fit, and the table of independent pointing fixes are
 described in its module docstrings. Rerun the fit on new star fields and update the
-section's values and their comments together, in YAML rather than in code.
+camera block's ``star_photometry`` values and their comments together, in YAML rather
+than in code.
 
 Frames, attitude, and rotation fitting
 ======================================
@@ -460,7 +464,9 @@ shows that the navigator is unaffected by it.
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 star limit: its value at 1 s through CLEAR at 10K, 2.5 mag per factor of ten in
 exposure, the shift of another gain state and of a filter, ``-inf`` for a
-non-positive exposure, the refusal of a filter or gain state the section lacks, and
+non-positive exposure, the refusal of a filter the camera block lacks and of a
+label without a known gain state or telemetry format, a camera block without
+star photometry, and
 the star sigma. It also pins
 the published clock count: a fractional number of RIM counts with no midtime or
 end count, and no count at all from a label lacking one of the four items.

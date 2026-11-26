@@ -135,12 +135,12 @@ Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** Photometric, from the ``newhorizons_lorri_star_photometry``
-section
-(:class:`~spindoctor.obs.star_photometry_newhorizons_lorri.NewHorizonsLORRIStarPhotometrySection`).
-The camera has no filter and one gain state, but its binning mode changes the
-electrons per DN, the noise of a pixel, and the width of a star in pixels, so those
-values are given per mode, ``1X1`` or ``4X4``. The mode follows from the row count,
+**Limiting magnitude.** Photometric, from the camera block's ``star_photometry``
+(see :ref:`config-camera-blocks`), whose rate counts electrons. The camera has no
+filter, so the block has no ``filter_mag_offset`` and none is read, and it has one gain
+state, but its binning mode changes the electrons per DN, the noise of a pixel, and the
+width of a star in pixels, so the gain table and both mode tables are keyed by the
+mode, ``1X1`` or ``4X4``. The mode follows from the row count,
 as the image host reads it: 1024 rows is ``1X1`` and 256 rows is ``4X4``, and any
 other row count is refused. A star of V magnitude ``m`` puts
 
@@ -148,12 +148,13 @@ other row count is refused. A star of V magnitude ``m`` puts
 
     \mathrm{DN} = \frac{R \cdot 10^{-0.4\,m} \cdot t_{\mathrm{exp}}}{g}
 
-in the image, where ``R`` is ``flux_electrons_per_s_vmag0`` (7.57e8 electrons per
-second for a V = 0 star) and ``g`` is the mode's ``electrons_per_dn``. The dimmest
+in the image, where ``R`` is ``flux_per_s_vmag0`` (7.57e8 electrons per second for a
+V = 0 star) and ``g`` is the mode's ``gain`` entry, in electrons per DN. The dimmest
 visible star puts the mode's ``min_detectable_dn`` in the image, and the limit is
 that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.8
-unbinned and V 15.5 binned. A frame whose exposure is not positive gets a limit of
-``-inf``.
+unbinned and V 15.5 binned. A frame whose mode the tables leave out is refused, with
+the key path (``newhorizons_lorri.star_photometry...``) in the message, and a frame
+whose exposure is not positive gets a limit of ``-inf``.
 
 The rate, the detection thresholds, and the star widths were measured in 2026 on star
 fields of the cruise and the Pluto approach, read through the navigator's own reader.
@@ -181,8 +182,8 @@ predicted dimmest visible star.
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** The navigator's star sigma is the section's ``star_psf_sigma`` for the
-frame's mode, in that frame's own pixels. Unbinned it is 0.9 px, the median of 311
+**PSF.** The navigator's star sigma is ``star_photometry.psf_sigma`` for the frame's
+mode, in that frame's own pixels. Unbinned it is 0.9 px, the median of 311
 stars on 45 frames (16th to 84th percentile 0.82 to 0.97); the FWHMs of Weaver et
 al. (2020), 2.04 by 2.70 px, are sigmas of 0.87 by 1.15. Binned it is 0.45 px, from
 the 5 to 10 s frames a navigation run sees; sub-second star calibrations give 0.28,
@@ -212,7 +213,8 @@ star limit to a binned one's comes from the placeholder.
 
 **Recalibrating.** The measurement tools are in ``util/star_photometry``; its LORRI
 frame selection and the fit are described in its module docstrings. Rerun the fit on
-new star fields and update the section's values and their comments together.
+new star fields and update the camera block's ``star_photometry`` values and their
+comments together.
 
 Frames, attitude, and rotation fitting
 ======================================

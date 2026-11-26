@@ -319,9 +319,9 @@ must implement:
   :class:`~psfmodel.GaussianPSF`). Used by
   :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` to predict
   the per-star detection footprint. Its sigma comes from
-  :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_sigma`, which reads the instrument
-  block's ``star_psf_sigma`` unless the instrument overrides it to give a value per
-  camera or per readout mode.
+  :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_sigma`, which reads the camera
+  block's ``star_psf_sigma`` unless the instrument overrides it to read
+  ``star_photometry.psf_sigma`` for the frame's readout mode.
 - :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_size` — returns the per-star kernel support
   rectangle in pixels.
 - :meth:`~spindoctor.obs.obs_inst.ObsInst.star_min_usable_vmag` /

@@ -218,7 +218,7 @@ class ObsInst(ABC):
             gain_state: The image's gain state, as the ``gain`` table spells it.
             mode: The image's readout mode, as the mode tables spell it.
             filter_name: The image's filter, as ``filter_mag_offset`` spells it, or None
-                for a camera whose reader reads no filter.
+                for a camera whose reader does not read a filter.
 
         Returns:
             The limiting magnitude.

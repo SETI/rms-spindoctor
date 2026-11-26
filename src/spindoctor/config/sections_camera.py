@@ -167,10 +167,10 @@ StarGainTable = Annotated[dict[Str, Positive], MinLen(1)]
 #: filter as the instrument reads it.
 FilterMagOffsetTable = Annotated[dict[Str, Float], MinLen(1)]
 #: The DN of the dimmest star a frame shows, keyed by the readout mode as the instrument
-#: names it.
+#: spells it.
 MinDetectableDnTable = Annotated[dict[Str, Positive], MinLen(1)]
 #: The Gaussian sigma of a star, in the frame's own pixels, keyed by the readout mode as
-#: the instrument names it.
+#: the instrument spells it.
 StarPhotometryPsfSigmaTable = Annotated[dict[Str, StarPsfSigma], MinLen(1)]
 #: The magnitudes past the dimmest visible star that the catalog search reaches.
 SearchDepthMag = NonNeg
@@ -374,7 +374,7 @@ class StarPhotometry:
     ``electrons``, or multiplied by the gain state's factor when it is ``dn``.  The
     dimmest visible star deposits ``min_detectable_dn[mode]`` DN, and the catalog search
     reaches ``search_depth_mag`` past it.  The keys of the gain, filter, and mode tables
-    are spelled the way the camera's reader names the image's gain state, filter, and
+    are spelled the way the camera's reader spells the image's gain state, filter, and
     readout mode; a camera with one readout mode gives each mode table one entry.  The
     reader refuses an image whose gain state, filter, or mode its tables leave out.
 
@@ -389,7 +389,7 @@ class StarPhotometry:
         search_depth_mag: The magnitudes past the dimmest visible star that the catalog
             search reaches.
         filter_mag_offset: The magnitudes each filter dims a star by, against the
-            reference filter.  A camera whose reader reads no filter leaves it out.
+            reference filter.  A camera whose reader does not read a filter leaves it out.
 
     Raises:
         RuleError: If ``psf_sigma`` and ``min_detectable_dn`` give different modes.

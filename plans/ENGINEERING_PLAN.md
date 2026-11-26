@@ -773,13 +773,14 @@ where they differ).
 - **#130** (done for Galileo SSI, Voyager ISS and New Horizons LORRI,
   2026-11-25; Cassini's photometric limit is #766's) — per-instrument star
   limiting magnitudes measured from real star fields. Each of the three
-  instruments now computes a photometric limit from a typed
-  `<instrument>_star_photometry` section, measured with
+  instruments now computes a photometric limit from the generic
+  `star_photometry` sub-block of each camera's typed camera block (#1029;
+  `voyager_iss` split into one block per camera), measured with
   `util/star_photometry` on star fields whose pointing the stars alone fix.
 - **#342** (done, 2026-11-25, with #130) — `star_psf_sigma` was a 3.0
-  placeholder on Galileo, Voyager and LORRI. The measured sigmas live in the
-  star photometry sections, per camera on Voyager and per binning mode on
-  LORRI; Voyager 1's stays a marked placeholder (three measurable frames).
+  placeholder on Galileo, Voyager and LORRI. The measured sigmas live in
+  each camera block's `star_photometry.psf_sigma`, per readout mode on
+  Galileo and per binning mode on LORRI; Voyager 1's stays a marked placeholder (three measurable frames).
 - **#1210** — UCAC4 stars at V 8-9 keep magnitudes 0.5-0.9 mag too faint
   after the catalog reduction's correction, which stops at V 8.0; found by
   the #130 measurement on all three cameras.

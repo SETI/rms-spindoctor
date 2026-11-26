@@ -18,7 +18,8 @@ Code map
      - :class:`~spindoctor.dataset.dataset_pds3_voyager_iss.DataSetPDS3VoyagerISS`,
        registered under ``vgiss`` with a ``vgiss_pds3`` alias
    * - Config block
-     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, flat
+     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, one block per camera:
+       ``vg1_nac``, ``vg1_wac``, ``vg2_nac``, and ``vg2_wac``
    * - Sim instrument keys
      - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Statistics key
@@ -30,9 +31,9 @@ Code map
      - ``oops.hosts.voyager.iss``
 
 One instrument key serves two spacecraft and four cameras. Everything that has
-to distinguish them derives the distinction from the image's own label rather
-than from configuration, which is why the frame identities below are computed
-per image.
+to distinguish them derives the distinction from the image's own label, which is
+why the frame identities below are computed per image, and the camera block is
+chosen the same way.
 
 Loading the image
 =================
@@ -61,7 +62,8 @@ It also **modifies the pixel data**, in two steps:
    so this is the only case, and the constant is written out rather than
    computed from distances. The step logs at debug when it fires.
 
-Beyond that it reads the flat ``voyager_iss`` config section and resolves the
+Beyond that it reads the camera's block, ``voyager_iss.vg<digit>_<nac or wac>``,
+chosen by the ``LAB02`` spacecraft digit and the oops detector, and resolves the
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
 table has exactly one entry, for size 1000, which is what a geometrically
 corrected product is; an image of any other size raises ``KeyError`` from the
@@ -155,8 +157,10 @@ cost of scanning every requested volume.
 Configuration block
 ===================
 
-One flat section, shared by two spacecraft and four cameras. Nothing in it
-varies per camera.
+One section holding a block for each of the four cameras, ``vg1_nac``,
+``vg1_wac``, ``vg2_nac``, and ``vg2_wac``, as the Cassini section holds one for each
+of its cameras. Each camera's optics and vidicon are its own, so each block states
+every value itself, even where the number is the same in all four.
 
 ``data_units`` is ``calibrated_if``, so the block carries what a calibrated camera
 block carries (see :ref:`config-camera-blocks`): the ``image_quality_thresholds`` are
@@ -179,27 +183,29 @@ and should move with the flag if the flag moves.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** Photometric, from the ``voyager_iss_star_photometry`` section
-(:class:`~spindoctor.obs.star_photometry_voyager_iss.VoyagerISSStarPhotometrySection`),
-which has one entry per camera, ``vg1_nac``, ``vg1_wac``, ``vg2_nac``, and
-``vg2_wac``, chosen by the label's spacecraft digit and the oops detector. A vidicon
-counts no electrons, so the rate is in raw DN, and the gain state multiplies it. A
-star of V magnitude ``m`` puts
+**Limiting magnitude.** Photometric, from the ``star_photometry`` of the camera's
+block (see :ref:`config-camera-blocks`). A vidicon counts no electrons, so the rate
+counts raw DN (``flux_unit: dn``), and the gain state's entry multiplies it. A star of
+V magnitude ``m`` puts
 
 .. math::
 
     \mathrm{DN} = R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}} \cdot k
 
-in the raw frame, where ``R`` is the camera's ``flux_dn_per_s_vmag0`` (raw DN per
+in the raw frame, where ``R`` is the camera's ``flux_per_s_vmag0`` (raw DN per
 second for a V = 0 star through CLEAR at low gain), ``f`` is the frame's filter's
-``filter_mag_offset``, and ``k`` is the ``dn_gain_factor`` of its gain state. The
-dimmest visible star puts ``min_detectable_dn`` in the frame, and the limit is that
-star's magnitude plus the camera's ``search_depth_mag``. The navigator's image is in
+``filter_mag_offset``, and ``k`` is the ``gain`` entry of its gain state, its DN
+factor against low gain. A camera's star limit and star width do not depend on the
+readout, so its mode tables have one entry, ``ALL``. The dimmest visible star puts
+``min_detectable_dn`` in the frame, and the limit is that star's magnitude plus the
+camera's ``search_depth_mag``. The navigator's image is in
 I/F, but the limit depends only on the ratio of the rate to ``min_detectable_dn``,
 and those share a scale. The filter and the gain state (``LO GAIN`` or ``HI GAIN``,
 read as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame
-whose filter or gain state the camera's entry lacks is refused, and a frame whose
-exposure is not positive gets a limit of ``-inf``.
+whose label gives no gain state is refused, and so is a frame whose filter or gain
+state the camera's tables leave out, with the key path (for example
+``voyager_iss.vg2_nac.star_photometry.filter_mag_offset``) in the message. A frame
+whose exposure is not positive gets a limit of ``-inf``.
 
 Each of the four cameras searches 2.0 mag past its dimmest visible star. The star
 fields measure the limits below only to within 0.5 to 0.7 mag, and the published
@@ -277,14 +283,14 @@ a magnitude of uncertainty.
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** Each camera's star sigma is its entry's ``star_psf_sigma``, in pixels of the
-geometrically corrected image. On Voyager 2 it is the median Gaussian sigma of stars
+**PSF.** Each camera's star sigma is its block's ``star_photometry.psf_sigma``, in
+pixels of the geometrically corrected image. On Voyager 2 it is the median Gaussian sigma of stars
 on frames read out at 5:1: 1.2 px for the narrow-angle camera (53 stars on 15
 frames) and 1.1 px for the wide-angle camera (213 stars on 26 frames). A star's core
 is about 0.8 px, and platform motion elongates a long exposure. The Voyager 1 values
-are a 3.0 px placeholder, since its one frame holds too few stars to fit. The
-camera block's ``star_psf_sigma`` is read only by the simulator, which emulates all
-four cameras from that block. ``star_psf_sizes`` is a single ``100: [7, 7]``, so
+are a 3.0 px placeholder, since its one frame holds too few stars to fit. Each
+camera block's own ``star_psf_sigma``, 3.0 px in all four, is read only by the
+simulator. ``star_psf_sizes`` is a single ``100: [7, 7]``, so
 every star gets a 7x7 cutout regardless of magnitude and regardless of camera.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
@@ -295,7 +301,7 @@ frame selection and the fit are described in its module docstrings. The cohort's
 star frame cannot constrain a kernel through the geometric resampling: eight usable
 cutouts survive, and the flat-top guard leaves only two simulated cutouts to compare
 against. Rerun the fit on new star fields, on each camera of each spacecraft, and
-update the camera's entry and its comments together.
+update that camera block's ``star_photometry`` and its comments together.
 
 Frames, attitude, and rotation fitting
 ======================================
@@ -664,7 +670,8 @@ star fields take a few seconds.
 spacecraft-digit parser and all four of its refusals, the I/F factor parser and
 all three of its refusals, each camera's star limit at 1 s through CLEAR at low gain
 and its shifts with exposure, gain state, and filter, ``-inf`` for a non-positive
-exposure, the refusal of a filter or gain state the camera's entry lacks, each
+exposure, the refusal of a filter the camera's block lacks and of a label without a
+gain state, each
 camera's star sigma, the
 per-spacecraft metadata LIDs, and the published clock counts: fractional
 leading units with no midtime count, read from the PDS3 label beside the image.
@@ -704,10 +711,11 @@ approximation at all: the navigated attitude was constant to begin with.
 
 **Statistics.** Nothing particular.
 :func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` reads
-``voyager_iss.extfov_margin_vu`` from the flat section and indexes the
-size-keyed table with the recorded image height, so a database row with no
-recorded shape, or one recording a height other than 1000, resolves to an
-explanatory string instead of a limit. The report's image-name rule is
+``extfov_margin_vu`` from the camera blocks of ``voyager_iss``. A record gives the
+camera but not the spacecraft, so the limit is resolved only while all four blocks
+give the same margin, as they do. It indexes the size-keyed table with the recorded
+image height, so a database row with no recorded shape, or one recording a height
+other than 1000, resolves to an explanatory string instead of a limit. The report's image-name rule is
 ``stem.split('_', 1)[0]``, so ``C1234567_GEOMED`` reduces to ``C1234567``.
 
 Open items
