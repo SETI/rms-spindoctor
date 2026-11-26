@@ -4,7 +4,8 @@ Per Part 0 §74 of the design plan: every body in the body-shape catalog
 must carry a complete ``_sources`` mapping; every field, set or left out,
 must have a non-empty citation; ``PLACEHOLDER`` is allowed only for a field
 the entry leaves out; the strings ``TODO`` / ``FIXME`` / ``XXX`` are
-forbidden anywhere in the citation text.
+forbidden anywhere in the citation text.  The packaged table also parses
+into its type once the citations are dropped.
 """
 
 from __future__ import annotations
@@ -12,8 +13,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import pytest
 from ruamel.yaml import YAML
+
+from spindoctor.config import Config
 
 _BODY_SHAPE_PATH = (
     Path(__file__).resolve().parents[3]
@@ -102,13 +104,10 @@ def test_placeholder_only_for_a_field_left_out() -> None:
                 )
 
 
-def test_loader_strips_underscore_keys() -> None:
-    """The runtime ``Config`` loader drops every ``_sources`` block."""
-    pytest.importorskip('spindoctor.config')
-    from spindoctor.config import Config
+def test_packaged_body_shape_section_parses() -> None:
+    """The packaged table parses, with an entry for every body in the file.
 
-    config = Config()
-    config.read_config()
-    body_shape = config.body_shape
-    assert 'MIMAS' in body_shape
-    assert '_sources' not in body_shape['MIMAS']
+    An entry refuses a key its type does not declare, so the table parses only because
+    the loader drops every ``_sources`` block first.
+    """
+    assert sorted(Config().body_shape) == sorted(_load_raw_yaml())

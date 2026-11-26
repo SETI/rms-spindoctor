@@ -263,8 +263,9 @@ Configuration
 
 Unlike the other techniques, the haze fit's numeric tunables live with the body they describe,
 in ``titan.navigation`` in ``src/spindoctor/config_files/config_060_titan.yaml``; only the
-covariance floor and the confidence coefficients live in
-``techniques.TitanHazeNav`` in ``config_510_techniques.yaml``. The
+covariance floor (``model_error_floor_px``, the one key of the technique's ``tuning``) and
+the confidence coefficients live in ``techniques.titan_haze`` in
+``config_510_techniques.yaml``. The
 :doc:`model page <dev_guide_navigation_models_titan>` documents the emission-side keys
 (``titan.navigation`` scalars plus ``titan.atmosphere_height``); the two fit blocks are here.
 Each block is parsed at load straight into the fitting library's parameter dataclass,
@@ -386,7 +387,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared sigmoid
 combination; see :doc:`dev_guide_techniques_confidence` for the per-term arithmetic. The spec is
-``techniques.TitanHazeNav`` in ``config_510_techniques.yaml`` and consumes attributes off
+``techniques.titan_haze`` in ``config_510_techniques.yaml`` and consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.TitanHazeDiagnostics` plus
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
 

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import dataclasses
 import math
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
@@ -37,7 +38,6 @@ from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     add_model_error_floor,
     embed_rotation_unobservable,
-    load_model_error_floor,
     log_confidence_breakdown,
     reported_position_vu,
     rotation_unobservable_sigma_rad,
@@ -54,12 +54,13 @@ from spindoctor.nav_technique.titan_fitting import (
     axis_vectors,
     fit_titan_center,
 )
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg
 from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
-__all__ = ['TitanHazeNav']
+__all__ = ['TitanHazeNav', 'TitanHazeTuning']
 
 
 _NO_FEATURES_REASON: str = 'no TITAN_LIMB features'
@@ -305,6 +306,24 @@ class _TitanConfidenceContext:
         self.envelope_diameter_px = diagnostics.envelope_diameter_px
 
 
+@dataclass(frozen=True)
+class TitanHazeTuning:
+    """The tuning keys of :class:`TitanHazeNav`.
+
+    The fit's own constants live in the ``navigation`` block of the ``titan`` section;
+    the technique's block holds only the covariance floor.
+
+    Parameters:
+        model_error_floor_px: The model-error floor in pixels, added in quadrature to
+            the translation covariance: the haze envelope's departure from a circle
+            and the wavelength-dependent haze top are model error neither fit can see.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    model_error_floor_px: NonNeg
+
+
 class TitanHazeNav(NavTechnique):
     """Haze-symmetry translation fit for a body with an opaque atmosphere.
 
@@ -320,6 +339,8 @@ class TitanHazeNav(NavTechnique):
     """
 
     name = 'TitanHazeNav'
+    Tuning = TitanHazeTuning
+    tuning: ClassVar[TitanHazeTuning]
     accepts_feature_types = frozenset({NavFeatureType.TITAN_LIMB})
     requires_prior = False
     tier = 'primary'
@@ -335,9 +356,14 @@ class TitanHazeNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Return whether the input set carries a usable haze feature.
@@ -583,7 +609,7 @@ class TitanHazeNav(NavTechnique):
         )
         covariance = add_model_error_floor(
             _rotated_covariance(symmetry.theta_rad, symmetry.sigma_cross_px, arc.sigma_along_px),
-            self._model_error_floor_px,
+            self.tuning.model_error_floor_px,
         )
         if fit_rotation:
             covariance = embed_rotation_unobservable(covariance)

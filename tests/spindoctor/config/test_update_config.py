@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.nav_technique import RingEdgeNav, StarRefineNav
+from spindoctor.nav_technique import RingEdgeNav
 from spindoctor.nav_technique.confidence_config import shipped_techniques
 
 
@@ -122,25 +122,13 @@ def _apply_technique_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, t
     Config().update_config(user_path)
 
 
-def test_a_typed_tuning_override_reaches_its_technique(
+def test_a_tuning_override_reaches_its_technique(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """An accepted override of a typed technique's tuning is what the class then holds."""
+    """An accepted override of a technique's tuning is what the class then holds."""
     _apply_technique_override(
         tmp_path,
         monkeypatch,
         'techniques:\n  ring_edge:\n    tuning:\n      gradient_ridge_refine: false\n',
     )
     assert RingEdgeNav.tuning.gradient_ridge_refine is False
-
-
-def test_an_untyped_tuning_override_reaches_its_technique(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An accepted override of an untyped technique's tuning is in the class's mapping."""
-    _apply_technique_override(
-        tmp_path,
-        monkeypatch,
-        'techniques:\n  StarRefineNav:\n    tuning:\n      at_edge_tolerance_px: 0.123\n',
-    )
-    assert StarRefineNav.tuning['at_edge_tolerance_px'] == 0.123

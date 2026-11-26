@@ -12,6 +12,7 @@ from tests.spindoctor.nav_technique.conftest import (
     DrawGaussianStarFactory,
     NavContextFactory,
     NavFeatureFactory,
+    RetuneFactory,
 )
 
 from spindoctor.feature.feature import NavFeature
@@ -993,17 +994,6 @@ def test_star_unique_match_a_source_votes_only_with_the_peak_the_star_should_sho
     assert (det is not None) is found
 
 
-def test_star_unique_match_rejects_a_pair_vote_peak_factor_of_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Construction rejects a ``pair_vote_peak_factor`` that is not above 1."""
-    tuning = dict(StarUniqueMatchNav.tuning)
-    tuning['pair_vote_peak_factor'] = 1.0
-    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
-    with pytest.raises(ValueError, match='pair_vote_peak_factor must be finite and > 1'):
-        StarUniqueMatchNav()
-
-
 def test_star_unique_match_one_star_region_is_an_ellipse(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
@@ -1199,20 +1189,6 @@ def test_star_unique_match_sources_fainter_than_the_stars_do_not_contradict_the_
     assert result.offset_px[1] == pytest.approx(pair_offset[1], abs=0.4)
 
 
-@pytest.mark.parametrize(
-    'key', ['pair_search_sources', 'pair_absent_stars', 'one_star_absent_stars']
-)
-def test_star_unique_match_rejects_a_count_below_one(
-    monkeypatch: pytest.MonkeyPatch, key: str
-) -> None:
-    """Construction rejects a source or absent-star count below 1."""
-    tuning = dict(StarUniqueMatchNav.tuning)
-    tuning[key] = 0
-    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
-    with pytest.raises(ValueError, match=f'{key} must be >= 1'):
-        StarUniqueMatchNav()
-
-
 def test_star_unique_match_prefers_the_brighter_of_two_equally_backed_pairs(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
@@ -1299,21 +1275,19 @@ def test_star_unique_match_places_the_other_stars_with_the_fitted_rotation(
     assert 'backed by 5 of 5' in capsys.readouterr().out
 
 
-def _searching(monkeypatch: pytest.MonkeyPatch, n_stars: int) -> None:
+def _searching(retune: RetuneFactory, n_stars: int) -> None:
     """Search ``n_stars`` stars for pairs instead of the configured number."""
-    tuning = dict(StarUniqueMatchNav.tuning)
-    tuning['pair_search_stars'] = n_stars
-    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
+    retune(StarUniqueMatchNav, pair_search_stars=n_stars)
 
 
 def test_star_unique_match_absent_stars_must_outnumber_the_stars_found(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
-    monkeypatch: pytest.MonkeyPatch,
+    retune: RetuneFactory,
 ) -> None:
     """Two bright stars absent at the offset do not refute it when two others are found there."""
-    _searching(monkeypatch, 6)
+    _searching(retune, 6)
     rng = np.random.default_rng(31)
     image = rng.normal(0.0, 1.0, (400, 400))
     offset = (2.0, -3.0)
@@ -1339,10 +1313,10 @@ def test_star_unique_match_a_star_found_at_the_offset_outweighs_three_found_else
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
-    monkeypatch: pytest.MonkeyPatch,
+    retune: RetuneFactory,
 ) -> None:
     """Three other stars found elsewhere do not refute a pair a third star is found with."""
-    _searching(monkeypatch, 6)
+    _searching(retune, 6)
     image = np.zeros((500, 500), dtype=np.float64)
     pair_offset = (2.0, -3.0)
     stars = [

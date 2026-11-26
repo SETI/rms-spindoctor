@@ -888,6 +888,7 @@ def test_orchestrator_ensemble_contract_violation_yields_failed_result(
         """Technique whose 3-DoF rotation violates the ensemble small-angle bound."""
 
         name = '_OverRotatedTechnique'
+        Tuning = object
         accepts_feature_types = frozenset({NavFeatureType.STAR})
 
         def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
@@ -932,6 +933,7 @@ def test_orchestrator_technique_contract_error_not_swallowed_as_no_result(
         """Technique whose ``navigate`` raises NavContractError directly."""
 
         name = '_ContractRaisingTechnique'
+        Tuning = object
         accepts_feature_types = frozenset({NavFeatureType.STAR})
 
         def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:

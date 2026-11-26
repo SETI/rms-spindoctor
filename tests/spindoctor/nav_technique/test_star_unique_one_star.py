@@ -11,6 +11,7 @@ from tests.spindoctor.nav_technique.conftest import (
     DrawGaussianStarFactory,
     NavContextFactory,
     NavFeatureFactory,
+    RetuneFactory,
 )
 
 from spindoctor.nav_technique._star_unique_one_star import (
@@ -225,7 +226,7 @@ def test_lone_star_refuses_a_source_a_comparable_star_could_be(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
-    monkeypatch: pytest.MonkeyPatch,
+    retune: RetuneFactory,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """A star nearly as bright whose window holds the source could be it, so it is refused.
@@ -234,9 +235,7 @@ def test_lone_star_refuses_a_source_a_comparable_star_could_be(
     the first star's offset it falls in the padding, where nothing can refute it.  Fails
     if no star outside the searched ones is asked whether it could be the source.
     """
-    tuning = dict(StarUniqueMatchNav.tuning)
-    tuning['pair_search_stars'] = 1
-    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
+    retune(StarUniqueMatchNav, pair_search_stars=1)
     image = np.zeros((200, 200), dtype=np.float64)
     draw_gaussian_star(image, (40.0, 100.0), peak_dn=200.0, sigma=1.2)
     first = make_star_feature('star:UCAC4:A', predicted_vu=(39.0, 99.0), predicted_snr=20.0)
@@ -264,17 +263,6 @@ def test_lone_star_refuses_a_source_sharper_than_a_star(
     result = StarUniqueMatchNav().navigate([feature], make_nav_context(image))
     assert result.spurious is True
     assert '1 sharper or brighter than a star' in capsys.readouterr().out
-
-
-def test_star_unique_match_rejects_a_lone_star_sharpness_below_one(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Construction rejects a ``one_star_max_peak_sharpness`` below 1."""
-    tuning = dict(StarUniqueMatchNav.tuning)
-    tuning['one_star_max_peak_sharpness'] = 0.5
-    monkeypatch.setattr(StarUniqueMatchNav, 'tuning', tuning)
-    with pytest.raises(ValueError, match='one_star_max_peak_sharpness must be finite and >= 1'):
-        StarUniqueMatchNav()
 
 
 def test_lone_star_is_found_beside_a_brighter_ridge(

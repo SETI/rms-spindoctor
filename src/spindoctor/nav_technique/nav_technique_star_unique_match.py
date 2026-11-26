@@ -53,7 +53,7 @@ the image.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -106,6 +106,7 @@ from spindoctor.nav_technique.nav_technique import (
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
+from spindoctor.nav_technique.star_tuning import StarUniqueMatchTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.types import NDArrayFloatType
 
@@ -113,13 +114,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = ['StarUniqueMatchNav']
-
-
-# All numeric tunables for this technique live in
-# ``config_files/config_510_techniques.yaml`` under
-# ``techniques.StarUniqueMatchNav.tuning``.  No Python-level fallback;
-# missing-key access in ``__init__`` is a KeyError so a config typo
-# fails fast at process startup.
 
 
 class _UniqueMatchConfidenceContext:
@@ -151,6 +145,8 @@ class StarUniqueMatchNav(NavTechnique):
     """
 
     name = 'StarUniqueMatchNav'
+    Tuning = StarUniqueMatchTuning
+    tuning: ClassVar[StarUniqueMatchTuning]
     accepts_feature_types = frozenset({NavFeatureType.STAR})
     requires_prior = False
     confidence_attributes = frozenset(
@@ -164,60 +160,14 @@ class StarUniqueMatchNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._brightness_margin_floor_mag = float(
-            self.tuning['brightness_margin_to_next_catalog_star_mag']
-        )
-        self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
-        self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
-        self._max_peak_sharpness = float(self.tuning['max_peak_sharpness'])
-        self._max_residual_px = float(self.tuning['max_residual_px'])
-        self._pair_search_stars = int(self.tuning['pair_search_stars'])
-        self._pair_search_sources = int(self.tuning['pair_search_sources'])
-        self._pair_contradiction_stars = int(self.tuning['pair_contradiction_stars'])
-        self._pair_absent_stars = int(self.tuning['pair_absent_stars'])
-        self._pair_vote_peak_factor = float(self.tuning['pair_vote_peak_factor'])
-        self._isolation_inner_px = int(self.tuning['source_isolation_inner_px'])
-        self._isolation_outer_px = int(self.tuning['source_isolation_outer_px'])
-        self._isolation_max_ratio = float(self.tuning['source_isolation_max_ratio'])
-        self._detection_sigma = float(self.tuning['detection_sigma'])
-        self._one_star_confidence_cap = float(self.tuning['one_star_confidence_cap'])
-        self._two_star_confidence_cap = float(self.tuning['two_star_confidence_cap'])
-        self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._one_star_min_peak_ratio = float(self.tuning['one_star_min_peak_ratio'])
-        self._one_star_max_residual_px = float(self.tuning['one_star_max_residual_px'])
-        self._one_star_max_peak_sharpness = float(self.tuning['one_star_max_peak_sharpness'])
-        self._one_star_absent_stars = int(self.tuning['one_star_absent_stars'])
-        for key in ('pair_search_sources', 'pair_absent_stars', 'one_star_absent_stars'):
-            if int(self.tuning[key]) < 1:
-                raise ValueError(f'{key} must be >= 1; got {self.tuning[key]!r}')
-        if not 1.0 < self._pair_vote_peak_factor < math.inf:
-            raise ValueError(
-                f'pair_vote_peak_factor must be finite and > 1; got {self._pair_vote_peak_factor!r}'
-            )
-        if not 1.0 <= self._one_star_max_peak_sharpness < math.inf:
-            raise ValueError(
-                'one_star_max_peak_sharpness must be finite and >= 1; '
-                f'got {self._one_star_max_peak_sharpness!r}'
-            )
-        if self._one_star_min_peak_ratio < 1.0:
-            raise ValueError(
-                f'one_star_min_peak_ratio must be >= 1; got {self._one_star_min_peak_ratio!r}'
-            )
-        if self._one_star_max_residual_px <= 0.0:
-            raise ValueError(
-                f'one_star_max_residual_px must be > 0; got {self._one_star_max_residual_px!r}'
-            )
-        if not 0.0 <= self._one_star_confidence_cap <= 1.0:
-            raise ValueError(
-                f'one_star_confidence_cap must lie in [0, 1]; got {self._one_star_confidence_cap!r}'
-            )
-        if not 0.0 <= self._two_star_confidence_cap <= 1.0:
-            raise ValueError(
-                f'two_star_confidence_cap must lie in [0, 1]; got {self._two_star_confidence_cap!r}'
-            )
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Report feasibility based on the predictable-star cohort.
@@ -297,7 +247,7 @@ class StarUniqueMatchNav(NavTechnique):
             ranked = distinct_stars(sorted(usable, key=predicted_snr, reverse=True))
             image_ext = np.asarray(context.image_ext, np.float64)
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
-            searched = ranked[: self._pair_search_stars]
+            searched = ranked[: self.tuning.pair_search_stars]
             window_vu = self._search_window(context)
             sources = [
                 self._star_sources(image_ext, star, noise_sigma, search_half_vu=window_vu)
@@ -361,7 +311,7 @@ class StarUniqueMatchNav(NavTechnique):
         hypotheses = pair_hypotheses(
             [predicted_vu(star) for star in searched],
             sources,
-            max_residual_px=self._max_residual_px,
+            max_residual_px=self.tuning.max_residual_px,
             fit_rotation=bool(context.fit_camera_rotation),
         )
         self.logger.info(
@@ -373,17 +323,17 @@ class StarUniqueMatchNav(NavTechnique):
         )
         if not hypotheses:
             return None
-        tolerance_px = 2.0 * self._max_residual_px
+        tolerance_px = 2.0 * self.tuning.max_residual_px
         choice = choose_pair(
             hypotheses,
             refute=lambda hyp: self._ruled_out(
                 hyp, image_ext, searched, sources, noise_sigma, context
             ),
             brightness=lambda hyp: pair_brightness(
-                image_ext, hyp, searched, box_half_px=self._centroid_box_half_px
+                image_ext, hyp, searched, box_half_px=self.tuning.centroid_box_half_px
             ),
             tolerance_px=tolerance_px,
-            rival_factor=self._pair_vote_peak_factor,
+            rival_factor=self.tuning.pair_vote_peak_factor,
         )
         best, rivals, reasons = choice.best, choice.rivals, choice.reasons
         if best is None:
@@ -454,11 +404,11 @@ class StarUniqueMatchNav(NavTechnique):
             ),
             margin_vu=search_window_for_obs(context),
             noise_sigma=noise_sigma,
-            max_residual_px=self._max_residual_px,
-            peak_factor=self._pair_vote_peak_factor,
-            contradiction_stars=self._pair_contradiction_stars,
-            absent_stars_needed=self._pair_absent_stars,
-            box_half_px=self._centroid_box_half_px,
+            max_residual_px=self.tuning.max_residual_px,
+            peak_factor=self.tuning.pair_vote_peak_factor,
+            contradiction_stars=self.tuning.pair_contradiction_stars,
+            absent_stars_needed=self.tuning.pair_absent_stars,
+            box_half_px=self.tuning.centroid_box_half_px,
         )
 
     def _search_window(self, context: NavContext) -> tuple[float, float]:
@@ -500,27 +450,29 @@ class StarUniqueMatchNav(NavTechnique):
         if bounds is None:
             return []
         inner_px, outer_px = isolation_radii(
-            self._isolation_inner_px, self._isolation_outer_px, smear_length_px(star)
+            self.tuning.source_isolation_inner_px,
+            self.tuning.source_isolation_outer_px,
+            smear_length_px(star),
         )
         found = window_sources(
             image_ext,
             predicted_vu(star),
             search_half_vu=search_half_vu,
-            centroid_box_half_px=self._centroid_box_half_px,
-            psf_sigma_px=self._psf_sigma_px,
-            max_peak_sharpness=self._max_peak_sharpness,
+            centroid_box_half_px=self.tuning.centroid_box_half_px,
+            psf_sigma_px=self.tuning.psf_sigma_px,
+            max_peak_sharpness=self.tuning.max_peak_sharpness,
             image_noise_sigma=noise_sigma,
-            detection_sigma=self._detection_sigma,
+            detection_sigma=self.tuning.detection_sigma,
             accept=isolation_lookup(
                 image_ext,
                 bounds,
-                sigma_px=self._psf_sigma_px,
-                kernel_half_px=self._centroid_box_half_px,
+                sigma_px=self.tuning.psf_sigma_px,
+                kernel_half_px=self.tuning.centroid_box_half_px,
                 inner_px=inner_px,
                 outer_px=outer_px,
-                max_ratio=self._isolation_max_ratio,
+                max_ratio=self.tuning.source_isolation_max_ratio,
             ),
-            max_sources=self._pair_search_sources,
+            max_sources=self.tuning.pair_search_sources,
         )
         return [s.centroid_vu for s in found]
 
@@ -542,11 +494,11 @@ class StarUniqueMatchNav(NavTechnique):
             image_ext,
             center_vu,
             search_half_vu=search_half_vu,
-            centroid_box_half_px=self._centroid_box_half_px,
-            psf_sigma_px=self._psf_sigma_px,
-            max_peak_sharpness=self._max_peak_sharpness,
+            centroid_box_half_px=self.tuning.centroid_box_half_px,
+            psf_sigma_px=self.tuning.psf_sigma_px,
+            max_peak_sharpness=self.tuning.max_peak_sharpness,
             image_noise_sigma=noise_sigma,
-            detection_sigma=self._detection_sigma,
+            detection_sigma=self.tuning.detection_sigma,
             refuse_outshone=False,
         )
         if det is None or not self._is_point_source(image_ext, det, smear_px=smear_length_px(star)):
@@ -595,10 +547,14 @@ class StarUniqueMatchNav(NavTechnique):
         )
         if det is None:
             return None
-        ratio = source_peak(image_ext, det, box_half_px=self._centroid_box_half_px) / (
+        ratio = source_peak(image_ext, det, box_half_px=self.tuning.centroid_box_half_px) / (
             peak_per_snr * snr
         )
-        if not 1.0 / self._pair_vote_peak_factor <= ratio <= self._pair_vote_peak_factor:
+        if (
+            not 1.0 / self.tuning.pair_vote_peak_factor
+            <= ratio
+            <= self.tuning.pair_vote_peak_factor
+        ):
             return None
         return det
 
@@ -643,18 +599,18 @@ class StarUniqueMatchNav(NavTechnique):
         max_rotation_rad = math.radians(context.max_rotation_deg)
         rotation_at_edge = fit_rotation and (
             rotation_rad is not None
-            and abs(rotation_rad) >= self._rotation_at_edge_fraction * max_rotation_rad
+            and abs(rotation_rad) >= self.tuning.rotation_at_edge_fraction * max_rotation_rad
         )
         at_edge = (
-            abs(offset_v) >= margin_v - self._at_edge_tolerance_px
-            or abs(offset_u) >= margin_u - self._at_edge_tolerance_px
+            abs(offset_v) >= margin_v - self.tuning.at_edge_tolerance_px
+            or abs(offset_u) >= margin_u - self.tuning.at_edge_tolerance_px
             or rotation_at_edge
         )
         confidence = self._evaluate_confidence(
             diagnostics=diagnostics,
             at_edge=at_edge,
             spurious=False,
-            cap=self._two_star_confidence_cap,
+            cap=self.tuning.two_star_confidence_cap,
         )
         self.logger.info(
             'Two-star path: stars %s and %s; offset (%.4f, %.4f) px; residual '
@@ -728,7 +684,7 @@ class StarUniqueMatchNav(NavTechnique):
         fit_rotation = bool(context.fit_camera_rotation)
         search_half_vu = self._search_window(context)
         margin_v, margin_u = search_window_for_obs(context)
-        half = self._centroid_box_half_px
+        half = self.tuning.centroid_box_half_px
         hypotheses = lone_star_hypotheses(
             image_ext,
             searched,
@@ -740,23 +696,23 @@ class StarUniqueMatchNav(NavTechnique):
                     round(vu[0]),
                     round(vu[1]),
                     half=half,
-                    max_sharpness=self._one_star_max_peak_sharpness,
+                    max_sharpness=self.tuning.one_star_max_peak_sharpness,
                     noise_sigma=noise_sigma,
                     detection_sigma=0.0,
                 )
             ),
             margin_vu=(margin_v, margin_u),
             noise_sigma=noise_sigma,
-            peak_factor=self._pair_vote_peak_factor,
-            absent_stars_needed=self._one_star_absent_stars,
+            peak_factor=self.tuning.pair_vote_peak_factor,
+            absent_stars_needed=self.tuning.one_star_absent_stars,
             box_half_px=half,
             max_peak_per_snr=self._max_peak_per_snr(context, noise_sigma),
         )
         choice = choose_lone_star(
             hypotheses,
-            tolerance_px=2.0 * self._max_residual_px,
-            runner_up_ratio=self._one_star_min_peak_ratio,
-            rival_factor=self._pair_vote_peak_factor,
+            tolerance_px=2.0 * self.tuning.max_residual_px,
+            runner_up_ratio=self.tuning.one_star_min_peak_ratio,
+            rival_factor=self.tuning.pair_vote_peak_factor,
         )
         self.logger.info(
             'One-star path: %d hypothesis(es) from %d searched star(s)',
@@ -801,7 +757,7 @@ class StarUniqueMatchNav(NavTechnique):
                 f
                 for f in rest
                 if abs(brightness_margin_mag(star_snr, predicted_snr(f)))
-                < self._brightness_margin_floor_mag
+                < self.tuning.brightness_margin_to_next_catalog_star_mag
                 and abs(det[0] - predicted_vu(f)[0]) <= search_half_vu[0]
                 and abs(det[1] - predicted_vu(f)[1]) <= search_half_vu[1]
             ),
@@ -812,8 +768,8 @@ class StarUniqueMatchNav(NavTechnique):
             # be it as well; nothing in the image tells the two apart.
             refusal = (
                 f'ambiguous_identity: {rival.feature_id}, within '
-                f'{self._brightness_margin_floor_mag:.1f} mag of {star.feature_id}, could be '
-                f'the source as well'
+                f'{self.tuning.brightness_margin_to_next_catalog_star_mag:.1f} mag of '
+                f'{star.feature_id}, could be the source as well'
             )
         elif (offset_v * ellipse_u) ** 2 + (offset_u * ellipse_v) ** 2 > (
             ellipse_v * ellipse_u
@@ -831,7 +787,7 @@ class StarUniqueMatchNav(NavTechnique):
                 f'({offset_v:.3f}, {offset_u:.3f}) px, outside the '
                 f'({ellipse_v:.1f}, {ellipse_u:.1f}) px lone-star ellipse)'
             )
-        elif not math.isfinite(peak_ratio) and residual_px > self._one_star_max_residual_px:
+        elif not math.isfinite(peak_ratio) and residual_px > self.tuning.one_star_max_residual_px:
             # Residual gate (#259): an infinite peak ratio means no pixel of the window
             # outside the source ever cleared the background -- the signature of a lone
             # hot pixel or artifact on a flat or quantized frame, not of a star on a real
@@ -840,7 +796,7 @@ class StarUniqueMatchNav(NavTechnique):
             # acceptance demands the detection sit within one_star_max_residual_px.
             refusal = (
                 f'no_rival_detection: residual {residual_px:.3f} px exceeds '
-                f'one_star_max_residual_px {self._one_star_max_residual_px:.3f} '
+                f'one_star_max_residual_px {self.tuning.one_star_max_residual_px:.3f} '
                 f'and the peak-ratio gate is vacuous (no runner-up above background)'
             )
         diagnostics = StarUniqueMatchDiagnostics(
@@ -861,14 +817,14 @@ class StarUniqueMatchNav(NavTechnique):
         # one_star_ellipse_fraction brings the ellipse within at_edge_tolerance_px of
         # the window's edge.
         at_edge = (
-            abs(offset_v) >= margin_v - self._at_edge_tolerance_px
-            or abs(offset_u) >= margin_u - self._at_edge_tolerance_px
+            abs(offset_v) >= margin_v - self.tuning.at_edge_tolerance_px
+            or abs(offset_u) >= margin_u - self.tuning.at_edge_tolerance_px
         )
         confidence = self._evaluate_confidence(
             diagnostics=diagnostics,
             at_edge=at_edge,
             spurious=False,
-            cap=self._one_star_confidence_cap,
+            cap=self.tuning.one_star_confidence_cap,
         )
         reported_det = reported_position_vu(det, (margin_v, margin_u))
         self.logger.info(
@@ -950,16 +906,16 @@ class StarUniqueMatchNav(NavTechnique):
             True when the detection is isolated.
         """
         inner_px, outer_px = isolation_radii(
-            self._isolation_inner_px, self._isolation_outer_px, smear_px
+            self.tuning.source_isolation_inner_px, self.tuning.source_isolation_outer_px, smear_px
         )
         return is_isolated_point_source(
             image_ext,
             detection_vu,
-            sigma_px=self._psf_sigma_px,
-            kernel_half_px=self._centroid_box_half_px,
+            sigma_px=self.tuning.psf_sigma_px,
+            kernel_half_px=self.tuning.centroid_box_half_px,
             inner_px=inner_px,
             outer_px=outer_px,
-            max_ratio=self._isolation_max_ratio,
+            max_ratio=self.tuning.source_isolation_max_ratio,
         )
 
     def _evaluate_confidence(
