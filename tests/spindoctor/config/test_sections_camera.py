@@ -114,3 +114,21 @@ def test_an_untyped_camera_section_is_parsed_when_asked_for() -> None:
     config = Config()
     assert 'sim' not in config._typed_sections().CAMERA_SECTIONS
     assert isinstance(config.camera_block('sim'), CameraBlock)
+
+
+def test_the_star_photometry_mode_tables_give_the_same_modes() -> None:
+    """A mode the star width table gives and the faintest-signal table leaves out is refused."""
+    raw = camera_mapping(raw_camera())
+    raw['star_photometry'] = {
+        'flux_unit': 'electrons',
+        'flux_per_s_vmag0': 1.0e8,
+        'gain': {'LOW': 20.0},
+        'min_detectable_dn': {'FULL': 100.0},
+        'psf_sigma': {'FULL': 0.9, 'SUMMED': 0.5},
+        'search_depth_mag': 1.0,
+    }
+    with pytest.raises(
+        SchemaError,
+        match=r"camera: star_photometry\.psf_sigma: gives the modes \['FULL', 'SUMMED'\]",
+    ):
+        as_camera_block(raw, source='camera')
