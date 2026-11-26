@@ -145,8 +145,8 @@ def find_pointing(
     each other under the seed are paired one to one, closest pairs first (a peak is one
     source and confirms at most one star), and a least-squares translation (plus a rotation
     about ``center_vu`` when at least five stars pair) is fitted, then paired and refitted
-    within ``agree_px`` until the agreeing set stops changing.  The refinement with the most
-    agreeing stars (then the smallest spread) is the tier's fix.
+    within ``agree_px`` until the agreeing star-peak pairs stop changing.  The refinement with
+    the most agreeing stars (then the smallest spread) is the tier's fix.
 
     A tier's chance probability is the chance of a cluster of its agreeing-star count from
     randomly placed pairs anywhere in the search window: a Poisson tail with the tier's mean
@@ -202,9 +202,10 @@ def find_pointing(
     if best is None:
         return _refused(n_star, n_peak, 'no star-peak pair inside the search window')
     chance, tier = best
-    dv, du, theta, agreeing, rms = _refine(
+    dv, du, theta, pairs, rms = _refine(
         pred_v, pred_u, peaks, tier.offset_v, tier.offset_u, center_vu, agree_px, theta=tier.theta
     )
+    agreeing = [star for star, _ in pairs]
     n_agree = len(agreeing)
     reason = ''
     if n_agree < min_agree:
@@ -301,7 +302,7 @@ def _vote_tier(
     # Refine the best few bins and keep the fit most stars agree with, since a defect that
     # makes a line of peaks can tie the true bin on raw votes.
     order = np.argsort(-summed, axis=None)[:n_seeds]
-    fit: tuple[float, float, float, list[int], float] | None = None
+    fit: tuple[float, float, float, list[tuple[int, int]], float] | None = None
     for flat in order:
         if summed.flat[flat] < 1:
             break
@@ -327,7 +328,7 @@ def _vote_tier(
         offset_v=fit[0],
         offset_u=fit[1],
         theta=fit[2],
-        agreeing=fit[3],
+        agreeing=[star for star, _ in fit[3]],
         rms=fit[4],
         runner_up=runner_up,
         chance=min(1.0, window_area / disk_area * tail),
@@ -372,8 +373,12 @@ def _refine(
     agree_px: float,
     *,
     theta: float = 0.0,
-) -> tuple[float, float, float, list[int], float]:
+) -> tuple[float, float, float, list[tuple[int, int]], float]:
     """Refine a seed offset into a translation-plus-rotation fit.
+
+    Stars and peaks are paired one to one and the fit is solved on the pairs, repeatedly,
+    until the agreeing ``(star, peak)`` pairs stop changing (a star can keep agreeing while
+    its peak changes, which moves the fit) or ten rounds have run.
 
     Parameters:
         pred_v: Predicted lines.
@@ -386,11 +391,12 @@ def _refine(
         theta: Seed rotation in radians.
 
     Returns:
-        ``(offset_v, offset_u, theta_rad, agreeing_indexes, rms_px)``.
+        ``(offset_v, offset_u, theta_rad, agreeing_pairs, rms_px)``, the pairs as
+        ``(star, peak)`` indexes in increasing star index.
     """
     dv, du = seed_v, seed_u
     radius = 2.0 * agree_px
-    agreeing: list[int] = []
+    agreeing: list[tuple[int, int]] = []
     rms = float('nan')
     for _ in range(10):
         tv, tu = _transform(pred_v, pred_u, dv, du, theta, center_vu)
@@ -404,9 +410,9 @@ def _refine(
         )
         tv, tu = _transform(sv, su, dv, du, theta, center_vu)
         resid = np.hypot(ov - tv, ou - tu)
-        keep = chosen[resid <= agree_px]
-        rms = float(np.sqrt(np.mean(resid[resid <= agree_px] ** 2))) if keep.size else rms
-        new = sorted(int(k) for k in keep)
+        close = resid <= agree_px
+        rms = float(np.sqrt(np.mean(resid[close] ** 2))) if np.any(close) else rms
+        new = [(int(k), int(m)) for k, m in zip(chosen[close], matched[close], strict=True)]
         if new == agreeing and radius == agree_px:
             break
         agreeing = new

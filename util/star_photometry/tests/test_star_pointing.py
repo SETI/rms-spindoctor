@@ -5,10 +5,26 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from util.star_photometry.star_field import PeakList
-from util.star_photometry.star_pointing import PointingFix, find_pointing
+from util.star_photometry.star_pointing import PointingFix, _refine, find_pointing
 
 # The offset every test plants between predicted and observed positions.
 OFFSET_V, OFFSET_U = 10.0, 20.0
+
+
+def _peak_list(peaks: list[tuple[float, float]]) -> PeakList:
+    """Return peaks of equal SNR at the given positions.
+
+    Parameters:
+        peaks: Observed ``(v, u)`` of each peak, brightest first.
+
+    Returns:
+        The peak list.
+    """
+    return PeakList(
+        v=np.array([p[0] for p in peaks]),
+        u=np.array([p[1] for p in peaks]),
+        snr=np.full(len(peaks), 50.0),
+    )
 
 
 def _fix(pred: list[tuple[float, float]], peaks: list[tuple[float, float]]) -> PointingFix:
@@ -21,15 +37,10 @@ def _fix(pred: list[tuple[float, float]], peaks: list[tuple[float, float]]) -> P
     Returns:
         The fix.
     """
-    peak_list = PeakList(
-        v=np.array([p[0] for p in peaks]),
-        u=np.array([p[1] for p in peaks]),
-        snr=np.full(len(peaks), 50.0),
-    )
     return find_pointing(
         np.array([p[0] for p in pred]),
         np.array([p[1] for p in pred]),
-        peak_list,
+        _peak_list(peaks),
         center_vu=(499.5, 499.5),
         search_px=50.0,
         vote_bin_px=1.5,
@@ -55,3 +66,27 @@ def test_one_peak_confirms_one_star() -> None:
     assert fix.n_agree == 1
     assert not fix.accepted
     assert fix.reason == 'only 1 stars agree'
+
+
+def test_refinement_continues_while_a_star_changes_peak() -> None:
+    """The refinement stops when the pairs stop changing, not only the agreeing stars.
+
+    Four stars and their peaks, offset along lines only: from a zero seed the fit moves to
+    0.6 px, where the first star takes its 0.95 px peak (0.8375 px), and then to 0.8375 px,
+    where the second star takes its 1.35 px peak.  The agreeing stars are the same four
+    throughout, so a stop on the stars alone would end at 0.8375 px.
+    """
+    pred = np.array([[100.0, 100.0], [300.0, 100.0], [100.0, 300.0], [300.0, 300.0]])
+    peaks = _peak_list(
+        [
+            (100.0, 100.0),
+            (100.95, 100.0),
+            (300.0, 100.0),
+            (301.35, 100.0),
+            (101.2, 300.0),
+            (301.2, 300.0),
+        ]
+    )
+    dv, du, _, pairs, _ = _refine(pred[:, 0], pred[:, 1], peaks, 0.0, 0.0, (499.5, 499.5), 1.0)
+    assert (dv, du) == pytest.approx((1.175, 0.0), abs=1e-9)
+    assert pairs == [(0, 1), (1, 3), (2, 4), (3, 5)]
