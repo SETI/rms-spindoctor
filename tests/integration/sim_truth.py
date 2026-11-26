@@ -381,8 +381,6 @@ RANK1_NORMAL_ERROR = _b(0.4581, 0.4624, 0.05, 0.408, 0.513)
 # Columns as in KNOWN_ERRORS, but in sigmas: the fused error in units of the reported
 # covariance.  These are the scenes that sit above SIGMA_MULTIPLE for a known reason.
 SIGMA_BANDS: dict[str, KnownErrorBand] = {
-    # The two-star fused sigma is about 0.01 px against a steady 0.04 px error (#788).
-    'lock_pair': _b(3.186, 4.479, 0.2585, 2.927, 4.738),
     # The observable component misses by 0.46 px against a 0.095 px sigma (#873).
     'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
