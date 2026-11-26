@@ -68,3 +68,12 @@ def test_a_few_cosmic_ray_hits_leave_the_albedo_alone() -> None:
     disc[:10] *= 50.0
     albedo = disc_normal_albedo(disc, mu0, mu, law='lommel_seeliger', phase_angle=_PHASE)
     assert albedo == pytest.approx(0.42, rel=1e-12)
+
+
+def test_a_law_value_that_underflows_gives_no_estimate() -> None:
+    """A Minnaert exponent of 400 underflows the law at cosines of 0.3, so no albedo."""
+    mu0 = np.full(50, 0.3)
+    albedo = disc_normal_albedo(
+        np.full(50, 0.1), mu0, mu0, law='minnaert', phase_angle=_PHASE, minnaert_k=400.0
+    )
+    assert albedo is None

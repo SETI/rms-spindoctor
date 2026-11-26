@@ -54,20 +54,24 @@ def disc_normal_albedo(
         minnaert_k: The Minnaert exponent, which the Minnaert law reads.
 
     Returns:
-        The median over the pixels whose I/F is finite and whose two cosines are both
-        at least 0.3 of the I/F divided by the law's value there.  None when fewer than
-        50 pixels count or the median is not positive.
+        The median over the pixels whose I/F is finite, whose two cosines are both at
+        least 0.3, and where the law's value is finite and positive, of the I/F divided
+        by the law's value there.  None when fewer than 50 pixels count or the median
+        is not positive.
     """
     values = np.asarray(disc_if, dtype=np.float64).ravel()
     mu0 = np.asarray(cos_incidence, dtype=np.float64).ravel()
     mu = np.asarray(cos_emission, dtype=np.float64).ravel()
     keep = np.isfinite(values) & (mu0 >= MIN_DISC_COSINE) & (mu >= MIN_DISC_COSINE)
-    if int(np.count_nonzero(keep)) < MIN_ALBEDO_PIXELS:
-        return None
-    shaded = shade_surface(
+    shaded = np.zeros(values.shape)
+    shaded[keep] = shade_surface(
         mu0[keep], mu[keep], law=law, phase_angle=phase_angle, minnaert_k=minnaert_k
     )
-    albedo = float(np.median(values[keep] / shaded))
+    # A law value that underflows to zero (a large Minnaert exponent) gives no estimate.
+    keep &= np.isfinite(shaded) & (shaded > 0.0)
+    if int(np.count_nonzero(keep)) < MIN_ALBEDO_PIXELS:
+        return None
+    albedo = float(np.median(values[keep] / shaded[keep]))
     if not albedo > 0.0:
         return None
     return albedo
