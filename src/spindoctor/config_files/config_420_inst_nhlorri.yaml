@@ -28,8 +28,8 @@ newhorizons_lorri:
     # reads with the values above.  The 4x4 mode's published gain is 19.4 e-/DN,
     # against 21 e-/DN at 1x1 (see _sources below), so the published 23 e- read
     # noise is 23 / 19.4 = 1.19 DN.  Binning on the chip keeps a star's charge, so
-    # the electron zero point the value above is sized from, 7.0e7 e-/s, reads
-    # 7.0e7 / 19.4 = 3.61e6 DN/s.  read_noise_dn above is a placeholder above the
+    # the electron zero point the value above is sized from, 7.0e8 e-/s, reads
+    # 7.0e8 / 19.4 = 3.61e7 DN/s.  read_noise_dn above is a placeholder above the
     # published 23 / 21 = 1.10 DN, so part of the step from the unbinned star limit
     # to the binned one comes from the placeholder.
     by_binning:
