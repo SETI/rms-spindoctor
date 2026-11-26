@@ -165,11 +165,11 @@ measured frames, and one frame in three was held out of the fit. Frames shorter 
 50 ms were left out: the camera has no shutter, so the frame transfer adds light to a
 short exposure.
 
-- The rate is the fit of 4,319 stars, 3.605e7 DN per second for V = 0 unbinned
+- The rate is the fit of 4,310 stars, 3.605e7 DN per second for V = 0 unbinned
   (+-0.01 mag), times 21.0 electrons per DN. The zero point of Weaver et al. (2020)
   gives 3.2e7 DN per second.
 - The electrons per DN are those of Weaver et al. (2020), 21.0 unbinned and 19.4
-  binned. The stars measure the binned to unbinned DN ratio at 1.053, against the
+  binned. The stars measure the binned to unbinned DN ratio at 1.054, against the
   1.082 these give.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to every
   clean star of the mode, reaches 80% of the way from its floor to its plateau:
@@ -182,8 +182,8 @@ predicted dimmest visible star.
 handled downstream.
 
 **PSF.** The navigator's star sigma is the section's ``star_psf_sigma`` for the
-frame's mode, in that frame's own pixels. Unbinned it is 0.9 px, the median of 308
-stars on 44 frames (16th to 84th percentile 0.82 to 0.97); the FWHMs of Weaver et
+frame's mode, in that frame's own pixels. Unbinned it is 0.9 px, the median of 311
+stars on 45 frames (16th to 84th percentile 0.82 to 0.97); the FWHMs of Weaver et
 al. (2020), 2.04 by 2.70 px, are sigmas of 0.87 by 1.15. Binned it is 0.45 px, from
 the 5 to 10 s frames a navigation run sees; sub-second star calibrations give 0.28,
 since pointing jitter widens a long exposure. The camera block's own

@@ -120,7 +120,7 @@ voyager_iss_star_photometry:
     dn_gain_factor:
       LOW: 1.0
       HIGH: 4.24
-    # Fit: 109 +- 58 DN, the DN at 80% of the way from the detection floor to the
+    # Fit: 107 +- 77 DN, the DN at 80% of the way from the detection floor to the
     # plateau of a detection-probability curve fitted to every clean star.
     min_detectable_dn: 110.0
     # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
@@ -147,7 +147,7 @@ voyager_iss_star_photometry:
     dn_gain_factor:
       LOW: 1.0
       HIGH: 4.04
-    # Fit: 35 +- 18 DN, measured as for the narrow-angle camera.
+    # Fit: 35 +- 22 DN, measured as for the narrow-angle camera.
     min_detectable_dn: 35.0
     # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
     # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the

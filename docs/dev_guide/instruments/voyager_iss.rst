@@ -257,8 +257,8 @@ was held out of the fit.
   read 1.1 to 1.5 mag brighter than that rate predicts, which points to a
   compressive vidicon response at high signal.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to every clean
-  star, reaches 80% of the way from its floor to its plateau: 109 +- 58 DN on the
-  narrow-angle camera and 35 +- 18 DN on the wide-angle camera.
+  star, reaches 80% of the way from its floor to its plateau: 107 +- 77 DN on the
+  narrow-angle camera and 35 +- 22 DN on the wide-angle camera.
 - Every measured frame is at low gain, so the high-gain factor is the published
   constant ``g`` of Benesh and Jepsen (1978, Table 4-3) for the camera's serial
   number.
@@ -276,7 +276,7 @@ and S/N 04, so the narrow-angle rate is scaled by 0.648 and the wide-angle rate 
 Voyager 2's ``min_detectable_dn``.
 
 On the held-out Voyager 2 frames, the faintest star detected lies a median 0.02 mag
-inside the predicted dimmest visible star on the narrow-angle camera, and 1.37 mag
+inside the predicted dimmest visible star on the narrow-angle camera, and 1.21 mag
 past it on the wide-angle camera, with broad spreads, so the limit carries about half
 a magnitude of uncertainty.
 
