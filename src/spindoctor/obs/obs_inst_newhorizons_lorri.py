@@ -1,6 +1,6 @@
 import math
 from fractions import Fraction
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from filecache import FCPath
@@ -11,10 +11,12 @@ from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
-from .star_photometry_newhorizons_lorri import NewHorizonsLORRIBinning
 
-_STAR_PHOTOMETRY_SECTION = 'newhorizons_lorri_star_photometry'
-"""The configuration section holding the camera's star photometry."""
+_STAR_PHOTOMETRY = 'newhorizons_lorri.star_photometry'
+"""The key path of the camera block's star photometry."""
+
+NewHorizonsLORRIBinning = Literal['1X1', '4X4']
+"""A LORRI binning mode, as the star photometry's mode and gain tables key it."""
 
 _BINNING_BY_ROWS: dict[int, NewHorizonsLORRIBinning] = {1024: '1X1', 256: '4X4'}
 """The binning mode of a frame of each row count, as the image host reads it."""
@@ -160,55 +162,41 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
     def star_max_usable_vmag(self) -> float:
         """Returns the faintest V magnitude of a catalog star the star model uses.
 
-        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
-        class deposits ``rate * 10**(-0.4 * m) * texp / gain`` DN in the image, where
-        ``rate`` is the camera's electron rate for a V = 0 star, ``texp`` is the exposure
-        in seconds and ``gain`` is the electrons per DN of the frame's binning mode.  The
-        dimmest visible star deposits the binning mode's ``min_detectable_dn``, and the
-        limit is that star's magnitude plus ``search_depth_mag``.  Every quantity but
-        the exposure comes from the ``newhorizons_lorri_star_photometry`` configuration
-        section.
+        The limit is photometric, from the camera block's ``star_photometry`` (see
+        :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate counts
+        electrons.  LORRI has no filter and one gain state, so the gain table and the mode
+        tables are both keyed by :attr:`binning`, and no filter offset is read.
 
         Returns:
             The limiting magnitude, or ``-inf`` for a frame whose exposure is not
             positive.
 
         Raises:
-            ValueError: If the frame has neither 1024 nor 256 rows, or the section lacks
-                values for its binning mode.
+            ValueError: If the frame has neither 1024 nor 256 rows, or the block has no
+                ``star_photometry``, or its tables leave out the frame's binning mode.
         """
         if self.texp <= 0.0:
             return -math.inf
-        photometry = self.config.newhorizons_lorri_star_photometry.lorri
         binning = self.binning
-        if binning not in photometry.electrons_per_dn:
-            raise ValueError(
-                f'{_STAR_PHOTOMETRY_SECTION} has no values for the binning mode {binning!r}'
-            )
-        dn_vmag0 = (
-            photometry.flux_electrons_per_s_vmag0 * self.texp / photometry.electrons_per_dn[binning]
+        return self._photometric_star_limit(
+            texp=self.texp,
+            where=_STAR_PHOTOMETRY,
+            gain_state=binning,
+            mode=binning,
+            filter_name=None,
         )
-        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[binning])
-        return dimmest_visible + photometry.search_depth_mag
 
     def star_psf_sigma(self) -> float:
         """Returns the Gaussian sigma, in pixels, of a star in this observation.
 
         Returns:
-            The ``star_psf_sigma`` of the ``newhorizons_lorri_star_photometry``
-            configuration section for the frame's binning mode.
+            The camera block's ``star_photometry.psf_sigma`` for the frame's binning mode.
 
         Raises:
-            ValueError: If the frame has neither 1024 nor 256 rows, or the section lacks a
-                width for its binning mode.
+            ValueError: If the frame has neither 1024 nor 256 rows, or the block has no
+                ``star_photometry``, or its ``psf_sigma`` leaves out the binning mode.
         """
-        widths = self.config.newhorizons_lorri_star_photometry.lorri.star_psf_sigma
-        binning = self.binning
-        if binning not in widths:
-            raise ValueError(
-                f'{_STAR_PHOTOMETRY_SECTION} has no star_psf_sigma for the binning mode {binning!r}'
-            )
-        return widths[binning]
+        return self._photometric_star_sigma(where=_STAR_PHOTOMETRY, mode=self.binning)
 
     @property
     def camera(self) -> str:

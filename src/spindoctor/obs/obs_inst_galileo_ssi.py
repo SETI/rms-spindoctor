@@ -1,7 +1,7 @@
 import math
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
-from typing import Any, cast
+from typing import Any, Literal
 
 import numpy as np
 
@@ -11,7 +11,6 @@ from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayAnyType, PathLike
 
 from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
-from .star_photometry_galileo_ssi import GalileoSSIReadoutMode
 
 # SCLK01_MODULI_77 and SCLK01_OFFSETS_77 of the Galileo spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Galileo/SCLK/mk00062a.tsc: the RIM count, then its 91 MOD91
@@ -22,8 +21,12 @@ _SCLK_OFFSETS = (0, 0, 0, 0)
 _SCLK_FIELDS = ('RIM', 'MOD91', 'MOD10', 'MOD8')
 """The VICAR label items holding the four fields of an image's frame count."""
 
-_STAR_PHOTOMETRY_SECTION = 'galileo_ssi_star_photometry'
-"""The configuration section holding the camera's star photometry."""
+_STAR_PHOTOMETRY = 'galileo_ssi.star_photometry'
+"""The key path of the camera block's star photometry."""
+
+GalileoSSIReadoutMode = Literal['FULL', 'SUMMED']
+"""A Galileo SSI readout mode, as the star photometry's mode tables key it: ``FULL`` for a
+full 800 x 800 frame, ``SUMMED`` for a frame read out in 2x2 summation, 400 x 400."""
 
 _GAIN_STATES = {1: '400K', 2: '100K', 3: '40K', 4: '10K'}
 """The gain state each value of the VICAR label's ``GAIN`` item stands for, named as the
@@ -158,16 +161,11 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
     def star_max_usable_vmag(self) -> float:
         """Returns the faintest V magnitude of a catalog star the star model uses.
 
-        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
-        class deposits ``rate * 10**(-0.4 * (m + offset)) * texp / gain`` DN in the
-        image, where ``rate`` is the camera's electron rate for a V = 0 star through the
-        clear filter, ``offset`` is the frame's filter's magnitude offset from the clear
-        filter, ``texp`` is the exposure in seconds and ``gain`` is the electrons per DN
-        of the frame's gain state.  The dimmest visible star deposits the readout mode's
-        ``min_detectable_dn``, and the limit is that star's magnitude plus
-        ``search_depth_mag``.  Every quantity but the exposure comes from the
-        ``galileo_ssi_star_photometry`` configuration section.  The filter is the label's
-        ``FILTER_NAME`` and the gain state is the VICAR label's ``GAIN`` item.
+        The limit is photometric, from the camera block's ``star_photometry`` (see
+        :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate counts
+        electrons.  The filter is the label's ``FILTER_NAME``, the gain state the VICAR
+        label's ``GAIN`` item read as ``400K``, ``100K``, ``40K``, or ``10K``, and the
+        readout mode :attr:`readout_mode`.
 
         Returns:
             The limiting magnitude, or ``-inf`` for a frame whose exposure is not
@@ -175,38 +173,22 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
 
         Raises:
             ValueError: If the label does not give a gain state or telemetry format the
-                camera has, or the section lacks a magnitude offset for the frame's
-                filter, electrons per DN for its gain state, or values for its readout
-                mode.
+                camera has, or the block has no ``star_photometry``, or its tables leave
+                out the frame's readout mode, filter, or gain state.
         """
         if self.texp <= 0.0:
             return -math.inf
-        photometry = self.config.galileo_ssi_star_photometry.ssi
         mode = self.readout_mode
-        if mode not in photometry.min_detectable_dn:
-            raise ValueError(
-                f'{_STAR_PHOTOMETRY_SECTION} has no values for the readout mode {mode!r}'
-            )
-        # The keys are the label's spellings, so a label's value is looked up as text.
-        offsets = cast(Mapping[str, float], photometry.filter_mag_offset)
-        if self.filter not in offsets:
-            raise ValueError(
-                f'{_STAR_PHOTOMETRY_SECTION} has no filter_mag_offset for the filter '
-                f'{self.filter!r}'
-            )
         gain_item = self.dict.get('GAIN', None)
         if gain_item not in _GAIN_STATES:
             raise ValueError(f'SSI label does not give a known gain state: GAIN is {gain_item!r}')
-        gain_state = _GAIN_STATES[gain_item]
-        electrons_per_dn = cast(Mapping[str, float], photometry.electrons_per_dn)
-        if gain_state not in electrons_per_dn:
-            raise ValueError(
-                f'{_STAR_PHOTOMETRY_SECTION} has no electrons_per_dn for the gain state '
-                f'{gain_state!r}'
-            )
-        dn_vmag0 = photometry.flux_electrons_per_s_vmag0 * self.texp / electrons_per_dn[gain_state]
-        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[mode])
-        return dimmest_visible - offsets[self.filter] + photometry.search_depth_mag
+        return self._photometric_star_limit(
+            texp=self.texp,
+            where=_STAR_PHOTOMETRY,
+            gain_state=_GAIN_STATES[gain_item],
+            mode=mode,
+            filter_name=self.filter,
+        )
 
     @property
     def readout_mode(self) -> GalileoSSIReadoutMode:
@@ -230,20 +212,14 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         """Returns the Gaussian sigma, in pixels, of a star in this observation.
 
         Returns:
-            The ``star_psf_sigma`` of the ``galileo_ssi_star_photometry`` configuration
-            section for the frame's readout mode.
+            The camera block's ``star_photometry.psf_sigma`` for the frame's readout mode.
 
         Raises:
             ValueError: If the label does not give a telemetry format the camera has, or
-                the section lacks a width for the frame's readout mode.
+                the block has no ``star_photometry``, or its ``psf_sigma`` leaves out the
+                frame's readout mode.
         """
-        widths = self.config.galileo_ssi_star_photometry.ssi.star_psf_sigma
-        mode = self.readout_mode
-        if mode not in widths:
-            raise ValueError(
-                f'{_STAR_PHOTOMETRY_SECTION} has no star_psf_sigma for the readout mode {mode!r}'
-            )
-        return widths[mode]
+        return self._photometric_star_sigma(where=_STAR_PHOTOMETRY, mode=self.readout_mode)
 
     @property
     def camera(self) -> str:

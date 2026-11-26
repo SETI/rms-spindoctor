@@ -47,18 +47,3 @@ spindoctor.obs
    :members:
    :undoc-members:
    :show-inheritance:
-
-.. automodule:: spindoctor.obs.star_photometry_galileo_ssi
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.obs.star_photometry_newhorizons_lorri
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.obs.star_photometry_voyager_iss
-   :members:
-   :undoc-members:
-   :show-inheritance:

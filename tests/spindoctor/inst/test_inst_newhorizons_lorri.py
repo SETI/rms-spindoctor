@@ -1,6 +1,7 @@
 import math
 
 import pytest
+from tests.camera_sections import packaged_camera
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_NEWHORIZONS_LORRI_CHARON_01
 from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 
@@ -20,6 +21,7 @@ def _star_obs(*, rows: int = 1024, texp: float = 1.0) -> ObsNewHorizonsLORRI:
         texp=texp,
         _data_shape_vu=(rows, rows),
         _config=DEFAULT_CONFIG,
+        _camera_block=packaged_camera('newhorizons_lorri'),
     )
 
 

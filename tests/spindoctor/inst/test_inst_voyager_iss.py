@@ -1,6 +1,7 @@
 import math
 
 import pytest
+from tests.camera_sections import packaged_camera
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
 from tests.spindoctor.inst.conftest import (
     VicarLabelStandIn,
@@ -42,6 +43,7 @@ def _star_obs(
         filter=filter_name,
         texp=texp,
         _config=DEFAULT_CONFIG,
+        _camera_block=packaged_camera('voyager_iss', f'vg{spacecraft}_{detector.lower()}'),
     )
 
 
@@ -160,8 +162,14 @@ def test_a_non_positive_exposure_admits_no_star() -> None:
 
 
 def test_a_filter_the_camera_lacks_is_refused() -> None:
-    """The narrow-angle camera lacks a SODIUM filter, and the error says which filter."""
-    with pytest.raises(ValueError, match="no filter_mag_offset for the NAC filter 'SODIUM'"):
+    """The narrow-angle camera lacks a SODIUM filter; the error gives the block and filter."""
+    with pytest.raises(
+        ValueError,
+        match=(
+            r'voyager_iss\.vg2_nac\.star_photometry\.filter_mag_offset has no entry for the '
+            r"filter 'SODIUM'"
+        ),
+    ):
         _star_obs(filter_name='SODIUM').star_max_usable_vmag()
 
 

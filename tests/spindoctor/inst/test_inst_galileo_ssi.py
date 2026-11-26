@@ -1,6 +1,8 @@
 import math
+from typing import Any
 
 import pytest
+from tests.camera_sections import packaged_camera
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_GALILEO_SSI_IO_01
 from tests.spindoctor.inst.conftest import (
     VicarLabelStandIn,
@@ -18,12 +20,18 @@ from spindoctor.obs.obs_inst_galileo_ssi import ObsGalileoSSI
 
 
 def _star_obs(
-    *, filter_name: str = 'CLEAR', texp: float = 1.0, gain: int = 4, tlmfmt: str = 'HCM'
+    *,
+    filter_name: str = 'CLEAR',
+    texp: float = 1.0,
+    gain: int = 4,
+    tlmfmt: str = 'HCM',
+    **block_changes: Any,
 ) -> ObsGalileoSSI:
     """Build a bare observation carrying what the star limit reads.
 
     The VICAR ``GAIN`` item 4 is the 10K gain state, and the ``TLMFMT`` item HCM is a
-    full-frame format.
+    full-frame format.  The observation carries the packaged camera block, with any
+    fields given in ``block_changes`` changed.
     """
     return bare_observation(
         ObsGalileoSSI,
@@ -31,6 +39,7 @@ def _star_obs(
         filter=filter_name,
         texp=texp,
         _config=DEFAULT_CONFIG,
+        _camera_block=packaged_camera('galileo_ssi', **block_changes),
     )
 
 
@@ -79,8 +88,17 @@ def test_a_non_positive_exposure_admits_no_star() -> None:
 
 def test_a_filter_without_an_offset_is_refused() -> None:
     """A filter the photometry table does not carry appears in the error."""
-    with pytest.raises(ValueError, match="no filter_mag_offset for the filter 'IR-1234'"):
+    with pytest.raises(
+        ValueError,
+        match=r"star_photometry\.filter_mag_offset has no entry for the filter 'IR-1234'",
+    ):
         _star_obs(filter_name='IR-1234').star_max_usable_vmag()
+
+
+def test_a_camera_block_without_star_photometry_is_refused() -> None:
+    """The star limit reads the block's star photometry, so a block without it is refused."""
+    with pytest.raises(ValueError, match=r'galileo_ssi\.star_photometry is not set'):
+        _star_obs(star_photometry=None).star_max_usable_vmag()
 
 
 def test_a_label_without_a_known_gain_state_is_refused() -> None:
