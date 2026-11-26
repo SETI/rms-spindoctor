@@ -17,6 +17,7 @@ from typing import Any, cast
 import numpy as np
 import numpy.ma as ma
 import pytest
+from tests.product_sections import plane_entry
 
 from spindoctor.cli.backplanes import backplanes_bodies as bodies_mod
 from spindoctor.cli.backplanes.backplanes_bodies import (
@@ -24,6 +25,7 @@ from spindoctor.cli.backplanes.backplanes_bodies import (
     create_body_backplanes,
 )
 from spindoctor.config import IMAGE_LOGGER
+from spindoctor.config.sections_products import PlaneEntry
 from spindoctor.obs import ObsSim
 
 from .conftest import (
@@ -37,10 +39,10 @@ from .conftest import (
 
 SHAPE_VU = (8, 10)
 
-LAT_CFG = {'name': 'body_latitude', 'method': 'latitude', 'units': 'rad'}
+LAT_CFG = plane_entry('body_latitude', 'rad', method='latitude')
 
 
-def _bodies_config(entries: list[dict[str, Any]] | None = None) -> FakeBackplanesConfig:
+def _bodies_config(entries: list[PlaneEntry] | None = None) -> FakeBackplanesConfig:
     """Build a fake config with the given (or default) body backplane entries.
 
     Parameters:
@@ -212,35 +214,6 @@ def test_body_bounding_box_clipped_into_sensor() -> None:
     assert np.all(arr[3:8, 0:5] > 0.0)
     assert np.all(arr[0:3, :] == MASKED_VALUE)
     assert np.all(arr[:, 5:] == MASKED_VALUE)
-
-
-# ---------------------------------------------------------------------------
-# Configuration errors
-# ---------------------------------------------------------------------------
-
-
-def test_missing_bodies_config_section_raises() -> None:
-    """A config without backplanes.bodies is rejected."""
-    snap, _ = _sim_snapshot_with_moon_a()
-    config = FakeBackplanesConfig(rings=[])
-    with pytest.raises(ValueError, match='no bodies section'):
-        create_body_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-
-
-def test_body_entry_missing_method_raises() -> None:
-    """A body backplane entry without a method is rejected."""
-    snap, _ = _sim_snapshot_with_moon_a()
-    config = _bodies_config([{'name': 'body_latitude', 'units': 'rad'}])
-    with pytest.raises(ValueError, match='"method" is required'):
-        create_body_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
-
-
-def test_body_entry_missing_units_raises() -> None:
-    """A body backplane entry without units is rejected."""
-    snap, _ = _sim_snapshot_with_moon_a()
-    config = _bodies_config([{'name': 'body_latitude', 'method': 'latitude'}])
-    with pytest.raises(ValueError, match='"units" is required'):
-        create_body_backplanes(snap, config.as_config(), logger=IMAGE_LOGGER)
 
 
 # ---------------------------------------------------------------------------

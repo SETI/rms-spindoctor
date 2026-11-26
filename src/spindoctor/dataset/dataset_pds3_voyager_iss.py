@@ -210,29 +210,6 @@ class DataSetPDS3VoyagerISS(DataSetPDS3):
             config=config,
         )
 
-    def pds4_bundle_template_dir(self) -> str:
-        """Returns absolute path to template directory for PDS4 bundle generation."""
-        template_dir = None
-        vgiss_config = self.config.pds4.get('vgiss', {})
-        if 'template_dir' in vgiss_config:
-            template_dir = str(vgiss_config['template_dir'])
-
-        if template_dir is None:
-            template_dir = 'voyager_iss_1.0'
-
-        if Path(template_dir).is_absolute():
-            return template_dir
-
-        pds4_templates_dir = Path(__file__).resolve().parent.parent / 'cli' / 'pds4' / 'templates'
-        return str(pds4_templates_dir / template_dir)
-
-    def pds4_bundle_name(self) -> str:
-        """Returns bundle name for PDS4 bundle generation."""
-        vgiss_config = self.config.pds4.get('vgiss', {})
-        if 'bundle_name' in vgiss_config:
-            return str(vgiss_config['bundle_name'])
-        return 'voyager_iss_backplanes_rsfrench2027'
-
     @staticmethod
     def pds4_bundle_path_for_image(image_name: str) -> str:
         """Maps image name to bundle directory path."""

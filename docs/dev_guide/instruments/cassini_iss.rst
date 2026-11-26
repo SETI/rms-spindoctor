@@ -783,15 +783,17 @@ PDS4 hooks
 
 This dataset is the reference implementation, and implements every hook.
 
-* ``pds4_bundle_template_dir`` reads ``config.pds4.<dataset>.template_dir``,
-  falls back to ``_default_pds4_template_dir``, and resolves a relative name
-  against ``src/spindoctor/cli/pds4/templates/``.
-* ``pds4_bundle_name``, ``pds4_bundle_version``, ``pds4_information_model_version``
-  and ``pds4_schemas`` read ``config.pds4.<dataset>.bundle_name``, ``bundle_version``,
-  ``information_model_version`` and ``schemas``, with no fallback.  The shipped
-  ``coiss_saturn`` entry gives the schemas of the ``pds``, ``disp``, ``geom``,
-  ``rings`` and ``cassini`` dictionaries, the last the Cassini mission dictionary,
-  whose namespace the data label declares for its mission area.
+* ``pds4_bundle_template_dir`` reads ``config.pds4.<key>.template_dir`` and resolves a
+  relative name against ``src/spindoctor/cli/pds4/templates/``.
+* ``pds4_bundle_name``, ``pds4_bundle_version``, ``pds4_information_model_version``,
+  and ``pds4_schemas`` read ``config.pds4.<key>.bundle_name``, ``bundle_version``,
+  ``information_model_version``, and ``schemas``.  The shipped ``coiss_saturn`` entry
+  gives the schemas of the ``pds``, ``disp``, ``geom``, and ``cassini`` dictionaries.
+  The last is the Cassini mission dictionary, whose namespace the data label declares
+  for its mission area.
+* ``pds4_required_templates`` names the templates each pass renders and the files it
+  copies, and ``pds4_user_guide_file_name`` names the bundle's user guide in the
+  template directory; each subclass names its own bundle's guide.
 * ``pds4_bundle_path_for_image`` maps ``N1234567890`` to
   ``1234xxxxxx/123456xxxx/``, raising on a name shorter than 11 characters
   rather than returning an empty string a caller would concatenate into a
@@ -805,16 +807,18 @@ This dataset is the reference implementation, and implements every hook.
   times from the navigation metadata, the product LIDs and LIDVIDs, and roughly
   sixty ``cassini:`` namespace variables read straight from the PDS3 index row.
 
-The two dataset-identity hooks -- ``_dataset_name_for_pds4_config`` and
-``_default_pds4_template_dir`` -- raise ``NotImplementedError`` on
-``DataSetPDS3CassiniISS`` itself and are supplied by the Cruise and Saturn
-subclasses; the bundle's name is read under the first, from the configuration.
-That is what makes the undivided ``coiss`` dataset unable to build a bundle: a
-bundle belongs to one of the two halves, not to both.
+The five hooks that read configuration take the entry under the dataset's
+``PDS4_CONFIG_KEY``, written ``<key>`` above. The Cruise and Saturn subclasses set it
+to ``coiss_cruise`` and ``coiss_saturn``. ``DataSetPDS3CassiniISS`` itself leaves it
+as None, so those five hooks and ``pds4_user_guide_file_name`` raise
+``NotImplementedError`` there, and ``sd_create_bundle``
+(:doc:`/user_guide/user_guide_pds4_bundle`) refuses the undivided ``coiss`` dataset
+before it runs a pass. A bundle belongs to one of the two halves, not
+to both.
 
-Only ``cassini_iss_saturn_1.0`` is shipped under the templates directory. The
-cruise subclass refers to ``cassini_iss_cruise_1.0``, which is not present, so a
-cruise bundle needs that directory supplied before it will build.
+The package ships only the ``coiss_saturn`` entry and its ``cassini_iss_saturn_1.0``
+template directory. To build a cruise bundle, supply a ``pds4.coiss_cruise`` entry and a
+template directory.
 
 Backplanes, mosaics, and statistics
 ===================================

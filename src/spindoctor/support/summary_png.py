@@ -439,7 +439,7 @@ def _load_summary_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFon
         A PIL font object; the bitmap default is returned when no
         configured TrueType font can be opened.
     """
-    font_dir = str(DEFAULT_CONFIG.general.get('truetype_font_dir', '') or '')
+    font_dir = DEFAULT_CONFIG.general.truetype_font_dir
     candidates = [
         os.path.join(font_dir, 'liberation2', 'LiberationMono-Bold.ttf'),
         os.path.join(font_dir, 'liberation', 'LiberationMono-Bold.ttf'),

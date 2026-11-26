@@ -207,16 +207,21 @@ gate forces confidence to zero.
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.BodyBlobNav.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``.
+All tunables for this technique live in ``techniques.body_blob.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
+the schema core parses them into
+:class:`~spindoctor.nav_technique.correlation_tuning.BodyBlobTuning`, which checks each
+value's type and range. The technique reads them as ``self.tuning.<key>``. None of them
+has a default in the code, so the values below are the ones in the packaged file.
 
-- ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
-  distance from any search-window axis bound falls within this tolerance is flagged
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
-- ``model_error_size_frac`` — float, default ``0.05`` (fraction of the body radius). The
-  size-scaled centroid-model-error term (see "Joint covariance"). ``0.0`` disables it.
-- ``model_error_floor_px`` — float, default ``0.1`` px. Absolute size-independent floor added
-  in quadrature. ``0.0`` disables it.
+- ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. A converged offset whose
+  absolute distance from any search-window axis bound falls within this tolerance is
+  flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
+- ``model_error_size_frac`` — float, packaged value ``0.05`` (fraction of the body
+  radius). The size-scaled centroid-model-error term (see "Joint covariance"). ``0.0``
+  disables it.
+- ``model_error_floor_px`` — float, packaged value ``0.1`` px. Absolute size-independent
+  floor added in quadrature. ``0.0`` disables it.
 
 The remaining numeric thresholds (the per-blob CRLB scaling constants, the noise-floor
 detection threshold) are derived from the per-image
@@ -236,7 +241,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared
 sigmoid combination; see :doc:`dev_guide_techniques_confidence` for the per-term arithmetic.
-The formula spec is ``techniques.BodyBlobNav`` in the same YAML file and consumes attributes
+The formula spec is ``techniques.body_blob`` in the same YAML file and consumes attributes
 off :class:`~spindoctor.nav_technique.diagnostics.BodyBlobDiagnostics` plus
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
 

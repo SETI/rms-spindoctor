@@ -44,7 +44,7 @@ def _create_simulated_body_backplane(
         corresponding boolean mask.
     """
 
-    masked_value = float(snapshot.config.backplanes.masked_value)
+    masked_value = snapshot.config.backplanes.masked_value
     full = np.full(snapshot.data.shape, masked_value, dtype=np.float32)
     full_mask = np.zeros(snapshot.data.shape, dtype=bool)
     # hashlib, not hash(): str hashing is salted per interpreter run and the
@@ -118,7 +118,7 @@ def create_body_backplanes(
         each pixel shows.
     """
 
-    masked_value = float(config.backplanes.masked_value)
+    masked_value = config.backplanes.masked_value
 
     # maps body_name -> arrays/masks/distance
     # per_body is ordered by increasing distance
@@ -143,13 +143,6 @@ def create_body_backplanes(
         (name, inv[name]) for name in candidate_names if snapshot.inventory_body_in_fov(inv[name])
     ]
     bodies_by_range.sort(key=lambda x: x[1]['range'])
-
-    # Configured backplanes for bodies
-    # Each entry consists of "name", "method", and "units"
-    # If "method" is not provided, it defaults to the same as "name"
-    bodies_cfg = getattr(config.backplanes, 'bodies', None)
-    if bodies_cfg is None:
-        raise ValueError('Configuration has no bodies section for backplanes')
 
     # For each body, create a restricted meshgrid and evaluate configured backplanes
     for body_name, inv_info in bodies_by_range:
@@ -177,14 +170,9 @@ def create_body_backplanes(
         per_type_arrays: dict[str, np.ndarray] = {}
         per_type_masks: dict[str, np.ndarray] = {}
 
-        for bp_cfg in bodies_cfg:
-            bp_name = bp_cfg['name']
-            method = bp_cfg.get('method')
-            if method is None:
-                raise ValueError(f'Body backplane "method" is required: {bp_name}')
-            units = bp_cfg.get('units')
-            if units is None:
-                raise ValueError(f'Body backplane "units" is required: {bp_name}')
+        for bp_cfg in config.backplanes.bodies:
+            bp_name = bp_cfg.name
+            method = bp_cfg.method
 
             logger.debug(f'{body_name}: Creating body backplane {bp_name}')
             # Evaluate backplane for this body

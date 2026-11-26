@@ -36,6 +36,7 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
+from tests.ring_sections import config_with_rings, packaged_rings, ring_catalog
 from tests.shims import FakeBackplane, FakeObs, RingBackplaneData, bare_nav_context
 from tests.shims.backplane import RingEdgeBackplane, edge_meshgrid
 
@@ -293,36 +294,25 @@ def _gap_inner(a: float, *, rms: float = 8.0) -> dict[str, Any]:
     }
 
 
-def _ring_config(features: dict[str, Any], *, planet_entry: dict[str, Any] | None = None) -> Config:
+def _ring_config(features: dict[str, Any]) -> Config:
     """Return a ``Config`` whose SATURN ring catalog is exactly ``features``.
 
-    The bundled defaults are loaded first (so every other section keeps its
-    normal values), then ``rings.ring_features`` is replaced wholesale with a
-    single synthetic SATURN entry.
+    Every other section, and every other key of ``rings``, keeps its packaged value;
+    ``rings.ring_features`` holds a single synthetic SATURN catalog.
 
     Parameters:
         features: Per-feature catalog entries keyed by feature name.
-        planet_entry: Optional full replacement for the SATURN planet block
-            (used by the config-validation tests); when given, ``features``
-            is ignored.
     """
-    config = Config()
-    config.read_config()
-    entry: dict[str, Any]
-    if planet_entry is not None:
-        entry = planet_entry
-    else:
-        entry = {
+    catalog = ring_catalog(
+        {
             'epoch': _EPOCH,
             'fade_width_pix': 10.0,
             'min_allowed_fade_width_pix': 2.0,
             'min_feature_pixels': 2.0,
             'features': features,
         }
-    config._config_dict['rings'] = dict(config._config_dict['rings'])
-    config._config_dict['rings']['ring_features'] = {'SATURN': entry}
-    config._update_attrdicts()
-    return config
+    )
+    return config_with_rings(packaged_rings(ring_features={'SATURN': catalog}))
 
 
 def _make_obs(ring_data: RingBackplaneData, *, shape: tuple[int, int] = _SHAPE) -> FakeObs:
@@ -851,91 +841,6 @@ def test_min_res_at_radius_none_for_nonfinite_resolution(
     config = _ring_config({'TESTR': _ringlet(103_000.0, 107_000.0)})
     fn = _capture_min_res(monkeypatch, _ramp_ring(res=100.0, res_array=res_array), config)
     assert fn(103_000.0) is None
-
-
-# ---------------------------------------------------------------------------
-# _render: config validation
-# ---------------------------------------------------------------------------
-
-
-def _entry_without(*keys: str, **overrides: Any) -> dict[str, Any]:
-    """Return a SATURN planet block with keys removed / overridden.
-
-    Parameters:
-        *keys: Keys deleted from the baseline block.
-        **overrides: Key / value pairs written over the baseline block.
-    """
-    entry: dict[str, Any] = {
-        'epoch': _EPOCH,
-        'fade_width_pix': 10.0,
-        'min_allowed_fade_width_pix': 2.0,
-        'min_feature_pixels': 2.0,
-        'features': {'TESTR': _ringlet(103_000.0, 107_000.0)},
-    }
-    for key in keys:
-        del entry[key]
-    entry.update(overrides)
-    return entry
-
-
-def test_missing_epoch_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A planet block without an epoch fails fast."""
-    config = _ring_config({}, planet_entry=_entry_without('epoch'))
-    model, _obs = _make_model(monkeypatch, _ramp_ring(), config)
-    with pytest.raises(ValueError, match='No epoch configured for planet SATURN'):
-        model.create_model()
-
-
-def test_non_string_epoch_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A non-string epoch fails fast with a type-naming message."""
-    config = _ring_config({}, planet_entry=_entry_without(epoch=12345))
-    model, _obs = _make_model(monkeypatch, _ramp_ring(), config)
-    with pytest.raises(ValueError, match=r'epoch for planet .SATURN. must be a string'):
-        model.create_model()
-
-
-def test_invalid_epoch_string_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """An unparseable epoch string fails fast naming the bad value."""
-    config = _ring_config({}, planet_entry=_entry_without(epoch='not a date'))
-    model, _obs = _make_model(monkeypatch, _ramp_ring(), config)
-    with pytest.raises(ValueError, match='is not a valid UTC'):
-        model.create_model()
-
-
-def test_missing_features_key_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A planet block without a features mapping fails fast."""
-    config = _ring_config({}, planet_entry=_entry_without('features'))
-    model, _obs = _make_model(monkeypatch, _ramp_ring(), config)
-    with pytest.raises(ValueError, match='Missing required ring configuration key "features"'):
-        model.create_model()
-
-
-def test_non_dict_features_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A features value that is not a mapping fails fast."""
-    config = _ring_config({}, planet_entry=_entry_without(features=['not', 'a', 'dict']))
-    model, _obs = _make_model(monkeypatch, _ramp_ring(), config)
-    with pytest.raises(ValueError, match=r'"features" for planet .SATURN. must be a dict'):
-        model.create_model()
-
-
-def test_non_dict_feature_entry_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A per-feature entry that is not a mapping fails fast naming the key."""
-    config = _ring_config({'BAD': 'not a dict'})
-    model, _obs = _make_model(monkeypatch, _ramp_ring(), config)
-    with pytest.raises(ValueError, match=r"features.'BAD' must be a dict"):
-        model.create_model()
-
-
-def test_non_dict_planet_entry_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A planet block that is not a mapping fails fast."""
-    config = Config()
-    config.read_config()
-    config._config_dict['rings'] = dict(config._config_dict['rings'])
-    config._config_dict['rings']['ring_features'] = {'SATURN': 'not a dict'}
-    config._update_attrdicts()
-    model, _obs = _make_model(monkeypatch, _ramp_ring(), config)
-    with pytest.raises(ValueError, match=r'entry for planet .SATURN. must be'):
-        model.create_model()
 
 
 # ---------------------------------------------------------------------------

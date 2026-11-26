@@ -20,9 +20,9 @@ from typing import Any
 
 import pdstemplate
 import pytest
+from tests.product_sections import plane_entry
 from tests.spindoctor.cli.pds4.conftest import (
     RUN_LEVEL_PRODUCTS,
-    index_entry,
     make_bundle_env,
     ring_metadata,
     touch_browse_label,
@@ -160,8 +160,8 @@ def test_a_refused_summary_leaves_no_product_an_earlier_summary_wrote(
     """
     env = make_bundle_env(
         tmp_path / 'env',
-        bodies=[index_entry('latitude', 'rad')],
-        rings=[index_entry('radius', 'km')],
+        bodies=[plane_entry('latitude', 'rad')],
+        rings=[plane_entry('radius', 'km')],
     )
     dataset = env.dataset.as_dataset()
     monkeypatch.setattr(sd_create_bundle, 'dataset_name_to_class', lambda _: lambda: dataset)

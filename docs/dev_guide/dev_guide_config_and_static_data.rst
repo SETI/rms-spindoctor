@@ -126,6 +126,28 @@ returns the typed object:
 - ``feature_emission`` — :class:`~spindoctor.config.sections_models.FeatureEmissionSection`.
   A planet's entry under ``ring_annulus.planets`` may leave a key out, and that key
   keeps the ``default`` entry's value.
+- ``rings`` — :class:`~spindoctor.config.sections_rings.RingsSection`, holding the ring
+  model's settings and, under ``ring_features``, each planet's ring catalog as a
+  :class:`~spindoctor.config.sections_rings.RingCatalog`. The rules a catalog follows
+  are listed in :doc:`dev_guide_navigation_models_ring`.
+- ``general`` — :class:`~spindoctor.config.sections.GeneralSection`: the directory of
+  TrueType fonts that annotation text and summary labels are drawn in
+  (``truetype_font_dir``).
+- ``offset`` — :class:`~spindoctor.config.sections.OffsetSection`: the FFT upsample
+  factor of the image correlation (``correlation_fft_upsample_factor``), from 1 to
+  :data:`~spindoctor.config.sections.MAX_UPSAMPLE_FACTOR`. The disc correlation, the ring
+  annulus correlation, and the manual navigation dialog read it from here.
+- ``results_tree`` — a :class:`~spindoctor.nav_records.TreeTuning`: how much of a pass
+  over a navigation results tree runs at once; see :doc:`dev_guide_results_index`. It
+  refuses a round of work smaller than the thread pool that the round feeds.
+- ``environment`` — :class:`~spindoctor.config.sections.EnvironmentSection`: deployment
+  locations (``pds3_holdings_root``, ``nav_results_root``, ``backplane_results_root``,
+  ``bundle_results_root``, ``log_root``, and ``results_index_db``). Every key is
+  optional, and a key left out reads as None. The packaged file
+  (``config_005_environment.yaml``) leaves every key unset and lists each as a
+  commented-out line. The schema does not decide whether the command line, this section,
+  or an environment variable wins. Each reader applies its own order, and the helpers in
+  :mod:`spindoctor.config.config_helper` define the usual one.
 - ``logging`` — :class:`~spindoctor.config.logging_keys.LoggingSection`, holding the
   levels and terminal settings of the two loggers, with each program's overrides under
   ``programs`` as a :class:`~spindoctor.config.logging_keys.ProgramLogging`. Its
@@ -133,14 +155,25 @@ returns the typed object:
   accepts is known only when the program runs; see :doc:`dev_guide_logging`.
 - ``techniques`` — one block per technique the package ships: its confidence formula
   and its tuning (see :ref:`config-techniques-section`).
+- ``backplanes`` — :class:`~spindoctor.config.sections_products.BackplanesSection`,
+  holding the body and ring planes, the ring incidence angle, the masked value, and
+  ``target_lids``; see :doc:`dev_guide_backplanes`. ``target_lids`` maps each body
+  and ring system to its PDS4 target. Its keys are SPICE names in upper case, and the
+  loader refuses a key that is not.
+- ``pds4`` — one :class:`~spindoctor.config.sections_products.Pds4Bundle` per bundle.
+  As with the ``techniques`` section, its type is built from a registry. Each
+  registered dataset class that sets ``PDS4_CONFIG_KEY`` adds one optional field under
+  that key, and the loader refuses an entry under any other key.
+  :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` returns one bundle's
+  entry; see :doc:`dev_guide_pds4`.
 
-Three mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
-and ``feature_emission.ring_annulus.planets``. Each of their keys must be a planet of
-``planets``, written in upper case as SPICE spells it. Every reader looks a planet up by
-its upper-case name, and would never read a key that is misspelled or in lower case, so
-such a key is refused at load. That rule reads two sections, so
-:class:`~spindoctor.config.sections.TypedSections` checks it. The message gives the key
-and the file that last set either it or ``planets``.
+Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
+``feature_emission.ring_annulus.planets``, and ``rings.ring_features``. Each of their
+keys must be a planet of ``planets``, written in upper case as SPICE spells it. Every
+reader looks a planet up by its upper-case name, and would never read a key that is
+misspelled or in lower case, so such a key is refused at load. That rule reads two
+sections, so :class:`~spindoctor.config.sections.TypedSections` checks it. The message
+gives the key and the file that last set either it or ``planets``.
 
 Keys come in two kinds, and each kind has its own spelling. A key for a setting,
 such as ``use_albedo`` or ``body_limb``, is a name the package chose, and it is in
@@ -173,13 +206,16 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
   :class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which in turn holds the keys of
   the shared fit-quality gates
   (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`).
+  :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning` holds the
+  model-error terms of a correlation technique's covariance. The ring-annulus technique's
+  tuning is that type, and the body-disc technique's type extends it.
 - The block of a technique that declares ``Tuning`` is keyed by the technique's
   snake_case key, the one ``logging.techniques`` uses
-  (:func:`~spindoctor.config.logging_keys.log_key_for`): ``body_limb``,
-  ``body_terminator``, and ``ring_edge``. The technique's ``name``, which results and
-  metadata carry, does not change.
+  (:func:`~spindoctor.config.logging_keys.log_key_for`): ``body_blob``,
+  ``body_disc_correlate``, ``body_limb``, ``body_terminator``, ``ring_annulus``, and
+  ``ring_edge``. Results and metadata still identify the technique by its ``name``.
 - The techniques whose tuning is not typed yet declare no ``Tuning``. Their blocks keep
-  the class name, as in ``BodyBlobNav``, and their ``tuning`` is a mapping of numbers
+  the class name, as in ``StarRefineNav``, and their ``tuning`` is a mapping of numbers
   that the technique reads by key. A key in that mapping is checked only for being a
   number, so a misspelled key is accepted and nothing reads it. Each family moves to a
   ``Tuning`` type and a snake_case name in turn.
@@ -214,7 +250,7 @@ Sections
 
 Top-level YAML keys other than the typed sections are exposed as
 :class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
-``cfg.rings.remove_planet_shadow`` instead of ``cfg['rings']['remove_planet_shadow']``. That
+``cfg.body_shape.MIMAS`` instead of ``cfg['body_shape']['MIMAS']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
@@ -226,35 +262,30 @@ The class carries ``oops``'s own opt-out marker to prevent that; it is a
 workaround for one package rather than a general convention, and is tracked for
 removal. The shipping sections:
 
-- ``general`` — global settings shared across programs.
+- ``general`` — global settings shared across programs; a typed section (see
+  :ref:`config-typed-sections`).
 - ``planets`` — the planets the navigator knows, by SPICE name; a typed section.
 - ``logging`` — logger defaults, per-module levels, and per-program
   overrides; a typed section (see :ref:`config-typed-sections`).
 - ``offset`` — the FFT upsample factor of the image correlation
-  (``correlation_fft_upsample_factor``).
+  (``correlation_fft_upsample_factor``); a typed section.
 - ``stars`` — star-model and ring-occlusion parameters; a typed section (see
   :ref:`config-typed-sections`) described in :doc:`dev_guide_navigation_models_star`.
 - ``bodies`` — body rendering parameters; a typed section described in
   :doc:`dev_guide_navigation_models_body`.
 - ``rings`` — ring-model parameters (planet shadow removal, fade widths,
-  per-planet ``ring_features``); see
+  per-planet ``ring_features``); a typed section described in
   :doc:`dev_guide_navigation_models_ring`.
 - ``titan`` — Titan-specific parameters: the haze envelope height, the emission-side
   reliability floors and mask settings, and the two blocks of fit tunables the haze
   technique reads (``titan.navigation.symmetry`` and ``titan.navigation.arc``); a typed
   section. See :doc:`dev_guide_navigation_models_titan` and
   :doc:`dev_guide_techniques_titan_haze`.
-- ``backplanes`` — the list of body and ring backplanes to generate; see
-  :doc:`dev_guide_backplanes`.
-- ``pds4`` — per-dataset PDS4 template directories and bundle names; see
-  :doc:`dev_guide_pds4`.
-- ``environment`` — deployment locations (``pds3_holdings_root``,
-  ``nav_results_root``, ``backplane_results_root``, ``bundle_results_root``,
-  ``results_index_db``).
-- ``results_tree`` — how much of a pass over a navigation results tree runs at
-  once, read into a :class:`~spindoctor.nav_records.TreeTuning` by
-  :func:`~spindoctor.config.get_results_tree_tuning`; see
-  :doc:`dev_guide_results_index`.
+- ``backplanes`` — the body and ring backplanes to generate, and the PDS4 target of
+  each body and ring system; a typed section (see :ref:`config-typed-sections`)
+  described in :doc:`dev_guide_backplanes`.
+- ``pds4`` — each bundle's template directory, name, version, and schemas; a typed
+  section (see :ref:`config-typed-sections`) described in :doc:`dev_guide_pds4`.
 - ``body_shape`` — static per-body shape catalog (see
   :ref:`static-data-citations` below).
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
