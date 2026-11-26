@@ -7,6 +7,7 @@ import math
 import numpy as np
 import pytest
 
+from spindoctor.sim.realism import disc_profile
 from spindoctor.sim.realism.disc_profile import (
     MIN_FIT_PIXELS,
     equator_profile,
@@ -111,6 +112,32 @@ def test_too_few_pixels_give_no_blend(n: int) -> None:
     assert fit_lunar_lambert(intensity[:n], mu0[:n], mu[:n]) is None
 
 
+def test_pixels_that_cannot_fix_the_exponent_give_no_fit() -> None:
+    """Two hundred head-on pixels leave the exponent's column zero, so no fit."""
+    ones = np.ones(200)
+    assert fit_minnaert(0.5 * ones, ones, ones) is None
+
+
+def test_pixels_that_cannot_fix_the_blend_give_no_fit() -> None:
+    """Two hundred head-on pixels leave the blend's column zero, so no fit."""
+    ones = np.ones(200)
+    assert fit_lunar_lambert(0.5 * ones, ones, ones) is None
+
+
+def test_a_zero_blend_keeps_its_uncertainty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A blend fitted as exactly 0 has the standard error its term's variance gives."""
+    covariance = np.array([[0.01, 0.0], [0.0, 0.04]])
+    monkeypatch.setattr(
+        disc_profile,
+        '_robust_line',
+        lambda design, target: (np.array([2.0, 0.0]), covariance, np.ones(200, dtype=bool)),
+    )
+    ones = np.ones(200)
+    fit = fit_lunar_lambert(ones, ones, ones)
+    assert fit is not None
+    assert fit.blend_sigma == pytest.approx(0.1)
+
+
 def test_pixels_near_the_edge_of_the_lit_region_are_left_out() -> None:
     """A lit pixel nearer the limb than the clearance does not count."""
     on_body, mu0, mu = _sphere()
@@ -166,6 +193,13 @@ def test_the_profile_bins_by_emission_near_zero_phase() -> None:
     intensity, mu0, mu = _disc('lambert')
     profile = equator_profile(intensity, mu0, mu, math.radians(2.0))
     assert profile.size == 20
+
+
+def test_head_on_pixels_fall_in_the_last_emission_bin() -> None:
+    """Pixels at mu = 1 near zero phase fill the last bin of the profile."""
+    ones = np.ones(10)
+    profile = equator_profile(0.7 * ones, ones, ones, math.radians(2.0))
+    assert profile[-1] == pytest.approx(0.7)
 
 
 def test_a_profile_bin_with_too_few_pixels_is_empty() -> None:

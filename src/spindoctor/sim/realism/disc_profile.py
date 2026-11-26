@@ -158,7 +158,7 @@ def select_disc_pixels(
 
 def _robust_line(
     design: NDArrayFloatType, target: NDArrayFloatType
-) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayBoolType]:
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayBoolType] | None:
     """Least squares with iterative outlier rejection.
 
     Parameters:
@@ -167,7 +167,8 @@ def _robust_line(
 
     Returns:
         The coefficients, their covariance from the kept points' residuals, and which
-        points were kept.
+        points were kept.  None when the kept points cannot fix every coefficient: the
+        final solve's rank is below P.
     """
     keep = np.ones(target.size, dtype=bool)
     for _ in range(_CLIP_ROUNDS):
@@ -179,13 +180,18 @@ def _robust_line(
         if np.array_equal(new_keep, keep):
             break
         keep = new_keep
-    coef, *_ = np.linalg.lstsq(design[keep], target[keep], rcond=None)
+    coef, _, rank, _ = np.linalg.lstsq(design[keep], target[keep], rcond=None)
+    if int(rank) < design.shape[1]:
+        return None
     residual = target[keep] - np.sum(design[keep] * coef, axis=1)
     dof = max(int(keep.sum()) - design.shape[1], 1)
     variance = float(np.sum(residual**2)) / dof
     kept = design[keep]
-    # The normal matrix by elementwise products: a BLAS product's last bit depends on
-    # the CPU, and the simulator keeps those out.
+    # The normal matrix is summed from elementwise products because the simulator
+    # package admits no NumPy matrix product (its guard test enforces it).  The solves
+    # above and the inverse below still go through LAPACK, so the fits' last bits may
+    # differ between CPUs; they feed only the realism record, which rounds them to 6
+    # significant digits, and never a render.
     normal = np.sum(kept[:, :, np.newaxis] * kept[:, np.newaxis, :], axis=0)
     covariance = variance * np.linalg.pinv(normal)
     return coef, covariance, keep
@@ -202,11 +208,15 @@ def fit_minnaert(
         mu: The cosine of the emission angle at each pixel, positive.
 
     Returns:
-        The fit, or None when the fit keeps fewer than :data:`MIN_FIT_PIXELS` pixels.
+        The fit, or None when the fit keeps fewer than :data:`MIN_FIT_PIXELS` pixels or
+        the kept pixels cannot fix both coefficients.
     """
     x = np.log(mu0 * mu)
     design = np.column_stack([np.ones_like(x), x])
-    coef, covariance, keep = _robust_line(design, np.log(intensity * mu))
+    solved = _robust_line(design, np.log(intensity * mu))
+    if solved is None:
+        return None
+    coef, covariance, keep = solved
     if int(keep.sum()) < MIN_FIT_PIXELS:
         return None
     return MinnaertFit(
@@ -232,21 +242,24 @@ def fit_lunar_lambert(
         mu: The cosine of the emission angle at each pixel, positive.
 
     Returns:
-        The fit, or None when the fit keeps fewer than :data:`MIN_FIT_PIXELS` pixels or
-        the Lambert term comes out zero.
+        The fit, or None when the fit keeps fewer than :data:`MIN_FIT_PIXELS` pixels,
+        the kept pixels cannot fix both coefficients, or the Lambert term comes out
+        zero.
     """
     weight = 1.0 / intensity
     design = np.column_stack([mu0, mu0 * (2.0 / (mu0 + mu) - 1.0)]) * weight[:, np.newaxis]
-    coef, covariance, keep = _robust_line(design, np.ones_like(intensity))
+    solved = _robust_line(design, np.ones_like(intensity))
+    if solved is None:
+        return None
+    coef, covariance, keep = solved
     if int(keep.sum()) < MIN_FIT_PIXELS or coef[0] == 0.0:
         return None
     a, b = float(coef[0]), float(coef[1])
     blend = b / a
-    # The ratio's standard error from the two terms' covariance.
-    variance = blend**2 * (
-        covariance[0, 0] / a**2
-        + (covariance[1, 1] / b**2 if b != 0.0 else 0.0)
-        - (2.0 * covariance[0, 1] / (a * b) if b != 0.0 else 0.0)
+    # The ratio's standard error, propagated through its gradient (-b / a**2, 1 / a),
+    # which holds for a zero blend as well.
+    variance = (
+        covariance[0, 0] * b**2 / a**4 + covariance[1, 1] / a**2 - 2.0 * covariance[0, 1] * b / a**3
     )
     return LunarLambertFit(
         blend=blend,
@@ -307,7 +320,11 @@ def equator_profile(
             _LONGITUDE_EDGES_DEG,
             latitude < EQUATOR_HALF_WIDTH_DEG,
         )
-    index = np.digitize(coordinate[member], edges) - 1
+    selected = coordinate[member]
+    index = np.digitize(selected, edges) - 1
+    # The top edge closes the last bin: a head-on pixel (mu = 1) and a pixel on the
+    # sunlit limb (+90 deg) belong in it.
+    index[selected == edges[-1]] = edges.size - 2
     values = intensity[member]
     out = np.full(edges.size - 1, np.nan)
     for b in range(edges.size - 1):
