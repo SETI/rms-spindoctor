@@ -556,6 +556,8 @@ and 28 e-/DN on the WAC.
   as the square root of the hot pixel's charge: 2.5% of the charge on the first
   row at 1,000 e-, and 0.4% at 70,000 e-. The simulator leaves it out.
 
+.. _coiss-calibrated-hot-pixels:
+
 **Calibrated hot pixels.** A calibrated product carries its raw camera's hot-pixel
 map positions, with a population of its own. CISSCAL's dark subtraction removes the
 raw camera's hot pixels: where the nearest dark series has a pixel hotter than
@@ -620,10 +622,132 @@ give each mode's cameras. Both cameras' detector model is ``ccd``, and neither
 entry states an exclusion reason. On a raw camera ``instrument_defaults`` turns on
 ``hot_pixels``, ``banding``, ``readout_dark``, ``bias_structure``, and ``bloom``. The
 calibrated entries drop ``banding`` and ``bias_structure``, which CISSCAL removes, and
-lower the hot-pixel fraction to the 1.6e-5 the cohort measures.
+set the hot-pixel fraction to the calibrated populations described above: 3.3e-5 on
+the narrow angle camera and 7.9e-7 on the wide angle camera.
 
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
+
+**Passbands.** Each camera's entry sets a passband table (``coiss_nac`` and
+``coiss_wac``) built from the system transmission files of the CISSCAL
+calibration volume, ``COISS_0011``, with its solar spectrum. The solar-weighted
+mean wavelength of each combination matches the effective wavelength the same
+volume lists, 651.1 nm for the narrow angle clear combination and 633.8 nm for
+the wide angle's.
+
+Titan's haze is refused in ``MT1``, ``MT2``, ``MT3``, ``CB1``, ``CB2``, and
+``CB3`` by name, in ``CL1+IR3``, ``IR2+CL2``, ``IR2+IR3``, ``RED+GRN`` (narrow
+angle) and ``IR2+CL2``, ``IR3+CL2`` (wide angle) because they put 0.11 to 0.43 of
+their light in the methane band cores, and in the ultraviolet combinations and
+``CL1+VIO`` because 0.87 or more of their light lies below 430 nm. The clear,
+``RED``, ``GRN``, and ``IR1`` combinations put 0.05 to 0.07 of their light in the
+band cores.
+
+**Titan haze.** The simulated Titan haze (see :ref:`sim-atmosphere`) was compared
+with seven calibrated Titan frames from the cohort in ``util/titan_cohort``, each
+rendered in its own filter. Their geometry comes from the navigator's Titan model
+with each frame's committed offset, and each comparison render is Titan at that
+frame's own scale and phase, before the detector. All values are I/F. "Half max"
+is the altitude above the solid radius where the sunward profile falls to half its
+peak, and the peak altitude is negative where the sunward peak lies on the disc.
+The ``CL1+VIO`` frame has no simulated twin, since the haze is not modeled there.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Frame
+     - Filters
+     - Phase (deg)
+     - Disc center, real / simulated
+     - Sunward peak, real / simulated
+     - Peak altitude (km), real / simulated
+     - Half max (km), real / simulated
+     - Anti-sunward peak, real / simulated
+   * - W1552216646
+     - CL1, VIO
+     - 60.6
+     - 0.039 / --
+     - 0.094 / --
+     - -62 / --
+     - 347 / --
+     - 0.008 / --
+   * - W1552216540
+     - CL1, RED
+     - 60.6
+     - 0.134 / 0.084
+     - 0.266 / 0.168
+     - -321 / 3
+     - 260 / 209
+     - 0.020 / 0.019
+   * - W1822132529
+     - CL1, BL1
+     - 63.1
+     - 0.062 / 0.052
+     - 0.126 / 0.115
+     - -335 / 164
+     - 259 / 265
+     - 0.013 / 0.013
+   * - N1634463227
+     - CL1, CL2
+     - 81.1
+     - 0.052 / 0.029
+     - 0.224 / 0.158
+     - -250 / 126
+     - 222 / 213
+     - 0.002 / 0.001
+   * - N1702239331
+     - CL1, CL2
+     - 107.1
+     - 0.0024 / 0.0014
+     - 0.287 / 0.152
+     - -43 / 132
+     - 232 / 220
+     - 0.001 / 0.000
+   * - W1721822901
+     - CL1, CL2
+     - 149.2
+     - 0.005 / 0.000
+     - 0.847 / 0.282
+     - 217 / 217
+     - 326 / 290
+     - 0.028 / 0.000
+   * - W1561790952
+     - CL1, CL2
+     - 166.5
+     - 0.102 / 0.000
+     - 2.693 / 1.765
+     - 310 / 249
+     - 399 / 303
+     - 0.321 / 0.298
+
+The 0.102 at the center of W1561790952 is scattered light from the bright ring
+around it. The real haze's limb stands higher in the violet: at 60.6 deg the
+``VIO`` frame's sunward edge falls to half its peak at 347 km, against 260 km in
+``RED``. The simulated haze's limb stands 56 km higher in ``BL1`` than in ``RED``,
+while the real ``BL1`` frame's half max, at 259 km, matches the ``RED`` frame's.
+From 60 to 107 deg the simulated disc runs 16 to 44% darker than the real one,
+least in ``BL1``, and in ``RED`` its sunward edge falls to half its peak 51 km
+lower. At 149 and 167 deg the ring of light is 3.0 and 1.5 times fainter than on
+the real frames and its peak sits up to 61 km lower, and at 149 deg no light
+reaches the anti-sunward side, where the real frame shows 0.028. The likely cause
+of the faint ring is light scattered forward more than once along the long limb
+path, which the renderer's isotropic multiple-scattering term cannot carry
+forward. The likely main cause of the dark disc is the multiple-scattering term
+itself: for a semi-infinite layer of the haze at 650 nm lit from straight above,
+the renderer's reflectance runs about 22% below a Monte Carlo simulation's (0.162
+against 0.207 seen at an emission cosine of 0.475, and 0.149 against 0.186 at
+0.975), and at these phases most of the disc's light has scattered more than
+once.
+
+The Titan scenes are exposed from these frames. The haze's peak stands 1933,
+2150, and 2696 DN above the sky on the three frames at 60.6 to 63.1 deg
+(W1552216646, W1552216540, and W1822132529), a median of 2150 DN, and 2787 DN
+above it on W1721822901 at 149.2 deg, the cohort frame nearest 155 deg. The
+low-phase scenes ``titan_haze`` (60 deg) and ``titan_haze_limb`` (40 deg) take
+7.3 s and 7.5 s, which put their haze's peak 2117 and 2114 DN above the sky, and
+``titan_crescent_horns`` and its noiseless twin (155 deg) take 3.6 s, which puts
+the ring of light 2782 DN above it. The noisy scenes carry the narrow angle
+camera's read noise, 12 e-, which is 0.4 DN at the 30 e-/DN of gain state 2.
 
 Image library and test coverage
 ===============================
