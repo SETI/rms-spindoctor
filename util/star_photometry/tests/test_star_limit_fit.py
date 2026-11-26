@@ -66,7 +66,15 @@ def _fit(rows: list[dict[str, Any]]) -> FitResult:
         The fit.
     """
     result = FitResult(camera='TEST')
-    fit_zero_point(result, rows, reference_filter='CLEAR', reference_gain='10K')
+    fit_zero_point(
+        result,
+        rows,
+        reference_filter='CLEAR',
+        reference_gain='10K',
+        min_term_stars=15,
+        calibration_offsets={'RED': 2.5},
+        calibration_gain_ratios={},
+    )
     return result
 
 
@@ -94,6 +102,14 @@ def test_zero_point_unidentified_when_weighting_drops_the_separating_stars() -> 
     result = _fit(rows)
     assert not result.zero_point_identified
     assert result.filter_offsets == {}
+
+
+def test_zero_point_fixes_a_filter_with_too_few_stars() -> None:
+    """Three RED stars cannot pin down RED's offset, which takes the calibration value."""
+    rows = _rows([('CLEAR', '10K'), ('CLEAR', '40K')]) + _rows([('RED', '10K')])[:3]
+    result = _fit(rows)
+    assert result.filter_offsets['RED'] == 2.5
+    assert result.filters_not_measured == ['RED']
 
 
 def _limit_row(pred_dn: float, detected: bool, k: int) -> dict[str, Any]:

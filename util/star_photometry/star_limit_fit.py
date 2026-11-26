@@ -17,7 +17,11 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    per second for a V = 0 star through the reference filter in the reference gain state), the
    filter magnitude offsets, and the gain-state DN ratios.  A fit whose stars cannot
    separate the terms (a design matrix short of full rank, before or after the robust
-   weighting) is reported as unidentified, with no coefficients.
+   weighting) is reported as unidentified, with no coefficients.  A filter or gain state with
+   fewer than ``MIN_STARS_PER_BIN`` fitting stars gets no term: its stars are left out, it
+   takes the calibration document's value (``--calibration-offsets``,
+   ``--calibration-gain-ratios``), and it is reported as not measured
+   (:mod:`util.star_photometry.star_zero_point`).
 3. **Detection limit.**  Every clean star of the fitting frames gets a predicted DN from the
    fit; a detection-probability model (a floor, a plateau and a normal-integral rise in log
    DN) fitted to the stars' detections gives the DN at which detection is ``COMPLETENESS`` of
@@ -86,8 +90,9 @@ COMPLETENESS = 0.8
 #: Width of the predicted-DN bins of the completeness curve (decades).
 DN_BIN_DECADES = 0.1
 
-#: Smallest number of stars in a completeness bin for it to count, and the fewest detected
-#: and the fewest undetected stars a detection-limit fit needs.
+#: Smallest number of stars in a completeness bin for it to count, the fewest detected and
+#: the fewest undetected stars a detection-limit fit needs, and the fewest stars a filter or
+#: gain term of the zero point is fitted from.
 MIN_STARS_PER_BIN = 15
 
 #: Smallest spread (decades) of the stars' predicted DN, from the 10th to the 90th
@@ -209,6 +214,9 @@ class FitResult:
         filter_offset_sigma: Uncertainty of each filter offset.
         gain_ratio: DN of each gain state per DN of the reference state.
         gain_ratio_sigma_mag: Uncertainty of each gain ratio, in magnitudes.
+        filters_not_measured: Filters with too few stars for a term, whose offset is the
+            calibration document's (in ``filter_offsets``, with no uncertainty).
+        gains_not_measured: The same for gain states and ``gain_ratio``.
         zp_scatter_mag: Robust scatter of the zero-point residuals.
         n_zp_stars: Stars in the zero-point fit.
         color_slope: Slope of the zero-point residual against B - V (mag per mag).
@@ -245,6 +253,8 @@ class FitResult:
     gain_ratio: dict[str, float] = field(default_factory=dict)
     gain_ratio_sigma_mag: dict[str, float] = field(default_factory=dict)
     gain_counts: dict[str, int] = field(default_factory=dict)
+    filters_not_measured: list[str] = field(default_factory=list)
+    gains_not_measured: list[str] = field(default_factory=list)
     zp_scatter_mag: float = float('nan')
     n_zp_stars: int = 0
     color_slope: float = float('nan')
@@ -324,6 +334,8 @@ def fit_camera(
     min_texp: float = 0.0,
     limit_exclude_targets: frozenset[str] = frozenset(),
     search_depth_mag: float = 1.0,
+    calibration_offsets: dict[str, float] | None = None,
+    calibration_gain_ratios: dict[str, float] | None = None,
 ) -> FitResult:
     """Fit one camera's photometric limit and summarize its PSF.
 
@@ -342,6 +354,10 @@ def fit_camera(
             neighbors lower the completeness at a given DN below that of a navigation field).
         search_depth_mag: The camera's search depth past the dimmest visible star, for the
             proposed limit and the held-out check.
+        calibration_offsets: The calibration document's filter offsets, for filters with
+            too few stars to fit.
+        calibration_gain_ratios: The calibration document's gain ratios, for gain states
+            with too few stars to fit.
 
     Returns:
         The fit.
@@ -375,7 +391,13 @@ def fit_camera(
         result.psf = psf_summary(rows)
         return result
     fit_zero_point(
-        result, fit_rows, reference_filter=reference_filter, reference_gain=reference_gain
+        result,
+        fit_rows,
+        reference_filter=reference_filter,
+        reference_gain=reference_gain,
+        min_term_stars=MIN_STARS_PER_BIN,
+        calibration_offsets=calibration_offsets or {},
+        calibration_gain_ratios=calibration_gain_ratios or {},
     )
     for row in rows:
         row['pred_dn'] = _predict_dn(result, row)
@@ -786,6 +808,25 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], *, columns: Iterable[str]
         writer.writerows(rows)
 
 
+def _calibration(items: list[str], camera: str) -> dict[str, float]:
+    """Return a camera's calibration values from ``[CAMERA:]NAME=VALUE`` items.
+
+    Parameters:
+        items: The items; one without a camera applies to every camera.
+        camera: The camera key.
+
+    Returns:
+        Name to value.
+    """
+    out: dict[str, float] = {}
+    for item in items:
+        scope, _, assignment = item.rpartition(':')
+        if scope in ('', camera):
+            name, value = assignment.split('=')
+            out[name] = float(value)
+    return out
+
+
 def main() -> None:
     """Fit every camera in a records file and write the summary and tables."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -810,6 +851,18 @@ def main() -> None:
         nargs='*',
         default=[],
         help='Leave frames of these targets out of the detection limit',
+    )
+    parser.add_argument(
+        '--calibration-offsets',
+        nargs='*',
+        default=[],
+        help='[CAMERA:]FILTER=MAG calibration offsets for filters with too few stars',
+    )
+    parser.add_argument(
+        '--calibration-gain-ratios',
+        nargs='*',
+        default=[],
+        help='[CAMERA:]GAIN=RATIO calibration ratios for gain states with too few stars',
     )
     parser.add_argument(
         '--search-depth-mag', type=float, default=1.0, help='The camera search depth (mag)'
@@ -841,6 +894,8 @@ def main() -> None:
             min_texp=args.min_texp,
             limit_exclude_targets=frozenset(args.limit_exclude_targets),
             search_depth_mag=args.search_depth_mag,
+            calibration_offsets=_calibration(args.calibration_offsets, camera),
+            calibration_gain_ratios=_calibration(args.calibration_gain_ratios, camera),
         )
         frame_rows += [{'camera': camera, **row} for row in result.frames]
         for group in result.psf.values():
