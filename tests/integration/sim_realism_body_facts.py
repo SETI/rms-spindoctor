@@ -5,7 +5,7 @@ the light and the view, so the study (:mod:`tests.integration.sim_realism_laws`)
 law to pixels of one surface only.  Two kinds of body fact decide which pixels those are,
 and neither depends on the mission that took the frame, so they live here.
 
-**Two-tone moons.**  Iapetus's leading side is covered by a dark terrain, Cassini Regio,
+**Two-tone moons.**  Iapetus's leading side is covered by a dark terrain
 centered near the apex of its orbital motion at 0 deg latitude and 90 deg west longitude;
 its trailing side and its poles are about ten times brighter (Porco et al. 2005, Science
 307, 1237-1242).  The dark terrain does not fill the leading hemisphere.  Dividing each

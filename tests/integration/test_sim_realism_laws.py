@@ -523,7 +523,7 @@ def test_a_worse_law_that_separates_is_no_problem() -> None:
 def test_the_record_holds_the_law_study() -> None:
     """The realism record carries the photometric-law study."""
     assert record_has_law_study(_RECORD), (
-        f'The realism record made at {made_at(_RECORD)} holds no law study.\n{REGENERATE_HINT}'
+        f'The realism record made at {made_at(_RECORD)} lacks the law study.\n{REGENERATE_HINT}'
     )
 
 
