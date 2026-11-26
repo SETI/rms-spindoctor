@@ -61,11 +61,10 @@ _LIMB_CLASSES = frozenset(
 _RING_CLASSES = frozenset({'ring_only_flat', 'ring_only_curved', 'ring_plus_body'})
 
 # Content matching, not tuning: the cohort's limb frames are airless icy satellites,
-# whose disks follow a Lommel-Seeliger law (flat toward the limb) far better than
-# Lambert.  Under Lambert the FOM 3 rise width would measure the shading ramp, not the
-# limb.  The law is stated, although it is the scene default, because the matched
-# body's normal albedo is measured against it.
-MATCHED_BODY_LAW = 'lommel_seeliger'
+# whose discs follow McEwen's lunar-Lambert law (see the law study in
+# sim_realism_laws.py).  The law is stated, although it is the scene default, because
+# the matched body's normal albedo is measured against it.
+MATCHED_BODY_LAW = 'lunar_lambert'
 """The photometric law of every matched body, and the law its normal albedo is
 measured against."""
 

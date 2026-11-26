@@ -385,7 +385,7 @@ def ridge_inset_phase_zero(
         diameter_px: Body diameter in pixels.
         size_px: Square image side in pixels.
         photometric_law: The law the sphere is shaded with, by default the scene
-            default, Lommel-Seeliger.
+            default, lunar-Lambert.
 
     Returns:
         The inset in pixels (geometric radius minus ridge radius) on the lit

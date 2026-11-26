@@ -3,14 +3,19 @@
 The renderer shades body discs with a scene-selected law --
 Lambert, Lommel-Seeliger, Minnaert(k), or a lunar-Lambert blend -- plus an
 optional opposition-surge factor.  A body that leaves the law out shades with
-:data:`PHOTOMETRIC_LAW_DEFAULT`, Lommel-Seeliger.  On real frames of airless icy
-moons below 30 degrees phase, the limb's brightness gradient peaks within 0.2 px
-of the silhouette, as a Lommel-Seeliger disc's does, while a Lambert disc's peaks
-0.3 to 0.5 px inside it.  The law is a truth key: the navigator's predicted-body
-model always shades with Lambert
-(:func:`spindoctor.sim.shared.ellipsoid.lambert_from_normals`), so a scene that
-renders any other law, the default included, plants a photometric mismatch that
-moves the terminator and the limb-darkening profile by a known amount.
+:data:`PHOTOMETRIC_LAW_DEFAULT`, lunar-Lambert with McEwen's blend.  Real Cassini
+frames of Saturn's icy moons follow that law: the blend fitted to each real disc
+differs from McEwen's curve by 0.12 rms over phases from 1 to 136 degrees, and the
+law reproduces both the brightness across the disc and the position of the limb's
+brightness gradient peak.  A Lambert disc is too dark toward the sunlit limb at low
+phase, where its gradient peak sits 0.3 to 0.5 px inside the silhouette.
+
+The law is a truth key: the navigator's predicted-body model always shades with
+Lambert (:func:`spindoctor.sim.shared.ellipsoid.lambert_from_normals`), so a scene
+that renders any other law, the default included, plants a photometric mismatch that
+moves the terminator and the limb-darkening profile by a known amount.  Above about
+119 degrees phase McEwen's blend reaches 0 and the default law is Lambert, so there
+the default plants no mismatch.
 
 All laws are normalized to 1 at disc center under head-on illumination
 (``mu = mu0 = 1``) and expressed in ``mu0 = cos(incidence)`` and
@@ -67,7 +72,7 @@ PHOTOMETRIC_LAWS: frozenset[str] = frozenset(
     {'lambert', 'lommel_seeliger', 'minnaert', 'lunar_lambert'}
 )
 
-PHOTOMETRIC_LAW_DEFAULT = 'lommel_seeliger'
+PHOTOMETRIC_LAW_DEFAULT = 'lunar_lambert'
 """The law a body shades with when its scene entry leaves ``photometric_law`` out."""
 
 MINNAERT_CEILING = 2.0

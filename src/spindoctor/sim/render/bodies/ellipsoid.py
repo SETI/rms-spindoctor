@@ -150,7 +150,7 @@ class EllipsoidBodySpec:
         limb_relief_corr_deg: Relief correlation length, degrees of arc.
         relief_seed: Seed of the relief-field realization.
         photometric_law: One of the photometry module's law names (default
-            Lommel-Seeliger).
+            lunar-Lambert).
         minnaert_k: Minnaert exponent (law 'minnaert' only).
         surge_amplitude: Opposition-surge amplitude (0 = none).
         surge_width_deg: Opposition-surge angular width in degrees.

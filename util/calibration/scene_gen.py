@@ -160,7 +160,7 @@ def _base(rng: random.Random, *, size: int) -> dict[str, Any]:
 # the axes its shape model renders: the ellipsoid takes the photometric,
 # surge, relief, and albedo axes, and the mesh takes the relief, shading,
 # and pose-scatter axes.  An ellipsoid that states no law shades with the
-# scene default, Lommel-Seeliger, so the clean class carries the
+# scene default, lunar-Lambert, so the clean class carries the
 # photometric mismatch a real icy moon presents (#842).
 _BODY_NONLAMBERT_FRAC = 0.40  # ellipsoid: states lommel_seeliger or minnaert
 _BODY_MINNAERT_FRAC = 0.15  # of which: minnaert with a drawn k

@@ -5,7 +5,7 @@ the lunar-Lambert blend against its endpoints (pure Lommel-Seeliger at
 phase 0, pure Lambert once the McEwen cubic reaches 0), Lommel-Seeliger's
 flat disc at phase 0 against Lambert's limb darkening, and the opposition
 surge against its documented normalized-exponential form.  A scene body that
-leaves the law out shades with Lommel-Seeliger.
+leaves the law out shades with lunar-Lambert.
 """
 
 import math
@@ -184,10 +184,10 @@ def test_incidence_cosines_match_the_lambert_renderer() -> None:
     np.testing.assert_array_equal(cos_i[interior], lambert[interior])
 
 
-def test_a_body_without_a_law_shades_lommel_seeliger() -> None:
-    """A scene body that leaves the law out renders exactly as a Lommel-Seeliger body."""
+def test_a_body_without_a_law_shades_lunar_lambert() -> None:
+    """A scene body that leaves the law out renders exactly as a lunar-Lambert body."""
     body = disc_body(32.0, 32.0, 20.0, illumination_angle=40.0, phase_angle=30.0)
-    stated = {**body, 'photometric_law': 'lommel_seeliger'}
+    stated = {**body, 'photometric_law': 'lunar_lambert'}
     absent_image, _ = render_scene(frame_scene(noise=quiet_noise(), bodies=[body]))
     stated_image, _ = render_scene(frame_scene(noise=quiet_noise(), bodies=[stated]))
     np.testing.assert_array_equal(absent_image, stated_image)

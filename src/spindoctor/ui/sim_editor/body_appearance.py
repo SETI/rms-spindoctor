@@ -46,9 +46,9 @@ from spindoctor.ui.sim_editor.base import SimEditorBase
 from spindoctor.ui.sim_editor.body_mesh_keys import sync_mesh_refused_widgets
 from spindoctor.ui.sim_editor.widgets import as_map, make_dspin
 
-# The photometric-law vocabulary, the scene default (Lommel-Seeliger) first, so the
+# The photometric-law vocabulary, the scene default (lunar-Lambert) first, so the
 # combo opens on it when a scene enables the group without a law.
-_LAW_ORDER = ('lommel_seeliger', 'lambert', 'minnaert', 'lunar_lambert')
+_LAW_ORDER = ('lunar_lambert', 'lambert', 'lommel_seeliger', 'minnaert')
 _LAWS = tuple(law for law in _LAW_ORDER if law in PHOTOMETRIC_LAWS)
 
 # The values the surge and pose-scatter groups show while the scene leaves their
