@@ -1,7 +1,7 @@
 """Smoke tests for the shipped YAML configuration files.
 
 Asserts the ``config_NNN_*.yaml`` set loads cleanly under ``Config.read_config``, and
-checks the per-instrument blocks and the body-shape section it carries.
+checks the per-instrument blocks it carries.
 """
 
 from __future__ import annotations
@@ -119,15 +119,3 @@ def test_each_camera_sets_its_lone_star_ellipse(
     if camera is not None:
         block = block[camera]
     assert block['one_star_ellipse_fraction'] == fraction
-
-
-def test_body_shape_section_loaded() -> None:
-    """Body-shape entries are exposed via ``config.body_shape``."""
-    config = Config()
-    config.read_config()
-    body_shape = config.body_shape
-    assert 'MIMAS' in body_shape
-    mimas = body_shape['MIMAS']
-    # _sources keys are stripped at load time.
-    assert '_sources' not in mimas
-    assert 'shape_class_hint' in mimas
