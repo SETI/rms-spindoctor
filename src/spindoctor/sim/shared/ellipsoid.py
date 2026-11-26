@@ -23,6 +23,7 @@ from typing import TypeVar, cast
 
 import numpy as np
 
+from spindoctor.sim.shared.inplace import result_array
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
@@ -39,6 +40,7 @@ __all__ = [
     'outline_semi_a',
     'project_ellipsoid',
     'render_lambert_ellipsoid',
+    'supersampling_scale',
     'surface_normals',
     'surface_unit_coords',
 ]
@@ -223,6 +225,18 @@ class EllipsoidGeometry:
         )
 
 
+def supersampling_scale(anti_aliasing: float) -> int:
+    """Pixels per input pixel, along each axis, of the grid :func:`project_ellipsoid` builds.
+
+    Parameters:
+        anti_aliasing: Anti-aliasing amount in [0, 1].
+
+    Returns:
+        ``int(1 + 3 * anti_aliasing)`` above 0, up to 4, and 1 at 0.
+    """
+    return int(1 + 3 * anti_aliasing) if anti_aliasing > 0 else 1
+
+
 def outline_semi_a(semi_a: float, semi_c: float, sub_observer_lat: float) -> float:
     """The outline's semi-axis along the direction the pole points in the image.
 
@@ -352,11 +366,82 @@ def surface_normals(
     Returns:
         ``(normal_v, normal_u, normal_z)`` in image coordinates.
     """
+    first = v_rot
+    if not (
+        isinstance(first, np.ndarray)
+        and first.ndim == 2
+        and first.shape[0] > _STRIP_ROWS
+        and all(
+            isinstance(other, np.ndarray) and other.shape == first.shape
+            for other in (u_rot, ellipse_dist_sq)
+        )
+    ):
+        return _normals_block(
+            v_rot, u_rot, ellipse_dist_sq, geometry=geometry, cos_rz=cos_rz, sin_rz=sin_rz
+        )
+    # A large grid is worked a strip of rows at a time, so the intermediate arrays
+    # stay a strip in size and only the three results are grid-sized.  Each pixel is
+    # computed on its own, so the strips give the same bits as one pass.
+    normals: tuple[NDArrayFloatType, ...] = ()
+    for start in range(0, first.shape[0], _STRIP_ROWS):
+        rows = slice(start, start + _STRIP_ROWS)
+        block = _normals_block(
+            v_rot[rows],
+            u_rot[rows],
+            ellipse_dist_sq[rows],
+            geometry=geometry,
+            cos_rz=cos_rz,
+            sin_rz=sin_rz,
+        )
+        if not normals:
+            normals = tuple(np.empty(first.shape, dtype=part.dtype) for part in block)
+        for normal, part in zip(normals, block, strict=True):
+            normal[rows] = part
+    return normals[0], normals[1], normals[2]
+
+
+# Grid rows worked at a time where a large grid is built a strip at a time: a
+# strip's temporaries stay well under the size at which a new array costs more
+# than its arithmetic.
+_STRIP_ROWS = 128
+
+
+def _normals_block(
+    v_rot: NDArrayFloatType,
+    u_rot: NDArrayFloatType,
+    ellipse_dist_sq: NDArrayFloatType,
+    *,
+    geometry: EllipsoidGeometry,
+    cos_rz: float,
+    sin_rz: float,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]:
+    """:func:`surface_normals` over a block of pixels, or at scalars.
+
+    Parameters:
+        v_rot: Each pixel's coordinate along the rotated first axis, in pixels.
+        u_rot: Each pixel's coordinate along the rotated second axis, in pixels.
+        ellipse_dist_sq: Each pixel's squared normalized outline distance.
+        geometry: The ellipsoid's shape and orientation.
+        cos_rz: Cosine of the in-plane rotation.
+        sin_rz: Sine of the in-plane rotation.
+
+    Returns:
+        ``(normal_v, normal_u, normal_z)`` in image coordinates.
+    """
+    # The arrays are built in place wherever this call owns them: the image side
+    # evaluates the normals over a large body on an oversampled grid, where a fresh
+    # temporary costs more than its arithmetic.  Every step is the IEEE operation of
+    # the plain expression, in the same operand order, so the normals are unchanged
+    # to the last bit.
     if geometry.sin_lat == 0.0:
-        z_coords = geometry.semi_c * np.sqrt(np.maximum(0.0, 1.0 - ellipse_dist_sq))
+        # semi_c * sqrt(maximum(0, 1 - ellipse_dist_sq)) / semi_c**2
+        normal_z_local = np.subtract(1.0, ellipse_dist_sq, out=result_array(ellipse_dist_sq))
+        np.maximum(0.0, normal_z_local, out=normal_z_local)
+        np.sqrt(normal_z_local, out=normal_z_local)
+        normal_z_local *= geometry.semi_c
+        normal_z_local /= geometry.semi_c**2
         normal_v_local = v_rot / (geometry.semi_a**2)
         normal_u_local = u_rot / (geometry.semi_b**2)
-        normal_z_local = z_coords / (geometry.semi_c**2)
     else:
         x, y, z = surface_unit_coords(v_rot, u_rot, ellipse_dist_sq, geometry=geometry)
         normal_v_local, normal_u_local, normal_z_local = geometry.to_view(
@@ -366,20 +451,62 @@ def surface_normals(
         # in exact arithmetic; the rounding of the closest-approach depth leaves a
         # last-bit residue, which a renderer would read as a lit sliver of sky.
         normal_z_local = np.where(ellipse_dist_sq >= 1.0, 0.0, normal_z_local)
+    components = (normal_v_local, normal_u_local, normal_z_local)
+    if not _arrays_of_one_kind(components):
+        # Scalars, components that broadcast against each other, or components of
+        # different floating types: the plain expressions, which give the normals
+        # their shape and type.  They are the expressions the steps below build in
+        # place.
+        magnitude = np.maximum(
+            np.sqrt(normal_v_local**2 + normal_u_local**2 + normal_z_local**2), 1e-10
+        )
+        unit_v, unit_u, unit_z = (component / magnitude for component in components)
+        return unit_v * cos_rz + unit_u * sin_rz, -unit_v * sin_rz + unit_u * cos_rz, unit_z
 
-    # Normalize the normal vectors
-    normal_mag = np.sqrt(normal_v_local**2 + normal_u_local**2 + normal_z_local**2)
-    normal_mag = np.maximum(normal_mag, 1e-10)  # Avoid division by zero
-    normal_v_local = normal_v_local / normal_mag
-    normal_u_local = normal_u_local / normal_mag
-    normal_z_local = normal_z_local / normal_mag
+    # Normalize the normal vectors: sqrt(v**2 + u**2 + z**2), floored at 1e-10 to
+    # avoid a division by zero.
+    normal_mag = np.square(normal_v_local)
+    scratch = np.square(normal_u_local)
+    normal_mag += scratch
+    np.square(normal_z_local, out=scratch)
+    normal_mag += scratch
+    np.sqrt(normal_mag, out=normal_mag)
+    np.maximum(normal_mag, 1e-10, out=normal_mag)
+    normal_v_local /= normal_mag
+    normal_u_local /= normal_mag
+    normal_z_local /= normal_mag
 
     # Rotate normal back to image coordinates (only v and u components)
     # The z component stays in the depth direction
-    # Use inverse rotation (negate sin) to match the coordinate transformation
-    normal_v = normal_v_local * cos_rz + normal_u_local * sin_rz
-    normal_u = -normal_v_local * sin_rz + normal_u_local * cos_rz
+    # Use inverse rotation (negate sin) to match the coordinate transformation:
+    # normal_v = v * cos_rz + u * sin_rz and normal_u = -v * sin_rz + u * cos_rz.
+    normal_v = np.multiply(normal_v_local, cos_rz, out=scratch)
+    np.multiply(normal_u_local, sin_rz, out=normal_mag)
+    normal_v += normal_mag
+    normal_u = np.negative(normal_v_local, out=normal_v_local)
+    normal_u *= sin_rz
+    normal_u_local *= cos_rz
+    normal_u += normal_u_local
     return normal_v, normal_u, normal_z_local
+
+
+def _arrays_of_one_kind(components: tuple[NDArrayFloatType, ...]) -> bool:
+    """Whether every component is an array of one shape and one type, not 0-d.
+
+    Parameters:
+        components: The components.
+
+    Returns:
+        True when they can be combined in place, with the plain expressions' result.
+    """
+    first = components[0]
+    return all(
+        isinstance(component, np.ndarray)
+        and component.ndim > 0
+        and component.shape == first.shape
+        and component.dtype == first.dtype
+        for component in components
+    )
 
 
 def project_ellipsoid(
@@ -425,7 +552,7 @@ def project_ellipsoid(
         The :class:`EllipsoidProjection` on the supersampled grid.
     """
     size_v, size_u = size
-    aa_scale = int(1 + 3 * anti_aliasing) if anti_aliasing > 0 else 1
+    aa_scale = supersampling_scale(anti_aliasing)
 
     center_v = center[0] * aa_scale
     center_u = center[1] * aa_scale
@@ -451,7 +578,15 @@ def project_ellipsoid(
     u_rot = (v_axis * sin_rz)[:, np.newaxis] + (u_axis * cos_rz)[np.newaxis, :]
 
     # The projected outline is the ellipse (v_rot/a_outline)^2 + (u_rot/b)^2 = 1.
-    ellipse_dist_sq = (v_rot / semi_a_outline) ** 2 + (u_rot / semi_b) ** 2
+    # Built in place, the second term a strip of rows at a time, which gives the same
+    # bits as the plain expression with no grid-sized temporary.
+    ellipse_dist_sq = v_rot / semi_a_outline
+    np.square(ellipse_dist_sq, out=ellipse_dist_sq)
+    for start in range(0, shape[0], _STRIP_ROWS):
+        rows = slice(start, start + _STRIP_ROWS)
+        across = u_rot[rows] / semi_b
+        np.square(across, out=across)
+        ellipse_dist_sq[rows] += across
 
     return EllipsoidProjection(
         aa_scale=aa_scale,

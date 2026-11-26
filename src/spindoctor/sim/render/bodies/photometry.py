@@ -46,6 +46,7 @@ from typing import cast
 
 import numpy as np
 
+from spindoctor.sim.shared.inplace import result_array, ufunc_result
 from spindoctor.sim.shared.lighting import illumination_vector
 from spindoctor.support.types import NDArrayFloatType
 
@@ -95,7 +96,23 @@ def incidence_cosines(
     illum_v, illum_u, illum_z = illumination_vector(
         illumination_angle=illumination_angle, phase_angle=phase_angle
     )
-    return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)
+    normals = (normal_v, normal_u, normal_z)
+    if not any(isinstance(normal, np.ndarray) for normal in normals) or (
+        len({np.result_type(normal, 1.0) for normal in normals}) > 1
+    ):
+        # Scalar normals, or normals of mixed types: the plain expression, which keeps
+        # their type.  With a float32 v and u and a float64 z, it rounds v's and u's
+        # terms and their sum in float32, which a sum built in float64 would not.
+        return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)
+    # v * illum_v + u * illum_u + z * illum_z, summed in place in that order, which
+    # gives the same bits, shape, and type as the plain expression with two fewer
+    # temporaries.
+    cos_i = np.multiply(normal_v, illum_v, out=result_array(normal_v, normal_u, normal_z))
+    term = np.multiply(normal_u, illum_u, out=np.empty_like(cos_i))
+    cos_i += term
+    np.multiply(normal_z, illum_z, out=term)
+    cos_i += term
+    return ufunc_result(cos_i)
 
 
 def surge_factor(phase_angle: float, *, amplitude: float, width_deg: float) -> float:
@@ -153,34 +170,50 @@ def shade_surface(
             f'unknown photometric law {law!r}; expected one of {sorted(PHOTOMETRIC_LAWS)}'
         )
 
-    visible = cos_emission > 0.0
+    visible = np.greater(cos_emission, 0.0)
     mu0 = np.clip(cos_incidence, 0.0, 1.0)
-    mu = np.clip(cos_emission, 0.0, 1.0)
 
     if law == 'lambert':
         intensity = mu0
-    elif law == 'lommel_seeliger':
-        intensity = _lommel_seeliger(mu0, mu)
-    elif law == 'minnaert':
-        with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
-            intensity = np.where(mu > 0.0, mu0**minnaert_k * mu ** (minnaert_k - 1.0), 0.0)
-        intensity = np.minimum(np.nan_to_num(intensity, nan=0.0), MINNAERT_CEILING)
-    else:  # lunar_lambert
-        blend = _lunar_lambert_blend(phase_angle)
-        intensity = blend * _lommel_seeliger(mu0, mu) + (1.0 - blend) * mu0
+    else:
+        mu = np.clip(cos_emission, 0.0, 1.0)
+        if law == 'lommel_seeliger':
+            intensity = _lommel_seeliger(mu0, mu)
+        elif law == 'minnaert':
+            with np.errstate(divide='ignore', invalid='ignore', over='ignore'):
+                intensity = np.where(mu > 0.0, mu0**minnaert_k * mu ** (minnaert_k - 1.0), 0.0)
+            intensity = np.minimum(np.nan_to_num(intensity, nan=0.0), MINNAERT_CEILING)
+        else:  # lunar_lambert
+            blend = _lunar_lambert_blend(phase_angle)
+            intensity = blend * _lommel_seeliger(mu0, mu) + (1.0 - blend) * mu0
 
-    intensity = intensity * surge_factor(
-        phase_angle, amplitude=surge_amplitude, width_deg=surge_width_deg
+    # where(visible, intensity * surge, 0), which this matches to the last bit, and in
+    # shape and type.  The intensity is a new array this call made, read nowhere after,
+    # so it is built there when it has the result's shape; else in a new array.
+    shaded = intensity
+    if not isinstance(intensity, np.ndarray) or intensity.shape != np.broadcast_shapes(
+        intensity.shape, visible.shape
+    ):
+        shaded = result_array(intensity, visible)
+    np.multiply(
+        intensity,
+        surge_factor(phase_angle, amplitude=surge_amplitude, width_deg=surge_width_deg),
+        out=shaded,
     )
-    return cast(NDArrayFloatType, np.where(visible, intensity, 0.0))
+    np.copyto(shaded, 0.0, where=np.logical_not(visible))
+    return shaded
 
 
 def _lommel_seeliger(mu0: NDArrayFloatType, mu: NDArrayFloatType) -> NDArrayFloatType:
     """The Lommel-Seeliger term ``2 * mu0 / (mu0 + mu)``, 0 where degenerate."""
     denominator = mu0 + mu
+    # where(denominator > 0, 2 * mu0 / denominator, 0) with NaN set to 0, in place on
+    # this call's own arrays, which gives the same bits as the plain expression.
+    value = np.multiply(2.0, mu0, out=result_array(mu0, mu))
     with np.errstate(divide='ignore', invalid='ignore'):
-        value = np.where(denominator > 0.0, 2.0 * mu0 / denominator, 0.0)
-    return cast(NDArrayFloatType, np.nan_to_num(value, nan=0.0))
+        np.divide(value, denominator, out=value)
+    np.copyto(value, 0.0, where=np.logical_not(np.greater(denominator, 0.0)))
+    return cast(NDArrayFloatType, np.nan_to_num(value, copy=False, nan=0.0))
 
 
 def _lunar_lambert_blend(phase_angle: float) -> float:

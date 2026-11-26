@@ -408,7 +408,7 @@ def test_a_refused_scene_with_an_offset_does_not_start_a_verdict(
     assert gated.calls == []
     assert model._verdict_runner.is_busy is False
     assert model._units_label.text() == (
-        "scene would be refused: sim_params: unknown scene keys: ['unknown_probe_key']"
+        "scene would be refused: sim_params: unknown keys: ['unknown_probe_key']"
     )
 
 
@@ -420,7 +420,7 @@ def test_a_refusal_drops_the_running_verdict(model: Any, gated: _GatedSummary) -
     gated.release(0)
     _wait_for_verdict(model)
     assert model._units_label.text() == (
-        "scene would be refused: sim_params: unknown scene keys: ['unknown_probe_key']"
+        "scene would be refused: sim_params: unknown keys: ['unknown_probe_key']"
     )
 
 

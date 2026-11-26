@@ -415,6 +415,10 @@ def render_stars(
             star positions, the roll pivot, and the returned records belong to the
             frame.
     """
+    if not stars_params:
+        # Adding an all-zero deposit would leave the plane as it is, but would write
+        # every pixel of two frame-sized planes.
+        return point_plane, [], []
     size_v = point_plane.shape[0] - 2 * margin
     size_u = point_plane.shape[1] - 2 * margin
     stars_params_json = json.dumps(stars_params, sort_keys=True)
