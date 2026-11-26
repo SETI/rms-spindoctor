@@ -98,6 +98,16 @@ def test_a_base_orbit_entry_is_mode_one() -> None:
     )
 
 
+def test_a_base_orbit_may_leave_out_rms() -> None:
+    """A base orbit without a fitted residual parses, with no ``rms``."""
+    entry = _base(1000.0)
+    del entry['rms']
+    data = {'feature_type': 'GAP', 'inner_data': [entry]}
+    feature = parse(RingFeatureEntry, data, source=_SOURCE)
+    assert feature.inner_data is not None
+    assert feature.inner_data[0].rms is None
+
+
 @pytest.mark.parametrize(
     ('modes', 'expected'),
     [
