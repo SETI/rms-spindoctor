@@ -213,23 +213,22 @@ Configuration block
 ===================
 
 Two sections, each nested per detector (``nac``, ``wac``), which is why the
-loader indexes the block by detector.
+observation asks for its block by section and detector, as in
+``config.camera_block('cassini_iss', 'nac')``.
 
-``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` departs from the
-common schema by **omission**: its ``noise`` block carries only
-``marker_value: 0``, and its ``image_quality_thresholds`` carry only the two
-``_if`` thresholds and the two fractions. It has no ``saturation_dn``, no
-``read_noise_dn``, no ``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
-``saturation_threshold_if``.
+``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` sets
+``data_units: calibrated_if``, so it carries what a calibrated camera block carries
+(see :ref:`config-camera-blocks`): its ``noise`` block holds only ``marker_value: 0``,
+and its ``image_quality_thresholds`` hold only the two ``_if`` thresholds and the two
+fractions. It has no ``saturation_dn``, no ``read_noise_dn``, and no
+``star_flux_dn_per_s_vmag0``, and the loader refuses any of them.
 
-That last omission is deliberate and is documented in the file. The calibration
-pipeline applies an exposure-, filter- and gain-dependent scaling, so no single
-I/F constant identifies the saturated DN ceiling.
+The calibration pipeline applies an exposure-, filter-, and gain-dependent scaling, so
+no single I/F constant identifies the saturated DN ceiling.
 ``NavOrchestrator._build_saturation_mask`` returns an empty mask for any
 ``calibrated_if`` input and the classifier sees an infinite threshold, so
 ``saturation_frac`` is always 0.0 and the ``fully_overexposed`` early-out is
-disabled. Adding a threshold to this block would not restore the mask; the
-mask is gated on the units, not on the presence of the key.
+disabled. A camera block has no I/F saturation threshold to set.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
 ``read_noise_dn``, the calibrated block's

@@ -569,16 +569,13 @@ Per-instrument YAML files in ``src/spindoctor/config_files/config_4N0_inst_*.yam
 override any of these knobs. Two settings of the 1-star path are properties of the camera
 and live only there; the technique's own configuration sets neither:
 
-- ``one_star_ellipse_fraction`` — float, required of every camera block (every mapping
-  that declares ``data_units``, the simulator's included). A 1-star detection outside the
-  ellipse whose semi-axes are the offset window's half-widths times it is refused with a
+- ``one_star_ellipse_fraction`` — float in ``(0, 1]``, required of every camera block
+  (see :ref:`config-camera-blocks`). A 1-star detection outside the ellipse whose
+  semi-axes are the offset window's half-widths times it is refused with a
   ``one_star_detection_outside_ellipse`` reason. The ellipse is taken in place of a single
   radius because the offset window is per axis: it is a circle for a square window and
-  never reaches past the window on either axis. Loading the configuration refuses a
-  camera block that sets none, or one outside ``(0, 1]``, and the technique checks the
-  value again when it reads it, since a simulated scene may override the camera's
-  configuration. The instrument chapters give each camera's value and the configuration
-  carries its evidence.
+  never reaches past the window on either axis. The instrument chapters give each
+  camera's value and the configuration carries its evidence.
 - ``star_max_peak_per_predicted_snr`` — float, optional. Bounds a lone star's source's peak
   per unit of predicted SNR in noise sigmas (see the 1-star path above); a camera that
   sets none has no bound.

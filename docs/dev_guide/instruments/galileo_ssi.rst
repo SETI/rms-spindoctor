@@ -117,8 +117,8 @@ entirely past the range.
 Configuration block
 ===================
 
-One flat section. There is one camera, so nothing is nested and the loader
-reads ``config.category('galileo_ssi')`` directly.
+One flat section. There is one camera, so nothing is nested and the
+observation reads ``config.camera_block('galileo_ssi')``.
 
 Nothing departs from the common raw-DN schema: ``data_units: raw_dn``, a full
 ``noise`` block, a full ``image_quality_thresholds`` block with a
