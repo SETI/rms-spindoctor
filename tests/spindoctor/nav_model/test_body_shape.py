@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
 
 import pytest
 
+from spindoctor.config import Config
+from spindoctor.config.sections_body_shape import BodyShapeEntry
 from spindoctor.nav_model.body_shape import (
     BODY_SHAPE_TABLE,
     DEFAULT_BODY_SHAPE,
@@ -15,33 +16,40 @@ from spindoctor.nav_model.body_shape import (
 )
 
 
-class _FakeConfig:
-    """Stand-in exposing only the ``body_shape`` attribute the loader reads."""
+def _config_with(body_shape: dict[str, BodyShapeEntry]) -> Config:
+    """Return a configuration whose body-shape table is ``body_shape``.
 
-    def __init__(self, body_shape: dict[str, Any] | None) -> None:
-        self.body_shape = body_shape if body_shape is not None else {}
+    Parameters:
+        body_shape: The table, keyed by SPICE body name.
+
+    Returns:
+        A configuration with every other section packaged.
+    """
+    config = Config()
+    config._sections = dataclasses.replace(config._typed_sections(), body_shape=body_shape)
+    return config
 
 
 # ---------------------------------------------------------------------------
-# Hard-coded fallback table (no YAML override)
+# Hard-coded fallback table (no configured entry)
 # ---------------------------------------------------------------------------
 
 
-def test_lookup_known_body_no_yaml_returns_table_entry() -> None:
-    """A known body with empty YAML returns the hard-coded profile."""
-    config = _FakeConfig({})
+def test_lookup_known_body_no_entry_returns_table_entry() -> None:
+    """A known body without a configured entry returns the hard-coded profile."""
+    config = _config_with({})
     assert load_body_shape('MIMAS', config=config) == BODY_SHAPE_TABLE['MIMAS']
 
 
 def test_lookup_case_insensitive() -> None:
     """Body-name lookup ignores case."""
-    config = _FakeConfig({})
+    config = _config_with({})
     assert load_body_shape('mimas', config=config) == BODY_SHAPE_TABLE['MIMAS']
 
 
 def test_lookup_unknown_body_falls_back_to_default() -> None:
     """Bodies absent from the table return ``DEFAULT_BODY_SHAPE``."""
-    config = _FakeConfig({})
+    config = _config_with({})
     assert load_body_shape('NEW MOON', config=config) == DEFAULT_BODY_SHAPE
 
 
@@ -91,62 +99,35 @@ def test_gas_giants_share_shape_profile() -> None:
 
 
 # ---------------------------------------------------------------------------
-# YAML overrides (config_220_body_shape.yaml)
+# Configured entries (config_220_body_shape.yaml)
 # ---------------------------------------------------------------------------
 
 
-def test_yaml_overrides_individual_field() -> None:
-    """A YAML value overwrites the hard-coded baseline for that field."""
-    config = _FakeConfig({'MIMAS': {'ellipsoid_rms_residual_km': 0.42}})
-    shape = load_body_shape('MIMAS', config=config)
-    assert shape.ellipsoid_rms_residual_km == 0.42
-    # Other fields untouched — they stay at the hard-coded SATURN-moon profile.
-    assert shape.crater_scale_km == BODY_SHAPE_TABLE['MIMAS'].crater_scale_km
-    assert shape.albedo_variation == BODY_SHAPE_TABLE['MIMAS'].albedo_variation
-
-
-def test_yaml_supplies_shape_class_hint_only() -> None:
-    """A YAML that only sets shape_class_hint still picks up that field."""
-    config = _FakeConfig({'MIMAS': {'shape_class_hint': 'highly_irregular'}})
-    shape = load_body_shape('MIMAS', config=config)
-    assert shape.shape_class_hint == 'highly_irregular'
-    assert shape.ellipsoid_rms_residual_km == BODY_SHAPE_TABLE['MIMAS'].ellipsoid_rms_residual_km
-
-
-def test_yaml_overrides_unknown_body_against_default() -> None:
-    """A YAML entry for a body absent from BODY_SHAPE_TABLE overrides DEFAULT."""
-    config = _FakeConfig(
-        {
-            'NEW_MOON': {
-                'ellipsoid_rms_residual_km': 0.5,
-                'shape_class_hint': 'regular',
-            }
-        }
+def test_entry_overrides_only_the_keys_it_sets() -> None:
+    """A configured value overwrites the hard-coded baseline for its key only."""
+    entry = BodyShapeEntry(crater_scale_km=0.7, albedo_variation=0.04)
+    config = _config_with({'MIMAS': entry})
+    expected = dataclasses.replace(
+        BODY_SHAPE_TABLE['MIMAS'], crater_scale_km=0.7, albedo_variation=0.04
     )
-    shape = load_body_shape('NEW_MOON', config=config)
-    assert shape.ellipsoid_rms_residual_km == 0.5
-    assert shape.shape_class_hint == 'regular'
-    # All other fields fall back to DEFAULT_BODY_SHAPE values.
-    assert shape.crater_scale_km == DEFAULT_BODY_SHAPE.crater_scale_km
-    assert shape.spice_orbital_residual_km == DEFAULT_BODY_SHAPE.spice_orbital_residual_km
+    assert load_body_shape('MIMAS', config=config) == expected
 
 
-def test_yaml_unknown_field_is_ignored() -> None:
-    """YAML entries with extra keys (e.g. ``radii_km``) do not break the loader."""
-    config = _FakeConfig(
-        {
-            'MIMAS': {
-                'radii_km': [200.0, 195.0, 191.0],
-                'albedo_mean': 0.96,
-                'shape_class_hint': 'regular',
-            }
-        }
+def test_entry_for_a_body_with_no_profile_overrides_the_default() -> None:
+    """An entry for a body absent from ``BODY_SHAPE_TABLE`` overrides the default."""
+    entry = BodyShapeEntry(ellipsoid_rms_residual_km=0.5, shape_class_hint='regular')
+    config = _config_with({'NEW_MOON': entry})
+    expected = dataclasses.replace(
+        DEFAULT_BODY_SHAPE, ellipsoid_rms_residual_km=0.5, shape_class_hint='regular'
     )
-    shape = load_body_shape('MIMAS', config=config)
-    assert shape == BODY_SHAPE_TABLE['MIMAS']
+    assert load_body_shape('NEW_MOON', config=config) == expected
 
 
-def test_load_body_shape_picks_up_yaml_override() -> None:
-    """``load_body_shape`` merges the operator-curated YAML over the baseline."""
-    config = _FakeConfig({'MIMAS': {'crater_scale_km': 0.7}})
-    assert load_body_shape('MIMAS', config=config).crater_scale_km == 0.7
+def test_entry_sets_the_orbital_residual_and_blob_diameter() -> None:
+    """An entry's SPK residual and blob diameter reach the loaded shape."""
+    entry = BodyShapeEntry(spice_orbital_residual_km=5.0, min_blob_diameter_px=9.0)
+    config = _config_with({'MIMAS': entry})
+    expected = dataclasses.replace(
+        BODY_SHAPE_TABLE['MIMAS'], spice_orbital_residual_km=5.0, min_blob_diameter_px=9.0
+    )
+    assert load_body_shape('MIMAS', config=config) == expected

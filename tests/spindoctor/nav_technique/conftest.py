@@ -30,6 +30,7 @@ optical axis ``oops`` reports.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from typing import Any
 
@@ -60,6 +61,7 @@ from spindoctor.nav_orchestrator.image_derivatives import (
 )
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_orchestrator.provenance import Provenance
+from spindoctor.nav_technique.nav_technique import NavTechnique
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 
 # Public type aliases for the factory fixtures defined below.  Test
@@ -94,6 +96,9 @@ NavFeatureFactory = Callable[..., NavFeature]
 
 DrawGaussianStarFactory = Callable[..., None]
 """Signature of the ``draw_gaussian_star`` factory fixture (kwargs-flexible)."""
+
+#: ``retune(technique_class, **changes)``: see the ``retune`` fixture.
+RetuneFactory = Callable[..., None]
 
 
 class FakeObs:
@@ -225,6 +230,22 @@ def draw_gaussian_star() -> DrawGaussianStarFactory:
     Mutates ``image`` and returns ``None``.
     """
     return _draw_gaussian_star
+
+
+@pytest.fixture
+def retune(monkeypatch: pytest.MonkeyPatch) -> RetuneFactory:
+    """Factory fixture that changes some of a technique's tuning values for one test.
+
+    Signature: ``retune(technique_class, **changes)``.  It builds the technique first, so
+    the configuration is read and the tuning it replaces is the class's own, which
+    ``monkeypatch`` restores when the test ends.
+    """
+
+    def _retune(technique: type[NavTechnique], **changes: object) -> None:
+        technique()
+        monkeypatch.setattr(technique, 'tuning', dataclasses.replace(technique.tuning, **changes))
+
+    return _retune
 
 
 # ---------------------------------------------------------------------------

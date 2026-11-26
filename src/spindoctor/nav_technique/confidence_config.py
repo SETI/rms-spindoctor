@@ -10,13 +10,10 @@ missing block is refused at load with the file and key path.  It then assigns ea
 technique class its ``confidence_spec`` and ``tuning``.
 
 The section's type is built from the technique registry, so a technique declares its
-own tuning and no list of techniques is written twice.  A technique that declares
-``Tuning`` (a frozen schema dataclass of its tuning keys) has its ``tuning`` mapping
-parsed into that type, and its block is named by its snake_case key, the one the
-``logging.techniques`` category uses.  A technique whose family is not typed yet
-declares no ``Tuning``: its block is named by its class name, and its ``tuning`` is a
-mapping of numbers.  Each family is typed and renamed in turn, until every technique
-declares ``Tuning``.
+own tuning and no list of techniques is written twice.  Each technique declares
+``Tuning``, a frozen schema dataclass of its tuning keys, and has its ``tuning`` mapping
+parsed into that type.  Its block sits under its snake_case key, the one the
+``logging.techniques`` category uses.
 
 A block may name only diagnostic attributes its technique declares in
 ``confidence_attributes``, in ``terms`` and in ``hard_zero_if``; any other name is
@@ -31,21 +28,16 @@ from typing import Any, ClassVar
 from spindoctor.config.logging_keys import is_shipped, log_key_for
 from spindoctor.nav_technique.confidence import ConfidenceSpec
 from spindoctor.nav_technique.nav_technique import NavTechnique
-from spindoctor.schema import SCHEMA_CONFIG, Float, Int, RuleError, Str
+from spindoctor.schema import SCHEMA_CONFIG, RuleError
 
 __all__ = [
     'TechniqueBlock',
     'TechniquesSection',
-    'UntypedTuning',
     'shipped_techniques',
     'technique_block_type',
     'technique_config_key',
     'techniques_section_type',
 ]
-
-#: The tuning of a technique whose family is not typed yet: a mapping of numbers, each an
-#: integer or a finite float as the file writes it.
-UntypedTuning = dict[Str, Int | Float]
 
 
 def technique_config_key(technique: type[NavTechnique]) -> str:
@@ -55,11 +47,9 @@ def technique_config_key(technique: type[NavTechnique]) -> str:
         technique: The technique class.
 
     Returns:
-        The technique's snake_case key (:func:`~spindoctor.config.log_key_for`) when
-        it declares ``Tuning``, and its ``name`` when its family is not typed yet.
+        The technique's snake_case key (:func:`~spindoctor.config.log_key_for`), the
+        one the ``logging.techniques`` category uses.
     """
-    if technique.Tuning is None:
-        return technique.name
     return log_key_for(technique)
 
 
@@ -122,8 +112,7 @@ class TechniqueBlock(ConfidenceSpec):
         """Return the block's tuning.
 
         Returns:
-            An instance of the technique's ``Tuning``, or a mapping of numbers for a
-            technique whose family is not typed yet.
+            An instance of the technique's ``Tuning``.
         """
         # Each technique's block type adds the field with its own type, so this base
         # declares none.
@@ -167,13 +156,11 @@ def technique_block_type(technique: type[NavTechnique]) -> type[TechniqueBlock]:
 
     Returns:
         A frozen schema dataclass: the fields of :class:`TechniqueBlock` and a
-        required ``tuning`` field of the technique's ``Tuning``, or of
-        :data:`UntypedTuning` when the technique declares none.
+        required ``tuning`` field of the technique's ``Tuning``.
     """
-    tuning = technique.Tuning if technique.Tuning is not None else UntypedTuning
     block_type: type[TechniqueBlock] = dataclasses.make_dataclass(
         f'{technique.__name__}Block',
-        [('tuning', tuning, dataclasses.field(kw_only=True))],
+        [('tuning', technique.Tuning, dataclasses.field(kw_only=True))],
         bases=(TechniqueBlock,),
         frozen=True,
         namespace={'__pydantic_config__': SCHEMA_CONFIG, 'technique': technique},

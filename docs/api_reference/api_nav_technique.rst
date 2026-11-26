@@ -81,6 +81,11 @@ spindoctor.nav_technique
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.nav_technique.star_tuning
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.nav_technique.nav_technique_star_field
    :members:
    :undoc-members:

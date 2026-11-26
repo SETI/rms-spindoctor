@@ -844,6 +844,8 @@ def test_module_keys_exclude_test_registered_classes(tmp_path: Path) -> None:
         class _RegisteredByThisTestNav(NavTechnique):
             """A technique defined outside the package, as a test's would be."""
 
+            Tuning = object
+
         assert _RegisteredByThisTestNav in NavTechnique._registry
         assert log_key_for(_RegisteredByThisTestNav) not in technique_log_keys()
     finally:

@@ -122,14 +122,11 @@ Configuration
 
 Confidence calibration is the *consumer* of YAML, not a producer. Every technique's
 confidence spec lives in its block of the ``techniques`` section in
-``src/spindoctor/config_files/config_510_techniques.yaml``, alongside its ``tuning`` block. A
-technique whose tuning is typed has its block under its snake_case key, as in
-``techniques.body_limb``; the others keep their class name, as in ``techniques.StarRefineNav``
-(see :ref:`config-techniques-section`). The loader parses each block through the schema core
-each time a configuration is installed, so a value of the wrong type or out of range, and an
-unknown key, are refused with the file and key path. The exception is a key inside the
-``tuning`` block of a technique whose tuning is not yet typed: that block is a mapping of
-numbers, so a misspelled key there is accepted and never read. The spec shape is:
+``src/spindoctor/config_files/config_510_techniques.yaml``, alongside its ``tuning`` block,
+under the technique's snake_case key, as in ``techniques.body_limb`` (see
+:ref:`config-techniques-section`). The loader parses each block through the schema core each
+time a configuration is installed, so a value of the wrong type or out of range, and an
+unknown key, are refused with the file and key path. The spec shape is:
 
 - ``alpha0`` — float (dimensionless). Baseline contribution to the sigmoid argument. Negative
   values pull the sigmoid below 0.5 by default; positive values push it above.

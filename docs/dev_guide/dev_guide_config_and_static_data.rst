@@ -148,6 +148,10 @@ returns the typed object:
   commented-out line. The schema does not decide whether the command line, this section,
   or an environment variable wins. Each reader applies its own order, and the helpers in
   :mod:`spindoctor.config.config_helper` define the usual one.
+- ``body_shape`` — the body-shape table: one
+  :class:`~spindoctor.config.sections_body_shape.BodyShapeEntry` per body, keyed by the
+  body's SPICE name. Every key of an entry is optional, and a key that the entry leaves
+  out takes its value from the next tier (see :ref:`static-data-citations`).
 - ``logging`` — :class:`~spindoctor.config.logging_keys.LoggingSection`, holding the
   levels and terminal settings of the two loggers, with each program's overrides under
   ``programs`` as a :class:`~spindoctor.config.logging_keys.ProgramLogging`. Its
@@ -175,6 +179,11 @@ misspelled or in lower case, so such a key is refused at load. That rule reads t
 sections, so :class:`~spindoctor.config.sections.TypedSections` checks it. The message
 gives the key and the file that last set either it or ``planets``.
 
+Two mappings are keyed by body: ``bodies.geometric_albedo`` and ``body_shape``. For the
+same reason, each of their keys must be in upper case, as SPICE spells it, and the loader
+refuses a key that is not. One rule in :class:`~spindoctor.config.sections.TypedSections`
+checks both mappings, so both give the same message.
+
 Keys come in two kinds, and each kind has its own spelling. A key for a setting,
 such as ``use_albedo`` or ``body_limb``, is a name the package chose, and it is in
 snake_case. A key for something outside the package is spelled the way its source
@@ -200,25 +209,31 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
 ``hard_zero_if``, and ``hard_cap``; see :doc:`dev_guide_techniques_confidence`) and its
 ``tuning`` mapping:
 
-- A technique declares ``Tuning``, a frozen schema dataclass of its tuning keys. The
-  loader parses the block's ``tuning`` into that type, and the technique reads
-  ``self.tuning.key``. The DT techniques' types share
-  :class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which in turn holds the keys of
-  the shared fit-quality gates
-  (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`).
-  :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning` holds the
-  model-error terms of a correlation technique's covariance. The ring-annulus technique's
-  tuning is that type, and the body-disc technique's type extends it.
-- The block of a technique that declares ``Tuning`` is keyed by the technique's
-  snake_case key, the one ``logging.techniques`` uses
-  (:func:`~spindoctor.config.logging_keys.log_key_for`): ``body_blob``,
-  ``body_disc_correlate``, ``body_limb``, ``body_terminator``, ``ring_annulus``, and
-  ``ring_edge``. Results and metadata still identify the technique by its ``name``.
-- The techniques whose tuning is not typed yet declare no ``Tuning``. Their blocks keep
-  the class name, as in ``StarRefineNav``, and their ``tuning`` is a mapping of numbers
-  that the technique reads by key. A key in that mapping is checked only for being a
-  number, so a misspelled key is accepted and nothing reads it. Each family moves to a
-  ``Tuning`` type and a snake_case name in turn.
+- Every technique declares ``Tuning``, a frozen schema dataclass of its tuning keys.
+  The loader parses the block's ``tuning`` into that type, and the technique reads
+  ``self.tuning.key``. A technique family that shares keys declares them once on a base
+  type:
+
+  - The DT techniques' types share
+    :class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which in turn holds the keys
+    of the shared fit-quality gates
+    (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`).
+  - :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning` holds the
+    model-error terms of a correlation technique's covariance. The ring-annulus
+    technique's tuning is that type, and the body-disc technique's type extends it.
+  - The star techniques' types share
+    :class:`~spindoctor.nav_technique.star_tuning.StarTuning`, which holds the keys of
+    the detection kernel, the centroid box, the detection threshold, and the at-edge
+    tests.
+
+- A technique whose covariance carries a model-error floor declares
+  ``model_error_floor_px`` in its tuning, and passes it to
+  :func:`~spindoctor.nav_technique.nav_technique.add_model_error_floor`. The floor is one
+  number for every camera.
+- Each block is keyed by the technique's snake_case key, the one ``logging.techniques``
+  uses (:func:`~spindoctor.config.logging_keys.log_key_for`), such as ``body_limb``,
+  ``star_field_from_catalog``, or ``titan_haze``. Results and metadata still identify
+  the technique by its ``name``.
 - The ``terms`` and the ``hard_zero_if`` keys of a block may refer only to the
   diagnostic attributes its technique declares in ``confidence_attributes``. Any other
   attribute is refused at load with the file and key path, as in
@@ -227,7 +242,7 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
 Each time a configuration is installed, the loader assigns every shipped technique
 class its ``confidence_spec`` and ``tuning`` from the parsed section. An override that
 is refused assigns nothing. A block under a name the section does not use, such as a
-typed technique's class name, is refused as an unknown key.
+technique's class name, is refused as an unknown key.
 
 The rules for a typed section:
 
@@ -248,9 +263,11 @@ The rules for a typed section:
 Sections
 --------
 
-Top-level YAML keys other than the typed sections are exposed as
-:class:`~spindoctor.support.attrdict.AttrDict` properties so code can write
-``cfg.body_shape.MIMAS`` instead of ``cfg['body_shape']['MIMAS']``. That
+Top-level YAML keys other than the typed sections, such as each camera's block, are read
+through :meth:`~spindoctor.config.Config.category`, which returns an
+:class:`~spindoctor.support.attrdict.AttrDict` so code can write
+``cfg.category('voyager_iss').star_psf_sigma`` instead of
+``cfg.category('voyager_iss')['star_psf_sigma']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
@@ -286,7 +303,7 @@ removal. The shipping sections:
   described in :doc:`dev_guide_backplanes`.
 - ``pds4`` — each bundle's template directory, name, version, and schemas; a typed
   section (see :ref:`config-typed-sections`) described in :doc:`dev_guide_pds4`.
-- ``body_shape`` — static per-body shape catalog (see
+- ``body_shape`` — static per-body shape catalog; a typed section (see
   :ref:`static-data-citations` below).
 - ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
   (``noise``, ``mag_offset``, ``image_quality_thresholds``,
@@ -488,6 +505,13 @@ Each body block in ``config_220_body_shape.yaml`` is wrapped in a top-level
 carries an optional sibling ``_sources`` mapping. The loader drops it (see
 :ref:`config-merge`), so the citation lives in the file for human review only.
 
+The loader then parses the entry into a
+:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`, whose fields give each
+key's type and range. Every key is optional. A key that the entry leaves out is read as
+None, and :func:`~spindoctor.nav_model.body_shape.load_body_shape` takes that value from
+the body's built-in profile. The loader refuses a key that the type does not declare,
+and a body name that is not in upper case.
+
 .. code-block:: yaml
 
     body_shape:
@@ -542,9 +566,11 @@ limb topographic roughness beyond the ellipsoid) and ``albedo_variation``
 have no standard published per-body scalar; entries carry
 ``'ESTIMATE — <physical basis>'`` sources and feed sigma/reliability
 terms only.  ``albedo_mean`` is left out of every entry because it has no
-runtime consumer, and each entry's ``_sources`` says so.  A developer adding a
-consumer should populate it with cited values at that point, following the
-procedure below.
+runtime consumer, and each entry's ``_sources`` says so.
+:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry` does not declare it
+either, so the loader refuses a value written for it.  A developer adding a consumer
+should add the key to the type and populate it with cited values at that point,
+following the procedure below.
 
 Downstream, ``ellipsoid_rms_residual_km`` drives the LIMB_ARC
 normal-sigma quadrature and the ``max_phase_irregularity_factor``
@@ -572,8 +598,8 @@ AI agents drafting body-shape entries:
 2. If a value cannot be sourced from a fetched document, leave the key out
    of the entry and write
    ``'PLACEHOLDER — no source found, calibration pending'`` as its
-   ``_sources`` entry. The runtime fallback (10 % radius default plus a
-   reliability cap of 0.3) takes the place of a value that is left out.
+   ``_sources`` entry. The body's built-in profile takes the place of a value
+   that is left out, and a body without a built-in profile uses the generic one.
 3. DOIs and paper titles must verify against a real
    ``https://doi.org/<DOI>`` lookup; agents do not invent identifiers.
 4. Any draft PR that lists a citation an AI agent invented (caught in human
@@ -599,6 +625,8 @@ Validation tests
 - No ``_sources`` value contains the substrings ``TODO`` / ``FIXME`` /
   ``XXX`` (case-insensitive).
 - ``PLACEHOLDER`` is allowed only for a field the entry leaves out.
+- The packaged table parses into its type, with an entry for every body in the
+  file.
 
 The same validation pattern extends to per-camera ``noise`` /
 ``mag_offset`` blocks in ``config_4N0_inst_*.yaml`` and to any new entries
