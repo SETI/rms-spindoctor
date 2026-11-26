@@ -221,19 +221,19 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # since a translation follows the turned stars or disc it measures.  The roll turns
     # the scene about the boresight, the frame center after the offset.  In
     # nhlorri_star_field the +0.19 deg twist moves the four measured stars' mean
-    # position, about 280 px from the boresight, by about 0.94 px.  gossi_star_field
-    # lands 0.05 px off with its twist and 0.02 px off without it, and gossi_disc
+    # position, about 280 px from the boresight, by about 0.94 px; its row is measured
+    # on all 24 draws at the measured LORRI star zero point (#1213).  gossi_disc lands
     # 0.17 px off with its twist and 0.04 px off without it.  coiss_wac_disc's error is
     # the limb fit's own: 0.16 px with the roll, 0.17 px without.  The three
     # short-exposure and large-offset scenes fail as their expected blocks declare
-    # (#342, #785, #1153).
+    # (#342, #785, #1153), and so does gossi_star_field, whose stars saturate at the
+    # measured Galileo zero point while the navigator's copy of it stays low (#1153).
     ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
     ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
     ('coiss_nac_star_field', FUSED): _t(0.017, 0.231, 0.220, 0.05),
     ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
     ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
-    ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
-    ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),
+    ('nhlorri_star_field', FUSED): _t(0.936, 0.940, 0.007, 0.19),
     # full_frame_cameras, Voyager.  These rows are measured on all 24 draws, the 16
     # random_seed draws and the 8 noise_seed draws, which are distinct here.  In
     # vgiss_2_wac_star_field the +0.358 deg twist moves the mean position of the stars

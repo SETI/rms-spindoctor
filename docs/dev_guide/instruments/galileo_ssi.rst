@@ -159,8 +159,9 @@ handled downstream.
 entry with a default of 0.0. Both are placeholders.
 
 **Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 2.14e4, described
-in the file as an interim value sized from the electron zero point over the
-standard gain state.
+in the file as an interim value sized from an electron zero point of 4.0e6 e- per
+second over the standard gain state. The simulator's measured zero point (see the
+simulator model below) is about 58 times that.
 
 **Summed readout mode.** ``noise.by_binning`` gives the values for the 2x2
 summation mode, keyed by the binning factor: the read noise of one summed pixel,
@@ -264,6 +265,31 @@ simulated frames rest on unverified PSF fidelity until star calibration frames
 land. This is the weakest link in this instrument's
 simulator support.
 
+**Star zero point.** ``star_flux.e_per_s_vmag0`` is 2.3e8, the electrons a star of
+V = 0 deposits each second through the clear filter. It was measured on the full
+frames of the 1992 Pleiades sequence on volume GO_0008. Each frame's pointing was
+refitted to its own brightest stars, and the light of every catalog star was summed
+within 4 pixels of where the star falls, less the sky around it. Field stars of V 10
+to 14, with their V and B-V from APASS, give these rates for a star of B-V 0.65:
+
+* At the 10K gain state, 2.07e8 within 4 pixels, from 118 stars on 12 frames. The
+  stars scatter by 0.18 mag about that rate, and the frames by 0.07 mag. A circle of
+  4 pixels holds 1/1.125 of the light within 8 pixels, so the total is 2.33e8.
+* At the 100K gain state, 2.0e8 in total, from 62 stars on 18 frames, 0.15 mag below
+  the 10K rate.
+
+The absolute response of Klaasen et al. (1999), 5.9e6 DN per second at 38.7 e-/DN,
+is 2.28e8. Redder stars read brighter, by 0.3 to 0.4 mag for each magnitude of B-V,
+and the hot Pleiades members read 0.35 mag below field stars of the same V. The
+simulator draws every star at the one zero point. No frame covers the 40K or 400K
+gain state through the clear filter. Summed frames read 1.33 times the DN that full
+frames read for the same 14 stars at the same gain, and the simulator renders a
+summed frame at the full-frame gain.
+
+The 1990 cruise frames, the library's two Pleiades frames among them, read 1.3 mag
+fainter than the 1992 frames, 7.0e7 in total, for a reason not yet known. The zero
+point follows the 1992 frames, as the navigator's star photometry does.
+
 **Distortion residuals.**
 ``{k1: -3.47e-04, k2: 1.72e-03, nonradial_rms_px: 0.0}``, measured by the
 star-field distortion analysis: a ``k2``-dominated pincushion reaching about
@@ -359,16 +385,23 @@ this camera are about four times quieter than real ones, so each scene plants
 the measured sky noise of 0.96 DN in place of the catalog's read noise.
 
 - ``gossi_star_field``: two bright stars among 14 fainter ones at 1.6 s, offset
-  257 px, the size of the library's scattered-light frames. The answer lands
-  0.04 to 0.06 px off over 16 seeds, and 0.02 px off without the twist.
+  257 px, the size of the library's scattered-light frames. At the measured star
+  zero point every star in view saturates. The navigator's own copy of the zero
+  point for simulated frames, ``star_flux_dn_per_s_vmag0`` in its camera block,
+  holds 2.14e4 DN per second, where the simulator's zero point over the
+  catalog's 187 e-/DN gain is 1.23e6. So the navigator predicts four stars among
+  30 saturated sources, both star techniques give spurious answers, and the frame
+  fails on every draw. The scene's expected block holds the failure. With the
+  navigator's copy at 1.23e6 the frame lands 0.10 px off.
 - ``gossi_star_field_short_exposure``: the same field at 0.1 s, the exposure of
-  the real Pleiades frames, which navigate on three stars. The navigator
-  predicts only the brightest star visible, so the frame fails, and the scene's
-  expected block holds the failure. The simulated stars are about 12 times
-  fainter than real stars of the same magnitude. The navigator's star limit on
-  a simulated frame also spreads the simulator's star brightness over a 3.0 px
-  placeholder blur, so it reaches only V 3.2 at 0.1 s, against V 7.8 on the
-  real frames.
+  the real Pleiades frames, which navigate on three stars. The simulated stars
+  show down to V 7.3, about 20 times the sky noise, but the navigator predicts
+  only the brightest star visible, so the frame
+  fails, and the scene's expected block holds the failure. The navigator's star
+  limit on a simulated frame reads its own low copy of the zero point and
+  spreads it over a 3.0 px placeholder blur, so it reaches only V 3.2 at 0.1 s,
+  against V 7.8 on the real frames. With the copy at 1.23e6 the frame lands
+  0.02 px off, the blur unchanged.
 - ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
