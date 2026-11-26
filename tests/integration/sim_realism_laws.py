@@ -10,11 +10,11 @@ regular, it has no atmosphere, its disc is not clipped at the camera's full scal
 least a quarter of its lit disc lies in the frame, and enough lit pixels lie clear of
 the limb and the terminator.  Every moon in view that fails one of these is listed with
 its reason.  The pixels a nearer moon or the planet covers are left out of a moon's
-disc, since the frame's geometry traces each body alone.  The disc's pixels are selected and fitted with
-:mod:`spindoctor.sim.realism.disc_profile`: Minnaert's exponent ``k``, the lunar-Lambert
-blend ``L``, and the brightness profile along the photometric equator.  A moon whose two
-hemispheres differ in albedo, as the mission's frame reader says, is measured one
-hemisphere at a time.
+disc, since the frame's geometry traces each body alone.  The disc's pixels are selected
+and fitted with :mod:`spindoctor.sim.realism.disc_profile`: Minnaert's exponent ``k``,
+the lunar-Lambert blend ``L``, and the brightness profile along the photometric equator.
+A moon whose two hemispheres differ in albedo, as the mission's frame reader says, is
+measured one hemisphere at a time.
 
 **The twins.**  For each real disc, :func:`run_law_study` renders a twin under every law
 in :data:`~spindoctor.sim.render.bodies.photometry.PHOTOMETRIC_LAWS`.  The twin is a
