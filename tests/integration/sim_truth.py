@@ -234,8 +234,8 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
     ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
     ('gossi_star_field_short_exposure', FUSED): _t(0.107, 0.200, 0.185, 0.05),
-    ('nhlorri_star_field', FUSED): _t(0.406, 0.454, 0.051, 0.20),
-    ('nhlorri_star_field_short_exposure', FUSED): _t(0.557, 0.606, 0.126, 0.20),
+    ('nhlorri_star_field', FUSED): _t(0.405, 0.439, 0.041, 0.09),
+    ('nhlorri_star_field_short_exposure', FUSED): _t(0.558, 0.590, 0.133, 0.12),
     # full_frame_cameras, Voyager.  These rows are measured on all 24 draws, the 16
     # random_seed draws and the 8 noise_seed draws, which are distinct here.  In
     # vgiss_2_wac_star_field the +0.358 deg twist moves the mean position of the stars
