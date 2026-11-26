@@ -118,6 +118,19 @@ def _voyager_spacecraft_digit(lab02: Any) -> str:
     return digit
 
 
+def _camera_name(spacecraft: str, detector: str) -> str:
+    """Return the name of a Voyager camera's block inside the ``voyager_iss`` section.
+
+    Parameters:
+        spacecraft: The spacecraft digit, ``'1'`` or ``'2'``.
+        detector: The oops detector name, ``'NAC'`` or ``'WAC'``.
+
+    Returns:
+        ``vg1_nac``, ``vg1_wac``, ``vg2_nac``, or ``vg2_wac``.
+    """
+    return f'vg{spacecraft}_{detector.lower()}'
+
+
 def _voyager_if_factor(label3: Any) -> float:
     """Parse the I/F scaling factor from a Voyager GEOMED LABEL3 string.
 
@@ -194,12 +207,11 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
         fc_path = FCPath(path)
 
-        camera = config.camera_block('voyager_iss')
-
         factor = _voyager_if_factor(obs.dict.get('LABEL3', None))
         obs.data = obs.data * factor / 10000
 
         spacecraft = _voyager_spacecraft_digit(obs.dict.get('LAB02', None))
+        camera = config.camera_block('voyager_iss', _camera_name(spacecraft, str(obs.detector)))
         if spacecraft == '1' and obs.planet.upper() == 'SATURN':
             obs.data = obs.data * _V1_SATURN_IF_CORRECTION
             logger.debug(
@@ -238,7 +250,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
             The camera's entry in the ``voyager_iss_star_photometry`` configuration
             section, ``vg1_nac``, ``vg1_wac``, ``vg2_nac`` or ``vg2_wac``.
         """
-        camera = f'vg{self.spacecraft_digit}_{str(self.detector).lower()}'
+        camera = _camera_name(self.spacecraft_digit, str(self.detector))
         photometry: VoyagerISSStarPhotometry = getattr(
             self.config.voyager_iss_star_photometry, camera
         )
