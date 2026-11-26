@@ -108,6 +108,30 @@ N_BOOTSTRAP = 200
 #: Tukey biweight tuning constant (in robust sigmas).
 TUKEY_C = 4.685
 
+#: Header of an empty ``frames.csv``: the camera and the fields of :func:`_frame_table`.
+FRAME_COLUMNS = (
+    'camera',
+    'image_id',
+    'filter',
+    'gain',
+    'mode',
+    'texp',
+    'held_out',
+    'n_agree',
+    'current_limit',
+    'deep_limit',
+    'proposed_limit',
+    'dimmest_visible',
+    'faintest_detected',
+    'second_faintest_detected',
+    'n_detected',
+    'n_clean',
+)
+
+#: Header of an empty ``stars.csv``: the camera and the frame fields :func:`_star_rows` adds
+#: (a star's own fields vary with what was measured).
+STAR_COLUMNS = ('camera', 'image_id', 'filter', 'gain', 'mode', 'texp', 'held_out', 'target')
+
 
 def load_records(path: Path) -> list[dict[str, Any]]:
     """Return the records of a JSON-lines file, leaving out frames that failed to load.
@@ -852,16 +876,18 @@ def _frame_table(
     return table
 
 
-def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+def _write_csv(path: Path, rows: list[dict[str, Any]], *, columns: Iterable[str]) -> None:
     """Write dictionaries as a CSV with the union of their keys as columns.
+
+    An empty table is written as ``columns`` alone, so that a rerun with no rows replaces the
+    previous run's table.
 
     Parameters:
         path: The CSV file.
         rows: The rows.
+        columns: The header of an empty table.
     """
-    if not rows:
-        return
-    keys: list[str] = []
+    keys: list[str] = [] if rows else list(columns)
     for row in rows:
         keys += [k for k in row if k not in keys and not isinstance(row[k], dict | list)]
     with path.open('w', newline='') as fh:
@@ -930,14 +956,14 @@ def main() -> None:
             'n_frames_measured': len(members)
         }
     (args.out_dir / 'summary.json').write_text(json.dumps(summary, indent=1, default=float))
-    _write_csv(args.out_dir / 'frames.csv', frame_rows)
+    _write_csv(args.out_dir / 'frames.csv', frame_rows, columns=FRAME_COLUMNS)
     star_rows = [
         {'camera': camera_key(r), **s}
         for r in records
         if r['fix']['accepted']
         for s in _star_rows([r], gain_field=args.gain_field)
     ]
-    _write_csv(args.out_dir / 'stars.csv', star_rows)
+    _write_csv(args.out_dir / 'stars.csv', star_rows, columns=STAR_COLUMNS)
     print(
         json.dumps(
             {
