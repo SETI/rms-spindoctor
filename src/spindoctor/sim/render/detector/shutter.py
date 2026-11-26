@@ -70,7 +70,8 @@ def apply_frame_transfer_smear(
         electrons: The electron image, modified in place.
         t_scrub_sec: Pre-exposure scrub time (seconds).
         t_transfer_sec: Post-exposure transfer time (seconds).
-        exposure_sec: The scene exposure (seconds).
+        exposure_sec: The time the frame integrates (seconds): the scene exposure plus
+            the camera's extra integration time.
 
     Returns:
         The realized smear summary for the truth record.

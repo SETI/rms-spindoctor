@@ -57,9 +57,9 @@ class RingsRenderContext:
         resolutions: 2-D array of per-pixel radial resolution in km/pixel.
             Shape matches the extended FOV. Used to compute per-pixel fade
             widths: ``fade_width_km = fade_width_pix * resolutions``.
-        fade_width_pix: Fade extent in pixels as configured in the YAML
-            (``fade_width_pix`` key). Must be finite and strictly positive; per-pixel
-            km extent is computed at render time from this value and ``resolutions``.
+        fade_width_pix: Fade extent in pixels, the ring catalog's positive
+            ``fade_width_pix``; per-pixel km extent is computed at render time from this
+            value and ``resolutions``.
         all_edge_radii: Sorted tuple of ``(radius_km, edge_label)`` pairs for
             all edges of all features that survived filtering. Used by
             ``compute_edge_fade`` for conflict detection and width reduction.
@@ -83,8 +83,6 @@ class RingsRenderContext:
             raise ValueError('RingsRenderContext.ring_target must be a non-empty string')
         if isinstance(self.epoch, bool) or not isinstance(self.epoch, (int, float)):
             raise TypeError('RingsRenderContext.epoch must be int or float')
-        if not math.isfinite(float(self.epoch)):
-            raise ValueError(f'RingsRenderContext.epoch must be finite, got {self.epoch!r}')
 
         if not isinstance(self.resolutions, np.ndarray):
             raise TypeError('RingsRenderContext.resolutions must be a numpy ndarray')
@@ -99,15 +97,6 @@ class RingsRenderContext:
             raise ValueError('RingsRenderContext.resolutions must contain only finite values')
         if np.any(res64 <= 0.0):
             raise ValueError('RingsRenderContext.resolutions must be positive everywhere')
-
-        fwp_raw = self.fade_width_pix
-        if isinstance(fwp_raw, bool) or not isinstance(fwp_raw, (int, float)):
-            raise TypeError('RingsRenderContext.fade_width_pix must be int or float')
-        fwp = float(fwp_raw)
-        if not math.isfinite(fwp) or fwp <= 0.0:
-            raise ValueError(
-                f'RingsRenderContext.fade_width_pix must be finite and > 0, got {fwp_raw!r}'
-            )
 
         if self.logger is None:
             raise ValueError('RingsRenderContext.logger must not be None')

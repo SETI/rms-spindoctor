@@ -8,8 +8,10 @@ body masks, inventory, z-order maps) is accumulated into ``frame.truth`` for the
 renderer's output metadata.
 
 Stars are point sources: each deposits its total flux
-(``zero_point * 10**(-0.4 * vmag) * exposure_sec``) as a sub-pixel point mass in
-the detector-native point-source plane (electrons for a CCD, DN for the
+(``zero_point * 10**(-0.4 * vmag)`` times the integration time: the exposure plus
+the camera's extra integration time, from
+:func:`~spindoctor.sim.instruments.resolvers.resolve_integration_sec`) as a sub-pixel
+point mass in the detector-native point-source plane (electrons for a CCD, DN for the
 vidicon), so the whole-scene optics PSF is the star's only convolution.  The
 background sky draws its counts from a cumulative star-count law and renders them
 through the same flux/point-mass path.
@@ -51,6 +53,7 @@ from scipy import ndimage
 from spindoctor.sim.instruments.resolvers import (
     filter_star_flux_scale,
     resolve_detector_defaults,
+    resolve_integration_sec,
     resolve_sky_pixel_scale_arcsec,
     resolve_star_flux_zero_point,
 )
@@ -215,7 +218,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # The photometric zero point and its unit domain (electrons for a CCD, DN for
     # the vidicon) drive the flux each star deposits into the point-source plane.
     zero_point, flux_domain = _star_zero_point(params)
-    exposure_sec = float(params.get('exposure_sec', 1.0))
+    integration_sec = resolve_integration_sec(params)
 
     stars_params = params.get('stars', [])
     bodies_params = params.get('bodies', [])
@@ -240,7 +243,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         shift_v,
         shift_u=shift_u,
         zero_point=zero_point,
-        exposure_sec=exposure_sec,
+        exposure_sec=integration_sec,
         rendered_sigma=rendered_sigma,
         rotation_deg=offset_rotation_deg,
         oversample=os,
@@ -565,7 +568,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             shift_v,
             shift_u=shift_u,
             zero_point=zero_point,
-            exposure_sec=exposure_sec,
+            exposure_sec=integration_sec,
             rendered_sigma=rendered_sigma,
             rotation_deg=offset_rotation_deg,
             oversample=os,
@@ -840,12 +843,12 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
     the star's PSF core
     (:func:`~spindoctor.sim.render.radiance.stars.faint_sky_cutoff_mag`).  The flux
     comes from the camera's star zero point, scaled by the scene filter's throughput,
-    and the scene exposure.  The core's sigma is the wider axis of the scene's PSF
-    (:func:`~spindoctor.sim.render.optics.stage.effective_psf`), or, for a scene
-    without one, zero, since the frame is unblurred, which gives the one-pixel core.  The
-    core covers ``2 pi sigma**2`` pixels, and at least one.  The read noise is the
-    camera's published value for the scene's readout mode, whether or not the scene
-    enables read noise, and at least 1 (electron, or DN on the vidicon).
+    and the frame's integration time.  The core's sigma is the wider axis of the
+    scene's PSF (:func:`~spindoctor.sim.render.optics.stage.effective_psf`), or, for a
+    scene without one, zero, since the frame is unblurred, which gives the one-pixel
+    core.  The core covers ``2 pi sigma**2`` pixels, and at least one.  The read noise
+    is the camera's published value for the scene's readout mode, whether or not the
+    scene enables read noise, and at least 1 (electron, or DN on the vidicon).
 
     Parameters:
         params: The full scene mapping.
@@ -865,7 +868,7 @@ def sky_star_faint_cutoff_mag(params: Mapping[str, Any]) -> float:
         psf_sigma = 0.0
     return faint_sky_cutoff_mag(
         zero_point=zero_point,
-        exposure_sec=float(params.get('exposure_sec', 1.0)),
+        exposure_sec=resolve_integration_sec(params),
         read_noise=_nominal_read_noise(instrument, domain, binning=binning),
         psf_sigma=psf_sigma,
     )
@@ -903,7 +906,7 @@ def _render_sky(
         return
     instrument = params.get('instrument')
     zero_point, _ = _star_zero_point(params)
-    exposure_sec = float(params.get('exposure_sec', 1.0))
+    integration_sec = resolve_integration_sec(params)
     cutoff = sky_star_faint_cutoff_mag(params)
     render_sky_counts(
         plane,
@@ -917,7 +920,7 @@ def _render_sky(
         pixel_scale_arcsec=resolve_sky_pixel_scale_arcsec(instrument) * scene_binning(params),
         faint_cutoff_mag=cutoff,
         zero_point=zero_point,
-        exposure_sec=exposure_sec,
+        exposure_sec=integration_sec,
         diffuse_flux_per_px=float(
             scene_value(sky, 'diffuse_e_per_px', SKY_COUNTS_DEFAULTS['diffuse_e_per_px'])
         ),

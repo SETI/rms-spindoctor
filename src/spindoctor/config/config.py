@@ -52,6 +52,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         TitanSection,
     )
     from spindoctor.config.sections_products import BackplanesSection, Pds4Section
+    from spindoctor.config.sections_rings import RingsSection
     from spindoctor.nav_technique.confidence_config import TechniquesSection
 
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
@@ -241,7 +242,6 @@ class Config:
         self._sections: TypedSections | None = None
         self._typed_origins: dict[KeyPath, str] = {}
         self._config_body_shape: dict[str, Any] = AttrDict({})
-        self._config_rings: dict[str, Any] = AttrDict({})
 
     @property
     def is_loaded(self) -> bool:
@@ -269,7 +269,6 @@ class Config:
         # section properties below being reassigned here).
         self._category_cache = {}
         self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
-        self._config_rings = AttrDict(self._config_dict.get('rings', {}))
 
     def _install(
         self,
@@ -560,11 +559,10 @@ class Config:
         return self._config_body_shape
 
     @property
-    def rings(self) -> Any:
-        """Returns the planetary rings configuration settings."""
+    def rings(self) -> RingsSection:
+        """Returns the ``rings`` section: the ring model's settings and the ring catalogs."""
 
-        self.read_config()
-        return self._config_rings
+        return self._typed_sections().rings
 
     @property
     def stars(self) -> StarsSection:

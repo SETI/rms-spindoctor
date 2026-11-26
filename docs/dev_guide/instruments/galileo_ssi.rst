@@ -275,6 +275,8 @@ second, a 4.33 s readout dwell (half the full-frame readout), a 6,000 e-
 deposit scale, and 0.4 native pixels of diffusion. The simulator report's
 artifact-rate table gives the fit's evidence.
 
+.. _gossi-hot-pixels:
+
 **Hot pixels.** The hot-pixel values are fitted on raw frames at the 10K gain
 state, 39 e-/DN. A pixel that spikes in at least three frames of a set counts as a
 hot pixel. A hot pixel's charge and its streak are constants of the frame mode: they

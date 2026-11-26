@@ -68,6 +68,7 @@ __all__ = [
     'resolve_distortion_residual',
     'resolve_downlink_table',
     'resolve_filter_throughput',
+    'resolve_integration_sec',
     'resolve_mode_with_catalog',
     'resolve_native_frame_size_px',
     'resolve_psf_kernel',
@@ -494,6 +495,35 @@ def resolve_detector_defaults(instrument: str | None, binning: int) -> Detector:
     """
     native = resolve_detector_defaults_native(instrument)
     return native.with_readout_mode(resolve_readout_mode(instrument, binning))
+
+
+def resolve_integration_sec(scene: Mapping[str, Any]) -> float:
+    """Return how long a scene's frame collects light.
+
+    A CCD collects for the commanded ``exposure_sec`` plus its entry's
+    ``extra_integration_sec``, which is zero for a detector that states none and
+    the same in every readout mode.  The light, the dark current, and the radiation
+    hits all follow this time, and the frame-transfer smear's share of each column
+    falls as it grows.  A calibration divides by the commanded exposure, the only
+    one a frame's label gives.  A scene rendered through the vidicon chain collects
+    for its exposure alone, since that chain's signal does not scale with the
+    exposure.
+
+    Parameters:
+        scene: The scene, whose ``instrument`` (absent for the generic entry),
+            ``exposure_sec`` (1 s when absent), and ``detector`` block it reads.
+
+    Returns:
+        The integration time, in seconds.
+
+    Raises:
+        ValueError: If the instrument is not in the catalog.
+    """
+    instrument = scene.get('instrument')
+    exposure_sec = float(scene.get('exposure_sec', 1.0))
+    if resolve_detector_model(instrument, scene.get('detector')) != 'ccd':
+        return exposure_sec
+    return exposure_sec + instrument_entry(instrument).detector.extra_integration_sec
 
 
 def resolve_detector_model(instrument: str | None, detector: Mapping[str, Any] | None) -> str:

@@ -158,6 +158,11 @@ When your file is read, a setting that SpinDoctor does not know, or a value it c
 such as a fraction above 1 or a star count of 0, is refused too, and the message gives the
 file and the setting.
 
+In a ring catalog, each gap or ringlet needs at least one edge, and each edge needs
+exactly one base orbit, the entry that gives its semi-major axis. A gap or ringlet that
+has dates must start before it ends. If two of them overlap in radius and both have
+dates, their dates cannot overlap.
+
 Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
 or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
 ones listed in ``planets``. The bodies in a setting kept per body, such as

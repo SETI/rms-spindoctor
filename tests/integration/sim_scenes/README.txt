@@ -470,11 +470,12 @@ the key's name says what the number means:
                                      rate modes: the expected number of events
                                      per second, drawn Poisson and uncapped.
                                      bright_dark_pairs expects this times
-                                     exposure_sec.  radiation_transients
-                                     expects this times environment_factor *
-                                     (exposure_sec + readout_dwell_sec): it
-                                     collects hits during the readout dwell
-                                     too
+                                     the integration time (exposure_sec plus
+                                     the camera's extra integration time).
+                                     radiation_transients expects this times
+                                     environment_factor * (integration time
+                                     + readout_dwell_sec): it collects hits
+                                     during the readout dwell too
   probability      (float in [0, 1]) every other mode except hot_pixels: the
                                      per-frame probability the mode fires at
                                      all (1.0 = always).  alternating_lines,

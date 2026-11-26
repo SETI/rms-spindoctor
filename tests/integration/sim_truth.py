@@ -17,7 +17,7 @@ confounder stars of ``lock_single_dense``, and the catalog scatter of ``wrong_ca
 detector noise alone instead: the committed draw and the scene key ``noise_seed`` at 101,
 202, ..., 1515.  Those draws keep the albedo texture and the limb relief the test
 renders, which a new ``random_seed`` would redraw.  Every check also holds on 8 draws of
-the detector noise alone, ``noise_seed`` at 101 to 808.
+the detector noise alone, ``noise_seed`` at 101, 202, ..., 808.
 
 The two rules.
 
@@ -333,15 +333,16 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 11.0 to 14.5 px off with every
-    # defect present (#975).
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(10.999, 14.459, 0.692, 10.307, 15.152),
-    # On nhlorri_moon_raw the frame-transfer smear pulls the blob 7.5 to 7.8 px off.  On
-    # a Lambert surface it landed 6.8 to 7.1 px off, and 0.17 to 0.19 px off without the
-    # smear (#975).  The simulated smear is a
-    # step at each column's centroid, where the real smear builds up across the disc
-    # (#920), so part of the pull may be the simulator's.
-    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(7.502, 7.830, 0.0656, 7.436, 7.896),
+    # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
+    # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
+    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
+    # Measured on all 24 draws.  On nhlorri_moon_raw the frame-transfer smear pulls the
+    # blob 6.8 to 7.1 px off; without the smear it lands 0.16 to 0.19 px off (#975).  The
+    # simulated smear is a step at each column's centroid, where the real smear builds
+    # up across the disc (#920), so part of the pull may be the simulator's.  Its highest
+    # draw, noise_seed 303, lands 7.09 px off; every other draw lies within 6.77 to
+    # 6.79 px.
+    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(6.766, 7.094, 0.066, 6.699, 7.160),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),
