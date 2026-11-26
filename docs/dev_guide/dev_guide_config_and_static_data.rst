@@ -234,8 +234,8 @@ camera:
   ``noise.star_flux_dn_per_s_vmag0``, and the DN limits of its quality thresholds:
   ``blank_max_dn``, ``saturation_threshold_dn``, and ``noisy_threshold_dn``. It may also
   set ``noise.by_binning``, keyed by binning factors of 2 or more. Each entry of that
-  table sets ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``, and a binned mode the
-  table leaves out reads the unbinned values.
+  table sets ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. If the table has no
+  entry for a binned mode, that mode reads the unbinned values.
 - A ``calibrated_if`` camera sets the I/F limits, ``blank_max_if`` and
   ``noisy_threshold_if``, and leaves out every DN value of the two blocks. The same
   full-well count maps to a different I/F for every exposure, filter, and gain, so such
@@ -253,7 +253,9 @@ override of it is read as written.
 :meth:`~spindoctor.config.config.Config.camera_block` parses it into the same type when
 it is asked for. An observation whose class holds its block as a mapping, with a
 simulated scene's overrides merged over it, has the block parsed the same way when it is
-first read (:func:`~spindoctor.config.sections_camera.as_camera_block`).
+first read (:func:`~spindoctor.config.sections_camera.as_camera_block`). If a scene's
+overrides carry a top-level key that the camera block does not declare, a block read
+this way ignores it.
 
 .. _config-techniques-section:
 

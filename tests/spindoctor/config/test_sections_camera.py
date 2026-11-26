@@ -29,7 +29,7 @@ def test_packaged_camera_blocks_parse() -> None:
 
 
 def test_a_bad_camera_value_in_an_override_is_refused(tmp_path: Path) -> None:
-    """A bad camera value in an override is refused at load, naming the file and key."""
+    """A bad camera value in an override is refused at load, with its file and key path."""
     config = Config()
     before = config.camera_block('cassini_iss', 'wac')
     override = tmp_path / 'override.yaml'

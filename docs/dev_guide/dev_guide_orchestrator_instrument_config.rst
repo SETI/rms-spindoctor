@@ -47,8 +47,8 @@ Restrictions and assumptions
 ----------------------------
 
 - Every key's type and range, and which keys a camera's ``data_units`` require or
-  refuse, are checked when the configuration loads, so this function makes no checks of
-  its own.
+  refuse, are checked when the configuration loads, so this function does not check
+  anything itself.
 - The dataclass is frozen; new instances are returned per observation rather than
   mutated.
 

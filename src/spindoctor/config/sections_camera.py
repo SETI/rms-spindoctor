@@ -20,6 +20,7 @@ Every field without a default is a key whose value lives in the packaged YAML on
 field that defaults to None is a key a camera leaves out when it does not apply.
 """
 
+import dataclasses
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -178,7 +179,7 @@ class Noise:
         star_flux_dn_per_s_vmag0: The DN per second that a star of visual magnitude 0
             deposits in an unbinned pixel.
         by_binning: The noise values of each binned readout mode, keyed by binning
-            factor.  A binned mode the table leaves out reads the unbinned values.
+            factor.  A binned mode without an entry reads the unbinned values.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -444,7 +445,9 @@ def as_camera_block(block: CameraBlock | Mapping[str, Any], *, source: str) -> C
     A simulated observation holds its camera block as a mapping, with its scene's
     overrides merged over it, and the simulator's own camera section is read as a
     mapping; this reads either through the same type as every other camera block.  A
-    scene may set ``noise.marker_value`` to a float NaN, which reads as ``'NaN'``.
+    scene's overrides may carry top-level keys of their own, which the block does not
+    declare, and those are not read.  A scene may also set ``noise.marker_value`` to a
+    float NaN, which reads as ``'NaN'``.
 
     Parameters:
         block: The camera block, typed or as a mapping.
@@ -459,7 +462,11 @@ def as_camera_block(block: CameraBlock | Mapping[str, Any], *, source: str) -> C
     """
     if isinstance(block, CameraBlock):
         return block
-    raw = dict(block)
+    # The simulator's scene overrides are merged in whole, keys of their own included, and
+    # its readers have only ever read the keys they know; its own overlay type decides
+    # which keys a scene may set (#1029).
+    declared = {item.name for item in dataclasses.fields(CameraBlock)}
+    raw = {key: value for key, value in block.items() if key in declared}
     # A scene writes a NaN marker as a float NaN, which no schema number accepts, so it
     # reads as the 'NaN' a file writes (#1029).
     noise = raw.get('noise')
