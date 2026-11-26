@@ -8,7 +8,8 @@ realism match's own:
   Minnaert twins take: the straight line fitted to the real exponents, held to 0.2 to
   1.5;
 - ``realism_disc_profiles.png``: each disc's twin exponent less its real one against
-  phase under every law, and the default law's check by phase bin;
+  phase under every law, and the default law's pairs with its check's verdict in each
+  instrument's phase bins;
 - ``realism_law_sheet.png``: real discs beside their twins under every law, each row at
   the real disc's own stretch, or a note when no whole disc is at least 100 px across.
 
@@ -135,6 +136,7 @@ def _disc_entry(row: DiscRow) -> dict[str, Any]:
                 'delta_k': _round(row.delta_k(law)),
                 'profile_residual': _round(twin.profile_residual),
                 'limb_peak_px': _round(twin.limb_peak),
+                'clipped_px': twin.clipped_px,
             }
             for law, twin in sorted(row.twins.items())
         },
@@ -274,6 +276,38 @@ def _figure_fits(study: LawStudy, out: Path) -> None:
     plt.close(fig)
 
 
+def _default_law_pairs(rows: list[DiscRow]) -> list[tuple[float, float, float]]:
+    """Each default-law pair as the check reads it.
+
+    Parameters:
+        rows: The discs, each with its twins.
+
+    Returns:
+        For each disc whose default-law twin has an exponent, its phase, the real
+        exponent over the pixels the twin also counted, and the twin's exponent.
+    """
+    pairs = []
+    for row in rows:
+        twin = row.twins.get(DEFAULT_LAW)
+        if twin is not None and twin.k is not None and twin.real_k is not None:
+            pairs.append((row.disc.phase_deg, twin.real_k, twin.k))
+    return pairs
+
+
+def _disc_check_lines(disc_check: dict[str, dict[str, DiscProfileBin]]) -> list[str]:
+    """One line per instrument and phase bin of the default law's check, for a figure."""
+    lines = []
+    for instrument, bins in sorted(disc_check.items()):
+        for label, entry in sorted(bins.items()):
+            head = f'{instrument} {label}: n={entry.n}, median dk {entry.median_delta_k:+.3f}'
+            if entry.band_k is None:
+                lines.append(f'{head}, too few discs for a verdict')
+            else:
+                verdict = 'within' if entry.within_band else 'outside'
+                lines.append(f'{head}, {verdict} band {entry.band_k:.3f}')
+    return lines
+
+
 def _figure_profiles(study: LawStudy, out: Path) -> None:
     """Each disc's twin exponent less its real one under every law, by phase."""
     fig, (ax_d, ax_c) = plt.subplots(1, 2, figsize=(11.0, 4.4))
@@ -297,16 +331,11 @@ def _figure_profiles(study: LawStudy, out: Path) -> None:
     ax_d.set_title('every law', fontsize=10)
     if ax_d.get_legend_handles_labels()[0]:
         ax_d.legend(fontsize=8)
-    real = [(r.disc.phase_deg, r.disc.minnaert.k) for r in study.rows]
-    twin = [
-        (r.disc.phase_deg, r.twins[DEFAULT_LAW].k)
-        for r in study.rows
-        if DEFAULT_LAW in r.twins and r.twins[DEFAULT_LAW].k is not None
-    ]
-    ax_c.plot([p for p, _ in real], [k for _, k in real], 'o', color=_REAL_COLOR, label='real')
+    pairs = _default_law_pairs(study.rows)
+    ax_c.plot([p[0] for p in pairs], [p[1] for p in pairs], 'o', color=_REAL_COLOR, label='real')
     ax_c.plot(
-        [p for p, _ in twin],
-        [k for _, k in twin],
+        [p[0] for p in pairs],
+        [p[2] for p in pairs],
         's',
         color=_SIM_COLOR,
         mfc='none',
@@ -316,7 +345,18 @@ def _figure_profiles(study: LawStudy, out: Path) -> None:
     ax_c.set_xlabel('phase angle (deg)')
     ax_c.set_ylabel('Minnaert exponent k')
     ax_c.set_title('the default law', fontsize=10)
-    ax_c.legend(fontsize=8)
+    ax_c.text(
+        0.02,
+        0.98,
+        '\n'.join(_disc_check_lines(study.disc_check)),
+        transform=ax_c.transAxes,
+        ha='left',
+        va='top',
+        fontsize=7,
+        family='monospace',
+    )
+    if pairs:
+        ax_c.legend(fontsize=8, loc='lower right')
     fig.suptitle('Disc profiles: twins against their real discs', fontsize=11)
     fig.tight_layout()
     fig.savefig(out, dpi=110)
@@ -418,20 +458,51 @@ def record_has_law_study(record: dict[str, Any]) -> bool:
     return 'law_study' in record
 
 
+def _disc_profile_verdict(instrument: str, label: str, check: dict[str, Any]) -> bool | None:
+    """The verdict a recorded disc-profile bin's numbers give.
+
+    Parameters:
+        instrument: The bin's instrument.
+        label: The phase bin.
+        check: The bin's record entry.
+
+    Returns:
+        Whether the median difference lies within the band, or None without a band.
+
+    Raises:
+        ValueError: If the recorded verdict differs from the one the numbers give.
+    """
+    band = check['band_k']
+    verdict = None if band is None else bool(abs(check['median_delta_k']) <= band)
+    if check['within_band'] != verdict:
+        band_text = 'no band' if band is None else f'the band of {band:.3f}'
+        raise ValueError(
+            f'{instrument} {label}: the record says within_band is {check["within_band"]}, '
+            f'but its median difference {check["median_delta_k"]:+.3f} and {band_text} '
+            f'give {verdict}'
+        )
+    return verdict
+
+
 def record_disc_profile_failures(record: dict[str, Any]) -> dict[tuple[str, str], str]:
     """The phase bins of a record whose default-law disc profiles leave their band.
+
+    Each bin's verdict is worked out again from its median difference and its band.
 
     Parameters:
         record: A realism summary.
 
     Returns:
-        For each bin whose verdict is False, keyed by ``(instrument, phase bin)``, a line
-        that describes it; bins without a verdict are left out.
+        For each bin outside its band, keyed by ``(instrument, phase bin)``, a line that
+        describes it; bins without a band are left out.
+
+    Raises:
+        ValueError: If a bin's recorded verdict differs from the one its numbers give.
     """
     failures: dict[tuple[str, str], str] = {}
     for instrument, entry in sorted(record.get('instruments', {}).items()):
         for label, check in sorted(entry.get('disc_profiles', {}).items()):
-            if check['within_band'] is not False:
+            if _disc_profile_verdict(instrument, label, check) is not False:
                 continue
             failures[(instrument, label)] = (
                 f"{instrument} {label}: the twins' Minnaert exponents differ from the real "
@@ -448,17 +519,23 @@ def record_disc_profile_verdicts(record: dict[str, Any]) -> int:
         record: A realism summary.
 
     Returns:
-        The number of bins, over every instrument, whose verdict is True or False.
+        The number of bins, over every instrument, that have a band.
+
+    Raises:
+        ValueError: If a bin's recorded verdict differs from the one its numbers give.
     """
     return sum(
-        check['within_band'] is not None
-        for entry in record.get('instruments', {}).values()
-        for check in entry.get('disc_profiles', {}).values()
+        _disc_profile_verdict(instrument, label, check) is not None
+        for instrument, entry in sorted(record.get('instruments', {}).items())
+        for label, check in sorted(entry.get('disc_profiles', {}).items())
     )
 
 
 def record_law_comparison_problems(record: dict[str, Any]) -> list[str]:
     """The phase bins of a record where another law agrees better than the default.
+
+    Whether two laws separate is worked out again from their agreements and the bin's
+    band.
 
     Parameters:
         record: A realism summary.
@@ -466,13 +543,24 @@ def record_law_comparison_problems(record: dict[str, Any]) -> list[str]:
     Returns:
         One line per bin and per law that separates from the default law and agrees
         better with the real discs.
+
+    Raises:
+        ValueError: If a recorded separation differs from the one the numbers give.
     """
     study = record.get('law_study', {})
     default = study.get('default_law', DEFAULT_LAW)
     problems: list[str] = []
     for label, entry in sorted(study.get('comparison', {}).items()):
         agreement = entry['agreement']
-        for law, apart in sorted(entry['separates'].items()):
+        for law, recorded in sorted(entry['separates'].items()):
+            gap = abs(agreement[law] - agreement[default])
+            apart = bool(gap > entry['band_k'])
+            if recorded is not apart:
+                raise ValueError(
+                    f'{label}: the record says {law} separates from {default} is {recorded}, '
+                    f'but their agreements differ by {gap:.3f} against the band of '
+                    f'{entry["band_k"]:.3f}'
+                )
             if apart and agreement[law] < agreement[default]:
                 problems.append(
                     f'{label}: {law} agrees with the real discs to a median |dk| of '

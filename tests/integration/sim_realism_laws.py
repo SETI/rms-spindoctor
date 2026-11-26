@@ -18,11 +18,14 @@ exponents against phase (:func:`minnaert_twin_k`), so that law is the best one
 Minnaert's form allows.
 
 **The pairing.**  The real disc's fits count at most 60,000 of its pixels, and the
-twin's fit counts the same pixels, less any its own sphere's geometry leaves out.  When
-the twin leaves some out, the real disc is fitted again over the pixels both counted,
-and that fit is the one its twin is compared with.  So a real disc that lost pixels to
-its terrain cap, a nearer body, the rings, a shadow, or clipping has a twin fitted over
-the same part of the disc, and each pair's two fits read exactly the same pixels.
+twin's fit counts the same pixels, less any its own sphere's geometry leaves out and any
+the twin reads at its camera's ceiling (:func:`twin_ceiling_if`).  When the twin leaves
+some out, the real disc is fitted again over the pixels both counted, and that fit is
+the one its twin is compared with.  So a real disc that lost pixels to its terrain cap,
+a nearer body, the rings, a shadow, or clipping has a twin fitted over the same part of
+the disc, and each pair's two fits read exactly the same pixels.  A twin whose disc is
+clipped as a real disc would be (at least 1% of its interior at the ceiling) does not
+give a limb gradient peak, because its limb rises to a plateau.
 
 **The statistics.**  For each disc and law: the twin's exponent less the real one over
 the paired pixels, the residual between the two equator profiles' shapes over those
@@ -40,9 +43,10 @@ discs less evenly.
 **The law comparison.**  :func:`law_comparison` asks, in each phase bin with at least 3
 discs that have a twin exponent under every law, whether the default law's exponents
 agree with the real ones at least as well as every other law's.  It needs at least two
-laws.  Two laws separate in a bin when their median absolute differences
-differ by more than the bin's band, the disc-profile band of the default law's pairs in
-that bin over every instrument; where they do not, no order between them is claimed.
+laws.  Two laws separate in a bin when their median absolute differences differ by more
+than the bin's band.  The band is the disc-profile band of all of the default law's
+pairs in that bin, over every instrument, including the discs that lack an exponent
+under another law.  Where two laws do not separate, no order between them is claimed.
 """
 
 from __future__ import annotations
@@ -53,6 +57,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
+import scipy.ndimage
 
 from spindoctor.feature.geometry import LimbPolyline
 from spindoctor.obs.obs_inst_sim import ObsSim
@@ -66,9 +71,12 @@ from spindoctor.sim.realism.disc_profile import (
     select_disc_pixels,
 )
 from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS, incidence_cosines
+from spindoctor.sim.render.detector.params import calibration_map, resolve_detector_params
+from spindoctor.sim.render.detector.quantization import quantize_dn
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
+from tests.integration.sim_realism_body import EDGE_CLEARANCE_PX, MIN_CLIPPED_FRACTION
 from tests.integration.sim_realism_limb_peak import (
     LIMB_PEAK_KIND_PREFIX,
     LimbPeakBin,
@@ -104,6 +112,7 @@ __all__ = [
     'minnaert_twin_k',
     'phase_bin',
     'run_law_study',
+    'twin_ceiling_if',
 ]
 
 STUDY_LAWS: tuple[str, ...] = tuple(sorted(PHOTOMETRIC_LAWS))
@@ -130,6 +139,10 @@ _CROP_PX = 160
 _CROP_MARGIN_PX = 8
 
 _MAD_TO_SIGMA = 1.4826
+
+# A twin pixel at its camera's ceiling reads a little below it after the noise the chain
+# adds once it clips; this many standard deviations of each noise are allowed for.
+_CEILING_NOISE_SIGMAS = 4.0
 
 
 @dataclass(frozen=True)
@@ -244,11 +257,14 @@ class LawStudyInputs:
     def add_limb_peak(self, image_id: str, body: str | None, samples: Mapping[str, Any]) -> None:
         """Attach a frame's limb gradient-peak sample to the disc it was measured on.
 
+        The realism match calls this with the real frame's own samples, before it pairs
+        them with the matched frame's, so every limb peak measured on a real frame enters
+        the study whether or not its matched frame measured one.
+
         Parameters:
             image_id: The real frame's image ID.
             body: The body the realism match measured the limb of, or None.
-            samples: The real frame's samples after pairing; only ``limb_peak_*``
-                kinds are read.
+            samples: The real frame's samples; only ``limb_peak_*`` kinds are read.
         """
         kinds = [k for k in samples if k.startswith(LIMB_PEAK_KIND_PREFIX)]
         if body is None or len(kinds) != 1 or len(samples[kinds[0]]) != 1:
@@ -276,6 +292,8 @@ class TwinDisc:
             measured and the twin's could be.
         crop: The twin's image over the real disc's crop bounds, block-averaged the same
             way.
+        clipped_px: How many of the real fits' pixels the twin reads at its camera's
+            ceiling; they are left out of its fit.
     """
 
     law: str
@@ -286,6 +304,7 @@ class TwinDisc:
     profile_residual: float | None
     limb_peak: float | None
     crop: NDArrayFloatType
+    clipped_px: int
 
 
 @dataclass
@@ -531,6 +550,64 @@ def minnaert_twin_k(k0: float, k1: float, phase_deg: float) -> float:
     return min(max(k0 + k1 * phase_deg, _MINNAERT_K_RANGE[0]), _MINNAERT_K_RANGE[1])
 
 
+def twin_ceiling_if(scene: Mapping[str, Any]) -> float:
+    """The I/F at and above which a twin's pixel reads its camera's ceiling.
+
+    A pixel clips where its charge fills the full well or its count reaches the ADC
+    limit, whichever comes first.  The scene's detector settings, and the instrument
+    entry behind them, set both.  The read noise and the quantization then act on the
+    clipped count, and calibration takes off the readout dark line and the residual
+    structure, so a clipped pixel's I/F lies a little below the ceiling's own.  The level
+    allows 4 standard deviations of the read noise and of the residual structure, and
+    the readout dark of the frame's last line, the most that any line carries.
+
+    Parameters:
+        scene: The twin's scene.
+
+    Returns:
+        The level in I/F, or infinity for a frame left in DN.
+    """
+    dp = resolve_detector_params(scene)
+    calibration = calibration_map(dp)
+    if calibration is None:
+        return math.inf
+    b = dp.binning
+    readout_dark = dp.detector_modes.get('readout_dark') or {}
+    if dp.detector_model == 'vidicon':
+        well_dn = dp.full_well_dn
+        read_dn = math.hypot(
+            dp.vidicon.get('read_noise_line_dn', 0.0), dp.vidicon.get('read_noise_pixel_dn', 0.0)
+        )
+        dark_dn = 0.0
+    else:
+        well_dn = dp.full_well_e * b**2 / dp.gain_e_per_dn
+        read_dn = dp.read_noise_e / dp.gain_e_per_dn
+        dark_dn = float(readout_dark.get('amplitude') or 0.0) * b**2 / dp.gain_e_per_dn
+    # The column residual adds over a binned pixel's b rows and b columns, the pixel
+    # residual over its b**2 native pixels.
+    residual_dn = (
+        math.hypot(dp.calibration_column_residual_e * b**1.5, dp.calibration_pixel_residual_e * b)
+        / dp.gain_e_per_dn
+    )
+    ceiling_dn = min(dp.saturation_dn, well_dn + dp.bias_dn)
+    lowest_read = quantize_dn(
+        np.array([ceiling_dn - _CEILING_NOISE_SIGMAS * read_dn]),
+        mode=dp.quantization,
+        saturation_dn=dp.saturation_dn,
+        contour_step=dp.quantization_contour_step,
+        sqrt_lut=dp.sqrt_lut,
+    )
+    lowest_dn = min(float(lowest_read[0]), dp.saturation_dn)
+    lowest_dn -= _CEILING_NOISE_SIGMAS * residual_dn + dark_dn
+    return float(calibration.to_if(np.array([lowest_dn]))[0])
+
+
+def _disc_clipped(on_body: NDArrayBoolType, at_ceiling: NDArrayBoolType) -> bool:
+    """Whether a twin's disc is clipped by the test a real disc meets."""
+    interior = scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX)
+    return bool(interior.any()) and float(np.mean(at_ceiling[interior])) >= MIN_CLIPPED_FRACTION
+
+
 def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> TwinDisc:
     """Render and measure one real disc's twin under one law."""
     frame = disc.frame
@@ -575,10 +652,11 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         illumination_deg=disc.illumination_deg,
         phase_deg=disc.phase_deg,
     )
-    # The twin counts the real fits' own pixels, less any its sphere leaves out; when it
-    # leaves some out, the real disc is fitted again over the rest, so both fits of the
-    # pair read exactly the same pixels.
-    usable = np.isfinite(data) & (data > 0.0) & disc.selection
+    # The twin counts the real fits' own pixels, less any its sphere leaves out and any
+    # it reads at its camera's ceiling; when it leaves some out, the real disc is fitted
+    # again over the rest, so both fits of the pair read exactly the same pixels.
+    at_ceiling = data >= twin_ceiling_if(scene)
+    usable = np.isfinite(data) & (data > 0.0) & ~at_ceiling & disc.selection
     counted = select_disc_pixels(on_body, mu0, mu, usable=usable)
     fit = fit_minnaert(data[counted], mu0[counted], mu[counted])
     twin_profile = equator_profile(data[counted], mu0[counted], mu[counted], phase_rad)
@@ -591,7 +669,11 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         real_fit = fit_minnaert(intensity, real_mu0, real_mu)
         real_k = None if real_fit is None else real_fit.k
         real_profile = equator_profile(intensity, real_mu0, real_mu, phase_rad)
-    peak = _twin_limb_peak(obs, scene, disc.limb_peak[0]) if limb_peak and disc.limb_peak else None
+    peak = (
+        _twin_limb_peak(obs, scene, disc.limb_peak[0])
+        if limb_peak and disc.limb_peak and not _disc_clipped(on_body, at_ceiling)
+        else None
+    )
     return TwinDisc(
         law=law,
         normal_albedo=albedo,
@@ -601,6 +683,7 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         profile_residual=profile_residual(real_profile, twin_profile),
         limb_peak=peak,
         crop=crop_image(data, disc.crop_bounds),
+        clipped_px=int(np.count_nonzero(at_ceiling & disc.selection)),
     )
 
 
@@ -711,7 +794,9 @@ def law_comparison(
 
     Returns:
         One entry per phase bin holding at least 3 discs whose twins have an exponent
-        under every one of ``laws``.
+        under every one of ``laws``.  The bin's band comes from every disc in it whose
+        default-law twin has an exponent, so a disc missing another law's exponent still
+        sets the band, though it does not enter the agreement.
 
     Raises:
         ValueError: If ``laws`` holds fewer than 2 laws or leaves out the default.
@@ -723,14 +808,19 @@ def law_comparison(
             f'got {compared}'
         )
     by_bin: dict[str, list[DiscRow]] = {}
+    default_deltas: dict[str, list[float]] = {}
     for row in rows:
+        label = phase_bin(row.disc.phase_deg)
+        delta = row.delta_k(default)
+        if delta is not None:
+            default_deltas.setdefault(label, []).append(delta)
         if all(row.delta_k(law) is not None for law in compared):
-            by_bin.setdefault(phase_bin(row.disc.phase_deg), []).append(row)
+            by_bin.setdefault(label, []).append(row)
     out: dict[str, LawComparisonBin] = {}
     for label, group in sorted(by_bin.items()):
         if len(group) < MIN_BIN_DISCS:
             continue
-        band = _band(np.array([r.delta_k(default) for r in group], dtype=np.float64))
+        band = _band(np.array(default_deltas[label], dtype=np.float64))
         agreement = {
             law: float(np.median([abs(r.delta_k(law) or 0.0) for r in group])) for law in compared
         }

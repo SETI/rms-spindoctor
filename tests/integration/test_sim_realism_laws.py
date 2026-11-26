@@ -12,6 +12,7 @@ twin.  Nothing here reads holdings, so the file runs in the plain unit tier.
 
 from __future__ import annotations
 
+import dataclasses
 import math
 from pathlib import Path
 from types import SimpleNamespace
@@ -29,11 +30,12 @@ from spindoctor.sim.realism.disc_profile import (
 )
 from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAW_DEFAULT, shade_surface
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
-from tests.integration import sim_realism_laws, sim_realism_laws_discs
+from tests.integration import sim_realism_laws, sim_realism_laws_discs, sim_realism_laws_report
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
 from tests.integration.sim_realism_body_facts import TerrainCap
 from tests.integration.sim_realism_laws import (
     DEFAULT_LAW,
+    DiscProfileBin,
     DiscRow,
     LawStudyInputs,
     RealDisc,
@@ -63,7 +65,6 @@ from tests.integration.sim_realism_laws_report import (
     write_law_figures,
 )
 
-_RECORD = load_record()
 _FRAME = StudyFrame('N0000000000_1_CALIB', 'coiss_calib_nac', (0.0, 0.0), 0.1, (256, 256))
 _EMPTY = np.zeros(1)
 _COMPARED = (DEFAULT_LAW, 'lambert')
@@ -106,6 +107,7 @@ def _row(phase_deg: float, k: float, twin_k: dict[str, float]) -> DiscRow:
             profile_residual=0.05,
             limb_peak=None,
             crop=np.zeros((1, 1), dtype=np.float32),
+            clipped_px=0,
         )
         for law, value in twin_k.items()
     }
@@ -160,7 +162,7 @@ def test_a_tight_bin_is_held_to_the_band_floor() -> None:
 def test_a_disc_whose_twin_has_no_exponent_is_left_out() -> None:
     """A twin that could not be fitted leaves its disc out of the check."""
     rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6}) for _ in range(3)]
-    rows[0].twins[DEFAULT_LAW] = TwinDisc(DEFAULT_LAW, 0.5, None, None, 0.6, None, None, _EMPTY)
+    rows[0].twins[DEFAULT_LAW] = TwinDisc(DEFAULT_LAW, 0.5, None, None, 0.6, None, None, _EMPTY, 0)
     assert compare_disc_profiles(rows)['p0'].n == 2
 
 
@@ -225,6 +227,18 @@ def test_a_disc_without_a_twin_under_a_compared_law_is_left_out() -> None:
     """A disc whose twins leave out one of the compared laws does not enter the bin."""
     rows = [*_comparison_rows(0.01, 0.3), _row(30.0, 0.6, {DEFAULT_LAW: 0.61})]
     assert law_comparison(rows, laws=_COMPARED)['p0'].n == 3
+
+
+def test_the_law_comparisons_band_counts_every_default_law_pair() -> None:
+    """Discs that have only a default-law twin set the band with the complete ones.
+
+    Three complete discs miss by 0.10, 0.14, and 0.18 under the default law, and four
+    more have only a default-law twin, which matches.  Over all seven the band is the
+    floor of 0.02.
+    """
+    rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6 + d, 'lambert': 0.9}) for d in (0.10, 0.14, 0.18)]
+    rows += [_row(30.0, 0.6, {DEFAULT_LAW: 0.6}) for _ in range(4)]
+    assert law_comparison(rows, laws=_COMPARED)['p0'].band_k == pytest.approx(0.02)
 
 
 def test_discs_at_one_phase_give_a_flat_minnaert_line() -> None:
@@ -476,8 +490,14 @@ def _measured(size: int, radius: float, *, clipped_and_hidden: Any = None) -> La
 
 
 def test_a_large_disc_keeps_the_thinned_pixels_as_its_selection() -> None:
-    """The selection a large disc keeps is the 60,000 pixels or fewer its fits read."""
-    disc = _measured(320, 150.0).discs[0]
+    """A disc of more than 60,000 eligible pixels keeps at most 60,000, and fits those."""
+    on_body, mu0, mu = sim_realism_laws._sphere_cosines(
+        (340, 340), (170.0, 170.0), 160.0, illumination_deg=90.0, phase_deg=0.0
+    )
+    eligible = select_disc_pixels(on_body, mu0, mu, usable=on_body & (mu0 > 0.0))
+    disc = _measured(340, 160.0).discs[0]
+    assert int(eligible.sum()) > 60_000
+    assert int(disc.selection.sum()) <= 60_000
     assert int(disc.selection.sum()) == disc.intensity.size
 
 
@@ -502,7 +522,7 @@ def test_a_body_the_offset_moves_into_the_frame_is_in_view() -> None:
     assert box_in_fov_at_offset(obs, entry, (0.0, -5.0)) is True
 
 
-def _sphere_disc(law: str, **kwargs: float) -> RealDisc:
+def _sphere_disc(law: str, *, albedo: float = 0.05, **kwargs: float) -> RealDisc:
     """A real disc drawn from a sphere under one law, in the twin's own geometry.
 
     Its crop bounds are a box unlike the sphere's own, 100 by 200 px.
@@ -512,7 +532,7 @@ def _sphere_disc(law: str, **kwargs: float) -> RealDisc:
         (256, 256), (128.0, 128.0), 60.0, illumination_deg=90.0, phase_deg=phase
     )
     keep = select_disc_pixels(on_body, mu0, mu, usable=np.ones(on_body.shape, dtype=bool))
-    intensity = 0.05 * shade_surface(
+    intensity = albedo * shade_surface(
         mu0[keep], mu[keep], law=law, phase_angle=math.radians(phase), **kwargs
     )
     disc = _disc(phase, 1.0)
@@ -537,6 +557,37 @@ def lambert_twin() -> TwinDisc:
 def test_a_lambert_twin_fits_the_exponent_one(lambert_twin: TwinDisc) -> None:
     """A rendered Lambert twin, blurred and noisy as the camera makes it, fits k near 1."""
     assert lambert_twin.k == pytest.approx(1.0, abs=0.03)
+
+
+def test_a_twin_well_below_its_ceiling_reads_no_pixel_at_it(lambert_twin: TwinDisc) -> None:
+    """A twin of albedo 0.05 leaves every one of the real fits' pixels in its fit."""
+    assert lambert_twin.clipped_px == 0
+
+
+@pytest.fixture(scope='module')
+def bright_twin() -> TwinDisc:
+    """The Lambert twin of a disc of albedo 3, which fills the camera past its ceiling.
+
+    The real frame measured a limb gradient peak in the twin's limb bin.
+    """
+    disc = _sphere_disc('lambert', albedo=3.0)
+    disc.limb_peak = ('limb_peak_p0_r1', 0.0)
+    return sim_realism_laws._twin(disc, 'lambert', minnaert_k=0.6, limb_peak=True)
+
+
+def test_a_twin_counts_its_pixels_at_the_ceiling(bright_twin: TwinDisc) -> None:
+    """A twin past its ceiling reports the real fits' pixels it reads at the ceiling."""
+    assert bright_twin.clipped_px > 0
+
+
+def test_a_twin_leaves_its_pixels_at_the_ceiling_out_of_its_fit(bright_twin: TwinDisc) -> None:
+    """Without its clipped pixels, a Lambert twin past its ceiling still fits k near 1."""
+    assert bright_twin.k == pytest.approx(1.0, abs=0.03)
+
+
+def test_a_clipped_twin_gives_no_limb_peak(bright_twin: TwinDisc) -> None:
+    """A twin whose disc is clipped, by the test a real disc meets, has no limb peak."""
+    assert bright_twin.limb_peak is None
 
 
 def test_a_twin_takes_its_albedo_from_the_real_disc_under_its_own_law(
@@ -609,8 +660,19 @@ def test_a_twin_that_leaves_out_real_pixels_pairs_with_the_real_disc_over_the_re
     assert twin.real_k == pytest.approx(1.0, abs=1e-9)
 
 
-def _record(within: bool | None, agreement: dict[str, float], separates: bool) -> dict[str, Any]:
-    """A record holding one disc-profile bin and one law-comparison bin."""
+def _record(
+    median_delta_k: float,
+    band_k: float | None,
+    within: bool | None,
+    *,
+    agreement: dict[str, float] | None = None,
+    separates: bool = False,
+) -> dict[str, Any]:
+    """A record holding one disc-profile bin and one law-comparison bin.
+
+    The comparison's band is 0.05, and its laws agree to within it unless ``agreement``
+    says otherwise.
+    """
     return {
         'instruments': {
             'coiss_calib_nac': {
@@ -618,10 +680,10 @@ def _record(within: bool | None, agreement: dict[str, float], separates: bool) -
                     'p0': {
                         'n': 4,
                         'real_median_k': 0.6,
-                        'sim_median_k': 0.7,
-                        'median_delta_k': 0.1,
-                        'delta_scatter_k': 0.05,
-                        'band_k': 0.05,
+                        'sim_median_k': 0.6 + median_delta_k,
+                        'median_delta_k': median_delta_k,
+                        'delta_scatter_k': None if band_k is None else 0.05,
+                        'band_k': band_k,
                         'within_band': within,
                     }
                 }
@@ -633,7 +695,7 @@ def _record(within: bool | None, agreement: dict[str, float], separates: bool) -
                 'p0': {
                     'n': 4,
                     'band_k': 0.05,
-                    'agreement': agreement,
+                    'agreement': agreement or {'lunar_lambert': 0.06, 'lambert': 0.08},
                     'separates': {'lambert': separates},
                     'default_best': True,
                 }
@@ -643,29 +705,44 @@ def _record(within: bool | None, agreement: dict[str, float], separates: bool) -
 
 
 def test_a_record_bin_outside_its_band_is_a_failure() -> None:
-    """A disc-profile bin whose verdict is False is reported under its key."""
-    failures = record_disc_profile_failures(_record(False, {}, False))
+    """A disc-profile bin whose median difference exceeds its band is reported."""
+    failures = record_disc_profile_failures(_record(0.1, 0.05, False))
     assert failures == {
         ('coiss_calib_nac', 'p0'): "coiss_calib_nac p0: the twins' Minnaert exponents "
         'differ from the real ones by a median +0.100, more than the band of 0.050 (4 discs)'
     }
 
 
-@pytest.mark.parametrize('within', [True, None])
-def test_a_record_bin_within_or_without_a_band_is_no_failure(within: bool | None) -> None:
-    """A disc-profile bin within its band, or without a verdict, is not reported."""
-    assert record_disc_profile_failures(_record(within, {}, False)) == {}
+@pytest.mark.parametrize(('delta', 'band', 'within'), [(0.03, 0.05, True), (0.1, None, None)])
+def test_a_record_bin_within_or_without_a_band_is_no_failure(
+    delta: float, band: float | None, within: bool | None
+) -> None:
+    """A disc-profile bin within its band, or without a band, is not reported."""
+    assert record_disc_profile_failures(_record(delta, band, within)) == {}
 
 
-@pytest.mark.parametrize(('within', 'count'), [(True, 1), (False, 1), (None, 0)])
-def test_a_record_counts_its_disc_profile_verdicts(within: bool | None, count: int) -> None:
+@pytest.mark.parametrize(
+    ('delta', 'band', 'within', 'count'),
+    [(0.03, 0.05, True, 1), (0.1, 0.05, False, 1), (0.1, None, None, 0)],
+)
+def test_a_record_counts_its_disc_profile_verdicts(
+    delta: float, band: float | None, within: bool | None, count: int
+) -> None:
     """A bin within or outside its band has a verdict; a bin without a band has none."""
-    assert record_disc_profile_verdicts(_record(within, {}, False)) == count
+    assert record_disc_profile_verdicts(_record(delta, band, within)) == count
+
+
+def test_a_recorded_verdict_its_numbers_contradict_is_refused() -> None:
+    """A bin recorded within its band, with a median difference twice the band, is refused."""
+    with pytest.raises(ValueError, match=r'within_band is True, but its median difference'):
+        record_disc_profile_failures(_record(0.1, 0.05, True))
 
 
 def test_a_law_that_separates_and_agrees_better_is_a_problem() -> None:
     """A law better than the default by more than the band is reported."""
-    record = _record(True, {'lunar_lambert': 0.2, 'lambert': 0.05}, True)
+    record = _record(
+        0.03, 0.05, True, agreement={'lunar_lambert': 0.2, 'lambert': 0.05}, separates=True
+    )
     assert record_law_comparison_problems(record) == [
         'p0: lambert agrees with the real discs to a median |dk| of 0.050, better than '
         "lunar_lambert's 0.200 by more than the band of 0.050 (4 discs)"
@@ -673,43 +750,61 @@ def test_a_law_that_separates_and_agrees_better_is_a_problem() -> None:
 
 
 def test_a_better_law_that_does_not_separate_is_no_problem() -> None:
-    """A slightly better law within the band is not reported."""
-    record = _record(True, {'lunar_lambert': 0.2, 'lambert': 0.05}, False)
+    """A law better than the default by less than the band is not reported."""
+    record = _record(0.03, 0.05, True, agreement={'lunar_lambert': 0.08, 'lambert': 0.05})
     assert record_law_comparison_problems(record) == []
 
 
 def test_a_worse_law_that_separates_is_no_problem() -> None:
     """A law that separates by agreeing worse is not reported."""
-    record = _record(True, {'lunar_lambert': 0.05, 'lambert': 0.2}, True)
+    record = _record(
+        0.03, 0.05, True, agreement={'lunar_lambert': 0.05, 'lambert': 0.2}, separates=True
+    )
     assert record_law_comparison_problems(record) == []
 
 
-def test_the_record_holds_the_law_study() -> None:
+def test_a_recorded_separation_its_numbers_contradict_is_refused() -> None:
+    """A law recorded as not separating, 0.15 apart against a band of 0.05, is refused."""
+    record = _record(0.03, 0.05, True, agreement={'lunar_lambert': 0.2, 'lambert': 0.05})
+    with pytest.raises(ValueError, match=r'separates from lunar_lambert is False, but'):
+        record_law_comparison_problems(record)
+
+
+@pytest.fixture(scope='module')
+def realism_record() -> dict[str, Any]:
+    """The realism record the regression checks read, read once for the module."""
+    return load_record()
+
+
+def test_the_record_holds_the_law_study(realism_record: dict[str, Any]) -> None:
     """The realism record carries the photometric-law study."""
-    assert record_has_law_study(_RECORD), (
-        f'The realism record made at {made_at(_RECORD)} lacks the law study.\n{REGENERATE_HINT}'
-    )
-
-
-def test_the_record_was_made_with_the_codes_default_law() -> None:
-    """The record's default law is the scene default the code renders with."""
-    assert _RECORD.get('law_study', {}).get('default_law') == PHOTOMETRIC_LAW_DEFAULT, (
-        f'The realism record made at {made_at(_RECORD)} judged another default law.\n'
+    assert record_has_law_study(realism_record), (
+        f'The realism record made at {made_at(realism_record)} lacks the law study.\n'
         f'{REGENERATE_HINT}'
     )
 
 
-def test_the_record_judges_at_least_one_disc_profile_bin() -> None:
+def test_the_record_was_made_with_the_codes_default_law(realism_record: dict[str, Any]) -> None:
+    """The record's default law is the scene default the code renders with."""
+    assert realism_record.get('law_study', {}).get('default_law') == PHOTOMETRIC_LAW_DEFAULT, (
+        f'The realism record made at {made_at(realism_record)} judged another default law.\n'
+        f'{REGENERATE_HINT}'
+    )
+
+
+def test_the_record_judges_at_least_one_disc_profile_bin(realism_record: dict[str, Any]) -> None:
     """At least one disc-profile bin of the record has a verdict."""
-    assert record_disc_profile_verdicts(_RECORD) >= 1
+    assert record_disc_profile_verdicts(realism_record) >= 1
 
 
-def test_the_record_compares_the_laws_in_at_least_one_bin() -> None:
+def test_the_record_compares_the_laws_in_at_least_one_bin(realism_record: dict[str, Any]) -> None:
     """At least one phase bin of the record holds a law comparison."""
-    assert _RECORD.get('law_study', {}).get('comparison')
+    assert realism_record.get('law_study', {}).get('comparison')
 
 
-def test_the_recorded_disc_profiles_lie_within_their_bands() -> None:
+def test_the_recorded_disc_profiles_lie_within_their_bands(
+    realism_record: dict[str, Any],
+) -> None:
     """In every bin with a verdict, the default law's twins keep the real exponents.
 
     A bin :data:`KNOWN_DISC_PROFILE_FINDINGS` lists is a recorded finding against the
@@ -717,12 +812,11 @@ def test_the_recorded_disc_profiles_lie_within_their_bands() -> None:
     expected failure that gives the finding.  A listed bin back within its band fails,
     so the list can only shrink.
     """
-    failures = record_disc_profile_failures(_RECORD)
+    failures = record_disc_profile_failures(realism_record)
     new = [line for key, line in failures.items() if key not in KNOWN_DISC_PROFILE_FINDINGS]
     assert not new, (
-        f'The disc profiles of the record made at {made_at(_RECORD)} leave their bands:\n'
-        + '\n'.join(new)
-        + f'\n{REGENERATE_HINT}'
+        f'The disc profiles of the record made at {made_at(realism_record)} leave their '
+        'bands:\n' + '\n'.join(new) + f'\n{REGENERATE_HINT}'
     )
     back = sorted(set(KNOWN_DISC_PROFILE_FINDINGS) - set(failures))
     assert not back, f'These known findings now lie within their bands; drop them: {back}'
@@ -733,11 +827,13 @@ def test_the_recorded_disc_profiles_lie_within_their_bands() -> None:
         )
 
 
-def test_the_default_law_agrees_best_where_the_laws_separate() -> None:
+def test_the_default_law_agrees_best_where_the_laws_separate(
+    realism_record: dict[str, Any],
+) -> None:
     """Wherever another law separates from the default law, it agrees worse."""
-    problems = record_law_comparison_problems(_RECORD)
+    problems = record_law_comparison_problems(realism_record)
     assert not problems, (
-        f'In the record made at {made_at(_RECORD)} another law fits the real discs '
+        f'In the record made at {made_at(realism_record)} another law fits the real discs '
         'better than the default:\n' + '\n'.join(problems) + f'\n{REGENERATE_HINT}'
     )
 
@@ -787,10 +883,33 @@ def test_a_study_without_a_twin_exponent_still_writes_its_figures(tmp_path: Path
     rows = [_row(phase, 0.6, {DEFAULT_LAW: 0.6}) for phase in (20.0, 30.0, 40.0)]
     for row in rows:
         row.disc.diameter_px = 50.0
-        row.twins[DEFAULT_LAW] = TwinDisc(DEFAULT_LAW, 0.5, None, None, 0.6, None, None, _EMPTY)
+        row.twins[DEFAULT_LAW] = TwinDisc(DEFAULT_LAW, 0.5, None, None, 0.6, None, None, _EMPTY, 0)
     written = write_law_figures(_study_of(rows), tmp_path)
     assert [p.name for p in written if p.exists()] == [
         'realism_law_fits.png',
         'realism_disc_profiles.png',
         'realism_law_sheet.png',
     ]
+
+
+def test_the_default_law_panel_plots_each_pair_as_the_check_reads_it() -> None:
+    """A pair is plotted with the real exponent over the pixels its twin also counted."""
+    row = _row(30.0, 0.6, {DEFAULT_LAW: 0.7})
+    row.twins[DEFAULT_LAW] = dataclasses.replace(row.twins[DEFAULT_LAW], real_k=0.65)
+    assert sim_realism_laws_report._default_law_pairs([row]) == [(30.0, 0.65, 0.7)]
+
+
+@pytest.mark.parametrize(
+    ('band', 'within', 'line'),
+    [
+        (None, None, 'coiss_calib_wac p0: n=1, median dk +0.070, too few discs for a verdict'),
+        (0.05, False, 'coiss_calib_wac p0: n=1, median dk +0.070, outside band 0.050'),
+    ],
+)
+def test_the_default_law_panel_gives_each_bins_verdict(
+    band: float | None, within: bool | None, line: str
+) -> None:
+    """Each instrument's phase bin is shown with its verdict, or as too small for one."""
+    entry = DiscProfileBin(1, 0.6, 0.67, 0.07, None, band, within)
+    lines = sim_realism_laws_report._disc_check_lines({'coiss_calib_wac': {'p0': entry}})
+    assert lines == [line]

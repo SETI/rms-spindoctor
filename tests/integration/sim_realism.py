@@ -920,6 +920,10 @@ def run_realism_match(
         real_frames: list[FrameSamples] = []
         for sidecar in sidecars:
             frame_samples, record, rates = _frame_samples_real(sidecar, instrument, study=study)
+            # The study takes every real limb peak, before pairing drops those whose
+            # matched frame measured none.
+            if study is not None:
+                study.add_limb_peak(record.image_id, record.body_name, frame_samples.samples)
             # Each frame's backplanes and feature extraction leave cycles and freed arenas
             # behind; without this the resident size grows by gigabytes over a cohort.
             release_transient_memory()
@@ -933,9 +937,6 @@ def run_realism_match(
             sim_frames.append(sim_samples)
             comparison.sim_rates.append(sim_frame_rates)
         pool_frame_pairs(comparison, real_frames, sim_frames)
-        for record, real_samples in zip(comparison.records, real_frames, strict=True):
-            if study is not None:
-                study.add_limb_peak(record.image_id, record.body_name, real_samples.samples)
         if not skip_fom7:
             comparison.fom7_rows = _run_fom7(comparison.records, sidecars_by_id)
         _aggregate(comparison)
