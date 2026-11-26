@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 from util.star_photometry.star_field import PeakList
 from util.star_photometry.star_pointing import PointingFix, find_pointing
 
@@ -44,6 +45,7 @@ def test_three_separate_stars_agree() -> None:
     fix = _fix(pred, [(v + OFFSET_V, u + OFFSET_U) for v, u in pred])
     assert fix.accepted
     assert fix.n_agree == 3
+    assert (fix.offset_v, fix.offset_u) == pytest.approx((OFFSET_V, OFFSET_U), abs=1e-9)
 
 
 def test_one_peak_confirms_one_star() -> None:
