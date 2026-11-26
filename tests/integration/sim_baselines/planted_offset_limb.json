@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -0.3947939875949392,
-  "offset_dv_px": 0.9974322872999508,
+  "offset_du_px": -0.44207620394996355,
+  "offset_dv_px": 1.0695077062716472,
   "scene_name": "planted_offset_limb",
   "status": "success"
 }

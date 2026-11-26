@@ -13,9 +13,9 @@ exposure_sec: 1.0
 # behavior: neither the disc correlation nor the limb fit chases the shadow or the
 # storm, so this scene is the regression tripwire for the false-crater confound: a
 # correlator that starts chasing the shadow or the storm moves the baseline and
-# fails loudly.  The disc shades with the default Lommel-Seeliger law, and the
-# Lambert template pulls the disc correlation 0.55 px and the limb fit 0.29 to
-# 0.30 px toward the Sun (#1110), so the fused answer lands 0.46 to 0.47 px off; on
+# fails loudly.  The disc shades with the default lunar-Lambert law, and the
+# Lambert template pulls the disc correlation 0.47 px and the limb fit 0.16 to
+# 0.19 px toward the Sun (#1110), so the fused answer lands 0.39 px off; on
 # a Lambert surface it landed within 0.09 px.
 bodies:
   - name: JOVIAN
@@ -55,8 +55,8 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  # The body shades with the default Lommel-Seeliger law, and the navigator's
+  # The body shades with the default lunar-Lambert law, and the navigator's
   # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
   # fused error over the seeds, measured as sim_truth.py describes.
-  known_offset_error_px: 0.4665
-  known_offset_error_tol_px: 0.0555
+  known_offset_error_px: 0.3885
+  known_offset_error_tol_px: 0.0545

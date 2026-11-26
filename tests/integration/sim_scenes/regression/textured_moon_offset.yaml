@@ -10,15 +10,15 @@ exposure_sec: 1.0
 # circular albedo spot.  The texture is truth-side, so the disc correlation
 # sees realistic surface contrast against its smooth Lambert template while
 # the silhouette the limb fit uses is untouched.  The body is as bright as Dione
-# in N1481737141, at 34 deg phase: normal_albedo, 0.455, is that disc's median I/F
-# over the Lommel-Seeliger law's value, counting the pixels where the Sun and the
+# in N1481737141, at 34 deg phase: normal_albedo, 0.498, is that disc's median I/F
+# over the lunar-Lambert law's value, counting the pixels where the Sun and the
 # camera are both within about 73 deg of overhead, as the realism match measures
-# it.  The brightest pixel fills 54% of the full well, and no pixel of the real
+# it.  The brightest pixel fills 45% of the full well, and no pixel of the real
 # disc reads full scale in its raw product.  Measured behavior: still
-# an accurate success, 0.16 to 0.17 px from the planted value.  The texture pulls
+# an accurate success, 0.05 to 0.06 px from the planted value.  The texture pulls
 # the correlation peak, which is the realistic-contrast degradation this scene
 # measures, and the Lambert template's pull toward the Sun on the default
-# Lommel-Seeliger surface (#1110) partly offsets it: on a Lambert surface the fused
+# lunar-Lambert surface (#1110) nearly cancels it: on a Lambert surface the fused
 # answer landed 0.36 to 0.37 px off.
 bodies:
   - name: DAPPLED

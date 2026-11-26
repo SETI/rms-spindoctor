@@ -14,11 +14,11 @@ exposure_sec: 1.2
 # frames of this class show body and star answers 0.8 to 1.8 px apart, and the
 # result-combining step has to reconcile them.
 #
-# BodyDiscCorrelateNav and BodyLimbNav land 1.70 to 1.71 px and 1.83 px off on every
+# BodyDiscCorrelateNav and BodyLimbNav land 1.74 px and 1.82 to 1.83 px off on every
 # draw, which is the planted error together with the Lambert template's pull toward
-# the Sun on the Lommel-Seeliger body (#1110), and are held to bands on it, so the
+# the Sun on the lunar-Lambert body (#1110), and are held to bands on it, so the
 # scene fails if the error stops reaching them.  With spk_error removed they land
-# 0.33 px and 0.32 px off on the committed draw, the template's pull alone.
+# 0.21 px and 0.17 px off on the committed draw, the template's pull alone.
 #
 # The stars navigate on their own.  StarFieldFromCatalogNav finds too few stars on
 # every draw (#1146), but StarUniqueMatchNav answers on 13 of the 16 draws, 0.04 to
@@ -28,8 +28,8 @@ exposure_sec: 1.2
 # With the body removed the committed draw navigates on the stars alone, 0.02 px off.
 #
 # The fused answer combines the star answers with the body's, so it lands between
-# them, 0.11 to 0.22 px from the truth over the 16 draws in the direction of the
-# body's error, within 0.8 of its reported sigmas.  With spk_error removed it lands
+# them, 0.12 to 0.22 px from the truth over the 16 draws in the direction of the
+# body's error, within 0.74 of its reported sigmas.  With spk_error removed it lands
 # 0.03 px off on the committed draw.  The tolerance, 0.27 px, sits far below the
 # 1.7 to 1.8 px of a body-only answer, so a fused answer that drops the stars fails.
 #

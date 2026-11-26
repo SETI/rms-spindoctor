@@ -13,8 +13,8 @@ exposure_sec: 1.0
 # star magnitudes are that frame's; their positions were drawn at random off the
 # disc.  The real frame ran 3.8 s through CL1+UV3; the scene sets no filter and
 # runs 1.0 s, which keeps the disc below the full well (99th percentile 1,445 DN
-# when it shaded Lambert; the brightest pixel at the sunlit limb now reaches 0.82 of
-# the full well under the default Lommel-Seeliger law) and the stars at the camera's
+# when it shaded Lambert; the brightest pixel at the sunlit limb now reaches 0.58 of
+# the full well under the default lunar-Lambert law) and the stars at the camera's
 # clear-filter brightness, closer to real stars than the simulator draws them
 # through UV3 (#895).
 #
@@ -60,9 +60,9 @@ exposure_sec: 1.0
 # left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
 # fitting off as the camera ships.
 #
-# The fused answer lands 0.032 to 0.11 px off over 24 draws, carried by the star
-# refinement (0.028 to 0.11 px off).  The disc correlation lands 0.17 to 0.19 px
-# off, pulled toward the Sun by the Lambert template's bias on the Lommel-Seeliger
+# The fused answer lands 0.030 to 0.11 px off over 24 draws, carried by the star
+# refinement (0.028 to 0.11 px off).  The disc correlation lands 0.07 to 0.09 px
+# off, pulled toward the Sun by the Lambert template's bias on the lunar-Lambert
 # body (#1110).  The worst draw, 0.11 px, is random seed 1212, where StarRefineNav
 # lands 0.11 px off.  The tier is high on 13 of the 24 draws and medium on 11.  The
 # high draws are the committed seed with its 8 noise draws and random seeds 101,
@@ -81,7 +81,7 @@ exposure_sec: 1.0
 # off) and stays spurious on the committed seed; with either one removed alone it
 # stays spurious, except on seed 202 without the cosmic rays (0.049 px).
 # StarUniqueMatchNav returns spurious on 9 of the 24 draws: the committed seed,
-# 7 of its 8 noise draws, and random seed 909.  BodyBlobNav lands 11.0 to 14.5 px
+# 7 of its 8 noise draws, and random seed 909.  BodyBlobNav lands 7.4 to 11.3 px
 # off the gibbous disc without flagging it (#975); on a Lambert surface it landed
 # 5.2 to 9.6 px off, and 6.5 to 9.7 px off with each defect removed, so the defects
 # do not cause it.  sim_truth holds it to a band.

@@ -1,8 +1,8 @@
 {
-  "confidence": 0.81430007926583,
+  "confidence": 0.8227537645872812,
   "confidence_rank": "medium",
-  "offset_du_px": -0.43750000000000017,
-  "offset_dv_px": 0.8984375,
+  "offset_du_px": -0.47656249999999994,
+  "offset_dv_px": 1.0078125,
   "scene_name": "planted_offset_small",
   "status": "success"
 }

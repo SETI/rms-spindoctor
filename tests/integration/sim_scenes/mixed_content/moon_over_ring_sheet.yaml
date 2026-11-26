@@ -16,13 +16,14 @@ exposure_sec: 1.0
 #
 # RingEdgeNav slides 8.6 to 9.5 px along the arcs on every draw (the across-arc error
 # stays under 0.1 px) and reports a sigma along them of about 0.1 px, at confidence
-# 0.75, the along-edge failure of #755.  BodyDiscCorrelateNav lands 0.49 px from the
-# truth, toward the Sun, from the Lambert template's bias on the Lommel-Seeliger body
-# (#1110); it landed 0.07 px off when the body shaded with the Lambert law.  The ensemble sees the two disagree and returns conflicted, which is the
-# correct outcome while RingEdgeNav claims a precision it does not have; a fix to
-# #755 should let the two agree and the scene succeed.  BodyBlobNav lands 0.01 to
-# 0.02 px off on 6 of the 24 draws and 2.06 to 2.08 px off on the rest, and does not
-# flag it (#975).  RingAnnulusNav flags its answer spurious
+# 0.75, the along-edge failure of #755.  BodyDiscCorrelateNav lands 0.34 px from the
+# truth, toward the Sun, from the Lambert template's bias on the lunar-Lambert body
+# (#1110); it landed 0.07 px off when the body shaded with the Lambert law.  The
+# ensemble sees the two disagree and returns conflicted, which is the correct
+# outcome while RingEdgeNav claims a precision it does not have; a fix to #755
+# should let the two agree and the scene succeed.  BodyBlobNav lands 0.36 px off on
+# 6 of the 24 draws and 2.08 to 2.09 px off on the rest, and does not flag it
+# (#975).  RingAnnulusNav flags its answer spurious
 # on every draw.
 #
 # The planet is left out of this frame, since the simulator draws no shadow between

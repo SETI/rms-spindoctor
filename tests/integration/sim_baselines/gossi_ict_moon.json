@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": 161.4848957419071,
-  "offset_dv_px": -204.1803122629685,
+  "offset_du_px": 161.4151715294193,
+  "offset_dv_px": -204.23447787403714,
   "scene_name": "gossi_ict_moon",
   "status": "success"
 }

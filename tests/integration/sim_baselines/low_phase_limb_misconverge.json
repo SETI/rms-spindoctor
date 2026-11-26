@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": 0.5239187985341892,
-  "offset_dv_px": -0.1895730837222784,
+  "offset_du_px": 0.5176814328249866,
+  "offset_dv_px": -0.16630689278044516,
   "scene_name": "low_phase_limb_misconverge",
   "status": "success"
 }

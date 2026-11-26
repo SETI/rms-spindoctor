@@ -1,8 +1,8 @@
 {
-  "confidence": 0.7290646165247398,
+  "confidence": 0.7287869532747856,
   "confidence_rank": "low",
-  "offset_du_px": -11.519025658568312,
-  "offset_dv_px": 6.562357251630413,
+  "offset_du_px": -11.3311555571506,
+  "offset_dv_px": 6.705540837664981,
   "scene_name": "coiss_wac_disc",
   "status": "success"
 }

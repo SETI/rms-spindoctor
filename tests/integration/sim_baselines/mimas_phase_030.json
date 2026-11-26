@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8151221887811851,
+  "confidence": 0.8246603644918109,
   "confidence_rank": "medium",
-  "offset_du_px": 0.18749999999999994,
-  "offset_dv_px": -0.5078125,
+  "offset_du_px": 0.14843749999999997,
+  "offset_dv_px": -0.40624999999999994,
   "scene_name": "mimas_phase_030",
   "status": "success"
 }

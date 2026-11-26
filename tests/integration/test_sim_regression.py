@@ -55,8 +55,8 @@ def test_disc_recovers_whole_pixel_offset() -> None:
     Guards the gradient-magnitude NCC sub-pixel bias: the integer peak is found on
     the gradient surfaces but the sub-pixel offset is refined on raw intensity, so
     a whole-pixel offset no longer carries the ~0.3 px-per-axis rectification bias.
-    The disc shades Lommel-Seeliger, so the answer carries the navigator's Lambert
-    template bias instead, 0.53 px toward the Sun, and is held to a band around it.
+    The disc shades lunar-Lambert, so the answer carries the navigator's Lambert
+    template bias instead, 0.42 px toward the Sun, and is held to a band around it.
     """
     _assert_technique_recovers('disc_subpixel_offset', 'BodyDiscCorrelateNav')
 

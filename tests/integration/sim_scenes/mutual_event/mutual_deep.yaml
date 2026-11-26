@@ -18,17 +18,17 @@ exposure_sec: 1.0
 # (fraction 0.28) and stays below the 0.30 reliability gate.  FAR is left
 # out of the disc template, and its crescent beside NEAR's limb, which the
 # template doesn't carry, pulls the disc correlation's high-pass refinement
-# (#1050).  Both bodies shade with the default Lommel-Seeliger law, and the
+# (#1050).  Both bodies shade with the default lunar-Lambert law, and the
 # navigator's Lambert template pulls the answer toward the Sun (#1110): the disc
-# correlation lands 0.60 px off and the limb fit 0.29 to 0.32 px off, and the two
-# fuse to a medium-tier success.  On Lambert bodies the disc correlation landed
-# 0.25 px off, within 0.012 px without FAR in the scene, and the limb fit flagged
-# itself spurious on every draw.
+# correlation lands 0.51 px off and sets a medium-tier success alone, since the
+# limb fit, 0.21 to 0.23 px off, flags itself spurious on every draw.  On Lambert
+# bodies the disc correlation landed 0.25 px off, within 0.012 px without FAR in
+# the scene, and the limb fit flagged itself spurious on every draw too.
 # Known error: over the committed seed and random_seed 101, 202, ..., 1515
-# the fused error runs 0.503 to 0.515 px (spread 0.011 px).  Each end of
-# the band sits a margin of max(0.05 px, a fifth of the spread) = 0.05 px
-# outside, giving [0.453, 0.565] px.  A worse miss fails, and so does a
-# fix that brings the error under 0.453 px.
+# the fused error is 0.509 px on every draw.  Each end of the band sits a
+# margin of max(0.05 px, a fifth of the spread) = 0.05 px outside, giving
+# [0.459, 0.560] px.  A worse miss fails, and so does a fix that brings the
+# error under 0.459 px.
 bodies:
   - name: FAR
     shape_model: ellipsoid
@@ -59,5 +59,5 @@ offset_rotation_deg: 0.0
 expected:
   status: success
   confidence_tier: medium
-  known_offset_error_px: 0.509
-  known_offset_error_tol_px: 0.056
+  known_offset_error_px: 0.5095
+  known_offset_error_tol_px: 0.0505

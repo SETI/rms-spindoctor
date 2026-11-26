@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": 10.110637282994707,
-  "offset_dv_px": 18.225505331851828,
+  "offset_du_px": 10.029635479061236,
+  "offset_dv_px": 18.272260629855072,
   "scene_name": "coiss_nac_lossy_moon",
   "status": "success"
 }

@@ -17,7 +17,7 @@ exposure_sec: 0.24
 #
 # A Voyager frame renders in I/F, and the simulator's vidicon DN scale has no
 # exposure term (#907), so the exposure does not change the disc.  The body
-# shades with the default Lommel-Seeliger law, and its normal albedo of 0.279
+# shades with the default lunar-Lambert law, and its normal albedo of 0.357
 # puts the brightest 1% of the disc where the real frame's is: 0.41 I/F above
 # the sky on C1630824.  Both frames are measured the same way, from the image
 # alone: the sky is the image median, the disc is the largest region of the
@@ -40,14 +40,14 @@ exposure_sec: 0.24
 # and +0.358 deg, so a measured Voyager 1 value may differ between the cameras
 # by far more than the placeholder.  Roll fitting is off, as the camera ships.
 #
-# The fused answer lands 0.34 to 0.88 px off over 24 distinct draws, at medium
-# tier with confidence 0.99 on every one, from the disc correlation (0.42 to
-# 1.02 px off), the limb fit (0.18 to 0.73 px), and the blob (1.42 to 2.01
+# The fused answer lands 0.26 to 0.84 px off over 24 distinct draws, at medium
+# tier with confidence 0.99 on every one, from the disc correlation (0.32 to
+# 0.92 px off), the limb fit (0.14 to 0.66 px), and the blob (0.90 to 1.48
 # px).  The navigator's Lambert template pulls the disc and limb answers toward
-# the Sun on the Lommel-Seeliger body (#1110): on a Lambert surface the answer
+# the Sun on the lunar-Lambert body (#1110): on a Lambert surface the answer
 # lands 0.04 to 0.58 px off, the disc 0.08 to 0.61, the limb 0.03 to 0.57, and
 # the blob 0.05 to 0.55.  The random_seed draws spread far wider than the
-# noise_seed draws (0.69 to 0.70 px), so the spread comes from the streams only
+# noise_seed draws (0.62 to 0.63 px), so the spread comes from the streams only
 # random_seed reaches.  Measured on a Lambert surface, the committed draw lands
 # 0.25 px off without the roll and 0.24 px with it.  The disc correlation
 # searches the camera's 400 px window, so the frame takes about 45 s to render
@@ -69,8 +69,8 @@ offset_u: 24.38
 offset_rotation_deg: 0.0227
 expected:
   status: success
-  # The body shades with the default Lommel-Seeliger law, and the navigator's
+  # The body shades with the default lunar-Lambert law, and the navigator's
   # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
   # fused error over the 24 distinct draws, measured as sim_truth.py describes.
-  known_offset_error_px: 0.6135
-  known_offset_error_tol_px: 0.3785
+  known_offset_error_px: 0.549
+  known_offset_error_tol_px: 0.401

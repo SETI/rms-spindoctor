@@ -1,8 +1,8 @@
 {
-  "confidence": 0.16557665092926918,
+  "confidence": 0.16822886718749328,
   "confidence_rank": "conflicted",
-  "offset_du_px": -9.359375,
-  "offset_dv_px": 14.234375000000002,
+  "offset_du_px": -9.500000000000002,
+  "offset_dv_px": 14.28125,
   "scene_name": "moon_over_ring_sheet",
   "status": "conflicted"
 }

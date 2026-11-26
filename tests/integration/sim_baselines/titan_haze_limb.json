@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": 1.4842304829924717,
-  "offset_dv_px": -0.755174079069821,
+  "offset_du_px": 1.415477142241875,
+  "offset_dv_px": -0.7664775078699494,
   "scene_name": "titan_haze_limb",
   "status": "success"
 }

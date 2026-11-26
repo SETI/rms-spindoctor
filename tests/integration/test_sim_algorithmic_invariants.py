@@ -258,8 +258,8 @@ def test_disc_scene_recovers_planted_offset(path: Path) -> None:
     """Each disc scene's fused offset meets its truth check.
 
     A truth check is a tolerance, or a band around a known error.  The ellipsoid scenes
-    shade Lommel-Seeliger, which biases the navigator's Lambert template, so they are
-    held to bands around their errors.
+    shade lunar-Lambert at 30 deg phase, which biases the navigator's Lambert template,
+    so they are held to bands around their errors.
     """
     scene = load_sim_scene(path)
     result = _navigate(scene)
@@ -277,9 +277,10 @@ def test_blob_scene_navigates_via_blob_alone(path: Path) -> None:
 def test_blob_alone_recovers_planted_offset(path: Path) -> None:
     """BodyBlobNav alone meets each blob scene's truth check.
 
-    The ellipsoid scenes shade Lommel-Seeliger, so their centroid carries a known error
-    from the navigator's Lambert template and is held to a band around it.  The mesh
-    scene is held to a tolerance.
+    The full ellipsoid disc shades lunar-Lambert at 30 deg phase, so its centroid
+    carries a known error from the navigator's Lambert template and is held to a band
+    around it.  The 120 deg crescents, which the default law shades Lambert, and the
+    mesh scene are held to tolerances.
 
     Guards the BODY_BLOB feature emission, the background-pedestal subtraction,
     and the sky-noise threshold; without the latter two the thresholded observed
@@ -341,7 +342,7 @@ def test_rotation_scene_recovers_planted_roll(path: Path) -> None:
 def test_limb_alone_recovers_planted_offset(path: Path) -> None:
     """BodyLimbNav alone meets each limb scene's truth check.
 
-    The ellipsoid scene shades Lommel-Seeliger, so its limb fit carries a known error
+    The ellipsoid scene shades lunar-Lambert, so its limb fit carries a known error
     from the navigator's Lambert template and is held to a band around it.  The mesh
     scene is held to a tolerance.
 

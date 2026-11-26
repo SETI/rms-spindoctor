@@ -16,10 +16,7 @@ exposure_sec: 1.0
 # BODY_BLOB feature) and correlates it over the search window, re-centring the
 # box on the displaced body.  Recovering the planted offset here guards that
 # crescent coarse-acquisition path; the small-offset crescent scene
-# (planted_offset_blob_crescent.yaml) guards the in-box centroid math.  The
-# crescent shades with the default Lommel-Seeliger law, and the centroid lands
-# 0.90 px away from the Sun from the navigator's Lambert template (#1110), which
-# sim_truth holds to a band.
+# (planted_offset_blob_crescent.yaml) guards the in-box centroid math.
 bodies:
   - name: HYPERION
     shape_model: ellipsoid

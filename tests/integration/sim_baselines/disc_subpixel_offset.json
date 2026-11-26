@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8222547047707295,
+  "confidence": 0.8251811152738177,
   "confidence_rank": "medium",
-  "offset_du_px": 2.2265625,
-  "offset_dv_px": 2.5234375000000004,
+  "offset_du_px": 2.1875000000000004,
+  "offset_dv_px": 2.6171875000000004,
   "scene_name": "disc_subpixel_offset",
   "status": "success"
 }

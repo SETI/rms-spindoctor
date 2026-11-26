@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8519981023794037,
+  "confidence": 0.8529270200430803,
   "confidence_rank": "high",
-  "offset_du_px": -0.6640625000000001,
-  "offset_dv_px": 0.859375,
+  "offset_du_px": -0.7109375000000003,
+  "offset_dv_px": 0.984375,
   "scene_name": "two_moons",
   "status": "success"
 }

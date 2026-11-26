@@ -32,13 +32,13 @@ exposure_sec: 0.1
 # The simulator has no ICT codec (#920); compression_dct, which steps every
 # frequency alike, stands in for it, and its step is illustrative.  4 DN is the
 # largest step tried (2, 4, 8, 16) that keeps the contrast across block edges
-# inside the disc close to the contrast inside the blocks: 1.02 times as large on
-# the committed draw and 0.98 to 1.00 on three noise draws, against 0.95 to 0.98
-# without the compression, as on C0401785378R (1.00).  8 DN gives 1.52 to 1.69.
+# inside the disc close to the contrast inside the blocks: 1.05 times as large on
+# the committed draw and 1.01 to 1.04 on three noise draws, against 0.97 to 1.01
+# without the compression, as on C0401785378R (1.00).  8 DN gives 1.83 to 2.04.
 #
 # The exposure is scaled to the simulator's brightness scale (#895): at 0.1 s the
 # middle of a Lambert disc read a median 102 DN, where the real disc reads 128 DN.
-# With the default Lommel-Seeliger law the middle reads about 20% more.
+# With the default lunar-Lambert law the middle reads 114 DN.
 # instrument_defaults turns on the camera's whole chain, cosmic rays at their
 # fitted rate among it.  The scene plants the measured Galileo sky noise,
 # 0.96 DN, in place of the catalog's read noise, because simulated Galileo skies
@@ -49,11 +49,11 @@ exposure_sec: 0.1
 # camera's 350 px search window.  The roll is the camera's measured twist,
 # -0.0526 deg, planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.26 to 0.30 px off over 24 draws, toward the Sun, at
-# medium tier on all of them.  The disc correlation lands 0.31 to 0.34 px off and
-# BodyLimbNav 0.22 to 0.30 px off, pulled toward the Sun by the Lambert template's
-# bias on the Lommel-Seeliger body (#1110).  No expected block asserts the tier.
-# BodyBlobNav lands 4.6 to 8.5 px off without flagging it (#975).
+# The fused answer lands 0.18 to 0.24 px off over 24 draws, toward the Sun, at
+# medium tier on all of them.  The disc correlation lands 0.22 to 0.25 px off and
+# BodyLimbNav 0.15 to 0.28 px off, pulled toward the Sun by the Lambert template's
+# bias on the lunar-Lambert body (#1110).  No expected block asserts the tier.
+# BodyBlobNav lands 2.7 to 7.3 px off without flagging it (#975).
 #
 # On a Lambert surface the fused answer landed 0.036 to 0.072 px off, and the disc
 # correlation 0.020 to 0.046 px off on every draw, including the six seeds whose
@@ -83,8 +83,8 @@ offset_u: 161.29
 offset_rotation_deg: -0.0526
 expected:
   status: success
-  # The body shades with the default Lommel-Seeliger law, and the navigator's
+  # The body shades with the default lunar-Lambert law, and the navigator's
   # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
   # fused error over the seeds, measured as sim_truth.py describes.
-  known_offset_error_px: 0.2835
-  known_offset_error_tol_px: 0.0685
+  known_offset_error_px: 0.213
+  known_offset_error_tol_px: 0.08

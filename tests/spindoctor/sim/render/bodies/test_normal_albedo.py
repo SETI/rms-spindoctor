@@ -69,8 +69,8 @@ def test_a_normal_albedo_that_is_not_a_positive_finite_number_is_refused(
 def test_leaving_the_key_out_draws_the_law_itself() -> None:
     """A body without the key draws the law's own value, 1 at zero phase, at its center.
 
-    At zero phase the Lommel-Seeliger law is 1 everywhere on the disc, so the center
-    pixel reads exactly the law.
+    At zero phase the default lunar-Lambert law is Lommel-Seeliger's, 1 everywhere on
+    the disc, so the center pixel reads exactly the law.
     """
     body = disc_body(32.5, 32.5, 20.0, illumination_angle=0.0, phase_angle=0.0)
     image, _ = _drawn(body)

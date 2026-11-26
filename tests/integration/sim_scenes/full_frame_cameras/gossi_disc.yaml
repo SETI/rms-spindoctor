@@ -8,12 +8,13 @@ exposure_sec: 0.1
 # A Galileo SSI frame of a moon 240 px across, at a phase of 40 deg, with a
 # pointing error of 286 px, the larger of the library's two Galileo
 # scattered-light offsets, in a different direction.  The search window is
-# 350 px.  normal_albedo, 0.706, makes the disc as bright as Europa in
+# 350 px.  normal_albedo, 0.922, makes the disc as bright as Europa in
 # C0413742778R (27 deg phase, GREEN, 46 ms, ICT): the brightest 1% of the disc
 # reads 156 DN above the sky on both frames.  Neither disc reaches the 255 DN top
-# of the 8-bit range; the brightest disc pixel reads 244 DN here and 177 DN on the
-# real frame.  The middle third of the disc reads 95 DN above the sky, and the
-# real one 105 DN.
+# of the 8-bit range apart from one pixel of the scene's; the brightest disc pixel
+# reads 236 DN here and 177 DN on the real frame.  The middle third of the disc
+# reads 120 DN above the sky, and the real one 105 DN, because the real Europa
+# brightens toward its limb more than the lunar-Lambert law does.
 #
 # instrument_defaults turns on the camera's whole chain.  The scene plants the
 # measured Galileo sky noise, 0.96 DN, in place of the catalog's read noise,
@@ -41,8 +42,8 @@ offset_u: -234.81
 offset_rotation_deg: -0.0526
 expected:
   status: success
-  # The body shades with the default Lommel-Seeliger law, and the navigator's
+  # The body shades with the default lunar-Lambert law, and the navigator's
   # Lambert template pulls the answer toward the Sun (#1110).  The band holds the
   # fused error over the seeds, measured as sim_truth.py describes.
-  known_offset_error_px: 0.368
-  known_offset_error_tol_px: 0.055
+  known_offset_error_px: 0.305
+  known_offset_error_tol_px: 0.056
