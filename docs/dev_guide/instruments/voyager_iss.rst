@@ -201,12 +201,18 @@ in the raw frame, where ``R`` is the camera's ``flux_dn_per_s_vmag0`` (raw DN pe
 second for a V = 0 star through CLEAR at low gain), ``f`` is the frame's filter's
 ``filter_mag_offset``, and ``k`` is the ``dn_gain_factor`` of its gain state. The
 dimmest visible star puts ``min_detectable_dn`` in the frame, and the limit is that
-star's magnitude plus ``search_depth_mag`` (1.0). The navigator's image is in I/F,
-but the limit depends only on the ratio of the rate to ``min_detectable_dn``, and
-those share a scale. The filter and the gain state (``LO GAIN`` or ``HI GAIN``, read
-as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame whose
-filter or gain state the camera's entry lacks is refused, and a non-positive
-exposure returns ``-inf``, since it records no starlight.
+star's magnitude plus the camera's ``search_depth_mag``. The navigator's image is in
+I/F, but the limit depends only on the ratio of the rate to ``min_detectable_dn``,
+and those share a scale. The filter and the gain state (``LO GAIN`` or ``HI GAIN``,
+read as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame
+whose filter or gain state the camera's entry lacks is refused, and a frame whose
+exposure is not positive gets a limit of ``-inf``.
+
+Each of the four cameras searches 2.0 mag past its dimmest visible star. The star
+fields measure the limits below only to within 0.5 to 0.7 mag, and the published
+Voyager navigation figure, the narrow-angle camera reaching V 9.5 in 0.96 s, is 1.6
+to 2.3 mag deeper than the measured dimmest visible star, so a 1 mag search would
+leave out stars the camera can show.
 
 .. list-table:: Each camera's values, and its limit at 1 s through CLEAR at low gain
    :header-rows: 1
@@ -220,22 +226,22 @@ exposure returns ``-inf``, since it records no starlight.
      - 5.61e4
      - 3.92
      - 110
-     - V 7.8
+     - V 8.8
    * - Voyager 1 wide angle
      - 2.74e3
      - 3.94
      - 35
-     - V 5.7
+     - V 6.7
    * - Voyager 2 narrow angle
      - 8.66e4
      - 4.24
      - 110
-     - V 8.2
+     - V 9.2
    * - Voyager 2 wide angle
      - 4.6e3
      - 4.04
      - 35
-     - V 6.3
+     - V 7.3
 
 The Voyager 2 values were measured in 2026 on star fields of its cruise and
 encounters, read through the navigator's own reader and photometered on the raw
