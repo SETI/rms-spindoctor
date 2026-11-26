@@ -202,8 +202,8 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``65a34359`` on
-2026-11-25.
+code that made it.  The current record was made at commit ``ef1bf987`` on
+2026-11-26.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -211,7 +211,7 @@ the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (2026-11-25 record, 75 frames).  A label counts the frames that
+Cohort support (2026-11-26 record, 75 frames).  A label counts the frames that
 contribute to the figure of merit on each side, real and simulated, and the
 smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 *supported* for 8 or more.
@@ -367,7 +367,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-25; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-26; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -478,7 +478,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-25; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-26; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -638,19 +638,22 @@ The record also holds the photometric-law study
 (:ref:`sim-realism-law-study`).  For every moon the cohort shows resolved, whatever its
 frame's scene class, the study renders a twin under each of the four laws the simulator
 offers and compares how the brightness falls across the disc, measured by the fitted
-Minnaert exponent.  It measured 28 discs on 23 frames between 1.5 and 136 degrees
-phase: Dione, Tethys, Mimas, Rhea, Enceladus, and each hemisphere of Iapetus.  It left
-out 92 moons in view, each with its reason in the record: 70 under 10 px across, 14 of
-irregular shape, 3 clipped discs, 3 Iapetus hemispheres not lit in the frame, and two
-that showed too little of the lit disc.
+Minnaert exponent.  It measured 27 discs on 23 frames between 1.5 and 136 degrees
+phase: Dione, Tethys, Mimas, Rhea, Enceladus, and Iapetus, whose dark and bright
+terrains are measured apart, each over a cap drawn inside it.  It left out 93 moons in
+view, each with its reason in the record: 70 under 10 px across, 14 of irregular shape,
+3 clipped discs, 4 Iapetus terrain caps not lit on the side in view, and two that showed
+too little of the lit disc.
 
-Only Cassini frames of Saturnian moons back these numbers.  The Galileo, Voyager, and
-LORRI frames of the cohort hold no resolved moon, so the body statistics of those
-cameras (the limb peak, the rise width, the disc profile, and the law) are unchecked.
-The default law is also untested on surfaces unlike the Saturnian icy moons, such as
-volcanic, dark, or rocky and icy ones, apart from Iapetus's dark hemisphere, which the
-cohort shows once.  The cohort does not hold a resolved frame of the Jovian moons, the
-Uranian and Neptunian moons, Charon, Phoebe, Janus, Helene, Telesto, or Daphnis.
+Only Cassini frames of Saturnian moons back these numbers.  The study reads calibrated
+frames only, because its fits need each pixel in I/F.  The cohort's Galileo and LORRI
+frames are raw DN, so their moons do not enter it, and its Voyager frames show their
+moons at most a few pixels across.  For those cameras the body statistics (the limb
+peak, the rise width, the disc profile, and the law) are unchecked.  The default law is
+also untested on surfaces unlike the Saturnian icy moons, such as volcanic or rocky and
+icy ones; the one dark surface measured is Iapetus's dark terrain, on one frame.  The
+cohort does not hold a resolved frame of the Jovian moons, the Uranian and Neptunian
+moons, Charon, Phoebe, Janus, Helene, Telesto, or Daphnis.
 
 Each law's median distance of its twins' exponent from the real discs':
 
@@ -659,35 +662,37 @@ Each law's median distance of its twins' exponent from the real discs':
    :widths: 34 22 22 22
 
    * - Law
-     - below 60 deg (13 discs)
+     - below 60 deg (12 discs)
      - 60 to 120 deg (13 discs)
      - above 120 deg (2 discs)
    * - Lambert
-     - 0.333
-     - 0.145
-     - 0.193
+     - 0.328
+     - 0.118
+     - 0.181
    * - Lommel-Seeliger
-     - 0.128
-     - 0.137
-     - 0.058
-   * - lunar-Lambert (the default)
-     - 0.049
-     - 0.053
-     - 0.193
-   * - Minnaert, exponent from the real discs' trend
+     - 0.140
+     - 0.147
      - 0.036
-     - 0.067
-     - 0.122
+   * - lunar-Lambert (the default)
+     - 0.037
+     - 0.057
+     - 0.181
+   * - Minnaert, exponent from the real discs' trend
+     - 0.023
+     - 0.063
+     - 0.146
 
 In both bins with a comparison the default agrees best among the laws that separate from
-it (bands 0.054 and 0.065).  Minnaert's law, whose exponent is fitted to the same real
+it (bands 0.032 and 0.046).  Minnaert's law, whose exponent is fitted to the same real
 discs, does not separate from it.  The default's disc-profile check lies within its band
-in both narrow-angle bins with a verdict.  Two findings stand apart.  Iapetus's dark
-hemisphere falls more gently than every twin (exponent 0.44; the default misses by 0.36
-and Lommel-Seeliger by 0.19), so the one dark surface in the cohort does not follow the
-default.  The two discs above 120 degrees, where the default is Lambert's, fall more
-gently than Lambert's law, closer to Lommel-Seeliger's.  Both rest on too few frames for
-a verdict.
+in both narrow-angle bins with a verdict: -0.012 against 0.028 below 60 degrees, and
++0.043 against 0.046 at 60 to 120 degrees.  Each band comes from the scatter of the
+same twin-and-real pairs it judges.  Iapetus's dark terrain follows the default (exponent
+0.85; the default misses by 0.04).  Two findings stand apart, both on too few frames for
+a verdict.  Iapetus's bright terrain at 81 degrees falls more steeply than every twin
+(exponent 1.10; Lambert misses by 0.09 and the default by 0.21).  The two discs above
+120 degrees, where the default is Lambert's, fall more gently than Lambert's law, closer
+to Lommel-Seeliger's.
 
 .. figure:: _figures/realism_law_fits.png
    :width: 100%
@@ -911,7 +916,7 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-25 pairs:
+2026-11-26 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the

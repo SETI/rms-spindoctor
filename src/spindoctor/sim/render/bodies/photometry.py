@@ -4,11 +4,13 @@ The renderer shades body discs with a scene-selected law --
 Lambert, Lommel-Seeliger, Minnaert(k), or a lunar-Lambert blend -- plus an
 optional opposition-surge factor.  A body that leaves the law out shades with
 :data:`PHOTOMETRIC_LAW_DEFAULT`, lunar-Lambert with McEwen's blend.  Real Cassini
-frames of Saturn's icy moons follow that law: the blend fitted to each real disc
-differs from McEwen's curve by 0.12 rms over phases from 1 to 136 degrees, and the
-law reproduces both the brightness across the disc and the position of the limb's
-brightness gradient peak.  A Lambert disc is too dark toward the sunlit limb at low
-phase, where its gradient peak sits 0.3 to 0.5 px inside the silhouette.
+frames of Saturn's icy moons follow that law: over 27 discs at phases from 1.5 to 136
+degrees, the blend fitted to each real disc differs from McEwen's curve by an rms of
+0.15 and a mean under 0.001, and the law reproduces both the brightness across the disc
+and the position of the limb's brightness gradient peak.  A Lambert disc is too dark
+toward the sunlit limb at low phase: on discs under 100 px across below 60 degrees, its
+gradient peak sits 0.53 px inside the silhouette, where the real limbs' sits 0.06 px
+inside and the default law's 0.01 px.
 
 The law is a truth key: the navigator's predicted-body model always shades with
 Lambert (:func:`spindoctor.sim.shared.ellipsoid.lambert_from_normals`), so a scene
