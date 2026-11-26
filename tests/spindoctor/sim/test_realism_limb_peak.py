@@ -62,6 +62,14 @@ def test_a_track_leaving_the_image_has_no_peak() -> None:
     assert np.isnan(peaks[0])
 
 
+def test_a_frame_with_a_nan_pixel_is_refused() -> None:
+    """A NaN pixel far from every track would spread through the spline; it is refused."""
+    image = _vertical_edge(20.3)
+    image[2, 2] = np.nan
+    with pytest.raises(ValueError, match='NaN or infinite pixels'):
+        gradient_peak_positions(image, np.array([[20.0, 20.3]]), np.array([[0.0, 1.0]]))
+
+
 def test_an_inward_brightening_edge_has_no_peak() -> None:
     """A normal pointing from the sky into the disc finds no limb."""
     image = _vertical_edge(20.3)

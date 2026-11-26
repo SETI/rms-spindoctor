@@ -106,8 +106,13 @@ def gradient_peak_positions(
     error averages to zero over the edge's sub-pixel positions, which a limb's vertices
     cover evenly.
 
+    The spline is fitted to the whole frame at once, and one NaN or infinite pixel
+    anywhere would spread through it to every sample, so the frame must be finite.  The
+    navigator's working image already is: it fills missing pixels before it computes
+    the gradients, which themselves refuse a pixel that is not finite.
+
     Parameters:
-        image: The 2-D frame.
+        image: The 2-D frame, finite everywhere.
         silhouette_vu: ``(N, 2)`` points on the body's silhouette, already moved by the
             frame's offset so that they lie on the limb in the image.
         normals_vu: ``(N, 2)`` outward normals at those points (scaled to unit length
@@ -116,8 +121,16 @@ def gradient_peak_positions(
     Returns:
         ``(N,)`` signed distances in pixels, positive outward, NaN where no peak was
         found.
+
+    Raises:
+        ValueError: If the frame holds a NaN or infinite pixel.
     """
     arr = np.asarray(image, dtype=np.float64)
+    if not np.isfinite(arr).all():
+        raise ValueError(
+            'the frame holds NaN or infinite pixels, which the whole-frame spline would '
+            'spread to every sample; fill them before measuring the limb'
+        )
     points = np.asarray(silhouette_vu, dtype=np.float64)
     out = np.full(points.shape[0], np.nan)
     if points.shape[0] == 0:
