@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -263,6 +264,34 @@ def test_a_large_disc_keeps_at_most_sixty_thousand_pixels() -> None:
     mask = np.ones((400, 400), dtype=bool)
     kept = int(sim_realism_laws._decimate(mask).sum())
     assert kept == 53_334
+
+
+def _cover_obs() -> tuple[Any, dict[str, dict[str, Any]]]:
+    """A frame holding a near and a far body whose boxes overlap."""
+    near = np.zeros((40, 40), dtype=bool)
+    near[10:20, 10:20] = True
+    far = np.zeros((40, 40), dtype=bool)
+    far[15:30, 15:30] = True
+    masks = {'NEAR': near, 'FAR': far}
+    backplane = SimpleNamespace(where_intercepted=lambda name: SimpleNamespace(vals=masks[name]))
+    obs = SimpleNamespace(data=np.zeros((40, 40)), bp=backplane)
+    box = {'u_min': 10, 'u_max': 30, 'v_min': 10, 'v_max': 30}
+    entries = {'NEAR': {**box, 'range': 1.0e6}, 'FAR': {**box, 'range': 2.0e6}}
+    return obs, entries
+
+
+def test_a_nearer_body_hides_its_pixels_and_a_margin() -> None:
+    """The far body loses the near body's pixels, widened by the disc clearance."""
+    obs, entries = _cover_obs()
+    cover = sim_realism_laws._nearer_cover(obs, (0.0, 0.0), entries['FAR'], list(entries.items()))
+    assert cover[22, 15]
+
+
+def test_a_farther_body_hides_nothing() -> None:
+    """The near body loses no pixels to the far body behind it."""
+    obs, entries = _cover_obs()
+    cover = sim_realism_laws._nearer_cover(obs, (0.0, 0.0), entries['NEAR'], list(entries.items()))
+    assert not cover.any()
 
 
 def _sphere_disc(law: str, **kwargs: float) -> RealDisc:

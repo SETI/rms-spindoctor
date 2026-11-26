@@ -9,7 +9,8 @@ real frame, whatever the frame's scene class.  A moon is measured when its shape
 regular, it has no atmosphere, its disc is not clipped at the camera's full scale, at
 least a quarter of its lit disc lies in the frame, and enough lit pixels lie clear of
 the limb and the terminator.  Every moon in view that fails one of these is listed with
-its reason.  The disc's pixels are selected and fitted with
+its reason.  The pixels a nearer moon or the planet covers are left out of a moon's
+disc, since the frame's geometry traces each body alone.  The disc's pixels are selected and fitted with
 :mod:`spindoctor.sim.realism.disc_profile`: Minnaert's exponent ``k``, the lunar-Lambert
 blend ``L``, and the brightness profile along the photometric equator.  A moon whose two
 hemispheres differ in albedo, as the mission's frame reader says, is measured one
@@ -46,7 +47,7 @@ claimed.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -537,8 +538,13 @@ def collect_real_discs(
         np.zeros(data.shape, dtype=bool) if clipped is None else np.asarray(clipped, dtype=bool)
     )
     usable = np.isfinite(data) & (data > 0.0) & ~full_scale
-    for body, entry in bodies_in_extfov(obs, config=DEFAULT_CONFIG):
-        if body == planet or not obs.inventory_body_in_fov(entry):
+    in_view = [
+        (body, entry)
+        for body, entry in bodies_in_extfov(obs, config=DEFAULT_CONFIG)
+        if obs.inventory_body_in_fov(entry)
+    ]
+    for body, entry in in_view:
+        if body == planet:
             continue
         diameter = float(max(entry['u_pixel_size'], entry['v_pixel_size']))
         if diameter < 1.0:
@@ -558,10 +564,46 @@ def collect_real_discs(
             diameter_px=diameter,
             center_uv=(float(entry['center_uv'][0]), float(entry['center_uv'][1])),
             data=data,
-            usable=usable,
+            usable=usable & ~_nearer_cover(obs, frame.offset_vu, entry, in_view),
             full_scale=full_scale,
             dark_west_lon_deg=dark_hemispheres.get(body),
         )
+
+
+def _boxes_overlap(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
+    """Whether two inventory entries' pixel boxes overlap."""
+    return bool(
+        a['u_min'] <= b['u_max']
+        and b['u_min'] <= a['u_max']
+        and a['v_min'] <= b['v_max']
+        and b['v_min'] <= a['v_max']
+    )
+
+
+def _nearer_cover(
+    obs: Any,
+    offset_vu: tuple[float, float],
+    entry: Mapping[str, Any],
+    in_view: Sequence[tuple[str, Mapping[str, Any]]],
+) -> NDArrayBoolType:
+    """The pixels that a body nearer than ``entry``'s covers, widened by the blur.
+
+    The frame's geometry traces each body alone, so where a nearer moon or the planet
+    passes in front of a moon, the moon's backplanes still mark those pixels as its
+    own.  They are left out of its disc, with a margin of the disc clearance for the
+    blur of the nearer body's limb.
+    """
+    cover = np.zeros(np.shape(obs.data), dtype=bool)
+    for other, other_entry in in_view:
+        if other_entry is entry or other_entry['range'] >= entry['range']:
+            continue
+        if not _boxes_overlap(entry, other_entry):
+            continue
+        hit = np.asarray(obs.bp.where_intercepted(other).vals, dtype=bool)
+        cover |= _shift(hit, offset_vu, False)
+    if cover.any():
+        cover = scipy.ndimage.binary_dilation(cover, iterations=math.ceil(DISC_CLEARANCE_PX))
+    return np.asarray(cover, dtype=bool)
 
 
 def _exclusion_by_kind(body: str) -> str | None:
