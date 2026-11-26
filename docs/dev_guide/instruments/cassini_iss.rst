@@ -637,10 +637,10 @@ Cassini PCK after NAIF's, and it gives the older radii of Thomas et al. (2007): 
 540.4 by 531.1 by 527.5 km against 538.4 by 528.3 by 526.3 km, and Rhea's long axis
 767.2 km against 765.0 km. Against the older radii, four of the five real Tethys limbs
 in the cohort lay 0.24% to 0.35% of their radius inside their matched limbs, 0.98 px
-on a disc 765 px across. Against the IAU radii all five lie within 0.19 px of their
-matched limbs, and the narrow angle bin at 60 to 120 degrees phase and 100 to 400 px
-lies within its band. Only the silhouettes use the IAU radii. The body models, the
-albedo measurement, and real navigation keep the Cassini PCK's.
+on a disc 765 px across. Against the IAU radii they lie from 0.04 px inside to 0.24 px
+outside their matched limbs, and the narrow angle bin at 60 to 120 degrees phase and
+100 to 400 px lies within its band. Only the silhouettes use the IAU radii. The body
+models, the albedo measurement, and real navigation keep the Cassini PCK's.
 
 One limb in that bin is not explained: a Dione frame taken through the P120 polarizer
 and the MT2 methane-band filter at 107 degrees phase, N1489256001, peaks 0.06 px inside

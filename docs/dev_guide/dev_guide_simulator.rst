@@ -6511,8 +6511,10 @@ reads the same pixels.  The value includes the surface's darkening with phase, s
 the laws have no phase function: a Dione disc at 34 degrees phase in the RED and GRN
 filters measures 0.50, and one at 107 degrees through a methane-band filter 0.14.  A
 raw product is not in I/F, and a clipped disc's I/F is the clip level, so either leaves
-its matched body white.  On four NAC limb frames, the matched frame gives back the
-measured albedo to 0.2%.
+its matched body white.  The same measurement made on the matched frame gives back the
+albedo it was given to 0.1% on the four NAC limb frames.  Over all 22 matched NAC frames
+that take an albedo it comes back within 1.6%, least closely on small discs and at high
+phase.
 
 **What the matched limbs show.**  On 2026-11-26, with each matched body at its real
 body's brightness, two NAC bins have at least 3 real limbs, and both lie within their
@@ -6548,8 +6550,9 @@ In the bin at 60 to 120 degrees and 100 to 400 px, the four real limbs, of Dione
 Tethys between 74 and 111 degrees phase, lie from 0.06 px inside the silhouette to
 0.19 px outside it, and their median lies 0.08 px outside the matched median.  The
 limb 0.06 px inside, a Dione limb at 107 degrees phase through a polarizer and a
-methane-band filter, is the only real limb of the four inside its silhouette, and that
-is not explained.  The Cassini chapter gives the frame.
+methane-band filter, lies the farthest inside its silhouette of the four, and that is
+not explained.  The next, a Dione limb at 75 degrees phase, lies 0.03 px inside.  The
+Cassini chapter gives the frame.
 
 The other bins hold one or two paired limbs and have no verdict: below 60 degrees
 under 100 px, -0.06 real against -0.11 matched (2 limbs each); below 60 degrees at
