@@ -19,9 +19,9 @@ Pipeline support
   `Corrected-pointing C-kernels`_.
 * **Backplanes** -- supported.
 * **Mosaics** -- supported, body and ring.
-* **PDS4 bundles** -- not supported. The dataset defines a bundle name and a
-  label template directory, but the remaining hooks are unimplemented and the
-  configuration entry is a commented-out stub.
+* **PDS4 bundles** -- not supported. ``sd_create_bundle``
+  (:doc:`/user_guide/user_guide_pds4_bundle`) stops with a message saying that the
+  dataset does not produce PDS4 bundles.
 * **Simulator** -- supported, under the instrument key ``gossi``.
 * **Statistics** -- supported.
 

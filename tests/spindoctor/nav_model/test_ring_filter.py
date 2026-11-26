@@ -17,6 +17,7 @@ import logging
 from typing import Any
 
 import pytest
+from tests.ring_sections import ring_feature
 
 from spindoctor.nav_model.rings.ring_feature import RingFeature
 from spindoctor.nav_model.rings.ring_filter import RingFeatureFilter
@@ -50,7 +51,7 @@ def _make_ringlet(
         d['start_date'] = start_date
     if end_date:
         d['end_date'] = end_date
-    return RingFeature.from_config(key, d)
+    return ring_feature(key, d)
 
 
 def _make_gap(
@@ -71,7 +72,7 @@ def _make_gap(
         d['start_date'] = start_date
     if end_date:
         d['end_date'] = end_date
-    return RingFeature.from_config(key, d)
+    return ring_feature(key, d)
 
 
 def _make_single_edge_ringlet(
@@ -79,7 +80,7 @@ def _make_single_edge_ringlet(
     inner_a: float = 100_000.0,
 ) -> RingFeature:
     """Return a RINGLET with only an inner edge (no outer)."""
-    return RingFeature.from_config(
+    return ring_feature(
         key,
         {
             'feature_type': 'RINGLET',

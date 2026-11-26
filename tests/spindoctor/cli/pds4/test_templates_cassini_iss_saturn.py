@@ -657,7 +657,7 @@ def test_only_the_ring_image_s_data_label_describes_ring_arrays(
     ]
     # The writer never writes a ring plane named distance as an array of its own.
     configured = [
-        entry['name'] for entry in DEFAULT_CONFIG.backplanes.rings if entry['name'] != 'distance'
+        entry.name for entry in DEFAULT_CONFIG.backplanes.rings if entry.name != 'distance'
     ]
     expected = sorted(configured) if has_rings else []
     assert sorted(name for name in identifiers if name.startswith('ring_')) == expected
@@ -774,7 +774,7 @@ def test_every_float_array_of_a_cohort_data_label_says_what_it_holds(
     """
     root, fits_copy = _labeled_fits(cassini_cohort, tmp_path, stub, image_name)
     methods = {
-        entry['name']: entry['method']
+        entry.name: entry.method
         for entry in [*DEFAULT_CONFIG.backplanes.bodies, *DEFAULT_CONFIG.backplanes.rings]
     }
     with fits.open(fits_copy) as hdul:

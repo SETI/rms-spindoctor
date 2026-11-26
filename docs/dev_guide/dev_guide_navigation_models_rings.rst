@@ -21,7 +21,7 @@ Registered concrete subclasses:
   :doc:`dev_guide_navigation_models_ring_simulated`.
 
 The :mod:`spindoctor.nav_model.rings` subpackage holds the catalog-driven ring data model —
-validation, filtering, and rendering are separated so each concern can be tested in
+data types, filtering, and rendering are separated so each concern can be tested in
 isolation (``ring_types``, ``ring_feature``, ``ring_filter``, ``ring_math``,
 ``ring_render_context``, ``ring_render_result``).
 

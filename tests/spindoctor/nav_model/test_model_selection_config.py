@@ -15,7 +15,7 @@ from spindoctor.nav_model.nav_model_rings import NavModelRings
 class _FakeJupiterObs:
     """Observation stand-in exposing what ring-model selection inspects."""
 
-    closest_planet = 'jupiter'
+    closest_planet = 'JUPITER'
     extdata_shape_vu = (10, 10)
     ext_bp = object()
 
@@ -23,7 +23,10 @@ class _FakeJupiterObs:
 def _config_with_jupiter_rings(tmp_path: Path) -> Config:
     override = tmp_path / 'override.yaml'
     override.write_text(
-        'rings:\n  ring_features:\n    jupiter:\n      main:\n        fiducial_features: []\n'
+        "rings:\n  ring_features:\n    JUPITER:\n      epoch: '2000-01-01 12:00:00'\n"
+        '      fade_width_pix: 100.0\n      min_allowed_fade_width_pix: 3.0\n'
+        '      min_feature_pixels: 2.0\n      features: {}\n',
+        encoding='utf-8',
     )
     config = Config()
     config.update_config(override)
@@ -42,7 +45,7 @@ def test_rings_selection_honors_config_override(tmp_path: Path) -> None:
     config = _config_with_jupiter_rings(tmp_path)
     instances = NavModelRings.instances_for_obs(cast(Any, _FakeJupiterObs()), config=config)
     assert len(instances) == 1
-    assert instances[0].name == 'rings:jupiter'
+    assert instances[0].name == 'rings:JUPITER'
     assert instances[0]._config is config
 
 
