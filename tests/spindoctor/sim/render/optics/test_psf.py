@@ -199,6 +199,24 @@ def test_a_fully_lit_plane_gives_the_whole_frame_convolution_exactly() -> None:
     assert np.array_equal(_blur(signal), fftconvolve(signal, _kernel(), mode='same'))
 
 
+def test_a_one_pixel_kernel_leaves_the_plane_exactly() -> None:
+    """A kernel cut to one pixel gives the whole-frame convolution, the plane itself."""
+    signal = np.random.default_rng(6).uniform(0.0, 1.0, size=(120, 100))
+    out = signal.copy()
+    apply_psf(
+        out,
+        np.zeros_like(out),
+        sigma_v=0.7,
+        sigma_u=0.7,
+        w=0.0,
+        r0=2.0,
+        n=3.0,
+        truncation_px=0,
+        oversample=1,
+    )
+    assert np.array_equal(out, signal)
+
+
 def test_coiss_uses_a_wider_truncation_window() -> None:
     """Cassini cameras get the documented wider PSF window."""
     assert resolve_psf_truncation_px('coiss_nac') == 32

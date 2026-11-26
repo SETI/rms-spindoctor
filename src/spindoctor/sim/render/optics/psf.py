@@ -142,17 +142,18 @@ def _full_convolution(image: NDArrayFloatType, kernel: NDArrayFloatType) -> NDAr
     so the result is the same to the last bit, without its copies: the spectra are
     multiplied in place, the inverse transform may reuse the product's memory, and
     the result is a view of the inverse transform.  On an oversampled frame each of
-    those copies costs about as much as a transform.  An image one pixel wide or tall
-    goes to ``fftconvolve`` itself, which transforms only the other axis.
+    those copies costs about as much as a transform.  An image or kernel one pixel
+    wide or tall goes to ``fftconvolve`` itself, which transforms only the axes along
+    which both are longer than one pixel, and multiplies when there are none.
 
     Parameters:
         image: The image.
-        kernel: The kernel, at least two pixels on each side.
+        kernel: The kernel.
 
     Returns:
         The ``(rows + kernel rows - 1, columns + kernel columns - 1)`` convolution.
     """
-    if 1 in image.shape:
+    if 1 in image.shape or 1 in kernel.shape:
         whole: NDArrayFloatType = fftconvolve(image, kernel)
         return whole
     shape = [image.shape[axis] + kernel.shape[axis] - 1 for axis in (0, 1)]
