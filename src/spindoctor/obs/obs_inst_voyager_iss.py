@@ -23,7 +23,7 @@ _LAB03_GAIN_RE = re.compile(r'\b(?P<gain>LO|HI) GAIN\b')
 
 _GAIN_STATES = {'LO': 'LOW', 'HI': 'HIGH'}
 """The gain state each ``LAB03`` spelling stands for, named as the PDS3 label's
-``GAIN_MODE_ID`` names it."""
+``GAIN_MODE_ID`` spells it."""
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both

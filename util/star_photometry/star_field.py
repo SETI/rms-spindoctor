@@ -294,7 +294,7 @@ def _centroid(image: FloatArray, v: float, u: float, radius: int) -> tuple[float
         radius: Half-size of the box in pixels.
 
     Returns:
-        The centroid ``(v, u)``, or the starting point when the box holds no positive signal.
+        The centroid ``(v, u)``, or the starting point when nothing in the box is positive.
     """
     iv, iu = round(v), round(u)
     v0, v1 = max(iv - radius, 0), min(iv + radius + 1, image.shape[0])

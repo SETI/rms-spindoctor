@@ -26,7 +26,7 @@ _STAR_PHOTOMETRY_SECTION = 'galileo_ssi_star_photometry'
 
 _GAIN_STATES = {1: '400K', 2: '100K', 3: '40K', 4: '10K'}
 """The gain state each value of the VICAR label's ``GAIN`` item stands for, named as the
-PDS3 label's ``GAIN_MODE_ID`` names it."""
+PDS3 label's ``GAIN_MODE_ID`` spells it."""
 
 
 def _sclk_count(fields: Sequence[int]) -> Fraction:

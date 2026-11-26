@@ -255,7 +255,7 @@ def _star_rows(records: Iterable[dict[str, Any]], *, gain_field: str) -> list[di
 
     Parameters:
         records: Frame records.
-        gain_field: The frame field that names the gain state (``gain_state``, or ``mode``
+        gain_field: The frame field that holds the gain state (``gain_state``, or ``mode``
             for a camera whose DN per electron changes with the readout mode).
 
     Returns:
@@ -318,7 +318,7 @@ def fit_camera(
         records: The camera's frame records.
         reference_filter: The filter the rate refers to (offsets are relative to it).
         reference_gain: The gain state the rate refers to (ratios are relative to it).
-        gain_field: The frame field naming the gain state (see :func:`_star_rows`).
+        gain_field: The frame field holding the gain state (see :func:`_star_rows`).
         min_texp: Frames exposed less than this (seconds) are left out of the zero point and
             the detection limit (they stay in the per-frame table): a camera whose shortest
             exposures do not scale with the commanded time, such as one without a shutter
@@ -723,7 +723,7 @@ def _frame_table(
         result: The camera's fit.
         accepted: The accepted frame records.
         rows: Every star row.
-        gain_field: The frame field naming the gain state.
+        gain_field: The frame field holding the gain state.
 
     Returns:
         One row per accepted frame.
@@ -861,7 +861,7 @@ def main() -> None:
         '--gain-field',
         default='gain_state',
         choices=('gain_state', 'mode'),
-        help='The frame field naming the gain state',
+        help='The frame field holding the gain state',
     )
     parser.add_argument(
         '--min-texp',

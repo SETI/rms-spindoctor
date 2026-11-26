@@ -456,8 +456,8 @@ scene shows only that the navigator ignores this approximation of the header.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
 the star limit of each binning mode at 1 s, 2.5 mag per factor of ten in exposure,
-``-inf`` for a non-positive exposure, the refusal of a row count that names no
-mode, and each mode's star sigma. It also
+``-inf`` for a non-positive exposure, the refusal of a row count other than
+1024 or 256, and each mode's star sigma. It also
 pins the published clock counts: fractional seconds, a midtime count that is
 the float nearest their exact mean, and counts read from the PDS3 label beside
 the image.

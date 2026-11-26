@@ -81,8 +81,8 @@ class FrameInput:
         image_id: The image's name, unique within the instrument.
         path: The image the navigator reads.
         camera: The camera key (for example ``'NAC'``).
-        filter_name: The filter as the index names it.
-        gain_state: The gain state as the index names it.
+        filter_name: The filter as the index spells it.
+        gain_state: The gain state as the index spells it.
         mode: The readout, summation, or binning mode.
         texp: Exposure in seconds.
         extra: Further index fields worth keeping with the record.
@@ -133,7 +133,7 @@ class MeasureParams:
         ee_n_bins: Radial bins of the encircled-energy profile.
         highpass_subsample: Pixel step of the high-pass filter's median (see
             :func:`util.star_photometry.star_field.highpass`).
-        missing_value: A photometric-image pixel at or below this value carries no data (a
+        missing_value: A photometric-image pixel at or below this value is missing data (a
             lost line or a part of the frame not returned); a star with one in its large
             aperture or sky annulus is flagged ``no_data``.  None when every value is data.
     """

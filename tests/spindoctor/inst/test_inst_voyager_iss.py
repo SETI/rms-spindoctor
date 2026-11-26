@@ -167,13 +167,13 @@ def test_a_non_positive_exposure_admits_no_star() -> None:
 
 
 def test_a_filter_the_camera_lacks_is_refused() -> None:
-    """The narrow-angle camera has no SODIUM filter, and the error names it."""
+    """The narrow-angle camera lacks a SODIUM filter, and the error says which filter."""
     with pytest.raises(ValueError, match="no filter_mag_offset for the NAC filter 'SODIUM'"):
         _star_obs(filter_name='SODIUM').star_max_usable_vmag()
 
 
 def test_a_label_without_a_gain_state_is_refused() -> None:
-    """The limit needs the gain state; a LAB03 record that states none names the gap."""
+    """The limit needs the gain state, so a LAB03 record without one is refused."""
     with pytest.raises(ValueError, match='NAC label states no gain state in LAB03'):
         _star_obs(gain='XX').star_max_usable_vmag()
 

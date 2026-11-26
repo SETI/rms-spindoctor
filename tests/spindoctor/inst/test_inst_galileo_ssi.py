@@ -79,13 +79,13 @@ def test_a_non_positive_exposure_admits_no_star() -> None:
 
 
 def test_a_filter_without_an_offset_is_refused() -> None:
-    """A filter the photometry table does not carry names itself in the error."""
+    """A filter the photometry table does not carry appears in the error."""
     with pytest.raises(ValueError, match="no filter_mag_offset for the filter 'IR-1234'"):
         _star_obs(filter_name='IR-1234').star_max_usable_vmag()
 
 
 def test_a_label_without_a_known_gain_state_is_refused() -> None:
-    """A GAIN item that names no gain state names itself in the error."""
+    """A GAIN item outside 1 to 4 appears in the error."""
     with pytest.raises(ValueError, match='SSI label states no known gain state: GAIN is 7'):
         _star_obs(gain=7).star_max_usable_vmag()
 

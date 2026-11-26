@@ -157,7 +157,7 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         """
         rows = int(self.data_shape_vu[0])
         if rows not in _BINNING_BY_ROWS:
-            raise ValueError(f'LORRI frame has {rows} rows, which names no binning mode')
+            raise ValueError(f'LORRI frame has {rows} rows; a binning mode needs 1024 or 256')
         return _BINNING_BY_ROWS[rows]
 
     def star_max_usable_vmag(self) -> float:
@@ -195,8 +195,8 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             records no starlight.
 
         Raises:
-            ValueError: If the frame's row count names no binning mode, or the section
-                has no values for its binning mode.
+            ValueError: If the frame has neither 1024 nor 256 rows, or the section lacks
+                values for its binning mode.
         """
         if self.texp <= 0.0:
             return -math.inf
@@ -219,8 +219,8 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
             configuration section for the frame's binning mode.
 
         Raises:
-            ValueError: If the frame's row count names no binning mode, or the section
-                has no width for its binning mode.
+            ValueError: If the frame has neither 1024 nor 256 rows, or the section lacks a
+                width for its binning mode.
         """
         widths = self.config.newhorizons_lorri_star_photometry.lorri.star_psf_sigma
         binning = self.binning

@@ -60,8 +60,10 @@ def test_a_non_positive_exposure_admits_no_star() -> None:
 
 
 def test_a_row_count_of_no_binning_mode_is_refused() -> None:
-    """A frame of neither 1024 nor 256 rows names its row count in the error."""
-    with pytest.raises(ValueError, match='LORRI frame has 512 rows, which names no binning mode'):
+    """A frame of neither 1024 nor 256 rows gives its row count in the error."""
+    with pytest.raises(
+        ValueError, match='LORRI frame has 512 rows; a binning mode needs 1024 or 256'
+    ):
         _star_obs(rows=512).star_max_usable_vmag()
 
 

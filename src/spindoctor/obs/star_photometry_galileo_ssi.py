@@ -18,10 +18,10 @@ __all__ = [
 ]
 
 #: A Galileo SSI gain state, named by the full-well signal it allows, as the PDS3 label's
-#: ``GAIN_MODE_ID`` names it.
+#: ``GAIN_MODE_ID`` spells it.
 GalileoSSIGainState = Literal['10K', '40K', '100K', '400K']
 
-#: A Galileo SSI filter, as the label's ``FILTER_NAME`` names it.
+#: A Galileo SSI filter, as the label's ``FILTER_NAME`` spells it.
 GalileoSSIFilter = Literal[
     'CLEAR', 'VIOLET', 'GREEN', 'RED', 'IR-7270', 'IR-7560', 'IR-8890', 'IR-9680'
 ]

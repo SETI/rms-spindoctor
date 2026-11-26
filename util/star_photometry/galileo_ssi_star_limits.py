@@ -1,6 +1,6 @@
 """Measure Galileo SSI star fields for the photometric star limit and the star PSF.
 
-Frames are those the PDS3 index names a star-field target (``BLACK_SKY``, ``STAR``, or a named
+Frames are those whose PDS3 index target is a star field (``BLACK_SKY``, ``STAR``, or a named
 star or cluster such as ``PLEIADES``), on every volume or on the volumes named on the command
 line, read through the navigator's own reader.  The cruise star calibrations of November 1990
 (``GO_0002``) supply most measurable stars; the black-sky frames of ``GO_0008`` and ``GO_0009``

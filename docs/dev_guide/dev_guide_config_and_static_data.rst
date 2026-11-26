@@ -173,7 +173,7 @@ returns the typed object:
   :doc:`dev_guide_navigation_models_star`) and reads its star sigma there. Each section
   has its own dataclass, because the instruments' detectors differ in what they state,
   and the instrument's chapter under :doc:`/dev_guide/instruments/instruments`
-  describes it. A key that names a filter, a gain state, or a readout mode is spelled
+  describes it. A key for a filter, a gain state, or a readout mode is spelled
   the way the image label spells it, and one the instrument doesn't have is refused.
 
 Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,

@@ -19,10 +19,10 @@ __all__ = [
     'VoyagerISSStarPhotometrySection',
 ]
 
-#: A Voyager ISS gain state, as the PDS3 label's ``GAIN_MODE_ID`` names it.
+#: A Voyager ISS gain state, as the PDS3 label's ``GAIN_MODE_ID`` spells it.
 VoyagerISSGainState = Literal['LOW', 'HIGH']
 
-#: A filter of either Voyager camera, as the label names it.
+#: A filter of either Voyager camera, as the label spells it.
 VoyagerISSFilter = Literal[
     'CLEAR', 'VIOLET', 'BLUE', 'GREEN', 'ORANGE', 'UV', 'SODIUM', 'CH4_JS', 'CH4_U'
 ]
