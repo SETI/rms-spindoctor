@@ -110,7 +110,7 @@ def test_each_mode_carries_exactly_one_activation_key(mode_name: str) -> None:
 def test_radiation_transients_semantics_state_its_scaling() -> None:
     """radiation_transients reads as a rate per second times the factor and the times."""
     semantics = ARTIFACT_MODES['radiation_transients'].activation_semantics
-    words = ('per second', 'environment_factor', 'exposure_sec + readout_dwell_sec')
+    words = ('per second', 'environment_factor', 'integration time + readout_dwell_sec')
     assert [word for word in words if word not in semantics] == []
 
 
