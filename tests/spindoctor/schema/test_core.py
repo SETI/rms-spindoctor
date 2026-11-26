@@ -6,6 +6,7 @@ They do not test pydantic's own parsing.
 """
 
 import enum
+import math
 from dataclasses import InitVar, dataclass, field
 from typing import Annotated, Any, Literal
 
@@ -45,6 +46,10 @@ from spindoctor.schema.core import (
         ),
         ({'float_': True}, 'test.yaml: float_: expected a number, got bool True'),
         ({'float_': float('inf')}, 'test.yaml: float_: expected a finite number, got float inf'),
+        (
+            {'float_or_nan': float('-inf')},
+            'test.yaml: float_or_nan: expected a finite number or NaN, got float -inf',
+        ),
         ({'int_': 1.0}, 'test.yaml: int_: expected an integer, got float 1.0'),
         ({'bool_': 1}, 'test.yaml: bool_: expected a boolean, got int 1'),
         ({'str_': 3}, 'test.yaml: str_: expected a string, got int 3'),
@@ -74,6 +79,7 @@ from spindoctor.schema.core import (
         'float-string',
         'float-bool',
         'float-infinite',
+        'float-or-nan-infinite',
         'int',
         'bool',
         'str',
@@ -110,6 +116,12 @@ def test_alias_refuses_value(raw: dict[str, Any], message: str) -> None:
 def test_alias_reads_value(raw: dict[str, Any], attribute: str, value: object) -> None:
     """Each alias reads the values its type allows."""
     assert getattr(parse(Aliases, raw, source='test.yaml'), attribute) == value
+
+
+def test_float_or_nan_reads_nan() -> None:
+    """A FloatOrNan field reads a NaN, which a Float field refuses."""
+    parsed = parse(Aliases, {'float_or_nan': float('nan')}, source='test.yaml')
+    assert math.isnan(parsed.float_or_nan)
 
 
 def test_float_reads_an_integer_as_a_float() -> None:
