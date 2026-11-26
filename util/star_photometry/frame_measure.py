@@ -39,15 +39,14 @@ from oops import Meshgrid
 from oops.backplane import Backplane
 from util.star_photometry.star_field import (
     aperture_photometry,
-    apply_fix,
     detect_peaks,
     detection_test,
     encircled_energy_radii,
-    find_pointing,
     fit_gaussian_psf,
     highpass,
     robust_sigma,
 )
+from util.star_photometry.star_pointing import apply_fix, find_pointing
 
 from spindoctor.config.config import Config
 from spindoctor.nav_model.stars.catalog import reduce_catalogs
