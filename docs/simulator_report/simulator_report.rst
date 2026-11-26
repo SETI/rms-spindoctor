@@ -199,8 +199,8 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``7ceaf98c`` on
-2026-11-23.
+code that made it.  The current record was made at commit ``dcd5fd83`` on
+2026-11-25.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -208,7 +208,7 @@ the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (2026-11-23 record, 75 frames).  A label counts the frames that
+Cohort support (2026-11-25 record, 75 frames).  A label counts the frames that
 contribute to the figure of merit on each side, real and simulated, and the
 smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 *supported* for 8 or more.
@@ -304,30 +304,32 @@ instrument's value and where it comes from.
      - cosmic_ray_events_per_pixel_per_sec
      - Provenance
    * - ``coiss_calib_nac``
-     - 1.6e-5
+     - 3.3e-5
      - 2.0e-5
-     - Hot-pixel fraction measured on the 58-frame calibrated NAC cohort as its
-       stationary spike fraction: single-pixel spikes recurring at fixed
-       positions across the cohort.  Cosmic-ray terms fitted in closed loop to
-       the 12-bit dark-sky frames: they flag 120-270 spikes per megapixel at
+     - Hot-pixel population fitted to the 58-frame calibrated NAC cohort's
+       stationary spikes, whose fraction, 1.6e-5, it predicts at the real
+       frames' spike thresholds (see :ref:`the Cassini ISS chapter
+       <coiss-calibrated-hot-pixels>`).  Cosmic-ray terms fitted in
+       closed loop to the 12-bit dark-sky frames: they flag 120-270 spikes per megapixel at
        every exposure from 60 ms to 2.6 s and 650 at 18 s, so the hits arrive
        mostly while the frame waits to be read (6 s of dwell), and the spikes
        peak at a median 800-1,300 e- over 4-8 pixels (a 1,000 e- deposit
        scale, diffused by 0.6 px).
    * - ``coiss_calib_wac``
-     - 1.6e-5
+     - 7.9e-7
      - 2.0e-5
-     - Hot-pixel fraction shared with the calibrated NAC measurement.
-       Cosmic-ray terms shared with the NAC: the two cameras share the CCD
-       and its readout.  The WAC's one 12-bit dark frame, a 26 s star field,
+     - Hot-pixel population fitted to the 4-frame WAC cohort's one stationary
+       pixel, so the fraction is uncertain by a factor of several (see
+       :ref:`the Cassini ISS chapter <coiss-calibrated-hot-pixels>`).  Cosmic-ray terms shared with the NAC: the two
+       cameras share the CCD and its readout.  The WAC's one 12-bit dark frame, a 26 s star field,
        flags more spikes than the terms deposit, its stars adding to the
        count.
    * - ``gossi``
-     - 1.4e-6
+     - 9e-5
      - 2.0e-5
-     - Hot-pixel fraction measured on the 8-frame Galileo REDR cohort as its
-       stationary spike fraction, 1.4e-6: the REDR blemish correction removes
-       most hot pixels.  Cosmic-ray terms fitted in closed loop to the
+     - Hot-pixel population fitted on raw dark frames (see :ref:`the Galileo SSI
+       chapter <gossi-hot-pixels>`).  The 8-frame Galileo REDR cohort's stationary spike
+       fraction is 1.4e-6.  Cosmic-ray terms fitted in closed loop to the
        cohort's transient spikes, 57-129 per frame at 33/58/150 DN (10th,
        50th, and 90th percentile): 4.33 s of dwell (half the full-frame
        readout), a 6,000 e- deposit scale, and 0.4 px of diffusion.  The
@@ -362,7 +364,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-23; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-25; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -380,19 +382,19 @@ real IQR):
      - 10.0
      - 0.73 [#table]_
      - 4585
-     - 7514
+     - 7407
    * - sky level above floor (FOM 1)
      - 3.3e-4 I/F
      - 13.9
-     - 1.61 [#tail]_
+     - 1.60 [#tail]_
      - 4585
-     - 7514
+     - 7407
    * - noise at signal (FOM 1)
      - 2.8e-4 I/F
      - 13.8
      - 1.61
      - 15700
-     - 33852
+     - 33377
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
@@ -416,11 +418,11 @@ real IQR):
      - 0.47
      - 0.50
      - 3163
-     - 21962
+     - 21965
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
-     - 0.70
+     - 0.69
      - 27
      - 27
    * - p99 - p50 stretch, 0.05-0.5 s (FOM 5)
@@ -432,7 +434,7 @@ real IQR):
    * - spike fraction (FOM 6)
      - 1.1e-4
      - 11.0
-     - 0.87
+     - 0.83
      - 58
      - 58
 
@@ -446,15 +448,15 @@ real IQR):
    NAC frame pairs.  The 12-bit frames keep 28 of 32: 3 are dropped
    because one of the two frames has no patch on dark sky, and 1 has no
    real sky patch.  Their per-frame ratio of simulated to real median sky
-   sigma has a median of 0.88 (quartiles 0.81-1.03).  The TABLE frames
+   sigma has a median of 0.88 (quartiles 0.81-1.02).  The TABLE frames
    keep 12 of 26: 5 are dropped, and 9 have no real sky patch.  Their
-   ratio has a median of 0.37 (quartiles 0.25-0.59), so on dark sky the
+   ratio has a median of 0.36 (quartiles 0.25-0.60), so on dark sky the
    simulated TABLE frames are still far quieter than the real ones.  The
    real TABLE skies also sit 4.5e-4 to 2.3e-3 I/F above the residual,
    while the matched frames' skies sit within 5e-5 I/F of it.  Whether
    the simulator's TABLE path is too quiet is an open question.
 
-.. [#tail] The medians differ by about 2% (3.33e-4 sim vs 3.26e-4 I/F real).
+.. [#tail] The medians differ by about 2% (3.32e-4 sim vs 3.26e-4 I/F real).
    In the 2026-11-07 record the W1/IQR was 31.4, carried by a tail of
    simulated sky patches near bright content in body- and ring-bearing
    frames.  The dark-sky test leaves such patches out.
@@ -473,7 +475,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-23; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-25; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -544,10 +546,11 @@ catalog magnitude, so most of each field's stars fall below detection, and
 FOM 2 is only limited on the NAC.  On those 9 cutouts the simulated EE50 and
 EE80 medians are 0.76 and 1.33 px, against 0.91 and 1.79 px real (W1/IQR
 1.14 and 1.10).  The tuned kernel itself is unchanged.  The stationary
-artifact rate matches (1.6e-5 of pixels on both sides, hot pixels recurring
-at fixed detector positions on both sides), while the transient
-(cosmic-ray) share comes from the catalog's fitted cosmic-ray terms (see
-the measured-transients known gap).  Limb rise widths differ in the
+artifact rate is 1.6e-5 of pixels real against 2.8e-5 simulated, with hot pixels
+recurring at fixed detector positions on both sides; :ref:`the Cassini ISS
+chapter <coiss-calibrated-hot-pixels>` explains the difference.  The transient (cosmic-ray) share
+comes from the catalog's fitted cosmic-ray terms (see the measured-transients
+known gap).  Limb rise widths differ in the
 like-for-like pool (co-populated-strata medians 2.19 sim vs 2.54 px
 real, W1/IQR 0.54) with per-stratum divergences from 0.46 to 2.46.  At
 low phase the simulated limb measures narrower than the real one (2.13-2.25
@@ -564,7 +567,7 @@ the rendered PSF, since the simulated star cutouts are narrower than the
 real ones at both EE50 and EE80.  The high-phase excess runs the other way
 and points at the crescent shading model.  The curve *shapes* agree
 closer than the scalar samples: the density-W1 of the frame-averaged
-curves is 0.06 for the sky power spectrum, 0.19 for the star radial
+curves is 0.05 for the sky power spectrum, 0.19 for the star radial
 profile, 0.11 for the limb profile, and 0.08 for the ring radial profile
 (axis units over the real IQR; ``curve_divergences`` in the summary).
 The sky power spectrum's distance fell from 0.29 in the 2026-11-07
@@ -634,8 +637,8 @@ normalized W1 0.22 and 0.43 (from 1.32 and 3.16 before tuning).  The
 matched scenes render each frame's own filter, gain state, and downlink
 table and the calibration residual (see the calibrated-product known
 gap).  Three of the four frame pairs have sky patches on dark sky in both
-frames.  Pooled, the simulated sky sigma sits at 2.4e-4 I/F against
-1.9e-4 real (W1/IQR 1.32, from 94 at the nominal DN-to-I/F scale), noise
+frames.  Pooled, the simulated sky sigma sits at 2.3e-4 I/F against
+1.9e-4 real (W1/IQR 1.30, from 94 at the nominal DN-to-I/F scale), noise
 at signal at W1/IQR 9.9 (from 98), and the sky level above the floor at
 5.0e-4 against 3.1e-4 I/F (W1/IQR 5.0, from 2377).  Frame by frame:
 
@@ -656,7 +659,7 @@ at signal at W1/IQR 9.9 (from 98), and the sky level above the floor at
      - CL1+VIO
      - TABLE
      - 90 of 90
-     - 248 of 248
+     - 252 of 252
      - 0.47
      - compared
    * - W1449079117
@@ -664,7 +667,7 @@ at signal at W1/IQR 9.9 (from 98), and the sky level above the floor at
      - CL1+RED
      - 12-bit
      - 209 of 209
-     - 245 of 245
+     - 248 of 248
      - 1.67
      - compared
    * - W1580760393
@@ -672,7 +675,7 @@ at signal at W1/IQR 9.9 (from 98), and the sky level above the floor at
      - CL1+CL2
      - 12-bit
      - 79 of 79
-     - 194 of 194
+     - 196 of 196
      - 1.52
      - compared
    * - W1637520502
@@ -680,7 +683,7 @@ at signal at W1/IQR 9.9 (from 98), and the sky level above the floor at
      - CL1+CL2
      - TABLE
      - 0 of 98
-     - 100 of 100
+     - 102 of 102
      - --
      - dropped
 
@@ -696,13 +699,15 @@ distributional claims.
 **Galileo SSI** (8 frames).  Every Galileo frame in the library is a
 negative case, so FOMs 2-4 are unsupported and *the gossi PSF and shape
 rendering rest on unverified forward-model fidelity* until the
-star-calibration frames land.  What the cohort does support:
-FOM 6 -- the stationary spike fraction, 1.4e-6, is the catalog's
-hot-pixel fraction, and the real transient fraction, 1.2e-4 of pixels,
-meets 1.6e-4 from the catalog's fitted cosmic-ray terms (spike-fraction
-W1/IQR 0.44; the measured-transients known gap) -- and FOM 1.  Every frame
-pair contributes sky patches, and the matched frames have about a quarter
-of the real sky noise: 0.19 DN against 0.96 DN, over 355 simulated and 822
+star-calibration frames land.  What the cohort does support is FOM 6 and
+FOM 1.  In FOM 6 the real frames' stationary spike fraction is 1.4e-6, and
+the matched frames show no stationary spikes, although the catalog's hot
+pixels cover 9e-5 of the pixels (see :ref:`the Galileo SSI chapter
+<gossi-hot-pixels>`).  The real
+transient fraction, 1.2e-4 of pixels, meets 1.6e-4 from the catalog's fitted
+cosmic-ray terms (spike-fraction W1/IQR 0.44; the measured-transients known
+gap).  In FOM 1 every frame pair contributes sky patches, and the matched
+frames have about a quarter of the real sky noise: 0.19 DN against 0.96 DN, over 353 simulated and 822
 real sky patches (W1/IQR 8.5).  The real frames also carry an extended
 background glow the matched sky frames do not model (see the known gaps).
 
@@ -736,7 +741,7 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-23 pairs:
+2026-11-25 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the

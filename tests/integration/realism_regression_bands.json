@@ -3,9 +3,9 @@
     "runs": 10,
     "statistics": {
       "curve_divergences.star_profile.w1_normalized": {
-        "band": 0.0071,
+        "band": 0.00709,
         "spread": 0.0,
-        "value": 0.354683
+        "value": 0.354464
       },
       "divergences.artifact_missing_line_frac.real_median": {
         "band": 0.0,
@@ -80,7 +80,7 @@
       "divergences.star_ee50.w1_normalized": {
         "band": 0.0252,
         "spread": 0.0,
-        "value": 1.25983
+        "value": 1.25872
       },
       "divergences.star_ee80.real_median": {
         "band": 0.0247,
@@ -93,9 +93,9 @@
         "value": 0.724911
       },
       "divergences.star_ee80.w1_normalized": {
-        "band": 0.0471,
+        "band": 0.0473,
         "spread": 0.0,
-        "value": 2.35302
+        "value": 2.36483
       }
     }
   }
