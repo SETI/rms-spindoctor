@@ -414,6 +414,8 @@ def fit_camera(
     )
     result.n_zp_stars = len(fit_rows)
     if len(fit_rows) < 5:
+        # The frames stay in the table, with the fitted columns NaN.
+        result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
         result.psf = psf_summary(rows)
         return result
     _fit_zero_point(

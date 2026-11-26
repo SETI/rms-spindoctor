@@ -8,7 +8,12 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy.special
-from util.star_photometry.star_limit_fit import FitResult, _fit_detection_limit, _fit_zero_point
+from util.star_photometry.star_limit_fit import (
+    FitResult,
+    _fit_detection_limit,
+    _fit_zero_point,
+    fit_camera,
+)
 
 # The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, and gain term.
 ZERO_POINT, RED_OFFSET, GAIN_40K = 15.0, 2.0, -1.5
@@ -162,3 +167,27 @@ def test_detection_limit_undefined_without_a_rise() -> None:
     assert result.min_detectable_dn_insufficient['all'] == (
         'the fitted rise lies at the edge of the data'
     )
+
+
+def test_weak_fit_keeps_the_frame_table() -> None:
+    """A camera with too few fitting stars still lists its accepted frames, fit columns NaN."""
+    records = [
+        {
+            'frame': {
+                'image_id': f'F{k}',
+                'filter_name': 'CLEAR',
+                'gain_state': '10K',
+                'mode': 'FULL',
+                'texp': 1.0,
+                'extra': {},
+            },
+            'fix': {'accepted': True, 'n_agree': 3},
+            'current_limit': 10.0,
+            'deep_limit': 14.0,
+            'stars': [],
+        }
+        for k in range(2)
+    ]
+    result = fit_camera('TEST', records, reference_filter='CLEAR', reference_gain='10K')
+    assert [row['image_id'] for row in result.frames] == ['F0', 'F1']
+    assert math.isnan(result.frames[0]['proposed_limit'])
