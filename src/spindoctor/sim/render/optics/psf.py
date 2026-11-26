@@ -140,11 +140,12 @@ def _full_convolution(image: NDArrayFloatType, kernel: NDArrayFloatType) -> NDAr
 
     These are the steps ``scipy.signal.fftconvolve`` takes for two real 2-D arrays,
     so the result is the same to the last bit, without its copies: the spectra are
-    multiplied in place, the inverse transform may reuse the product's memory, and
-    the result is a view of the inverse transform.  On an oversampled frame each of
-    those copies costs about as much as a transform.  An image or kernel one pixel
-    wide or tall goes to ``fftconvolve`` itself, which transforms only the axes along
-    which both are longer than one pixel, and multiplies when there are none.
+    multiplied in place when the product keeps the image spectrum's type, the inverse
+    transform may reuse the product's memory, and the result is a view of the inverse
+    transform.  On an oversampled frame each of those copies costs about as much as a
+    transform.  An image or kernel one pixel wide or tall goes to ``fftconvolve``
+    itself, which transforms only the axes along which both are longer than one
+    pixel, and multiplies when there are none.
 
     Parameters:
         image: The image.
@@ -159,7 +160,13 @@ def _full_convolution(image: NDArrayFloatType, kernel: NDArrayFloatType) -> NDAr
     shape = [image.shape[axis] + kernel.shape[axis] - 1 for axis in (0, 1)]
     fshape = [sp_fft.next_fast_len(size, True) for size in shape]
     spectrum = sp_fft.rfftn(image, fshape, axes=[0, 1])
-    spectrum *= sp_fft.rfftn(kernel, fshape, axes=[0, 1])
+    kernel_spectrum = sp_fft.rfftn(kernel, fshape, axes=[0, 1])
+    if spectrum.dtype == np.result_type(spectrum, kernel_spectrum):
+        spectrum *= kernel_spectrum
+    else:
+        # A float32 image's spectrum is complex64; fftconvolve multiplies it by the
+        # float64 kernel's in complex128, and so does this.
+        spectrum = spectrum * kernel_spectrum
     full: NDArrayFloatType = sp_fft.irfftn(spectrum, fshape, axes=[0, 1], overwrite_x=True)
     return full[: shape[0], : shape[1]]
 

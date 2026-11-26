@@ -199,6 +199,13 @@ def test_a_fully_lit_plane_gives_the_whole_frame_convolution_exactly() -> None:
     assert np.array_equal(_blur(signal), fftconvolve(signal, _kernel(), mode='same'))
 
 
+def test_a_fully_lit_float32_plane_gives_the_float64_convolution_rounded() -> None:
+    """A float32 plane is convolved in float64, as fftconvolve does, then stored."""
+    signal = np.random.default_rng(7).uniform(0.0, 1.0, size=(120, 100)).astype(np.float32)
+    expected = fftconvolve(signal, _kernel(), mode='same').astype(np.float32)
+    assert _blur(signal).tobytes() == expected.tobytes()
+
+
 def test_a_one_pixel_kernel_leaves_the_plane_exactly() -> None:
     """A kernel cut to one pixel gives the whole-frame convolution, the plane itself."""
     signal = np.random.default_rng(6).uniform(0.0, 1.0, size=(120, 100))
