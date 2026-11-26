@@ -53,6 +53,12 @@ from spindoctor.sim.render.optics.psf import apply_psf, binned_psf_kernel
 from spindoctor.sim.render.optics.smear import apply_smear, smear_reach_px
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import scene_binning, scene_value
+from spindoctor.sim.scene.truth_optics import (
+    DEFAULT_PSF_N,
+    DEFAULT_PSF_R0_PX,
+    DEFAULT_PSF_W,
+    DEFAULT_STRAY_LIGHT_MODEL,
+)
 from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
@@ -346,9 +352,9 @@ def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
             frame.point_e,
             sigma_v=sigma_v,
             sigma_u=sigma_u,
-            w=float(scene_value(psf, 'w', 0.0)),
-            r0=float(scene_value(psf, 'r0', 2.0)),
-            n=float(scene_value(psf, 'n', 3.0)),
+            w=float(scene_value(psf, 'w', DEFAULT_PSF_W)),
+            r0=float(scene_value(psf, 'r0', DEFAULT_PSF_R0_PX)),
+            n=float(scene_value(psf, 'n', DEFAULT_PSF_N)),
             truncation_px=resolve_psf_truncation_px(params.get('instrument')),
             oversample=oversample,
         )
@@ -374,7 +380,7 @@ def apply_optics(frame: SimFrame, *, params: Mapping[str, Any]) -> None:
             frame.signal[frame.frame_box],
             amplitude=float(scene_value(stray, 'amplitude', 0.0)),
             direction_deg=float(scene_value(stray, 'direction_deg', 0.0)),
-            model=str(scene_value(stray, 'model', 'linear')),
+            model=str(scene_value(stray, 'model', DEFAULT_STRAY_LIGHT_MODEL)),
             center_v=center_v,
             center_u=center_u,
             roll_deg=roll_deg,

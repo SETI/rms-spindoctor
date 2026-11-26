@@ -81,6 +81,7 @@ from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_syste
 from spindoctor.sim.render.roll import boresight_shift, roll_body_params
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import default_body_range_km, scene_binning, scene_value
+from spindoctor.sim.scene.truth_optics import DEFAULT_SMEAR_OBJECT_CLASS
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.stars import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
@@ -996,7 +997,7 @@ def _optics_needs_layers(params: Mapping[str, Any]) -> bool:
     if not isinstance(optics, dict):
         return False
     smear = optics.get('smear') or []
-    return any(entry.get('object_class', 'all') != 'all' for entry in smear)
+    return any(entry.get('object_class', DEFAULT_SMEAR_OBJECT_CLASS) != 'all' for entry in smear)
 
 
 def _scale_star_params(star_params: dict[str, Any], os: int) -> dict[str, Any]:

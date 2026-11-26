@@ -45,6 +45,11 @@ physics from the instrument entries, so it doesn't import ``spindoctor.config``,
 ``navigator_link`` it imports only the matches of ``_NAVIGATOR_MATCHES``: the values a
 frame has to share with the navigator.
 
+A sixth scan covers the scene package (``sim/scene/``).  The scene's types own every
+key, and the renderer reads them, so no scene module imports the renderer
+(``spindoctor.sim.render``), except those in ``_SCENE_MODULES_READING_THE_RENDERER``,
+whose blocks are not typed yet.
+
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
 one-line justification.  The allowlist is currently empty -- no navigator-side
@@ -130,6 +135,14 @@ _ALLOWED_IMAGE_SIDE_IMPORTS: dict[tuple[str, str], str] = {
 _NAVIGATOR_MATCHES: frozenset[str] = frozenset({'navigator_marker', 'navigator_matched_psf'})
 _NAVIGATOR_LINK = 'spindoctor.sim.instruments.navigator_link'
 _RENDER_DIR = 'sim/render'
+
+# The scene package, and the scene modules that still import the renderer, relative to
+# the spindoctor package, each with the reason.  The list shrinks as the blocks are
+# typed.
+_SCENE_DIR = 'sim/scene'
+_SCENE_MODULES_READING_THE_RENDERER: dict[str, str] = {
+    'sim/scene/rules_body.py': 'the body rules read body constants until the bodies are typed',
+}
 
 
 def _within(module: str, packages: tuple[str, ...]) -> bool:
@@ -511,3 +524,49 @@ def test_the_navigator_config_scan_flags_the_block_and_passes_a_match() -> None:
         (1, f'{_NAVIGATOR_LINK}.resolve_sim_inst_config'),
         (2, 'spindoctor.config.DEFAULT_CONFIG'),
     ]
+
+
+def _render_imports(source: str, *, package: str) -> list[tuple[int, str]]:
+    """Return each import of a renderer module in ``source``.
+
+    Parameters:
+        source: Python source text to scan.
+        package: The dotted package the source's module belongs to, against which
+            a relative import resolves.
+
+    Returns:
+        List of ``(line number, module)`` tuples, one per imported renderer name.
+    """
+    imports: list[tuple[int, str]] = []
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            targets = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom):
+            module = _imported_module(node, package=package)
+            targets = [f'{module}.{alias.name}' for alias in node.names]
+        else:
+            continue
+        imports.extend(
+            (node.lineno, target)
+            for target in targets
+            if _within(target, ('spindoctor.sim.render',))
+        )
+    return imports
+
+
+def test_the_scene_modules_import_the_renderer_only_where_listed() -> None:
+    """A scene module imports the renderer only while its block is not typed."""
+    importing = {
+        path.relative_to(_PACKAGE_ROOT).as_posix()
+        for path in sorted((_PACKAGE_ROOT / _SCENE_DIR).rglob('*.py'))
+        if _render_imports(path.read_text(encoding='utf-8'), package=_module_package(path))
+    }
+    assert importing == set(_SCENE_MODULES_READING_THE_RENDERER)
+
+
+def test_the_renderer_import_scan_flags_a_relative_import() -> None:
+    """The scanner flags a scene module reading the renderer through a relative import."""
+    imports = _render_imports(
+        'from ..render.detector import sqrt_lut\n', package='spindoctor.sim.scene'
+    )
+    assert imports == [(1, 'spindoctor.sim.render.detector.sqrt_lut')]

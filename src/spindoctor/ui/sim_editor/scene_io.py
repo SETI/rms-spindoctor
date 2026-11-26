@@ -50,7 +50,7 @@ class SceneIoMixin(SimEditorBase):
         scene, so it asks for an update: the full render and the verdict are shown only
         for the scene being edited.
         """
-        stale = stale_truth_declarations(self.sim_params, source='editor')
+        stale = stale_truth_declarations(self.sim_params)
         if len(stale) == 0:
             return
         kept = [path for path in self.sim_params['published_equals_truth'] if path not in stale]
