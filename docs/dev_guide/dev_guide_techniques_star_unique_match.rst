@@ -565,8 +565,10 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   key out gets a floor of 0.0, which adds nothing. Model-error floor added in quadrature to
   the translation diagonal of both paths' covariance. It was measured on real star fields:
   the technique's answers against each frame's independent multi-star pointing fix, with a
-  third of the frames held out. At this value at most 1.1% of the answers lie beyond a
-  Mahalanobis distance of 3, as a two-axis Gaussian predicts; without it 2.4% do. Added in
+  third of the frames held out, and leaving out seven answers that matched the wrong
+  stars. At this value at most 1.1% of the fit set's answers lie beyond a Mahalanobis
+  distance of 3, as a two-axis Gaussian predicts; without it 2.4% do. The held-out third
+  gives 0.8% with or without the floor. Added in
   quadrature, the floor widens every answer's covariance. Most answers' covariances are
   already wider than the scatter (median squared distance 0.08, against a Gaussian's 1.39),
   so they widen only slightly; the answers whose covariance is a small two-star residual

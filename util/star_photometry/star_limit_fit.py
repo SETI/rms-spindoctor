@@ -706,8 +706,9 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
         result: The camera's result, updated in place.
         rows: Clean star rows of the fitting frames with ``pred_dn``.
     """
+    modes = sorted({r['mode'] for r in rows})
     rows = [r for r in rows if math.isfinite(r['pred_dn']) and r['pred_dn'] > 0.0]
-    for mode in sorted({r['mode'] for r in rows}):
+    for mode in modes:
         members = [r for r in rows if r['mode'] == mode]
         mode_model, reason = _identified_model(members)
         if mode_model is None:
@@ -721,17 +722,20 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
             float(len(members)),
             *mode_model,
         ]
+    # The binned curve and its empirical crossing are kept even where the model cannot be
+    # identified, since they need no model.
+    if rows:
+        centers, counts, fraction = _completeness_curve(rows)
+        result.completeness = [
+            [float(c), float(n), float(f)]
+            for c, n, f in zip(centers, counts, fraction, strict=True)
+            if n > 0
+        ]
+        result.min_detectable_dn_empirical = _crossing(centers, counts, fraction, COMPLETENESS)
     model, reason = _identified_model(rows)
     if model is None:
         result.min_detectable_dn_insufficient['all'] = reason
         return
-    centers, counts, fraction = _completeness_curve(rows)
-    result.completeness = [
-        [float(c), float(n), float(f)]
-        for c, n, f in zip(centers, counts, fraction, strict=True)
-        if n > 0
-    ]
-    result.min_detectable_dn_empirical = _crossing(centers, counts, fraction, COMPLETENESS)
     result.completeness_model = list(model)
     result.min_detectable_dn = _model_dn(model, COMPLETENESS)
     result.min_detectable_dn_50 = _model_dn(model, 0.5)
