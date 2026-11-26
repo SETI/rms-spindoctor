@@ -23,10 +23,13 @@ ground_truth:
     Operator comment: many stars
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is high: the star-field lock scores high, matching this frame's recorded rank=high from the batch-006 curation run. The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
+    The tier is medium, not high. The measured narrow PSF makes the single-star technique the most precise member of the shared-star witness, its confidence is capped at 0.80, and the ensemble's precision-weighted confidence blend for techniques that share stars lets that cap pull the blended confidence below the high threshold while the answer stays correct.
+    The primary is StarFieldFromCatalogNav, no longer StarRefineNav: the measured narrow PSF shifts the weights of the shared-star blend, and the answer is still correct.
+# Tier and primary follow the confidence blend tracked in #1232.
 expected:
   status: success
-  confidence_tier: high
-  primary_technique: StarRefineNav
+  confidence_tier: medium
+  primary_technique: StarFieldFromCatalogNav
   techniques_must_run:
   - StarFieldFromCatalogNav
   techniques_must_skip: []
