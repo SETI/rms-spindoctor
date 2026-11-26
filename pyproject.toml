@@ -283,6 +283,13 @@ extend-ignore = ["N802", "N803", "N806", "PT011", "SIM105", "SIM108"]
 # Sphinx reads ``copyright`` from conf by name (builtin shadowing is unavoidable).
 "docs/conf.py" = ["A001"]
 
+[tool.ruff.lint.flake8-bugbear]
+# A typed scene field is declared by a call that builds its dataclass field.
+extend-immutable-calls = [
+  "spindoctor.sim.scene.declare.optional",
+  "spindoctor.sim.scene.declare.required",
+]
+
 [tool.ruff.format]
 quote-style = "single"
 
