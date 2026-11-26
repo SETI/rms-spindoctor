@@ -182,10 +182,11 @@ already write the same file:
    grep -rs transparent_hugepage/defrag /etc/tmpfiles.d /run/tmpfiles.d /usr/lib/tmpfiles.d
 
 A file in ``/etc/tmpfiles.d`` replaces a file of the same name in the other two
-directories, so skip any listed file that ``/etc/tmpfiles.d`` holds a file of the same
-name for. Of the rules left, the one in the file whose name sorts first is in force,
-whichever directory it is in; systemd-tmpfiles ignores the others. Save a copy of any
-file before changing it.
+directories, and a file in ``/run/tmpfiles.d`` replaces one of the same name in
+``/usr/lib/tmpfiles.d``, whether or not the replacing file writes this setting. Skip any
+listed file that a higher directory holds a file of the same name for. Of the rules left,
+the one in the file whose name sorts first is in force, whichever directory it is in;
+systemd-tmpfiles ignores the others. Save a copy of any file before changing it.
 
 * If the rule in force is in ``/etc/tmpfiles.d``, change its value there to ``defer``.
 * If it is in ``/run/tmpfiles.d`` or ``/usr/lib/tmpfiles.d``, copy that file into
