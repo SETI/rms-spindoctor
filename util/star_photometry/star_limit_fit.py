@@ -267,7 +267,7 @@ def _full_rank(a: FloatArray) -> bool:
         True when its rank equals its number of columns.
     """
     n_rows, n_columns = a.shape
-    return n_rows > 0 and int(np.linalg.matrix_rank(a)) == n_columns
+    return bool(n_rows > 0 and int(np.linalg.matrix_rank(a)) == n_columns)
 
 
 def _star_rows(records: Iterable[dict[str, Any]], *, gain_field: str) -> list[dict[str, Any]]:
