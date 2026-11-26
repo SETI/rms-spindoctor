@@ -181,8 +181,8 @@ def test_inflation_is_isotropic_at_zero_sensitivity() -> None:
 def test_inflation_major_eigenvalue_is_sigma_squared_below_unit_sensitivity() -> None:
     """For ``|g| <= 1`` the major axis is exactly sigma**2 whatever ``g`` is.
 
-    This is why the derived direction alone cannot move a tier outcome in that
-    regime -- the tier gate reads the major semi-axis.  The geometry
+    This is why, on a zero input covariance, the derived direction cannot move a
+    tier outcome in that regime -- the tier gate reads the major semi-axis.  The geometry
     sets the MINOR axis, i.e. the isotropic floor.
     """
     for magnitude in (0.0, 0.25, 0.5, 0.9, 1.0):
