@@ -4,8 +4,8 @@
 and 1.02 px along it, rotated into ``(v, u)`` by the symmetry-axis angle.  These tests
 pin what the ensemble does with such an ellipse, each against a closed-form answer: the
 precision-weighted merge keeps its orientation, the agreement test measures a
-disagreement in its metric, and the confidence tier reads a per-axis sigma of the fused
-covariance.
+disagreement in its metric, and the confidence tier reads the fused ellipse's major
+semi-axis, so the tier does not depend on the ellipse's tilt.
 """
 
 import math
@@ -16,7 +16,10 @@ from tests.orchestrator_section import packaged_ensemble
 
 from spindoctor.nav_orchestrator.ensemble import _combine_precision_weighted, ensemble
 from spindoctor.nav_orchestrator.ensemble_consensus import consensus_selection
-from spindoctor.nav_orchestrator.ensemble_observability import mahalanobis_distance
+from spindoctor.nav_orchestrator.ensemble_observability import (
+    mahalanobis_distance,
+    major_semi_axis_px,
+)
 from spindoctor.nav_orchestrator.image_classifier_result import NavImageClassifierResult
 from spindoctor.nav_orchestrator.provenance import Provenance
 from spindoctor.nav_technique.diagnostics import BodyLimbDiagnostics, StarFieldDiagnostics
@@ -248,23 +251,26 @@ def test_the_pixel_floor_groups_a_cross_axis_dissenter_inside_it() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_haze_only_frame_caps_at_medium_at_its_most_favorable_angle() -> None:
-    """At 45 degrees the image-axis sigmas are smallest, and still exceed the high tier."""
+def test_the_major_semi_axis_ignores_the_rotation_axis() -> None:
+    """The tier's sigma is the ellipse's long axis, read from the translation block only."""
+    cov = embed_rotation_unobservable(_haze_cov())
+    assert major_semi_axis_px(cov) == pytest.approx(_SIGMA_ALONG_PX, rel=1e-12)
+
+
+def test_a_haze_only_frame_caps_at_medium() -> None:
+    """The haze fit's 1.02 px long axis exceeds the high tier's limit at any angle."""
     haze = _result('TitanHazeNav', (0.0, 0.0), _haze_cov(45.0), confidence=0.95)
     assert _ensemble([haze]) == 'medium'
 
 
-@pytest.mark.parametrize(('theta_deg', 'rank'), [(0.0, 'medium'), (45.0, 'high')])
-def test_the_tier_of_a_fused_ellipse_reads_its_image_axis_sigmas(
-    theta_deg: float, rank: str
-) -> None:
-    """One fused ellipse, 0.52 px by 0.31 px: high at 45 degrees, medium along an image axis.
+@pytest.mark.parametrize('theta_deg', [0.0, 45.0])
+def test_the_tier_of_a_fused_ellipse_does_not_depend_on_its_tilt(theta_deg: float) -> None:
+    """One fused ellipse, 0.52 px by 0.31 px, is medium along an image axis and at 45 degrees.
 
-    The tier compares the larger of the two image-axis sigmas with ``max_sigma_px``.  For
-    an oblique ellipse that is smaller than its major semi-axis, so the same pair of
-    witnesses earns a different tier as the symmetry axis turns in the image.
+    The tier compares the major semi-axis with ``max_sigma_px``.  The larger image-axis
+    sigma would read 0.43 px at 45 degrees and earn high.
     """
     sigma_star = 0.6
     haze = _result('TitanHazeNav', (0.0, 0.0), _haze_cov(theta_deg), confidence=0.9)
     star = _result('StarFieldFromCatalogNav', (0.0, 0.0), sigma_star**2 * np.eye(2), confidence=0.9)
-    assert _ensemble([haze, star]) == rank
+    assert _ensemble([haze, star]) == 'medium'
