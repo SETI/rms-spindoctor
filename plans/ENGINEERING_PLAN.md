@@ -1484,10 +1484,11 @@ asserts the generated half matches the registries.
   names. `NavTechnique.name` and every name in results and metadata stay
   as they are, and no rename shim is kept: an old block name in an
   override is refused as an unknown key. Applied for the DT family
-  (`body_limb`, `body_terminator`, `ring_edge`) and the correlation and
-  centroid family (`body_disc_correlate`, `body_blob`, `ring_annulus`);
-  the star and haze family follows with its #1032 PR, and #411 closes
-  with it.
+  (`body_limb`, `body_terminator`, `ring_edge`), the correlation and
+  centroid family (`body_disc_correlate`, `body_blob`, `ring_annulus`),
+  and the star and haze family (`star_field_from_catalog`, `star_refine`,
+  `star_unique_match`, `titan_haze`); every technique block is renamed,
+  and #411 closes with the last family's PR.
 - **#427** — the config top-level namespace mixes domain objects, pipeline
   stages, instruments, output products, and infrastructure on no stated
   axis, with `general` as the catch-all. Lifting `logging` out of `general`
@@ -1574,7 +1575,7 @@ asserts the generated half matches the registries.
     `from_mapping` methods and the 18 `DEFAULT_*` copies deleted, the 16
     ensemble scalars, `DEFAULT_TIER_THRESHOLDS`, and
     `DEFAULT_RELIABILITY_THRESHOLDS`)
-  - [ ] technique confidence and tuning, two or three PRs by family,
+  - [x] technique confidence and tuning, two or three PRs by family,
     each renaming its families' blocks to snake_case (#411; operator,
     2026-11-23)
     - [x] the shared machinery and the DT family (done: the `techniques`
@@ -1598,8 +1599,19 @@ asserts the generated half matches the registries.
       and `ring_annulus`; `load_ncc_covariance_tuning` and its three
       0.0 fallbacks deleted; `load_model_error_floor` stays for the star
       family and `TitanHazeNav`)
-    - [ ] the star family and `TitanHazeNav`; `load_model_error_floor`
+    - [x] the star family and `TitanHazeNav`; `load_model_error_floor`
       and the mapping form of a technique's tuning go with the last family
+      (done: `StarUniqueMatchNav`, `StarRefineNav`, and
+      `StarFieldFromCatalogNav` declare `Tuning` types on a shared
+      `StarTuning` in `star_tuning.py`, and `TitanHazeNav` declares
+      `TitanHazeTuning`; their blocks are `star_unique_match`,
+      `star_refine`, `star_field_from_catalog`, and `titan_haze`; the
+      range checks their constructors made by hand are field types, and
+      the PSF-fit box's oddness is a rule; the three int flags are
+      booleans; `load_model_error_floor` deleted, since every packaged
+      floor is one scalar per technique; `UntypedTuning`, the class-name
+      block key, and `NavTechnique`'s untyped `Tuning` and `tuning`
+      defaults deleted)
   - [x] the logging section (done: parsed at load into `LoggingSection`,
     with each `programs` block a `ProgramLogging`; module keys checked
     against the technique and model registries and `OTHER_LOG_KEYS`,

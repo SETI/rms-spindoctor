@@ -462,7 +462,7 @@ class BodyLimbNav(NavTechnique):
                 sigma_min_px,
                 visible_limb_arc_fraction,
             )
-            # Model-error floor (#210); rationale on load_model_error_floor.
+            # Model-error floor (#210); rationale on add_model_error_floor.
             covariance = add_model_error_floor(covariance, self.tuning.model_error_floor_px)
             return NavTechniqueResult(
                 technique_name=self.name,

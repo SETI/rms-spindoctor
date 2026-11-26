@@ -247,10 +247,9 @@ def _init_worker() -> None:
 def _model_error_floor_px() -> float:
     """Return the configured covariance model-error floor for the technique."""
     from spindoctor.nav_technique import TitanHazeNav
-    from spindoctor.nav_technique.nav_technique import load_model_error_floor
 
     TitanHazeNav()  # populates the class-level tuning from config
-    return load_model_error_floor(TitanHazeNav.tuning, TECHNIQUE)
+    return TitanHazeNav.tuning.model_error_floor_px
 
 
 def _sigma_scales() -> dict[str, float]:
