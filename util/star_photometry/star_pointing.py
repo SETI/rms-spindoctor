@@ -39,7 +39,8 @@ class PointingFix:
         offset_u: Sample offset (pixels).
         rotation_deg: Rotation about the field center (degrees, counterclockwise from +u
             toward +v), zero when too few stars agree to fit it.
-        n_agree: Number of catalog stars whose peak lies within the agreement radius of the fix.
+        n_agree: Number of catalog stars whose peak lies within the agreement radius of the fix,
+            each peak paired with at most one star.
         n_candidates: Number of catalog stars searched.
         n_peaks: Number of image peaks searched.
         spread_px: RMS distance of the agreeing stars from the fix (pixels).
@@ -140,10 +141,11 @@ def find_pointing(
     Within a tier, every pair of a star and a peak within ``search_px`` (per axis) votes for
     the offset between them, counting each star once per vote bin.  The ``n_seeds`` bins
     holding the most stars (summed over a 2 x 2 neighborhood, so a cluster split by a bin
-    edge still counts whole) are each refined: each star takes its nearest peak within
-    ``2 * agree_px`` of the seed, and a least-squares translation (plus a rotation about
-    ``center_vu`` when at least five stars pair) is fitted, refitted on the stars within
-    ``agree_px`` until the agreeing set stops changing.  The refinement with the most
+    edge still counts whole) are each refined: stars and peaks within ``2 * agree_px`` of
+    each other under the seed are paired one to one, closest pairs first (a peak is one
+    source and confirms at most one star), and a least-squares translation (plus a rotation
+    about ``center_vu`` when at least five stars pair) is fitted, then paired and refitted
+    within ``agree_px`` until the agreeing set stops changing.  The refinement with the most
     agreeing stars (then the smallest spread) is the tier's fix.
 
     A tier's chance probability is the chance of a cluster of its agreeing-star count from
@@ -392,14 +394,11 @@ def _refine(
     rms = float('nan')
     for _ in range(10):
         tv, tu = _transform(pred_v, pred_u, dv, du, theta, center_vu)
-        dist = np.hypot(peaks.v[None, :] - tv[:, None], peaks.u[None, :] - tu[:, None])
-        nearest = np.argmin(dist, axis=1)
-        nearest_dist = dist[np.arange(pred_v.size), nearest]
-        chosen = np.nonzero(nearest_dist <= radius)[0]
+        chosen, matched = _associate(tv, tu, peaks, radius)
         if chosen.size == 0:
             return dv, du, theta, [], float('nan')
         sv, su = pred_v[chosen], pred_u[chosen]
-        ov, ou = peaks.v[nearest[chosen]], peaks.u[nearest[chosen]]
+        ov, ou = peaks.v[matched], peaks.u[matched]
         dv, du, theta = _solve(
             sv, su, ov, ou, center_vu, fit_rotation=chosen.size >= MIN_PAIRS_FOR_ROTATION
         )
@@ -413,6 +412,43 @@ def _refine(
         agreeing = new
         radius = agree_px
     return dv, du, theta, agreeing, rms
+
+
+def _associate(
+    tv: FloatArray, tu: FloatArray, peaks: PeakList, radius: float
+) -> tuple[NDArray[np.intp], NDArray[np.intp]]:
+    """Pair stars with peaks one to one, closest pairs first, within ``radius``.
+
+    Each peak is one source, so it can confirm at most one star: when two predictions lie
+    near the same peak, the closer one takes it and the other takes its next-nearest free
+    peak within ``radius``, or none.
+
+    Parameters:
+        tv: Lines where the stars are predicted under the trial fit.
+        tu: Samples where the stars are predicted under the trial fit.
+        peaks: Image peaks.
+        radius: The largest star-peak distance paired (pixels).
+
+    Returns:
+        ``(star_indexes, peak_indexes)`` of the pairs, in increasing star index.
+    """
+    dist = np.hypot(peaks.v[None, :] - tv[:, None], peaks.u[None, :] - tu[:, None])
+    star_index, peak_index = np.nonzero(dist <= radius)
+    order = np.argsort(dist[star_index, peak_index], kind='stable')
+    star_used: set[int] = set()
+    peak_used: set[int] = set()
+    pairs: list[tuple[int, int]] = []
+    for k in order:
+        star, peak = int(star_index[k]), int(peak_index[k])
+        if star in star_used or peak in peak_used:
+            continue
+        star_used.add(star)
+        peak_used.add(peak)
+        pairs.append((star, peak))
+    pairs.sort()
+    stars = np.array([p[0] for p in pairs], dtype=np.intp)
+    matched = np.array([p[1] for p in pairs], dtype=np.intp)
+    return stars, matched
 
 
 def _solve(
