@@ -168,10 +168,14 @@ reported sigma. Three shared corrections restore calibration:
     most shipped values were fitted so that the 2-sigma coverage of the
     reported sigmas matches planted-truth recovery on the simulation
     campaign. The star unique match floor was measured on real star fields
-    instead, against each frame's independent multi-star pointing fix, so
-    that no more of its answers lie beyond a Mahalanobis distance of 3 than
-    a two-axis Gaussian predicts. The provenance notes live alongside the
-    values in ``config_510_techniques.yaml``.
+    instead, against each frame's independent multi-star pointing fix. Of
+    379 answers, the seven that matched the wrong stars were left out, and
+    the floor was chosen on two thirds of the frames (248 answers) so that
+    no more of them lie beyond a Mahalanobis distance of 3 than a two-axis
+    Gaussian predicts; the other 124 were held out as the check. The floor
+    says nothing about an answer that matched the wrong stars. The
+    provenance notes live alongside the values in
+    ``config_510_techniques.yaml``.
 
 **Size-scaled NCC terms.**
     The correlation techniques additionally carry
