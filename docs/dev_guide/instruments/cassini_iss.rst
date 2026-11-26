@@ -881,8 +881,11 @@ real frames of this camera carry together:
   and medium on 11. Removing any one defect on four draws leaves the answer 0.030 to
   0.089 px off, where all the defects together leave it 0.032 to 0.089 px off. The
   star-field technique returns spurious on every draw, because hot pixels and cosmic
-  rays together crowd the stars out of the sources it matches, and the blob
-  technique lands 5 to 10 px off the gibbous disc without flagging it.
+  rays together crowd the stars out of the sources it matches. On 8 of 16 draws (the
+  committed seed and random seeds 101 to 1515), lost groups across the disc would
+  move the blob's centroid by more than 1% of the radius, and the blob technique
+  drops the body. On the other 8 it lands 7.0 to 8.5 px off the gibbous disc without
+  flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.

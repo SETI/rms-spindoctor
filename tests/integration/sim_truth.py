@@ -338,10 +338,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # two disagree and the frame conflicts.
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
-    # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
-    # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
+    # coiss_nac_stars_moon_lost_lines has no BodyBlobNav band.  Its committed seed loses
+    # line groups across the disc, and the blob drops a body whose lost lines would move
+    # its centroid by more than 1% of the radius, so it answers spurious there (#1207).
     # Measured on all 24 draws.  On nhlorri_moon_raw the frame-transfer smear pulls the
     # blob 6.8 to 7.1 px off; without the smear it lands 0.16 to 0.19 px off (#975).  The
     # simulated smear is a step at each column's centroid, where the real smear builds
