@@ -17,13 +17,13 @@ import json
 import os
 import subprocess
 from pathlib import Path
-from typing import Any
 
 import pytest
 from astropy.io import fits
 from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config.sections_products import PlaneEntry
 from tests.mini_nav_results import COHORTS
 from tests.mini_nav_results.cohort import Cohort, WrittenCohorts
 from tests.sclk_readings import triples_disagreeing_with_their_epochs
@@ -56,7 +56,7 @@ def first_cohort(mini_nav_cohorts: WrittenCohorts) -> Cohort:
     return mini_nav_cohorts(COHORTS[min(COHORTS)])
 
 
-def _hdu_names(entries: list[dict[str, Any]]) -> list[str]:
+def _hdu_names(entries: tuple[PlaneEntry, ...]) -> list[str]:
     """Return the HDU names one source's configured planes are written under, in order.
 
     The merge inserts each source's planes in sorted order and the writer names each
@@ -69,7 +69,7 @@ def _hdu_names(entries: list[dict[str, Any]]) -> list[str]:
     Returns:
         The HDU names, in the order the writer writes them.
     """
-    return sorted(entry['name'].upper() for entry in entries if entry['name'] != 'distance')
+    return sorted(entry.name.upper() for entry in entries if entry.name != 'distance')
 
 
 def test_every_clock_triple_spans_the_epochs_beside_it(cohort: Cohort) -> None:

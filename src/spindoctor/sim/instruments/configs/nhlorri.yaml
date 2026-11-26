@@ -60,6 +60,27 @@ nhlorri:
     signal_full_scale_frac: 0.5
     missing_data_rate: 0.0
     dark_current_e_per_sec: 0.04  # published (negligible dark current)
+    # Measured 2026-11-25 on raw (_eng) frames: the camera collects light for
+    # about 0.63 ms beyond the commanded exposure t.  Each row above or below a
+    # bright source carries a share of its column's charge, the frame-transfer
+    # smear.  On 14 unsaturated 1x1 frames of Io, Europa, Ganymede, and Callisto
+    # at 3 to 16 ms, whose smear is 34 to 510 DN a row, the share follows
+    # T / (1024 (t + d)) with the transfer time T fixed.  The fit gives T = 11.66 ms
+    # and d = 0.63 ms, with residuals of at most 0.09 ms (0.04 ms rms), and
+    # leaving out any one frame moves d within 0.61 to 0.64 ms.  Four Charon
+    # frames at 100 and 150 ms carry only 2 to 5 DN of smear a row, so a sky
+    # error of 0.1 DN moves them by 2% to 5%.  They read 1% to 3% above the fit,
+    # and fitting them too gives d = 0.70 ms and T = 11.83 ms, so d lies
+    # between 0.6 and 0.7 ms.  On three Europa pairs at 5 and 10 ms
+    # (lor_0034849319 and _9322, lor_0034866659 and _6662, lor_0034732619 and
+    # _2622) the smear in DN agrees within 0.4% while the exposure doubles, so the
+    # transfer time is fixed and the extra time is in the collected light.  The
+    # 10 ms frames, measured on their unsaturated edge columns and left out of
+    # the fit, match it within 0.2%.  The pipeline's desmear times for short
+    # exposures (SOC-to-Instrument Pipeline ICD, Table 9-4: 7.1, 8.75, 9.65, and
+    # 10.5 ms at 1, 2, 3, and 6 ms) show the same effect; the fit predicts 7.16,
+    # 8.87, 9.64, and 10.55 ms.
+    extra_integration_sec: 6.3e-4
     # Kept at zero 2026-07-17: the realism match measured a 3.36e-4 per-frame
     # transient spike fraction (two 5 s frames), but both cohort frames are
     # 4x4-binned star fields and a binned faint star is indistinguishable from a
@@ -106,8 +127,17 @@ nhlorri:
       bias_structure: {probability: 1.0}
     # Per-mode shape defaults, published or estimated like the detector values.
     shape_defaults:
-      # ~12 ms pre-exposure scrub, ~11 ms post-exposure transfer.
-      frame_transfer_smear: {t_scrub_sec: 0.012, t_transfer_sec: 0.011}
+      # Measured 2026-11-25 on the 14 frames fitted at extra_integration_sec: the
+      # two frame transfers average 11.66 ms.  On those frames the rows above a
+      # source (small line numbers) carry 1.090 to 1.093 times the share of the
+      # rows below, and on the four faint Charon frames 1.088 to 1.096.  That is
+      # the ratio of Cheng et al. 2008 (section 3.3.5: 1.044 and 0.956 of the
+      # mean), which splits the mean into 12.17 ms above and 11.15 ms below.  The
+      # simulator draws t_transfer_sec above the source, so the entry gives it the
+      # larger time, although Cheng et al. attribute the larger time to the scrub.
+      # The ICD's desmear time for nominal exposures, 10.7 ms, lies below the
+      # 11.6 ms the fit gives at 100 ms, for a reason not known.
+      frame_transfer_smear: {t_scrub_sec: 0.01115, t_transfer_sec: 0.01217}
       # Saturated compact sources undershoot up to ~12 DN along readout.
       serial_tail: {amplitude_dn: 12.0, length_px: 8, direction: right}
       # Published (Weaver et al. 2020): random horizontal striping of at most 1 DN

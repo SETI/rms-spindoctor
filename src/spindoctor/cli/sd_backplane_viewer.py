@@ -979,7 +979,7 @@ class NavBackplaneViewer(QDialog):
         Returns:
             A boolean array, True where the pixel holds a measurement.
         """
-        masked_value = float(self._config.backplanes.masked_value)
+        masked_value = self._config.backplanes.masked_value
         return np.asarray(np.isfinite(arr) & (arr != masked_value))
 
     def _composite_scalar_layer(

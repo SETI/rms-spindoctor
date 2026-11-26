@@ -53,6 +53,24 @@ def dataset_names() -> list[str]:
     return sorted(_DATASET_NAME_TO_CLASS_MAPPING.keys())
 
 
+def pds4_config_keys() -> tuple[str, ...]:
+    """Return the key of each registered dataset's bundle in the ``pds4`` config section.
+
+    Returns:
+        The ``PDS4_CONFIG_KEY`` of every registered dataset class that sets one, sorted
+        and without repeats.
+    """
+    return tuple(
+        sorted(
+            {
+                cls.PDS4_CONFIG_KEY
+                for cls in _DATASET_NAME_TO_CLASS_MAPPING.values()
+                if cls.PDS4_CONFIG_KEY is not None
+            }
+        )
+    )
+
+
 def dataset_name_to_class(name: str) -> type[DataSet]:
     """Convert a dataset name to the corresponding class.
 
@@ -105,4 +123,5 @@ __all__ = [
     'dataset_name_to_class',
     'dataset_name_to_inst_name',
     'dataset_names',
+    'pds4_config_keys',
 ]

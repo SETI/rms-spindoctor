@@ -15,6 +15,7 @@ import pytest
 from filecache import FCPath
 from filecache import file_cache as file_cache_module
 from filecache.file_cache_source import FileCacheSourceFake
+from tests.packaged_sections import packaged_tree_tuning
 
 from spindoctor.nav_records import (
     METADATA_SUFFIX,
@@ -237,14 +238,16 @@ def tree_source(
     Parameters:
         root: The results root.
         logger: Logger the walk reports a declined directory through.
-        tuning: How much of a pass runs at once, or None for the defaults.
+        tuning: How much of a pass runs at once, or None for the packaged section.
             A test wanting a small bound passes one rather than rebinding a
             module global, which is what a caller does.
 
     Returns:
         The source.
     """
-    return TreeRecordSource([str(root)], logger=logger, tuning=tuning)
+    return TreeRecordSource(
+        [str(root)], logger=logger, tuning=packaged_tree_tuning() if tuning is None else tuning
+    )
 
 
 def _unlistable_directory(monkeypatch: pytest.MonkeyPatch, error: type[OSError], name: str) -> None:

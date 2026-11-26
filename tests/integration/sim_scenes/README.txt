@@ -54,12 +54,14 @@ Scene classes
                                 star scattered off catalog, or a lone star drowned
                                 in clutter); each carries an ``expected`` block
                                 asserted by the sim expected-outcome machinery
-  full_frame_cameras          - one realistic frame per camera it covers (not
-                                every cataloged camera has one): the
-                                camera's real frame size, its detector chain on,
-                                a realistic exposure, a pointing error the size
-                                real frames carry, and the camera's measured
-                                twist with roll fitting off as the cameras ship;
+  full_frame_cameras          - realistic frames from every cataloged flight
+                                camera, each at the camera's real frame size,
+                                with its detector chain on, a realistic
+                                exposure, a pointing error the size real frames
+                                carry, and the camera's measured twist (or,
+                                where none is measured, a placeholder its
+                                instrument chapter states) with roll fitting
+                                off as the cameras ship;
                                 its own test module navigates each scene once
                                 and applies all of its checks
   mixed_content               - two kinds of navigable content on one realistic
@@ -460,11 +462,12 @@ the key's name says what the number means:
                                      rate modes: the expected number of events
                                      per second, drawn Poisson and uncapped.
                                      bright_dark_pairs expects this times
-                                     exposure_sec.  radiation_transients
-                                     expects this times environment_factor *
-                                     (exposure_sec + readout_dwell_sec): it
-                                     collects hits during the readout dwell
-                                     too
+                                     the integration time (exposure_sec plus
+                                     the camera's extra integration time).
+                                     radiation_transients expects this times
+                                     environment_factor * (integration time
+                                     + readout_dwell_sec): it collects hits
+                                     during the readout dwell too
   probability      (float in [0, 1]) every other mode except hot_pixels: the
                                      per-frame probability the mode fires at
                                      all (1.0 = always).  alternating_lines,

@@ -29,6 +29,7 @@ import pytest
 import sqlalchemy
 from filecache import FCPath
 from sqlalchemy.engine import Connection
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.results_index.conftest import (
     STUB,
     feature_source_row,
@@ -699,6 +700,7 @@ def _selecting(url: str, **flags: Any) -> list[str]:
         SELECTION_ROOT,
         logger=pdslogger.NullLogger(),
         results_index_db_url=url,
+        tuning=packaged_tree_tuning(),
         **flags,
     ) as results_filter:
         kept = [stub for stub in SELECTION_CANDIDATES if results_filter.passes(stub)]
@@ -824,6 +826,7 @@ def test_the_snapshot_time_answers_for_one_root_on_postgresql(
         logger=pdslogger.PdsLogger(f'postgres_selection_{uuid.uuid4().hex}'),
         results_index_db_url=postgres_url,
         has_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     assert SELECTION_INGESTED in capsys.readouterr().out
 
@@ -1047,7 +1050,7 @@ def _record_source(url: str, *roots: str) -> Iterator[RecordSource]:
         The source.
     """
     with open_record_source(
-        list(roots), results_index_db_url=url, columns=RECORD_COLUMNS
+        list(roots), results_index_db_url=url, columns=RECORD_COLUMNS, tuning=packaged_tree_tuning()
     ) as source:
         yield source
 

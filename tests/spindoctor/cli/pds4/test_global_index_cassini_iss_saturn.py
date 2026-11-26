@@ -19,7 +19,7 @@ plumbing is tested over stand-in templates in ``test_global_index.py``.
 """
 
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -29,16 +29,17 @@ import pytest
 from filecache import FCPath
 from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
+from tests.product_sections import plane_entry
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.cli.pds4.bundle_data import generate_bundle_data_files
 from spindoctor.cli.pds4.global_index import generate_global_index_files
 from spindoctor.cli.pds4.index_columns import INDEX_VALUE_FORMATS
 from spindoctor.config import DEFAULT_CONFIG, MAIN_LOGGER
+from spindoctor.config.sections_products import IndexColumnEntry, PlaneEntry
 
 from .cohort_bundle import make_cohort_bundle_env, write_cohort_bundle
 from .conftest import (
-    index_entry,
     make_bundle_env,
     read_csv_rows,
     read_index_rows,
@@ -317,43 +318,32 @@ FIXED_COLUMNS = frozenset(
 """The columns an index table gives whatever planes the configuration declares."""
 
 
-PLANE_COLUMNS = ('minimum', 'maximum', 'wrapped_minimum', 'wrapped_maximum')
-"""The keys of a plane's index block naming its columns, in the order a table gives them."""
-
 INCIDENCE_COLUMNS = ('minimum', 'maximum', 'mean')
-"""The keys of the ring incidence angle's index block naming its columns, in order."""
+"""The ends of the ring incidence angle's columns, in the order the rings table gives them."""
 
 
 def _fields(
-    units: str, index: Mapping[str, Any], keys: Sequence[str]
+    units: str, data_type: str, columns: Sequence[IndexColumnEntry]
 ) -> list[tuple[str, str, str, str]]:
     """Return what each field an index block describes has to state.
 
     Parameters:
         units: The unit the block's values are in, as the configuration declares it.
-        index: The index block.
-        keys: The keys naming its columns, in the order the table gives them; a key the
-            block does not give names no field.
+        data_type: The data type the block gives its columns.
+        columns: The block's columns, in the order the table gives them.
 
     Returns:
-        For each column the block gives: its name, the data type the block gives, the
-        unit its values are in, and its description, its whitespace collapsed to single
-        spaces.
+        For each column: its name, the data type the block gives, the unit its values are
+        in, and its description, its whitespace collapsed to single spaces.
     """
     return [
-        (
-            index[key]['name'],
-            index['data_type'],
-            statistics_units(units),
-            ' '.join(index[key]['description'].split()),
-        )
-        for key in keys
-        if key in index
+        (column.name, data_type, statistics_units(units), ' '.join(column.description.split()))
+        for column in columns
     ]
 
 
 def _configured_statistic_fields(
-    entries: Sequence[Mapping[str, Any]],
+    entries: Sequence[PlaneEntry],
 ) -> list[tuple[str, str, str, str]]:
     """Return what each statistic field of a table's planes has to state.
 
@@ -368,7 +358,11 @@ def _configured_statistic_fields(
     return [
         field
         for entry in entries
-        for field in _fields(entry['units'], entry['index'], PLANE_COLUMNS)
+        for field in _fields(
+            entry.units,
+            entry.index.data_type,
+            (entry.index.minimum, entry.index.maximum, *entry.index.wrapped),
+        )
     ]
 
 
@@ -394,7 +388,11 @@ def test_every_field_states_its_data_type_and_each_statistic_field_its_unit_and_
         'global_bodies_index': _configured_statistic_fields(backplanes.bodies),
         'global_rings_index': [
             *_configured_statistic_fields(backplanes.rings),
-            *_fields(incidence['units'], incidence['index'], INCIDENCE_COLUMNS),
+            *_fields(
+                incidence.units,
+                incidence.index.data_type,
+                (incidence.index.minimum, incidence.index.maximum, incidence.index.mean),
+            ),
         ],
     }
     stated = {
@@ -616,8 +614,8 @@ def _index_products_over(
     tmp_path: Path,
     cohort: CohortCassiniISSSaturn,
     *,
-    bodies: list[dict[str, Any]],
-    rings: list[dict[str, Any]],
+    bodies: list[PlaneEntry],
+    rings: list[PlaneEntry],
 ) -> dict[str, _IndexProduct]:
     """Write one image's index tables and their labels, under the given planes.
 
@@ -664,9 +662,9 @@ def test_a_plane_added_to_the_configuration_adds_a_column_and_a_field_character(
     configured list, so the added plane's minimum and maximum follow the columns before
     them in both, under the names its entry gives them, and nothing else changes.
     """
-    latitude = index_entry('latitude', 'rad')
-    resolution = index_entry('resolution', 'km/pixel')
-    radius = [index_entry('radius', 'km')]
+    latitude = plane_entry('latitude', 'rad')
+    resolution = plane_entry('resolution', 'km/pixel')
+    radius = [plane_entry('radius', 'km')]
     before = _index_products_over(
         tmp_path / 'before', cassini_cohort, bodies=[latitude], rings=radius
     )['global_bodies_index']
@@ -701,8 +699,8 @@ def test_a_missing_statistic_s_cell_holds_the_constant_its_field_declares(
     products = _index_products_over(
         tmp_path,
         cassini_cohort,
-        bodies=[index_entry('latitude', 'rad'), index_entry('resolution', 'km/pixel')],
-        rings=[index_entry('radius', 'km'), index_entry('resolution', 'km/pixel')],
+        bodies=[plane_entry('latitude', 'rad'), plane_entry('resolution', 'km/pixel')],
+        rings=[plane_entry('radius', 'km'), plane_entry('resolution', 'km/pixel')],
     )
     product = products[index]
     fields = {field.name: field for field in _field_characters(product.label)}

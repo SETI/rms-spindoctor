@@ -15,6 +15,7 @@ from typing import Any
 
 import pdslogger
 import pytest
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.nav_records.conftest import (
     FIRST_STUB,
     MISSION,
@@ -476,7 +477,7 @@ def test_a_selection_naming_stubs_under_two_roots_is_refused(tmp_path: Path) -> 
     """
     first = two_volume_tree(tmp_path / 'a')
     second = two_volume_tree(tmp_path / 'b')
-    source = TreeRecordSource([first, second])
+    source = TreeRecordSource([first, second], tuning=packaged_tree_tuning())
     with pytest.raises(ValueError, match='keys under one root'):
         source.facts(Selection(stubs=(FIRST_STUB,)))
 
@@ -489,7 +490,9 @@ def test_two_roots_are_answered_under_their_own_root_urls(tmp_path: Path) -> Non
     """
     first = two_volume_tree(tmp_path / 'a')
     second = two_volume_tree(tmp_path / 'b')
-    found = list(TreeRecordSource([first, second]).facts(Selection()))
+    found = list(
+        TreeRecordSource([first, second], tuning=packaged_tree_tuning()).facts(Selection())
+    )
     roots = {str(one.image['root_url']) for one in found if isinstance(one, ImageFacts)}
     assert roots == {first.resolve().as_posix(), second.resolve().as_posix()}
 
@@ -504,7 +507,9 @@ def test_the_facts_of_two_roots_are_not_one_roots_read_twice(tmp_path: Path) -> 
     second = tmp_path / 'b'
     write_document(first, FIRST_STUB, _named('N1454725799_1.IMG'))
     write_document(second, FIRST_STUB, _named('N9999999999_1.IMG'))
-    found = list(TreeRecordSource([first, second]).facts(Selection()))
+    found = list(
+        TreeRecordSource([first, second], tuning=packaged_tree_tuning()).facts(Selection())
+    )
     named = {
         str(one.image['root_url']): one.image['image_name']
         for one in found

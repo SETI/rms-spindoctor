@@ -16,8 +16,8 @@ confounder stars of ``lock_single_dense``, and the catalog scatter of ``wrong_ca
 ``textured_moon_offset`` and ``relief_psf_stray_light`` were measured on 16 draws of the
 detector noise alone instead: the committed draw and the scene key ``noise_seed`` at 101,
 202, ..., 1515.  Those draws keep the albedo texture and the limb relief the test
-renders, which a new ``random_seed`` would redraw.  Every check also holds on 9 draws of
-the detector noise alone, ``noise_seed`` at 101 to 808.
+renders, which a new ``random_seed`` would redraw.  Every check also holds on 8 draws of
+the detector noise alone, ``noise_seed`` at 101, 202, ..., 808.
 
 The two rules.
 
@@ -236,6 +236,18 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('gossi_star_field_short_exposure', FUSED): _t(0.107, 0.200, 0.185, 0.05),
     ('nhlorri_star_field', FUSED): _t(0.406, 0.454, 0.051, 0.20),
     ('nhlorri_star_field_short_exposure', FUSED): _t(0.557, 0.606, 0.126, 0.20),
+    # full_frame_cameras, Voyager.  These rows are measured on all 24 draws, the 16
+    # random_seed draws and the 8 noise_seed draws, which are distinct here.  In
+    # vgiss_2_wac_star_field the +0.358 deg twist moves the mean position of the stars
+    # it measures by 1.6 px, and the answer lands 1.0 to 1.4 px off; without the twist
+    # it lands 0.21 px off, so a lost twist passes this tolerance and fails the
+    # baseline.  The other three twists move their answers by 0.08 px at most.
+    # vgiss_1_wac_saturn's error is the disc correlation's own: the navigator's
+    # Lambert prediction finds the scene's Minnaert disc 0.18 to 0.69 px off.
+    ('vgiss_1_nac_disc', FUSED): _t(0.246, 0.569, 0.509, 0.12),
+    ('vgiss_1_wac_saturn', FUSED): _t(0.343, 0.686, 0.507, 0.14),
+    ('vgiss_2_nac_star_field', FUSED): _t(0.177, 0.259, 0.233, 0.06),
+    ('vgiss_2_wac_star_field', FUSED): _t(1.310, 1.361, 0.356, 0.28),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
     # stars put it, and the fused answer lies between the two, 0.16 to 0.26 px from the
     # truth toward the body; the tolerance stays well below the body's own 1.81 px
@@ -260,7 +272,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
     ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.032, 0.102, 0.072, 0.05),
     ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
-    ('nhlorri_moon_raw', FUSED): _t(0.108, 0.118, 0.011, 0.05),
+    ('nhlorri_moon_raw', FUSED): _t(0.109, 0.118, 0.011, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),
     # mutual_event.  All three scenes carry a known error in their expected blocks
@@ -332,11 +344,13 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
     # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
     ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
-    # On nhlorri_moon_raw the frame-transfer smear pulls the blob 6.8 to 7.1 px off;
-    # without the smear it lands 0.17 to 0.19 px off (#975).  The simulated smear is a
-    # step at each column's centroid, where the real smear builds up across the disc
-    # (#920), so part of the pull may be the simulator's.
-    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(6.782, 7.119, 0.067, 6.715, 7.186),
+    # Measured on all 24 draws.  On nhlorri_moon_raw the frame-transfer smear pulls the
+    # blob 6.8 to 7.1 px off; without the smear it lands 0.16 to 0.19 px off (#975).  The
+    # simulated smear is a step at each column's centroid, where the real smear builds
+    # up across the disc (#920), so part of the pull may be the simulator's.  Its highest
+    # draw, noise_seed 303, lands 7.09 px off; every other draw lies within 6.77 to
+    # 6.79 px.
+    ('nhlorri_moon_raw', 'BodyBlobNav'): _b(6.766, 7.094, 0.066, 6.699, 7.160),
     # RingEdgeNav lands 51.8 px off along the straight edge, the unobservable axis
     # (#755).
     ('planted_rank1_ring_flat', 'RingEdgeNav'): _b(51.753, 51.760, 0.05, 51.703, 51.810),

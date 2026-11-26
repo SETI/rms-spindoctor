@@ -20,6 +20,7 @@ from typing import Any
 
 import pytest
 from filecache import FCPath
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import metadata_document, write_metadata
 from tests.spindoctor.dataset.conftest import (
     VOLUMES,
@@ -125,6 +126,7 @@ def _scan(root: Path, stubs: Sequence[str]) -> list[str]:
         logger=reporting_logger(),
         results_index_db_url=None,
         has_offset_spice_error=True,
+        tuning=packaged_tree_tuning(),
     ) as under_test:
         return select_from(under_test, _candidate_files(root, stubs))
 
@@ -264,6 +266,7 @@ def test_a_filter_closed_again_does_not_report_a_second_scan(
         logger=reporting_logger(),
         results_index_db_url=None,
         has_offset_spice_error=True,
+        tuning=packaged_tree_tuning(),
     )
     select_from(under_test, _candidate_files(root, [EARLIER_SCHEMA]))
     under_test.close()

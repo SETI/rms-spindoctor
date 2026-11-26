@@ -1068,11 +1068,22 @@ The detector stage
 The detector stage (:mod:`spindoctor.sim.render.detector`, a package) is the
 normative unit chain of the renderer. For a CCD instrument the composed
 intensive signal passes through the electron unit chain in
-:func:`~spindoctor.sim.render.detector.chain.apply_detector`:
+:func:`~spindoctor.sim.render.detector.chain.apply_detector`.
+
+The chain runs on the integration time: the scene's ``exposure_sec`` plus the
+detector's ``extra_integration_sec``, which is zero for a camera that states none.
+Whatever the frame collects over its exposure, it collects over the integration time:
+the light of the scene and its stars, the dark current, the cosmic rays and other
+radiation hits, the hot pixels' rate charge, and the bright/dark pairs. The sky's
+faint star limit follows it too, and the frame-transfer smear's share of each column
+falls as it grows. A calibrated product divides by ``exposure_sec`` alone, the only
+exposure its label gives. The vidicon chain's signal does not scale with the
+exposure, so a vidicon entry cannot state an extra integration time, and a scene that
+renders a CCD camera through the vidicon chain collects for ``exposure_sec`` alone.
 
 1. **Signal to electrons.** The intensive signal is scaled to electrons
-   through ``signal_full_scale_frac * full_well_e * (exposure_sec /
-   exposure_ref_sec)``. The signal is not capped first: a limb-brightened law or
+   through ``signal_full_scale_frac * full_well_e`` times the integration time over
+   ``exposure_ref_sec``. The signal is not capped first: a limb-brightened law or
    a bright albedo spot can carry it above 1, and the full well in step 4
    saturates it as a real camera does. A scene that sets a filter (see
    :ref:`sim-detector-block`) sets ``exposure_ref_sec`` from the filter's
@@ -1152,7 +1163,7 @@ intensive signal passes through the electron unit chain in
 5. **Cosmic rays and read noise.** Cosmic rays deposit after the bloom cap. The
    detector collects them during the exposure and while the frame waits to be
    read, so the event count is a Poisson draw with mean
-   ``cosmic_ray_events_per_pixel_per_sec`` x (``exposure_sec`` +
+   ``cosmic_ray_events_per_pixel_per_sec`` x (the integration time +
    ``cosmic_ray_readout_dwell_sec``) x pixel count. Each event deposits at least
    ``cosmic_ray_amplitude_e``, diffused by a Gaussian of sigma
    ``cosmic_ray_spread_px``. Without a deposit scale every hit is full-well
@@ -1647,8 +1658,11 @@ The keys of an entry, all directly under the instrument's top-level key:
        states the electron chain (``full_well_e``, ``gain_e_per_dn_by_state``,
        ``default_gain_state``, ``read_noise_e``, and ``dark_current_e_per_sec``); a
        ``vidicon`` entry states the ``vidicon`` read-noise sub-map, which only a vidicon
-       may carry. Optional: the cosmic-ray dwell, amplitude, and spread. Also optional are
-       the calibrated-product terms (``calibrated_sky_if``,
+       may carry. Optional: the cosmic-ray dwell, amplitude, and spread, and
+       ``extra_integration_sec``, the time a CCD collects light beyond the commanded
+       exposure (zero when left out; at least 0 and below 0.1 s; a ``vidicon`` entry
+       may not state it). Also optional are the calibrated-product terms
+       (``calibrated_sky_if``,
        ``calibration_column_residual_e``, and ``calibration_pixel_residual_e``) and the
        realism match's dark-sky ceiling, ``dark_sky_ceiling_if``. Only an entry whose
        ``data_units`` is ``calibrated_if`` may set the ceiling.
@@ -1657,8 +1671,8 @@ The keys of an entry, all directly under the instrument's top-level key:
      - The binning factors at which the camera reads out. Each maps to the
        ``detector`` keys that its published characterization changes, and an
        empty map keeps every 1x1 value. Binning 1 is required. A readout mode
-       may not change ``detector_model`` or the ``vidicon`` block, and a vidicon has
-       binning 1 only.
+       may not change ``detector_model``, the ``vidicon`` block, or
+       ``extra_integration_sec``, and a vidicon has binning 1 only.
    * - ``native_frame_size_px``
      - no
      - The full unbinned frame's size on a side, from which the realism match
@@ -1785,13 +1799,14 @@ quantity it holds. The registry records which key each mode takes
   for a pixel loss, and the compression-block count for ``missing_blocks``.
 * **Rate** modes ``bright_dark_pairs`` and ``radiation_transients`` take
   ``expected_events_per_sec``, the expected number of events per second, any
-  non-negative number, and their draws are uncapped. For ``bright_dark_pairs``
-  the frame's expected count is that rate times ``exposure_sec``. A radiation
-  hit also lands while the frame waits for readout, and the entry's
-  ``environment_factor`` scales the radiation environment, so
-  ``radiation_transients`` expects
-  ``expected_events_per_sec * environment_factor * (exposure_sec +
-  readout_dwell_sec)``. A non-positive exposure counts as zero seconds, so such
+  non-negative number, and their draws are uncapped. Both count over the
+  integration time, ``exposure_sec`` plus the camera's ``extra_integration_sec``
+  (see :ref:`sim-detector-stage`). For ``bright_dark_pairs`` the frame's expected
+  count is that rate times the integration time. A radiation hit also lands while
+  the frame waits for readout, and the entry's ``environment_factor`` scales the
+  radiation environment, so ``radiation_transients`` expects
+  ``expected_events_per_sec * environment_factor`` times the integration time plus
+  ``readout_dwell_sec``. A non-positive exposure counts as zero seconds, so such
   a frame collects only the dwell's hits. The scene validator refuses a
   non-positive ``exposure_sec``, so only a direct caller of the detector stage
   can pass one.
@@ -2195,12 +2210,13 @@ with the camera's whole detector chain, and uses an exposure a real frame of
 that kind uses. Each offset is as large as the camera's real pointing errors,
 or larger where those are small, and the offsets point in different directions.
 Each scene also plants
-the camera's measured twist and leaves roll fitting off, as the cameras ship.
+the camera's measured twist, or, where none is measured, a placeholder its
+instrument chapter states, and leaves roll fitting off, as the cameras ship.
 Together the scenes guard the renderer and the navigator, so a change that moves
 a realistic frame's answer shows up.
 
 Each scene that navigates has its fused answer held to a tolerance measured
-over 16 seeds, like the other validation scenes. A scene the navigator fails is
+over 16 seeds or more, like the other validation scenes. A scene the navigator fails is
 an expected failure: its expected block holds the failure, so a fix fails the
 scene until the block is retired. A scene whose answer depends on a navigator
 weakness says so in its comments and in ``sim_truth.py``.
@@ -2209,8 +2225,9 @@ The instrument chapters list each camera's scenes, with their content, their
 measured errors, and the failures they hold.
 
 ``test_sim_full_frame_cameras.py`` navigates each scene once per run. A star
-field takes a few seconds to navigate, and a frame with a disc takes up to half
-a minute, since the disc correlation searches the camera's whole offset window.
+field takes a few seconds to navigate. A frame with a disc takes up to a minute
+on a quiet machine and about three times as long on a busy one, since the disc
+correlation searches the camera's whole offset window.
 
 .. _sim-mixed-defects:
 
@@ -3973,8 +3990,9 @@ A scene either sets a key or leaves it out to take its default.
      - float
      - 1.0
      - idealized
-     - Exposure time; scales the cosmic-ray, ``radiation_transients``, and
-       ``bright_dark_pairs`` counts.
+     - Commanded exposure time. With the camera's ``extra_integration_sec`` it
+       makes the integration time, which scales the cosmic-ray,
+       ``radiation_transients``, and ``bright_dark_pairs`` counts.
    * - ``offset_v`` / ``offset_u``
      - float
      - 0.0
@@ -6113,8 +6131,8 @@ navigation pairs.  Outputs:
   committed record backing the report's tables (divergences, support
   labels, FOM 7 rows, runtime).
 
-The full-cohort run takes 32 to 39 minutes on a workstation with local
-holdings.  The committed record of 2026-11-22 took 32 minutes (1,894 seconds).
+The full-cohort run takes 32 to 54 minutes on a workstation with local
+holdings.  The committed record of 2026-11-25 took 54 minutes (3,259 seconds).
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on
 W1580760393).  The cost is
