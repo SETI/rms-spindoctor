@@ -556,6 +556,8 @@ and 28 e-/DN on the WAC.
   as the square root of the hot pixel's charge: 2.5% of the charge on the first
   row at 1,000 e-, and 0.4% at 70,000 e-. The simulator leaves it out.
 
+.. _coiss-calibrated-hot-pixels:
+
 **Calibrated hot pixels.** A calibrated product carries its raw camera's hot-pixel
 map positions, with a population of its own. CISSCAL's dark subtraction removes the
 raw camera's hot pixels: where the nearest dark series has a pixel hotter than

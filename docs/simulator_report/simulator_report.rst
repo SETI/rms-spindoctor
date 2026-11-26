@@ -307,10 +307,9 @@ instrument's value and where it comes from.
      - 3.3e-5
      - 2.0e-5
      - Hot-pixel population fitted to the 58-frame calibrated NAC cohort's
-       stationary spikes, single-pixel spikes recurring at fixed positions
-       across the cohort: 3.3e-5 of the pixels hold 1,000 e- or more, whatever
-       the exposure.  At the real frames' spike thresholds it predicts the
-       cohort's stationary spike fraction, 1.6e-5.  Cosmic-ray terms fitted in
+       stationary spikes, whose fraction, 1.6e-5, it predicts at the real
+       frames' spike thresholds (see :ref:`the Cassini ISS chapter
+       <coiss-calibrated-hot-pixels>`).  Cosmic-ray terms fitted in
        closed loop to the 12-bit dark-sky frames: they flag 120-270 spikes per megapixel at
        every exposure from 60 ms to 2.6 s and 650 at 18 s, so the hits arrive
        mostly while the frame waits to be read (6 s of dwell), and the spikes
@@ -319,18 +318,17 @@ instrument's value and where it comes from.
    * - ``coiss_calib_wac``
      - 7.9e-7
      - 2.0e-5
-     - The calibrated NAC's hot-pixel law, with the fraction fitted to the
-       4-frame WAC cohort's one stationary pixel, so it is uncertain by a
-       factor of several.  Cosmic-ray terms shared with the NAC: the two
+     - Hot-pixel population fitted to the 4-frame WAC cohort's one stationary
+       pixel, so the fraction is uncertain by a factor of several (see
+       :ref:`the Cassini ISS chapter <coiss-calibrated-hot-pixels>`).  Cosmic-ray terms shared with the NAC: the two
        cameras share the CCD and its readout.  The WAC's one 12-bit dark frame, a 26 s star field,
        flags more spikes than the terms deposit, its stars adding to the
        count.
    * - ``gossi``
      - 9e-5
      - 2.0e-5
-     - Hot-pixel population fitted on raw dark frames: 9e-5 of the pixels, with
-       charges drawn from an exponential of mean 150 e- that does not grow with
-       the exposure.  The 8-frame Galileo REDR cohort's stationary spike
+     - Hot-pixel population fitted on raw dark frames (see :ref:`the Galileo SSI
+       chapter <gossi-hot-pixels>`).  The 8-frame Galileo REDR cohort's stationary spike
        fraction is 1.4e-6.  Cosmic-ray terms fitted in closed loop to the
        cohort's transient spikes, 57-129 per frame at 33/58/150 DN (10th,
        50th, and 90th percentile): 4.33 s of dwell (half the full-frame
@@ -549,11 +547,8 @@ FOM 2 is only limited on the NAC.  On those 9 cutouts the simulated EE50 and
 EE80 medians are 0.76 and 1.33 px, against 0.91 and 1.79 px real (W1/IQR
 1.14 and 1.10).  The tuned kernel itself is unchanged.  The stationary
 artifact rate is 1.6e-5 of pixels real against 2.8e-5 simulated, with hot pixels
-recurring at fixed detector positions on both sides.  The catalog's population
-predicts the real rate at the real frames' spike thresholds.  The simulated rate
-is higher for two reasons: this detector's hot-pixel map holds 41 such pixels in a
-full frame, where 35 are expected, and the matched frames' own spike thresholds
-flag about 1.5 times more of the population.  The transient (cosmic-ray) share
+recurring at fixed detector positions on both sides; :ref:`the Cassini ISS
+chapter <coiss-calibrated-hot-pixels>` explains the difference.  The transient (cosmic-ray) share
 comes from the catalog's fitted cosmic-ray terms (see the measured-transients
 known gap).  Limb rise widths differ in the
 like-for-like pool (co-populated-strata medians 2.19 sim vs 2.54 px
@@ -707,7 +702,8 @@ rendering rest on unverified forward-model fidelity* until the
 star-calibration frames land.  What the cohort does support is FOM 6 and
 FOM 1.  In FOM 6 the real frames' stationary spike fraction is 1.4e-6, and
 the matched frames show no stationary spikes, although the catalog's hot
-pixels cover 9e-5 of the pixels, at a mean charge of 150 e-.  The real
+pixels cover 9e-5 of the pixels (see :ref:`the Galileo SSI chapter
+<gossi-hot-pixels>`).  The real
 transient fraction, 1.2e-4 of pixels, meets 1.6e-4 from the catalog's fitted
 cosmic-ray terms (spike-fraction W1/IQR 0.44; the measured-transients known
 gap).  In FOM 1 every frame pair contributes sky patches, and the matched
