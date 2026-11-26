@@ -37,8 +37,10 @@ FloatArray = NDArray[np.float64]
 #: Tukey biweight tuning constant (in robust sigmas).
 TUKEY_C = 4.685
 
-#: A residual scatter (magnitudes) below this counts as zero.
-ZERO_SCALE = 1e-9
+#: The smallest residual scale (magnitudes) the biweight divides by: well below the
+#: precision of any one star's zero point (0.01 mag at the brightest), so it binds only
+#: when more than half the zero points agree exactly.
+MIN_SCALE_MAG = 0.001
 
 
 def _tukey_lstsq(
@@ -46,13 +48,13 @@ def _tukey_lstsq(
 ) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
     """Solve ``a x = b`` by iteratively reweighted least squares with Tukey's biweight.
 
+    The residual scale is the robust scatter, at least ``MIN_SCALE_MAG``.  The first
+    weights measure the residuals from their median, so that a least-squares start pulled
+    by outliers does not drop the majority with them; the design must hold an intercept.
+
     Parameters:
         a: Design matrix.
         b: Observations.
-
-    When more than half the residuals agree exactly, their median absolute deviation is
-    zero and gives the biweight no scale; the weights then keep the stars at the median
-    residual, the consensus, and drop the rest.
 
     Returns:
         ``(x, sigma_x, residuals, weights)``; ``sigma_x`` from the weighted normal equations
@@ -60,16 +62,13 @@ def _tukey_lstsq(
     """
     weights = np.ones(b.size)
     x = np.zeros(a.shape[1])
-    for _ in range(30):
+    for iteration in range(30):
         sw = np.sqrt(weights)
         x, *_ = np.linalg.lstsq(a * sw[:, None], b * sw, rcond=None)
         resid = b - a @ x
-        deviation = np.abs(resid - np.median(resid))
-        mad = 1.4826 * np.median(deviation)
-        if mad < ZERO_SCALE:
-            weights = (deviation < ZERO_SCALE).astype(np.float64)
-            continue
-        u = resid / (TUKEY_C * (mad + ZERO_SCALE))
+        median = np.median(resid)
+        scale = max(1.4826 * float(np.median(np.abs(resid - median))), MIN_SCALE_MAG)
+        u = (resid - (median if iteration == 0 else 0.0)) / (TUKEY_C * scale)
         weights = np.where(np.abs(u) < 1.0, (1.0 - u**2) ** 2, 0.0)
     resid = b - a @ x
     scale = 1.4826 * np.median(np.abs(resid - np.median(resid)))

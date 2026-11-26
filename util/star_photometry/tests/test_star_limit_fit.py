@@ -14,7 +14,7 @@ from util.star_photometry.star_limit_fit import (
     _measured_terms,
     fit_camera,
 )
-from util.star_photometry.star_zero_point import fit_zero_point
+from util.star_photometry.star_zero_point import _tukey_lstsq, fit_zero_point
 
 # The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, and gain term.
 ZERO_POINT, RED_OFFSET, GAIN_40K = 15.0, 2.0, -1.5
@@ -131,6 +131,15 @@ def test_zero_point_of_identical_stars() -> None:
     result = _fit([_zp_row('CLEAR', '10K', 8.0)] * 20)
     assert result.zero_point_identified
     assert result.rate_vmag0 == pytest.approx(10 ** (0.4 * ZERO_POINT), rel=1e-9)
+
+
+def test_zero_point_keeps_a_term_whose_stars_scatter_by_nanomagnitudes() -> None:
+    """Sixteen stars scattered by 2e-9 mag about their own term keep it, beside 20 exact ones."""
+    a = np.array([[1.0, 0.0]] * 20 + [[1.0, 1.0]] * 16)
+    b = np.array([10.0] * 20 + [12.0 - 2e-9, 12.0 + 2e-9] * 8)
+    x, _, _, weights = _tukey_lstsq(a, b)
+    assert x == pytest.approx([10.0, 2.0], abs=1e-6)
+    assert np.all(weights > 0.99)
 
 
 def test_zero_point_drops_a_filter_left_without_its_gain_states() -> None:
