@@ -5,7 +5,8 @@ observation (read through the navigator's own reader, so star positions are the 
 the image the photometry is measured on and the mapping into it, the frame's photometric
 state (filter, gain state, readout mode, exposure), and the measurement parameters.  This
 module queries the catalog deep, finds the pointing most catalog stars agree on without the
-navigator's star techniques, and measures every catalog star at the pointing.
+navigator's star techniques (a star behind a body or ring takes no part), and measures every
+catalog star at the pointing.
 
 For each star the record holds what the limit and PSF fits need:
 
@@ -262,12 +263,21 @@ def measure_frame(
     record['hp_noise'] = robust_sigma(hp.ravel())
 
     margin = params.search_px
-    near = np.nonzero(
-        (pv > -margin)
-        & (pv < nav.shape[0] + margin)
-        & (pu > -margin)
-        & (pu < nav.shape[1] + margin)
-    )[0]
+    occluded = _occlusion_mask(obs, config, margin_px=margin)
+    # A star behind a body or ring cannot confirm a pointing, so it takes no voter slot.
+    near = np.array(
+        [
+            k
+            for k in np.nonzero(
+                (pv > -margin)
+                & (pv < nav.shape[0] + margin)
+                & (pu > -margin)
+                & (pu < nav.shape[1] + margin)
+            )[0]
+            if not occluded(float(pv[k]), float(pu[k]))
+        ],
+        dtype=np.intp,
+    )
     voters = near[np.argsort(vmag[near])][: params.max_vote_stars]
     center = ((nav.shape[0] - 1) / 2.0, (nav.shape[1] - 1) / 2.0)
     fix = find_pointing(
@@ -296,7 +306,6 @@ def measure_frame(
         & (tu >= params.edge_px)
         & (tu < nav.shape[1] - params.edge_px)
     )[0]
-    occluded = _occlusion_mask(obs, config, margin_px=params.search_px)
     for k in inside:
         if not stars[k].conflicts and occluded(float(pv[k]), float(pu[k])):
             stars[k].conflicts = 'BODY OR RING'
