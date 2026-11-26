@@ -99,7 +99,9 @@ from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
+    add_model_error_floor,
     embed_rotation_unobservable,
+    load_model_error_floor,
     log_confidence_breakdown,
     reported_position_vu,
     rotation_unobservable_sigma_rad,
@@ -189,6 +191,7 @@ class StarUniqueMatchNav(NavTechnique):
         self._one_star_max_residual_px = float(self.tuning['one_star_max_residual_px'])
         self._one_star_max_peak_sharpness = float(self.tuning['one_star_max_peak_sharpness'])
         self._one_star_absent_stars = int(self.tuning['one_star_absent_stars'])
+        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
         for key in ('pair_search_sources', 'pair_absent_stars', 'one_star_absent_stars'):
             if int(self.tuning[key]) < 1:
                 raise ValueError(f'{key} must be >= 1; got {self.tuning[key]!r}')
@@ -670,6 +673,8 @@ class StarUniqueMatchNav(NavTechnique):
         cov = two_star_covariance(
             chosen[0], chosen[1], residual_px=residual_px, fit_rotation=fit_rotation
         )
+        # Model-error floor (#210); rationale on load_model_error_floor.
+        cov = add_model_error_floor(cov, self._model_error_floor_px)
         sigma_rotation_rad: float | None = None
         if fit_rotation:
             sigma_rotation_rad = float(np.sqrt(max(float(cov[2, 2]), 0.0)))
@@ -882,6 +887,8 @@ class StarUniqueMatchNav(NavTechnique):
             confidence,
         )
         cov = build_star_covariance(star, residual_px=residual_px)
+        # Model-error floor (#210); rationale on load_model_error_floor.
+        cov = add_model_error_floor(cov, self._model_error_floor_px)
         cov_out = embed_rotation_unobservable(cov) if fit_rotation else cov
         return NavTechniqueResult(
             technique_name=self.name,

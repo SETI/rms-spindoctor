@@ -165,10 +165,13 @@ reported sigma. Three shared corrections restore calibration:
     ``tuning`` block: a technique whose tuning is typed declares
     ``model_error_floor_px`` as a field of its tuning type, and the others read
     it with :func:`~spindoctor.nav_technique.nav_technique.load_model_error_floor`;
-    the shipped values were fitted so that the 2-sigma coverage of the
+    most shipped values were fitted so that the 2-sigma coverage of the
     reported sigmas matches planted-truth recovery on the simulation
-    campaign (the provenance notes live alongside the values in
-    ``config_510_techniques.yaml``).
+    campaign. The star unique match floor was measured on real star fields
+    instead, against each frame's independent multi-star pointing fix, so
+    that no more of its answers lie beyond a Mahalanobis distance of 3 than
+    a two-axis Gaussian predicts. The provenance notes live alongside the
+    values in ``config_510_techniques.yaml``.
 
 **Size-scaled NCC terms.**
     The correlation techniques additionally carry

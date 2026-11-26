@@ -473,7 +473,7 @@ The 1-star covariance is the per-feature CRLB floor from
 :attr:`~spindoctor.feature.feature.NavFeature.position_cov_px` inflated by ``residual_px**2``
 on the diagonal. The 2-star translation covariance is the average of the two stars'
 residual-inflated matrices, plus the analytic rotation variance derived above when rotation
-is fitted.
+is fitted. Both paths then add ``model_error_floor_px**2`` to each translation variance.
 When the converged offset sits within the at-edge tolerance of any axis bound, or when the
 2-star rotation parameter is at the configured fraction of its cap, the result is flagged
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the hard-zero
@@ -561,6 +561,14 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   converged 2-star rotation magnitude trips
   :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the 2-star
   Procrustes path uses it; the 1-star path always reports rotation as unobservable.
+- ``model_error_floor_px`` — float, default ``0.04`` px. Model-error floor added in
+  quadrature to the translation diagonal of both paths' covariance. It was measured on real
+  star fields: the technique's answers against each frame's independent multi-star pointing
+  fix, with a third of the frames held out. At this value at most 1.1% of the answers lie
+  beyond a Mahalanobis distance of 3, as a two-axis Gaussian predicts; without it 2.4% do.
+  For most answers the covariance is already wider than the scatter (median squared
+  distance 0.08, against a Gaussian's 1.39), so the floor changes only answers whose
+  covariance is a small two-star residual.
 
 Per-instrument overrides
 ------------------------
