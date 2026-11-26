@@ -15,6 +15,7 @@ once per ``bodies`` entry.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any
 
 from spindoctor.sim.instruments.passbands import has_passbands, solar_weighted_passband
@@ -530,7 +531,7 @@ def _check_atmosphere_model(value: dict[str, Any], *, label: str, source: str) -
 
 
 def check_model_atmosphere_filters(
-    sim_params: dict[str, Any], *, instrument: str, source: str
+    sim_params: Mapping[str, Any], *, instrument: str, source: str
 ) -> None:
     """Refuse a Titan haze in a filter the haze is not modeled in.
 

@@ -8,6 +8,7 @@ declared validation class with scenes, its module builds its tests from the shar
 checks, and every module that does so belongs to such a class.
 """
 
+import re
 from pathlib import Path
 
 import pytest
@@ -148,5 +149,5 @@ def test_validator_rejects_unknown_key(tmp_path: Path) -> None:
         'schema_version: 2\nscene_name: typo\ninstrument: coiss_nac\n'
         'size_v: 64\nsize_u: 64\nrandom_seed: 1\nbogus_key: 3\n'
     )
-    with pytest.raises(SimSceneValidationError, match='unknown scene keys'):
+    with pytest.raises(SimSceneValidationError, match=re.escape("unknown keys: ['bogus_key']")):
         load_sim_scene(bad)

@@ -31,7 +31,7 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-from spindoctor.sim.scene.boundary import _ALLOWED_KEYS
+from spindoctor.sim.scene.boundary import TOP_LEVEL_KEYS
 from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 
@@ -342,7 +342,7 @@ def test_full_inventory_round_trip_preserves_other_blocks(
 
     # The edited field changed; nothing else did.
     assert resaved['random_seed'] == 2024
-    for key in _ALLOWED_KEYS - {'schema_version', 'scene_name', 'random_seed'}:
+    for key in TOP_LEVEL_KEYS - {'schema_version', 'scene_name', 'random_seed'}:
         assert resaved.get(key) == original.get(key), f'block {key!r} did not survive'
 
 
