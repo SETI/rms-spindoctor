@@ -167,10 +167,10 @@ def _star_limit(instrument: str, exposure_sec: float, *, binning: int | None = N
 @pytest.mark.parametrize(
     ('instrument', 'exposure_sec', 'expected'),
     [
-        ('nhlorri', 5.0, 11.414754682632388),
+        ('nhlorri', 5.0, 13.914754682632388),
         ('coiss_nac', 1.0, 10.890967146275809),
         ('coiss_wac', 1.0, 8.734411020746549),
-        ('gossi', 1.0, 5.692403499719424),
+        ('gossi', 1.0, 10.091131844944943),
     ],
 )
 def test_unbinned_star_limit_is_unchanged(
@@ -189,10 +189,10 @@ def test_unbinned_star_limit_is_unchanged(
 @pytest.mark.parametrize(
     ('instrument', 'binning', 'expected_shift_mag'),
     [
-        # From the navigator's LORRI block: unbinned, 3.33e6 DN/s over 4.0 DN of read
-        # noise; binned 4x4, 3.61e6 DN/s over 1.19 DN, with the 3.0 px core shrunk to
+        # From the navigator's LORRI block: unbinned, 3.33e7 DN/s over 4.0 DN of read
+        # noise; binned 4x4, 3.61e7 DN/s over 1.19 DN, with the 3.0 px core shrunk to
         # 0.75 px, so on a sixteenth of the pixels.
-        ('nhlorri', 4, 2.5 * math.log10((3.61e6 / 3.33e6) * (4.0 / 1.19) * 4**2)),
+        ('nhlorri', 4, 2.5 * math.log10((3.61e7 / 3.33e7) * (4.0 / 1.19) * 4**2)),
         # From the navigator's NAC block: unbinned, 3.33e5 DN/s over 4.0 DN; summed
         # 2x2, the same zero point over 0.400 DN, which the 1 DN floor raises to 1.0,
         # and the 0.54 px core shrinks below one pixel, which then holds it all.

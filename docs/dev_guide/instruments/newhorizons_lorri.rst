@@ -161,15 +161,15 @@ separate purposes and are not expected to agree.
 filter slot, encoded as the digit one -- and the table carries one entry with a
 default of 0.0. Both are placeholders.
 
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.33e6, described
-in the file as an interim value sized from an electron zero point of 7.0e7 e- per
-second over the single gain state. The simulator's measured zero point (see the
-simulator model below) is ten times that.
+**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.33e7 DN per
+second, the simulator's measured zero point of 7.0e8 e- per second (see the
+simulator model below) over the 21 e-/DN of the single gain state.
 
 **Binned readout mode.** ``noise.by_binning`` gives the values for the 4x4 mode,
 keyed by the binning factor. The mode's published gain is 19.4 e-/DN, so the
 read noise of one binned pixel is the published 23 e- over 19.4, or 1.19 DN, and
-the zero point is 7.0e7 e- per second over 19.4, or 3.61e6 DN per second. Only the faint-star limit of a simulated frame reads them.
+the zero point is 7.0e8 e- per second over 19.4, or 3.61e7 DN per second. Only
+the faint-star limit of a simulated frame reads them.
 The full-resolution ``read_noise_dn`` is a placeholder above the published 23 e-
 over 21 e-/DN, or 1.10 DN, so 1.4 of the 4.4 mag step from an unbinned frame's
 star limit to a binned one's comes from the placeholder.
@@ -386,9 +386,9 @@ Image library and test coverage
 ===============================
 
 **Cohort.** Two sidecars, both under ``star_dominated``, and both binned four
-by four, which is why the navigator's photometric parameters and both PSFs above
-are derivations rather than measurements. The simulator's star zero point was
-measured on a wider set of frames, described with its value.
+by four, which is why the navigator's limiting magnitude and both PSFs above are
+derivations rather than measurements. The star zero point was measured on a wider
+set of frames, described with the simulator's value.
 
 **Integration tests.** The per-image regression suite
 (``tests/integration/test_autonomous_nav.py``) and the structural-invariants
@@ -405,20 +405,14 @@ full 1024 px frame with the measured twist of +0.19 degrees. The image library's
 frames of this camera are only about a pixel off, so the scenes' 32 px offset
 instead reaches half the camera's search window.
 
-- ``nhlorri_star_field``: 18 stars of V 10.5 to 13.0 at 5 s. The twist moves the
-  four measured stars' mean position by about 0.94 px, because a translation
-  follows the turned stars it measures, and the answer lands 0.93 to 0.94 px off
-  over 24 draws. At the earlier zero point it landed 0.05 px off without the
-  twist.
-- ``nhlorri_star_field_short_exposure``: the same field at 1 s. Its brightest
-  star peaks about 175 times the sky noise, but the navigator predicts every star
-  too faint to see and draws no star features. Two values of the navigator's own
-  camera block set that prediction: its copy of the zero point for simulated
-  frames, ``star_flux_dn_per_s_vmag0``, holds 3.33e6 DN per second, where the
-  simulator's zero point over 21 e-/DN is 3.33e7, and its star blur is a 3.0 px
-  placeholder against a published core near 1 px. The frame fails, and the
-  scene's expected block holds the failure. With the copy at 3.33e7 the frame
-  lands 0.54 px off, the blur unchanged.
+- ``nhlorri_star_field``: 18 stars of V 10.5 to 13.0 at 5 s. The navigator
+  measures all 18. The twist moves their mean position by about 0.4 px, because
+  a translation follows the turned stars it measures, and the answer lands 0.41
+  to 0.42 px off over 24 draws. Without the twist it lands 0.02 px off.
+- ``nhlorri_star_field_short_exposure``: the same field at 1 s. The navigator
+  measures the 7 brightest stars, and the twist moves their mean position by
+  about 0.54 px. The answer lands 0.53 to 0.55 px off over 24 draws, and 0.02 px
+  off without the twist.
 
 **Mixed-defect guard scene.** ``nhlorri_moon_raw`` in the ``mixed_defects`` scene
 class (see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px

@@ -1619,7 +1619,7 @@ star limit, so it must state ``star_flux_dn_per_s_vmag0``; without it the
 navigator would take the generic block's value. That value must match the entry's
 star zero point, converted to DN through the default gain state for a CCD, within
 half the place value of the last digit the navigator's config file writes, so
-``3.61e6`` is held to 5e3 and ``0.400`` to 5e-4. The navigator states its own
+``3.61e7`` is held to 5e4 and ``0.400`` to 5e-4. The navigator states its own
 value, so a simulator retune does not move what the navigator knows; the test
 fails when the two drift apart by more than the navigator value's rounding.
 Each binned readout mode an entry offers needs its own values in a raw-DN navigator

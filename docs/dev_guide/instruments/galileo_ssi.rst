@@ -158,22 +158,21 @@ handled downstream.
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
 entry with a default of 0.0. Both are placeholders.
 
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 2.14e4, described
-in the file as an interim value sized from an electron zero point of 4.0e6 e- per
-second over the standard gain state. The simulator's measured zero point (see the
-simulator model below) is about 58 times that.
+**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 1.23e6 DN per
+second, the simulator's measured zero point of 2.3e8 e- per second (see the
+simulator model below) over the 187 e-/DN of the standard gain state.
 
 **Summed readout mode.** ``noise.by_binning`` gives the values for the 2x2
 summation mode, keyed by the binning factor: the read noise of one summed pixel,
 the published 44 e- over the 187 e-/DN of gain state 2, or 0.235 DN, and the
-zero point, which stays 2.14e4 because the mode has no gain of its own. Only the
+zero point, which stays 1.23e6 because the mode has no gain of its own. Only the
 faint-star limit of a simulated frame reads them. The full-resolution
 ``read_noise_dn`` is a placeholder of 1.0 DN. The limit's noise is at least 1 DN,
 so it reads 1 DN with or without summation, and the step from an unbinned frame's
 limit to a summed one's, 1.5 mag, comes from the narrower star core alone.
 
-**Recalibrating.** Nothing here rests on a measured frame, so recalibration
-starts from acquiring star fields: the curated image cohort holds none for this
+**Recalibrating.** Apart from the zero point, nothing here rests on a measured
+frame, so recalibration starts from acquiring star fields: the curated image cohort holds none for this
 instrument, which is also what leaves the simulator PSF unverified. With star
 frames in hand, the anchor is the faintest usable star at a known exposure and
 the PSF sigma follows from the encircled-energy radii, both edited in YAML
@@ -385,23 +384,16 @@ this camera are about four times quieter than real ones, so each scene plants
 the measured sky noise of 0.96 DN in place of the catalog's read noise.
 
 - ``gossi_star_field``: two bright stars among 14 fainter ones at 1.6 s, offset
-  257 px, the size of the library's scattered-light frames. At the measured star
-  zero point every star in view saturates. The navigator's own copy of the zero
-  point for simulated frames, ``star_flux_dn_per_s_vmag0`` in its camera block,
-  holds 2.14e4 DN per second, where the simulator's zero point over the
-  catalog's 187 e-/DN gain is 1.23e6. So the navigator predicts four stars among
-  30 saturated sources, both star techniques give spurious answers, and the frame
-  fails on every draw. The scene's expected block holds the failure. With the
-  navigator's copy at 1.23e6 the frame lands 0.10 px off.
+  257 px, the size of the library's scattered-light frames. Every star in view
+  saturates. The navigator matches 11 stars and lands 0.09 to 0.10 px off over
+  24 draws, and 0.08 px off without the twist.
 - ``gossi_star_field_short_exposure``: the same field at 0.1 s, the exposure of
-  the real Pleiades frames, which navigate on three stars. The simulated stars
-  show down to V 7.3, about 20 times the sky noise, but the navigator predicts
-  only the brightest star visible, so the frame
-  fails, and the scene's expected block holds the failure. The navigator's star
-  limit on a simulated frame reads its own low copy of the zero point and
-  spreads it over a 3.0 px placeholder blur, so it reaches only V 3.2 at 0.1 s,
-  against V 7.8 on the real frames. With the copy at 1.23e6 the frame lands
-  0.02 px off, the blur unchanged.
+  the real Pleiades frames, which navigate on three stars. The navigator's star
+  limit on a simulated frame reaches V 7.6, against V 7.8 on the real frames.
+  It matches 8 stars and lands 0.01 to 0.02 px off over 24 draws. The real
+  frames are from 1990 and read about 1.3 mag fainter than the 1992 frames the
+  zero point follows, so the scene checks the short-exposure path rather than
+  copying those frames.
 - ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.

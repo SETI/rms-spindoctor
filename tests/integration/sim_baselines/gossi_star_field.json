@@ -1,8 +1,8 @@
 {
-  "confidence": 0.0,
-  "confidence_rank": "failed",
-  "offset_du_px": null,
-  "offset_dv_px": null,
+  "confidence": 0.89728609605757,
+  "confidence_rank": "high",
+  "offset_du_px": -226.42306543771934,
+  "offset_dv_px": -121.53300181115674,
   "scene_name": "gossi_star_field",
-  "status": "failed"
+  "status": "success"
 }

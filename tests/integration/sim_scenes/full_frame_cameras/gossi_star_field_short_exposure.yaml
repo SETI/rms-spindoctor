@@ -10,21 +10,15 @@ exposure_sec: 0.1
 # The simulator's Galileo star zero point is measured on real frames, 2.3e8
 # electrons per second at V 0 (#1153).  At the catalog's gain of 187 e-/DN the
 # V 2.8 and V 4.2 stars saturate, and the V 7.3 stars peak about 20 times the
-# sky noise.
+# sky noise.  The navigator's copy of the zero point for simulated frames
+# matches the simulator's, so it predicts stars to V 7.6, matches 8 of them,
+# and lands 0.01 to 0.02 px off at high confidence over 24 draws (0.05 px on
+# the committed draw without the roll).
 #
-# The navigator still predicts only the V 2.8 star visible, and the frame fails
-# all_techniques_spurious on all 24 draws.  Two values of the navigator's own
-# Galileo block hold its star limit on a simulated frame at V 3.2: its copy of
-# the zero point, star_flux_dn_per_s_vmag0, holds the earlier value over the
-# gain (2.14e4 DN/s against the simulator's 1.23e6), and it spreads that over
-# the 3.0 px placeholder star blur (#342).  With the copy at 1.23e6 DN/s the
-# committed draw navigates 0.02 px off at high confidence on 8 stars, with the
-# blur left at 3.0 px.  The real frames ran at gain 10K (39 electrons per DN),
-# where their stars read 1.3 mag fainter than the 1992 frames the zero point
-# follows (#1211).
-#
-# The expected block holds the failure, so a fix fails this scene until the
-# block is retired.
+# The scene keeps the camera's zero point, which follows the 1992 Pleiades
+# frames.  The 1990 frames it is modeled on (GO_0002 and GO_0003) read about
+# 1.3 mag fainter than the 1992 frames (#1211), so the scene checks the
+# short-exposure path rather than twinning those frames.
 artifacts:
   instrument_defaults: true
 noise:
@@ -51,7 +45,3 @@ stars:
 offset_v: -121.63
 offset_u: -226.41
 offset_rotation_deg: -0.0526
-expected:
-  status: failed
-  confidence_tier: failed
-  status_reason: all_techniques_spurious

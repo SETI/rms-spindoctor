@@ -12,23 +12,13 @@ exposure_sec: 1.6
 # the camera's 350 px search window, and the offset brings a different part of
 # it into view.  The brightest star saturates and blooms.
 #
-# The real frames ran 0.1 s and lock on three stars.  The scene ran at 1.6 s
-# because simulated Galileo stars were about 12 times too faint (#1153); at
-# 1.6 s the navigator predicted four, enough for the star-field technique's
-# wide-offset lock, the path the real frames take.
-#
-# The simulator's star zero point is now measured on real frames, 2.3e8
-# electrons per second at V 0, and at 1.6 s every star saturates: the image
-# holds 30 sources at the 8-bit ceiling.  The navigator still predicts four
-# stars, because its own copy of the zero point for simulated frames,
-# star_flux_dn_per_s_vmag0 in its Galileo block, holds the earlier value over
-# the 187 e-/DN gain (2.14e4 DN/s against the simulator's 1.23e6).  The
-# star-field technique finds no inlier among four predictions and 30 equally
-# saturated sources, and the single-star technique finds every candidate as
-# bright as the next, so both answers are spurious and the frame fails on all
-# 24 draws.  With the navigator's copy at 1.23e6 DN/s the committed draw lands
-# 0.10 px off at high confidence on 11 stars.  The expected block holds the
-# failure until the navigator's copy follows the simulator's.
+# The real frames ran 0.1 s and lock on three stars, the path
+# gossi_star_field_short_exposure checks.  This scene runs at 1.6 s, where every
+# star saturates at the simulator's star zero point, 2.3e8 electrons per second
+# at V 0, measured on real frames (#1153): the image holds 30 sources at the
+# 8-bit ceiling.  The navigator's copy of the zero point for simulated frames
+# matches the simulator's, so it predicts stars to V 10.6, matches 11 of them,
+# and lands 0.09 to 0.10 px off at high confidence over 24 draws.
 #
 # instrument_defaults turns on the camera's whole chain.  The scene plants the
 # measured Galileo sky noise, 0.96 DN, in place of the catalog's read noise,
@@ -38,9 +28,8 @@ exposure_sec: 1.6
 # The roll is the camera's measured twist, -0.0526 deg (0.5 px at the corner),
 # planted with roll fitting off as the camera ships.  The roll turns the scene
 # about the boresight, the frame center after the offset, so it moves the two
-# bright stars in view by 0.02 and 0.34 px.  At the earlier zero point the
-# answer landed 0.04 to 0.06 px off over 16 seeds, against 0.02 px without the
-# roll.
+# bright stars in view by 0.02 and 0.34 px.  Without the roll the committed
+# draw lands 0.08 px off.
 artifacts:
   instrument_defaults: true
 noise:
@@ -67,7 +56,3 @@ stars:
 offset_v: -121.63
 offset_u: -226.41
 offset_rotation_deg: -0.0526
-expected:
-  status: failed
-  confidence_tier: failed
-  status_reason: all_techniques_spurious
