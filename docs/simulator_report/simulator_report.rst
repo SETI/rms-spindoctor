@@ -1725,11 +1725,13 @@ simulated models, so it isn't a real-frame accuracy either.
    :width: 100%
    :alt: recovery error versus model mismatch for the Section 8 axes
 
-   Recovery error vs model mismatch, one panel per axis.  Each panel walks a
+   Recovery error vs model mismatch, one panel per axis.  Seven panels walk a
    single render-vs-navigate mismatch from the self-consistency floor -- the
    first point, drawn as a green star, where the render matches the navigator's
    model -- into the mismatched regime, and the recovery-error-vs-mismatch curve
-   is the product.  A dashed line marks the navigability cliff, the mismatch at
+   is the product.  The haze-brightness panel has no floor point: its first value
+   leaves a blank frame, and its curve shows how bright the haze must be before
+   the body navigates on its edge.  A dashed line marks the navigability cliff, the mismatch at
    which the fit fails.  The error axis is logarithmic, so an exact recovery is
    drawn at 1e-4 px.
 
