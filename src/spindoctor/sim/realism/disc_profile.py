@@ -172,7 +172,7 @@ def _robust_line(
     keep = np.ones(target.size, dtype=bool)
     for _ in range(_CLIP_ROUNDS):
         coef, *_ = np.linalg.lstsq(design[keep], target[keep], rcond=None)
-        residual = target - design @ coef
+        residual = target - np.sum(design * coef, axis=1)
         center = float(np.median(residual[keep]))
         spread = _MAD_TO_SIGMA * float(np.median(np.abs(residual[keep] - center)))
         new_keep = np.abs(residual - center) < _CLIP_SIGMAS * max(spread, 1e-9)
@@ -180,10 +180,14 @@ def _robust_line(
             break
         keep = new_keep
     coef, *_ = np.linalg.lstsq(design[keep], target[keep], rcond=None)
-    residual = target[keep] - design[keep] @ coef
+    residual = target[keep] - np.sum(design[keep] * coef, axis=1)
     dof = max(int(keep.sum()) - design.shape[1], 1)
     variance = float(np.sum(residual**2)) / dof
-    covariance = variance * np.linalg.pinv(design[keep].T @ design[keep])
+    kept = design[keep]
+    # The normal matrix by elementwise products: a BLAS product's last bit depends on
+    # the CPU, and the simulator keeps those out.
+    normal = np.sum(kept[:, :, np.newaxis] * kept[:, np.newaxis, :], axis=0)
+    covariance = variance * np.linalg.pinv(normal)
     return coef, covariance, keep
 
 
