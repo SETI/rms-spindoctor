@@ -246,6 +246,25 @@ def test_a_disc_cut_by_the_frame_has_a_smaller_lit_share() -> None:
     assert share == pytest.approx(0.25, abs=0.01)
 
 
+def test_a_hemisphere_wholly_in_the_frame_has_its_whole_lit_share() -> None:
+    """The lit half of a disc on one side of its center counts as a whole hemisphere."""
+    on_body, mu0, _mu = sim_realism_laws._sphere_cosines(
+        (220, 220), (110.0, 110.0), 100.0, illumination_deg=0.0, phase_deg=0.0
+    )
+    lit = on_body & (mu0 > 0.0)
+    half = np.zeros(lit.shape, dtype=bool)
+    half[:, 110:] = True
+    share = sim_realism_laws._lit_share(lit, half, 100.0, 0.0)
+    assert share == pytest.approx(1.0, abs=0.01)
+
+
+def test_a_large_disc_keeps_at_most_sixty_thousand_pixels() -> None:
+    """Every third pixel of a 160,000-pixel selection is kept, at most 60,000 of them."""
+    mask = np.ones((400, 400), dtype=bool)
+    kept = int(sim_realism_laws._decimate(mask).sum())
+    assert kept == 53_334
+
+
 def _sphere_disc(law: str, **kwargs: float) -> RealDisc:
     """A real disc drawn from a sphere under one law, in the twin's own geometry."""
     phase = 30.0

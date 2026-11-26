@@ -183,7 +183,7 @@ def _robust_line(
     residual = target[keep] - design[keep] @ coef
     dof = max(int(keep.sum()) - design.shape[1], 1)
     variance = float(np.sum(residual**2)) / dof
-    covariance = variance * np.linalg.inv(design[keep].T @ design[keep])
+    covariance = variance * np.linalg.pinv(design[keep].T @ design[keep])
     return coef, covariance, keep
 
 
@@ -198,10 +198,8 @@ def fit_minnaert(
         mu: The cosine of the emission angle at each pixel, positive.
 
     Returns:
-        The fit, or None when fewer than :data:`MIN_FIT_PIXELS` pixels are given or kept.
+        The fit, or None when the fit keeps fewer than :data:`MIN_FIT_PIXELS` pixels.
     """
-    if intensity.size < MIN_FIT_PIXELS:
-        return None
     x = np.log(mu0 * mu)
     design = np.column_stack([np.ones_like(x), x])
     coef, covariance, keep = _robust_line(design, np.log(intensity * mu))
@@ -230,11 +228,9 @@ def fit_lunar_lambert(
         mu: The cosine of the emission angle at each pixel, positive.
 
     Returns:
-        The fit, or None when fewer than :data:`MIN_FIT_PIXELS` pixels are given or
-        kept, or the Lambert term comes out zero.
+        The fit, or None when the fit keeps fewer than :data:`MIN_FIT_PIXELS` pixels or
+        the Lambert term comes out zero.
     """
-    if intensity.size < MIN_FIT_PIXELS:
-        return None
     weight = 1.0 / intensity
     design = np.column_stack([mu0, mu0 * (2.0 / (mu0 + mu) - 1.0)]) * weight[:, np.newaxis]
     coef, covariance, keep = _robust_line(design, np.ones_like(intensity))

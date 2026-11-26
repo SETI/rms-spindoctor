@@ -69,10 +69,11 @@ def test_the_exponent_does_not_depend_on_the_brightness_scale() -> None:
 
 
 def test_bright_markings_do_not_move_the_exponent() -> None:
-    """One pixel in twenty three times too bright is rejected by the fit."""
+    """A bright patch where the Sun is high, a quarter of those pixels, is rejected."""
     intensity, mu0, mu = _disc('minnaert', minnaert_k=0.7)
     marked = intensity.copy()
-    marked[::20] *= 3.0
+    high = np.flatnonzero(mu0 * mu > 0.6)
+    marked[high[::4]] *= 3.0
     fit = fit_minnaert(marked, mu0, mu)
     assert fit is not None
     assert fit.k == pytest.approx(0.7, abs=1e-3)
@@ -96,17 +97,17 @@ def test_a_lunar_lambert_disc_gives_its_blend() -> None:
     assert fit.blend == pytest.approx(mcewen, abs=1e-6)
 
 
-def test_too_few_pixels_give_no_fit() -> None:
-    """Fewer than the minimum number of pixels gives neither fit."""
+@pytest.mark.parametrize('n', [1, MIN_FIT_PIXELS - 1])
+def test_too_few_pixels_give_no_fit(n: int) -> None:
+    """One pixel, or one fewer than the minimum, gives no Minnaert fit."""
     intensity, mu0, mu = _disc('lambert')
-    n = MIN_FIT_PIXELS - 1
     assert fit_minnaert(intensity[:n], mu0[:n], mu[:n]) is None
 
 
-def test_too_few_pixels_give_no_blend() -> None:
-    """The lunar-Lambert fit refuses the same short disc."""
+@pytest.mark.parametrize('n', [1, MIN_FIT_PIXELS - 1])
+def test_too_few_pixels_give_no_blend(n: int) -> None:
+    """One pixel, or one fewer than the minimum, gives no lunar-Lambert fit."""
     intensity, mu0, mu = _disc('lambert')
-    n = MIN_FIT_PIXELS - 1
     assert fit_lunar_lambert(intensity[:n], mu0[:n], mu[:n]) is None
 
 
