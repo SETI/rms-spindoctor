@@ -404,6 +404,7 @@ gap affects, from the critique's population counts.
 | Issue | Subject |
 |---|---|
 | #895 | Stars, bodies, and rings share no radiometric scale. **Carries #925's star-count criterion (operator, 2026-11-18):** the matched NAC star twins should give a star cutout count comparable to the real frames' 25; the 2026-11-17 record gives 9, because simulated NAC stars are about 3.5 mag fainter than real ones at the same catalog magnitude. |
+| #1231 | The realism cohort holds resolved moons only from Cassini: every resolved moon in it is a Saturnian moon seen by the NAC or WAC, so the body statistics (limb peak, rise width, disc profile and photometric law) of the Galileo, Voyager, and LORRI cameras are unchecked, and the default law is untested on surfaces unlike the Saturnian icy moons apart from Iapetus's dark hemisphere. Add resolved-moon frames for every camera (Galileo, each Voyager camera, LORRI) and more high-phase and Iapetus-dark Cassini frames |
 | #1153 | **Affects `gossi_star_field_short_exposure`, held as an expected failure.** At the real Pleiades frames' 0.1 s the navigator predicts only the V 2.8 star of a simulated Galileo field, where the real frames lock on three stars: simulated Galileo stars are about 12 times fainter than real ones of the same magnitude (4e7 to 7e7 electrons per second at V 0 on the real frames against 4.0e6), and the simulated-frame star limit spreads that zero point over the 3.0 px placeholder blur (#342), reaching V 3.2 against V 7.8 on the real frames |
 | #896 | No ring-body shadows; the planet's shadow is a fixed wedge |
 | #921 | Background star counts 3 to 10 times too sparse |
@@ -435,6 +436,7 @@ model does not gain them.
 | #995 | On a binned simulated frame the navigator's star blur, star box sizes, and per-pixel thresholds stay in unbinned pixels, and a `match_navigator` PSF is not divided by the binning. #993 (done) fixed only the faint-star limit, so none of these is covered yet. No committed scene or sweep sets binning; the realism twins do, with the catalog kernel |
 | #920 | WAC and Galileo gain states, Galileo ICT, and LORRI frame-transfer smear and calibrated mode |
 | #1121 | **Affects no current scene.** Galileo's shutter shading scales the light at every exposure, where the shutter adds a fixed exposure time that differs across the frame |
+| #1230 | Simulated Cassini frames leave out the shutter's exposure offset: a real frame integrates for the commanded exposure less a 1 to 3 ms offset that varies across the frame, so a simulated short exposure collects too much charge (about twice at 5 ms on the WAC, 10% at 30 ms) |
 | #1125 | **Affects no current scene.** The vidicon residual image is shifted with wraparound, so a source at one edge puts its ghost on the opposite edge |
 | #1126 | **Affects no current scene; the truth record only.** The frame-transfer smear records the mean of both pedestals where each pixel receives one |
 | #1131 | **Affects no current scene.** The banding mode skips its dark step whenever the band amplitudes are zero, so a scene asking for the step alone gets nothing |
