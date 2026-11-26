@@ -63,6 +63,7 @@ import scipy.optimize
 import scipy.special
 from numpy.typing import NDArray
 from util.star_photometry.star_psf_summary import gaussian_ee, psf_summary
+from util.star_photometry.star_zero_point import fit_zero_point
 
 __all__ = ['FitResult', 'fit_camera', 'load_records', 'main']
 
@@ -101,9 +102,6 @@ HOLDOUT_MODULUS = 3
 
 #: Bootstrap resamples for the uncertainty of the detection limit.
 N_BOOTSTRAP = 200
-
-#: Tukey biweight tuning constant (in robust sigmas).
-TUKEY_C = 4.685
 
 #: Header of an empty ``frames.csv``: the camera and the fields of :func:`_frame_table`.
 FRAME_COLUMNS = (
@@ -265,48 +263,6 @@ class FitResult:
     psf: dict[str, Any] = field(default_factory=dict)
 
 
-def _tukey_lstsq(
-    a: FloatArray, b: FloatArray
-) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
-    """Solve ``a x = b`` by iteratively reweighted least squares with Tukey's biweight.
-
-    Parameters:
-        a: Design matrix.
-        b: Observations.
-
-    Returns:
-        ``(x, sigma_x, residuals, weights)``; ``sigma_x`` from the weighted normal equations
-        scaled by the robust residual scatter, ``weights`` the final biweights.
-    """
-    weights = np.ones(b.size)
-    x = np.zeros(a.shape[1])
-    for _ in range(30):
-        sw = np.sqrt(weights)
-        x, *_ = np.linalg.lstsq(a * sw[:, None], b * sw, rcond=None)
-        resid = b - a @ x
-        scale = 1.4826 * np.median(np.abs(resid - np.median(resid))) + 1e-9
-        u = resid / (TUKEY_C * scale)
-        weights = np.where(np.abs(u) < 1.0, (1.0 - u**2) ** 2, 0.0)
-    resid = b - a @ x
-    scale = 1.4826 * np.median(np.abs(resid - np.median(resid)))
-    normal = (a * weights[:, None]).T @ a
-    cov = np.linalg.pinv(normal) * scale**2 * (weights.sum() / max(np.sum(weights**2), 1e-9))
-    return x, np.sqrt(np.clip(np.diag(cov), 0.0, None)), resid, weights
-
-
-def _full_rank(a: FloatArray) -> bool:
-    """Return whether a design matrix determines every one of its coefficients.
-
-    Parameters:
-        a: Design matrix.
-
-    Returns:
-        True when its rank equals its number of columns.
-    """
-    n_rows, n_columns = a.shape
-    return bool(n_rows > 0 and int(np.linalg.matrix_rank(a)) == n_columns)
-
-
 def _star_rows(records: Iterable[dict[str, Any]], *, gain_field: str) -> list[dict[str, Any]]:
     """Flatten accepted frames into one row per star with its frame's state.
 
@@ -418,7 +374,7 @@ def fit_camera(
         result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
         result.psf = psf_summary(rows)
         return result
-    _fit_zero_point(
+    fit_zero_point(
         result, fit_rows, reference_filter=reference_filter, reference_gain=reference_gain
     )
     for row in rows:
@@ -433,81 +389,6 @@ def fit_camera(
     result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
     result.psf = psf_summary(rows)
     return result
-
-
-def _fit_zero_point(
-    result: FitResult,
-    rows: list[dict[str, Any]],
-    *,
-    reference_filter: str,
-    reference_gain: str,
-) -> None:
-    """Fit the reference rate, filter offsets and gain ratios into ``result``.
-
-    When the stars cannot separate the terms, before or after the robust weighting drops
-    outliers, ``result.zero_point_identified`` is set False and no coefficient is stored.
-
-    Parameters:
-        result: The camera's result, updated in place.
-        rows: The fitting stars.
-        reference_filter: The reference filter.
-        reference_gain: The reference gain state.
-    """
-    filters = sorted({r['filter'] for r in rows} - {reference_filter})
-    gains = sorted({r['gain'] for r in rows} - {reference_gain})
-    n = len(rows)
-    a = np.zeros((n, 1 + len(filters) + len(gains)))
-    a[:, 0] = 1.0
-    b = np.empty(n)
-    for i, r in enumerate(rows):
-        b[i] = 2.5 * math.log10(r['total_dn'] / r['texp']) + r['vmag']
-        if r['filter'] in filters:
-            a[i, 1 + filters.index(r['filter'])] = -1.0
-        if r['gain'] in gains:
-            a[i, 1 + len(filters) + gains.index(r['gain'])] = 1.0
-    result.filter_counts = dict(sorted(_count(r['filter'] for r in rows).items()))
-    result.gain_counts = dict(sorted(_count(r['gain'] for r in rows).items()))
-    if not _full_rank(a):
-        result.zero_point_identified = False
-        return
-    x, sx, resid, weights = _tukey_lstsq(a, b)
-    if not _full_rank(a[weights > 0.0]):
-        result.zero_point_identified = False
-        return
-    result.rate_vmag0 = 10 ** (0.4 * x[0])
-    result.rate_sigma_mag = float(sx[0])
-    has_ref_filter = any(r['filter'] == reference_filter for r in rows)
-    has_ref_gain = any(r['gain'] == reference_gain for r in rows)
-    result.filter_offsets = {reference_filter: 0.0} if has_ref_filter else {}
-    result.filter_offset_sigma = {reference_filter: 0.0} if has_ref_filter else {}
-    for k, name in enumerate(filters):
-        result.filter_offsets[name] = float(x[1 + k])
-        result.filter_offset_sigma[name] = float(sx[1 + k])
-    result.gain_ratio = {reference_gain: 1.0} if has_ref_gain else {}
-    result.gain_ratio_sigma_mag = {reference_gain: 0.0} if has_ref_gain else {}
-    for k, name in enumerate(gains):
-        result.gain_ratio[name] = float(10 ** (0.4 * x[1 + len(filters) + k]))
-        result.gain_ratio_sigma_mag[name] = float(sx[1 + len(filters) + k])
-    result.zp_scatter_mag = float(1.4826 * np.median(np.abs(resid - np.median(resid))))
-    bv = np.array([r['bmag'] - r['vmag'] if r['bmag'] is not None else np.nan for r in rows])
-    good = np.isfinite(bv) & (np.abs(resid) < 1.0)
-    if good.sum() >= 10:
-        result.color_slope = float(np.polyfit(bv[good], resid[good], 1)[0])
-
-
-def _count(values: Iterable[str]) -> dict[str, int]:
-    """Return how many times each value occurs.
-
-    Parameters:
-        values: The values.
-
-    Returns:
-        Value to count.
-    """
-    counts: dict[str, int] = defaultdict(int)
-    for v in values:
-        counts[v] += 1
-    return dict(counts)
 
 
 def _predict_dn(result: FitResult, row: dict[str, Any]) -> float:

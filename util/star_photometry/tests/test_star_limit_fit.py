@@ -8,12 +8,8 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy.special
-from util.star_photometry.star_limit_fit import (
-    FitResult,
-    _fit_detection_limit,
-    _fit_zero_point,
-    fit_camera,
-)
+from util.star_photometry.star_limit_fit import FitResult, _fit_detection_limit, fit_camera
+from util.star_photometry.star_zero_point import fit_zero_point
 
 # The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, and gain term.
 ZERO_POINT, RED_OFFSET, GAIN_40K = 15.0, 2.0, -1.5
@@ -70,7 +66,7 @@ def _fit(rows: list[dict[str, Any]]) -> FitResult:
         The fit.
     """
     result = FitResult(camera='TEST')
-    _fit_zero_point(result, rows, reference_filter='CLEAR', reference_gain='10K')
+    fit_zero_point(result, rows, reference_filter='CLEAR', reference_gain='10K')
     return result
 
 
