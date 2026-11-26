@@ -9,9 +9,10 @@ The Voyager Imaging Science Subsystem is two spacecraft each carrying a narrow
 angle and a wide angle vidicon camera, which SpinDoctor navigates across the
 whole PDS3 archive: the Jupiter and Saturn encounters of both spacecraft and
 the Uranus and Neptune encounters of Voyager 2. The two spacecraft differ in
-their SPICE identities, in one photometric correction, and in the identifiers
-they write into metadata; everywhere else they are handled identically, and the
-sections below name a spacecraft only where they actually differ.
+their SPICE identities, in one photometric correction, in each camera's star
+brightness, star limits, and star width, and in the identifiers they write into
+metadata; everywhere else they are handled identically, and the sections below
+name a spacecraft only where they actually differ.
 
 Pipeline support
 ================
