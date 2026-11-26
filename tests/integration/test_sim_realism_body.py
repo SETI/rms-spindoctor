@@ -1,7 +1,8 @@
 """Tests of what the realism match takes from the largest body of a real frame.
 
-The real frame here is a stand-in: its backplanes are a sphere's analytic angles, so
-nothing reads holdings or SPICE and the file runs in the plain unit tier.
+The real frame here is a stand-in: its offset backplane is a sphere's analytic angles at
+the image's pixels, so nothing reads holdings or SPICE and the file runs in the plain
+unit tier.
 """
 
 from __future__ import annotations
@@ -16,9 +17,11 @@ import scipy.ndimage
 
 from spindoctor.feature.geometry import LimbPolyline
 from spindoctor.sim.render.bodies.photometry import shade_surface
+from tests.integration import sim_realism_body
 from tests.integration.sim_realism_body import (
     EDGE_CLEARANCE_PX,
     disc_is_clipped,
+    offset_backplane,
     real_body,
     real_normal_albedo,
 )
@@ -28,12 +31,11 @@ _SIZE = 100
 _CENTER = 50.0
 _RADIUS = 25.0
 _PHASE_DEG = 30.0
-_SHIFT_VU = (4, -3)
 _METADATA = {'body:MOON': {'predicted_diameter_px': 50.0, 'phase_angle_deg': _PHASE_DEG}}
 
 
 def _sphere_angles() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """The predicted sphere's mask and its incidence and emission angles.
+    """The sphere's mask and its incidence and emission angles at the image's pixels.
 
     The Sun lies toward -v and +u, so the disc is not symmetric across either axis.
     """
@@ -49,7 +51,7 @@ def _sphere_angles() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
 
 
 class _Backplane:
-    """The three backplanes of one body that the measurement reads."""
+    """The three backplanes of one body that the measurement reads, offset applied."""
 
     def __init__(self) -> None:
         self.on_body, self.incidence, self.emission = _sphere_angles()
@@ -64,21 +66,8 @@ class _Backplane:
         return SimpleNamespace(mvals=np.ma.array(self.emission, mask=~self.on_body))
 
 
-def _shifted(predicted: np.ndarray) -> np.ndarray:
-    """An image in predicted coordinates moved 4 px down and 3 px left."""
-    out = np.zeros_like(predicted)
-    out[
-        max(_SHIFT_VU[0], 0) : _SIZE + min(_SHIFT_VU[0], 0),
-        max(_SHIFT_VU[1], 0) : _SIZE + min(_SHIFT_VU[1], 0),
-    ] = predicted[
-        max(-_SHIFT_VU[0], 0) : _SIZE + min(-_SHIFT_VU[0], 0),
-        max(-_SHIFT_VU[1], 0) : _SIZE + min(-_SHIFT_VU[1], 0),
-    ]
-    return out
-
-
 def _real_frame(albedo: float, *, rim_if: float | None = None) -> Any:
-    """A frame whose body lies 4 px down and 3 px left of where it is predicted.
+    """A frame of one body and its offset backplane.
 
     Parameters:
         albedo: The normal albedo the disc is drawn at.
@@ -96,15 +85,15 @@ def _real_frame(albedo: float, *, rim_if: float | None = None) -> Any:
     if rim_if is not None:
         kept = scipy.ndimage.binary_erosion(backplane.on_body, iterations=EDGE_CLEARANCE_PX - 1)
         surface[backplane.on_body & ~kept] = rim_if
-    return SimpleNamespace(bp=backplane, data=_shifted(surface))
+    return SimpleNamespace(bp=backplane, data=surface)
 
 
 def _interior_in_image() -> np.ndarray:
-    """The disc pixels the measurement reads, where they lie in the image."""
+    """The disc pixels the measurement reads."""
     on_body, _, _ = _sphere_angles()
-    return _shifted(
-        scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX).astype(np.float64)
-    ).astype(bool)
+    return np.asarray(
+        scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX), dtype=bool
+    )
 
 
 def _clipped_mask(n_clipped: int) -> np.ndarray:
@@ -127,23 +116,30 @@ def _limb_feature(model: str) -> Any:
     return SimpleNamespace(source_model=model, geometry=geometry)
 
 
-def test_the_disc_is_read_where_the_verified_offset_puts_it() -> None:
-    """A body drawn at 0.6 times its law, 4 px down and 3 px left, measures 0.6.
-
-    The verified offset, 3.8 px down and 2.9 px left, rounds to the drawn shift on both
-    axes.
-    """
-    albedo = real_normal_albedo(
-        _real_frame(0.6), 'MOON', offset_vu=(3.8, -2.9), phase_angle_deg=_PHASE_DEG
-    )
+def test_the_disc_measures_the_albedo_it_is_drawn_at() -> None:
+    """A body drawn at 0.6 times its law measures 0.6."""
+    frame = _real_frame(0.6)
+    albedo = real_normal_albedo(frame.data, frame.bp, 'MOON', phase_angle_deg=_PHASE_DEG)
     assert albedo == pytest.approx(0.6, rel=1e-12)
+
+
+def test_the_offset_backplane_applies_the_offset_unrounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Image pixel (2, 5) at offset (0.3, -1.7) samples the geometry at (1.7, 6.7).
+
+    The geometry's grid is in pixel-corner (u, v), so that point is (7.2, 2.2).
+    """
+    monkeypatch.setattr(sim_realism_body, 'Meshgrid', lambda _fov, uv: uv)
+    monkeypatch.setattr(sim_realism_body, 'Backplane', lambda _obs, *, meshgrid: meshgrid)
+    grid: Any = offset_backplane(SimpleNamespace(data=np.zeros((4, 6)), fov=None), (0.3, -1.7))
+    assert tuple(grid.vals[2, 5]) == pytest.approx((7.2, 2.2))
 
 
 def test_the_edge_of_the_disc_does_not_count() -> None:
     """A bright rim just inside the edge, where optics blur, leaves the albedo alone."""
-    albedo = real_normal_albedo(
-        _real_frame(0.6, rim_if=9.0), 'MOON', offset_vu=(4.0, -3.0), phase_angle_deg=_PHASE_DEG
-    )
+    frame = _real_frame(0.6, rim_if=9.0)
+    albedo = real_normal_albedo(frame.data, frame.bp, 'MOON', phase_angle_deg=_PHASE_DEG)
     assert albedo == pytest.approx(0.6, rel=1e-12)
 
 
@@ -151,53 +147,51 @@ def test_a_disc_with_one_percent_of_its_pixels_at_full_scale_is_clipped() -> Non
     """1% of the disc's pixels at full scale makes the disc clipped."""
     n_disc = int(np.count_nonzero(_interior_in_image()))
     clipped = _clipped_mask(math.ceil(0.01 * n_disc))
-    frame = _real_frame(0.6)
-    assert disc_is_clipped(frame, 'MOON', offset_vu=(4.0, -3.0), clipped=clipped) is True
+    assert disc_is_clipped(_real_frame(0.6).bp, 'MOON', clipped=clipped) is True
 
 
 def test_a_disc_with_fewer_pixels_at_full_scale_is_not_clipped() -> None:
     """Just under 1% of the disc's pixels at full scale, as hot pixels give, is not."""
     n_disc = int(np.count_nonzero(_interior_in_image()))
     clipped = _clipped_mask(math.ceil(0.01 * n_disc) - 1)
+    assert disc_is_clipped(_real_frame(0.6).bp, 'MOON', clipped=clipped) is False
+
+
+def _clipped_real_body() -> Any:
+    """The largest body of a frame whose whole disc reads the full scale."""
     frame = _real_frame(0.6)
-    assert disc_is_clipped(frame, 'MOON', offset_vu=(4.0, -3.0), clipped=clipped) is False
+    return real_body(
+        frame,
+        [_limb_feature('body:MOON')],
+        _METADATA,
+        backplane=frame.bp,
+        calibrated=True,
+        clipped=_interior_in_image(),
+    )
 
 
 def test_a_clipped_disc_gives_no_albedo() -> None:
     """A clipped disc's I/F is the clip level, so it measures no albedo."""
-    body = real_body(
-        _real_frame(0.6),
-        [_limb_feature('body:MOON')],
-        _METADATA,
-        offset_vu=(4.0, -3.0),
-        calibrated=True,
-        clipped=_interior_in_image(),
-    )
+    body = _clipped_real_body()
     assert body is not None
     assert body.normal_albedo is None
 
 
 def test_a_clipped_disc_gives_no_limb_peak() -> None:
     """A clipped disc's limb rises to a plateau, so no model gives its gradient peak."""
-    body = real_body(
-        _real_frame(0.6),
-        [_limb_feature('body:MOON')],
-        _METADATA,
-        offset_vu=(4.0, -3.0),
-        calibrated=True,
-        clipped=_interior_in_image(),
-    )
+    body = _clipped_real_body()
     assert body is not None
     assert body.limb_peak_model is None
 
 
 def test_a_body_whose_limb_the_navigator_does_not_place_is_marked() -> None:
     """A frame whose only limb belongs to another body has none for the largest body."""
+    frame = _real_frame(0.6)
     body = real_body(
-        _real_frame(0.6),
+        frame,
         [_limb_feature('body:OTHER')],
         _METADATA,
-        offset_vu=(4.0, -3.0),
+        backplane=frame.bp,
         calibrated=True,
         clipped=None,
     )

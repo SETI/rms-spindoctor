@@ -31,9 +31,6 @@ from typing import Any
 
 import numpy as np
 import scipy.ndimage
-from oops import Meshgrid
-from oops.backplane import Backplane
-from polymath import Pair
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_model.body_shape import load_body_shape
@@ -46,7 +43,6 @@ from spindoctor.sim.realism.disc_profile import (
     fit_minnaert,
     select_disc_pixels,
 )
-from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 from tests.integration.sim_realism_body import EDGE_CLEARANCE_PX, MIN_CLIPPED_FRACTION
 from tests.integration.sim_realism_body_facts import (
@@ -68,12 +64,12 @@ from tests.integration.sim_realism_laws import (
 __all__ = [
     'MIN_DIAMETER_PX',
     'MIN_LIT_FRACTION',
+    'box_in_fov_at_offset',
     'cap_lit_area_px',
     'collect_real_discs',
     'disc_lit_area_px',
     'light_direction_deg',
     'lit_share',
-    'offset_backplane',
 ]
 
 MIN_DIAMETER_PX = 10.0
@@ -89,44 +85,25 @@ A strip along the limb alone cannot tell the laws apart.
 _CAP_GRID_STEP_DEG = 0.5
 
 
-def offset_backplane(obs: Any, offset_vu: tuple[float, float]) -> Backplane:
-    """A backplane of the frame's geometry at each image pixel's center, offset applied.
-
-    A body the geometry predicts at ``(v, u)`` lies in the image at ``(v + dv, u + du)``,
-    so image pixel ``(v, u)`` samples the geometry at ``(v - dv, u - du)``.
-
-    Parameters:
-        obs: The real observation.
-        offset_vu: The frame's verified offset ``(dv, du)``.
-
-    Returns:
-        A backplane in the image's shape.
-    """
-    rows, cols = np.shape(obs.data)
-    image_v, image_u = np.indices((rows, cols), dtype=np.float64)
-    uv = np.stack(
-        [
-            image_u + PIXEL_CENTER_TO_CORNER_PX - offset_vu[1],
-            image_v + PIXEL_CENTER_TO_CORNER_PX - offset_vu[0],
-        ],
-        axis=-1,
-    )
-    return Backplane(obs, meshgrid=Meshgrid(obs.fov, Pair(uv)))
-
-
 def collect_real_discs(
     inputs: LawStudyInputs,
     obs: Any,
     frame: StudyFrame,
     *,
+    backplane: Any,
     clipped: NDArrayBoolType | None,
 ) -> None:
     """Measure every moon in one calibrated real frame for the study.
+
+    A moon counts as in view when its predicted box, moved by the frame's verified
+    offset, overlaps the frame.
 
     Parameters:
         inputs: Where the measured discs and the moons left out are added.
         obs: The real observation; its data are I/F.
         frame: The frame's facts.
+        backplane: The frame's geometry at each image pixel's center, moved by the
+            verified offset (:func:`~tests.integration.sim_realism_body.offset_backplane`).
         clipped: Which of the image's pixels read the camera's full scale, or None.
     """
     planet = getattr(obs, 'closest_planet', None)
@@ -138,9 +115,8 @@ def collect_real_discs(
     in_view = [
         (body, entry)
         for body, entry in bodies_in_extfov(obs, config=DEFAULT_CONFIG)
-        if obs.inventory_body_in_fov(entry)
+        if box_in_fov_at_offset(obs, entry, frame.offset_vu)
     ]
-    backplane: Backplane | None = None
     for body, entry in in_view:
         if body == planet:
             continue
@@ -154,8 +130,6 @@ def collect_real_discs(
         if reason is not None:
             inputs.excluded.append(ExcludedDisc(frame.image_id, body, reason))
             continue
-        if backplane is None:
-            backplane = offset_backplane(obs, frame.offset_vu)
         hidden = _hidden_pixels(backplane, body, entry, in_view, planet=planet)
         _measure_moon(
             inputs,
@@ -168,6 +142,26 @@ def collect_real_discs(
             usable=usable & ~hidden,
             full_scale=full_scale,
         )
+
+
+def box_in_fov_at_offset(
+    obs: Any, entry: Mapping[str, Any], offset_vu: tuple[float, float]
+) -> bool:
+    """Whether a body's predicted box, moved by the verified offset, overlaps the frame.
+
+    Parameters:
+        obs: The real observation.
+        entry: The body's inventory entry, at its predicted position.
+        offset_vu: The frame's verified offset ``(dv, du)``.
+
+    Returns:
+        True when the moved box overlaps the frame's nominal field of view.
+    """
+    moved = dict(entry)
+    for axis, shift in (('v', offset_vu[0]), ('u', offset_vu[1])):
+        moved[f'{axis}_min_unclipped'] = entry[f'{axis}_min_unclipped'] + shift
+        moved[f'{axis}_max_unclipped'] = entry[f'{axis}_max_unclipped'] + shift
+    return bool(obs.inventory_body_in_fov(moved))
 
 
 def _boxes_overlap(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:

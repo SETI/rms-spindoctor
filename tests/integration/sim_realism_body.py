@@ -19,9 +19,9 @@ whose mission has no such reader is taken as unclipped.
 albedo.  A white body in a matched frame, exposed as long as the real frame, can
 overflow the detector's full well, and the overflowing charge spreads along the columns
 and moves the limb's gradient peak outward.  :func:`real_normal_albedo` reads the
-lighting and viewing angles of each pixel of the real body from its SPICE geometry
-through oops, moves them by the frame's verified offset onto the image, and passes the
-disc's I/F and the two cosines to
+lighting and viewing angles of the real body from its SPICE geometry through oops, at
+each image pixel's center after moving the frame by its verified offset
+(:func:`offset_backplane`), and passes the disc's I/F and the two cosines to
 :func:`spindoctor.sim.realism.albedo.disc_normal_albedo`.  Only a calibrated product is
 in I/F, and a clipped disc's I/F is the clip level, so a raw product or a clipped disc
 gives no albedo and the matched body stays white.
@@ -41,6 +41,9 @@ from typing import Any
 
 import numpy as np
 import scipy.ndimage
+from oops import Meshgrid
+from oops.backplane import Backplane
+from polymath import Pair
 
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.geometry import LimbPolyline
@@ -49,7 +52,8 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_defaults_native,
 )
 from spindoctor.sim.realism.albedo import disc_normal_albedo
-from spindoctor.support.types import NDArrayBoolType, NDArrayIntType
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType, NDArrayIntType
 from tests.integration.sim_realism_scenes import MATCHED_BODY_LAW
 from tests.integration.sim_realism_support import largest_body
 
@@ -58,6 +62,7 @@ __all__ = [
     'MIN_CLIPPED_FRACTION',
     'RealBody',
     'disc_is_clipped',
+    'offset_backplane',
     'real_body',
     'real_normal_albedo',
     'saturation_level',
@@ -124,65 +129,77 @@ class RealBody:
         return None if self.disc_clipped else f'body:{self.name}'
 
 
-def _disc_pixels(
-    obs: Any, body_name: str, offset_vu: tuple[float, float]
-) -> tuple[NDArrayIntType, NDArrayIntType, NDArrayIntType, NDArrayIntType]:
-    """The body's interior pixels that lie on the image, before and after the offset.
+def offset_backplane(obs: Any, offset_vu: tuple[float, float]) -> Backplane:
+    """A backplane of the frame's geometry at each image pixel's center, offset applied.
+
+    A body the geometry predicts at ``(v, u)`` lies in the image at ``(v + dv, u + du)``,
+    so image pixel ``(v, u)`` samples the geometry at ``(v - dv, u - du)``.  The offset
+    is applied as it is, fraction and all.
 
     Parameters:
         obs: The real observation.
-        body_name: The body, as SPICE knows it.
-        offset_vu: The frame's verified offset, rounded to whole pixels here.
+        offset_vu: The frame's verified offset ``(dv, du)``.
 
     Returns:
-        The rows and columns of each pixel in the backplanes, and the rows and columns
-        of the same pixels in the image.
+        A backplane in the image's shape.
     """
-    on_body = np.asarray(obs.bp.where_intercepted(body_name).vals, dtype=bool)
-    interior = scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX)
-    shape = np.shape(obs.data)
-    rows, cols = np.nonzero(interior)
-    image_rows = rows + round(offset_vu[0])
-    image_cols = cols + round(offset_vu[1])
-    on_image = (
-        (image_rows >= 0) & (image_rows < shape[0]) & (image_cols >= 0) & (image_cols < shape[1])
+    rows, cols = np.shape(obs.data)
+    image_v, image_u = np.indices((rows, cols), dtype=np.float64)
+    uv = np.stack(
+        [
+            image_u + PIXEL_CENTER_TO_CORNER_PX - offset_vu[1],
+            image_v + PIXEL_CENTER_TO_CORNER_PX - offset_vu[0],
+        ],
+        axis=-1,
     )
-    return rows[on_image], cols[on_image], image_rows[on_image], image_cols[on_image]
+    return Backplane(obs, meshgrid=Meshgrid(obs.fov, Pair(uv)))
 
 
-def disc_is_clipped(
-    obs: Any, body_name: str, *, offset_vu: tuple[float, float], clipped: NDArrayBoolType
-) -> bool:
+def _disc_pixels(backplane: Any, body_name: str) -> tuple[NDArrayIntType, NDArrayIntType]:
+    """The rows and columns of the body's interior pixels in the image.
+
+    Parameters:
+        backplane: The frame's offset backplane (:func:`offset_backplane`).
+        body_name: The body, as SPICE knows it.
+
+    Returns:
+        The rows and columns of each pixel at least :data:`EDGE_CLEARANCE_PX` erosion
+        steps inside the body's silhouette.
+    """
+    on_body = np.asarray(backplane.where_intercepted(body_name).vals, dtype=bool)
+    interior = scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX)
+    rows, cols = np.nonzero(interior)
+    return rows, cols
+
+
+def disc_is_clipped(backplane: Any, body_name: str, *, clipped: NDArrayBoolType) -> bool:
     """Whether a body's disc reaches the camera's full scale.
 
     Parameters:
-        obs: The real observation.
+        backplane: The frame's offset backplane (:func:`offset_backplane`).
         body_name: The body, as SPICE knows it.
-        offset_vu: The frame's verified offset: a body predicted at ``(v, u)`` lies at
-            ``(v + dv, u + du)`` in the image.
         clipped: Which of the image's pixels read the full scale, in the image's shape.
 
     Returns:
-        True when at least 1% of the disc's interior pixels on the image read the full
-        scale; False when fewer do or none of the disc's interior lies on the image.
+        True when at least 1% of the disc's interior pixels read the full scale; False
+        when fewer do or none of the disc's interior lies on the image.
     """
-    _rows, _cols, image_rows, image_cols = _disc_pixels(obs, body_name, offset_vu)
-    if image_rows.size == 0:
+    rows, cols = _disc_pixels(backplane, body_name)
+    if rows.size == 0:
         return False
-    fraction = float(np.mean(np.asarray(clipped, dtype=bool)[image_rows, image_cols]))
+    fraction = float(np.mean(np.asarray(clipped, dtype=bool)[rows, cols]))
     return fraction >= MIN_CLIPPED_FRACTION
 
 
 def real_normal_albedo(
-    obs: Any, body_name: str, *, offset_vu: tuple[float, float], phase_angle_deg: float
+    data: NDArrayFloatType, backplane: Any, body_name: str, *, phase_angle_deg: float
 ) -> float | None:
     """The normal albedo of one body in a calibrated real frame.
 
     Parameters:
-        obs: The real observation, whose data are I/F.
+        data: The real frame's image, in I/F.
+        backplane: The frame's offset backplane (:func:`offset_backplane`).
         body_name: The body, as SPICE knows it (``'DIONE'``).
-        offset_vu: The frame's verified offset: a body predicted at ``(v, u)`` lies at
-            ``(v + dv, u + du)`` in the image.
         phase_angle_deg: The body's phase angle in degrees.
 
     Returns:
@@ -191,13 +208,11 @@ def real_normal_albedo(
         when the disc has too few such pixels (see
         :func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).
     """
-    rows, cols, image_rows, image_cols = _disc_pixels(obs, body_name, offset_vu)
-    backplane = obs.bp
+    rows, cols = _disc_pixels(backplane, body_name)
     incidence = np.ma.filled(backplane.incidence_angle(body_name).mvals, np.pi)
     emission = np.ma.filled(backplane.emission_angle(body_name).mvals, np.pi)
-    data = np.asarray(obs.data, dtype=np.float64)
     return disc_normal_albedo(
-        data[image_rows, image_cols],
+        np.asarray(data, dtype=np.float64)[rows, cols],
         np.cos(np.asarray(incidence, dtype=np.float64)[rows, cols]),
         np.cos(np.asarray(emission, dtype=np.float64)[rows, cols]),
         law=MATCHED_BODY_LAW,
@@ -210,7 +225,7 @@ def real_body(
     features: list[NavFeature],
     model_metadata: dict[str, dict[str, Any]],
     *,
-    offset_vu: tuple[float, float],
+    backplane: Any,
     calibrated: bool,
     clipped: NDArrayBoolType | None,
 ) -> RealBody | None:
@@ -220,7 +235,7 @@ def real_body(
         obs: The real observation.
         features: The features the navigator extracted from the frame.
         model_metadata: The frame's per-model metadata, keyed by model name.
-        offset_vu: The frame's verified offset.
+        backplane: The frame's offset backplane (:func:`offset_backplane`).
         calibrated: Whether the frame's data are I/F.
         clipped: Which of the image's pixels read the camera's full scale, or None when
             that is not known.
@@ -232,12 +247,10 @@ def real_body(
     name, diameter, phase = largest_body(model_metadata)
     if name is None or diameter is None or phase is None:
         return None
-    disc_clipped = clipped is not None and disc_is_clipped(
-        obs, name, offset_vu=offset_vu, clipped=clipped
-    )
+    disc_clipped = clipped is not None and disc_is_clipped(backplane, name, clipped=clipped)
     albedo = None
     if calibrated and not disc_clipped:
-        albedo = real_normal_albedo(obs, name, offset_vu=offset_vu, phase_angle_deg=phase)
+        albedo = real_normal_albedo(obs.data, backplane, name, phase_angle_deg=phase)
     model = f'body:{name}'
     limb_emitted = any(
         feature.source_model == model and isinstance(feature.geometry, LimbPolyline)

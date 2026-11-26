@@ -15,11 +15,12 @@ from __future__ import annotations
 import math
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
 
+from spindoctor.obs.obs_snapshot import ObsSnapshot
 from spindoctor.sim.realism.disc_profile import (
     LunarLambertFit,
     MinnaertFit,
@@ -44,6 +45,7 @@ from tests.integration.sim_realism_laws import (
     run_law_study,
 )
 from tests.integration.sim_realism_laws_discs import (
+    box_in_fov_at_offset,
     cap_lit_area_px,
     disc_lit_area_px,
     light_direction_deg,
@@ -389,6 +391,21 @@ def test_the_planets_main_rings_hide_the_pixels_behind_them() -> None:
 def test_the_planets_shadow_hides_its_pixels() -> None:
     """The far body loses the pixels in the planet's shadow, with a margin."""
     assert _hidden('FAR', 'SATURN')[32, 15]
+
+
+def test_a_body_the_offset_moves_into_the_frame_is_in_view() -> None:
+    """A box 3 px past the frame's right edge, moved 5 px left, overlaps the frame."""
+    fov = SimpleNamespace(fov_u_min=0, fov_u_max=99, fov_v_min=0, fov_v_max=99)
+    obs = SimpleNamespace(
+        inventory_body_in_fov=lambda inv: ObsSnapshot.inventory_body_in_fov(cast(Any, fov), inv)
+    )
+    entry = {
+        'u_min_unclipped': 102.0,
+        'u_max_unclipped': 120.0,
+        'v_min_unclipped': 40.0,
+        'v_max_unclipped': 60.0,
+    }
+    assert box_in_fov_at_offset(obs, entry, (0.0, -5.0)) is True
 
 
 def _sphere_disc(law: str, **kwargs: float) -> RealDisc:

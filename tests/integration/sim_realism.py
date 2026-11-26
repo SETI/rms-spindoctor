@@ -80,7 +80,7 @@ from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patch
 from spindoctor.support.memory import release_transient_memory
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
-from tests.integration.sim_realism_body import real_body, saturation_level
+from tests.integration.sim_realism_body import offset_backplane, real_body, saturation_level
 from tests.integration.sim_realism_laws import (
     LawStudy,
     LawStudyInputs,
@@ -473,7 +473,16 @@ def _frame_samples_real(
         silhouette_radii_km = settings.silhouette_radii_km
         if clipped is None:
             clipped = settings.clipped
-    if study is not None and resolve_data_units(instrument) == 'calibrated_if':
+    calibrated = resolve_data_units(instrument) == 'calibrated_if'
+    only_models = MODELS_FOR_CLASS.get(scene_class)
+    # The law study and the largest body both read the geometry at the image's pixel
+    # centers, moved by the verified offset, so one backplane serves both.
+    backplane = (
+        offset_backplane(obs, offset)
+        if only_models is not None or (study is not None and calibrated)
+        else None
+    )
+    if study is not None and calibrated:
         frame = StudyFrame(
             sidecar.image_id,
             instrument,
@@ -484,7 +493,7 @@ def _frame_samples_real(
             gain_state=record.gain_state,
             quantization=record.quantization,
         )
-        collect_real_discs(study, obs, frame, clipped=clipped)
+        collect_real_discs(study, obs, frame, backplane=backplane, clipped=clipped)
     if scene_class in STAR_CLASSES:
         record.stars = catalog_twin_stars(
             obs, instrument=instrument, exposure_sec=float(exposure), offset_vu=offset
@@ -492,15 +501,14 @@ def _frame_samples_real(
     samples, rates = extract_pixel_samples(
         data, exposure_stratum=stratum, saturation_level=saturation
     )
-    only_models = MODELS_FOR_CLASS.get(scene_class)
     if only_models is not None:
         image, features, model_metadata = prepare_frame_features(obs, only_models=only_models)
         body = real_body(
             obs,
             features,
             model_metadata,
-            offset_vu=offset,
-            calibrated=resolve_data_units(instrument) == 'calibrated_if',
+            backplane=backplane,
+            calibrated=calibrated,
             clipped=clipped,
         )
         if body is not None:
