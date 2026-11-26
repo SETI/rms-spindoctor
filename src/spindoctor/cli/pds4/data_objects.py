@@ -158,14 +158,10 @@ def configured_methods(config: Config) -> dict[str, str]:
             entries are read.
 
     Returns:
-        Each entry's ``method`` by its ``name``, for every entry that names both.
+        Each entry's ``method`` by its ``name``.
     """
     entries = [*config.backplanes.bodies, *config.backplanes.rings]
-    return {
-        str(entry['name']): str(entry['method'])
-        for entry in entries
-        if 'name' in entry and 'method' in entry
-    }
+    return {entry.name: entry.method for entry in entries}
 
 
 def _missing_constant(masked_value: float) -> str:

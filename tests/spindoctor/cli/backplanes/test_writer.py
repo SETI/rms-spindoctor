@@ -18,12 +18,14 @@ import numpy as np
 import pytest
 from astropy.io import fits
 from filecache import FCPath
+from tests.product_sections import plane_entry
 
 from spindoctor.cli.backplanes.backplanes_bodies import BODY_LONGITUDE
 from spindoctor.cli.backplanes.backplanes_rings import RING_LONGITUDE, RING_LONGITUDINAL_RESOLUTION
 from spindoctor.cli.backplanes.merge import body_naif_id, merge_sources_into_master
 from spindoctor.cli.backplanes.writer import write_fits
 from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config.sections_products import PlaneEntry
 
 from .conftest import (
     MASKED_VALUE,
@@ -35,16 +37,20 @@ from .conftest import (
 
 SHAPE_VU = (6, 11)
 
+LATITUDE_PLANE = plane_entry('body_latitude', 'rad', method='latitude')
+"""The body latitude, as the configuration declares it."""
 
-def _default_config() -> FakeBackplanesConfig:
-    """Build a config declaring one body plane, one ring plane, and ring distance."""
-    return FakeBackplanesConfig(
-        bodies=[{'name': 'body_latitude', 'method': 'latitude', 'units': 'rad'}],
-        rings=[
-            {'name': 'ring_radius', 'method': 'ring_radius', 'units': 'km'},
-            {'name': 'distance', 'method': 'distance', 'units': 'km'},
-        ],
-    )
+DEFAULT_RINGS = [plane_entry('ring_radius', 'km'), plane_entry('distance', 'km')]
+"""The ring radius and the ring distance, as the configuration declares them."""
+
+
+def _default_config(*, extra_rings: list[PlaneEntry] | None = None) -> FakeBackplanesConfig:
+    """Build a config declaring one body plane, one ring plane, and ring distance.
+
+    Parameters:
+        extra_rings: Ring planes declared after those.
+    """
+    return FakeBackplanesConfig(bodies=[LATITUDE_PLANE], rings=DEFAULT_RINGS + (extra_rings or []))
 
 
 def _master_with(value: float, *, name: str = 'body_latitude') -> dict[str, np.ndarray]:
@@ -449,12 +455,8 @@ def _covered_incidence() -> np.ndarray:
 
 
 LONGITUDE_PLANES = [
-    {'name': RING_LONGITUDE, 'method': 'ring_longitude', 'units': 'rad'},
-    {
-        'name': RING_LONGITUDINAL_RESOLUTION,
-        'method': 'ring_angular_resolution',
-        'units': 'rad/pixel',
-    },
+    plane_entry(RING_LONGITUDE, 'rad'),
+    plane_entry(RING_LONGITUDINAL_RESOLUTION, 'rad/pixel', method='ring_angular_resolution'),
 ]
 """The ring longitude and the longitudinal size of a pixel, as the configuration declares them."""
 
@@ -546,8 +548,7 @@ def _covered_metadata(tmp_path: Path) -> dict[str, Any]:
     master, id_map = merge_sources_into_master(
         snap, bodies_result=bodies_result, rings_result=rings_result
     )
-    config = _default_config()
-    config.backplanes.rings.extend(LONGITUDE_PLANES)
+    config = _default_config(extra_rings=LONGITUDE_PLANES)
     _, sidecar = _write(
         tmp_path,
         master=master,
@@ -665,7 +666,7 @@ def test_a_ring_longitude_without_its_resolution_records_no_wrapped_range(tmp_pa
     assert statistic == {'min': 0.0, 'max': pytest.approx(54.0), 'units': 'deg'}
 
 
-BODY_LONGITUDE_PLANES = [{'name': BODY_LONGITUDE, 'method': 'longitude', 'units': 'rad'}]
+BODY_LONGITUDE_PLANES = [plane_entry(BODY_LONGITUDE, 'rad', method='longitude')]
 """The body longitude, as the configuration declares it."""
 
 
@@ -800,7 +801,7 @@ def test_a_neighboring_pixel_of_another_body_does_not_count(tmp_path: Path) -> N
 
 def test_the_shipped_ring_longitude_and_its_resolution_are_in_radians() -> None:
     """The wrapped range is found in degrees, from these two planes' statistics."""
-    units = {entry['name']: entry['units'] for entry in DEFAULT_CONFIG.backplanes.rings}
+    units = {entry.name: entry.units for entry in DEFAULT_CONFIG.backplanes.rings}
     assert (units[RING_LONGITUDE], units[RING_LONGITUDINAL_RESOLUTION]) == ('rad', 'rad/pixel')
 
 
@@ -827,7 +828,7 @@ def test_write_fits_non_simulated_uses_config_satellites(tmp_path: Path) -> None
         canned_inventory=inventory,
     )
     config = FakeBackplanesConfig(
-        bodies=[{'name': 'body_latitude', 'method': 'latitude', 'units': 'rad'}],
+        bodies=[LATITUDE_PLANE],
         rings=[],
         satellites={'PLANET': ['MOON_A', 'MOON_B']},
     )

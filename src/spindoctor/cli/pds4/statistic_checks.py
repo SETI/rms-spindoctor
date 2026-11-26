@@ -22,6 +22,7 @@ from typing import Any
 
 from spindoctor.cli.backplanes.statistics import statistics_units
 from spindoctor.config import Config
+from spindoctor.config.sections_products import PlaneEntry
 
 __all__ = ['UnindexableStatistic', 'unindexable_statistic']
 
@@ -87,16 +88,16 @@ def unindexable_statistic(
     """
     bodies = backplane_metadata.get('bodies', {})
     rings = backplane_metadata.get('rings', {})
-    recorded: list[tuple[dict[str, Any], list[dict[str, Any]]]] = [
+    recorded: list[tuple[dict[str, Any], tuple[PlaneEntry, ...]]] = [
         (body.get('backplanes', {}), config.backplanes.bodies) for body in bodies.values()
     ]
     recorded.append((rings.get('backplanes', {}), config.backplanes.rings))
     for planes, entries in recorded:
         for entry in entries:
-            name = entry['name']
+            name = entry.name
             if name not in planes:
                 continue
-            finding = _unindexable_part(name, planes[name], statistics_units(entry['units']))
+            finding = _unindexable_part(name, planes[name], statistics_units(entry.units))
             if finding is not None:
                 return finding
     return None

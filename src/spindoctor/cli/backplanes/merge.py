@@ -66,7 +66,7 @@ def merge_sources_into_master(
     """
 
     height, width = snapshot.data.shape
-    masked_value = float(snapshot.config.backplanes.masked_value)
+    masked_value = snapshot.config.backplanes.masked_value
     master_by_type: dict[str, np.ndarray] = {}
     # Not masked_value: this is the body identity map, and 0 is not a NAIF ID, so
     # zero already says no body claimed the pixel.

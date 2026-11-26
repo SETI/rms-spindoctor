@@ -39,7 +39,6 @@ from spindoctor.config import (
     MAIN_LOGGER,
     build_cloud_task_logging,
     get_results_index_db_url,
-    get_results_tree_tuning,
     load_default_and_user_config,
 )
 from spindoctor.config.program_names import SD_RESULTS_INDEX
@@ -72,7 +71,7 @@ def process_task(
     arguments = cast(argparse.Namespace, worker_data.args)
     try:
         load_default_and_user_config(arguments, DEFAULT_CONFIG)
-        tuning = get_results_tree_tuning(DEFAULT_CONFIG)
+        tuning = DEFAULT_CONFIG.results_tree
     except (FileNotFoundError, TypeError, ValueError) as exc:
         # Returned as a status rather than raised, so the program that adds the
         # shares up can tally it rather than reading a worker that raised as

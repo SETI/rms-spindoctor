@@ -3,12 +3,12 @@
 # NOT for production navigation - confidence values are meaningless
 # under these settings; only the offsets (verified by eye) matter.
 techniques:
-  BodyDiscCorrelateNav:
+  body_disc_correlate:
     alpha0: 0.5
     tuning:
       consistency_max_px: 40.0
       consistency_max_fraction_of_diameter: 0.25
-  BodyBlobNav:
+  body_blob:
     alpha0: 0.5
   body_limb:
     tuning:

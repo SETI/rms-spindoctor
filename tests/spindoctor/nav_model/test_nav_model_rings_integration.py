@@ -386,6 +386,6 @@ def test_to_features_rms_less_feature_uses_config_default_orbit_sigma(
     features = model.to_features(cast(Any, None))
     assert isinstance(features[0].geometry, RingEdgePolyline)
     DEFAULT_CONFIG.read_config()
-    default_km = float(DEFAULT_CONFIG.rings['default_orbit_radial_sigma_km'])
+    default_km = DEFAULT_CONFIG.rings.default_orbit_radial_sigma_km
     assert default_km == pytest.approx(2.0)
     assert features[0].geometry.sigma_orbit_radial_px == pytest.approx(default_km / 5.0)

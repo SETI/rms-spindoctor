@@ -8,6 +8,7 @@ from typing import Any, ClassVar, Literal, cast
 from filecache import FCPath
 
 from spindoctor.config import MAIN_LOGGER, Config, LogRole
+from spindoctor.config.sections_products import Pds4Schema
 from spindoctor.support.nav_base import NavBase
 
 Pds4Pass = Literal['labels', 'summary']
@@ -31,35 +32,6 @@ def pds4_label_name(file_name: str) -> str:
         The label's name.
     """
     return PurePosixPath(file_name).with_suffix('.lblx').name
-
-
-@dataclass(frozen=True)
-class Pds4Schema:
-    """The schema of one PDS4 dictionary a bundle's labels declare.
-
-    A dictionary is published as an XML schema and a Schematron at one location, the two
-    differing only in their extensions, and registered as a product of the PDS system
-    bundle, which the bundle's XML schema collection lists.
-
-    Attributes:
-        location: The URL of the dictionary's XML schema and Schematron less their
-            extension, as in ``https://pds.nasa.gov/pds4/geom/v1/PDS4_GEOM_1O00_19B0``.
-        lidvid: The LIDVID of the dictionary's schema product, as the XML schema
-            collection lists it.
-    """
-
-    location: str
-    lidvid: str
-
-    @property
-    def xsd(self) -> str:
-        """The URL of the dictionary's XML schema, its location ending in ``.xsd``."""
-        return f'{self.location}.xsd'
-
-    @property
-    def sch(self) -> str:
-        """The URL of the dictionary's Schematron, its location ending in ``.sch``."""
-        return f'{self.location}.sch'
 
 
 @dataclass
@@ -209,9 +181,14 @@ class DataSet(ABC, NavBase):
             than belonging to any one image, so its records go to the run's
             log; routing them to the image logger would file them under
             whichever image happened to be open, or none at all.
+        PDS4_CONFIG_KEY: The key of the dataset's bundle in the configuration's ``pds4``
+            section, or None for a dataset that does not make PDS4 bundles.  The
+            section accepts an entry under the key each registered dataset class sets
+            here.
     """
 
     log_role: ClassVar[LogRole] = LogRole.MAIN
+    PDS4_CONFIG_KEY: ClassVar[str | None] = None
 
     def __init__(self, *, config: Config | None = None) -> None:
         """Initializes a dataset.
@@ -287,7 +264,7 @@ class DataSet(ABC, NavBase):
     def pds4_bundle_template_dir(self) -> str:
         """Returns absolute path to template directory for PDS4 bundle generation.
 
-        Checks config section pds4.{dataset_name}.template_dir first, then allows override.
+        A dataset that bundles reads ``config.pds4.<PDS4_CONFIG_KEY>.template_dir``.
         If just a name is given, it is relative to the pds4/templates directory.
         If a full path is given, it will be left as absolute.
 
@@ -302,7 +279,7 @@ class DataSet(ABC, NavBase):
     def pds4_bundle_name(self) -> str:
         """Returns bundle name for PDS4 bundle generation.
 
-        Checks config section pds4.{dataset_name}.bundle_name first, then allows override.
+        A dataset that bundles reads ``config.pds4.<PDS4_CONFIG_KEY>.bundle_name``.
 
         Returns:
             Bundle name (e.g., "cassini_iss_saturn_backplanes_rsfrench2027").

@@ -8,6 +8,7 @@ from typing import Any, ClassVar, cast
 from filecache import FCPath, FileCache
 
 from spindoctor.config import Config
+from spindoctor.config.sections_products import Pds4Bundle, Pds4Schema
 from spindoctor.support.misc import safe_lstrip_zero
 from spindoctor.support.time import (
     PDS4_EXPOSURE_TIME_DIGITS,
@@ -15,7 +16,7 @@ from spindoctor.support.time import (
     pds4_utc_midpoint,
 )
 
-from .dataset import ImageFile, ImageFiles, Pds4Pass, Pds4Schema, pds4_label_name
+from .dataset import ImageFile, ImageFiles, Pds4Pass, pds4_label_name
 from .dataset_pds3 import DataSetPDS3
 
 _SOURCE_PRODUCT_REFERENCE_TYPE = 'data_to_calibrated_source_product'
@@ -418,90 +419,76 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
         """
         return ['botsim']
 
+    def _pds4_bundle(self) -> Pds4Bundle:
+        """Returns the dataset's bundle entry in the configuration's ``pds4`` section.
+
+        Returns:
+            The entry under the dataset's ``PDS4_CONFIG_KEY``.
+
+        Raises:
+            NotImplementedError: If the dataset does not make bundles.
+            Pds4BundleEntryError: If the ``pds4`` section has no entry for the dataset's
+                bundle.
+        """
+        if self.PDS4_CONFIG_KEY is None:
+            raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
+        return self.config.pds4.bundle(self.PDS4_CONFIG_KEY)
+
     def pds4_bundle_template_dir(self) -> str:
         """Returns absolute path to template directory for PDS4 bundle generation.
+
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.template_dir``: an absolute path is returned as it
+        is, and a bare name is taken under the packaged templates directory.
 
         Returns:
             Absolute path to template directory.
         """
-        # Check config first
-        template_dir = None
-        dataset_config = self.config.pds4.get(self._dataset_name_for_pds4_config(), {})
-        if 'template_dir' in dataset_config:
-            template_dir = str(dataset_config['template_dir'])
-
-        if template_dir is None:
-            template_dir = self._default_pds4_template_dir()
-
-        # If it's an absolute path, return as-is
+        template_dir = self._pds4_bundle().template_dir
         if Path(template_dir).is_absolute():
             return template_dir
-
-        # Otherwise, make it relative to pds4/templates
         pds4_templates_dir = Path(__file__).resolve().parent.parent / 'cli' / 'pds4' / 'templates'
         return str(pds4_templates_dir / template_dir)
 
     def pds4_bundle_name(self) -> str:
         """Returns bundle name for PDS4 bundle generation.
 
-        Reads ``config.pds4.<dataset>.bundle_name``, which has no default: the shipped
-        configuration sets it for the dataset that bundles.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.bundle_name``.
 
         Returns:
             Bundle name.
-
-        Raises:
-            KeyError: If the configuration gives the dataset no ``bundle_name``.
         """
-        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_name'])
+        return self._pds4_bundle().bundle_name
 
     def pds4_bundle_version(self) -> str:
         """Returns the bundle's version, which each of the bundle's own products carries.
 
-        Reads ``config.pds4.<dataset>.bundle_version``, which has no default: the shipped
-        configuration sets it for the dataset that bundles.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.bundle_version``.
 
         Returns:
             The version, in the PDS4 ``<major>.<minor>`` form.
-
-        Raises:
-            KeyError: If the configuration gives the dataset no ``bundle_version``.
         """
-        return str(self.config.pds4[self._dataset_name_for_pds4_config()]['bundle_version'])
+        return self._pds4_bundle().bundle_version
 
     def pds4_information_model_version(self) -> str:
         """Returns the information model version the bundle's labels are written against.
 
-        Reads ``config.pds4.<dataset>.information_model_version``, which has no default.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.information_model_version``.
 
         Returns:
             The version, in the PDS4 four-part form.
-
-        Raises:
-            KeyError: If the configuration gives the dataset no information model version.
         """
-        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
-        return str(dataset_config['information_model_version'])
+        return self._pds4_bundle().information_model_version
 
     def pds4_schemas(self) -> dict[str, Pds4Schema]:
         """Returns the schema of each PDS4 dictionary the bundle's labels declare.
 
-        Reads ``config.pds4.<dataset>.schemas``, which has no default: a mapping from each
-        dictionary's namespace prefix to its schema's ``location`` and ``lidvid``.
+        Reads ``config.pds4.<PDS4_CONFIG_KEY>.schemas``.
 
         Returns:
             Each dictionary's schema, by its namespace prefix, in the order the
             configuration gives them.
-
-        Raises:
-            KeyError: If the configuration gives the dataset no schemas, or a schema no
-                location or LIDVID.
         """
-        dataset_config = self.config.pds4[self._dataset_name_for_pds4_config()]
-        return {
-            str(prefix): Pds4Schema(location=str(entry['location']), lidvid=str(entry['lidvid']))
-            for prefix, entry in dataset_config['schemas'].items()
-        }
+        return dict(self._pds4_bundle().schemas)
 
     def pds4_required_templates(self, pds4_pass: Pds4Pass) -> list[str]:
         """Returns the file names one bundle pass must find in the template directory.
@@ -887,22 +874,6 @@ class DataSetPDS3CassiniISS(DataSetPDS3):
 
         return vars_dict
 
-    def _dataset_name_for_pds4_config(self) -> str:
-        """Returns the dataset name for config lookup under the PDS4 section.
-
-        Returns:
-            Dataset name for config (e.g., "coiss_cruise" or "coiss_saturn").
-        """
-        raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
-
-    def _default_pds4_template_dir(self) -> str:
-        """Returns the default template directory name.
-
-        Returns:
-            Default template directory name.
-        """
-        raise NotImplementedError('PDS4 bundle generation not supported for this dataset')
-
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.
 
@@ -921,11 +892,7 @@ class DataSetPDS3CassiniISSCruise(DataSetPDS3CassiniISS):
     _MAX_1xxx_VOL = 1009
     _ALL_VOLUME_NAMES = tuple(f'COISS_{x:04d}' for x in range(_MIN_1xxx_VOL, _MAX_1xxx_VOL + 1))
 
-    def _dataset_name_for_pds4_config(self) -> str:
-        return 'coiss_cruise'
-
-    def _default_pds4_template_dir(self) -> str:
-        return 'cassini_iss_cruise_1.0'
+    PDS4_CONFIG_KEY = 'coiss_cruise'
 
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.
@@ -943,11 +910,7 @@ class DataSetPDS3CassiniISSSaturn(DataSetPDS3CassiniISS):
     _MAX_2xxx_VOL = 2116
     _ALL_VOLUME_NAMES = tuple(f'COISS_{x:04d}' for x in range(_MIN_2xxx_VOL, _MAX_2xxx_VOL + 1))
 
-    def _dataset_name_for_pds4_config(self) -> str:
-        return 'coiss_saturn'
-
-    def _default_pds4_template_dir(self) -> str:
-        return 'cassini_iss_saturn_1.0'
+    PDS4_CONFIG_KEY = 'coiss_saturn'
 
     def pds4_user_guide_file_name(self) -> str:
         """Returns the file name of the bundle's user guide in the template directory.

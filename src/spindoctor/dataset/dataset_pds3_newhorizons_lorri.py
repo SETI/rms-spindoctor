@@ -197,29 +197,6 @@ class DataSetPDS3NewHorizonsLORRI(DataSetPDS3):
             config=config,
         )
 
-    def pds4_bundle_template_dir(self) -> str:
-        """Returns absolute path to template directory for PDS4 bundle generation."""
-        template_dir = None
-        nhlorri_config = self.config.pds4.get('nhlorri', {})
-        if 'template_dir' in nhlorri_config:
-            template_dir = str(nhlorri_config['template_dir'])
-
-        if template_dir is None:
-            template_dir = 'newhorizons_lorri_1.0'
-
-        if Path(template_dir).is_absolute():
-            return template_dir
-
-        pds4_templates_dir = Path(__file__).resolve().parent.parent / 'cli' / 'pds4' / 'templates'
-        return str(pds4_templates_dir / template_dir)
-
-    def pds4_bundle_name(self) -> str:
-        """Returns bundle name for PDS4 bundle generation."""
-        nhlorri_config = self.config.pds4.get('nhlorri', {})
-        if 'bundle_name' in nhlorri_config:
-            return str(nhlorri_config['bundle_name'])
-        return 'newhorizons_lorri_backplanes_rsfrench2027'
-
     @staticmethod
     def pds4_bundle_path_for_image(image_name: str) -> str:
         """Maps image name to bundle directory path."""

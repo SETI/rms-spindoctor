@@ -33,7 +33,7 @@ def open_record_source(
     results_index_db_url: str | None = None,
     columns: Sequence[sqlalchemy.Column[Any]] = (),
     logger: PdsLogger | None = None,
-    tuning: TreeTuning | None = None,
+    tuning: TreeTuning,
 ) -> RecordSource:
     """Open the source a run reads its navigation records through.
 
@@ -59,9 +59,8 @@ def open_record_source(
             a voice its caller did not configure would report a run's work
             somewhere the run does not control.
         tuning: How much of a pass over the documents runs at once, as the
-            program resolved it from its configuration; None is the library's
-            own defaults.  A run that reads rows never walks a tree, so it is
-            ignored there.
+            program read it from its configuration.  A run that reads rows never
+            walks a tree, so it is ignored there.
 
     Returns:
         The source, which the caller closes when it is done with it and which is

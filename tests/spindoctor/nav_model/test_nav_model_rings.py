@@ -19,7 +19,6 @@ from spindoctor.feature import NavFeatureType, RingEdgePolyline
 from spindoctor.feature.geometry import RingAnnulusGeometry
 from spindoctor.nav_model.nav_model_rings import (
     NavModelRings,
-    _require_positive_finite_planet_scalar,
 )
 from spindoctor.nav_model.ring_emission import (
     RING_EDGE_DEFAULT_RELIABILITY,
@@ -232,48 +231,6 @@ def test_composite_ring_renderings_empty_input_returns_zero_arrays() -> None:
     assert composite_img.shape == (8, 8)
     assert composite_mask.shape == (8, 8)
     assert not composite_mask.any()
-
-
-def test_require_positive_finite_planet_scalar_returns_value() -> None:
-    """The validator returns the float when input is finite and positive."""
-    out = _require_positive_finite_planet_scalar(
-        'SATURN', 'fade_width_pix', {'fade_width_pix': 4.0}
-    )
-    assert out == pytest.approx(4.0)
-
-
-def test_require_positive_finite_planet_scalar_rejects_missing_key() -> None:
-    """A missing key raises ``ValueError`` naming the key."""
-    with pytest.raises(ValueError, match='Missing required ring configuration key'):
-        _require_positive_finite_planet_scalar('SATURN', 'fade_width_pix', {})
-
-
-def test_require_positive_finite_planet_scalar_rejects_zero() -> None:
-    """A zero value is invalid (non-positive)."""
-    with pytest.raises(ValueError, match=r'Invalid fade_width_pix 0\.0'):
-        _require_positive_finite_planet_scalar('SATURN', 'fade_width_pix', {'fade_width_pix': 0.0})
-
-
-def test_require_positive_finite_planet_scalar_rejects_inf() -> None:
-    """A non-finite value raises ``ValueError``."""
-    with pytest.raises(ValueError, match='must be finite'):
-        _require_positive_finite_planet_scalar(
-            'SATURN', 'fade_width_pix', {'fade_width_pix': float('inf')}
-        )
-
-
-def test_require_positive_finite_planet_scalar_rejects_bool() -> None:
-    """A bool value is not accepted as a numeric scalar."""
-    with pytest.raises(ValueError, match='got bool'):
-        _require_positive_finite_planet_scalar('SATURN', 'fade_width_pix', {'fade_width_pix': True})
-
-
-def test_require_positive_finite_planet_scalar_rejects_non_numeric() -> None:
-    """A non-numeric value raises ``ValueError``."""
-    with pytest.raises(ValueError, match='expected a finite numeric value'):
-        _require_positive_finite_planet_scalar(
-            'SATURN', 'fade_width_pix', {'fade_width_pix': 'big'}
-        )
 
 
 def test_polyline_normals_are_radially_signed_with_a_radius_backplane() -> None:

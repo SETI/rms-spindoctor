@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.dataset.conftest import (
     CANDIDATES,
     NO_RESULT,
@@ -55,6 +56,7 @@ def _scanned(root: Path, *, results_index_db_url: str | None, **flags: Any) -> N
         str(root),
         logger=reporting_logger(),
         results_index_db_url=results_index_db_url,
+        tuning=packaged_tree_tuning(),
         **flags,
     ) as results_filter:
         select_from(results_filter, candidate_files(root))
@@ -166,7 +168,11 @@ def test_a_scan_counts_one_document_once_for_each_image_that_has_it(
     root = _tree(tmp_path)
     documented = [image for image in candidate_files(root) if image.results_path_stub == SUCCESS]
     with ResultsFilter(
-        VOLUMES, str(root), logger=reporting_logger(), has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=reporting_logger(),
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     ) as results_filter:
         results_filter.filter_batch(documented * 2)
     assert '2 of which had a navigation document' in capsys.readouterr().out
@@ -183,7 +189,11 @@ def test_a_scan_that_asked_about_nothing_says_nothing(
     """
     root = _tree(tmp_path)
     with ResultsFilter(
-        VOLUMES, str(root), logger=reporting_logger(), has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=reporting_logger(),
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     ) as results_filter:
         results_filter.filter_batch([])
     assert 'Results scan asked about' not in capsys.readouterr().out
@@ -200,7 +210,11 @@ def test_a_scan_closed_twice_reports_its_tally_once(
     """
     root = _tree(tmp_path)
     results_filter = ResultsFilter(
-        VOLUMES, str(root), logger=reporting_logger(), has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=reporting_logger(),
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     )
     select_from(results_filter, candidate_files(root))
     results_filter.close()
@@ -220,7 +234,11 @@ def test_the_images_a_closed_scan_counted_are_the_ones_it_kept_and_dropped(
     """
     root = _tree(tmp_path)
     with ResultsFilter(
-        VOLUMES, str(root), logger=reporting_logger(), has_no_offset_file=True
+        VOLUMES,
+        str(root),
+        logger=reporting_logger(),
+        has_no_offset_file=True,
+        tuning=packaged_tree_tuning(),
     ) as results_filter:
         kept = select_from(results_filter, candidate_files(root))
     capsys.readouterr()

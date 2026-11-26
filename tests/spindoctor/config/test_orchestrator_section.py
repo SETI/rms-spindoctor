@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 import pytest
-from tests.orchestrator_section import packaged_orchestrator
+from tests.packaged_sections import packaged_sections
 
 from spindoctor.config import Config
 from spindoctor.config.sections import OrchestratorSection
@@ -96,6 +96,6 @@ def test_the_packaged_section_helper_keeps_technique_overrides(
     technique = next(cls for cls in NavTechnique._registry if not cls.name.startswith('_'))
     override = object()
     monkeypatch.setattr(technique, 'tuning', override)
-    packaged_orchestrator.cache_clear()
-    packaged_orchestrator()
+    packaged_sections.cache_clear()
+    packaged_sections()
     assert technique.tuning is override

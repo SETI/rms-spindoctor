@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pdslogger
 import pytest
+from tests.packaged_sections import packaged_tree_tuning
 from tests.spindoctor.conftest import (
     index_url,
     ingest_tree,
@@ -274,6 +275,8 @@ def test_the_tree_reports_over_every_root_it_was_named(tmp_path: Path) -> None:
     first, second = _two_roots(tmp_path)
     out = tmp_path / 'report'
     out.mkdir(parents=True, exist_ok=True)
-    with TreeRecordSource([first.as_posix(), second.as_posix()]) as source:
+    with TreeRecordSource(
+        [first.as_posix(), second.as_posix()], tuning=packaged_tree_tuning()
+    ) as source:
         build_report(source, out)
     assert 'Total images: 2' in (out / 'report.md').read_text(encoding='utf-8')
