@@ -90,9 +90,9 @@ IAU_MOON_RADII_KM: dict[str, tuple[float, float, float]] = {
 }
 """Radii in km, longest first, of the moons whose real silhouettes take the IAU values."""
 
-# Iapetus's leading hemisphere, Cassini Regio, is about ten times darker than its
-# trailing one, and the dark terrain is centered near the apex of motion at 90 deg west
-# (Porco et al. 2005, Science 307, 1237-1242).
+# Iapetus's leading hemisphere is about ten times darker than its trailing one, and
+# the dark terrain is centered near the apex of motion at 90 deg west (Porco et al.
+# 2005, Science 307, 1237-1242).
 DARK_HEMISPHERES_WEST_LON_DEG: dict[str, float] = {'IAPETUS': 90.0}
 """West longitude in degrees at the middle of each two-tone moon's dark hemisphere."""
 
