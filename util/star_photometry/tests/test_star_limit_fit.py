@@ -7,7 +7,8 @@ from typing import Any
 
 import numpy as np
 import pytest
-from util.star_photometry.star_limit_fit import FitResult, _fit_zero_point
+import scipy.special
+from util.star_photometry.star_limit_fit import FitResult, _fit_detection_limit, _fit_zero_point
 
 # The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, and gain term.
 ZERO_POINT, RED_OFFSET, GAIN_40K = 15.0, 2.0, -1.5
@@ -92,3 +93,72 @@ def test_zero_point_unidentified_when_weighting_drops_the_separating_stars() -> 
     result = _fit(rows)
     assert not result.zero_point_identified
     assert result.filter_offsets == {}
+
+
+def _limit_row(pred_dn: float, detected: bool, k: int) -> dict[str, Any]:
+    """Return a detection-limit star row of readout mode ``'FULL'``, five stars per frame.
+
+    Parameters:
+        pred_dn: The star's predicted DN.
+        detected: Whether it was detected.
+        k: The star's number, which sets its frame.
+
+    Returns:
+        The row.
+    """
+    return {'pred_dn': pred_dn, 'detected': detected, 'mode': 'FULL', 'image_id': f'F{k // 5}'}
+
+
+def _limit_fit(rows: list[dict[str, Any]]) -> FitResult:
+    """Fit the detection limit of rows.
+
+    Parameters:
+        rows: The rows.
+
+    Returns:
+        The fit.
+    """
+    result = FitResult(camera='TEST')
+    _fit_detection_limit(result, rows)
+    return result
+
+
+def test_detection_limit_found_across_the_rise() -> None:
+    """Stars from 1 to 10000 DN whose detection rises around 100 DN give the 80% point."""
+    rng = np.random.default_rng(130)
+    log_dn = rng.uniform(0.0, 4.0, 400)
+    detected = rng.uniform(size=400) < 0.5 * (1.0 + scipy.special.erf((log_dn - 2.0) / 0.2))
+    pairs = enumerate(zip(log_dn, detected, strict=True))
+    result = _limit_fit([_limit_row(10**x, bool(d), k) for k, (x, d) in pairs])
+    assert result.min_detectable_dn == pytest.approx(10**2.12, rel=0.2)
+    assert result.min_detectable_dn_by_mode['FULL'][0] == pytest.approx(10**2.12, rel=0.2)
+    assert result.min_detectable_dn_insufficient == {}
+
+
+def test_detection_limit_undefined_with_detections_at_one_dn() -> None:
+    """Forty-five stars detected at one predicted DN cannot place the rise."""
+    result = _limit_fit([_limit_row(100.0, True, k) for k in range(45)])
+    assert math.isnan(result.min_detectable_dn)
+    assert result.min_detectable_dn_by_mode == {}
+    assert result.min_detectable_dn_insufficient == {
+        'all': '45 detected and 0 undetected stars',
+        'FULL': '45 detected and 0 undetected stars',
+    }
+
+
+def test_detection_limit_undefined_over_a_narrow_dn_range() -> None:
+    """Detections and non-detections within 0.1 decade of each other cannot show the rise."""
+    rows = [_limit_row(100.0 + k % 25, k % 2 == 0, k) for k in range(60)]
+    result = _limit_fit(rows)
+    assert math.isnan(result.min_detectable_dn)
+    assert result.min_detectable_dn_insufficient['all'].startswith('predicted DN spread')
+
+
+def test_detection_limit_undefined_without_a_rise() -> None:
+    """Half the stars detected at every DN leaves the fitted rise at the edge of the data."""
+    rows = [_limit_row(10 ** (k / 50.0), k % 2 == 0, k) for k in range(200)]
+    result = _limit_fit(rows)
+    assert math.isnan(result.min_detectable_dn)
+    assert result.min_detectable_dn_insufficient['all'] == (
+        'the fitted rise lies at the edge of the data'
+    )

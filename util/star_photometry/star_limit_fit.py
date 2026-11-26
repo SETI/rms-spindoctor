@@ -22,7 +22,10 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    fit; a detection-probability model (a floor, a plateau and a normal-integral rise in log
    DN) fitted to the stars' detections gives the DN at which detection is ``COMPLETENESS`` of
    the way from floor to plateau (``min_detectable_dn``), with a bootstrap over frames for its
-   uncertainty.
+   uncertainty.  The limit is left undefined, as insufficient data, unless there are three
+   times ``MIN_STARS_PER_BIN`` stars, detections and non-detections each number
+   ``MIN_STARS_PER_BIN``, the stars' predicted DN spread over ``MIN_LOG_DN_SPAN`` decades,
+   and the fitted rise lies inside that spread.  The same holds for each readout mode.
 4. **Held-out check.**  On the frames held out of steps 2 and 3 (one in three, chosen by a hash
    of the image ID), the predicted dimmest visible magnitude is compared with the faintest
    stars detected.
@@ -85,8 +88,16 @@ SEARCH_DEPTH_MAG = 1.0
 #: Width of the predicted-DN bins of the completeness curve (decades).
 DN_BIN_DECADES = 0.1
 
-#: Smallest number of stars in a completeness bin for it to count.
+#: Smallest number of stars in a completeness bin for it to count, and the fewest detected
+#: and the fewest undetected stars a detection-limit fit needs.
 MIN_STARS_PER_BIN = 15
+
+#: Smallest spread (decades) of the stars' predicted DN, from the 10th to the 90th
+#: percentile, that can show the rise from non-detection to detection.
+MIN_LOG_DN_SPAN = 0.5
+
+#: Bounds of the detection-probability model's width (decades of DN).
+WIDTH_BOUNDS = (0.02, 2.0)
 
 #: One frame in this many is held out of the fit.
 HOLDOUT_MODULUS = 3
@@ -191,6 +202,8 @@ class FitResult:
             width]``; a frame of such a mode takes its mode's DN.
         min_detectable_dn_empirical: The smallest DN above which the binned detection
             fraction stays at or above ``COMPLETENESS`` (a check on the model).
+        min_detectable_dn_insufficient: Why the limit is undefined, for the camera (key
+            ``'all'``) and for each readout mode whose stars cannot identify the rise.
         completeness_model: ``[floor, plateau, mu, width]`` of the camera's fit.
         completeness: Rows ``[log10 DN, n, detected fraction]`` of the completeness curve.
         false_detection_rate: The fitted detection probability's floor.
@@ -220,6 +233,7 @@ class FitResult:
     min_detectable_dn_50: float = float('nan')
     min_detectable_dn_by_mode: dict[str, list[float]] = field(default_factory=dict)
     min_detectable_dn_empirical: float = float('nan')
+    min_detectable_dn_insufficient: dict[str, str] = field(default_factory=dict)
     completeness_model: list[float] = field(default_factory=list)
     completeness: list[list[float]] = field(default_factory=list)
     false_detection_rate: float = float('nan')
@@ -567,7 +581,7 @@ def _fit_completeness_model(rows: list[dict[str, Any]]) -> tuple[float, float, f
         return float(-np.sum(y * np.log(p) + (1.0 - y) * np.log(1.0 - p)))
 
     start = np.array([0.01, 0.95, float(np.median(x)), 0.2])
-    bounds = [(0.0, 0.3), (0.5, 1.0), (float(x.min()), float(x.max())), (0.02, 2.0)]
+    bounds = [(0.0, 0.3), (0.5, 1.0), (float(x.min()), float(x.max())), WIDTH_BOUNDS]
     best = scipy.optimize.minimize(neg_log_likelihood, start, bounds=bounds, method='L-BFGS-B')
     floor, plateau, mu, width = (float(v) for v in best.x)
     return floor, plateau, mu, width
@@ -610,6 +624,50 @@ def _bootstrap_sigma(rows: list[dict[str, Any]], value: float) -> float:
     return float(value * math.log(10) * np.std(samples))
 
 
+def _insufficient(rows: list[dict[str, Any]]) -> str:
+    """Return why stars cannot identify the detection limit, or ``''`` when they can.
+
+    Parameters:
+        rows: Star rows with a finite, positive ``pred_dn``.
+
+    Returns:
+        The reason, or ``''``.
+    """
+    if len(rows) < MIN_STARS_PER_BIN * 3:
+        return f'{len(rows)} stars'
+    n_detected = sum(1 for r in rows if r['detected'])
+    if min(n_detected, len(rows) - n_detected) < MIN_STARS_PER_BIN:
+        return f'{n_detected} detected and {len(rows) - n_detected} undetected stars'
+    log_dn = np.array([math.log10(r['pred_dn']) for r in rows])
+    p10, p90 = np.percentile(log_dn, [10.0, 90.0])
+    if p90 - p10 < MIN_LOG_DN_SPAN:
+        return f'predicted DN spread over {p90 - p10:.2f} decades'
+    return ''
+
+
+def _identified_model(
+    rows: list[dict[str, Any]],
+) -> tuple[tuple[float, float, float, float] | None, str]:
+    """Fit the detection-probability model when the stars can identify its rise.
+
+    Parameters:
+        rows: Star rows with a finite, positive ``pred_dn``.
+
+    Returns:
+        ``(model, '')``, or ``(None, reason)`` when the data are insufficient or the fitted
+        rise sits at the edge of the stars' DN range or at a width bound.
+    """
+    reason = _insufficient(rows)
+    if reason:
+        return None, reason
+    model = _fit_completeness_model(rows)
+    log_dn = [math.log10(r['pred_dn']) for r in rows]
+    inside = min(log_dn) + DN_BIN_DECADES <= model[2] <= max(log_dn) - DN_BIN_DECADES
+    if not inside or not WIDTH_BOUNDS[0] < model[3] < WIDTH_BOUNDS[1]:
+        return None, 'the fitted rise lies at the edge of the data'
+    return model, ''
+
+
 def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
     """Fit ``min_detectable_dn`` from the completeness of the fitting frames' stars.
 
@@ -617,32 +675,20 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
     limit is the DN at which it covers ``COMPLETENESS`` of its span from floor to plateau.
     The limit is fitted on all the camera's stars and, where a readout mode has enough stars,
     on that mode's alone.  The binned curve and its empirical crossings are kept as a check.
+    Where the stars cannot identify the rise (see :func:`_identified_model`), the limit is
+    left undefined and the reason is stored in ``min_detectable_dn_insufficient``.
 
     Parameters:
         result: The camera's result, updated in place.
         rows: Clean star rows of the fitting frames with ``pred_dn``.
     """
     rows = [r for r in rows if math.isfinite(r['pred_dn']) and r['pred_dn'] > 0.0]
-    if len(rows) < MIN_STARS_PER_BIN * 3:
-        return
-    centers, counts, fraction = _completeness_curve(rows)
-    result.completeness = [
-        [float(c), float(n), float(f)]
-        for c, n, f in zip(centers, counts, fraction, strict=True)
-        if n > 0
-    ]
-    result.min_detectable_dn_empirical = _crossing(centers, counts, fraction, COMPLETENESS)
-    model = _fit_completeness_model(rows)
-    result.completeness_model = list(model)
-    result.min_detectable_dn = _model_dn(model, COMPLETENESS)
-    result.min_detectable_dn_50 = _model_dn(model, 0.5)
-    result.false_detection_rate = model[0]
-    result.min_detectable_dn_sigma = _bootstrap_sigma(rows, result.min_detectable_dn)
     for mode in sorted({r['mode'] for r in rows}):
         members = [r for r in rows if r['mode'] == mode]
-        if len(members) < MIN_STARS_PER_BIN * 3:
+        mode_model, reason = _identified_model(members)
+        if mode_model is None:
+            result.min_detectable_dn_insufficient[mode] = reason
             continue
-        mode_model = _fit_completeness_model(members)
         value = _model_dn(mode_model, COMPLETENESS)
         result.min_detectable_dn_by_mode[mode] = [
             value,
@@ -651,6 +697,22 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
             float(len(members)),
             *mode_model,
         ]
+    model, reason = _identified_model(rows)
+    if model is None:
+        result.min_detectable_dn_insufficient['all'] = reason
+        return
+    centers, counts, fraction = _completeness_curve(rows)
+    result.completeness = [
+        [float(c), float(n), float(f)]
+        for c, n, f in zip(centers, counts, fraction, strict=True)
+        if n > 0
+    ]
+    result.min_detectable_dn_empirical = _crossing(centers, counts, fraction, COMPLETENESS)
+    result.completeness_model = list(model)
+    result.min_detectable_dn = _model_dn(model, COMPLETENESS)
+    result.min_detectable_dn_50 = _model_dn(model, 0.5)
+    result.false_detection_rate = model[0]
+    result.min_detectable_dn_sigma = _bootstrap_sigma(rows, result.min_detectable_dn)
 
 
 def _dimmest_visible(
