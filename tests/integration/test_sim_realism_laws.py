@@ -4,7 +4,7 @@ The regression checks hold the committed realism record (or the summary that
 ``SPINDOCTOR_TEST_REALISM_RECORD`` points to): in every phase bin with a verdict, the
 default law's twins must keep the real discs' Minnaert exponent within the bin's band,
 and wherever the laws separate, the default law must agree at least as well as each
-other law.  The other tests build their discs in memory; one renders a small twin.
+other law.  The other tests build their discs in memory; some render a small twin.
 Nothing here reads holdings, so the file runs in the plain unit tier.
 """
 
@@ -25,8 +25,9 @@ from spindoctor.sim.realism.disc_profile import (
     select_disc_pixels,
 )
 from spindoctor.sim.render.bodies.photometry import shade_surface
-from tests.integration import sim_realism_laws
+from tests.integration import sim_realism_laws, sim_realism_laws_discs
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
+from tests.integration.sim_realism_body_facts import TerrainCap
 from tests.integration.sim_realism_laws import (
     DEFAULT_LAW,
     DiscRow,
@@ -39,6 +40,12 @@ from tests.integration.sim_realism_laws import (
     minnaert_line,
     phase_bin,
     run_law_study,
+)
+from tests.integration.sim_realism_laws_discs import (
+    cap_lit_area_px,
+    disc_lit_area_px,
+    light_direction_deg,
+    lit_share,
 )
 from tests.integration.sim_realism_laws_report import (
     law_study_summary,
@@ -70,6 +77,7 @@ def _disc(phase_deg: float, k: float, *, body: str = 'DIONE', part: str | None =
         lunar_lambert=LunarLambertFit(blend=0.5, b0=0.5, blend_sigma=0.01, n_pixels=1000),
         profile=_EMPTY,
         crop=np.zeros((1, 1), dtype=np.float32),
+        selection=np.ones((256, 256), dtype=bool),
     )
 
 
@@ -164,13 +172,13 @@ def test_a_law_that_agrees_better_by_more_than_the_band_beats_the_default() -> N
 
 def test_laws_within_the_band_of_each_other_do_not_separate() -> None:
     """Two laws whose agreement differs by less than the band claim no order."""
-    entry = law_comparison(_comparison_rows(0.05, 0.03))['p0']
+    entry = law_comparison(_comparison_rows(0.05, 0.04))['p0']
     assert entry.separates['lambert'] is False
 
 
 def test_laws_within_the_band_leave_the_default_best() -> None:
     """A slightly better law that does not separate leaves the default best."""
-    entry = law_comparison(_comparison_rows(0.05, 0.03))['p0']
+    entry = law_comparison(_comparison_rows(0.05, 0.04))['p0']
     assert entry.default_best is True
 
 
@@ -184,6 +192,12 @@ def test_the_minnaert_line_runs_through_the_real_exponents() -> None:
     """Exponents on a straight line give back that line."""
     discs = [_disc(phase, 0.5 + 0.004 * phase) for phase in (10.0, 40.0, 90.0)]
     k0, k1 = minnaert_line(discs)
+    assert (k0, k1) == pytest.approx((0.5, 0.004))
+
+
+def test_the_minnaert_line_reads_a_generator_once() -> None:
+    """Discs handed over as a generator give the same line."""
+    k0, k1 = minnaert_line(_disc(phase, 0.5 + 0.004 * phase) for phase in (10.0, 40.0, 90.0))
     assert (k0, k1) == pytest.approx((0.5, 0.004))
 
 
@@ -201,9 +215,9 @@ def test_a_limb_peak_leaves_the_other_bodies_alone() -> None:
     assert inputs.discs[1].limb_peak is None
 
 
-def test_a_limb_peak_leaves_a_hemisphere_alone() -> None:
-    """A hemisphere of the measured body gets no limb gradient-peak sample."""
-    inputs = LawStudyInputs(discs=[_disc(30.0, 0.6, part='dark hemisphere')])
+def test_a_limb_peak_leaves_a_terrain_alone() -> None:
+    """A terrain of the measured body gets no limb gradient-peak sample."""
+    inputs = LawStudyInputs(discs=[_disc(30.0, 0.6, part='dark terrain')])
     inputs.add_limb_peak(_FRAME.image_id, 'DIONE', {'limb_peak_p0_r1': [0.12]})
     assert inputs.discs[0].limb_peak is None
 
@@ -222,7 +236,7 @@ def test_the_light_direction_comes_back_from_the_cosines() -> None:
     on_body, mu0, _mu = sim_realism_laws._sphere_cosines(
         (120, 120), (60.0, 60.0), 50.0, illumination_deg=70.0, phase_deg=35.0
     )
-    found = sim_realism_laws._light_direction_deg(on_body, mu0, (60.0, 60.0), 50.0)
+    found = light_direction_deg(on_body, mu0, (60.0, 60.0), 50.0)
     assert found == pytest.approx(70.0, abs=1e-6)
 
 
@@ -231,7 +245,7 @@ def test_a_disc_wholly_in_the_frame_has_its_whole_lit_share() -> None:
     on_body, mu0, _mu = sim_realism_laws._sphere_cosines(
         (220, 220), (110.0, 110.0), 100.0, illumination_deg=0.0, phase_deg=60.0
     )
-    share = sim_realism_laws._lit_share(on_body & (mu0 > 0.0), None, 100.0, 60.0)
+    share = lit_share(on_body & (mu0 > 0.0), disc_lit_area_px(100.0, 60.0))
     assert share == pytest.approx(1.0, abs=0.01)
 
 
@@ -243,55 +257,119 @@ def test_a_disc_cut_by_the_frame_has_a_smaller_lit_share() -> None:
     lit = on_body & (mu0 > 0.0)
     lit[:110, :] = False
     lit[:, :110] = False
-    share = sim_realism_laws._lit_share(lit, None, 100.0, 0.0)
+    share = lit_share(lit, disc_lit_area_px(100.0, 0.0))
     assert share == pytest.approx(0.25, abs=0.01)
 
 
-def test_a_hemisphere_wholly_in_the_frame_has_its_whole_lit_share() -> None:
-    """The lit half of a disc on one side of its center counts as a whole hemisphere."""
-    on_body, mu0, _mu = sim_realism_laws._sphere_cosines(
+def test_a_cap_over_the_whole_sphere_has_the_lit_discs_area() -> None:
+    """A cap of 180 deg is the whole sphere, whose lit area the phase alone sets."""
+    cap = TerrainCap('everything', 0.0, 0.0, 180.0)
+    area = cap_lit_area_px(cap, 100.0, sub_observer_deg=(0.0, 0.0), sub_solar_deg=(0.0, 60.0))
+    assert area == pytest.approx(disc_lit_area_px(100.0, 60.0), rel=0.001)
+
+
+def _cap_pixels(cap: TerrainCap) -> Any:
+    """The pixels of a cap on a sphere of radius 100 px seen from (0, 0), lit head-on.
+
+    The image's top is north and west longitude grows to the right.
+    """
+    on_body, mu0, mu = sim_realism_laws._sphere_cosines(
         (220, 220), (110.0, 110.0), 100.0, illumination_deg=0.0, phase_deg=0.0
     )
-    lit = on_body & (mu0 > 0.0)
-    half = np.zeros(lit.shape, dtype=bool)
-    half[:, 110:] = True
-    share = sim_realism_laws._lit_share(lit, half, 100.0, 0.0)
-    assert share == pytest.approx(1.0, abs=0.01)
+    rows, cols = np.indices(on_body.shape, dtype=np.float64)
+    normal_v = (rows + 0.5 - 110.0) / 100.0
+    normal_u = (cols + 0.5 - 110.0) / 100.0
+    lat = np.degrees(np.arcsin(np.clip(-normal_v, -1.0, 1.0)))
+    west = np.degrees(np.arctan2(normal_u, np.where(on_body, mu, 0.0))) % 360.0
+    return on_body & (mu0 > 0.0) & cap.contains(lat, west)
+
+
+def test_a_cap_wholly_in_the_frame_has_its_whole_lit_share() -> None:
+    """A cap off the disc's center, all of it in the frame, has a lit share near 1."""
+    cap = TerrainCap('dark terrain', 20.0, 40.0, 40.0)
+    expected = cap_lit_area_px(cap, 100.0, sub_observer_deg=(0.0, 0.0), sub_solar_deg=(0.0, 0.0))
+    assert lit_share(_cap_pixels(cap), expected) == pytest.approx(1.0, abs=0.02)
+
+
+def test_a_cap_cut_by_the_frame_has_a_smaller_lit_share() -> None:
+    """Keeping the cap's pixels in the left half of the image gives a smaller share."""
+    cap = TerrainCap('dark terrain', 0.0, 0.0, 40.0)
+    expected = cap_lit_area_px(cap, 100.0, sub_observer_deg=(0.0, 0.0), sub_solar_deg=(0.0, 0.0))
+    pixels = _cap_pixels(cap)
+    pixels[:, 110:] = False
+    assert lit_share(pixels, expected) == pytest.approx(0.5, abs=0.02)
+
+
+def test_a_cap_holds_the_points_within_its_radius() -> None:
+    """A point 39 deg from the cap's center lies inside a cap of 40 deg."""
+    cap = TerrainCap('dark terrain', 0.0, 90.0, 40.0)
+    assert bool(cap.contains(np.array([39.0]), np.array([90.0]))[0])
+
+
+def test_a_cap_leaves_out_the_points_beyond_its_radius() -> None:
+    """A point 41 deg from the cap's center along the equator lies outside it."""
+    cap = TerrainCap('dark terrain', 0.0, 90.0, 40.0)
+    assert not bool(cap.contains(np.array([0.0]), np.array([131.0]))[0])
 
 
 def test_a_large_disc_keeps_at_most_sixty_thousand_pixels() -> None:
     """Every third pixel of a 160,000-pixel selection is kept, at most 60,000 of them."""
     mask = np.ones((400, 400), dtype=bool)
-    kept = int(sim_realism_laws._decimate(mask).sum())
+    kept = int(sim_realism_laws.decimate(mask).sum())
     assert kept == 53_334
 
 
-def _cover_obs() -> tuple[Any, dict[str, dict[str, Any]]]:
-    """A frame holding a near and a far body whose boxes overlap."""
+def _hiding_backplane() -> tuple[Any, dict[str, dict[str, Any]]]:
+    """A frame holding a near and a far body whose boxes overlap, rings, and a shadow."""
     near = np.zeros((40, 40), dtype=bool)
     near[10:20, 10:20] = True
     far = np.zeros((40, 40), dtype=bool)
     far[15:30, 15:30] = True
+    rings = np.zeros((40, 40), dtype=bool)
+    rings[28, 28] = True
+    shadow = np.zeros((40, 40), dtype=bool)
+    shadow[29, 15] = True
     masks = {'NEAR': near, 'FAR': far}
-    backplane = SimpleNamespace(where_intercepted=lambda name: SimpleNamespace(vals=masks[name]))
-    obs = SimpleNamespace(data=np.zeros((40, 40)), bp=backplane)
+    backplane = SimpleNamespace(
+        where_intercepted=lambda name: SimpleNamespace(vals=masks[name]),
+        where_in_back=lambda name, ring: SimpleNamespace(
+            vals=rings if (name, ring) == ('FAR', 'SATURN_MAIN_RINGS') else rings & False
+        ),
+        where_inside_shadow=lambda name, planet: SimpleNamespace(
+            vals=shadow if (name, planet) == ('FAR', 'SATURN') else shadow & False
+        ),
+    )
     box = {'u_min': 10, 'u_max': 30, 'v_min': 10, 'v_max': 30}
     entries = {'NEAR': {**box, 'range': 1.0e6}, 'FAR': {**box, 'range': 2.0e6}}
-    return obs, entries
+    return backplane, entries
+
+
+def _hidden(body: str, planet: str | None) -> Any:
+    """The pixels of one body of the frame above that something hides."""
+    backplane, entries = _hiding_backplane()
+    return sim_realism_laws_discs._hidden_pixels(
+        backplane, body, entries[body], list(entries.items()), planet=planet
+    )
 
 
 def test_a_nearer_body_hides_its_pixels_and_a_margin() -> None:
     """The far body loses the near body's pixels, widened by the disc clearance."""
-    obs, entries = _cover_obs()
-    cover = sim_realism_laws._nearer_cover(obs, (0.0, 0.0), entries['FAR'], list(entries.items()))
-    assert cover[22, 15]
+    assert _hidden('FAR', None)[22, 15]
 
 
 def test_a_farther_body_hides_nothing() -> None:
     """The near body loses no pixels to the far body behind it."""
-    obs, entries = _cover_obs()
-    cover = sim_realism_laws._nearer_cover(obs, (0.0, 0.0), entries['NEAR'], list(entries.items()))
-    assert not cover.any()
+    assert not _hidden('NEAR', None).any()
+
+
+def test_the_planets_main_rings_hide_the_pixels_behind_them() -> None:
+    """The far body loses the pixels the rings lie in front of, with a margin."""
+    assert _hidden('FAR', 'SATURN')[28, 31]
+
+
+def test_the_planets_shadow_hides_its_pixels() -> None:
+    """The far body loses the pixels in the planet's shadow, with a margin."""
+    assert _hidden('FAR', 'SATURN')[32, 15]
 
 
 def _sphere_disc(law: str, **kwargs: float) -> RealDisc:
@@ -310,6 +388,7 @@ def _sphere_disc(law: str, **kwargs: float) -> RealDisc:
     disc.mu0 = mu0[keep]
     disc.mu = mu[keep]
     disc.profile = equator_profile(intensity, mu0[keep], mu[keep], math.radians(phase))
+    disc.selection = keep
     return disc
 
 
@@ -327,6 +406,16 @@ def test_a_minnaert_twin_takes_the_exponent_it_is_given() -> None:
         _sphere_disc('minnaert', minnaert_k=0.6), 'minnaert', minnaert_k=0.6, limb_peak=False
     )
     assert twin.k == pytest.approx(0.6, abs=0.03)
+
+
+def test_a_twin_is_fitted_only_over_the_real_discs_pixels() -> None:
+    """A real disc that counted 50 pixels leaves its twin too few to fit."""
+    disc = _sphere_disc('lambert')
+    rows, cols = np.nonzero(disc.selection)
+    disc.selection = np.zeros_like(disc.selection)
+    disc.selection[rows[:50], cols[:50]] = True
+    twin = sim_realism_laws._twin(disc, 'lambert', minnaert_k=0.6, limb_peak=False)
+    assert twin.k is None
 
 
 def test_a_twin_takes_its_albedo_from_the_real_disc_under_its_own_law() -> None:

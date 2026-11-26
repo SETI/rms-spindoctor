@@ -34,9 +34,6 @@ mid-sized moons. The Cassini kernels the frames load give older radii than the I
 and for Tethys and Rhea the older ones are 1 to 3 km larger, which put a real limb up to
 a pixel inside its silhouette.
 
-Last, it says where Iapetus's dark hemisphere lies, so the photometric-law study can
-measure its dark and bright hemispheres apart.
-
 Reading a label is mission-specific, so it lives here and not in the shared realism
 code. When this module is imported, it registers its reader for the ``COISS`` cohort.
 The shared code imports every ``sim_realism_frames_<mission>.py`` beside it and picks
@@ -60,7 +57,6 @@ from spindoctor.support.types import NDArrayBoolType
 from tests.integration.sim_realism_support import FrameSettings, register_frame_settings_reader
 
 __all__ = [
-    'DARK_HEMISPHERES_WEST_LON_DEG',
     'IAU_MOON_RADII_KM',
     'cassini_clipped_pixels',
     'cassini_frame_settings',
@@ -89,12 +85,6 @@ IAU_MOON_RADII_KM: dict[str, tuple[float, float, float]] = {
     'RHEA': (765.0, 763.1, 762.4),
 }
 """Radii in km, longest first, of the moons whose real silhouettes take the IAU values."""
-
-# Iapetus's leading hemisphere is about ten times darker than its trailing one, and
-# the dark terrain is centered near the apex of motion at 90 deg west (Porco et al.
-# 2005, Science 307, 1237-1242).
-DARK_HEMISPHERES_WEST_LON_DEG: dict[str, float] = {'IAPETUS': 90.0}
-"""West longitude in degrees at the middle of each two-tone moon's dark hemisphere."""
 
 
 def cassini_clipped_pixels(image_path: Any, conversion: str | None) -> NDArrayBoolType | None:
@@ -142,9 +132,8 @@ def cassini_frame_settings(
         catalog the frame's combination (a warning gives the frame's image ID, and
         its matched scene renders at the nominal scale); the quantization is
         ``'sqrt_lut'`` for a frame downlinked through the 12-to-8-bit table, else
-        None; the clipped pixels are those :func:`cassini_clipped_pixels` gives; the
-        silhouette radii are :data:`IAU_MOON_RADII_KM`; and the dark hemispheres are
-        :data:`DARK_HEMISPHERES_WEST_LON_DEG`.
+        None; the clipped pixels are those :func:`cassini_clipped_pixels` gives; and
+        the silhouette radii are :data:`IAU_MOON_RADII_KM`.
     """
     filter_name: str | None = f'{obs.filter1}+{obs.filter2}'
     if canonical_filter(instrument, str(filter_name)) not in cataloged_filters(instrument):
@@ -164,7 +153,6 @@ def cassini_frame_settings(
         quantization=quantization,
         clipped=cassini_clipped_pixels(image_path, conversion),
         silhouette_radii_km=IAU_MOON_RADII_KM,
-        dark_hemisphere_west_lon_deg=DARK_HEMISPHERES_WEST_LON_DEG,
     )
 
 

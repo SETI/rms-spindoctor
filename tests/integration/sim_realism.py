@@ -85,9 +85,9 @@ from tests.integration.sim_realism_laws import (
     LawStudy,
     LawStudyInputs,
     StudyFrame,
-    collect_real_discs,
     run_law_study,
 )
+from tests.integration.sim_realism_laws_discs import collect_real_discs
 from tests.integration.sim_realism_limb_peak import (
     LimbPeakBin,
     compare_limb_peaks,
@@ -457,7 +457,6 @@ def _frame_samples_real(
     clipped = data >= saturation if np.isfinite(saturation) else None
     reader = frame_settings_reader(sidecar.mission)
     silhouette_radii_km: Mapping[str, tuple[float, float, float]] = {}
-    dark_hemispheres: Mapping[str, float] = {}
     if reader is not None:
         # Matching content, not tuning: the sim renders the frame's own filter
         # throughput, gain state, and downlink table, so its DN-to-I/F scale
@@ -472,7 +471,6 @@ def _frame_samples_real(
         record.gain_state = settings.gain_state
         record.quantization = settings.quantization
         silhouette_radii_km = settings.silhouette_radii_km
-        dark_hemispheres = settings.dark_hemisphere_west_lon_deg
         if clipped is None:
             clipped = settings.clipped
     if study is not None and resolve_data_units(instrument) == 'calibrated_if':
@@ -486,7 +484,7 @@ def _frame_samples_real(
             gain_state=record.gain_state,
             quantization=record.quantization,
         )
-        collect_real_discs(study, obs, frame, clipped=clipped, dark_hemispheres=dark_hemispheres)
+        collect_real_discs(study, obs, frame, clipped=clipped)
     if scene_class in STAR_CLASSES:
         record.stars = catalog_twin_stars(
             obs, instrument=instrument, exposure_sec=float(exposure), offset_vu=offset

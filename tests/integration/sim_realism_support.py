@@ -135,10 +135,6 @@ class FrameSettings:
             product, in the frame's shape, or None when the reader cannot tell.
         silhouette_radii_km: Radii in km, longest first, keyed by body name, that the
             real silhouettes use in place of the radii the frame's kernels give.
-        dark_hemisphere_west_lon_deg: For a body whose two hemispheres differ in
-            albedo, keyed by body name, the west longitude in degrees at the middle of
-            its dark hemisphere.  The photometric-law study measures each hemisphere of
-            such a body on its own.
     """
 
     filter_name: str | None = None
@@ -146,7 +142,6 @@ class FrameSettings:
     quantization: str | None = None
     clipped: NDArrayBoolType | None = None
     silhouette_radii_km: Mapping[str, tuple[float, float, float]] = field(default_factory=dict)
-    dark_hemisphere_west_lon_deg: Mapping[str, float] = field(default_factory=dict)
 
 
 # A reader of a real frame's commanded settings: it takes the real observation and

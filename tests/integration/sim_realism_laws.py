@@ -4,17 +4,8 @@ A simulated body's brightness across its disc comes from its photometric law.  T
 module checks the law against the real frames of the cohort, and compares it with every
 other law the simulator offers, so the choice of the default law rests on the record.
 
-**The real discs.**  :func:`collect_real_discs` looks at every moon in each calibrated
-real frame, whatever the frame's scene class.  A moon is measured when its shape is
-regular, it has no atmosphere, its disc is not clipped at the camera's full scale, at
-least a quarter of its lit disc lies in the frame, and enough lit pixels lie clear of
-the limb and the terminator.  Every moon in view that fails one of these is listed with
-its reason.  The pixels a nearer moon or the planet covers are left out of a moon's
-disc, since the frame's geometry traces each body alone.  The disc's pixels are selected
-and fitted with :mod:`spindoctor.sim.realism.disc_profile`: Minnaert's exponent ``k``,
-the lunar-Lambert blend ``L``, and the brightness profile along the photometric equator.
-A moon whose two hemispheres differ in albedo, as the mission's frame reader says, is
-measured one hemisphere at a time.
+**The real discs.**  :mod:`tests.integration.sim_realism_laws_discs` measures every moon
+in each calibrated real frame and keeps, with each disc, the pixels its fits counted.
 
 **The twins.**  For each real disc, :func:`run_law_study` renders a twin under every law
 in :data:`~spindoctor.sim.render.bodies.photometry.PHOTOMETRIC_LAWS`.  The twin is a
@@ -23,9 +14,10 @@ direction at the real phase, through the real frame's camera settings and exposu
 normal albedo is measured from the real disc against the twin's own law
 (:func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).  Minnaert's law needs an
 exponent, and the twin takes it from a straight line fitted to the real discs' own
-exponents against phase, so that law is the best one Minnaert's form allows.  The twin's
-pixels are selected and fitted exactly as the real disc's were, from the sphere's own
-geometry.
+exponents against phase, so that law is the best one Minnaert's form allows.  The twin
+is fitted over the pixels its own sphere's geometry selects that the real disc's fits
+also counted, so a real disc that lost pixels to its terrain cap, a nearer body, the
+rings, a shadow, or clipping has a twin fitted over the same part of the disc.
 
 **The statistics.**  For each disc and law: the twin's exponent less the real one, the
 residual between the two equator profiles' shapes, and, where the realism match measured
@@ -47,25 +39,19 @@ claimed.
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
-import scipy.ndimage
 
-from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.feature.geometry import LimbPolyline
-from spindoctor.nav_model.body_shape import load_body_shape
-from spindoctor.nav_model.nav_model_body import bodies_in_extfov
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.realism.albedo import disc_normal_albedo
 from spindoctor.sim.realism.disc_profile import (
-    DISC_CLEARANCE_PX,
     LunarLambertFit,
     MinnaertFit,
     equator_profile,
-    fit_lunar_lambert,
     fit_minnaert,
     profile_residual,
     select_disc_pixels,
@@ -74,7 +60,6 @@ from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS, incidence_
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
-from tests.integration.sim_realism_body import EDGE_CLEARANCE_PX, MIN_CLIPPED_FRACTION
 from tests.integration.sim_realism_limb_peak import (
     LIMB_PEAK_KIND_PREFIX,
     LimbPeakBin,
@@ -101,8 +86,10 @@ __all__ = [
     'RealDisc',
     'StudyFrame',
     'TwinDisc',
-    'collect_real_discs',
     'compare_disc_profiles',
+    'crop_box',
+    'crop_image',
+    'decimate',
     'law_comparison',
     'minnaert_line',
     'phase_bin',
@@ -114,16 +101,6 @@ STUDY_LAWS: tuple[str, ...] = tuple(sorted(PHOTOMETRIC_LAWS))
 
 DEFAULT_LAW = MATCHED_BODY_LAW
 """The law the disc-profile check judges: the matched bodies' law, the scene default."""
-
-# The bodies whose atmosphere hides the surface the law describes.
-_HAZE_BODIES = frozenset({'TITAN'})
-
-# A moon in view smaller than this is listed by its size and not measured.
-_MIN_DIAMETER_PX = 10.0
-
-# A disc of which less than this share of the lit disc lies in the frame is left out:
-# a strip along the limb alone cannot tell the laws apart.
-MIN_LIT_FRACTION = 0.25
 
 # The disc-profile band rule, in units of Minnaert's exponent.  It mirrors the limb
 # gradient-peak rule: 2 standard errors of the bin's robust real scatter, a floor, and a
@@ -172,13 +149,13 @@ class StudyFrame:
 
 @dataclass
 class RealDisc:
-    """One real moon's disc, or one hemisphere of it, measured for the study.
+    """One real moon's disc, or one terrain of it, measured for the study.
 
     Parameters:
         frame: The real frame.
         body: The moon, as SPICE knows it.
-        part: ``'dark hemisphere'`` or ``'bright hemisphere'`` for a two-tone moon
-            measured one hemisphere at a time, else None.
+        part: The terrain, such as ``'dark terrain'``, of a two-tone moon measured one
+            terrain at a time, else None.
         phase_deg: The phase angle at the disc's counted pixels, in degrees.
         diameter_px: The moon's apparent diameter.
         center_vu: The moon's center in the image, as a pixel-corner position.
@@ -191,6 +168,9 @@ class RealDisc:
         lunar_lambert: The lunar-Lambert blend fitted to them, or None.
         profile: Their equator profile.
         crop: The disc's image, block-averaged for the contact sheet.
+        selection: Which of the frame's pixels the fits counted, before the thinning to
+            60,000: lit pixels clear of the limb and the terminator, inside the terrain
+            cap for a part, and neither clipped nor hidden.
         limb_peak: The realism match's limb gradient-peak sample for the frame, as
             ``(kind, offset)``, when this moon is the one the match measured.
     """
@@ -209,11 +189,12 @@ class RealDisc:
     lunar_lambert: LunarLambertFit | None
     profile: NDArrayFloatType
     crop: NDArrayFloatType
+    selection: NDArrayBoolType
     limb_peak: tuple[str, float] | None = None
 
     @property
     def label(self) -> str:
-        """The moon, with its hemisphere when it has one, in title case."""
+        """The moon, with its terrain when it has one, in title case."""
         name = self.body.title()
         return name if self.part is None else f'{name} ({self.part})'
 
@@ -403,18 +384,6 @@ def phase_bin(phase_deg: float) -> str:
     return f'p{index}'
 
 
-def _shift(
-    values: NDArrayFloatType | NDArrayBoolType, offset_vu: tuple[float, float], fill: Any
-) -> Any:
-    """Move a backplane array onto the image by the frame's offset, in whole pixels."""
-    dv, du = round(offset_vu[0]), round(offset_vu[1])
-    out = np.full(values.shape, fill, dtype=values.dtype)
-    rows, cols = values.shape
-    src = values[max(0, -dv) : rows - max(0, dv), max(0, -du) : cols - max(0, du)]
-    out[max(0, dv) : max(0, dv) + src.shape[0], max(0, du) : max(0, du) + src.shape[1]] = src
-    return out
-
-
 def _sphere_cosines(
     shape_vu: tuple[int, int],
     center_vu: tuple[float, float],
@@ -440,32 +409,16 @@ def _sphere_cosines(
     return on_body, np.where(on_body, mu0, -1.0), np.where(on_body, normal_z, -1.0)
 
 
-def _light_direction_deg(
-    on_body: NDArrayBoolType,
-    mu0: NDArrayFloatType,
-    center_vu: tuple[float, float],
-    radius_px: float,
-) -> float:
-    """The in-image light direction that best explains a disc's incidence cosines.
+def crop_image(image: NDArrayFloatType, box: tuple[int, int, int, int]) -> NDArrayFloatType:
+    """A crop of an image, block-averaged to at most 160 px on a side.
 
-    Each lit pixel's cosine is the dot product of its sphere normal with the direction
-    to the Sun, so a least-squares fit over the lit pixels gives that direction.
+    Parameters:
+        image: The image.
+        box: The crop's ``(v0, v1, u0, u1)`` bounds.
 
     Returns:
-        The direction as a scene's ``illumination_angle``: 0 when the light comes from
-        the top of the image, 90 from the right.
+        The block-averaged crop.
     """
-    rows, cols = np.nonzero(on_body & (mu0 > 0.05))
-    normal_v = (rows + 0.5 - center_vu[0]) / radius_px
-    normal_u = (cols + 0.5 - center_vu[1]) / radius_px
-    normal_z = np.sqrt(np.clip(1.0 - normal_v**2 - normal_u**2, 0.0, None))
-    design = np.column_stack([normal_v, normal_u, normal_z])
-    sun, *_ = np.linalg.lstsq(design, mu0[rows, cols], rcond=None)
-    return float(math.degrees(math.atan2(sun[1], -sun[0])) % 360.0)
-
-
-def _crop(image: NDArrayFloatType, box: tuple[int, int, int, int]) -> NDArrayFloatType:
-    """A crop of an image, block-averaged to at most 160 px on a side."""
     v0, v1, u0, u1 = box
     patch = np.asarray(image[v0:v1, u0:u1], dtype=np.float64)
     factor = max(1, math.ceil(max(patch.shape) / _CROP_PX))
@@ -477,8 +430,15 @@ def _crop(image: NDArrayFloatType, box: tuple[int, int, int, int]) -> NDArrayFlo
     return np.nanmean(blocks, axis=(1, 3)).astype(np.float32)
 
 
-def _crop_box(on_body: NDArrayBoolType) -> tuple[int, int, int, int]:
-    """The bounding box of a body's pixels, with a margin, inside the image."""
+def crop_box(on_body: NDArrayBoolType) -> tuple[int, int, int, int]:
+    """The bounding box of a body's pixels, with a margin, inside the image.
+
+    Parameters:
+        on_body: Which pixels the body covers.
+
+    Returns:
+        The box as ``(v0, v1, u0, u1)``.
+    """
     rows, cols = np.nonzero(on_body)
     shape = on_body.shape
     return (
@@ -489,8 +449,15 @@ def _crop_box(on_body: NDArrayBoolType) -> tuple[int, int, int, int]:
     )
 
 
-def _decimate(mask: NDArrayBoolType) -> NDArrayBoolType:
-    """Keep every n-th selected pixel so that at most 60,000 remain."""
+def decimate(mask: NDArrayBoolType) -> NDArrayBoolType:
+    """Keep every n-th selected pixel so that at most 60,000 remain.
+
+    Parameters:
+        mask: The selected pixels.
+
+    Returns:
+        The pixels kept.
+    """
     count = int(mask.sum())
     if count <= _MAX_KEPT_PIXELS:
         return mask
@@ -498,224 +465,6 @@ def _decimate(mask: NDArrayBoolType) -> NDArrayBoolType:
     flat = np.zeros(mask.size, dtype=bool)
     flat[np.flatnonzero(mask)[::step]] = True
     return flat.reshape(mask.shape)
-
-
-def _hemispheres(
-    obs: Any, body: str, offset_vu: tuple[float, float], dark_west_lon_deg: float | None
-) -> dict[str | None, NDArrayBoolType | None]:
-    """The parts a moon is measured in: the whole disc, or its two hemispheres."""
-    if dark_west_lon_deg is None:
-        return {None: None}
-    longitude = np.ma.filled(
-        obs.bp.longitude(body, reference='iau', direction='west').mvals, np.nan
-    )
-    west_deg = _shift(np.degrees(np.asarray(longitude, dtype=np.float64)), offset_vu, np.nan)
-    apart = np.abs((west_deg - dark_west_lon_deg + 180.0) % 360.0 - 180.0)
-    return {'dark hemisphere': apart < 90.0, 'bright hemisphere': apart >= 90.0}
-
-
-def collect_real_discs(
-    inputs: LawStudyInputs,
-    obs: Any,
-    frame: StudyFrame,
-    *,
-    clipped: NDArrayBoolType | None,
-    dark_hemispheres: Mapping[str, float],
-) -> None:
-    """Measure every moon in one calibrated real frame for the study.
-
-    Parameters:
-        inputs: Where the measured discs and the moons left out are added.
-        obs: The real observation; its data are I/F.
-        frame: The frame's facts.
-        clipped: Which of the image's pixels read the camera's full scale, or None.
-        dark_hemispheres: For each two-tone moon, the west longitude in degrees at the
-            middle of its dark hemisphere.
-    """
-    planet = getattr(obs, 'closest_planet', None)
-    data = np.asarray(obs.data, dtype=np.float64)
-    full_scale = (
-        np.zeros(data.shape, dtype=bool) if clipped is None else np.asarray(clipped, dtype=bool)
-    )
-    usable = np.isfinite(data) & (data > 0.0) & ~full_scale
-    in_view = [
-        (body, entry)
-        for body, entry in bodies_in_extfov(obs, config=DEFAULT_CONFIG)
-        if obs.inventory_body_in_fov(entry)
-    ]
-    for body, entry in in_view:
-        if body == planet:
-            continue
-        diameter = float(max(entry['u_pixel_size'], entry['v_pixel_size']))
-        if diameter < 1.0:
-            reason: str | None = 'under 1 px across'
-        elif diameter < _MIN_DIAMETER_PX:
-            reason = f'about {diameter:.0f} px across'
-        else:
-            reason = _exclusion_by_kind(body)
-        if reason is not None:
-            inputs.excluded.append(ExcludedDisc(frame.image_id, body, reason))
-            continue
-        _measure_moon(
-            inputs,
-            obs,
-            frame,
-            body,
-            diameter_px=diameter,
-            center_uv=(float(entry['center_uv'][0]), float(entry['center_uv'][1])),
-            data=data,
-            usable=usable & ~_nearer_cover(obs, frame.offset_vu, entry, in_view),
-            full_scale=full_scale,
-            dark_west_lon_deg=dark_hemispheres.get(body),
-        )
-
-
-def _boxes_overlap(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
-    """Whether two inventory entries' pixel boxes overlap."""
-    return bool(
-        a['u_min'] <= b['u_max']
-        and b['u_min'] <= a['u_max']
-        and a['v_min'] <= b['v_max']
-        and b['v_min'] <= a['v_max']
-    )
-
-
-def _nearer_cover(
-    obs: Any,
-    offset_vu: tuple[float, float],
-    entry: Mapping[str, Any],
-    in_view: Sequence[tuple[str, Mapping[str, Any]]],
-) -> NDArrayBoolType:
-    """The pixels that a body nearer than ``entry``'s covers, widened by the blur.
-
-    The frame's geometry traces each body alone, so where a nearer moon or the planet
-    passes in front of a moon, the moon's backplanes still mark those pixels as its
-    own.  They are left out of its disc, with a margin of the disc clearance for the
-    blur of the nearer body's limb.
-    """
-    cover = np.zeros(np.shape(obs.data), dtype=bool)
-    for other, other_entry in in_view:
-        if other_entry is entry or other_entry['range'] >= entry['range']:
-            continue
-        if not _boxes_overlap(entry, other_entry):
-            continue
-        hit = np.asarray(obs.bp.where_intercepted(other).vals, dtype=bool)
-        cover |= _shift(hit, offset_vu, False)
-    if cover.any():
-        cover = scipy.ndimage.binary_dilation(cover, iterations=math.ceil(DISC_CLEARANCE_PX))
-    return np.asarray(cover, dtype=bool)
-
-
-def _exclusion_by_kind(body: str) -> str | None:
-    """Why a moon is left out whatever the frame, or None."""
-    if body in _HAZE_BODIES:
-        return 'its atmosphere hides the surface'
-    shape = load_body_shape(body).shape_class_hint
-    if shape != 'regular':
-        return f'{shape.replace("_", " ")} shape, which the simulator does not model'
-    return None
-
-
-def _measure_moon(
-    inputs: LawStudyInputs,
-    obs: Any,
-    frame: StudyFrame,
-    body: str,
-    *,
-    diameter_px: float,
-    center_uv: tuple[float, float],
-    data: NDArrayFloatType,
-    usable: NDArrayBoolType,
-    full_scale: NDArrayBoolType,
-    dark_west_lon_deg: float | None,
-) -> None:
-    """Measure one moon, or each of its hemispheres, and add it to the inputs."""
-    offset = frame.offset_vu
-    backplane = obs.bp
-    on_body = _shift(np.asarray(backplane.where_intercepted(body).vals, dtype=bool), offset, False)
-    if not on_body.any():
-        inputs.excluded.append(ExcludedDisc(frame.image_id, body, 'its disc is off the image'))
-        return
-    interior = scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX)
-    if interior.any() and float(np.mean(full_scale[interior])) >= MIN_CLIPPED_FRACTION:
-        inputs.excluded.append(
-            ExcludedDisc(frame.image_id, body, "its disc is clipped at the camera's full scale")
-        )
-        return
-    incidence = np.ma.filled(backplane.incidence_angle(body).mvals, np.pi)
-    emission = np.ma.filled(backplane.emission_angle(body).mvals, np.pi)
-    phase = np.ma.filled(backplane.phase_angle(body).mvals, np.nan)
-    mu0 = np.cos(_shift(np.asarray(incidence, dtype=np.float64), offset, np.pi))
-    mu = np.cos(_shift(np.asarray(emission, dtype=np.float64), offset, np.pi))
-    phase_deg_map = np.degrees(_shift(np.asarray(phase, dtype=np.float64), offset, np.nan))
-    radius = diameter_px / 2.0
-    center_vu = (center_uv[1] + offset[0], center_uv[0] + offset[1])
-    lit = on_body & (mu0 > 0.0)
-    for part, part_mask in _hemispheres(obs, body, offset, dark_west_lon_deg).items():
-        label = body if part is None else f'{body} ({part})'
-        selected = select_disc_pixels(on_body, mu0, mu, usable=usable)
-        if part_mask is not None:
-            selected &= part_mask
-        lit_part = lit if part_mask is None else lit & part_mask
-        if not lit_part.any():
-            inputs.excluded.append(
-                ExcludedDisc(frame.image_id, label, 'none of its lit disc lies in the frame')
-            )
-            continue
-        phase_deg = float(np.nanmedian(phase_deg_map[selected if selected.any() else lit_part]))
-        lit_share = _lit_share(lit, part_mask, radius, phase_deg)
-        if lit_share < MIN_LIT_FRACTION:
-            inputs.excluded.append(
-                ExcludedDisc(
-                    frame.image_id,
-                    label,
-                    f'only {100.0 * lit_share:.0f}% of its lit disc lies in the frame',
-                )
-            )
-            continue
-        kept = _decimate(selected)
-        minnaert = fit_minnaert(data[kept], mu0[kept], mu[kept])
-        if minnaert is None:
-            inputs.excluded.append(
-                ExcludedDisc(
-                    frame.image_id,
-                    label,
-                    f'only {int(selected.sum())} lit pixels lie {DISC_CLEARANCE_PX:g} px '
-                    'clear of the limb and the terminator',
-                )
-            )
-            continue
-        inputs.discs.append(
-            RealDisc(
-                frame=frame,
-                body=body,
-                part=part,
-                phase_deg=phase_deg,
-                diameter_px=diameter_px,
-                center_vu=center_vu,
-                illumination_deg=_light_direction_deg(on_body, mu0, center_vu, radius),
-                intensity=data[kept],
-                mu0=mu0[kept],
-                mu=mu[kept],
-                minnaert=minnaert,
-                lunar_lambert=fit_lunar_lambert(data[kept], mu0[kept], mu[kept]),
-                profile=equator_profile(data[kept], mu0[kept], mu[kept], math.radians(phase_deg)),
-                crop=_crop(data, _crop_box(on_body)),
-            )
-        )
-
-
-def _lit_share(
-    lit: NDArrayBoolType, part_mask: NDArrayBoolType | None, radius_px: float, phase_deg: float
-) -> float:
-    """The share of a moon's lit disc, or of one hemisphere's, that lies in the frame."""
-    if not math.isfinite(phase_deg):
-        return 0.0
-    whole = math.pi * radius_px**2 * (1.0 + math.cos(math.radians(phase_deg))) / 2.0
-    in_frame = lit if part_mask is None else lit & part_mask
-    share = float(in_frame.sum()) / max(whole, 1.0)
-    # A hemisphere holds about half of the lit disc at most.
-    return min(1.0, share if part_mask is None else 2.0 * share)
 
 
 def minnaert_line(discs: Iterable[RealDisc]) -> tuple[float, float]:
@@ -728,8 +477,9 @@ def minnaert_line(discs: Iterable[RealDisc]) -> tuple[float, float]:
         The exponent at zero phase and the slope per degree, from an unweighted least
         squares fit; ``(0.5, 0.0)`` when fewer than 2 discs are given.
     """
-    phases = np.array([d.phase_deg for d in discs], dtype=np.float64)
-    ks = np.array([d.minnaert.k for d in discs], dtype=np.float64)
+    pairs = [(d.phase_deg, d.minnaert.k) for d in discs]
+    phases = np.array([p for p, _ in pairs], dtype=np.float64)
+    ks = np.array([k for _, k in pairs], dtype=np.float64)
     if phases.size < 2:
         return 0.5, 0.0
     slope, intercept = np.polyfit(phases, ks, 1)
@@ -780,8 +530,9 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         illumination_deg=disc.illumination_deg,
         phase_deg=disc.phase_deg,
     )
-    selected = select_disc_pixels(on_body, mu0, mu, usable=np.isfinite(data) & (data > 0.0))
-    kept = _decimate(selected)
+    usable = np.isfinite(data) & (data > 0.0) & disc.selection
+    selected = select_disc_pixels(on_body, mu0, mu, usable=usable)
+    kept = decimate(selected)
     fit = fit_minnaert(data[kept], mu0[kept], mu[kept])
     twin_profile = equator_profile(data[kept], mu0[kept], mu[kept], phase_rad)
     peak = _twin_limb_peak(obs, scene, disc.limb_peak[0]) if limb_peak and disc.limb_peak else None
@@ -792,7 +543,7 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         k=None if fit is None else fit.k,
         profile_residual=profile_residual(disc.profile, twin_profile),
         limb_peak=peak,
-        crop=_crop(data, _crop_box(on_body)),
+        crop=crop_image(data, crop_box(on_body)),
     )
 
 
