@@ -18,12 +18,11 @@ from spindoctor.schema import SchemaError
 
 
 def test_packaged_techniques_section_parses() -> None:
-    """Every shipped technique has a block, and a typed technique's tuning has its type."""
+    """Every shipped technique has a block, and its tuning has the technique's type."""
     section = Config().techniques
     for technique in shipped_techniques():
         tuning = section.block(technique).technique_tuning()
-        expected = dict if technique.Tuning is None else technique.Tuning
-        assert isinstance(tuning, expected), technique.name
+        assert isinstance(tuning, technique.Tuning), technique.name
 
 
 @pytest.mark.parametrize(
@@ -49,8 +48,8 @@ def test_an_undeclared_attribute_is_refused(tmp_path: Path, text: str, path: str
         Config().update_config(user_path)
 
 
-def test_a_typed_technique_block_under_its_class_name_is_refused(tmp_path: Path) -> None:
-    """A block named by a typed technique's class name is an unknown key, and changes nothing."""
+def test_a_technique_block_under_its_class_name_is_refused(tmp_path: Path) -> None:
+    """A block under a technique's class name is an unknown key, and changes nothing."""
     config = Config()
     tuning = config.techniques.block(BodyLimbNav).technique_tuning()
     user_path = tmp_path / 'user_config.yaml'

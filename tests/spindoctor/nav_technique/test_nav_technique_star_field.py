@@ -13,6 +13,7 @@ from tests.spindoctor.nav_technique.conftest import (
     DrawGaussianStarFactory,
     NavContextFactory,
     NavFeatureFactory,
+    RetuneFactory,
 )
 
 from spindoctor.feature.feature import NavFeature
@@ -609,62 +610,6 @@ def test_star_field_registered_with_navtechnique_registry() -> None:
     assert StarFieldFromCatalogNav in NavTechnique._registry
 
 
-def test_star_field_min_inliers_less_than_three_raises() -> None:
-    """Construction rejects a ``pattern_match_min_inliers`` below 3."""
-    technique_class = StarFieldFromCatalogNav
-    bad_tuning = dict(technique_class.tuning)
-    bad_tuning['pattern_match_min_inliers'] = 2
-    original_tuning = technique_class.tuning
-    try:
-        technique_class.tuning = bad_tuning
-        with pytest.raises(ValueError, match='pattern_match_min_inliers'):
-            technique_class()
-    finally:
-        technique_class.tuning = original_tuning
-
-
-def test_wide_offset_one_star_catalog_margin_not_positive_raises() -> None:
-    """Construction rejects a non-positive ``wide_offset_one_star_catalog_margin_mag``."""
-    technique_class = StarFieldFromCatalogNav
-    bad_tuning = dict(technique_class.tuning)
-    bad_tuning['wide_offset_one_star_catalog_margin_mag'] = 0.0
-    original_tuning = technique_class.tuning
-    try:
-        technique_class.tuning = bad_tuning
-        with pytest.raises(ValueError, match='wide_offset_one_star_catalog_margin_mag'):
-            technique_class()
-    finally:
-        technique_class.tuning = original_tuning
-
-
-def test_wide_offset_one_star_detection_ratio_below_one_raises() -> None:
-    """Construction rejects a ``wide_offset_one_star_detection_margin_ratio`` below 1."""
-    technique_class = StarFieldFromCatalogNav
-    bad_tuning = dict(technique_class.tuning)
-    bad_tuning['wide_offset_one_star_detection_margin_ratio'] = 0.9
-    original_tuning = technique_class.tuning
-    try:
-        technique_class.tuning = bad_tuning
-        with pytest.raises(ValueError, match='wide_offset_one_star_detection_margin_ratio'):
-            technique_class()
-    finally:
-        technique_class.tuning = original_tuning
-
-
-def test_wide_offset_one_star_confidence_cap_out_of_range_raises() -> None:
-    """Construction rejects a ``wide_offset_one_star_confidence_cap`` outside [0, 1]."""
-    technique_class = StarFieldFromCatalogNav
-    bad_tuning = dict(technique_class.tuning)
-    bad_tuning['wide_offset_one_star_confidence_cap'] = 1.5
-    original_tuning = technique_class.tuning
-    try:
-        technique_class.tuning = bad_tuning
-        with pytest.raises(ValueError, match='wide_offset_one_star_confidence_cap'):
-            technique_class()
-    finally:
-        technique_class.tuning = original_tuning
-
-
 # ---------------------------------------------------------------------------
 # PSF-fit inlier refinement.
 # ---------------------------------------------------------------------------
@@ -723,6 +668,7 @@ def test_box_snr_increases_with_source_brightness() -> None:
 
 def test_psf_refine_corrects_seeded_centroid_error(
     make_nav_context: NavContextFactory,
+    retune: RetuneFactory,
 ) -> None:
     """PSF refinement pulls a deliberately-offset centroid back onto the star.
 
@@ -735,8 +681,8 @@ def test_psf_refine_corrects_seeded_centroid_error(
     image = np.full((60, 60), 20.0, dtype=np.float64)
     _render_eval_rect_star(image, true_center, peak_dn=150.0, sigma=1.0)
     context = replace(make_nav_context(image), obs=_PSFProviderObs(1.0))
+    retune(StarFieldFromCatalogNav, psf_refine_snr_max=1.0e18)  # refine whatever the SNR
     technique = StarFieldFromCatalogNav()
-    technique._psf_refine_snr_max = 1.0e18  # force refinement regardless of SNR
     seeded = np.array([[true_center[0] + 0.4, true_center[1] - 0.3]], dtype=np.float64)
     refined = technique._psf_refine_positions(seeded, context)
     assert refined[0, 0] == pytest.approx(true_center[0], abs=0.05)
@@ -745,13 +691,14 @@ def test_psf_refine_corrects_seeded_centroid_error(
 
 def test_psf_refine_keeps_moment_for_bright_source(
     make_nav_context: NavContextFactory,
+    retune: RetuneFactory,
 ) -> None:
     """A source above the SNR ceiling keeps its moment centroid unchanged."""
     image = np.full((60, 60), 20.0, dtype=np.float64)
     _render_eval_rect_star(image, (30.4, 30.6), peak_dn=150.0, sigma=1.0)
     context = replace(make_nav_context(image), obs=_PSFProviderObs(1.0))
+    retune(StarFieldFromCatalogNav, psf_refine_snr_max=0.0)  # every detection is "bright"
     technique = StarFieldFromCatalogNav()
-    technique._psf_refine_snr_max = 0.0  # every detection counts as "bright"
     seeded = np.array([[30.8, 30.3]], dtype=np.float64)
     refined = technique._psf_refine_positions(seeded, context)
     assert np.array_equal(refined, seeded)
@@ -871,6 +818,7 @@ def test_star_field_3dof_recovers_planted_rotation(
     draw_gaussian_star: DrawGaussianStarFactory,
     make_star_feature: NavFeatureFactory,
     make_nav_context: NavContextFactory,
+    retune: RetuneFactory,
 ) -> None:
     """An above-floor planted rotation + translation is recovered normally."""
     # 1.0 deg is above the 0.75 deg roll/translation separability floor, so
@@ -882,12 +830,12 @@ def test_star_field_3dof_recovers_planted_rotation(
         planted_offset=(1.5, -2.0),
         planted_theta=planted_theta,
     )
-    technique = StarFieldFromCatalogNav()
     # 1.0 deg of roll displaces the outermost stars by ~2.5 px relative to a
     # candidate triplet's pure-translation transform; widen the RANSAC inlier
     # tolerance so the rotation-induced residual does not evict inliers
     # before the Procrustes refit absorbs it.
-    technique._inlier_tolerance_px = 4.0
+    retune(StarFieldFromCatalogNav, inlier_tolerance_px=4.0)
+    technique = StarFieldFromCatalogNav()
     context = make_nav_context(image, fit_camera_rotation=True, max_rotation_deg=5.0)
     result = technique.navigate(features, context)
     assert result.spurious is False
@@ -1002,19 +950,21 @@ def test_build_covariance_n_point_reduced_chi_square() -> None:
     assert cov[1, 1] == pytest.approx(0.25, abs=1e-9)
 
 
-def test_build_covariance_model_error_floor_inflates_by_square() -> None:
+def test_build_covariance_model_error_floor_inflates_by_square(
+    retune: RetuneFactory,
+) -> None:
     """ORCH-001: model_error_floor_px>0 adds exactly its square to the diagonal.
 
     Reuses the two-point fixture (var 0.75/axis with no floor).  Setting
     model_error_floor_px = 2.0 adds 2.0**2 = 4.0 -> 4.75 on each axis;
     the off-diagonal stays zero.
     """
-    technique = StarFieldFromCatalogNav()
     weights = np.array([1.0, 3.0], dtype=np.float64)
     residuals = np.array([[-1.5, -1.5], [0.5, 0.5]], dtype=np.float64)
-    base = technique._build_covariance(weights=weights, residuals=residuals)
-    technique._model_error_floor_px = 2.0
-    floored = technique._build_covariance(weights=weights, residuals=residuals)
+    retune(StarFieldFromCatalogNav, model_error_floor_px=0.0)
+    base = StarFieldFromCatalogNav()._build_covariance(weights=weights, residuals=residuals)
+    retune(StarFieldFromCatalogNav, model_error_floor_px=2.0)
+    floored = StarFieldFromCatalogNav()._build_covariance(weights=weights, residuals=residuals)
     assert floored[0, 0] == pytest.approx(4.75, abs=1e-9)
     assert floored[1, 1] == pytest.approx(4.75, abs=1e-9)
     assert floored[0, 0] - base[0, 0] == pytest.approx(4.0, abs=1e-9)
@@ -1333,7 +1283,7 @@ def test_wide_offset_lock_confidence_is_capped(
     technique = StarFieldFromCatalogNav()
     context = make_nav_context(image, extfov_margin_vu=(150, 150))
     result = technique.navigate(features, context)
-    assert result.confidence <= technique._wide_offset_confidence_cap + 1e-9
+    assert result.confidence <= technique.tuning.wide_offset_confidence_cap + 1e-9
 
 
 def test_wide_offset_lock_expectation_recorded(
@@ -1350,7 +1300,7 @@ def test_wide_offset_lock_expectation_recorded(
     result = technique.navigate(features, context)
     assert isinstance(result.diagnostics, StarFieldDiagnostics)
     exp = result.diagnostics.wide_offset_false_lock_expectation
-    assert 0.0 < exp <= technique._wide_offset_false_lock_budget
+    assert 0.0 < exp <= technique.tuning.wide_offset_false_lock_budget
 
 
 def test_dense_field_uses_strong_tier_not_wide_offset(
@@ -1461,12 +1411,13 @@ def test_one_star_wide_offset_lock_recovers_offset(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
 ) -> None:
     """A single uniquely-bright star locks a wide offset when enabled."""
     planted = (60.0, 80.0)
     image, features = _one_star_wide_field(make_star_feature, draw_gaussian_star, offset=planted)
+    retune(StarFieldFromCatalogNav, wide_offset_one_star_enabled=True)
     technique = StarFieldFromCatalogNav()
-    technique._wide_offset_one_star_enabled = True
     context = make_nav_context(image, extfov_margin_vu=(150, 150))
     result = technique.navigate(features, context)
     assert result.spurious is False
@@ -1481,29 +1432,31 @@ def test_one_star_wide_offset_lock_confidence_capped_low(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
 ) -> None:
     """A one-star lock is capped below the >=3-inlier wide-offset cap."""
     image, features = _one_star_wide_field(
         make_star_feature, draw_gaussian_star, offset=(60.0, 80.0)
     )
+    retune(StarFieldFromCatalogNav, wide_offset_one_star_enabled=True)
     technique = StarFieldFromCatalogNav()
-    technique._wide_offset_one_star_enabled = True
     context = make_nav_context(image, extfov_margin_vu=(150, 150))
     result = technique.navigate(features, context)
-    assert result.confidence <= technique._wide_offset_one_star_confidence_cap + 1e-9
+    assert result.confidence <= technique.tuning.wide_offset_one_star_confidence_cap + 1e-9
 
 
-def test_one_star_wide_offset_disabled_by_default(
+def test_one_star_wide_offset_disabled_leaves_the_field_failed(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
 ) -> None:
-    """With the one-star lock off (the default), the same field stays failed."""
+    """With the one-star lock off, the same field stays failed."""
     image, features = _one_star_wide_field(
         make_star_feature, draw_gaussian_star, offset=(60.0, 80.0)
     )
+    retune(StarFieldFromCatalogNav, wide_offset_one_star_enabled=False)
     technique = StarFieldFromCatalogNav()
-    assert technique._wide_offset_one_star_enabled is False
     context = make_nav_context(image, extfov_margin_vu=(150, 150))
     result = technique.navigate(features, context)
     assert result.spurious is True
@@ -1513,6 +1466,7 @@ def test_one_star_wide_offset_rejects_non_unique_detection(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
 ) -> None:
     """A field with two comparably bright peaks fails the detection-margin gate.
 
@@ -1523,8 +1477,8 @@ def test_one_star_wide_offset_rejects_non_unique_detection(
     image, features = _one_star_wide_field(
         make_star_feature, draw_gaussian_star, offset=(60.0, 80.0), second_detection_dn=400.0
     )
+    retune(StarFieldFromCatalogNav, wide_offset_one_star_enabled=True)
     technique = StarFieldFromCatalogNav()
-    technique._wide_offset_one_star_enabled = True
     context = make_nav_context(image, extfov_margin_vu=(150, 150))
     result = technique.navigate(features, context)
     assert result.spurious is True
@@ -1534,6 +1488,7 @@ def test_one_star_wide_offset_rejects_untrusted_anchor(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
 ) -> None:
     """A photometry-saturated brightest catalog anchor is not one-star locked."""
     image, features = _one_star_wide_field(
@@ -1542,8 +1497,8 @@ def test_one_star_wide_offset_rejects_untrusted_anchor(
     features[0] = replace(
         features[0], flags=replace(cast(StarFlags, features[0].flags), photometry_saturated=True)
     )
+    retune(StarFieldFromCatalogNav, wide_offset_one_star_enabled=True)
     technique = StarFieldFromCatalogNav()
-    technique._wide_offset_one_star_enabled = True
     context = make_nav_context(image, extfov_margin_vu=(150, 150))
     result = technique.navigate(features, context)
     assert result.spurious is True
@@ -1553,13 +1508,14 @@ def test_wide_offset_disabled_falls_through_to_spurious(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
 ) -> None:
     """With the fallback disabled a sub-floor field returns spurious."""
     image, features = _wide_offset_field(
         make_star_feature, draw_gaussian_star, offset=(45.0, -55.0), n_stars=3
     )
+    retune(StarFieldFromCatalogNav, wide_offset_enabled=False)
     technique = StarFieldFromCatalogNav()
-    technique._wide_offset_enabled = False
     context = make_nav_context(image, extfov_margin_vu=(150, 150))
     result = technique.navigate(features, context)
     assert result.spurious is True

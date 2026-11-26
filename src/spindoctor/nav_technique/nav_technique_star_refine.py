@@ -28,7 +28,7 @@ floor.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
 
@@ -50,11 +50,11 @@ from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
     add_model_error_floor,
     embed_rotation_unobservable,
-    load_model_error_floor,
     log_confidence_breakdown,
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
+from spindoctor.nav_technique.star_tuning import StarRefineTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.types import NDArrayFloatType
 
@@ -62,13 +62,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = ['StarRefineNav']
-
-
-# All numeric tunables for this technique live in
-# ``config_files/config_510_techniques.yaml`` under
-# ``techniques.StarRefineNav.tuning``.  No Python-level fallback;
-# missing-key access in ``__init__`` is a KeyError so a config typo
-# fails fast at process startup.
 
 
 def _trace_inverse_variance(feature: NavFeature) -> float:
@@ -124,6 +117,8 @@ class StarRefineNav(NavTechnique):
     """
 
     name = 'StarRefineNav'
+    Tuning = StarRefineTuning
+    tuning: ClassVar[StarRefineTuning]
     accepts_feature_types = frozenset({NavFeatureType.STAR})
     requires_prior = True
     confidence_attributes = frozenset(
@@ -137,26 +132,14 @@ class StarRefineNav(NavTechnique):
     )
 
     def __init__(self, *, config: Config | None = None) -> None:
+        """Load the configuration, which sets the technique's tuning.
+
+        Parameters:
+            config: Optional ``Config`` override; ``None`` uses
+                ``DEFAULT_CONFIG``.
+        """
         super().__init__(config=config)
-        self.config.read_config()  # ensure cls.tuning is populated
-        self._refine_window_px = float(self.tuning['refine_window_px'])
-        self._centroid_box_half_px = int(self.tuning['centroid_box_half_px'])
-        self._psf_sigma_px = float(self.tuning['psf_sigma_px'])
-        self._max_peak_sharpness = float(self.tuning['max_peak_sharpness'])
-        self._max_per_star_residual_px = float(self.tuning['max_per_star_residual_px'])
-        self._detection_sigma = float(self.tuning['detection_sigma'])
-        self._min_inliers = int(self.tuning['min_inliers'])
-        self._at_edge_tolerance_px = float(self.tuning['at_edge_tolerance_px'])
-        self._single_inlier_confidence_cap = float(self.tuning['single_inlier_confidence_cap'])
-        self._rotation_at_edge_fraction = float(self.tuning['rotation_at_edge_fraction'])
-        self._model_error_floor_px = load_model_error_floor(self.tuning, self.name)
-        if self._min_inliers < 1:
-            raise ValueError(f'min_inliers must be >= 1; got {self._min_inliers}')
-        if not 0.0 <= self._single_inlier_confidence_cap <= 1.0:
-            raise ValueError(
-                f'single_inlier_confidence_cap must lie in [0, 1]; got '
-                f'{self._single_inlier_confidence_cap!r}'
-            )
+        self.config.read_config()
 
     def is_feasible(self, features: list[NavFeature]) -> NavFeasibilityReport:
         """Report feasibility based on the predictable-star cohort."""
@@ -203,10 +186,10 @@ class StarRefineNav(NavTechnique):
             inliers, per_star_residuals_v, per_star_residuals_u, weights = self._collect_residuals(
                 usable, image_ext, noise_sigma, prior_v, prior_u
             )
-            if len(inliers) < self._min_inliers:
+            if len(inliers) < self.tuning.min_inliers:
                 return self._fail(
                     features=features,
-                    reason=(f'too_few_inliers ({len(inliers)} < min {self._min_inliers})'),
+                    reason=(f'too_few_inliers ({len(inliers)} < min {self.tuning.min_inliers})'),
                     diagnostics=StarRefineDiagnostics(
                         n_stars_used=len(inliers),
                         median_pos_err_px=0.0,
@@ -237,8 +220,8 @@ class StarRefineNav(NavTechnique):
             )
             margin_v, margin_u = search_window_for_obs(context)
             at_edge = (
-                abs(delta_v + prior_v) >= margin_v - self._at_edge_tolerance_px
-                or abs(delta_u + prior_u) >= margin_u - self._at_edge_tolerance_px
+                abs(delta_v + prior_v) >= margin_v - self.tuning.at_edge_tolerance_px
+                or abs(delta_u + prior_u) >= margin_u - self.tuning.at_edge_tolerance_px
             )
             assert self.confidence_spec is not None
             raw_confidence, breakdown = evaluate_sigmoid_combination(
@@ -254,14 +237,14 @@ class StarRefineNav(NavTechnique):
             # 1-star refine over a 1-star unique-match on the same
             # observation.
             confidence = float(raw_confidence)
-            if len(inliers) == 1 and confidence > self._single_inlier_confidence_cap:
+            if len(inliers) == 1 and confidence > self.tuning.single_inlier_confidence_cap:
                 self.logger.info(
                     'Single-inlier refine: capping confidence %.4f -> %.4f '
                     '(no cross-check on a 1-star refine)',
                     confidence,
-                    self._single_inlier_confidence_cap,
+                    self.tuning.single_inlier_confidence_cap,
                 )
-                confidence = self._single_inlier_confidence_cap
+                confidence = self.tuning.single_inlier_confidence_cap
             cov_2x2 = self._build_covariance(
                 inliers=inliers,
                 weights=weights,
@@ -294,12 +277,12 @@ class StarRefineNav(NavTechnique):
                 # the updated absolute offset so the flag reflects
                 # what the technique actually reports.
                 at_edge = (
-                    abs(offset_v_total) >= margin_v - self._at_edge_tolerance_px
-                    or abs(offset_u_total) >= margin_u - self._at_edge_tolerance_px
+                    abs(offset_v_total) >= margin_v - self.tuning.at_edge_tolerance_px
+                    or abs(offset_u_total) >= margin_u - self.tuning.at_edge_tolerance_px
                 )
                 rotation_at_edge = abs(
                     rotation_rad
-                ) >= self._rotation_at_edge_fraction * math.radians(context.max_rotation_deg)
+                ) >= self.tuning.rotation_at_edge_fraction * math.radians(context.max_rotation_deg)
                 if rotation_at_edge:
                     at_edge = True
                 self.logger.info(
@@ -331,8 +314,8 @@ class StarRefineNav(NavTechnique):
                 residual_scatter_px,
                 confidence,
             )
-            # Model-error floor (#210); rationale on load_model_error_floor.
-            cov = add_model_error_floor(cov, self._model_error_floor_px)
+            # Model-error floor (#210); rationale on add_model_error_floor.
+            cov = add_model_error_floor(cov, self.tuning.model_error_floor_px)
             return NavTechniqueResult(
                 technique_name=self.name,
                 feature_ids=tuple(f.feature_id for f in inliers),
@@ -372,31 +355,31 @@ class StarRefineNav(NavTechnique):
             det, peak = local_centroid(
                 image_ext,
                 shifted_pred,
-                search_half_vu=(self._refine_window_px, self._refine_window_px),
-                centroid_box_half_px=self._centroid_box_half_px,
-                psf_sigma_px=self._psf_sigma_px,
-                max_peak_sharpness=self._max_peak_sharpness,
+                search_half_vu=(self.tuning.refine_window_px, self.tuning.refine_window_px),
+                centroid_box_half_px=self.tuning.centroid_box_half_px,
+                psf_sigma_px=self.tuning.psf_sigma_px,
+                max_peak_sharpness=self.tuning.max_peak_sharpness,
                 image_noise_sigma=noise_sigma,
-                detection_sigma=self._detection_sigma,
+                detection_sigma=self.tuning.detection_sigma,
                 refuse_outshone=True,
             )
             if det is None:
                 self.logger.debug(
                     'Star %s: no peak above %.2f sigma in refine window (peak %.3f DN); dropped',
                     star.feature_id,
-                    self._detection_sigma,
+                    self.tuning.detection_sigma,
                     peak,
                 )
                 continue
             res_v = det[0] - shifted_pred[0]
             res_u = det[1] - shifted_pred[1]
             distance = math.hypot(res_v, res_u)
-            if distance > self._max_per_star_residual_px:
+            if distance > self.tuning.max_per_star_residual_px:
                 self.logger.debug(
                     'Star %s: refine residual %.3f px exceeds max %.3f px; dropped',
                     star.feature_id,
                     distance,
-                    self._max_per_star_residual_px,
+                    self.tuning.max_per_star_residual_px,
                 )
                 continue
             inliers.append(star)
