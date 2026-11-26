@@ -50,8 +50,8 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_model,
 )
 from spindoctor.sim.instruments.schema_detector import Detector
-from spindoctor.sim.render.detector.quantization import DEFAULT_CONTOUR_STEP
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
+from spindoctor.sim.scene.truth_detector import DEFAULT_CONTOUR_STEP
 from spindoctor.ui.sim_editor.artifact_mode_rows import ModeRow
 from spindoctor.ui.sim_editor.base import SimEditorBase
 

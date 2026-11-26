@@ -74,7 +74,7 @@ def test_invalid_in_memory_scene_is_refused() -> None:
     scene = {**_body_scene(), 'exposure_seconds': 2.0}
     with pytest.raises(
         SimSceneValidationError,
-        match='^' + re.escape("obs_sim_bad.yaml: unknown scene keys: ['exposure_seconds']"),
+        match='^' + re.escape("obs_sim_bad.yaml: unknown keys: ['exposure_seconds']"),
     ):
         ObsSim.from_file('obs_sim_bad.yaml', sim_params=scene)
 
