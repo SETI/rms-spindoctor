@@ -10,7 +10,7 @@ configuration loads.
 
 from dataclasses import dataclass
 
-from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Unit
+from spindoctor.schema import SCHEMA_CONFIG, NonNeg, Positive, Unit
 
 __all__ = ['BodyBlobTuning', 'BodyDiscTuning', 'NCCCovarianceTuning']
 
@@ -90,6 +90,9 @@ class BodyBlobTuning:
             see, as a fraction of the body radius.
         model_error_floor_px: The model-error floor in pixels, added in quadrature to
             the joint translation covariance.
+        max_missing_shift_frac: A blob is dropped when leaving its missing pixels out
+            would move the centroid of the body's predicted lit silhouette by more than
+            this fraction of the body radius.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -97,3 +100,4 @@ class BodyBlobTuning:
     at_edge_tolerance_px: NonNeg
     model_error_size_frac: NonNeg
     model_error_floor_px: NonNeg
+    max_missing_shift_frac: Positive

@@ -667,6 +667,11 @@ residuals, weighting each star by how precisely it can be located. A star whose 
 too far from the shifted prediction is dropped as a wrong identification, and so is a star
 whose small window is outshone by the edge of something brighter just outside it.
 
+Some frames lost lines in transmission. Those pixels are not used in measuring a star's
+center, but the light that fell on them is gone, so the center of what is left shifts away
+from them. A star whose lost light would shift its center by more than 0.05 pixels is
+dropped.
+
 What it reports is a correction to the offset it was given. With two or more stars it
 reports the measured scatter as its uncertainty; with a single star it falls back to the
 theoretical best and caps its confidence at 0.5, deliberately below what a single unique
@@ -757,6 +762,11 @@ where its light is centered. This technique measures a brightness-weighted cente
 ``BODY_BLOB`` feature inside its predicted box, and solves for the single shift that best
 maps the predicted centers onto the measured ones. With two or more bodies the problem is
 over-determined, which makes it tolerant of a poor center on any one of them.
+
+Lines lost in transmission are left out of the measurement. When they cross one side of a
+body, they take that side's light with them, and the center of what is left shifts toward
+the other side. A body whose center they would shift by more than 1% of its radius is
+dropped, and when every body is dropped the technique reports no answer.
 
 Its confidence is capped at 0.4 by design. A brightness center is much weaker evidence
 than a fitted limb, so even a perfect blob match should not be allowed to outweigh a limb

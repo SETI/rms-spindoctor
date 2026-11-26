@@ -47,6 +47,32 @@ when the window's brightest pixel is the edge-cut flank of a brighter source out
 implied per-star residual exceeds a configured cap; the surviving correspondences are the
 inlier set.
 
+Lost lines
+----------
+
+A frame that lost lines in transmission carries the instrument's missing-data marker in
+them. The orchestrator fills those pixels with 0.0 and marks them in
+:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.missing_data_mask_ext`. A 0.0 is
+not a measurement, and read as one it does two kinds of harm. It sits far below the sky, so
+a box that is mostly lost takes 0.0 as its median, and the sky around the star then counts
+as starlight. And the part of a star that fell on the lost lines is gone, so the centroid of
+what is left moves away from them.
+
+The technique handles the two in turn. Before a star is detected, any missing pixel within
+reach of the detection (the refinement window and ``2 * centroid_box_half_px`` pixels
+beyond it) is set to the median of the other pixels there. The missing pixels then read as
+sky: they add no light to the centroid and leave the box's median where the sky is.
+
+After the star is centroided, the technique estimates how much its centroid moved. It
+models the star from its own light: the light above the median in the centroid box around
+the centroid, with each missing pixel given the light at its mirror image through the
+centroid. A star is close to symmetric about its center, so the model holds about the
+light the missing pixels lost, whatever the star's width, smear, or saturation. The
+technique then measures how far leaving the missing pixels out moves the model's centroid,
+and drops a star whose model moves more than ``max_missing_shift_px``. Lost lines that
+cross one side of a star's core drop it. Lines that only clip the far edge of its box take
+too little light to matter, and the star stays.
+
 Translation-only fit
 --------------------
 
@@ -188,6 +214,11 @@ are the ones in the packaged file.
   floor added in quadrature to the covariance's translation diagonal: the 2026-07-18
   calibration campaign measured 2-sigma coverage 0.83 at a 0.22 px floor and 0.87 at this
   value, against the 0.865 reference.
+- ``max_missing_shift_px`` — float, packaged value ``0.05`` px. A star is dropped when
+  leaving the missing pixels of its centroid box out would move the centroid of its
+  model by more than this (see "Lost lines" above). The value is a fifth of
+  ``model_error_floor_px``: a bias that size raises the per-star error the covariance
+  already allows by 2%, since :math:`\sqrt{0.27^2 + 0.054^2} = 1.02 \times 0.27`.
 
 Per-instrument overrides
 ------------------------

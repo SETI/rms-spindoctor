@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import math
 
 import numpy as np
@@ -19,6 +20,7 @@ from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
 )
 from spindoctor.nav_technique.nav_technique_star_refine import StarRefineNav
+from spindoctor.nav_technique.technique_result import NavTechniqueResult
 
 
 def _attach_prior(context: NavContext, *, prior_offset_px: tuple[float, float]) -> NavContext:
@@ -334,3 +336,71 @@ def test_star_refine_drops_a_star_whose_window_is_outshone_from_outside(
     result = StarRefineNav().navigate(features, context)
     assert isinstance(result.diagnostics, StarRefineDiagnostics)
     assert result.diagnostics.n_stars_used == 3
+
+
+_LOST_LINES_STARS = ((60.0, 70.0), (160.0, 130.0), (110.0, 170.0))
+_LOST_LINES_OFFSET = (3.0, -2.0)
+
+
+def _refine_with_lost_lines(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    lost_rows: range,
+) -> NavTechniqueResult:
+    """Refine three stars on a 100 DN sky whose ``lost_rows`` read 0.0 and are missing.
+
+    Parameters:
+        make_nav_context: Builds the navigation context.
+        make_star_feature: Builds the star features.
+        draw_gaussian_star: Draws the stars.
+        lost_rows: The rows lost from the frame.
+
+    Returns:
+        The refinement's result.
+    """
+    image = np.full((220, 220), 100.0, dtype=np.float64)
+    for center in _LOST_LINES_STARS:
+        draw_gaussian_star(image, center, peak_dn=200.0, sigma=1.2)
+    missing = np.zeros(image.shape, dtype=bool)
+    missing[lost_rows, :] = True
+    image[missing] = 0.0
+    features = [
+        make_star_feature(
+            f'star:UCAC4:{i}',
+            predicted_vu=(v - _LOST_LINES_OFFSET[0], u - _LOST_LINES_OFFSET[1]),
+            predicted_snr=30.0,
+        )
+        for i, (v, u) in enumerate(_LOST_LINES_STARS)
+    ]
+    context = dataclasses.replace(make_nav_context(image), missing_data_mask_ext=missing)
+    context = _attach_prior(context, prior_offset_px=_LOST_LINES_OFFSET)
+    return StarRefineNav().navigate(features, context)
+
+
+def test_star_refine_drops_a_star_that_lost_half_its_lines(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A star whose lower half is lost is dropped, not centroided on its upper half."""
+    result = _refine_with_lost_lines(
+        make_nav_context, make_star_feature, draw_gaussian_star, range(60, 67)
+    )
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 2
+
+
+def test_star_refine_lost_lines_beyond_a_star_leave_it_in_place(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """Lines lost beyond a star's centroid box leave the refined offset where it was."""
+    clean = _refine_with_lost_lines(
+        make_nav_context, make_star_feature, draw_gaussian_star, range(0)
+    )
+    lost = _refine_with_lost_lines(
+        make_nav_context, make_star_feature, draw_gaussian_star, range(64, 71)
+    )
+    assert lost.offset_px == pytest.approx(clean.offset_px, abs=1e-9)

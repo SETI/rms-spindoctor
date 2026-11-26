@@ -42,6 +42,7 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.support.missing_light import missing_light_shift_px
 from spindoctor.support.noise_estimate import (
     NOISE_CLIP_SIGMA,
     estimate_background_and_sky_sigma,
@@ -359,6 +360,8 @@ def _brightness_weighted_centroid(
     geometry: BodyBlobGeometry,
     background: float,
     coarse_offset_vu: tuple[int, int] = (0, 0),
+    *,
+    missing_mask_ext: NDArrayBoolType,
 ) -> tuple[tuple[float, float] | None, float, int, tuple[int, int, int, int]]:
     """Return the brightness-weighted centroid + signal stats for one blob.
 
@@ -376,6 +379,7 @@ def _brightness_weighted_centroid(
     those exceeding ``background + 3 * image_noise_sigma``.  Subtracting the
     background is what keeps a uniform pedestal from dragging the centroid
     toward the bbox center (a phase-dependent bias on high-phase crescents).
+    A pixel that ``missing_mask_ext`` marks as missing is never counted as lit.
     A blob whose (shifted) bbox carries no above-background pixels returns
     ``(None, 0.0, 0, clamped_bbox)`` so the caller can drop it from the
     joint fit and still log its bbox in the per-blob rejection line.
@@ -395,7 +399,9 @@ def _brightness_weighted_centroid(
         return None, 0.0, 0, clamped_bbox
     patch = image_ext[v_min:v_max, u_min:u_max]
     noise_threshold = background + _BLOB_NOISE_THRESHOLD_SIGMA * max(image_noise_sigma, 1e-9)
-    signal_mask: NDArrayBoolType = patch > noise_threshold
+    signal_mask: NDArrayBoolType = (patch > noise_threshold) & ~missing_mask_ext[
+        v_min:v_max, u_min:u_max
+    ]
     n_lit = int(signal_mask.sum())
     if n_lit == 0:
         return None, 0.0, 0, clamped_bbox
@@ -411,6 +417,51 @@ def _brightness_weighted_centroid(
     return (centroid_v, centroid_u), mean_signal, n_lit, clamped_bbox
 
 
+def _missing_shift_px(
+    feature: NavFeature,
+    coarse_offset_vu: tuple[int, int],
+    clamped_bbox: tuple[int, int, int, int],
+    missing_mask_ext: NDArrayBoolType,
+) -> float:
+    """Return how far a blob's missing pixels would move its centroid.
+
+    The model is the body's predicted lit silhouette: the Lambertian crescent of
+    :func:`_crescent_kernel` at the body's phase when its sub-solar direction is known,
+    and the filled disc of :func:`_disc_kernel` otherwise, with the radius of
+    :func:`_clamped_kernel_radius`.  It is placed so its lit centroid lies on the
+    predicted one moved by ``coarse_offset_vu``, where the centroid box was measured.
+    The shift is that of :func:`missing_light_shift_px`, and it is 0.0 without building
+    the model when no pixel of the box is missing.
+
+    Parameters:
+        feature: The ``BODY_BLOB`` feature.
+        coarse_offset_vu: The integer offset the centroid box was moved by.
+        clamped_bbox: ``(v_min, u_min, v_max, u_max)`` of the moved box, clamped to
+            the image.
+        missing_mask_ext: ``True`` where a pixel is missing.
+
+    Returns:
+        The shift in pixels; ``math.inf`` when all of the model's light is missing.
+    """
+    assert isinstance(feature.geometry, BodyBlobGeometry)
+    v_min, u_min, v_max, u_max = clamped_bbox
+    if not missing_mask_ext[v_min:v_max, u_min:u_max].any():
+        return 0.0
+    radius = _clamped_kernel_radius(feature.geometry.predicted_diameter_px, missing_mask_ext.shape)
+    phase_deg = float(getattr(feature.flags, 'phase_angle_deg', 0.0))
+    sub_solar_dir_vu = getattr(feature.flags, 'sub_solar_dir_vu', (0.0, 0.0))
+    if sub_solar_dir_vu != (0.0, 0.0):
+        kernel = _crescent_kernel(radius, math.radians(phase_deg), sub_solar_dir_vu)
+    else:
+        kernel = _disc_kernel(radius)
+    centroid_off_v, centroid_off_u = _kernel_centroid_offset(kernel)
+    half_v, half_u = kernel.shape[0] // 2, kernel.shape[1] // 2
+    pred_v, pred_u = feature.geometry.predicted_center_vu
+    origin_v = round(pred_v + coarse_offset_vu[0] - centroid_off_v) - half_v
+    origin_u = round(pred_u + coarse_offset_vu[1] - centroid_off_u) - half_u
+    return missing_light_shift_px(kernel, (origin_v, origin_u), missing_mask_ext)
+
+
 def _collect_per_blob_residuals(
     features: list[NavFeature],
     image_ext: NDArrayFloatType,
@@ -421,6 +472,8 @@ def _collect_per_blob_residuals(
     image_signal: NDArrayFloatType,
     margin_vu: tuple[int, int],
     prior_offset_vu: tuple[float, float] | None,
+    missing_mask_ext: NDArrayBoolType,
+    max_missing_shift_frac: float,
 ) -> _BlobResiduals:
     """Extract the per-blob ``observed - predicted`` residuals + weights.
 
@@ -434,7 +487,12 @@ def _collect_per_blob_residuals(
     bounding box (a few pixels) to the full extfov window; without it the
     centroid silently clips and biases once the body leaves the predicted
     box.  Blobs with no above-background signal in their (shifted) bbox are
-    dropped (and logged at DEBUG).  The remaining blobs contribute to the
+    dropped (and logged at DEBUG).  Missing pixels (``missing_mask_ext``) are
+    left out of the centroid, and a blob whose missing pixels would move the
+    centroid of its predicted lit silhouette by more than
+    ``max_missing_shift_frac`` of its radius (:func:`_missing_shift_px`) is
+    dropped too, since the centroid of what is left has moved away from the
+    lost part (logged at DEBUG).  The remaining blobs contribute to the
     joint fit with weight ``N_lit * SNR^2 / radius_px^2`` per the BODY_BLOB
     centroid CRLB.
     """
@@ -484,7 +542,12 @@ def _collect_per_blob_residuals(
         else:
             coarse_offset = (0, 0)
         centroid, mean_signal, n_lit, clamped_bbox = _brightness_weighted_centroid(
-            image_ext, image_noise_sigma, feature.geometry, background, coarse_offset
+            image_ext,
+            image_noise_sigma,
+            feature.geometry,
+            background,
+            coarse_offset,
+            missing_mask_ext=missing_mask_ext,
         )
         if centroid is None:
             logger.debug(
@@ -494,6 +557,18 @@ def _collect_per_blob_residuals(
                 clamped_bbox,
                 background,
                 background + _BLOB_NOISE_THRESHOLD_SIGMA * max(image_noise_sigma, 1e-9),
+            )
+            continue
+        radius_px = feature.geometry.predicted_diameter_px / 2.0
+        missing_shift = _missing_shift_px(feature, coarse_offset, clamped_bbox, missing_mask_ext)
+        if missing_shift > max_missing_shift_frac * radius_px:
+            logger.debug(
+                'Blob %s: missing pixels would move its centroid %.3f px, over %.3f px '
+                '(%.3f of the radius); dropping',
+                feature.feature_id,
+                missing_shift,
+                max_missing_shift_frac * radius_px,
+                max_missing_shift_frac,
             )
             continue
         pred_v, pred_u = feature.geometry.predicted_center_vu
@@ -506,7 +581,6 @@ def _collect_per_blob_residuals(
         # emission gate guarantees ``predicted_diameter_px >= 8``,
         # so the radius_px denominator is bounded away from zero
         # and no floor is needed.
-        radius_px = feature.geometry.predicted_diameter_px / 2.0
         radius_sq = radius_px * radius_px
         weight = float(n_lit) * snr * snr / radius_sq
         consumed.append(feature)
@@ -793,10 +867,14 @@ class BodyBlobNav(NavTechnique):
             # than per-bbox, where a body-filled box would bias the background
             # high.  The sky sigma -- not the body-inflated global sigma -- is
             # the right threshold floor (see estimate_background_and_sky_sigma).
+            # Missing pixels hold 0.0, which would pull the background below the
+            # sky (#1207).
+            missing_mask = np.asarray(context.missing_data_mask_ext, bool)
             valid_mask = (
                 np.asarray(context.sensor_mask_ext, bool)
                 & ~np.asarray(context.saturation_mask_ext, bool)
                 & ~np.asarray(context.cosmic_ray_mask_ext, bool)
+                & ~missing_mask
             )
             background, noise_sigma = estimate_background_and_sky_sigma(
                 image_ext,
@@ -812,7 +890,7 @@ class BodyBlobNav(NavTechnique):
             )
             # Lit-signal image for the coarse blob-disc correlation: background
             # subtracted, clipped at zero, and zeroed outside the valid sky
-            # (saturation / cosmic rays / non-sensor) so those do not create
+            # (saturation / cosmic rays / missing / non-sensor) so those do not create
             # spurious matched-filter peaks.
             image_signal = np.where(
                 valid_mask, np.clip(image_ext - background, 0.0, None), 0.0
@@ -836,6 +914,8 @@ class BodyBlobNav(NavTechnique):
                 image_signal=image_signal,
                 margin_vu=(margin_v, margin_u),
                 prior_offset_vu=prior_offset_vu,
+                missing_mask_ext=missing_mask,
+                max_missing_shift_frac=self.tuning.max_missing_shift_frac,
             )
             if not residuals.consumed:
                 return self._fail_no_signal(

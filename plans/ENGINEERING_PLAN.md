@@ -787,6 +787,13 @@ where they differ).
 - **#579** — the logged star-smear summary projects one sky direction, the
   frame center, so it reads zero on a rolling frame where the smear is
   largest at the corners. A log line, not a navigation input.
+- **#1207** (done: the context carries the missing-data mask, and the star
+  refinement and the blob leave lost pixels out and drop a star or blob
+  whose lost pixels would move a model of it by more than a fifth of the
+  technique's model-error sigma, 2026-11-26) — `StarRefineNav` and
+  `BodyBlobNav` centroided lost lines as zero-valued data. #1164, the disc
+  correlation's form of the same fault, is still open and can read the same
+  mask.
 - **#836 / #994** — the star model sometimes emits one catalog star twice
   under one feature ID (#836, 23 of 1986 F ring and spokes frames). #994 is
   a likely cause: the catalog reduction queries magnitude bins whose ends
