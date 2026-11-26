@@ -267,12 +267,24 @@ def cubic_upsample(
         factor: Integer upsampling factor (1 returns the input unchanged).
         out: A float64 array of the upsampled shape to write the result into, or None
             for a new one; a caller upsampling several fields in turn can reuse one.
+            A factor of 1 leaves it untouched.
 
     Returns:
-        The ``(rows * factor, cols * factor)`` upsampled field (``out`` when given).
+        The ``(rows * factor, cols * factor)`` upsampled field (``out`` when given
+        and the factor is above 1).
+
+    Raises:
+        ValueError: If ``out`` is given and is not a float64 array of the upsampled
+            shape.
     """
     if factor == 1:
         return field
+    if out is not None:
+        shape = (field.shape[0] * factor, field.shape[1] * factor)
+        if out.shape != shape:
+            raise ValueError(f'out has shape {out.shape}; the upsampled field has shape {shape}')
+        if out.dtype != np.float64:
+            raise ValueError(f'out has dtype {out.dtype}; it must be float64')
     if out is not None and field.dtype == np.float64:
         ndimage.zoom(field, factor, output=out, order=3, grid_mode=True, mode='nearest')
         return out

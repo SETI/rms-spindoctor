@@ -388,6 +388,20 @@ def test_cubic_upsample_into_a_reused_float64_buffer_keeps_the_samples() -> None
     _assert_identical(result, cubic_upsample(second, 2))
 
 
+def test_cubic_upsample_refuses_a_buffer_the_result_only_broadcasts_into() -> None:
+    """A buffer of another shape is refused, even one the result would broadcast into."""
+    field = np.array([[0.0, 1.0]], dtype=np.float32)
+    with pytest.raises(ValueError, match=r'out has shape \(3, 2, 4\); .* shape \(2, 4\)'):
+        cubic_upsample(field, 2, out=np.zeros((3, 2, 4)))
+
+
+def test_cubic_upsample_refuses_a_float32_buffer() -> None:
+    """A buffer narrower than float64 is refused."""
+    field = np.array([[0.0, 1.0]], dtype=np.float32)
+    with pytest.raises(ValueError, match='out has dtype float32; it must be float64'):
+        cubic_upsample(field, 2, out=np.zeros((2, 4), dtype=np.float32))
+
+
 # The inputs the plain expressions accept, and what they return for them.
 
 _COLUMN = _decimal(-0.9, 0.9, (5, 1), seed=6)
