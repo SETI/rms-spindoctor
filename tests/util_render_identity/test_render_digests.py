@@ -85,3 +85,30 @@ def test_a_run_matching_no_render_fails(
     monkeypatch.setattr(sys, 'argv', ['render_digests.py', str(out), '--only', 'nothing/'])
     assert render_digests.main() == 1
     assert "no render name starts with 'nothing/'" in capsys.readouterr().out
+
+
+def _fail_render(params: dict[str, Any], **kwargs: Any) -> list[str]:
+    """Raise an error chained to the error that caused it, as a failing render might.
+
+    Parameters:
+        params: The scene, unused.
+        **kwargs: The render arguments, unused.
+
+    Raises:
+        ValueError: Always, from a KeyError.
+    """
+    try:
+        raise KeyError('inner cause')
+    except KeyError as exc:
+        raise ValueError('outer failure') from exc
+
+
+def test_a_failing_render_prints_its_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A render that raises prints its whole chained traceback, and the run gives 1."""
+    monkeypatch.setattr(render_digests, '_jobs', lambda: [('catalog/a#nav', {}, {})])
+    monkeypatch.setattr(render_digests, '_render_digests', _fail_render)
+    monkeypatch.setattr(sys, 'argv', ['render_digests.py', str(tmp_path / 'digests.json')])
+    assert render_digests.main() == 1
+    assert "KeyError: 'inner cause'" in capsys.readouterr().err

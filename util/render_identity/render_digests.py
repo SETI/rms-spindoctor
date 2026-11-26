@@ -40,6 +40,7 @@ import importlib.util
 import json
 import sys
 import time
+import traceback
 from pathlib import Path
 from typing import Any
 
@@ -213,6 +214,8 @@ def main() -> int:
         try:
             results[name] = _render_digests(params, **kwargs)
         except Exception as exc:  # A failing render is reported, not fatal.
+            print(f'ERROR {name}', file=sys.stderr)
+            traceback.print_exc()
             results[name] = ['error', f'{type(exc).__name__}: {exc}'[:200]]
     if not results:
         print(f'no render name starts with {args.only!r}')
