@@ -498,6 +498,11 @@ def _float32_radial_scale(project: Callable[..., Any], scale: Callable[..., Any]
             id='incidence_column_and_row',
         ),
         pytest.param(
+            lambda: _loose_incidence_cosines(_f32(_COS[0]), _f32(_COS[1]), _COS[2], **_LIGHT),
+            lambda: _plain_incidence(_f32(_COS[0]), _f32(_COS[1]), _COS[2]),
+            id='incidence_float32_and_float64',
+        ),
+        pytest.param(
             lambda: _loose_lommel_seeliger(np.float64(0.5), np.float64(0.2)),
             lambda: _plain_lommel_seeliger(np.float64(0.5), np.float64(0.2)),
             id='lommel_seeliger_scalars',

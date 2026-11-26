@@ -96,8 +96,13 @@ def incidence_cosines(
     illum_v, illum_u, illum_z = illumination_vector(
         illumination_angle=illumination_angle, phase_angle=phase_angle
     )
-    if not any(isinstance(normal, np.ndarray) for normal in (normal_v, normal_u, normal_z)):
-        # Scalar normals: the plain expression, which keeps their type.
+    normals = (normal_v, normal_u, normal_z)
+    if not any(isinstance(normal, np.ndarray) for normal in normals) or (
+        len({np.result_type(normal, 1.0) for normal in normals}) > 1
+    ):
+        # Scalar normals, or normals of mixed types: the plain expression, which keeps
+        # their type.  With a float32 v and u and a float64 z, it rounds v's and u's
+        # terms and their sum in float32, which a sum built in float64 would not.
         return cast(NDArrayFloatType, normal_v * illum_v + normal_u * illum_u + normal_z * illum_z)
     # v * illum_v + u * illum_u + z * illum_z, summed in place in that order, which
     # gives the same bits, shape, and type as the plain expression with two fewer
