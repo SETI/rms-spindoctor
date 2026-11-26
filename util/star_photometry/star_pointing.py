@@ -46,12 +46,14 @@ class PointingFix:
         spread_px: RMS distance of the agreeing stars from the fix (pixels).
         runner_up: Stars voting for the best offset at least ``exclusion_px`` from the fix, in
             the kept tier.
-        chance_probability: Probability of the kept tier's cluster arising by chance anywhere
-            in the search window, from the density of its star-peak pairs.
+        chance_probability: Probability of a cluster of the kept tier's pairs that the final
+            fix retains arising by chance anywhere in the search window, from the density of
+            the tier's star-peak pairs.
         agreeing: Indexes (into the candidate list) of the agreeing stars.
         reason: Why the fix was refused, or ``''`` when it was accepted.
         tier: ``[n_stars, n_peaks]`` of the search tier the fix came from.
         tier_agree: Agreeing stars within that tier.
+        tier_retained: Of the tier's agreeing star-peak pairs, those the final fix keeps.
     """
 
     accepted: bool
@@ -68,6 +70,7 @@ class PointingFix:
     reason: str = ''
     tier: list[int] = field(default_factory=list)
     tier_agree: int = 0
+    tier_retained: int = 0
 
 
 def apply_fix(
@@ -152,10 +155,13 @@ def find_pointing(
     randomly placed pairs anywhere in the search window: a Poisson tail with the tier's mean
     number of pairs per disk of radius ``agree_px``, times the number of such disks in the
     window, times the number of tiers.  The tier with the smallest chance is kept, and its fix
-    is refined once more on every star and peak, which gives the final agreeing set.
+    is refined once more on every star and peak, which gives the final agreeing set.  The
+    final refinement can drop some of the tier's pairs, so the reported chance probability is
+    recomputed the same way for the tier's pairs the final fix keeps: it describes pairs that
+    support the returned fix.
 
-    The fix is accepted when the final agreeing set holds at least ``min_agree`` stars and the
-    kept tier's chance probability is at most ``max_chance_probability``.
+    The fix is accepted when the final agreeing set holds at least ``min_agree`` stars and that
+    chance probability is at most ``max_chance_probability``.
 
     Parameters:
         pred_v: Predicted line of each candidate star (array-index coordinates), brightest
@@ -197,16 +203,18 @@ def find_pointing(
         if tier is None:
             continue
         chance = min(1.0, tier.chance * len(tiers))
-        if best is None or (chance, -len(tier.agreeing)) < (best[0], -len(best[1].agreeing)):
+        if best is None or (chance, -len(tier.pairs)) < (best[0], -len(best[1].pairs)):
             best = (chance, tier)
     if best is None:
         return _refused(n_star, n_peak, 'no star-peak pair inside the search window')
-    chance, tier = best
+    tier = best[1]
     dv, du, theta, pairs, rms = _refine(
         pred_v, pred_u, peaks, tier.offset_v, tier.offset_u, center_vu, agree_px, theta=tier.theta
     )
     agreeing = [star for star, _ in pairs]
     n_agree = len(agreeing)
+    retained = len(set(pairs) & set(tier.pairs))
+    chance = min(1.0, _chance(retained, tier.mean_pairs, search_px, agree_px) * len(tiers))
     reason = ''
     if n_agree < min_agree:
         reason = f'only {n_agree} stars agree'
@@ -226,8 +234,29 @@ def find_pointing(
         agreeing=agreeing,
         reason=reason,
         tier=[tier.n_stars, tier.n_peaks],
-        tier_agree=len(tier.agreeing),
+        tier_agree=len(tier.pairs),
+        tier_retained=retained,
     )
+
+
+def _chance(n_agree: int, mean_pairs: float, search_px: float, agree_px: float) -> float:
+    """Return the chance of ``n_agree`` star-peak pairs falling in one agreement disk.
+
+    Parameters:
+        n_agree: Pairs in the cluster.
+        mean_pairs: Mean number of pairs per disk of radius ``agree_px``.
+        search_px: Search half-width.
+        agree_px: Agreement radius.
+
+    Returns:
+        A Poisson tail times the number of disks in the search window, at most 1.
+    """
+    if n_agree <= 0:
+        return 1.0
+    window_area = (2 * search_px) ** 2
+    disk_area = math.pi * agree_px**2
+    tail = float(scipy.stats.poisson.sf(n_agree - 1, mean_pairs))
+    return min(1.0, window_area / disk_area * tail)
 
 
 @dataclass(frozen=True)
@@ -238,10 +267,11 @@ class _TierFit:
         offset_v: Line offset.
         offset_u: Sample offset.
         theta: Rotation in radians.
-        agreeing: Indexes of the agreeing stars.
+        pairs: ``(star, peak)`` indexes of the agreeing pairs.
         rms: RMS residual of the agreeing stars.
         runner_up: Best vote sum at least the exclusion distance from the fix.
         chance: The chance probability for this tier alone.
+        mean_pairs: The tier's mean number of star-peak pairs per agreement disk.
         n_stars: Stars searched.
         n_peaks: Peaks searched.
     """
@@ -249,10 +279,11 @@ class _TierFit:
     offset_v: float
     offset_u: float
     theta: float
-    agreeing: list[int]
+    pairs: list[tuple[int, int]]
     rms: float
     runner_up: int
     chance: float
+    mean_pairs: float
     n_stars: int
     n_peaks: int
 
@@ -314,24 +345,21 @@ def _vote_tier(
             fit = trial
     if fit is None:
         return None
-    n_agree = len(fit[3])
     centers = (np.arange(n_bins) + 1) * vote_bin_px - search_px
     far = (np.abs(centers[:, None] - fit[0]) >= exclusion_px) | (
         np.abs(centers[None, :] - fit[1]) >= exclusion_px
     )
     runner_up = int(np.max(np.where(far, summed, 0.0))) if np.any(far) else 0
-    window_area = (2 * search_px) ** 2
-    disk_area = math.pi * agree_px**2
-    mean_pairs = star_index.size * disk_area / window_area
-    tail = float(scipy.stats.poisson.sf(n_agree - 1, mean_pairs)) if n_agree > 0 else 1.0
+    mean_pairs = star_index.size * math.pi * agree_px**2 / (2 * search_px) ** 2
     return _TierFit(
         offset_v=fit[0],
         offset_u=fit[1],
         theta=fit[2],
-        agreeing=[star for star, _ in fit[3]],
+        pairs=fit[3],
         rms=fit[4],
         runner_up=runner_up,
-        chance=min(1.0, window_area / disk_area * tail),
+        chance=_chance(len(fit[3]), mean_pairs, search_px, agree_px),
+        mean_pairs=mean_pairs,
         n_stars=int(pred_v.size),
         n_peaks=int(peaks.v.size),
     )

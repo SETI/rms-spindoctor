@@ -90,3 +90,21 @@ def test_refinement_continues_while_a_star_changes_peak() -> None:
     dv, du, _, pairs, _ = _refine(pred[:, 0], pred[:, 1], peaks, 0.0, 0.0, (499.5, 499.5), 1.0)
     assert (dv, du) == pytest.approx((1.175, 0.0), abs=1e-9)
     assert pairs == [(0, 1), (1, 3), (2, 4), (3, 5)]
+
+
+def test_chance_describes_the_pairs_the_fix_keeps() -> None:
+    """A final fix that keeps none of the kept tier's pairs carries no significance.
+
+    Three bright stars agree at the planted offset, the only cluster any tier sees.  Twenty
+    faint stars, ranked past every tier by sixty stars far from any peak, agree 1.5 px away
+    and pull the final refinement onto their own offset, which drops the bright three.
+    """
+    bright = [(100.0, 100.0), (100.0, 900.0), (900.0, 500.0)]
+    filler = [(2000.0 + 10.0 * k, 2000.0) for k in range(57)]
+    faint = [(150.0 + 700.0 * k / 19, 850.0 - 700.0 * k / 19) for k in range(20)]
+    peaks = [(v + OFFSET_V, u + OFFSET_U) for v, u in bright]
+    peaks += [(v + OFFSET_V + 1.5, u + OFFSET_U) for v, u in faint]
+    fix = _fix(bright + filler + faint, peaks)
+    assert fix.tier_agree == 3
+    assert fix.tier_retained == 0
+    assert not fix.accepted
