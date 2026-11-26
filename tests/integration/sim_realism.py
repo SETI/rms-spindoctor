@@ -77,6 +77,7 @@ from spindoctor.sim.realism.divergence import (
 )
 from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
 from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patches
+from spindoctor.support.memory import release_transient_memory
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
 from tests.integration.sim_realism_body import real_body, saturation_level
@@ -913,12 +914,16 @@ def run_realism_match(
         real_frames: list[FrameSamples] = []
         for sidecar in sidecars:
             frame_samples, record, rates = _frame_samples_real(sidecar, instrument, study=study)
+            # Each frame's backplanes and feature extraction leave cycles and freed arenas
+            # behind; without this the resident size grows by gigabytes over a cohort.
+            release_transient_memory()
             comparison.records.append(record)
             real_frames.append(frame_samples)
             comparison.real_rates.append(rates)
         sim_frames: list[FrameSamples] = []
         for record in comparison.records:
             sim_samples, sim_frame_rates = _frame_samples_sim(record)
+            release_transient_memory()
             sim_frames.append(sim_samples)
             comparison.sim_rates.append(sim_frame_rates)
         pool_frame_pairs(comparison, real_frames, sim_frames)

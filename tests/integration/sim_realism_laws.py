@@ -71,6 +71,7 @@ from spindoctor.sim.realism.disc_profile import (
 )
 from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAWS, incidence_cosines
 from spindoctor.sim.scene.validate import validate_sim_params
+from spindoctor.support.memory import release_transient_memory
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 from tests.integration.sim_realism_body import EDGE_CLEARANCE_PX, MIN_CLIPPED_FRACTION
 from tests.integration.sim_realism_limb_peak import (
@@ -897,10 +898,10 @@ def run_law_study(inputs: LawStudyInputs, *, laws: tuple[str, ...] = STUDY_LAWS)
     rows: list[DiscRow] = []
     for disc in inputs.discs:
         k_line = min(max(k0 + k1 * disc.phase_deg, _MINNAERT_K_RANGE[0]), _MINNAERT_K_RANGE[1])
-        twins = {
-            law: _twin(disc, law, minnaert_k=k_line, limb_peak=disc.limb_peak is not None)
-            for law in laws
-        }
+        twins = {}
+        for law in laws:
+            twins[law] = _twin(disc, law, minnaert_k=k_line, limb_peak=disc.limb_peak is not None)
+            release_transient_memory()
         rows.append(DiscRow(disc=disc, twins=twins))
     law_bins: dict[str, dict[str, LawBin]] = {}
     body_bins: dict[str, dict[str, LawBin]] = {}
