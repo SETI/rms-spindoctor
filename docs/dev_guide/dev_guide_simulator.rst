@@ -2946,7 +2946,9 @@ At zero phase the default law is Lommel-Seeliger's, 1 wherever the surface faces
 craters and relief slopes add no shading there. A scene or test that needs them to show
 at full illumination states the Lambert law. Scenes and tests whose purpose is a match
 with the navigator's own template also state it, such as the floors of the
-model-mismatch sweeps and the base scenes of the single-setting sweeps.
+model-mismatch sweeps and the sphere scenes that the phase, range, disc, blob, noise, and
+missing-lines sweeps start from. The limb sweep starts from a scene that keeps the
+default law.
 
 Every other ellipsoid scene below about 104 degrees phase shades with a law the
 navigator's Lambert template does not match, and the template is biased on it. On the
@@ -2954,10 +2956,10 @@ clean spheres of the algorithmic-invariant scenes, at 30 degrees phase, the disc
 correlation lands 0.44 to 0.45 px toward the Sun and the limb fit 0.22 to 0.23 px
 toward it. The blob centroid lands 0.27 px away from the Sun. Over noise draws each
 of these errors varies by 0.02 px or less. The 120 degree crescents shade Lambert,
-and their blob centroids land within 0.02 px. The truth checks hold these answers to bands around their
-known errors, so a change to the template shows up as a change. A mesh body has no
-law key and always shades Lambert, through the rasterizer the navigator's predicted
-mesh shares.
+and their blob centroids land within 0.02 px. The truth checks hold these answers to
+bands around their known errors, so a change to the template shows up as a change. A
+mesh body has no law key and always shades Lambert, through the rasterizer the
+navigator's predicted mesh shares.
 
 .. The template bias is tracked in #1110.
 
@@ -6650,23 +6652,34 @@ to 1.5, so Minnaert's form enters at its best; the record holds the line.  When 
 disc lies at one phase, the line is flat at their mean exponent.
 
 The twin's pixels are the ones the real disc's fits counted, less any that the sphere's
-own geometry would not count by the same rules.  When the twin leaves some out, the real
-disc is fitted again over the rest, and that fit is the one the twin is compared with.
-So each pair's two fits read exactly the same pixels, and a real disc that lost pixels to
-a terrain cap, a nearer body, the rings, a shadow, or clipping has a twin fitted over
-the same part of the disc.  This matters: for any law but Minnaert's, the fitted
-exponent depends on which part of the disc is sampled.  The record gives that real
-exponent beside each twin's.  On the contact sheet each twin is cropped to the real
-disc's bounds.
+own geometry would not count by the same rules and any that the twin reads at its
+camera's ceiling.  When the twin leaves some out, the real disc is fitted again over the
+rest, and that fit is the one the twin is compared with.  So each pair's two fits read
+exactly the same pixels, and a real disc that lost pixels to a terrain cap, a nearer
+body, the rings, a shadow, or clipping has a twin fitted over the same part of the
+disc.  This matters: for any law but Minnaert's, the fitted exponent depends on which
+part of the disc is sampled.  The record gives that real exponent beside each twin's.
+On the contact sheet each twin is cropped to the real disc's bounds.
+
+A twin pixel clips where its charge fills the full well or its count reaches the
+analog-to-digital converter's limit, whichever comes first.  The frame's camera
+settings and the instrument's entry set both.  The read noise, the downlink, and the
+calibration then spread a clipped pixel's I/F a little below that level, so the study
+takes a twin pixel as clipped when its I/F lies within 4 standard deviations of that
+spread below the ceiling, or above it.  The record gives, for each twin, how many of
+its real disc's pixels it reads at the ceiling.  A twin whose disc is clipped by the
+test a real disc meets does not give a limb gradient peak, because its limb rises to a
+plateau.
 
 **The statistics.**  For each disc and law the study records the twin's exponent less
 the real one over the paired pixels, the residual between the two equator profiles over
 those pixels, and the twin's limb gradient peak where the realism match measured the
-real frame's.  The residual compares
-shapes alone: the real profile is divided bin by bin by the twin's, the ratio by its
-median, and the residual is the rms of that less 1.  Each statistic is reported by phase
-bin (below 60, 60 to 120, and above 120 degrees), by body, and, for the limb peaks, by
-the limb bins of the previous section.
+real frame's.  Every limb peak measured on a real frame counts, whether or not the
+realism match's own matched frame measured one.  The residual compares shapes alone:
+the real profile is divided bin by bin by the twin's, the ratio by its median, and the
+residual is the rms of that less 1.  Each statistic is reported by phase bin (below 60,
+60 to 120, and above 120 degrees), by body, and, for the limb peaks, by the limb bins of
+the previous section.
 
 **The disc-profile check.**  The default law's twins are judged per instrument and phase
 bin.  Only a bin with at least 3 discs gets a verdict.  Its statistic is the median of
@@ -6681,15 +6694,18 @@ a known finding.  A listed bin must still lie outside its band, and while it doe
 test is reported as an expected failure that gives the finding; a listed bin back within
 its band fails the test, so the list can only shrink.  The same file fails when the
 record lacks the study, when its default law differs from the scene default, or when no
-bin has a verdict.
+bin has a verdict.  It works each verdict out again from the bin's median difference
+and band, and fails on a record whose stored verdict those numbers contradict.
 
 **The law comparison.**  In each phase bin with at least 3 discs whose twins have an
 exponent under every law, each law's agreement is the median distance of its twins'
-exponents from the real ones.  Two laws separate in
-the bin when their agreements differ by more than the bin's band, the band of the
-default law's paired differences over every camera's discs in the bin.  The same test file
-fails when a law that separates from the default agrees with the real discs better than
-the default does.  Where two laws do not separate, the record claims no order between
+exponents from the real ones.  Two laws separate in the bin when their agreements differ
+by more than the bin's band.  The band comes from the default law's paired differences
+over every camera's discs in the bin, including the discs that lack an exponent under
+another law.  The same test file fails when a law that separates from the default
+agrees with the real discs better than the default does.  It works out again from the
+agreements and the band whether two laws separate, and fails on a record whose stored
+answer differs.  Where two laws do not separate, the record claims no order between
 them.
 
 The exponent is the statistic the check judges because it compares the shape of the

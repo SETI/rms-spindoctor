@@ -707,7 +707,8 @@ twins fit 0.98 and 0.97.
    :width: 100%
 
    Left: each disc's twin exponent less its real one over the same pixels, under every
-   law.  Right: the real exponents and the default law's twins.
+   law.  Right: the default law's pairs, each real exponent over the pixels its twin also
+   counts beside the twin's, with each camera's verdict by phase bin.
 
 .. figure:: _figures/realism_law_sheet.png
    :width: 80%

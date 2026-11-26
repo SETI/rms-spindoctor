@@ -411,9 +411,11 @@ The appearance keys are truth, which the navigator never sees:
                        about 104 deg it is Lambert.  A body takes another law
                        by stating it.  The navigator's template is Lambert, so
                        a scene that must match it states lambert, as the
-                       model-mismatch floors and the bases of the
-                       single-setting sweeps do; at zero phase craters and
-                       relief slopes show only under lambert
+                       model-mismatch floors and the sphere scenes the
+                       phase, range, disc, blob, noise, and missing-lines
+                       sweeps start from do (the limb sweep's base keeps the
+                       default); at zero phase craters and relief slopes
+                       show only under lambert
   minnaert_k           the Minnaert exponent, a number (default 0.5)
   normal_albedo        the surface's I/F when lit and viewed head-on at zero
                        phase, a positive number that multiplies the law

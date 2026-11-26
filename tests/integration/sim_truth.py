@@ -271,7 +271,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     ('star_zero_offset', FUSED): _t(0.044, 0.044, 0.003, 0.05),
     # Measured on the 16 noise draws, which keep the albedo texture: 0.165 to 0.174 px.
     # The Lambert template's pull toward the Sun (#1110) partly offsets the texture's
-    # pull, which left 0.363 to 0.368 px on a Lambert surface.
+    # pull, which left 0.362 to 0.370 px on a Lambert surface at the same albedo.
     ('textured_moon_offset', FUSED): _t(0.053, 0.057, 0.009, 0.05),
     # regression, one technique navigated alone.  disc_subpixel_offset's disc
     # correlation carries a known error instead (see KNOWN_ERRORS).
@@ -325,7 +325,7 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.355, 2.094, 0.348, 0.006, 2.443),
     ('saturn_rings_wac', 'BodyBlobNav'): _b(8.629, 8.644, 0.05, 8.578, 8.695),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
-    # the limb relief.  The spreads are 0.009 px and 0.040 px.
+    # the limb relief.  The spreads are 0.009 px and 0.013 px.
     ('textured_moon_offset', 'BodyBlobNav'): _b(0.643, 0.652, 0.05, 0.593, 0.702),
     ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.115, 1.128, 0.05, 1.064, 1.179),
     # The annulus correlation lands 0.58 px off on the saturated B ring, unflagged; the
