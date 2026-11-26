@@ -14,15 +14,19 @@ direction at the real phase, through the real frame's camera settings and exposu
 normal albedo is measured from the real disc against the twin's own law
 (:func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).  Minnaert's law needs an
 exponent, and the twin takes it from a straight line fitted to the real discs' own
-exponents against phase, so that law is the best one Minnaert's form allows.  The twin
-is fitted over the pixels its own sphere's geometry selects that the real disc's fits
-also counted, so a real disc that lost pixels to its terrain cap, a nearer body, the
-rings, a shadow, or clipping has a twin fitted over the same part of the disc.
+exponents against phase, so that law is the best one Minnaert's form allows.
 
-**The statistics.**  For each disc and law: the twin's exponent less the real one, the
-residual between the two equator profiles' shapes, and, where the realism match measured
-the real frame's limb gradient peak, the twin's limb gradient peak.  Each is reported by
-phase bin and by body.
+**The pairing.**  The real disc's fits count at most 60,000 of its pixels, and the
+twin's fit counts the same pixels, less any its own sphere's geometry leaves out.  When
+the twin leaves some out, the real disc is fitted again over the pixels both counted,
+and that fit is the one its twin is compared with.  So a real disc that lost pixels to
+its terrain cap, a nearer body, the rings, a shadow, or clipping has a twin fitted over
+the same part of the disc, and each pair's two fits read exactly the same pixels.
+
+**The statistics.**  For each disc and law: the twin's exponent less the real one over
+the paired pixels, the residual between the two equator profiles' shapes over those
+pixels, and, where the realism match measured the real frame's limb gradient peak, the
+twin's limb gradient peak.  Each is reported by phase bin and by body.
 
 **The disc-profile check.**  For the default law, :func:`compare_disc_profiles` judges
 each phase bin with at least 3 discs.  Its statistic is the median of the paired
@@ -170,10 +174,14 @@ class RealDisc:
         minnaert: Minnaert's law fitted to them.
         lunar_lambert: The lunar-Lambert blend fitted to them, or None.
         profile: Their equator profile.
-        crop: The disc's image, block-averaged for the contact sheet.
-        selection: Which of the frame's pixels the fits counted, before the thinning to
-            60,000: lit pixels clear of the limb and the terminator, inside the terrain
-            cap for a part, and neither clipped nor hidden.
+        crop: The disc's image over ``crop_bounds``, block-averaged for the contact
+            sheet.
+        crop_bounds: The crop's ``(v0, v1, u0, u1)`` bounds: the moon's silhouette with
+            a margin.  Its twins are cropped to the same bounds.
+        selection: Which of the frame's pixels the fits counted: lit pixels clear of the
+            limb and the terminator, inside the terrain cap for a part, neither clipped
+            nor hidden, and thinned to at most 60,000.  ``intensity``, ``mu0``, and
+            ``mu`` hold these pixels in row-major order.
         limb_peak: The realism match's limb gradient-peak sample for the frame, as
             ``(kind, offset)``, when this moon is the one the match measured.
     """
@@ -192,6 +200,7 @@ class RealDisc:
     lunar_lambert: LunarLambertFit | None
     profile: NDArrayFloatType
     crop: NDArrayFloatType
+    crop_bounds: tuple[int, int, int, int]
     selection: NDArrayBoolType
     limb_peak: tuple[str, float] | None = None
 
@@ -255,17 +264,22 @@ class TwinDisc:
         normal_albedo: The albedo measured from the real disc against that law.
         minnaert_k: The exponent of a Minnaert twin, else None.
         k: Minnaert's exponent fitted to the twin's counted pixels, or None.
+        real_k: Minnaert's exponent fitted to the real disc over the same pixels, or
+            None.  It is the real disc's own exponent when the twin counted every pixel
+            the real fits did.
         profile_residual: The residual between the real and the twin's equator
-            profiles, or None.
+            profiles over those pixels, or None.
         limb_peak: The twin's limb gradient-peak offset, when the real frame's was
             measured and the twin's could be.
-        crop: The twin's image over the real disc's crop, block-averaged the same way.
+        crop: The twin's image over the real disc's crop bounds, block-averaged the same
+            way.
     """
 
     law: str
     normal_albedo: float | None
     minnaert_k: float | None
     k: float | None
+    real_k: float | None
     profile_residual: float | None
     limb_peak: float | None
     crop: NDArrayFloatType
@@ -284,11 +298,11 @@ class DiscRow:
     twins: dict[str, TwinDisc]
 
     def delta_k(self, law: str) -> float | None:
-        """The twin's exponent less the real one, under one law."""
+        """The twin's exponent less the real one over the same pixels, under one law."""
         twin = self.twins.get(law)
-        if twin is None or twin.k is None:
+        if twin is None or twin.k is None or twin.real_k is None:
             return None
-        return twin.k - self.disc.minnaert.k
+        return twin.k - twin.real_k
 
 
 @dataclass(frozen=True)
@@ -297,7 +311,7 @@ class DiscProfileBin:
 
     Parameters:
         n: Discs in the bin.
-        real_median_k: The real exponents' median.
+        real_median_k: The real exponents' median, each over its pair's pixels.
         sim_median_k: The default-law twins' median.
         median_delta_k: The median of each twin's exponent less its real disc's.
         delta_scatter_k: The robust scatter of those paired differences, or None below
@@ -534,20 +548,32 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         illumination_deg=disc.illumination_deg,
         phase_deg=disc.phase_deg,
     )
+    # The twin counts the real fits' own pixels, less any its sphere leaves out; when it
+    # leaves some out, the real disc is fitted again over the rest, so both fits of the
+    # pair read exactly the same pixels.
     usable = np.isfinite(data) & (data > 0.0) & disc.selection
-    selected = select_disc_pixels(on_body, mu0, mu, usable=usable)
-    kept = decimate(selected)
-    fit = fit_minnaert(data[kept], mu0[kept], mu[kept])
-    twin_profile = equator_profile(data[kept], mu0[kept], mu[kept], phase_rad)
+    counted = select_disc_pixels(on_body, mu0, mu, usable=usable)
+    fit = fit_minnaert(data[counted], mu0[counted], mu[counted])
+    twin_profile = equator_profile(data[counted], mu0[counted], mu[counted], phase_rad)
+    shared = counted[disc.selection]
+    if bool(shared.all()):
+        real_k: float | None = disc.minnaert.k
+        real_profile = disc.profile
+    else:
+        intensity, real_mu0, real_mu = disc.intensity[shared], disc.mu0[shared], disc.mu[shared]
+        real_fit = fit_minnaert(intensity, real_mu0, real_mu)
+        real_k = None if real_fit is None else real_fit.k
+        real_profile = equator_profile(intensity, real_mu0, real_mu, phase_rad)
     peak = _twin_limb_peak(obs, scene, disc.limb_peak[0]) if limb_peak and disc.limb_peak else None
     return TwinDisc(
         law=law,
         normal_albedo=albedo,
         minnaert_k=minnaert_k if law == 'minnaert' else None,
         k=None if fit is None else fit.k,
-        profile_residual=profile_residual(disc.profile, twin_profile),
+        real_k=real_k,
+        profile_residual=profile_residual(real_profile, twin_profile),
         limb_peak=peak,
-        crop=crop_image(data, crop_box(on_body)),
+        crop=crop_image(data, disc.crop_bounds),
     )
 
 
@@ -586,7 +612,8 @@ def compare_disc_profiles(
     """Judge each phase bin's twins under one law against the real exponents.
 
     Only a bin with at least 3 discs is judged.  Its statistic is the median of the
-    paired differences, each twin's exponent less its real disc's; the band's half-width
+    paired differences, each twin's exponent less its real disc's over the same pixels
+    (:meth:`DiscRow.delta_k`); the band's half-width
     is 2 standard errors of those differences' robust scatter, never less than 0.02; and
     the median must lie within it.  The band comes from the same pairs it judges.
 
@@ -600,9 +627,9 @@ def compare_disc_profiles(
     by_bin: dict[str, list[tuple[float, float]]] = {}
     for row in rows:
         twin = row.twins.get(law)
-        if twin is None or twin.k is None:
+        if twin is None or twin.k is None or twin.real_k is None:
             continue
-        by_bin.setdefault(phase_bin(row.disc.phase_deg), []).append((row.disc.minnaert.k, twin.k))
+        by_bin.setdefault(phase_bin(row.disc.phase_deg), []).append((twin.real_k, twin.k))
     out: dict[str, DiscProfileBin] = {}
     for label, pairs in sorted(by_bin.items()):
         real_k = np.array([p[0] for p in pairs])

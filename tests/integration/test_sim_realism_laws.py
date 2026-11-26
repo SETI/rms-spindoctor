@@ -28,6 +28,7 @@ from spindoctor.sim.realism.disc_profile import (
     select_disc_pixels,
 )
 from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAW_DEFAULT, shade_surface
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 from tests.integration import sim_realism_laws, sim_realism_laws_discs
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
 from tests.integration.sim_realism_body_facts import TerrainCap
@@ -85,6 +86,7 @@ def _disc(phase_deg: float, k: float, *, body: str = 'DIONE', part: str | None =
         lunar_lambert=LunarLambertFit(blend=0.5, b0=0.5, blend_sigma=0.01, n_pixels=1000),
         profile=_EMPTY,
         crop=np.zeros((1, 1), dtype=np.float32),
+        crop_bounds=(0, 1, 0, 1),
         selection=np.ones((256, 256), dtype=bool),
     )
 
@@ -97,6 +99,7 @@ def _row(phase_deg: float, k: float, twin_k: dict[str, float]) -> DiscRow:
             normal_albedo=0.5,
             minnaert_k=None,
             k=value,
+            real_k=k,
             profile_residual=0.05,
             limb_peak=None,
             crop=np.zeros((1, 1), dtype=np.float32),
@@ -154,7 +157,7 @@ def test_a_tight_bin_is_held_to_the_band_floor() -> None:
 def test_a_disc_whose_twin_has_no_exponent_is_left_out() -> None:
     """A twin that could not be fitted leaves its disc out of the check."""
     rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6}) for _ in range(3)]
-    rows[0].twins[DEFAULT_LAW] = TwinDisc(DEFAULT_LAW, 0.5, None, None, None, None, _EMPTY)
+    rows[0].twins[DEFAULT_LAW] = TwinDisc(DEFAULT_LAW, 0.5, None, None, 0.6, None, None, _EMPTY)
     assert compare_disc_profiles(rows)['p0'].n == 2
 
 
@@ -393,6 +396,62 @@ def test_the_planets_shadow_hides_its_pixels() -> None:
     assert _hidden('FAR', 'SATURN')[32, 15]
 
 
+def _moon_backplane(size: int, radius: float) -> tuple[Any, NDArrayFloatType]:
+    """An offset backplane of one sphere seen at zero phase, and a Lambert image of it."""
+    on_body, mu0, mu = sim_realism_laws._sphere_cosines(
+        (size, size), (size / 2.0, size / 2.0), radius, illumination_deg=90.0, phase_deg=0.0
+    )
+
+    def angles(cosines: NDArrayFloatType) -> Any:
+        return SimpleNamespace(
+            mvals=np.ma.array(np.arccos(np.clip(cosines, -1.0, 1.0)), mask=~on_body)
+        )
+
+    backplane = SimpleNamespace(
+        where_intercepted=lambda _body: SimpleNamespace(vals=on_body),
+        incidence_angle=lambda _body: angles(mu0),
+        emission_angle=lambda _body: angles(mu),
+        phase_angle=lambda _body: SimpleNamespace(
+            mvals=np.ma.array(np.zeros(on_body.shape), mask=~on_body)
+        ),
+    )
+    return backplane, 0.5 * np.where(on_body, np.clip(mu0, 0.0, None), 0.0)
+
+
+def _measured(size: int, radius: float, *, clipped_and_hidden: Any = None) -> LawStudyInputs:
+    """The study's inputs after measuring one sphere, with some pixels clipped and hidden."""
+    backplane, data = _moon_backplane(size, radius)
+    marked = np.zeros(data.shape, dtype=bool)
+    if clipped_and_hidden is not None:
+        marked[clipped_and_hidden] = True
+    inputs = LawStudyInputs()
+    sim_realism_laws_discs._measure_moon(
+        inputs,
+        backplane,
+        _FRAME,
+        'DIONE',
+        diameter_px=2.0 * radius,
+        center_uv=(size / 2.0, size / 2.0),
+        data=data,
+        usable=(data > 0.0) & ~marked,
+        full_scale=marked,
+        hidden=marked,
+    )
+    return inputs
+
+
+def test_a_large_disc_keeps_the_thinned_pixels_as_its_selection() -> None:
+    """The selection a large disc keeps is the 60,000 pixels or fewer its fits read."""
+    disc = _measured(320, 150.0).discs[0]
+    assert int(disc.selection.sum()) == disc.intensity.size
+
+
+def test_clipped_pixels_that_a_nearer_body_hides_do_not_clip_the_disc() -> None:
+    """A clipped body covering a third of the moon leaves the moon measured."""
+    inputs = _measured(100, 40.0, clipped_and_hidden=np.s_[10:40, :])
+    assert len(inputs.discs) == 1
+
+
 def test_a_body_the_offset_moves_into_the_frame_is_in_view() -> None:
     """A box 3 px past the frame's right edge, moved 5 px left, overlaps the frame."""
     fov = SimpleNamespace(fov_u_min=0, fov_u_max=99, fov_v_min=0, fov_v_max=99)
@@ -409,7 +468,10 @@ def test_a_body_the_offset_moves_into_the_frame_is_in_view() -> None:
 
 
 def _sphere_disc(law: str, **kwargs: float) -> RealDisc:
-    """A real disc drawn from a sphere under one law, in the twin's own geometry."""
+    """A real disc drawn from a sphere under one law, in the twin's own geometry.
+
+    Its crop bounds are a box unlike the sphere's own, 100 by 200 px.
+    """
     phase = 30.0
     on_body, mu0, mu = sim_realism_laws._sphere_cosines(
         (256, 256), (128.0, 128.0), 60.0, illumination_deg=90.0, phase_deg=phase
@@ -425,15 +487,40 @@ def _sphere_disc(law: str, **kwargs: float) -> RealDisc:
     disc.mu = mu[keep]
     disc.profile = equator_profile(intensity, mu0[keep], mu[keep], math.radians(phase))
     disc.selection = keep
+    disc.crop_bounds = (10, 110, 20, 220)
     return disc
 
 
-def test_a_lambert_twin_fits_the_exponent_one() -> None:
-    """A rendered Lambert twin, blurred and noisy as the camera makes it, fits k near 1."""
-    twin = sim_realism_laws._twin(
+@pytest.fixture(scope='module')
+def lambert_twin() -> TwinDisc:
+    """The rendered Lambert twin of a Lambert disc whose exponent is recorded as 1."""
+    return sim_realism_laws._twin(
         _sphere_disc('lambert'), 'lambert', minnaert_k=0.6, limb_peak=False
     )
-    assert twin.k == pytest.approx(1.0, abs=0.03)
+
+
+def test_a_lambert_twin_fits_the_exponent_one(lambert_twin: TwinDisc) -> None:
+    """A rendered Lambert twin, blurred and noisy as the camera makes it, fits k near 1."""
+    assert lambert_twin.k == pytest.approx(1.0, abs=0.03)
+
+
+def test_a_twin_takes_its_albedo_from_the_real_disc_under_its_own_law(
+    lambert_twin: TwinDisc,
+) -> None:
+    """The twin's albedo is the real disc's measured against the twin's law."""
+    assert lambert_twin.normal_albedo == pytest.approx(0.05)
+
+
+def test_a_twin_that_counts_every_real_pixel_pairs_with_the_real_exponent(
+    lambert_twin: TwinDisc,
+) -> None:
+    """A twin over all of the real fits' pixels is compared with the real disc's own fit."""
+    assert lambert_twin.real_k == pytest.approx(1.0, abs=1e-9)
+
+
+def test_a_twin_is_cropped_to_the_real_discs_bounds(lambert_twin: TwinDisc) -> None:
+    """A 100 by 200 px crop is halved to 50 by 100, whatever the twin's own extent."""
+    assert lambert_twin.crop.shape == (50, 100)
 
 
 def test_a_minnaert_twin_takes_the_exponent_it_is_given() -> None:
@@ -444,22 +531,47 @@ def test_a_minnaert_twin_takes_the_exponent_it_is_given() -> None:
     assert twin.k == pytest.approx(0.6, abs=0.03)
 
 
+def _keep_selected(disc: RealDisc, keep: NDArrayBoolType) -> None:
+    """Narrow a disc's counted pixels to those of ``keep`` that it counted."""
+    kept = keep[disc.selection]
+    disc.intensity = disc.intensity[kept]
+    disc.mu0 = disc.mu0[kept]
+    disc.mu = disc.mu[kept]
+    disc.selection = disc.selection & keep
+
+
 def test_a_twin_is_fitted_only_over_the_real_discs_pixels() -> None:
     """A real disc that counted 50 pixels leaves its twin too few to fit."""
     disc = _sphere_disc('lambert')
     rows, cols = np.nonzero(disc.selection)
-    disc.selection = np.zeros_like(disc.selection)
-    disc.selection[rows[:50], cols[:50]] = True
+    first = np.zeros_like(disc.selection)
+    first[rows[:50], cols[:50]] = True
+    _keep_selected(disc, first)
     twin = sim_realism_laws._twin(disc, 'lambert', minnaert_k=0.6, limb_peak=False)
     assert twin.k is None
 
 
-def test_a_twin_takes_its_albedo_from_the_real_disc_under_its_own_law() -> None:
-    """The twin's albedo is the real disc's measured against the twin's law."""
-    twin = sim_realism_laws._twin(
-        _sphere_disc('lambert'), 'lambert', minnaert_k=0.6, limb_peak=False
+def test_a_twin_that_leaves_out_real_pixels_pairs_with_the_real_disc_over_the_rest() -> None:
+    """The real disc is fitted again over the pixels its twin also counts.
+
+    The real fits counted every lit pixel out to the limb and the terminator, and the
+    pixels the twin's clearance leaves out are three times too bright, so only a fit
+    over the shared pixels gives back the Lambert exponent 1.
+    """
+    phase = 30.0
+    on_body, mu0, mu = sim_realism_laws._sphere_cosines(
+        (256, 256), (128.0, 128.0), 60.0, illumination_deg=90.0, phase_deg=phase
     )
-    assert twin.normal_albedo == pytest.approx(0.05)
+    lit = on_body & (mu0 > 0.05) & (mu > 0.05)
+    clear = select_disc_pixels(on_body, mu0, mu, usable=np.ones(on_body.shape, dtype=bool))
+    disc = _sphere_disc('lambert')
+    disc.selection = lit
+    disc.mu0 = mu0[lit]
+    disc.mu = mu[lit]
+    disc.intensity = 0.05 * disc.mu0 * np.where(clear[lit], 1.0, 3.0)
+    disc.minnaert = MinnaertFit(k=0.3, b0=0.05, k_sigma=0.01, n_pixels=int(lit.sum()))
+    twin = sim_realism_laws._twin(disc, 'lambert', minnaert_k=0.6, limb_peak=False)
+    assert twin.real_k == pytest.approx(1.0, abs=1e-9)
 
 
 def _record(within: bool | None, agreement: dict[str, float], separates: bool) -> dict[str, Any]:

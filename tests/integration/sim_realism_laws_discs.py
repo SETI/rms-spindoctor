@@ -130,7 +130,6 @@ def collect_real_discs(
         if reason is not None:
             inputs.excluded.append(ExcludedDisc(frame.image_id, body, reason))
             continue
-        hidden = _hidden_pixels(backplane, body, entry, in_view, planet=planet)
         _measure_moon(
             inputs,
             backplane,
@@ -139,8 +138,9 @@ def collect_real_discs(
             diameter_px=diameter,
             center_uv=(float(entry['center_uv'][0]), float(entry['center_uv'][1])),
             data=data,
-            usable=usable & ~hidden,
+            usable=usable,
             full_scale=full_scale,
+            hidden=_hidden_pixels(backplane, body, entry, in_view, planet=planet),
         )
 
 
@@ -327,13 +327,18 @@ def _measure_moon(
     data: NDArrayFloatType,
     usable: NDArrayBoolType,
     full_scale: NDArrayBoolType,
+    hidden: NDArrayBoolType,
 ) -> None:
-    """Measure one moon, or each of its terrains, and add it to the inputs."""
+    """Measure one moon, or each of its terrains, and add it to the inputs.
+
+    The test of a clipped disc reads only the interior pixels nothing hides, so a
+    clipped body in front of the moon does not count against it.
+    """
     on_body = np.asarray(backplane.where_intercepted(body).vals, dtype=bool)
     if not on_body.any():
         inputs.excluded.append(ExcludedDisc(frame.image_id, body, 'its disc is off the image'))
         return
-    interior = scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX)
+    interior = scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX) & ~hidden
     if interior.any() and float(np.mean(full_scale[interior])) >= MIN_CLIPPED_FRACTION:
         inputs.excluded.append(
             ExcludedDisc(frame.image_id, body, "its disc is clipped at the camera's full scale")
@@ -346,7 +351,8 @@ def _measure_moon(
     offset = frame.offset_vu
     center_vu = (center_uv[1] + offset[0], center_uv[0] + offset[1])
     lit = on_body & (mu0 > 0.0)
-    disc_selection = select_disc_pixels(on_body, mu0, mu, usable=usable)
+    disc_selection = select_disc_pixels(on_body, mu0, mu, usable=usable & ~hidden)
+    bounds = crop_box(on_body)
     for cap, cap_mask in _terrain_caps(backplane, body):
         label = body if cap is None else f'{body} ({cap.name})'
         selected = disc_selection if cap_mask is None else disc_selection & cap_mask
@@ -413,8 +419,9 @@ def _measure_moon(
                 minnaert=minnaert,
                 lunar_lambert=fit_lunar_lambert(data[kept], mu0[kept], mu[kept]),
                 profile=equator_profile(data[kept], mu0[kept], mu[kept], math.radians(phase_deg)),
-                crop=crop_image(data, crop_box(on_body)),
-                selection=selected,
+                crop=crop_image(data, bounds),
+                crop_bounds=bounds,
+                selection=kept,
             )
         )
 

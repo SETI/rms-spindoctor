@@ -129,6 +129,7 @@ def _disc_entry(row: DiscRow) -> dict[str, Any]:
                 'normal_albedo': _round(twin.normal_albedo),
                 'minnaert_k': _round(twin.minnaert_k),
                 'k': _round(twin.k),
+                'real_k': _round(twin.real_k),
                 'delta_k': _round(row.delta_k(law)),
                 'profile_residual': _round(twin.profile_residual),
                 'limb_peak_px': _round(twin.limb_peak),
