@@ -30,7 +30,8 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    of the image ID), the predicted dimmest visible magnitude is compared with the faintest
    stars detected.
 5. **Current versus proposed.**  Per frame: the navigator's current limit, the proposed limit
-   (dimmest visible plus ``SEARCH_DEPTH_MAG``), and the faintest star detected.
+   (dimmest visible plus ``--search-depth-mag``, the camera's search depth), and the faintest
+   star detected.
 6. **PSF.**  Per camera and mode (and filter): the circular Gaussian sigma, the elliptical axes,
    the encircled-energy radii, and the narrowest star
    (:mod:`util.star_photometry.star_psf_summary`).
@@ -38,7 +39,7 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
 Usage::
 
     python -m util.star_photometry.star_limit_fit RECORDS.jsonl OUT_DIR --reference-filter CLEAR
-        --reference-gain 10K [--ee-geometry MODE:R_MAX:N_BINS ...]
+        --reference-gain 10K [--search-depth-mag 1.0] [--ee-geometry MODE:R_MAX:N_BINS ...]
 
 writes ``summary.json`` (every fitted quantity), ``frames.csv`` (the per-frame table) and
 ``stars.csv`` (every measured star) into ``OUT_DIR``, and prints the summary.
@@ -80,10 +81,6 @@ APCORR_MIN_FLUX_SNR = 30.0
 
 #: Detection fraction defining the faintest reliably detected signal.
 COMPLETENESS = 0.8
-
-#: The catalog is searched this far past the dimmest visible star, as the previous
-#: navigation software did.
-SEARCH_DEPTH_MAG = 1.0
 
 #: Width of the predicted-DN bins of the completeness curve (decades).
 DN_BIN_DECADES = 0.1
@@ -232,6 +229,7 @@ class FitResult:
         completeness: Rows ``[log10 DN, n, detected fraction]`` of the completeness curve.
         false_detection_rate: The fitted detection probability's floor.
         holdout: The held-out check.
+        search_depth_mag: How far past the dimmest visible star the camera's search reaches.
         frames: Per-frame rows.
         psf: PSF summary per mode (and filter).
     """
@@ -262,6 +260,7 @@ class FitResult:
     completeness: list[list[float]] = field(default_factory=list)
     false_detection_rate: float = float('nan')
     holdout: dict[str, Any] = field(default_factory=dict)
+    search_depth_mag: float = 1.0
     frames: list[dict[str, Any]] = field(default_factory=list)
     psf: dict[str, Any] = field(default_factory=dict)
 
@@ -368,6 +367,7 @@ def fit_camera(
     gain_field: str = 'gain_state',
     min_texp: float = 0.0,
     limit_exclude_targets: frozenset[str] = frozenset(),
+    search_depth_mag: float = 1.0,
 ) -> FitResult:
     """Fit one camera's photometric limit and summarize its PSF.
 
@@ -384,11 +384,13 @@ def fit_camera(
         limit_exclude_targets: Frames of these targets are left out of the detection limit
             and the held-out check (crowded star-cluster fields, whose unresolved light and
             neighbors lower the completeness at a given DN below that of a navigation field).
+        search_depth_mag: The camera's search depth past the dimmest visible star, for the
+            proposed limit and the held-out check.
 
     Returns:
         The fit.
     """
-    result = FitResult(camera=camera)
+    result = FitResult(camera=camera, search_depth_mag=search_depth_mag)
     accepted = [r for r in records if r['fix']['accepted']]
     result.n_frames = len(accepted)
     rows = _star_rows(accepted, gain_field=gain_field)
@@ -789,7 +791,8 @@ def _holdout_check(result: FitResult, rows: list[dict[str, Any]]) -> dict[str, A
     For each held-out frame with at least two detected clean stars, the difference is the
     second-faintest detected magnitude less the predicted dimmest visible magnitude.  Over all
     held-out stars together, the detection fraction of stars predicted brighter than the
-    dimmest visible magnitude, and of stars predicted between it and one magnitude fainter.
+    dimmest visible magnitude, and of stars predicted between it and the camera's search depth
+    past it.
 
     Parameters:
         result: The camera's fit.
@@ -816,7 +819,7 @@ def _holdout_check(result: FitResult, rows: list[dict[str, Any]]) -> dict[str, A
         for s in stars:
             if s['vmag'] <= limit:
                 brighter.append(s['detected'])
-            elif s['vmag'] <= limit + SEARCH_DEPTH_MAG:
+            elif s['vmag'] <= limit + result.search_depth_mag:
                 between.append(s['detected'])
     out: dict[str, Any] = {'n_frames': len(by_frame), 'n_frames_compared': len(diffs)}
     if diffs:
@@ -824,7 +827,7 @@ def _holdout_check(result: FitResult, rows: list[dict[str, Any]]) -> dict[str, A
         out['p16_p84'] = [float(np.percentile(diffs, 16)), float(np.percentile(diffs, 84))]
     out['detected_fraction_brighter_than_limit'] = float(np.mean(brighter)) if brighter else None
     out['n_brighter'] = len(brighter)
-    out['detected_fraction_within_1_mag_past'] = float(np.mean(between)) if between else None
+    out['detected_fraction_within_search_depth'] = float(np.mean(between)) if between else None
     out['n_between'] = len(between)
     return out
 
@@ -869,7 +872,7 @@ def _frame_table(
                 'n_agree': record['fix']['n_agree'],
                 'current_limit': record['current_limit'],
                 'deep_limit': record['deep_limit'],
-                'proposed_limit': dimmest + SEARCH_DEPTH_MAG,
+                'proposed_limit': dimmest + result.search_depth_mag,
                 'dimmest_visible': dimmest,
                 'faintest_detected': _faintest_detected(stars, rank=1),
                 'second_faintest_detected': _faintest_detected(stars, rank=2),
@@ -926,6 +929,9 @@ def main() -> None:
         help='Leave frames of these targets out of the detection limit',
     )
     parser.add_argument(
+        '--search-depth-mag', type=float, default=1.0, help='The camera search depth (mag)'
+    )
+    parser.add_argument(
         '--ee-geometry',
         nargs='*',
         default=[],
@@ -951,6 +957,7 @@ def main() -> None:
             gain_field=args.gain_field,
             min_texp=args.min_texp,
             limit_exclude_targets=frozenset(args.limit_exclude_targets),
+            search_depth_mag=args.search_depth_mag,
         )
         frame_rows += [{'camera': camera, **row} for row in result.frames]
         for group in result.psf.values():
