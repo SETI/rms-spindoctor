@@ -145,37 +145,19 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
     def star_max_usable_vmag(self) -> float:
         """Returns the faintest V magnitude of a catalog star the star model uses.
 
-        The limit is the dimmest visible star's magnitude
-        (:meth:`star_dimmest_visible_vmag`) plus the ``search_depth_mag`` of the
-        ``galileo_ssi_star_photometry`` configuration section.
-
-        Returns:
-            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
-            records no starlight.
-
-        Raises:
-            ValueError: As :meth:`star_dimmest_visible_vmag` raises.
-        """
-        return (
-            self.star_dimmest_visible_vmag()
-            + self.config.galileo_ssi_star_photometry.ssi.search_depth_mag
-        )
-
-    def star_dimmest_visible_vmag(self) -> float:
-        """Returns the V magnitude of the dimmest star this observation shows.
-
-        The magnitude is photometric.  A star of V magnitude ``m`` and the default
-        spectral class deposits ``rate * 10**(-0.4 * (m + offset)) * texp / gain`` DN in
-        the image, where ``rate`` is the camera's electron rate for a V = 0 star through
-        the clear filter, ``offset`` is the frame's filter's magnitude offset from the
-        clear filter, ``texp`` is the exposure in seconds and ``gain`` is the electrons
-        per DN of the frame's gain state.  The dimmest visible star deposits
-        ``min_detectable_dn``.  Every quantity but the exposure comes from the
+        The limit is photometric.  A star of V magnitude ``m`` and the default spectral
+        class deposits ``rate * 10**(-0.4 * (m + offset)) * texp / gain`` DN in the
+        image, where ``rate`` is the camera's electron rate for a V = 0 star through the
+        clear filter, ``offset`` is the frame's filter's magnitude offset from the clear
+        filter, ``texp`` is the exposure in seconds and ``gain`` is the electrons per DN
+        of the frame's gain state.  The dimmest visible star deposits
+        ``min_detectable_dn``, and the limit is that star's magnitude plus
+        ``search_depth_mag``.  Every quantity but the exposure comes from the
         ``galileo_ssi_star_photometry`` configuration section.  The filter is the label's
         ``FILTER_NAME`` and the gain state is the VICAR label's ``GAIN`` item.
 
         Returns:
-            The dimmest visible magnitude, or ``-inf`` for a non-positive exposure, which
+            The limiting magnitude, or ``-inf`` for a non-positive exposure, which
             records no starlight.
 
         Raises:
@@ -204,8 +186,8 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
                 f'{gain_state!r}'
             )
         dn_vmag0 = photometry.flux_electrons_per_s_vmag0 * self.texp / electrons_per_dn[gain_state]
-        dimmest_clear = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
-        return dimmest_clear - offsets[self.filter]
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn)
+        return dimmest_visible - offsets[self.filter] + photometry.search_depth_mag
 
     def star_psf_sigma(self) -> float:
         """Returns the Gaussian sigma, in pixels, of a star in this observation.

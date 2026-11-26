@@ -136,13 +136,6 @@ def test_clear_one_second_limit_is_each_cameras_calibrated_value(
     assert obs.star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
 
 
-def test_the_limit_searches_two_magnitudes_past_the_dimmest_visible_star() -> None:
-    """The effective SNR's anchor, the dimmest visible star, sits 2 mag inside the limit."""
-    obs = _star_obs()
-    margin = obs.star_max_usable_vmag() - obs.star_dimmest_visible_vmag()
-    assert margin == pytest.approx(2.0, abs=1e-9)
-
-
 def test_ten_times_the_exposure_deepens_the_limit_by_two_and_a_half_magnitudes() -> None:
     """The limit moves with the exposure by 2.5 log10 of its ratio."""
     deeper = _star_obs(texp=10.0).star_max_usable_vmag() - _star_obs().star_max_usable_vmag()

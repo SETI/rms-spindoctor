@@ -66,16 +66,13 @@ __all__ = [
 # The star gate is purely magnitude based: the catalog reduction and this
 # model drop any star fainter than ``obs.star_max_usable_vmag()``.  The
 # CRLB-covariance and reliability helpers still want an SNR-like quantity,
-# so we synthesize one from how far the star sits above the dimmest star the
-# observation shows (``obs.star_dimmest_visible_vmag()``).  A star exactly that
-# faint gets ``snr_eff == SNR_REF``; every magnitude brighter multiplies the
-# effective SNR by one Pogson ratio (``2.512``), matching the flux ratio per
-# magnitude, and every magnitude fainter (a star the limit searches for past
-# the dimmest visible one) divides it by the same ratio.  An instrument whose
-# limit searches no deeper than the dimmest visible star anchors at the limit.
+# so we synthesize one from how far below the limiting magnitude the star
+# sits.  A star exactly at the limit gets ``snr_eff == SNR_REF``; every
+# extra magnitude of headroom multiplies the effective SNR by one Pogson
+# ratio (``2.512``), matching the flux ratio per magnitude.
 #
 # ``SNR_REF`` is set to 8.0 — just below the reliability sigmoid center
-# (snr=10) so a star at the very edge of visibility lands near the steep
+# (snr=10) so a star at the very edge of usability lands near the steep
 # part of the curve (reliability ~0.34) rather than saturating it, while a
 # star a few magnitudes brighter saturates the curve toward 1.0.
 # ``SNR_FLOOR`` keeps the synthesized SNR strictly positive so the
@@ -191,8 +188,7 @@ class NavModelStars(NavModel):
         set; the reliability gate decides whether to keep them.  Stars
         fainter than ``obs.star_max_usable_vmag()`` (or with no catalog
         magnitude) are skipped.  Detectability is expressed through a
-        magnitude-margin-derived effective SNR, anchored at
-        ``obs.star_dimmest_visible_vmag()``, rather than a DN-based
+        magnitude-margin-derived effective SNR rather than a DN-based
         photometric SNR, so the gate carries no dependence on any
         DN-to-image-unit scale.
 
@@ -219,17 +215,15 @@ class NavModelStars(NavModel):
             )
             return []
         mag_limit = float(self.obs.star_max_usable_vmag())
-        mag_dimmest_visible = float(self.obs.star_dimmest_visible_vmag())
         min_snr = self._stars_config.min_predicted_snr
         max_smear = self._stars_config.max_smear
         mag_offset_value = _resolve_mag_offset(self.obs)
         self._logger.debug(
             'image_noise_sigma = %.3g, star_max_usable_vmag = %.3f, '
-            'star_dimmest_visible_vmag = %.3f, sigma_psf = %.3f px, mag_offset = %.3f, '
+            'sigma_psf = %.3f px, mag_offset = %.3f, '
             'min_predicted_snr = %.2f, max_smear = %.2f px',
             image_noise_sigma,
             mag_limit,
-            mag_dimmest_visible,
             sigma_psf,
             mag_offset_value,
             min_snr,
@@ -254,16 +248,16 @@ class NavModelStars(NavModel):
                 skipped_faint += 1
                 continue
             # Magnitude-margin-derived effective SNR: how far the star sits
-            # above the dimmest visible star, expressed as a flux ratio.  A
-            # star that faint gets ``SNR_REF``; each brighter magnitude
+            # below the limiting magnitude, expressed as a flux ratio.  A
+            # star at the limit gets ``SNR_REF``; each brighter magnitude
             # multiplies by one Pogson ratio.  No DN units are involved.  A
             # saturated star's recorded magnitude is a lower bound on
             # brightness, so it is treated as at least as bright as the
-            # dimmest visible star without fabricating a specific brighter value.
+            # limiting magnitude without fabricating a specific brighter value.
             eff_vmag = float(star.vmag)
             if is_saturated:
-                eff_vmag = min(eff_vmag, mag_dimmest_visible)
-            snr_eff = SNR_REF * (2.512 ** (mag_dimmest_visible - eff_vmag))
+                eff_vmag = min(eff_vmag, mag_limit)
+            snr_eff = SNR_REF * (2.512 ** (mag_limit - eff_vmag))
             snr_eff = max(snr_eff, SNR_FLOOR)
             smear_len = smear_length_px(star.move_v, star.move_u)
             # Per the design's "max_smear" gate — stars with a smear longer
@@ -549,7 +543,7 @@ def _snr_reason_score(snr: float, min_snr: float) -> float:
 
     The ``NavReliabilityBreakdown.predicted_snr`` is a [0, 1] contribution
     score, not the raw SNR.  ``snr`` here is the magnitude-margin-derived
-    effective SNR (``SNR_REF * 2.512 ** (dimmest_visible - vmag)``), not a
+    effective SNR (``SNR_REF * 2.512 ** (mag_limit - vmag)``), not a
     photometric DN SNR.  This helper folds the configured floor in: when
     ``min_snr > 0``, the score is ``snr / min_snr`` capped at 1; when no
     floor is configured, an SNR of 50 saturates the score (the same center

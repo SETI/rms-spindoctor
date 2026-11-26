@@ -198,20 +198,6 @@ class ObsInst(ABC):
         """
         raise NotImplementedError
 
-    def star_dimmest_visible_vmag(self) -> float:
-        """Returns the V magnitude of the dimmest star this observation shows.
-
-        The star model gives a star of this magnitude its reference effective SNR and
-        scales every other star's from it, while the catalog and the magnitude cut use
-        :meth:`star_max_usable_vmag`.  An instrument whose limit searches past the
-        dimmest visible star overrides this method.  This generic implementation returns
-        :meth:`star_max_usable_vmag`, so the limit is the dimmest visible star.
-
-        Returns:
-            The V magnitude of the dimmest visible star.
-        """
-        return self.star_max_usable_vmag()
-
     @abstractmethod
     def get_public_metadata(self) -> dict[str, Any]:
         """Return the facts this instrument's host publishes about the image.
