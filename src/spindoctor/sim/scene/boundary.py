@@ -13,7 +13,8 @@ The top-level sets are derived from the typed scene: a key of
 declares.  A block the typed scene does not hold yet takes its class from
 :data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`.  The per-object sets of the
 ``bodies``, ``stars``, and ``ring_system`` blocks are written out below until those
-blocks are typed, and an import-time assertion keeps them complete and disjoint.
+blocks are typed.  An import-time assertion keeps them complete and disjoint, and keeps
+the typed fields, the untyped blocks, and the three top-level classes apart.
 
 :data:`TRUTH_KEYS` is the machine-readable truth set the ObsSim boundary filter strips
 and the structural boundary test iterates; the test-only keys are likewise stripped
@@ -296,12 +297,26 @@ TRUTH_KEYS: frozenset[str] = (
 
 
 def _assert_boundary_classification_complete() -> None:
-    """Every key of an untyped object block must be classified idealized or truth.
+    """Every scene key must have exactly one boundary class.
 
-    Runs at import so a schema change that adds a key without classifying it fails
-    everything loudly, not just one test.  The typed blocks are classified by their
-    types.
+    A top-level key is either a field of the typed scene or an untyped block, never
+    both, and the three top-level classes share no key.  Every key of an untyped object
+    block is classified idealized or truth, and never both.  Runs at import so a schema
+    change that adds a key without classifying it, or types a block without removing
+    it from :data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`, fails everything loudly,
+    not just one test.
     """
+    typed = {item.name for item in dataclasses.fields(Scene)}
+    both = typed & set(UNTYPED_BLOCKS)
+    assert not both, f'top-level keys both typed and listed as untyped blocks: {sorted(both)}'
+    classes = {
+        'idealized': TOP_LEVEL_IDEALIZED_KEYS,
+        'truth': TOP_LEVEL_TRUTH_KEYS,
+        'test': TOP_LEVEL_TEST_ONLY_KEYS,
+    }
+    for first, second in (('idealized', 'truth'), ('idealized', 'test'), ('truth', 'test')):
+        shared = classes[first] & classes[second]
+        assert not shared, f'top-level keys classified both {first} and {second}: {sorted(shared)}'
     blocks: dict[str, tuple[frozenset[str], frozenset[str], frozenset[str]]] = {
         **_OBJECT_BLOCKS,
         'ring_system': (_RING_SYSTEM_KEYS, _RING_SYSTEM_IDEALIZED_KEYS, _RING_SYSTEM_TRUTH_KEYS),

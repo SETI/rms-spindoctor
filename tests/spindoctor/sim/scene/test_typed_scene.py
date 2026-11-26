@@ -15,6 +15,7 @@ import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.instruments.schema_detector import Detector, VidiconChain
+from spindoctor.sim.scene import boundary
 from spindoctor.sim.scene.declare import DECLARATION, declaration_of, optional
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.reference import scene_reference
@@ -341,3 +342,25 @@ def test_a_field_without_a_declaration_is_refused() -> None:
 
     with pytest.raises(TypeError, match='declared with required'):
         declaration_of(dataclasses.fields(Plain)[0])
+
+
+def test_a_key_both_typed_and_untyped_fails_the_boundary_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A typed field listed again as an untyped block fails the import-time check."""
+    monkeypatch.setitem(UNTYPED_BLOCKS, 'size_v', 'idealized')
+    with pytest.raises(
+        AssertionError, match=r"both typed and listed as untyped blocks: \['size_v'\]"
+    ):
+        boundary._assert_boundary_classification_complete()
+
+
+def test_a_key_in_two_top_level_classes_fails_the_boundary_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A top-level key in two boundary classes fails the import-time check."""
+    monkeypatch.setattr(
+        boundary, 'TOP_LEVEL_TRUTH_KEYS', boundary.TOP_LEVEL_TRUTH_KEYS | {'expected'}
+    )
+    with pytest.raises(AssertionError, match=r"both truth and test: \['expected'\]"):
+        boundary._assert_boundary_classification_complete()
