@@ -170,27 +170,31 @@ through the navigator's own reader. Each frame's pointing was found from the sta
 alone, by a vote over star and peak pairs refined to a translation and a rotation, and
 a frame was kept when three or more stars, each on its own image peak, agreed within
 1 px and the chance of such a cluster anywhere in the 350 px search window was below
-one in a thousand. That kept 98 of 1,419 measured frames, 77 full frames in the HCM
-format and 21 summed frames in AI8, and one frame in three was held out of the fit.
+one in a thousand. That kept 99 of 1,419 measured frames, 78 full frames in the HCM
+format and 21 summed frames in AI8, and one frame in three was held out of the fit. A
+filter or gain state is measured only from 15 or more stars; only CLEAR and 10K have
+that many, so the others take the calibration documents' values, and their stars are
+left out of the fits.
 
-- The rate is the fit of 64 stars at CLEAR and 10K, 6.05e6 DN per second for V = 0
-  (+-0.11 mag), times the 38.7 electrons per DN of 10K. Klaasen et al. (1999) give an
+- The rate is 6.05e6 DN per second for V = 0 through CLEAR at 10K, times the 38.7
+  electrons per DN of 10K. The fit of 46 stars gives 5.96e6 (+-0.14 mag), within that
+  value's uncertainty. Klaasen et al. (1999) give an
   absolute response that predicts 5.9e6 DN per second. The rate is the 1992 frames'
   scale: the 1990 frames read 0.4 to 1.7 mag fainter at the same settings, for no
   reason found yet.
 - The electrons per DN are Klaasen (1993): 38.7 at 10K and the published ratios of the
-  other three states. The stars measure the 100K to 10K ratio at 0.070 (+-0.27 mag,
-  7 stars) against the published 0.102.
-- ``min_detectable_dn`` is where a detection-probability curve, fitted to every clean
-  star of the mode, reaches 80% of the way from its floor to its plateau: 167 +- 96 DN
-  on the full frames (2,108 stars) and 67 +- 22 DN on the summed frames (260 stars).
-  One curve fitted to both modes gives 142 +- 70 DN.
+  other three states. The stars do not measure them: 7 stars were taken at 100K and
+  none at 40K or 400K.
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
+  stars of the mode, reaches 80% of the way from its floor to its plateau: 167 +- 96 DN
+  on the full frames and 67 +- 22 DN on the summed frames. Fitted on the stars taken
+  through CLEAR at 10K, the curve gives 233 +- 120 DN (582 stars) and 50 +- 11 DN (127
+  stars), both within those uncertainties.
 - The filter offsets are 2.5 log10 of the solar filter factors of Klaasen et al.
-  (1999). The stars measured through filters are few and mostly hot Pleiades members,
-  far bluer than the Sun, so their offsets (beside each value in the file) are not
-  used.
+  (1999). The stars measured through filters are too few to measure an offset, and are
+  mostly hot Pleiades members, far bluer than the Sun.
 
-On the held-out frames, the faintest star detected lies a median 1.06 mag past the
+On the held-out frames, the faintest star detected lies a median 0.17 mag past the
 predicted dimmest visible star, with a broad spread, so the limit carries about half a
 magnitude of uncertainty.
 
@@ -199,8 +203,8 @@ handled downstream.
 
 **PSF.** The navigator's star sigma is the section's ``star_psf_sigma`` for the
 frame's readout mode, in that frame's own pixels. On a full frame it is 0.65 px: the
-median Gaussian sigma of 517 unsaturated stars on 75 full frames (16th to 84th
-percentile 0.41 to 1.10). A star's core is about 0.4 px across and 1.0 px along the
+median Gaussian sigma of 520 unsaturated stars on 76 full frames (16th to 84th
+percentile 0.41 to 1.09). A star's core is about 0.4 px across and 1.0 px along the
 direction of smear. Klaasen et al. (1999) give a line-spread FWHM of 1.39 px through
 CLEAR, a sigma of 0.59. On a summed frame it is 0.40 px, the median of 21 unsaturated
 stars on 9 summed frames (16th to 84th percentile 0.28 to 0.54). The camera block's
