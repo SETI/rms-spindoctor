@@ -329,6 +329,9 @@ def baseline_attitudes(pointing: ImagePointing) -> tuple[NDArrayFloatType, ...]:
         chained = _evaluated_attitude(pointing.camera_frame, pointing.midtime_et)
         return () if chained is None else (chained,)
     sclk_id = resolve_sclk_id(pointing.ck_frame_id)
+    # #1085: the Voyager host now looks the record up once, at the image's clock stop
+    # count within 20 ticks, so these midtime lookups miss wherever the record nearest
+    # the midtime is another one, and the image is omitted.
     snapped_tol = _SNAPPED_TOL_TICKS + pointing.exposure_s / _SNAPPED_TOL_EXPOSURE_DIVISOR
     # oops encodes the midtime as a whole tick for the primary lookup and
     # continuously for the wider fallback, so each is reproduced as it is

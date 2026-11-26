@@ -2,6 +2,7 @@ from collections.abc import Mapping, Sequence
 from fractions import Fraction
 from typing import Any, cast
 
+import host_galileo
 import numpy as np
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
@@ -9,7 +10,7 @@ from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, host_input
 
 # SCLK01_MODULI_77 and SCLK01_OFFSETS_77 of the Galileo spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Galileo/SCLK/mk00062a.tsc: the RIM count, then its 91 MOD91
@@ -17,8 +18,12 @@ from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
 _SCLK_MODULI = (16777215, 91, 10, 8)
 _SCLK_OFFSETS = (0, 0, 0, 0)
 
-_SCLK_FIELDS = ('RIM', 'MOD91', 'MOD10', 'MOD8')
-"""The VICAR label items holding the four fields of an image's frame count."""
+_SCLK_FINE_FIELDS = ('MOD10', 'MOD8')
+"""The VICAR header items holding the two finer fields of an image's frame count.
+
+The host gives them in ``dict`` under these names, since the PDS3 count holds only the
+RIM and MOD91 fields.
+"""
 
 
 def _sclk_count(fields: Sequence[int]) -> Fraction:
@@ -33,24 +38,31 @@ def _sclk_count(fields: Sequence[int]) -> Fraction:
     return fractional_count(fields, _SCLK_MODULI, _SCLK_OFFSETS)
 
 
-def _published_sclk(label: Mapping[str, Any]) -> dict[str, float | None]:
+def _published_sclk(
+    start_count: str | None, metadata: Mapping[str, Any]
+) -> dict[str, float | None]:
     """Return the spacecraft clock counts Galileo SSI publishes for one image.
 
-    A Galileo SSI label records one count, the image's frame count, as the VICAR items
-    RIM, MOD91, MOD10 and MOD8; it comes a few seconds before the exposure.  The label
-    records no count at the end of the image.
+    A Galileo SSI image has one count, its frame count, which comes a few seconds before
+    the exposure.  Its four fields are RIM, MOD91, MOD10 and MOD8.  The host gives the
+    first two as the ``spacecraft_clock_start_count`` subfield, ``RRRRRRRR.MM`` as the
+    PDS3 label writes it, and the last two in ``dict`` under their own names.  No label
+    gives a count at the end of the image.
 
     Parameters:
-        label: The image's VICAR label.
+        start_count: The host's ``spacecraft_clock_start_count``, or None when no label
+            gives it.
+        metadata: The host's ``dict``.
 
     Returns:
-        ``start_time_sclk``, the frame count in RIM counts, or None when the label lacks
-        any of the four items; ``midtime_sclk`` and ``end_time_sclk``, always None.
+        ``start_time_sclk``, the frame count in RIM counts, or None when any of the four
+        fields is missing; ``midtime_sclk`` and ``end_time_sclk``, always None.
     """
-    fields: list[Any] = [label.get(name, None) for name in _SCLK_FIELDS]
-    if None in fields:
+    fine: list[Any] = [metadata.get(name) for name in _SCLK_FINE_FIELDS]
+    if start_count is None or None in fine:
         return exposure_counts(None, None, bracketed=False)
-    return exposure_counts(_sclk_count(fields), None, bracketed=False)
+    rim, _, mod91 = start_count.partition('.')
+    return exposure_counts(_sclk_count((int(rim), int(mod91), *fine)), None, bracketed=False)
 
 
 class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
@@ -63,7 +75,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
     model_source = 'spice'
 
     filter: str
-    """The filter, as the label names it."""
+    """The filter, as the PDS3 label names it; absent when no label gives it."""
 
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
@@ -72,22 +84,31 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         *,
         config: Config | None = None,
         extfov_margin_vu: tuple[int, int] | None = None,
+        label: PathLike | None = None,
         **_kwargs: Any,
     ) -> 'ObsGalileoSSI':
         """Creates an ObsGalileoSSI from a Galileo SSI image file.
+
+        The host reads the image's PDS3 label together with the image file (see
+        :func:`~spindoctor.obs.obs_snapshot_inst.host_input`), and keeps the image's full
+        field of view.
 
         Parameters:
             path: Path to the Galileo SSI image file.
             config: Configuration object to use. If None, uses the default configuration.
             extfov_margin_vu: Optional tuple that overrides the extended field of view margins
                 found in the config.
+            label: The image's PDS3 label, if known; otherwise the label beside the image.
             **_kwargs: Additional keyword arguments (none for this instrument).
 
         Returns:
             An ObsGalileoSSI object containing the image data and metadata.
-        """
 
-        import oops.hosts.galileo.ssi
+        Raises:
+            OSError, RuntimeError: If the SPICE kernels lack data the image needs, such as
+                its pointing, which cspyce reports when the observation is first used.
+            oops.host.HostError: If the host cannot read the image or its label.
+        """
 
         config = config or DEFAULT_CONFIG
         logger = IMAGE_LOGGER
@@ -98,12 +119,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         # image brightness scale-invariantly (NCC correlation, image-derived
         # MAD noise thresholds, magnitude-based star gate), so no photometric
         # calibration is required here.
-        # Galileo SSI is read through oops.hosts rather than rms-host-galileo, whose
-        # GalileoSSI fails on a VICAR label whose observation ID (the PA item) does not begin with
-        # an orbit number (GO_0003's OPNAV01A frames); read through the detached
-        # .LBL instead, it would publish the label as the image path
-        # (SETI/rms-host-galileo#2).
-        obs = oops.hosts.galileo.ssi.from_file(path, full_fov=True)
+        obs = host_galileo.GalileoSSI.from_file(host_input(path, label=label), full_fov=True)
         # The host inserts the image as the data subfield, which the Snapshot it returns
         # does not declare.
         data: NDArrayAnyType = obs.subfields['data']
@@ -174,9 +190,10 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Galileo SSI.
 
-        The spacecraft clock count is the VICAR label's frame count, in RIM counts, which
-        comes a few seconds before the exposure.  The label records no count at the end
-        of the image, so the midtime and end counts are None.
+        The spacecraft clock count is the image's frame count, in RIM counts, which comes
+        a few seconds before the exposure.  No label gives a count at the end of the
+        image, so the midtime and end counts are None.  The filters are the host's
+        ``filter``, or none when no label gives it.
 
         Returns:
             A dictionary containing the public metadata for Galileo SSI.
@@ -193,9 +210,9 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            **_published_sclk(self.dict),
+            **_published_sclk(self.subfields.get('spacecraft_clock_start_count'), self.dict),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,
-            'filters': [self.filter],
+            'filters': [self.subfields['filter']] if 'filter' in self.subfields else [],
         }

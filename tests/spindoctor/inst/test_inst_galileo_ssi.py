@@ -1,12 +1,13 @@
 import math
+from pathlib import Path
 
+import host_galileo
+import numpy as np
 import pytest
+from filecache import FCPath
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_GALILEO_SSI_IO_01
-from tests.spindoctor.inst.conftest import (
-    VicarLabelStandIn,
-    bare_observation,
-    published_clock_counts,
-)
+from tests.spindoctor.host_stand_ins import HostCall, host_snapshot, place_planets_without_kernels
+from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 from tests.spindoctor.public_metadata_galileo_ssi import GALILEO_SSI_PUBLIC_METADATA
 
 import spindoctor.obs.obs_inst_galileo_ssi as obstgossi
@@ -68,15 +69,32 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
     assert obs.star_max_usable_vmag() == pytest.approx(_GALILEO_ANCHOR, abs=1e-6)
 
 
-def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:
-    """The label's frame count is published in RIM counts, its finer fields a fraction.
+def _c0360361168r(metadata: dict[str, int]) -> ObsGalileoSSI:
+    """Build a bare observation with C0360361168R's clock count and the given metadata.
 
-    C0360361168R's VICAR label gives its frame count as RIM 3603611, MOD91 68, MOD10 2
-    and MOD8 4.  A Galileo label records no count at the end of the image, so the
-    midtime and end counts are null.
+    The host gives that image's count as ``03603611.68``: RIM 3603611 and MOD91 68.
+
+    Parameters:
+        metadata: The host's ``dict``, which holds the finer fields MOD10 and MOD8.
+
+    Returns:
+        The observation.
     """
-    label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2, MOD8=4)
-    obs = bare_observation(ObsGalileoSSI, label, filter='CLEAR')
+    return bare_observation(
+        ObsGalileoSSI,
+        metadata,
+        subfields={'filter': 'CLEAR', 'spacecraft_clock_start_count': '03603611.68'},
+    )
+
+
+def test_the_published_count_is_a_fractional_rim_count_with_no_stop() -> None:
+    """The image's frame count is published in RIM counts, its finer fields a fraction.
+
+    C0360361168R's frame count is RIM 3603611, MOD91 68, MOD10 2 and MOD8 4.  A Galileo
+    label records no count at the end of the image, so the midtime and end counts are
+    null.
+    """
+    obs = _c0360361168r({'MOD10': 2, 'MOD8': 4})
     start, midtime, end = published_clock_counts(obs)
     assert start == pytest.approx(3603611 + 68 / 91 + 2 / 910 + 4 / 7280, abs=1e-9)
     assert midtime is None
@@ -89,13 +107,31 @@ def test_the_metadata_fixture_holds_the_keys_the_host_publishes() -> None:
     The chapter's staleness guard takes the Galileo facts from that fixture, so a fact the
     host gains has to reach the fixture, and through it the chapter.
     """
-    label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2, MOD8=4)
-    public = bare_observation(ObsGalileoSSI, label, filter='CLEAR').get_public_metadata()
+    public = _c0360361168r({'MOD10': 2, 'MOD8': 4}).get_public_metadata()
     assert list(public) == list(GALILEO_SSI_PUBLIC_METADATA)
 
 
-def test_a_label_missing_a_clock_item_publishes_no_count() -> None:
-    """A label lacking any of its four clock items publishes no count."""
-    label = VicarLabelStandIn(RIM=3603611, MOD91=68, MOD10=2)
-    obs = bare_observation(ObsGalileoSSI, label, filter='CLEAR')
+def test_a_missing_finer_clock_field_publishes_no_count() -> None:
+    """Without both of its finer fields, the frame count is not published."""
+    obs = _c0360361168r({'MOD10': 2})
     assert published_clock_counts(obs)[0] is None
+
+
+def test_an_image_with_no_filter_publishes_no_filters() -> None:
+    """When no label gives the filter, no filter is published."""
+    obs = bare_observation(ObsGalileoSSI, {}, subfields={})
+    assert obs.get_public_metadata()['filters'] == []
+
+
+def test_the_reader_asks_the_host_for_the_full_field_of_view(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reader hands the host the label and asks for the image's full field of view."""
+    place_planets_without_kernels(monkeypatch)
+    host = HostCall(host_snapshot(np.zeros((800, 800))))
+    monkeypatch.setattr(host_galileo.GalileoSSI, 'from_file', host)
+    ObsGalileoSSI.from_file(tmp_path / 'C0349673965R.IMG', label=tmp_path / 'C0349673965R.LBL')
+    assert (host.args, host.kwargs) == (
+        (FCPath(tmp_path / 'C0349673965R.LBL'),),
+        {'full_fov': True},
+    )

@@ -27,18 +27,21 @@ Code map
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
    * - oops host module
-     - ``oops.hosts.galileo.ssi``, because ``host_galileo.GalileoSSI``, from the
-       ``rms-host-galileo`` package, fails to read some GO_0003 frames
+     - ``host_galileo.GalileoSSI``, from the ``rms-host-galileo`` package
 
 Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_galileo_ssi.ObsGalileoSSI.from_file` calls
-``oops.hosts.galileo.ssi.from_file(path, full_fov=True)``. ``full_fov=True``
-asks the host for the whole detector array rather than the summed or windowed
+``host_galileo.GalileoSSI.from_file`` with ``full_fov=True`` and the file that
+:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the image's PDS3
+label, so that the host reads the label and the VICAR file together, or the
+image file alone if the image has no label.
+``full_fov=True`` asks the host for the whole detector array rather than the summed or windowed
 region the label describes, so the navigation models are generated over the
-same grid whatever readout mode a frame used. No other keyword argument is
-accepted, and ``**_kwargs`` is named with a leading underscore to say so.
+same grid whatever readout mode a frame used. The one other keyword argument
+read is ``label``, the label's URL when the caller knows it, and ``**_kwargs``
+is named with a leading underscore to say so.
 
 The host records ``obs.image_url``, the absolute source URL, from which the
 published image name is taken. Beyond the host call ``from_file`` reads the
@@ -57,10 +60,13 @@ to navigate.
 Label and index dependencies
 ============================
 
-**Label fields read.** ``filter``, through the base class's property, for the
-single ``filters`` entry in the metadata; and the four VICAR label items
-``RIM``, ``MOD91``, ``MOD10`` and ``MOD8``, which together are the image's
-frame count.
+**Label fields read.** The ``filter`` subfield, for the single ``filters``
+entry in the metadata, which is empty when the host gives no filter; and the
+four fields ``RIM``, ``MOD91``, ``MOD10`` and ``MOD8``, which together are the
+image's frame count. The host gives the first two as the
+``spacecraft_clock_start_count`` subfield, ``RRRRRRRR.MM`` as the PDS3 label
+writes it, and the two finer fields in ``dict`` under their own names, since
+no PDS3 item holds them.
 :meth:`~spindoctor.obs.obs_inst_galileo_ssi.ObsGalileoSSI.get_public_metadata`
 publishes that count as ``start_time_sclk``: ``_sclk_count`` converts it to an
 exact number of RIM counts through
@@ -69,9 +75,9 @@ moduli ``(16777215, 91, 10, 8)`` and offsets ``(0, 0, 0, 0)`` that the clock
 kernel ``mk00062a.tsc`` gives, so the count is
 ``RIM + MOD91 / 91 + MOD10 / 910 + MOD8 / 7280``. The frame count comes a few
 seconds before the exposure and the label records no count at the end of the
-image, so ``midtime_sclk`` and ``end_time_sclk`` are always ``None``. A label
-lacking any one of the four items publishes no count: ``start_time_sclk`` is
-``None`` too.
+image, so ``midtime_sclk`` and ``end_time_sclk`` are always ``None``. When the
+host lacks any one of the four fields, no count is published:
+``start_time_sclk`` is ``None`` too.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``,
 ``_INDEX_CAMERA_COLUMNS`` is ``('INSTRUMENT_ID',)`` and ``_INDEX_CAMERA_MAP``

@@ -19,10 +19,14 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+import host_new_horizons
 import numpy as np
+import oops
 import pytest
 from filecache import FCPath
+from oops.host import HostFormatError
 from PIL import Image
+from tests.spindoctor.host_stand_ins import HostCall, host_snapshot, place_planets_without_kernels
 
 from spindoctor.annotation import Annotation, Annotations
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
@@ -36,6 +40,7 @@ from spindoctor.navigate_image_files import (
     navigate_image_files,
     write_summary_png,
 )
+from spindoctor.obs import ObsNewHorizonsLORRI
 from spindoctor.support.memory import peak_resident_bytes
 from spindoctor.support.status_reason import NavStatusReason
 from spindoctor.support.summary_png import (
@@ -409,6 +414,95 @@ def test_navigate_image_files_spice_load_failure_records_missing_kernel(
     )
     assert success is False
     assert metadata['status_error'] == 'missing_spice_data'
+
+
+class _FrameWithoutPointing(oops.frame.Cmatrix):
+    """A camera frame for which the C kernels hold no pointing.
+
+    A host builds the frame without checking it, and cspyce reports the gap, with its
+    SPICE code, when the frame is first used.
+    """
+
+    def __init__(self) -> None:
+        """Build the frame; its attitude is never reached."""
+        super().__init__(oops.Matrix3.IDENTITY)
+
+    def transform_at_time(self, time: Any, *, quick: Any = False) -> Any:
+        """Fail as cspyce fails for a frame with no pointing.
+
+        Parameters:
+            time: The time asked for.
+            quick: The oops speed-up option, unused.
+
+        Raises:
+            RuntimeError: Always, carrying SPICE(NOFRAMECONNECT).
+        """
+        raise RuntimeError('SPICE(NOFRAMECONNECT) -- pxform -- no pointing at this time')
+
+
+def test_a_frame_without_pointing_from_the_host_records_missing_kernel(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An image whose host loads it without pointing is ``missing_spice_data``.
+
+    The host makes no pointing check, so the gap is raised while the reader builds the
+    observation, by cspyce, and the load step records it from the SPICE code.
+    """
+    place_planets_without_kernels(monkeypatch)
+    snapshot = host_snapshot(np.zeros((256, 256)), frame=_FrameWithoutPointing())
+    monkeypatch.setattr(host_new_horizons.NewHorizonsLORRI, 'from_file', HostCall(snapshot))
+    _success, metadata = navigate_image_files(
+        ObsNewHorizonsLORRI,
+        _make_image_files(tmp_path),
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'missing_spice_data'
+
+
+def test_navigate_image_files_host_format_error_records_read_error(tmp_path: Path) -> None:
+    """A file the host cannot use is an ``image_read_error``, not an internal error."""
+    obs_class = _make_fake_obs_class(raise_on_load=HostFormatError('no exposure in labels'))
+    image_files = _make_image_files(tmp_path)
+    _success, metadata = navigate_image_files(
+        obs_class,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert metadata['status_error'] == 'image_read_error'
+
+
+def test_navigate_image_files_passes_the_dataset_label(tmp_path: Path) -> None:
+    """The loader is given the label URL the dataset holds for the image."""
+    received: dict[str, Any] = {}
+    fake_class = _make_fake_obs_class(raise_on_load=OSError('stop after the load'))
+
+    class _RecordingObsClass(fake_class):  # type: ignore[valid-type,misc]
+        """The fake observation class, recording what the driver passes it."""
+
+        @classmethod
+        def from_file(cls, path: Any, **kwargs: Any) -> Any:
+            """Record the keyword arguments and load as the fake class does.
+
+            Parameters:
+                path: The image path the driver resolved.
+                kwargs: The loader options the driver passes.
+
+            Returns:
+                What the fake class returns.
+            """
+            received.update(kwargs)
+            return super().from_file(path, **kwargs)
+
+    image_files = _make_image_files(tmp_path)
+    navigate_image_files(
+        _RecordingObsClass,
+        image_files,
+        FCPath(str(tmp_path / 'results')),
+        write_output_files=False,
+    )
+    assert received['label'] == image_files[0].label_file_url
 
 
 def test_navigate_image_files_writes_summary_png(tmp_path: Path) -> None:

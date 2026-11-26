@@ -1,23 +1,20 @@
 import math
+from pathlib import Path
 
+import host_voyager
+import numpy as np
 import pytest
+from filecache import FCPath
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
-from tests.spindoctor.inst.conftest import (
-    VicarLabelStandIn,
-    bare_observation,
-    published_clock_counts,
-)
+from tests.spindoctor.host_stand_ins import HostCall, host_snapshot, place_planets_without_kernels
+from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 
 import spindoctor.obs.obs_inst_voyager_iss as obstvgiss
-from spindoctor.obs.obs_inst_voyager_iss import (
-    ObsVoyagerISS,
-    _voyager_if_factor,
-    _voyager_spacecraft_digit,
-)
+from spindoctor.obs.obs_inst_voyager_iss import ObsVoyagerISS, _if_data
 
-# The marker is applied per test rather than module-wide: the tests of label strings,
-# clock counts and the star gate fetch nothing, so they run even where the external
-# trees are absent.
+# The marker is applied per test rather than module-wide: the tests of the I/F
+# conversion, clock counts and the star gate fetch nothing, so they run even where the
+# external trees are absent.
 
 # Documented anchor limiting magnitudes (limiting mag at texp = 1 s).
 _VOYAGER_NAC_ANCHOR = 8.3
@@ -37,13 +34,6 @@ def _make_obs(detector: str, texp: float) -> ObsVoyagerISS:
     return obs
 
 
-# Real Voyager VICAR LAB02 records (fixed-format strings; index 4 is the
-# spacecraft digit).  Captured from a holdings GEOMED image.
-_LAB02_V1 = 'VGR-1   FDS 20621.33   PICNO 1326J2-002   SCET 79.189 16:08:47         C'
-_LAB02_V2 = 'VGR-2   FDS 20621.33   PICNO 1326J2-002   SCET 79.189 16:08:47         C'
-_LABEL3 = 'FOR (I/F)*10000., MULTIPLY DN VALUE BY               1.00000'
-
-
 @REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_basic() -> None:
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
@@ -52,64 +42,32 @@ def test_voyager_iss_basic() -> None:
 
 @REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_metadata_spacecraft_lid() -> None:
-    """Public metadata derives the instrument-host LID from LAB02."""
+    """Public metadata derives the instrument-host LID from the host's spacecraft."""
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     meta = obs.get_public_metadata()
-    # The IO test image is a Voyager 2 (VGR-2) frame.
+    # The IO test image is a Voyager 2 frame.
     assert meta['instrument_host_lid'].endswith('spacecraft.vg2')
 
 
-def test_spacecraft_digit_voyager1() -> None:
-    """A VGR-1 LAB02 record yields spacecraft digit '1'."""
-    assert _voyager_spacecraft_digit(_LAB02_V1) == '1'
+def test_the_data_are_scaled_to_if_by_the_hosts_factor() -> None:
+    """The data are multiplied by the host's ``if_scale``, and by nothing else."""
+    data = np.array([[100, 200]], dtype=np.uint8)
+    if_data = _if_data(data, {'if_scale': 0.0003345, 'spacecraft': 1, 'planet': 'SATURN'})
+    assert if_data == pytest.approx(np.array([[0.03345, 0.0669]]), rel=1e-12)
 
 
-def test_spacecraft_digit_voyager2() -> None:
-    """A VGR-2 LAB02 record yields spacecraft digit '2'."""
-    assert _voyager_spacecraft_digit(_LAB02_V2) == '2'
+def test_an_image_with_no_if_factor_is_refused() -> None:
+    """A product for which no label the host read gives an I/F factor is refused."""
+    data = np.array([[100]], dtype=np.uint8)
+    with pytest.raises(ValueError, match='no label of the image gives an I/F factor'):
+        _if_data(data, {'spacecraft': 2, 'planet': 'JUPITER'})
 
 
-def test_spacecraft_digit_too_short_raises() -> None:
-    """A LAB02 string shorter than 5 chars raises a clear ValueError."""
-    with pytest.raises(ValueError, match='Unexpected Voyager LAB02 format'):
-        _voyager_spacecraft_digit('VGR')
-
-
-def test_spacecraft_digit_non_string_raises() -> None:
-    """A non-string LAB02 value raises a clear ValueError."""
-    with pytest.raises(ValueError, match='Unexpected Voyager LAB02 format'):
-        _voyager_spacecraft_digit(None)
-
-
-def test_spacecraft_digit_unknown_id_raises() -> None:
-    """A LAB02 with an out-of-range spacecraft id raises ValueError."""
-    bad = 'VGR-3   FDS 20621.33'
-    with pytest.raises(ValueError, match='expected 1 or 2'):
-        _voyager_spacecraft_digit(bad)
-
-
-def test_if_factor_parses_value() -> None:
-    """A well-formed LABEL3 yields its trailing numeric factor."""
-    assert _voyager_if_factor(_LABEL3) == 1.0
-
-
-def test_if_factor_missing_phrase_raises() -> None:
-    """A LABEL3 lacking the fixed phrase raises a clear ValueError."""
-    with pytest.raises(ValueError, match='Unexpected Voyager LABEL3 format'):
-        _voyager_if_factor('SOME OTHER LABEL 1.0')
-
-
-def test_if_factor_non_numeric_remainder_raises() -> None:
-    """A LABEL3 whose remainder is not numeric raises a clear ValueError."""
-    bad = 'FOR (I/F)*10000., MULTIPLY DN VALUE BY    NOT_A_NUMBER'
-    with pytest.raises(ValueError, match='Unexpected Voyager LABEL3 format'):
-        _voyager_if_factor(bad)
-
-
-def test_if_factor_non_string_raises() -> None:
-    """A non-string LABEL3 value raises a clear ValueError."""
-    with pytest.raises(ValueError, match='Unexpected Voyager LABEL3 format'):
-        _voyager_if_factor(None)
+def test_the_spacecraft_digit_is_the_hosts_spacecraft() -> None:
+    """The spacecraft digit is the host's ``spacecraft`` subfield, as text."""
+    obs = object.__new__(ObsVoyagerISS)
+    obs.spacecraft = 1
+    assert obs.spacecraft_digit == '1'
 
 
 def test_star_max_usable_vmag_nac_anchor_at_unit_exposure() -> None:
@@ -151,13 +109,13 @@ def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
 
 @REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_reports_spacecraft_digit() -> None:
-    """The spacecraft digit is read from the image label."""
+    """The spacecraft digit comes from the host."""
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     assert obs.spacecraft_digit == '2'
 
 
 def test_the_published_counts_are_fractional_leading_units_with_no_midtime() -> None:
-    """The label's counts are published in the clock's leading units, with no midtime.
+    """The host's counts are published in the clock's leading units, with no midtime.
 
     C1480500_GEOMED's label counts, 14804:59:784 and 14805:00:001, cross a leading
     unit.  A frame is 1/60 of a leading unit, and a line, counted from 1, is 1/800 of a
@@ -166,10 +124,14 @@ def test_the_published_counts_are_fractional_leading_units_with_no_midtime() -> 
     """
     obs = bare_observation(
         ObsVoyagerISS,
-        VicarLabelStandIn(LAB02=_LAB02_V1),
+        {},
+        spacecraft=1,
         detector='WAC',
-        filter='CLEAR',
-        _label_clock_counts=('14804:59:784', '14805:00:001'),
+        subfields={
+            'filter': 'CLEAR',
+            'spacecraft_clock_start_count': '14804:59:784',
+            'spacecraft_clock_stop_count': '14805:00:001',
+        },
     )
     start, midtime, end = published_clock_counts(obs)
     assert start == pytest.approx(14804 + 59 / 60 + (784 - 1) / (60 * 800), abs=1e-9)
@@ -177,12 +139,31 @@ def test_the_published_counts_are_fractional_leading_units_with_no_midtime() -> 
     assert end == pytest.approx(14805.0, abs=1e-9)
 
 
+def test_an_image_read_without_its_label_publishes_no_start_count() -> None:
+    """The VICAR header gives only the stop count, so without the label there is no start."""
+    obs = bare_observation(
+        ObsVoyagerISS,
+        {},
+        spacecraft=1,
+        detector='WAC',
+        subfields={'filter': 'CLEAR', 'spacecraft_clock_stop_count': '14805:00:001'},
+    )
+    assert published_clock_counts(obs)[0] is None
+
+
+def test_an_image_with_no_filter_publishes_no_filters() -> None:
+    """When no label gives the filter, no filter is published."""
+    obs = bare_observation(ObsVoyagerISS, {}, spacecraft=2, detector='NAC', subfields={})
+    assert obs.get_public_metadata()['filters'] == []
+
+
 @REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_metadata_clock_counts_are_the_pds3_labels() -> None:
     """The published clock counts are those of the PDS3 label beside the image.
 
-    The IO test image's PDS3 label gives 20621:32:798 and 20621:33:001; the VICAR label
-    the observation keeps carries neither.
+    The IO test image's PDS3 label gives 20621:32:798 and 20621:33:001.  The VICAR
+    header gives the stop count alone, so the start count comes from the host's read of
+    the label.
     """
     obs = obstvgiss.ObsVoyagerISS.from_file(URL_VOYAGER_ISS_IO_01)
     meta = obs.get_public_metadata()
@@ -192,3 +173,18 @@ def test_voyager_iss_metadata_clock_counts_are_the_pds3_labels() -> None:
         None,
         pytest.approx(20621 + 33 / 60, abs=1e-9),
     ]
+
+
+def test_the_reader_scales_the_hosts_image_by_its_factor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reader hands the host the label, and scales the image the host returns."""
+    place_planets_without_kernels(monkeypatch)
+    raw = np.full((1000, 1000), 200, dtype=np.uint8)
+    snapshot = host_snapshot(raw, if_scale=0.0003345, spacecraft=1, planet='SATURN')
+    host = HostCall(snapshot)
+    monkeypatch.setattr(host_voyager.VoyagerISS, 'from_file', host)
+    label = tmp_path / 'C3421729_GEOMED.LBL'
+    obs = ObsVoyagerISS.from_file(tmp_path / 'C3421729_GEOMED.IMG', label=label)
+    assert (host.args, host.kwargs) == ((FCPath(label),), {})
+    assert float(obs.data[0, 0]) == pytest.approx(0.0669, rel=1e-12)

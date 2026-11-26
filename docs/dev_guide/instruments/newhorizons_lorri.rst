@@ -27,40 +27,40 @@ Code map
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
    * - oops host module
-     - ``oops.hosts.newhorizons.lorri``
+     - ``host_new_horizons.NewHorizonsLORRI``, from the ``rms-host-new-horizons``
+       package
 
 Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.from_file`
-calls ``oops.hosts.newhorizons.lorri.from_file(path, calibration=False)``.
-``calibration=False`` reads the raw DN image, and the reason is worth keeping
-straight: it is not that calibration is unwanted but that there is nothing to
-convert. The calibrated LORRI products are themselves in DN rather than I/F, so
-no I/F conversion exists to apply, and the navigation pipeline treats image
-brightness scale-invariantly in any case -- normalized cross-correlation, an
-image-derived noise floor, a magnitude-based star gate. No other keyword
-argument is accepted, and ``**_kwargs`` is named with a leading underscore to
-say so.
+calls ``host_new_horizons.NewHorizonsLORRI.from_file`` with the file that
+:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the image's PDS3
+label, so that the host reads the label and the FITS file together, or the
+image file alone if the image has no label.
+The host gives the data as the FITS file stores them, in DN, and where it can,
+attaches its conversion to I/F as a calibration object, which SpinDoctor does
+not apply. The
+navigation pipeline treats image brightness scale-invariantly --
+normalized cross-correlation, an image-derived noise floor, a magnitude limit
+for stars -- so no conversion is needed. The one other keyword argument read is
+``label``, the label's URL when the caller knows it, and ``**_kwargs`` is named
+with a leading underscore to say so.
 
 Beyond the host call it reads the flat ``newhorizons_lorri`` config section
 and resolves the extended-FOV margin from the size-keyed table by
 ``obs.data.shape[0]``. An explicit ``extfov_margin_vu`` argument wins over the
-configuration entirely. Last, it reads the spacecraft clock counts from the
-PDS3 label beside the image; see the label fields below.
+configuration entirely.
 
 Label and index dependencies
 ============================
 
-**Label fields read.** From the FITS image, nothing beyond what the base class
-reads for the exposure times and the image shape. From the PDS3 label beside
-the image, ``SPACECRAFT_CLOCK_START_COUNT`` and
-``SPACECRAFT_CLOCK_STOP_COUNT``: the FITS header the observation is read from
-carries the start count only, so
-:meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.from_file`
-reads both from the label once with
-:func:`~spindoctor.support.sclk.pds3_label_clock_counts` and keeps them for
-:meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.get_public_metadata`.
+**Label fields read.** Beyond what the base class reads for the exposure
+times and the image shape, ``spacecraft_clock_start_count`` and
+``spacecraft_clock_stop_count``, which
+:meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.get_public_metadata`
+publishes. The host spells both as the PDS3 label does; from the FITS header
+alone, they come from ``SPCSCLK0`` and ``STOPMET``.
 A count is ``SECONDS:TICKS``: whole seconds, then the 1/50000-second ticks
 past them. ``_sclk_count`` converts it to an exact number of seconds through
 :func:`~spindoctor.support.sclk.fractional_count`, with the moduli
@@ -69,8 +69,8 @@ past them. ``_sclk_count`` converts it to an exact number of seconds through
 ``31650238 + 48850 / 50000``. The two counts mark the start and the end of the
 exposure, so ``_published_sclk`` passes ``bracketed=True`` to
 :func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is their
-exact mean. Where the label carries no such count, or there is no label beside
-the image, the count is published as ``None``, and so is the mean.
+exact mean. Where the host gives no such count, the count is published as
+``None``, and so is the mean.
 
 :meth:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI.get_public_metadata`
 writes ``filters`` as an empty list: the camera is panchromatic with no filter
@@ -190,8 +190,8 @@ against spacecraft clock -98. Note that the corrected object is the spacecraft
 itself rather than a platform: this instrument is body-mounted and the
 spacecraft turns to point it.
 
-**The oops-from-SPICE flip.** ``R = diag(+1, -1, -1)``, applied by
-``oops/hosts/newhorizons/lorri.py``, because the SPICE boresight is -Z where
+**The oops-from-SPICE flip.** ``R = diag(+1, -1, -1)``, applied by the
+``rms-host-new-horizons`` host, because the SPICE boresight is -Z where
 the oops convention wants +Z. The correction is built in the oops observation
 frame and must be conjugated through ``R`` before it is composed onto a
 ``pxform``-derived matrix. ``R`` is measured at runtime as

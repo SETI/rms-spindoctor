@@ -252,7 +252,8 @@ instrument's per-image quirks. Examples:
   ``geometric_distortion`` correction in the per-instrument config
   was tuned against this image).
 - GOSSI / NHLORRI: at least one calibrated image and one raw image to
-  cross-check the ``calibration=False`` default in the LORRI loader.
+  cross-check that the LORRI loader leaves the data in DN, as the FITS file
+  stores them, without applying the host's conversion to I/F.
 
 These anchors are the minimum coverage; the broader per-regime cohort
 above is what catches drift. When a per-instrument calibration value

@@ -1,21 +1,25 @@
-"""SPICE ids shared by the attitude computation and the C-kernel writer.
+# The hosts give these facts on every observation as the ck_object_id, ck_sclk_id, and
+# spice_frame_is_frozen subfields, but the C-kernel writer never loads an observation, so it
+# keeps this table.  Recording the facts in the metadata document instead, and deleting this
+# module, is #1208.
+"""SPICE ids the C-kernel writer reads.
 
 The first fact recorded here is which spacecraft clock a C-kernel object's time
 tags are encoded against.  ``cspyce.ckmeta`` computes that mapping rather than
 validating it -- it answers -999 for the nonexistent object -999999 without
 raising -- so a wrong CK object id yields a plausible clock id, a successful
-encoding, and silently wrong time tags on every record.  Every consumer
-therefore checks what ``ckmeta`` resolves against the mapping below instead of
-trusting it, and every consumer reads this one mapping: a second copy of these
-numbers is a way for one side's check to rot while the other side's keeps
-passing.
+encoding, and silently wrong time tags on every record.  The writer therefore
+checks what ``ckmeta`` resolves against the mapping below instead of trusting
+it.  The attitude computation makes the same check against the clock each host
+names in an observation's ``ck_sclk_id`` subfield; the writer reads navigation
+records and kernel files rather than observations, so it keeps this copy.
 
 The second is which CK object each Voyager spacecraft's scan platform is, and
 the set of objects whose navigated attitude is frozen across the exposure.
 Those are one fact stated twice: the Voyager host builds its observation frame
-from a single tolerance-snapped pointing lookup rather than an evaluated frame
-chain, so the frozen set is exactly the Voyager platforms and is derived from
-them rather than written out again.
+from a single pointing lookup at the image's clock stop count, within 20 ticks,
+rather than an evaluated frame chain, so the frozen set is exactly the Voyager
+platforms and is derived from them rather than written out again.
 
 The clock is not derivable from the CK object by arithmetic.  Python's
 ``-31100 // 1000`` is -32, which is the other Voyager, so each object states
@@ -62,9 +66,10 @@ FROZEN_ATTITUDE_CK_IDS: frozenset[int] = frozenset(VOYAGER_CK_OBJECT_ID.values()
 """The CK objects whose navigated attitude is one snapped lookup, constant across the exposure.
 
 Derived from the Voyager platforms rather than restated, because that is what
-makes an object frozen: the Voyager host builds its observation frame from a
-tolerance-snapped pointing lookup instead of evaluating a frame chain, so a
-segment for one of these objects carries a single attitude and the step that
-identifies which baseline kernel an image navigated against has to make the
-same snapped lookup rather than evaluating a chain.
+makes an object frozen: the Voyager host builds its observation frame from one
+pointing lookup at the image's clock stop count instead of evaluating a frame
+chain, so a segment for one of these objects carries a single attitude and the
+step that identifies which baseline kernel an image navigated against has to
+make the same lookup rather than evaluating a chain.
 """
+# #1085: that step still makes its lookup at the exposure midtime

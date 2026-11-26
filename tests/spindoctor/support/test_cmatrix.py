@@ -26,15 +26,13 @@ from tests.cmatrix_helpers import (
 )
 
 from spindoctor.obs import ObsSnapshotInst
-from spindoctor.spice_ids import CK_OBJECT_SCLK_ID
 from spindoctor.support.cmatrix import (
-    _CASSINI_CK_FRAME_ID,
     PointingSolution,
     _attitude_baseline,
     _build_pointing_solution,
     _check_flip,
-    _ck_object_sclk_id,
     _declared_camera_frame,
+    _frame_identity,
     _FrameIdentity,
     _oops_correction_matrix,
     _pxform,
@@ -53,13 +51,14 @@ _PLANTED_OFFSET = (8.68, -17.37)
 # The 180-degree flip oops applies on top of the SPICE Cassini ISS frames.
 _CASSINI_FLIP = np.diag([-1.0, -1.0, 1.0])
 
+# The Cassini bus, the CK object the Cassini host names, and the clock it names for it.
+_CASSINI_CK_OBJECT_ID = -82000
+_CASSINI_SCLK_ID = -82
+
 # Voyager 1's scan-platform CK object, which is the wrong one for a Voyager 2
 # image: ``ckmeta`` answers -31 for it, the other spacecraft's clock.
 _VOYAGER1_CK_FRAME_ID = -31100
 _VOYAGER2_SCLK_ID = -32
-
-# A CK object no mission owns, used to pin what ``ckmeta`` does with one.
-_NONEXISTENT_CK_FRAME_ID = -999999
 
 # A spacecraft clock no furnished kernel can ever describe.
 _NONEXISTENT_SCLK_ID = -999
@@ -342,8 +341,8 @@ def test_a_nan_correction_is_rejected_by_the_result_check() -> None:
 def _cassini_identity() -> _FrameIdentity:
     """The Cassini NAC frame identity, for the flip-check and clock tests."""
     return _FrameIdentity(
-        ck_frame_id=_CASSINI_CK_FRAME_ID,
-        sclk_id=CK_OBJECT_SCLK_ID[_CASSINI_CK_FRAME_ID],
+        ck_frame_id=_CASSINI_CK_OBJECT_ID,
+        sclk_id=_CASSINI_SCLK_ID,
         frozen_oops_attitude=False,
     )
 
@@ -376,20 +375,33 @@ def test_a_flip_just_outside_tolerance_is_refused() -> None:
 
 
 def test_the_missions_own_clock_resolves_and_is_accepted() -> None:
-    """The clock SPICE resolves for a mission's CK object is the recorded one.
-
-    Pins the recorded clock against what ``ckmeta`` actually computes: a typo
-    in either the CK object or the clock id fails here rather than producing
-    time strings from a plausible-looking wrong clock.
-    """
+    """The clock SPICE resolves for a mission's CK object is the one the host names."""
     resolved = _sclk_id(_cassini_identity(), 'CASSINI_ISS_NAC')
-    assert resolved == CK_OBJECT_SCLK_ID[_CASSINI_CK_FRAME_ID]
+    assert resolved == _CASSINI_SCLK_ID
 
 
-def test_a_ck_object_with_no_recorded_clock_is_a_pointing_failure() -> None:
-    """An object outside the recorded set is refused rather than looked up."""
-    with pytest.raises(NavPointingError, match='has no recorded spacecraft clock'):
-        _ck_object_sclk_id(_NONEXISTENT_CK_FRAME_ID)
+class _StubHostObs:
+    """Observation stub carrying only the three frame subfields a host gives."""
+
+    def __init__(self, *, ck_object_id: int, ck_sclk_id: int, frozen: bool) -> None:
+        """Build the stub around the host's frame subfields.
+
+        Parameters:
+            ck_object_id: The host's ``ck_object_id``.
+            ck_sclk_id: The host's ``ck_sclk_id``.
+            frozen: The host's ``spice_frame_is_frozen``.
+        """
+        self.ck_object_id = ck_object_id
+        self.ck_sclk_id = ck_sclk_id
+        self.spice_frame_is_frozen = frozen
+
+
+def test_the_frame_identity_is_the_one_the_host_gives() -> None:
+    """The CK object, its clock and whether the frame is frozen come from the host."""
+    obs = _StubHostObs(ck_object_id=-32100, ck_sclk_id=-32, frozen=True)
+    assert _frame_identity(cast(ObsSnapshotInst, obs)) == _FrameIdentity(
+        ck_frame_id=-32100, sclk_id=-32, frozen_oops_attitude=True
+    )
 
 
 def _voyager2_identity_with_the_voyager1_ck_object() -> _FrameIdentity:
@@ -456,7 +468,7 @@ def test_a_clock_that_cannot_encode_an_epoch_is_a_pointing_failure() -> None:
 
 
 def test_a_host_with_no_spice_camera_frame_records_nothing() -> None:
-    """An observation whose instrument has no frame mapping yields no solution.
+    """An observation whose host names no CK object yields no solution.
 
     A simulated image has no spacecraft and no furnished camera frame; it is
     returned as "nothing to record" rather than raising, so a simulated

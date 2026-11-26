@@ -39,7 +39,7 @@ class ObsSnapshot(Obs, Snapshot):
 
     The annotations below are the attributes of the wrapped snapshot that this package
     reads beyond what an oops ``Snapshot`` itself declares.  Every oops host inserts
-    them as subfields; a simulated observation sets ``data``, ``abspath`` and
+    them as subfields; a simulated observation sets ``data``, ``image_abspath`` and
     ``image_url`` itself and has no SPICE frame.  The attributes particular to one
     instrument are declared on that instrument's class.
     """
@@ -47,7 +47,7 @@ class ObsSnapshot(Obs, Snapshot):
     data: NDArrayAnyType
     """The image array, indexed ``[v, u]``."""
 
-    abspath: Path | FCPath
+    image_abspath: Path | FCPath
     """The image file on local storage; a host resolves its symlinks."""
 
     image_url: str
@@ -61,6 +61,15 @@ class ObsSnapshot(Obs, Snapshot):
 
     spice_frame_id: int
     """The SPICE id of the camera frame the observation was built on."""
+
+    ck_object_id: int
+    """The SPICE id of the object whose C kernels give the observation's pointing."""
+
+    ck_sclk_id: int
+    """The SPICE id of the spacecraft clock those C kernels are tagged against."""
+
+    spice_frame_is_frozen: bool
+    """Whether the host froze the camera frame from one pointing lookup."""
 
     def __init__(
         self,
@@ -289,9 +298,9 @@ class ObsSnapshot(Obs, Snapshot):
     def image_name(self) -> str:
         """The image file's name as the caller gave it, which is the published image name.
 
-        It is taken from ``image_url`` rather than ``abspath``, whose symlinks are resolved:
-        an image reached through a link with a name of its own would otherwise be published
-        under its target's name.
+        It is taken from ``image_url`` rather than ``image_abspath``, whose symlinks are
+        resolved: an image reached through a link with a name of its own would otherwise be
+        published under its target's name.
         """
         return FCPath(self.image_url).name
 

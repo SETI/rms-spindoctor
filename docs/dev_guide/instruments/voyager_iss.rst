@@ -27,7 +27,7 @@ Code map
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
    * - oops host module
-     - ``oops.hosts.voyager.iss``
+     - ``host_voyager.VoyagerISS``, from the ``rms-host-voyager`` package
 
 One instrument key serves two spacecraft and four cameras. Everything that has
 to distinguish them derives the distinction from the image's own label rather
@@ -38,60 +38,50 @@ Loading the image
 =================
 
 :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.from_file` calls
-``oops.hosts.voyager.iss.from_file(path)`` with no keyword arguments.
+``host_voyager.VoyagerISS.from_file`` with the file that
+:func:`~spindoctor.obs.obs_snapshot_inst.host_input` chooses: the image's PDS3
+label, so that the host reads the label and the VICAR file together, or the
+image file alone if the image has no label.
+The label gives more than the start clock count. Some VICAR headers have no
+usable time, and some give a clock count one or two FDS minutes late, at which
+the C kernels hold no pointing. The host takes both values from the label.
 
-It also **modifies the pixel data**, in two steps:
-
-1. **I/F scaling.** ``_voyager_if_factor`` reads the ``LABEL3`` VICAR record,
-   which carries the fixed phrase ``FOR (I/F)*10000., MULTIPLY DN VALUE BY``
-   followed by a number, and the data become ``data * factor / 10000``. A
-   ``LABEL3`` that is not a string, does not carry the phrase, or whose
-   remainder will not parse as a float raises ``ValueError`` and the image does
-   not load. Refusing is right here: silently skipping the scaling would
-   produce a frame in the wrong units that every threshold downstream would
-   then judge.
-2. **The Voyager 1 Saturn correction.** ``_voyager_spacecraft_digit`` reads the
-   ``LAB02`` record, whose fifth character is the spacecraft digit, and when
-   that digit is ``1`` and ``obs.planet.upper()`` is ``SATURN`` the data are
-   multiplied by a further **3.345**. The archive's calibration pipeline
-   computed I/F for Voyager 1 as though every image had been taken at
-   Jupiter's heliocentric distance, so the Saturn frames come out too dim by
-   the square of the distance ratio. Voyager 1 visited only Jupiter and
-   Saturn, and Voyager 2 was calibrated correctly at each of its encounters,
-   so this is the only case, and the constant is written out rather than
-   computed from distances. The step logs at debug when it fires.
+It also **modifies the pixel data**, in ``_if_data``: the data are multiplied
+by the host's ``if_scale`` subfield, the factor that converts the data to I/F.
+When the host reads the label, it takes the label's
+``REFLECTANCE_SCALING_FACTOR``. When it reads the image file alone, it takes
+the factor in the VICAR header's line ``FOR (I/F)*10000., MULTIPLY DN VALUE BY
+x``, divided by 10000, and applies the Voyager 1 corrections the archive
+documents: 3.345 at Saturn, where the archive's calibration computed I/F as
+though the image had been taken at Jupiter's distance from the Sun, 40 for the
+SODIUM filter, and 12.5 for CH4_U. The label's factor already includes them, so
+the reader applies no correction of its own. An image for which no file gives a
+factor has no ``if_scale``, and the load raises ``ValueError``. Refusing is
+right here: silently skipping the scaling would produce a frame in the wrong
+units that every threshold downstream would then judge.
 
 Beyond that it reads the flat ``voyager_iss`` config section and resolves the
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
 table has exactly one entry, for size 1000, which is what a geometrically
 corrected product is; an image of any other size raises ``KeyError`` from the
-margin lookup rather than loading with a wrong margin. Last, it reads the
-spacecraft clock counts from the PDS3 label beside the image, which the VICAR
-label the observation keeps does not carry; see the label fields below.
-
-A TODO on the calibration block records that this arithmetic belongs in the
-host once the host grows it.
+margin lookup rather than loading with a wrong margin.
 
 Label and index dependencies
 ============================
 
-**Label fields read.** Two of these are load-blocking:
+**Label fields read.**
 
-* ``LABEL3`` -- the I/F scaling factor. Missing or malformed stops the load.
-* ``LAB02`` -- the spacecraft digit, at index 4. Not a string, shorter than
-  five characters, or a digit other than ``1`` or ``2`` stops the load. This
-  one value decides the SPICE frame names, the CK object, the spacecraft clock
-  and both metadata LIDs, so it is validated where it is read rather than
-  where it is used.
-* ``filter`` -- through the base class's property, for the single ``filters``
-  entry.
-* ``SPACECRAFT_CLOCK_START_COUNT`` and ``SPACECRAFT_CLOCK_STOP_COUNT`` -- from
-  the PDS3 label beside the image, since the VICAR label the observation keeps
-  does not carry them.
-  :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.from_file` reads
-  them once with :func:`~spindoctor.support.sclk.pds3_label_clock_counts` and
-  keeps them for
-  :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.get_public_metadata`.
+* ``if_scale`` -- the I/F scaling factor. Missing stops the load.
+* ``spacecraft`` -- the integer ``1`` or ``2``, which the host gives for every
+  image. This one value decides the SPICE frame names, the CK object, the
+  spacecraft clock, and both metadata LIDs; the ``spacecraft_digit`` property
+  gives it as text.
+* ``planet`` -- the planet of the encounter, written to the load log.
+* ``filter`` -- for the single ``filters`` entry. The host leaves it out when no
+  label gives a filter, and then ``filters`` is empty.
+* ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count`` -- the
+  clock counts, spelled as the PDS3 label spells them. The VICAR header gives
+  only the stop count, so the start count comes from the label.
   A count is ``LEADING:FRAME:LINE``: the leading field counts 48-minute units,
   the frame field the 60 frames of 48 seconds in one, and the line field,
   counted from 1, the 800 lines of 60 milliseconds in a frame. ``_sclk_count``
@@ -105,14 +95,12 @@ Label and index dependencies
   minutes after the shutter closed. The two do not bracket the exposure, so
   ``_published_sclk`` passes ``bracketed=False`` to
   :func:`~spindoctor.support.sclk.exposure_counts` and ``midtime_sclk`` is
-  always ``None``. Where the label carries no such count, or there is no label
-  beside the image, the count is published as ``None``.
+  always ``None``. Where the host gives no such count, the count is published as
+  ``None``.
 
 :meth:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS.get_public_metadata`
 refuses a detector that is neither ``NAC`` nor ``WAC``, because the instrument
-LID encodes the camera and a malformed LID must never reach a PDS4 label. The
-``spacecraft_digit`` property re-reads ``LAB02`` rather than caching it, so any
-consumer that needs the spacecraft gets the same validation.
+LID encodes the camera and a malformed LID must never reach a PDS4 label.
 
 **Index columns.** ``_INDEX_COLUMNS`` is ``FILE_SPECIFICATION_NAME``.
 
@@ -234,40 +222,52 @@ Voyager frame kernel spells the cameras ``ISSNA`` and ``ISSWA``, so the oops
 detector names ``NAC`` and ``WAC`` contribute only their first letter -- an
 abbreviation that happens to work and is worth not "fixing".
 
-**CK object and clock.** Read from
-:data:`~spindoctor.spice_ids.VOYAGER_CK_OBJECT_ID` by the spacecraft digit:
--31100 for Voyager 1's scan platform and -32100 for Voyager 2's. The clock then
-follows from the object through
-:data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`, giving -31 and -32, rather
-than from the same digit -- so a wrong pairing is refused instead of producing
-a self-consistent wrong one. The clock is **not derivable by arithmetic**:
-``-31100 // 1000`` is -32 in Python, which is the other spacecraft. That is
-why both tables are written out.
+**CK object and clock.** The host gives them as the ``ck_object_id`` and
+``ck_sclk_id`` subfields: -31100 and -31 for Voyager 1's scan platform, -32100
+and -32 for Voyager 2's. The attitude computation checks the clock the host
+gives against what ``ckmeta`` resolves for the object, so a wrong pairing is
+refused instead of producing a self-consistent wrong one. The clock is **not
+derivable by arithmetic**: ``-31100 // 1000`` is -32 in Python, which is the
+other spacecraft. The C-kernel writer, which reads navigation records rather
+than observations, keeps the same pairs in
+:data:`~spindoctor.spice_ids.VOYAGER_CK_OBJECT_ID` and
+:data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`.
 
 **The oops-from-SPICE flip.** The identity, by construction rather than by
 measurement, for the reason in the next paragraph.
 
-**Frame evaluation: frozen, not evaluated.** ``oops`` does not build this
+**Frame evaluation: frozen, not evaluated.** The host does not build this
 observation frame from a frame chain. It builds it as
 
 .. code-block:: text
 
-   P . ckgp(ck_id, sce2t(scid, et_mid), 800 + texp/48, 'J2000')
+   P . ckgp(ck_id, ticks(clock_stop_count), 20, 'J2000')
    P = pxform('VGn_SCAN_PLATFORM', camera_frame, 0)
 
 -- a single **tolerance-snapped** pointing lookup, frozen and
-time-independent, composed with a constant rotation read at epoch zero. A
-``pxform`` at the exposure midtime does not reproduce it, and in fact does not
-resolve at all, which an integration test pins.
+time-independent, composed with a constant rotation read at epoch zero. The
+host looks the record up at the image's own clock stop count, the FDS count in
+its name, within 20 ticks (1.2 s): the archive's C kernels stamp each image's
+record at that count, which can fall whole FDS minutes after the shutter
+closed. A ``pxform`` at the exposure midtime does not reproduce the frame, and
+in fact does not resolve at all, which an integration test pins.
 
-Everything downstream follows from that. ``_frame_identity`` sets
-``frozen_oops_attitude=True``, and ``_attitude_baseline`` takes the frozen
-branch: ``cmatrix_original`` is the observation frame's own attitude, the flip
+.. Issue #1085: the CK writer still reproduces the lookup at the exposure midtime.
+
+The C-kernel steps below still reproduce the lookup at the exposure midtime,
+with a tolerance of ``800 + texp/48`` ticks, and stamp the corrected records at
+the exposure start, midtime, and stop. The host does not look there, so a
+corrected kernel written for a Voyager image does not change the frame the host
+builds.
+
+Everything downstream follows from that. The host sets the
+``spice_frame_is_frozen`` subfield to ``True`` for such a frame, so
+``_frame_identity`` sets ``frozen_oops_attitude=True``, and
+``_attitude_baseline`` takes the frozen branch: ``cmatrix_original`` is the observation frame's own attitude, the flip
 is the identity by construction, and neither the flip check nor the
 across-the-exposure constancy check runs, because there is nothing evaluated to
-compare. The tick conversion in the lookup is ``sce2t``, not ``sce2c``; the two
-differ, and every step that reproduces this lookup matches the call it
-reproduces.
+compare. In the C-kernel steps' midtime lookup, the tick conversion is
+``sce2t``, not ``sce2c``; the two differ.
 
 **Per-spacecraft variation.** Two spacecraft, two CK objects, two clocks, four
 camera frames -- all derived per image from one label character. Nothing in
@@ -316,16 +316,19 @@ Three consequences follow that are easy to get wrong:
   velocity, and that changes nothing.
 
 **Reproduction path.** Also the frozen one, and it is made twice.
-:mod:`spindoctor.cli.ck.assignment` reproduces the observation frame the way
-``oops`` built it -- ``ckgp`` at a snapped tick, then
+:mod:`spindoctor.cli.ck.assignment` reproduces the observation frame with a
+lookup at the exposure midtime -- ``ckgp`` at a snapped tick, then
 ``pxform(object_frame, camera_frame, 0.0)`` for the fixed rotation -- at two
 tolerances in turn:
 
-* ``sce2t(sclk_id, midtime_et)`` at ``800 + texp/48`` ticks, the tolerance the
-  host's own frame uses;
+* ``sce2t(sclk_id, midtime_et)`` at ``800 + texp/48`` ticks;
 * ``sce2c(sclk_id, midtime_et)`` at
-  :data:`~spindoctor.cli.ck.index.SNAPPED_LOOKUP_TOL_TICKS` (80000 ticks),
-  the far wider tolerance ``oops`` registers its fallback frame with.
+  :data:`~spindoctor.cli.ck.index.SNAPPED_LOOKUP_TOL_TICKS` (80000 ticks).
+
+The host's own lookup is neither of these: it is at the image's clock stop
+count, within 20 ticks (see "Frame evaluation" above). An image whose midtime
+record is not the record at its clock count therefore has no reproducing
+baseline.
 
 The index widens a frozen-attitude object's coverage by that same wider
 tolerance, read from the same constant rather than restated, so that every
@@ -534,7 +537,9 @@ the identity.
 in its round-trip cohort, and needs an extra step for it: because the host
 freezes the observation frame during ``from_file``, a kernel furnished after
 that call cannot be seen at all, so the image is loaded a **second** time with
-the correction already furnished.
+the correction already furnished. Its two offset tests fail on this frame,
+because the corrected records are not where the host looks (see "Frame
+evaluation" above).
 
 **Simulator guard scenes.** The ``full_frame_cameras`` scene class (see
 :ref:`sim-full-frame-cameras`) holds one scene for each of the four cameras, each
@@ -589,10 +594,11 @@ busy one, because the disc correlation searches the camera's 400 px window. The
 star fields take a few seconds.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
-spacecraft-digit parser and all four of its refusals, the I/F factor parser and
-all three of its refusals, the per-camera limiting-magnitude anchors, the
-per-spacecraft metadata LIDs, and the published clock counts: fractional
-leading units with no midtime count, read from the PDS3 label beside the image.
+I/F scaling by the host's factor alone and the refusal of a product lacking an
+I/F factor; the spacecraft digit; the per-camera limiting-magnitude anchors; the
+per-spacecraft metadata LIDs; and the published clock counts: fractional
+leading units with no midtime count, with no start count when the label was
+not read.
 
 PDS4 hooks
 ==========
@@ -638,9 +644,6 @@ explanatory string instead of a limit. The report's image-name rule is
 Open items
 ==========
 
-* ``from_file`` carries a TODO recording that the I/F scaling and the Voyager 1
-  Saturn correction belong in the host once the host grows them, at which point
-  this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
   ``read_noise_dn``, ``blank_max_if``,
   ``noisy_threshold_if``, and the ``mag_offset_table`` entry.

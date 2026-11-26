@@ -344,7 +344,11 @@ def process_task(
                 ):
                     try:
                         image_path = image_file.image_file_path.absolute()
-                        obs = obs_class.from_file(image_path, extfov_margin_vu=(0, 0))
+                        obs = obs_class.from_file(
+                            image_path,
+                            extfov_margin_vu=(0, 0),
+                            label=image_file.label_file_url,
+                        )
 
                         selection = pointing_source.load_pointing(image_file)
                         applied = apply_pointing_to_obs(

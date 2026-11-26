@@ -42,16 +42,19 @@ that is right at the midtime and wrong at the edges is a moving frame
 misdeclared as a constant one, and the correction is written to a kernel as a
 single body-fixed rotation.
 
-Voyager is the exception to the check, not to the convention: oops freezes the
-observation frame from a tolerance-snapped ``ckgp`` lookup rather than
-evaluating a frame chain, so ``pxform`` cannot evaluate that camera frame at
-all.  The accessor answers correctly there regardless, so only the cross-check
-is skipped.
+A frame a host freezes from one pointing lookup, rather than evaluating a frame
+chain, is the exception to the check, not to the convention: ``pxform`` cannot
+evaluate that camera frame at all.  The host says so in the observation's
+``spice_frame_is_frozen`` subfield, as the Voyager host does for an image with a
+pointing record at its own clock count.  The accessor answers correctly there
+regardless, so only the cross-check is skipped.
 
-What stays here is what oops does not do: turning a navigated pixel offset into
-a rotation, refusing a malformed record, naming the C-kernel object and the
-spacecraft clock a correction is written against, and gating a recorded
-attitude before it is applied.
+The host also names the C-kernel object a correction is written against and the
+spacecraft clock its time tags are encoded against, in the ``ck_object_id`` and
+``ck_sclk_id`` subfields.  What stays here is what oops does not do: turning a
+navigated pixel offset into a rotation, refusing a malformed record, checking
+the clock the host names against SPICE, and gating a recorded attitude before it
+is applied.
 """
 
 import enum
@@ -62,14 +65,7 @@ import cspyce
 import numpy as np
 import oops
 
-from spindoctor.obs import (
-    ObsCassiniISS,
-    ObsGalileoSSI,
-    ObsNewHorizonsLORRI,
-    ObsSnapshotInst,
-    ObsVoyagerISS,
-)
-from spindoctor.spice_ids import CK_OBJECT_SCLK_ID, VOYAGER_CK_OBJECT_ID
+from spindoctor.obs import ObsSnapshotInst
 from spindoctor.support.exceptions import NavPointingError
 
 # Which array dtypes count as recorded numbers is a property of a metadata
@@ -123,16 +119,6 @@ class CmatrixApplication(enum.Enum):
     POOL_ALREADY_CORRECTED = 'pool_already_corrected'
 
 
-# The object each mission's C-kernels describe.  The correction is measured at
-# the camera but written at the bus or platform the existing kernels already
-# cover, so a corrected kernel targets one of these.  Voyager needs one per
-# spacecraft under a single instrument key, and its pair is read from
-# ``spindoctor.spice_ids`` because the kernel writer needs the same two ids to
-# recognize a frozen-attitude object.
-_CASSINI_CK_FRAME_ID = -82000
-_GALILEO_CK_FRAME_ID = -77001
-_LORRI_CK_FRAME_ID = -98000
-
 # What cspyce raises when the furnished kernels cannot answer: a missing frame
 # or an unresolvable clock arrives as a LookupError, an unreadable kernel as
 # an OSError, and a SPICE error as a RuntimeError or a ValueError.  Each is an
@@ -165,16 +151,17 @@ _DEGENERATE_AXIS_NORM = 1e-12
 
 @dataclass(frozen=True)
 class _FrameIdentity:
-    """Per-instrument frame facts needed to place a correction in SPICE terms.
+    """The frame facts a host gives an observation, to place a correction in SPICE terms.
 
     Parameters:
-        ck_frame_id: SPICE id of the object a corrected C-kernel targets.
+        ck_frame_id: SPICE id of the object a corrected C-kernel targets, the host's
+            ``ck_object_id``.
         sclk_id: SPICE id of the spacecraft clock that object's time tags are
-            encoded against.
-        frozen_oops_attitude: True when oops freezes the observation frame
-            from a tolerance-snapped pointing lookup, so ``pxform`` cannot
-            evaluate the camera frame at all and the declared flip has nothing
-            to be cross-checked against.
+            encoded against, the host's ``ck_sclk_id``.
+        frozen_oops_attitude: The host's ``spice_frame_is_frozen``: True when the
+            host freezes the observation frame from one pointing lookup, so
+            ``pxform`` cannot evaluate the camera frame at all and the declared flip
+            has nothing to be cross-checked against.
     """
 
     ck_frame_id: int
@@ -496,9 +483,7 @@ def compute_pointing(
             the caller, not an attitude the environment cannot supply, so it
             is deliberately not a ``NavPointingError``: a caller absorbing
             those per image must not absorb a regressed technique emitting
-            NaN offsets for a whole batch.  Also if a Voyager observation's
-            label names a spacecraft that is neither Voyager, which the host
-            refuses when it reads the label.
+            NaN offsets for a whole batch.
     """
     if offset_px is not None:
         if len(offset_px) != 2:
@@ -699,80 +684,27 @@ def apply_cmatrix_to_obs(
     return CmatrixApplication.FRAME_REPLACED
 
 
-def _ck_object_sclk_id(ck_frame_id: int) -> int:
-    """Return the spacecraft clock a CK object's time tags are encoded against.
-
-    The value is read from the shared mapping the C-kernel writer reads too,
-    so that the clock a correction is timed with and the clock it is written
-    with cannot disagree.
-
-    Parameters:
-        ck_frame_id: SPICE id of the object a corrected C-kernel targets.
-
-    Returns:
-        The spacecraft clock id recorded for that object.
-
-    Raises:
-        NavPointingError: if no clock is recorded for the object.
-    """
-    if ck_frame_id not in CK_OBJECT_SCLK_ID:
-        raise NavPointingError(
-            f'CK object {ck_frame_id} has no recorded spacecraft clock; expected one of '
-            f'{sorted(CK_OBJECT_SCLK_ID)}'
-        )
-    return CK_OBJECT_SCLK_ID[ck_frame_id]
-
-
 def _frame_identity(obs: ObsSnapshotInst) -> _FrameIdentity | None:
-    """Return the SPICE frame facts for an observation's instrument.
+    """Return the SPICE frame facts the host gives an observation.
+
+    Every host gives its observations the subfields ``ck_object_id``, ``ck_sclk_id`` and
+    ``spice_frame_is_frozen``.
 
     Parameters:
         obs: The observation to identify.
 
     Returns:
-        The instrument's ``_FrameIdentity``, or ``None`` for a host with no
-        SPICE camera frame this module knows.
-
-    Raises:
-        NavPointingError: if the instrument's CK object has no recorded
-            spacecraft clock.
-        ValueError: if a Voyager observation's label names a spacecraft that
-            is neither Voyager, which the host refuses when it reads the
-            label, so reaching it here means that stopped being true.
+        The observation's ``_FrameIdentity``, or ``None`` for an observation whose host
+        gives no CK object, such as a simulated image.
     """
-    if isinstance(obs, ObsCassiniISS):
-        return _FrameIdentity(
-            ck_frame_id=_CASSINI_CK_FRAME_ID,
-            sclk_id=_ck_object_sclk_id(_CASSINI_CK_FRAME_ID),
-            frozen_oops_attitude=False,
-        )
-    if isinstance(obs, ObsGalileoSSI):
-        return _FrameIdentity(
-            ck_frame_id=_GALILEO_CK_FRAME_ID,
-            sclk_id=_ck_object_sclk_id(_GALILEO_CK_FRAME_ID),
-            frozen_oops_attitude=False,
-        )
-    if isinstance(obs, ObsNewHorizonsLORRI):
-        return _FrameIdentity(
-            ck_frame_id=_LORRI_CK_FRAME_ID,
-            sclk_id=_ck_object_sclk_id(_LORRI_CK_FRAME_ID),
-            frozen_oops_attitude=False,
-        )
-    if isinstance(obs, ObsVoyagerISS):
-        digit = obs.spacecraft_digit
-        # One instrument key serves two spacecraft, so the CK object is the one
-        # recorded for this spacecraft; its clock then follows from the object
-        # rather than from the same digit, so a wrong pairing is refused
-        # instead of producing a self-consistent wrong one.  The host validates
-        # the digit when it reads the label, so a key error here would mean
-        # that stopped being true.
-        ck_frame_id = VOYAGER_CK_OBJECT_ID[digit]
-        return _FrameIdentity(
-            ck_frame_id=ck_frame_id,
-            sclk_id=_ck_object_sclk_id(ck_frame_id),
-            frozen_oops_attitude=True,
-        )
-    return None
+    ck_object_id = getattr(obs, 'ck_object_id', None)
+    if ck_object_id is None:
+        return None
+    return _FrameIdentity(
+        ck_frame_id=int(ck_object_id),
+        sclk_id=int(obs.ck_sclk_id),
+        frozen_oops_attitude=bool(obs.spice_frame_is_frozen),
+    )
 
 
 def _spice_attitude(obs: ObsSnapshotInst, et: float) -> NDArrayFloatType:
@@ -979,7 +911,7 @@ def _sclk_id(identity: _FrameIdentity, camera_frame: str) -> int:
     wrong for any reason therefore yields a plausible clock id, and every
     clock string built from it encodes the wrong spacecraft's time while
     ``sce2s`` reports success.  The resolved id is checked against the one the
-    mission actually uses before any clock string is built.
+    host names before any clock string is built.
 
     Parameters:
         identity: The instrument's frame facts, carrying both the CK object
@@ -1005,11 +937,11 @@ def _sclk_id(identity: _FrameIdentity, camera_frame: str) -> int:
             f'{identity.sclk_id} the {camera_frame} camera is tagged against; every '
             f'clock string built from it would encode the wrong spacecraft'
         )
-    # The recorded id is returned, not the one ``ckmeta`` computed, even though
+    # The host's id is returned, not the one ``ckmeta`` computed, even though
     # the check above has just proved them equal.  ``ckmeta`` answers for
     # objects that do not exist, so it is a cross-check here and never the
     # source: if this check is ever weakened, the clock strings still come from
-    # the recorded table rather than from whatever ``ckmeta`` returned.
+    # the host rather than from whatever ``ckmeta`` returned.
     return identity.sclk_id
 
 

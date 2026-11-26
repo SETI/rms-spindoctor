@@ -1,15 +1,16 @@
+from collections.abc import Mapping
 from fractions import Fraction
 from typing import Any, cast
 
+import host_voyager
 import numpy as np
-from filecache import FCPath
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
-from spindoctor.support.sclk import exposure_counts, fractional_count, pds3_label_clock_counts
+from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
-from spindoctor.support.types import PathLike
+from spindoctor.support.types import NDArrayAnyType, NDArrayFloatType, PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, host_input
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
@@ -64,67 +65,32 @@ def _published_sclk(start: str | None, stop: str | None) -> dict[str, float | No
     )
 
 
-# The Voyager 1 SEDR/PDS3 calibration pipeline always computed I/F as if the
-# image had been taken at Jupiter's heliocentric distance, so V1 @ Saturn
-# images come out too dim by (~9.54 / 5.20)**2.  Multiply by this factor to
-# recover Saturn-correct I/F.  V1 only visited Jupiter and Saturn, and V2 was
-# calibrated correctly at each of its encounters, so this is the only case.
-_V1_SATURN_IF_CORRECTION = 3.345
+def _if_data(data: NDArrayAnyType, subfields: Mapping[str, Any]) -> NDArrayFloatType:
+    """Return a calibrated Voyager image's data in units of I/F.
 
-# The I/F scaling factor lives in the GEOMED VICAR LABEL3 string as a
-# trailing numeric value after this fixed phrase.
-_IF_LABEL3_PHRASE = 'FOR (I/F)*10000., MULTIPLY DN VALUE BY'
-
-
-def _voyager_spacecraft_digit(lab02: Any) -> str:
-    """Extract and validate the Voyager spacecraft digit from a LAB02 record.
-
-    The Voyager VICAR ``LAB02`` record is a fixed-format string whose 5th
-    character (index 4) is the spacecraft digit, ``'1'`` for Voyager 1 or
-    ``'2'`` for Voyager 2.
+    The host gives the factor that converts the data to I/F as the ``if_scale``
+    subfield: the PDS3 label's REFLECTANCE_SCALING_FACTOR when the label is read, and
+    otherwise the factor the VICAR header states, with the documented Voyager 1
+    corrections already applied.
 
     Parameters:
-        lab02: The raw ``LAB02`` value from the image label.
+        data: The image's data, as the host read it.
+        subfields: The host's subfields of the image.
 
     Returns:
-        The spacecraft digit, either ``'1'`` or ``'2'``.
+        The data in units of I/F.
 
     Raises:
-        ValueError: If ``lab02`` is not a string of length at least 5, or
-            its 5th character is not ``'1'`` or ``'2'``.
+        ValueError: If the host gives no ``if_scale``, because no file it read states an
+            I/F factor.
     """
-
-    if not isinstance(lab02, str) or len(lab02) < 5:
-        raise ValueError(f'Unexpected Voyager LAB02 format: {lab02!r}')
-    digit = lab02[4]
-    if digit not in ('1', '2'):
+    if 'if_scale' not in subfields:
         raise ValueError(
-            f'Unexpected Voyager spacecraft id in LAB02[4]: {digit!r} (expected 1 or 2)'
+            'no label of the image gives an I/F factor; Voyager ISS images are navigated '
+            'from calibrated GEOMED products'
         )
-    return digit
-
-
-def _voyager_if_factor(label3: Any) -> float:
-    """Parse the I/F scaling factor from a Voyager GEOMED LABEL3 string.
-
-    Parameters:
-        label3: The raw ``LABEL3`` value from the image label.
-
-    Returns:
-        The numeric I/F scaling factor.
-
-    Raises:
-        ValueError: If ``label3`` is not a string, does not contain the
-            expected fixed phrase, or its numeric remainder cannot be parsed.
-    """
-
-    if not isinstance(label3, str) or _IF_LABEL3_PHRASE not in label3:
-        raise ValueError(f'Unexpected Voyager LABEL3 format: {label3!r}')
-    remainder = label3.replace(_IF_LABEL3_PHRASE, '').strip()
-    try:
-        return float(remainder)
-    except ValueError:
-        raise ValueError(f'Unexpected Voyager LABEL3 format: {label3!r}') from None
+    if_data: NDArrayFloatType = data * subfields['if_scale']
+    return if_data
 
 
 class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
@@ -140,13 +106,13 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
     """The camera, ``'NAC'`` or ``'WAC'``."""
 
     filter: str
-    """The filter, as the label names it."""
+    """The filter, as the PDS3 label names it; absent when no label gives it."""
 
     planet: str
-    """The planet of the encounter the image was taken in."""
+    """The planet of the encounter the image was taken in, such as ``'SATURN'``."""
 
-    _label_clock_counts: tuple[str | None, str | None]
-    """The start and stop clock counts of the PDS3 label beside the image."""
+    spacecraft: int
+    """Which Voyager took the image: 1 or 2."""
 
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
@@ -155,58 +121,59 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         *,
         config: Config | None = None,
         extfov_margin_vu: tuple[int, int] | None = None,
+        label: PathLike | None = None,
         **_kwargs: Any,
     ) -> 'ObsVoyagerISS':
         """Creates an ObsVoyagerISS from a Voyager ISS image file.
+
+        The host reads the image's PDS3 label together with the image file (see
+        :func:`~spindoctor.obs.obs_snapshot_inst.host_input`), and the data are converted
+        to I/F.
 
         Parameters:
             path: Path to the Voyager ISS image file.
             config: Configuration object to use. If None, uses the default configuration.
             extfov_margin_vu: Optional tuple that overrides the extended field of view margins
                 found in the config.
+            label: The image's PDS3 label, if known; otherwise the label beside the image.
             **_kwargs: Additional keyword arguments (none for this instrument).
 
         Returns:
             An ObsVoyagerISS object containing the image data and metadata.
-        """
 
-        import oops.hosts.voyager.iss
+        Raises:
+            OSError, RuntimeError: If the SPICE kernels lack data the image needs, such as
+                its pointing, which cspyce reports when the observation is first used.
+            oops.host.HostError: If the host cannot read the image or its label.
+            ValueError: If no label of the image gives an I/F factor.
+        """
 
         config = config or DEFAULT_CONFIG
         logger = IMAGE_LOGGER
 
         logger.debug(f'Reading Voyager ISS image {path}')
-        # The host module publishes no type information for from_file.
-        obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
-        fc_path = FCPath(path)
+        obs = host_voyager.VoyagerISS.from_file(host_input(path, label=label))
 
         inst_config = config.category('voyager_iss')
 
-        factor = _voyager_if_factor(obs.dict.get('LABEL3', None))
-        obs.data = obs.data * factor / 10000
-
-        spacecraft = _voyager_spacecraft_digit(obs.dict.get('LAB02', None))
-        if spacecraft == '1' and obs.planet.upper() == 'SATURN':
-            obs.data = obs.data * _V1_SATURN_IF_CORRECTION
-            logger.debug(
-                f'  Applied Voyager 1 @ Saturn I/F correction: {_V1_SATURN_IF_CORRECTION:.4f}x'
-            )
-        # TODO Calibrate once oops.hosts is fixed.
+        data = _if_data(obs.subfields['data'], obs.subfields)
+        obs.insert_subfield('data', data)
+        logger.debug(
+            f'  Voyager {obs.subfields["spacecraft"]} at {obs.subfields["planet"]}, '
+            f'I/F factor {obs.subfields["if_scale"]}'
+        )
 
         if extfov_margin_vu is None:
             if isinstance(inst_config.extfov_margin_vu, dict):
-                extfov_margin_vu = inst_config.extfov_margin_vu[obs.data.shape[0]]
+                extfov_margin_vu = inst_config.extfov_margin_vu[data.shape[0]]
             else:
                 extfov_margin_vu = inst_config.extfov_margin_vu
-        logger.debug(f'  Data shape: {obs.data.shape}')
+        logger.debug(f'  Data shape: {data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
-        logger.debug(f'  Data min: {np.min(obs.data)}, max: {np.max(obs.data)}')
+        logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsVoyagerISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
         new_obs._inst_config = inst_config
-        # The spacecraft clock counts are in the PDS3 label, which the VICAR label the
-        # observation keeps does not carry.
-        new_obs._label_clock_counts = pds3_label_clock_counts(fc_path)
         return new_obs
 
     def star_min_usable_vmag(self) -> float:
@@ -266,25 +233,22 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
     def spacecraft_digit(self) -> str:
         """Which Voyager took this observation.
 
-        Read from the VICAR ``LAB02`` record, whose 5th character is the
-        spacecraft digit.  SPICE frame, kernel and clock identifiers are all
-        keyed per spacecraft, so consumers that must name one derive it here.
+        The host's ``spacecraft`` subfield, which every image has.  SPICE frame, kernel
+        and clock identifiers are all keyed per spacecraft, so consumers that must name
+        one derive it here.
 
         Returns:
             ``'1'`` for Voyager 1 or ``'2'`` for Voyager 2.
-
-        Raises:
-            ValueError: If ``LAB02`` is missing, too short, or names neither
-                spacecraft.
         """
-        return _voyager_spacecraft_digit(self.dict.get('LAB02', None))
+        return str(self.spacecraft)
 
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Voyager ISS.
 
-        The spacecraft clock counts are those of the PDS3 label beside the image, read
-        when the image was loaded, in the clock's leading units; each is None when the
-        label carries none, and the midtime count is always None.
+        The spacecraft clock counts are the host's ``spacecraft_clock_start_count`` and
+        ``spacecraft_clock_stop_count``, in the clock's leading units.  Each is None when
+        no label gives it, and the midtime count is always None.  The filters are the
+        host's ``filter``, or none when no label gives it.
 
         Returns:
             A dictionary containing the public metadata for Voyager ISS.
@@ -315,9 +279,12 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
             'start_time_et': self.time[0],
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
-            **_published_sclk(*self._label_clock_counts),
+            **_published_sclk(
+                self.subfields.get('spacecraft_clock_start_count'),
+                self.subfields.get('spacecraft_clock_stop_count'),
+            ),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,
-            'filters': [self.filter],
+            'filters': [self.subfields['filter']] if 'filter' in self.subfields else [],
         }

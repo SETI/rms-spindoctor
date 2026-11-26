@@ -13,6 +13,6 @@ def test_an_image_reached_through_a_renamed_link_is_named_for_the_link(tmp_path:
     link.symlink_to(target)
     obs = object.__new__(ObsSnapshot)
     obs.image_url = link.absolute().as_posix()
-    obs.abspath = link.resolve()
+    obs.image_abspath = link.resolve()
 
     assert obs.image_name == 'renamed_GEOMED.IMG'

@@ -31,24 +31,31 @@ agreement study, and a technique that answers confidently wrong corrupts the
 agreement statistic itself, so either the family closes before the study
 collects or the study leaves out every frame such a technique contributed to.
 
-### #949 — 2,812 Cassini frames timed one exposure late (Priority 2, upstream)
+### #949 — 427 Cassini cruise frames timed one exposure late (Priority 2, upstream)
 
-Cassini ISS frames are read through rms-host-cassini 0.1.1 (since #952),
-which starts each exposure at the label's `START_TIME`. On 2,812 of 443,177
-COISS frames that time equals `IMAGE_TIME`, the shutter-close time, so the
-frame's geometry is computed one whole exposure late (1200 s late for
-N1459611003_1): 2,385 frames with the shutter disabled, across COISS_1xxx
-and about 70 tour volumes, and 427 with it enabled, all on COISS_1001. The
-rms-oops 0.3.0 reader ended every exposure at `IMAGE_TIME` and timed them
-right. None of the 75 library frames is affected, so no test shows it.
+Cassini ISS frames are read through rms-host-cassini (0.1.1 since #952; the
+branch of SETI/rms-host-cassini#44 until it is released). Release 0.1.1 starts
+each exposure at the label's `START_TIME`. On 427 COISS_1001 frames (1999
+cruise) taken with the shutter enabled, that time equals `IMAGE_TIME`, the
+shutter-close time, so the frame's geometry is computed one whole exposure late
+(46 s late for W1294561143_1). The issue first counted 2,812 frames; the other
+2,385 have the shutter disabled, and their labels define `START_TIME`,
+`STOP_TIME`, and `IMAGE_TIME` as all equal to the start of the exposure window,
+so 0.1.1 already times them correctly. They are dark frames that record no
+scene. The rms-oops 0.3.0 reader ended every exposure at `IMAGE_TIME`, which was
+right for the 427 frames and wrong for the 2,385. None of the 75 library frames
+is affected, so no test shows it.
 
-The fix is upstream: SETI/rms-host-cassini#3, open. Until a fixed release
-ships, every navigation of those frames is at the wrong time, which matters
-for any full Cassini run. When it ships: raise the floor in
-`pyproject.toml`, confirm that N1459611003_1 and a COISS_1001 frame such as
-W1294561143_1 end at `IMAGE_TIME`, and re-navigate any of these frames
-navigated in the meantime. Their documents also fail the C-matrix reader's
-midtime check against documents written before the move.
+The fix is upstream: SETI/rms-host-cassini#3, open, fixed by the rule of
+SETI/rms-host-cassini#5, which the rebuilt host of SETI/rms-host-cassini#44
+carries (checked 2026-11-25: W1294561143_1 ends at `IMAGE_TIME`, a 46 s
+exposure, from its label and from its image file). Until a fixed release
+ships, every navigation of the 427 frames with 0.1.1 is at the wrong time. When
+it ships: raise the floor in `pyproject.toml`, confirm that W1294561143_1 ends
+at `IMAGE_TIME` and that N1459611003_1 (shutter disabled) still starts at
+`START_TIME`, and re-navigate any of the 427 frames navigated in the meantime.
+Their documents also fail the C-matrix reader's midtime check against documents
+written before the move.
 
 The rotation work sits outside that ordering and has its own sequence: one
 convention about the image center first (#434), then wider distortion cohorts

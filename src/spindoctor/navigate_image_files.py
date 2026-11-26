@@ -40,6 +40,7 @@ from typing import Any, cast
 
 import pdslogger
 from filecache import FCPath
+from oops.host import HostError
 from PIL import Image
 
 from spindoctor.config import (
@@ -87,6 +88,16 @@ _SPICE_DATA_HINTS = (
     'SPICE(SPKINSUFFDATA)',
     'SPICE(NOFRAMECONNECT)',
 )
+
+_IMAGE_LOAD_ERRORS = (OSError, RuntimeError, HostError)
+"""What loading an image raises when the image or the SPICE data it needs cannot be read.
+
+cspyce raises an OSError or a RuntimeError for the SPICE errors that mean the kernels
+lack data, such as a camera frame with no pointing, when the observation is first used,
+which is while it is built.  A host raises :class:`~oops.host.HostError` for a file it
+cannot read or use.  Anything else that loading raises is a defect, which the driver's
+catch-all records as an internal error.
+"""
 
 
 def _iso8601_utc(moment: datetime) -> str:
@@ -300,8 +311,10 @@ def navigate_image_files(
             ):
                 log_run_environment(logger, sys.argv[1:])
                 try:
-                    snapshot = obs_class.from_file(image_url, **extra_params)
-                except (OSError, RuntimeError) as exc:
+                    snapshot = obs_class.from_file(
+                        image_url, label=image_file.label_file_url, **extra_params
+                    )
+                except _IMAGE_LOAD_ERRORS as exc:
                     metadata = _metadata_for_load_error(
                         image_url,
                         image_name,

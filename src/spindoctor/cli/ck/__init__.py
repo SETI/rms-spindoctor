@@ -9,12 +9,10 @@ offset by hand.
 The package consumes the recorded C-matrix and performs no offset-to-rotation
 conversion of its own.  It writes kernels through ``cspyce``.
 
-The one table it shares with the attitude computation -- which spacecraft clock
-each CK object's time tags are encoded against -- lives in
-``spindoctor.spice_ids``, a constants module importing only the standard
-library.  That table is the check against ``ckmeta`` computing a clock id
-rather than validating one, so a second copy of it here would be a silent way
-for the check to rot on one side while it kept passing on the other.
+The table of which spacecraft clock each CK object's time tags are encoded
+against lives in ``spindoctor.spice_ids``, a constants module importing only the
+standard library.  That table is the check against ``ckmeta`` computing a clock
+id rather than validating one.
 
 This package is part of the ``spindoctor.cli`` tree, which holds the command
 line programs and the helpers only they use; the importable library API is the

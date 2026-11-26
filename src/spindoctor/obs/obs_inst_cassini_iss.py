@@ -1,18 +1,20 @@
 import re
 from collections.abc import Mapping
+from datetime import date, datetime
 from fractions import Fraction
 from typing import Any, cast
 
 import host_cassini
 import numpy as np
 from filecache import FCPath
+from oops.host import is_pds3_null
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.support.sclk import exposure_counts, fractional_count
 from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import NDArrayAnyType, PathLike
 
-from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+from .obs_snapshot_inst import HostLabel, ObsSnapshotInst, host_input
 
 # SCLK01_MODULI_82 and SCLK01_OFFSETS_82 of the Cassini spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/Cassini/SCLK/cas00172.tsc: whole seconds, then 1/256-second ticks.
@@ -108,20 +110,34 @@ The names are the dictionary's rather than the label's so that one navigation do
 says the same thing whether it was built from a PDS3 volume or from a PDS4 source
 bundle, and whether the image file was raw or calibrated.
 
-A keyword filling several attributes is split by position, which is the only
-transformation made: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``, ``INST_CMPRS_PARAM``,
-``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM`` state their values in
-the label's own order, and each is published as the label states it.  A label stating
-one value for such a keyword fills the first of its attributes and leaves the rest None
-(see :func:`_element`).  Everything else keeps the label's own form: a number stays a
-number, text stays text, and a time stays the label's own text.
+The values are read from the host's ``dict``, which merges the PDS3 label and the VICAR
+header under the PDS3 names, except the two raw-product keywords of
+``_RAW_PRODUCT_KEYWORDS``, which are read from the header.  The host gives each value the
+type the label parser gives it, and the two that a metadata document cannot hold are
+written as text and a list (see :func:`_document_value`).  A keyword filling several
+attributes is then split by position: ``EXPECTED_MAXIMUM``, ``FILTER_NAME``,
+``INST_CMPRS_PARAM``, ``INST_CMPRS_RATE``, ``OPTICS_TEMPERATURE`` and ``VALID_MAXIMUM``
+give their values in the label's own order, and each is published as the host gives it.
+A keyword given as one value fills the first of its attributes and leaves the rest None
+(see :func:`_element`).  Everything else keeps the form the host gives: a number stays a
+number and text stays text.
 
 ``pre-pds_version_number`` is stated by no keyword, which is what its ``None`` keyword
 records; the image's file name states it instead (see :func:`_version_number`).  Every
-other attribute is a keyword the archive's PDS3 labels state, and the label inside a
-calibrated image carries all of them for a tour-era image.  An earlier image's label may
-carry fewer, and an attribute whose keyword such a label does not state is published as
-None, so that the published set is the same for every image.
+other attribute is a keyword the archive's PDS3 labels state.  The host leaves out a
+value that no label gives, or that a label writes as a placeholder for a missing value,
+such as ``N/A``, or ``-999`` for a temperature.  Such an attribute is published as None,
+so that the published set is the same for every image.
+"""
+
+_RAW_PRODUCT_KEYWORDS = frozenset({'DESCRIPTION', 'PRODUCT_CREATION_TIME'})
+"""The keywords whose attributes describe the raw image product, read from its header.
+
+The data dictionary's ``limitations`` and ``pds3_product_creation_time`` are the raw
+product's.  The VICAR header of a calibrated image keeps the raw product's values, while
+its PDS3 label gives the calibrated product's own: the calibration's history and the
+date it ran, such as 2019-06-09.  The host's merged ``dict`` takes the label's, so these
+two are read from ``header_dict``, which the host keeps verbatim.
 """
 
 _IMAGE_NAME_VERSION = re.compile(r'^[NW]\d{10}_(\d+)(?:_|\.|$)', re.IGNORECASE)
@@ -154,33 +170,72 @@ def _element(value: Any, index: int) -> Any:
     A keyword stating several values fills the attribute at each position from the value
     written there.  A keyword stating a single value fills the first attribute with it
     and leaves the later ones None, because one value is a reading the label has and the
-    later positions are readings it does not: a label stating ``OPTICS_TEMPERATURE`` as
-    one number states a front optics temperature and no rear one, which is what the
-    two-value form says as well when the rear reading is the ``-999.0`` of a camera with
-    no rear sensor.
+    later positions are readings it does not: ``OPTICS_TEMPERATURE`` given as one number
+    is a front optics temperature and no rear one, which is what the two-value form says
+    as well when its rear reading is missing, as for a camera with no rear sensor.
 
     Parameters:
-        value: What the label states for the keyword, or None when it states nothing.
+        value: What the host gives for the keyword, or None when it gives nothing.
         index: Which position to take, counting from zero.
 
     Returns:
-        The value at that position, as the label states it, or None when the label
-        states nothing reaching it.
+        The value at that position, as the host gives it, or None when nothing reaches
+        that position.
     """
     if not isinstance(value, list | tuple):
         return value if index == 0 else None
     return value[index] if index < len(value) else None
 
 
-def _label_metadata(label: Mapping[str, Any], image_name: str) -> dict[str, Any]:
+def _document_value(label: Mapping[str, Any], keyword: str) -> Any:
+    """Return a keyword's value from the host's metadata in a form a document can hold.
+
+    The host gives each value the type the label parser gives it.  Two kinds of value
+    have no form in a metadata document, and the parser keeps a written form of each
+    beside the value.  A time, whether a :class:`~datetime.datetime` or a
+    :class:`~datetime.date`, is written as the parser's PDS3 form of it, which the parser
+    keeps under the keyword with ``_fmt`` appended.  A set is written as a list in the
+    label's order, which the parser keeps under the keyword with ``_list`` appended.  A
+    time or a set that the host took from the VICAR header has neither, because the label
+    parser did not read the header.  Then a time is written as the header writes it,
+    ``YYYY-DDDTHH:MM:SS.sss``, but without the final ``Z``; a date is written as
+    ``YYYY-DDD``; and a set is written as a sorted list.  Every other value is returned as
+    it is.
+
+    Parameters:
+        label: The image's metadata, the host's ``dict``.
+        keyword: The keyword to read.
+
+    Returns:
+        The value, or None when the metadata does not give the keyword.
+    """
+    value = label.get(keyword, None)
+    if isinstance(value, datetime):
+        return label.get(
+            f'{keyword}_fmt', f'{value:%Y-%jT%H:%M:%S}.{value.microsecond // 1000:03d}'
+        )
+    if isinstance(value, date):
+        return label.get(f'{keyword}_fmt', f'{value:%Y-%j}')
+    if isinstance(value, set | frozenset):
+        return label.get(f'{keyword}_list', sorted(value))
+    return value
+
+
+def _label_metadata(
+    label: Mapping[str, Any], image_name: str, *, header: Mapping[str, Any] | None = None
+) -> dict[str, Any]:
     """Return the dictionary attributes an image states, under their own names.
 
     Every attribute ``_LABEL_METADATA`` names is published, so the block has the same
-    shape for every image; one whose keyword the label does not state is None.
+    keys for every image; one whose keyword the metadata lacks is None.  The keywords of
+    ``_RAW_PRODUCT_KEYWORDS`` are read from the VICAR header when it gives them (see
+    there), and every other keyword from the merged metadata.
 
     Parameters:
-        label: The image's VICAR label items.
+        label: The image's metadata, the host's ``dict``.
         image_name: Basename of the image file, which states the version number.
+        header: The image's VICAR header, the host's ``header_dict``, or None when the
+            host did not read it.
 
     Returns:
         The value of each attribute, keyed by that attribute behind
@@ -190,10 +245,13 @@ def _label_metadata(label: Mapping[str, Any], image_name: str) -> dict[str, Any]
     for attribute, keyword, element in _LABEL_METADATA:
         if keyword is None:
             value = _version_number(image_name)
+        elif keyword in _RAW_PRODUCT_KEYWORDS and header is not None and keyword in header:
+            # header_dict is verbatim, so it keeps the placeholders the host leaves out.
+            value = None if is_pds3_null(header[keyword]) else header[keyword]
         elif element is None:
-            value = label.get(keyword, None)
+            value = _document_value(label, keyword)
         else:
-            value = _element(label.get(keyword, None), element)
+            value = _element(_document_value(label, keyword), element)
         metadata[f'{_METADATA_PREFIX}{attribute}'] = value
     return metadata
 
@@ -254,13 +312,16 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
     """The camera, ``'NAC'`` or ``'WAC'``."""
 
     filter1: str
-    """The filter in the first filter wheel, as the label names it."""
+    """The filter in the first filter wheel, as the label names it.
+
+    Absent, like ``filter2``, unless the labels give both filters.
+    """
 
     filter2: str
     """The filter in the second filter wheel, as the label names it."""
 
-    gain_mode: int | None
-    """The gain state, 0 to 3 for 215, 95, 29 and 12 electrons per DN, or None if unknown."""
+    gain_mode: int
+    """The gain state, 0 to 3 for 215, 95, 29 and 12 electrons per DN; absent if unknown."""
 
     @staticmethod
     @logged_section('obs', 'LOAD IMAGE')
@@ -269,15 +330,20 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         *,
         config: Config | None = None,
         extfov_margin_vu: tuple[int, int] | None = None,
+        label: PathLike | None = None,
         **kwargs: Any,
     ) -> 'ObsCassiniISS':
         """Creates an ObsCassiniISS from a Cassini ISS image file.
+
+        The host reads the image's PDS3 label together with the image file (see
+        :func:`~spindoctor.obs.obs_snapshot_inst.host_input`).
 
         Parameters:
             path: Path to the Cassini ISS image file.
             config: Configuration object to use. If None, uses the default configuration.
             extfov_margin_vu: Optional tuple that overrides the extended field of view margins
                 found in the config.
+            label: The image's PDS3 label, if known; otherwise the label beside the image.
             **kwargs: Additional keyword arguments:
 
                 - fast_distortion: Whether to use a fast distortion model.
@@ -287,6 +353,12 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
 
         Returns:
             An ObsCassiniISS object containing the image data and metadata.
+
+        Raises:
+            OSError, RuntimeError: If the SPICE kernels lack data the image needs, such as
+                its pointing, which cspyce reports when the observation is first used.
+            oops.host.HostError: If the host cannot read the image or its label.
+            ValueError: If the configuration has no section for the image's camera.
         """
 
         config = config or DEFAULT_CONFIG
@@ -299,7 +371,9 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         logger.debug(f'  Fast distortion: {fast_distortion}')
         logger.debug(f'  Return all planets: {return_all_planets}')
         obs = host_cassini.CassiniISS.from_file(
-            path, fast_distortion=fast_distortion, return_all_planets=return_all_planets
+            host_input(path, label=label),
+            fast_distortion=fast_distortion,
+            return_all_planets=return_all_planets,
         )
         # The host inserts the camera and the image as subfields, which the Snapshot it
         # returns does not declare.
@@ -395,8 +469,7 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         consumer correcting that attitude can honor only one of them.
 
         Returns:
-            The ``SHUTTER_MODE_ID`` label value, or None when the label
-            carries none or carries a null.
+            The ``SHUTTER_MODE_ID`` label value, or None when no label gives one.
 
         Raises:
             ValueError: if the label value is not text.  ``str()`` would
@@ -406,8 +479,6 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         if 'SHUTTER_MODE_ID' not in self.dict:
             return None
         value = self.dict['SHUTTER_MODE_ID']
-        if value is None:
-            return None
         if not isinstance(value, str):
             raise ValueError(f'SHUTTER_MODE_ID is not text: {value!r}')
         return value
@@ -415,15 +486,17 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
     def get_public_metadata(self) -> dict[str, Any]:
         """Returns the public metadata for Cassini ISS.
 
-        The spacecraft clock counts are the label's start and stop counts, in seconds of
-        the clock with the ticks as a fraction, and their exact mean; each is None when
-        the label carries no counts.
+        The spacecraft clock counts are the host's ``spacecraft_clock_start_count`` and
+        ``spacecraft_clock_stop_count``, in seconds of the clock with the ticks as a
+        fraction, and their exact mean; each is None when no label gives the counts.  The
+        filters are the host's ``filter1`` and ``filter2``, or none when the labels do not
+        give both.
 
-        ``label_metadata`` holds what the image itself states about the exposure, under
+        ``label_metadata`` holds what the image's labels state about the exposure, under
         the names the Cassini data dictionary gives those quantities, so that the block
         reads the same whether the document was built from a PDS3 volume or a PDS4
-        source bundle.  Every attribute is present on every image, and one the image
-        does not state is None.  ``_LABEL_METADATA`` lists them.
+        source bundle.  Every attribute is present on every image, and one the labels
+        do not state is None.  ``_LABEL_METADATA`` lists them.
 
         Returns:
             A dictionary containing the public metadata for Cassini ISS.
@@ -452,12 +525,18 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
             'midtime_et': self.midtime,
             'end_time_et': self.time[1],
             **_published_sclk(
-                self.dict.get('SPACECRAFT_CLOCK_START_COUNT', None),
-                self.dict.get('SPACECRAFT_CLOCK_STOP_COUNT', None),
+                self.subfields.get('spacecraft_clock_start_count'),
+                self.subfields.get('spacecraft_clock_stop_count'),
             ),
             'image_shape_xy': self.data_shape_uv,
             'camera': self.camera,
             'exposure_time': self.texp,
-            'filters': [self.filter1, self.filter2],
-            'label_metadata': _label_metadata(self.dict, image_name),
+            'filters': (
+                [self.subfields['filter1'], self.subfields['filter2']]
+                if 'filter1' in self.subfields
+                else []
+            ),
+            'label_metadata': _label_metadata(
+                self.dict, image_name, header=self.subfields.get('header_dict')
+            ),
         }

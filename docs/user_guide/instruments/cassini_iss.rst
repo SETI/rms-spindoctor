@@ -246,41 +246,49 @@ a Cassini ISS record carries:
   computed from the exposure times and can differ from these counts by a
   fraction of a second.
 * ``filters`` -- two entries, the two filter wheels, in that order, for
-  example ``["CL1", "CL2"]``.
+  example ``["CL1", "CL2"]``, or no entries when the labels do not give both.
 * ``label_metadata`` -- everything the image itself states about the exposure,
   in the table below.
 
-The ``label_metadata`` values come from the label stored inside the calibrated
-image file, which is the label the navigation reads. The keys are the
+The ``label_metadata`` values come from the image's two labels: the detached
+PDS3 label beside the calibrated image file, and the label stored inside that
+file. Where the two give the same value, it is recorded once. Where they
+differ, the value comes from the PDS3 label, except for the mission phase and
+the exposure method description, which come from the label inside the file, and
+the description and the product creation time, which describe the raw image
+product and also come from the label inside the file. The keys are the
 attributes of the Cassini data dictionary's ISS specific attributes, each
 behind a ``cassini:`` prefix.
 Those names are used rather than the label's own so that a record says the same
 thing whether it was built from a PDS3 volume or from a PDS4 Cassini source
 bundle, and whether the image file read was raw or calibrated.
 
-Each value is the label's own, in the label's own form:
+Each value is in the PDS3 label's form:
 
-* A number stays a number and text stays text. The label writes its numbers
-  to six or seven significant digits, so the detached PDS3 label file beside
-  the image can show more digits of the same value.
-* A time is the label's own text: UTC, with the day of the year, ending in
-  ``Z``, for example ``2007-312T21:41:14.946Z``. The product creation time is
-  the exception, as its row says.
+* A number stays a number and text stays text. The PDS3 label writes most
+  numbers to six decimal places, for example ``-89.243546``.
+* A time is UTC with the day of the year, for example
+  ``2007-312T21:41:14.946``. The product creation time is the exception, as
+  its row says.
+* ``cassini:image_number`` is text, as the PDS3 label quotes it, and
+  ``cassini:image_observation_type`` is a list, for example ``["SCIENCE"]``.
 * Where one label keyword fills several attributes, each value is recorded
   under the attribute that matches its position, in the label's own order. The
   four compression parameters and the two optics temperatures are read this
   way, among others. A label that states a single value for such a keyword
   fills the first of its attributes, and the rest are null.
-* A value the label writes as ``N/A``, ``UNK``, ``--``, or ``-999.0`` is
-  recorded as written. What it means depends on the attribute, and the
-  attribute's row says so wherever the label writes one.
+* A value that a label writes as a placeholder for a missing value is recorded
+  as null. The placeholders are text such as ``N/A`` and ``UNK``, and
+  ``-999.0`` in a temperature, a data rate, or a compression ratio. What a null
+  means depends on the attribute, and the attribute's row says so where it
+  matters.
 
 Every attribute below is present on every record, so the block carries the same
-keys for every image. An attribute the image does not state is null. The label
-inside a calibrated image states all of them for a tour image; an earlier image
-may state fewer, and each one it does not state is null. An earlier label may
-also carry items of its own, some of them the same quantities under different
-names, and those are not recorded.
+keys for every image. An attribute that neither label states is null. The labels
+of a tour image state all of them; the labels of an earlier image may state
+fewer, and each one they do not state is null. An earlier label may also carry
+items of its own, some of them the same quantities under different names, and
+those are not recorded.
 
 ``cassini:pre-pds_version_number`` is the one value no label keyword states. It
 is taken from the image's file name, the segment after the image number, which
@@ -314,7 +322,8 @@ mode reads the image size.
        ``end_time_sclk`` is the same count in seconds of the clock.
      - none
    * - ``cassini:limitations``
-     - The label's free text about the image; ``N/A`` when it carries none.
+     - The raw image product's free text about the image, from the label
+       inside the file; null when it carries none.
      - none
    * - ``cassini:antiblooming_state_flag``
      - Whether antiblooming was on: ``ON`` or ``OFF``.
@@ -324,7 +333,7 @@ mode reads the image size.
        last.
      - DN
    * - ``cassini:calibration_lamp_state_flag``
-     - Whether the calibration lamp was on: ``ON`` or ``OFF``, or ``N/A`` for
+     - Whether the calibration lamp was on: ``ON`` or ``OFF``, or null for
        the narrow angle camera, which has no lamp.
      - none
    * - ``cassini:command_file_name``
@@ -347,8 +356,7 @@ mode reads the image size.
        camera read out: ``YES`` or ``NO``.
      - none
    * - ``cassini:detector_temperature``
-     - The temperature of the detector; ``-999.0`` when the label has no
-       reading.
+     - The temperature of the detector; null when the label has no reading.
      - degrees C
    * - ``cassini:electronics_bias``
      - The commanded electronics bias, which keeps every DN above zero.
@@ -384,7 +392,7 @@ mode reads the image size.
        ``filters``.
      - none
    * - ``cassini:filter_temperature``
-     - The temperature of the filter wheels; ``-999.0`` when the label has no
+     - The temperature of the filter wheels; null when the label has no
        reading.
      - degrees C
    * - ``cassini:flight_software_version_id``
@@ -401,19 +409,19 @@ mode reads the image size.
      - The middle of the exposure.
      - UTC
    * - ``cassini:image_number``
-     - The image number: the whole seconds of the spacecraft clock at shutter
-       close, the number in the image's name.
+     - The image number, as text: the whole seconds of the spacecraft clock
+       at shutter close, the number in the image's name.
      - none
    * - ``cassini:image_time``
      - Shutter close; the same as ``cassini:stop_time_doy``.
      - UTC
    * - ``cassini:image_observation_type``
-     - The purposes of the image, for example ``SCIENCE``: text for one
-       purpose, an array of text for several.
+     - The purposes of the image, as an array of text, for example
+       ``["SCIENCE"]``.
      - none
    * - ``cassini:instrument_data_rate``
-     - The rate at which data left the camera; ``-999.0`` when the label has
-       no value.
+     - The rate at which data left the camera; null when the label has no
+       value.
      - kilobits per second
    * - ``cassini:instrument_mode_id``
      - The on-chip summing mode: ``FULL``, ``SUM2``, or ``SUM4``. The recorded
@@ -424,44 +432,44 @@ mode reads the image size.
        compressed).
      - none
    * - ``cassini:inst_cmprs_param_malgo``
-     - The lossy compression algorithm; ``N/A`` when the image was not lossy
+     - The lossy compression algorithm; null when the image was not lossy
        compressed or its parameters were not recorded.
      - none
    * - ``cassini:inst_cmprs_param_tb``
-     - The lossy compression block type; ``N/A`` on the same images.
+     - The lossy compression block type; null on the same images.
      - none
    * - ``cassini:inst_cmprs_param_blocks``
-     - The lossy compression blocks per group; ``N/A`` on the same images.
+     - The lossy compression blocks per group; null on the same images.
      - none
    * - ``cassini:inst_cmprs_param_quant``
-     - The lossy compression quantization factor; ``N/A`` on the same images.
+     - The lossy compression quantization factor; null on the same images.
      - none
    * - ``cassini:inst_cmprs_rate_expected_bits``
      - The average number of bits per pixel expected after compression.
      - bits per pixel
    * - ``cassini:inst_cmprs_rate_actual_bits``
-     - The average number of bits per pixel received; ``-999.0`` when the
-       label has no value, as on some lossy compressed images, most of them
-       images that were only partly received.
+     - The average number of bits per pixel received; null when the label
+       has no value, as on some lossy compressed images, most of them images
+       that were only partly received.
      - bits per pixel
    * - ``cassini:inst_cmprs_ratio``
-     - The expected image size over the size received; ``N/A`` for an image
-       that was not compressed, and ``-999.0`` when the label has no value, as
-       on some lossy compressed images, most of them images that were only
-       partly received.
+     - The expected image size over the size received; null for an image
+       that was not compressed, and when the label has no value, as on some
+       lossy compressed images, most of them images that were only partly
+       received.
      - none
    * - ``cassini:light_flood_state_flag``
      - Whether the detector was light flooded just before the image: ``ON``
        or ``OFF``.
      - none
    * - ``cassini:method_description``
-     - The information or algorithm used to choose the exposure; ``N/A`` when
+     - The information or algorithm used to choose the exposure; null when
        none was given.
      - none
    * - ``cassini:missing_lines``
      - The number of missing or incomplete image lines, which is counted only
-       for an image that was not lossy compressed: a lossy compressed image
-       has ``N/A``, or on a few images ``UNK``.
+       for an image that was not lossy compressed: it is null for a lossy
+       compressed image.
      - lines
    * - ``cassini:missing_packet_flag``
      - Whether telemetry packets the image needed were missing: ``YES`` or
@@ -475,11 +483,10 @@ mode reads the image size.
        temperature rather than two states this one.
      - degrees C
    * - ``cassini:optics_temperature_back``
-     - The temperature of the rear optics; ``-999.0`` for the wide angle
-       camera, which has no rear optics sensor, and for an image whose
-       extended header was missing. Null where the label states one optics
-       temperature rather than two, which says the same thing as ``-999.0``:
-       the label carries no rear reading.
+     - The temperature of the rear optics; null for the wide angle camera,
+       which has no rear optics sensor, for an image whose extended header
+       was missing, and where the label states one optics temperature rather
+       than two.
      - degrees C
    * - ``cassini:order_number``
      - The image's identifier within its instrument operations file.
@@ -488,9 +495,9 @@ mode reads the image size.
      - The commanded parallel clock voltage index.
      - none
    * - ``cassini:pds3_product_creation_time``
-     - When the raw image product was built on the ground. The archive states
-       this time in Pacific local time, not UTC, although some labels end it
-       with ``Z``.
+     - When the raw image product was built on the ground, as the label
+       inside the file states it. The archive states this time in Pacific
+       local time, not UTC, although some labels end it with ``Z``.
      - Pacific local time
    * - ``cassini:pds3_product_version_type``
      - The product's version type; ``FINAL`` for every archived product.
@@ -499,11 +506,11 @@ mode reads the image size.
      - The intended target the exposure was chosen for.
      - none
    * - ``cassini:pds3_target_list``
-     - The bodies in view, which the label always writes as ``N/A``.
+     - Always null: the labels never state the bodies in view.
      - none
    * - ``cassini:pds3_target_name``
      - The target named when the observation was planned, which is often not
-       what the image shows; ``UNK`` when it is unknown.
+       what the image shows; null when it is unknown.
      - none
    * - ``cassini:pre-pds_version_number``
      - The internal version of the image that was archived. No label keyword
@@ -520,8 +527,8 @@ mode reads the image size.
        bits.
      - packets
    * - ``cassini:sensor_head_electronics_temperature``
-     - The temperature of the sensor head electronics; ``-999.0`` when the
-       label has no reading.
+     - The temperature of the sensor head electronics; null when the label
+       has no reading.
      - degrees C
    * - ``cassini:sequence_id``
      - The spacecraft sequence the image belongs to, for example ``S35``.
@@ -549,7 +556,7 @@ mode reads the image size.
      - Shutter close.
      - UTC
    * - ``cassini:telemetry_format_id``
-     - The telemetry mode, for example ``S&ER3``; ``UNK`` when it is unknown.
+     - The telemetry mode, for example ``S&ER3``; null when it is unknown.
      - none
    * - ``cassini:valid_maximum_full_well``
      - The minimum full-well saturation level, which may exceed 4095.

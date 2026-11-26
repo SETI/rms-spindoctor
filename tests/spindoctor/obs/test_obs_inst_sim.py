@@ -91,7 +91,7 @@ def test_in_memory_scene_creates_nothing_beside_the_process(
     monkeypatch.chdir(tmp_path)
     obs = ObsSim.from_file('sim://in_memory', sim_params=_body_scene())
     assert list(tmp_path.iterdir()) == []
-    assert obs.abspath.name == 'in_memory'
+    assert obs.image_abspath.name == 'in_memory'
 
 
 def test_scene_file_supplies_the_sim_params(tmp_path: Path) -> None:
