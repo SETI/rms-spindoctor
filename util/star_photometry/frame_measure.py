@@ -232,9 +232,13 @@ def measure_frame(
     to_phot = _identity_map if phot_map is None else phot_map
     current_limit = float(obs.star_max_usable_vmag())
     deep_limit = current_limit + params.catalog_depth_mag
-    # reduce_catalogs caps its query at the observation's limit; raise it for this frame.
+    # reduce_catalogs caps its query at the observation's limit; raise it for the query only.
+    navigator_limit = obs.star_max_usable_vmag
     obs.star_max_usable_vmag = lambda: deep_limit  # type: ignore[method-assign]
-    stars = reduce_catalogs(obs, config)
+    try:
+        stars = reduce_catalogs(obs, config)
+    finally:
+        obs.star_max_usable_vmag = navigator_limit  # type: ignore[method-assign]
     record: dict[str, Any] = {
         'frame': asdict(frame),
         'current_limit': current_limit,
