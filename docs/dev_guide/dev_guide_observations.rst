@@ -361,27 +361,76 @@ per-instrument key consumed by :class:`~spindoctor.dataset.dataset.DataSet`.
 Shipping subclasses:
 
 - :class:`~spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS` — Cassini ISS
-  NAC and WAC. Delegates to ``host_cassini.CassiniISS.from_file``, from the
-  ``rms-host-cassini`` package.
+  NAC and WAC, read by ``host_cassini.CassiniISS`` from the ``rms-host-cassini``
+  package.
 - :class:`~spindoctor.obs.obs_inst_voyager_iss.ObsVoyagerISS` — Voyager 1 / 2
-  ISS NA and WA cameras. Delegates to ``host_voyager.VoyagerISS.from_file``, from
-  the ``rms-host-voyager`` package.
-- :class:`~spindoctor.obs.obs_inst_galileo_ssi.ObsGalileoSSI` — Galileo SSI
-  (uses ``full_fov=True`` to read the full sensor regardless of the
-  on-chip ROI). Delegates to ``host_galileo.GalileoSSI.from_file``, from the
-  ``rms-host-galileo`` package.
+  ISS NA and WA cameras, read by ``host_voyager.VoyagerISS`` from the
+  ``rms-host-voyager`` package.
+- :class:`~spindoctor.obs.obs_inst_galileo_ssi.ObsGalileoSSI` — Galileo SSI,
+  read by ``host_galileo.GalileoSSI`` from the ``rms-host-galileo`` package
+  with ``full_fov=True``, which keeps the full sensor regardless of the on-chip
+  window.
 - :class:`~spindoctor.obs.obs_inst_newhorizons_lorri.ObsNewHorizonsLORRI` —
-  New Horizons LORRI. Delegates to
-  ``host_new_horizons.NewHorizonsLORRI.from_file``, from the
+  New Horizons LORRI, read by ``host_new_horizons.NewHorizonsLORRI`` from the
   ``rms-host-new-horizons`` package.
 - :class:`~spindoctor.obs.obs_inst_sim.ObsSim` — simulated-image observation
   backed by a validated YAML scene (bodies, rings, stars); renders the frame with
   the simulator's renderer and exposes the navigator the filtered idealized scene view
   ``obs.nav_params`` (see :doc:`dev_guide_simulator`).
 
-Each subclass overrides :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` to pull the right
-``oops`` host, wires up the per-instrument PSF and photometric window, and forwards
+Each real-camera subclass overrides :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` to
+call its host, wires up the per-instrument PSF and photometric window, and forwards
 per-image metadata into :meth:`~spindoctor.obs.obs_inst.ObsInst.get_public_metadata`.
+
+Reading an image through its host
+---------------------------------
+
+Each real camera is read by a host package, one per mission, whose class method
+``from_file`` returns an ``oops`` ``Snapshot``. The hosts behave alike:
+
+- **What is read.** Given an image file, a host reads that file alone. Given the PDS3
+  label, it reads the label and the image file beside it, and merges the metadata of
+  the two under the PDS3 names. The data are the same either way. Some values come
+  only from the PDS3 label, such as a clock count that the image file does not record,
+  so every reader passes the label when there is one.
+  :func:`~spindoctor.obs.obs_snapshot_inst.host_input` makes that choice. Every
+  reader's ``from_file`` takes the label as its ``label`` argument, and the programs
+  that load an image from a dataset pass the label URL the dataset already holds
+  (``ImageFile.label_file_url``), which is then the file read. A caller that gives no
+  label gets the file beside the image with the image's name and the suffix ``.LBL``
+  (``.lbl`` when the image's own suffix is lower case), and the image file alone only
+  when that file does not exist. A label that cannot be retrieved for another reason,
+  such as a web server that does not answer, raises ``OSError``, and the image is
+  recorded as ``image_read_error``: reading the image alone would publish less than
+  the label gives without saying so.
+- **Where values are.** A reader takes what it needs from the host's documented
+  subfields by name, such as ``detector``, ``filter``, and the clock counts
+  ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count``, which every
+  host spells as the PDS3 label does, and the C-kernel object, its clock, and whether
+  the camera frame is frozen (``ck_object_id``, ``ck_sclk_id``, and
+  ``spice_frame_is_frozen``). Everything else is in ``dict``, the merged metadata, with
+  the types the label parser gives. The two raw sources stay in ``label_dict`` and
+  ``header_dict``.
+- **Missing values.** A host leaves out a value that no label gives, or that a label
+  gives as a placeholder such as ``UNK`` or ``N/A``: there is no subfield and no
+  ``dict`` key, and never None. A reader therefore tests for the key, and publishes
+  None, or an empty list, in its place. A list some of whose elements are missing is
+  given as each host's documentation says: a host may make each missing element None,
+  or keep the list as the label gives it, placeholders included. A reader that
+  publishes such a list follows its host's rule and never publishes a placeholder as a
+  value.
+- **Errors.** No host checks the pointing when it reads an image. Where the SPICE
+  kernels lack what the image needs, such as its pointing, ``cspyce`` raises its error,
+  with the SPICE code, when the observation is first used, which is while the reader
+  builds it. A host raises a subclass of ``oops.host.HostError`` when it cannot read or
+  use a file, and ``OSError`` when the file cannot be found or retrieved.
+  :func:`~spindoctor.navigate_image_files.navigate_image_files` records an error
+  carrying ``CKINSUFFDATA``, ``SPKINSUFFDATA``, or ``NOFRAMECONNECT`` as
+  ``missing_spice_data``, and any other ``HostError`` or ``OSError`` as
+  ``image_read_error``.
+
+Each host documents its subfields, its merge rules, and its errors in its own
+documentation, a user guide or the API reference.
 
 Simulated-image instrument config: inherit / override / self-specify
 --------------------------------------------------------------------
@@ -433,9 +482,9 @@ The end-to-end checklist lives at
    ``src/spindoctor/obs/obs_inst_<mission>_<inst>.py``, and set
    :attr:`~spindoctor.obs.obs_inst.ObsInst.model_source` to ``'spice'`` in the
    class body.
-2. Implement :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` (delegate to the mission's
-   host package, such as ``rms-host-cassini``, and give it
-   ``host_input(path, label=label)`` so that it reads the PDS3 label with the image),
+2. Implement :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file` (pass
+   ``host_input(path, label=label)`` to the mission's host package, as
+   `Reading an image through its host`_ describes),
    :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf`,
    :meth:`~spindoctor.obs.obs_inst.ObsInst.star_min_usable_vmag`,
    :meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag`, and

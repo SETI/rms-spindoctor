@@ -26,7 +26,7 @@ Code map
    * - Log key
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
-   * - oops host module
+   * - Host
      - ``host_voyager.VoyagerISS``, from the ``rms-host-voyager`` package
 
 One instrument key serves two spacecraft and four cameras. Everything that has
@@ -69,7 +69,7 @@ margin lookup rather than loading with a wrong margin.
 Label and index dependencies
 ============================
 
-**Label fields read.**
+**Host subfields read.**
 
 * ``if_scale`` -- the I/F scaling factor. Missing stops the load.
 * ``spacecraft`` -- the integer ``1`` or ``2``, which the host gives for every

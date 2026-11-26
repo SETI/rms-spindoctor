@@ -32,7 +32,7 @@ Code map
    * - Log key
      - ``other.obs`` governs the image-scoped ``LOAD IMAGE`` section; there is
        no per-instrument logging key
-   * - oops host module
+   * - Host
      - ``host_cassini.CassiniISS``, from the ``rms-host-cassini`` package
 
 Loading the image
@@ -66,7 +66,7 @@ is taken from it. Beyond the host call ``from_file`` does three things:
 Label and index dependencies
 ============================
 
-**Label fields read.**
+**Host values read.**
 
 * The ``spacecraft_clock_start_count`` and ``spacecraft_clock_stop_count``
   subfields, read in
