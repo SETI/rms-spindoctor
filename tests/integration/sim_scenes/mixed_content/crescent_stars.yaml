@@ -43,7 +43,7 @@ bodies:
     semi_c_px: 60.0
     illumination_angle: 250.0
     phase_angle: 135.0
-    normal_albedo: 0.085
+    normal_albedo: 0.233
     range_km: 700000.0
 stars:
   - {name: S01, v: 61.3, u: 88.7, vmag: 8.91}

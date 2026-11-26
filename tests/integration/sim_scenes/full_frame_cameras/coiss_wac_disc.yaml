@@ -33,7 +33,7 @@ bodies:
     semi_c_px: 64.0
     illumination_angle: 300.0
     phase_angle: 50.0
-    normal_albedo: 0.499
+    normal_albedo: 0.553
 offset_v: 6.83
 offset_u: -11.29
 offset_rotation_deg: -0.0115

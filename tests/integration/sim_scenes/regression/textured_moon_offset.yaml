@@ -30,7 +30,7 @@ bodies:
     semi_c_px: 70.0
     illumination_angle: 20.0
     phase_angle: 35.0
-    normal_albedo: 0.455
+    normal_albedo: 0.498
     albedo_texture:
       rms: 0.25
       corr_px: 12.0
