@@ -187,8 +187,9 @@ al. (2020), 2.04 by 2.70 px, are sigmas of 0.87 by 1.15. Binned it is 0.45 px, f
 the 5 to 10 s frames a navigation run sees; sub-second star calibrations give 0.28,
 since pointing jitter widens a long exposure. The camera block's own
 ``star_psf_sigma`` holds the unbinned value for the simulator, which reads it there
-in unbinned pixels. ``star_psf_sizes`` is a single ``100: [7, 7]``, so every star
-gets a 7x7 cutout regardless of magnitude. The simulator's kernel for this
+in unbinned pixels and takes a quarter of it, 0.225 px, on a simulated binned frame, so
+the simulator and the navigator agree only on unbinned frames. ``star_psf_sizes`` is a
+single ``100: [7, 7]``, so every star gets a 7x7 cutout regardless of magnitude. The simulator's kernel for this
 instrument is elliptical; the two are separate parameters serving separate purposes.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'1'`` -- the single panchromatic

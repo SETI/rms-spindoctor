@@ -9,7 +9,9 @@ newhorizons_lorri:
     1024: [60, 60]
   # The simulator's copy of the star width, in the pixels of an unbinned frame: the
   # navigator reads its own from newhorizons_lorri_star_photometry below, per binning
-  # mode, and this value matches its unbinned one.
+  # mode, and this value matches its unbinned one.  On a simulated 4X4 frame the
+  # simulator takes a quarter of this width, 0.225 px, while the navigator uses 0.45 px
+  # on a real 4X4 frame, so the two match only at full resolution.
   star_psf_sigma: 0.9
   # Fraction of the offset window, per axis, inside which
   # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
