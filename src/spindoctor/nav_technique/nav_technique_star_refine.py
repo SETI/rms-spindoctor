@@ -68,6 +68,14 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 __all__ = ['StarRefineNav']
 
+_MISSING_FILL_QUANTILE = 0.25
+"""The quantile of a star's present pixels that its missing pixels are set to.
+
+On sky it sits about two thirds of a noise sigma below the median, under the background
+the centroid subtracts, so a filled pixel adds no weight to the centroid.  It is close
+enough to the sky to leave that background and the matched filter almost unchanged.
+"""
+
 
 def _trace_inverse_variance(feature: NavFeature) -> float:
     """Return the inverse-trace of a feature's position covariance.
@@ -357,9 +365,9 @@ class StarRefineNav(NavTechnique):
         """Per-star centroid residuals around the shifted predictions.
 
         Missing pixels (``missing_mask_ext``) hold 0.0, which is not a measurement.  Where
-        any lie within reach of a star's detection, they are read as the median of the
-        other pixels there, so they add no light to the centroid and do not pull the
-        background level down to zero (:meth:`_star_image`).  A star whose detection
+        any lie within reach of a star's detection, they are read as sky a little darker
+        than the pixels around them, so they add no light to the centroid and do not pull
+        the background level down to zero (:meth:`_star_image`).  A star whose detection
         then loses too much of its light to them is dropped (:meth:`_missing_shift_px`).
         """
         inliers: list[NavFeature] = []
@@ -443,8 +451,9 @@ class StarRefineNav(NavTechnique):
         ``2 * centroid_box_half_px`` pixels beyond it on each side (the matched filter's
         reach and the centroid box's).  When none of those pixels is missing the image is
         returned as it is.  Otherwise ``filled``, a copy of the image, is returned with
-        the missing pixels there set to the median of the others, so they read as the
-        local background.
+        the missing pixels there set to the ``_MISSING_FILL_QUANTILE`` quantile of the
+        others, so they read as sky a little below the background the centroid
+        subtracts.
 
         Parameters:
             image_ext: The extfov image.
@@ -470,7 +479,7 @@ class StarRefineNav(NavTechnique):
         present = image_ext[v_lo:v_hi, u_lo:u_hi][~lost]
         if present.size == 0:
             return None
-        filled[v_lo:v_hi, u_lo:u_hi][lost] = float(np.median(present))
+        filled[v_lo:v_hi, u_lo:u_hi][lost] = float(np.quantile(present, _MISSING_FILL_QUANTILE))
         return filled
 
     def _missing_shift_px(
@@ -490,13 +499,20 @@ class StarRefineNav(NavTechnique):
         the star's width, smear, or saturation.  The shift is that of
         :func:`missing_light_shift_px`.
 
+        The mirror cannot see light the star's core lost.  When the core falls on missing
+        pixels, the centroid of what is left moves away from them, and the mirror of a
+        missing pixel through that centroid lands on the star's faint flank.  So when a
+        missing pixel touches the brightest present pixel of the box, edge or corner, the
+        core may be missing and the shift is ``math.inf``.
+
         Parameters:
             det: ``(v, u)`` measured centroid.
             image_ext: The extfov image.
             missing_mask_ext: ``True`` where a pixel is missing.
 
         Returns:
-            The shift in pixels; ``math.inf`` when every pixel of the box is missing.
+            The shift in pixels; ``math.inf`` when every pixel of the box is missing or a
+            missing pixel touches the brightest present one.
         """
         half = self.tuning.centroid_box_half_px
         center_v = math.floor(det[0] + 0.5)
@@ -513,6 +529,12 @@ class StarRefineNav(NavTechnique):
         if not present.any():
             return math.inf
         box = np.asarray(image_ext[rows, cols], np.float64)
+        box_peak = np.unravel_index(int(np.argmax(np.where(present, box, -np.inf))), box.shape)
+        peak_v, peak_u = int(vs[box_peak[0]]), int(us[box_peak[1]])
+        if missing_mask_ext[
+            max(0, peak_v - 1) : min(h, peak_v + 2), max(0, peak_u - 1) : min(w, peak_u + 2)
+        ].any():
+            return math.inf
         light = np.where(present, np.clip(box - float(np.median(box[present])), 0.0, None), 0.0)
         # Each pixel's mirror through the centroid, in box coordinates; the light there is
         # interpolated between the box's present pixels.

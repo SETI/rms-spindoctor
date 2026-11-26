@@ -361,7 +361,7 @@ def _refine_with_lost_lines(
     """
     image = np.full((220, 220), 100.0, dtype=np.float64)
     for center in _LOST_LINES_STARS:
-        draw_gaussian_star(image, center, peak_dn=200.0, sigma=1.2)
+        draw_gaussian_star(image, center, peak_dn=200.0, sigma=0.6)
     missing = np.zeros(image.shape, dtype=bool)
     missing[lost_rows, :] = True
     image[missing] = 0.0
@@ -383,7 +383,11 @@ def test_star_refine_drops_a_star_that_lost_half_its_lines(
     make_star_feature: NavFeatureFactory,
     draw_gaussian_star: DrawGaussianStarFactory,
 ) -> None:
-    """A star whose lower half is lost is dropped, not centroided on its upper half."""
+    """A narrow star whose lower half is lost is dropped, not centroided on its upper half.
+
+    Its centroid moves up, away from the lost lines, where the light mirrored through it
+    from the lost half is faint; the lost lines touching its brightest pixel drop it.
+    """
     result = _refine_with_lost_lines(
         make_nav_context, make_star_feature, draw_gaussian_star, range(60, 67)
     )

@@ -60,8 +60,10 @@ what is left moves away from them.
 
 The technique handles the two in turn. Before a star is detected, any missing pixel within
 reach of the detection (the refinement window and ``2 * centroid_box_half_px`` pixels
-beyond it) is set to the median of the other pixels there. The missing pixels then read as
-sky: they add no light to the centroid and leave the box's median where the sky is.
+beyond it) is set to the 25th percentile of the other pixels there. On sky that is about
+two thirds of a noise sigma below the median. The missing pixels then read as sky just
+under the background the centroid subtracts: they add no light to the centroid and leave
+the box's median close to the sky.
 
 After the star is centroided, the technique estimates how much its centroid moved. It
 models the star from its own light: the light above the median in the centroid box around
@@ -69,9 +71,13 @@ the centroid, with each missing pixel given the light at its mirror image throug
 centroid. A star is close to symmetric about its center, so the model holds about the
 light the missing pixels lost, whatever the star's width, smear, or saturation. The
 technique then measures how far leaving the missing pixels out moves the model's centroid,
-and drops a star whose model moves more than ``max_missing_shift_px``. Lost lines that
-cross one side of a star's core drop it. Lines that only clip the far edge of its box take
-too little light to matter, and the star stays.
+and drops a star whose model moves more than ``max_missing_shift_px``. Lines that only clip
+the far edge of its box take too little light to matter, and the star stays.
+
+The mirror cannot see light that the star's core lost. When lost lines cover the core, the
+centroid of what is left moves away from them, and the mirror of a lost pixel through that
+centroid lands on the star's faint flank. So a star is also dropped when a missing pixel
+touches the brightest present pixel of its box, at an edge or a corner.
 
 Translation-only fit
 --------------------
