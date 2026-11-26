@@ -21,7 +21,8 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    fewer than ``MIN_STARS_PER_BIN`` fitting stars gets no term: its stars are left out, it
    takes the calibration document's value (``--calibration-offsets``,
    ``--calibration-gain-ratios``), and it is reported as not measured
-   (:mod:`util.star_photometry.star_zero_point`).
+   (:mod:`util.star_photometry.star_zero_point`).  Its stars are left out of steps 3 and 4
+   as well, since their predicted DN rests on no measured term.
 3. **Detection limit.**  Every clean star of the fitting frames gets a predicted DN from the
    fit; a detection-probability model (a floor, a plateau and a normal-integral rise in log
    DN) fitted to the stars' detections gives the DN at which detection is ``COMPLETENESS`` of
@@ -217,6 +218,8 @@ class FitResult:
         filters_not_measured: Filters with too few stars for a term, whose offset is the
             calibration document's (in ``filter_offsets``, with no uncertainty).
         gains_not_measured: The same for gain states and ``gain_ratio``.
+        n_limit_stars_unmeasured: Clean stars left out of the detection limit and the
+            held-out check because their filter or gain state is not measured.
         zp_scatter_mag: Robust scatter of the zero-point residuals.
         n_zp_stars: Stars in the zero-point fit.
         color_slope: Slope of the zero-point residual against B - V (mag per mag).
@@ -255,6 +258,7 @@ class FitResult:
     gain_counts: dict[str, int] = field(default_factory=dict)
     filters_not_measured: list[str] = field(default_factory=list)
     gains_not_measured: list[str] = field(default_factory=list)
+    n_limit_stars_unmeasured: int = 0
     zp_scatter_mag: float = float('nan')
     n_zp_stars: int = 0
     color_slope: float = float('nan')
@@ -401,16 +405,44 @@ def fit_camera(
     )
     for row in rows:
         row['pred_dn'] = _predict_dn(result, row)
-    limit_rows = [
-        r
-        for r in rows
-        if r['texp'] >= min_texp and r['target'] not in limit_exclude_targets and _clean(r)
-    ]
+    limit_rows = _measured_terms(
+        result,
+        [
+            r
+            for r in rows
+            if r['texp'] >= min_texp and r['target'] not in limit_exclude_targets and _clean(r)
+        ],
+    )
     _fit_detection_limit(result, [r for r in limit_rows if not r['held_out']])
     result.holdout = _holdout_check(result, [r for r in limit_rows if r['held_out']])
     result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
     result.psf = psf_summary(rows)
     return result
+
+
+def _measured_terms(result: FitResult, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Return the rows whose filter and gain state the zero point measured.
+
+    A star through a filter or gain state the stars could not pin down is predicted with the
+    calibration document's value, which nothing anchors, so it is left out of the detection
+    limit and the held-out check, as it is left out of the zero point.  The count left out is
+    stored in ``result.n_limit_stars_unmeasured``.
+
+    Parameters:
+        result: The camera's fit, updated in place.
+        rows: Candidate rows.
+
+    Returns:
+        The rows kept.
+    """
+    kept = [
+        r
+        for r in rows
+        if r['filter'] not in result.filters_not_measured
+        and r['gain'] not in result.gains_not_measured
+    ]
+    result.n_limit_stars_unmeasured = len(rows) - len(kept)
+    return kept
 
 
 def _predict_dn(result: FitResult, row: dict[str, Any]) -> float:

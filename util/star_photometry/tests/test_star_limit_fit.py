@@ -8,7 +8,12 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy.special
-from util.star_photometry.star_limit_fit import FitResult, _fit_detection_limit, fit_camera
+from util.star_photometry.star_limit_fit import (
+    FitResult,
+    _fit_detection_limit,
+    _measured_terms,
+    fit_camera,
+)
 from util.star_photometry.star_zero_point import fit_zero_point
 
 # The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, and gain term.
@@ -110,6 +115,18 @@ def test_zero_point_fixes_a_filter_with_too_few_stars() -> None:
     result = _fit(rows)
     assert result.filter_offsets['RED'] == 2.5
     assert result.filters_not_measured == ['RED']
+
+
+def test_detection_limit_leaves_out_unmeasured_terms() -> None:
+    """A star through a filter or gain state the zero point did not measure is left out."""
+    result = FitResult(camera='TEST', filters_not_measured=['RED'], gains_not_measured=['40K'])
+    rows = [
+        {'filter': 'CLEAR', 'gain': '10K'},
+        {'filter': 'RED', 'gain': '10K'},
+        {'filter': 'CLEAR', 'gain': '40K'},
+    ]
+    assert _measured_terms(result, rows) == [{'filter': 'CLEAR', 'gain': '10K'}]
+    assert result.n_limit_stars_unmeasured == 2
 
 
 def _limit_row(pred_dn: float, detected: bool, k: int) -> dict[str, Any]:
