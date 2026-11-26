@@ -202,8 +202,9 @@ An instrument also needs, in the same change:
    ``src/spindoctor/config_files/config_4N0_inst_*.yaml``, carrying the
    instrument's units, saturation ceiling, missing-pixel marker, image-quality
    thresholds, extended-FOV margins, PSF parameters, rotation-fitting flag, and
-   lone-star ellipse fraction (``one_star_ellipse_fraction``, which loading the
-   configuration requires of every camera).
+   lone-star ellipse fraction (``one_star_ellipse_fraction``). Every camera's block has
+   the same keys and parses into the one camera type, so no new type is written; see
+   :ref:`config-camera-blocks`.
 2. **A SPICE frame identity** in ``_frame_identity``
    (:mod:`spindoctor.support.cmatrix`) and a clock row in
    :data:`~spindoctor.spice_ids.CK_OBJECT_SCLK_ID`, without which no image of

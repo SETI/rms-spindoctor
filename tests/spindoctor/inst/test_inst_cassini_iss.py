@@ -20,6 +20,7 @@ from tests.spindoctor.inst.conftest import (
 from tests.spindoctor.public_metadata_cassini_iss import CASSINI_ISS_PUBLIC_METADATA
 
 import spindoctor.obs.obs_inst_cassini_iss as obstcoiss
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.obs.obs_inst_cassini_iss import (
     _LABEL_METADATA,
     ObsCassiniISS,
@@ -411,18 +412,7 @@ def test_cassini_iss_calib_filename_selects_calib_inst_config() -> None:
     CALIB image as ``blank`` (max I/F < 1.0 against the 5.0 DN floor).
     """
     obs = obstcoiss.ObsCassiniISS.from_file(URL_CASSINI_ISS_RHEA_01)
-    assert obs.inst_config is not None
-    assert obs.inst_config['data_units'] == 'calibrated_if'
-    # Calibrated_if blocks expose the I/F-keyed thresholds, not DN-keyed
-    # ones.  Saturation is intentionally NOT keyed in I/F (Phase 10 §F):
-    # calibration is exposure-/filter-/gain-dependent, so a single I/F
-    # threshold cannot identify physically saturated pixels.  The
-    # orchestrator leaves the per-pixel saturation mask empty for
-    # calibrated_if input.
-    iqt = obs.inst_config['image_quality_thresholds']
-    assert 'saturation_threshold_if' not in iqt
-    assert 'blank_max_if' in iqt
-    assert 'noisy_threshold_if' in iqt
+    assert obs.inst_config == DEFAULT_CONFIG.camera_block('cassini_iss_calib', 'wac')
 
 
 @REQUIRES_EXTERNAL_DATA

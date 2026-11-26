@@ -45,6 +45,7 @@ newhorizons_lorri:
     noisy_threshold_dn: 10.0       # PLACEHOLDER — calibrate in Phase 10
     max_missing_frac_clean: 0.30
     max_overexposed_frac_clean: 0.80
+    partial_dropout_min_frac: 0.05
   source_image_filter:
     kind: BANDPASS_DOG
     lo_sigma_px: 5.0
@@ -71,6 +72,7 @@ newhorizons_lorri:
       noisy_threshold_dn: 'PLACEHOLDER — calibrate in Phase 10 against the per-image MAD distribution from clean LORRI exposures.'
       max_missing_frac_clean: 'Project-wide default; revisit in Phase 10 once the LORRI sensor-mask population is measured.'
       max_overexposed_frac_clean: 'Project-wide default.'
+      partial_dropout_min_frac: 'Project-wide default.'
     mag_offset:
       fallback_combo: 'NHLORRI uses a single panchromatic filter slot, encoded as ``1``.'
       mag_offset_table: 'PLACEHOLDER — calibrate in Phase 10 against catalog-vs-instrument SNR on the planted-offset library.'

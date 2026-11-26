@@ -19,6 +19,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from spindoctor.config.sections_camera import CameraBlock, as_camera_block
 from spindoctor.schema import (
     Issue,
     KeyPath,
@@ -45,6 +46,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         OrchestratorSection,
         TypedSections,
     )
+    from spindoctor.config.sections_body_shape import BodyShapeEntry
     from spindoctor.config.sections_models import (
         BodiesSection,
         FeatureEmissionSection,
@@ -63,12 +65,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
 """The directory of the packaged configuration files, merged in filename order."""
 
-_CAMERA_MARKER_KEY = 'data_units'
-"""Key every camera block of the instrument configuration declares."""
-
-_ONE_STAR_ELLIPSE_KEY = 'one_star_ellipse_fraction'
-"""Camera key: the fraction of the offset window inside which a lone star is believed."""
-
 _PACKAGED_LABEL = 'the packaged configuration'
 """The source a message gives for a packaged value when no file is recorded for it."""
 
@@ -76,18 +72,21 @@ _MERGED_LABEL = 'the merged configuration'
 """The label of the configuration as it stands when an override is merged over it."""
 
 
-def _typed_sections_type() -> type[TypedSections]:
+def _typed_sections_type(config_dict: Mapping[str, Any]) -> type[TypedSections]:
     """Return the type the typed sections of a configuration are parsed into.
 
     The section types import modules that import this package, so the import waits
     until a configuration is installed, by which time this package has loaded.
+
+    Parameters:
+        config_dict: The merged configuration.
 
     Returns:
         The type :func:`~spindoctor.config.sections.typed_sections_type` returns.
     """
     from spindoctor.config.sections import typed_sections_type
 
-    return typed_sections_type()
+    return typed_sections_type(config_dict)
 
 
 def _configure_techniques(sections: TypedSections) -> None:
@@ -123,7 +122,7 @@ def _parse_typed_sections(
         SchemaError: Listing every problem in the typed sections, each line in the
             form ``file: key.path: message``.
     """
-    sections_type = _typed_sections_type()
+    sections_type = _typed_sections_type(config_dict)
     keys = {item.name for item in dataclasses.fields(sections_type)}
     raw = {key: value for key, value in config_dict.items() if key in keys}
     kept = {path: label for path, label in origins.items() if path[0] in keys}
@@ -206,31 +205,6 @@ def _stringify_keys(value: Any) -> Any:
     return value
 
 
-def _camera_blocks(config_dict: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
-    """Return every camera block of a configuration with its dotted path.
-
-    A camera block is a mapping that declares ``data_units``: a top-level section for a
-    single camera, or a mapping one level inside a section that holds several cameras.
-
-    Parameters:
-        config_dict: The merged configuration.
-
-    Returns:
-        ``(path, block)`` for each camera block, in the configuration's order.
-    """
-    blocks: list[tuple[str, dict[str, Any]]] = []
-    for name, section in config_dict.items():
-        if not isinstance(section, dict):
-            continue
-        if _CAMERA_MARKER_KEY in section:
-            blocks.append((str(name), section))
-            continue
-        for camera, block in section.items():
-            if isinstance(block, dict) and _CAMERA_MARKER_KEY in block:
-                blocks.append((f'{name}.{camera}', block))
-    return blocks
-
-
 class Config:
     """Manages configuration settings for the navigation system.
 
@@ -246,7 +220,6 @@ class Config:
         self._override_paths: list[str] = []
         self._sections: TypedSections | None = None
         self._typed_origins: dict[KeyPath, str] = {}
-        self._config_body_shape: dict[str, Any] = AttrDict({})
 
     @property
     def is_loaded(self) -> bool:
@@ -273,7 +246,6 @@ class Config:
         # category() rebuilds them from the fresh dict (mirrors the named
         # section properties below being reassigned here).
         self._category_cache = {}
-        self._config_body_shape = AttrDict(self._config_dict.get('body_shape', {}))
 
     def _install(
         self,
@@ -283,7 +255,7 @@ class Config:
         origins: Mapping[KeyPath, str],
         source: str,
     ) -> None:
-        """Parse and validate a merged configuration, and keep it only if it passes.
+        """Parse a merged configuration, and keep it only if it passes.
 
         A refused candidate leaves the configuration, its typed sections, and
         :attr:`override_paths` as they were.
@@ -298,10 +270,8 @@ class Config:
 
         Raises:
             SchemaError: If a typed section breaks its schema.
-            ValueError: If the candidate fails :meth:`_validate`.
         """
         sections, typed_origins = _parse_typed_sections(candidate, origins, source=source)
-        self._validate(candidate)
         self._config_dict = candidate
         self._override_paths = override_paths
         self._sections = sections
@@ -324,8 +294,6 @@ class Config:
             SchemaError: If a file is not a YAML mapping, or holds a null, or if a
                 typed section breaks its schema, as with a technique block that names
                 a diagnostic attribute its technique does not declare.
-            ValueError: If a camera block sets no ``one_star_ellipse_fraction`` within
-                ``(0, 1]``.  Validation runs once per ``read_config`` invocation.
         """
 
         if not reread and self._config_dict:
@@ -335,51 +303,11 @@ class Config:
         merged = merge(layers, nulls=NullPolicy.REFUSE)
         self._install(merged.data, [], origins=merged.origins, source=_PACKAGED_LABEL)
 
-    @staticmethod
-    def _validate(config_dict: dict[str, Any]) -> None:
-        """Apply every load-time check to a merged configuration.
-
-        Both paths that load a configuration (:meth:`read_config` and
-        :meth:`update_config`) call this one method, so neither can skip a check the
-        other applies.
-
-        Parameters:
-            config_dict: The merged configuration.
-        """
-        Config._validate_camera_blocks(config_dict)
-
-    @staticmethod
-    def _validate_camera_blocks(config_dict: dict[str, Any]) -> None:
-        """Require every camera block to set a lone-star ellipse fraction in ``(0, 1]``.
-
-        ``one_star_ellipse_fraction`` is a property of the camera, so no technique-level
-        value stands in for a camera that sets none.  A fraction of 0 would admit every
-        lone star's offset and one above 1 would reach past the offset window, so a
-        fraction outside ``(0, 1]`` is refused when the configuration is loaded.
-
-        Parameters:
-            config_dict: The merged configuration.
-
-        Raises:
-            ValueError: If a camera block sets no fraction, or one that is not a number
-                within ``(0, 1]``; the message names the block and the key.
-        """
-        for path, block in _camera_blocks(config_dict):
-            if _ONE_STAR_ELLIPSE_KEY not in block:
-                raise ValueError(f'{path} sets no {_ONE_STAR_ELLIPSE_KEY}')
-            value = block[_ONE_STAR_ELLIPSE_KEY]
-            is_number = isinstance(value, int | float) and not isinstance(value, bool)
-            # The chained comparison is False for NaN, so a NaN is refused with the rest.
-            if not is_number or not 0.0 < float(value) <= 1.0:
-                raise ValueError(
-                    f'{path}.{_ONE_STAR_ELLIPSE_KEY} must lie in (0, 1]; got {value!r}'
-                )
-
     def update_config(self, config_path: str | Path) -> None:
         """Merge a user override file over the configuration.
 
         The packaged files are read first if they have not been.  The merged
-        configuration is then parsed and validated again, and each shipped technique is
+        configuration is then parsed again, and each shipped technique is
         assigned the confidence formula and tuning it sets, so per-technique overrides
         take effect.  A refused override, whatever the reason, leaves the
         configuration, the techniques' settings, and :attr:`override_paths` as they
@@ -396,8 +324,6 @@ class Config:
                 result breaks its schema, as with an unknown key or a value of the
                 wrong type or out of range; each line of the message gives the file
                 that set the value and the key path.
-            ValueError: If the merged configuration fails the validation
-                :meth:`read_config` applies.
         """
 
         self.read_config()
@@ -536,6 +462,32 @@ class Config:
 
         return list(self._typed_sections().satellites.get(planet.upper(), ()))
 
+    def camera_block(self, section: str, camera: str | None = None) -> CameraBlock:
+        """Returns one camera's block.
+
+        A camera section that the loader leaves untyped, the simulator's, is parsed into
+        the same type when it is asked for.
+
+        Parameters:
+            section: The section that holds the camera's block, as the files name it.
+            camera: The camera's name inside a section that holds several cameras; None
+                for a section that is one camera's block.
+
+        Returns:
+            The camera's block.
+
+        Raises:
+            KeyError: If ``section`` does not hold a camera named ``camera``, or is not a
+                section of the configuration.
+            SchemaError: If an untyped camera section breaks the camera block's schema.
+        """
+
+        sections = self._typed_sections()
+        if section in sections.CAMERA_SECTIONS:
+            return sections.camera_block(section, camera)
+        raw = self._config_dict[section]
+        return as_camera_block(raw if camera is None else raw[camera], source=section)
+
     @property
     def offset(self) -> OffsetSection:
         """Returns the offset section, which sets how finely a correlation resolves a peak."""
@@ -549,19 +501,15 @@ class Config:
         return self._typed_sections().bodies
 
     @property
-    def body_shape(self) -> Any:
-        """Returns the per-body shape catalog (``config_220_body_shape.yaml``).
+    def body_shape(self) -> Mapping[str, BodyShapeEntry]:
+        """Returns the body-shape table, keyed by each body's SPICE name in upper case.
 
-        Each entry is keyed by SPICE body name (e.g. ``MIMAS``) and exposes
-        ``radii_km``, ``ellipsoid_rms_residual_km``, ``crater_scale_km``,
-        ``albedo_variation``, and ``shape_class_hint``.
-        Missing-body lookups return ``None`` from ``AttrDict.get``; downstream
-        code applies the conservative fallback (10% radius default,
-        reliability cap 0.3).
+        A key that an entry leaves out reads as None, and
+        :func:`~spindoctor.nav_model.body_shape.load_body_shape` then takes its value from
+        the next tier.
         """
 
-        self.read_config()
-        return self._config_body_shape
+        return self._typed_sections().body_shape
 
     @property
     def rings(self) -> RingsSection:

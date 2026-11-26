@@ -113,8 +113,8 @@ entirely past the range.
 Configuration block
 ===================
 
-One flat section. There is one camera, so nothing is nested and the loader
-reads ``config.category('newhorizons_lorri')`` directly.
+One flat section. There is one camera, so nothing is nested and the
+observation reads ``config.camera_block('newhorizons_lorri')``.
 
 Nothing departs from the common raw-DN schema. ``extfov_margin_vu`` is a
 size-keyed table.

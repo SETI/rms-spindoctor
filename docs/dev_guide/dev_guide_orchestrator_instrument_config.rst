@@ -9,9 +9,9 @@ Overview
 dataclass that carries per-instrument runtime parameters the orchestrator needs to navigate
 an observation. The companion function
 :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs` reads the
-per-camera ``inst_config`` mapping that an
-:class:`~spindoctor.obs.obs_inst.ObsInst` populates from
-``config_4N0_inst_*.yaml`` and returns a populated dataclass. Every per-instrument
+camera block (:class:`~spindoctor.config.sections_camera.CameraBlock`) that an
+:class:`~spindoctor.obs.obs_inst.ObsInst` carries as ``inst_config`` and returns a
+populated dataclass. Every per-instrument
 behavioral branch in :class:`~spindoctor.nav_orchestrator.orchestrator.NavOrchestrator` ultimately
 reads off this dataclass.
 
@@ -23,7 +23,9 @@ Per-instrument configuration is split into two layers:
 - The static per-instrument YAML (``config_400_inst_coiss.yaml``,
   ``config_410_inst_gossi.yaml``, ``config_420_inst_nhlorri.yaml``,
   ``config_430_inst_vgiss.yaml``) carries the slow-moving parameters: data unit
-  convention, saturation DN, classifier thresholds, and camera rotation flags.
+  convention, saturation DN, classifier thresholds, camera rotation flags, and the
+  source-image filter. Each camera's block parses into one type when the configuration
+  loads (see :ref:`config-camera-blocks`).
 - The per-image observation snapshot
   (:class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst`) carries the fast-moving
   parameters: PSF sigma, midtime, extfov margin. These come from the per-image instrument
@@ -37,20 +39,16 @@ calls it once per observation in ``_make_context`` and the result is consumed by
 - :class:`~spindoctor.nav_orchestrator.image_classifier.NavImageClassifier` (via the
   ``thresholds`` field).
 - The orchestrator's saturation-mask construction (via ``saturation_dn`` / ``data_units``).
-- The orchestrator's pre-filter selection (per-instrument ``source_image_filter`` block).
+- The orchestrator's pre-filter selection (via ``source_image_filter``).
 - The :class:`~spindoctor.nav_orchestrator.nav_context.NavContext` rotation flags
   (``fit_camera_rotation``, ``max_rotation_deg``).
 
 Restrictions and assumptions
 ----------------------------
 
-- The per-instrument YAML must declare the ``data_units`` field; missing values raise
-  :exc:`ValueError` at config-load time so the failure surfaces during process startup.
-- Required numeric fields are coerced through a ``_required_float`` helper that rejects
-  non-numeric, non-finite, or boolean values.
-- The marker-value field accepts the literal string ``"NaN"`` for an instrument whose
-  missing-data sentinel is :class:`float` ``NaN``; numeric values are coerced through
-  :class:`float`.
+- Every key's type and range, and which keys a camera's ``data_units`` require or
+  refuse, are checked when the configuration loads, so this function does not check
+  anything itself.
 - The dataclass is frozen; new instances are returned per observation rather than
   mutated.
 
@@ -62,39 +60,40 @@ The dataclass carries no uncertainty.
 Configuration
 =============
 
-The per-instrument YAML schema consumed by
-:func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`:
+The camera-block keys read by
+:func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`. Every
+camera sets each key unless it is marked as one that a camera's units leave out:
 
 - ``data_units`` — str, one of ``'raw_dn'`` or ``'calibrated_if'``. ``raw_dn`` exposes
   pixels in raw counts; ``calibrated_if`` exposes pixels in calibrated I/F reflectance.
-- ``noise.saturation_dn`` — float, optional. Per-instrument full-well DN. Required for
-  ``raw_dn`` instruments; left out for ``calibrated_if`` (where saturation cannot be
-  identified post-CALIB).
-- ``noise.marker_value`` — int / float / str. Missing-data sentinel value. The literal
-  ``"NaN"`` becomes :class:`float` ``NaN``. An absent key defaults to 0
-  for ``raw_dn`` and to ``NaN`` for ``calibrated_if``. Every shipped block declares 0:
-  the raw instruments, and the calibrated Cassini CALIB and Voyager ISS blocks, whose
-  CALIB and GEOMED products fill lost pixels with zero. On a calibrated frame a pixel of
-  exactly 0 I/F therefore counts as missing; a valid calibrated pixel is never exactly
-  0.
+- ``noise.saturation_dn`` — float. Per-instrument full-well DN. Set by a ``raw_dn``
+  camera and left out by a ``calibrated_if`` one, whose saturation cannot be identified
+  after calibration.
+- ``noise.marker_value`` — a number, or ``NaN`` for a product that fills a lost pixel
+  with NaN. The value a missing pixel carries. Every shipped block sets 0, the calibrated ones included, since their products fill lost pixels with zero.
+  On a calibrated frame a pixel of exactly 0 I/F therefore counts as missing; a valid
+  calibrated pixel is never exactly 0.
 - ``image_quality_thresholds`` — block consumed by
   :class:`~spindoctor.support.image_class.ImageQualityThresholds`. See
   :doc:`dev_guide_orchestrator_image_classifier` for the field-by-field schema.
-- ``fit_camera_rotation`` — bool, top-level in the per-camera block, default ``False``.
+- ``fit_camera_rotation`` — bool, top-level in the camera block.
   When ``True`` every technique adds in-plane camera rotation as a third parameter.
   What decides the setting, and what a fitted rotation costs, is in
   :doc:`dev_guide_rotation`. Each instrument's own value is stated in its
   chapter under :doc:`instruments/instruments`, next to the reason for it.
-- ``max_rotation_deg`` — float, top-level in the per-camera block, default ``5.0`` deg.
+- ``max_rotation_deg`` — positive float, top-level in the camera block, in degrees.
   Maximum allowed rotation magnitude when ``fit_camera_rotation`` is ``True``.
+- ``source_image_filter`` — the filter applied to the image before navigation, chosen by
+  its ``kind``: ``BANDPASS_DOG`` with ``lo_sigma_px`` and ``hi_sigma_px``, or one of
+  ``ISOTROPIC_GAUSSIAN``, ``GRADIENT_OF_GAUSSIAN``, and ``MORPH_DILATE`` with
+  ``sigma_px``. It is applied only when its ``enabled`` key is true.
 
 Implementation
 ==============
 
 Source file: ``src/spindoctor/nav_orchestrator/instrument_config.py`` —
 :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`,
-:func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`, and the
-``DataUnits`` Literal alias.
+:func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs`.
 
 Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
 
@@ -114,18 +113,18 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
     — bool.
   - :attr:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings.max_rotation_deg` —
     float.
+  - :attr:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings.source_image_filter`
+    — the camera's ``source_image_filter`` block.
 
 - :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs` — reads the
-  per-camera YAML mapping off ``obs.inst_config`` and returns a populated
-  :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`.
+  camera block off ``obs.inst_config`` and returns a populated
+  :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`. A block
+  held as a mapping, as a simulated observation holds it, is parsed into the camera
+  block's type first.
 
-The thresholds and the marker come from
-:func:`~spindoctor.support.image_class.image_quality_thresholds` and
-:func:`~spindoctor.support.image_class.missing_data_marker`, which the simulated-image
-editor's verdict also calls, so both read a block the same way. They refuse an
-unrecognized ``data_units``, a missing ``image_quality_thresholds`` block, a required
-threshold that is missing, not a number, or not finite, and a ``saturation_threshold_if``
-on a calibrated block.
+The thresholds come from :func:`~spindoctor.support.image_class.image_quality_thresholds`,
+which the simulated-image editor's verdict also calls, so both read a block the same
+way.
 
 Examples
 ========
@@ -142,12 +141,12 @@ Examples
         thresholds=ImageQualityThresholds(...),
         fit_camera_rotation=False,
         max_rotation_deg=5.0,
+        source_image_filter=BandpassFilter(...),
     )
 
 **Galileo SSI.**  ``config_410_inst_gossi.yaml`` declares a flat block rather
 than a per-camera one, so the resolution calls
-:meth:`~spindoctor.config.config.Config.category` with ``'galileo_ssi'`` and
-reads the block directly. Resolution is otherwise identical: the orchestrator's
+:meth:`~spindoctor.config.config.Config.camera_block` with ``'galileo_ssi'`` alone. Resolution is otherwise identical: the orchestrator's
 per-image :class:`~spindoctor.nav_orchestrator.nav_context.NavContext` inherits
 ``fit_camera_rotation`` and ``max_rotation_deg`` from that block exactly as it
 does from a per-camera one, and what those values then decide is unchanged by

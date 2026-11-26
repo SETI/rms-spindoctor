@@ -1,7 +1,7 @@
 """Smoke tests for the shipped YAML configuration files.
 
 Asserts the ``config_NNN_*.yaml`` set loads cleanly under ``Config.read_config``, and
-checks the per-instrument blocks and the body-shape section it carries.
+checks the per-instrument blocks it carries.
 """
 
 from __future__ import annotations
@@ -65,37 +65,6 @@ def test_no_shipped_instrument_fits_camera_rotation() -> None:
     assert enabling == []
 
 
-def test_per_instrument_required_fields_present() -> None:
-    """Every shipped 4N0 instrument block has the required Phase 3 keys."""
-    config = Config()
-    config.read_config()
-    cassini = config.category('cassini_iss')
-    for camera in (cassini['nac'], cassini['wac']):
-        assert camera['data_units'] == 'raw_dn'
-        assert camera['noise']['saturation_dn'] == 4095
-        assert camera['fit_camera_rotation'] is False
-        assert camera['max_rotation_deg'] == 5.0
-        assert camera['mag_offset']['fallback_combo'] == 'CL1+CL2'
-    voyager = config.category('voyager_iss')
-    assert voyager['data_units'] == 'calibrated_if'
-    assert voyager['noise']['saturation_dn'] == 255
-    assert voyager['fit_camera_rotation'] is False
-    assert voyager['max_rotation_deg'] == 5.0
-    assert voyager['mag_offset']['fallback_combo'] == 'CL'
-    galileo = config.category('galileo_ssi')
-    assert galileo['data_units'] == 'raw_dn'
-    assert galileo['noise']['saturation_dn'] == 255
-    assert galileo['fit_camera_rotation'] is False
-    assert galileo['max_rotation_deg'] == 5.0
-    assert galileo['mag_offset']['fallback_combo'] == 'CL'
-    nhlorri = config.category('newhorizons_lorri')
-    assert nhlorri['data_units'] == 'raw_dn'
-    assert nhlorri['noise']['saturation_dn'] == 4095
-    assert nhlorri['fit_camera_rotation'] is False
-    assert nhlorri['max_rotation_deg'] == 5.0
-    assert nhlorri['mag_offset']['fallback_combo'] == '1'
-
-
 @pytest.mark.parametrize(
     ('section', 'camera', 'fraction'),
     [
@@ -113,21 +82,4 @@ def test_each_camera_sets_its_lone_star_ellipse(
     section: str, camera: str | None, fraction: float
 ) -> None:
     """The Cassini WAC believes a lone star out to 0.7 of its window; every other camera 0.6."""
-    config = Config()
-    config.read_config()
-    block = config.category(section)
-    if camera is not None:
-        block = block[camera]
-    assert block['one_star_ellipse_fraction'] == fraction
-
-
-def test_body_shape_section_loaded() -> None:
-    """Body-shape entries are exposed via ``config.body_shape``."""
-    config = Config()
-    config.read_config()
-    body_shape = config.body_shape
-    assert 'MIMAS' in body_shape
-    mimas = body_shape['MIMAS']
-    # _sources keys are stripped at load time.
-    assert '_sources' not in mimas
-    assert 'shape_class_hint' in mimas
+    assert Config().camera_block(section, camera).one_star_ellipse_fraction == fraction

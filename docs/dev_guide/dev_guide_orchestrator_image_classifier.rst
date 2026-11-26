@@ -22,8 +22,8 @@ The classifier evaluates three cheap statistics over the sensor pixels:
 - ``saturation_frac`` — fraction of pixels at or above the per-instrument
   saturation DN.
 - ``missing_frac`` — fraction of pixels matching the per-instrument missing-data marker:
-  pixels exactly equal to the marker (0 on every shipped instrument), or, when a
-  configuration sets the marker to ``NaN``, pixels for which ``np.isnan`` holds.
+  pixels exactly equal to the marker (0 on every shipped instrument), or, when a camera
+  block sets the marker to ``NaN``, pixels for which ``np.isnan`` holds.
 - ``noise_sigma`` — robust MAD-based noise sigma over the sensor area.
 
 The decision tree is order-sensitive:
@@ -33,9 +33,9 @@ The decision tree is order-sensitive:
    image whose missing-data marker is also zero is not mis-classified as
    ``mostly_missing_data``.
 2. **Fully overexposed.**  When the saturation fraction exceeds
-   ``max_saturation_frac_clean`` (default 0.80), the image is ``fully_overexposed``.
-3. **Mostly missing data.**  When the missing fraction exceeds ``max_missing_frac_clean``
-   (default 0.30), the image is ``mostly_missing_data``.
+   ``max_saturation_frac_clean``, the image is ``fully_overexposed``.
+3. **Mostly missing data.**  When the missing fraction exceeds ``max_missing_frac_clean``,
+   the image is ``mostly_missing_data``.
 4. **Clean.**  Otherwise the image is ``clean``. Two advisory flags may attach:
    ``partial_dropout`` when the missing fraction sits between
    ``partial_dropout_min_frac`` and ``max_missing_frac_clean``; ``noisy`` when the noise
@@ -73,32 +73,34 @@ Configuration
 =============
 
 Per-instrument thresholds live in
-:class:`~spindoctor.support.image_class.ImageQualityThresholds`, populated by
-:func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs` from the
-``image_quality_thresholds`` block in ``config_4N0_inst_*.yaml``. Documented at
-:doc:`dev_guide_orchestrator_instrument_config`.
+:class:`~spindoctor.support.image_class.ImageQualityThresholds`, filled by
+:func:`~spindoctor.support.image_class.image_quality_thresholds` from the camera block's
+``image_quality_thresholds`` block (see :ref:`config-camera-blocks`) and documented at
+:doc:`dev_guide_orchestrator_instrument_config`. The dataclass has no defaults; every
+value comes from the camera block.
 
 The thresholds dataclass:
 
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.saturation_threshold_dn`
-  — float, default ``4095.0`` DN. Pixels at or above this DN are flagged saturated.
+  — float, in DN. Pixels at or above it are flagged saturated. It is infinite for a
+  ``calibrated_if`` camera.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.missing_data_marker_dn`
-  — float, default ``0.0`` DN. Pixels exactly equal to this value are missing data; when
-  the marker is ``NaN``, the classifier detects missing data via ``np.isnan`` instead.
+  — float, the camera's ``noise.marker_value``. Pixels exactly equal to it are missing
+  data. A marker of ``NaN`` selects the ``NaN`` pixels instead.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.max_saturation_frac_clean`
-  — float, default ``0.80`` (dimensionless). Above this fraction of saturated pixels the
-  image is ``fully_overexposed``.
+  — float, the camera's ``max_overexposed_frac_clean``. Above this fraction of saturated
+  pixels the image is ``fully_overexposed``.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.max_missing_frac_clean`
-  — float, default ``0.30`` (dimensionless). Above this fraction of missing pixels the
-  image is ``mostly_missing_data``.
+  — float. Above this fraction of missing pixels the image is ``mostly_missing_data``.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.partial_dropout_min_frac`
-  — float, default ``0.05`` (dimensionless). At or above this fraction (and below
-  ``max_missing_frac_clean``) the ``partial_dropout`` advisory flag is set.
+  — float, the camera's ``partial_dropout_min_frac``. Above this fraction (and at or
+  below ``max_missing_frac_clean``) the ``partial_dropout`` advisory flag is set.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.blank_max_dn` —
-  float, default ``5.0`` DN. Below this maximum sensor DN the image is ``blank``.
+  float, the camera's ``blank_max_dn`` or ``blank_max_if``. Below this maximum sensor
+  value the image is ``blank``.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.noisy_threshold` —
-  float, default ``10.0`` DN. Above this MAD-noise sigma the ``noisy`` advisory flag is
-  set.
+  float, the camera's ``noisy_threshold_dn`` or ``noisy_threshold_if``. Above this
+  MAD-noise sigma the ``noisy`` advisory flag is set.
 
 Implementation
 ==============
@@ -109,7 +111,7 @@ Source files:
   :class:`~spindoctor.nav_orchestrator.image_classifier.NavImageClassifier`.
 - ``src/spindoctor/support/image_class.py`` — the decision itself:
   :class:`~spindoctor.support.image_class.ImageQualityThresholds`, the reader that fills
-  it from an instrument block
+  it from a camera block
   (:func:`~spindoctor.support.image_class.image_quality_thresholds` and
   :func:`~spindoctor.support.image_class.missing_data_marker`), the three sensor
   measurements (:func:`~spindoctor.support.image_class.measure_image_quality`), and the

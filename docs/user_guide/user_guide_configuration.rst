@@ -117,12 +117,11 @@ The sections are:
 
 ``techniques``
     Per-technique settings: how much work each technique does, and how it turns what it
-    measured into a confidence. Each technique has its own block. The blocks of the
-    body-blob, body-disc, body-limb, body-terminator, ring-annulus, and ring-edge
-    techniques are ``body_blob``, ``body_disc_correlate``, ``body_limb``,
-    ``body_terminator``, ``ring_annulus``, and ``ring_edge``, the same keys the
-    ``logging`` section uses for them. Every other technique's block is named after the
-    technique, as in ``StarRefineNav``.
+    measured into a confidence. Each technique has its own block, under the same key
+    the ``logging`` section uses for it: ``body_blob``, ``body_disc_correlate``,
+    ``body_limb``, ``body_terminator``, ``ring_annulus``, ``ring_edge``,
+    ``star_field_from_catalog``, ``star_refine``, ``star_unique_match``, and
+    ``titan_haze``.
 
 ``orchestrator``
     How the per-technique answers are combined into the one offset reported for the image,
@@ -163,11 +162,21 @@ exactly one base orbit, the entry that gives its semi-major axis. A gap or ringl
 has dates must start before it ends. If two of them overlap in radius and both have
 dates, their dates cannot overlap.
 
+A camera's settings follow the units its images are read in. A camera whose images are
+read in raw detector counts gives its saturation level, read noise, and star brightness
+in counts, and its blank and noise limits in counts too. A camera whose images are read
+in I/F gives its blank and noise limits in I/F and leaves out every value in counts. A
+camera setting that the camera's units do not use is refused.
+
 Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
 or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
 ones listed in ``planets``. The bodies in a setting kept per body, such as
-``bodies.geometric_albedo``, and the moons listed for each planet in ``satellites`` must
-be in upper case. Any other planet or body is refused the same way.
+``bodies.geometric_albedo`` or ``body_shape``, and the moons listed for each planet in
+``satellites`` must be in upper case. Any other planet or body is refused the same way.
+
+A body in ``body_shape`` may set any of its settings and leave out the rest. A setting
+that a body leaves out, and every setting of a body that is not listed, takes the value
+navigation assumes for that kind of body.
 
 Writing your own default file
 =============================

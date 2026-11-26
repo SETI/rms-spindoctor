@@ -149,24 +149,19 @@ def resolve_offset_limit(
         explaining why the limit could not be resolved.
     """
     config = config or DEFAULT_CONFIG
+    camera: str | None = None
     if instrument == 'coiss':
         section_name = 'cassini_iss_calib' if '_CALIB' in image_name.upper() else 'cassini_iss'
-        detector = {'N': 'nac', 'W': 'wac'}.get(image_name.rsplit('/', 1)[-1][:1].upper())
-        if detector is None:
+        camera = {'N': 'nac', 'W': 'wac'}.get(image_name.rsplit('/', 1)[-1][:1].upper())
+        if camera is None:
             return 'cannot determine NAC/WAC from the image name'
-        section = config.category(section_name)
-        detector_config = section.get(detector) if section else None
-        entry = detector_config.get('extfov_margin_vu') if detector_config else None
-        source = f'{section_name}.{detector}'
+        source = f'{section_name}.{camera}'
     else:
         if instrument not in _INSTRUMENT_CONFIG_SECTIONS:
             return f'no configured search limit for instrument {instrument!r}'
         section_name = _INSTRUMENT_CONFIG_SECTIONS[instrument]
-        section = config.category(section_name)
-        entry = section.get('extfov_margin_vu') if section else None
         source = section_name
-    if entry is None:
-        return f'config section {source!r} has no extfov_margin_vu'
+    entry = config.camera_block(section_name, camera).extfov_margin_vu
     if isinstance(entry, dict):
         if image_shape_v is None:
             return 'image shape not recorded'

@@ -43,6 +43,11 @@ spindoctor.config
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.config.sections_camera
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.config.sections_products
    :members:
    :undoc-members:
@@ -54,6 +59,11 @@ spindoctor.config
    :show-inheritance:
 
 .. automodule:: spindoctor.config.sections_rings
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.config.sections_body_shape
    :members:
    :undoc-members:
    :show-inheritance:

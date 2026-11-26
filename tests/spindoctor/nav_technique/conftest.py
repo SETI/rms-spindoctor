@@ -30,12 +30,14 @@ optical axis ``oops`` reports.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
-from typing import Any
 
 import numpy as np
 import pytest
+from tests.camera_sections import raw_camera
 
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import (
@@ -60,6 +62,7 @@ from spindoctor.nav_orchestrator.image_derivatives import (
 )
 from spindoctor.nav_orchestrator.nav_context import NavContext
 from spindoctor.nav_orchestrator.provenance import Provenance
+from spindoctor.nav_technique.nav_technique import NavTechnique
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 
 # Public type aliases for the factory fixtures defined below.  Test
@@ -95,6 +98,9 @@ NavFeatureFactory = Callable[..., NavFeature]
 DrawGaussianStarFactory = Callable[..., None]
 """Signature of the ``draw_gaussian_star`` factory fixture (kwargs-flexible)."""
 
+#: ``retune(technique_class, **changes)``: see the ``retune`` fixture.
+RetuneFactory = Callable[..., None]
+
 
 class FakeObs:
     """Minimal observation stand-in matching the obs.* attribute access used by
@@ -108,14 +114,10 @@ class FakeObs:
     Parameters:
         extfov_margin_vu: ``(margin_v, margin_u)`` extfov margin tuple
             returned to callers; defaults to ``(32, 32)``.
-        inst_config: The camera's instrument configuration; defaults to ``None``.
+        inst_config: The camera's block.
     """
 
-    def __init__(
-        self,
-        extfov_margin_vu: tuple[int, int] = (32, 32),
-        inst_config: dict[str, Any] | None = None,
-    ) -> None:
+    def __init__(self, extfov_margin_vu: tuple[int, int], inst_config: CameraBlock) -> None:
         self.extfov_margin_vu = extfov_margin_vu
         self.inst_config = inst_config
 
@@ -225,6 +227,22 @@ def draw_gaussian_star() -> DrawGaussianStarFactory:
     Mutates ``image`` and returns ``None``.
     """
     return _draw_gaussian_star
+
+
+@pytest.fixture
+def retune(monkeypatch: pytest.MonkeyPatch) -> RetuneFactory:
+    """Factory fixture that changes some of a technique's tuning values for one test.
+
+    Signature: ``retune(technique_class, **changes)``.  It builds the technique first, so
+    the configuration is read and the tuning it replaces is the class's own, which
+    ``monkeypatch`` restores when the test ends.
+    """
+
+    def _retune(technique: type[NavTechnique], **changes: object) -> None:
+        technique()
+        monkeypatch.setattr(technique, 'tuning', dataclasses.replace(technique.tuning, **changes))
+
+    return _retune
 
 
 # ---------------------------------------------------------------------------
@@ -346,11 +364,8 @@ def _make_nav_context(
     gradient, edge_dt = build_image_edge_dt(image, image_noise_sigma=1.0)
     gradient_vu = compute_image_gradient_vu(image, sigma_px=DEFAULT_IMAGE_GRADIENT_SIGMA_PX)
     return NavContext(
-        # Every camera configuration sets a lone-star ellipse fraction; 0.6 is the
-        # Cassini NAC's.
-        obs=FakeObs(
-            extfov_margin_vu=extfov_margin_vu, inst_config={'one_star_ellipse_fraction': 0.6}
-        ),
+        # The Cassini NAC's block, without its bound on a lone star's peak.
+        obs=FakeObs(extfov_margin_vu, raw_camera(star_max_peak_per_predicted_snr=None)),
         image_ext=image,
         sensor_mask_ext=sensor_mask,
         image_noise_sigma=1.0,

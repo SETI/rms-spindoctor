@@ -158,22 +158,15 @@ Configuration block
 One flat section, shared by two spacecraft and four cameras. Nothing in it
 varies per camera.
 
-The departure from the common schema is a units mismatch that is worth
-understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
-``image_quality_thresholds`` are correspondingly ``blank_max_if`` and
-``noisy_threshold_if``. But the ``noise`` block is a raw-DN block:
-``saturation_dn: 255``, ``read_noise_dn``, and ``star_flux_dn_per_s_vmag0`` are
-all DN quantities. The
-DN values describe the detector, which is real; the pipeline navigates the
-scaled I/F product, so ``NavOrchestrator._build_saturation_mask`` returns an
-empty mask for this instrument as for any ``calibrated_if`` input, and
-``saturation_dn`` is never consulted. There is no ``saturation_threshold_if``
-and adding one would not restore the mask: the mask is gated on the units, not
-on the presence of the key. There is no raw product this pipeline can navigate
+``data_units`` is ``calibrated_if``, so the block carries what a calibrated camera
+block carries (see :ref:`config-camera-blocks`): the ``image_quality_thresholds`` are
+``blank_max_if`` and ``noisy_threshold_if``, and the ``noise`` block holds only
+``marker_value: 0``. The pipeline navigates the scaled I/F product, so
+``NavOrchestrator._build_saturation_mask`` returns an empty mask for this instrument as
+for any ``calibrated_if`` input. There is no raw product this pipeline can navigate
 instead.
 
-Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``read_noise_dn``, ``blank_max_if``,
+Placeholder values, carrying inline ``# PLACEHOLDER`` markers: ``blank_max_if``,
 ``noisy_threshold_if``, and the ``mag_offset_table`` entry. The ``_sources``
 convention is not used in this file.
 
@@ -296,10 +289,6 @@ every star gets a 7x7 cutout regardless of magnitude and regardless of camera.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
 entry with a default of 0.0. Both are placeholders.
-
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.0e3, and its
-comment records why the units are DN rather than electrons: a vidicon has no
-electron domain, so it renders point sources directly in DN.
 
 **Recalibrating.** The measurement tools are in ``util/star_photometry``; its Voyager
 frame selection and the fit are described in its module docstrings. The cohort's one
@@ -728,8 +717,7 @@ Open items
   Saturn correction belong in the host once the host grows them, at which point
   this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
-  ``read_noise_dn``, ``blank_max_if``,
-  ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
+  ``blank_max_if``, ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
 * ``fit_camera_rotation`` is off for cost against a measurement that says it
   should be on. Revisiting it means both speeding the rotation search and
   accepting the loss of corrected C-kernels for this instrument, or recording

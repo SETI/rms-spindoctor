@@ -484,96 +484,103 @@ flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spu
 Configuration
 =============
 
-All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.tuning`` in
-``src/spindoctor/config_files/config_510_techniques.yaml``.
+The technique's ``tuning`` keys live in ``techniques.star_unique_match.tuning`` in
+``src/spindoctor/config_files/config_510_techniques.yaml``. When the configuration loads,
+the schema core parses them into
+:class:`~spindoctor.nav_technique.star_tuning.StarUniqueMatchTuning` and refuses a value of the
+wrong type or out of range. None of them has a default in the code, so the values below
+are the ones in the packaged file.
 
-- ``brightness_margin_to_next_catalog_star_mag`` — float, default ``1.5`` (mag). Another
-  usable star within this many magnitudes of a lone star, whose window holds the lone
-  star's source, could be that source as well, and the 1-star path refuses the match.
-- ``psf_sigma_px`` — float, default ``1.0`` px. Gaussian sigma of the matched-filter
-  kernel that chooses the detection in each window and measures its isolation; the same
-  value ``StarFieldFromCatalogNav`` detects with.
-- ``max_peak_sharpness`` — float, default ``8.0``. Largest ratio of a detection's
-  brightest-pixel excess to the mean excess of its four edge neighbors; a sharper peak is
-  passed over as a cosmic ray or hot pixel.
-- ``source_isolation_inner_px``, ``source_isolation_outer_px`` — int, defaults ``4`` and
-  ``6`` px. Radii of the annulus over which a detection's isolation is measured.
-- ``source_isolation_max_ratio`` — float, default ``0.5``. Largest allowed excess of the
-  annulus maximum over the annulus mean, as a fraction of the detection's own height above
-  that mean.
-- ``pair_search_stars`` — int, default ``5``. The 2-star path searches this many
+- ``brightness_margin_to_next_catalog_star_mag`` — float, packaged value ``1.5`` (mag).
+  Another usable star within this many magnitudes of a lone star, whose window holds the
+  lone star's source, could be that source as well, and the 1-star path refuses the match.
+- ``psf_sigma_px`` — float, packaged value ``1.0`` px. Gaussian sigma of the
+  matched-filter kernel that chooses the detection in each window and measures its
+  isolation; the same value ``StarFieldFromCatalogNav`` detects with.
+- ``max_peak_sharpness`` — float, packaged value ``8.0``, at least 1. Largest ratio of a
+  detection's brightest-pixel excess to the mean excess of its four edge neighbors; a
+  sharper peak is passed over as a cosmic ray or hot pixel.
+- ``source_isolation_inner_px``, ``source_isolation_outer_px`` — int, packaged values
+  ``4`` and ``6`` px. Radii of the annulus over which a detection's isolation is
+  measured; the inner radius may not exceed the outer one.
+- ``source_isolation_max_ratio`` — float, packaged value ``0.5``. Largest allowed excess
+  of the annulus maximum over the annulus mean, as a fraction of the detection's own
+  height above that mean.
+- ``pair_search_stars`` — int, packaged value ``5``. The 2-star path searches this many
   brightest usable stars and pairs their candidates.
-- ``pair_search_sources`` — int, default ``3``, at least 1. Number of strongest isolated
-  point sources in each searched star's window that are its candidates. The star's own
-  source ranked first, second, or third in all but 2 of 3108 star windows measured on F
-  ring frames.
-- ``pair_contradiction_stars`` — int, default ``3``. A pair's offset is refuted when at
-  least this many distinct sources, each the one source in another searched star's window
-  as bright as that star should be, lie away from the offset, and none of the other stars
-  is found where the pair puts it.
-- ``pair_absent_stars`` — int, default ``2``, at least 1. A pair's offset is refuted
-  when at least this many other searched stars, each at least as bright as
-  the pair's fainter star, lie on clear sky in the image at the pair's offset and show
-  nothing there, and they outnumber the other stars found there. One absent star suffices
-  when both of the pair's stars are predicted in the padding.
-- ``pair_vote_peak_factor`` — float, default ``4.0`` (dimensionless), finite and above
-  1. A source found where the pair's offset puts another star counts as that star only
-  when its peak above the local background lies within this factor of the peak the
+- ``pair_search_sources`` — int, packaged value ``3``, at least 1. Number of strongest
+  isolated point sources in each searched star's window that are its candidates. The
+  star's own source ranked first, second, or third in all but 2 of 3108 star windows
+  measured on F ring frames.
+- ``pair_contradiction_stars`` — int, packaged value ``3``. A pair's offset is refuted
+  when at least this many distinct sources, each the one source in another searched star's
+  window as bright as that star should be, lie away from the offset, and none of the other
+  stars is found where the pair puts it.
+- ``pair_absent_stars`` — int, packaged value ``2``, at least 1. A pair's offset is
+  refuted when at least this many other searched stars, each at least as bright as the
+  pair's fainter star, lie on clear sky in the image at the pair's offset and show nothing
+  there, and they outnumber the other stars found there. One absent star suffices when
+  both of the pair's stars are predicted in the padding.
+- ``pair_vote_peak_factor`` — float, packaged value ``4.0`` (dimensionless), finite and
+  above 1. A source found where the pair's offset puts another star counts as that star
+  only when its peak above the local background lies within this factor of the peak the
   pair's stars predict for it. Among 93 two-star answers in the F ring movies set aside
   for tuning, the 492 other stars at least a quarter as bright as the pair's fainter star
-  showed peaks 0.35 to 2.8 times the prediction (2nd to 99th percentile), and 4 sets
-  aside 9 of them. Of equally supported pairs, one within this factor of the brightest
-  one's peak per unit of predicted SNR makes the choice ambiguous.
-- ``centroid_box_half_px`` — int, default ``3`` px. Half-width of the brightness-weighted
-  moment box around the detection, and of the matched-filter kernel.
-- ``max_residual_px`` — float, default ``1.2`` px. Maximum allowed
-  residual for a pair to pass the 2-star cross-check. A star is found at a pair's offset
-  within twice this, and pairs farther apart than twice this are different answers.
-- ``detection_sigma`` — float, default ``4.0`` (dimensionless). Detection-threshold
+  showed peaks 0.35 to 2.8 times the prediction (2nd to 99th percentile), and 4 sets aside
+  9 of them. Of equally supported pairs, one within this factor of the brightest one's
+  peak per unit of predicted SNR makes the choice ambiguous.
+- ``centroid_box_half_px`` — int, packaged value ``3`` px. Half-width of the
+  brightness-weighted moment box around the detection, and of the matched-filter kernel.
+- ``max_residual_px`` — float, packaged value ``1.2`` px. Maximum allowed residual for a
+  pair to pass the 2-star cross-check. A star is found at a pair's offset within twice
+  this, and pairs farther apart than twice this are different answers.
+- ``detection_sigma`` — float, packaged value ``4.0`` (dimensionless). Detection-threshold
   multiplier on the per-image noise sigma; a detection's brightest pixel must stand this
   many noise sigmas above the median of its centroid box.
-- ``one_star_confidence_cap`` — float, default ``0.7`` (dimensionless). Post-sigmoid
-  confidence cap when the 1-star path fires. A single match cannot self-check.
-- ``two_star_confidence_cap`` — float, default ``0.8`` (dimensionless). Post-sigmoid
-  confidence cap when the 2-star path fires. Per-correspondence residual cross-checks the
-  assignment.
-- ``one_star_min_peak_ratio`` — float, default ``1.5`` (dimensionless). Minimum ratio of
-  a lone star's source's peak above its local background to that of every other isolated
-  point source of the star's window; below it the result is spurious with an
+- ``one_star_confidence_cap`` — float, packaged value ``0.7`` (dimensionless).
+  Post-sigmoid confidence cap when the 1-star path fires. A single match cannot
+  self-check.
+- ``two_star_confidence_cap`` — float, packaged value ``0.8`` (dimensionless).
+  Post-sigmoid confidence cap when the 2-star path fires. Per-correspondence residual
+  cross-checks the assignment.
+- ``one_star_min_peak_ratio`` — float, packaged value ``1.5`` (dimensionless). Minimum
+  ratio of a lone star's source's peak above its local background to that of every other
+  isolated point source of the star's window; below it the result is spurious with an
   ``ambiguous_detection`` reason. Values below 1 are invalid.
-- ``one_star_max_peak_sharpness`` — float, default ``7.0``, finite and at least 1. Largest
-  ratio of a lone star's brightest-pixel excess to the mean excess of its four edge
-  neighbors, allowing nothing for noise; a sharper source is no lone star.
-- ``one_star_absent_stars`` — int, default ``1``, at least 1. A lone star's offset is
-  refuted when at least this many other usable stars lie on clear sky in the image where
-  it puts them and show nothing there.
-- ``one_star_max_residual_px`` — float, default ``10.0`` px. Maximum
-  prediction-to-detection distance accepted by the 1-star path when the peak-ratio gate
-  is vacuous (its no-rival ``inf`` sentinel); beyond it the result is spurious with a
-  ``no_rival_detection`` reason. Default is one third of the 30 px window half-width it
-  was set against (the ~1-sigma core of the pointing envelope that window brackets).
-  Not consulted when the peak ratio is finite. Values at or below 0 are invalid.
-- ``at_edge_tolerance_px`` — float, default ``1.0`` px. A converged offset whose absolute
-  distance from any search-window axis bound falls within this tolerance is flagged
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
-- ``rotation_at_edge_fraction`` — float, default ``0.95`` (dimensionless). Fraction of
-  :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` at which the
-  converged 2-star rotation magnitude trips
-  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the 2-star
-  Procrustes path uses it; the 1-star path always reports rotation as unobservable.
-- ``model_error_floor_px`` — float, packaged value ``0.030`` px; a block that leaves the
-  key out gets a floor of 0.0, which adds nothing. Model-error floor added in quadrature to
-  the translation diagonal of both paths' covariance. It was measured on real star fields:
-  the technique's answers against each frame's independent multi-star pointing fix. Of 379
-  answers, the seven that matched the wrong stars are left out; the floor covers only
-  answers that matched the right ones. Of the rest, two thirds of the frames (250 answers)
-  form the fit set and a third (122) is held out. At this value at most 1.1% of the fit
-  set's answers lie beyond a Mahalanobis distance of 3, as a two-axis Gaussian predicts;
-  without it 2.0% do. The held-out answers give 1.6% with or without the floor. Added in
-  quadrature, the floor widens every answer's covariance. Most answers' covariances are
-  already wider than the scatter (median squared distance 0.08, against a Gaussian's 1.39),
-  so they widen only slightly; the answers whose covariance is a small two-star residual
-  widen the most.
+- ``one_star_max_peak_sharpness`` — float, packaged value ``7.0``, finite and at least 1.
+  Largest ratio of a lone star's brightest-pixel excess to the mean excess of its four
+  edge neighbors, allowing nothing for noise; a sharper source is not taken for a lone
+  star.
+- ``one_star_absent_stars`` — int, packaged value ``1``, at least 1. A lone star's offset
+  is refuted when at least this many other usable stars lie on clear sky in the image
+  where it puts them and show nothing there.
+- ``one_star_max_residual_px`` — float, packaged value ``10.0`` px. Maximum
+  prediction-to-detection distance accepted by the 1-star path when the peak-ratio gate is
+  vacuous (its no-rival ``inf`` sentinel); beyond it the result is spurious with a
+  ``no_rival_detection`` reason. The packaged value is one third of the 30 px window
+  half-width it was set against (the ~1-sigma core of the pointing envelope that window
+  brackets). Not consulted when the peak ratio is finite. Values at or below 0 are
+  invalid.
+- ``at_edge_tolerance_px`` — float, packaged value ``1.0`` px. A converged offset whose
+  absolute distance from any search-window axis bound falls within this tolerance is
+  flagged :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`.
+- ``rotation_at_edge_fraction`` — float, packaged value ``0.95`` (dimensionless). Fraction
+  of :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.max_rotation_deg` at which
+  the converged 2-star rotation magnitude trips
+  :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the
+  2-star Procrustes path uses it; the 1-star path always reports rotation as unobservable.
+- ``model_error_floor_px`` — float, packaged value ``0.030`` px, at least 0. Model-error
+  floor added in quadrature to the translation diagonal of both paths' covariance. It was
+  measured on real star fields: the technique's answers against each frame's independent
+  multi-star pointing fix. Of 379 answers, the seven that matched the wrong stars are left
+  out; the floor covers only answers that matched the right ones. Of the rest, two thirds of
+  the frames (250 answers) form the fit set and a third (122) is held out. At this value at
+  most 1.1% of the fit set's answers lie beyond a Mahalanobis distance of 3, as a two-axis
+  Gaussian predicts; without it 2.0% do. The held-out answers give 1.6% with or without the
+  floor. Added in quadrature, the floor widens every answer's covariance. Most answers'
+  covariances are already wider than the scatter (median squared distance 0.08, against a
+  Gaussian's 1.39), so they widen only slightly; the answers whose covariance is a small
+  two-star residual widen the most.
 
 Per-instrument overrides
 ------------------------
@@ -582,16 +589,13 @@ Per-instrument YAML files in ``src/spindoctor/config_files/config_4N0_inst_*.yam
 override any of these knobs. Two settings of the 1-star path are properties of the camera
 and live only there; the technique's own configuration sets neither:
 
-- ``one_star_ellipse_fraction`` — float, required of every camera block (every mapping
-  that declares ``data_units``, the simulator's included). A 1-star detection outside the
-  ellipse whose semi-axes are the offset window's half-widths times it is refused with a
+- ``one_star_ellipse_fraction`` — float in ``(0, 1]``, required of every camera block
+  (see :ref:`config-camera-blocks`). A 1-star detection outside the ellipse whose
+  semi-axes are the offset window's half-widths times it is refused with a
   ``one_star_detection_outside_ellipse`` reason. The ellipse is taken in place of a single
   radius because the offset window is per axis: it is a circle for a square window and
-  never reaches past the window on either axis. Loading the configuration refuses a
-  camera block that sets none, or one outside ``(0, 1]``, and the technique checks the
-  value again when it reads it, since a simulated scene may override the camera's
-  configuration. The instrument chapters give each camera's value and the configuration
-  carries its evidence.
+  never reaches past the window on either axis. The instrument chapters give each
+  camera's value and the configuration carries its evidence.
 - ``star_max_peak_per_predicted_snr`` — float, optional. Bounds a lone star's source's peak
   per unit of predicted SNR in noise sigmas (see the 1-star path above); a camera that
   sets none has no bound.
@@ -601,7 +605,7 @@ Confidence formula
 
 The technique reports a calibrated confidence in :math:`[0, 1]` produced by the shared
 sigmoid combination; see :doc:`dev_guide_techniques_confidence`. Spec is
-``techniques.StarUniqueMatchNav``; consumes attributes off
+``techniques.star_unique_match``; consumes attributes off
 :class:`~spindoctor.nav_technique.diagnostics.StarUniqueMatchDiagnostics` plus
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.spurious`.

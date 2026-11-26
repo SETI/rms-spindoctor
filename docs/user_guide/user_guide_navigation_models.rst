@@ -556,9 +556,9 @@ is measured again. A brightness-weighted center is unbiased but noisy; fitting t
 camera's modeled point-spread function instead is the more precise estimator for a faint
 star, but it carries a small fixed bias of its own. So the point-spread fit is applied to
 a star only while its measured signal-to-noise ratio is below
-``techniques.StarFieldFromCatalogNav.tuning.psf_refine_snr_max`` (30), above which the
+``techniques.star_field_from_catalog.tuning.psf_refine_snr_max`` (30), above which the
 simpler brightness-weighted center is already better than the fit's bias floor. Setting
-``techniques.StarFieldFromCatalogNav.tuning.psf_refine_enabled`` to 0 uses the
+``techniques.star_field_from_catalog.tuning.psf_refine_enabled`` to false uses the
 brightness-weighted center everywhere. This step is what makes a well-exposed star field
 the most accurate thing SpinDoctor can navigate on.
 
@@ -570,9 +570,9 @@ nothing to work with. This technique handles exactly that case, and needs only o
 star.
 
 A source's strength is the light it spreads over a star's footprint (the width set by
-``techniques.StarUniqueMatchNav.tuning.psf_sigma_px``, 1 pixel by default). A source whose
+``techniques.star_unique_match.tuning.psf_sigma_px``, 1 pixel by default). A source whose
 brightest pixel stands far above its four neighbors, more than
-``techniques.StarUniqueMatchNav.tuning.max_peak_sharpness`` times (8 by default), is a
+``techniques.star_unique_match.tuning.max_peak_sharpness`` times (8 by default), is a
 cosmic ray or hot pixel and is passed over, since no star concentrates its light that
 much; otherwise such a spike can outshine a star whose image is sharper than that
 footprint, as the instrument chapters describe.
@@ -583,21 +583,21 @@ the catalog, or small moons. So each searched star is tried against each of its 
 sources, and the other stars judge every try:
 
 - A source whose brightest pixel stands more than
-  ``techniques.StarUniqueMatchNav.tuning.one_star_max_peak_sharpness`` times (7 by
+  ``techniques.star_unique_match.tuning.one_star_max_peak_sharpness`` times (7 by
   default) above its four neighbors is not taken for a lone star.
 - On a camera whose instrument chapter gives a brightness bound, a source whose peak, per
   unit of its star's predicted signal, exceeds that measured bound is not taken for a
   lone star either.
 - A try is refused when another star, which it places on clear sky in the image and
   which should then be plainly visible, shows nothing there
-  (``techniques.StarUniqueMatchNav.tuning.one_star_absent_stars``, 1 by default).
+  (``techniques.star_unique_match.tuning.one_star_absent_stars``, 1 by default).
 
 Of the tries left, the one whose source is brightest for its star's catalog magnitude is
 the answer. The frame has no answer when another source in that star's window is nearly
 as bright (within a factor of
-``techniques.StarUniqueMatchNav.tuning.one_star_min_peak_ratio``, 1.5 by default), when
+``techniques.star_unique_match.tuning.one_star_min_peak_ratio``, 1.5 by default), when
 another star explains a different source nearly as well, or when another star within
-``techniques.StarUniqueMatchNav.tuning.brightness_margin_to_next_catalog_star_mag``
+``techniques.star_unique_match.tuning.brightness_margin_to_next_catalog_star_mag``
 magnitudes (1.5 by default) could be the same source. Confidence is capped at 0.7, because
 a single match has nothing to check itself against. Where no pixel of the window other
 than the star's own rises above the background at all, as around a lone hot pixel on a
@@ -605,13 +605,13 @@ flat frame, the match is accepted only if it sits close to the predicted positio
 
 With two or more stars, the technique looks for the offset the most stars agree on. Each
 of the five brightest predicted stars
-(``techniques.StarUniqueMatchNav.tuning.pair_search_stars``) is searched for over the
+(``techniques.star_unique_match.tuning.pair_search_stars``) is searched for over the
 camera's offset window, and the three strongest point sources in its window
-(``techniques.StarUniqueMatchNav.tuning.pair_search_sources``) are its candidates. The
+(``techniques.star_unique_match.tuning.pair_search_sources``) are its candidates. The
 star need not be the strongest of them: a brighter star, a cosmic-ray hit, or the edge of
 a ring can be stronger, and the star is still among the candidates. Any two candidates,
 each in a different star's window, that imply the same offset to within
-``techniques.StarUniqueMatchNav.tuning.max_residual_px``, 1.2 pixels by default, form a
+``techniques.star_unique_match.tuning.max_residual_px``, 1.2 pixels by default, form a
 pair that checks itself; two correctly matched stars agree to a few tenths of a pixel.
 Every other searched star with a candidate where the pair puts it backs the pair, and the
 pair backed by the most stars is the answer. Trying more than the brightest two stars
@@ -622,14 +622,14 @@ Two stars can still agree by coincidence, and the other stars searched then say 
 is looked for where the pair puts it, and a source found there counts as the star only
 when its peak brightness is within a factor of 4 of what the pair's two stars predict
 from the catalog magnitudes
-(``techniques.StarUniqueMatchNav.tuning.pair_vote_peak_factor``), so a faint field star or
+(``techniques.star_unique_match.tuning.pair_vote_peak_factor``), so a faint field star or
 a small cosmic-ray hit lying there by chance does not count for the pair. The pair is
 refused if none of them is found there and at least three of them are found somewhere
 else, each as the one source in its window as bright as it should be
-(``techniques.StarUniqueMatchNav.tuning.pair_contradiction_stars``). It is refused too
+(``techniques.star_unique_match.tuning.pair_contradiction_stars``). It is refused too
 if at least two of them, each at least as bright as the fainter star of the pair, should
 appear on clear sky in the image and nothing is there, and they outnumber the stars found
-there (``techniques.StarUniqueMatchNav.tuning.pair_absent_stars``); one such star is enough
+there (``techniques.star_unique_match.tuning.pair_absent_stars``); one such star is enough
 when both of the pair's stars are predicted just outside the image. A star that the pair
 puts on a ring, a limb, or beside a bright source is not counted as missing, since its
 light could be hidden there. Two catalog entries for one star count as one star. When a

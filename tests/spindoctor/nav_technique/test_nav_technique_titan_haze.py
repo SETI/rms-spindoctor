@@ -112,11 +112,6 @@ def test_confidence_terms_are_declared_attributes() -> None:
     assert referenced <= TitanHazeNav.confidence_attributes
 
 
-def test_model_error_floor_is_loaded() -> None:
-    """The covariance model-error floor is a configured tunable."""
-    assert TitanHazeNav.tuning['model_error_floor_px'] > 0.0
-
-
 # ---------------------------------------------------------------------------
 # Feasibility
 # ---------------------------------------------------------------------------

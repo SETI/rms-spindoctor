@@ -1,13 +1,9 @@
 # Per-technique confidence-formula coefficients and runtime tunables.
 # Parsed at config-load time, so a bad value, an unknown key, or a term
 # naming an attribute the technique does not declare fails at startup
-# rather than mid-image.  The one exception is a tuning key of a technique
-# whose tuning is not yet typed: its tuning is a mapping of numbers, so a
-# misspelled key there is accepted and never read.  A technique whose
-# tuning is typed is keyed by its snake_case name (body_disc_correlate,
-# body_blob, body_limb, body_terminator, ring_edge, ring_annulus), the
-# key logging.techniques uses; the others are keyed by class name until
-# their tuning is typed.  Each technique block looks like:
+# rather than mid-image.  Each technique is keyed by its snake_case name
+# (body_limb, star_unique_match, titan_haze, ...), the key
+# logging.techniques uses.  Each technique block looks like:
 #
 #   <technique_key>:
 #     alpha0: float                 # constant in the sigmoid argument
@@ -697,7 +693,7 @@ techniques:
       spurious_unconverged_polarity_rejection_fraction: 0.10
       spurious_min_coarse_peak_fraction: 0.05
 
-  StarUniqueMatchNav:
+  star_unique_match:
     # The 1-star path is capped at 0.7 inside the technique (single match
     # cannot self-check); the 2-star path is capped at 0.8 (residual
     # cross-checks the assignment).  YAML alpha shape is identical for
@@ -765,7 +761,7 @@ techniques:
       # of a brighter source cut by the window edge is never taken.  The
       # response favors a star over a single-pixel spike of the same peak,
       # but not one much brighter (see max_peak_sharpness).
-      # Same value as StarFieldFromCatalogNav's, so every star technique
+      # Same value as star_field_from_catalog's, so every star technique
       # measures a source the same way.
       psf_sigma_px: 1.0
       # Largest ratio of a detection's brightest-pixel excess to the mean
@@ -780,7 +776,7 @@ techniques:
       # aside for tuning, this limit skips two: a hot pixel (ratio over 10^5) and a
       # star of ratio 8.4.
       max_peak_sharpness: 8.0
-      # Source isolation, as StarFieldFromCatalogNav: a detection counts
+      # Source isolation, as star_field_from_catalog: a detection counts
       # only when, over an annulus of these radii (px) around it, the
       # brightest matched-filter response exceeds the annulus mean by less
       # than source_isolation_max_ratio of the detection's own height
@@ -974,7 +970,7 @@ techniques:
       # reaches the answers whose covariance is a small two-star residual.
       model_error_floor_px: 0.030
 
-  StarRefineNav:
+  star_refine:
     # Pass-2 refinement on the pass-1 ensemble's prior offset.  Fit on
     # the 20260718 campaign and re-verified on the re-collected pass
     # (the calibrated pass-1 formulas change which priors reach pass
@@ -1009,9 +1005,9 @@ techniques:
       # half-width of the matched-filter kernel.
       centroid_box_half_px: 3
       # Gaussian PSF sigma (px) of the matched-filter kernel that picks the
-      # detection inside each refine window; see StarUniqueMatchNav.
+      # detection inside each refine window; see star_unique_match.
       psf_sigma_px: 1.0
-      # Largest peak-to-neighbor sharpness of a star; see StarUniqueMatchNav.
+      # Largest peak-to-neighbor sharpness of a star; see star_unique_match.
       max_peak_sharpness: 8.0
       # Drop a star whose detection sits more than this many pixels from
       # the prior-shifted prediction; almost certainly a wrong peak.
@@ -1024,13 +1020,13 @@ techniques:
       # Below this many surviving inliers the technique reports spurious.
       min_inliers: 1
       # Pixels of slack around the search-window axis bounds for the
-      # at-edge check (see StarUniqueMatchNav.at_edge_tolerance_px).
+      # at-edge check (see star_unique_match.at_edge_tolerance_px).
       at_edge_tolerance_px: 1.0
       # Post-sigmoid confidence cap when the refine fit had only one
       # inlier.  A 1-star refine adds no independent cross-check
       # information beyond the prior it was handed (the same single
       # observation that drove the pass-1 fit), so its confidence
-      # ceiling is set lower than ``StarUniqueMatchNav``'s 0.7 1-star
+      # ceiling is set lower than ``star_unique_match``'s 0.7 1-star
       # cap.  The ensemble's primary-technique selection therefore
       # cannot promote a 1-star refine over a 1-star unique-match on
       # the same observation.  Phase 10 calibration may retune the
@@ -1047,7 +1043,7 @@ techniques:
       # (util/calibration/fit_floors).
       model_error_floor_px: 0.27
 
-  StarFieldFromCatalogNav:
+  star_field_from_catalog:
     # Multi-star RANSAC pattern matcher.
     # Sim campaign (seed 20260718): n=92 usable, base rate 0.99 (91 of
     # 92 non-spurious pattern matches recovered planted truth), so the
@@ -1147,8 +1143,8 @@ techniques:
       # brightness-anchored trials (rather than the RANSAC's thousands of
       # triplet trials) is what makes a three-inlier lock trustworthy: the
       # trial count, not the inlier count alone, sets the false-lock rate.
-      # 1 enables the fallback; 0 disables it (strong-tier RANSAC only).
-      wide_offset_enabled: 1
+      # Set it to false to run the strong-tier RANSAC only.
+      wide_offset_enabled: true
       # Minimum inlier count for a wide-offset lock.  Hard floor of 3: two
       # stars cannot cross-check a rigid translation (any single pair
       # defines an exact offset), so at least one corroborating third star
@@ -1194,11 +1190,11 @@ techniques:
       # uniquely bright by a large margin.  A glare field routinely produces
       # peaks brighter than a real faint star, so a frame whose brightest
       # detection is not uniquely dominant (e.g. 1694 vs 1240 DN) correctly
-      # fails this gate and stays unlocked.  1 enables the one-star lock; 0
-      # disables it.  Default 0: the capability is validated on the sim
-      # scenes but held off by default pending an image-library false-lock
-      # sweep (which needs SPICE holdings the unit suite does not reach).
-      wide_offset_one_star_enabled: 0
+      # fails this gate and stays unlocked.  It is off until an
+      # image-library false-lock sweep has been run.  The sim scenes
+      # validate it, but the sweep needs SPICE holdings the unit suite does
+      # not reach.
+      wide_offset_one_star_enabled: false
       # Minimum predicted-brightness margin (mag) of the catalog anchor over
       # the next-brightest predictable catalog star for a one-star lock.  A
       # smaller margin means more than one plausible bright anchor, so the
@@ -1216,7 +1212,7 @@ techniques:
       # navigate.  0.4 lands a clean one-star lock in the low tier.
       wide_offset_one_star_confidence_cap: 0.4
       # Pixels of slack around the search-window axis bounds for the
-      # at-edge check (see StarUniqueMatchNav.at_edge_tolerance_px).
+      # at-edge check (see star_unique_match.at_edge_tolerance_px).
       at_edge_tolerance_px: 1.0
       # Rotation-axis ``at_edge`` fraction; see
       # ``body_disc_correlate.rotation_at_edge_fraction``.
@@ -1252,8 +1248,8 @@ techniques:
       # once a star is bright enough for the moment's noise to fall below
       # it, so the refinement is applied per star only below an
       # integrated-SNR ceiling; brighter detections keep the moment.
-      # 1 enables the refinement; 0 keeps the moment centroid everywhere.
-      psf_refine_enabled: 1
+      # Set it to false to keep the moment centroid everywhere.
+      psf_refine_enabled: true
       # Square box side (px, odd) for the PSF fit and the integrated-SNR
       # estimate around each inlier.
       psf_refine_box_px: 11
@@ -1315,7 +1311,7 @@ techniques:
       model_error_size_frac: 0.0
       model_error_floor_px: 0.13
 
-  TitanHazeNav:
+  titan_haze:
     # Sim-anchored fit over the 413 committed rows of the planted-truth
     # campaign (util/titan_truth, 700 randomized scenes, campaign seed
     # 20260725), rounded to the nearest 0.05.  Produced and verified by
