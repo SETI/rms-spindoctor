@@ -4,8 +4,9 @@ The study (:mod:`tests.integration.sim_realism_laws`) writes three figures besid
 realism match's own:
 
 - ``realism_law_fits.png``: the real discs' fitted Minnaert exponent and lunar-Lambert
-  blend against phase, one marker per body, with McEwen's blend and the straight line
-  the Minnaert twins take their exponent from;
+  blend against phase, one marker per body, with McEwen's blend and the exponent the
+  Minnaert twins take: the straight line fitted to the real exponents, held to 0.2 to
+  1.5;
 - ``realism_disc_profiles.png``: each disc's twin exponent less its real one against
   phase under every law, and the default law's check by phase bin;
 - ``realism_law_sheet.png``: real discs beside their twins under every law, each row at
@@ -38,6 +39,7 @@ from tests.integration.sim_realism_laws import (
     LawBin,
     LawComparisonBin,
     LawStudy,
+    minnaert_twin_k,
 )
 from tests.integration.sim_realism_limb_peak import LimbPeakBin
 from tests.integration.sim_realism_support import PHASE_BIN_EDGES_DEG
@@ -244,10 +246,10 @@ def _figure_fits(study: LawStudy, out: Path) -> None:
             )
     ax_k.plot(
         phases,
-        study.minnaert_k0 + study.minnaert_k1 * phases,
+        [minnaert_twin_k(study.minnaert_k0, study.minnaert_k1, a) for a in phases],
         color=_LAW_COLORS['minnaert'],
         lw=1.2,
-        label='line the Minnaert twins use',
+        label='exponent the Minnaert twins take',
     )
     ax_l.plot(
         phases,
@@ -293,7 +295,8 @@ def _figure_profiles(study: LawStudy, out: Path) -> None:
     ax_d.set_xlabel('phase angle (deg)')
     ax_d.set_ylabel('twin k less real k')
     ax_d.set_title('every law', fontsize=10)
-    ax_d.legend(fontsize=8)
+    if ax_d.get_legend_handles_labels()[0]:
+        ax_d.legend(fontsize=8)
     real = [(r.disc.phase_deg, r.disc.minnaert.k) for r in study.rows]
     twin = [
         (r.disc.phase_deg, r.twins[DEFAULT_LAW].k)

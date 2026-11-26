@@ -40,8 +40,10 @@ from tests.integration.sim_realism_laws import (
     StudyFrame,
     TwinDisc,
     compare_disc_profiles,
+    crop_image,
     law_comparison,
     minnaert_line,
+    minnaert_twin_k,
     phase_bin,
     run_law_study,
 )
@@ -64,6 +66,7 @@ from tests.integration.sim_realism_laws_report import (
 _RECORD = load_record()
 _FRAME = StudyFrame('N0000000000_1_CALIB', 'coiss_calib_nac', (0.0, 0.0), 0.1, (256, 256))
 _EMPTY = np.zeros(1)
+_COMPARED = (DEFAULT_LAW, 'lambert')
 
 KNOWN_DISC_PROFILE_FINDINGS: dict[tuple[str, str], str] = {}
 """Disc-profile bins of the record known to lie outside their band, with the finding."""
@@ -171,45 +174,77 @@ def _comparison_rows(default_offset: float, other_offset: float) -> list[DiscRow
 
 def test_a_law_that_agrees_worse_by_more_than_the_band_separates() -> None:
     """Lambert missing by 0.3 against the default's 0.01 separates from it."""
-    entry = law_comparison(_comparison_rows(0.01, 0.3))['p0']
+    entry = law_comparison(_comparison_rows(0.01, 0.3), laws=_COMPARED)['p0']
     assert entry.separates['lambert'] is True
 
 
 def test_the_default_law_is_best_when_the_others_agree_worse() -> None:
     """The default law agrees best when every law it separates from agrees worse."""
-    entry = law_comparison(_comparison_rows(0.01, 0.3))['p0']
+    entry = law_comparison(_comparison_rows(0.01, 0.3), laws=_COMPARED)['p0']
     assert entry.default_best is True
 
 
 def test_a_law_that_agrees_better_by_more_than_the_band_beats_the_default() -> None:
     """Lambert missing by 0.01 against the default's 0.3 beats it."""
-    entry = law_comparison(_comparison_rows(0.3, 0.01))['p0']
+    entry = law_comparison(_comparison_rows(0.3, 0.01), laws=_COMPARED)['p0']
     assert entry.default_best is False
 
 
 def test_laws_within_the_band_of_each_other_do_not_separate() -> None:
     """Two laws whose agreement differs by less than the band claim no order."""
-    entry = law_comparison(_comparison_rows(0.05, 0.04))['p0']
+    entry = law_comparison(_comparison_rows(0.05, 0.04), laws=_COMPARED)['p0']
     assert entry.separates['lambert'] is False
 
 
 def test_laws_within_the_band_leave_the_default_best() -> None:
     """A slightly better law that does not separate leaves the default best."""
-    entry = law_comparison(_comparison_rows(0.05, 0.04))['p0']
+    entry = law_comparison(_comparison_rows(0.05, 0.04), laws=_COMPARED)['p0']
     assert entry.default_best is True
 
 
 def test_the_law_comparison_takes_its_band_from_the_default_laws_pairs() -> None:
     """The band is the disc-profile band of the default law's paired differences."""
     rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6 + d, 'lambert': 0.9}) for d in (0.0, 0.1, 0.2)]
-    entry = law_comparison(rows)['p0']
+    entry = law_comparison(rows, laws=_COMPARED)['p0']
     assert entry.band_k == pytest.approx(2.0 * 1.4826 * 0.1 / math.sqrt(3.0))
 
 
 def test_a_bin_with_two_discs_has_no_law_comparison() -> None:
     """Fewer than 3 discs give no comparison."""
     rows = _comparison_rows(0.01, 0.3)[:2]
-    assert law_comparison(rows) == {}
+    assert law_comparison(rows, laws=_COMPARED) == {}
+
+
+def test_a_law_comparison_of_one_law_is_refused() -> None:
+    """The default law alone has nothing to be compared with."""
+    with pytest.raises(ValueError, match='at least 2 laws'):
+        law_comparison(_comparison_rows(0.01, 0.3), laws=(DEFAULT_LAW,))
+
+
+def test_a_disc_without_a_twin_under_a_compared_law_is_left_out() -> None:
+    """A disc whose twins leave out one of the compared laws does not enter the bin."""
+    rows = [*_comparison_rows(0.01, 0.3), _row(30.0, 0.6, {DEFAULT_LAW: 0.61})]
+    assert law_comparison(rows, laws=_COMPARED)['p0'].n == 3
+
+
+def test_discs_at_one_phase_give_a_flat_minnaert_line() -> None:
+    """Two discs at the same phase cannot set a slope, so the line is their mean."""
+    k0, k1 = minnaert_line([_disc(30.0, 0.5), _disc(30.0, 0.7)])
+    assert (k0, k1) == pytest.approx((0.6, 0.0))
+
+
+def test_the_minnaert_twins_exponent_is_held_to_its_range() -> None:
+    """A line that reaches 1.8 at the disc's phase gives the twin 1.5."""
+    assert minnaert_twin_k(0.6, 0.01, 120.0) == pytest.approx(1.5)
+
+
+def test_a_crop_block_without_a_finite_pixel_is_nan(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 2 by 2 block of NaN pixels becomes NaN, and the other blocks keep their mean."""
+    monkeypatch.setattr(sim_realism_laws, '_CROP_PX', 2)
+    image = np.arange(16.0).reshape(4, 4)
+    image[:2, :2] = np.nan
+    expected = np.array([[np.nan, 4.5], [10.5, 12.5]], dtype=np.float32)
+    np.testing.assert_array_equal(crop_image(image, (0, 4, 0, 4)), expected)
 
 
 def test_the_minnaert_line_runs_through_the_real_exponents() -> None:
@@ -723,12 +758,9 @@ def test_the_study_writes_its_record_block_and_figures(tmp_path: Path) -> None:
     ]
 
 
-def test_a_study_without_a_large_disc_still_writes_its_sheet(tmp_path: Path) -> None:
-    """A study whose discs are all under 100 px across writes a sheet that says so."""
-    rows = [_row(phase, 0.6, {DEFAULT_LAW: 0.6}) for phase in (20.0, 30.0, 40.0)]
-    for row in rows:
-        row.disc.diameter_px = 50.0
-    study = sim_realism_laws.LawStudy(
+def _study_of(rows: list[DiscRow]) -> Any:
+    """A study of the given rows under the default law alone, its statistics empty."""
+    return sim_realism_laws.LawStudy(
         rows=rows,
         excluded=[],
         minnaert_k0=0.5,
@@ -739,5 +771,26 @@ def test_a_study_without_a_large_disc_still_writes_its_sheet(tmp_path: Path) -> 
         disc_check={},
         comparison={},
     )
-    written = write_law_figures(study, tmp_path)
+
+
+def test_a_study_without_a_large_disc_still_writes_its_sheet(tmp_path: Path) -> None:
+    """A study whose discs are all under 100 px across writes a sheet that says so."""
+    rows = [_row(phase, 0.6, {DEFAULT_LAW: 0.6}) for phase in (20.0, 30.0, 40.0)]
+    for row in rows:
+        row.disc.diameter_px = 50.0
+    written = write_law_figures(_study_of(rows), tmp_path)
     assert (tmp_path / 'realism_law_sheet.png') in [p for p in written if p.exists()]
+
+
+def test_a_study_without_a_twin_exponent_still_writes_its_figures(tmp_path: Path) -> None:
+    """A study whose twins could not be fitted writes all three figures."""
+    rows = [_row(phase, 0.6, {DEFAULT_LAW: 0.6}) for phase in (20.0, 30.0, 40.0)]
+    for row in rows:
+        row.disc.diameter_px = 50.0
+        row.twins[DEFAULT_LAW] = TwinDisc(DEFAULT_LAW, 0.5, None, None, 0.6, None, None, _EMPTY)
+    written = write_law_figures(_study_of(rows), tmp_path)
+    assert [p.name for p in written if p.exists()] == [
+        'realism_law_fits.png',
+        'realism_disc_profiles.png',
+        'realism_law_sheet.png',
+    ]

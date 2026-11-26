@@ -14,7 +14,8 @@ direction at the real phase, through the real frame's camera settings and exposu
 normal albedo is measured from the real disc against the twin's own law
 (:func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).  Minnaert's law needs an
 exponent, and the twin takes it from a straight line fitted to the real discs' own
-exponents against phase, so that law is the best one Minnaert's form allows.
+exponents against phase (:func:`minnaert_twin_k`), so that law is the best one
+Minnaert's form allows.
 
 **The pairing.**  The real disc's fits count at most 60,000 of its pixels, and the
 twin's fit counts the same pixels, less any its own sphere's geometry leaves out.  When
@@ -37,8 +38,9 @@ zero given how much the pairs scatter, and it widens when the twins follow the r
 discs less evenly.
 
 **The law comparison.**  :func:`law_comparison` asks, in each phase bin with at least 3
-discs, whether the default law's exponents agree with the real ones at least as well as
-every other law's.  Two laws separate in a bin when their median absolute differences
+discs that have a twin exponent under every law, whether the default law's exponents
+agree with the real ones at least as well as every other law's.  It needs at least two
+laws.  Two laws separate in a bin when their median absolute differences
 differ by more than the bin's band, the disc-profile band of the default law's pairs in
 that bin over every instrument; where they do not, no order between them is claimed.
 """
@@ -99,6 +101,7 @@ __all__ = [
     'decimate',
     'law_comparison',
     'minnaert_line',
+    'minnaert_twin_k',
     'phase_bin',
     'run_law_study',
 ]
@@ -435,7 +438,8 @@ def crop_image(image: NDArrayFloatType, box: tuple[int, int, int, int]) -> NDArr
         box: The crop's ``(v0, v1, u0, u1)`` bounds.
 
     Returns:
-        The block-averaged crop.
+        The block-averaged crop.  Each block is the mean of its finite pixels, and a
+        block that has none is NaN.
     """
     v0, v1, u0, u1 = box
     patch = np.asarray(image[v0:v1, u0:u1], dtype=np.float64)
@@ -445,7 +449,12 @@ def crop_image(image: NDArrayFloatType, box: tuple[int, int, int, int]) -> NDArr
     if rows == 0 or cols == 0:
         return patch.astype(np.float32)
     blocks = patch[:rows, :cols].reshape(rows // factor, factor, cols // factor, factor)
-    return np.nanmean(blocks, axis=(1, 3)).astype(np.float32)
+    finite = np.isfinite(blocks)
+    counts = np.sum(finite, axis=(1, 3))
+    sums = np.sum(np.where(finite, blocks, 0.0), axis=(1, 3))
+    means = np.full(counts.shape, np.nan)
+    np.divide(sums, counts, out=means, where=counts > 0)
+    return means.astype(np.float32)
 
 
 def crop_box(on_body: NDArrayBoolType) -> tuple[int, int, int, int]:
@@ -493,15 +502,33 @@ def minnaert_line(discs: Iterable[RealDisc]) -> tuple[float, float]:
 
     Returns:
         The exponent at zero phase and the slope per degree, from an unweighted least
-        squares fit; ``(0.5, 0.0)`` when fewer than 2 discs are given.
+        squares fit; ``(0.5, 0.0)`` when fewer than 2 discs are given; and the mean
+        exponent with a slope of 0 when every disc lies at the same phase, which cannot
+        set a slope.
     """
     pairs = [(d.phase_deg, d.minnaert.k) for d in discs]
     phases = np.array([p for p, _ in pairs], dtype=np.float64)
     ks = np.array([k for _, k in pairs], dtype=np.float64)
     if phases.size < 2:
         return 0.5, 0.0
+    if np.all(phases == phases[0]):
+        return float(np.mean(ks)), 0.0
     slope, intercept = np.polyfit(phases, ks, 1)
     return float(intercept), float(slope)
+
+
+def minnaert_twin_k(k0: float, k1: float, phase_deg: float) -> float:
+    """The exponent a Minnaert twin takes at one phase.
+
+    Parameters:
+        k0: The line's exponent at zero phase (:func:`minnaert_line`).
+        k1: Its slope per degree of phase.
+        phase_deg: The disc's phase angle in degrees.
+
+    Returns:
+        The line's value at the phase, held to the range 0.2 to 1.5.
+    """
+    return min(max(k0 + k1 * phase_deg, _MINNAERT_K_RANGE[0]), _MINNAERT_K_RANGE[1])
 
 
 def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> TwinDisc:
@@ -673,34 +700,43 @@ def _law_bin(rows: list[DiscRow], law: str) -> LawBin:
 
 
 def law_comparison(
-    rows: Iterable[DiscRow], *, default: str = DEFAULT_LAW
+    rows: Iterable[DiscRow], *, laws: Iterable[str], default: str = DEFAULT_LAW
 ) -> dict[str, LawComparisonBin]:
     """Ask in each phase bin whether the default law agrees best with the real discs.
 
     Parameters:
-        rows: The discs, each with its twins under every law.
+        rows: The discs, each with its twins.
+        laws: The laws to compare, the default among them.
         default: The default law.
 
     Returns:
-        One entry per phase bin holding at least 3 discs whose twins all have an
-        exponent.
+        One entry per phase bin holding at least 3 discs whose twins have an exponent
+        under every one of ``laws``.
+
+    Raises:
+        ValueError: If ``laws`` holds fewer than 2 laws or leaves out the default.
     """
+    compared = sorted(set(laws))
+    if len(compared) < 2 or default not in compared:
+        raise ValueError(
+            f'a law comparison needs at least 2 laws, the default {default!r} among them; '
+            f'got {compared}'
+        )
     by_bin: dict[str, list[DiscRow]] = {}
     for row in rows:
-        if all(row.delta_k(law) is not None for law in row.twins):
+        if all(row.delta_k(law) is not None for law in compared):
             by_bin.setdefault(phase_bin(row.disc.phase_deg), []).append(row)
     out: dict[str, LawComparisonBin] = {}
     for label, group in sorted(by_bin.items()):
         if len(group) < MIN_BIN_DISCS:
             continue
         band = _band(np.array([r.delta_k(default) for r in group], dtype=np.float64))
-        laws = sorted(group[0].twins)
         agreement = {
-            law: float(np.median([abs(r.delta_k(law) or 0.0) for r in group])) for law in laws
+            law: float(np.median([abs(r.delta_k(law) or 0.0) for r in group])) for law in compared
         }
         separates = {
             law: bool(abs(agreement[law] - agreement[default]) > band)
-            for law in laws
+            for law in compared
             if law != default
         }
         best = all(
@@ -720,12 +756,13 @@ def run_law_study(inputs: LawStudyInputs, *, laws: tuple[str, ...] = STUDY_LAWS)
         laws: The laws to render twins under.
 
     Returns:
-        The study.
+        The study.  Its law comparison is empty unless ``laws`` holds the default law
+        and at least one other.
     """
     k0, k1 = minnaert_line(inputs.discs)
     rows: list[DiscRow] = []
     for disc in inputs.discs:
-        k_line = min(max(k0 + k1 * disc.phase_deg, _MINNAERT_K_RANGE[0]), _MINNAERT_K_RANGE[1])
+        k_line = minnaert_twin_k(k0, k1, disc.phase_deg)
         twins = {}
         for law in laws:
             twins[law] = _twin(disc, law, minnaert_k=k_line, limb_peak=disc.limb_peak is not None)
@@ -767,5 +804,7 @@ def run_law_study(inputs: LawStudyInputs, *, laws: tuple[str, ...] = STUDY_LAWS)
             instrument: compare_disc_profiles(group)
             for instrument, group in sorted(by_instrument.items())
         },
-        comparison=law_comparison(rows) if DEFAULT_LAW in laws else {},
+        comparison=(
+            law_comparison(rows, laws=laws) if DEFAULT_LAW in laws and len(set(laws)) >= 2 else {}
+        ),
     )
