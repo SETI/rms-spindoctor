@@ -48,7 +48,7 @@ from spindoctor.schema.core import (
         ({'float_': float('inf')}, 'test.yaml: float_: expected a finite number, got float inf'),
         (
             {'float_or_nan': float('-inf')},
-            'test.yaml: float_or_nan: expected a finite number or NaN, got float -inf',
+            'test.yaml: float_or_nan: expected a finite number or NaN, got -inf',
         ),
         ({'int_': 1.0}, 'test.yaml: int_: expected an integer, got float 1.0'),
         ({'bool_': 1}, 'test.yaml: bool_: expected a boolean, got int 1'),
