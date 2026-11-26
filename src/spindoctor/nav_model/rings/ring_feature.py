@@ -661,7 +661,9 @@ def _edge_from_modes(modes: 'tuple[RingModeEntry, ...] | None') -> RingEdgeData 
                 ae=_present(mode.ae),
                 long_peri=_present(mode.long_peri),
                 rate_peri=_present(mode.rate_peri),
-                rms=_present(mode.rms),
+                # A base orbit without a fitted residual adds nothing per vertex, and its
+                # edge's whole-edge orbit term takes rings.default_orbit_radial_sigma_km.
+                rms=0.0 if mode.rms is None else mode.rms,
             )
         else:
             perturbations.append(
