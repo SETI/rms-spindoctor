@@ -9,13 +9,13 @@ realism match's own:
 - ``realism_disc_profiles.png``: each disc's twin exponent less its real one against
   phase under every law, and the default law's check by phase bin;
 - ``realism_law_sheet.png``: real discs beside their twins under every law, each row at
-  the real disc's own stretch.
+  the real disc's own stretch, or a note when no whole disc is at least 100 px across.
 
 Its record block, ``law_study``, holds every disc's fits and twins, the moons left out
 with their reasons, the statistics by phase bin, by body, and by limb bin, and the law
 comparison.  Each instrument's entry also holds the default law's ``disc_profiles``.
-:func:`record_disc_profile_problems` and :func:`record_law_comparison_problems` read a
-record back for the regression tests.
+:func:`record_disc_profile_failures`, :func:`record_disc_profile_verdicts`, and
+:func:`record_law_comparison_problems` read a record back for the regression tests.
 """
 
 from __future__ import annotations
@@ -45,7 +45,8 @@ from tests.integration.sim_realism_support import PHASE_BIN_EDGES_DEG
 __all__ = [
     'disc_profile_entries',
     'law_study_summary',
-    'record_disc_profile_problems',
+    'record_disc_profile_failures',
+    'record_disc_profile_verdicts',
     'record_has_law_study',
     'record_law_comparison_problems',
     'write_law_figures',
@@ -335,9 +336,26 @@ def _sheet_rows(study: LawStudy) -> list[DiscRow]:
 
 
 def _figure_sheet(study: LawStudy, out: Path) -> None:
-    """Real discs beside their twins under every law, each row at its real stretch."""
+    """Real discs beside their twins under every law, each row at its real stretch.
+
+    A study with no whole disc at least 100 px across gets a figure that says so.
+    """
     rows = _sheet_rows(study)
     laws = sorted(study.law_bins)
+    if not rows:
+        fig, ax = plt.subplots(figsize=(6.0, 1.5))
+        ax.axis('off')
+        ax.text(
+            0.5,
+            0.5,
+            f'No whole disc at least {_SHEET_MIN_DIAMETER_PX:.0f} px across',
+            ha='center',
+            va='center',
+            fontsize=10,
+        )
+        fig.savefig(out, dpi=90)
+        plt.close(fig)
+        return
     fig, axes = plt.subplots(
         len(rows), 1 + len(laws), figsize=(2.0 * (1 + len(laws)), 2.0 * len(rows)), squeeze=False
     )
@@ -396,26 +414,43 @@ def record_has_law_study(record: dict[str, Any]) -> bool:
     return 'law_study' in record
 
 
-def record_disc_profile_problems(record: dict[str, Any]) -> list[str]:
+def record_disc_profile_failures(record: dict[str, Any]) -> dict[tuple[str, str], str]:
     """The phase bins of a record whose default-law disc profiles leave their band.
 
     Parameters:
         record: A realism summary.
 
     Returns:
-        One line per bin whose verdict is False; bins without a verdict are left out.
+        For each bin whose verdict is False, keyed by ``(instrument, phase bin)``, a line
+        that describes it; bins without a verdict are left out.
     """
-    problems: list[str] = []
+    failures: dict[tuple[str, str], str] = {}
     for instrument, entry in sorted(record.get('instruments', {}).items()):
         for label, check in sorted(entry.get('disc_profiles', {}).items()):
             if check['within_band'] is not False:
                 continue
-            problems.append(
+            failures[(instrument, label)] = (
                 f"{instrument} {label}: the twins' Minnaert exponents differ from the real "
                 f'ones by a median {check["median_delta_k"]:+.3f}, more than the band of '
                 f'{check["band_k"]:.3f} ({check["n"]} discs)'
             )
-    return problems
+    return failures
+
+
+def record_disc_profile_verdicts(record: dict[str, Any]) -> int:
+    """How many phase bins of a record have a disc-profile verdict.
+
+    Parameters:
+        record: A realism summary.
+
+    Returns:
+        The number of bins, over every instrument, whose verdict is True or False.
+    """
+    return sum(
+        check['within_band'] is not None
+        for entry in record.get('instruments', {}).values()
+        for check in entry.get('disc_profiles', {}).values()
+    )
 
 
 def record_law_comparison_problems(record: dict[str, Any]) -> list[str]:

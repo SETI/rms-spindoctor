@@ -1,11 +1,13 @@
 """Tests of the realism match's photometric-law study, and its regression checks.
 
 The regression checks hold the committed realism record (or the summary that
-``SPINDOCTOR_TEST_REALISM_RECORD`` points to): in every phase bin with a verdict, the
-default law's twins must keep the real discs' Minnaert exponent within the bin's band,
-and wherever the laws separate, the default law must agree at least as well as each
-other law.  The other tests build their discs in memory; some render a small twin.
-Nothing here reads holdings, so the file runs in the plain unit tier.
+``SPINDOCTOR_TEST_REALISM_RECORD`` points to).  The record must hold the study, made
+with the code's default law, with at least one judged bin.  In every phase bin with a
+verdict, the default law's twins must keep the real discs' Minnaert exponent within the
+bin's band, apart from the bins :data:`KNOWN_DISC_PROFILE_FINDINGS` lists, which must
+still fail; and wherever the laws separate, the default law must agree at least as well
+as each other law.  The other tests build their discs in memory; some render a small
+twin.  Nothing here reads holdings, so the file runs in the plain unit tier.
 """
 
 from __future__ import annotations
@@ -24,7 +26,7 @@ from spindoctor.sim.realism.disc_profile import (
     equator_profile,
     select_disc_pixels,
 )
-from spindoctor.sim.render.bodies.photometry import shade_surface
+from spindoctor.sim.render.bodies.photometry import PHOTOMETRIC_LAW_DEFAULT, shade_surface
 from tests.integration import sim_realism_laws, sim_realism_laws_discs
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
 from tests.integration.sim_realism_body_facts import TerrainCap
@@ -49,7 +51,8 @@ from tests.integration.sim_realism_laws_discs import (
 )
 from tests.integration.sim_realism_laws_report import (
     law_study_summary,
-    record_disc_profile_problems,
+    record_disc_profile_failures,
+    record_disc_profile_verdicts,
     record_has_law_study,
     record_law_comparison_problems,
     write_law_figures,
@@ -58,6 +61,9 @@ from tests.integration.sim_realism_laws_report import (
 _RECORD = load_record()
 _FRAME = StudyFrame('N0000000000_1_CALIB', 'coiss_calib_nac', (0.0, 0.0), 0.1, (256, 256))
 _EMPTY = np.zeros(1)
+
+KNOWN_DISC_PROFILE_FINDINGS: dict[tuple[str, str], str] = {}
+"""Disc-profile bins of the record known to lie outside their band, with the finding."""
 
 
 def _disc(phase_deg: float, k: float, *, body: str = 'DIONE', part: str | None = None) -> RealDisc:
@@ -472,19 +478,25 @@ def _record(within: bool | None, agreement: dict[str, float], separates: bool) -
     }
 
 
-def test_a_record_bin_outside_its_band_is_a_problem() -> None:
-    """A disc-profile bin whose verdict is False is reported."""
-    problems = record_disc_profile_problems(_record(False, {}, False))
-    assert problems == [
-        "coiss_calib_nac p0: the twins' Minnaert exponents differ from the real ones by a "
-        'median +0.100, more than the band of 0.050 (4 discs)'
-    ]
+def test_a_record_bin_outside_its_band_is_a_failure() -> None:
+    """A disc-profile bin whose verdict is False is reported under its key."""
+    failures = record_disc_profile_failures(_record(False, {}, False))
+    assert failures == {
+        ('coiss_calib_nac', 'p0'): "coiss_calib_nac p0: the twins' Minnaert exponents "
+        'differ from the real ones by a median +0.100, more than the band of 0.050 (4 discs)'
+    }
 
 
 @pytest.mark.parametrize('within', [True, None])
-def test_a_record_bin_within_or_without_a_band_is_no_problem(within: bool | None) -> None:
+def test_a_record_bin_within_or_without_a_band_is_no_failure(within: bool | None) -> None:
     """A disc-profile bin within its band, or without a verdict, is not reported."""
-    assert record_disc_profile_problems(_record(within, {}, False)) == []
+    assert record_disc_profile_failures(_record(within, {}, False)) == {}
+
+
+@pytest.mark.parametrize(('within', 'count'), [(True, 1), (False, 1), (None, 0)])
+def test_a_record_counts_its_disc_profile_verdicts(within: bool | None, count: int) -> None:
+    """A bin within or outside its band has a verdict; a bin without a band has none."""
+    assert record_disc_profile_verdicts(_record(within, {}, False)) == count
 
 
 def test_a_law_that_separates_and_agrees_better_is_a_problem() -> None:
@@ -508,24 +520,55 @@ def test_a_worse_law_that_separates_is_no_problem() -> None:
     assert record_law_comparison_problems(record) == []
 
 
-@pytest.mark.skipif(
-    not record_has_law_study(_RECORD),
-    reason='the realism record predates the photometric-law study',
-)
-def test_the_recorded_disc_profiles_lie_within_their_bands() -> None:
-    """In every bin with a verdict, the default law's twins keep the real exponents."""
-    problems = record_disc_profile_problems(_RECORD)
-    assert not problems, (
-        f'The disc profiles of the record made at {made_at(_RECORD)} leave their bands:\n'
-        + '\n'.join(problems)
-        + f'\n{REGENERATE_HINT}'
+def test_the_record_holds_the_law_study() -> None:
+    """The realism record carries the photometric-law study."""
+    assert record_has_law_study(_RECORD), (
+        f'The realism record made at {made_at(_RECORD)} holds no law study.\n{REGENERATE_HINT}'
     )
 
 
-@pytest.mark.skipif(
-    not record_has_law_study(_RECORD),
-    reason='the realism record predates the photometric-law study',
-)
+def test_the_record_was_made_with_the_codes_default_law() -> None:
+    """The record's default law is the scene default the code renders with."""
+    assert _RECORD.get('law_study', {}).get('default_law') == PHOTOMETRIC_LAW_DEFAULT, (
+        f'The realism record made at {made_at(_RECORD)} judged another default law.\n'
+        f'{REGENERATE_HINT}'
+    )
+
+
+def test_the_record_judges_at_least_one_disc_profile_bin() -> None:
+    """At least one disc-profile bin of the record has a verdict."""
+    assert record_disc_profile_verdicts(_RECORD) >= 1
+
+
+def test_the_record_compares_the_laws_in_at_least_one_bin() -> None:
+    """At least one phase bin of the record holds a law comparison."""
+    assert _RECORD.get('law_study', {}).get('comparison')
+
+
+def test_the_recorded_disc_profiles_lie_within_their_bands() -> None:
+    """In every bin with a verdict, the default law's twins keep the real exponents.
+
+    A bin :data:`KNOWN_DISC_PROFILE_FINDINGS` lists is a recorded finding against the
+    default law: it must still lie outside its band, and while one does, the test is an
+    expected failure that gives the finding.  A listed bin back within its band fails,
+    so the list can only shrink.
+    """
+    failures = record_disc_profile_failures(_RECORD)
+    new = [line for key, line in failures.items() if key not in KNOWN_DISC_PROFILE_FINDINGS]
+    assert not new, (
+        f'The disc profiles of the record made at {made_at(_RECORD)} leave their bands:\n'
+        + '\n'.join(new)
+        + f'\n{REGENERATE_HINT}'
+    )
+    back = sorted(set(KNOWN_DISC_PROFILE_FINDINGS) - set(failures))
+    assert not back, f'These known findings now lie within their bands; drop them: {back}'
+    if failures:
+        pytest.xfail(
+            'known disc-profile findings: '
+            + '; '.join(KNOWN_DISC_PROFILE_FINDINGS[key] for key in sorted(failures))
+        )
+
+
 def test_the_default_law_agrees_best_where_the_laws_separate() -> None:
     """Wherever another law separates from the default law, it agrees worse."""
     problems = record_law_comparison_problems(_RECORD)
@@ -549,3 +592,23 @@ def test_the_study_writes_its_record_block_and_figures(tmp_path: Path) -> None:
         'realism_disc_profiles.png',
         'realism_law_sheet.png',
     ]
+
+
+def test_a_study_without_a_large_disc_still_writes_its_sheet(tmp_path: Path) -> None:
+    """A study whose discs are all under 100 px across writes a sheet that says so."""
+    rows = [_row(phase, 0.6, {DEFAULT_LAW: 0.6}) for phase in (20.0, 30.0, 40.0)]
+    for row in rows:
+        row.disc.diameter_px = 50.0
+    study = sim_realism_laws.LawStudy(
+        rows=rows,
+        excluded=[],
+        minnaert_k0=0.5,
+        minnaert_k1=0.0,
+        law_bins={DEFAULT_LAW: {}},
+        body_bins={DEFAULT_LAW: {}},
+        limb_peaks={DEFAULT_LAW: {}},
+        disc_check={},
+        comparison={},
+    )
+    written = write_law_figures(study, tmp_path)
+    assert (tmp_path / 'realism_law_sheet.png') in [p for p in written if p.exists()]
