@@ -1027,8 +1027,7 @@ Some of these frames keep one mismatch, in the shading.  The bodies of the
 ellipsoid scenes in this section and of the limb sweeps shade with the scene
 default, the lunar-Lambert law, while the navigator's template shades with the
 Lambert law.  Below about 119 degrees phase their errors include the template's bias
-and lie above the floor.  The haze sweep's surface shades with the lunar-Lambert law
-too, which raises the haze fit's error (see the offset-accuracy section).  Read every other
+and lie above the floor.  Read every other
 clean-recovery number below as the floor; the *Model-mismatch sensitivity*
 section is where those floors become the first point of an error-vs-mismatch
 curve.
@@ -1365,15 +1364,11 @@ This table and the two sweep figures in this section were measured before the
 simulator drew each limb pixel by how much of it the body covers, left night sides
 black, fitted the limb on its lit part alone, and shaded bodies with the
 lunar-Lambert law by default, and they have not been regenerated since. Sweeps run
-after those changes put the haze symmetry fit between 0.11 and 0.14 px and the limb
+after those changes put the haze symmetry fit between 0.02 and 0.07 px and the limb
 at a median of 0.24 px on the dense sweep (0.16 to 0.28 px) and 0.22 px on the wide
 one (0.17 to 0.27 px), the values the text below quotes. The limb sweep's body
 shades with the lunar-Lambert law, which the navigator's Lambert template does not
-match (see the invariant table above). The haze symmetry fit does not use that
-template. It fits the frame's own brightness, with a mirror correlation across the
-line toward the Sun and a circle fit to the sunward limb arc. The lunar-Lambert
-surface under the haze changes that brightness, and with it the fit's floor (see
-below).
+match (see the invariant table above).
 
 The correlation and centroid techniques sit at or below a few hundredths of a
 pixel; the distance-transform techniques carry a larger sub-pixel residual:
@@ -1388,13 +1383,12 @@ pixel; the distance-transform techniques carry a larger sub-pixel residual:
   template's pull toward the Sun on the sweep's lunar-Lambert body adds about
   0.02 px. See :doc:`/dev_guide/dev_guide_techniques_body_limb` for the
   mechanism.
-- **The haze symmetry fit holds a 0.11 to 0.14 px residual** across the dense sweep, and
+- **The haze symmetry fit holds a 0.02 to 0.07 px residual** across the dense sweep, and
   it is a floor rather than a fraction-dependent wobble: the swept axis on the
   ``titan_haze`` scene is pure cross-track, and the scene deliberately renders a
   soft optical limb a few pixels above the solid radius, so the free-radius arc
   fit is absorbing a real altitude mismatch at every step rather than fitting the
-  circle it assumes. Over a Lambert surface the floor is 0.02 to 0.07 px; the
-  lunar-Lambert surface under the haze raises it. See
+  circle it assumes. See
   :doc:`/dev_guide/dev_guide_techniques_titan_haze`.
 - **The star field is pinned here**, so its sub-pixel rows below ~1 px are absent:
   the field matcher alone does not recover a sub-pixel translation of the whole
@@ -1414,7 +1408,7 @@ The wide-range sweep confirms each technique recovers across the navigable range
    the body across the full window via its coarse acquisition.
 
 The disc, ring, limb, and star recover with the same accuracy out to their
-ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.11 to 0.15 px floor
+ceilings (~48, ~48, ~40, ~20 px). The haze symmetry fit holds its 0.02 to 0.07 px floor
 flat out to a planted 45 px -- the extended-FOV search margin, not a limit of the
 method: the mirror-correlation scan searches the whole margin and the arc fit
 recenters once, so nothing degrades across the range. The **blob now holds across the navigable
@@ -2023,7 +2017,7 @@ Summary
   body and the ring a ~0.03 px residual.
 * The star field improves with SNR: a dim field recovers to ~0.02 px and a bright
   field to ~0.005 px, the tightest of any technique.
-* The haze symmetry fit recovers a hazy body to within 0.15 px across both the dense
+* The haze symmetry fit recovers a hazy body to within 0.07 px across both the dense
   sub-pixel sweep and the full navigable range, against a rendered haze limb that
   is deliberately not the circle it fits. Its randomized planted-truth campaign
   (700 scenes over offset, phase, size, noise, clouds, star fields,
