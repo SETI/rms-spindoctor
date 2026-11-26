@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import matplotlib
 
@@ -206,34 +206,83 @@ def _mesh_pose_figure() -> None:
 # here, below every measured nonzero floor.
 _MISMATCH_ERROR_DISPLAY_FLOOR_PX = 1e-4
 
-# The Section 8 model-mismatch axes: (sweep name, x-axis label, panel title).
-# Each walks one render-vs-navigate mismatch from a self-consistency floor (the
-# first sweep value) into the mismatched regime; the recovery-error-vs-mismatch
-# curve is the product.  The floor point is drawn distinctly and labeled.
+
+class _MismatchAxis(NamedTuple):
+    """One Section 8 model-mismatch axis of the mismatch figure.
+
+    Parameters:
+        name: The sweep's name.
+        xlabel: The x-axis label.
+        title: The panel title.
+        has_floor: Whether the sweep's first value is a self-consistency floor, the
+            rendered image equal to the navigator's own model.
+    """
+
+    name: str
+    xlabel: str
+    title: str
+    has_floor: bool
+
+
+# The Section 8 model-mismatch axes.  Each walks one render-vs-navigate mismatch into
+# the mismatched regime; the recovery-error-vs-mismatch curve is the product.  All but
+# one start from a self-consistency floor, whose point is drawn distinctly and labeled.
+# The haze brightness axis has none: its first step, a haze that adds no light over a
+# black body, leaves a blank frame, and an offset recovered there is a lock on noise.
 _MISMATCH_AXES = [
-    ('psf_limb_mismatch', 'rendered PSF sigma (px)', 'PSF core mismatch (limb)'),
-    ('psf_limb_wings', 'rendered PSF wing energy fraction', 'PSF wing mismatch (limb)'),
-    ('photometric_minnaert_mismatch', 'Minnaert k (1.0 = Lambert)', 'Photometric mismatch (disc)'),
-    ('spk_parallax_error', 'planted parallax shift (px)', 'Spacecraft ephemeris'),
-    ('differential_smear', 'star trail length (px)', 'Differential smear (stars)'),
-    ('ring_orbit_error', 'planted ring radial error (px)', 'Ring ephemeris (edge)'),
-    ('atmosphere_haze', 'haze reference optical depth', 'Atmosphere (limb)'),
-    ('atmosphere_haze_albedo', 'haze albedo', 'Haze brightness (limb)'),
+    _MismatchAxis('psf_limb_mismatch', 'rendered PSF sigma (px)', 'PSF core mismatch (limb)', True),
+    _MismatchAxis(
+        'psf_limb_wings', 'rendered PSF wing energy fraction', 'PSF wing mismatch (limb)', True
+    ),
+    _MismatchAxis(
+        'photometric_minnaert_mismatch',
+        'Minnaert k (1.0 = Lambert)',
+        'Photometric mismatch (disc)',
+        True,
+    ),
+    _MismatchAxis(
+        'spk_parallax_error', 'planted parallax shift (px)', 'Spacecraft ephemeris', True
+    ),
+    _MismatchAxis(
+        'differential_smear', 'star trail length (px)', 'Differential smear (stars)', True
+    ),
+    _MismatchAxis(
+        'ring_orbit_error', 'planted ring radial error (px)', 'Ring ephemeris (edge)', True
+    ),
+    _MismatchAxis('atmosphere_haze', 'haze reference optical depth', 'Atmosphere (limb)', True),
+    _MismatchAxis('atmosphere_haze_albedo', 'haze albedo', 'Haze brightness (limb)', False),
 ]
+
+
+def _floor_point(axis: _MismatchAxis, rows: list[dict[str, Any]]) -> tuple[float, float] | None:
+    """The point to mark as an axis's self-consistency floor, if it has one.
+
+    Parameters:
+        axis: The mismatch axis.
+        rows: The sweep's result rows, in sweep order.
+
+    Returns:
+        The first step's value and its recovered-offset error, drawn no lower than
+        ``_MISMATCH_ERROR_DISPLAY_FLOOR_PX``, or None when the axis has no floor or its
+        first step recovered no offset.
+    """
+    if not axis.has_floor or not rows or rows[0].get('offset_error_px') is None:
+        return None
+    return rows[0]['value'], max(rows[0]['offset_error_px'], _MISMATCH_ERROR_DISPLAY_FLOOR_PX)
 
 
 def _mismatch_axes_figure() -> None:
     """Grid the Section 8 recovery-error-vs-mismatch curves, floor point labeled.
 
     One panel per mismatch axis: recovered-offset error versus the swept
-    mismatch parameter.  The zero-mismatch point (equality with the navigator's
-    configuration) is drawn as the self-consistency floor -- a bound on
-    reproducibility, not accuracy -- and a failed step (the navigability cliff)
+    mismatch parameter.  On an axis with a floor, the zero-mismatch point (equality
+    with the navigator's configuration) is drawn as the self-consistency floor -- a
+    bound on reproducibility, not accuracy -- and a failed step (the navigability cliff)
     is annotated on the axis rather than plotted.  An error below
     ``_MISMATCH_ERROR_DISPLAY_FLOOR_PX`` is drawn at that floor.  The grid is sized
     to the axis count; any unused trailing panel is hidden.
     """
-    if not _all_ran([name for name, _xlabel, _title in _MISMATCH_AXES]):
+    if not _all_ran([axis.name for axis in _MISMATCH_AXES]):
         return
     n_cols = 3
     n_rows = -(-len(_MISMATCH_AXES) // n_cols)
@@ -241,8 +290,8 @@ def _mismatch_axes_figure() -> None:
     flat_axes = list(axes.ravel())
     for ax in flat_axes[len(_MISMATCH_AXES) :]:
         ax.set_axis_off()
-    for ax, (name, xlabel, title) in zip(flat_axes, _MISMATCH_AXES, strict=False):
-        rows = _load(name)
+    for ax, axis in zip(flat_axes, _MISMATCH_AXES, strict=False):
+        rows = _load(axis.name)
         solved = [
             (r['value'], max(r['offset_error_px'], _MISMATCH_ERROR_DISPLAY_FLOOR_PX))
             for r in rows
@@ -252,9 +301,11 @@ def _mismatch_axes_figure() -> None:
         if solved:
             xs, ys = zip(*solved, strict=True)
             ax.plot(xs, ys, marker='o', ms=4, lw=1.2, color='tab:blue', label='recovery error')
+        floor = _floor_point(axis, rows)
+        if floor is not None:
             ax.plot(
-                [xs[0]],
-                [ys[0]],
+                [floor[0]],
+                [floor[1]],
                 marker='*',
                 ms=13,
                 color='tab:green',
@@ -266,9 +317,9 @@ def _mismatch_axes_figure() -> None:
         if failed:
             ax.axvline(failed[0], color='tab:gray', ls='--', alpha=0.6, label='fit failed (cliff)')
         ax.set_yscale('log')
-        ax.set_xlabel(xlabel)
+        ax.set_xlabel(axis.xlabel)
         ax.set_ylabel('recovered-offset error (px)')
-        ax.set_title(title, fontsize=10)
+        ax.set_title(axis.title, fontsize=10)
         ax.grid(True, which='both', ls=':', alpha=0.5)
         ax.legend(fontsize=7, loc='best')
     fig.suptitle(

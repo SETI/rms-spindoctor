@@ -1725,11 +1725,13 @@ simulated models, so it isn't a real-frame accuracy either.
    :width: 100%
    :alt: recovery error versus model mismatch for the Section 8 axes
 
-   Recovery error vs model mismatch, one panel per axis.  Each panel walks a
+   Recovery error vs model mismatch, one panel per axis.  Seven panels walk a
    single render-vs-navigate mismatch from the self-consistency floor -- the
    first point, drawn as a green star, where the render matches the navigator's
    model -- into the mismatched regime, and the recovery-error-vs-mismatch curve
-   is the product.  A dashed line marks the navigability cliff, the mismatch at
+   is the product.  The haze-brightness panel has no floor point: its first value
+   leaves a blank frame, and its curve shows how bright the haze must be before
+   the body navigates on its edge.  A dashed line marks the navigability cliff, the mismatch at
    which the fit fails.  The error axis is logarithmic, so an exact recovery is
    drawn at 1e-4 px.
 
@@ -1816,12 +1818,14 @@ the dedicated sweep or the scene class that drives it:
      - not modeled
      - sweep ``artifact_missing_lines`` and ``artifact_sweep`` scene class
 
-Eight of these sweeps -- ``psf_limb_mismatch``, ``psf_limb_wings``,
+Seven of these sweeps -- ``psf_limb_mismatch``, ``psf_limb_wings``,
 ``photometric_minnaert_mismatch``, ``spk_parallax_error``, ``differential_smear``,
-``ring_orbit_error``, ``atmosphere_haze``, and ``atmosphere_haze_albedo`` -- each begin at
-a self-consistency floor: their first swept value plants no mismatch, so its recovery
-error is the floor (reproducibility), and the curve measures sensitivity to the mismatch
-from the second point on.
+``ring_orbit_error``, and ``atmosphere_haze`` -- each begin at a self-consistency floor:
+their first swept value plants no mismatch, so its recovery error is the floor
+(reproducibility), and the curve measures sensitivity to the mismatch from the second
+point on. The haze-brightness sweep, ``atmosphere_haze_albedo``, runs on a body whose
+surface is black, so its first value, a haze that adds no light, leaves a blank frame;
+its curve shows how bright the haze must be before the body navigates on its edge.
 
 One PSF render knob remains unswept: the renderer has no pointing-jitter
 kernel, so the PSF-mismatch coverage above is core sigma and wing energy only;
