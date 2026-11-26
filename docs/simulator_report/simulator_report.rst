@@ -202,7 +202,7 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``ef1bf987`` on
+code that made it.  The current record was made at commit ``ef805da1`` on
 2026-11-26.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
@@ -588,7 +588,7 @@ of the body its matched frame renders, and only when both frames measured it:
      - --
    * - p1 r1
      - +0.03
-     - -0.04
+     - -0.05
      - 0.11
      - 4
      - 4
@@ -602,7 +602,7 @@ of the body its matched frame renders, and only when both frames measured it:
      - --
    * - p2 r0
      - -0.00
-     - +0.02
+     - +0.07
      - --
      - 1
      - 1
@@ -620,19 +620,19 @@ I/F, and is shaded with the lunar-Lambert law.  Each real limb is measured again
 a silhouette whose radii, for the mid-sized Saturnian moons, are the IAU values; the
 Cassini kernels give older radii, which put four of the five real Tethys limbs
 inside their matched limbs by 0.24% to 0.35% of the radius.  Both bins with a verdict
-lie within their bands.  In p1 r1 the real median lies 0.07 px outside the matched
+lie within their bands.  In p1 r1 the real median lies 0.08 px outside the matched
 one, and one real limb, of Dione through a methane-band filter, lies 0.06 px inside
 its silhouette for no reason yet found.  Three real NAC discs are
 clipped at the camera's full scale; they give no real limb and no albedo, and their
 matched bodies render white.  Prometheus and Pan have no limb in the real frames,
 because the navigator places none on their shapes, so their matched limbs are not
 measured.  Of the 23 matched bodies with an unclipped real disc, one still overflows
-the detector's full well, an Enceladus at 21 degrees phase (12,046 pixels, at up to
+the detector's full well, an Enceladus at 21 degrees phase (11,878 pixels, at up to
 1.13 times the full well), where the law brightens the limb above the disc interior
 the albedo is measured on; its real limb peaks 0.97 px outside its shape model's
 silhouette.  The bins without a verdict are set by one or two limbs, such
 as a 377 px Mimas whose real limb peaks +1.02 px outside.  The WAC cohort's one limb
-peaks -0.12 px real against +0.03 px matched.
+peaks -0.12 px real against +0.04 px matched.
 
 The record also holds the photometric-law study
 (:ref:`sim-realism-law-study`).  For every moon the cohort shows resolved, whatever its
@@ -641,9 +641,10 @@ offers and compares how the brightness falls across the disc, measured by the fi
 Minnaert exponent.  It measured 27 discs on 23 frames between 1.5 and 136 degrees
 phase: Dione, Tethys, Mimas, Rhea, Enceladus, and Iapetus, whose dark and bright
 terrains are measured apart, each over a cap drawn inside it.  It left out 93 moons in
-view, each with its reason in the record: 70 under 10 px across, 14 of irregular shape,
-3 clipped discs, 4 Iapetus terrain caps not lit on the side in view, and two that showed
-too little of the lit disc.
+view, each with its reason in the record: 70 under 10 px across, 9 of irregular shape,
+5 whose shape is not known, 3 clipped discs, 4 Iapetus terrain caps not lit on the side
+in view, and two that showed too little of the lit disc.  Each twin is a sphere, so the
+study does not pair one with a moon that is irregular or whose shape is not known.
 
 Only Cassini frames of Saturnian moons back these numbers.  The study reads calibrated
 frames only, because its fits need each pixel in I/F.  The cohort's Galileo and LORRI
@@ -668,48 +669,51 @@ Each law's median distance of its twins' exponent from the real discs':
    * - Lambert
      - 0.328
      - 0.118
-     - 0.181
+     - 0.142
    * - Lommel-Seeliger
      - 0.140
-     - 0.147
-     - 0.036
+     - 0.148
+     - 0.089
    * - lunar-Lambert (the default)
      - 0.037
      - 0.057
-     - 0.181
+     - 0.142
    * - Minnaert, exponent from the real discs' trend
      - 0.023
      - 0.063
-     - 0.146
+     - 0.107
 
 In both bins with a comparison the default agrees best among the laws that separate from
-it (bands 0.032 and 0.046).  Minnaert's law, whose exponent is fitted to the same real
+it (bands 0.032 and 0.047).  Minnaert's law, whose exponent is fitted to the same real
 discs, does not separate from it.  The default's disc-profile check lies within its band
 in both narrow-angle bins with a verdict: -0.012 against 0.028 below 60 degrees, and
-+0.043 against 0.046 at 60 to 120 degrees.  Each band comes from the scatter of the
++0.042 against 0.047 at 60 to 120 degrees.  Each band comes from the scatter of the
 same twin-and-real pairs it judges.  Iapetus's dark terrain follows the default (exponent
 0.85; the default misses by 0.04).  Two findings stand apart, both on too few frames for
 a verdict.  Iapetus's bright terrain at 81 degrees falls more steeply than every twin
 (exponent 1.10; Lambert misses by 0.09 and the default by 0.21).  The two discs above
-120 degrees, where the default is Lambert's, fall more gently than Lambert's law, closer
-to Lommel-Seeliger's.
+120 degrees, where the default is Lambert's, fall more gently than Lambert's law: over
+the pixels their twins also count, their exponents are 0.85 and 0.81, where the Lambert
+twins fit 0.98 and 0.97.
 
 .. figure:: _figures/realism_law_fits.png
    :width: 100%
 
    The real discs' fitted Minnaert exponent and lunar-Lambert blend against phase, one
-   marker per body, with McEwen's blend and the line the Minnaert twins take.
+   marker per body, with McEwen's blend and the exponent the Minnaert twins take: the
+   line through the real exponents, held to 0.2 to 1.5.
 
 .. figure:: _figures/realism_disc_profiles.png
    :width: 100%
 
-   Left: each disc's twin exponent less its real one, under every law.  Right: the real
-   exponents and the default law's twins.
+   Left: each disc's twin exponent less its real one over the same pixels, under every
+   law.  Right: the real exponents and the default law's twins.
 
 .. figure:: _figures/realism_law_sheet.png
    :width: 80%
 
-   Real discs beside their twins under each law, each row at the real disc's stretch.
+   Real discs beside their twins under each law, each row at the real disc's stretch and
+   over its crop.
 
 The headline reading: each matched star frame now holds the catalog stars
 of its real frame's field, and the simulated star cutouts number 9, from 6

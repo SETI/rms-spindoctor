@@ -6505,12 +6505,14 @@ when it survives three steps of erosion of the body's mask, each to a pixel's fo
 neighbors, which puts it at least 3.5 px inside the silhouette along a row or a column
 and about 2.1 px inside along a diagonal.  It also needs the cosines of incidence and
 emission both at least 0.3.  The angles come from the real frame's SPICE geometry,
-moved onto the image by its verified offset (``tests/integration/sim_realism_body.py``).
-The value includes the surface's darkening with phase, since the laws have no phase
-function: a Dione disc at 34 degrees phase in the RED and GRN filters measures 0.45,
-and a methane-band frame 0.08.  A raw product is not in I/F, and a clipped disc's I/F
-is the clip level, so either leaves its matched body white.  On four NAC limb frames,
-the matched frame gives back the measured albedo to 0.2%.
+computed at each image pixel's center after the frame is moved by its verified offset,
+fraction and all (``tests/integration/sim_realism_body.py``).  The clipped-disc test
+reads the same pixels.  The value includes the surface's darkening with phase, since
+the laws have no phase function: a Dione disc at 34 degrees phase in the RED and GRN
+filters measures 0.50, and one at 107 degrees through a methane-band filter 0.14.  A
+raw product is not in I/F, and a clipped disc's I/F is the clip level, so either leaves
+its matched body white.  On four NAC limb frames, the matched frame gives back the
+measured albedo to 0.2%.
 
 **What the matched limbs show.**  On 2026-11-26, with each matched body at its real
 body's brightness, two NAC bins have at least 3 real limbs, and both lie within their
@@ -6538,13 +6540,13 @@ bands (offsets in pixels, negative inside the silhouette):
      - +0.03
      - 0.11
      - 0.11
-     - -0.04
+     - -0.05
      - 4 / 4
      - within
 
 In the bin at 60 to 120 degrees and 100 to 400 px, the four real limbs, of Dione and
 Tethys between 74 and 111 degrees phase, lie from 0.06 px inside the silhouette to
-0.19 px outside it, and their median lies 0.07 px outside the matched median.  The
+0.19 px outside it, and their median lies 0.08 px outside the matched median.  The
 limb 0.06 px inside, a Dione limb at 107 degrees phase through a polarizer and a
 methane-band filter, is the only real limb of the four inside its silhouette, and that
 is not explained.  The Cassini chapter gives the frame.
@@ -6553,14 +6555,14 @@ The other bins hold one or two paired limbs and have no verdict: below 60 degree
 under 100 px, -0.06 real against -0.11 matched (2 limbs each); below 60 degrees at
 100 to 400 px, +0.51 against -0.09 (2 each); 60 to 120 degrees under 100 px, +0.02
 against -0.10 (2 each); 60 to 120 degrees over 400 px, -0.29 against -0.03 (1 each);
-above 120 degrees, -0.00 against +0.02 under 100 px and +0.07 against +0.11 at 100 to
-400 px (1 each); and the WAC's one limb, -0.12 against +0.03.
+above 120 degrees, -0.00 against +0.07 under 100 px and +0.07 against +0.11 at 100 to
+400 px (1 each); and the WAC's one limb, -0.12 against +0.04.
 
 The three matched bodies whose real disc is clipped render white and overflow the full
 well; their limbs are not compared.  Of the 23 others, one still overflows before the
 detector caps it, an Enceladus 789 px across at 21 degrees phase: its albedo comes from
 the disc interior, and the law brightens toward the sunlit limb above that, to 1.13
-times the full well over 12,046 pixels.  Its real limb peaks well outside its shape
+times the full well over 11,878 pixels.  Its real limb peaks well outside its shape
 model's silhouette (+0.97 px).  The
 real camera clips a disc without visible bloom, while the simulator spreads the charge
 above its full well along the columns, so a matched frame that overflows does not look
@@ -6587,13 +6589,15 @@ the choice of the default rests on the record.  The study is in
 
 **Which discs.**  The study looks at every moon in view in each calibrated real frame,
 whatever the frame's scene class, so a moon in a star frame counts as much as one in a
-limb frame.  A moon is measured when its shape is regular, it has no atmosphere, its
-disc is not clipped at the camera's full scale (the clipped-disc test above), at least a
-quarter of its lit disc lies in the frame, and at least 100 lit pixels lie clear of the
-limb and the terminator.  Every moon in view that fails one of these is listed in the
-record's ``law_study.excluded`` with its reason.  The simulator draws an irregular moon
-only as a sphere or as a mesh of made-up lumps, so a twin could not show such a moon's
-real shape, and the frame's geometry treats it as an ellipsoid too.
+limb frame.  A moon is in view when its predicted outline, moved by the frame's verified
+offset, reaches into the frame.  A moon is measured when its shape is regular, it has no
+atmosphere, its disc is not clipped at the camera's full scale (the clipped-disc test
+above, over the part of the disc that nothing hides), at least a quarter of its lit disc
+lies in the frame, and at least 100 lit pixels lie clear of the limb and the terminator.
+Every moon in view that fails one of these is listed in the record's
+``law_study.excluded`` with its reason.  Each twin is a sphere, so it cannot show an
+irregular moon's real shape, and the frame's geometry treats such a moon as an
+ellipsoid too.  A moon whose shape is not known is left out for the same reason.
 
 The frame's lighting and viewing angles are computed at each pixel's center after the
 frame is moved by its verified offset, so they line up with the image to a fraction of
@@ -6638,17 +6642,24 @@ is a sphere at the moon's apparent size and position in the real frame, lit from
 direction the real disc's incidence cosines give and at its phase, through the frame's
 filter, gain state, downlink, and exposure.  Its normal albedo is measured from the real
 disc against the twin's own law.  Minnaert's law needs an exponent, and the twin takes it
-from a straight line fitted to all the real discs' exponents against phase, so Minnaert's
-form enters at its best; the record holds the line.  The twin's pixels are chosen from
-the sphere's own geometry by the same rules, and then only those the real disc's fits
-also counted are kept.  So a real disc that lost pixels to a terrain cap, a nearer body,
-the rings, a shadow, or clipping has a twin fitted over the same part of the disc.  This
-matters: for any law but Minnaert's, the fitted exponent depends on which part of the
-disc is sampled.
+from a straight line fitted to all the real discs' exponents against phase, held to 0.2
+to 1.5, so Minnaert's form enters at its best; the record holds the line.  When every
+disc lies at one phase, the line is flat at their mean exponent.
+
+The twin's pixels are the ones the real disc's fits counted, less any that the sphere's
+own geometry would not count by the same rules.  When the twin leaves some out, the real
+disc is fitted again over the rest, and that fit is the one the twin is compared with.
+So each pair's two fits read exactly the same pixels, and a real disc that lost pixels to
+a terrain cap, a nearer body, the rings, a shadow, or clipping has a twin fitted over
+the same part of the disc.  This matters: for any law but Minnaert's, the fitted
+exponent depends on which part of the disc is sampled.  The record gives that real
+exponent beside each twin's.  On the contact sheet each twin is cropped to the real
+disc's bounds.
 
 **The statistics.**  For each disc and law the study records the twin's exponent less
-the real one, the residual between the two equator profiles, and the twin's limb
-gradient peak where the realism match measured the real frame's.  The residual compares
+the real one over the paired pixels, the residual between the two equator profiles over
+those pixels, and the twin's limb gradient peak where the realism match measured the
+real frame's.  The residual compares
 shapes alone: the real profile is divided bin by bin by the twin's, the ratio by its
 median, and the residual is the rms of that less 1.  Each statistic is reported by phase
 bin (below 60, 60 to 120, and above 120 degrees), by body, and, for the limb peaks, by
@@ -6669,8 +6680,9 @@ its band fails the test, so the list can only shrink.  The same file fails when 
 record lacks the study, when its default law differs from the scene default, or when no
 bin has a verdict.
 
-**The law comparison.**  In each phase bin with at least 3 discs, each law's agreement
-is the median distance of its twins' exponents from the real ones.  Two laws separate in
+**The law comparison.**  In each phase bin with at least 3 discs whose twins have an
+exponent under every law, each law's agreement is the median distance of its twins'
+exponents from the real ones.  Two laws separate in
 the bin when their agreements differ by more than the bin's band, the band of the
 default law's paired differences over every camera's discs in the bin.  The same test file
 fails when a law that separates from the default agrees with the real discs better than
@@ -6698,15 +6710,15 @@ or Daphnis.
 between 1.5 and 136 degrees phase: 7 of Dione, 6 of Tethys, 5 of Mimas, 4 of Rhea, 3 of
 Enceladus, and Iapetus's dark terrain and its bright terrain once each.  One Rhea is a
 wide-angle frame and the rest are narrow-angle.  It left out 93 moons in view: 70 under
-10 px across, 14 of irregular shape (Atlas, Calypso, Epimetheus, Hyperion, Pan,
-Pandora, and Prometheus), 3 whose disc is clipped, 4 Iapetus terrain caps that are not
-lit on the side in view, a Dione of which 18% of the lit disc lies in the frame, and a
-Mimas with 82 lit pixels clear of the limb and the terminator.  The real discs'
-Minnaert exponent rises with phase, from 0.55 at 1.5 degrees to 0.97 at 117 degrees,
-and the line the Minnaert twins take is ``k = 0.605 + 0.00272 a`` in phase ``a`` in
-degrees.  The blend fitted to each disc follows McEwen's curve with an rms difference of
-0.15 and a mean difference under 0.001.  Above 104 degrees, where McEwen's blend is 0,
-all five discs fit a blend between 0.02 and 0.13.
+10 px across, 9 of irregular shape (Epimetheus, Hyperion, Pandora, and Prometheus), 5
+whose shape is not known (Atlas, Calypso, and Pan), 3 whose disc is clipped, 4 Iapetus
+terrain caps that are not lit on the side in view, a Dione of which 18% of the lit disc
+lies in the frame, and a Mimas with 82 lit pixels clear of the limb and the terminator.
+The real discs' Minnaert exponent rises with phase, from 0.55 at 1.5 degrees to 0.97 at
+117 degrees, and the line the Minnaert twins take is ``k = 0.605 + 0.00272 a`` in phase
+``a`` in degrees.  The blend fitted to each disc follows McEwen's curve with an rms
+difference of 0.15 and a mean difference under 0.001.  Above 104 degrees, where
+McEwen's blend is 0, all five discs fit a blend between 0.02 and 0.13.
 
 Each law's median distance of its twins' exponent from the real one, and its median
 profile residual, by phase bin (12, 13, and 2 discs):
@@ -6726,45 +6738,53 @@ profile residual, by phase bin (12, 13, and 2 discs):
      - 0.328
      - 0.250
      - 0.118
-     - 0.096
-     - 0.181
-     - 0.057
+     - 0.093
+     - 0.142
+     - 0.030
    * - Lommel-Seeliger
      - 0.140
      - 0.075
-     - 0.147
-     - 0.111
-     - 0.036
-     - 0.040
+     - 0.148
+     - 0.108
+     - 0.089
+     - 0.015
    * - lunar-Lambert (the default)
      - 0.037
      - 0.054
      - 0.057
-     - 0.095
-     - 0.181
-     - 0.057
+     - 0.093
+     - 0.142
+     - 0.030
    * - Minnaert, exponent from the line
      - 0.023
      - 0.058
      - 0.063
-     - 0.111
-     - 0.146
-     - 0.049
+     - 0.110
+     - 0.107
+     - 0.024
 
 In both bins with a comparison the default agrees best with the real discs among the
 laws it separates from.  Below 60 degrees the band is 0.032, and Lambert and
-Lommel-Seeliger separate from the default; at 60 to 120 degrees the band is 0.046, and
+Lommel-Seeliger separate from the default; at 60 to 120 degrees the band is 0.047, and
 they separate again.  Minnaert's law with the fitted exponent does not separate from the
 default in either bin, so the record claims no order between those two.  Above 120
 degrees the two discs, Mimas at 126 and Tethys at 136 degrees, give no verdict.  There
-the default is Lambert's, and both discs fall more gently than it (exponents 0.75 and
-0.84 against 0.97), closer to Lommel-Seeliger's.
+the default is Lambert's, and both discs fall more gently than it.  Over the pixels
+their twins also count, their exponents are 0.85 and 0.81, where the Lambert twins fit
+0.98 and 0.97, and Lommel-Seeliger's twins miss by 0.09 either way.
+
+Those two crescents show why each pair is fitted over the same pixels.  The Mimas disc
+is 55 px across, its real fit keeps only 176 pixels, and its twin's sphere does not
+count some of them.  Over all of its counted pixels the real disc fits 0.75, and over
+the pixels its twin also counts, 0.85.  In all, 36 of the study's 108 twins leave
+out some of their real disc's pixels, and only these two discs' exponents move by more
+than 0.005 when they are fitted again.
 
 The default law's disc-profile check: on the narrow-angle camera the twins' exponents
 differ from the real ones by a median of -0.012 below 60 degrees (11 discs, band 0.028)
-and +0.043 at 60 to 120 degrees (13 discs, band 0.046), both within their bands, the
+and +0.042 at 60 to 120 degrees (13 discs, band 0.047), both within their bands, the
 second close to its edge.  No bin lies outside its band, so the record test lists no
-known finding.  The two discs above 120 degrees differ by +0.18, without a verdict, and
+known finding.  The two discs above 120 degrees differ by +0.14, without a verdict, and
 the wide-angle camera's one disc by +0.07.
 
 By body, the default's median distance is 0.03 for Mimas, Enceladus, and Dione, 0.06 for
