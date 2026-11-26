@@ -242,6 +242,12 @@ def fit_limb_peak_offset(
     # covariance would leave out the direction the data cannot fix.
     if np.linalg.matrix_rank(normal) < design.shape[1]:
         return None
+    # One more solve with the final weights, so the offset, the translation, the
+    # residual scale, and the covariance all describe the same fit.
+    solution = np.linalg.lstsq(normal, _weighted_sums(design, weights, x), rcond=None)
+    coef = np.asarray(solution[0], dtype=np.float64)
+    resid = x - np.sum(design * coef, axis=1)
+    scale = max(_MAD_TO_SIGMA * float(np.median(np.abs(resid[weights > 0.0]))), _MIN_SCALE_PX)
     covariance = np.linalg.inv(normal) * scale**2
     return LimbPeakFit(
         offset_px=float(coef[0]),

@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from scipy.special import erfc
 
+from spindoctor.sim.realism import limb_peak
 from spindoctor.sim.realism.limb_peak import fit_limb_peak_offset, gradient_peak_positions
 
 _PSF_SIGMA_PX = 0.8
@@ -126,3 +127,18 @@ def test_the_fit_needs_twenty_kept_peaks() -> None:
     peaks[1::5] -= 3.0
     peaks[2::5] += 0.01
     assert fit_limb_peak_offset(peaks, normals) is None
+
+
+def test_the_offset_comes_from_the_final_weights(monkeypatch: pytest.MonkeyPatch) -> None:
+    """After one reweighting the offset is the reweighted fit's, below the plain mean.
+
+    Of 1000 peaks around a full circle, 324 lie at 1 px and the rest at 0; the plain
+    least-squares offset is their mean, 0.324, and the biweight then weights the peaks
+    at 1 px less.
+    """
+    monkeypatch.setattr(limb_peak, '_TUKEY_ITERATIONS', 1)
+    normals = _disc_normals(1000, 0.0, 359.64)
+    peaks = np.where(np.arange(1000) % 1000 * 0.324 % 1.0 < 0.324, 1.0, 0.0)
+    fit = fit_limb_peak_offset(peaks, normals)
+    assert fit is not None
+    assert fit.offset_px < 0.31
