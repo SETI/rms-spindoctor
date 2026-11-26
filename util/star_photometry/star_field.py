@@ -172,7 +172,8 @@ def detect_peaks(
         smooth_sigma: The smoothing Gaussian's sigma in pixels.
         threshold_snr: The detection threshold in units of the smoothed image's noise.
         edge: Peaks closer than this many pixels to any border are ignored.
-        max_peaks: At most this many peaks are returned, the highest first.
+        max_peaks: At most this many peaks are returned, the highest first, counted after
+            the point-source tests below drop hits and tracks.
         mask: Optional boolean image; peaks on True pixels are ignored.
         max_per_line: Peaks on an image line or column holding more than this many peaks
             are dropped: they trace a defective line, not stars.
@@ -205,23 +206,23 @@ def detect_peaks(
     column_count = np.bincount(pu, minlength=hp.shape[1])
     on_streak = (line_count[pv] > max_per_line) | (column_count[pu] > max_per_line)
     pv, pu = pv[~on_streak], pu[~on_streak]
-    order = np.argsort(-smooth[pv, pu])[:max_peaks]
+    # Brightest first, keeping the first max_peaks point-like peaks, so a rejected hit or
+    # track leaves its place to the next star.
+    kept: list[int] = []
+    for k in np.argsort(-smooth[pv, pu]):
+        if len(kept) >= max_peaks:
+            break
+        if _is_point_like(
+            hp,
+            int(pv[k]),
+            int(pu[k]),
+            radius,
+            max_elongation=max_elongation,
+            max_center_fraction=max_center_fraction,
+        ):
+            kept.append(int(k))
+    order = np.array(kept, dtype=np.intp)
     pv, pu = pv[order], pu[order]
-    keep = np.array(
-        [
-            _is_point_like(
-                hp,
-                int(iv),
-                int(iu),
-                radius,
-                max_elongation=max_elongation,
-                max_center_fraction=max_center_fraction,
-            )
-            for iv, iu in zip(pv, pu, strict=True)
-        ],
-        dtype=bool,
-    )
-    pv, pu = pv[keep], pu[keep]
     cv = np.empty(pv.size)
     cu = np.empty(pu.size)
     for k, (iv, iu) in enumerate(zip(pv, pu, strict=True)):
