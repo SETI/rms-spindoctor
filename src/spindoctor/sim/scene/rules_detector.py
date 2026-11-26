@@ -23,17 +23,13 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_downlink_table,
     resolve_filter_throughput,
 )
+from spindoctor.sim.instruments.schema_detector import Detector
 from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.fields import DEFAULT_BINNING
 from spindoctor.sim.scene.truth import Scene
 from spindoctor.sim.scene.truth_detector import DetectorOverride
 
 __all__ = ['check_scene_camera']
-
-# The detector keys that one quantization alone reads, with that quantization.
-_QUANTIZATION_KEYS: dict[str, str] = {
-    'downlink_table': 'sqrt_lut',
-    'contour_step': 'contour_8bit',
-}
 
 
 def check_scene_camera(scene: Scene, *, source: str) -> None:
@@ -58,8 +54,9 @@ def check_scene_camera(scene: Scene, *, source: str) -> None:
         )
     detector = scene.detector or DetectorOverride()
     _check_cataloged(detector, instrument=instrument, source=source)
-    _check_quantization_keys_used(detector, instrument=instrument, source=source)
-    _check_downlink_table_ceiling(detector, instrument=instrument, source=source)
+    defaults = resolve_detector_defaults(instrument, detector.binning or DEFAULT_BINNING)
+    _check_quantization_keys_used(detector, defaults, source=source)
+    _check_downlink_table_ceiling(detector, defaults, instrument=instrument, source=source)
 
 
 def _check_cataloged(detector: DetectorOverride, *, instrument: str, source: str) -> None:
@@ -94,19 +91,21 @@ def _check_cataloged(detector: DetectorOverride, *, instrument: str, source: str
 
 
 def _check_quantization_keys_used(
-    detector: DetectorOverride, *, instrument: str, source: str
+    detector: DetectorOverride, defaults: Detector, *, source: str
 ) -> None:
     """Refuse a detector key that the frame's quantization never reads.
 
     Only the ``sqrt_lut`` quantization decodes through ``downlink_table``, and only
     ``contour_8bit`` posterizes to ``contour_step``.  The frame's quantization is the
-    block's own, else the camera's for the selected readout mode.
+    block's own, else the camera's for the selected readout mode, which ``defaults``
+    holds.
     """
-    quantization = detector.quantization
-    if quantization is None:
-        quantization = resolve_detector_defaults(instrument, detector.binning or 1).quantization
-    for key, reader in _QUANTIZATION_KEYS.items():
-        value = getattr(detector, key)
+    quantization = detector.quantization or defaults.quantization
+    keyed = (
+        ('downlink_table', detector.downlink_table, 'sqrt_lut'),
+        ('contour_step', detector.contour_step, 'contour_8bit'),
+    )
+    for key, value, reader in keyed:
         if value is not None and quantization != reader:
             raise SimSceneValidationError(
                 f'{source}: detector.{key} {value!r} has no effect: only the {reader} '
@@ -116,16 +115,16 @@ def _check_quantization_keys_used(
 
 
 def _check_downlink_table_ceiling(
-    detector: DetectorOverride, *, instrument: str, source: str
+    detector: DetectorOverride, defaults: Detector, *, instrument: str, source: str
 ) -> None:
     """Refuse a companded frame whose downlink table decodes above the ADC ceiling.
 
     The rule is the table's own, which the detector stage applies too:
     :meth:`~spindoctor.sim.instruments.schema.DownlinkTable.check_ceiling`.  The
     ceiling is the block's ``saturation_dn``, else the camera's.  Only the ``sqrt_lut``
-    quantization decodes through a table.
+    quantization decodes through a table.  ``defaults`` holds the camera's values in the
+    selected readout mode.
     """
-    defaults = resolve_detector_defaults(instrument, detector.binning or 1)
     if (detector.quantization or defaults.quantization) != 'sqrt_lut':
         return
     table = resolve_downlink_table(instrument, detector.downlink_table)

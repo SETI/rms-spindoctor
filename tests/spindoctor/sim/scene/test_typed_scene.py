@@ -20,7 +20,12 @@ from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.reference import scene_reference
 from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
 from spindoctor.sim.scene.truth_detector import DetectorOverride, Noise, NoiseVidicon
-from spindoctor.sim.scene.validate import parse_scene
+from spindoctor.sim.scene.validate import (
+    clear_validation_cache,
+    parse_scene,
+    validate_scene,
+    validate_sim_params,
+)
 
 # A scene key the catalog declares under another name: the scene's key, then the
 # catalog's.
@@ -214,6 +219,39 @@ def test_a_set_of_published_truth_paths_is_refused() -> None:
         SimSceneValidationError, match=r'published_equals_truth: expected a list, got set'
     ):
         parse_scene(scene, source='probe')
+
+
+def test_a_typed_block_instance_is_refused() -> None:
+    """A block is a mapping, as a scene file writes it, never a typed instance."""
+    scene = frame_scene()
+    scene['detector'] = DetectorOverride(bias_dn=7.0)
+    with pytest.raises(
+        SimSceneValidationError,
+        match=r'probe: detector: expected a mapping, a list, .*got Detector',
+    ):
+        validate_sim_params(scene, source='probe')
+
+
+def test_a_generator_of_published_truth_paths_is_refused_unconsumed() -> None:
+    """A generator is refused before the schema reads it, so it is not exhausted."""
+    paths = (path for path in ['noise.read_noise_dn'])
+    scene = frame_scene()
+    scene['published_equals_truth'] = paths
+    with pytest.raises(
+        SimSceneValidationError, match=r'probe: published_equals_truth: expected a mapping'
+    ):
+        validate_sim_params(scene, source='probe')
+    assert list(paths) == ['noise.read_noise_dn']
+
+
+def test_an_empty_tuple_is_refused_after_the_empty_list_is_cached() -> None:
+    """A warm cache for ``[]`` does not make ``()`` valid."""
+    clear_validation_cache()
+    validate_scene(frame_scene(published_equals_truth=[]), source='probe')
+    with pytest.raises(
+        SimSceneValidationError, match=r'probe: published_equals_truth: expected a list, got tuple'
+    ):
+        validate_scene(frame_scene(published_equals_truth=()), source='probe')
 
 
 def test_parse_scene_returns_the_typed_scene() -> None:

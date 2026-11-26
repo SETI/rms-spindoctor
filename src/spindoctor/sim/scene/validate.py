@@ -81,8 +81,10 @@ def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') ->
     prints its truth-echo warnings once.  A scene that a caller changes after a
     check is checked again, because its contents differ.
 
-    A mapping that JSON cannot encode, such as one holding a date that a YAML file
-    spelled without quotes, is validated directly instead, outside the cache.
+    The typed blocks are checked for values a scene file cannot hold before the cache is
+    consulted, so a warm cache never accepts what a cold check refuses.  A mapping that
+    JSON cannot encode, such as one holding a date that a YAML file spelled without
+    quotes, is validated directly instead, outside the cache.
 
     Parameters:
         sim_params: The flat scene parameter mapping.
@@ -92,6 +94,7 @@ def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') ->
     Raises:
         SimSceneValidationError: If the scene fails validation.
     """
+    _refuse_non_file_values(sim_params, source=source)
     try:
         scene_json = json.dumps(sim_params, sort_keys=True)
     except (TypeError, ValueError):
@@ -111,8 +114,9 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
     This is the scene validator.  A scene either sets a key or leaves it out to take
     its default.  A null is refused at any depth, as a key of the scene, of a block,
     or of a mapping in a list, and as a list entry, and the message gives the full key
-    path, such as ``bodies[1].nav_override.mesh_lumpiness``.  A typed key that holds a
-    list takes a list, as a scene file writes it, and refuses a tuple or a set.  Every
+    path, such as ``bodies[1].nav_override.mesh_lumpiness``.  The typed blocks take only
+    what a scene file holds: mappings with string keys, lists, and JSON scalars.  A tuple,
+    a set, a generator, or a typed instance is refused.  Every
     other problem with a typed block is reported at once, one line each, in the form
     ``source: key.path: message``.
 
@@ -138,11 +142,11 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
 
     Raises:
         SimSceneValidationError: On any unknown or invalid key, a null at any depth,
-            or a tuple or a set in a typed key.
+            or a value in a typed block that a scene file cannot hold.
     """
     _refuse_nulls(raw, '', source=source)
+    _refuse_non_file_values(raw, source=source)
     typed = {key: value for key, value in raw.items() if key not in UNTYPED_BLOCKS}
-    _refuse_tuples_and_sets(typed, '', source=source)
     try:
         scene = parse(Scene, typed, source=source)
     except SchemaError as exc:
@@ -155,31 +159,59 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
     return scene
 
 
-def _refuse_tuples_and_sets(value: Any, path: str, *, source: str) -> None:
-    """Refuse a tuple or a set at any depth of the typed blocks, which take lists.
+def _refuse_non_file_values(raw: Mapping[str, Any], *, source: str) -> None:
+    """Refuse, in the typed blocks, any value that a scene file cannot hold.
 
-    A scene file holds lists, as YAML gives them.  A tuple or a set can come only from
-    a scene built in Python, and a set's order is arbitrary, so the typed scene refuses
-    both rather than read them as lists.
+    A scene file holds mappings with string keys, lists, and the JSON scalars.  Anything
+    else can come only from a scene built in Python: a tuple or a set (a set's order is
+    arbitrary), a generator, which the schema would consume, or a typed instance such as
+    a detector override, which the renderer cannot encode.  The check runs on the raw
+    mapping before any JSON encoding, so the validation cache sees the same refusals as
+    a cold check.  The blocks that are not typed yet are left to their rules.
 
     Parameters:
-        value: The value to search: a mapping, a list, or a scalar.
-        path: The value's key path, or an empty string for the whole scene.
+        raw: The scene's mapping.
         source: The label that begins the error message.
 
     Raises:
-        SimSceneValidationError: If a value at any depth is a tuple or a set.
+        SimSceneValidationError: If a typed block holds such a value at any depth.
     """
-    if isinstance(value, tuple | set | frozenset):
+    for key, value in raw.items():
+        if key not in UNTYPED_BLOCKS:
+            _refuse_non_file_value(value, str(key), source=source)
+
+
+def _refuse_non_file_value(value: Any, path: str, *, source: str) -> None:
+    """Refuse ``value``, or a value inside it, that a scene file cannot hold.
+
+    Parameters:
+        value: The value to search: a mapping, a list, or a scalar.
+        path: The value's key path.
+        source: The label that begins the error message.
+
+    Raises:
+        SimSceneValidationError: If a value at any depth is not a mapping with string
+            keys, a list, or a JSON scalar.
+    """
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise SimSceneValidationError(
+                    f'{source}: {path}: expected a string key, got {describe_value(key)}'
+                )
+            _refuse_non_file_value(item, f'{path}.{key}', source=source)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _refuse_non_file_value(item, f'{path}[{index}]', source=source)
+    elif isinstance(value, tuple | set | frozenset):
         raise SimSceneValidationError(
             f'{source}: {path}: expected a list, got {describe_value(value)}'
         )
-    if isinstance(value, Mapping):
-        for key, item in value.items():
-            _refuse_tuples_and_sets(item, f'{path}.{key}' if path else str(key), source=source)
-    elif isinstance(value, list):
-        for index, item in enumerate(value):
-            _refuse_tuples_and_sets(item, f'{path}[{index}]', source=source)
+    elif value is not None and not isinstance(value, str | int | float | bool):
+        raise SimSceneValidationError(
+            f'{source}: {path}: expected a mapping, a list, a string, a number, or a '
+            f'boolean, got {describe_value(value)}'
+        )
 
 
 def _check_untyped_blocks(raw: Mapping[str, Any], *, instrument: str, source: str) -> None:
