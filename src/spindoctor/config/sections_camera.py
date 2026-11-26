@@ -33,6 +33,7 @@ from spindoctor.schema import (
     Bool,
     DigitInt,
     Float,
+    FloatOrNan,
     NonNeg,
     NonNegInt,
     Positive,
@@ -118,9 +119,9 @@ FitCameraRotation = Bool
 MaxRotationDeg = Positive
 #: The ADC ceiling, in DN, at and above which a pixel is saturated.
 SaturationDn = Positive
-#: The value a missing pixel carries: a number, or ``NaN`` for a product that marks a
-#: missing pixel with NaN.
-MarkerValue = Float | Literal['NaN']
+#: The value a missing pixel carries: a number, or NaN for a product that marks a missing
+#: pixel with NaN.  NaN is written ``.nan``, or ``NaN``, which YAML reads as a string.
+MarkerValue = FloatOrNan | Literal['NaN']
 #: The read noise of one pixel, in DN; 0 is an ideal detector.
 ReadNoiseDn = NonNeg
 #: The DN per second that a star of visual magnitude 0 deposits.
@@ -446,8 +447,7 @@ def as_camera_block(block: CameraBlock | Mapping[str, Any], *, source: str) -> C
     overrides merged over it, and the simulator's own camera section is read as a
     mapping; this reads either through the same type as every other camera block.  A
     scene's overrides may carry top-level keys of their own, which the block does not
-    declare, and those are not read.  A scene may also set ``noise.marker_value`` to a
-    float NaN, which reads as ``'NaN'``.
+    declare, and those are not read.
 
     Parameters:
         block: The camera block, typed or as a mapping.
@@ -467,13 +467,6 @@ def as_camera_block(block: CameraBlock | Mapping[str, Any], *, source: str) -> C
     # which keys a scene may set (#1029).
     declared = {item.name for item in dataclasses.fields(CameraBlock)}
     raw = {key: value for key, value in block.items() if key in declared}
-    # A scene writes a NaN marker as a float NaN, which no schema number accepts, so it
-    # reads as the 'NaN' a file writes (#1029).
-    noise = raw.get('noise')
-    if isinstance(noise, Mapping):
-        marker = noise.get('marker_value')
-        if isinstance(marker, float) and math.isnan(marker):
-            raw['noise'] = {**noise, 'marker_value': 'NaN'}
     return parse(CameraBlock, raw, source=source)
 
 
