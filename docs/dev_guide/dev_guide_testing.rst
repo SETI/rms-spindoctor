@@ -173,9 +173,21 @@ To apply ``defer`` now, which lasts until the next reboot, and to check it:
 The second command shows ``always [defer] defer+madvise madvise never``. The
 brackets mark the setting in force.
 
-To keep the setting across reboots, add a systemd tmpfiles rule. The service
-``systemd-tmpfiles-setup.service`` applies it at every boot, and the second command
-below applies it now as well:
+To keep the setting across reboots, use a systemd tmpfiles rule, which the service
+``systemd-tmpfiles-setup.service`` applies at every boot. First look for a rule that
+already writes the same file:
+
+.. code-block:: bash
+
+   grep -rs transparent_hugepage/defrag /etc/tmpfiles.d /run/tmpfiles.d /usr/lib/tmpfiles.d
+
+When several rules write one file, systemd-tmpfiles applies the rule in the file whose
+name sorts first and ignores the others, so a second rule may never take effect. If the
+search finds a rule in ``/etc/tmpfiles.d``, change its value there to ``defer`` and note
+the old one. If it finds one only in ``/run/tmpfiles.d`` or ``/usr/lib/tmpfiles.d``,
+copy that file into ``/etc/tmpfiles.d`` under the same name, which replaces it, and
+change the value in the copy. If it finds none, add a rule; the second command below
+applies it now as well:
 
 .. code-block:: bash
 
@@ -183,8 +195,9 @@ below applies it now as well:
    sudo systemd-tmpfiles --create /etc/tmpfiles.d/thp-defrag.conf
    cat /sys/kernel/mm/transparent_hugepage/defrag
 
-To undo the change, delete ``/etc/tmpfiles.d/thp-defrag.conf`` and write the value you
-noted back to the same file.
+To undo the change, delete the file you added or copied to ``/etc/tmpfiles.d``, or put
+the old value back in the rule you changed, and write the ``defrag`` value you noted
+back to ``/sys/kernel/mm/transparent_hugepage/defrag``.
 
 Without root, set ``NUMPY_MADVISE_HUGEPAGE=0`` in the environment of the job. NumPy
 then asks for no huge pages, so the kernel has nothing to compact. This comes close
