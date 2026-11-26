@@ -5,8 +5,8 @@ observation (read through the navigator's own reader, so star positions are the 
 the image the photometry is measured on and the mapping into it, the frame's photometric
 state (filter, gain state, readout mode, exposure), and the measurement parameters.  This
 module queries the catalog deep, finds the pointing most catalog stars agree on without the
-navigator's star techniques (leaving out stars behind a body or ring), and measures every
-catalog star at the pointing.
+navigator's star techniques (leaving out stars behind a body), and measures every catalog
+star at the pointing.
 
 For each star the record holds what the limit and PSF fits need:
 
@@ -264,8 +264,10 @@ def measure_frame(
     record['hp_noise'] = robust_sigma(hp.ravel())
 
     margin = params.search_px
-    occluded = _occlusion_mask(obs, config, margin_px=margin)
-    # A star behind a body or ring cannot confirm a pointing, so it does not vote.
+    behind_body, occluded = _occlusion_masks(obs, config, margin_px=margin)
+    # A star behind a body cannot confirm a pointing, so it does not vote.  A star inside a
+    # ring annulus still votes: the annuli of the narrow-ring systems span mostly empty
+    # space, and stars seen between the rings confirm real fixes.
     near = np.array(
         [
             k
@@ -275,7 +277,7 @@ def measure_frame(
                 & (pu > -margin)
                 & (pu < nav.shape[1] + margin)
             )[0]
-            if not occluded(float(pv[k]), float(pu[k]))
+            if not behind_body(float(pv[k]), float(pu[k]))
         ],
         dtype=np.intp,
     )
@@ -339,10 +341,10 @@ def measure_frame(
 _OCCLUSION_STEP_PX = 4
 
 
-def _occlusion_mask(
+def _occlusion_masks(
     obs: ObsSnapshotInst, config: Config, *, margin_px: float
-) -> Callable[[float, float], bool]:
-    """Return a test of whether a predicted star position is behind a body or an opaque ring.
+) -> tuple[Callable[[float, float], bool], Callable[[float, float], bool]]:
+    """Return tests of whether a predicted star position is behind a body, or a body or ring.
 
     The bodies are the closest planet and its configured satellites; the rings are the
     planet's ``stars.ring_occlusion_radii_km`` annuli, as in the navigator's own check.  The
@@ -357,12 +359,13 @@ def _occlusion_mask(
         margin_px: Padding of the grid beyond the field on every side.
 
     Returns:
-        A function of a predicted array-index position ``(v, u)`` returning True when the
-        star there is occluded.
+        Two functions of a predicted array-index position ``(v, u)``: the first returns True
+        when the star there is behind a body, the second when it is behind a body or inside
+        a ring annulus.
     """
     planet = obs.closest_planet
     if planet is None:
-        return lambda _v, _u: False
+        return (lambda _v, _u: False), (lambda _v, _u: False)
     step = _OCCLUSION_STEP_PX
     nv, nu = obs.data.shape
     origin = (-margin_px, -margin_px)
@@ -370,7 +373,7 @@ def _occlusion_mask(
     meshgrid = Meshgrid.for_fov(obs.fov, origin=origin, limit=limit, undersample=step, swap=True)
     backplane = Backplane(obs, meshgrid)
     shape = meshgrid.shape
-    mask = np.zeros(shape, dtype=bool)
+    body_mask = np.zeros(shape, dtype=bool)
     # Test only the bodies near the padded field: a backplane caches every array it computes,
     # and a planet with dozens of satellites would otherwise hold gigabytes per frame.
     # Every FOV the camera readers build is a FlatFOV or a subclass, which carries uv_scale.
@@ -378,7 +381,8 @@ def _occlusion_mask(
     nearby = obs.inventory([planet, *config.satellites(planet)], expand=margin_px * scale)
     for body in nearby:
         hit = backplane.where_intercepted(body)
-        mask |= np.broadcast_to(np.asarray(hit.vals, dtype=bool), shape)
+        body_mask |= np.broadcast_to(np.asarray(hit.vals, dtype=bool), shape)
+    mask = body_mask.copy()
     annuli = config.stars.ring_occlusion_radii_km.get(planet.upper(), ())
     if config.stars.ring_occlusion_enabled and annuli:
         radii = backplane.ring_radius(f'{planet.lower()}:ring')
@@ -387,16 +391,20 @@ def _occlusion_mask(
         for inner, outer in annuli:
             mask |= valid & (values >= inner) & (values <= outer)
     grow = math.ceil(float(config.stars.body_conflict_margin) / step) + 1
-    mask = scipy.ndimage.binary_dilation(mask, iterations=grow)
 
-    def occluded(v: float, u: float) -> bool:
-        iv = math.floor((v + _CORNER_TO_INDEX + margin_px) / step)
-        iu = math.floor((u + _CORNER_TO_INDEX + margin_px) / step)
-        if 0 <= iv < shape[0] and 0 <= iu < shape[1]:
-            return bool(mask[iv, iu])
-        return False
+    def tester(grid: NDArray[np.bool_]) -> Callable[[float, float], bool]:
+        dilated = scipy.ndimage.binary_dilation(grid, iterations=grow)
 
-    return occluded
+        def occluded(v: float, u: float) -> bool:
+            iv = math.floor((v + _CORNER_TO_INDEX + margin_px) / step)
+            iu = math.floor((u + _CORNER_TO_INDEX + margin_px) / step)
+            if 0 <= iv < shape[0] and 0 <= iu < shape[1]:
+                return bool(dilated[iv, iu])
+            return False
+
+        return occluded
+
+    return tester(body_mask), tester(mask)
 
 
 def _median_sky_sigma(star_records: list[dict[str, Any]]) -> float | None:
