@@ -22,9 +22,9 @@ Usage::
 ``sweep/``, ``gallery/``, or ``perf/``), and exits with status 1 if no name does.
 ``--compare`` then lists every render whose digest differs from ``BASE.json`` and
 every render of ``BASE.json`` within the prefix that this run did not make, and
-exits with status 1 if there is either.  Floating-point results can differ between
-machines and library builds, so compare only digests taken on one machine with one
-environment.
+exits with status 1 if there is either; ``OUT.json`` must be another file.
+Floating-point results can differ between machines and library builds, so compare
+only digests taken on one machine with one environment.
 
 ``main_c6815cfc.json`` beside this script holds the digests of main at commit
 c6815cfc, taken on the development machine (NumPy 2.5.1, SciPy 1.17.0, Python
@@ -205,6 +205,13 @@ def main() -> int:
     parser.add_argument('--only', default='', help='digest only names with this prefix')
     parser.add_argument('--compare', type=Path, help='a digest file to compare with')
     args = parser.parse_args()
+    # The base is read before any render, and OUT may not be the base, which writing
+    # the digests would replace.
+    base = None
+    if args.compare is not None:
+        base = json.loads(args.compare.read_text())
+        if args.out.exists() and args.out.samefile(args.compare):
+            parser.error(f'OUT is the --compare file {args.compare}; writing would replace it')
 
     results: dict[str, list[str]] = {}
     start = time.time()
@@ -226,9 +233,9 @@ def main() -> int:
     failed = [name for name, value in results.items() if value[0] == 'error']
     for name in failed:
         print(f'FAILED {name}: {results[name][1]}')
-    if args.compare is None:
+    if base is None:
         return 1 if failed else 0
-    status = _compare(json.loads(args.compare.read_text()), results, only=args.only)
+    status = _compare(base, results, only=args.only)
     return 1 if status or failed else 0
 
 

@@ -112,3 +112,20 @@ def test_a_failing_render_prints_its_traceback(
     monkeypatch.setattr(sys, 'argv', ['render_digests.py', str(tmp_path / 'digests.json')])
     assert render_digests.main() == 1
     assert "KeyError: 'inner cause'" in capsys.readouterr().err
+
+
+def test_writing_over_the_compared_file_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """OUT naming the --compare file by another path is refused, and the file is kept."""
+    base = tmp_path / 'base.json'
+    base.write_text('{"catalog/a#nav": ["1", "2"]}\n')
+    (tmp_path / 'sub').mkdir()
+    alias = tmp_path / 'sub' / '..' / 'base.json'
+    monkeypatch.setattr(render_digests, '_jobs', lambda: [('catalog/a#nav', {}, {})])
+    monkeypatch.setattr(render_digests, '_render_digests', lambda params, **kwargs: ['3', '4'])
+    monkeypatch.setattr(sys, 'argv', ['render_digests.py', str(alias), '--compare', str(base)])
+    with pytest.raises(SystemExit):
+        render_digests.main()
+    assert 'writing would replace it' in capsys.readouterr().err
+    assert base.read_text() == '{"catalog/a#nav": ["1", "2"]}\n'
