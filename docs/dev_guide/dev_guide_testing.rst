@@ -174,28 +174,28 @@ The second command shows ``always [defer] defer+madvise madvise never``. The
 brackets mark the setting in force.
 
 To keep the setting across reboots, use a systemd tmpfiles rule, which the service
-``systemd-tmpfiles-setup.service`` applies at every boot. First list the rules that
-already write the same file:
+``systemd-tmpfiles-setup.service`` applies at every boot. First see whether a rule
+already writes the same file:
 
 .. code-block:: bash
 
-   grep -rs transparent_hugepage/defrag /etc/tmpfiles.d /run/tmpfiles.d /usr/lib/tmpfiles.d
+   systemd-tmpfiles --cat-config | grep -e '^# /' -e transparent_hugepage/defrag
 
-A file in ``/etc/tmpfiles.d`` replaces a file of the same name in the other two
-directories, and a file in ``/run/tmpfiles.d`` replaces one of the same name in
-``/usr/lib/tmpfiles.d``, whether or not the replacing file writes this setting. Skip any
-listed file that a higher directory holds a file of the same name for. Of the rules left,
-the one in the file whose name sorts first is in force, whichever directory it is in;
-systemd-tmpfiles ignores the others. Save a copy of any file before changing it.
+``--cat-config`` prints every tmpfiles file systemd reads, each under a line that gives
+its path, in the order systemd applies them. It leaves out a file that another file of the
+same name replaces, so the list holds only files in force, from whichever directories this
+systemd version reads. When several rules write one file, systemd-tmpfiles applies the
+first and ignores the others. Save a copy of any file before changing it.
 
-* If the rule in force is in ``/etc/tmpfiles.d``, change its value there to ``defer``.
-* If it is in ``/run/tmpfiles.d`` or ``/usr/lib/tmpfiles.d``, copy that file into
-  ``/etc/tmpfiles.d`` under the same name and change the value in the copy.
+* If the first rule listed is in ``/etc/tmpfiles.d``, change its value there to
+  ``defer``.
+* If it is in another directory, copy that file into ``/etc/tmpfiles.d`` under the same
+  name and change the value in the copy. A file in ``/etc/tmpfiles.d`` replaces a file of
+  the same name in every other directory.
 * If no rule writes the file, add one. The commands below write
-  ``/etc/tmpfiles.d/thp-defrag.conf``; if any of the three directories already holds a
-  file of that name, use a name none of them holds that ends in ``.conf``, in both
-  commands, since the new file would replace a file of its name in the other two. The
-  second command applies the rule now as well:
+  ``/etc/tmpfiles.d/thp-defrag.conf``; if the list already shows a file
+  ``thp-defrag.conf`` in any directory, use another name that it does not list and that
+  ends in ``.conf``, in both commands. The second command applies the rule now as well:
 
 .. code-block:: bash
 
