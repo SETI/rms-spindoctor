@@ -561,7 +561,7 @@ All numeric tunables for this technique live in ``techniques.StarUniqueMatchNav.
   converged 2-star rotation magnitude trips
   :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the 2-star
   Procrustes path uses it; the 1-star path always reports rotation as unobservable.
-- ``model_error_floor_px`` — float, packaged value ``0.04`` px; a block that leaves the
+- ``model_error_floor_px`` — float, packaged value ``0.035`` px; a block that leaves the
   key out gets a floor of 0.0, which adds nothing. Model-error floor added in quadrature to
   the translation diagonal of both paths' covariance. It was measured on real star fields:
   the technique's answers against each frame's independent multi-star pointing fix, with a
