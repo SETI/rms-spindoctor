@@ -15,7 +15,9 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    (Tukey biweight) of the zero points on an intercept, one term per filter but the reference
    filter, and one term per gain state but the reference state gives the reference rate (DN
    per second for a V = 0 star through the reference filter in the reference gain state), the
-   filter magnitude offsets, and the gain-state DN ratios.
+   filter magnitude offsets, and the gain-state DN ratios.  A fit whose stars cannot
+   separate the terms (a design matrix short of full rank, before or after the robust
+   weighting) is reported as unidentified, with no coefficients.
 3. **Detection limit.**  Every clean star of the fitting frames gets a predicted DN from the
    fit; a detection-probability model (a floor, a plateau and a normal-integral rise in log
    DN) fitted to the stars' detections gives the DN at which detection is ``COMPLETENESS`` of
@@ -167,6 +169,10 @@ class FitResult:
         n_frames: Frames with an accepted pointing fix.
         n_fit_frames: Of those, frames used in the fit.
         apcorr: Aperture correction per mode.
+        zero_point_identified: False when the fitting stars cannot separate the intercept,
+            the filter terms, and the gain terms (for example, every star through one
+            filter taken in one gain state and every other star in the other); the rate,
+            offsets, and ratios are then left out.
         rate_vmag0: DN per second of a V = 0 star, reference filter and gain state.
         rate_sigma_mag: Uncertainty of the rate, in magnitudes.
         filter_offsets: Magnitude offset of each filter from the reference filter.
@@ -197,6 +203,7 @@ class FitResult:
     n_frames: int = 0
     n_fit_frames: int = 0
     apcorr: dict[str, float] = field(default_factory=dict)
+    zero_point_identified: bool = True
     rate_vmag0: float = float('nan')
     rate_sigma_mag: float = float('nan')
     filter_offsets: dict[str, float] = field(default_factory=dict)
@@ -221,7 +228,9 @@ class FitResult:
     psf: dict[str, Any] = field(default_factory=dict)
 
 
-def _tukey_lstsq(a: FloatArray, b: FloatArray) -> tuple[FloatArray, FloatArray, FloatArray]:
+def _tukey_lstsq(
+    a: FloatArray, b: FloatArray
+) -> tuple[FloatArray, FloatArray, FloatArray, FloatArray]:
     """Solve ``a x = b`` by iteratively reweighted least squares with Tukey's biweight.
 
     Parameters:
@@ -229,8 +238,8 @@ def _tukey_lstsq(a: FloatArray, b: FloatArray) -> tuple[FloatArray, FloatArray, 
         b: Observations.
 
     Returns:
-        ``(x, sigma_x, residuals)``; ``sigma_x`` from the weighted normal equations scaled by
-        the robust residual scatter.
+        ``(x, sigma_x, residuals, weights)``; ``sigma_x`` from the weighted normal equations
+        scaled by the robust residual scatter, ``weights`` the final biweights.
     """
     weights = np.ones(b.size)
     x = np.zeros(a.shape[1])
@@ -245,7 +254,19 @@ def _tukey_lstsq(a: FloatArray, b: FloatArray) -> tuple[FloatArray, FloatArray, 
     scale = 1.4826 * np.median(np.abs(resid - np.median(resid)))
     normal = (a * weights[:, None]).T @ a
     cov = np.linalg.pinv(normal) * scale**2 * (weights.sum() / max(np.sum(weights**2), 1e-9))
-    return x, np.sqrt(np.clip(np.diag(cov), 0.0, None)), resid
+    return x, np.sqrt(np.clip(np.diag(cov), 0.0, None)), resid, weights
+
+
+def _full_rank(a: FloatArray) -> bool:
+    """Return whether a design matrix determines every one of its coefficients.
+
+    Parameters:
+        a: Design matrix.
+
+    Returns:
+        True when its rank equals its number of columns.
+    """
+    return a.shape[0] > 0 and int(np.linalg.matrix_rank(a)) == a.shape[1]
 
 
 def _star_rows(records: Iterable[dict[str, Any]], *, gain_field: str) -> list[dict[str, Any]]:
@@ -380,6 +401,9 @@ def _fit_zero_point(
 ) -> None:
     """Fit the reference rate, filter offsets and gain ratios into ``result``.
 
+    When the stars cannot separate the terms, before or after the robust weighting drops
+    outliers, ``result.zero_point_identified`` is set False and no coefficient is stored.
+
     Parameters:
         result: The camera's result, updated in place.
         rows: The fitting stars.
@@ -398,7 +422,15 @@ def _fit_zero_point(
             a[i, 1 + filters.index(r['filter'])] = -1.0
         if r['gain'] in gains:
             a[i, 1 + len(filters) + gains.index(r['gain'])] = 1.0
-    x, sx, resid = _tukey_lstsq(a, b)
+    result.filter_counts = dict(sorted(_count(r['filter'] for r in rows).items()))
+    result.gain_counts = dict(sorted(_count(r['gain'] for r in rows).items()))
+    if not _full_rank(a):
+        result.zero_point_identified = False
+        return
+    x, sx, resid, weights = _tukey_lstsq(a, b)
+    if not _full_rank(a[weights > 0.0]):
+        result.zero_point_identified = False
+        return
     result.rate_vmag0 = 10 ** (0.4 * x[0])
     result.rate_sigma_mag = float(sx[0])
     has_ref_filter = any(r['filter'] == reference_filter for r in rows)
@@ -413,8 +445,6 @@ def _fit_zero_point(
     for k, name in enumerate(gains):
         result.gain_ratio[name] = float(10 ** (0.4 * x[1 + len(filters) + k]))
         result.gain_ratio_sigma_mag[name] = float(sx[1 + len(filters) + k])
-    result.filter_counts = dict(sorted(_count(r['filter'] for r in rows).items()))
-    result.gain_counts = dict(sorted(_count(r['gain'] for r in rows).items()))
     result.zp_scatter_mag = float(1.4826 * np.median(np.abs(resid - np.median(resid))))
     bv = np.array([r['bmag'] - r['vmag'] if r['bmag'] is not None else np.nan for r in rows])
     good = np.isfinite(bv) & (np.abs(resid) < 1.0)
