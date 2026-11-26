@@ -18,7 +18,8 @@ For each star the record holds what the limit and PSF fits need:
 * for stars bright enough, a pixel-integrated Gaussian fit and encircled-energy radii.
 
 :func:`run_frames` runs a frame list in a process pool, appending one JSON line per frame, and
-skips frames an earlier run already wrote, so an interrupted run resumes.
+skips frames an earlier run already measured, so an interrupted run resumes; a frame that
+failed is tried again.
 """
 
 from __future__ import annotations
@@ -563,7 +564,9 @@ def _float_or_none(value: Any) -> float | None:
 
 
 def _done_ids(out_path: Path) -> set[str]:
-    """Return the image IDs an earlier run already wrote to ``out_path``.
+    """Return the image IDs an earlier run measured in ``out_path``.
+
+    A frame with only error records is left out, so a run tries it again.
 
     Parameters:
         out_path: The JSON-lines output.
@@ -574,7 +577,8 @@ def _done_ids(out_path: Path) -> set[str]:
     if not out_path.exists():
         return set()
     with out_path.open() as fh:
-        return {json.loads(line)['frame']['image_id'] for line in fh if line.strip()}
+        records = [json.loads(line) for line in fh if line.strip()]
+    return {r['frame']['image_id'] for r in records if 'error' not in r}
 
 
 def _guarded(worker: Callable[[FrameInput], dict[str, Any]], frame: FrameInput) -> dict[str, Any]:
@@ -602,7 +606,8 @@ def run_frames(
 ) -> int:
     """Measure frames in a process pool, appending one JSON line per frame to ``out_path``.
 
-    Frames whose image ID ``out_path`` already holds are skipped.  ``worker`` must be a
+    Frames ``out_path`` already holds a measurement of are skipped; a frame it holds only
+    error records for is measured again, appending a new record.  ``worker`` must be a
     module-level function so the spawned workers can import it.
 
     Parameters:

@@ -46,15 +46,24 @@ BLACK_SKY = 'BLACK_SKY'
 def truth_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Return one table row per black-sky frame of the truth volumes.
 
+    A frame that failed and was tried again on a later run has several records: its
+    measurement is used when it has one, else its first error.
+
     Parameters:
         records: Measurement records, including failed ones (``'error'`` present).
 
     Returns:
         The rows, sorted by image ID.
     """
+    measured = {r['frame']['image_id'] for r in records if 'error' not in r}
+    failed: set[str] = set()
     rows = []
     for record in records:
         frame = record['frame']
+        if 'error' in record:
+            if frame['image_id'] in measured or frame['image_id'] in failed:
+                continue
+            failed.add(frame['image_id'])
         extra = frame['extra']
         if extra['volume'] not in TRUTH_VOLUMES or extra['target'] != BLACK_SKY:
             continue
