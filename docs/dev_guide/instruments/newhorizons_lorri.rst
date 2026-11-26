@@ -155,15 +155,15 @@ that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.
 unbinned and V 15.5 binned. A frame whose exposure is not positive gets a limit of
 ``-inf``.
 
-The values were measured in 2026 on star fields of the cruise and the Pluto
-approach, read through the navigator's own reader. Each frame's pointing was found
-from the stars alone, by a vote over star and peak pairs refined to a translation and
-a rotation, and a frame was kept when three or more stars, each on its own image peak,
-agreed within 1 px and the chance of such a cluster anywhere in the search window
-(100 px unbinned, 40 px binned) was below one in a thousand. That kept 341 of 468
-measured frames, and one frame in three was held out of the fit. Frames shorter than
-50 ms were left out: the camera has no shutter, so the frame transfer adds light to a
-short exposure.
+The rate, the detection thresholds, and the star widths were measured in 2026 on star
+fields of the cruise and the Pluto approach, read through the navigator's own reader.
+Each frame's pointing was found from the stars alone, by a vote over star and peak
+pairs refined to a translation and a rotation, and a frame was kept when three or more
+stars, each on its own image peak, agreed within 1 px and the chance of such a cluster
+anywhere in the search window (100 px unbinned, 40 px binned) was below one in a
+thousand. That kept 341 of 468 measured frames, and one frame in three was held out of
+the fit. Frames shorter than 50 ms were left out: the camera has no shutter, so the
+frame transfer adds light to a short exposure.
 
 - The rate is the fit of 4,310 stars, 3.605e7 DN per second for V = 0 unbinned
   (+-0.01 mag), times 21.0 electrons per DN. The zero point of Weaver et al. (2020)

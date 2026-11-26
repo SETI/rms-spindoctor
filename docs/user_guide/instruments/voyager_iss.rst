@@ -174,9 +174,13 @@ magnitudes fainter. Each factor of ten in exposure reaches 2.5
 magnitudes deeper, high gain reaches about 1.5 magnitudes deeper, and the other
 filters reach 0.7 to 5.4 magnitudes less deep than the clear one. The navigator
 expects a star's light to spread with a Gaussian sigma of 1.2 pixels on the Voyager 2
-narrow-angle camera and 1.1 pixels on the Voyager 2 wide-angle camera. The Voyager 2
-values were measured on star fields whose pointing the stars alone fixed. Only three
-Voyager 1 frames could be fixed that way, so the Voyager 1 limits are scaled from
+narrow-angle camera and 1.1 pixels on the Voyager 2 wide-angle camera. For each
+Voyager 2 camera the star width, how bright a star reads through the clear filter at
+low gain, and the faintest signal the camera shows were measured on star fields whose
+pointing the stars alone fixed. The other filters and high gain follow from the
+published calibration of Benesh and Jepsen (1978), since the star fields hold too few
+stars through them to measure. Only one Voyager 1 frame could be fixed that way, so
+the Voyager 1 limits are scaled from
 Voyager 2's by the cameras' sensitivities measured before launch, and the Voyager 1
 star width is a placeholder of 3 pixels.
 

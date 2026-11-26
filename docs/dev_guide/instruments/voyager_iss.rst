@@ -243,14 +243,14 @@ leave out stars the camera can show.
      - 35
      - V 7.3
 
-The Voyager 2 values were measured in 2026 on star fields of its cruise and
-encounters, read through the navigator's own reader and photometered on the raw
-vidicon frame. Each frame's pointing was found from the stars alone, by a vote over
-star and peak pairs refined to a translation and a rotation, and a frame was kept
-when three or more stars, each on its own image peak, agreed within 1.5 px and the
-chance of such a cluster anywhere in the 400 px search window was below one in a
-thousand. That kept 36 narrow-angle and 47 wide-angle frames, and one frame in three
-was held out of the fit.
+The Voyager 2 rates, detection thresholds, and star widths were measured in 2026 on
+star fields of its cruise and encounters, read through the navigator's own reader and
+photometered on the raw vidicon frame. Each frame's pointing was found from the stars
+alone, by a vote over star and peak pairs refined to a translation and a rotation, and
+a frame was kept when three or more stars, each on its own image peak, agreed within
+1.5 px and the chance of such a cluster anywhere in the 400 px search window was below
+one in a thousand. That kept 36 narrow-angle and 47 wide-angle frames, and one frame
+in three was held out of the fit.
 
 - The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4
   (+-0.07 mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter wide-angle stars, V 8 to 10,
@@ -289,7 +289,7 @@ geometrically corrected image. On Voyager 2 it is the median Gaussian sigma of s
 on frames read out at 5:1: 1.2 px for the narrow-angle camera (53 stars on 15
 frames) and 1.1 px for the wide-angle camera (213 stars on 26 frames). A star's core
 is about 0.8 px, and platform motion elongates a long exposure. The Voyager 1 values
-are a 3.0 px placeholder, since its three frames hold too few stars to fit. The
+are a 3.0 px placeholder, since its one frame holds too few stars to fit. The
 camera block's ``star_psf_sigma`` is read only by the simulator, which emulates all
 four cameras from that block. ``star_psf_sizes`` is a single ``100: [7, 7]``, so
 every star gets a 7x7 cutout regardless of magnitude and regardless of camera.

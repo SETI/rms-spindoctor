@@ -133,8 +133,12 @@ at the 10K gain state and 9.9 at 100K, and a summed frame reaches 1.0 magnitude
 deeper. Each factor of ten in exposure reaches 2.5 magnitudes deeper, and the other
 filters reach 2 to 6 magnitudes less deep than the clear one. The navigator expects a
 star's light to spread with a Gaussian sigma of 0.65 pixels on a full frame and 0.40
-pixels on a summed frame. All of these were measured on the 1990 and 1992 cruise star
-fields, on frames whose pointing the stars alone fixed.
+pixels on a summed frame. The star widths, how bright a star reads through the clear
+filter at the 10K gain state, and the faintest signal the camera shows were measured
+on the 1990 and 1992 cruise star fields, on frames whose pointing the stars alone
+fixed. The other filters and gain states follow from published calibration values
+(Klaasen 1993 and Klaasen et al. 1999), since the star fields hold too few stars
+through them to measure.
 
 **Provisional values.** The blank and noisy thresholds, the expected-noise and
 read-noise figures, and the magnitude-offset table are all placeholders

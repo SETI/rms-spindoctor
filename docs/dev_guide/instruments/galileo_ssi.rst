@@ -165,16 +165,16 @@ in pixels, so ``min_detectable_dn`` and ``star_psf_sigma`` are given per mode. A
 lacks is refused, and a frame whose exposure is not positive gets a limit of
 ``-inf``.
 
-The values were measured in 2026 on the cruise star fields of 1990 and 1992, read
-through the navigator's own reader. Each frame's pointing was found from the stars
-alone, by a vote over star and peak pairs refined to a translation and a rotation, and
-a frame was kept when three or more stars, each on its own image peak, agreed within
-1 px and the chance of such a cluster anywhere in the 350 px search window was below
-one in a thousand. That kept 99 of 1,419 measured frames, 78 full frames in the HCM
-format and 21 summed frames in AI8, and one frame in three was held out of the fit. A
-filter or gain state is measured only from 15 or more stars; only CLEAR and 10K have
-that many, so the others take the calibration documents' values, and their stars are
-left out of the fits.
+The rate, the detection thresholds, and the star widths were measured in 2026 on the
+cruise star fields of 1990 and 1992, read through the navigator's own reader. Each
+frame's pointing was found from the stars alone, by a vote over star and peak pairs
+refined to a translation and a rotation, and a frame was kept when three or more
+stars, each on its own image peak, agreed within 1 px and the chance of such a cluster
+anywhere in the 350 px search window was below one in a thousand. That kept 99 of
+1,419 measured frames, 78 full frames in the HCM format and 21 summed frames in AI8,
+and one frame in three was held out of the fit. A filter or gain state is measured
+only from 15 or more stars; only CLEAR and 10K have that many, so the others take the
+calibration documents' values, and their stars are left out of the fits.
 
 - The rate is 6.05e6 DN per second for V = 0 through CLEAR at 10K, times the 38.7
   electrons per DN of 10K. The fit of 46 stars gives 5.96e6 (+-0.14 mag), within that
