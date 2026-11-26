@@ -17,7 +17,9 @@ confounder stars of ``lock_single_dense``, and the catalog scatter of ``wrong_ca
 detector noise alone instead: the committed draw and the scene key ``noise_seed`` at 101,
 202, ..., 1515.  Those draws keep the albedo texture and the limb relief the test
 renders, which a new ``random_seed`` would redraw.  Every check also holds on 8 draws of
-the detector noise alone, ``noise_seed`` at 101, 202, ..., 808.
+the detector noise alone, ``noise_seed`` at 101, 202, ..., 808.  On a scene whose only
+random content is the detector noise, those draws repeat the ``random_seed`` draws of the
+same values, so they add no distinct draws.
 
 The two rules.
 
@@ -196,11 +198,11 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # expected blocks instead (#1110).
     ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
     ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
-    # atmosphere.  Every atmosphere scene holds its fused outcome in its expected block:
-    # titan_haze and titan_haze_limb a known error from the lunar-Lambert surface under
-    # the haze (#1110), and titan_crescent_horns and its noiseless twin a known error
-    # from the haze's ring of light (#1050), on a surface the default law shades
-    # Lambert at their 155 deg phase.
+    # atmosphere.  titan_haze's haze-symmetry fit lands 0.49 to 0.54 px off along the
+    # sun axis, toward the night side; the error grows with the rendered scale height.
+    # titan_haze_limb (#1190), titan_crescent_horns, and its noiseless twin (#1050)
+    # carry a known error in their expected blocks.
+    ('titan_haze', FUSED): _t(0.505, 0.540, 0.055, 0.11),
     # full_frame_cameras.  On these scenes a noise_seed draw gives the same answer as the
     # random_seed of the same value: random_seed reaches the noise and, apart from that,
     # only the fixed-pattern and sky streams, which change a few pixels of the render.
@@ -315,9 +317,9 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_deep', 'BodyBlobNav'): _b(5.375, 5.382, 0.05, 5.325, 5.433),
     ('mutual_half', 'BodyBlobNav'): _b(9.564, 10.441, 0.1754, 9.388, 10.617),
     ('mutual_grazing', 'BodyBlobNav'): _b(3.403, 4.388, 0.1969, 3.206, 4.585),
-    ('titan_crescent_horns', 'BodyBlobNav'): _b(25.091, 25.123, 0.05, 25.041, 25.174),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(25.151, 25.151, 0.05, 25.100, 25.201),
-    ('titan_haze_limb', 'BodyBlobNav'): _b(0.089, 0.095, 0.05, 0.038, 0.145),
+    ('titan_crescent_horns', 'BodyBlobNav'): _b(17.821, 20.080, 0.4518, 17.368, 20.532),
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(19.328, 19.328, 0.05, 19.277, 19.378),
+    ('titan_haze_limb', 'BodyBlobNav'): _b(1.412, 1.416, 0.05, 1.362, 1.466),
     # On moon_over_ring_sheet the blob lands 0.36 px off on 6 of the 24 draws and 2.08
     # to 2.09 px off on the rest, so the band reaches down to 0.01 px.
     ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.355, 2.094, 0.348, 0.006, 2.443),
@@ -393,6 +395,13 @@ SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # and fitting its two edges puts the answer 0.84 px off at a sigma of 0.023 to
     # 0.051 px (#1152).
     'a_ring_low_opening': _b(15.877, 17.969, 0.4185, 15.458, 18.388),
+    # atmosphere.  A haze-blind navigator reads the edge of an unmodeled thick haze as
+    # the limb and lands 7.35 to 7.55 px off at a sigma of 1.08 to 1.19 px (#1190).
+    'titan_haze_limb': _b(6.165, 6.965, 0.1599, 6.005, 7.125),
+    # The disc correlation's hard-limbed template leaves the ring of light out and locks
+    # onto it, 10.19 px toward the sun at a sigma of 1.03 px (#1050).
+    'titan_crescent_horns': _b(9.917, 9.949, 0.1, 9.817, 10.049),
+    'titan_crescent_horns_noiseless': _b(9.921, 9.921, 0.1, 9.820, 10.021),
 }
 
 # The planted roll is recovered 0.018 to 0.020 deg short over the seeds; the margin is

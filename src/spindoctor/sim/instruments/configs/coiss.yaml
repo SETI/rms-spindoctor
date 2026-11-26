@@ -170,6 +170,9 @@ coiss_nac:
     # without a polarizer; each folds onto that clear element.  The NAC
     # polarizers sit in wheel 1.
     polarizer_clear: {P0: CL1, P60: CL1, P120: CL1, IRP0: CL1}
+    # System transmission against wavelength for every combination above, from the
+    # CISSCAL calibration tables (see util/passbands/build_passbands.py).
+    passbands: coiss_nac
 
   artifact_modes:
     offered:
@@ -374,6 +377,8 @@ coiss_wac:
     clear: CL1+CL2
     # The WAC polarizers sit in wheel 2 and fold onto its clear element.
     polarizer_clear: {IRP0: CL2, IRP90: CL2}
+    # System transmission against wavelength, as for the narrow angle camera.
+    passbands: coiss_wac
 
   artifact_modes:
     offered:

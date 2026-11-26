@@ -44,6 +44,7 @@ __all__ = [
     'NORMAL_ALBEDO_DEFAULT',
     'BodySpec',
     'body_identity_seed',
+    'body_semi_axes_px',
     'body_spec_from_params',
     'scale_by_normal_albedo',
 ]
@@ -189,6 +190,21 @@ def _optional_float(block: Mapping[str, Any], key: str) -> float | None:
     return None if value is None else float(value)
 
 
+def body_semi_axes_px(body_params: Mapping[str, Any]) -> tuple[float, float, float]:
+    """Return the body's three semi-axes in pixels, each axis it leaves out at its default.
+
+    Parameters:
+        body_params: One entry of the scene's ``bodies`` list.
+
+    Returns:
+        Semi-axes a, b, and c.  Semi-axis c defaults to the smaller of a and b.
+    """
+    semi_a_px = float(scene_value(body_params, 'semi_a_px', 0.0))
+    semi_b_px = float(scene_value(body_params, 'semi_b_px', 0.0))
+    semi_c_px = float(scene_value(body_params, 'semi_c_px', min(semi_a_px, semi_b_px)))
+    return semi_a_px, semi_b_px, semi_c_px
+
+
 def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> BodySpec:
     """Parse one validated scene body into a :class:`BodySpec`.
 
@@ -201,8 +217,7 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
     Returns:
         The parsed body.
     """
-    semi_a_px = float(scene_value(body_params, 'semi_a_px', 0.0))
-    semi_b_px = float(scene_value(body_params, 'semi_b_px', 0.0))
+    semi_a_px, semi_b_px, semi_c_px = body_semi_axes_px(body_params)
     surge = scene_value(body_params, 'opposition_surge', {})
     scatter = scene_value(body_params, 'pose_scatter', {})
     transits = body_params.get('transits')
@@ -213,7 +228,7 @@ def body_spec_from_params(body_params: Mapping[str, Any], *, index: int) -> Body
         center_u=_optional_float(body_params, 'center_u'),
         semi_a_px=semi_a_px,
         semi_b_px=semi_b_px,
-        semi_c_px=float(scene_value(body_params, 'semi_c_px', min(semi_a_px, semi_b_px))),
+        semi_c_px=semi_c_px,
         rotation_z=float(scene_value(body_params, 'rotation_z', 0.0)),
         sub_observer_lat_deg=float(scene_value(body_params, 'sub_observer_lat_deg', 0.0)),
         illumination_angle=float(scene_value(body_params, 'illumination_angle', 0.0)),
