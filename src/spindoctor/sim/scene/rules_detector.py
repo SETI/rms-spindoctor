@@ -19,7 +19,6 @@ from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     downlink_table_names,
     resolve_detector_defaults,
-    resolve_detector_defaults_native,
     resolve_downlink_table,
     resolve_filter_throughput,
 )
@@ -55,20 +54,13 @@ def check_scene_camera(scene: Scene, *, source: str) -> None:
     detector = scene.detector or DetectorOverride()
     _check_cataloged(detector, instrument=instrument, source=source)
     defaults = resolve_detector_defaults(instrument, detector.binning or DEFAULT_BINNING)
+    _check_gain_state(detector, defaults, instrument=instrument, source=source)
     _check_quantization_keys_used(detector, defaults, source=source)
     _check_downlink_table_ceiling(detector, defaults, instrument=instrument, source=source)
 
 
 def _check_cataloged(detector: DetectorOverride, *, instrument: str, source: str) -> None:
-    """Refuse a gain state, readout mode, filter, or downlink table the camera lacks."""
-    if detector.gain_state is not None:
-        native = resolve_detector_defaults_native(instrument)
-        table = native.gain_e_per_dn_by_state or {0: 1.0}
-        if detector.gain_state not in table:
-            raise SimSceneValidationError(
-                f'{source}: detector.gain_state {detector.gain_state} is not cataloged for '
-                f'instrument {instrument!r}; available states: {sorted(table)}'
-            )
+    """Refuse a readout mode, filter, or downlink table the camera lacks."""
     if detector.binning is not None:
         available = cataloged_binnings(instrument)
         if detector.binning not in available:
@@ -88,6 +80,24 @@ def _check_cataloged(detector: DetectorOverride, *, instrument: str, source: str
                 f'{source}: detector.downlink_table {detector.downlink_table!r} is not listed '
                 f'for instrument {instrument!r}; available tables: {list(tables)}'
             )
+
+
+def _check_gain_state(
+    detector: DetectorOverride, defaults: Detector, *, instrument: str, source: str
+) -> None:
+    """Refuse a gain state that the selected readout mode does not catalog.
+
+    A readout mode may state its own gain table, and the renderer reads the selected
+    mode's, so the state is checked against the table ``defaults`` holds.
+    """
+    if detector.gain_state is None:
+        return
+    table = defaults.gain_e_per_dn_by_state or {0: 1.0}
+    if detector.gain_state not in table:
+        raise SimSceneValidationError(
+            f'{source}: detector.gain_state {detector.gain_state} is not cataloged for '
+            f'instrument {instrument!r}; available states: {sorted(table)}'
+        )
 
 
 def _check_quantization_keys_used(

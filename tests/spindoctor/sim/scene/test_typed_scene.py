@@ -14,6 +14,7 @@ from typing import Any, Union, get_args, get_origin, get_type_hints
 import pytest
 from tests.spindoctor.sim.scenes import frame_scene
 
+from spindoctor.sim.instruments.resolvers import resolve_detector_defaults
 from spindoctor.sim.instruments.schema_detector import Detector, VidiconChain
 from spindoctor.sim.scene import boundary
 from spindoctor.sim.scene.declare import DECLARATION, declaration_of, optional
@@ -364,3 +365,38 @@ def test_a_key_in_two_top_level_classes_fails_the_boundary_check(
     )
     with pytest.raises(AssertionError, match=r"both truth and test: \['expected'\]"):
         boundary._assert_boundary_classification_complete()
+
+
+def _binned_mode_with_own_gain_states(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Give the Cassini NAC's 2x2 mode the gain states 4 and 5 alone."""
+
+    def patched(instrument: str | None, binning: int) -> Detector:
+        defaults = resolve_detector_defaults(instrument, binning)
+        if binning == 2:
+            return dataclasses.replace(
+                defaults, gain_e_per_dn_by_state={4: 9.0, 5: 4.0}, default_gain_state=4
+            )
+        return defaults
+
+    monkeypatch.setattr('spindoctor.sim.scene.rules_detector.resolve_detector_defaults', patched)
+
+
+def test_a_gain_state_only_the_selected_mode_catalogs_is_accepted(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A gain state the binned mode offers passes, though the native table lacks it."""
+    _binned_mode_with_own_gain_states(monkeypatch)
+    scene = frame_scene(detector={'binning': 2, 'gain_state': 4})
+    clear_validation_cache()
+    assert validate_sim_params(scene) is scene
+
+
+def test_a_gain_state_the_selected_mode_lacks_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A native gain state the binned mode does not offer is refused."""
+    _binned_mode_with_own_gain_states(monkeypatch)
+    scene = frame_scene(detector={'binning': 2, 'gain_state': 0})
+    clear_validation_cache()
+    with pytest.raises(SimSceneValidationError, match=r'available states: \[4, 5\]'):
+        validate_sim_params(scene)
