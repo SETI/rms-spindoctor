@@ -540,10 +540,13 @@ def collect_real_discs(
     for body, entry in bodies_in_extfov(obs, config=DEFAULT_CONFIG):
         if body == planet or not obs.inventory_body_in_fov(entry):
             continue
-        reason = _exclusion_by_kind(body)
         diameter = float(max(entry['u_pixel_size'], entry['v_pixel_size']))
-        if reason is None and diameter < _MIN_DIAMETER_PX:
+        if diameter < 1.0:
+            reason: str | None = 'under 1 px across'
+        elif diameter < _MIN_DIAMETER_PX:
             reason = f'about {diameter:.0f} px across'
+        else:
+            reason = _exclusion_by_kind(body)
         if reason is not None:
             inputs.excluded.append(ExcludedDisc(frame.image_id, body, reason))
             continue
