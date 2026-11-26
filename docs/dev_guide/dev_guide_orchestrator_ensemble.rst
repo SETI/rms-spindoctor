@@ -277,6 +277,39 @@ whose covariance is the tighter by a factor of about ten thousand, so the blende
 confidence is the refine's, and a one-inlier refine's confidence is held at its
 ``single_inlier_confidence_cap`` of 0.5.
 
+Oblique error ellipses
+----------------------
+
+Most techniques report a covariance that is close to a circle, or long along one image
+axis. :class:`~spindoctor.nav_technique.nav_technique_titan_haze.TitanHazeNav` reports a
+long, tilted ellipse: about 0.36 px across the symmetry axis and 1.02 px along it, turned
+into ``(dv, du)`` by the symmetry-axis angle, which changes from frame to frame with the
+sun direction. The tests in ``tests/spindoctor/nav_orchestrator/test_ensemble_anisotropic.py``
+check each step that reads such an ellipse against a closed-form answer.
+
+- **Merge.** Step 6 adds full information matrices, cross terms included, so a tilted
+  ellipse fused with a circle keeps its axes. The fused variance along each axis is the
+  inverse of the summed information along it, and the offset moves toward each witness by
+  that witness's share of the information along each axis separately. Two equal ellipses
+  at right angles fuse to a circle. A rotation the haze fit cannot observe is quarantined
+  as a sentinel and leaves the tilted translation block intact.
+- **Agreement.** The Mahalanobis test in Step 3 sums the two full covariances, so it
+  measures a disagreement in the ellipse's own metric. Against a 0.1 px star fix, a 2 px
+  disagreement along the haze fit's long axis is 1.95 standard deviations and groups,
+  while the same 2 px across its short axis is 5.35 and does not. The pixel floor is a
+  plain distance and applies equally in every direction, so under the default 5 px floor
+  both disagreements group. Against that star fix the Mahalanobis test accepts at most
+  about 2.05 px in any direction, which is inside the floor, so the floor alone decides
+  whether the two group.
+- **Tier.** Step 8 compares the larger of the two image-axis sigmas,
+  :math:`\max(\sqrt{\Sigma_{vv}}, \sqrt{\Sigma_{uu}})`, with ``max_sigma_px``. For a
+  tilted ellipse that value is smaller than the major semi-axis, by up to a factor of
+  :math:`\sqrt{2}` at 45 degrees, so the tier of a fused frame can change as the ellipse
+  turns in the image. The haze fit fused with a 0.6 px star fix gives a 0.52 px by
+  0.31 px ellipse: ``'medium'`` when its long axis lies along an image axis, ``'high'``
+  at 45 degrees. A frame with the haze fit alone never reaches ``'high'``, because its
+  image-axis sigmas are smallest at 45 degrees and are still 0.77 px there.
+
 
 Confident-wrong results: what the tiers price and what they cannot
 ------------------------------------------------------------------
