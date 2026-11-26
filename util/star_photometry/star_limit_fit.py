@@ -27,7 +27,8 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
 5. **Current versus proposed.**  Per frame: the navigator's current limit, the proposed limit
    (dimmest visible plus ``SEARCH_DEPTH_MAG``), and the faintest star detected.
 6. **PSF.**  Per camera and mode (and filter): the circular Gaussian sigma, the elliptical axes,
-   the encircled-energy radii, and the narrowest star.
+   the encircled-energy radii, and the narrowest star
+   (:mod:`util.star_photometry.star_psf_summary`).
 
 Usage::
 
@@ -55,7 +56,7 @@ import numpy as np
 import scipy.optimize
 import scipy.special
 from numpy.typing import NDArray
-from util.star_photometry.star_field import encircled_energy_radii, integrated_gaussian
+from util.star_photometry.star_psf_summary import gaussian_ee, psf_summary
 
 __all__ = ['FitResult', 'fit_camera', 'load_records', 'main']
 
@@ -93,9 +94,6 @@ N_BOOTSTRAP = 200
 
 #: Tukey biweight tuning constant (in robust sigmas).
 TUKEY_C = 4.685
-
-#: Smallest smear (pixels) of a star excluded from the PSF summary.
-PSF_MAX_SMEAR_PX = 0.5
 
 
 def load_records(path: Path) -> list[dict[str, Any]]:
@@ -354,7 +352,7 @@ def fit_camera(
     )
     result.n_zp_stars = len(fit_rows)
     if len(fit_rows) < 5:
-        result.psf = _psf_summary(rows)
+        result.psf = psf_summary(rows)
         return result
     _fit_zero_point(
         result, fit_rows, reference_filter=reference_filter, reference_gain=reference_gain
@@ -369,7 +367,7 @@ def fit_camera(
     _fit_detection_limit(result, [r for r in limit_rows if not r['held_out']])
     result.holdout = _holdout_check(result, [r for r in limit_rows if r['held_out']])
     result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
-    result.psf = _psf_summary(rows)
+    result.psf = psf_summary(rows)
     return result
 
 
@@ -761,77 +759,6 @@ def _frame_table(
     return table
 
 
-def _gaussian_ee(sigma: float, r_max: float, n_bins: int) -> tuple[float, float]:
-    """Return EE50 and EE80 of a pixel-integrated Gaussian through the same estimator.
-
-    Parameters:
-        sigma: The Gaussian sigma (pixels).
-        r_max: The profile's outer radius.
-        n_bins: The profile's bins.
-
-    Returns:
-        ``(ee50, ee80)``.
-    """
-    half = math.ceil(r_max) + 8
-    gv, gu = np.mgrid[-half : half + 1, -half : half + 1].astype(float)
-    ee = [
-        encircled_energy_radii(
-            integrated_gaussian(gv, gu, cv, cu, sigma, sigma),
-            half + cv,
-            half + cu,
-            r_max=r_max,
-            n_bins=n_bins,
-        )
-        for cv, cu in ((0.0, 0.0), (0.25, 0.25), (0.5, 0.0), (0.5, 0.5))
-    ]
-    image_ee = np.array(ee)
-    return float(np.mean(image_ee[:, 0])), float(np.mean(image_ee[:, 1]))
-
-
-def _psf_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Summarize the PSF fits per mode, and per mode and filter.
-
-    Parameters:
-        rows: Star rows.
-
-    Returns:
-        Group name to its summary.
-    """
-    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for r in rows:
-        psf = r.get('psf')
-        if psf is None or r['smear_px'] > PSF_MAX_SMEAR_PX or not math.isfinite(psf['ee50']):
-            continue
-        groups[f'mode {r["mode"]}'].append(r)
-        groups[f'mode {r["mode"]} filter {r["filter"]}'].append(r)
-    out: dict[str, Any] = {}
-    for name, members in sorted(groups.items()):
-        if len(members) < 3:
-            continue
-        sig = np.array([m['psf']['sigma'] for m in members])
-        major = np.array([m['psf']['sigma_major'] for m in members])
-        minor = np.array([m['psf']['sigma_minor'] for m in members])
-        ee50 = np.array([m['psf']['ee50'] for m in members])
-        ee80 = np.array([m['psf']['ee80'] for m in members])
-        resid = np.array([m['psf']['rms_residual'] for m in members])
-        out[name] = {
-            'n_stars': len(members),
-            'n_frames': len({m['image_id'] for m in members}),
-            'sigma_median': float(np.median(sig)),
-            'sigma_p16_p84': [float(np.percentile(sig, 16)), float(np.percentile(sig, 84))],
-            'sigma_min': float(sig.min()),
-            'sigma_p2': float(np.percentile(sig, 2)),
-            'major_median': float(np.median(major)),
-            'minor_median': float(np.median(minor)),
-            'axis_ratio_median': float(np.median(major / minor)),
-            'ee50_median': float(np.median(ee50)),
-            'ee80_median': float(np.median(ee80)),
-            'ee80_over_ee50': float(np.median(ee80) / np.median(ee50)),
-            'fit_rms_residual_median': float(np.median(resid)),
-        }
-    return out
-
-
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
     """Write dictionaries as a CSV with the union of their keys as columns.
 
@@ -905,7 +832,7 @@ def main() -> None:
         frame_rows += [{'camera': camera, **row} for row in result.frames]
         for name, group in result.psf.items():
             r_max, n_bins = geometry.get(name.split()[1], (8.0, 16))
-            group['gaussian_ee50_ee80'] = list(_gaussian_ee(group['sigma_median'], r_max, n_bins))
+            group['gaussian_ee50_ee80'] = list(gaussian_ee(group['sigma_median'], r_max, n_bins))
         summary[camera] = {k: v for k, v in result.__dict__.items() if k != 'frames'} | {
             'n_frames_measured': len(members)
         }
