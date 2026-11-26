@@ -201,11 +201,14 @@ have them, the per-size settings for 2 MB pages, which can override the top-leve
    cat /sys/kernel/mm/transparent_hugepage/defrag
    cat /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled
 
-If huge pages are given only on request (``enabled``, and the 2 MB setting where it
-exists, at ``[madvise]`` or ``[never]``), the variable removes the stall. It also
-removes it when ``enabled`` is ``[always]`` but ``defrag`` is ``[madvise]``, because the
-kernel then compacts only for processes that asked. Only with both at ``[always]`` does
-every process still stall, and then ``defer`` is the fix.
+The 2 MB setting decides for 2 MB pages unless it reads ``[inherit]``, and then
+``enabled`` decides. On kernels without the 2 MB file, ``enabled`` always decides.
+Whichever decides is the effective setting. If the effective setting is ``[madvise]``
+or ``[never]``, huge pages are given only on request, and the variable removes the
+stall. It also removes it when the effective setting is ``[always]`` but ``defrag`` is
+``[madvise]``, because the kernel then compacts only for processes that asked. Only
+with the effective setting and ``defrag`` both at ``[always]`` does every process still
+stall, even when ``enabled`` reads ``[madvise]``, and then ``defer`` is the fix.
 
 Continuous integration is unaffected. The GitHub runners are fresh virtual machines
 whose memory is not fragmented. CI runs the integration tests marked
