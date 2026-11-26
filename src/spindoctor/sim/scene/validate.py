@@ -20,6 +20,7 @@ not checked twice while its contents and label stay the same.
 
 from __future__ import annotations
 
+import datetime
 import json
 from collections.abc import Mapping
 from functools import lru_cache
@@ -162,7 +163,8 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
 def _refuse_non_file_values(raw: Mapping[str, Any], *, source: str) -> None:
     """Refuse, in the typed blocks, any value that a scene file cannot hold.
 
-    A scene file holds mappings with string keys, lists, and the JSON scalars.  Anything
+    A scene file holds mappings with string keys, lists, and scalars: JSON scalars and the
+    dates that YAML reads.  Anything
     else can come only from a scene built in Python: a tuple or a set (a set's order is
     arbitrary), a generator, which the schema would consume, or a typed instance such as
     a detector override, which the renderer cannot encode.  The check runs on the raw
@@ -191,7 +193,7 @@ def _refuse_non_file_value(value: Any, path: str, *, source: str) -> None:
 
     Raises:
         SimSceneValidationError: If a value at any depth is not a mapping with string
-            keys, a list, or a JSON scalar.
+            keys, a list, a JSON scalar, or a date.
     """
     if isinstance(value, Mapping):
         for key, item in value.items():
@@ -207,7 +209,7 @@ def _refuse_non_file_value(value: Any, path: str, *, source: str) -> None:
         raise SimSceneValidationError(
             f'{source}: {path}: expected a list, got {describe_value(value)}'
         )
-    elif value is not None and not isinstance(value, str | int | float | bool):
+    elif value is not None and not isinstance(value, str | int | float | bool | datetime.date):
         raise SimSceneValidationError(
             f'{source}: {path}: expected a mapping, a list, a string, a number, or a '
             f'boolean, got {describe_value(value)}'
