@@ -5,7 +5,7 @@ observation (read through the navigator's own reader, so star positions are the 
 the image the photometry is measured on and the mapping into it, the frame's photometric
 state (filter, gain state, readout mode, exposure), and the measurement parameters.  This
 module queries the catalog deep, finds the pointing most catalog stars agree on without the
-navigator's star techniques (a star behind a body or ring takes no part), and measures every
+navigator's star techniques (leaving out stars behind a body or ring), and measures every
 catalog star at the pointing.
 
 For each star the record holds what the limit and PSF fits need:
@@ -265,7 +265,7 @@ def measure_frame(
 
     margin = params.search_px
     occluded = _occlusion_mask(obs, config, margin_px=margin)
-    # A star behind a body or ring cannot confirm a pointing, so it takes no voter slot.
+    # A star behind a body or ring cannot confirm a pointing, so it does not vote.
     near = np.array(
         [
             k

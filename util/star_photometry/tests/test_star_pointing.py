@@ -93,7 +93,7 @@ def test_refinement_continues_while_a_star_changes_peak() -> None:
 
 
 def test_chance_describes_the_pairs_the_fix_keeps() -> None:
-    """A final fix that keeps none of the kept tier's pairs carries no significance.
+    """A final fix that keeps none of the kept tier's pairs is refused as insignificant.
 
     Three bright stars agree at the planted offset, the only cluster any tier sees.  Twenty
     faint stars, ranked past every tier by sixty stars far from any peak, agree 1.5 px away
