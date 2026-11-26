@@ -218,10 +218,11 @@ The anchored form scales a single measured limit with the exposure alone,
 .. math::
 
     m_{\mathrm{limit}}(t_{\mathrm{exp}}) =
-        \mathrm{anchor} + \frac{\log t_{\mathrm{exp}}}{\log 2.512},
+        \mathrm{anchor} + \frac{\log (t_{\mathrm{exp}} / t_{\mathrm{ref}})}{\log 2.512},
 
-where ``anchor`` is the limiting magnitude at a reference exposure and each Pogson factor
-of exposure time buys one more magnitude of depth.
+where ``anchor`` is the limiting magnitude measured on a frame of exposure
+:math:`t_{\mathrm{ref}}` and each Pogson factor of exposure time buys one more magnitude
+of depth.
 
 Magnitude-margin effective SNR
 ------------------------------
