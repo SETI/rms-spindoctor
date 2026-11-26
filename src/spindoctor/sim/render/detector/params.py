@@ -112,7 +112,8 @@ class DetectorParams:
         dark_current_e_per_sec: Dark current (electrons / sec); 0 disables.
         vidicon: The vidicon DN-noise sub-parameters (vidicon path only).
         calibration_scale_dn_per_s_per_if: Derived I/F calibration scale.
-        dark_dn: Dark pedestal in DN subtracted before the I/F divide.
+        dark_dn: Dark pedestal in DN subtracted before the I/F divide: the dark current
+            over the integration time.
         calibrated_sky_if: The calibrated sky residual in I/F, added after the
             I/F divide on a calibrated frame: the instrument's detector default,
             else the generic entry's (see
@@ -606,7 +607,16 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         calibration_scale = (
             image_well_dn / exposure_ref_sec if exposure_ref_sec > 0.0 else image_well_dn
         )
-    dark_dn = 0.0 if detector_model == 'vidicon' else dark_current * exposure_sec / gain_e_per_dn
+    # The frame collects dark charge over the integration time, so the inverse subtracts
+    # the dark the frame collected; the I/F divide keeps the commanded exposure.
+    extra_integration_sec = (
+        detector_defaults.extra_integration_sec if detector_model == 'ccd' else 0.0
+    )
+    dark_dn = (
+        0.0
+        if detector_model == 'vidicon'
+        else dark_current * (exposure_sec + extra_integration_sec) / gain_e_per_dn
+    )
 
     detector_modes = _resolve_detector_modes(
         artifacts,
@@ -675,7 +685,5 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
         sqrt_lut=sqrt_lut,
         adversarial_modes=adversarial_modes,
         detector_modes=detector_modes,
-        extra_integration_sec=(
-            detector_defaults.extra_integration_sec if detector_model == 'ccd' else 0.0
-        ),
+        extra_integration_sec=extra_integration_sec,
     )
