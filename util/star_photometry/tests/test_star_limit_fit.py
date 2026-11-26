@@ -61,11 +61,12 @@ def _rows(states: list[tuple[str, str]]) -> list[dict[str, Any]]:
     ]
 
 
-def _fit(rows: list[dict[str, Any]]) -> FitResult:
-    """Fit rows against CLEAR and 10K.
+def _fit(rows: list[dict[str, Any]], *, calibrated: bool = True) -> FitResult:
+    """Fit rows against CLEAR and 10K, with a minimum of 15 stars per term.
 
     Parameters:
         rows: The rows.
+        calibrated: Whether RED has a calibration offset (2.5 mag); no other state has one.
 
     Returns:
         The fit.
@@ -77,7 +78,7 @@ def _fit(rows: list[dict[str, Any]]) -> FitResult:
         reference_filter='CLEAR',
         reference_gain='10K',
         min_term_stars=15,
-        calibration_offsets={'RED': 2.5},
+        calibration_offsets={'RED': 2.5} if calibrated else {},
         calibration_gain_ratios={},
     )
     return result
@@ -115,6 +116,15 @@ def test_zero_point_fixes_a_filter_with_too_few_stars() -> None:
     result = _fit(rows)
     assert result.filter_offsets['RED'] == 2.5
     assert result.filters_not_measured == ['RED']
+
+
+def test_zero_point_drops_a_filter_left_without_its_gain_states() -> None:
+    """RED's 15 stars, all at gain states with too few stars, leave the CLEAR fit standing."""
+    rows = _rows([('CLEAR', '10K')] * 5)
+    rows += _rows([('RED', '40K')])[:8] + _rows([('RED', '100K')])[:7]
+    result = _fit(rows, calibrated=False)
+    assert result.zero_point_identified
+    assert result.n_zp_stars == 100
 
 
 def test_detection_limit_leaves_out_unmeasured_terms() -> None:

@@ -9,9 +9,12 @@ calls it for each camera.
 
 A filter or gain state with fewer fitting stars than the minimum gets no term: the stars
 cannot pin it down, so it takes the calibration document's value, fixed, and the fit reports
-it as not measured.  Its stars are left out of the fit, as they would add nothing to the
-other terms had the term been fitted: a calibration value the stars disagree with would
-otherwise move the reference rate.
+it as not measured.  Its stars are left out of the fit, as they
+would add nothing to the other terms had the term been fitted: a calibration value the stars
+disagree with would otherwise move the reference rate.  Leaving out one state's stars can
+take another state below the minimum (a filter whose stars were all taken in unmeasured gain
+states), so the selection is repeated until it is stable, and every fitted term rests on at
+least the minimum of the stars retained.
 """
 
 from __future__ import annotations
@@ -103,20 +106,25 @@ def fit_zero_point(
         calibration_gain_ratios: The calibration document's DN ratio of each gain state to
             the reference state, used for a gain state with too few stars.
     """
-    filter_counts = _count(r['filter'] for r in rows)
-    gain_counts = _count(r['gain'] for r in rows)
-    result.filter_counts = dict(sorted(filter_counts.items()))
-    result.gain_counts = dict(sorted(gain_counts.items()))
-    filters = sorted(
-        f for f, n in filter_counts.items() if f != reference_filter and n >= min_term_stars
-    )
-    gains = sorted(g for g, n in gain_counts.items() if g != reference_gain and n >= min_term_stars)
-    rows = [
-        r
-        for r in rows
-        if (r['filter'] in filters or r['filter'] == reference_filter)
-        and (r['gain'] in gains or r['gain'] == reference_gain)
-    ]
+    result.filter_counts = dict(sorted(_count(r['filter'] for r in rows).items()))
+    result.gain_counts = dict(sorted(_count(r['gain'] for r in rows).items()))
+    observed_filters = set(result.filter_counts) - {reference_filter}
+    observed_gains = set(result.gain_counts) - {reference_gain}
+    filters, gains = sorted(observed_filters), sorted(observed_gains)
+    while True:
+        rows = [
+            r
+            for r in rows
+            if (r['filter'] in filters or r['filter'] == reference_filter)
+            and (r['gain'] in gains or r['gain'] == reference_gain)
+        ]
+        filter_counts = _count(r['filter'] for r in rows)
+        gain_counts = _count(r['gain'] for r in rows)
+        kept_filters = [f for f in filters if filter_counts.get(f, 0) >= min_term_stars]
+        kept_gains = [g for g in gains if gain_counts.get(g, 0) >= min_term_stars]
+        if kept_filters == filters and kept_gains == gains:
+            break
+        filters, gains = kept_filters, kept_gains
     result.n_zp_stars = len(rows)
     n = len(rows)
     a = np.zeros((n, 1 + len(filters) + len(gains)))
