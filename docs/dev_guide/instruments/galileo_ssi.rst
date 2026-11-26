@@ -370,9 +370,11 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
   placeholder blur, so it reaches only V 3.2 at 0.1 s, against V 7.8 on the
   real frames.
 - ``gossi_disc``: a moon 240 px across, offset 286 px, as bright as Europa in a
-  real frame at 27 degrees phase. The answer lands 0.36 to 0.37 px off, toward the
-  Sun, where the navigator's Lambert template meets the Lommel-Seeliger surface
-  (see :ref:`sim-photometric-laws`). On a Lambert surface it landed 0.17 to
+  real frame at 27 degrees phase. The answer lands 0.30 to 0.31 px off, toward the
+  Sun, where the navigator's Lambert template meets the lunar-Lambert surface
+  (see :ref:`sim-photometric-laws`). The middle of the simulated disc reads 120 DN
+  above the sky, where the real one reads 105 DN, because the real Europa brightens
+  toward its limb more than the law does. On a Lambert surface it landed 0.17 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
 
@@ -389,18 +391,18 @@ slices.
 
 The simulator has no model of the lossy codec, so the scene uses the generic one
 with a step of 4 DN. That step keeps the contrast across block edges inside the
-disc close to the contrast inside the blocks (0.98 to 1.02 times as large), as on
-the real frame the disc follows (1.00); a step of 8 DN raises it to 1.5 to 1.7. The
+disc close to the contrast inside the blocks (1.01 to 1.05 times as large), as on
+the real frame the disc follows (1.00); a step of 8 DN raises it to 1.8 to 2.0. The
 simulator also cannot plant exactly one band of slices that starts on any slice.
 The scene loses whole bands of three slices on a 24-line grid instead, a random
 number of them with one expected, so some seeds lose none and some lose two. On the
 committed seed one band crosses the middle of the disc.
 
 The scene plants a 260 px offset and the camera's twist. The fused answer lands
-0.26 to 0.30 px off over 24 draws, all at medium confidence, toward the Sun, where
-the navigator's Lambert template meets the Lommel-Seeliger surface (see
-:ref:`sim-photometric-laws`). The disc correlation lands 0.31 to 0.34 px off and the
-limb fit 0.22 to 0.30 px off. The blob technique lands 4.6 to 8.5 px off without
+0.18 to 0.24 px off over 24 draws, all at medium confidence, toward the Sun, where
+the navigator's Lambert template meets the lunar-Lambert surface (see
+:ref:`sim-photometric-laws`). The disc correlation lands 0.22 to 0.25 px off and the
+limb fit 0.15 to 0.28 px off. The blob technique lands 2.7 to 7.3 px off without
 flagging it. On a Lambert surface the fused answer landed 0.036 to 0.072 px off and
 the disc correlation 0.020 to 0.046 px off on every draw, including the six seeds
 whose band of lost slices crosses the disc, so the slices leave the answer where it

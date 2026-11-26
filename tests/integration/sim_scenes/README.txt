@@ -405,8 +405,11 @@ The appearance keys are truth, which the navigator never sees:
                        most 0.1 (default 0, no relief)
   limb_relief_corr_deg the relief's correlation length, in degrees of surface
                        arc (default 15)
-  photometric_law      lommel_seeliger (the default), lambert, minnaert, or
-                       lunar_lambert.  The navigator's template is Lambert, so
+  photometric_law      lunar_lambert (the default), lambert, lommel_seeliger,
+                       or minnaert.  The default blends Lommel-Seeliger and
+                       Lambert by McEwen's curve in the phase angle, so above
+                       about 119 deg it is Lambert.  A body takes another law
+                       by stating it.  The navigator's template is Lambert, so
                        a scene that must match it states lambert, as the
                        model-mismatch floors and the bases of the
                        single-setting sweeps do; at zero phase craters and

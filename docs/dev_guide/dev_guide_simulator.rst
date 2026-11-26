@@ -2158,23 +2158,28 @@ machinery turns "must not be confidently wrong here" into a passing assertion.
 
 **The known-error check.** A small second family inverts the reading. In these scenes
 the measured behavior *is* a wrong offset, for a reason that is understood but
-not yet fixed. There are 24. In 14 of them an ellipsoid body shades with the
-default Lommel-Seeliger law, and the navigator's Lambert template pulls the answer
+not yet fixed. There are 27. In 15 of them an ellipsoid body shades with the
+default lunar-Lambert law, and the navigator's Lambert template pulls the answer
 toward the Sun (see :ref:`sim-photometric-laws`): ``disc_subpixel_offset``,
 ``low_phase_limb_misconverge``, ``banded_planet_transit``, ``disc_structured_loss``
 and its adversarial twin, ``two_moons``, the full-frame discs
-``coiss_calib_nac_disc``, ``coiss_wac_disc``, and ``gossi_disc``, the damaged moons
-``coiss_nac_lossy_moon``, ``gossi_ict_moon``, and ``nhlorri_moon_raw``, and the
-hazy bodies ``titan_haze`` and ``titan_haze_limb``. These land 0.13 to 0.63 px off.
-The other ten:
+``coiss_calib_nac_disc``, ``coiss_wac_disc``, ``gossi_disc``, and
+``vgiss_1_nac_disc``, the damaged moons ``coiss_nac_lossy_moon``, ``gossi_ict_moon``,
+and ``nhlorri_moon_raw``, and the hazy bodies ``titan_haze`` and ``titan_haze_limb``.
+These land 0.11 to 0.84 px off. The other twelve:
 
 - ``orbit_error_ringlet`` plants a radial catalog error. The declared-sigma
   covariance channel demotes its tier, but the bias survives.
 - In ``relief_psf_stray_light``, the disc correlation lands on the maximum of its
-  high-pass surface, 1.09 px off, pulled by the relief that the smooth template
-  lacks and by the same template bias.
+  high-pass surface, 0.99 to 1.00 px off, pulled by the relief that the smooth
+  template lacks and by the same template bias.
 - In ``planted_rotation_star_field``, the translation is fitted about the corner
   of the extended field of view rather than the frame center.
+- In ``titan_crescent_horns`` and its noiseless twin, the haze's ring of light
+  pulls the disc correlation, which carries a low-tier success 2.99 px wrong. The
+  correlation stops at the edge of its half-pixel refinement window on every seed,
+  with the surface still rising beyond it. At their 155 degree phase the default
+  law is Lambert's.
 - In ``mutual_grazing`` and ``mutual_half``, the disc template keeps a dark
   outline that the image doesn't have, and the disc correlation lands on the
   maximum of its high-pass surface, pulled by that outline and by the template
@@ -2369,8 +2374,9 @@ renderer draws every ellipsoid body, whatever its settings: a smooth disc, a
 limb-relief field, any photometric law, an opposition surge, craters, surface
 textures, and transits. All of those ingredients are truth keys: the
 navigator predicts an ellipsoid body as the smooth Lambert template, so every one
-plants a known model error the technique must survive, the default
-Lommel-Seeliger law included. The navigator predicts a
+plants a known model error the technique must survive. The default lunar-Lambert
+law is one of them below about 119 degrees phase, where it is not yet Lambert. The
+navigator predicts a
 mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
 pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
 and ``pose_scatter`` are among the errors it plants.
@@ -2845,7 +2851,8 @@ Photometric laws
 The ellipsoid renderer shades a body with a scene-selected law
 (``photometry.py``), each normalized to 1 at disc center under head-on
 illumination and written in ``mu0 = cos(incidence)`` and ``mu = cos(emission)``.
-A body that leaves ``photometric_law`` out shades with ``lommel_seeliger``:
+A body that leaves ``photometric_law`` out shades with ``lunar_lambert``, and a body
+that states another law shades with that one:
 
 .. list-table::
    :widths: 22 10 68
@@ -2860,7 +2867,7 @@ A body that leaves ``photometric_law`` out shades with ``lommel_seeliger``:
    * - ``lommel_seeliger``
      - truth
      - ``I = 2 mu0 / (mu0 + mu)`` -- limb-brightened, rising to 2 at the sunlit
-       limb. The default.
+       limb.
    * - ``minnaert``
      - truth
      - ``I = mu0**k mu**(k - 1)`` with ``minnaert_k``; ``k = 1`` is Lambert,
@@ -2870,8 +2877,9 @@ A body that leaves ``photometric_law`` out shades with ``lommel_seeliger``:
    * - ``lunar_lambert``
      - truth
      - ``2 L(a) mu0 / (mu0 + mu) + (1 - L(a)) mu0`` with the McEwen (1991)
-       cubic blend ``L(a)`` in phase ``a``: Lommel-Seeliger at opposition,
-       Lambert once the cubic reaches 0 near 119 deg.
+       cubic blend ``L(a) = 1 - 0.019 a + 2.42e-4 a**2 - 1.46e-6 a**3`` in phase
+       ``a`` (degrees), clipped to 0 to 1: Lommel-Seeliger at opposition, Lambert
+       once the cubic reaches 0 near 119 deg. The default.
 
 An optional ``opposition_surge`` (truth) multiplies the law by a normalized
 exponential ``(1 + amplitude exp(-a / width)) / (1 + amplitude)`` -- 1 at exact
@@ -2891,12 +2899,13 @@ states the Lambert law. Scenes and tests whose purpose is a match with the
 navigator's own template also state it, such as the floors of the model-mismatch
 sweeps and the base scenes of the single-setting sweeps.
 
-Every other ellipsoid scene shades with Lommel-Seeliger, and the navigator's Lambert
-template is biased on it. On the clean spheres of the algorithmic-invariant scenes,
-the disc correlation lands 0.53 to 0.56 px toward the Sun and the limb fit 0.32 to
-0.33 px toward it. The blob centroid lands 0.38 px away from the Sun on a full disc
-and 0.90 px away on a 120 degree crescent. Over noise draws each of these errors
-varies by 0.01 px or less. The truth checks hold these answers to bands around their
+Every other ellipsoid scene below about 119 degrees phase shades with a law the
+navigator's Lambert template does not match, and the template is biased on it. On the
+clean spheres of the algorithmic-invariant scenes, at 30 degrees phase, the disc
+correlation lands 0.44 to 0.45 px toward the Sun and the limb fit 0.22 to 0.23 px
+toward it. The blob centroid lands 0.27 px away from the Sun. Over noise draws each
+of these errors varies by 0.02 px or less. The 120 degree crescents shade Lambert,
+and their blob centroids land within 0.02 px. The truth checks hold these answers to bands around their
 known errors, so a change to the template shows up as a change. A mesh body has no
 law key and always shades Lambert, through the rasterizer the navigator's predicted
 mesh shares.
@@ -3598,7 +3607,7 @@ The panels below are rendered by ``python -m tests.integration.sim_doc_images``
    :width: 45%
    :align: center
 
-   Ellipsoidal body (Lommel-Seeliger, moderate phase). ``semi_a_px`` is half the
+   Ellipsoidal body (lunar-Lambert, moderate phase). ``semi_a_px`` is half the
    vertical extent, and ``semi_b_px`` is half the horizontal extent.
 
 .. figure:: _sim_images/mesh_body.png
@@ -4290,9 +4299,10 @@ keys and the mesh extras. A key in a row marked
        surface's ragged outline, its slope shading, and its cast shadows; on a
        mesh, the same field displaces the vertices.
    * - ``photometric_law``, ``minnaert_k``
-     - The surface-scattering law (``lommel_seeliger``, the default, /
-       ``lambert`` / ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent.
-       *Ellipsoid only.*
+     - The surface-scattering law (``lunar_lambert``, the default, /
+       ``lambert`` / ``lommel_seeliger`` / ``minnaert``) and its Minnaert exponent.
+       A body that leaves the key out takes the default; stating a law gives the
+       body that law (see :ref:`sim-photometric-laws`). *Ellipsoid only.*
    * - ``normal_albedo``
      - The surface's I/F when lit and viewed head-on at zero phase, which
        multiplies the law (default 1, a white surface). A positive, finite
@@ -5636,7 +5646,10 @@ instrument, on seven figures of merit:
    the real widths and part of any tuned PSF wing may absorb
    registration error rather than optics.  The same limbs also give the
    position of each limb's gradient peak relative to the body's silhouette,
-   described under :ref:`sim-realism-limb-peak` below.
+   described under :ref:`sim-realism-limb-peak` below.  Every resolved moon of a
+   calibrated frame also enters the photometric-law study, which compares how
+   the brightness falls across each disc under every law, described under
+   :ref:`sim-realism-law-study` below.
 4. **Ring edges** -- the same profile machinery along predicted ring-edge
    polylines (Cassini cohort).
 5. **Dynamic range** -- fraction saturated, fraction near the frame floor,
