@@ -252,19 +252,20 @@ chance of such a cluster anywhere in the 400 px search window was below one in a
 thousand. That kept 36 narrow-angle and 47 wide-angle frames, and one frame in three
 was held out of the fit.
 
-- The narrow-angle rate is the fit of 53 stars (+-0.07 mag). The wide-angle rate
-  rests on 13 bright Tycho stars (+-0.20 mag). Fainter wide-angle stars, V 8 to 10,
+- The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4
+  (+-0.07 mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter wide-angle stars, V 8 to 10,
   read 1.1 to 1.5 mag brighter than that rate predicts, which points to a
   compressive vidicon response at high signal.
-- ``min_detectable_dn`` is where a detection-probability curve, fitted to every clean
-  star, reaches 80% of the way from its floor to its plateau: 107 +- 77 DN on the
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
+  stars taken through CLEAR at low gain, reaches 80% of the way from its floor to its plateau: 101 +- 27 DN on the
   narrow-angle camera and 35 +- 22 DN on the wide-angle camera.
 - Every measured frame is at low gain, so the high-gain factor is the published
   constant ``g`` of Benesh and Jepsen (1978, Table 4-3) for the camera's serial
   number.
 - The filter offsets are 2.5 log10 of each camera's solar filter factors (Benesh
-  and Jepsen 1978). The narrow-angle VIOLET offset is measured instead, 1.68 +- 0.24
-  mag from 4 stars, against the published 1.34.
+  and Jepsen 1978). A filter or gain state is measured only from 15 or more stars, and
+  only CLEAR at low gain has that many; the 4 narrow-angle VIOLET stars, for example,
+  give 1.68 +- 0.24 mag against the 1.34 used.
 
 Voyager 1 gave only one such frame, too few to fit. Its rates are Voyager 2's for
 the same kind of camera, scaled by the bench sensitivities Benesh and Jepsen (1978)
