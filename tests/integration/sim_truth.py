@@ -325,8 +325,8 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.355, 2.094, 0.348, 0.006, 2.443),
     ('saturn_rings_wac', 'BodyBlobNav'): _b(8.629, 8.644, 0.05, 8.578, 8.695),
     # These two are measured on the 16 noise draws, which keep the albedo texture and
-    # the limb relief.  The spreads are 0.005 px and 0.040 px.
-    ('textured_moon_offset', 'BodyBlobNav'): _b(0.643, 0.652, 0.05, 0.592, 0.702),
+    # the limb relief.  The spreads are 0.009 px and 0.040 px.
+    ('textured_moon_offset', 'BodyBlobNav'): _b(0.643, 0.652, 0.05, 0.593, 0.702),
     ('relief_psf_stray_light', 'BodyBlobNav'): _b(1.115, 1.128, 0.05, 1.064, 1.179),
     # The annulus correlation lands 0.58 px off on the saturated B ring, unflagged; the
     # saturated edge (#1145) and the unfit twist (#1143) share the edge fit's error.

@@ -10,7 +10,7 @@ exposure_sec: 1.0
 # circular albedo spot.  The texture is truth-side, so the disc correlation
 # sees realistic surface contrast against its smooth Lambert template while
 # the silhouette the limb fit uses is untouched.  The body is as bright as Dione
-# in N1481737141, at 34 deg phase: normal_albedo, 0.498, is that disc's median I/F
+# in N1481737141, at 34 deg phase: normal_albedo, 0.497, is that disc's median I/F
 # over the lunar-Lambert law's value, counting the pixels where the Sun and the
 # camera are both within about 73 deg of overhead, as the realism match measures
 # it.  The brightest pixel fills 45% of the full well, and no pixel of the real
@@ -30,7 +30,7 @@ bodies:
     semi_c_px: 70.0
     illumination_angle: 20.0
     phase_angle: 35.0
-    normal_albedo: 0.498
+    normal_albedo: 0.497
     albedo_texture:
       rms: 0.25
       corr_px: 12.0

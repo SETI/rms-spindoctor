@@ -1,8 +1,8 @@
 {
   "confidence": 0.99,
   "confidence_rank": "medium",
-  "offset_du_px": -47.448813049066764,
-  "offset_dv_px": -31.11821584666768,
+  "offset_du_px": -47.44881304912119,
+  "offset_dv_px": -31.118215846653445,
   "scene_name": "coiss_calib_nac_disc",
   "status": "success"
 }

@@ -14,17 +14,17 @@ exposure_sec: 0.68
 # The simulated body model emits no limb arc above 60 degrees phase, so the body is
 # navigated by BodyDiscCorrelateNav, which lands 0.01 px from the truth.
 # StarFieldFromCatalogNav finds too few stars on every draw, but StarUniqueMatchNav
-# and StarRefineNav navigate on the stars, 0.01 to 0.30 px and 0.02 to 0.22 px off.
+# and StarRefineNav navigate on the stars, 0.01 to 0.30 px and 0.01 to 0.22 px off.
 # The fused answer follows the stars, 0.01 to 0.18 px from the truth over the 16
-# draws, within 0.52 of its reported sigmas.  BodyBlobNav lands 0.04 to 0.38 px off.
+# draws, within 0.52 of its reported sigmas.  BodyBlobNav lands 0.03 to 0.38 px off.
 # At 135 deg phase the default lunar-Lambert law is Lambert's, so the body shades as
 # the navigator's template does.
 #
 # The body is as bright as Tethys in N1633925572, 126 px across at 136 deg phase
-# through RED+CL2: normal_albedo, 0.233, is that disc's median I/F over the
+# through RED+CL2: normal_albedo, 0.234, is that disc's median I/F over the
 # lunar-Lambert law's value, counting the pixels where the Sun and the camera are
 # both within about 73 deg of overhead, as the realism match measures it.  The
-# crescent's brightest pixel reads 656 DN, far below the 4,095 DN top of the range,
+# crescent's brightest pixel reads 659 DN, far below the 4,095 DN top of the range,
 # and no pixel of the real crescent reads full scale in its raw product.
 #
 # The pointing error is the size real NAC frames carry, halved for the summed pixels
@@ -43,7 +43,7 @@ bodies:
     semi_c_px: 60.0
     illumination_angle: 250.0
     phase_angle: 135.0
-    normal_albedo: 0.233
+    normal_albedo: 0.234
     range_km: 700000.0
 stars:
   - {name: S01, v: 61.3, u: 88.7, vmag: 8.91}
