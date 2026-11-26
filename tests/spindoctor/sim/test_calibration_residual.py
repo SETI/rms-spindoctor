@@ -60,7 +60,7 @@ def test_the_column_residual_sigma_is_the_cataloged_electrons(binning: int) -> N
         'coiss_calib_nac',
         _residual_only(15.0, 0.0),
         size_u=4096 // binning,
-        size_v=8,
+        size_v=10,
         detector={'binning': binning},
     )
     electrons = _electrons(scene)

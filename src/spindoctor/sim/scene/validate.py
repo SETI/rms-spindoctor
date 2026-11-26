@@ -59,12 +59,21 @@ from spindoctor.sim.scene.truth_echo import check_truth_echo
 
 __all__ = [
     'CURRENT_SCHEMA_VERSION',
+    'MIN_FRAME_SIZE_PX',
     'clear_validation_cache',
     'validate_scene',
     'validate_sim_params',
 ]
 
 CURRENT_SCHEMA_VERSION: int = 2
+
+# The smallest frame, in pixels on a side, a scene may ask for.  The optics margin
+# measures the distortion over a plane widened past the frame, and the distortion is
+# normalized by the frame's half-diagonal, so it grows as the frame shrinks: a frame
+# of 8 pixels carries a margin of a few hundred pixels, of 4 a few thousand, of 2 tens
+# of thousands, and of 1 hundreds of thousands, which no machine holds.  The scene
+# editor's size control stops at the same number.
+MIN_FRAME_SIZE_PX = 10
 
 # The largest noise_seed the scene editor's control can show and save.
 _NOISE_SEED_MAX = 2**31 - 1
@@ -178,8 +187,12 @@ def validate_sim_params(
         raise SimSceneValidationError(
             f'{source}: instrument {instrument!r} is not one of {sorted(allowed)}'
         )
-    _require_positive_int(sim_params, 'size_v', source=source)
-    _require_positive_int(sim_params, 'size_u', source=source)
+    for size_key in ('size_v', 'size_u'):
+        if _require_positive_int(sim_params, size_key, source=source) < MIN_FRAME_SIZE_PX:
+            raise SimSceneValidationError(
+                f'{source}: {size_key} must be at least {MIN_FRAME_SIZE_PX} pixels; '
+                f'got {sim_params[size_key]}'
+            )
     _require_int(sim_params, 'random_seed', source=source)
     # The scene editor shows -1 as an absent noise_seed, so a negative value could not
     # be told apart from leaving the key out, and its control stops at the 32-bit limit.

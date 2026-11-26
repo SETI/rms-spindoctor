@@ -4177,7 +4177,8 @@ A scene either sets a key or leaves it out to take its default.
      - int
      - required
      - idealized
-     - Image height and width in pixels.
+     - Image height and width in pixels, each at least 10. A smaller frame is refused
+       at validation, because the distortion margin grows steeply as the frame shrinks.
    * - ``instrument``
      - str
      - required
