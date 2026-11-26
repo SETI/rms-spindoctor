@@ -25,15 +25,18 @@ the real frame's limb gradient peak, the twin's limb gradient peak.  Each is rep
 phase bin and by body.
 
 **The disc-profile check.**  For the default law, :func:`compare_disc_profiles` judges
-each phase bin as the limb-peak check judges its bins: a bin with at least 3 discs gets
-a band of 2 standard errors of the real exponents' robust scatter, never less than 0.02,
-and the twins' median difference must lie within it.
+each phase bin with at least 3 discs.  Its statistic is the median of the paired
+differences, each twin's exponent less its own real disc's, and its band is 2 standard
+errors of those differences' robust scatter, never less than 0.02.  The band is
+therefore set by the same frames it judges: it says how far the median may sit from
+zero given how much the pairs scatter, and it widens when the twins follow the real
+discs less evenly.
 
 **The law comparison.**  :func:`law_comparison` asks, in each phase bin with at least 3
 discs, whether the default law's exponents agree with the real ones at least as well as
 every other law's.  Two laws separate in a bin when their median absolute differences
-differ by more than the bin's band; where they do not, no order between them is
-claimed.
+differ by more than the bin's band, the disc-profile band of the default law's pairs in
+that bin over every instrument; where they do not, no order between them is claimed.
 """
 
 from __future__ import annotations
@@ -102,9 +105,9 @@ STUDY_LAWS: tuple[str, ...] = tuple(sorted(PHOTOMETRIC_LAWS))
 DEFAULT_LAW = MATCHED_BODY_LAW
 """The law the disc-profile check judges: the matched bodies' law, the scene default."""
 
-# The disc-profile band rule, in units of Minnaert's exponent.  It mirrors the limb
-# gradient-peak rule: 2 standard errors of the bin's robust real scatter, a floor, and a
-# verdict only for a bin with at least 3 discs.
+# The disc-profile band rule, in units of Minnaert's exponent: 2 standard errors of the
+# robust scatter of the bin's paired differences, a floor, and a verdict only for a bin
+# with at least 3 discs.
 DISC_BAND_MULTIPLE = 2.0
 DISC_BAND_FLOOR = 0.02
 MIN_BIN_DISCS = 3
@@ -297,8 +300,8 @@ class DiscProfileBin:
         real_median_k: The real exponents' median.
         sim_median_k: The default-law twins' median.
         median_delta_k: The median of each twin's exponent less its real disc's.
-        real_scatter_k: The robust scatter of the real exponents, or None below 3
-            discs.
+        delta_scatter_k: The robust scatter of those paired differences, or None below
+            3 discs.
         band_k: The band's half-width, or None below 3 discs.
         within_band: Whether the median difference lies within the band, or None
             without a band.
@@ -308,7 +311,7 @@ class DiscProfileBin:
     real_median_k: float
     sim_median_k: float
     median_delta_k: float
-    real_scatter_k: float | None
+    delta_scatter_k: float | None
     band_k: float | None
     within_band: bool | None
 
@@ -336,7 +339,8 @@ class LawComparisonBin:
 
     Parameters:
         n: Discs in the bin.
-        band_k: The bin's band (see :class:`DiscProfileBin`).
+        band_k: The bin's band: the disc-profile band of the default law's paired
+            differences in the bin (see :class:`DiscProfileBin`).
         agreement: Each law's median absolute exponent difference.
         separates: For each other law, whether its agreement differs from the
             default law's by more than the band.
@@ -570,10 +574,10 @@ def _robust_scatter(values: NDArrayFloatType) -> float:
     return float(_MAD_TO_SIGMA * np.median(np.abs(values - np.median(values))))
 
 
-def _band(real_k: NDArrayFloatType) -> float:
-    """The disc-profile band for a bin's real exponents (at least 3 of them)."""
-    scatter = _robust_scatter(real_k)
-    return max(DISC_BAND_MULTIPLE * scatter / math.sqrt(real_k.size), DISC_BAND_FLOOR)
+def _band(delta_k: NDArrayFloatType) -> float:
+    """The disc-profile band for a bin's paired differences (at least 3 of them)."""
+    scatter = _robust_scatter(delta_k)
+    return max(DISC_BAND_MULTIPLE * scatter / math.sqrt(delta_k.size), DISC_BAND_FLOOR)
 
 
 def compare_disc_profiles(
@@ -581,10 +585,10 @@ def compare_disc_profiles(
 ) -> dict[str, DiscProfileBin]:
     """Judge each phase bin's twins under one law against the real exponents.
 
-    The band is set from the real exponents before the twins are looked at, as the limb
-    gradient-peak check sets its bands: only a bin with at least 3 discs gets one, its
-    half-width is 2 standard errors of the bin's robust real scatter and never less than
-    0.02, and the median of the twins' exponent less the real one must lie within it.
+    Only a bin with at least 3 discs is judged.  Its statistic is the median of the
+    paired differences, each twin's exponent less its real disc's; the band's half-width
+    is 2 standard errors of those differences' robust scatter, never less than 0.02; and
+    the median must lie within it.  The band comes from the same pairs it judges.
 
     Parameters:
         rows: The discs, each with its twins.
@@ -603,19 +607,20 @@ def compare_disc_profiles(
     for label, pairs in sorted(by_bin.items()):
         real_k = np.array([p[0] for p in pairs])
         sim_k = np.array([p[1] for p in pairs])
-        delta = float(np.median(sim_k - real_k))
+        deltas = sim_k - real_k
+        delta = float(np.median(deltas))
         scatter = band = None
         within = None
-        if real_k.size >= MIN_BIN_DISCS:
-            scatter = _robust_scatter(real_k)
-            band = _band(real_k)
+        if deltas.size >= MIN_BIN_DISCS:
+            scatter = _robust_scatter(deltas)
+            band = _band(deltas)
             within = bool(abs(delta) <= band)
         out[label] = DiscProfileBin(
             n=int(real_k.size),
             real_median_k=float(np.median(real_k)),
             sim_median_k=float(np.median(sim_k)),
             median_delta_k=delta,
-            real_scatter_k=scatter,
+            delta_scatter_k=scatter,
             band_k=band,
             within_band=within,
         )
@@ -661,7 +666,7 @@ def law_comparison(
     for label, group in sorted(by_bin.items()):
         if len(group) < MIN_BIN_DISCS:
             continue
-        band = _band(np.array([r.disc.minnaert.k for r in group]))
+        band = _band(np.array([r.delta_k(default) for r in group], dtype=np.float64))
         laws = sorted(group[0].twins)
         agreement = {
             law: float(np.median([abs(r.delta_k(law) or 0.0) for r in group])) for law in laws

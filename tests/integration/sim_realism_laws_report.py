@@ -152,7 +152,7 @@ def disc_profile_entries(bins: dict[str, DiscProfileBin]) -> dict[str, Any]:
             'real_median_k': _round(entry.real_median_k),
             'sim_median_k': _round(entry.sim_median_k),
             'median_delta_k': _round(entry.median_delta_k),
-            'real_scatter_k': _round(entry.real_scatter_k),
+            'delta_scatter_k': _round(entry.delta_scatter_k),
             'band_k': _round(entry.band_k),
             'within_band': entry.within_band,
         }

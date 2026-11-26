@@ -106,22 +106,28 @@ def test_a_disc_takes_the_limb_strata_phase_bin(phase: float, label: str) -> Non
     assert phase_bin(phase) == label
 
 
-def test_a_bin_with_three_discs_sets_its_band_from_its_own_scatter() -> None:
-    """The band is 2 standard errors of the real exponents' robust scatter."""
-    rows = [_row(30.0, k, {DEFAULT_LAW: k}) for k in (0.5, 0.6, 0.7)]
+def test_a_bin_sets_its_band_from_the_scatter_of_its_paired_differences() -> None:
+    """The band is 2 standard errors of the robust scatter of twin less real."""
+    rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6 + d}) for d in (0.0, 0.1, 0.2)]
     check = compare_disc_profiles(rows)['p0']
     assert check.band_k == pytest.approx(2.0 * 1.4826 * 0.1 / math.sqrt(3.0))
 
 
+def test_the_real_exponents_own_scatter_does_not_widen_the_band() -> None:
+    """Real exponents spread over 0.2 with twins that follow them get the floor."""
+    rows = [_row(30.0, k, {DEFAULT_LAW: k + 0.01}) for k in (0.5, 0.6, 0.7)]
+    assert compare_disc_profiles(rows)['p0'].band_k == pytest.approx(0.02)
+
+
 def test_twins_beyond_the_band_lie_outside_it() -> None:
     """A median difference larger than the band is outside it."""
-    rows = [_row(30.0, k, {DEFAULT_LAW: k + 0.2}) for k in (0.5, 0.6, 0.7)]
+    rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6 + d}) for d in (0.2, 0.25, 0.3)]
     assert compare_disc_profiles(rows)['p0'].within_band is False
 
 
 def test_twins_within_the_band_lie_within_it() -> None:
     """A median difference smaller than the band is within it."""
-    rows = [_row(30.0, k, {DEFAULT_LAW: k + 0.1}) for k in (0.5, 0.6, 0.7)]
+    rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6 + d}) for d in (-0.1, 0.05, 0.2)]
     assert compare_disc_profiles(rows)['p0'].within_band is True
 
 
@@ -180,6 +186,13 @@ def test_laws_within_the_band_leave_the_default_best() -> None:
     """A slightly better law that does not separate leaves the default best."""
     entry = law_comparison(_comparison_rows(0.05, 0.04))['p0']
     assert entry.default_best is True
+
+
+def test_the_law_comparison_takes_its_band_from_the_default_laws_pairs() -> None:
+    """The band is the disc-profile band of the default law's paired differences."""
+    rows = [_row(30.0, 0.6, {DEFAULT_LAW: 0.6 + d, 'lambert': 0.9}) for d in (0.0, 0.1, 0.2)]
+    entry = law_comparison(rows)['p0']
+    assert entry.band_k == pytest.approx(2.0 * 1.4826 * 0.1 / math.sqrt(3.0))
 
 
 def test_a_bin_with_two_discs_has_no_law_comparison() -> None:
@@ -437,7 +450,7 @@ def _record(within: bool | None, agreement: dict[str, float], separates: bool) -
                         'real_median_k': 0.6,
                         'sim_median_k': 0.7,
                         'median_delta_k': 0.1,
-                        'real_scatter_k': 0.05,
+                        'delta_scatter_k': 0.05,
                         'band_k': 0.05,
                         'within_band': within,
                     }
