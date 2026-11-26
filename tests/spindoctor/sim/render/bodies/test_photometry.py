@@ -101,7 +101,7 @@ def test_lunar_lambert_zero_phase_endpoint_is_lommel_seeliger() -> None:
 
 
 def test_lunar_lambert_high_phase_endpoint_is_lambert() -> None:
-    """Past the cubic's zero (~119 deg) the blend is 0: pure Lambert."""
+    """Past the cubic's zero (~104 deg) the blend is 0: pure Lambert."""
     mu0 = np.linspace(0.05, 1.0, 10)
     mu = np.linspace(1.0, 0.1, 10)
     np.testing.assert_allclose(

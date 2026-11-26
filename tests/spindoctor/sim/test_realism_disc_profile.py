@@ -99,14 +99,14 @@ def test_a_lunar_lambert_disc_gives_its_blend() -> None:
 
 @pytest.mark.parametrize('n', [1, MIN_FIT_PIXELS - 1])
 def test_too_few_pixels_give_no_fit(n: int) -> None:
-    """One pixel, or one fewer than the minimum, gives no Minnaert fit."""
+    """With one pixel, or one fewer than the minimum, the Minnaert fit returns None."""
     intensity, mu0, mu = _disc('lambert')
     assert fit_minnaert(intensity[:n], mu0[:n], mu[:n]) is None
 
 
 @pytest.mark.parametrize('n', [1, MIN_FIT_PIXELS - 1])
 def test_too_few_pixels_give_no_blend(n: int) -> None:
-    """One pixel, or one fewer than the minimum, gives no lunar-Lambert fit."""
+    """With one pixel, or one fewer than the minimum, the lunar-Lambert fit returns None."""
     intensity, mu0, mu = _disc('lambert')
     assert fit_lunar_lambert(intensity[:n], mu0[:n], mu[:n]) is None
 
@@ -169,7 +169,7 @@ def test_the_profile_bins_by_emission_near_zero_phase() -> None:
 
 
 def test_a_profile_bin_with_too_few_pixels_is_empty() -> None:
-    """A longitude bin beyond the terminator holds no pixel and is NaN."""
+    """A longitude bin beyond the terminator is empty, so it is NaN."""
     intensity, mu0, mu = _disc('lambert')
     profile = equator_profile(intensity, mu0, mu, math.radians(_PHASE_DEG))
     assert math.isnan(profile[0])

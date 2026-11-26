@@ -408,7 +408,7 @@ The appearance keys are truth, which the navigator never sees:
   photometric_law      lunar_lambert (the default), lambert, lommel_seeliger,
                        or minnaert.  The default blends Lommel-Seeliger and
                        Lambert by McEwen's curve in the phase angle, so above
-                       about 119 deg it is Lambert.  A body takes another law
+                       about 104 deg it is Lambert.  A body takes another law
                        by stating it.  The navigator's template is Lambert, so
                        a scene that must match it states lambert, as the
                        model-mismatch floors and the bases of the

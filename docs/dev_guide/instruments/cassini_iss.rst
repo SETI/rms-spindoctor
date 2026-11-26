@@ -644,13 +644,16 @@ albedo measurement, and real navigation keep the Cassini PCK's.
 
 One limb in that bin is not explained: a Dione frame taken through the P120 polarizer
 and the MT2 methane-band filter at 107 degrees phase, N1489256001, peaks 0.06 px inside
-its silhouette, 0.12 px inside its matched limb. Its filter's PSF and the frame's smear
-were not examined.
+its silhouette, where the other three real limbs of the bin lie on or outside theirs.
+Its filter's PSF and the frame's smear were not examined.
 
 **Iapetus in the photometric-law study.** Iapetus's leading hemisphere is about ten times
 darker than its trailing one, so the frame reader tells the study where the dark
 terrain lies, centered at 90 degrees west, and the study fits and twins each hemisphere
-of an Iapetus disc on its own (see :ref:`sim-realism-law-study`).
+of an Iapetus disc on its own (see :ref:`sim-realism-law-study`). Of the cohort's three
+Iapetus frames, one shows both hemispheres lit (N1806609736, at 58 degrees phase), one
+shows only the bright hemisphere lit (N1686349893), and in one no lit part of the disc
+lies in the frame (N1483174087).
 **Passbands.** Each camera's entry sets a passband table (``coiss_nac`` and
 ``coiss_wac``) built from the system transmission files of the CISSCAL
 calibration volume, ``COISS_0011``, with its solar spectrum. The solar-weighted

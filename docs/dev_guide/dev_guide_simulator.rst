@@ -2404,7 +2404,7 @@ limb-relief field, any photometric law, an opposition surge, craters, surface
 textures, and transits. All of those ingredients are truth keys: the
 navigator predicts an ellipsoid body as the smooth Lambert template, so every one
 plants a known model error the technique must survive. The default lunar-Lambert
-law is one of them below about 119 degrees phase, where it is not yet Lambert. The
+law is one of them below about 104 degrees phase, where it is not yet Lambert. The
 navigator predicts a
 mesh body as the same mesh without the limb relief, flat-shaded, and at the catalog
 pose, unless ``nav_override`` changes it. A mesh body's limb relief, ``shading``,
@@ -2908,7 +2908,7 @@ that states another law shades with that one:
      - ``2 L(a) mu0 / (mu0 + mu) + (1 - L(a)) mu0`` with the McEwen (1991)
        cubic blend ``L(a) = 1 - 0.019 a + 2.42e-4 a**2 - 1.46e-6 a**3`` in phase
        ``a`` (degrees), clipped to 0 to 1: Lommel-Seeliger at opposition, Lambert
-       once the cubic reaches 0 near 119 deg. The default.
+       once the cubic reaches 0 near 104 deg. The default.
 
 An optional ``opposition_surge`` (truth) multiplies the law by a normalized
 exponential ``(1 + amplitude exp(-a / width)) / (1 + amplitude)`` -- 1 at exact
@@ -2917,18 +2917,35 @@ brightness-versus-phase surge signature. Because the navigator always shades
 Lambert, every other law, the default included, and any surge move the terminator
 and the limb-darkening profile by a known amount.
 
-The default is Lommel-Seeliger because the limbs of real airless icy moons follow
-it at low phase. On three real Cassini frames below 30 degrees phase, the steepest
-brightness fall across the lit limb lies 0.01 to 0.08 px inside the body's
-silhouette. A Lommel-Seeliger disc puts it 0.05 to 0.07 px inside, and a Lambert
-disc puts it 0.35 to 0.53 px inside (see :ref:`sim-realism-limb-peak`). At zero phase
-the Lommel-Seeliger law is 1 wherever the surface faces, so craters and relief slopes
-add no shading there. A scene or test that needs them to show at full illumination
-states the Lambert law. Scenes and tests whose purpose is a match with the
-navigator's own template also state it, such as the floors of the model-mismatch
-sweeps and the base scenes of the single-setting sweeps.
+The default is lunar-Lambert because the discs of real airless icy moons follow it. On
+real Cassini frames of Saturn's mid-sized moons the photometric-law study (see
+:ref:`sim-realism-law-study`) fits each disc's own blend ``L``. McEwen's curve differs
+from the fitted values by an rms of 0.16, with a mean difference of +0.02, over 28 discs
+from 1.5 to 136 degrees phase. Twins of those discs under the default law reproduce how
+the brightness falls across them, measured by Minnaert's exponent, to a median of 0.05
+both below 60 degrees phase and from 60 to 120 degrees. A Lommel-Seeliger twin misses by
+0.13 and 0.14, and a Lambert twin by 0.33 and 0.14. A Minnaert twin whose exponent
+follows the real discs' own trend with phase does about as well as the default, 0.04
+and 0.07, which the study cannot tell apart from it. The default also puts each limb's
+steepest brightness fall where the real limbs put it: on the small discs below 60
+degrees phase, the Lambert law puts it 0.3 to 0.5 px inside the silhouette, where the
+real limbs and the default law's sit within 0.1 px of it. Above about 104 degrees the
+blend reaches 0 and the default is Lambert's.
 
-Every other ellipsoid scene below about 119 degrees phase shades with a law the
+Only Cassini frames of Saturnian moons back that choice. The Galileo, Voyager, and LORRI
+frames of the realism cohort hold no resolved moon, so for those cameras the body
+statistics (the limb peak, the rise width, the disc profile, and the law) are unchecked.
+The default law is also untested on surfaces unlike the Saturnian icy moons, such as
+volcanic, dark, or rocky and icy ones, apart from Iapetus's dark hemisphere, which the
+cohort shows once (see :ref:`sim-realism-law-study`).
+
+At zero phase the default law is Lommel-Seeliger's, 1 wherever the surface faces, so
+craters and relief slopes add no shading there. A scene or test that needs them to show
+at full illumination states the Lambert law. Scenes and tests whose purpose is a match
+with the navigator's own template also state it, such as the floors of the
+model-mismatch sweeps and the base scenes of the single-setting sweeps.
+
+Every other ellipsoid scene below about 104 degrees phase shades with a law the
 navigator's Lambert template does not match, and the template is biased on it. On the
 clean spheres of the algorithmic-invariant scenes, at 30 degrees phase, the disc
 correlation lands 0.44 to 0.45 px toward the Sun and the limb fit 0.22 to 0.23 px
@@ -6478,7 +6495,7 @@ real limbs to bin by the incidence angle at the limb as well.
 
 **How bright the matched bodies are.**  A matched body takes the real body's
 brightness, through its ``normal_albedo``.  On a calibrated real frame, each disc
-pixel's I/F divided by the Lommel-Seeliger law's value at that pixel's incidence and
+pixel's I/F divided by the matched body's law's value at that pixel's incidence and
 emission angles is one estimate of the normal albedo, and the median over the disc
 sets it (:func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).  A pixel counts
 when it survives three steps of erosion of the body's mask, each to a pixel's four
@@ -6511,61 +6528,227 @@ bands (offsets in pixels, negative inside the silhouette):
      - +0.28
      - 0.82
      - 0.82
-     - -0.09
+     - -0.13
      - 4 / 4
      - within
    * - phase 60 to 120, 100 to 400 px
      - +0.03
      - 0.11
      - 0.11
-     - +0.02
+     - -0.04
      - 4 / 4
      - within
 
 In the bin at 60 to 120 degrees and 100 to 400 px, the four real limbs, of Dione and
 Tethys between 74 and 111 degrees phase, lie from 0.06 px inside the silhouette to
-0.19 px outside it, and every matched limb within 0.07 px of it.  Three real limbs lie
-on or outside their matched limbs, by 0.00 to 0.19 px.  The fourth, a Dione limb at
-107 degrees phase through a polarizer and a methane-band filter, lies 0.12 px inside
-its matched limb, and that is not explained.  The Cassini chapter gives the frame.
+0.19 px outside it, and their median lies 0.07 px outside the matched median.  The
+limb 0.06 px inside, a Dione limb at 107 degrees phase through a polarizer and a
+methane-band filter, is the only real limb of the four inside its silhouette, and that
+is not explained.  The Cassini chapter gives the frame.
 
 The other bins hold one or two paired limbs and have no verdict: below 60 degrees
-under 100 px, -0.06 real against -0.06 matched (2 limbs each); below 60 degrees at
-100 to 400 px, +0.51 against -0.12 (2 each); 60 to 120 degrees under 100 px, +0.02
-against -0.05 (2 each); 60 to 120 degrees over 400 px, -0.29 against -0.01 (1 each);
-above 120 degrees, -0.00 against +0.08 under 100 px and +0.07 against +0.14 at 100 to
-400 px (1 each); and the WAC's one limb, -0.12 against +0.05.
+under 100 px, -0.06 real against -0.11 matched (2 limbs each); below 60 degrees at
+100 to 400 px, +0.51 against -0.09 (2 each); 60 to 120 degrees under 100 px, +0.02
+against -0.10 (2 each); 60 to 120 degrees over 400 px, -0.29 against -0.03 (1 each);
+above 120 degrees, -0.00 against +0.02 under 100 px and +0.07 against +0.11 at 100 to
+400 px (1 each); and the WAC's one limb, -0.12 against +0.03.
 
 The three matched bodies whose real disc is clipped render white and overflow the full
-well; their limbs are not compared.  Of the 23 others, two still overflow somewhere
-before the detector caps them: their albedo comes from the disc interior, and the
-Lommel-Seeliger law brightens toward the sunlit limb up to twice that.  In both, the
-real limb peaks well outside its shape model's silhouette (+0.97 and +1.02 px).  The
+well; their limbs are not compared.  Of the 23 others, one still overflows before the
+detector caps it, an Enceladus 789 px across at 21 degrees phase: its albedo comes from
+the disc interior, and the law brightens toward the sunlit limb above that, to 1.13
+times the full well over 12,046 pixels.  Its real limb peaks well outside its shape
+model's silhouette (+0.97 px).  The
 real camera clips a disc without visible bloom, while the simulator spreads the charge
 above its full well along the columns, so a matched frame that overflows does not look
 like a real clipped frame.
 
-**Which law the limbs follow.**  On 2026-11-24 the matched frames of the 17 paired NAC
-limbs were also rendered at a quarter of the real exposure, where none of them
-overflows, once with each law.  The albedo of each matched body was measured with the
-same law its disc was shaded with.  Below 30 degrees phase, four paired bodies are
-under 400 px across.  In three of them the real limb peaks 0.01 to 0.08 px inside the
-silhouette, the Lommel-Seeliger limb 0.05 to 0.07 px inside, and the Lambert limb 0.35
-to 0.53 px inside.  The fourth, a 377 px Mimas, peaks 1.02 px outside its shape model's
-silhouette in the real image, which no law explains.  The real limbs of the three
-therefore agree with the Lommel-Seeliger law, the scene default, and rule out the
-Lambert law at low phase.
+**Which law the limbs follow.**  The photometric-law study below renders a twin of each
+measured real disc under every law, and where the realism match measured the real
+frame's limb, it measures the twin's limb too.  Its per-law limb peaks are in the next
+section.
 
-Above 60 degrees the two laws lie closer together.  The eight bodies under 400 px
-across have a median offset of +0.03 px, against +0.03 px with the Lommel-Seeliger law
-and -0.03 px with the Lambert law, and the mean distance of each real limb from its
-matched limb is 0.09 px with the first law and 0.12 px with the second.  So the high
-phase limbs lean toward the Lommel-Seeliger law too, though less clearly than the low
-phase ones.  In the bin at 60 to 120 degrees and 100 to 400 px the laws differ by 0.06
-to 0.13 px from frame to frame.  A Minnaert law with an exponent of 0.5, 0.6, or 0.7
-moves these limbs outward in 11 of the 12 renders, by up to 0.17 px.
+.. _sim-realism-law-study:
 
-Over 400 px across, the shape models' errors cover any difference between the laws.
+The photometric-law study
+-------------------------
+
+A photometric law sets how a body's brightness changes from the middle of its disc out
+to the limb and in to the terminator.  The realism match checks the scene's default law
+against the real frames, and compares it with every other law the simulator offers, so
+the choice of the default rests on the record.  The study is in
+``tests/integration/sim_realism_laws.py``, its measurements are in
+:mod:`spindoctor.sim.realism.disc_profile`, and its figures and record block come from
+``tests/integration/sim_realism_laws_report.py``.
+
+**Which discs.**  The study looks at every moon in view in each calibrated real frame,
+whatever the frame's scene class, so a moon in a star frame counts as much as one in a
+limb frame.  A moon is measured when its shape is regular, it has no atmosphere, its
+disc is not clipped at the camera's full scale (the clipped-disc test above), at least a
+quarter of its lit disc lies in the frame, and at least 100 lit pixels lie clear of the
+limb and the terminator.  Every moon in view that fails one of these is listed in the
+record's ``law_study.excluded`` with its reason.  The simulator draws an irregular moon
+only as a sphere or as a mesh of made-up lumps, so a twin could not show such a moon's
+real shape, and the frame's geometry treats it as an ellipsoid too.  A moon whose two
+hemispheres differ in albedo is measured one hemisphere at a time, when the mission's
+frame reader says where its dark hemisphere lies; the Cassini chapter says which moons
+those are.
+
+**The pixels and the fits.**  A pixel counts when it is lit, lies at least 3 px from the
+edge of the lit region, has cosines of incidence and emission both at least 0.05, and is
+below the camera's full scale.  The 3 px are about two widths of the narrow-angle
+camera's point-spread function, so the blur of the limb and the terminator leaves the
+counted pixels alone.  At most 60,000 pixels of a disc are kept, every n-th one.
+Minnaert's law, ``I = B0 mu0**k mu**(k - 1)``, is a straight line in ``log(I mu)``
+against ``log(mu0 mu)``, and its exponent ``k`` is the line's slope, fitted with pixels
+more than 3 robust standard deviations off the line dropped and the fit repeated.  The
+slope does not depend on the disc's brightness, and an albedo marking moves only a few
+pixels off the line.  The lunar-Lambert blend ``L`` is fitted the same way to
+``I = B0 (2 L mu0 / (mu0 + mu) + (1 - L) mu0)``.  The profile along the photometric
+equator, the great circle through the points under the Sun and under the camera, is the
+median brightness in 5 degree bins of luminance longitude over the pixels within 8
+degrees of it.  Below 5 degrees phase that circle is not defined, and the profile bins
+the pixels by ``mu`` instead.
+
+**The twins.**  For each real disc the study renders a twin under every law.  The twin
+is a sphere at the moon's apparent size and position in the real frame, lit from the
+direction the real disc's incidence cosines give and at its phase, through the frame's
+filter, gain state, downlink, and exposure.  Its normal albedo is measured from the real
+disc against the twin's own law.  Minnaert's law needs an exponent, and the twin takes it
+from a straight line fitted to all the real discs' exponents against phase, so Minnaert's
+form enters at its best; the record holds the line.  The twin's pixels are chosen and
+fitted from the sphere's own geometry exactly as the real disc's were.
+
+**The statistics.**  For each disc and law the study records the twin's exponent less
+the real one, the residual between the two equator profiles, and the twin's limb
+gradient peak where the realism match measured the real frame's.  The residual compares
+shapes alone: the real profile is divided bin by bin by the twin's, the ratio by its
+median, and the residual is the rms of that less 1.  Each statistic is reported by phase
+bin (below 60, 60 to 120, and above 120 degrees), by body, and, for the limb peaks, by
+the limb bins of the previous section.
+
+**The disc-profile check.**  The default law's twins are judged per instrument and phase
+bin as the limb peaks are.  Only a bin with at least 3 discs gets a band.  Its
+half-width is 2 standard errors of the bin's real exponents (1.4826 times their median
+absolute deviation over the square root of their number), and never less than 0.02.
+The median of the twins' exponent less the real one must lie within it.  The JSON
+summary's ``disc_profiles`` block holds each bin, and
+``tests/integration/test_sim_realism_laws.py`` fails when a bin with a verdict lies
+outside its band.
+
+**The law comparison.**  In each phase bin with at least 3 discs, each law's agreement
+is the median distance of its twins' exponents from the real ones.  Two laws separate in
+the bin when their agreements differ by more than the bin's band.  The same test file
+fails when a law that separates from the default agrees with the real discs better than
+the default does.  Where two laws do not separate, the record claims no order between
+them.
+
+The exponent is the statistic the check judges because it compares the shape of the
+profile and neither side's brightness scale: a twin whose albedo is a little off has the
+same exponent.  The profile residual adds where along the equator the shapes part, but a
+crater field or a dark patch on the equator moves it, so it is reported beside the
+exponent and not judged.
+
+**What the study covers.**  Only Cassini frames of Saturnian moons back it.  The
+Galileo, Voyager, and LORRI frames of the cohort hold no resolved moon, so for those
+cameras the body statistics (the limb peak, the rise width, the disc profile, and the
+law) are unchecked.  The default law is also untested on surfaces unlike the Saturnian
+icy moons, such as volcanic, dark, or rocky and icy ones, apart from Iapetus's dark
+hemisphere.  The cohort does not hold a resolved frame of the Jovian moons, the Uranian
+and Neptunian moons, Charon, Phoebe, Janus, Helene, Telesto, or Daphnis.
+
+**What the study finds.**  On 2026-11-25 the study measured 28 discs on 23 frames
+between 1.5 and 136 degrees phase: 7 of Dione, 6 of Tethys, 5 of Mimas, 4 of Rhea, 3 of
+Enceladus, and Iapetus's bright hemisphere twice and its dark hemisphere once.  One Rhea
+is a wide-angle frame and the rest are narrow-angle.  It left out 92 moons in view: 70
+under 10 px across, 14 of irregular shape (Atlas, Calypso, Epimetheus, Hyperion, Pan,
+Pandora, and Prometheus), 3 whose disc is clipped, 3 Iapetus hemispheres that are not
+lit in the frame, a Dione of which 17% of the lit disc lies in the frame, and a 20 px
+Mimas.  The real discs' Minnaert exponent rises with phase, from 0.55 at 1.5 degrees to
+0.97 at 117 degrees, and the line the Minnaert twins take is ``k = 0.583 + 0.00259 a``
+in phase ``a`` in degrees.  The blend fitted to each disc follows McEwen's curve with an
+rms difference of 0.16 and a mean difference of +0.02.
+
+Each law's median distance of its twins' exponent from the real one, and its median
+profile residual, by phase bin (13, 13, and 2 discs):
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 12 12 12 12 12 12
+
+   * - Law
+     - below 60, k
+     - below 60, profile
+     - 60 to 120, k
+     - 60 to 120, profile
+     - above 120, k
+     - above 120, profile
+   * - Lambert
+     - 0.333
+     - 0.306
+     - 0.145
+     - 0.097
+     - 0.193
+     - 0.062
+   * - Lommel-Seeliger
+     - 0.128
+     - 0.102
+     - 0.137
+     - 0.107
+     - 0.058
+     - 0.051
+   * - lunar-Lambert (the default)
+     - 0.049
+     - 0.084
+     - 0.053
+     - 0.100
+     - 0.193
+     - 0.062
+   * - Minnaert, exponent from the line
+     - 0.036
+     - 0.094
+     - 0.067
+     - 0.112
+     - 0.122
+     - 0.050
+
+In both bins with a comparison the default agrees best with the real discs among the
+laws it separates from.  Below 60 degrees the band is 0.054, and Lambert and
+Lommel-Seeliger separate from the default; at 60 to 120 degrees the band is 0.065, and
+they separate again.  Minnaert's law with the fitted exponent does not separate from the
+default in either bin, so the record claims no order between those two.  Above 120
+degrees the two discs, Mimas at 126 and Tethys at 136 degrees, give no verdict.  There
+the default is Lambert's, and both discs fall more gently than it (exponents 0.74 and
+0.82 against 0.97), closer to Lommel-Seeliger's.
+
+The default law's disc-profile check: on the narrow-angle camera the twins' exponents
+differ from the real ones by a median of +0.007 below 60 degrees (12 discs, band 0.040)
+and +0.053 at 60 to 120 degrees (13 discs, band 0.065), both within their bands.  The
+two discs above 120 degrees differ by +0.19, without a verdict, and the wide-angle
+camera's one disc by +0.07.
+
+By body, the default's median distance is 0.03 for Mimas and Enceladus, 0.05 for Dione,
+0.06 for Tethys, 0.08 for Iapetus's bright hemisphere, and 0.11 for Rhea, where
+Lommel-Seeliger's is 0.04.  Two of Rhea's four discs are small ones at 74 and 92 degrees
+that fall as gently as a Lommel-Seeliger disc.  Iapetus's dark hemisphere, the cohort's
+one dark surface, falls more gently than any twin: its exponent is 0.44, and the twins
+miss by 0.19 (Lommel-Seeliger), 0.30 (Minnaert), 0.36 (the default), and 0.56
+(Lambert).  Its profile residual is near 4 under every law, because the boundary
+between the two terrains runs through the equator's bins.  One frame cannot say what
+law a dark surface follows, but it does not follow the default as the icy surfaces do.
+
+The limb peaks of the twins, where the realism match measured the real limb, bin as the
+limb-peak check does.  In the two bins with a verdict, the real medians are -0.12 px
+(phase below 60 degrees, over 400 px, 5 limbs) and +0.03 px (60 to 120 degrees, 100 to
+400 px, 4 limbs).  The default's twins give +0.02 and +0.08 px, within both bands
+(0.42 and 0.11 px); Lambert's -0.23 and +0.05 px, within both; Minnaert's +0.10 and
++0.12 px, within both; and Lommel-Seeliger's +0.07 and +0.14 px, outside the second band.
+On the two small limbs below 60 degrees, without a verdict, the real median is
+-0.06 px, the default's -0.02 px, and Lambert's -0.53 px.
+
+The JSON summary's ``law_study`` block holds every disc's fits and twins, the moons left
+out with their reasons, and the statistics by phase bin, body, and limb bin.  The
+simulator report shows the figures.
 
 The FOM 7 firewall
 ------------------
@@ -6596,7 +6779,9 @@ navigation pairs.  Outputs:
   labels, FOM 7 rows, runtime).
 
 The full-cohort run takes 32 to 54 minutes on a workstation with local
-holdings.  The committed record of 2026-11-25 took 54 minutes (3,259 seconds).
+holdings without the photometric-law study, and about 90 minutes with it: the
+committed record of 2026-11-25 took 90 minutes (5,424 seconds), with other heavy runs
+sharing the machine.  ``--skip-law-study`` leaves the study out.
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on
 W1580760393).  The cost is

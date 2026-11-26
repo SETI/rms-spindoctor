@@ -18,7 +18,7 @@ simulated counterparts that share the renderer's geometry, point-spread function
 projection, and star flux; the production models that navigate real frames never run. They
 do not share its body shading. A body renders with the lunar-Lambert law unless its
 scene states another, and the navigator's body template shades with the Lambert law. Below
-about 119 degrees phase the two laws differ, so there a clean recovery measures the
+about 104 degrees phase the two laws differ, so there a clean recovery measures the
 template's bias as well as the floor.
 A recovery therefore says how tightly a technique converges on a frame drawn by its own
 kind of model, and how that changes as one parameter moves. A simulated number becomes a
@@ -202,7 +202,7 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``dcd5fd83`` on
+code that made it.  The current record was made at commit ``65a34359`` on
 2026-11-25.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
@@ -385,19 +385,19 @@ real IQR):
      - 10.0
      - 0.73 [#table]_
      - 4585
-     - 7407
+     - 7350
    * - sky level above floor (FOM 1)
      - 3.3e-4 I/F
      - 13.9
-     - 1.60 [#tail]_
+     - 1.61 [#tail]_
      - 4585
-     - 7407
+     - 7350
    * - noise at signal (FOM 1)
      - 2.8e-4 I/F
      - 13.8
-     - 1.63
+     - 1.62
      - 15700
-     - 33377
+     - 33317
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
@@ -413,9 +413,9 @@ real IQR):
    * - limb rise width, co-populated strata (FOM 3)
      - 2.54 px
      - -- [#copop]_
-     - 0.72
+     - 0.54
      - 3742
-     - 3128
+     - 3138
    * - ring-edge rise width (FOM 4)
      - 3.36 px
      - 0.47
@@ -425,19 +425,19 @@ real IQR):
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
-     - 0.69
+     - 0.70
      - 27
      - 27
    * - p99 - p50 stretch, 0.05-0.5 s (FOM 5)
      - 0.104 I/F
      - 0.89
-     - 0.14
+     - 0.15
      - 27
      - 27
    * - spike fraction (FOM 6)
      - 1.1e-4
      - 11.0
-     - 0.83
+     - 0.82
      - 58
      - 58
 
@@ -492,51 +492,51 @@ The FOM 3 strata behind the pooled number (2026-11-25; p = phase bin
      - n real
      - n sim
    * - p0 r0
-     - 0.86
+     - 0.65
      - 2.87
-     - 2.12
+     - 2.33
      - 522
      - 538
    * - p0 r1
-     - 1.36
+     - 1.01
      - 2.75
-     - 2.20
+     - 2.34
      - 400
      - 400
    * - p0 r2
-     - 1.47
+     - 1.35
      - 3.09
-     - 2.25
+     - 2.32
      - 733
      - 782
    * - p1 r0
-     - 1.27
+     - 0.61
      - 2.18
-     - 1.88
+     - 2.15
      - 435
      - 246
    * - p1 r1
-     - 1.02
+     - 0.58
      - 2.24
-     - 1.94
+     - 2.16
      - 909
      - 770
    * - p1 r2
-     - 0.87
-     - 2.58
-     - 2.04
-     - 525
-     - 189
-   * - p2 r0
-     - 1.69
-     - 1.75
-     - 1.38
-     - 70
-     - 61
-   * - p2 r1
      - 0.75
+     - 2.58
+     - 2.18
+     - 525
+     - 195
+   * - p2 r0
+     - 1.97
+     - 1.75
+     - 1.37
+     - 70
+     - 65
+   * - p2 r1
+     - 0.78
      - 1.71
-     - 1.51
+     - 1.52
      - 148
      - 142
 
@@ -560,78 +560,151 @@ of the body its matched frame renders, and only when both frames measured it:
      - within
    * - p0 r0
      - -0.06
-     - -0.06
+     - -0.11
      - --
      - 2
      - 2
      - --
    * - p0 r1
      - +0.51
-     - -0.12
+     - -0.09
      - --
      - 2
      - 2
      - --
    * - p0 r2
      - +0.28
-     - -0.09
+     - -0.13
      - 0.82
      - 4
      - 4
      - yes
    * - p1 r0
      - +0.02
-     - -0.05
+     - -0.10
      - --
      - 2
      - 2
      - --
    * - p1 r1
      - +0.03
-     - +0.02
+     - -0.04
      - 0.11
      - 4
      - 4
      - yes
    * - p1 r2
      - -0.29
-     - -0.01
+     - -0.03
      - --
      - 1
      - 1
      - --
    * - p2 r0
      - -0.00
-     - +0.08
+     - +0.02
      - --
      - 1
      - 1
      - --
    * - p2 r1
      - +0.07
-     - +0.14
+     - +0.11
      - --
      - 1
      - 1
      - --
 
 Each matched body takes the real body's brightness, measured from the real disc's
-I/F, and is shaded with the Lommel-Seeliger law.  Each real limb is measured against
+I/F, and is shaded with the lunar-Lambert law.  Each real limb is measured against
 a silhouette whose radii, for the mid-sized Saturnian moons, are the IAU values; the
 Cassini kernels give older radii, which put four of the five real Tethys limbs
 inside their matched limbs by 0.24% to 0.35% of the radius.  Both bins with a verdict
-lie within their bands.  In p1 r1, three of the four real limbs lie on or outside
-their matched limbs, and one, a Dione limb taken through a methane-band filter, lies
-0.12 px inside its matched limb for no reason yet found.  Three real NAC discs are
+lie within their bands.  In p1 r1 the real median lies 0.07 px outside the matched
+one, and one real limb, of Dione through a methane-band filter, lies 0.06 px inside
+its silhouette for no reason yet found.  Three real NAC discs are
 clipped at the camera's full scale; they give no real limb and no albedo, and their
 matched bodies render white.  Prometheus and Pan have no limb in the real frames,
 because the navigator places none on their shapes, so their matched limbs are not
-measured.  Of the 23 matched bodies with an unclipped real disc, two still overflow
-the detector's full well, where the law brightens the limb up to twice the disc
-interior the albedo is measured on; in both the real limb peaks about 1 px outside its
-shape model's silhouette.  The bins without a verdict are set by one or two limbs, such
+measured.  Of the 23 matched bodies with an unclipped real disc, one still overflows
+the detector's full well, an Enceladus at 21 degrees phase (12,046 pixels, at up to
+1.13 times the full well), where the law brightens the limb above the disc interior
+the albedo is measured on; its real limb peaks 0.97 px outside its shape model's
+silhouette.  The bins without a verdict are set by one or two limbs, such
 as a 377 px Mimas whose real limb peaks +1.02 px outside.  The WAC cohort's one limb
-peaks -0.12 px real against +0.05 px matched.
+peaks -0.12 px real against +0.03 px matched.
+
+The record also holds the photometric-law study
+(:ref:`sim-realism-law-study`).  For every moon the cohort shows resolved, whatever its
+frame's scene class, the study renders a twin under each of the four laws the simulator
+offers and compares how the brightness falls across the disc, measured by the fitted
+Minnaert exponent.  It measured 28 discs on 23 frames between 1.5 and 136 degrees
+phase: Dione, Tethys, Mimas, Rhea, Enceladus, and each hemisphere of Iapetus.  It left
+out 92 moons in view, each with its reason in the record: 70 under 10 px across, 14 of
+irregular shape, 3 clipped discs, 3 Iapetus hemispheres not lit in the frame, and two
+that showed too little of the lit disc.
+
+Only Cassini frames of Saturnian moons back these numbers.  The Galileo, Voyager, and
+LORRI frames of the cohort hold no resolved moon, so the body statistics of those
+cameras (the limb peak, the rise width, the disc profile, and the law) are unchecked.
+The default law is also untested on surfaces unlike the Saturnian icy moons, such as
+volcanic, dark, or rocky and icy ones, apart from Iapetus's dark hemisphere, which the
+cohort shows once.  The cohort does not hold a resolved frame of the Jovian moons, the
+Uranian and Neptunian moons, Charon, Phoebe, Janus, Helene, Telesto, or Daphnis.
+
+Each law's median distance of its twins' exponent from the real discs':
+
+.. list-table::
+   :header-rows: 1
+   :widths: 34 22 22 22
+
+   * - Law
+     - below 60 deg (13 discs)
+     - 60 to 120 deg (13 discs)
+     - above 120 deg (2 discs)
+   * - Lambert
+     - 0.333
+     - 0.145
+     - 0.193
+   * - Lommel-Seeliger
+     - 0.128
+     - 0.137
+     - 0.058
+   * - lunar-Lambert (the default)
+     - 0.049
+     - 0.053
+     - 0.193
+   * - Minnaert, exponent from the real discs' trend
+     - 0.036
+     - 0.067
+     - 0.122
+
+In both bins with a comparison the default agrees best among the laws that separate from
+it (bands 0.054 and 0.065).  Minnaert's law, whose exponent is fitted to the same real
+discs, does not separate from it.  The default's disc-profile check lies within its band
+in both narrow-angle bins with a verdict.  Two findings stand apart.  Iapetus's dark
+hemisphere falls more gently than every twin (exponent 0.44; the default misses by 0.36
+and Lommel-Seeliger by 0.19), so the one dark surface in the cohort does not follow the
+default.  The two discs above 120 degrees, where the default is Lambert's, fall more
+gently than Lambert's law, closer to Lommel-Seeliger's.  Both rest on too few frames for
+a verdict.
+
+.. figure:: _figures/realism_law_fits.png
+   :width: 100%
+
+   The real discs' fitted Minnaert exponent and lunar-Lambert blend against phase, one
+   marker per body, with McEwen's blend and the line the Minnaert twins take.
+
+.. figure:: _figures/realism_disc_profiles.png
+   :width: 100%
+
+   Left: each disc's twin exponent less its real one, under every law.  Right: the real
+   exponents and the default law's twins.
+
+.. figure:: _figures/realism_law_sheet.png
+   :width: 80%
+
+   Real discs beside their twins under each law, each row at the real disc's stretch.
 
 The headline reading: each matched star frame now holds the catalog stars
 of its real frame's field, and the simulated star cutouts number 9, from 6
@@ -647,24 +720,25 @@ recurring at fixed detector positions on both sides; :ref:`the Cassini ISS
 chapter <coiss-calibrated-hot-pixels>` explains the difference.  The transient (cosmic-ray) share
 comes from the catalog's fitted cosmic-ray terms (see the measured-transients
 known gap).  Limb rise widths differ in the
-like-for-like pool (co-populated-strata medians 2.10 sim vs 2.54 px
-real, W1/IQR 0.72) with per-stratum divergences from 0.75 to 1.69.  The
+like-for-like pool (co-populated-strata medians 2.24 sim vs 2.54 px
+real, W1/IQR 0.54) with per-stratum divergences from 0.58 to 1.97.  The
 simulated limb measures narrower than the real one in every stratum: at low
-phase 2.12-2.25 px against 2.75-3.09 px, and above 60 degrees phase 1.38-2.04 px
-against 1.71-2.58 px.  The matched bodies shade with the Lommel-Seeliger law,
-which keeps the brightness up to the limb and so steepens the rise.  Ring-edge widths
+phase 2.32-2.34 px against 2.75-3.09 px, and above 60 degrees phase 1.37-2.18 px
+against 1.71-2.58 px.  The matched bodies shade with the lunar-Lambert law, which
+keeps more of the brightness near the limb than Lambert's does and so steepens the
+rise.  Ring-edge widths
 differ by 1.0 px (2.41 sim vs 3.36 px real, W1/IQR 0.50).  The sky-noise
 distribution matches closer than in the 2026-11-07 record (W1/IQR 0.73,
 from 1.44), with the simulated median below the real one (1.7e-4 vs
 1.9e-4 I/F).  Only patches on dark sky enter it now, and the split by
 downlink format remains (the table's first footnote).  The record doesn't
 separate the causes of the narrow simulated limbs.  Limb content may
-contribute (real topography, the Lommel-Seeliger approximation), and so may
+contribute (real topography, the smooth law's approximation), and so may
 the rendered PSF, since the simulated star cutouts are narrower than the
 real ones at both EE50 and EE80.  The curve *shapes* agree
 closer than the scalar samples: the density-W1 of the frame-averaged
 curves is 0.05 for the sky power spectrum, 0.19 for the star radial
-profile, 0.07 for the limb profile, and 0.08 for the ring radial profile
+profile, 0.04 for the limb profile, and 0.08 for the ring radial profile
 (axis units over the real IQR; ``curve_divergences`` in the summary).
 The sky power spectrum's distance fell from 0.29 in the 2026-11-07
 record.  A tile's spectrum now enters only when all four of its patches
@@ -851,9 +925,9 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   and the ring-vocabulary calibration prices that residual, so the sim
   errs optimistic on ring-scene sharpness.
 - Both limb pairs succeed on both sides, and on both the simulated fit is
-  the tighter.  On the NAC pair (0.77 real vs 0.79 sim) the DT RMS is 0.24
-  px simulated against 0.34 px real; on the WAC pair (0.76 real vs 0.83
-  sim) it is 0.29 against 0.62 px.
+  the tighter.  On the NAC pair (0.77 real vs 0.79 sim) the DT RMS is 0.23
+  px simulated against 0.34 px real; on the WAC pair (0.76 real vs 0.84
+  sim) it is 0.27 against 0.62 px.
 - The NAC and Voyager star pairs lock weakly or not at all on the simulated
   side.  The NAC
   frame, an H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks
@@ -1026,7 +1100,7 @@ mismatch into the floor itself.
 Some of these frames keep one mismatch, in the shading.  The bodies of the
 ellipsoid scenes in this section and of the limb sweeps shade with the scene
 default, the lunar-Lambert law, while the navigator's template shades with the
-Lambert law.  Below about 119 degrees phase their errors include the template's bias
+Lambert law.  Below about 104 degrees phase their errors include the template's bias
 and lie above the floor.  Read every other
 clean-recovery number below as the floor; the *Model-mismatch sensitivity*
 section is where those floors become the first point of an error-vs-mismatch

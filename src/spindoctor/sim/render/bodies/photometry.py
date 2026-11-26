@@ -14,7 +14,7 @@ The law is a truth key: the navigator's predicted-body model always shades with
 Lambert (:func:`spindoctor.sim.shared.ellipsoid.lambert_from_normals`), so a scene
 that renders any other law, the default included, plants a photometric mismatch that
 moves the terminator and the limb-darkening profile by a known amount.  Above about
-119 degrees phase McEwen's blend reaches 0 and the default law is Lambert, so there
+104 degrees phase McEwen's blend reaches 0 and the default law is Lambert, so there
 the default plants no mismatch.
 
 All laws are normalized to 1 at disc center under head-on illumination
@@ -35,7 +35,7 @@ surface normal's z component.  Forms:
   + (1 - L(alpha)) * mu0`` with the McEwen (1991) cubic blend
   ``L(alpha) = 1 - 0.019 * a + 2.42e-4 * a**2 - 1.46e-6 * a**3``
   (a = phase in degrees), clipped to [0, 1]: pure Lommel-Seeliger at
-  alpha = 0, pure Lambert once the cubic reaches 0 (~119 deg).
+  alpha = 0, pure Lambert once the cubic reaches 0 (~104 deg).
 
 A law's value may exceed 1, and the body stages carry it uncapped to the
 detector, which saturates at its full well as a real camera does.
