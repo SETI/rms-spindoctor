@@ -378,6 +378,16 @@ def test_cubic_upsample_into_a_buffer_keeps_a_float32_fields_samples() -> None:
     _assert_identical(cubic_upsample(field, 2, out=buffer), cubic_upsample(field, 2))
 
 
+def test_cubic_upsample_into_a_reused_float64_buffer_keeps_the_samples() -> None:
+    """A float64 field upsampled into a buffer holding other samples has the same bits."""
+    first = _decimal(0.0, 4.0, (7, 9), seed=13)
+    second = _decimal(-3.0, 3.0, (7, 9), seed=14)
+    buffer = cubic_upsample(first, 2)
+    result = cubic_upsample(second, 2, out=buffer)
+    assert result is buffer
+    _assert_identical(result, cubic_upsample(second, 2))
+
+
 # The inputs the plain expressions accept, and what they return for them.
 
 _COLUMN = _decimal(-0.9, 0.9, (5, 1), seed=6)
