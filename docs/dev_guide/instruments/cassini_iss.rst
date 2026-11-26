@@ -219,7 +219,7 @@ observation asks for its block by section and detector, as in
 ``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` sets
 ``data_units: calibrated_if``, so it carries what a calibrated camera block carries
 (see :ref:`config-camera-blocks`): its ``noise`` block holds only ``marker_value: 0``,
-and its ``image_quality_thresholds`` hold only the two ``_if`` thresholds and the two
+and its ``image_quality_thresholds`` hold only the two ``_if`` thresholds and the three
 fractions. It has no ``saturation_dn``, no ``read_noise_dn``, and no
 ``star_flux_dn_per_s_vmag0``, and the loader refuses any of them.
 

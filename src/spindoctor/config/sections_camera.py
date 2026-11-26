@@ -71,6 +71,7 @@ __all__ = [
     'NoisyThresholdDn',
     'NoisyThresholdIf',
     'OneStarEllipseFraction',
+    'PartialDropoutMinFrac',
     'QualityThresholds',
     'ReadNoiseDn',
     'SaturationDn',
@@ -142,6 +143,8 @@ NoisyThresholdIf = Positive
 MaxMissingFracClean = Unit
 #: The largest share of saturated pixels a clean image may have.
 MaxOverexposedFracClean = Unit
+#: The share of missing pixels above which a clean image is flagged partial dropout.
+PartialDropoutMinFrac = Unit
 
 
 @dataclass(frozen=True)
@@ -213,6 +216,8 @@ class QualityThresholds:
             have.
         max_overexposed_frac_clean: The largest share of saturated pixels a clean image
             may have.
+        partial_dropout_min_frac: The share of missing pixels above which a clean image
+            is flagged ``partial_dropout``.
         blank_max_dn: The peak, in DN, below which an image is blank.
         saturation_threshold_dn: The DN at and above which a pixel counts as saturated.
         noisy_threshold_dn: The noise sigma, in DN, above which an image is flagged
@@ -226,6 +231,7 @@ class QualityThresholds:
 
     max_missing_frac_clean: MaxMissingFracClean
     max_overexposed_frac_clean: MaxOverexposedFracClean
+    partial_dropout_min_frac: PartialDropoutMinFrac
     blank_max_dn: BlankMaxDn | None = None
     saturation_threshold_dn: SaturationThresholdDn | None = None
     noisy_threshold_dn: NoisyThresholdDn | None = None

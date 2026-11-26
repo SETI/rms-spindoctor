@@ -1666,6 +1666,9 @@ asserts the generated half matches the registries.
     `data_units` and each becomes a `TypedSections` field, read through
     `Config.camera_block`; a key the camera's `data_units` does not read
     is refused, and Voyager ISS's three unread DN noise keys deleted;
+    `partial_dropout_min_frac` became a key of each camera's
+    `image_quality_thresholds`, and `noise.marker_value` a `FloatOrNan`,
+    a finite-or-NaN float added to the schema core;
     `Config._validate_camera_blocks`, `Config._validate`, the literal
     fallbacks of `instrument_settings_from_obs`, `_resolve_mag_offset`,
     and the source-image filter, the threshold defaults of

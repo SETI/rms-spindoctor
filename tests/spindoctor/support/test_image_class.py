@@ -8,7 +8,6 @@ import pytest
 from tests.camera_sections import calibrated_camera, raw_camera, raw_thresholds
 
 from spindoctor.support.image_class import (
-    PARTIAL_DROPOUT_MIN_FRAC,
     ImageQualityStatistics,
     ImageQualityThresholds,
     decide_image_class,
@@ -32,6 +31,7 @@ def test_raw_thresholds_are_in_dn() -> None:
         camera.image_quality_thresholds,
         max_missing_frac_clean=0.25,
         max_overexposed_frac_clean=0.75,
+        partial_dropout_min_frac=0.1,
         blank_max_dn=6.0,
         saturation_threshold_dn=4000.0,
         noisy_threshold_dn=11.0,
@@ -44,7 +44,7 @@ def test_raw_thresholds_are_in_dn() -> None:
         missing_data_marker_dn=2.0,
         max_saturation_frac_clean=0.75,
         max_missing_frac_clean=0.25,
-        partial_dropout_min_frac=PARTIAL_DROPOUT_MIN_FRAC,
+        partial_dropout_min_frac=0.1,
         blank_max_dn=6.0,
         noisy_threshold=11.0,
     )

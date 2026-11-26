@@ -77,8 +77,7 @@ Per-instrument thresholds live in
 :func:`~spindoctor.support.image_class.image_quality_thresholds` from the camera block's
 ``image_quality_thresholds`` block (see :ref:`config-camera-blocks`) and documented at
 :doc:`dev_guide_orchestrator_instrument_config`. The dataclass has no defaults; every
-value comes from the camera block except the partial-dropout share, which is
-:data:`~spindoctor.support.image_class.PARTIAL_DROPOUT_MIN_FRAC` for every camera.
+value comes from the camera block.
 
 The thresholds dataclass:
 
@@ -94,8 +93,8 @@ The thresholds dataclass:
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.max_missing_frac_clean`
   — float. Above this fraction of missing pixels the image is ``mostly_missing_data``.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.partial_dropout_min_frac`
-  — float. Above this fraction (and at or below ``max_missing_frac_clean``) the
-  ``partial_dropout`` advisory flag is set.
+  — float, the camera's ``partial_dropout_min_frac``. Above this fraction (and at or
+  below ``max_missing_frac_clean``) the ``partial_dropout`` advisory flag is set.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.blank_max_dn` —
   float, the camera's ``blank_max_dn`` or ``blank_max_if``. Below this maximum sensor
   value the image is ``blank``.

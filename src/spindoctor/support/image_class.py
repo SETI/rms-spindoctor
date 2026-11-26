@@ -34,7 +34,6 @@ from spindoctor.config.sections_camera import CameraBlock, as_camera_block
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
-    'PARTIAL_DROPOUT_MIN_FRAC',
     'ImageQualityClass',
     'ImageQualityStatistics',
     'ImageQualityThresholds',
@@ -48,10 +47,6 @@ __all__ = [
 
 ImageQualityClass = Literal['clean', 'blank', 'fully_overexposed', 'mostly_missing_data']
 """The classes :func:`decide_image_class` can return."""
-
-PARTIAL_DROPOUT_MIN_FRAC = 0.05
-"""The missing share of a clean image's sensor pixels above which it is flagged
-``partial_dropout``."""
 
 _CAMERA_SOURCE = 'the camera block'
 """The label a message gives for a problem in a camera block held as a mapping."""
@@ -125,8 +120,8 @@ def image_quality_thresholds(camera: CameraBlock | Mapping[str, Any]) -> ImageQu
 
     A ``raw_dn`` block gives its blank, noise, and saturation limits in DN.  A
     ``calibrated_if`` block gives its blank and noise limits in I/F, and its saturation
-    threshold is infinite.  The marker is the block's ``noise.marker_value``, and an
-    image is flagged ``partial_dropout`` above :data:`PARTIAL_DROPOUT_MIN_FRAC`.
+    threshold is infinite.  The marker is the block's ``noise.marker_value``, and the
+    other limits are the block's own.
 
     Parameters:
         camera: The camera block.  A block held as a mapping is parsed first (see
@@ -155,7 +150,7 @@ def image_quality_thresholds(camera: CameraBlock | Mapping[str, Any]) -> ImageQu
         missing_data_marker_dn=block.noise.marker(),
         max_saturation_frac_clean=limits.max_overexposed_frac_clean,
         max_missing_frac_clean=limits.max_missing_frac_clean,
-        partial_dropout_min_frac=PARTIAL_DROPOUT_MIN_FRAC,
+        partial_dropout_min_frac=limits.partial_dropout_min_frac,
         blank_max_dn=cast(float, blank),
         noisy_threshold=cast(float, noisy),
     )
