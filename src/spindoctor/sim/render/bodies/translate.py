@@ -201,6 +201,8 @@ def _linear_samples(
     weight.  A translation's positions form a grid, one position per row and one
     per column, so each neighbor is a gather and each weight a row or a column of
     values, which is far cheaper than ``map_coordinates`` working point by point.
+    Like ``map_coordinates``, it works in float64 whatever the crop's type and rounds
+    each finished sample, and the fill, to the crop's type once.
 
     Parameters:
         crop: The values sampled.
@@ -209,9 +211,12 @@ def _linear_samples(
         cval: The value outside the crop.
 
     Returns:
-        The ``(rows, columns)`` samples.
+        The ``(rows, columns)`` samples, of the crop's type.
     """
-    out = np.full((rows.size, cols.size), cval, dtype=np.float64)
+    out = np.full((rows.size, cols.size), cval, dtype=crop.dtype)
+    # A float32 crop must not round at every product and sum, or it loses
+    # map_coordinates' bits.  A float64 crop is used as it is, without a copy.
+    crop = crop.astype(np.float64, copy=False)
     last_v = crop.shape[0] - 1
     last_u = crop.shape[1] - 1
     row_in = np.flatnonzero((rows >= 0.0) & (rows <= last_v))

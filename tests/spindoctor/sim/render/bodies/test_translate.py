@@ -54,6 +54,15 @@ def test_a_box_taller_than_one_strip_is_the_whole_frame_shift() -> None:
     assert np.array_equal(translate_box(plane, 0.62, -1.4, rows, cols), expected)
 
 
+def test_a_float32_plane_has_the_whole_frame_shift_bits() -> None:
+    """A float32 plane is resampled in float64 and rounded once, as the shift does."""
+    rows, cols = slice(100, 160), slice(90, 200)
+    plane = _content(0.0, rows, cols).astype(np.float32)
+    expected = ndimage.shift(plane, (0.37, -0.81), order=1, mode='constant', cval=0.0)
+    out = translate_box(plane, 0.37, -0.81, rows, cols)
+    assert np.array_equal(out, expected.astype(np.float64))
+
+
 def test_translation_with_a_fill_of_one_is_the_whole_frame_shift() -> None:
     """With a fill of one, the frame matches the whole-frame shift to a rounding step."""
     rows, cols = slice(100, 160), slice(90, 200)
