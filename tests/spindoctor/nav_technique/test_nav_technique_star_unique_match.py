@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
+from typing import Any
 
 import numpy as np
 import pytest
@@ -176,7 +178,8 @@ def test_star_unique_match_marks_at_edge_when_offset_hits_margin(
     feature = make_star_feature('star:UCAC4:edge', predicted_vu=pred_vu, predicted_snr=40.0)
     technique = StarUniqueMatchNav()
     context = make_nav_context(image, extfov_margin_vu=margin)
-    context.obs.inst_config['one_star_ellipse_fraction'] = 1.0  # type: ignore[attr-defined]
+    obs: Any = context.obs
+    obs.inst_config = replace(obs.inst_config, one_star_ellipse_fraction=1.0)
     result = technique.navigate([feature], context)
     assert result.at_edge is True
     assert result.confidence == pytest.approx(0.0)
@@ -717,41 +720,10 @@ def test_star_unique_match_takes_the_lone_star_ellipse_from_the_camera(
     draw_gaussian_star(image, (150.0, 159.0), peak_dn=200.0, sigma=1.2)
     feature = make_star_feature('star:UCAC4:A', predicted_vu=(150.0, 150.0), predicted_snr=60.0)
     context = make_nav_context(image, extfov_margin_vu=(14, 14))
-    context.obs.inst_config['one_star_ellipse_fraction'] = fraction  # type: ignore[attr-defined]
+    obs: Any = context.obs
+    obs.inst_config = replace(obs.inst_config, one_star_ellipse_fraction=fraction)
     result = StarUniqueMatchNav().navigate([feature], context)
     assert (result.spurious is False) is accepted
-
-
-def test_star_unique_match_requires_the_camera_to_set_a_lone_star_ellipse(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-) -> None:
-    """A camera that sets no lone-star ellipse fraction is refused, never given a default."""
-    image = np.zeros((200, 200), dtype=np.float64)
-    draw_gaussian_star(image, (100.0, 101.0), peak_dn=200.0, sigma=1.2)
-    feature = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
-    context = make_nav_context(image)
-    context.obs.inst_config = {}  # type: ignore[attr-defined]
-    with pytest.raises(ValueError, match='sets no one_star_ellipse_fraction'):
-        StarUniqueMatchNav().navigate([feature], context)
-
-
-@pytest.mark.parametrize('fraction', [0.0, 1.5])
-def test_star_unique_match_refuses_a_lone_star_ellipse_outside_zero_to_one(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-    fraction: float,
-) -> None:
-    """A fraction outside (0, 1] that bypassed the load (a scene override) is refused."""
-    image = np.zeros((200, 200), dtype=np.float64)
-    draw_gaussian_star(image, (100.0, 101.0), peak_dn=200.0, sigma=1.2)
-    feature = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
-    context = make_nav_context(image)
-    context.obs.inst_config['one_star_ellipse_fraction'] = fraction  # type: ignore[attr-defined]
-    with pytest.raises(ValueError, match=r'one_star_ellipse_fraction must lie in \(0, 1\]'):
-        StarUniqueMatchNav().navigate([feature], context)
 
 
 @pytest.mark.parametrize(('offset_vu', 'passes'), [((0.0, 15.0), True), ((15.0, 0.0), False)])

@@ -1,39 +1,144 @@
 # Voyager ISS per-camera configuration. 8-bit cameras; noise and
 # image-quality threshold values carry `# PLACEHOLDER` markers until
 # phase-10 calibration finalizes them.
+# Each camera has its own block; the four hold the same values until each is calibrated.
 voyager_iss:
-  data_units: calibrated_if
-  extfov_margin_vu:
-    1000: [400, 400]
-  star_psf_sigma: 3.
-  # Fraction of the offset window, per axis, inside which
-  # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
-  # this camera: 0.6 is the Cassini NAC's value.
-  one_star_ellipse_fraction: 0.6
-  star_psf_sizes:
-    100: [7, 7]
-  fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
-                                    # carry non-negligible attitude rotation residuals, so revisit once
-                                    # the rotation search is fast enough.
-  max_rotation_deg: 5.0
-  noise:
-    saturation_dn: 255             # 8-bit ADC
-    marker_value: 0
-    read_noise_dn: 1.0             # PLACEHOLDER — calibrate in Phase 10
-    # interim: photometric zero point (DN a vmag-0 star deposits per second);
-    # the vidicon renders point sources directly in DN.
-    star_flux_dn_per_s_vmag0: 3.0e3
-  image_quality_thresholds:
-    blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
-    noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
-    max_missing_frac_clean: 0.30
-    max_overexposed_frac_clean: 0.80
-  source_image_filter:
-    kind: BANDPASS_DOG
-    lo_sigma_px: 5.0
-    hi_sigma_px: 0.7
-    enabled: false
-  mag_offset:
-    fallback_combo: 'CL'
-    mag_offset_table:
-      'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+  vgiss_1_nac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+
+  vgiss_1_wac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+
+  vgiss_2_nac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+
+  vgiss_2_wac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10

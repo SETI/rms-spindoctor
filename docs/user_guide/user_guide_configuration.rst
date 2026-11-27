@@ -162,6 +162,12 @@ exactly one base orbit, the entry that gives its semi-major axis. A gap or ringl
 has dates must start before it ends. If two of them overlap in radius and both have
 dates, their dates cannot overlap.
 
+A camera's settings follow the units its images are read in. A camera whose images are
+read in raw detector counts gives its saturation level, read noise, and star brightness
+in counts, and its blank and noise limits in counts too. A camera whose images are read
+in I/F gives its blank and noise limits in I/F and leaves out every value in counts. A
+camera setting that the camera's units do not use is refused.
+
 Planets and moons are written in upper case, as SPICE spells them, such as ``SATURN``
 or ``TITAN``. The planets in a setting kept per planet, such as ``satellites``, must be
 ones listed in ``planets``. The bodies in a setting kept per body, such as

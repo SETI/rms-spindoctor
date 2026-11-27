@@ -104,6 +104,19 @@ def _voyager_spacecraft_digit(lab02: Any) -> str:
     return digit
 
 
+def _camera_name(spacecraft: str, detector: str) -> str:
+    """Return the name of a Voyager camera's block inside the ``voyager_iss`` section.
+
+    Parameters:
+        spacecraft: The spacecraft digit, ``'1'`` or ``'2'``.
+        detector: The oops detector name, ``'NAC'`` or ``'WAC'``.
+
+    Returns:
+        ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, or ``vgiss_2_wac``.
+    """
+    return f'vgiss_{spacecraft}_{detector.lower()}'
+
+
 def _voyager_if_factor(label3: Any) -> float:
     """Parse the I/F scaling factor from a Voyager GEOMED LABEL3 string.
 
@@ -180,12 +193,11 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         obs = oops.hosts.voyager.iss.from_file(path)  # type: ignore[no-untyped-call]
         fc_path = FCPath(path)
 
-        inst_config = config.category('voyager_iss')
-
         factor = _voyager_if_factor(obs.dict.get('LABEL3', None))
         obs.data = obs.data * factor / 10000
 
         spacecraft = _voyager_spacecraft_digit(obs.dict.get('LAB02', None))
+        camera = config.camera_block('voyager_iss', _camera_name(spacecraft, str(obs.detector)))
         if spacecraft == '1' and obs.planet.upper() == 'SATURN':
             obs.data = obs.data * _V1_SATURN_IF_CORRECTION
             logger.debug(
@@ -194,16 +206,13 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         # TODO Calibrate once oops.hosts is fixed.
 
         if extfov_margin_vu is None:
-            if isinstance(inst_config.extfov_margin_vu, dict):
-                extfov_margin_vu = inst_config.extfov_margin_vu[obs.data.shape[0]]
-            else:
-                extfov_margin_vu = inst_config.extfov_margin_vu
+            extfov_margin_vu = camera.extfov_margin_for(obs.data.shape[0])
         logger.debug(f'  Data shape: {obs.data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
         logger.debug(f'  Data min: {np.min(obs.data)}, max: {np.max(obs.data)}')
 
         new_obs = ObsVoyagerISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
-        new_obs._inst_config = inst_config
+        new_obs._camera_block = camera
         # The spacecraft clock counts are in the PDS3 label, which the VICAR label the
         # observation keeps does not carry.
         new_obs._label_clock_counts = pds3_label_clock_counts(fc_path)

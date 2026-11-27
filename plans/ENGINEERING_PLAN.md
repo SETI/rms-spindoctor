@@ -1664,8 +1664,23 @@ asserts the generated half matches the registries.
     modules deleted; the tree readers take the tuning as a required
     argument; the flag, then config, then environment-variable order
     unchanged)
-  - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;
-    no earlier step waits for it
+  - [x] #1029: the five real camera blocks (done: each camera block parses
+    into one generic `CameraBlock` in `config/sections_camera.py`, with
+    nested `Noise`, `BinnedNoise`, `QualityThresholds`, `MagOffset`, and a
+    source-image filter tagged by `kind`; the camera sections are found by
+    `data_units` and each becomes a `TypedSections` field, read through
+    `Config.camera_block`; a key the camera's `data_units` does not read
+    is refused, and Voyager ISS's three unread DN noise keys deleted;
+    `partial_dropout_min_frac` became a key of each camera's
+    `image_quality_thresholds`, and `noise.marker_value` a `FloatOrNan`,
+    a finite-or-NaN float added to the schema core;
+    `Config._validate_camera_blocks`, `Config._validate`, the literal
+    fallbacks of `instrument_settings_from_obs`, `_resolve_mag_offset`,
+    and the source-image filter, the threshold defaults of
+    `ImageQualityThresholds`, `required_finite_float`, and the readers'
+    own range checks deleted; the simulator's `sim` block stays untyped
+    at load until the simulator types it with the same type, and is
+    parsed through `as_camera_block` where the navigator reads it)
   - [x] `backplanes` and `pds4`, the second half of the step above (done:
     parsed at load into `BackplanesSection` and a `Pds4Section` whose
     fields come from each registered dataset class's `PDS4_CONFIG_KEY`, in

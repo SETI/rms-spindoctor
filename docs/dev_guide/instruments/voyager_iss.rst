@@ -18,7 +18,8 @@ Code map
      - :class:`~spindoctor.dataset.dataset_pds3_voyager_iss.DataSetPDS3VoyagerISS`,
        registered under ``vgiss`` with a ``vgiss_pds3`` alias
    * - Config block
-     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, flat
+     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, one block per camera:
+       ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Sim instrument keys
      - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Statistics key
@@ -30,9 +31,9 @@ Code map
      - ``oops.hosts.voyager.iss``
 
 One instrument key serves two spacecraft and four cameras. Everything that has
-to distinguish them derives the distinction from the image's own label rather
-than from configuration, which is why the frame identities below are computed
-per image.
+to distinguish them derives the distinction from the image's own label, which is
+why the frame identities below are computed per image, and the camera block is
+chosen the same way.
 
 Loading the image
 =================
@@ -61,7 +62,8 @@ It also **modifies the pixel data**, in two steps:
    so this is the only case, and the constant is written out rather than
    computed from distances. The step logs at debug when it fires.
 
-Beyond that it reads the flat ``voyager_iss`` config section and resolves the
+Beyond that it reads the camera's block, ``voyager_iss.vg<digit>_<nac or wac>``,
+chosen by the ``LAB02`` spacecraft digit and the oops detector, and resolves the
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
 table has exactly one entry, for size 1000, which is what a geometrically
 corrected product is; an image of any other size raises ``KeyError`` from the
@@ -155,25 +157,20 @@ cost of scanning every requested volume.
 Configuration block
 ===================
 
-One flat section, shared by two spacecraft and four cameras. Nothing in it
-varies per camera.
+One section holding a block for each of the four cameras, ``vgiss_1_nac``,
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``. Each camera's optics and vidicon
+are its own, so each block states every value itself, even where the number is the same
+in all four.
 
-The departure from the common schema is a units mismatch that is worth
-understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
-``image_quality_thresholds`` are correspondingly ``blank_max_if`` and
-``noisy_threshold_if``. But the ``noise`` block is a raw-DN block:
-``saturation_dn: 255``, ``read_noise_dn``, and ``star_flux_dn_per_s_vmag0`` are
-all DN quantities. The
-DN values describe the detector, which is real; the pipeline navigates the
-scaled I/F product, so ``NavOrchestrator._build_saturation_mask`` returns an
-empty mask for this instrument as for any ``calibrated_if`` input, and
-``saturation_dn`` is never consulted. There is no ``saturation_threshold_if``
-and adding one would not restore the mask: the mask is gated on the units, not
-on the presence of the key. There is no raw product this pipeline can navigate
+``data_units`` is ``calibrated_if``, so the block carries what a calibrated camera
+block carries (see :ref:`config-camera-blocks`): the ``image_quality_thresholds`` are
+``blank_max_if`` and ``noisy_threshold_if``, and the ``noise`` block holds only
+``marker_value: 0``. The pipeline navigates the scaled I/F product, so
+``NavOrchestrator._build_saturation_mask`` returns an empty mask for this instrument as
+for any ``calibrated_if`` input. There is no raw product this pipeline can navigate
 instead.
 
-Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``read_noise_dn``, ``blank_max_if``,
+Placeholder values, carrying inline ``# PLACEHOLDER`` markers: ``blank_max_if``,
 ``noisy_threshold_if``, and the ``mag_offset_table`` entry. The ``_sources``
 convention is not used in this file.
 
@@ -213,10 +210,6 @@ regardless of camera.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
 entry with a default of 0.0. Both are placeholders.
-
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.0e3, and its
-comment records why the units are DN rather than electrons: a vidicon has no
-electron domain, so it renders point sources directly in DN.
 
 **Recalibrating.** The cohort holds one star frame for this instrument, and the
 geometric resampling the navigated product has been through defeats a kernel
@@ -363,27 +356,26 @@ Simulator model
 ===============
 
 **Instrument keys.** One key for each spacecraft and camera: ``vgiss_1_nac`` and
-``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2.
-The four entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``.
-Each entry states every value itself and none takes a value from another, because each
-vidicon and telescope is unique. The optical values (the PSF, the residual
-distortion, the plate scale, the star zero point, and the vidicon detector values)
-are per camera. Apart from the Voyager 2 cameras' star zero points, they hold the
-same numbers in all four entries today, and a comment beside each says where the
-number comes from and that it is not yet measured for that camera. The values
-that do not describe a camera's optics (the
-data units, the navigator link, the readout modes, and the artifact-mode
-availability) are repeated in each entry as well, because a shared parent would
-have to be one of the cameras. Every analysis is per camera too: the realism match,
-the field-of-view distortion, and the rotation each use one camera's frames. No
-simulator entry holds a rotation value today. All four emulate the one ``voyager_iss``
-section of the navigator configuration. The realism match pairs the image
-library's two Voyager 1 wide angle frames with ``vgiss_1_wac`` and its one Voyager 2
-narrow angle frame with ``vgiss_2_nac``; the other two entries have no frame in the
-library. A library sidecar for a Voyager frame gives its spacecraft (``VG1`` or
-``VG2``) beside the mission and the camera, so the match can tell the four cameras
-apart. The entry states ``data_units: calibrated_if``, the units of the
-GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
+``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2. The four
+entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``. Each entry states
+every value itself and none takes a value from another, because each vidicon and telescope
+is unique. The optical values (the PSF, the residual distortion, the plate scale, the star
+zero point, and the vidicon detector values) are per camera. Apart from the Voyager 2
+cameras' star zero points, they hold the same numbers in all four entries today, and a
+comment beside each says where the number comes from and that it is not yet measured for
+that camera. The values that do not describe a camera's optics (the data units, the
+navigator link, the readout modes, and the artifact-mode availability) are repeated in
+each entry as well, because a shared parent would have to be one of the cameras. Every
+analysis is per camera too: the realism match, the field-of-view distortion, and the
+rotation each use one camera's frames. No simulator entry holds a rotation value today.
+Each entry is read with the block of its own camera in the ``voyager_iss`` section of the
+navigator configuration: ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and
+``vgiss_2_wac``. The realism match pairs the image library's two Voyager 1 wide angle
+frames with ``vgiss_1_wac`` and its one Voyager 2 narrow angle frame with ``vgiss_2_nac``;
+the other two entries have no frame in the library. A library sidecar for a Voyager frame
+gives its spacecraft (``VG1`` or ``VG2``) beside the mission and the camera, so the match
+can tell the four cameras apart. The entry states ``data_units: calibrated_if``, the units
+of the GEOMED product and of each camera's block, so a simulated frame is in I/F.
 
 **Realism match.** The match compares each camera with its own library frames
 (the 2026-11-25 record in ``tests/integration/realism_results/``). The two
@@ -628,10 +620,12 @@ approximation at all: the navigated attitude was constant to begin with.
 **Mosaics.** Nothing instrument-specific.
 
 **Statistics.** Nothing particular.
-:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` reads
-``voyager_iss.extfov_margin_vu`` from the flat section and indexes the
-size-keyed table with the recorded image height, so a database row with no
-recorded shape, or one recording a height other than 1000, resolves to an
+:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` cannot
+tell from a record which spacecraft took the image, so it selects the
+``extfov_margin_vu`` entry for the recorded image height in each of the
+four camera blocks and gives a limit only when all four agree. A database
+row with no recorded shape, one recording a height other than 1000, or an
+override that gives one camera a different margin resolves to an
 explanatory string instead of a limit. The report's image-name rule is
 ``stem.split('_', 1)[0]``, so ``C1234567_GEOMED`` reduces to ``C1234567``.
 
@@ -642,8 +636,7 @@ Open items
   Saturn correction belong in the host once the host grows them, at which point
   this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
-  ``read_noise_dn``, ``blank_max_if``,
-  ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
+  ``blank_max_if``, ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
 * ``fit_camera_rotation`` is off for cost against a measurement that says it
   should be on. Revisiting it means both speeding the rotation search and
   accepting the loss of corrected C-kernels for this instrument, or recording

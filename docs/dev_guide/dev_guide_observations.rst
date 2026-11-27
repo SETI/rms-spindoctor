@@ -347,10 +347,11 @@ must implement:
   :class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst` sets
   ``_abstract = True`` instead.
 
-The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the
-per-instrument YAML block loaded from
-``src/spindoctor/config_files/config_4N0_inst_*.yaml`` so subclass methods can read
-instrument-specific knobs without hard-coding them.
+The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property gives the block of
+the camera that took the image, a :class:`~spindoctor.config.sections_camera.CameraBlock`
+(see :ref:`config-camera-blocks`), so subclass methods can read instrument-specific
+knobs without hard-coding them. A subclass's ``from_file`` takes the block from
+:meth:`~spindoctor.config.config.Config.camera_block` and sets it on the new observation.
 
 Per-instrument subclasses
 =========================
@@ -446,7 +447,9 @@ The end-to-end checklist lives at
    :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file`.
 4. Add the per-instrument config block at
    ``src/spindoctor/config_files/config_4N0_inst_<mission>_<inst>.yaml`` so
-   :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` carries the instrument's tuning knobs.
+   :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` carries the instrument's tuning
+   knobs. The block sets ``data_units`` and the other camera-block keys (see
+   :ref:`config-camera-blocks`).
 
 API reference
 =============

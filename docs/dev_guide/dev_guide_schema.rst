@@ -86,6 +86,9 @@ The rules behind this example:
   :data:`~spindoctor.schema.core.Str` are strict. A number written in quotes is a
   string and fails where a number belongs. A boolean is never a number, and a
   float must be finite. A YAML integer is accepted where a float belongs.
+  :data:`~spindoctor.schema.core.FloatOrNan` is the one float that may also be NaN,
+  for a value where NaN has a meaning of its own, such as the value a missing pixel
+  carries. It still refuses an infinite float.
 - **Ranges use the range aliases.** :data:`~spindoctor.schema.core.Positive`,
   :data:`~spindoctor.schema.core.NonNeg`, and :data:`~spindoctor.schema.core.Unit`
   are floats above zero, at or above zero, and in [0, 1].
@@ -142,8 +145,9 @@ only an instance of itself and refuses a mapping. No class subclasses pydantic's
 That covers a dataclass that is not frozen or does not use ``SCHEMA_CONFIG``, an untagged
 union of dataclasses, and a choice that is not all strings. It also covers anything
 that would read a value leniently: a bare ``float``, ``int``, ``bool``, ``str``, or
-``FCPath``, a ``Strict(False)`` or ``AllowInfNan(True)`` marker, and a validator that
-runs before the type check, on any type. A default that doesn't fit its field's
+``FCPath``, a ``Strict(False)`` or ``AllowInfNan(True)`` marker other than the one
+:data:`~spindoctor.schema.core.FloatOrNan` carries, and a validator that runs before the
+type check, on any type. A default that doesn't fit its field's
 annotation, an ``InitVar``, and an annotation outside the supported forms that the core
 module's docstring lists are refused too. :func:`~spindoctor.schema.core.parse` runs the
 check the first time it sees a class. A new form or convention needs a reason, written
