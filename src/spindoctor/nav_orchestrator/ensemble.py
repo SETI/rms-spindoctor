@@ -78,6 +78,7 @@ from spindoctor.nav_orchestrator.ensemble_independence import (
     resolve_independent_estimators,
 )
 from spindoctor.nav_orchestrator.ensemble_observability import (
+    major_semi_axis_px,
     mixed_scale_pinvh,
     observable_basis,
     positional_precision,
@@ -113,7 +114,8 @@ class TierThreshold:
     Parameters:
         min_confidence: The least combined confidence the tier accepts, in ``[0, 1]``.
         max_sigma_px: The largest 1-sigma localization uncertainty the tier accepts,
-            in pixels, compared with ``max(sigma_dv, sigma_du)``.  None, the value when
+            in pixels, compared with the major semi-axis of the fused error ellipse.  None,
+            the value when
             the key is left out, sets no sigma requirement.
     """
 
@@ -629,20 +631,23 @@ def _combine_confidence(
 def derive_confidence_rank(
     *,
     confidence: float,
-    sigma_px: tuple[float, float] | None,
+    sigma_major_px: float | None,
     tier_thresholds: TierThresholds,
 ) -> ConfidenceRank:
     """Derive the five-bucket confidence rank from confidence + sigma.
 
-    ``max_sigma_px`` compares ``max(sigma_dv, sigma_du)`` only.
+    ``max_sigma_px`` compares the major semi-axis of the 1-sigma error ellipse
+    (:func:`~spindoctor.nav_orchestrator.ensemble_observability.major_semi_axis_px`),
+    the uncertainty in the direction where it is largest, so a tilted ellipse earns the
+    same tier at every angle in the image.
     ``high`` / ``medium`` / ``low`` tiers require both confidence and sigma
     constraints; ``conflicted`` and ``failed`` are status-driven and not
     chosen here.
 
     Parameters:
         confidence: Combined confidence in ``[0, 1]``.
-        sigma_px: Per-axis 1sigma marginal uncertainty (use ``None`` to mean
-            "unknown / not applicable").
+        sigma_major_px: Major semi-axis of the 1-sigma error ellipse in pixels (use
+            ``None`` to mean "unknown / not applicable").
         tier_thresholds: The requirements of each tier, normally the
             ``tier_thresholds`` of the configuration's ``orchestrator.ensemble``
             section.
@@ -651,8 +656,7 @@ def derive_confidence_rank(
         ``'high'``, ``'medium'``, or ``'low'`` if any tier matches; else
         ``'failed'``.
     """
-    max_sigma = max(sigma_px) if sigma_px is not None else None
-    if max_sigma is None:
+    if sigma_major_px is None:
         # No covariance was supplied, so every sigma-constrained tier
         # (high / medium) is unreachable and the result can only earn the
         # best sigma-free tier (low).  Surface this: a missing covariance is
@@ -660,14 +664,16 @@ def derive_confidence_rank(
         # legitimately unconstrained fit, and would otherwise cap the rank
         # silently.
         IMAGE_LOGGER.warning(
-            'derive_confidence_rank: sigma_px is None (no covariance); '
+            'derive_confidence_rank: sigma_major_px is None (no covariance); '
             'sigma-constrained tiers are unreachable and the rank caps at the '
             'best sigma-free tier'
         )
     for rank, tier in tier_thresholds.in_order():
         if confidence < tier.min_confidence:
             continue
-        if tier.max_sigma_px is not None and (max_sigma is None or max_sigma > tier.max_sigma_px):
+        if tier.max_sigma_px is not None and (
+            sigma_major_px is None or sigma_major_px > tier.max_sigma_px
+        ):
             continue
         return rank
     return 'failed'
@@ -976,10 +982,11 @@ def ensemble(
     cov = combined.covariance_px2
     sigma_dv = float(math.sqrt(max(cov[0, 0], 0.0)))
     sigma_du = float(math.sqrt(max(cov[1, 1], 0.0)))
+    sigma_major_px = major_semi_axis_px(cov)
     sigma_along_unobservable_px = float('inf') if combined.is_rank_deficient else None
     rank = derive_confidence_rank(
         confidence=combined_confidence,
-        sigma_px=(sigma_dv, sigma_du),
+        sigma_major_px=sigma_major_px,
         tier_thresholds=config.tier_thresholds,
     )
     if rank == 'high' and combined.is_rank_deficient:
@@ -1052,12 +1059,12 @@ def ensemble(
             failed_reason = NavStatusReason.FINAL_CONFIDENCE_BELOW_THRESHOLD
         IMAGE_LOGGER.info(
             'No tier earned (%s): combined confidence %.3f, sigma (dv, du) = '
-            '(%.3f, %.3f) px (max %.3f); tier thresholds = %s',
+            '(%.3f, %.3f) px (major semi-axis %.3f); tier thresholds = %s',
             failed_reason.value,
             combined_confidence,
             sigma_dv,
             sigma_du,
-            max(sigma_dv, sigma_du),
+            sigma_major_px,
             asdict(config.tier_thresholds),
         )
         return NavResult.failed(

@@ -393,11 +393,17 @@ def _orbit_inflated_covariance(
     What this actually changes, stated plainly: for ``||g|| <= 1`` the added
     term's MAJOR eigenvalue is exactly ``sigma**2`` whatever direction ``g``
     points (``|g|**2 + (1 - |g|**2) = 1``), and only its minor eigenvalue,
-    ``sigma**2 (1 - ||g||**2)``, depends on the geometry.  Since the tier gate
-    reads ``max(sigma_dv, sigma_du)``, within that regime the derived
-    direction cannot by itself change a tier outcome -- the behavioral change
-    against the earlier dominant-eigenvector construction is the ISOTROPIC
-    FLOOR it puts under the minor axis, which is what stops a demotable frame
+    ``sigma**2 (1 - ||g||**2)``, depends on the geometry.  The tier gate reads the
+    major semi-axis of the error ellipse, so for this result standing alone, on a zero
+    or isotropic input covariance, the derived direction cannot change a tier outcome
+    within that regime.  Fused with another technique's anisotropic covariance it can:
+    the fused major semi-axis depends on how ``g`` lines up with that witness's axes.
+    On an
+    anisotropic input it can, because the term adds most to whichever input axis
+    ``g`` lies along: ``diag(4, 0.01)`` with ``sigma = 1`` and a unit ``g`` gives a
+    major semi-axis of ``sqrt(5)`` along the first axis and 2 along the second.  The
+    behavioral change against the earlier dominant-eigenvector construction is the
+    ISOTROPIC FLOOR it puts under the minor axis, which is what stops a demotable frame
     slipping through on an un-widened perpendicular axis.  The derived
     magnitude does move the major axis once ``||g||`` exceeds 1 (a partially
     covered arc, where the fit overshoots), and there the blend is purely
