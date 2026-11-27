@@ -3,7 +3,7 @@
 # phase-10 calibration finalizes them.
 # Each camera has its own block; the four hold the same values until each is calibrated.
 voyager_iss:
-  vg1_nac:
+  vgiss_1_nac:
     data_units: calibrated_if
     extfov_margin_vu:
       1000: [400, 400]
@@ -38,7 +38,7 @@ voyager_iss:
       mag_offset_table:
         'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
 
-  vg1_wac:
+  vgiss_1_wac:
     data_units: calibrated_if
     extfov_margin_vu:
       1000: [400, 400]
@@ -73,7 +73,7 @@ voyager_iss:
       mag_offset_table:
         'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
 
-  vg2_nac:
+  vgiss_2_nac:
     data_units: calibrated_if
     extfov_margin_vu:
       1000: [400, 400]
@@ -108,7 +108,7 @@ voyager_iss:
       mag_offset_table:
         'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
 
-  vg2_wac:
+  vgiss_2_wac:
     data_units: calibrated_if
     extfov_margin_vu:
       1000: [400, 400]
