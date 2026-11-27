@@ -7,6 +7,7 @@ classifier reaches, blank before missing data.
 verdict.
 """
 
+import dataclasses
 from typing import Any
 
 import numpy as np
@@ -17,12 +18,16 @@ from tests.spindoctor.sim.scenes import disc_body, frame_scene
 pytest.importorskip('PyQt6.QtWidgets', exc_type=ImportError)
 
 from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.nav_orchestrator import NavOrchestrator
 from spindoctor.nav_orchestrator.image_classifier import NavImageClassifier
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.catalog import sim_instrument_names
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import (
+    resolve_sim_inst_config,
+    scene_camera_block,
+)
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.ui.sim_editor.frame_status import (
     frame_units_name,
@@ -125,11 +130,9 @@ _NAVIGATED_SCENES = {
 }
 
 
-def _inst_config_of(params: dict[str, Any]) -> Any:
+def _inst_config_of(params: dict[str, Any]) -> CameraBlock:
     """The navigator block of a scene, with its instrument_config merged over it."""
-    return resolve_sim_inst_config(
-        DEFAULT_CONFIG, params['instrument'], params.get('instrument_config')
-    )
+    return scene_camera_block(DEFAULT_CONFIG, params)
 
 
 @pytest.mark.parametrize('name', sorted(_NAVIGATED_SCENES))
@@ -190,14 +193,11 @@ def test_empty_vgiss_summary_reads_the_sky_residual() -> None:
     assert summary == 'I/F 0.01176 to 0.01176'
 
 
-def _synthetic_inst_config(**thresholds: float) -> dict[str, Any]:
+def _synthetic_inst_config(**thresholds: float) -> CameraBlock:
     """The generic raw block with ``image_quality_thresholds`` overrides."""
-    inst_config = dict(resolve_sim_inst_config(DEFAULT_CONFIG, 'generic'))
-    inst_config['image_quality_thresholds'] = {
-        **inst_config['image_quality_thresholds'],
-        **thresholds,
-    }
-    return inst_config
+    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, 'generic')
+    limits = dataclasses.replace(inst_config.image_quality_thresholds, **thresholds)
+    return dataclasses.replace(inst_config, image_quality_thresholds=limits)
 
 
 @pytest.mark.parametrize(
@@ -251,10 +251,10 @@ def _boundary_frames(thresholds: Any, *, raw: bool) -> dict[str, np.ndarray]:
 @pytest.mark.parametrize('instrument', _ALL_INSTRUMENTS)
 def test_reading_matches_the_classifier_exactly_at_each_limit(instrument: str) -> None:
     """On each limit's exact value the reading and the navigator's classifier agree."""
-    inst_config = dict(resolve_sim_inst_config(DEFAULT_CONFIG, instrument))
+    inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
     thresholds = instrument_settings_from_obs(_InstConfigOnly(inst_config)).thresholds
     classifier = NavImageClassifier(thresholds=thresholds)
-    raw = inst_config['data_units'] == 'raw_dn'
+    raw = inst_config.data_units == 'raw_dn'
     frames = _boundary_frames(thresholds, raw=raw)
     mirror = {
         name: read_frame_as_navigator(img, inst_config).image_class for name, img in frames.items()
@@ -266,7 +266,7 @@ def test_reading_matches_the_classifier_exactly_at_each_limit(instrument: str) -
 class _InstConfigOnly:
     """A stand-in observation carrying only a navigator block."""
 
-    def __init__(self, inst_config: dict[str, Any]) -> None:
+    def __init__(self, inst_config: CameraBlock) -> None:
         """Hold ``inst_config`` as the navigator's settings reader expects."""
         self.inst_config = inst_config
 
@@ -278,9 +278,7 @@ def test_raised_missing_limit_from_the_scene_is_honored() -> None:
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.70}},
     }
     img, _ = render_scene(params)
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, 'vgiss_1_nac', params['instrument_config']
-    )
+    inst_config = scene_camera_block(DEFAULT_CONFIG, params)
     summary = frame_units_summary(img, inst_config)
     assert summary.endswith('of pixels')
     assert _orchestrator_class(params) == 'clean'
@@ -293,9 +291,7 @@ def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
         'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.02}},
     }
     img, _ = render_scene(params)
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, 'vgiss_1_nac', params['instrument_config']
-    )
+    inst_config = scene_camera_block(DEFAULT_CONFIG, params)
     assert '(over 2%: the navigator refuses it as missing data)' in frame_units_summary(
         img, inst_config
     )
@@ -327,13 +323,13 @@ def test_units_name_matches_the_navigator_reading(instrument: str) -> None:
 
 
 @pytest.mark.parametrize(
-    ('inst_config', 'units'),
-    [({'data_units': 'raw_dn'}, 'DN'), ({'data_units': 'calibrated_if'}, 'I/F')],
+    ('instrument', 'units'),
+    [('coiss_nac', 'DN'), ('coiss_calib_nac', 'I/F')],
     ids=['raw_dn', 'calibrated_if'],
 )
-def test_units_name_follows_the_data_units(inst_config: dict[str, Any], units: str) -> None:
+def test_units_name_follows_the_data_units(instrument: str, units: str) -> None:
     """A raw_dn block is DN, and a calibrated_if block is I/F."""
-    assert frame_units_name(inst_config) == units
+    assert frame_units_name(resolve_sim_inst_config(DEFAULT_CONFIG, instrument)) == units
 
 
 def test_vgiss_dark_sky_stays_out_of_the_marker_count() -> None:
@@ -347,9 +343,9 @@ def test_summary_counts_nan_markers_on_a_calibrated_frame() -> None:
     """Under a scene's NaN marker override the summary counts the NaN pixels."""
     img = np.full((10, 10), 0.25)
     img[0, :] = np.nan
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, 'coiss_calib_nac', {'noise': {'marker_value': 'NaN'}}
-    )
+    overlay = {'noise': {'marker_value': 'NaN'}}
+    scene = {'instrument': 'coiss_calib_nac', 'instrument_config': overlay}
+    inst_config = scene_camera_block(DEFAULT_CONFIG, scene)
     summary = frame_units_summary(img, inst_config)
     assert summary == 'I/F 0.25 to 0.25; marker NaN on 10.0% of pixels'
 

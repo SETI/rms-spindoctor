@@ -5,11 +5,9 @@ per-object ``stars`` entries, the ``sky_counts`` block, and the ``expected`` blo
 plus the primitive scalar checks every rules module shares.  Each block's key
 inventory lives beside its checker, so an unknown key fails validation.  The
 ``bodies``-entry checkers live in :mod:`spindoctor.sim.scene.rules_body`, the
-``ring_system`` block's checkers in :mod:`spindoctor.sim.scene.rules_ring`, the
-``artifacts`` block's checkers in :mod:`spindoctor.sim.scene.rules_artifacts`, and the
-``instrument_config`` block's checker in
-:mod:`spindoctor.sim.scene.rules_instrument_config`; all four build on the same
-primitives.  The typed blocks are checked by their types (see
+``ring_system`` block's checkers in :mod:`spindoctor.sim.scene.rules_ring`, and the
+``artifacts`` block's checkers in :mod:`spindoctor.sim.scene.rules_artifacts`; all
+three build on the same primitives.  The typed blocks are checked by their types (see
 :mod:`spindoctor.sim.scene.idealized`).
 
 :func:`spindoctor.sim.scene.validate.parse_scene` drives these helpers; every
@@ -349,14 +347,6 @@ def _check_optional_bool(value: Any, key: str, *, source: str) -> None:
         return
     if not isinstance(value, bool):
         raise SimSceneValidationError(f'{source}: {key} must be a boolean when present')
-
-
-def _check_optional_mapping(value: Any, key: str, *, source: str) -> None:
-    """Fail validation unless ``value`` is None or a mapping."""
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: {key} must be a mapping when present')
 
 
 def _check_optional_mapping_list(value: Any, key: str, *, source: str) -> None:

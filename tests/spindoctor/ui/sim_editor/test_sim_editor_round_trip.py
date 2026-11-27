@@ -110,7 +110,7 @@ _FULL_SCENE: dict[str, Any] = {
         'banding': {'probability': 0.5, 'amplitude': 3.0},
         'bloom': {'probability': 1.0},
     },
-    'instrument_config': {'inherit': 'coiss_nac'},
+    'instrument_config': {'star_psf_sigma': 1.3},
     # The full body key inventory is split across the two render paths it
     # belongs to: the mesh body carries the mesh-appearance keys (relief,
     # shading, detail, pose scatter), and the ellipsoid body carries the

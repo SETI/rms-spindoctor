@@ -29,12 +29,14 @@ Idealized type             Truth type                 Block
 (none)                     ``Expected``               ``expected``
 =========================  =========================  ==================================
 
-The idealized types live in this module, and the truth types in the ``truth``
-modules (:mod:`spindoctor.sim.scene.truth`, :mod:`spindoctor.sim.scene.truth_optics`,
-and :mod:`spindoctor.sim.scene.truth_detector`).  The top level, the optics, detector,
-and noise blocks, and the ``spk_error`` block are typed so far.  The blocks not yet
-typed are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and checked by
-the rules modules until their types land.
+The idealized types live in this module, except the ``instrument_config`` block's,
+which live in :mod:`spindoctor.sim.scene.idealized_camera`.  The truth types live in
+the ``truth`` modules (:mod:`spindoctor.sim.scene.truth`,
+:mod:`spindoctor.sim.scene.truth_optics`, and
+:mod:`spindoctor.sim.scene.truth_detector`).  The top level, the optics, detector,
+noise, and ``instrument_config`` blocks, and the ``spk_error`` block are typed so far.
+The blocks not yet typed are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS`
+and checked by the rules modules until their types land.
 
 One value crosses from a truth block into the navigator's view: the readout binning.
 A real frame's label states its readout mode, so a real pipeline knows it, but a
@@ -56,6 +58,7 @@ from pydantic import AfterValidator
 
 from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, Int, Positive, RuleError, Str
 from spindoctor.sim.scene.declare import EditorHint, IntWithin, NonEmptyStr, optional, required
+from spindoctor.sim.scene.idealized_camera import InstrumentConfig
 
 __all__ = [
     'CURRENT_SCHEMA_VERSION',
@@ -95,6 +98,7 @@ class IdealizedScene:
         time: The observation time, in TDB seconds.
         ring_epoch: The epoch of the ring orbits, in TDB seconds.
         fit_camera_rotation: Whether the navigator fits the camera's rotation.
+        instrument_config: The keys the scene changes in its camera's navigator block.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -168,6 +172,14 @@ class IdealizedScene:
         "Whether the navigator fits the camera's rotation, overriding the setting of the "
         "instrument's navigator block.",
         when_absent="the navigator block's setting",
+    )
+    instrument_config: InstrumentConfig | None = optional(
+        'idealized',
+        "The keys the scene changes in its camera's navigator block, which is what the "
+        'navigator knows about the camera. Each key a scene leaves out keeps the '
+        "block's value. A scene can't set ``data_units``: the frame's units come from the "
+        'instrument entry.',
+        when_absent="the navigator block's values",
     )
 
     def __post_init__(self) -> None:

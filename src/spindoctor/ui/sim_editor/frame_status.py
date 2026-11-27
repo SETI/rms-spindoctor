@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.sim.scene.boundary import PLANTED_POINTING_KEYS
 from spindoctor.support.image_class import (
     decide_image_class,
@@ -61,7 +62,7 @@ class NavigatorFrameReading:
 
 
 def read_frame_as_navigator(
-    image: NDArrayFloatType, inst_config: Mapping[str, Any]
+    image: NDArrayFloatType, inst_config: CameraBlock
 ) -> NavigatorFrameReading:
     """Classify a frame's sensor pixels the way the navigator's image classifier does.
 
@@ -97,7 +98,7 @@ def read_frame_as_navigator(
     )
 
 
-def frame_units_name(inst_config: Mapping[str, Any]) -> str:
+def frame_units_name(inst_config: CameraBlock) -> str:
     """Return the units in which the navigator reads this block's frames.
 
     Parameters:
@@ -106,7 +107,7 @@ def frame_units_name(inst_config: Mapping[str, Any]) -> str:
     Returns:
         ``'DN'`` for a ``raw_dn`` block, ``'I/F'`` for a ``calibrated_if`` one.
     """
-    return 'DN' if str(inst_config['data_units']) == 'raw_dn' else 'I/F'
+    return 'DN' if inst_config.data_units == 'raw_dn' else 'I/F'
 
 
 def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
@@ -122,7 +123,7 @@ def has_planted_offset(sim_params: Mapping[str, Any]) -> bool:
     return any(float(sim_params.get(key, 0.0)) != 0.0 for key in PLANTED_POINTING_KEYS)
 
 
-def frame_units_summary(image: NDArrayFloatType, inst_config: Mapping[str, Any]) -> str:
+def frame_units_summary(image: NDArrayFloatType, inst_config: CameraBlock) -> str:
     """Describe a frame's units, value range, marker share, and the navigator's verdict.
 
     The text gives the frame's units and its finite value range, for example
