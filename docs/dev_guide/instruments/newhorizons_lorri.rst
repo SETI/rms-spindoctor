@@ -208,7 +208,7 @@ read noise of one binned pixel is the published 23 e- over 19.4, or 1.19 DN, and
 the zero point is 7.0e8 e- per second over 19.4, or 3.61e7 DN per second. Only
 the faint-star limit of a simulated frame reads them.
 The full-resolution ``read_noise_dn`` is a placeholder above the published 23 e-
-over 21 e-/DN, or 1.10 DN, so 1.4 of the 4.4 mag step from an unbinned frame's
+over 21 e-/DN, or 1.10 DN, so 1.4 of the 3.2 mag step from an unbinned frame's
 star limit to a binned one's comes from the placeholder.
 
 **Recalibrating.** The measurement tools are in ``util/star_photometry``; its LORRI
