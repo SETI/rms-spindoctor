@@ -19,7 +19,7 @@ Code map
        registered under ``vgiss`` with a ``vgiss_pds3`` alias
    * - Config block
      - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, one block per camera:
-       ``vg1_nac``, ``vg1_wac``, ``vg2_nac``, and ``vg2_wac``
+       ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Sim instrument keys
      - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Statistics key
@@ -157,9 +157,10 @@ cost of scanning every requested volume.
 Configuration block
 ===================
 
-One section holding a block for each of the four cameras, ``vg1_nac``,
-``vg1_wac``, ``vg2_nac``, and ``vg2_wac``. Each camera's optics and vidicon are its own,
-so each block states every value itself, even where the number is the same in all four.
+One section holding a block for each of the four cameras, ``vgiss_1_nac``,
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``. Each camera's optics and vidicon
+are its own, so each block states every value itself, even where the number is the same
+in all four.
 
 ``data_units`` is ``calibrated_if``, so the block carries what a calibrated camera
 block carries (see :ref:`config-camera-blocks`): the ``image_quality_thresholds`` are
@@ -203,7 +204,7 @@ and those share a scale. The filter and the gain state (``LO GAIN`` or ``HI GAIN
 read as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame
 whose label gives no gain state is refused, and so is a frame whose filter or gain
 state the camera's tables leave out, with the key path (for example
-``voyager_iss.vg2_nac.star_photometry.filter_mag_offset``) in the message. A frame
+``voyager_iss.vgiss_2_nac.star_photometry.filter_mag_offset``) in the message. A frame
 whose exposure is not positive gets a limit of ``-inf``.
 
 Each of the four cameras searches 2.0 mag past its dimmest visible star. The star
@@ -708,12 +709,13 @@ approximation at all: the navigated attitude was constant to begin with.
 **Mosaics.** Nothing instrument-specific.
 
 **Statistics.** Nothing particular.
-:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` reads
-``extfov_margin_vu`` from the camera blocks of ``voyager_iss``. A record gives the camera
-but not the spacecraft, so the limit is resolved only while all four blocks give the same
-margin, as they do. It indexes the size-keyed table with the recorded image height, so a
-database row with no recorded shape, or one recording a height other than 1000, resolves
-to an explanatory string instead of a limit. The report's image-name rule is
+:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` cannot
+tell from a record which spacecraft took the image, so it selects the
+``extfov_margin_vu`` entry for the recorded image height in each of the
+four camera blocks and gives a limit only when all four agree. A database
+row with no recorded shape, one recording a height other than 1000, or an
+override that gives one camera a different margin resolves to an
+explanatory string instead of a limit. The report's image-name rule is
 ``stem.split('_', 1)[0]``, so ``C1234567_GEOMED`` reduces to ``C1234567``.
 
 Open items

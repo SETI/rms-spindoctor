@@ -43,7 +43,7 @@ def _star_obs(
         filter=filter_name,
         texp=texp,
         _config=DEFAULT_CONFIG,
-        _camera_block=packaged_camera('voyager_iss', f'vg{spacecraft}_{detector.lower()}'),
+        _camera_block=packaged_camera('voyager_iss', f'vgiss_{spacecraft}_{detector.lower()}'),
     )
 
 
@@ -166,7 +166,7 @@ def test_a_filter_the_camera_lacks_is_refused() -> None:
     with pytest.raises(
         ValueError,
         match=(
-            r'voyager_iss\.vg2_nac\.star_photometry\.filter_mag_offset has no entry for the '
+            r'voyager_iss\.vgiss_2_nac\.star_photometry\.filter_mag_offset has no entry for the '
             r"filter 'SODIUM'"
         ),
     ):

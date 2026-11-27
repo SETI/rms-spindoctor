@@ -28,6 +28,15 @@ def test_packaged_camera_blocks_parse() -> None:
         assert isinstance(sections.camera_block(section, camera), CameraBlock)
 
 
+def test_an_override_that_replaces_every_camera_is_refused(tmp_path: Path) -> None:
+    """An override that leaves a camera section no camera block is still checked."""
+    config = Config()
+    override = tmp_path / 'override.yaml'
+    override.write_text('cassini_iss:\n  nac: false\n  wac: false\n')
+    with pytest.raises(SchemaError, match=re.escape(f'{override}: cassini_iss.nac')):
+        config.update_config(override)
+
+
 def test_a_camera_name_on_a_one_camera_section_is_refused() -> None:
     """A section that is one camera's block refuses a camera name."""
     with pytest.raises(KeyError, match="galileo_ssi is one camera's block; it has no camera 'nac'"):

@@ -340,7 +340,9 @@ def _typed_sections_type(
     return sections_type
 
 
-def typed_sections_type(config: Mapping[str, Any]) -> type[TypedSections]:
+def typed_sections_type(
+    config: Mapping[str, Any], *, known_cameras: frozenset[str] = frozenset()
+) -> type[TypedSections]:
     """Return the type the typed sections of a configuration are parsed into.
 
     It is :class:`TypedSections` with the ``techniques`` field typed by the section
@@ -353,10 +355,12 @@ def typed_sections_type(config: Mapping[str, Any]) -> type[TypedSections]:
 
     Parameters:
         config: The merged configuration.
+        known_cameras: The camera sections of the configuration an override is merged
+            over, which stay camera sections whatever the override puts in them.
 
     Returns:
         A subclass of :class:`TypedSections`.
     """
     static = frozenset(item.name for item in dataclasses.fields(TypedSections))
-    cameras = camera_sections(config, typed=static)
+    cameras = camera_sections(config, typed=static, known=known_cameras)
     return _typed_sections_type(shipped_techniques(), pds4_config_keys(), cameras)

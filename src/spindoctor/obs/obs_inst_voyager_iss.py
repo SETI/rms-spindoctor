@@ -125,9 +125,9 @@ def _camera_name(spacecraft: str, detector: str) -> str:
         detector: The oops detector name, ``'NAC'`` or ``'WAC'``.
 
     Returns:
-        ``vg1_nac``, ``vg1_wac``, ``vg2_nac``, or ``vg2_wac``.
+        ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, or ``vgiss_2_wac``.
     """
-    return f'vg{spacecraft}_{detector.lower()}'
+    return f'vgiss_{spacecraft}_{detector.lower()}'
 
 
 def _voyager_if_factor(label3: Any) -> float:

@@ -566,18 +566,24 @@ def as_camera_block(block: CameraBlock | Mapping[str, Any], *, source: str) -> C
 
 
 def camera_sections(
-    config: Mapping[str, Any], *, typed: frozenset[str]
+    config: Mapping[str, Any],
+    *,
+    typed: frozenset[str],
+    known: frozenset[str] = frozenset(),
 ) -> tuple[tuple[str, bool], ...]:
     """Find the top-level sections of a configuration that hold camera blocks.
 
     A section that sets :data:`CAMERA_MARKER_KEY` is one camera's block.  A section, any
     of whose entries is a mapping that sets it, holds several cameras keyed by camera
     name.  A section the configuration already types for another purpose is never a
-    camera section.
+    camera section.  A section in ``known`` stays a camera section whatever an override
+    has put in it, so a malformed override is checked against the camera type instead of
+    escaping it; it holds several cameras unless it sets the marker itself.
 
     Parameters:
         config: The merged configuration.
         typed: The names of the sections typed for another purpose.
+        known: The camera sections of the configuration an override is merged over.
 
     Returns:
         ``(name, holds_several)`` for each camera section, in the configuration's order.
@@ -588,7 +594,7 @@ def camera_sections(
             continue
         if CAMERA_MARKER_KEY in section:
             found.append((name, False))
-        elif any(
+        elif name in known or any(
             isinstance(entry, Mapping) and CAMERA_MARKER_KEY in entry for entry in section.values()
         ):
             found.append((name, True))
