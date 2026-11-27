@@ -57,8 +57,8 @@ def test_spread_monotonic_across_sigmas() -> None:
 
 def test_coiss_and_gossi_psf_sigmas_differ() -> None:
     """The two instruments declare different star PSF sigmas (test premise)."""
-    coiss = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
-    gossi = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'gossi')['star_psf_sigma'])
+    coiss = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac').star_psf_sigma
+    gossi = resolve_sim_inst_config(DEFAULT_CONFIG, 'gossi').star_psf_sigma
     assert coiss < gossi
 
 

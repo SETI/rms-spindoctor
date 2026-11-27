@@ -8,6 +8,7 @@
   could know), :mod:`spindoctor.sim.scene.truth` (the whole scene, which extends them
   with the truth keys the renderer reads, such as the planted offset and the detector and
   noise blocks, and with the test-only keys the integration tests read),
+  :mod:`spindoctor.sim.scene.idealized_camera` (the ``instrument_config`` block),
   :mod:`spindoctor.sim.scene.truth_optics`, and
   :mod:`spindoctor.sim.scene.truth_detector`.  :mod:`spindoctor.sim.scene.declare`
   states how a field declares itself, and :mod:`spindoctor.sim.scene.reference` writes
@@ -19,12 +20,12 @@
 - :mod:`spindoctor.sim.scene.errors`: the error a scene that fails validation raises.
 - :mod:`spindoctor.sim.scene.truth_echo`: the warning for a published instrument
   config that repeats the scene's planted truth.
-- The rules the validator applies beside the types: the catalog rules of
-  :mod:`spindoctor.sim.scene.rules_detector`, and the rules of the blocks not typed yet,
-  one module per block: :mod:`spindoctor.sim.scene.rules_common` (the primitives and the
-  smaller blocks), :mod:`spindoctor.sim.scene.rules_body`,
-  :mod:`spindoctor.sim.scene.rules_ring`, :mod:`spindoctor.sim.scene.rules_artifacts`,
-  and :mod:`spindoctor.sim.scene.rules_instrument_config`.
+- The rules the validator applies beside the types: the rules that read the scene's
+  camera, in :mod:`spindoctor.sim.scene.rules_detector` and
+  :mod:`spindoctor.sim.scene.rules_instrument_config`, and the rules of the blocks not
+  typed yet, one module per block: :mod:`spindoctor.sim.scene.rules_common` (the
+  primitives and the smaller blocks), :mod:`spindoctor.sim.scene.rules_body`,
+  :mod:`spindoctor.sim.scene.rules_ring`, and :mod:`spindoctor.sim.scene.rules_artifacts`.
 
 The package imports nothing, so importing :mod:`spindoctor.sim.scene.fields` loads
 neither the validator nor the instrument catalog (see :mod:`spindoctor.sim`).

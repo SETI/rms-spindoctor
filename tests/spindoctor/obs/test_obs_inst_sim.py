@@ -17,6 +17,7 @@ each mode's values from the navigator's own block, and that an unbinned frame's 
 reads the unbinned values.
 """
 
+import dataclasses
 import math
 import re
 import warnings
@@ -221,8 +222,7 @@ def test_a_mode_without_values_reads_the_unbinned_ones() -> None:
     point and read noise.
     """
     obs = _star_limit_obs('nhlorri', 1.0, binning=4)
-    assert obs._inst_config is not None
-    noise = {k: v for k, v in obs._inst_config['noise'].items() if k != 'by_binning'}
-    obs._inst_config = {**obs._inst_config, 'noise': noise}
+    noise = dataclasses.replace(obs.inst_config.noise, by_binning=None)
+    obs._camera_block = dataclasses.replace(obs.inst_config, noise=noise)
     shift = obs.star_max_usable_vmag() - _star_limit('nhlorri', 1.0)
     assert shift == pytest.approx(2.5 * math.log10(2.0 * math.pi * 0.9**2), rel=0.0, abs=1e-9)

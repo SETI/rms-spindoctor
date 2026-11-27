@@ -13,7 +13,7 @@ branch on ``data_units`` without reading the block again.
 from dataclasses import dataclass
 from typing import Any
 
-from spindoctor.config.sections_camera import DataUnits, SourceImageFilter, as_camera_block
+from spindoctor.config.sections_camera import CameraBlock, DataUnits, SourceImageFilter
 from spindoctor.support.image_class import ImageQualityThresholds, image_quality_thresholds
 
 __all__ = [
@@ -52,18 +52,12 @@ def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
     """Build the orchestrator's per-instrument settings from an observation.
 
     Parameters:
-        obs: An observation, or a stand-in carrying the ``inst_config`` attribute.  A
-            camera block held as a mapping is parsed first (see
-            :func:`~spindoctor.config.sections_camera.as_camera_block`).
+        obs: An observation, or a stand-in carrying the ``inst_config`` attribute.
 
     Returns:
         The settings.
-
-    Raises:
-        ~spindoctor.schema.SchemaError: If a camera block held as a mapping breaks the
-            camera block's schema.
     """
-    camera = as_camera_block(obs.inst_config, source='the observation camera block')
+    camera: CameraBlock = obs.inst_config
     # A calibrated_if camera has no saturation mask: the same physical full-well DN
     # maps to a different I/F for every combination of exposure time, filter, and gain,
     # so its block leaves noise.saturation_dn out.  The orchestrator emits an empty

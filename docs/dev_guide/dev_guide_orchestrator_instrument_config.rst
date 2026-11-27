@@ -48,10 +48,8 @@ Restrictions and assumptions
 
 - Every key's type and range, and which keys a camera's ``data_units`` require or
   refuse, are checked when the configuration loads, so this function does not check
-  anything itself. A block an observation holds as a mapping (a simulated frame's block
-  with its scene's overrides merged in) is checked by the same type when this function
-  reads it, through :func:`~spindoctor.config.sections_camera.as_camera_block`, so a bad
-  value there raises a schema error during navigation instead.
+  anything itself. A simulated frame's block, with its scene's ``instrument_config``
+  merged in, is checked by the same type when the scene is validated.
 - The dataclass is frozen; new instances are returned per observation rather than
   mutated.
 
@@ -120,9 +118,7 @@ Public surface (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
 
 - :func:`~spindoctor.nav_orchestrator.instrument_config.instrument_settings_from_obs` — reads the
   camera block off ``obs.inst_config`` and returns a populated
-  :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`. A block
-  held as a mapping, as a simulated observation holds it, is parsed into the camera
-  block's type first.
+  :class:`~spindoctor.nav_orchestrator.instrument_config.InstrumentSettings`.
 
 The thresholds come from :func:`~spindoctor.support.image_class.image_quality_thresholds`,
 which the simulated-image editor's verdict also calls, so both read a block the same

@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from spindoctor.config.sections_camera import CAMERA_MARKER_KEY, CameraBlock, as_camera_block
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.schema import (
     Issue,
     KeyPath,
@@ -471,9 +471,6 @@ class Config:
     def camera_block(self, section: str, camera: str | None = None) -> CameraBlock:
         """Returns one camera's block.
 
-        A camera section that the loader leaves untyped, the simulator's, is parsed into
-        the same type when it is asked for.
-
         Parameters:
             section: The section that holds the camera's block, as the files name it.
             camera: The camera's name inside a section that holds several cameras; None
@@ -483,16 +480,12 @@ class Config:
             The camera's block.
 
         Raises:
-            KeyError: If ``section`` does not hold a camera named ``camera``, or is not a
-                section of the configuration.
-            SchemaError: If an untyped camera section breaks the camera block's schema.
+            KeyError: If ``section`` is not a camera section of the configuration, does
+                not hold a camera named ``camera``, or is one camera's block and
+                ``camera`` is given.
         """
 
-        sections = self._typed_sections()
-        if section in sections.CAMERA_SECTIONS:
-            return sections.camera_block(section, camera)
-        raw = self._config_dict[section]
-        return as_camera_block(raw if camera is None else raw[camera], source=section)
+        return self._typed_sections().camera_block(section, camera)
 
     def camera_names(self, section: str) -> tuple[str | None, ...]:
         """Returns the names of the cameras a camera section holds.
@@ -506,16 +499,14 @@ class Config:
             what :meth:`camera_block` takes as ``camera``.
 
         Raises:
-            KeyError: If ``section`` is not a section of the configuration.
+            KeyError: If ``section`` is not a camera section of the configuration.
         """
 
         sections = self._typed_sections()
-        value: CameraBlock | Mapping[str, Any]
-        if section in sections.CAMERA_SECTIONS:
-            value = getattr(sections, section)
-        else:
-            value = self._config_dict[section]
-        if isinstance(value, CameraBlock) or CAMERA_MARKER_KEY in value:
+        if section not in sections.CAMERA_SECTIONS:
+            raise KeyError(f'{section!r} is not a camera section of the configuration')
+        value: CameraBlock | dict[str, CameraBlock] = getattr(sections, section)
+        if isinstance(value, CameraBlock):
             return (None,)
         return tuple(value)
 
