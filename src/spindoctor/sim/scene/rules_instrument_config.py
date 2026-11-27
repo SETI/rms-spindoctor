@@ -113,7 +113,8 @@ def check_instrument_config(
     try:
         merged = resolve_sim_inst_config(DEFAULT_CONFIG, instrument, overlay)
     except SchemaError as exc:
-        raise SimSceneValidationError(f'{source}: {exc}') from exc
+        lines = '\n'.join(f'{source}: {line}' for line in str(exc).splitlines())
+        raise SimSceneValidationError(lines) from exc
     if binning not in (merged.noise.by_binning or {}):
         return
     mode = (noise.by_binning or {}).get(binning)
