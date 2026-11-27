@@ -327,7 +327,10 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
     ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
     ('titan_crescent_horns', 'BodyBlobNav'): _b(17.821, 20.080, 0.4518, 17.368, 20.532),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(19.328, 19.328, 0.05, 19.277, 19.378),
+    # The noiseless frame's image noise estimate rose from 0 to 0.49 DN once neighborhoods
+    # of one value were left out of it, and the blob moved to the far side of the disc:
+    # 20.060 px from the truth, where it was 19.328 px (#787).
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(20.060, 20.060, 0.05, 20.010, 20.111),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.412, 1.416, 0.05, 1.362, 1.466),
     ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.942, 1.543, 0.1202, 0.821, 1.664),
     ('saturn_rings_wac', 'BodyBlobNav'): _b(6.863, 6.879, 0.05, 6.812, 6.929),

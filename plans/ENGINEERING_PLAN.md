@@ -662,8 +662,8 @@ Stars:
 - **#785** — WAC star answers near the extended-FOV margin are zeroed by the
   `at_edge` rule though the star windows reach farther, refusing whole
   observations the stars answer (one window per camera is #830).
-- **#787** — the star model emits no features when its noise estimate is 0;
-  five of eleven such frames were navigable on stars.
+- **#787** (#1244) — the star model emits no features when its noise estimate
+  is 0; five of eleven such frames were navigable on stars.
 - **#852** — StarRefineNav gives a clipped star the largest weight although
   its centroid is the least reliable; #754 handles a flat clipped core in
   raw frames, not a calibrated one.
