@@ -13,7 +13,9 @@ Five top-level sections of the navigator configuration are parsed here:
   annulus in place of the edges it would trace.
 
 A mapping keyed by planet must name only planets of the ``planets`` section.  That rule
-reads two sections, so :class:`~spindoctor.config.sections.TypedSections` checks it.
+reads two sections, so :class:`~spindoctor.config.sections.TypedSections` checks it.  It
+also checks that each key of ``bodies.geometric_albedo`` is in upper case, under the
+rule it applies to the ``body_shape`` section.
 
 Every field without a default is a key whose value lives in the packaged YAML only.
 """
@@ -131,16 +133,6 @@ class BodiesSection:
     label_grid_v: PositiveInt
     label_grid_u: PositiveInt
     outline_thicken: NonNegInt
-
-    def __post_init__(self) -> None:
-        """Refuse a ``geometric_albedo`` key that is not in upper case, as SPICE spells it."""
-        for body in self.geometric_albedo:
-            if body != body.upper():
-                raise RuleError(
-                    f'{body!r} is not in upper case; a body is written in upper case, as '
-                    'SPICE spells it',
-                    at=('geometric_albedo', body),
-                )
 
 
 @dataclass(frozen=True)

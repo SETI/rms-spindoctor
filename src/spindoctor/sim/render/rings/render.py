@@ -188,7 +188,7 @@ def render_ring_system(
         ValueError: If a feature's kind is not a renderable profile (the
             validator rejects these; this guards direct callers).
     """
-    size_v, size_u = shape
+    size_u = shape[1]
     geometry = ring_system.get('geometry') or {}
     b_obs = float(scene_value(geometry, 'opening_deg_obs', 0.0))
     b_sun = float(scene_value(geometry, 'opening_deg_sun', 0.0))
@@ -212,21 +212,15 @@ def render_ring_system(
     lit = (b_obs > 0.0) == (b_sun > 0.0)
     phase_angle = math.radians(float(scene_value(ring_system, 'phase_deg', 0.0)))
 
-    # Pixel centers relative to the projected ring center, mapped back to the
-    # ring plane through the shared inverse projection.  The grid starts as
-    # array rows and columns and the projection works in the geometry layer's
-    # pixel corner coordinates, where the scene states its center, so the half
-    # pixel goes on here.
-    v_coords = np.arange(size_v, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
-    u_coords = np.arange(size_u, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
-    v_grid, u_grid = np.meshgrid(v_coords, u_coords, indexing='ij')
-    dv = v_grid - center_v
-    du = u_grid - center_u
-    r, lam, x, y = ring_plane_from_sky(dv, du, opening_deg_obs=b_obs, node_deg=node_deg)
-    # Ring-plane radial distance per image pixel: dividing by this converts a
-    # radial distance to image pixels, so a pixel footprint spans one
-    # render-grid pixel regardless of the foreshortening direction.
-    radial_scale = ring_radial_scale(r, x, y, opening_deg_obs=b_obs)
+    range_km = ring_system.get('range_km')
+    r, lam, radial_scale, y = _ring_plane_grid(
+        shape,
+        center_v=center_v,
+        center_u=center_u,
+        opening_deg_obs=b_obs,
+        node_deg=node_deg,
+        with_y=range_km is not None,
+    )
 
     # Compose the radial tau profile at each pixel center: emitting kinds add
     # their tau, gaps subtract (tau suppression), a wave's negative lobes
@@ -273,39 +267,49 @@ def render_ring_system(
         )
         if slices is None:
             continue
-        sub_v, sub_u = slices
-        r_sub = r[sub_v, sub_u]
-        sel = (r_sub >= lo) & (r_sub <= hi)
-        if not bool(np.any(sel)):
-            continue
-        r_sel = r_sub[sel]
-        bounds = feature_boundaries(
-            feature, orbit, lam[sub_v, sub_u][sel], os=os, epoch=epoch, time=time
-        )
-        accumulate_feature(
-            feature,
-            feature_tau(feature, r_sel, bounds, os=os),
-            tau=tau_map[sub_v, sub_u],
-            ap_weighted=ap_weighted[sub_v, sub_u],
-            ap_weight=ap_weight[sub_v, sub_u],
-            sel=sel,
-            phase_angle=phase_angle,
-        )
-        scale_sel = radial_scale[sub_v, sub_u][sel]
-        box = _BoxIndex(sel=sel, sub_v=sub_v, sub_u=sub_u, size_u=size_u)
-        for r_break in feature_breakpoint_radii(feature, bounds, os=os):
-            offset = (r_break - r_sel) / scale_sel
-            inside = np.abs(offset) < FOOTPRINT_HALF_WIDTH_PX
-            if bool(np.any(inside)):
-                crossing_pixels.append(box.flat(inside))
-                crossing_offsets.append(offset[inside])
-        band = feature_sloped_band(feature, bounds, os=os)
-        if band is not None:
-            # A ramp's optical depth changes across every pixel its band overlaps,
-            # so each such pixel is integrated along its footprint.
-            if slopes is None:
-                slopes = SlopeMap.empty(shape)
-            slopes.add(band, r=r_sel, radial_scale=scale_sel, sel=sel, sub_v=sub_v, sub_u=sub_u)
+        box_v, sub_u = slices
+        # The box is evaluated a strip of rows at a time, which keeps each strip's
+        # temporaries small (see _GRID_STRIP_ROWS).  Every pixel is evaluated on its
+        # own, so the maps and the set of boundary crossings are the same as from one
+        # pass over the box; the crossings are sorted by pixel and offset before use.
+        for strip_start in range(box_v.start, box_v.stop, _GRID_STRIP_ROWS):
+            sub_v = slice(strip_start, min(strip_start + _GRID_STRIP_ROWS, box_v.stop))
+            r_sub = r[sub_v, sub_u]
+            sel = (r_sub >= lo) & (r_sub <= hi)
+            if not bool(np.any(sel)):
+                continue
+            r_sel = r_sub[sel]
+            bounds = feature_boundaries(
+                feature, orbit, lam[sub_v, sub_u][sel], os=os, epoch=epoch, time=time
+            )
+            accumulate_feature(
+                feature,
+                feature_tau(feature, r_sel, bounds, os=os),
+                tau=tau_map[sub_v, sub_u],
+                ap_weighted=ap_weighted[sub_v, sub_u],
+                ap_weight=ap_weight[sub_v, sub_u],
+                sel=sel,
+                phase_angle=phase_angle,
+            )
+            breakpoints = feature_breakpoint_radii(feature, bounds, os=os)
+            band = feature_sloped_band(feature, bounds, os=os)
+            if not breakpoints and band is None:
+                # A density wave has neither, and it reaches over most of the frame.
+                continue
+            scale_sel = radial_scale[sub_v, sub_u][sel]
+            box = _BoxIndex(sel=sel, sub_v=sub_v, sub_u=sub_u, size_u=size_u)
+            for r_break in breakpoints:
+                offset = (r_break - r_sel) / scale_sel
+                inside = np.abs(offset) < FOOTPRINT_HALF_WIDTH_PX
+                if bool(np.any(inside)):
+                    crossing_pixels.append(box.flat(inside))
+                    crossing_offsets.append(offset[inside])
+            if band is not None:
+                # A ramp's optical depth changes across every pixel its band overlaps,
+                # so each such pixel is integrated along its footprint.
+                if slopes is None:
+                    slopes = SlopeMap.empty(shape)
+                slopes.add(band, r=r_sel, radial_scale=scale_sel, sel=sel, sub_v=sub_v, sub_u=sub_u)
     grid = RingGrid(r=r, lam=lam, radial_scale=radial_scale)
     all_crossings = _concat_int(crossing_pixels)
     split = split_sloped_pixels(
@@ -345,11 +349,18 @@ def render_ring_system(
         tau_view = tau_map[sub_v, sub_u]
         tau_view[sel] = tau_view[sel] * factor
 
-    ap_map = np.divide(
-        ap_weighted, ap_weight, out=np.zeros(shape, dtype=np.float64), where=ap_weight > 0.0
-    )
-    intensity = ap_map * ring_reflection_factor(tau_map, mu, mu0, lit=lit)
-    transmission: NDArrayFloatType = np.exp(-tau_map / mu)
+    # The grid-sized maps below are built in place: a fresh grid-sized temporary costs
+    # more than the arithmetic in it.  Each step is the IEEE operation of the plain
+    # expression, so the maps are unchanged to the last bit.
+    emitting = ap_weight > 0.0
+    ap_map = ap_weighted
+    np.divide(ap_map, ap_weight, out=ap_map, where=emitting)
+    np.copyto(ap_map, 0.0, where=~emitting)
+    intensity = ring_reflection_factor(tau_map, mu, mu0, lit=lit)
+    intensity *= ap_map
+    transmission: NDArrayFloatType = np.negative(tau_map)
+    transmission /= mu
+    np.exp(transmission, out=transmission)
     mask: NDArrayBoolType = tau_map > 0.0
 
     # Pixels that a boundary cuts are integrated across it: the emission and
@@ -421,8 +432,8 @@ def render_ring_system(
         mask[sub_v, sub_u] |= coverage > 0.0
 
     depth_km: NDArrayFloatType | None = None
-    range_km = ring_system.get('range_km')
     if range_km is not None:
+        assert y is not None
         # dlos is positive toward the observer on the render grid; divide by
         # the oversampling to return to detector pixels before the km scale.
         km_per_pixel = float(scene_value(ring_system, 'km_per_pixel', 1.0))
@@ -435,6 +446,70 @@ def render_ring_system(
         mask=mask,
         depth_km=depth_km,
     )
+
+
+# Grid rows mapped to the ring plane at a time.  A strip's temporaries stay a few
+# megabytes on a 4,000-pixel-wide oversampled grid, where whole-grid temporaries
+# would each cost a fresh allocation larger than its arithmetic.
+_GRID_STRIP_ROWS = 256
+
+
+def _ring_plane_grid(
+    shape: tuple[int, int],
+    *,
+    center_v: float,
+    center_u: float,
+    opening_deg_obs: float,
+    node_deg: float,
+    with_y: bool,
+) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType, NDArrayFloatType | None]:
+    """Map every render-grid pixel center to the ring plane.
+
+    Pixel centers relative to the projected ring center are mapped back to the ring
+    plane through the shared inverse projection.  The grid starts as array rows and
+    columns and the projection works in the geometry layer's pixel corner
+    coordinates, where the scene states its center, so the half pixel goes on here.
+    The grid is mapped a strip of rows at a time; each pixel is computed on its own,
+    so the strips give the same bits as one pass over the whole grid.
+
+    Parameters:
+        shape: The render-grid shape.
+        center_v: Ring-system center v on the render grid.
+        center_u: Ring-system center u on the render grid.
+        opening_deg_obs: Observer ring opening angle in degrees.
+        node_deg: Sky position angle of the ascending node, in degrees.
+        with_y: Whether to return the node-aligned in-plane y coordinate, which the
+            line-of-sight depth reads.
+
+    Returns:
+        The ring-plane radius, the longitude, the radial scale (the ring-plane
+        radial distance per image pixel: dividing by it converts a radial distance to
+        image pixels, so a pixel footprint spans one render-grid pixel whatever the
+        foreshortening direction), and the y coordinate or None, each per pixel.
+    """
+    size_v, size_u = shape
+    v_coords = np.arange(size_v, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+    u_coords = np.arange(size_u, dtype=np.float64) + PIXEL_CENTER_TO_CORNER_PX
+    # A column and a row, which the projection broadcasts to the strip.
+    dv = (v_coords - center_v)[:, np.newaxis]
+    du = (u_coords - center_u)[np.newaxis, :]
+    r = np.empty(shape, dtype=np.float64)
+    lam = np.empty(shape, dtype=np.float64)
+    radial_scale = np.empty(shape, dtype=np.float64)
+    y = np.empty(shape, dtype=np.float64) if with_y else None
+    for start in range(0, size_v, _GRID_STRIP_ROWS):
+        rows = slice(start, min(start + _GRID_STRIP_ROWS, size_v))
+        r_rows, lam_rows, x_rows, y_rows = ring_plane_from_sky(
+            dv[rows], du, opening_deg_obs=opening_deg_obs, node_deg=node_deg
+        )
+        r[rows] = r_rows
+        lam[rows] = lam_rows
+        radial_scale[rows] = ring_radial_scale(
+            r_rows, x_rows, y_rows, opening_deg_obs=opening_deg_obs
+        )
+        if y is not None:
+            y[rows] = y_rows
+    return r, lam, radial_scale, y
 
 
 @dataclass

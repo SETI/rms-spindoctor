@@ -2,10 +2,11 @@
 
 The body extractor's covariance and emission gates consult the per-body
 shape, albedo, and SPICE-residual quantities returned by
-:func:`load_body_shape`.  The lookup pulls operator-curated values from
-``config_220_body_shape.yaml`` first, falling back to the hard-coded
-``BODY_SHAPE_TABLE`` profiles for bodies the YAML has not populated yet,
-and finally to ``DEFAULT_BODY_SHAPE`` for entirely unknown bodies.
+:func:`load_body_shape`.  The lookup takes each value from three tiers in
+turn: the body's entry in the ``body_shape`` section of the configuration
+(``config_220_body_shape.yaml``), then the hard-coded ``BODY_SHAPE_TABLE``
+profile for a value the entry leaves out, and finally ``DEFAULT_BODY_SHAPE``
+for a body without a profile.
 
 Each ``BodyShape`` instance carries the values the navigation pipeline
 actually consumes:
@@ -24,19 +25,18 @@ actually consumes:
   ``highly_irregular`` / ``unknown``; used in human-readable logs and
   by reviewers reading sidecar diagnostics.
 
-Documentation-only fields in the YAML (``radii_km``, ``albedo_mean``,
-``_sources``) are intentionally not surfaced on the runtime dataclass:
-``radii_km`` would compete with ``oops`` body radii and ``albedo_mean``
-has no consumer yet.  Adding them at runtime is a one-line dataclass
-extension whenever a consumer materializes.
+An entry's ``radii_km`` is not surfaced on the runtime dataclass, since it would compete
+with the ``oops`` body radii; the calibration tooling reads it from the
+configuration.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
-from typing import Any
+from dataclasses import dataclass
+from typing import TypeVar
 
-from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config import DEFAULT_CONFIG, Config
+from spindoctor.config.sections_body_shape import ShapeClass
 
 __all__ = [
     'BODY_SHAPE_TABLE',
@@ -73,7 +73,7 @@ class BodyShape:
     albedo_variation: float
     spice_orbital_residual_km: float
     min_blob_diameter_px: float = 5.0
-    shape_class_hint: str = 'unknown'
+    shape_class_hint: ShapeClass = 'unknown'
 
 
 DEFAULT_BODY_SHAPE: BodyShape = BodyShape(
@@ -146,45 +146,31 @@ BODY_SHAPE_TABLE: dict[str, BodyShape] = {
 """Hard-coded fallback profiles, keyed by upper-case SPICE body name.
 
 Used when the corresponding body is missing from
-``config_220_body_shape.yaml`` or when its YAML entry leaves out a
-field (the YAML value wins when it is set).
+``config_220_body_shape.yaml`` or when its entry leaves out a
+key (the configured value wins when it is set).
 Bodies absent from this table fall through to ``DEFAULT_BODY_SHAPE``.
 """
 
 
-# YAML field names that map directly onto ``BodyShape`` fields.  The
-# loader walks this list and overwrites the hard-coded baseline only
-# for the fields the YAML entry sets.  Keep ordering aligned with
-# the ``BodyShape`` field declaration above for grep-ability.
-_YAML_FIELDS: tuple[str, ...] = (
-    'ellipsoid_rms_residual_km',
-    'crater_scale_km',
-    'albedo_variation',
-    'spice_orbital_residual_km',
-    'min_blob_diameter_px',
-    'shape_class_hint',
-)
+_T = TypeVar('_T')
 
 
-def load_body_shape(body_name: str, config: Any = None) -> BodyShape:
+def load_body_shape(body_name: str, config: Config | None = None) -> BodyShape:
     """Build the runtime ``BodyShape`` for ``body_name`` (case-insensitive).
 
     Merges three sources, in priority order:
 
-    1. ``config.body_shape[<BODY>]`` — operator-curated YAML entry from
-       ``config_220_body_shape.yaml``.  Each field it sets overrides
+    1. ``config.body_shape[<BODY>]`` -- operator-curated entry from
+       ``config_220_body_shape.yaml``.  Each key it sets overrides
        the hard-coded baseline.
-    2. ``BODY_SHAPE_TABLE[<BODY>]`` — hard-coded per-class profile for
-       bodies the YAML has not populated yet (e.g. minor moons that
-       Phase 10 §B has not reached).
-    3. ``DEFAULT_BODY_SHAPE`` — final fallback for bodies unknown to
+    2. ``BODY_SHAPE_TABLE[<BODY>]`` -- hard-coded per-class profile, for
+       a key the entry leaves out and for a body without an entry.
+    3. ``DEFAULT_BODY_SHAPE`` -- final fallback for bodies unknown to
        both sources.
 
     Parameters:
         body_name: Body name in any case (``'mimas'`` / ``'MIMAS'``).
-        config: Optional ``Config`` override; defaults to
-            ``DEFAULT_CONFIG``.  Tests may pass a stub that exposes a
-            ``body_shape`` attribute (mapping or ``AttrDict``).
+        config: The configuration to read; defaults to ``DEFAULT_CONFIG``.
 
     Returns:
         A ``BodyShape`` populated from the best available source for
@@ -192,38 +178,31 @@ def load_body_shape(body_name: str, config: Any = None) -> BodyShape:
     """
     upper = body_name.upper()
     baseline = BODY_SHAPE_TABLE.get(upper, DEFAULT_BODY_SHAPE)
-    yaml_block = _yaml_entry_for(upper, config)
-    if yaml_block is None:
+    entry = (DEFAULT_CONFIG if config is None else config).body_shape.get(upper)
+    if entry is None:
         return baseline
-    overrides = {field: yaml_block[field] for field in _YAML_FIELDS if field in yaml_block}
-    if not overrides:
-        return baseline
-    return replace(baseline, **overrides)
+    return BodyShape(
+        ellipsoid_rms_residual_km=_first_set(
+            entry.ellipsoid_rms_residual_km, baseline.ellipsoid_rms_residual_km
+        ),
+        crater_scale_km=_first_set(entry.crater_scale_km, baseline.crater_scale_km),
+        albedo_variation=_first_set(entry.albedo_variation, baseline.albedo_variation),
+        spice_orbital_residual_km=_first_set(
+            entry.spice_orbital_residual_km, baseline.spice_orbital_residual_km
+        ),
+        min_blob_diameter_px=_first_set(entry.min_blob_diameter_px, baseline.min_blob_diameter_px),
+        shape_class_hint=_first_set(entry.shape_class_hint, baseline.shape_class_hint),
+    )
 
 
-def _yaml_entry_for(upper_body_name: str, config: Any) -> dict[str, Any] | None:
-    """Return the YAML mapping for ``upper_body_name`` if present.
-
-    Resolves ``config.body_shape`` against either an explicit ``Config``
-    instance or the global ``DEFAULT_CONFIG``.
+def _first_set(value: _T | None, fallback: _T) -> _T:
+    """Return ``value``, or ``fallback`` when ``value`` is None.
 
     Parameters:
-        upper_body_name: The body name in upper case, matching the YAML keys.
-        config: The configuration to read, or None for ``DEFAULT_CONFIG``.
+        value: The configuration's value, None when its entry leaves the key out.
+        fallback: The value of the next tier.
 
     Returns:
-        A copy of the body's mapping of shape overrides, or None when the
-        ``body_shape`` section is not a mapping, when it has no entry for the
-        body, or when the entry is not a mapping.
-
-    Raises:
-        AttributeError: If ``config`` has no ``body_shape`` attribute.
+        The value that applies.
     """
-    cfg = DEFAULT_CONFIG if config is None else config
-    body_shape_section = cfg.body_shape
-    if not isinstance(body_shape_section, dict):
-        return None
-    entry = body_shape_section.get(upper_body_name)
-    if not isinstance(entry, dict):
-        return None
-    return dict(entry)
+    return fallback if value is None else value

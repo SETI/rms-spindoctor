@@ -23,7 +23,6 @@ __all__ = [
     'DownlinkCurve',
     'LUTSqrt',
     'LUTTabulated',
-    'check_curve_ceiling',
     'resolve_sqrt_lut',
 ]
 
@@ -118,25 +117,3 @@ def resolve_sqrt_lut(table: DownlinkTable | None, *, saturation_dn: float) -> Do
         quadratic_dn=table.quadratic_dn,
         whole_dn=table.whole_dn,
     )
-
-
-def check_curve_ceiling(curve: DownlinkCurve, *, saturation_dn: float) -> None:
-    """Refuse a decode curve whose top decoded value lies above the ADC ceiling.
-
-    The quantizer snaps each DN, already clipped at the ceiling, to the nearest
-    decoded value, so a value above the ceiling would put DN in the product that
-    the ADC can never produce.
-
-    Parameters:
-        curve: A camera's downlink table, resolved.
-        saturation_dn: The ADC ceiling the frame's DN is clipped at.
-
-    Raises:
-        ValueError: If the curve's largest decoded value exceeds ``saturation_dn``.
-    """
-    top_dn = float(curve.levels()[-1])
-    if top_dn > saturation_dn:
-        raise ValueError(
-            f'the downlink table decodes up to {top_dn:g} DN, above the ADC ceiling '
-            f'(saturation_dn) of {saturation_dn:g} DN'
-        )

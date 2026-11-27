@@ -132,13 +132,14 @@ def test_star_refine_caps_single_inlier_confidence(
 ) -> None:
     """A 1-inlier refine on a near-perfect prior is capped at the configured ceiling.
 
-    Pin the contract by reading the cap value from
-    ``StarRefineNav.tuning`` rather than hard-coding 0.5.  A 1-inlier
+    Pin the contract by reading the cap value from the technique's
+    tuning rather than hard-coding 0.5.  A 1-inlier
     refine carries no independent cross-check, so its confidence must
     not exceed ``single_inlier_confidence_cap`` even when the
     underlying sigmoid would give a higher number.
     """
-    cap = float(StarRefineNav.tuning['single_inlier_confidence_cap'])
+    technique = StarRefineNav()
+    cap = technique.tuning.single_inlier_confidence_cap
     shape = (220, 220)
     image = np.zeros(shape, dtype=np.float64)
     actual = (110.0, 130.0)
@@ -146,7 +147,6 @@ def test_star_refine_caps_single_inlier_confidence(
     true_offset = (1.0, 1.0)
     pred = (actual[0] - true_offset[0], actual[1] - true_offset[1])
     feature = make_star_feature('star:UCAC4:lone', predicted_vu=pred, predicted_snr=40.0)
-    technique = StarRefineNav()
     context = make_nav_context(image)
     context = _attach_prior(context, prior_offset_px=true_offset)
     result = technique.navigate([feature], context)
@@ -192,20 +192,6 @@ def test_star_refine_skips_single_inlier_cap_log_for_multi_inlier(
     assert result.diagnostics.n_stars_used == 2
     captured = capsys.readouterr()
     assert 'Single-inlier refine' not in captured.out
-
-
-def test_star_refine_rejects_invalid_single_inlier_cap() -> None:
-    """Construction rejects ``single_inlier_confidence_cap`` outside [0, 1]."""
-    technique_class = StarRefineNav
-    bad_tuning = dict(technique_class.tuning)
-    bad_tuning['single_inlier_confidence_cap'] = 1.5
-    original_tuning = technique_class.tuning
-    try:
-        technique_class.tuning = bad_tuning
-        with pytest.raises(ValueError, match='single_inlier_confidence_cap'):
-            technique_class()
-    finally:
-        technique_class.tuning = original_tuning
 
 
 def test_star_refine_infeasible_on_empty_input() -> None:
