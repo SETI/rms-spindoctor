@@ -31,7 +31,8 @@ except (ImportError, OSError) as exc:
 
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.stars import SKY_COUNTS_DEFAULTS
-from spindoctor.sim.scene.validate import MIN_FRAME_SIZE_PX, validate_sim_params
+from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
+from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 
 # Two bodies, an ellipsoid and a mesh, that set few keys and leave every sub-block

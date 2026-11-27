@@ -13,7 +13,7 @@ from spindoctor.sim.instruments.catalog import (
     load_instrument_catalog,
     sim_instrument_names,
 )
-from spindoctor.sim.scene.validate import MIN_FRAME_SIZE_PX
+from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
 # The seed the editor gives a scene it builds: a new scene, and a partial scene applied
