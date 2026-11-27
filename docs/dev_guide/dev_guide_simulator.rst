@@ -1832,9 +1832,11 @@ quantity it holds. The registry records which key each mode takes
   a frame collects only the dwell's hits. The scene validator refuses a
   non-positive ``exposure_sec``, so only a direct caller of the detector stage
   can pass one.
-* **Probability** modes are commanded or periodic (a frame edit, a cutout, most
-  detector effects). Their key is ``probability``, the per-frame probability in [0, 1]
-  that the mode activates at all.
+* **Probability** modes are commanded, periodic, or frame-level (a frame edit, a
+  cutout, the lossless compressor's cuts, downlink gaps, most detector effects).
+  Their key is ``probability``, the per-frame probability in [0, 1] that the mode
+  activates at all. A frame that ``downlink_gaps`` activates on loses at least one
+  group of lines, and the mode's own parameters draw how many.
 * **Density** mode ``hot_pixels`` takes ``pixel_fraction``, the fraction of
   detector pixels that are hot, in [0, 1].
 
@@ -1892,6 +1894,11 @@ entries.
        (see :doc:`instruments/galileo_ssi`)
      - nac, wac, gossi
      - ``probability``
+   * - ``compression_truncated_lines``
+     - the second line of each line pair that does not fit the lossless
+       compressor's budget loses its end, in whole coded blocks
+     - per camera; see :doc:`instruments/cassini_iss`
+     - ``probability``
    * - ``edited_frame``
      - only a centered column band of the camera's default width, or the top or
        bottom half of the frame, kept
@@ -1906,6 +1913,11 @@ entries.
      - compression-block-aligned bands zeroed
      - nac, wac, gossi
      - ``expected_events``
+   * - ``downlink_gaps``
+     - clustered groups of whole lines of varying size, starting on any line, and
+       the ends of the lines above and below a group
+     - per camera; see :doc:`instruments/cassini_iss`
+     - ``probability``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
      - gossi, vgiss_*
@@ -1959,6 +1971,66 @@ corrected geometry (see :doc:`instruments/voyager_iss`)
 :data:`~spindoctor.sim.artifact_modes.TELEMETRY_POST_LOSS_ORDER`). The
 commanded ``truth_window`` is resolved before the loop and passed to
 ``missing_blocks`` as a protected rectangle.
+
+Two loss modes draw the forms that a camera's real frames show. One computes its
+loss from the frame's content, and the other draws it from distributions measured on
+real frames, which the camera's entry gives as shape defaults.
+
+``compression_truncated_lines`` cuts the lines a lossless compressor cannot fit.
+The compressor codes the differences between neighboring samples of a line in
+blocks of ``block_samples``. Each block takes whichever of its code options spends
+the fewest bits: option ``k``, from 0 to ``max_split``, sends the low ``k`` bits of
+each difference as they are and the rest in unary, and ``id_bits`` name the option.
+A pair of lines may use ``word_bits`` bits for each sample of one line. The
+compressor codes the pair's first line, then the second line's blocks in order
+while they still fit, and the second line loses the rest. If the first line alone
+does not fit, it keeps the blocks that do, and the second line is lost whole. A
+smooth frame loses nothing. Noise and fine detail cut the pairs they cross, so the
+cut lines start and stop where such content does, and neighboring cut lines lose
+nearly the same share. The mode codes the DN the camera sent, after the detector
+stage and before every downlink loss. On a calibrated frame it codes the DN that
+the calibration maps back to. The scene validator refuses the mode on a frame that
+quantizes to 8 bits, because the budget for 8-bit frames was never measured. No
+camera turns the mode on under ``instrument_defaults``; a scene turns it on itself.
+The coder lives in :mod:`spindoctor.sim.render.telemetry.lossless`.
+
+``downlink_gaps`` draws the groups of whole lines that a frame loses when packets
+are lost on the way to the ground. A frame that the mode activates on loses one
+group plus a negative-binomial number more. ``mean_groups`` is the mean number of
+groups in all. The extra groups' variance is their mean plus ``dispersion`` times
+its square, and a dispersion of 0 draws them Poisson. Each group's size is drawn
+from ``size_percentiles``, a percentile table in lines, and rounds to a whole
+number of lines, at least one. A percentile table gives a distribution by its
+values at the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
+percentiles, in rising order
+(:data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`); a size table is
+interpolated in the logarithm, so its top decile does not crowd toward the
+largest size. A binned frame draws its sizes from ``summed_size_percentiles``
+when the map sets it, and from ``size_percentiles`` otherwise.
+
+The groups form clusters. The first group starts a cluster, and each later group
+starts a new one with ``cluster_probability``. Otherwise it joins the cluster
+before it, after a gap of kept lines drawn from ``gap_percentiles``, which is
+interpolated in the logarithm too and rounds to at least one line. The clusters
+then fall in a random order at uniform positions down the frame, with at least one
+kept line between two clusters and between a cluster and the frame's first or last
+line. So no two groups touch, none reaches the edge of the frame, and the frame
+shows as many groups as it drew. When the clusters do not fit, the frame draws
+the sizes and gaps again, a few times, and then loses one group fewer. With a
+``cluster_probability`` of 1, the default, every group falls on its own. With
+adversarial placement each cluster starts on a feature row instead, and clusters
+that overlap merge in the frame and stay separate in the truth record. Each
+cluster must still fit between the frame's first and last lines, and a draw
+with a longer cluster counts as one that does not fit.
+
+With ``head_probability`` the line just above a group loses its end, and with
+``tail_probability`` the line just below does. Such a line keeps a whole number of
+``step_samples`` from its start, at least one step and all but one at most, its
+kept share drawn from ``head_kept_percentiles`` or ``tail_kept_percentiles``. A
+single kept line between two groups is the line below one and the line above the
+other, and it loses its end when either draw says it does. A frame whose lines
+are no wider than one step keeps the lines beside its groups whole, since such a
+line cannot keep a step and lose the rest.
 
 .. _sim-detector-modes:
 
@@ -2071,7 +2143,8 @@ placement onto the navigation features -- a lost line crosses the disc, a dead
 pixel lands on a star -- through the shared
 :mod:`spindoctor.sim.render.feature_loci` helpers; placement is uniform when the
 switch is off or absent. Purely periodic or commanded shapes (``alternating_lines``,
-the frame-level edits) ignore the switch: their geometry is fixed once active.
+the frame-level edits) ignore the switch: their geometry is fixed once active. So
+does ``compression_truncated_lines``, whose cuts follow the frame's content.
 The switch is one scene-level flag, and it applies to every mode the scene sets
 itself. A mode that only ``instrument_defaults`` turns on keeps the camera's own
 placement. A raw Cassini camera's hot pixels therefore stay on the detector's fixed map
@@ -2116,8 +2189,10 @@ The ``artifact_sweep`` scene class (``tests/integration/sim_scenes/artifact_swee
 pins the survivable end of the artifact axis: a disc scene and a star-field scene,
 each under a modest structured loss (a few missing lines plus a few truncated
 lines per frame), in a uniform-placement and an adversarial-placement variant.
-The navigator must still reach success and recover the planted offset within
-tolerance -- the level at which realism does not break navigation. The companion
+Each scene is a stress test: its loss pattern is chosen to probe the navigator and
+does not describe how real frames lose lines. The navigator must still reach success
+and recover the planted offset within tolerance, which marks a level of loss that
+navigation survives. The companion
 ``artifact_missing_lines`` sweep (``tests/integration/sim_sweeps/``) drives the
 other end: it raises the missing-line ``expected_events`` from a clean frame past
 the navigability cliff and records the curve of navigation quality against the
