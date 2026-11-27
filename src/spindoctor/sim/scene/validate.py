@@ -85,7 +85,8 @@ def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') ->
     The typed blocks are checked for values a scene file cannot hold before the cache is
     consulted, so a warm cache never accepts what a cold check refuses.  A mapping that
     JSON cannot encode, such as one holding a date that a YAML file spelled without
-    quotes, is validated directly instead, outside the cache.
+    quotes, is validated directly instead, outside the cache.  So is one with an integer
+    key, which JSON would write as a string.
 
     Parameters:
         sim_params: The flat scene parameter mapping.
@@ -95,7 +96,10 @@ def validate_scene(sim_params: dict[str, Any], *, source: str = 'sim_params') ->
     Raises:
         SimSceneValidationError: If the scene fails validation.
     """
-    _refuse_non_file_values(sim_params, source=source)
+    integer_keys = _refuse_non_file_values(sim_params, source=source)
+    if integer_keys:
+        validate_sim_params(sim_params, source=source)
+        return
     try:
         scene_json = json.dumps(sim_params, sort_keys=True)
     except (TypeError, ValueError):
@@ -167,7 +171,7 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
     return scene
 
 
-def _refuse_non_file_values(raw: Mapping[str, Any], *, source: str) -> None:
+def _refuse_non_file_values(raw: Mapping[str, Any], *, source: str) -> bool:
     """Refuse, in the typed blocks, any value that a scene file cannot hold.
 
     A scene file holds mappings, lists, and scalars: JSON scalars and the dates that YAML
@@ -183,15 +187,21 @@ def _refuse_non_file_values(raw: Mapping[str, Any], *, source: str) -> None:
         raw: The scene's mapping.
         source: The label that begins the error message.
 
+    Returns:
+        True if a typed block has an integer key, which a JSON round trip would turn
+        into a string.
+
     Raises:
         SimSceneValidationError: If a typed block holds such a value at any depth.
     """
+    integer_keys = False
     for key, value in raw.items():
         if key not in UNTYPED_BLOCKS:
-            _refuse_non_file_value(value, str(key), source=source)
+            integer_keys |= _refuse_non_file_value(value, str(key), source=source)
+    return integer_keys
 
 
-def _refuse_non_file_value(value: Any, path: str, *, source: str) -> None:
+def _refuse_non_file_value(value: Any, path: str, *, source: str) -> bool:
     """Refuse ``value``, or a value inside it, that a scene file cannot hold.
 
     Parameters:
@@ -199,20 +209,25 @@ def _refuse_non_file_value(value: Any, path: str, *, source: str) -> None:
         path: The value's key path.
         source: The label that begins the error message.
 
+    Returns:
+        True if ``value`` or a value inside it is a mapping with an integer key.
+
     Raises:
         SimSceneValidationError: If a value at any depth is not a mapping with string or
             integer keys, a list, a JSON scalar, or a date.
     """
+    found = False
     if isinstance(value, Mapping):
         for key, item in value.items():
             if not isinstance(key, str | int) or isinstance(key, bool):
                 raise SimSceneValidationError(
                     f'{source}: {path}: expected a string or integer key, got {describe_value(key)}'
                 )
-            _refuse_non_file_value(item, f'{path}.{key}', source=source)
+            found |= isinstance(key, int)
+            found |= _refuse_non_file_value(item, f'{path}.{key}', source=source)
     elif isinstance(value, list):
         for index, item in enumerate(value):
-            _refuse_non_file_value(item, f'{path}[{index}]', source=source)
+            found |= _refuse_non_file_value(item, f'{path}[{index}]', source=source)
     elif isinstance(value, tuple | set | frozenset):
         raise SimSceneValidationError(
             f'{source}: {path}: expected a list, got {describe_value(value)}'
@@ -222,6 +237,7 @@ def _refuse_non_file_value(value: Any, path: str, *, source: str) -> None:
             f'{source}: {path}: expected a mapping, a list, a string, a number, or a '
             f'boolean, got {describe_value(value)}'
         )
+    return found
 
 
 def _check_untyped_blocks(raw: Mapping[str, Any], *, instrument: str, source: str) -> None:
