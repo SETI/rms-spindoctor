@@ -205,17 +205,17 @@ share of the offset window in which a lone star is believed
 (``one_star_ellipse_fraction``), the rotation settings (``fit_camera_rotation`` and
 ``max_rotation_deg``), its ``noise``, ``image_quality_thresholds``,
 ``source_image_filter``, and ``mag_offset`` blocks, and, for a camera whose star
-photometry has been measured, its ``star_photometry`` block. Every camera's block has
-the same keys and parses into one type, :class:`~spindoctor.config.sections_camera.CameraBlock`.
-Each of its blocks has a type of its own:
-:class:`~spindoctor.config.sections_camera.CameraNoise`, with a
+photometry has been measured, its ``star_photometry`` block. Each camera's block parses
+into :class:`~spindoctor.config.sections_camera.CameraBlock`. Each of its blocks has a
+type of its own: :class:`~spindoctor.config.sections_camera.CameraNoise`, with a
 :class:`~spindoctor.config.sections_camera.BinnedNoise` for each binned readout mode;
 :class:`~spindoctor.config.sections_camera.QualityThresholds`;
 :class:`~spindoctor.config.sections_camera.MagOffset`;
 :class:`~spindoctor.config.sections_camera.StarPhotometry`; and a source-image filter
-chosen by its ``kind``, either a :class:`~spindoctor.config.sections_camera.BandpassFilter` or a
-:class:`~spindoctor.config.sections_camera.BlurFilter`. Adding a camera never needs a new
-type. Each field's type is also exported under a name of its own, such as
+chosen by its ``kind``, either a
+:class:`~spindoctor.config.sections_camera.BandpassFilter` or a
+:class:`~spindoctor.config.sections_camera.BlurFilter`. Each field's type is also
+exported under a name of its own, such as
 :data:`~spindoctor.config.sections_camera.ReadNoiseDn`, so code that states some of the
 same keys can type them with the same ranges.
 
@@ -230,8 +230,7 @@ camera's block, :meth:`~spindoctor.config.config.Config.camera_names` gives the 
 a section's cameras, and an observation carries its camera's block as
 :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config`.
 
-Whether a camera uses a key depends on its ``data_units``, and on nothing else about the
-camera:
+Which keys a camera sets follows its ``data_units``:
 
 - A ``raw_dn`` camera sets ``noise.saturation_dn``, ``noise.read_noise_dn``, and
   ``noise.star_flux_dn_per_s_vmag0``, and the DN limits of its quality thresholds:
@@ -276,18 +275,16 @@ every camera, from which the star model's limiting magnitude follows (see
 A star of V magnitude ``m`` puts ``flux_per_s_vmag0 * 10**(-0.4 * (m + offset)) * texp``
 in the image, divided or multiplied by its gain state's entry, and the dimmest visible
 star puts ``min_detectable_dn`` there. The keys of the gain, filter, and mode tables are
-spelled the way the camera's observation class spells the image's gain state, filter,
-and readout mode, so the loader cannot tell a misspelled key from one the camera never
-reads. The observation class
-(:meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag` and
+spelled the way the camera's observation class spells the image's gain state, filter, and
+readout mode, so the loader cannot tell a misspelled key from one the camera never reads.
+The observation class (:meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag` and
 :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_sigma`) refuses an image whose gain
-state, filter, or mode the tables leave out, giving the block's key path. The width key
-is ``psf_sigma`` rather than ``star_psf_sigma`` because the block's own
+state, filter, or mode the tables leave out, giving the block's key path. The block's own
 ``star_psf_sigma`` is a single number that the simulator reads; the instrument chapters
-under :doc:`/dev_guide/instruments/instruments` say which of the two each camera's
-navigator reads. In the same way, ``noise.star_flux_dn_per_s_vmag0`` is a separate key
-from ``star_photometry.flux_per_s_vmag0``: the simulator reads the first for simulated
-frames, and the navigator reads the second for real ones.
+under :doc:`/dev_guide/instruments/instruments` say which of the two star widths each
+camera's navigator reads. In the same way, ``noise.star_flux_dn_per_s_vmag0`` is a
+separate key from ``star_photometry.flux_per_s_vmag0``: the simulator reads the first for
+simulated frames, and the navigator reads the second for real ones.
 
 The simulator's camera section is left untyped when the configuration loads, so an
 override of it is read as written.

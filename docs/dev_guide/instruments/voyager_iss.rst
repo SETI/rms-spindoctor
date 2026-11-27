@@ -158,9 +158,8 @@ Configuration block
 ===================
 
 One section holding a block for each of the four cameras, ``vg1_nac``,
-``vg1_wac``, ``vg2_nac``, and ``vg2_wac``, as the Cassini section holds one for each
-of its cameras. Each camera's optics and vidicon are its own, so each block states
-every value itself, even where the number is the same in all four.
+``vg1_wac``, ``vg2_nac``, and ``vg2_wac``. Each camera's optics and vidicon are its own,
+so each block states every value itself, even where the number is the same in all four.
 
 ``data_units`` is ``calibrated_if``, so the block carries what a calibrated camera
 block carries (see :ref:`config-camera-blocks`): the ``image_quality_thresholds`` are
@@ -251,20 +250,19 @@ a frame was kept when three or more stars, each on its own image peak, agreed wi
 one in a thousand. That kept 36 narrow-angle and 47 wide-angle frames, and one frame
 in three was held out of the fit.
 
-- The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4
-  (+-0.07 mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter wide-angle stars, V 8 to 10,
-  read 1.1 to 1.5 mag brighter than that rate predicts, which points to a
-  compressive vidicon response at high signal.
-- ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
-  stars taken through CLEAR at low gain, reaches 80% of the way from its floor to its plateau: 101 +- 27 DN on the
-  narrow-angle camera and 35 +- 22 DN on the wide-angle camera.
-- Every measured frame is at low gain, so the high-gain factor is the published
-  constant ``g`` of Benesh and Jepsen (1978, Table 4-3) for the camera's serial
-  number.
-- The filter offsets are 2.5 log10 of each camera's solar filter factors (Benesh
-  and Jepsen 1978). A filter or gain state is measured only from 15 or more stars, and
-  only CLEAR at low gain has that many; the 4 narrow-angle VIOLET stars, for example,
-  give 1.68 +- 0.24 mag against the 1.34 used.
+- The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4 (+-0.07
+  mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter
+  wide-angle stars, V 8 to 10, read 1.1 to 1.5 mag brighter than that rate predicts, which
+  points to a compressive vidicon response at high signal. - ``min_detectable_dn`` is
+  where a detection-probability curve, fitted to the clean stars taken through CLEAR at
+  low gain, reaches 80% of the way from its floor to its plateau: 101 +- 27 DN on the
+  narrow-angle camera and 35 +- 22 DN on the wide-angle camera. - Every measured frame is
+  at low gain, so the high-gain factor is the published constant ``g`` of Benesh and
+  Jepsen (1978, Table 4-3) for the camera's serial number. - The filter offsets are 2.5
+  log10 of each camera's solar filter factors (Benesh and Jepsen 1978). A filter or gain
+  state is measured only from 15 or more stars, and only CLEAR at low gain has that many;
+  the 4 narrow-angle VIOLET stars, for example, give 1.68 +- 0.24 mag against the 1.34
+  used.
 
 Voyager 1 gave only one such frame, too few to fit. Its rates are Voyager 2's for
 the same kind of camera, scaled by the bench sensitivities Benesh and Jepsen (1978)
@@ -283,15 +281,15 @@ a magnitude of uncertainty.
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** Each camera's star sigma is its block's ``star_photometry.psf_sigma``, in
-pixels of the geometrically corrected image. On Voyager 2 it is the median Gaussian sigma of stars
-on frames read out at 5:1: 1.2 px for the narrow-angle camera (53 stars on 15
-frames) and 1.1 px for the wide-angle camera (213 stars on 26 frames). A star's core
-is about 0.8 px, and platform motion elongates a long exposure. The Voyager 1 values
-are a 3.0 px placeholder, since its one frame holds too few stars to fit. Each
-camera block's own ``star_psf_sigma``, 3.0 px in all four, is read only by the
-simulator. ``star_psf_sizes`` is a single ``100: [7, 7]``, so
-every star gets a 7x7 cutout regardless of magnitude and regardless of camera.
+**PSF.** Each camera's star sigma is its block's ``star_photometry.psf_sigma``, in pixels
+of the geometrically corrected image. On Voyager 2 it is the median Gaussian sigma of
+stars on frames read out at 5:1: 1.2 px for the narrow-angle camera (53 stars on 15
+frames) and 1.1 px for the wide-angle camera (213 stars on 26 frames). A star's core is
+about 0.8 px, and platform motion elongates a long exposure. The Voyager 1 values are a
+3.0 px placeholder, since its one frame holds too few stars to fit. Each camera block's
+own ``star_psf_sigma``, 3.0 px in all four, is read only by the simulator.
+``star_psf_sizes`` is a single ``100: [7, 7]``, so every star gets a 7x7 cutout regardless
+of magnitude and regardless of camera.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
 entry with a default of 0.0. Both are placeholders.
@@ -711,11 +709,11 @@ approximation at all: the navigated attitude was constant to begin with.
 
 **Statistics.** Nothing particular.
 :func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` reads
-``extfov_margin_vu`` from the camera blocks of ``voyager_iss``. A record gives the
-camera but not the spacecraft, so the limit is resolved only while all four blocks
-give the same margin, as they do. It indexes the size-keyed table with the recorded
-image height, so a database row with no recorded shape, or one recording a height
-other than 1000, resolves to an explanatory string instead of a limit. The report's image-name rule is
+``extfov_margin_vu`` from the camera blocks of ``voyager_iss``. A record gives the camera
+but not the spacecraft, so the limit is resolved only while all four blocks give the same
+margin, as they do. It indexes the size-keyed table with the recorded image height, so a
+database row with no recorded shape, or one recording a height other than 1000, resolves
+to an explanatory string instead of a limit. The report's image-name rule is
 ``stem.split('_', 1)[0]``, so ``C1234567_GEOMED`` reduces to ``C1234567``.
 
 Open items
