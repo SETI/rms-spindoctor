@@ -28,6 +28,12 @@ def test_packaged_camera_blocks_parse() -> None:
         assert isinstance(sections.camera_block(section, camera), CameraBlock)
 
 
+def test_a_camera_name_on_a_one_camera_section_is_refused() -> None:
+    """A section that is one camera's block refuses a camera name."""
+    with pytest.raises(KeyError, match="galileo_ssi is one camera's block; it has no camera 'nac'"):
+        packaged_sections().camera_block('galileo_ssi', 'nac')
+
+
 def test_a_bad_camera_value_in_an_override_is_refused(tmp_path: Path) -> None:
     """A bad camera value in an override is refused at load, with its file and key path."""
     config = Config()
