@@ -218,20 +218,22 @@ hits() {
 # A verb followed by "no" and a noun, where "does not" with the verb reads better.
 # "Has no" usually reads naturally, so it is left out of the list.  Each verb is
 # matched in its present, third-person, and past forms, and so are "rest on", "rely
-# on", and "depend on".  "No longer", "no more", "no one" and other phrases where
-# "no" does not negate a noun are left out.
+# on", and "depend on".  Phrases where "no" does not negate a noun are left out:
+# "no longer", "no matter", "no one", a comparison ("no more than", "no larger than"),
+# and a comparative that ends the clause ("goes no further.").  A comparative before
+# a noun ("no further errors") is still flagged.
 verb_no_stems='make|give|accept|set|read|write|hold|take|need|leave|name|count|get|'
 verb_no_stems+='move|list|find|lose|gain|record|state|show|keep|use|return|match|add|'
-verb_no_stems+='raise|change|require|report|contain|draw|produce|yield|offer|apply|'
+verb_no_stems+='raise|change|require|report|contain|draw|produce|yield|offer|'
 verb_no_stems+='see|send|bring|pass|cover|select|enter|reach|fit|allow|expect|mark|'
 verb_no_stems+='load|cross|touch'
-verb_no_irregular='carr(?:y|ies|ied)|made|gave|took|left|found|lost|kept|got|held|'
-verb_no_irregular+='wrote|drew|brought|sent|saw'
+verb_no_irregular='carr(?:y|ies|ied)|appl(?:y|ies|ied)|made|gave|took|left|found|lost|'
+verb_no_irregular+='kept|got|held|wrote|drew|brought|sent|saw'
 verb_no_on='(?:rest|rel(?:y|ies|ied)|depend)(?:s|ed)?\s+on'
-verb_no_not_noun='longer|more|less|matter|later|earlier|sooner|one|fewer|greater|'
-verb_no_not_noun+='larger|smaller|wider|further'
+verb_no_comparative='more|less|later|earlier|sooner|fewer|greater|larger|smaller|'
+verb_no_comparative+='wider|further|better|worse'
 VERB_NO="(?i)\\b(?:(?:${verb_no_stems})(?:s|es|ed|d)?|${verb_no_irregular}|${verb_no_on})"
-VERB_NO+="\\s+no\\b(?!\\s+(?:${verb_no_not_noun})\\b)"
+VERB_NO+="\\s+no\\b(?!\\s+(?:longer|matter|one)\\b|\\s+(?:${verb_no_comparative})(?:\\s+than\\b|\\s*[.,;:)]|\\s*$))"
 VERB_NO_MSG='verb + "no" + noun -- write "does not make a", "has no", or say what does happen'
 
 # Two ways to match the verb. "names the", "naming a", "names no" and the like are
