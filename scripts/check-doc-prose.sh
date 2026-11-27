@@ -216,8 +216,22 @@ hits() {
 # Patterns shared by the documentation checks and --diff.
 
 # A verb followed by "no" and a noun, where "does not" with the verb reads better.
-# "Has no" usually reads naturally, so it is left out of the list.
-VERB_NO='(?i)\b(makes|gives|accepts|sets|reads|writes|holds|takes|needs|carries|leaves|names) no\b'
+# "Has no" usually reads naturally, so it is left out of the list.  Each verb is
+# matched in its present, third-person, and past forms, and so are "rest on", "rely
+# on", and "depend on".  "No longer", "no more", "no one" and other phrases where
+# "no" does not negate a noun are left out.
+verb_no_stems='make|give|accept|set|read|write|hold|take|need|leave|name|count|get|'
+verb_no_stems+='move|list|find|lose|gain|record|state|show|keep|use|return|match|add|'
+verb_no_stems+='raise|change|require|report|contain|draw|produce|yield|offer|apply|'
+verb_no_stems+='see|send|bring|pass|cover|select|enter|reach|fit|allow|expect|mark|'
+verb_no_stems+='load|cross|touch'
+verb_no_irregular='carr(?:y|ies|ied)|made|gave|took|left|found|lost|kept|got|held|'
+verb_no_irregular+='wrote|drew|brought|sent|saw'
+verb_no_on='(?:rest|rel(?:y|ies|ied)|depend)(?:s|ed)?\s+on'
+verb_no_not_noun='longer|more|less|matter|later|earlier|sooner|one|fewer|greater|'
+verb_no_not_noun+='larger|smaller|wider|further'
+VERB_NO="(?i)\\b(?:(?:${verb_no_stems})(?:s|es|ed|d)?|${verb_no_irregular}|${verb_no_on})"
+VERB_NO+="\\s+no\\b(?!\\s+(?:${verb_no_not_noun})\\b)"
 VERB_NO_MSG='verb + "no" + noun -- write "does not make a", "has no", or say what does happen'
 
 # Two ways to match the verb. "names the", "naming a", "names no" and the like are
