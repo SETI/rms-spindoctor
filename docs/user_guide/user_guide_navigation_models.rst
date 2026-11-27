@@ -771,7 +771,7 @@ over-determined, which makes it tolerant of a poor center on any one of them.
 Lines lost in transmission are left out of the measurement. When they cross one side of a
 body, they take that side's light with them, and the center of what is left shifts toward
 the other side. A body whose center they would shift by more than 1% of its radius is
-dropped, and when every body is dropped the technique reports no answer.
+dropped, and when every body is dropped the technique marks its answer spurious.
 
 Its confidence is capped at 0.4 by design. A brightness center is much weaker evidence
 than a fitted limb, so even a perfect blob match should not be allowed to outweigh a limb
