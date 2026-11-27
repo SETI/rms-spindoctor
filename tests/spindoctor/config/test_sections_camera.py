@@ -16,12 +16,12 @@ from tests.camera_sections import (
 from tests.packaged_sections import packaged_sections
 
 from spindoctor.config import Config
-from spindoctor.config.sections_camera import CameraBlock, as_camera_block
-from spindoctor.schema import SchemaError
+from spindoctor.config.sections_camera import CameraBlock
+from spindoctor.schema import SchemaError, parse
 
 
 def test_packaged_camera_blocks_parse() -> None:
-    """Every packaged real camera section is typed, and each camera parses."""
+    """Every packaged camera section is typed, the simulated camera's included."""
     sections = packaged_sections()
     assert tuple(dict.fromkeys(name for name, _ in PACKAGED_CAMERAS)) == sections.CAMERA_SECTIONS
     for section, camera in PACKAGED_CAMERAS:
@@ -75,7 +75,7 @@ def test_a_camera_sets_the_keys_its_units_read(
     else:
         raw[block_key][key] = value
     with pytest.raises(SchemaError, match=rf'camera: {block_key}\.{key}: .*{message}'):
-        as_camera_block(raw, source='camera')
+        parse(CameraBlock, raw, source='camera')
 
 
 def test_the_fallback_combination_has_an_offset() -> None:
@@ -85,7 +85,7 @@ def test_the_fallback_combination_has_an_offset() -> None:
     with pytest.raises(
         SchemaError, match=r"mag_offset\.fallback_combo: 'NOT_A_COMBO' has no entry"
     ):
-        as_camera_block(raw, source='camera')
+        parse(CameraBlock, raw, source='camera')
 
 
 def test_the_bandpass_heavy_blur_is_the_wider() -> None:
@@ -93,14 +93,14 @@ def test_the_bandpass_heavy_blur_is_the_wider() -> None:
     raw = camera_mapping(raw_camera())
     raw['source_image_filter']['lo_sigma_px'] = 0.5
     with pytest.raises(SchemaError, match=r'source_image_filter\.lo_sigma_px: .* greater than'):
-        as_camera_block(raw, source='camera')
+        parse(CameraBlock, raw, source='camera')
 
 
 def test_a_block_read_through_json_parses_to_the_same_camera() -> None:
     """A block whose integer keys became strings, as JSON writes them, reads the same."""
     camera = raw_camera()
     through_json = json.loads(json.dumps(camera_mapping(camera)))
-    assert as_camera_block(through_json, source='camera') == camera
+    assert parse(CameraBlock, through_json, source='camera') == camera
 
 
 @pytest.mark.parametrize('marker', ['NaN', math.nan], ids=['string', 'float'])
@@ -108,7 +108,7 @@ def test_a_nan_marker_reads_as_nan(marker: str | float) -> None:
     """A marker written as NaN, or a float NaN in a mapping, reads as NaN."""
     raw = camera_mapping(raw_camera())
     raw['noise']['marker_value'] = marker
-    assert math.isnan(as_camera_block(raw, source='camera').noise.marker())
+    assert math.isnan(parse(CameraBlock, raw, source='camera').noise.marker())
 
 
 def test_the_margin_follows_the_image_height() -> None:
@@ -124,8 +124,7 @@ def test_a_height_the_margin_table_leaves_out_is_refused() -> None:
         camera.extfov_margin_for(256)
 
 
-def test_an_untyped_camera_section_is_parsed_when_asked_for() -> None:
-    """The simulator's camera section is left untyped at load and parsed on request."""
-    config = Config()
-    assert 'sim' not in config._typed_sections().CAMERA_SECTIONS
-    assert isinstance(config.camera_block('sim'), CameraBlock)
+def test_a_section_that_holds_no_camera_has_no_camera_names() -> None:
+    """Asking a section that holds no camera block for its cameras is refused."""
+    with pytest.raises(KeyError, match="'offset' is not a camera section"):
+        Config().camera_names('offset')

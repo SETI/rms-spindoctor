@@ -5,7 +5,7 @@ from psfmodel import PSF, GaussianPSF
 from starcat import Star
 
 from spindoctor.config import Config
-from spindoctor.config.sections_camera import CameraBlock, as_camera_block
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.support.types import PathLike
 
 if TYPE_CHECKING:
@@ -58,35 +58,18 @@ class ObsInst(ABC):
         super().__init__(**kwargs)
 
         self._camera_block: CameraBlock | None = None
-        # The simulated observation holds its camera block as a mapping, with its
-        # scene's overrides merged over it, until the simulator types it (#1029).
-        self._inst_config: dict[str, Any] | None = None
-        self._parsed_inst_config: tuple[dict[str, Any], CameraBlock] | None = None
         self.is_simulated: bool = kwargs.get('simulated', False)
 
     @property
     def inst_config(self) -> CameraBlock:
         """The block of the camera that took this observation.
 
-        An observation class that holds its block as a mapping has it parsed into the
-        same type (see :func:`~spindoctor.config.sections_camera.as_camera_block`) when
-        it is first read.
-
         Raises:
             ValueError: If the observation has no camera block.
-            ~spindoctor.schema.SchemaError: If a block held as a mapping breaks the
-                camera block's schema.
         """
-        if self._camera_block is not None:
-            return self._camera_block
-        if self._inst_config is None:
+        if self._camera_block is None:
             raise ValueError('Instrument configuration not set')
-        parsed = self._parsed_inst_config
-        if parsed is None or parsed[0] is not self._inst_config:
-            block = as_camera_block(self._inst_config, source='the observation camera block')
-            parsed = (self._inst_config, block)
-            self._parsed_inst_config = parsed
-        return parsed[1]
+        return self._camera_block
 
     @property
     @abstractmethod

@@ -3,12 +3,12 @@
 :func:`parse_scene` is the scene validator: it checks a scene's mapping and returns the
 typed :class:`~spindoctor.sim.scene.truth.Scene`.  The typed blocks are checked by
 their types (:mod:`spindoctor.sim.scene.truth` and the modules it builds on) and by the
-catalog rules of :mod:`spindoctor.sim.scene.rules_detector`.  The blocks not typed yet
+rules that read the scene's camera: :mod:`spindoctor.sim.scene.rules_detector` and
+:mod:`spindoctor.sim.scene.rules_instrument_config`.  The blocks not typed yet
 (:data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`) are checked by their rules
 modules: body entries by :mod:`spindoctor.sim.scene.rules_body`, the ring_system block
 by :mod:`spindoctor.sim.scene.rules_ring`, the artifacts block by
-:mod:`spindoctor.sim.scene.rules_artifacts`, the instrument_config block by
-:mod:`spindoctor.sim.scene.rules_instrument_config`, and the rest by
+:mod:`spindoctor.sim.scene.rules_artifacts`, and the rest by
 :mod:`spindoctor.sim.scene.rules_common`.
 
 ``validate_sim_params`` validates an in-memory ``sim_params`` dict and returns it;
@@ -46,7 +46,7 @@ from spindoctor.sim.scene.rules_common import (
     _require_ranges_for_spk_error,
 )
 from spindoctor.sim.scene.rules_detector import check_scene_camera
-from spindoctor.sim.scene.rules_instrument_config import _check_instrument_config
+from spindoctor.sim.scene.rules_instrument_config import check_instrument_config
 from spindoctor.sim.scene.rules_ring import _check_ring_system
 from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
 from spindoctor.sim.scene.truth_echo import check_truth_echo
@@ -116,8 +116,9 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
     its default.  A null is refused at any depth, as a key of the scene, of a block,
     or of a mapping in a list, and as a list entry, and the message gives the full key
     path, such as ``bodies[1].nav_override.mesh_lumpiness``.  The typed blocks take only
-    what a scene file holds: mappings with string keys, lists, and JSON scalars.  A tuple,
-    a set, a generator, or a typed instance is refused.  Every
+    what a scene file holds: mappings, lists, and JSON scalars.  A mapping's keys are
+    strings, or integers, which YAML reads from a key written as a number.  A tuple, a
+    set, a generator, or a typed instance is refused.  Every
     other problem with a typed block is reported at once, one line each, in the form
     ``source: key.path: message``.
 
@@ -153,6 +154,12 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
     except SchemaError as exc:
         raise SimSceneValidationError(str(exc)) from exc
     check_scene_camera(scene, source=source)
+    check_instrument_config(
+        scene.instrument_config,
+        instrument=scene.instrument,
+        binning=scene_binning(raw),
+        source=source,
+    )
     _check_untyped_blocks(raw, instrument=scene.instrument, source=source)
     if scene.spk_error is not None:
         _require_ranges_for_spk_error(raw, source=source)
@@ -163,8 +170,9 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
 def _refuse_non_file_values(raw: Mapping[str, Any], *, source: str) -> None:
     """Refuse, in the typed blocks, any value that a scene file cannot hold.
 
-    A scene file holds mappings with string keys, lists, and scalars: JSON scalars and the
-    dates that YAML reads.  Anything
+    A scene file holds mappings, lists, and scalars: JSON scalars and the dates that YAML
+    reads.  A mapping's keys are strings, or integers, which YAML reads from a key written
+    as a number, such as a binning factor.  Anything
     else can come only from a scene built in Python: a tuple or a set (a set's order is
     arbitrary), a generator, which the schema would consume, or a typed instance such as
     a detector override, which the renderer cannot encode.  The check runs on the raw
@@ -192,14 +200,14 @@ def _refuse_non_file_value(value: Any, path: str, *, source: str) -> None:
         source: The label that begins the error message.
 
     Raises:
-        SimSceneValidationError: If a value at any depth is not a mapping with string
-            keys, a list, a JSON scalar, or a date.
+        SimSceneValidationError: If a value at any depth is not a mapping with string or
+            integer keys, a list, a JSON scalar, or a date.
     """
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if not isinstance(key, str):
+            if not isinstance(key, str | int) or isinstance(key, bool):
                 raise SimSceneValidationError(
-                    f'{source}: {path}: expected a string key, got {describe_value(key)}'
+                    f'{source}: {path}: expected a string or integer key, got {describe_value(key)}'
                 )
             _refuse_non_file_value(item, f'{path}.{key}', source=source)
     elif isinstance(value, list):
@@ -228,12 +236,6 @@ def _check_untyped_blocks(raw: Mapping[str, Any], *, instrument: str, source: st
         SimSceneValidationError: On any unknown or invalid key in those blocks.
     """
     _check_ring_system(raw.get('ring_system'), source=source)
-    _check_instrument_config(
-        raw.get('instrument_config'),
-        instrument=instrument,
-        binning=scene_binning(raw),
-        source=source,
-    )
     _check_artifacts(
         raw.get('artifacts'),
         instrument=instrument,

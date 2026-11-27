@@ -20,7 +20,6 @@ Every field without a default is a key whose value lives in the packaged YAML on
 field that defaults to None is a key a camera leaves out when it does not apply.
 """
 
-import dataclasses
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -41,7 +40,6 @@ from spindoctor.schema import (
     RuleError,
     Str,
     Unit,
-    parse,
     tagged,
 )
 
@@ -82,17 +80,11 @@ __all__ = [
     'StarPsfSigma',
     'StarPsfSize',
     'StarPsfSizes',
-    'as_camera_block',
     'camera_sections',
 ]
 
 CAMERA_MARKER_KEY = 'data_units'
 """The key every camera block sets, by which the configuration's camera blocks are found."""
-
-# The simulator's camera block (config_440_sim.yaml) is typed by the simulator under its
-# own issue, with this module's type; until then the loader leaves it untyped, and
-# as_camera_block reads it where the navigator needs it (#1029).
-_UNTYPED_CAMERA_SECTIONS = frozenset({'sim'})
 
 #: The units a camera's images are read in: raw detector counts, or calibrated I/F.
 DataUnits = Literal['raw_dn', 'calibrated_if']
@@ -446,36 +438,6 @@ class CameraBlock:
         return margin[size_v]
 
 
-def as_camera_block(block: CameraBlock | Mapping[str, Any], *, source: str) -> CameraBlock:
-    """Return a camera block as a :class:`CameraBlock`, parsing it if it is a mapping.
-
-    A simulated observation holds its camera block as a mapping, with its scene's
-    overrides merged over it, and the simulator's own camera section is read as a
-    mapping; this reads either through the same type as every other camera block.  A
-    scene's overrides may carry top-level keys of their own, which the block does not
-    declare, and those are not read.
-
-    Parameters:
-        block: The camera block, typed or as a mapping.
-        source: The label a message gives for a problem in a mapping.
-
-    Returns:
-        ``block`` itself when it is typed, otherwise the parsed block.
-
-    Raises:
-        ~spindoctor.schema.SchemaError: If a mapping breaks the camera block's schema;
-            each line gives ``source`` and the key path.
-    """
-    if isinstance(block, CameraBlock):
-        return block
-    # The simulator's scene overrides are merged in whole, keys of their own included, and
-    # its readers have only ever read the keys they know; its own overlay type decides
-    # which keys a scene may set (#1029).
-    declared = {item.name for item in dataclasses.fields(CameraBlock)}
-    raw = {key: value for key, value in block.items() if key in declared}
-    return parse(CameraBlock, raw, source=source)
-
-
 def camera_sections(
     config: Mapping[str, Any],
     *,
@@ -501,7 +463,7 @@ def camera_sections(
     """
     found: list[tuple[str, bool]] = []
     for name, section in config.items():
-        if name in typed or name in _UNTYPED_CAMERA_SECTIONS or not isinstance(section, Mapping):
+        if name in typed or not isinstance(section, Mapping):
             continue
         if CAMERA_MARKER_KEY in section:
             found.append((name, False))

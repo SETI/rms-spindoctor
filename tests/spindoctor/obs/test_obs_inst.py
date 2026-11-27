@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 from starcat import Star
-from tests.camera_sections import camera_mapping, raw_camera
+from tests.camera_sections import raw_camera
 
 from spindoctor.obs.obs_inst import ObsInst
 
@@ -51,13 +51,6 @@ def test_star_psf_size_follows_the_magnitude_bins(vmag: float, size: tuple[int, 
     inst = _ConcreteObsInst()
     inst._camera_block = raw_camera(star_psf_sizes={5: (3, 3), 10: (7, 7)})
     assert inst.star_psf_size(_make_star(vmag)) == size
-
-
-def test_a_camera_block_held_as_a_mapping_is_parsed() -> None:
-    """An observation that holds its camera block as a mapping reads it as the type."""
-    inst = _ConcreteObsInst()
-    inst._inst_config = camera_mapping(raw_camera())
-    assert inst.inst_config == raw_camera()
 
 
 def test_shutter_mode_defaults_to_none() -> None:

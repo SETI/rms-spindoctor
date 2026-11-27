@@ -12,8 +12,8 @@ from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.support.image_class import ImageQualityThresholds, image_quality_thresholds
 from tests.packaged_sections import packaged_sections
 
-# The sections of the packaged real cameras and the cameras inside them; None for a
-# section that is one camera's block.
+# The sections of the packaged cameras, the simulated camera's included, and the cameras
+# inside them; None for a section that is one camera's block.
 PACKAGED_CAMERAS: tuple[tuple[str, str | None], ...] = (
     ('cassini_iss', 'nac'),
     ('cassini_iss', 'wac'),
@@ -25,6 +25,7 @@ PACKAGED_CAMERAS: tuple[tuple[str, str | None], ...] = (
     ('voyager_iss', 'vgiss_1_wac'),
     ('voyager_iss', 'vgiss_2_nac'),
     ('voyager_iss', 'vgiss_2_wac'),
+    ('sim', None),
 )
 
 

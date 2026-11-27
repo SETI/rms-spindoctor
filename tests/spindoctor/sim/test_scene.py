@@ -136,10 +136,7 @@ def test_validate_sim_params_rejects_scene_data_units() -> None:
     """A scene's instrument_config can't set data_units, even to the entry's own units."""
     params = _sim_params()
     params['instrument_config'] = {'data_units': 'raw_dn'}
-    message = (
-        r"sim_params: instrument_config: a scene can't set data_units\. Choose an "
-        r'instrument whose entry renders the units you want\.$'
-    )
+    message = r"sim_params: instrument_config: unknown keys: \['data_units'\]$"
     with pytest.raises(SimSceneValidationError, match=message):
         validate_sim_params(params)
 

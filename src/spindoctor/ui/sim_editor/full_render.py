@@ -14,7 +14,7 @@ from typing import Any
 from PyQt6.QtCore import QObject
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import scene_camera_block
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.support.types import NDArrayFloatType
 from spindoctor.ui.sim_editor.frame_status import frame_units_summary
@@ -61,11 +61,7 @@ def render_full_frame(sim_params: dict[str, Any]) -> FullRender:
         SimSceneValidationError: If the scene fails validation.
     """
     image, meta = render_scene(sim_params, ignore_offset=True)
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG,
-        sim_params.get('instrument'),
-        sim_params.get('instrument_config'),
-    )
+    inst_config = scene_camera_block(DEFAULT_CONFIG, sim_params)
     return FullRender(image=image, meta=meta, units_summary=frame_units_summary(image, inst_config))
 
 
