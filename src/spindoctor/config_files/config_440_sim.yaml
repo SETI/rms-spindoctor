@@ -32,6 +32,7 @@ sim:
     noisy_threshold_dn: 10.0
     max_missing_frac_clean: 0.30
     max_overexposed_frac_clean: 0.80
+    partial_dropout_min_frac: 0.05
   source_image_filter:
     kind: BANDPASS_DOG
     lo_sigma_px: 5.0

@@ -3,7 +3,8 @@
 The renderer, the validator, the scene editor, and the navigator-side simulated
 models all read scene keys through these helpers, so they agree on what a key
 means: :func:`scene_value` reads an optional key or its default,
-:func:`scene_binning` reads the readout binning, and
+:func:`scene_binning` reads the readout binning (:data:`DEFAULT_BINNING` when a
+scene sets none), and
 :func:`default_body_name` and :func:`default_body_range_km` give the name and range
 a body takes when its entry leaves them out.  The tables here say which shape keys
 each ring feature kind takes (:data:`RING_KIND_SHAPE_KEYS`) and which side an edge
@@ -18,6 +19,10 @@ it; :mod:`spindoctor.sim` explains the rule.
 
 from collections.abc import Iterable, Mapping
 from typing import Any
+
+#: The readout binning of a scene that leaves ``detector.binning`` out: the native
+#: readout, one native pixel per frame pixel.
+DEFAULT_BINNING = 1
 
 # Body keys the polyhedral-mesh render path does not consume: the ellipsoid
 # renderer's crater carving, photometric laws, and
@@ -176,14 +181,14 @@ def default_body_range_km(index: int) -> float:
 
 
 def scene_binning(params: Mapping[str, Any]) -> int:
-    """The binning factor a scene's ``detector`` block selects, 1 by default.
+    """The binning factor a scene's ``detector`` block selects.
 
     Parameters:
         params: The full scene mapping.
 
     Returns:
-        The stated ``detector.binning``, or 1 when the scene leaves the block or the
-        key out.
+        The stated ``detector.binning``, or :data:`DEFAULT_BINNING` when the scene
+        leaves the block or the key out.
 
     Raises:
         ValueError: If ``detector.binning`` is set to anything but an integer (a bool
@@ -193,7 +198,7 @@ def scene_binning(params: Mapping[str, Any]) -> int:
     detector = params.get('detector') or {}
     binning = detector.get('binning') if isinstance(detector, Mapping) else None
     if binning is None:
-        return 1
+        return DEFAULT_BINNING
     if isinstance(binning, bool) or not isinstance(binning, int):
         raise ValueError(f'detector.binning must be an integer, got {binning!r}')
     return binning

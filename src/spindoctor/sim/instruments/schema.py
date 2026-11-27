@@ -340,6 +340,37 @@ class DownlinkTable:
             )
         _check_decoded_levels(parametric_decoded_dn(self))
 
+    def top_decoded_dn(self) -> float:
+        """The largest DN any code of the table decodes to.
+
+        Returns:
+            The table's top level, in DN.
+        """
+        if self.decoded_dn is not None:
+            return float(max(self.decoded_dn))
+        return float(parametric_decoded_dn(self).max())
+
+    def check_ceiling(self, saturation_dn: float) -> None:
+        """Refuse a table whose top decoded value lies above the ADC ceiling.
+
+        The quantizer snaps each DN, already clipped at the ceiling, to the nearest
+        decoded value, so a value above the ceiling would put DN in the frame that the
+        ADC can never produce.  The scene validator and the detector stage both apply
+        this rule.
+
+        Parameters:
+            saturation_dn: The ADC ceiling the frame's DN is clipped at.
+
+        Raises:
+            ValueError: If the table's top decoded value exceeds ``saturation_dn``.
+        """
+        top_dn = self.top_decoded_dn()
+        if top_dn > saturation_dn:
+            raise ValueError(
+                f'the downlink table decodes up to {top_dn:g} DN, above the ADC ceiling '
+                f'(saturation_dn) of {saturation_dn:g} DN'
+            )
+
 
 def parametric_decoded_dn(table: DownlinkTable) -> np.ndarray[Any, np.dtype[np.float64]]:
     """The DN each code of a parametric table decodes to, in code order.
