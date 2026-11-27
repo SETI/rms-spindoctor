@@ -1,5 +1,7 @@
+import math
+import re
 from fractions import Fraction
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 from filecache import FCPath
@@ -10,6 +12,17 @@ from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import HostLabel, ObsSnapshotInst
+
+_READOUT_MODE = 'ALL'
+"""The one readout mode of the star photometry's mode tables: a Voyager camera's star
+limit and star width do not depend on the readout."""
+
+_LAB03_GAIN_RE = re.compile(r'\b(?P<gain>LO|HI) GAIN\b')
+"""The gain state in the VICAR label's ``LAB03`` record, as in ``LO GAIN``."""
+
+_GAIN_STATES = {'LO': 'LOW', 'HI': 'HIGH'}
+"""The gain state for each ``LAB03`` spelling, spelled the way the PDS3 label's
+``GAIN_MODE_ID`` spells it."""
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
 # kernels, $OOPS_RESOURCES/SPICE/Voyager/SCLK/vg100042.tsc and vg200041.tsc, which give both
@@ -229,38 +242,57 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         """
         return 0.0
 
+    @property
+    def _star_photometry_path(self) -> str:
+        """The key path of this camera's star photometry, which a message gives."""
+        return (
+            f'voyager_iss.{_camera_name(self.spacecraft_digit, str(self.detector))}.star_photometry'
+        )
+
     def star_max_usable_vmag(self) -> float:
-        """Returns the maximum usable magnitude for stars in this observation.
+        """Returns the faintest V magnitude of a catalog star the star model uses.
 
-        The limiting magnitude follows the Cassini Pogson-ratio form,
-
-            star_max_usable_vmag(texp) = anchor + log(texp) / log(2.512)
-
-        where ``anchor`` is the limiting magnitude at a 1 s exposure (each
-        2.512x increase in exposure buys +1 mag of depth).
-
-        The anchor is scaled from the Cassini NAC anchor (10.5 mag at 1 s,
-        aperture D = 0.19 m) by collecting-area, with a detector-sensitivity
-        term for the Voyager vidicon (roughly 2 mag less sensitive than a
-        CCD).  These are nominal optics values; the terms are approximate and
-        pending calibration against real Voyager star fields.
-
-            anchor = 10.5 + 5*log10(D / 0.19) + detector_term
-
-        Per camera (apertures from the Voyager ISS optics; vidicon detector):
-
-            NAC: 10.5 + 5*log10(0.176/0.19) - 2.0 (vidicon) ~= 8.3
-            WAC: 10.5 + 5*log10(0.057/0.19) - 2.0 (vidicon) ~= 5.9
+        The limit is photometric, from the camera block's ``star_photometry`` (see
+        :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate is in
+        raw DN, because the Voyager calibration works in DN and does not convert to
+        electrons.
+        The filter is the observation's filter, the gain state is read from the VICAR
+        label's ``LAB03`` record (``LO GAIN`` or ``HI GAIN``, read as ``LOW`` or
+        ``HIGH``), and the mode tables have the one mode ``ALL``.
 
         Returns:
-            The maximum usable magnitude for stars in this observation.
-        """
+            The limiting magnitude, or ``-inf`` for a frame whose exposure is not
+            positive.
 
-        # Anchor (limiting mag at texp = 1 s) derived above; rounded to 0.1.
-        anchor = 5.9 if self.detector == 'WAC' else 8.3
-        if self.texp <= 0:
-            return anchor
-        return cast(float, anchor + np.log(self.texp) / np.log(2.512))
+        Raises:
+            ValueError: If the label does not give a gain state, or the block has no
+                ``star_photometry``, or its tables leave out the frame's filter or gain
+                state.
+        """
+        if self.texp <= 0.0:
+            return -math.inf
+        match = _LAB03_GAIN_RE.search(str(self.dict.get('LAB03', '')))
+        if match is None:
+            raise ValueError(f'{self.detector} label does not give a gain state in LAB03')
+        return self._photometric_star_limit(
+            texp=self.texp,
+            where=self._star_photometry_path,
+            gain_state=_GAIN_STATES[match.group('gain')],
+            mode=_READOUT_MODE,
+            filter_name=self.filter,
+        )
+
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        Returns:
+            The camera block's ``star_photometry.psf_sigma`` entry ``ALL``.
+
+        Raises:
+            ValueError: If the block has no ``star_photometry``, or its ``psf_sigma`` has no
+                entry ``ALL``.
+        """
+        return self._photometric_star_sigma(where=self._star_photometry_path, mode=_READOUT_MODE)
 
     @property
     def camera(self) -> str:

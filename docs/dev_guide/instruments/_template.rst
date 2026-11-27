@@ -41,9 +41,9 @@ where it is used.
 Photometric and PSF calibration
 ===============================
 
-The limiting-magnitude form and this instrument's anchors with their
-derivation; the PSF sigma and the star cutout box sizes; the magnitude-offset
-table; how to recalibrate.
+The limiting-magnitude form and this instrument's values, with how each was
+measured or derived; the PSF sigma and the star cutout box sizes; the
+magnitude-offset table; how to recalibrate.
 
 Frames, attitude, and rotation fitting
 ======================================

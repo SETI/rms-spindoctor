@@ -7,7 +7,12 @@ newhorizons_lorri:
     256: [15, 15]
     512: [30, 30]
     1024: [60, 60]
-  star_psf_sigma: 3.
+  # The simulator's copy of the star width, in the pixels of an unbinned frame: the
+  # navigator reads its own from star_photometry.psf_sigma below, per binning mode, and
+  # this value matches its unbinned one.  On a simulated 4X4 frame the
+  # simulator takes a quarter of this width, 0.225 px, while the navigator uses 0.45 px
+  # on a real 4X4 frame, so the two match only at full resolution.
+  star_psf_sigma: 0.9
   # Fraction of the offset window, per axis, inside which
   # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
   # this camera: 0.6 is the Cassini NAC's value.
@@ -50,6 +55,48 @@ newhorizons_lorri:
     fallback_combo: '1'
     mag_offset_table:
       '1': {default: 0.0}          # PLACEHOLDER — calibrate in Phase 10
+  # Star photometry of the camera, read by ObsNewHorizonsLORRI for its star limit and star
+  # width.  A star of V magnitude m and the default spectral class deposits
+  #     flux_per_s_vmag0 * 10**(-0.4 * m) * texp / gain[binning]
+  # DN, the rate counting electrons and gain giving electrons per DN.  The dimmest visible
+  # star deposits min_detectable_dn[binning], and the catalog search reaches
+  # search_depth_mag past it.  LORRI has no filter, so the block has no filter_mag_offset.
+  # It has one gain state, so gain is keyed by the binning mode.  The binning mode follows
+  # from the row count, as the image host reads it: 1024 rows is 1X1 and 256 rows is 4X4.
+  # Binning changes the electrons per DN, the noise of a pixel, and
+  # the width of a star in pixels, so each of those is given per mode.
+  #
+  # Measured on star fields of the cruise and the Pluto approach (#130): 341 frames with an
+  # independent pointing fix from three or more agreeing stars, one frame in three held
+  # out.  Frames shorter than 50 ms are left out of the fit: LORRI has no shutter, so the
+  # frame transfer adds light to a short exposure.  util/star_photometry and its fit
+  # commands give the method.
+  star_photometry:
+    # Fit: 3.605e7 DN/s for V = 0 at 1X1 (+-0.01 mag, 4310 stars), times 21.0 e-/DN.
+    # Weaver et al. 2020's zero point (18.78 at 1X1) gives 3.2e7 DN/s.
+    flux_unit: electrons
+    flux_per_s_vmag0: 7.57e+08
+    # Weaver et al. 2020.  The stars measure the 4X4/1X1 DN ratio at 1.054 (+-0.01 mag)
+    # against the 1.082 these values give.
+    gain:
+      1X1: 21.0
+      4X4: 19.4
+    # Fit: 110 +- 7 DN at 1X1 and 60 +- 4 DN at 4X4, each the DN at 80% of the way from
+    # the detection floor to the plateau of a detection-probability curve fitted to every
+    # clean star of that mode.
+    min_detectable_dn:
+      1X1: 110.0
+      4X4: 60.0
+    # As in the earlier navigation software, which searched 1 mag past the dimmest
+    # visible star.
+    search_depth_mag: 1.0
+    # Gaussian sigma of a star, in the frame's own pixels.  1X1: the median of 311 stars
+    # on 45 frames (p16-p84 0.82-0.97); Weaver et al. 2020's FWHMs of 2.04 x 2.70 px are
+    # sigma 0.87 x 1.15.  4X4: the 5-10 s navigation frames give 0.45-0.54, and the
+    # sub-second star calibrations 0.28 (pointing jitter widens a long exposure).
+    psf_sigma:
+      1X1: 0.9
+      4X4: 0.45
   # ``_sources`` is documentation-only.  The configuration loader drops
   # every key starting with ``_`` at load time, so this block does not
   # affect runtime behavior; it exists so reviewers can trace each

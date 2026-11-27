@@ -187,16 +187,43 @@ or DN-to-image-unit scaling enters the decision. The catalog reduction applies t
 magnitude cap, so the gate in the model is mostly a self-contained re-check that also
 handles the missing-magnitude case.
 
-Each per-instrument :meth:`star_max_usable_vmag()
-<spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` follows the form
+Each instrument's :meth:`star_max_usable_vmag()
+<spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` takes one of two forms. The
+photometric form predicts the DN a star puts in the image from the camera's measured
+photometry,
+
+.. math::
+
+    \mathrm{DN}(m) = R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}} \cdot k,
+
+where :math:`R` is the DN rate of a V = 0 star through the camera's reference filter in
+its reference gain state and readout mode, :math:`f` is the frame's filter's magnitude
+offset from the reference filter, and :math:`k` is the factor by which the frame's gain
+state or readout mode multiplies the DN. The dimmest visible star is the magnitude
+:math:`m_{\mathrm{dim}}` whose DN equals the camera's measured minimum detectable DN,
+and the limit searches a fixed depth past it:
+
+.. math::
+
+    m_{\mathrm{limit}} = m_{\mathrm{dim}} + \Delta m_{\mathrm{search}}.
+
+Each factor of ten in exposure moves the limit 2.5 magnitudes deeper, and a filter
+moves it by the filter's offset. A frame whose exposure is not positive gets a limit
+of :math:`-\infty`. The values come from the ``star_photometry`` block of the camera's
+own block (see :ref:`config-camera-blocks`), and each camera's values are described in
+its chapter under :doc:`/dev_guide/instruments/instruments`. A frame is refused when the
+block's tables leave out its filter, gain state, or readout mode.
+
+The anchored form scales a single measured limit with the exposure alone,
 
 .. math::
 
     m_{\mathrm{limit}}(t_{\mathrm{exp}}) =
-        \mathrm{anchor} + \frac{\log t_{\mathrm{exp}}}{\log 2.512},
+        \mathrm{anchor} + \frac{\log (t_{\mathrm{exp}} / t_{\mathrm{ref}})}{\log 2.512},
 
-where ``anchor`` is the limiting magnitude at a one-second exposure and each Pogson factor
-of exposure time buys one more magnitude of depth.
+where ``anchor`` is the limiting magnitude measured on a frame of exposure
+:math:`t_{\mathrm{ref}}` and each Pogson factor of exposure time buys one more magnitude
+of depth.
 
 Magnitude-margin effective SNR
 ------------------------------
