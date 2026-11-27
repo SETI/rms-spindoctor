@@ -35,6 +35,7 @@ def _zp_row(filter_name: str, gain: str, vmag: float, zp_error: float = 0.0) -> 
     zp = ZERO_POINT + zp_error + (GAIN_40K if gain == '40K' else 0.0)
     zp -= RED_OFFSET if filter_name == 'RED' else 0.0
     return {
+        'image_id': 'F0',
         'filter': filter_name,
         'gain': gain,
         'vmag': vmag,
@@ -161,6 +162,15 @@ def test_zero_point_reports_uncalibrated_states_not_measured() -> None:
     assert result.gains_not_measured == ['40K']
     assert 'RED' not in result.filter_offsets
     assert '40K' not in result.gain_ratio
+
+
+def test_zero_point_counts_only_frames_with_a_fitting_star() -> None:
+    """A frame whose only stars are through a filter with too few stars is not counted."""
+    red = _rows([('RED', '10K')])[:3]
+    for row in red:
+        row['image_id'] = 'F1'
+    result = _fit(_rows([('CLEAR', '10K')]) + red)
+    assert result.n_fit_frames == 1
 
 
 def test_detection_limit_leaves_out_unmeasured_terms() -> None:

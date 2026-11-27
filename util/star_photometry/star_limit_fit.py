@@ -203,7 +203,7 @@ class FitResult:
     Attributes:
         camera: The camera key.
         n_frames: Frames with an accepted pointing fix.
-        n_fit_frames: Of those, frames used in the fit.
+        n_fit_frames: Of those, frames with a star in the zero-point fit.
         apcorr: Aperture correction per mode.
         zero_point_identified: False when the fitting stars cannot separate the intercept,
             the filter terms, and the gain terms (for example, every star through one
@@ -385,9 +385,7 @@ def fit_camera(
         and r['flux_big'] / r['flux_big_sigma'] >= FIT_MIN_FLUX_SNR
         and not (r['catalog'] == 'ucac4' and r['vmag'] < UCAC4_MIN_VMAG_FOR_FIT)
     ]
-    result.n_fit_frames = len(
-        {r['frame']['image_id'] for r in accepted if not is_held_out(r['frame']['image_id'])}
-    )
+    result.n_fit_frames = len({r['image_id'] for r in fit_rows})
     result.n_zp_stars = len(fit_rows)
     if len(fit_rows) < 5:
         # The frames stay in the table, with the fitted columns NaN.

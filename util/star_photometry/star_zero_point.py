@@ -142,6 +142,7 @@ def fit_zero_point(
         (observed_gains | set(calibration_gain_ratios)) - set(gains) - {reference_gain}
     )
     result.n_zp_stars = len(rows)
+    result.n_fit_frames = len({r['image_id'] for r in rows})
     n = len(rows)
     a = np.zeros((n, 1 + len(filters) + len(gains)))
     a[:, 0] = 1.0
