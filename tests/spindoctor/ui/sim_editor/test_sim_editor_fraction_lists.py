@@ -64,3 +64,19 @@ def test_the_mean_group_count_stops_at_one(model: Any) -> None:
     spin = model._mode_rows[_MODE]._scalar_widgets['mean_groups']
     spin.setValue(0.0)
     assert spin.value() == 1.0
+
+
+def test_a_fraction_list_spin_steps_by_a_hundredth(model: Any) -> None:
+    """One step up from an intermediate share lands on the next hundredth."""
+    spin = model._mode_rows[_MODE]._list_spins['head_kept_percentiles'][9]
+    spin.setValue(0.5)
+    spin.stepUp()
+    assert spin.value() == pytest.approx(0.51)
+
+
+def test_a_fraction_scalar_spin_steps_by_a_hundredth(model: Any) -> None:
+    """One step up from an intermediate scalar fraction lands on the next hundredth."""
+    spin = model._mode_rows[_MODE]._scalar_widgets['probability']
+    spin.setValue(0.5)
+    spin.stepUp()
+    assert spin.value() == pytest.approx(0.51)

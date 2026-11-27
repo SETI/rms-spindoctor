@@ -71,6 +71,8 @@ _NUMBER_DECIMALS = 4
 # A hot-pixel fraction is a small density (1.6e-5 on the calibrated Cassini
 # cameras, 2.75e-4 in the Titan truth scenes), so its spin keeps six decimals.
 _PIXEL_FRACTION_DECIMALS = 6
+# The arrows of a [0, 1] fraction step by a hundredth, not Qt's default of 1.
+_FRACTION_STEP = 0.01
 
 
 class ArtifactModeController(Protocol):
@@ -193,6 +195,8 @@ class ModeRow:
                 _PIXEL_FRACTION_DECIMALS if param.name == PIXEL_FRACTION else _NUMBER_DECIMALS
             )
             spin.setRange(0.0, 1.0 if param.annotation is Unit else _NUMBER_MAX)
+            if param.annotation is Unit:
+                spin.setSingleStep(_FRACTION_STEP)
             return spin
         if param.annotation is AT_LEAST_ONE:
             spin = QDoubleSpinBox()
@@ -226,6 +230,7 @@ class ModeRow:
                 spin = QDoubleSpinBox()
                 spin.setDecimals(_PIXEL_FRACTION_DECIMALS)
                 spin.setRange(0.0, 1.0)
+                spin.setSingleStep(_FRACTION_STEP)
             elif param.item_annotation is Positive:
                 spin = QDoubleSpinBox()
                 spin.setDecimals(_NUMBER_DECIMALS)
