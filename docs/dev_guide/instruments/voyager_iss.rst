@@ -356,27 +356,26 @@ Simulator model
 ===============
 
 **Instrument keys.** One key for each spacecraft and camera: ``vgiss_1_nac`` and
-``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2.
-The four entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``.
-Each entry states every value itself and none takes a value from another, because each
-vidicon and telescope is unique. The optical values (the PSF, the residual
-distortion, the plate scale, the star zero point, and the vidicon detector values)
-are per camera. Apart from the Voyager 2 cameras' star zero points, they hold the
-same numbers in all four entries today, and a comment beside each says where the
-number comes from and that it is not yet measured for that camera. The values
-that do not describe a camera's optics (the
-data units, the navigator link, the readout modes, and the artifact-mode
-availability) are repeated in each entry as well, because a shared parent would
-have to be one of the cameras. Every analysis is per camera too: the realism match,
-the field-of-view distortion, and the rotation each use one camera's frames. No
-simulator entry holds a rotation value today. All four emulate the one ``voyager_iss``
-section of the navigator configuration. The realism match pairs the image
-library's two Voyager 1 wide angle frames with ``vgiss_1_wac`` and its one Voyager 2
-narrow angle frame with ``vgiss_2_nac``; the other two entries have no frame in the
-library. A library sidecar for a Voyager frame gives its spacecraft (``VG1`` or
-``VG2``) beside the mission and the camera, so the match can tell the four cameras
-apart. The entry states ``data_units: calibrated_if``, the units of the
-GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
+``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2. The four
+entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``. Each entry states
+every value itself and none takes a value from another, because each vidicon and telescope
+is unique. The optical values (the PSF, the residual distortion, the plate scale, the star
+zero point, and the vidicon detector values) are per camera. Apart from the Voyager 2
+cameras' star zero points, they hold the same numbers in all four entries today, and a
+comment beside each says where the number comes from and that it is not yet measured for
+that camera. The values that do not describe a camera's optics (the data units, the
+navigator link, the readout modes, and the artifact-mode availability) are repeated in
+each entry as well, because a shared parent would have to be one of the cameras. Every
+analysis is per camera too: the realism match, the field-of-view distortion, and the
+rotation each use one camera's frames. No simulator entry holds a rotation value today.
+Each entry is read with the block of its own camera in the ``voyager_iss`` section of the
+navigator configuration: ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and
+``vgiss_2_wac``. The realism match pairs the image library's two Voyager 1 wide angle
+frames with ``vgiss_1_wac`` and its one Voyager 2 narrow angle frame with ``vgiss_2_nac``;
+the other two entries have no frame in the library. A library sidecar for a Voyager frame
+gives its spacecraft (``VG1`` or ``VG2``) beside the mission and the camera, so the match
+can tell the four cameras apart. The entry states ``data_units: calibrated_if``, the units
+of the GEOMED product and of each camera's block, so a simulated frame is in I/F.
 
 **Realism match.** The match compares each camera with its own library frames
 (the 2026-11-25 record in ``tests/integration/realism_results/``). The two
