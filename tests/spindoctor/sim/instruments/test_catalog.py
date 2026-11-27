@@ -1208,10 +1208,10 @@ def test_each_voyager_camera_is_an_instrument() -> None:
 @pytest.mark.parametrize(
     ('name', 'detector'),
     [
-        ('vgiss_1_nac', 'vg1_nac'),
-        ('vgiss_1_wac', 'vg1_wac'),
-        ('vgiss_2_nac', 'vg2_nac'),
-        ('vgiss_2_wac', 'vg2_wac'),
+        ('vgiss_1_nac', 'vgiss_1_nac'),
+        ('vgiss_1_wac', 'vgiss_1_wac'),
+        ('vgiss_2_nac', 'vgiss_2_nac'),
+        ('vgiss_2_wac', 'vgiss_2_wac'),
     ],
 )
 def test_each_voyager_camera_emulates_its_own_navigator_block(name: str, detector: str) -> None:

@@ -36,7 +36,7 @@ vgiss_1_nac:
   # block of its own camera.
   navigator:
     section: voyager_iss
-    detector: vg1_nac
+    detector: vgiss_1_nac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
@@ -209,7 +209,7 @@ vgiss_1_wac:
   # block of its own camera.
   navigator:
     section: voyager_iss
-    detector: vg1_wac
+    detector: vgiss_1_wac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
@@ -381,7 +381,7 @@ vgiss_2_nac:
   # block of its own camera.
   navigator:
     section: voyager_iss
-    detector: vg2_nac
+    detector: vgiss_2_nac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
@@ -562,7 +562,7 @@ vgiss_2_wac:
   # block of its own camera.
   navigator:
     section: voyager_iss
-    detector: vg2_wac
+    detector: vgiss_2_wac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
