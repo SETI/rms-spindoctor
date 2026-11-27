@@ -199,7 +199,8 @@ calibration documents' values, and their stars are left out of the fits.
 
 On the held-out frames, the faintest star detected lies a median 0.17 mag past the
 predicted dimmest visible star, with a broad spread, so the limit carries about half a
-magnitude of uncertainty.
+magnitude of uncertainty. That figure does not allow for the 1990 frames, whose stars
+read 0.4 to 1.7 mag fainter than the 1992 scale the limit follows.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
