@@ -220,8 +220,9 @@ hits() {
 # matched in its present, third-person, and past forms, and so are "rest on", "rely
 # on", and "depend on".  Phrases where "no" does not negate a noun are left out:
 # "no longer", "no matter", "no one" (but not "no one-time"), a comparison ("no
-# more than", "no larger than"), and a comparative that ends the clause ("goes no
-# further.").  A comparative before a noun ("no further errors") is still flagged.
+# more than", "no larger than"), and a comparative before punctuation ("goes no
+# further.").  A comparative before a noun ("no further errors") is still flagged,
+# and so is one at the end of a line, since the noun may follow on the next line.
 verb_no_stems='make|give|accept|set|read|write|hold|take|need|leave|name|count|get|'
 verb_no_stems+='move|list|find|lose|gain|record|state|show|keep|use|return|match|add|'
 verb_no_stems+='raise|change|require|report|contain|draw|produce|yield|offer|'
@@ -233,7 +234,7 @@ verb_no_on='(?:rest|rel(?:y|ies|ied)|depend)(?:s|ed)?\s+on'
 verb_no_comparative='more|less|later|earlier|sooner|fewer|greater|larger|smaller|'
 verb_no_comparative+='wider|further|better|worse'
 VERB_NO="(?i)\\b(?:(?:${verb_no_stems})(?:s|es|ed|d)?|${verb_no_irregular}|${verb_no_on})"
-VERB_NO+="\\s+no\\b(?!\\s+(?:longer|matter|one)\\b(?!-[A-Za-z])|\\s+(?:${verb_no_comparative})(?:\\s+than\\b|\\s*[.,;:)]|\\s*$))"
+VERB_NO+="\\s+no\\b(?!\\s+(?:longer|matter|one)\\b(?!-[A-Za-z])|\\s+(?:${verb_no_comparative})(?:\\s+than\\b|\\s*[.,;:)]))"
 VERB_NO_MSG='verb + "no" + noun -- write "does not make a", "has no", or say what does happen'
 
 # Two ways to match the verb. "names the", "naming a", "names no" and the like are
