@@ -366,8 +366,8 @@ removal. The shipping sections:
 - ``body_shape`` — static per-body shape catalog; a typed section (see
   :ref:`static-data-citations` below).
 - the camera sections — each camera's block (``noise``, ``mag_offset``,
-  ``image_quality_thresholds``, ``source_image_filter``, and the rest); typed, except
-  the simulator's (see :ref:`config-camera-blocks`).
+  ``image_quality_thresholds``, ``source_image_filter``, and the rest); typed (see
+  :ref:`config-camera-blocks`).
 - ``techniques`` — per-:class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   tunables and confidence-formula
   coefficients; see :doc:`dev_guide_techniques`.
