@@ -16,6 +16,7 @@ slope of zero gives the point value.
 
 import numpy as np
 
+from spindoctor.sim.shared.inplace import result_array, ufunc_result
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
@@ -64,12 +65,35 @@ def ring_reflection_factor(
     Returns:
         The per-pixel geometric factor.
     """
+    # Each form is built in place on this call's own arrays, since the renderer
+    # evaluates it over a whole oversampled frame.  Every step is the IEEE operation
+    # of the plain closed form, so the factor is unchanged to the last bit, and the
+    # result has the plain form's shape and type.
+    factor = result_array(tau, mu, mu0)
     if lit:
-        return mu0 / (mu0 + mu) * (1.0 - np.exp(-tau * (1.0 / mu0 + 1.0 / mu)))
+        np.negative(tau, out=factor)
+        factor *= 1.0 / mu0 + 1.0 / mu
+        np.exp(factor, out=factor)
+        np.subtract(1.0, factor, out=factor)
+        factor *= mu0 / (mu0 + mu)
+        return ufunc_result(factor)
     if abs(mu0 - mu) < _UNLIT_MU_MATCH_TOL:
-        # The mu0 -> mu limit of the unlit form (the closed form is 0/0).
-        return (tau / mu) * np.exp(-tau / mu)
-    return mu0 / (mu0 - mu) * (np.exp(-tau / mu0) - np.exp(-tau / mu))
+        # The mu0 -> mu limit of the unlit form (the closed form is 0/0):
+        # (tau / mu) * exp(-tau / mu).
+        scaled = np.divide(tau, mu, out=np.empty_like(factor))
+        np.negative(scaled, out=factor)
+        np.exp(factor, out=factor)
+        factor *= scaled
+        return ufunc_result(factor)
+    np.negative(tau, out=factor)
+    factor /= mu0
+    np.exp(factor, out=factor)
+    behind = np.negative(tau, out=np.empty_like(factor))
+    behind /= mu
+    np.exp(behind, out=behind)
+    factor -= behind
+    factor *= mu0 / (mu0 - mu)
+    return ufunc_result(factor)
 
 
 def _mean_exp_fraction(x: NDArrayFloatType) -> NDArrayFloatType:

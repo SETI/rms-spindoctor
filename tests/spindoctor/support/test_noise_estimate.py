@@ -38,6 +38,22 @@ def test_estimate_image_noise_sigma_uses_sensor_mask() -> None:
     assert abs(sigma - 1.0) < 0.1
 
 
+def test_estimate_image_noise_sigma_ignores_fill_over_most_of_frame() -> None:
+    """Zero-filled lines covering 70% of the frame leave the estimate at the noise."""
+    rng = np.random.default_rng(seed=46)
+    image = np.zeros((256, 256), np.float64)
+    image[:77] = rng.standard_normal(size=(77, 256))  # lines read out before truncation
+    sigma = estimate_image_noise_sigma(image)
+    assert abs(sigma - 1.0) < 0.1
+
+
+def test_estimate_image_noise_sigma_constant_frame_is_zero() -> None:
+    """A frame of one value has no pixel-to-pixel noise and returns 0."""
+    image = np.full((64, 64), 7.0)
+    sigma = estimate_image_noise_sigma(image)
+    assert sigma == 0.0
+
+
 def test_estimate_image_noise_sigma_rejects_empty_mask() -> None:
     """An all-False sensor mask raises ValueError."""
     image = np.zeros((4, 4), np.float64)

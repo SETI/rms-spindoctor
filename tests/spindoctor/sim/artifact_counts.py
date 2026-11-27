@@ -51,7 +51,7 @@ __all__ = [
 # The per-mode truth-record fields whose list length is the realized event
 # count, tried in order.  A record that carries none of them but does carry an
 # ``active`` flag is a commanded on/off mode (count 1 when active, else 0).
-_COUNT_FIELDS: tuple[str, ...] = ('lines', 'cuts', 'blocks', 'pixels', 'columns')
+_COUNT_FIELDS: tuple[str, ...] = ('lines', 'cuts', 'blocks', 'groups', 'pixels', 'columns')
 
 
 def _realized_count(record: Mapping[str, Any]) -> int:
@@ -62,7 +62,7 @@ def _realized_count(record: Mapping[str, Any]) -> int:
 
     Returns:
         The number of geometric events the mode planted: the length of its
-        geometry list (lost lines, cuts, blocks, pixels, or columns), or 1/0 for
+        geometry list (lost lines, cuts, blocks, gaps, pixels, or columns), or 1/0 for
         a commanded on/off mode.
     """
     for field in _COUNT_FIELDS:

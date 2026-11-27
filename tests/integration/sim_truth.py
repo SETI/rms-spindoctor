@@ -269,9 +269,15 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # cover 16 placements of the damage; every noise_seed draw also lies inside each
     # tolerance.  coiss_nac_lossy_moon seeds nothing but the noise, so its noise_seed
     # draws repeat random_seed 101 to 808.  Where a band of lost slices crosses the
-    # disc on gossi_ict_moon, the frame still lands within 0.08 px.
+    # disc on gossi_ict_moon, the frame still lands within 0.08 px.  On
+    # coiss_nac_stars_moon_lost_lines the worst draw, random seed 909, lands 0.166 px
+    # off with its lost groups or without them: the star refinement, 0.172 px off,
+    # carries it either way.  On the committed seed four groups cross the disc, and the
+    # disc correlation, which correlates the lost lines as zeros (#1164), lands 0.103 px
+    # off against 0.019 px without them; the stars hold the fused answer at 0.098 px
+    # either way.
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
-    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.032, 0.102, 0.072, 0.05),
+    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.098, 0.166, 0.147, 0.05),
     ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
     ('nhlorri_moon_raw', FUSED): _t(0.109, 0.118, 0.011, 0.05),
     # multi_body_geometry.
@@ -324,7 +330,10 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
     ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
     ('titan_crescent_horns', 'BodyBlobNav'): _b(17.821, 20.080, 0.4518, 17.368, 20.532),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(19.328, 19.328, 0.05, 19.277, 19.378),
+    # The noiseless frame's image noise estimate rose from 0 to 0.49 DN once neighborhoods
+    # of one value were left out of it, and the blob moved to the far side of the disc:
+    # 20.060 px from the truth, where it was 19.328 px (#787).
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(20.060, 20.060, 0.05, 20.010, 20.111),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.412, 1.416, 0.05, 1.362, 1.466),
     ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.942, 1.543, 0.1202, 0.821, 1.664),
     ('saturn_rings_wac', 'BodyBlobNav'): _b(6.863, 6.879, 0.05, 6.812, 6.929),
@@ -342,9 +351,12 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('maxwell_hidden_eccentricity', 'RingEdgeNav'): _b(6.801, 6.820, 0.05, 6.751, 6.871),
     ('maxwell_hidden_eccentricity', 'RingAnnulusNav'): _b(11.804, 11.804, 0.05, 11.753, 11.854),
     # Measured on all 24 draws.  On the 81 deg gibbous moon of
-    # coiss_nac_stars_moon_lost_lines the blob lands 5.2 to 9.6 px off with every
-    # defect present and 6.5 to 9.7 px off with each one removed in turn (#975).
-    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(5.208, 9.622, 0.883, 4.324, 10.506),
+    # coiss_nac_stars_moon_lost_lines the blob lands 3.0 to 12.5 px off with every
+    # defect present (#975).  The lost groups widen that range, because the blob
+    # centroids lost lines as zeros (#1207): with them random seed 1010 lands 12.5 px
+    # off and random seed 1414 3.0 px, against 7.4 and 7.5 px without them, and without
+    # the groups the committed seed and random seeds 101 to 303 land 7.4 to 8.5 px off.
+    ('coiss_nac_stars_moon_lost_lines', 'BodyBlobNav'): _b(3.042, 12.536, 1.899, 1.142, 14.435),
     # Measured on all 24 draws.  On nhlorri_moon_raw the frame-transfer smear pulls the
     # blob 6.8 to 7.1 px off; without the smear it lands 0.16 to 0.19 px off (#975).  The
     # simulated smear is a step at each column's centroid, where the real smear builds

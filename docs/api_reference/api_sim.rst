@@ -153,6 +153,11 @@ spindoctor.sim.shared
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.shared.inplace
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.shared.lighting
    :members:
    :undoc-members:
@@ -477,6 +482,11 @@ spindoctor.sim.render.telemetry
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.telemetry.loss
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.telemetry.lossless
    :members:
    :undoc-members:
    :show-inheritance:
