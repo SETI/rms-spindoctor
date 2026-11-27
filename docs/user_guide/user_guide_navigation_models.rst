@@ -123,13 +123,13 @@ does not:
    * - Tier
      - Meaning
    * - ``high``
-     - Confidence at least 0.85 and per-axis uncertainty at most 0.5 pixel. The
+     - Confidence at least 0.85 and uncertainty at most 0.5 pixel. The
        pointing is well determined. Read the reported uncertainty, and where a
        second technique measured different scene content, check that it agrees;
        see :doc:`user_guide_navigation_outputs`. An offset that rests on stars
        alone reaches this tier only when at least three stars were matched.
    * - ``medium``
-     - Confidence at least 0.35 and per-axis uncertainty at most 2.0 pixels.
+     - Confidence at least 0.35 and uncertainty at most 2.0 pixels.
        Trustworthy for most work. Carry the reported uncertainty into anything
        quantitative.
    * - ``low``
@@ -145,7 +145,12 @@ does not:
 
 The ``medium`` and ``low`` tiers share the same confidence floor, so the difference
 between them is entirely the uncertainty. A result can be confident and still land in
-``low`` because its uncertainty is large. The thresholds themselves are the
+``low`` because its uncertainty is large. The uncertainty a tier reads is the one in the
+direction where the offset is least certain. An offset can be pinned tightly one way
+and loosely the other, and it is judged by the loose direction, at whatever angle that
+direction lies in the image. A direction no feature constrains at all (an offset along
+a single straight edge, say) is reported separately as unconstrained, and the tier is
+judged on the directions the features do constrain. The thresholds themselves are the
 ``orchestrator.ensemble.tier_thresholds`` settings.
 
 One caveat travels with every confidence value SpinDoctor writes. The numbers and the tier

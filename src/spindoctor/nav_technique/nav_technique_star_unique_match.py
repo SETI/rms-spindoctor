@@ -58,6 +58,7 @@ from typing import TYPE_CHECKING, ClassVar
 import numpy as np
 
 from spindoctor.config import Config
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.nav_technique._star_helpers import (
@@ -99,6 +100,7 @@ from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
+    add_model_error_floor,
     embed_rotation_unobservable,
     log_confidence_breakdown,
     reported_position_vu,
@@ -626,6 +628,8 @@ class StarUniqueMatchNav(NavTechnique):
         cov = two_star_covariance(
             chosen[0], chosen[1], residual_px=residual_px, fit_rotation=fit_rotation
         )
+        # Model-error floor (#210); rationale on add_model_error_floor.
+        cov = add_model_error_floor(cov, self.tuning.model_error_floor_px)
         sigma_rotation_rad: float | None = None
         if fit_rotation:
             sigma_rotation_rad = float(np.sqrt(max(float(cov[2, 2]), 0.0)))
@@ -838,6 +842,8 @@ class StarUniqueMatchNav(NavTechnique):
             confidence,
         )
         cov = build_star_covariance(star, residual_px=residual_px)
+        # Model-error floor (#210); rationale on add_model_error_floor.
+        cov = add_model_error_floor(cov, self.tuning.model_error_floor_px)
         cov_out = embed_rotation_unobservable(cov) if fit_rotation else cov
         return NavTechniqueResult(
             technique_name=self.name,
@@ -856,32 +862,15 @@ class StarUniqueMatchNav(NavTechnique):
     def _ellipse_fraction(context: NavContext) -> float:
         """Return the camera's lone-star ellipse fraction.
 
-        The fraction is the camera's ``one_star_ellipse_fraction``.  Loading the
-        configuration requires one of every camera, within ``(0, 1]``; it is checked again
-        here because a simulated scene may override the camera's configuration.  A
-        fraction of 0 would admit every offset and one above 1 would reach past the
-        window.
-
         Parameters:
             context: Per-image NavContext.
 
         Returns:
-            The fraction of the offset window, per axis, inside which a lone star is
-            believed.
-
-        Raises:
-            ValueError: If the camera's configuration sets no fraction, or one that is not
-                a number within ``(0, 1]``.
+            The camera's ``one_star_ellipse_fraction``: the fraction of the offset
+            window, per axis, inside which a lone star is believed.
         """
-        inst_config = context.obs.inst_config or {}  # type: ignore[attr-defined]
-        fraction = inst_config.get('one_star_ellipse_fraction')
-        if fraction is None:
-            raise ValueError('the instrument configuration sets no one_star_ellipse_fraction')
-        is_number = isinstance(fraction, int | float) and not isinstance(fraction, bool)
-        # The chained comparison is False for NaN, so a NaN is refused with the rest.
-        if not is_number or not 0.0 < float(fraction) <= 1.0:
-            raise ValueError(f'one_star_ellipse_fraction must lie in (0, 1]; got {fraction!r}')
-        return float(fraction)
+        camera: CameraBlock = context.obs.inst_config  # type: ignore[attr-defined]
+        return camera.one_star_ellipse_fraction
 
     @staticmethod
     def _max_peak_per_snr(context: NavContext, noise_sigma: float) -> float | None:
@@ -897,9 +886,9 @@ class StarUniqueMatchNav(NavTechnique):
         Returns:
             The bound in the image's units, or ``None``.
         """
-        inst_config = context.obs.inst_config or {}  # type: ignore[attr-defined]
-        bound = inst_config.get('star_max_peak_per_predicted_snr')
-        return None if bound is None else float(bound) * noise_sigma
+        camera: CameraBlock = context.obs.inst_config  # type: ignore[attr-defined]
+        bound = camera.star_max_peak_per_predicted_snr
+        return None if bound is None else bound * noise_sigma
 
     def _is_point_source(
         self, image_ext: NDArrayFloatType, detection_vu: tuple[float, float], *, smear_px: float

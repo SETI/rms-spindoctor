@@ -113,3 +113,25 @@ def test_the_vidicon_chain_collects_for_the_exposure_alone() -> None:
     slow, _ = render_scene(_scene(_CAMERA, _EXPOSURE_SEC, **extra))
     commanded, _ = render_scene(_scene('generic', _EXPOSURE_SEC, **extra))
     assert np.array_equal(slow, commanded)
+
+
+@pytest.fixture
+def slow_calibrated_camera(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A catalog holding a calibrated CCD that collects 0.0625 s beyond its exposure."""
+    entry = keyed(
+        _CAMERA,
+        f'base: coiss_calib_nac\ndetector: {{extra_integration_sec: {_EXTRA_SEC}}}\n',
+    )
+    directory = catalog_dir_with(tmp_path, {'slow_cam.yaml': entry})
+    monkeypatch.setattr(instrument_catalog, 'INSTRUMENT_CONFIG_DIR', directory)
+
+
+@pytest.mark.usefixtures('slow_calibrated_camera')
+def test_a_calibrated_frame_keeps_no_dark_pedestal() -> None:
+    """The inverse removes all the dark charge, so dark current leaves no pedestal."""
+    # Over the 0.125 s integration time this collects 300 e-, exactly 10 DN at 30 e-/DN, so
+    # the digitized dark is a whole number of DN and the comparison below is exact.
+    dark = {'noise': {'dark_current_e_per_sec': 2400.0}}
+    with_dark, _ = render_scene(_scene(_CAMERA, _EXPOSURE_SEC, **dark))
+    without_dark, _ = render_scene(_scene(_CAMERA, _EXPOSURE_SEC))
+    assert np.max(np.abs(with_dark - without_dark)) < 1.0e-9

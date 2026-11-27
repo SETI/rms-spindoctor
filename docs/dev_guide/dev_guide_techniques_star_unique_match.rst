@@ -473,7 +473,7 @@ The 1-star covariance is the per-feature CRLB floor from
 :attr:`~spindoctor.feature.feature.NavFeature.position_cov_px` inflated by ``residual_px**2``
 on the diagonal. The 2-star translation covariance is the average of the two stars'
 residual-inflated matrices, plus the analytic rotation variance derived above when rotation
-is fitted.
+is fitted. Both paths then add ``model_error_floor_px**2`` to each translation variance.
 When the converged offset sits within the at-edge tolerance of any axis bound, or when the
 2-star rotation parameter is at the configured fraction of its cap, the result is flagged
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the hard-zero
@@ -569,6 +569,18 @@ are the ones in the packaged file.
   the converged 2-star rotation magnitude trips
   :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the
   2-star Procrustes path uses it; the 1-star path always reports rotation as unobservable.
+- ``model_error_floor_px`` — float, packaged value ``0.030`` px, at least 0. Model-error
+  floor added in quadrature to the translation diagonal of both paths' covariance. It was
+  measured on real star fields: the technique's answers against each frame's independent
+  multi-star pointing fix. Of 379 answers, the seven that matched the wrong stars are left
+  out; the floor covers only answers that matched the right ones. Of the rest, two thirds of
+  the frames (250 answers) form the fit set and a third (122) is held out. At this value at
+  most 1.1% of the fit set's answers lie beyond a Mahalanobis distance of 3, as a two-axis
+  Gaussian predicts; without it 2.0% do. The held-out answers give 1.6% with or without the
+  floor. Added in quadrature, the floor widens every answer's covariance. Most answers'
+  covariances are already wider than the scatter (median squared distance 0.08, against a
+  Gaussian's 1.39), so they widen only slightly; the answers whose covariance is a small
+  two-star residual widen the most.
 
 Per-instrument overrides
 ------------------------
@@ -577,16 +589,13 @@ Per-instrument YAML files in ``src/spindoctor/config_files/config_4N0_inst_*.yam
 override any of these knobs. Two settings of the 1-star path are properties of the camera
 and live only there; the technique's own configuration sets neither:
 
-- ``one_star_ellipse_fraction`` — float, required of every camera block (every mapping
-  that declares ``data_units``, the simulator's included). A 1-star detection outside the
-  ellipse whose semi-axes are the offset window's half-widths times it is refused with a
+- ``one_star_ellipse_fraction`` — float in ``(0, 1]``, required of every camera block
+  (see :ref:`config-camera-blocks`). A 1-star detection outside the ellipse whose
+  semi-axes are the offset window's half-widths times it is refused with a
   ``one_star_detection_outside_ellipse`` reason. The ellipse is taken in place of a single
   radius because the offset window is per axis: it is a circle for a square window and
-  never reaches past the window on either axis. Loading the configuration refuses a
-  camera block that sets none, or one outside ``(0, 1]``, and the technique checks the
-  value again when it reads it, since a simulated scene may override the camera's
-  configuration. The instrument chapters give each camera's value and the configuration
-  carries its evidence.
+  never reaches past the window on either axis. The instrument chapters give each
+  camera's value and the configuration carries its evidence.
 - ``star_max_peak_per_predicted_snr`` — float, optional. Bounds a lone star's source's peak
   per unit of predicted SNR in noise sigmas (see the 1-star path above); a camera that
   sets none has no bound.

@@ -13,6 +13,7 @@ import numpy as np
 import pdslogger
 import pytest
 from filecache import FCPath
+from tests.camera_sections import raw_camera
 
 from spindoctor.config import (
     IMAGE_LOGGER,
@@ -177,6 +178,7 @@ class _FakeSnapshot:
         self.data = rng.standard_normal(size=(32, 32)) + 100.0
         self.extdata = self.data
         self.midtime = 100.0
+        self.inst_config = raw_camera()
         self.camera = 'NAC'
         self.shutter_mode: str | None = None
 

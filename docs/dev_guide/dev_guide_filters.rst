@@ -114,8 +114,9 @@ Three call sites use the system:
     declares a ``BANDPASS_DOG`` pre-filter with ``lo_sigma_px: 5.0`` and
     ``hi_sigma_px: 0.7`` and ships it ``enabled: false``, so the pre-filter
     is an opt-in tool for scattered-light frames rather than a default
-    stage. An unknown ``kind`` in the block logs a warning and skips the
-    pre-filter rather than failing the image.
+    stage. The block's ``kind`` must be one the camera block accepts (see
+    :ref:`config-camera-blocks`), so a kind the pre-filter cannot apply is
+    refused when the configuration loads.
 
 **Edge distance transform (image derivatives).**
     :mod:`spindoctor.nav_orchestrator.image_derivatives` builds the shared

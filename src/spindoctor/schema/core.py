@@ -15,9 +15,10 @@ The conventions every schema follows:
   keys, so a misspelled key is always an error.
 - **Use the aliases below for scalars.**  :data:`Float`, :data:`Int`, :data:`Bool`, and
   :data:`Str` are strict: a number written in quotes is a string and fails, a boolean
-  is never a number, and a float must be finite.  Strictness lives on the fields
-  through these aliases, never on a dataclass's configuration, because a strict
-  dataclass accepts only an instance of itself and refuses a mapping.
+  is never a number, and a float must be finite.  :data:`FloatOrNan` is the one float
+  that may also be NaN, for a value where NaN has a meaning of its own.  Strictness
+  lives on the fields through these aliases, never on a dataclass's configuration,
+  because a strict dataclass accepts only an instance of itself and refuses a mapping.
 - **Use the range aliases for common ranges**: :data:`Positive`, :data:`NonNeg`, and
   :data:`Unit` for floats, and :data:`PositiveInt` and :data:`NonNegInt` for integers.
   Each reports its own range in the catalog's words ("a number in [0, 1]").  Any other
@@ -53,8 +54,9 @@ The supported annotations are the aliases above, ``Literal`` and ``Enum`` of str
 ``annotated_types`` constraints such as ``Le`` and ``Len``, and ``Field(alias=...)``
 for a key that is a Python keyword.  :func:`check_schema` refuses everything else, and
 also refuses what would read a value leniently: a bare ``float``, ``int``, ``bool``, or
-``str``, a ``Strict(False)`` or ``AllowInfNan(True)`` marker, and a validator that runs
-before the type check, on any type.  A default that does not fit its field, and an
+``str``, a ``Strict(False)`` or ``AllowInfNan(True)`` marker other than the one
+:data:`FloatOrNan` carries, and a validator that runs before the type check, on any
+type.  A default that does not fit its field, and an
 ``InitVar``, are refused too.  :func:`parse` runs that check the first time it sees a
 class.
 Adding a new form or convention needs a reason, written here.
@@ -69,6 +71,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import functools
+import math
 import re
 import types
 from collections.abc import Callable, Hashable, Mapping
@@ -114,6 +117,7 @@ __all__ = [
     'DigitInt',
     'FCPath',
     'Float',
+    'FloatOrNan',
     'Int',
     'NonNeg',
     'NonNegInt',
@@ -154,6 +158,14 @@ def _range(expected: str, test: Callable[[Any], bool]) -> AfterValidator:
 
 #: A finite float.  An integer is accepted and becomes a float.
 Float = Annotated[float, Strict(), AllowInfNan(False)]
+
+# The markers of FloatOrNan, which the schema check recognizes by identity: NaN is let
+# through the type check, and infinity is refused after it.
+_ALLOW_NAN = AllowInfNan(True)
+_NOT_INFINITE = _range('a finite number or NaN', lambda value: not math.isinf(value))
+#: A finite float or NaN, for a value where NaN has a meaning of its own.  An integer is
+#: accepted and becomes a float, and an infinite float fails.
+FloatOrNan = Annotated[float, Strict(), _ALLOW_NAN, _NOT_INFINITE]
 #: An integer; a float or a boolean fails.
 Int = Annotated[int, Strict()]
 #: A boolean; a number or a string fails.
@@ -243,13 +255,14 @@ def check_schema(cls: object) -> None:
         TypeError: If a dataclass in the schema is not frozen or does not set
             ``__pydantic_config__ = SCHEMA_CONFIG``; if a scalar would be read
             leniently (a bare ``float``, ``int``, ``bool``, or ``str``, a
-            ``Strict(False)`` or ``AllowInfNan(True)`` marker, a float that may be
-            infinite, or a validator that runs before the type check); if a choice
-            has a value that is not a string; if a union of two or more dataclasses
-            is not tagged, or a tag does not name a ``Literal`` field of every
-            member; if a path is a bare ``FCPath``; if an annotation is not one of
-            the supported forms; if a dataclass has an ``InitVar``; or if a field's
-            default does not fit its annotation.
+            ``Strict(False)`` or ``AllowInfNan(True)`` marker other than
+            :data:`FloatOrNan`'s, a float that may be infinite, or a validator that
+            runs before the type check); if a choice has a value that is not a
+            string; if a union of two or more dataclasses is not tagged, or a tag does
+            not name a ``Literal`` field of every member; if a path is a bare
+            ``FCPath``; if an annotation is not one of the supported forms; if a
+            dataclass has an ``InitVar``; or if a field's default does not fit its
+            annotation.
     """
     seen: set[type] = set()
     _check_annotation(cls, where=getattr(cls, '__qualname__', repr(cls)), seen=seen)
@@ -334,7 +347,9 @@ def _check_scalar(base: type, extras: list[Any], *, where: str) -> None:
     for extra in extras:
         if getattr(extra, 'strict', None) is False:
             raise TypeError(f'{where}: Strict(False) reads values leniently; use {alias}')
-        if getattr(extra, 'allow_inf_nan', None) is True:
+        if getattr(extra, 'allow_inf_nan', None) is True and not (
+            extra is _ALLOW_NAN and _NOT_INFINITE in extras
+        ):
             raise TypeError(f'{where}: AllowInfNan(True) lets a float be infinite; use {alias}')
     if not any(isinstance(extra, Strict) for extra in extras):
         raise TypeError(

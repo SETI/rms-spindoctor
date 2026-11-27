@@ -27,6 +27,7 @@ import numpy as np
 
 from spindoctor.annotation import Annotations
 from spindoctor.config import MAIN_LOGGER, Config, logged_section
+from spindoctor.config.sections_camera import BandpassFilter, SourceImageFilter
 from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
@@ -1233,7 +1234,7 @@ class NavOrchestrator(NavBase):
         sensor_missing = missing_mask & sensor_mask
         n_sensor = int(sensor_mask.sum())
         missing_frac = float(sensor_missing.sum()) / float(max(n_sensor, 1))
-        image, pre_filter = self._apply_source_image_filter(raw_image, obs)
+        image, pre_filter = self._apply_source_image_filter(raw_image, settings.source_image_filter)
         # The classifier and the saturation mask read the *raw* image, not the
         # source-image-filtered ``image``: their absolute-DN gates (blank /
         # saturation / overexposed, and the full-well saturation mask) are
@@ -1310,40 +1311,30 @@ class NavOrchestrator(NavBase):
             return saturation_mask(image, full_well_dn=settings.saturation_dn)
         return np.zeros(image.shape, dtype=bool)
 
+    @staticmethod
     def _apply_source_image_filter(
-        self, image: np.ndarray, obs: ObsSnapshotInst
+        image: np.ndarray, block: SourceImageFilter
     ) -> tuple[np.ndarray, NavFilterSpec | None]:
-        """Apply the per-instrument source-image filter (when enabled).
+        """Apply the camera's source-image filter when it is enabled.
 
-        Returns the filtered image and the ``NavFilterSpec`` that produced
-        it (so :class:`NavContext.pre_filter_applied` records what ran).
-        When the per-instrument ``source_image_filter`` block is missing,
-        disabled, or set to ``NONE`` the image is returned unchanged and
-        the spec is ``None``.
+        Parameters:
+            image: The image to filter.
+            block: The camera's ``source_image_filter`` block.
+
+        Returns:
+            The filtered image and the ``NavFilterSpec`` that produced it (so
+            :class:`NavContext.pre_filter_applied` records what ran).  When the filter
+            is disabled the image is returned unchanged and the spec is ``None``.
         """
-        inst_config = getattr(obs, 'inst_config', None)
-        if inst_config is None:
+        if not block.enabled:
             return image, None
-        block = inst_config.get('source_image_filter')
-        if not block or not bool(block.get('enabled', False)):
-            return image, None
-        kind_str = str(block.get('kind', 'NONE')).upper()
-        try:
-            kind = NavFilterKind[kind_str]
-        except KeyError:
-            self._logger.warning(
-                'unknown source_image_filter.kind %r; skipping pre-filter', kind_str
+        kind = NavFilterKind[block.kind]
+        if isinstance(block, BandpassFilter):
+            spec = NavFilterSpec(
+                kind=kind, bandpass_cutoffs_px=(block.lo_sigma_px, block.hi_sigma_px)
             )
-            return image, None
-        if kind is NavFilterKind.NONE:
-            return image, None
-        if kind is NavFilterKind.BANDPASS_DOG:
-            lo = float(block.get('lo_sigma_px', 0.0))
-            hi = float(block.get('hi_sigma_px', 0.0))
-            spec = NavFilterSpec(kind=kind, bandpass_cutoffs_px=(lo, hi))
         else:
-            sigma = float(block.get('sigma_px', 1.0))
-            spec = NavFilterSpec(kind=kind, sigma_xy=(sigma, sigma))
+            spec = NavFilterSpec(kind=kind, sigma_xy=(block.sigma_px, block.sigma_px))
         filtered = apply_filter(image, spec)
         return filtered, spec
 

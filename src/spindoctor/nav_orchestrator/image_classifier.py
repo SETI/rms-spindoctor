@@ -11,14 +11,14 @@ cheap statistics drive the decision:
     missing_frac    = fraction of pixels equal to missing_data_marker_dn
     noise_sigma     = MAD-based image noise sigma
 
-Per-instrument thresholds live in ``config_4N0_inst_*.yaml``; this module
+Per-instrument thresholds live in each camera's block; this module
 takes them as constructor parameters so it stays pure-Python and unit-
 testable without loading config.  The thresholds type, the measurements, and
 the decision itself live in :mod:`spindoctor.support.image_class`, which the
 simulated-image editor's verdict shares.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -48,7 +48,7 @@ class NavImageClassifier:
         thresholds: Per-instrument thresholds (see ``ImageQualityThresholds``).
     """
 
-    thresholds: ImageQualityThresholds = field(default_factory=ImageQualityThresholds)
+    thresholds: ImageQualityThresholds
 
     def classify(
         self,

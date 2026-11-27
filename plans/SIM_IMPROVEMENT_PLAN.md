@@ -247,6 +247,7 @@ one. This phase's exit asks for that check.
 | #1057 | **Affects no current scene.** A Henyey-Greenstein asymmetry within rounding of 1 or -1 divides by zero in the ring renderer; cap it in the ring and haze rules |
 | #1115 | **Affects no current scene.** The outline of a relief body seen at a latitude is rebuilt on every render (5.9 s at a 1-degree correlation length); cache it by view |
 | #1127 | **Done in part (PR #1179).** Relief bodies render bit for bit as before, 2.2 to 3.0 times faster on one core (the 150 px 5% body 18.8 s to 7.5 s, the 280 px fine-relief body 195 s to 66 s, the render-budget body 4.9 s to 3.7 s); the 2 s and 20 s targets wait on compiling the walk and the march with numba (#1182). **Affects the relief scene and every relief sweep by render time only.** A body with relief takes far too long to render (17 s for a 150 px rough body, over 3 minutes for fine relief) |
+| #1214 | **Done (PR #1241).** **Affects no current scene.** A frame under 10 pixels on a side is refused at validation with a message naming the key and the size, and the scene editor's size controls stop at the same 10: the distortion margin grows steeply as the frame shrinks (hundreds of thousands of pixels at 1 by 1), so the renderer asked for terabytes |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
@@ -298,8 +299,8 @@ are the authorable parts of #904 and the ring-only part of #377:
   **Done (PR #1154; Voyager in PR #1218, after the four-camera split, #806, PR #1118):**
   the `full_frame_cameras` class holds ten full-frame scenes on the Cassini NAC and WAC (raw
   and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
-  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
-  them are expected failures tied to #342, #785, and #1153. Four Voyager scenes, one per
+  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; one of
+  them is an expected failure, tied to #785. Four Voyager scenes, one per
   camera at the 1000 px GEOMED size and 32 to 49 px offsets, follow real frames: a
   Voyager 1 NAC moon (0.06 to 0.57 px off), a Voyager 1 WAC Saturn at the real frame's
   scale, ring radii, ring brightness, and limb profile with unmodeled rings, where the disc
@@ -415,7 +416,8 @@ gap affects, from the critique's population counts.
 | Issue | Subject |
 |---|---|
 | #895 | Stars, bodies, and rings share no radiometric scale. **Carries #925's star-count criterion (operator, 2026-11-18):** the matched NAC star twins should give a star cutout count comparable to the real frames' 25; the 2026-11-17 record gives 9, because simulated NAC stars are about 3.5 mag fainter than real ones at the same catalog magnitude. |
-| #1153 | **Affects `gossi_star_field_short_exposure`, held as an expected failure.** At the real Pleiades frames' 0.1 s the navigator predicts only the V 2.8 star of a simulated Galileo field, where the real frames lock on three stars: simulated Galileo stars are about 12 times fainter than real ones of the same magnitude (4e7 to 7e7 electrons per second at V 0 on the real frames against 4.0e6), and the simulated-frame star limit spreads that zero point over the 3.0 px placeholder blur (#342), reaching V 3.2 against V 7.8 on the real frames |
+| #1153 | **Done (PR #1252).** Measured on the 1992 Pleiades full frames, the Galileo star zero point is 2.3e8 electrons per second at V 0 (2.07e8 within 4 px at 10K on 118 stars, 1.95e8 at 100K on 62, 0.16 to 0.18 mag rms), up from 4.0e6; the 1990 frames read 1.3 mag fainter (#1211) and summed frames read 1.33 times the DN of full frames, and the navigator's copy of the zero point for simulated frames follows (1.23e6 DN/s at 187 e-/DN), so `gossi_star_field` lands 0.09 to 0.10 px off over 24 draws and `gossi_star_field_short_exposure`, at the real frames' 0.1 s, navigates 0.01 to 0.02 px off, retiring its expected failure. Before, simulated Galileo stars were about 12 times fainter than real ones, so at the real Pleiades frames' 0.1 s the navigator predicted only the V 2.8 star of a simulated field and `gossi_star_field_short_exposure` was held as an expected failure |
+| #1213 | **Done (PR #1252).** Measured on unbinned and 4x4 sci frames, the LORRI star zero point is 7.0e8 electrons per second at V 0 (6.8e8 unbinned on 173 stars, 7.2e8 binned on 444, 0.11 and 0.18 mag rms), up from 7.0e7; the navigator's copy follows (3.33e7 DN/s unbinned, 3.61e7 binned), so `nhlorri_star_field` measures all 18 stars and lands 0.41 to 0.42 px off over 24 draws, and `nhlorri_star_field_short_exposure` navigates 0.53 to 0.55 px off, retiring its expected failure. Before, simulated LORRI stars were about 11 times fainter than real ones, and the navigator's simulated-frame copy of the zero point was equally low |
 | #896 | No ring-body shadows; the planet's shadow is a fixed wedge |
 | #921 | Background star counts 3 to 10 times too sparse |
 | #899 | Navigator star limit: 30.0 on calibrated frames, filter ignored on raw ones (the Cassini part here; the Voyager part follows #907, and the Galileo, Voyager, and LORRI limits follow #342). **Carries #925's star-count criterion (operator, 2026-11-18):** the navigator on the NAC star twin N1459552012 should predict a number of stars comparable to the real frame's 4; in the 2026-11-17 record its star-field fit ranks 30, the most it takes. |
@@ -459,7 +461,7 @@ model does not gain them.
 | #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
 | #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
 | #1136 | **Affects no render; the code and its description disagree.** A cosmic-ray streak or splatter deposits the sampled charge on every pixel of its footprint, where the docstrings and the guide call it the charge per event, and the catalog amplitudes were fitted with the per-pixel behavior |
-| #1235 | **Affects no current scene noticeably; only LORRI states an extra integration time (0.705 ms).** The calibrated inverse subtracts dark current over the commanded exposure while the frame collects it over the integration time, leaving a small dark pedestal in a calibrated frame |
+| #1235 | **Done (PR #1240).** **Affects no current scene.** The calibrated inverse now subtracts the dark pedestal collected over the integration time, so a calibrated CCD that states an extra integration time keeps no residual dark pedestal; only the raw LORRI entry states one |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |
@@ -473,6 +475,7 @@ model does not gain them.
 | Issue | Subject |
 |---|---|
 | #1161 | **Affects the Voyager realism rows, which compare two of the four cameras on one or two frames each.** Curate at least 3 library frames for each Voyager camera, star frames among them, with verified pointing and a sidecar stating the spacecraft, so each camera's values can be measured and checked against its own frames |
+| #1248 | **Done (PR #1254).** Each Voyager entry links to its own camera block of the navigator's `voyager_iss` section (`vgiss_1_nac`, `vgiss_1_wac`, `vgiss_2_nac`, `vgiss_2_wac`), so the entries read each camera's measured values. | Stacks on the navigator's split of that section |
 | #806, per-camera values | One `vgiss` key for four cameras; the split of the entry and the scene value is Phase 2a; this part gives each camera its own values. Operator ruling 2026-11-23: optical values (PSF, distortion, plate scale, star zero point, vidicon values) are per camera and never shared or inherited, because each vidicon and telescope is unique; PR #1118 states every value in each entry, with the same numbers until a camera is measured. Operator ruling, second part: every analysis (realism, field-of-view distortion, rotation) is per camera; the realism cohort of each entry holds only its own camera's frames, and a sidecar gives its spacecraft |
 | #907 | GEOMED plate scale, beam-bend sign, reseau lattice, and a fixed DN scale with no exposure term; each is measured and stated per camera |
 | #804 | Noise keys inert on the vidicon and on calibrated frames |

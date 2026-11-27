@@ -219,21 +219,25 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # only the fixed-pattern and sky streams, which change a few pixels of the render.
     # The unfit twist sets the larger errors on the star fields and the Galileo disc,
     # since a translation follows the turned stars or disc it measures.  The roll turns
-    # the scene about the boresight, the frame center after the offset.  In
-    # nhlorri_star_field the +0.19 deg twist moves the four measured stars' mean
-    # position, about 280 px from the boresight, by about 0.94 px.  gossi_star_field
-    # lands 0.05 px off with its twist and 0.02 px off without it, and gossi_disc
-    # 0.17 px off with its twist and 0.04 px off without it.  coiss_wac_disc's error is
-    # the limb fit's own: 0.16 px with the roll, 0.17 px without.  The three
-    # short-exposure and large-offset scenes fail as their expected blocks declare
-    # (#342, #785, #1153).
+    # the scene about the boresight, the frame center after the offset.  The Galileo
+    # and LORRI star-field rows are measured on all 24 draws, with the simulator's star
+    # zero points measured on real frames and the navigator's star limits and star
+    # widths measured on real frames too (#1153, #1213).  In nhlorri_star_field the
+    # navigator measures all 18 stars, whose mean position lies about 120 px from the
+    # boresight, and the +0.19 deg twist moves it about 0.4 px; at 1 s it also measures
+    # all 18, and the answer lands 0.41 to 0.43 px off.  gossi_disc lands 0.17 px off
+    # with its twist and 0.04 px off without it.  coiss_wac_disc's error is the limb
+    # fit's own: 0.16 px with the roll, 0.17 px without.  The large-offset scene fails as
+    # its expected block declares (#785).
     ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
     ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
     ('coiss_nac_star_field', FUSED): _t(0.017, 0.231, 0.220, 0.05),
     ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
     ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
-    ('gossi_star_field', FUSED): _t(0.054, 0.062, 0.018, 0.05),
-    ('nhlorri_star_field', FUSED): _t(0.942, 0.962, 0.058, 0.20),
+    ('gossi_star_field', FUSED): _t(0.098, 0.102, 0.008, 0.05),
+    ('gossi_star_field_short_exposure', FUSED): _t(0.017, 0.020, 0.008, 0.05),
+    ('nhlorri_star_field', FUSED): _t(0.416, 0.417, 0.007, 0.09),
+    ('nhlorri_star_field_short_exposure', FUSED): _t(0.409, 0.428, 0.023, 0.09),
     # full_frame_cameras, Voyager.  These rows are measured on all 24 draws, the 16
     # random_seed draws and the 8 noise_seed draws, which are distinct here.  In
     # vgiss_2_wac_star_field the +0.358 deg twist moves the mean position of the stars
@@ -327,7 +331,10 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('mutual_half', 'BodyBlobNav'): _b(8.560, 8.807, 0.05, 8.509, 8.858),
     ('mutual_grazing', 'BodyBlobNav'): _b(3.443, 3.453, 0.05, 3.392, 3.503),
     ('titan_crescent_horns', 'BodyBlobNav'): _b(17.821, 20.080, 0.4518, 17.368, 20.532),
-    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(19.328, 19.328, 0.05, 19.277, 19.378),
+    # The noiseless frame's image noise estimate rose from 0 to 0.49 DN once neighborhoods
+    # of one value were left out of it, and the blob moved to the far side of the disc:
+    # 20.060 px from the truth, where it was 19.328 px (#787).
+    ('titan_crescent_horns_noiseless', 'BodyBlobNav'): _b(20.060, 20.060, 0.05, 20.010, 20.111),
     ('titan_haze_limb', 'BodyBlobNav'): _b(1.412, 1.416, 0.05, 1.362, 1.466),
     ('moon_over_ring_sheet', 'BodyBlobNav'): _b(0.942, 1.543, 0.1202, 0.821, 1.664),
     ('saturn_rings_wac', 'BodyBlobNav'): _b(6.863, 6.879, 0.05, 6.812, 6.929),
@@ -384,8 +391,6 @@ RANK1_NORMAL_ERROR = _b(0.4581, 0.4624, 0.05, 0.408, 0.513)
 # Columns as in KNOWN_ERRORS, but in sigmas: the fused error in units of the reported
 # covariance.  These are the scenes that sit above SIGMA_MULTIPLE for a known reason.
 SIGMA_BANDS: dict[str, KnownErrorBand] = {
-    # The two-star fused sigma is about 0.01 px against a steady 0.04 px error (#788).
-    'lock_pair': _b(3.186, 4.479, 0.2585, 2.927, 4.738),
     # The observable component misses by 0.46 px against a 0.095 px sigma (#873).
     'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
