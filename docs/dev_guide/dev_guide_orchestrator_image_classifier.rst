@@ -22,7 +22,7 @@ The classifier evaluates three cheap statistics over the sensor pixels:
 - ``saturation_frac`` — fraction of pixels at or above the per-instrument
   saturation DN.
 - ``missing_frac`` — fraction of pixels matching the per-instrument missing-data marker:
-  pixels exactly equal to the marker (0 on every shipped instrument), or, when a camera
+  pixels exactly equal to the marker, or, when a camera
   block sets the marker to ``NaN``, pixels for which ``np.isnan`` holds.
 - ``noise_sigma`` — robust MAD-based noise sigma over the sensor area.
 

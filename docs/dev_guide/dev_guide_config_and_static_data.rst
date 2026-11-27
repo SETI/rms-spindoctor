@@ -204,15 +204,15 @@ are read in (``data_units``), the margin its offset search may reach
 share of the offset window in which a lone star is believed
 (``one_star_ellipse_fraction``), the rotation settings (``fit_camera_rotation`` and
 ``max_rotation_deg``), and its ``noise``, ``image_quality_thresholds``,
-``source_image_filter``, and ``mag_offset`` blocks. Every camera's block has the same
-keys and parses into one type, :class:`~spindoctor.config.sections_camera.CameraBlock`.
-Each of its blocks has a type of its own:
-:class:`~spindoctor.config.sections_camera.CameraNoise`, with a
+``source_image_filter``, and ``mag_offset`` blocks. Each camera's block parses into
+:class:`~spindoctor.config.sections_camera.CameraBlock`. Each of its blocks has a type of
+its own: :class:`~spindoctor.config.sections_camera.CameraNoise`, with a
 :class:`~spindoctor.config.sections_camera.BinnedNoise` for each binned readout mode;
 :class:`~spindoctor.config.sections_camera.QualityThresholds`;
 :class:`~spindoctor.config.sections_camera.MagOffset`; and a source-image filter chosen
 by its ``kind``, either a :class:`~spindoctor.config.sections_camera.BandpassFilter` or a
-:class:`~spindoctor.config.sections_camera.BlurFilter`. Each field's type is also exported under a name of its own, such as
+:class:`~spindoctor.config.sections_camera.BlurFilter`. Each field's type is also
+exported under a name of its own, such as
 :data:`~spindoctor.config.sections_camera.ReadNoiseDn`, so code that states some of the
 same keys can type them with the same ranges.
 
@@ -223,11 +223,12 @@ several cameras, keyed by camera name, and parses into a mapping of camera name 
 block. Each camera section becomes a field of the typed sections under its own name, so
 the key path of a problem starts at the section, followed by the camera in a section
 that holds several. :meth:`~spindoctor.config.config.Config.camera_block` returns one
-camera's block, and an observation carries its camera's block as
+camera's block,
+:meth:`~spindoctor.config.config.Config.camera_names` gives the names of a section's
+cameras, and an observation carries its camera's block as
 :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config`.
 
-Whether a camera uses a key depends on its ``data_units``, and on nothing else about the
-camera:
+Which keys a camera sets follows its ``data_units``:
 
 - A ``raw_dn`` camera sets ``noise.saturation_dn``, ``noise.read_noise_dn``, and
   ``noise.star_flux_dn_per_s_vmag0``, and the DN limits of its quality thresholds:
@@ -329,8 +330,8 @@ Sections
 Top-level YAML keys other than the typed sections, such as each camera's block, are read
 through :meth:`~spindoctor.config.Config.category`, which returns an
 :class:`~spindoctor.support.attrdict.AttrDict` so code can write
-``cfg.category('voyager_iss').star_psf_sigma`` instead of
-``cfg.category('voyager_iss')['star_psf_sigma']``. That
+``cfg.category('galileo_ssi').star_psf_sigma`` instead of
+``cfg.category('galileo_ssi')['star_psf_sigma']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches

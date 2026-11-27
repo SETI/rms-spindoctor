@@ -18,7 +18,8 @@ Code map
      - :class:`~spindoctor.dataset.dataset_pds3_voyager_iss.DataSetPDS3VoyagerISS`,
        registered under ``vgiss`` with a ``vgiss_pds3`` alias
    * - Config block
-     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, flat
+     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, one block per camera:
+       ``vg1_nac``, ``vg1_wac``, ``vg2_nac``, and ``vg2_wac``
    * - Sim instrument keys
      - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Statistics key
@@ -30,9 +31,9 @@ Code map
      - ``oops.hosts.voyager.iss``
 
 One instrument key serves two spacecraft and four cameras. Everything that has
-to distinguish them derives the distinction from the image's own label rather
-than from configuration, which is why the frame identities below are computed
-per image.
+to distinguish them derives the distinction from the image's own label, which is
+why the frame identities below are computed per image, and the camera block is
+chosen the same way.
 
 Loading the image
 =================
@@ -61,7 +62,8 @@ It also **modifies the pixel data**, in two steps:
    so this is the only case, and the constant is written out rather than
    computed from distances. The step logs at debug when it fires.
 
-Beyond that it reads the flat ``voyager_iss`` config section and resolves the
+Beyond that it reads the camera's block, ``voyager_iss.vg<digit>_<nac or wac>``,
+chosen by the ``LAB02`` spacecraft digit and the oops detector, and resolves the
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
 table has exactly one entry, for size 1000, which is what a geometrically
 corrected product is; an image of any other size raises ``KeyError`` from the
@@ -155,8 +157,9 @@ cost of scanning every requested volume.
 Configuration block
 ===================
 
-One flat section, shared by two spacecraft and four cameras. Nothing in it
-varies per camera.
+One section holding a block for each of the four cameras, ``vg1_nac``, ``vg1_wac``,
+``vg2_nac``, and ``vg2_wac``. Each camera's optics and vidicon are its own, so each block
+states every value itself, even where the number is the same in all four.
 
 ``data_units`` is ``calibrated_if``, so the block carries what a calibrated camera
 block carries (see :ref:`config-camera-blocks`): the ``image_quality_thresholds`` are
