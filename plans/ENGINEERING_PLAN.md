@@ -662,8 +662,8 @@ Stars:
 - **#785** — WAC star answers near the extended-FOV margin are zeroed by the
   `at_edge` rule though the star windows reach farther, refusing whole
   observations the stars answer (one window per camera is #830).
-- **#787** — the star model emits no features when its noise estimate is 0;
-  five of eleven such frames were navigable on stars.
+- **#787** (#1244) — the star model emits no features when its noise estimate
+  is 0; five of eleven such frames were navigable on stars.
 - **#852** — StarRefineNav gives a clipped star the largest weight although
   its centroid is the least reliable; #754 handles a flat clipped core in
   raw frames, not a calibrated one.
@@ -959,8 +959,13 @@ where they differ).
   window rather than by where the limb can be (#403), the flat arc-residual
   cap that behaves as a size-dependent gate (#404), the uncharacterized
   extreme-phase edge (#401), and opaque-ring masking that refuses frames
-  visible through the C ring or the gaps (#402). The ensemble has never been
-  exercised on the oblique covariance the fit reports (#400). Two
+  visible through the C ring or the gaps (#402). Tests now pin the
+  ensemble's merge, agreement test, and tier on the oblique covariance the
+  fit reports (#400, in review); the merge keeps the ellipse's orientation
+  and the Mahalanobis test respects it, and by the operator's decision of
+  2026-11-26 the tier reads the fused ellipse's major semi-axis rather than
+  the larger image-axis sigma, so it no longer depends on the ellipse's tilt
+  (no library tier moves). Two
   extensions are filed: a haze-radius table accumulated from production
   fitted radii, which would pin the radius and remove the dominant
   along-track error (#397), and a correlation refinement stage on the

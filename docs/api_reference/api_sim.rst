@@ -486,6 +486,11 @@ spindoctor.sim.render.telemetry
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.render.telemetry.lossless
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.render.telemetry.artifacts
    :members:
    :undoc-members:

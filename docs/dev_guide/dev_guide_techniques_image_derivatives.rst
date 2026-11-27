@@ -105,6 +105,16 @@ Restrictions and assumptions
   ``estimate_image_noise_sigma(image, sensor_mask)`` on the *filtered* working image (not
   the raw classifier sigma), so the estimate stays self-consistent with the gradients the
   DT techniques actually fit.
+- The noise sigma is the MAD of a 3x3 second-difference response over the sensor pixels,
+  divided by 6. The second difference cancels smooth brightness, so ring ramps and limb
+  shading do not count as noise. A response whose nine pixels all hold one value is left
+  out, because it is 0 whatever the noise. Such neighborhoods are fill: the zero-filled
+  lines of a truncated readout, a saturated region, or the border a geometric correction
+  leaves. Without this rule, fill covering more than half the frame would make the median
+  response 0 and the estimate 0, and at a noise sigma of 0 the star model does not emit
+  any features. A frame of one value still gives 0. On quantized data whose noise is below
+  one count, runs of identical counts are left out too, so the estimate there is of the
+  order of one count.
 - The input image must be 2-D and contain only finite values. NaN or +/-inf pixels would
   propagate through the Gaussian and Sobel passes and poison every downstream consumer; the
   pass raises rather than silently degrading. The orchestrator replaces the pixels that
