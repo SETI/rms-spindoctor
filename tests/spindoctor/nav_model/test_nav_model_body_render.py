@@ -256,9 +256,7 @@ def _bodies_config(**overrides: Any) -> Config:
         **overrides: Fields of the packaged ``bodies`` section to change, by name.
     """
     config = Config()
-    config._sections = dataclasses.replace(
-        config._typed_sections(), bodies=packaged_bodies(**overrides)
-    )
+    config._nav_config = dataclasses.replace(config.nav_config, bodies=packaged_bodies(**overrides))
     return config
 
 

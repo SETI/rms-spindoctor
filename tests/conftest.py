@@ -136,14 +136,14 @@ def no_ambient_results_index(
     # override file, or by one that ran before the working directory moved --
     # outlives it: the merge is into a process-global configuration and nothing
     # takes it back out.
-    sections = DEFAULT_CONFIG._sections
+    sections = DEFAULT_CONFIG._nav_config
     if sections is not None:
         environment = dataclasses.replace(
             sections.environment, results_index_db=None, nav_results_root=None
         )
         # Not restored afterwards: a later test gets the same clearing, and putting
         # the old sections back could undo a configuration the test installed.
-        DEFAULT_CONFIG._sections = dataclasses.replace(sections, environment=environment)
+        DEFAULT_CONFIG._nav_config = dataclasses.replace(sections, environment=environment)
     yield
     left_behind = sorted(entry.name for entry in directory_naming_no_index.iterdir())
     for entry in directory_naming_no_index.iterdir():

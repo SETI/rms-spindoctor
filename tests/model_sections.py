@@ -9,26 +9,20 @@ import dataclasses
 import functools
 from typing import Any
 
-from spindoctor.config.config import _PACKAGED_CONFIG_DIR, _parse_typed_sections
-from spindoctor.config.sections import TypedSections
+from spindoctor.config import load_nav_config
+from spindoctor.config.sections import NavConfig
 from spindoctor.config.sections_models import BodiesSection, StarsSection, TitanSection
-from spindoctor.schema import NullPolicy, merge, read_layer
 
 
 @functools.cache
-def packaged_sections() -> TypedSections:
+def packaged_sections() -> NavConfig:
     """Return the typed sections of the packaged configuration.
 
     The packaged files are read and parsed once per process, with no configuration
     built around them, so nothing a configuration load does to the registered
     techniques happens here.
     """
-    layers = [read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))]
-    merged = merge(layers, nulls=NullPolicy.REFUSE)
-    sections, _origins = _parse_typed_sections(
-        merged.data, merged.origins, source='the packaged configuration', known_cameras=frozenset()
-    )
-    return sections
+    return load_nav_config()
 
 
 def packaged_bodies(**changes: Any) -> BodiesSection:

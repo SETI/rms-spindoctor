@@ -97,7 +97,7 @@ Typed sections
 Some sections are parsed into frozen dataclasses through the schema core (see
 :doc:`dev_guide_schema`), every time a configuration is installed: once when the
 packaged files are read, and again for each override. The typed sections are the fields
-of :class:`~spindoctor.config.sections.TypedSections`. Each one is named after its
+of :class:`~spindoctor.config.sections.NavConfig`. Each one is named after its
 top-level key, and the matching :class:`~spindoctor.config.config.Config` property
 returns the typed object:
 
@@ -176,12 +176,12 @@ Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_
 keys must be a planet of ``planets``, written in upper case as SPICE spells it. Every
 reader looks a planet up by its upper-case name, and would never read a key that is
 misspelled or in lower case, so such a key is refused at load. That rule reads two
-sections, so :class:`~spindoctor.config.sections.TypedSections` checks it. The message
+sections, so :class:`~spindoctor.config.sections.NavConfig` checks it. The message
 gives the key and the file that last set either it or ``planets``.
 
 Two mappings are keyed by body: ``bodies.geometric_albedo`` and ``body_shape``. For the
 same reason, each of their keys must be in upper case, as SPICE spells it, and the loader
-refuses a key that is not. One rule in :class:`~spindoctor.config.sections.TypedSections`
+refuses a key that is not. One rule in :class:`~spindoctor.config.sections.NavConfig`
 checks both mappings, so both give the same message.
 
 Keys come in two kinds, and each kind has its own spelling. A key for a setting,
@@ -299,8 +299,8 @@ The techniques section
 
 The ``techniques`` section's type is built from the technique registry
 (:mod:`spindoctor.nav_technique.confidence_config`), so no list of techniques is
-written twice. :func:`~spindoctor.config.sections.typed_sections_type` returns the type
-the loader parses: :class:`~spindoctor.config.sections.TypedSections` with one field
+written twice. :func:`~spindoctor.config.sections.nav_config_type` returns the type
+the loader parses: :class:`~spindoctor.config.sections.NavConfig` with one field
 per shipped technique. Techniques that tests register are not shipped, have no block,
 and set their own confidence formula.
 

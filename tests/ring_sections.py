@@ -66,5 +66,5 @@ def config_with_rings(rings: RingsSection) -> Config:
         A configuration with every other section packaged.
     """
     config = Config()
-    config._sections = dataclasses.replace(config._typed_sections(), rings=rings)
+    config._nav_config = dataclasses.replace(config.nav_config, rings=rings)
     return config

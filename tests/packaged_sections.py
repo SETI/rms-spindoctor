@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from spindoctor.config import Config
-from spindoctor.config.sections import TypedSections
+from spindoctor.config.sections import NavConfig
 from spindoctor.nav_records import TreeTuning
 from spindoctor.nav_technique.nav_technique import NavTechnique
 
@@ -54,7 +54,7 @@ def preserved_technique_settings() -> Iterator[None]:
 
 
 @functools.cache
-def packaged_sections() -> TypedSections:
+def packaged_sections() -> NavConfig:
     """Return the typed sections of the packaged configuration.
 
     The packaged files are read once per process, into a configuration of their own,
@@ -63,7 +63,7 @@ def packaged_sections() -> TypedSections:
     load leaves the technique classes' settings as it found them.
     """
     with preserved_technique_settings():
-        return Config()._typed_sections()
+        return Config().nav_config
 
 
 def packaged_tree_tuning(**changes: Any) -> TreeTuning:
@@ -88,5 +88,5 @@ def configure_tree_tuning(
         config: The configuration to change.
         tuning: The section it answers until then.
     """
-    sections = dataclasses.replace(config._typed_sections(), results_tree=tuning)
-    monkeypatch.setattr(config, '_sections', sections)
+    sections = dataclasses.replace(config.nav_config, results_tree=tuning)
+    monkeypatch.setattr(config, '_nav_config', sections)
