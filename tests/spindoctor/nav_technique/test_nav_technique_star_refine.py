@@ -342,6 +342,37 @@ _LOST_LINES_STARS = ((60.0, 70.0), (160.0, 130.0), (110.0, 170.0))
 _LOST_LINES_OFFSET = (3.0, -2.0)
 
 
+def _refine_lost_pixels(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    image: np.ndarray,
+    missing: np.ndarray,
+) -> NavTechniqueResult:
+    """Refine the three stars of ``_LOST_LINES_STARS`` after ``missing`` is set to 0.0.
+
+    Parameters:
+        make_nav_context: Builds the navigation context.
+        make_star_feature: Builds the star features.
+        image: The frame with the stars drawn; it is changed in place.
+        missing: ``True`` where a pixel is lost.
+
+    Returns:
+        The refinement's result.
+    """
+    image[missing] = 0.0
+    features = [
+        make_star_feature(
+            f'star:UCAC4:{i}',
+            predicted_vu=(v - _LOST_LINES_OFFSET[0], u - _LOST_LINES_OFFSET[1]),
+            predicted_snr=30.0,
+        )
+        for i, (v, u) in enumerate(_LOST_LINES_STARS)
+    ]
+    context = dataclasses.replace(make_nav_context(image), missing_data_mask_ext=missing)
+    context = _attach_prior(context, prior_offset_px=_LOST_LINES_OFFSET)
+    return StarRefineNav().navigate(features, context)
+
+
 def _refine_with_lost_lines(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
@@ -364,18 +395,7 @@ def _refine_with_lost_lines(
         draw_gaussian_star(image, center, peak_dn=200.0, sigma=0.6)
     missing = np.zeros(image.shape, dtype=bool)
     missing[lost_rows, :] = True
-    image[missing] = 0.0
-    features = [
-        make_star_feature(
-            f'star:UCAC4:{i}',
-            predicted_vu=(v - _LOST_LINES_OFFSET[0], u - _LOST_LINES_OFFSET[1]),
-            predicted_snr=30.0,
-        )
-        for i, (v, u) in enumerate(_LOST_LINES_STARS)
-    ]
-    context = dataclasses.replace(make_nav_context(image), missing_data_mask_ext=missing)
-    context = _attach_prior(context, prior_offset_px=_LOST_LINES_OFFSET)
-    return StarRefineNav().navigate(features, context)
+    return _refine_lost_pixels(make_nav_context, make_star_feature, image, missing)
 
 
 def test_star_refine_drops_a_star_that_lost_half_its_lines(
@@ -408,3 +428,48 @@ def test_star_refine_lost_lines_beyond_a_star_leave_it_in_place(
         make_nav_context, make_star_feature, draw_gaussian_star, range(64, 71)
     )
     assert lost.offset_px == pytest.approx(clean.offset_px, abs=1e-9)
+
+
+def test_star_refine_a_missing_pixel_brighter_than_the_box_adds_no_light(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A lost pixel the detection reads as 400 DN leaves a centroid on 100 DN sky in place.
+
+    Each star sits on a 100 DN patch inside 400 DN sky, so the detection gives the lost
+    pixel three columns from the first star 400 DN, 300 DN above its box's background.
+    Counted in the centroid, that light would pull the star 0.13 px toward the lost pixel.
+    """
+    image = np.full((220, 220), 400.0, dtype=np.float64)
+    for v, u in _LOST_LINES_STARS:
+        image[int(v) - 5 : int(v) + 6, int(u) - 5 : int(u) + 6] = 100.0
+        draw_gaussian_star(image, (v, u), peak_dn=3000.0, sigma=0.6)
+    missing = np.zeros(image.shape, dtype=bool)
+    missing[60, 73] = True
+    result = _refine_lost_pixels(make_nav_context, make_star_feature, image, missing)
+    assert result.offset_px == pytest.approx(_LOST_LINES_OFFSET, abs=0.005)
+
+
+def test_star_refine_drops_a_saturated_star_whose_core_runs_into_lost_lines(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+) -> None:
+    """A clipped core cut short by a lost line is dropped, not centroided on what is left.
+
+    The first star is a clipped core nine rows long.  With its last row lost, the eight
+    rows left are still long enough to measure, and their centroid lies half a pixel from
+    the star's center, outside the centroid box that the lost row borders.
+    """
+    image = np.full((220, 220), 100.0, dtype=np.float64)
+    for center in _LOST_LINES_STARS[1:]:
+        draw_gaussian_star(image, center, peak_dn=200.0, sigma=0.6)
+    image[56:65, 70] = 4095.0
+    image[56:65, 69] = 1500.0
+    image[56:65, 71] = 1500.0
+    missing = np.zeros(image.shape, dtype=bool)
+    missing[64, :] = True
+    result = _refine_lost_pixels(make_nav_context, make_star_feature, image, missing)
+    assert isinstance(result.diagnostics, StarRefineDiagnostics)
+    assert result.diagnostics.n_stars_used == 2

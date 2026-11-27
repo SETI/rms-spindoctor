@@ -58,26 +58,35 @@ a box that is mostly lost takes 0.0 as its median, and the sky around the star t
 as starlight. And the part of a star that fell on the lost lines is gone, so the centroid of
 what is left moves away from them.
 
-The technique handles the two in turn. Before a star is detected, any missing pixel within
-reach of the detection (the refinement window and ``2 * centroid_box_half_px`` pixels
-beyond it) is set to the 25th percentile of the other pixels there. On sky that is about
-two thirds of a noise sigma below the median. The missing pixels then read as sky just
-under the background the centroid subtracts: they add no light to the centroid and leave
-the box's median close to the sky.
+The technique handles the two in turn. The detection, the matched filter that finds the
+star's peak, needs a value at every pixel. So any missing pixel within its reach (the
+refinement window and ``2 * centroid_box_half_px`` pixels beyond it) is set to the 25th
+percentile of the other pixels there, which on sky is about two thirds of a noise sigma
+below the median. The centroid then leaves the missing pixels out altogether: its
+background is the median of the present pixels where it is measured, and only present
+pixels carry weight. The value the detection gave them cannot add light to the centroid,
+even where it lies above the background, as it does for a star on a dark patch beside a
+bright ring.
 
 After the star is centroided, the technique estimates how much its centroid moved. It
-models the star from its own light: the light above the median in the centroid box around
-the centroid, with each missing pixel given the light at its mirror image through the
-centroid. A star is close to symmetric about its center, so the model holds about the
-light the missing pixels lost, whatever the star's width, smear, or saturation. The
-technique then measures how far leaving the missing pixels out moves the model's centroid,
-and drops a star whose model moves more than ``max_missing_shift_px``. Lines that only clip
-the far edge of its box take too little light to matter, and the star stays.
+models the star from its own light over the pixels the centroid was measured on: the
+centroid box, or for a saturated star the clipped core padded by the box's half-width. The
+model is the light above the median there, with each missing pixel given the light at its
+mirror image through the centroid. A star is close to symmetric about its center, so the
+model holds about the light the missing pixels lost, whatever the star's width, smear, or
+saturation. The technique then measures how far leaving the missing pixels out moves the
+model's centroid, and drops a star whose model moves more than ``max_missing_shift_px``.
+Lines that only clip the far edge of its box take too little light to matter, and the star
+stays.
 
 The mirror cannot see light that the star's core lost. When lost lines cover the core, the
 centroid of what is left moves away from them, and the mirror of a lost pixel through that
-centroid lands on the star's faint flank. So a star is also dropped when a missing pixel
-touches the brightest present pixel of its box, at an edge or a corner.
+centroid lands on the star's faint flank. The core is the brightest present pixel and the
+pixels joined to it that are within the detection threshold of it: that one pixel for most
+stars, and the whole clipped core of a saturated one. So a star is also dropped when a
+missing pixel touches its core, at an edge or a corner. A saturated star whose clipped
+core runs into lost lines is dropped this way, even when what is left of the core is still
+long enough to measure.
 
 Translation-only fit
 --------------------
@@ -221,8 +230,8 @@ are the ones in the packaged file.
   calibration campaign measured 2-sigma coverage 0.83 at a 0.22 px floor and 0.87 at this
   value, against the 0.865 reference.
 - ``max_missing_shift_px`` — float, packaged value ``0.05`` px. A star is dropped when
-  leaving the missing pixels of its centroid box out would move the centroid of its
-  model by more than this (see "Lost lines" above). The value is a fifth of
+  leaving out the missing pixels where its centroid was measured would move the centroid
+  of its model by more than this (see "Lost lines" above). The value is a fifth of
   ``model_error_floor_px``: a bias that size raises the per-star error the covariance
   already allows by 2%, since :math:`\sqrt{0.27^2 + 0.054^2} = 1.02 \times 0.27`.
 
