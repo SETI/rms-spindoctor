@@ -219,7 +219,8 @@ class FitResult:
             calibration document's (in ``filter_offsets``, with no uncertainty).
         gains_not_measured: The same for gain states and ``gain_ratio``.
         n_limit_stars_unmeasured: Clean stars left out of the detection limit and the
-            held-out check because their filter or gain state is not measured.
+            held-out check because their filter or gain state is not measured or has no
+            value at all.
         zp_scatter_mag: Robust scatter of the zero-point residuals.
         n_zp_stars: Stars in the zero-point fit.
         color_slope: Slope of the zero-point residual against B - V (mag per mag).
@@ -423,8 +424,11 @@ def _measured_terms(result: FitResult, rows: list[dict[str, Any]]) -> list[dict[
 
     A star through a filter or gain state the stars could not pin down is predicted with the
     calibration document's value, which nothing anchors, so it is left out of the detection
-    limit and the held-out check, as it is left out of the zero point.  The count left out is
-    stored in ``result.n_limit_stars_unmeasured``.
+    limit and the held-out check, as it is left out of the zero point.  So is a star through a
+    filter or gain state that neither the fit nor the calibration document gives a value for
+    (one the fitting stars never saw, such as a state taken only on held-out frames), whose
+    DN cannot be predicted.  The count left out is stored in
+    ``result.n_limit_stars_unmeasured``.
 
     Parameters:
         result: The camera's fit, updated in place.
@@ -438,6 +442,8 @@ def _measured_terms(result: FitResult, rows: list[dict[str, Any]]) -> list[dict[
         for r in rows
         if r['filter'] not in result.filters_not_measured
         and r['gain'] not in result.gains_not_measured
+        and r['filter'] in result.filter_offsets
+        and r['gain'] in result.gain_ratio
     ]
     result.n_limit_stars_unmeasured = len(rows) - len(kept)
     return kept

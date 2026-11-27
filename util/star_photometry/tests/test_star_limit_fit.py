@@ -173,9 +173,24 @@ def test_zero_point_counts_only_frames_with_a_fitting_star() -> None:
     assert result.n_fit_frames == 1
 
 
+def _terms_result() -> FitResult:
+    """Return a fit that measured CLEAR and 10K and took RED and 40K from calibration.
+
+    Returns:
+        The fit.
+    """
+    return FitResult(
+        camera='TEST',
+        filter_offsets={'CLEAR': 0.0, 'RED': 2.5},
+        gain_ratio={'10K': 1.0, '40K': 0.2},
+        filters_not_measured=['RED'],
+        gains_not_measured=['40K'],
+    )
+
+
 def test_detection_limit_leaves_out_unmeasured_terms() -> None:
     """A star through a filter or gain state the zero point did not measure is left out."""
-    result = FitResult(camera='TEST', filters_not_measured=['RED'], gains_not_measured=['40K'])
+    result = _terms_result()
     rows = [
         {'filter': 'CLEAR', 'gain': '10K'},
         {'filter': 'RED', 'gain': '10K'},
@@ -183,6 +198,14 @@ def test_detection_limit_leaves_out_unmeasured_terms() -> None:
     ]
     assert _measured_terms(result, rows) == [{'filter': 'CLEAR', 'gain': '10K'}]
     assert result.n_limit_stars_unmeasured == 2
+
+
+def test_detection_limit_leaves_out_terms_without_a_value() -> None:
+    """A star through a filter neither the fit nor the calibration gives a value is left out."""
+    result = _terms_result()
+    rows = [{'filter': 'CLEAR', 'gain': '10K'}, {'filter': 'VIOLET', 'gain': '10K'}]
+    assert _measured_terms(result, rows) == [{'filter': 'CLEAR', 'gain': '10K'}]
+    assert result.n_limit_stars_unmeasured == 1
 
 
 def _limit_row(pred_dn: float, detected: bool, k: int) -> dict[str, Any]:
