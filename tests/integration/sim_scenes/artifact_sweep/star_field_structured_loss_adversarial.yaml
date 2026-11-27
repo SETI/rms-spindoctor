@@ -10,6 +10,11 @@ exposure_sec: 1.0
 # biases onto the star rows rather than the empty sky.  This is the worst-case
 # placement of a survivable loss; enough stars survive that the field
 # matcher still recovers the planted translation within tolerance.
+# The loss pattern is a stress axis, not a real form.  A real Cassini frame loses
+# groups of whole lines when packets are lost on the way to the ground, and the
+# ends of every second line when line pairs will not compress enough (the
+# downlink_gaps and compression_truncated_lines modes draw those).  It does not
+# lose scattered single lines, or lines cut at random columns.
 # Stars deposit as point masses; an explicit navigator-matched PSF gives them a
 # finite (floor-form) profile instead of a 1-pixel spike.
 optics:

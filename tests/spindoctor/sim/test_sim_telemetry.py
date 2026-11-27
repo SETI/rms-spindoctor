@@ -75,8 +75,8 @@ def _body_truth(v0: int, v1: int, u0: int, u1: int) -> dict[str, Any]:
 
 
 def test_registry_covers_every_mode_key() -> None:
-    """The registry holds exactly 29 mode keys."""
-    assert len(MODE_KEYS) == 29
+    """The registry holds exactly 31 mode keys."""
+    assert len(MODE_KEYS) == 31
 
 
 def test_structured_loss_order_covers_the_loss_modes() -> None:
