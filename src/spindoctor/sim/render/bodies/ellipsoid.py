@@ -61,6 +61,7 @@ bodies rather than letting them silently not render.
 """
 
 from dataclasses import KW_ONLY, dataclass, replace
+from fractions import Fraction
 from typing import Any
 
 import numpy as np
@@ -95,6 +96,7 @@ from spindoctor.sim.shared.ellipsoid import (
     EllipsoidProjection,
     ellipsoid_image_normals,
     project_ellipsoid,
+    supersampling_scale,
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
@@ -284,33 +286,20 @@ def render_ellipsoid_body(
 
     # At oversample 1 the anti-aliasing knob supersamples the body; an oversampled
     # scene already resolves the limb, so its work grid IS the render grid.
-    work_grid = project_ellipsoid(
-        size,
-        center,
-        spec.semi_a_px,
-        semi_b_px=spec.semi_b_px,
-        semi_c_px=spec.semi_c_px,
-        rotation_z=spec.rotation_z,
-        sub_observer_lat=spec.sub_observer_lat,
-        anti_aliasing=spec.anti_aliasing if os_in == 1 else 0.0,
-    )
-    aa_scale = work_grid.aa_scale
+    anti_aliasing = spec.anti_aliasing if os_in == 1 else 0.0
+    aa_scale = supersampling_scale(anti_aliasing)
     up_factor = os_in * aa_scale
     # The detector grid is where craters are drawn and where surface detail is laid
-    # out.
-    detector_grid = work_grid
-    shading_spec = spec
+    # out.  It comes first: when the detail is laid out there, only the rectangle the
+    # body covers is projected onto the working grid, since every pixel outside it
+    # is 0.
+    work_grid: EllipsoidProjection | None = None
     if up_factor > 1:
-        detector_grid = project_ellipsoid(
-            (size_v // os_in, size_u // os_in),
-            (center[0] / os_in, center[1] / os_in),
-            spec.semi_a_px / os_in,
-            semi_b_px=spec.semi_b_px / os_in,
-            semi_c_px=spec.semi_c_px / os_in,
-            rotation_z=spec.rotation_z,
-            sub_observer_lat=spec.sub_observer_lat,
-        )
+        detector_grid = _detector_projection(size, center, spec, os_in=os_in)
+    else:
+        work_grid = detector_grid = _project_box(size, center, spec, anti_aliasing=anti_aliasing)
     craters = _crater_layout(detector_grid, spec, crater_plane)
+    shading_spec = spec
     if up_factor > 1:
         # A surface setting that changes nothing (a crater fill that places no
         # crater on the detector grid, a texture with no contrast and no spots, a
@@ -318,20 +307,34 @@ def render_ellipsoid_body(
         # body is shaded with, so it renders exactly as the smooth body.
         shading_spec = _without_inert_surface(spec, crater_count=craters.count)
 
-    # Only the boolean silhouette is held through the shading; the float mask is
-    # built after it, which keeps the shading's peak memory down.
-    inside = silhouette_mask(work_grid, field) > 0.0
     if up_factor > 1 and _lays_detail_on_detector_grid(shading_spec, field):
-        intensity_work = _shade_disc_with_detector_detail(
-            work_grid,
+        box = body_box(detector_grid, field)
+        if box is None:
+            return EllipsoidBodyRender(intensity=np.zeros(size), silhouette=np.zeros(size))
+        rows, cols = box
+        intensity_work, mask = _shade_body_box(
+            _project_box(
+                size,
+                center,
+                spec,
+                anti_aliasing=anti_aliasing,
+                rows=slice(rows.start * up_factor, rows.stop * up_factor),
+                cols=slice(cols.start * up_factor, cols.stop * up_factor),
+            ),
             detector_grid,
             shading_spec,
             field,
+            box=box,
             up_factor=up_factor,
             craters=craters,
-            inside=inside,
+            shape=(size_v * aa_scale, size_u * aa_scale),
         )
     else:
+        if work_grid is None:
+            work_grid = _project_box(size, center, spec, anti_aliasing=anti_aliasing)
+        # Only the boolean silhouette is held through the shading; the float mask is
+        # built after it, which keeps the shading's peak memory down.
+        inside = silhouette_mask(work_grid, field)
         intensity_work = _shade_disc(
             work_grid,
             shading_spec,
@@ -341,8 +344,8 @@ def render_ellipsoid_body(
             craters=craters,
             inside=inside,
         )
-    mask = inside.astype(np.float64)
-    intensity_work *= mask
+        mask = inside.astype(np.float64)
+        intensity_work *= mask
 
     if aa_scale > 1:
         intensity_work = intensity_work.reshape(size_v, aa_scale, size_u, aa_scale).mean(
@@ -350,6 +353,144 @@ def render_ellipsoid_body(
         )
         mask = mask.reshape(size_v, aa_scale, size_u, aa_scale).mean(axis=(1, 3))
     return EllipsoidBodyRender(intensity=intensity_work, silhouette=mask)
+
+
+def _detector_projection(
+    size: tuple[int, int], center: tuple[float, float], spec: EllipsoidBodySpec, *, os_in: int
+) -> EllipsoidProjection:
+    """Project the body onto the detector grid of an incoming grid oversampled by ``os_in``.
+
+    Parameters:
+        size: Frame dimensions (rows, columns) on the incoming grid.
+        center: Body center (v, u) in incoming-grid pixels.
+        spec: The body spec.
+        os_in: The incoming grid's oversampling factor.
+
+    Returns:
+        The detector-grid projection.
+    """
+    return project_ellipsoid(
+        (size[0] // os_in, size[1] // os_in),
+        (center[0] / os_in, center[1] / os_in),
+        spec.semi_a_px / os_in,
+        semi_b_px=spec.semi_b_px / os_in,
+        semi_c_px=spec.semi_c_px / os_in,
+        rotation_z=spec.rotation_z,
+        sub_observer_lat=spec.sub_observer_lat,
+    )
+
+
+def _project_box(
+    size: tuple[int, int],
+    center: tuple[float, float],
+    spec: EllipsoidBodySpec,
+    *,
+    anti_aliasing: float,
+    rows: slice | None = None,
+    cols: slice | None = None,
+) -> EllipsoidProjection:
+    """Project the body onto the working grid, or onto a box of it.
+
+    The working grid is the incoming grid supersampled by ``anti_aliasing``.  A box's
+    projection equals the whole grid's projection cropped to the box, to the last bit.
+    Each pixel's coordinate is its index less the center.  On a grid that is not
+    supersampled, when moving the box's first row and column from the index to the
+    center is exact, only the box is projected, and each coordinate is the same
+    difference rounded once; otherwise the whole grid is projected and cropped.  The
+    center is stated on the whole grid either way, as
+    :meth:`~spindoctor.sim.shared.ellipsoid.EllipsoidProjection.crop` keeps it.
+
+    Parameters:
+        size: Frame dimensions (rows, columns) on the incoming grid.
+        center: Body center (v, u) in incoming-grid pixels.
+        spec: The body spec.
+        anti_aliasing: The anti-aliasing amount that supersamples the grid.
+        rows: The box's rows on the working grid; None, with ``cols`` None, for the
+            whole grid.
+        cols: The box's columns on the working grid.
+
+    Returns:
+        The projection over the box.
+    """
+
+    def project(
+        grid_size: tuple[int, int], grid_center: tuple[float, float]
+    ) -> EllipsoidProjection:
+        return project_ellipsoid(
+            grid_size,
+            grid_center,
+            spec.semi_a_px,
+            semi_b_px=spec.semi_b_px,
+            semi_c_px=spec.semi_c_px,
+            rotation_z=spec.rotation_z,
+            sub_observer_lat=spec.sub_observer_lat,
+            anti_aliasing=anti_aliasing,
+        )
+
+    if rows is None or cols is None:
+        return project(size, center)
+    box_center = (center[0] - rows.start, center[1] - cols.start)
+    exact = supersampling_scale(anti_aliasing) == 1 and all(
+        Fraction(moved) == Fraction(whole) - first
+        for moved, whole, first in zip(box_center, center, (rows.start, cols.start), strict=True)
+    )
+    if not exact:
+        return project(size, center).crop(rows, cols)
+    projection = project((rows.stop - rows.start, cols.stop - cols.start), box_center)
+    return replace(projection, center=(center[0], center[1]))
+
+
+def _shade_body_box(
+    work_box: EllipsoidProjection,
+    detector_grid: EllipsoidProjection,
+    spec: EllipsoidBodySpec,
+    field: ReliefField | None,
+    *,
+    box: tuple[slice, slice],
+    up_factor: int,
+    craters: _CraterLayout,
+    shape: tuple[int, int],
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """Shade the rectangle a body covers and place it, and its silhouette, on the grid.
+
+    The silhouette lies inside the rectangle, so every pixel outside it is 0 in both
+    planes.
+
+    Parameters:
+        work_box: The working-grid geometry over the rectangle.
+        detector_grid: The whole detector-grid geometry.
+        spec: The body spec it is shaded with.
+        field: The relief realization, or None for the smooth surface.
+        box: The detector rows and columns the body covers.
+        up_factor: Pixels of the working grid per detector pixel.
+        craters: Where the craters are drawn and how many there are.
+        shape: The whole working grid's dimensions.
+
+    Returns:
+        The intensity, weighted by the silhouette, and the silhouette, on the whole
+        working grid.
+    """
+    rows, cols = box
+    work_rows = slice(rows.start * up_factor, rows.stop * up_factor)
+    work_cols = slice(cols.start * up_factor, cols.stop * up_factor)
+    # Only the boolean silhouette is held through the shading; the float mask is
+    # built after it, which keeps the shading's peak memory down.
+    inside = silhouette_mask(work_box, field)
+    shaded = _shade_disc_with_detector_detail(
+        work_box,
+        detector_grid,
+        spec,
+        field,
+        box=box,
+        up_factor=up_factor,
+        craters=craters,
+        inside=inside,
+    )
+    mask = np.zeros(shape)
+    mask[work_rows, work_cols] = inside
+    intensity = np.zeros(shape)
+    np.multiply(shaded, mask[work_rows, work_cols], out=intensity[work_rows, work_cols])
+    return intensity, mask
 
 
 def _lays_detail_on_detector_grid(spec: EllipsoidBodySpec, field: ReliefField | None) -> bool:
@@ -418,7 +559,8 @@ def _apply_law(
 
     Parameters:
         cos_i: Incidence cosine per pixel (negative on the night side).
-        normal_z: The normal's toward-observer component per pixel.
+        normal_z: The normal's toward-observer component per pixel.  It is clamped in
+            place, which saves a working-grid array; the callers read it no further.
         spec: The body spec (law, Minnaert exponent, and surge are read).
 
     Returns:
@@ -426,7 +568,7 @@ def _apply_law(
     """
     return shade_surface(
         cos_i,
-        np.maximum(normal_z, 1e-12),
+        np.maximum(normal_z, 1e-12, out=normal_z),
         law=spec.photometric_law,
         phase_angle=spec.phase_angle,
         minnaert_k=spec.minnaert_k,
@@ -496,7 +638,7 @@ def _shade_disc(
     if shadowed is not None:
         # A cast shadow is night: the law renders it black like the far side of
         # the terminator.
-        cos_i = np.where(shadowed, -1.0, cos_i)
+        np.copyto(cos_i, -1.0, where=shadowed)
     intensity = _apply_law(cos_i, normal_z, spec)
     factor = _texture_factor(grid, spec, scale=scale)
     return _apply_surface_textures(intensity, grid, spec, field, factor=factor, scale=scale)
@@ -508,6 +650,7 @@ def _shade_disc_with_detector_detail(
     spec: EllipsoidBodySpec,
     field: ReliefField | None,
     *,
+    box: tuple[slice, slice],
     up_factor: int,
     craters: _CraterLayout,
     inside: NDArrayBoolType,
@@ -527,26 +670,23 @@ def _shade_disc_with_detector_detail(
     working grid.  Only the rectangle the body covers is shaded.
 
     Parameters:
-        work_grid: The working-grid geometry.
-        detector_grid: The detector-grid geometry.
+        work_grid: The working-grid geometry over the rectangle the body covers,
+            ``box`` scaled to the working grid.
+        detector_grid: The whole detector-grid geometry.
         spec: The body spec.
         field: The relief realization, or None for the smooth surface.
+        box: The detector rows and columns the body covers
+            (:func:`~spindoctor.sim.render.bodies.ellipsoid_grid.body_box`).
         up_factor: Pixels of the working grid per detector pixel.
         craters: Where the craters are drawn and how many there are.
-        inside: The working grid's pixels inside the body's silhouette.  The relief
-            is computed on the working grid at those pixels only, since every other
-            pixel is masked off.
+        inside: The working-grid rectangle's pixels inside the body's silhouette.
+            The relief is computed on the working grid at those pixels only, since
+            every other pixel is masked off.
 
     Returns:
-        The intensity on the working grid.
+        The intensity on the working-grid rectangle.
     """
-    full_shape = work_grid.ellipse_dist_sq.shape
-    box = body_box(detector_grid, field)
-    if box is None:
-        return np.zeros(full_shape)
     rows, cols = box
-    work_rows = slice(rows.start * up_factor, rows.stop * up_factor)
-    work_cols = slice(cols.start * up_factor, cols.stop * up_factor)
     crater_slopes: tuple[NDArrayFloatType, NDArrayFloatType] | None = None
     if spec.crater_fill > 0.0:
         # The craters are drawn on the whole detector grid, whose dimensions their
@@ -556,8 +696,6 @@ def _shade_disc_with_detector_detail(
         )
         crater_slopes = (slope_v[rows, cols], slope_u[rows, cols])
     detector_grid = detector_grid.crop(rows, cols)
-    work_grid = work_grid.crop(work_rows, work_cols)
-    inside = inside[work_rows, work_cols]
 
     normal_v, normal_u, normal_z = ellipsoid_image_normals(work_grid)
     band_shadowed: NDArrayBoolType | None = None
@@ -597,17 +735,15 @@ def _shade_disc_with_detector_detail(
         phase_angle=spec.phase_angle,
     )
     if band_shadowed is not None:
-        cos_i = np.where(band_shadowed, -1.0, cos_i)
+        np.copyto(cos_i, -1.0, where=band_shadowed)
     intensity = _apply_law(cos_i, normal_z, spec)
     # The texture factor is cheap to evaluate, and its spots and storms have sharp
     # edges, so it is evaluated on the working grid, where a sampled edge cannot
     # move the light.
     factor = _texture_factor(work_grid, spec, scale=up_factor)
-    full = np.zeros(full_shape)
-    full[work_rows, work_cols] = _apply_surface_textures(
+    return _apply_surface_textures(
         intensity, work_grid, spec, field, factor=factor, scale=up_factor
     )
-    return full
 
 
 def _texture_factor(
@@ -680,7 +816,7 @@ def _apply_surface_textures(
             base_intensity=intensity,
             v_ctr=grid.v_coords / scale,
             u_ctr=grid.u_coords / scale,
-            disc_mask=silhouette_mask(grid, field) > 0.0,
+            disc_mask=silhouette_mask(grid, field),
         )
     return textured
 

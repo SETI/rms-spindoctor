@@ -254,7 +254,9 @@ def bilinear_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
     return rows[:, col_lo] * (1.0 - col_w) + rows[:, col_hi] * col_w
 
 
-def cubic_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
+def cubic_upsample(
+    field: NDArrayFloatType, factor: int, *, out: NDArrayFloatType | None = None
+) -> NDArrayFloatType:
     """Upsample a field by an integer factor with a cubic spline (pixel-center aligned).
 
     Output samples land where :func:`bilinear_upsample` puts them, and borders
@@ -263,12 +265,34 @@ def cubic_upsample(field: NDArrayFloatType, factor: int) -> NDArrayFloatType:
     Parameters:
         field: The 2-D input field.
         factor: Integer upsampling factor (1 returns the input unchanged).
+        out: A float64 array of the upsampled shape to write the result into, or None
+            for a new one; a caller upsampling several fields in turn can reuse one.
+            A factor of 1 leaves it untouched.
 
     Returns:
-        The ``(rows * factor, cols * factor)`` upsampled field.
+        The ``(rows * factor, cols * factor)`` upsampled field (``out`` when given
+        and the factor is above 1).
+
+    Raises:
+        ValueError: If ``out`` is given and is not a float64 array of the upsampled
+            shape.
     """
     if factor == 1:
         return field
+    if out is not None:
+        shape = (field.shape[0] * factor, field.shape[1] * factor)
+        if out.shape != shape:
+            raise ValueError(f'out has shape {out.shape}; the upsampled field has shape {shape}')
+        if out.dtype != np.float64:
+            raise ValueError(f'out has dtype {out.dtype}; it must be float64')
+    if out is not None and field.dtype == np.float64:
+        ndimage.zoom(field, factor, output=out, order=3, grid_mode=True, mode='nearest')
+        return out
+    if out is not None:
+        # Another dtype is interpolated in its own dtype and then converted, as it is
+        # without out, so reusing a buffer leaves every sample as it was.
+        np.copyto(out, ndimage.zoom(field, factor, order=3, grid_mode=True, mode='nearest'))
+        return out
     return np.asarray(
         ndimage.zoom(field, factor, order=3, grid_mode=True, mode='nearest'),
         dtype=np.float64,
@@ -407,7 +431,7 @@ def relief_view(grid: EllipsoidProjection) -> tuple[float, float]:
     return view_x / norm, view_z / norm
 
 
-def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDArrayFloatType:
+def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDArrayBoolType:
     """The body's silhouette on the working grid, relief-perturbed when on.
 
     With relief, ``e_adj = e / (1 + delta(theta))`` places the limb at
@@ -437,7 +461,7 @@ def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDA
         field: The relief realization, or None for the smooth limb.
 
     Returns:
-        Float mask (1 inside the body, 0 outside).
+        The pixels inside the body.
     """
     mask = grid.ellipse_dist_sq < 1.0
     if field is not None:
@@ -452,7 +476,7 @@ def silhouette_mask(grid: EllipsoidProjection, field: ReliefField | None) -> NDA
             phi = np.arctan2(grid.u_rot[band] / grid.semi_b, grid.v_rot[band] / grid.semi_a_outline)
             delta = field.outline_delta(phi, view=relief_view(grid))
             mask[band] = e_band < 1.0 + delta
-    return mask.astype(np.float64)
+    return mask
 
 
 def stretched_sight_cells(seen: NDArrayFloatType, smooth: NDArrayFloatType) -> NDArrayBoolType:

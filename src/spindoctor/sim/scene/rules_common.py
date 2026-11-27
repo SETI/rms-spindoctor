@@ -1,19 +1,18 @@
-"""Field-type validators for the sim-scene schema.
+"""Validators for the scene blocks not typed yet, and the primitives they share.
 
-The ``_check_*`` / ``_require_*`` helpers here enforce the per-field types of
-every scene block: the per-object stars entries, the optics sub-blocks (PSF,
-smear, distortion, ghosts, stray light), the noise, detector, and spk_error blocks,
-plus the primitive scalar checks they all share.  Each block's key
-inventory lives beside its checker (unknown keys fail validation, so a typo
-cannot silently render an un-blurred or clean frame).  The ``bodies``-entry
-checkers, the schema's largest block, live in the sibling
-:mod:`spindoctor.sim.scene.rules_body`, the ``ring_system`` block's checkers in
-:mod:`spindoctor.sim.scene.rules_ring`, the ``artifacts`` block's checkers
-in :mod:`spindoctor.sim.scene.rules_artifacts`, and the ``instrument_config``
-block's checker in :mod:`spindoctor.sim.scene.rules_instrument_config`; all four
-build on the same primitives.
+The ``_check_*`` / ``_require_*`` helpers here enforce the per-field types of the
+per-object ``stars`` entries, the ``sky_counts`` block, and the ``expected`` block,
+plus the primitive scalar checks every rules module shares.  Each block's key
+inventory lives beside its checker, so an unknown key fails validation.  The
+``bodies``-entry checkers live in :mod:`spindoctor.sim.scene.rules_body`, the
+``ring_system`` block's checkers in :mod:`spindoctor.sim.scene.rules_ring`, the
+``artifacts`` block's checkers in :mod:`spindoctor.sim.scene.rules_artifacts`, and the
+``instrument_config`` block's checker in
+:mod:`spindoctor.sim.scene.rules_instrument_config`; all four build on the same
+primitives.  The typed blocks are checked by their types (see
+:mod:`spindoctor.sim.scene.idealized`).
 
-:func:`spindoctor.sim.scene.validate.validate_sim_params` drives these helpers; every
+:func:`spindoctor.sim.scene.validate.parse_scene` drives these helpers; every
 violation raises :class:`~spindoctor.sim.scene.errors.SimSceneValidationError`.
 """
 
@@ -23,17 +22,6 @@ import math
 from collections.abc import Mapping
 from typing import Any
 
-from spindoctor.sim.artifact_modes import DETECTOR_MODELS, QUANTIZATION_MODES
-from spindoctor.sim.instruments.resolvers import (
-    FilterCatalogError,
-    cataloged_binnings,
-    downlink_table_names,
-    resolve_detector_defaults,
-    resolve_detector_defaults_native,
-    resolve_downlink_table,
-    resolve_filter_throughput,
-)
-from spindoctor.sim.render.detector.sqrt_lut import check_curve_ceiling, resolve_sqrt_lut
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.support.status_reason import NavStatusReason
 
@@ -110,498 +98,6 @@ def _check_star_companion(value: Any, *, label: str, source: str) -> None:
     _check_optional_number(value.get('angle_deg'), f'{label}.companion.angle_deg', source=source)
 
 
-# Allowed keys inside the scene-level optics block and its sub-blocks.  Unknown
-# keys fail, so a typo does not silently render an un-blurred frame.
-_OPTICS_KEYS: frozenset[str] = frozenset({'psf', 'smear', 'distortion', 'ghosts', 'stray_light'})
-_PSF_KEYS: frozenset[str] = frozenset({'match_navigator', 'sigma_v', 'sigma_u', 'w', 'r0', 'n'})
-_SMEAR_ENTRY_KEYS: frozenset[str] = frozenset({'dv_px', 'du_px', 'object_class'})
-_SMEAR_OBJECT_CLASSES: frozenset[str] = frozenset({'all', 'stars', 'bodies', 'rings'})
-_DISTORTION_KEYS: frozenset[str] = frozenset(
-    {'k1', 'k2', 'center_v', 'center_u', 'nonradial_rms_px'}
-)
-_GHOST_KEYS: frozenset[str] = frozenset({'dv_px', 'du_px', 'amplitude', 'defocus_sigma'})
-_SPK_ERROR_KEYS: frozenset[str] = frozenset({'dv_px', 'du_px', 'reference_range_km'})
-_STRAY_LIGHT_KEYS: frozenset[str] = frozenset(
-    {'amplitude', 'direction_deg', 'model', 'center_v', 'center_u'}
-)
-
-
-def _check_optics(value: Any, *, source: str) -> None:
-    """Validate the scene-level ``optics`` block and every sub-block.
-
-    Parameters:
-        value: The ``optics`` mapping, or None when the block is absent.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: On any unknown or invalid optics field.
-    """
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: optics must be a mapping when present')
-    unknown = set(value) - _OPTICS_KEYS
-    if unknown:
-        raise SimSceneValidationError(f'{source}: optics: unknown keys: {sorted(unknown)}')
-    _check_psf_block(value.get('psf'), source=source)
-    _check_smear_list(value.get('smear'), source=source)
-    _check_distortion_block(value.get('distortion'), source=source)
-    _check_ghosts_list(value.get('ghosts'), source=source)
-    _check_stray_light_block(value.get('stray_light'), source=source)
-
-
-def _check_psf_block(value: Any, *, source: str) -> None:
-    """Validate ``optics.psf`` (either match-navigator form or explicit params)."""
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: optics.psf must be a mapping when present')
-    unknown = set(value) - _PSF_KEYS
-    if unknown:
-        raise SimSceneValidationError(f'{source}: optics.psf: unknown keys: {sorted(unknown)}')
-    if 'match_navigator' in value:
-        _check_optional_bool(
-            value.get('match_navigator'), 'optics.psf.match_navigator', source=source
-        )
-        if value.get('match_navigator') is not True:
-            raise SimSceneValidationError(
-                f'{source}: optics.psf.match_navigator must be true when present '
-                f'(a false value authors a PSF block with no kernel; drop the '
-                f'optics.psf block instead)'
-            )
-        extra = set(value) - {'match_navigator'}
-        if extra:
-            raise SimSceneValidationError(
-                f'{source}: optics.psf.match_navigator is exclusive; drop {sorted(extra)}'
-            )
-        return
-    # An explicit-parameter block needs its core width: the renderer builds
-    # the kernel from sigma_v (sigma_u defaults to it), so a block without
-    # one would crash at render time instead of failing here.
-    if value.get('sigma_v') is None:
-        raise SimSceneValidationError(
-            f'{source}: optics.psf needs sigma_v (or the match_navigator form); '
-            f'a psf block without a core width renders nothing it can build a '
-            f'kernel from'
-        )
-    for key in ('sigma_v', 'sigma_u', 'r0'):
-        _check_optional_positive_number(value.get(key), f'optics.psf.{key}', source=source)
-    _check_optional_number(value.get('w'), 'optics.psf.w', source=source)
-    _check_optional_number(value.get('n'), 'optics.psf.n', source=source)
-    w = value.get('w')
-    if w is not None and not 0.0 <= float(w) <= 1.0:
-        raise SimSceneValidationError(f'{source}: optics.psf.w must lie in [0, 1]; got {w!r}')
-
-
-def _check_smear_list(value: Any, *, source: str) -> None:
-    """Validate ``optics.smear`` (a list of per-object-class motion entries)."""
-    if value is None:
-        return
-    if not isinstance(value, list):
-        raise SimSceneValidationError(f'{source}: optics.smear must be a list when present')
-    for index, entry in enumerate(value):
-        label = f'optics.smear[{index}]'
-        if not isinstance(entry, dict):
-            raise SimSceneValidationError(f'{source}: {label} must be a mapping')
-        unknown = set(entry) - _SMEAR_ENTRY_KEYS
-        if unknown:
-            raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
-        _check_optional_number(entry.get('dv_px'), f'{label}.dv_px', source=source)
-        _check_optional_number(entry.get('du_px'), f'{label}.du_px', source=source)
-        object_class = entry.get('object_class', 'all')
-        if object_class not in _SMEAR_OBJECT_CLASSES:
-            raise SimSceneValidationError(
-                f'{source}: {label}.object_class must be one of '
-                f'{sorted(_SMEAR_OBJECT_CLASSES)}; got {object_class!r}'
-            )
-
-
-def _check_distortion_block(value: Any, *, source: str) -> None:
-    """Validate ``optics.distortion`` (radial polynomial plus non-radial field)."""
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: optics.distortion must be a mapping when present')
-    unknown = set(value) - _DISTORTION_KEYS
-    if unknown:
-        raise SimSceneValidationError(
-            f'{source}: optics.distortion: unknown keys: {sorted(unknown)}'
-        )
-    for key in ('k1', 'k2', 'center_v', 'center_u'):
-        _check_optional_number(value.get(key), f'optics.distortion.{key}', source=source)
-    _check_optional_nonnegative_number(
-        value.get('nonradial_rms_px'), 'optics.distortion.nonradial_rms_px', source=source
-    )
-
-
-def _check_ghosts_list(value: Any, *, source: str) -> None:
-    """Validate ``optics.ghosts`` (a list of displaced defocused copies)."""
-    if value is None:
-        return
-    if not isinstance(value, list):
-        raise SimSceneValidationError(f'{source}: optics.ghosts must be a list when present')
-    for index, entry in enumerate(value):
-        label = f'optics.ghosts[{index}]'
-        if not isinstance(entry, dict):
-            raise SimSceneValidationError(f'{source}: {label} must be a mapping')
-        unknown = set(entry) - _GHOST_KEYS
-        if unknown:
-            raise SimSceneValidationError(f'{source}: {label}: unknown keys: {sorted(unknown)}')
-        _check_optional_number(entry.get('dv_px'), f'{label}.dv_px', source=source)
-        _check_optional_number(entry.get('du_px'), f'{label}.du_px', source=source)
-        _check_optional_number(entry.get('amplitude'), f'{label}.amplitude', source=source)
-        _check_optional_nonnegative_number(
-            entry.get('defocus_sigma'), f'{label}.defocus_sigma', source=source
-        )
-
-
-def _check_stray_light_block(value: Any, *, source: str) -> None:
-    """Validate ``optics.stray_light`` (the smooth scattered-light ramp/bump)."""
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(
-            f'{source}: optics.stray_light must be a mapping when present'
-        )
-    unknown = set(value) - _STRAY_LIGHT_KEYS
-    if unknown:
-        raise SimSceneValidationError(
-            f'{source}: optics.stray_light: unknown keys: {sorted(unknown)}'
-        )
-    _check_optional_number(value.get('amplitude'), 'optics.stray_light.amplitude', source=source)
-    _check_optional_number(
-        value.get('direction_deg'), 'optics.stray_light.direction_deg', source=source
-    )
-    _check_optional_number(value.get('center_v'), 'optics.stray_light.center_v', source=source)
-    _check_optional_number(value.get('center_u'), 'optics.stray_light.center_u', source=source)
-    model = value.get('model')
-    if model is not None and model not in ('linear', 'radial'):
-        raise SimSceneValidationError(
-            f"{source}: optics.stray_light.model must be 'linear' or 'radial'; got {model!r}"
-        )
-
-
-# The complete inventory of the truth-side noise block: the detector's shot, read,
-# dark, and cosmic-ray noise and calibration residual.
-# Unknown noise keys fail validation, so a typo cannot silently render the
-# clean floor.  'poisson' is the only boolean; 'vidicon' is a sub-mapping with its
-# own inventory; everything else is a non-negative number.
-_NOISE_BOOL_KEYS: frozenset[str] = frozenset({'poisson'})
-_NOISE_NUMBER_KEYS: frozenset[str] = frozenset(
-    {
-        'read_noise_dn',
-        'cosmic_ray_events_per_pixel_per_sec',
-        'cosmic_ray_readout_dwell_sec',
-        'cosmic_ray_amplitude_e',
-        'cosmic_ray_spread_px',
-        'dark_current_e_per_sec',
-        'calibration_column_residual_e',
-        'calibration_pixel_residual_e',
-    }
-)
-_NOISE_KEYS: frozenset[str] = _NOISE_BOOL_KEYS | _NOISE_NUMBER_KEYS | frozenset({'vidicon'})
-_VIDICON_NOISE_KEYS: frozenset[str] = frozenset(
-    {
-        'read_noise_line_dn',
-        'read_noise_pixel_dn',
-    }
-)
-
-# The detector block selects the electron-chain gain state, the readout
-# mode's binning, the detector model (CCD electron chain or vidicon DN path),
-# the bias, the ADC ceiling, the full well, the fraction of the well a signal of 1.0
-# fills, the exposure that fraction references (or the filter whose measured
-# throughput sets it), the quantization sub-mode, the downlink table the sqrt_lut
-# quantization decodes through, the step of the contour_8bit quantization, and the
-# fraction of the pixels lost in the downlink.  Per-instrument defaults, filter
-# throughputs, and downlink tables come from the instrument entry; scene keys override
-# them.  The largest contour step is the top code of the 8-bit word it posterizes.
-_CONTOUR_STEP_MAX = 255
-
-_DETECTOR_KEYS: frozenset[str] = frozenset(
-    {
-        'gain_state',
-        'binning',
-        'detector_model',
-        'bias_dn',
-        'saturation_dn',
-        'full_well_dn',
-        'signal_full_scale_frac',
-        'exposure_ref_sec',
-        'filter',
-        'quantization',
-        'downlink_table',
-        'contour_step',
-        'missing_data_rate',
-    }
-)
-
-
-def _check_noise(value: Any, *, source: str) -> None:
-    """Validate the scene-level ``noise`` block against its full key inventory.
-
-    Parameters:
-        value: The ``noise`` mapping, or None when the block is absent.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: On any unknown or mistyped noise field.
-    """
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: noise must be a mapping when present')
-    unknown = set(value) - _NOISE_KEYS
-    if unknown:
-        raise SimSceneValidationError(f'{source}: noise: unknown keys: {sorted(unknown)}')
-    for key in _NOISE_BOOL_KEYS:
-        _check_optional_bool(value.get(key), f'noise.{key}', source=source)
-    for key in _NOISE_NUMBER_KEYS:
-        _check_optional_nonnegative_number(value.get(key), f'noise.{key}', source=source)
-    vidicon = value.get('vidicon')
-    if vidicon is None:
-        return
-    if not isinstance(vidicon, dict):
-        raise SimSceneValidationError(f'{source}: noise.vidicon must be a mapping when present')
-    unknown = set(vidicon) - _VIDICON_NOISE_KEYS
-    if unknown:
-        raise SimSceneValidationError(f'{source}: noise.vidicon: unknown keys: {sorted(unknown)}')
-    for key in _VIDICON_NOISE_KEYS:
-        _check_optional_nonnegative_number(vidicon.get(key), f'noise.vidicon.{key}', source=source)
-
-
-def _check_detector(value: Any, *, instrument: str, source: str) -> None:
-    """Validate the scene-level ``detector`` block's field types.
-
-    Parameters:
-        value: The ``detector`` mapping, or None when the block is absent.
-        instrument: The scene's (already validated) instrument name, used to
-            check the selected gain state against the instrument's catalog.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: On any unknown or invalid detector field,
-            including a gain state, a binning, a filter, or a downlink table the
-            instrument does not catalog.
-    """
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: detector must be a mapping when present')
-    unknown = set(value) - _DETECTOR_KEYS
-    if unknown:
-        raise SimSceneValidationError(f'{source}: detector: unknown keys: {sorted(unknown)}')
-    if value.get('gain_state') is not None:
-        gain_state = _require_int(
-            {'gain_state': value['gain_state']}, 'gain_state', source=f'{source}: detector'
-        )
-        # A gain state the instrument does not catalog fails here, at
-        # validation, with the cataloged alternatives in the message; the
-        # render-time resolver keeps its own guard as a backstop for scenes
-        # that bypass validation.
-        native = resolve_detector_defaults_native(instrument)
-        table = native.gain_e_per_dn_by_state or {0: 1.0}
-        if gain_state not in table:
-            raise SimSceneValidationError(
-                f'{source}: detector.gain_state {gain_state} is not cataloged for '
-                f'instrument {instrument!r}; available states: {sorted(table)}'
-            )
-    if value.get('binning') is not None:
-        binning = _require_int(
-            {'binning': value['binning']}, 'binning', source=f'{source}: detector'
-        )
-        available = cataloged_binnings(instrument)
-        if binning not in available:
-            raise SimSceneValidationError(
-                f'{source}: detector.binning {binning} is not a cataloged readout mode of '
-                f'instrument {instrument!r}; available binnings: {list(available)}'
-            )
-        if value.get('detector_model') == 'vidicon' and binning != 1:
-            raise SimSceneValidationError(
-                f'{source}: detector.binning {binning} is not supported with '
-                f'detector_model vidicon; the vidicon DN path has no binned readout'
-            )
-    model = value.get('detector_model')
-    if model is not None and model not in DETECTOR_MODELS:
-        raise SimSceneValidationError(
-            f'{source}: detector.detector_model must be one of {sorted(DETECTOR_MODELS)}; '
-            f'got {model!r}'
-        )
-    for key in ('saturation_dn', 'full_well_dn', 'exposure_ref_sec', 'signal_full_scale_frac'):
-        _check_optional_positive_number(value.get(key), f'detector.{key}', source=source)
-    _check_optional_nonnegative_number(value.get('bias_dn'), 'detector.bias_dn', source=source)
-    _check_optional_fraction(
-        value.get('missing_data_rate'), 'detector.missing_data_rate', source=source
-    )
-    _check_detector_filter(value, instrument=instrument, source=source)
-    quantization = value.get('quantization')
-    if quantization is not None and quantization not in QUANTIZATION_MODES:
-        raise SimSceneValidationError(
-            f'{source}: detector.quantization must be one of {sorted(QUANTIZATION_MODES)}; '
-            f'got {quantization!r}'
-        )
-    _check_downlink_table(value.get('downlink_table'), instrument=instrument, source=source)
-    if 'contour_step' in value:
-        step = _require_int(value, 'contour_step', source=f'{source}: detector')
-        if not 1 <= step <= _CONTOUR_STEP_MAX:
-            raise SimSceneValidationError(
-                f'{source}: detector.contour_step must be from 1 to {_CONTOUR_STEP_MAX}; got {step}'
-            )
-
-
-def _check_downlink_table(name: Any, *, instrument: str, source: str) -> None:
-    """Validate ``detector.downlink_table`` against the tables the camera lists.
-
-    Parameters:
-        name: The scene's ``detector.downlink_table``, or None when unset.
-        instrument: The scene's sim instrument name.
-        source: Scene source label for error messages.
-
-    Raises:
-        SimSceneValidationError: If the name is not a string or is not one of the
-            camera's downlink tables.
-    """
-    if name is None:
-        return
-    if not isinstance(name, str):
-        raise SimSceneValidationError(
-            f'{source}: detector.downlink_table must be a string; got {name!r}'
-        )
-    available = downlink_table_names(instrument)
-    if name not in available:
-        raise SimSceneValidationError(
-            f'{source}: detector.downlink_table {name!r} is not listed for instrument '
-            f'{instrument!r}; available tables: {list(available)}'
-        )
-
-
-# The detector keys that one quantization sub-mode alone reads, with that sub-mode.
-_QUANTIZATION_KEYS: dict[str, str] = {
-    'downlink_table': 'sqrt_lut',
-    'contour_step': 'contour_8bit',
-}
-
-
-def _check_quantization_keys_used(detector: Any, *, instrument: str, source: str) -> None:
-    """Refuse a detector key that the scene's quantization never reads.
-
-    Only the ``sqrt_lut`` quantization decodes through ``downlink_table``, and only
-    ``contour_8bit`` posterizes to ``contour_step``.  The scene's quantization is its
-    own ``detector.quantization``, else the camera's default for the selected readout
-    mode.  Run after :func:`_check_detector`, so the block is a well-formed mapping or
-    None.
-
-    Parameters:
-        detector: The scene ``detector`` block, or None when absent.
-        instrument: The scene's (already validated) instrument name.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: If the scene sets a key and quantizes with another
-            sub-mode.
-    """
-    if not detector:
-        return
-    quantization = detector.get('quantization')
-    if quantization is None:
-        binning = detector.get('binning')
-        detector_defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
-        quantization = detector_defaults.quantization
-    for key, sub_mode in _QUANTIZATION_KEYS.items():
-        if key in detector and quantization != sub_mode:
-            raise SimSceneValidationError(
-                f'{source}: detector.{key} {detector[key]!r} has no effect: only the {sub_mode} '
-                f'quantization reads it, and this scene quantizes with {quantization!r}; set '
-                f'detector.quantization: {sub_mode}, or drop the key'
-            )
-
-
-def _check_downlink_table_ceiling(detector: Any, *, instrument: str, source: str) -> None:
-    """Refuse a companded frame whose downlink table decodes above the ADC ceiling.
-
-    The ceiling is the scene's ``detector.saturation_dn``, else the camera's.  Only the
-    ``sqrt_lut`` quantization decodes through a table.  Run after
-    :func:`_check_detector`, so the block is a well-formed mapping or None.
-
-    Parameters:
-        detector: The scene ``detector`` block, or None when absent.
-        instrument: The scene's (already validated) instrument name.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: If the table's top decoded value exceeds the ceiling.
-    """
-    detector = detector or {}
-    binning = detector.get('binning')
-    defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
-    if detector.get('quantization', defaults.quantization) != 'sqrt_lut':
-        return
-    table = resolve_downlink_table(instrument, detector.get('downlink_table'))
-    if table is None:
-        return
-    saturation_dn = float(detector.get('saturation_dn', defaults.saturation_dn))
-    curve = resolve_sqrt_lut(table, saturation_dn=saturation_dn)
-    try:
-        check_curve_ceiling(curve, saturation_dn=saturation_dn)
-    except ValueError as exc:
-        raise SimSceneValidationError(
-            f'{source}: detector.saturation_dn {saturation_dn:g}: {exc}; raise the ceiling '
-            f'or choose another downlink table'
-        ) from exc
-
-
-def _check_detector_filter(value: dict[str, Any], *, instrument: str, source: str) -> None:
-    """Validate ``detector.filter`` against the camera's filter table.
-
-    Parameters:
-        value: The scene ``detector`` block.
-        instrument: The scene's sim instrument name.
-        source: Scene source label for error messages.
-
-    Raises:
-        SimSceneValidationError: If the filter is not a string, the camera does
-            not catalog it, or the block also sets ``exposure_ref_sec`` or selects
-            the vidicon model.
-    """
-    filter_name = value.get('filter')
-    if filter_name is None:
-        return
-    if not isinstance(filter_name, str):
-        raise SimSceneValidationError(
-            f'{source}: detector.filter must be a string such as CL1+CL2; got {filter_name!r}'
-        )
-    if value.get('exposure_ref_sec') is not None:
-        raise SimSceneValidationError(
-            f'{source}: detector.filter and detector.exposure_ref_sec both set the signal '
-            f'scale; set one of them'
-        )
-    if value.get('detector_model') == 'vidicon':
-        raise SimSceneValidationError(
-            f'{source}: detector.filter sets the CCD signal scale; the vidicon DN path has '
-            f'no reference exposure for it to set'
-        )
-    try:
-        resolve_filter_throughput(instrument, filter_name)
-    except FilterCatalogError as exc:
-        raise SimSceneValidationError(f'{source}: detector.filter: {exc}') from exc
-
-
-def _check_spk_error(value: Any, *, source: str) -> None:
-    """Validate the scene-level ``spk_error`` block's field types."""
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: spk_error must be a mapping when present')
-    unknown = set(value) - _SPK_ERROR_KEYS
-    if unknown:
-        raise SimSceneValidationError(f'{source}: spk_error: unknown keys: {sorted(unknown)}')
-    _check_optional_number(value.get('dv_px'), 'spk_error.dv_px', source=source)
-    _check_optional_number(value.get('du_px'), 'spk_error.du_px', source=source)
-    _check_optional_positive_number(
-        value.get('reference_range_km'), 'spk_error.reference_range_km', source=source
-    )
-
-
 # The background-sky star-count law: cumulative log10 N(<m) = a + b*m per square
 # degree, a local-density multiplier, and an optional flat diffuse-sky floor.
 # diffuse_e_per_px is detector-native despite the '_e_' in its name: electrons
@@ -635,23 +131,6 @@ def _check_sky_counts(value: Any, *, source: str) -> None:
     _check_optional_nonnegative_number(
         value.get('diffuse_e_per_px'), 'sky_counts.diffuse_e_per_px', source=source
     )
-
-
-def _check_star_catalog_scatter(value: Any, *, source: str) -> None:
-    """Validate the scene-level ``star_catalog_scatter_px`` sigma.
-
-    A non-negative per-star position-scatter sigma (detector pixels): every
-    catalog star's RENDERED position is displaced by a seeded Gaussian draw of
-    this sigma, added to any explicit per-star ``catalog_error_*``.
-
-    Parameters:
-        value: The ``star_catalog_scatter_px`` value, or None when absent.
-        source: Label used in error messages.
-
-    Raises:
-        SimSceneValidationError: If present and not a non-negative number.
-    """
-    _check_optional_nonnegative_number(value, 'star_catalog_scatter_px', source=source)
 
 
 def _check_expected(value: Any, *, source: str) -> None:
@@ -740,7 +219,7 @@ def _check_expected(value: Any, *, source: str) -> None:
         )
 
 
-def _require_ranges_for_spk_error(sim_params: dict[str, Any], *, source: str) -> None:
+def _require_ranges_for_spk_error(sim_params: Mapping[str, Any], *, source: str) -> None:
     """Every body and the ring system need a physical ``range_km`` under spk_error.
 
     The parallax displacement scales as ``reference_range_km / range_km``, so a
@@ -816,14 +295,6 @@ def _require_int(raw: dict[str, Any], key: str, *, source: str) -> int:
     return value
 
 
-def _require_positive_int(raw: dict[str, Any], key: str, *, source: str) -> int:
-    """Return ``raw[key]`` as a positive integer, or fail validation."""
-    value = _require_int(raw, key, source=source)
-    if value <= 0:
-        raise SimSceneValidationError(f'{source}: {key} must be a positive integer')
-    return value
-
-
 def _check_optional_number(value: Any, key: str, *, source: str) -> None:
     """Fail validation unless ``value`` is None or a finite number."""
     if value is None:
@@ -854,14 +325,6 @@ def _check_optional_nonnegative_int(value: Any, key: str, *, source: str) -> Non
         )
 
 
-def _check_optional_positive_int(value: Any, key: str, *, source: str) -> None:
-    """Fail validation unless ``value`` is None or a positive integer."""
-    if value is None:
-        return
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        raise SimSceneValidationError(f'{source}: {key} must be a positive integer when present')
-
-
 def _check_optional_nonnegative_number(value: Any, key: str, *, source: str) -> None:
     """Fail validation unless ``value`` is None or a finite non-negative number."""
     if value is None:
@@ -870,16 +333,6 @@ def _check_optional_nonnegative_number(value: Any, key: str, *, source: str) -> 
         raise SimSceneValidationError(f'{source}: {key} must be a non-negative number when present')
     if not math.isfinite(float(value)):
         raise SimSceneValidationError(f'{source}: {key} must be finite; got {value!r}')
-
-
-def _check_optional_fraction(value: Any, key: str, *, source: str) -> None:
-    """Fail validation unless ``value`` is None or a finite number from 0 to 1."""
-    if value is None:
-        return
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise SimSceneValidationError(f'{source}: {key} must be a number when present')
-    if not math.isfinite(float(value)) or not 0.0 <= value <= 1.0:
-        raise SimSceneValidationError(f'{source}: {key} must be from 0 to 1; got {value!r}')
 
 
 def _check_optional_str(value: Any, key: str, *, source: str) -> None:

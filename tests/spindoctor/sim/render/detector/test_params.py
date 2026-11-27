@@ -93,7 +93,9 @@ def test_a_detector_value_in_the_noise_block_is_refused(key: str) -> None:
 def test_a_zero_ceiling_or_well_is_refused(key: str) -> None:
     """The ADC ceiling and the full well must be positive."""
     scene = disc_scene('coiss_nac', detector={key: 0.0})
-    with pytest.raises(SimSceneValidationError, match=rf'detector\.{key} must be a positive'):
+    with pytest.raises(
+        SimSceneValidationError, match=rf'detector\.{key}: expected a positive number'
+    ):
         validate_sim_params(scene)
 
 

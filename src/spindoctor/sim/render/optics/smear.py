@@ -30,6 +30,7 @@ from scipy.signal import fftconvolve
 from spindoctor.sim.render.roll import turn_vector
 from spindoctor.sim.render.stages import SimFrame
 from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.truth_optics import DEFAULT_SMEAR_OBJECT_CLASS
 from spindoctor.support.stable_math import stable_hypot
 from spindoctor.support.types import NDArrayFloatType
 
@@ -133,7 +134,7 @@ def _parse_smear(
     for entry in smear:
         dv = float(scene_value(entry, 'dv_px', 0.0))
         du = float(scene_value(entry, 'du_px', 0.0))
-        object_class = str(entry.get('object_class', 'all'))
+        object_class = str(entry.get('object_class', DEFAULT_SMEAR_OBJECT_CLASS))
         if object_class == 'all':
             all_dv += dv
             all_du += du

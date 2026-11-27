@@ -55,6 +55,7 @@ __all__ = [
     'BlankMaxIf',
     'BlurFilter',
     'CameraBlock',
+    'CameraNoise',
     'DataUnits',
     'ExtfovMargin',
     'ExtfovMarginTable',
@@ -69,7 +70,6 @@ __all__ = [
     'MaxOverexposedFracClean',
     'MaxRotationDeg',
     'MinDetectableDnTable',
-    'Noise',
     'NoisyThresholdDn',
     'NoisyThresholdIf',
     'OneStarEllipseFraction',
@@ -197,7 +197,7 @@ BinningTable = dict[BinningFactor, BinnedNoise]
 
 
 @dataclass(frozen=True)
-class Noise:
+class CameraNoise:
     """A camera's ``noise`` block: its missing-pixel value, saturation, and star photometry.
 
     A camera whose ``data_units`` is ``raw_dn`` sets ``saturation_dn``,
@@ -483,7 +483,7 @@ class CameraBlock:
     one_star_ellipse_fraction: OneStarEllipseFraction
     fit_camera_rotation: FitCameraRotation
     max_rotation_deg: MaxRotationDeg
-    noise: Noise
+    noise: CameraNoise
     image_quality_thresholds: QualityThresholds
     source_image_filter: SourceImageFilter
     mag_offset: MagOffset

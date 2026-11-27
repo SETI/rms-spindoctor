@@ -48,7 +48,10 @@ Restrictions and assumptions
 
 - Every key's type and range, and which keys a camera's ``data_units`` require or
   refuse, are checked when the configuration loads, so this function does not check
-  anything itself.
+  anything itself. A block an observation holds as a mapping (a simulated frame's block
+  with its scene's overrides merged in) is checked by the same type when this function
+  reads it, through :func:`~spindoctor.config.sections_camera.as_camera_block`, so a bad
+  value there raises a schema error during navigation instead.
 - The dataclass is frozen; new instances are returned per observation rather than
   mutated.
 

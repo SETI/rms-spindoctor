@@ -208,7 +208,7 @@ share of the offset window in which a lone star is believed
 photometry has been measured, its ``star_photometry`` block. Every camera's block has
 the same keys and parses into one type, :class:`~spindoctor.config.sections_camera.CameraBlock`.
 Each of its blocks has a type of its own:
-:class:`~spindoctor.config.sections_camera.Noise`, with a
+:class:`~spindoctor.config.sections_camera.CameraNoise`, with a
 :class:`~spindoctor.config.sections_camera.BinnedNoise` for each binned readout mode;
 :class:`~spindoctor.config.sections_camera.QualityThresholds`;
 :class:`~spindoctor.config.sections_camera.MagOffset`;
