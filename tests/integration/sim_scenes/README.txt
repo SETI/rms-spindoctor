@@ -292,7 +292,7 @@ out.
   spk_error        (mapping, opt)    planted spacecraft-ephemeris parallax: dv_px, du_px,
                                      reference_range_km (needs range_km on each body
                                      and on the ring_system)
-  instrument_config (mapping, opt)   per-instrument config overrides deep-merged over
+  instrument_config (mapping, opt)   per-instrument config overrides merged over
                                      the named instrument's block (star_psf_sigma,
                                      noise.*, extfov_margin_vu, ...).  Omit to inherit
                                      everything; override individual keys to pin them
@@ -301,11 +301,18 @@ out.
                                      later camera-config change cannot shift the
                                      scene.  The block is what the navigator believes
                                      about the camera; the detector and noise blocks
-                                     set the image.  noise takes only the keys the
-                                     navigator reads (saturation_dn, marker_value,
-                                     read_noise_dn, star_flux_dn_per_s_vmag0,
-                                     by_binning).  A scene can't set data_units here;
-                                     the instrument's entry decides the frame's units.
+                                     set the image.  Each mapping merges key by key and
+                                     any other value replaces the block's.  A
+                                     source_image_filter whose kind differs from the
+                                     block's replaces the whole filter, so it must set
+                                     every key that kind needs; the same kind, or no
+                                     kind, changes keys of the block's filter.  Each
+                                     key takes the camera block's own type and range.
+                                     noise takes only the keys the navigator reads
+                                     (saturation_dn, marker_value, read_noise_dn,
+                                     star_flux_dn_per_s_vmag0, by_binning).  A scene
+                                     can't set data_units here; the instrument's entry
+                                     decides the frame's units.
   published_equals_truth (list, opt) truth paths (noise.read_noise_dn,
                                      optics.psf.sigma_v, ...) that instrument_config
                                      repeats on purpose.  Without it, a planted
