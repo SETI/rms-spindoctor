@@ -214,7 +214,8 @@ def _refuse_non_file_value(value: Any, path: str, *, source: str) -> bool:
 
     Raises:
         SimSceneValidationError: If a value at any depth is not a mapping with string or
-            integer keys, a list, a JSON scalar, or a date.
+            integer keys, a list, a JSON scalar, or a date, or is a mapping whose keys mix
+            integers and strings.
     """
     found = False
     if isinstance(value, Mapping):
@@ -223,8 +224,16 @@ def _refuse_non_file_value(value: Any, path: str, *, source: str) -> bool:
                 raise SimSceneValidationError(
                     f'{source}: {path}: expected a string or integer key, got {describe_value(key)}'
                 )
-            found |= isinstance(key, int)
             found |= _refuse_non_file_value(item, f'{path}.{key}', source=source)
+        int_keys = sum(isinstance(key, int) for key in value)
+        if 0 < int_keys < len(value):
+            # The renderer encodes the scene with sorted keys, and an integer key does not
+            # sort against a string one.
+            raise SimSceneValidationError(
+                f'{source}: {path}: expected keys all written as numbers or all as strings, '
+                f'got {sorted(str(key) for key in value)}'
+            )
+        found |= int_keys > 0
     elif isinstance(value, list):
         for index, item in enumerate(value):
             found |= _refuse_non_file_value(item, f'{path}[{index}]', source=source)

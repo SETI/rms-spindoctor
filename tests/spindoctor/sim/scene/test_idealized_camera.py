@@ -220,6 +220,18 @@ def test_an_integer_binning_key_is_accepted_cached_and_uncached() -> None:
     validate_scene(scene, source='probe')
 
 
+def test_binning_keys_mixing_numbers_and_strings_are_refused() -> None:
+    """A table with the key 2 and the key '4' is refused; the renderer cannot sort it."""
+    entry = {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}
+    table = {2: entry, '4': entry}
+    scene = frame_scene(instrument='coiss_nac', instrument_config={'noise': {'by_binning': table}})
+    clear_validation_cache()
+    message = r'probe: instrument_config\.noise\.by_binning: expected keys all written as '
+    message += r"numbers or all as strings, got \['2', '4'\]$"
+    with pytest.raises(SimSceneValidationError, match=message):
+        validate_scene(scene, source='probe')
+
+
 def test_every_line_of_a_merged_block_error_gives_the_scene_source() -> None:
     """Two problems in the merged block are two lines, each beginning with the source."""
     overlay = {
