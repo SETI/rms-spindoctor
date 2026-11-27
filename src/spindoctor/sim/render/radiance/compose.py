@@ -58,7 +58,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_star_flux_zero_point,
 )
 from spindoctor.sim.render.bodies.atmosphere import HaloScreen
-from spindoctor.sim.render.bodies.placement import BodyCoverage
+from spindoctor.sim.render.bodies.placement import BodyCoverage, UncoveredFraction
 from spindoctor.sim.render.bodies.render import render_single_body
 from spindoctor.sim.render.bodies.spec import BodySpec, body_spec_from_params
 from spindoctor.sim.render.bodies.titan_haze import resolve_model_atmosphere
@@ -438,12 +438,10 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     # checks.
     halo_screens: list[HaloScreen] = []
     halo_check_items: list[tuple[str, bool, HaloScreen]] = []
-    # The fraction of each pixel no body covers.  Starlight is scaled by it, so
-    # a star behind a limb keeps the share of its light that falls on the part
-    # of each pixel the limb leaves open.
-    star_transmission: NDArrayFloatType | None = (
-        np.ones((size_v, size_u), dtype=np.float64) if render_items else None
-    )
+    # The fraction of each pixel no body covers, multiplied in as each body is
+    # placed.  Starlight is scaled by it, so a star behind a limb keeps the share of
+    # its light that falls on the part of each pixel the limb leaves open.
+    uncovered = UncoveredFraction()
 
     for step_index, (sort_key, item_spec, item_truth, orig_idx, explicit_depth) in enumerate(
         render_items
@@ -486,9 +484,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             # Painting runs far to near, so the last writer per pixel is
             # the nearest body.
             body_depth_map[body_mask] = sort_key[0]
-        if star_transmission is not None:
-            coverage: BodyCoverage = body_info['coverage']
-            star_transmission[coverage.box_v, coverage.box_u] *= coverage.transmission
+        uncovered.multiply(body_info['coverage'])
         halo = body_info.get('halo')
         # The depth checks look at the frame alone, so whether a scene is valid
         # does not depend on how far its optics carry light.
@@ -549,8 +545,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
     for halo_screen in halo_screens:
         box = (halo_screen.box_v, halo_screen.box_u)
         point_e[box] *= halo_screen.transmission[box]
-    if star_transmission is not None:
-        point_e *= star_transmission
+    point_e[uncovered.box] *= uncovered.fraction
 
     # Differential smear blurs each object class by its own motion, so it needs
     # the per-class radiance in isolation.  Capture the star, body, and ring
@@ -593,8 +588,7 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
         for halo_screen in halo_screens:
             box = (halo_screen.box_v, halo_screen.box_u)
             stars_layer[box] *= halo_screen.transmission[box]
-        if star_transmission is not None:
-            stars_layer *= star_transmission
+        stars_layer[uncovered.box] *= uncovered.fraction
         bodies_layer, rings_layer = _bodies_and_rings_layers(
             (size_v, size_u),
             stack_steps,

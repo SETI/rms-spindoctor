@@ -153,6 +153,11 @@ spindoctor.sim.shared
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.shared.inplace
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.shared.lighting
    :members:
    :undoc-members:
