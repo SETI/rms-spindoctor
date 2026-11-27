@@ -87,7 +87,7 @@ def test_a_non_positive_exposure_admits_no_star() -> None:
 
 
 def test_a_filter_without_an_offset_is_refused() -> None:
-    """A filter the photometry table does not carry appears in the error."""
+    """A filter that the photometry table lacks appears in the error."""
     with pytest.raises(
         ValueError,
         match=r"star_photometry\.filter_mag_offset has no entry for the filter 'IR-1234'",

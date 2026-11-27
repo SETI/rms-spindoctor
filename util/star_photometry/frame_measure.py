@@ -614,9 +614,9 @@ def run_frames(
 ) -> int:
     """Measure frames in a process pool, appending one JSON line per frame to ``out_path``.
 
-    Frames ``out_path`` already holds a measurement of are skipped; a frame it holds only
-    error records for is measured again, appending a new record.  ``worker`` must be a
-    module-level function so the spawned workers can import it.
+    A frame that already has a measurement in ``out_path`` is skipped, and a frame that
+    has only error records there is measured again, appending a new record.  ``worker``
+    must be a module-level function so the spawned workers can import it.
 
     Parameters:
         frames: The frames.

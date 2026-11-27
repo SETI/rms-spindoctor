@@ -189,7 +189,7 @@ def _terms_result() -> FitResult:
 
 
 def test_detection_limit_leaves_out_unmeasured_terms() -> None:
-    """A star through a filter or gain state the zero point did not measure is left out."""
+    """Stars through an unmeasured filter or gain state are left out."""
     result = _terms_result()
     rows = [
         {'filter': 'CLEAR', 'gain': '10K'},
@@ -201,7 +201,7 @@ def test_detection_limit_leaves_out_unmeasured_terms() -> None:
 
 
 def test_detection_limit_leaves_out_terms_without_a_value() -> None:
-    """A star through a filter neither the fit nor the calibration gives a value is left out."""
+    """A star through a filter without a fitted or calibration value is left out."""
     result = _terms_result()
     rows = [{'filter': 'CLEAR', 'gain': '10K'}, {'filter': 'VIOLET', 'gain': '10K'}]
     assert _measured_terms(result, rows) == [{'filter': 'CLEAR', 'gain': '10K'}]

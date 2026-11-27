@@ -1,16 +1,16 @@
 """Measure Galileo SSI star fields for the photometric star limit and the star PSF.
 
 Frames are those whose PDS3 index target is a star field (``BLACK_SKY``, ``STAR``, or a named
-star or cluster such as ``PLEIADES``), on every volume or on the volumes named on the command
+star or cluster such as ``PLEIADES``), on every volume or on the volumes given on the command
 line, read through the navigator's own reader.  The cruise star calibrations of November 1990
 (``GO_0002``) supply most measurable stars; the black-sky frames of ``GO_0008`` and ``GO_0009``
 (December 1992) are the population whose independent fixes the star-detection work uses as
 truth.  SSI images are raw 8-bit DN, so the navigator's image is also the photometric image.
 
 Each frame's photometric state comes from the index: ``FILTER_NAME``, ``GAIN_MODE_ID`` (the
-full-well setting ``10K``, ``40K``, ``100K`` or ``400K``), ``EXPOSURE_DURATION`` (milliseconds in
+full-well setting ``10K``, ``40K``, ``100K``, or ``400K``), ``EXPOSURE_DURATION`` (milliseconds in
 the index), the supplemental index's ``TELEMETRY_FORMAT_ID`` (the readout format; a summation
-frame is 400 x 400) and ``COMPRESSION_TYPE``.
+frame is 400 x 400), and ``COMPRESSION_TYPE``.
 
 Usage::
 

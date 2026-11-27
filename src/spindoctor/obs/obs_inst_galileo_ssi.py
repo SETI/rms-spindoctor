@@ -29,7 +29,7 @@ GalileoSSIReadoutMode = Literal['FULL', 'SUMMED']
 full 800 x 800 frame, ``SUMMED`` for a frame read out in 2x2 summation, 400 x 400."""
 
 _GAIN_STATES = {1: '400K', 2: '100K', 3: '40K', 4: '10K'}
-"""The gain state each value of the VICAR label's ``GAIN`` item stands for, named as the
+"""The gain state for each value of the VICAR label's ``GAIN`` item, spelled the way the
 PDS3 label's ``GAIN_MODE_ID`` spells it."""
 
 _READOUT_MODES: dict[str, GalileoSSIReadoutMode] = {

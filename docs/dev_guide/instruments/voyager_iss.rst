@@ -184,9 +184,9 @@ Photometric and PSF calibration
 ===============================
 
 **Limiting magnitude.** Photometric, from the ``star_photometry`` of the camera's
-block (see :ref:`config-camera-blocks`). The Voyager calibration gives no conversion from
-DN to electrons, so the rate is in raw DN (``flux_unit: dn``), and the gain state's entry
-multiplies it. A star of V magnitude ``m`` puts
+block (see :ref:`config-camera-blocks`). The Voyager calibration works in DN and does
+not convert to electrons, so the rate is in raw DN (``flux_unit: dn``), and the gain
+state's entry multiplies it. A star of V magnitude ``m`` puts
 
 .. math::
 
@@ -201,17 +201,17 @@ readout, so its mode tables have one entry, ``ALL``. The dimmest visible star pu
 camera's ``search_depth_mag``. The navigator's image is in
 I/F, but the limit depends only on the ratio of the rate to ``min_detectable_dn``,
 and those share a scale. The filter and the gain state (``LO GAIN`` or ``HI GAIN``,
-read as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame
-whose label gives no gain state is refused, and so is a frame whose filter or gain
-state the camera's tables leave out, with the key path (for example
-``voyager_iss.vgiss_2_nac.star_photometry.filter_mag_offset``) in the message. A frame
-whose exposure is not positive gets a limit of ``-inf``.
+read as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame is
+refused when its label does not give a gain state, or when the camera's tables leave out
+its filter or gain state, and the message gives the key path (for example
+``voyager_iss.vgiss_2_nac.star_photometry.filter_mag_offset``). A frame whose exposure
+is not positive gets a limit of ``-inf``.
 
 Each of the four cameras searches 2.0 mag past its dimmest visible star. The star
-fields measure the limits below only to within 0.5 to 0.7 mag, and the published
-Voyager navigation figure, the narrow-angle camera reaching V 9.5 in 0.96 s, is 1.6
-to 2.3 mag deeper than the measured dimmest visible star, so a 1 mag search would
-leave out stars the camera can show.
+fields measure the limits below only to within 0.5 to 0.7 mag. The published Voyager
+navigation figure, V 9.5 for the narrow-angle camera in 0.96 s, is 1.6 to 2.3 mag
+deeper than the measured dimmest visible star, so a search of 1 mag would leave out
+stars the camera can show.
 
 .. list-table:: Each camera's values, and its limit at 1 s through CLEAR at low gain
    :header-rows: 1
@@ -251,19 +251,20 @@ a frame was kept when three or more stars, each on its own image peak, agreed wi
 one in a thousand. That kept 36 narrow-angle and 47 wide-angle frames, and one frame
 in three was held out of the fit.
 
-- The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4 (+-0.07
-  mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter
-  wide-angle stars, V 8 to 10, read 1.1 to 1.5 mag brighter than that rate predicts, which
-  points to a compressive vidicon response at high signal. - ``min_detectable_dn`` is
-  where a detection-probability curve, fitted to the clean stars taken through CLEAR at
-  low gain, reaches 80% of the way from its floor to its plateau: 101 +- 27 DN on the
-  narrow-angle camera and 35 +- 22 DN on the wide-angle camera. - Every measured frame is
-  at low gain, so the high-gain factor is the published constant ``g`` of Benesh and
-  Jepsen (1978, Table 4-3) for the camera's serial number. - The filter offsets are 2.5
-  log10 of each camera's solar filter factors (Benesh and Jepsen 1978). A filter or gain
-  state is measured only from 15 or more stars, and only CLEAR at low gain has that many;
-  the 4 narrow-angle VIOLET stars, for example, give 1.68 +- 0.24 mag against the 1.34
-  used.
+- The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4
+  (+-0.07 mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter
+  wide-angle stars, V 8 to 10, read 1.1 to 1.5 mag brighter than that rate predicts,
+  which points to a compressive vidicon response at high signal.
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
+  stars taken through CLEAR at low gain, reaches 80% of the way from its floor to its
+  plateau: 101 +- 27 DN on the narrow-angle camera and 35 +- 22 DN on the wide-angle
+  camera. The narrow-angle camera keeps 110 DN, within that uncertainty.
+- Every measured frame is at low gain, so the high-gain factor is the published
+  constant ``g`` of Benesh and Jepsen (1978, Table 4-3) for the camera's serial number.
+- The filter offsets are 2.5 log10 of each camera's solar filter factors (Benesh and
+  Jepsen 1978). A filter or gain state is measured only from 15 or more stars, and only
+  CLEAR at low gain has that many. The 4 narrow-angle VIOLET stars, for example, give
+  1.68 +- 0.24 mag against the 1.34 in use.
 
 Voyager 1 gave only one such frame, too few to fit. Its rates are Voyager 2's for
 the same kind of camera, scaled by the bench sensitivities Benesh and Jepsen (1978)
@@ -668,9 +669,8 @@ star fields take a few seconds.
 spacecraft-digit parser and all four of its refusals, the I/F factor parser and
 all three of its refusals, each camera's star limit at 1 s through CLEAR at low gain
 and its shifts with exposure, gain state, and filter, ``-inf`` for a non-positive
-exposure, the refusal of a filter the camera's block lacks and of a label without a
-gain state, each
-camera's star sigma, the
+exposure, the refusal of a filter that the camera's block lacks and of a label without
+a gain state, each camera's star sigma, the
 per-spacecraft metadata LIDs, and the published clock counts: fractional
 leading units with no midtime count, read from the PDS3 label beside the image.
 

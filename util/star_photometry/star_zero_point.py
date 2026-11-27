@@ -7,11 +7,12 @@ for a V = 0 star through the reference filter in the reference gain state), the 
 magnitude offsets, and the gain-state DN ratios.  :mod:`util.star_photometry.star_limit_fit`
 calls it for each camera.
 
-A filter or gain state with fewer fitting stars than the minimum gets no term: the stars
-cannot pin it down, so the fit reports it as not measured, and it takes the calibration
-document's value, fixed, when one is given.  Its stars are left out of the fit, as they
-would add nothing to the other terms had the term been fitted: a calibration value the stars
-disagree with would otherwise move the reference rate.  Leaving out one state's stars can
+A filter or gain state with fewer fitting stars than the minimum is not given a term: the
+stars cannot pin it down, so the fit reports it as not measured, and it takes the
+calibration document's value, fixed, when one is given.  Its stars are left out of the fit.
+Had the term been fitted, they would add nothing to the other terms; with the calibration
+value held fixed instead, a calibration value that the stars disagree with would move the
+reference rate.  Leaving out one state's stars can
 take another state below the minimum (a filter whose stars were all taken in unmeasured gain
 states), so the selection is repeated until it is stable, and every fitted term rests on at
 least the minimum of the stars retained.
@@ -100,7 +101,7 @@ def fit_zero_point(
     calibration_offsets: dict[str, float],
     calibration_gain_ratios: dict[str, float],
 ) -> None:
-    """Fit the reference rate, filter offsets and gain ratios into ``result``.
+    """Fit the reference rate, filter offsets, and gain ratios into ``result``.
 
     When the stars cannot separate the terms, before or after the robust weighting drops
     outliers, ``result.zero_point_identified`` is set False and no coefficient is stored.

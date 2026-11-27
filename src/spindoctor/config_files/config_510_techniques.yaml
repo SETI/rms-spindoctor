@@ -958,9 +958,9 @@ techniques:
       # camera's frames is held out.  The floor is the smallest, on a
       # 0.005 px grid, that leaves at most a two-axis Gaussian's 1.1% beyond
       # a Mahalanobis distance of 3 on the other two thirds (250 answers:
-      # 2.0% beyond 3 at no floor, 0.8% at this value).  Held out (122
-      # answers): 1.6% beyond 3 at no floor and at this value, 3.3% beyond 2
-      # (a Gaussian gives 13.5%).
+      # 2.0% beyond 3 without a floor, 0.8% at this value).  Held out (122
+      # answers): 1.6% beyond 3 both without a floor and at this value, 3.3%
+      # beyond 2 (a Gaussian gives 13.5%).
       # All frames, share beyond 3 at this value: Galileo 4.8% (n 21), VG2
       # NAC 0% (17), VG2 WAC 0% (13), LORRI 1X1 0.7% (141), LORRI 4X4 1.1%
       # (180).  The median squared distance is 0.08 at either value, against

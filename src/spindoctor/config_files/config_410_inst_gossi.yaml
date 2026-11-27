@@ -85,12 +85,13 @@ galileo_ssi:
   star_photometry:
     # 6.05e6 DN/s for V = 0 through CLEAR at 10K, times the 38.7 e-/DN of 10K.  The fit
     # gives 5.96e6 (+-0.14 mag, 46 stars), within the uncertainty of the value kept.
-    # Klaasen et al. 1999's absolute response (Table 2) gives 5.9e6 DN/s.  The scale is the 1992 frames': the 1990 frames read 0.4-1.7 mag
-    # fainter at the same settings, unexplained (#1211).
+    # Klaasen et al. 1999's absolute response (Table 2) gives 5.9e6 DN/s.  The scale is
+    # the 1992 frames': the 1990 frames read 0.4-1.7 mag fainter at the same settings,
+    # unexplained (#1211).
     flux_unit: electrons
     flux_per_s_vmag0: 2.34e+08
     # Klaasen 1993 (JPL D-5880, Tables 3-1 and 3-2): 38.7 e-/DN at 10K and the published
-    # ratios 4.824, 9.771 and 47.135 of the other states.  The stars do not measure them:
+    # ratios 4.824, 9.771, and 47.135 of the other states.  The stars do not measure them:
     # 7 stars at 100K, none at 40K or 400K.
     gain:
       '10K': 38.7

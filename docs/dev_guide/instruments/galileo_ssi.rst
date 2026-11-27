@@ -162,11 +162,11 @@ same split the image host makes when it gives a summed frame a 400 x 400 field o
 view. These are the keys of the gain and mode tables. Summing on the chip keeps a
 star's charge, so the rate and the electrons per DN hold in both modes, but summation
 changes the noise of a pixel and the width of a star in pixels, so
-``min_detectable_dn`` and ``psf_sigma`` are given per mode. A frame whose ``GAIN`` or
-``TLMFMT`` item is not one the camera has is refused, and so is a frame whose filter,
-gain state, or readout mode the tables leave out, with the key path
-(``galileo_ssi.star_photometry...``) in the message. A frame whose exposure is not
-positive gets a limit of ``-inf``.
+``min_detectable_dn`` and ``psf_sigma`` are given per mode. A frame is refused when its
+``GAIN`` or ``TLMFMT`` item is not one of these values, or when the tables leave out its
+filter, gain state, or readout mode, and the message gives the key path
+(``galileo_ssi.star_photometry...``). A frame whose exposure is not positive gets a limit
+of ``-inf``.
 
 The rate, the detection thresholds, and the star widths were measured in 2026 on the
 cruise star fields of 1990 and 1992, read through the navigator's own reader. Each
@@ -181,10 +181,9 @@ calibration documents' values, and their stars are left out of the fits.
 
 - The rate is 6.05e6 DN per second for V = 0 through CLEAR at 10K, times the 38.7
   electrons per DN of 10K. The fit of 46 stars gives 5.96e6 (+-0.14 mag), within that
-  value's uncertainty. Klaasen et al. (1999) give an
-  absolute response that predicts 5.9e6 DN per second. The rate is the 1992 frames'
-  scale: the 1990 frames read 0.4 to 1.7 mag fainter at the same settings, for no
-  reason found yet.
+  value's uncertainty. Klaasen et al. (1999) give an absolute response that predicts
+  5.9e6 DN per second. The rate is the 1992 frames' scale. The 1990 frames read 0.4 to
+  1.7 mag fainter at the same settings, and the cause is not known.
 - The electrons per DN are Klaasen (1993): 38.7 at 10K and the published ratios of the
   other three states. The stars do not measure them: 7 stars were taken at 100K and
   none at 40K or 400K.
@@ -491,11 +490,10 @@ shows that the navigator is unaffected by it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
 star limit: its value at 1 s through CLEAR at 10K, 2.5 mag per factor of ten in
-exposure, the shift of another gain state and of a filter, ``-inf`` for a
-non-positive exposure, the refusal of a filter the camera block lacks and of a
-label without a known gain state or telemetry format, a camera block without
-star photometry, and
-the star sigma. It also pins
+exposure, the shift of another gain state and of a filter, and ``-inf`` for a
+non-positive exposure. It pins the refusal of a filter that the camera block lacks,
+of a label without a known gain state or telemetry format, and of a camera block
+without star photometry, and it pins the star sigma. It also pins
 the published clock count: a fractional number of RIM counts with no midtime or
 end count, and no count at all from a label lacking one of the four items.
 
@@ -542,7 +540,7 @@ Open items
   ``read_noise_dn``, ``blank_max_dn``,
   ``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
 * The 1990 cruise star frames read 0.4 to 1.7 mag fainter than the 1992 frames at
-  the same settings, for no reason found yet; the star limit uses the 1992 scale.
+  the same settings, and the cause is not known. The star limit uses the 1992 scale.
 * The filter offsets are the published solar filter factors, which the few stars
   measured through filters do not confirm.
 * ``from_file`` carries a TODO saying the extended-FOV margin branch belongs

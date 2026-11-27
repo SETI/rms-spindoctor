@@ -1,22 +1,22 @@
 # Voyager ISS per-camera configuration: one block for each of the four cameras, keyed
-# vg<spacecraft>_<nac or wac>.  No two cameras share optics or a vidicon, so each block
-# states every value of its own, even where the number is the same.  8-bit cameras;
-# noise and image-quality threshold values carry `# PLACEHOLDER` markers until
+# vgiss_<spacecraft>_<nac or wac>.  No two cameras share optics or a vidicon, so each
+# block states every value of its own, even where the number is the same.  8-bit
+# cameras; noise and image-quality threshold values carry `# PLACEHOLDER` markers until
 # phase-10 calibration finalizes them.
 #
 # Each camera block's star_photometry is read by ObsVoyagerISS for its star limit and
-# star width.  The Voyager calibration gives no conversion from DN to electrons, so the
-# rate is in DN, and a star of V magnitude m and the default spectral class deposits
+# star width.  The Voyager calibration works in DN and does not convert to electrons, so
+# the rate is in DN.  A star of V magnitude m and the default spectral class deposits
 #     flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[filter])) * texp
 #         * gain[gain state]
-# raw DN, the rate given through CLEAR at low gain and gain giving each gain state's DN
-# factor against low gain.  The star limit and star width do not depend on the readout,
-# so the mode tables have the one mode ALL.  The dimmest visible star deposits
+# raw DN.  The rate is for CLEAR at low gain, and gain gives each gain state's DN factor
+# against low gain.  The star limit and star width do not depend on the readout, so the
+# mode tables have the one mode ALL.  The dimmest visible star deposits
 # min_detectable_dn, and the catalog search reaches search_depth_mag past it.  The
 # filter and the gain state (LO or HI GAIN, read as LOW or HIGH) come from the label's
-# LAB03 record.  The DN are those of the raw vidicon
-# frame; the navigator's image is in I/F, but the limit depends only on the ratio of the
-# rate to min_detectable_dn, which share a scale.
+# LAB03 record.  The DN are those of the raw vidicon frame.  The navigator's image is in
+# I/F, but the limit depends only on the ratio of the rate to min_detectable_dn, and the
+# two share a scale.
 #
 # Voyager 2's cameras are measured on star fields of its cruise and encounters (#130):
 # 36 narrow-angle and 47 wide-angle frames with an independent pointing fix from three or
@@ -25,8 +25,8 @@
 # (JPL 618-802).  Its cameras are S/N 07 (narrow angle) and S/N 06 (wide angle);
 # Voyager 2's are S/N 05 and S/N 04.  util/star_photometry and its fit commands give the
 # method.  Filter offsets are 2.5 log10 of the camera's solar filter factor (Benesh and
-# Jepsen 1978, Tables 3-5 to 3-8): a filter or gain state is measured only from 15 or
-# more stars, and none but CLEAR at low gain has that many.
+# Jepsen 1978, Tables 3-5 to 3-8), because a filter or gain state is measured only from
+# 15 or more stars, and none but CLEAR at low gain has that many.
 voyager_iss:
   # Voyager 1 narrow-angle camera.
   vgiss_1_nac:

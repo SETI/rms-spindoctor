@@ -3,17 +3,17 @@
 The navigator reads the geometrically corrected product (``*_GEOMED.IMG``, 1000 x 1000), which
 the archive's pipeline has resampled and scaled to I/F, so a star's value there does not scale
 with exposure.  The vidicon's own signal, which does, is the raw DN of the cleaned product
-(``*_CLEANED.IMG``, 800 x 800: the raw image with the reseau marks, known blemishes and spikes
+(``*_CLEANED.IMG``, 800 x 800: the raw image with the reseau marks, known blemishes, and spikes
 removed, in the raw geometry).  So this program finds the pointing and measures detection and
 the PSF on the navigator's image, and measures each star's DN on the cleaned image at the same
 point, carried across by the archive's own tiepoints (``*_GEOMA.TAB``: GEOMED line and sample
 to CALIB line and sample, the CALIB and CLEANED geometries being the same).
 
 Frames come from the cumulative PDS3 index of each Voyager ISS volume set: GEOMED products
-inside the epochs the local SPICE kernels cover, whose target is not a dark, calibration-lamp
-or plaque frame, and whose inventory lists no planet (so the field holds stars and at most
+inside the epochs the local SPICE kernels cover, whose target is not a dark, calibration-lamp,
+or plaque frame, and whose inventory does not list a planet (so the field holds stars and at most
 moons), exposed at least half a second (NAC) or a tenth of a second (WAC).  Every camera,
-filter and exposure range present is sampled: within each group of encounter, camera, filter
+filter, and exposure range present is sampled: within each group of encounter, camera, filter,
 and exposure octave, up to ``--per-group`` frames evenly spaced in the index.  The vidicon's
 gain state comes from ``GAIN_MODE`` (every frame in these volumes says ``LOW``) and its readout
 from ``SCAN_MODE``.
@@ -66,7 +66,7 @@ SPICE_WINDOWS = (
     ('1988-11-12', '1989-10-01'),
 )
 
-#: Targets that hold no star field.
+#: Targets whose frames do not show a star field.
 EXCLUDED_TARGETS = frozenset({'DARK', 'CAL LAMPS', 'PLAQUE'})
 
 #: Inventory entries that mean a planet is in the field.
@@ -154,7 +154,8 @@ def voyager_frames(holdings: Path, per_group: int) -> list[FrameInput]:
 
     Parameters:
         holdings: The PDS3 holdings root (``$PDS3_HOLDINGS_DIR``).
-        per_group: The most frames kept per encounter, camera, filter and exposure octave.
+        per_group: The most frames kept per encounter, camera, filter, and exposure
+            octave.
 
     Returns:
         The sampled frames.

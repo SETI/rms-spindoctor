@@ -137,12 +137,12 @@ Photometric and PSF calibration
 
 **Limiting magnitude.** Photometric, from the camera block's ``star_photometry``
 (see :ref:`config-camera-blocks`), whose rate counts electrons. The camera has no
-filter, so the block has no ``filter_mag_offset`` and none is read, and it has one gain
-state, but its binning mode changes the electrons per DN, the noise of a pixel, and the
-width of a star in pixels, so the gain table and both mode tables are keyed by the
-mode, ``1X1`` or ``4X4``. The mode follows from the row count,
-as the image host reads it: 1024 rows is ``1X1`` and 256 rows is ``4X4``, and any
-other row count is refused. A star of V magnitude ``m`` puts
+filter, so the block has no ``filter_mag_offset``. It has one gain state, but its
+binning mode changes the electrons per DN, the noise of a pixel, and the width of a
+star in pixels, so the gain table and both mode tables are keyed by the mode, ``1X1``
+or ``4X4``. The mode follows from the row count, as the image host reads it: 1024 rows
+is ``1X1`` and 256 rows is ``4X4``, and any other row count is refused. A star of V
+magnitude ``m`` puts
 
 .. math::
 
@@ -152,9 +152,9 @@ in the image, where ``R`` is ``flux_per_s_vmag0`` (7.57e8 electrons per second f
 V = 0 star) and ``g`` is the mode's ``gain`` entry, in electrons per DN. The dimmest
 visible star puts the mode's ``min_detectable_dn`` in the image, and the limit is
 that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.8
-unbinned and V 15.5 binned. A frame whose mode the tables leave out is refused, with
-the key path (``newhorizons_lorri.star_photometry...``) in the message, and a frame
-whose exposure is not positive gets a limit of ``-inf``.
+unbinned and V 15.5 binned. A frame is refused when the tables leave out its mode, and
+the message gives the key path (``newhorizons_lorri.star_photometry...``). A frame whose
+exposure is not positive gets a limit of ``-inf``.
 
 The rate, the detection thresholds, and the star widths were measured in 2026 on star
 fields of the cruise and the Pluto approach, read through the navigator's own reader.
@@ -191,8 +191,8 @@ a long exposure. The camera block's own ``star_psf_sigma`` holds the unbinned va
 the simulator, which reads it there in unbinned pixels and takes a quarter of it, 0.225
 px, on a simulated binned frame, so the simulator and the navigator agree only on unbinned
 frames. ``star_psf_sizes`` is a single ``100: [7, 7]``, so every star gets a 7x7 cutout
-regardless of magnitude. The simulator's kernel for this instrument is elliptical; the two
-are separate parameters serving separate purposes.
+regardless of magnitude. The simulator's kernel for this instrument is elliptical, and it
+is a separate parameter from the navigator's star sigma, with a separate purpose.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'1'`` -- the single panchromatic
 filter slot, encoded as the digit one -- and the table carries one entry with a
@@ -482,11 +482,10 @@ scene shows only that the navigator ignores this approximation of the header.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
 the star limit of each binning mode at 1 s, 2.5 mag per factor of ten in exposure,
-``-inf`` for a non-positive exposure, the refusal of a row count other than
-1024 or 256, and each mode's star sigma. It also
-pins the published clock counts: fractional seconds, a midtime count that is
-the float nearest their exact mean, and counts read from the PDS3 label beside
-the image.
+``-inf`` for a non-positive exposure, the refusal of a row count other than 1024 or
+256, and each mode's star sigma. It also pins the published clock counts:
+fractional seconds, a midtime count that is the float nearest their exact mean, and
+counts read from the PDS3 label beside the image.
 
 PDS4 hooks
 ==========

@@ -153,18 +153,18 @@ MaxMissingFracClean = Unit
 MaxOverexposedFracClean = Unit
 #: The share of missing pixels above which a clean image is flagged partial dropout.
 PartialDropoutMinFrac = Unit
-#: What a camera's star rate is in: electrons, or DN for a camera whose calibration
-#: gives no conversion from DN to electrons.
+#: What a camera's star rate counts: electrons, or DN for a camera whose calibration
+#: works in DN and does not convert to electrons.
 StarFluxUnit = Literal['electrons', 'dn']
 #: The rate, per second, at which a star of V magnitude 0 deposits signal through the
-#: reference filter, in the unit ``flux_unit`` gives.
+#: reference filter, in the unit that ``flux_unit`` gives.
 StarFluxPerSVmag0 = Positive
 #: Each gain state's factor, keyed by the gain state as the instrument reads it: the
-#: electrons per DN when the rate counts electrons, or the factor a star's DN is multiplied
-#: by, against the reference gain state, when it counts DN.
+#: electrons per DN when the rate counts electrons, or, when it counts DN, the factor by
+#: which a star's DN is multiplied against the reference gain state.
 StarGainTable = Annotated[dict[Str, Positive], MinLen(1)]
-#: The magnitudes each filter dims a star by, against the reference filter, keyed by the
-#: filter as the instrument reads it.
+#: How many magnitudes each filter dims a star, against the reference filter, keyed by
+#: the filter as the instrument reads it.
 FilterMagOffsetTable = Annotated[dict[Str, Float], MinLen(1)]
 #: The DN of the dimmest star a frame shows, keyed by the readout mode as the instrument
 #: spells it.
@@ -369,14 +369,14 @@ class StarPhotometry:
     """A camera's ``star_photometry`` block: its measured star limit and star width.
 
     A star of V magnitude ``m`` and the default spectral class deposits
-    ``flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[filter])) * texp`` in the unit
-    ``flux_unit`` gives, divided by the gain state's electrons per DN when the unit is
-    ``electrons``, or multiplied by the gain state's factor when it is ``dn``.  The
-    dimmest visible star deposits ``min_detectable_dn[mode]`` DN, and the catalog search
-    reaches ``search_depth_mag`` past it.  The keys of the gain, filter, and mode tables
+    ``flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[filter])) * texp`` in the
+    unit that ``flux_unit`` gives, divided by the gain state's electrons per DN when the
+    unit is ``electrons``, or multiplied by the gain state's factor when it is ``dn``.
+    The dimmest visible star deposits ``min_detectable_dn[mode]`` DN, and the catalog
+    search reaches ``search_depth_mag`` past it.  The keys of the gain, filter, and mode tables
     are spelled the way the camera's reader spells the image's gain state, filter, and
     readout mode; a camera with one readout mode gives each mode table one entry.  The
-    reader refuses an image whose gain state, filter, or mode its tables leave out.
+    reader refuses an image when the tables leave out its gain state, filter, or mode.
 
     Parameters:
         flux_unit: What the rate counts: ``electrons``, or ``dn``.
@@ -388,7 +388,7 @@ class StarPhotometry:
             mode.
         search_depth_mag: The magnitudes past the dimmest visible star that the catalog
             search reaches.
-        filter_mag_offset: The magnitudes each filter dims a star by, against the
+        filter_mag_offset: How many magnitudes each filter dims a star, against the
             reference filter.  A camera whose reader does not read a filter leaves it out.
 
     Raises:
@@ -408,8 +408,9 @@ class StarPhotometry:
     def __post_init__(self) -> None:
         """Refuse mode tables that do not give the same modes.
 
-        A frame reads both tables for its readout mode, so a mode one table gives and the
-        other leaves out would be refused only when a frame of that mode arrives.
+        A frame reads both tables for its readout mode.  If one table gives a mode that
+        the other leaves out, the mistake would show only when a frame of that mode
+        arrives.
         """
         if set(self.psf_sigma) != set(self.min_detectable_dn):
             raise RuleError(
@@ -471,7 +472,7 @@ class CameraBlock:
             no bound on a lone star's peak.
         star_photometry: The camera's measured star limit and star width.  A camera
             without measured photometry leaves it out, and a reader that needs it refuses
-            its absence.  Its star width is a separate key from ``star_psf_sigma``.
+            the image.  Its star width is a separate key from ``star_psf_sigma``.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG

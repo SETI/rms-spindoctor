@@ -21,7 +21,7 @@ _LAB03_GAIN_RE = re.compile(r'\b(?P<gain>LO|HI) GAIN\b')
 """The gain state in the VICAR label's ``LAB03`` record, as in ``LO GAIN``."""
 
 _GAIN_STATES = {'LO': 'LOW', 'HI': 'HIGH'}
-"""The gain state each ``LAB03`` spelling stands for, named as the PDS3 label's
+"""The gain state for each ``LAB03`` spelling, spelled the way the PDS3 label's
 ``GAIN_MODE_ID`` spells it."""
 
 # SCLK01_MODULI_31/_32 and SCLK01_OFFSETS_31/_32 of the Voyager 1 and 2 spacecraft clock
@@ -244,7 +244,7 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
 
     @property
     def _star_photometry_path(self) -> str:
-        """The key path of this camera's block's star photometry, which a message gives."""
+        """The key path of this camera's star photometry, which a message gives."""
         return (
             f'voyager_iss.{_camera_name(self.spacecraft_digit, str(self.detector))}.star_photometry'
         )
@@ -254,7 +254,8 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
 
         The limit is photometric, from the camera block's ``star_photometry`` (see
         :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate is in
-        raw DN, since the Voyager calibration gives no conversion from DN to electrons.
+        raw DN, because the Voyager calibration works in DN and does not convert to
+        electrons.
         The filter is the observation's filter, the gain state is read from the VICAR
         label's ``LAB03`` record (``LO GAIN`` or ``HI GAIN``, read as ``LOW`` or
         ``HIGH``), and the mode tables have the one mode ``ALL``.

@@ -60,10 +60,10 @@ newhorizons_lorri:
   #     flux_per_s_vmag0 * 10**(-0.4 * m) * texp / gain[binning]
   # DN, the rate counting electrons and gain giving electrons per DN.  The dimmest visible
   # star deposits min_detectable_dn[binning], and the catalog search reaches
-  # search_depth_mag past it.  LORRI has no filter, so the block has no filter_mag_offset,
-  # and one gain state, so gain is keyed by the binning mode.  The
-  # binning mode follows from the row count, as the image host reads it: 1024 rows is 1X1
-  # and 256 rows is 4X4.  Binning changes the electrons per DN, the noise of a pixel, and
+  # search_depth_mag past it.  LORRI has no filter, so the block has no filter_mag_offset.
+  # It has one gain state, so gain is keyed by the binning mode.  The binning mode follows
+  # from the row count, as the image host reads it: 1024 rows is 1X1 and 256 rows is 4X4.
+  # Binning changes the electrons per DN, the noise of a pixel, and
   # the width of a star in pixels, so each of those is given per mode.
   #
   # Measured on star fields of the cruise and the Pluto approach (#130): 341 frames with an

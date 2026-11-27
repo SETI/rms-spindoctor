@@ -12,7 +12,7 @@ the Uranus and Neptune encounters of Voyager 2. The two spacecraft differ in
 their SPICE identities, in one photometric correction, in each camera's star
 brightness, star limits, and star width, and in the identifiers they write into
 metadata; everywhere else they are handled identically, and the sections below
-name a spacecraft only where they actually differ.
+mention a spacecraft only where they actually differ.
 
 Pipeline support
 ================
@@ -169,22 +169,22 @@ camera, the exposure, the filter, and the gain state. At 1 s through the clear
 filter at low gain it is magnitude 9.2 for the Voyager 2 narrow-angle camera, 7.3 for
 the Voyager 2 wide-angle camera, 8.8 for the Voyager 1 narrow-angle camera, and 6.7
 for the Voyager 1 wide-angle camera. These limits lie 2 magnitudes past the faintest
-star each camera shows, which was measured for the two Voyager 2 cameras and is an
-estimate scaled from them for Voyager 1: the measurement is good only to about half a
-magnitude, and the published navigation of Voyager images reached stars about 2
-magnitudes fainter. Each factor of ten in exposure reaches 2.5
-magnitudes deeper, high gain reaches about 1.5 magnitudes deeper, and the other
-filters reach 0.7 to 5.4 magnitudes less deep than the clear one. The navigator
-expects a star's light to spread with a Gaussian sigma of 1.2 pixels on the Voyager 2
-narrow-angle camera and 1.1 pixels on the Voyager 2 wide-angle camera. For each
-Voyager 2 camera the star width, how bright a star reads through the clear filter at
-low gain, and the faintest signal the camera shows were measured on star fields whose
-pointing the stars alone fixed. The other filters and high gain follow from the
-published calibration of Benesh and Jepsen (1978), since the star fields hold too few
-stars through them to measure. Only one Voyager 1 frame could be fixed that way, so
-the Voyager 1 limits are scaled from
-Voyager 2's by the cameras' sensitivities measured before launch, and the Voyager 1
-star width is a placeholder of 3 pixels.
+star each camera shows. That faintest star was measured for the two Voyager 2 cameras
+and is scaled from them for Voyager 1. The search reaches 2 magnitudes past it because
+the measurement is good only to about half a magnitude, and because published
+navigation of Voyager images reached stars about 2 magnitudes fainter. Each factor of
+ten in exposure reaches 2.5 magnitudes deeper, high gain reaches about 1.5 magnitudes
+deeper, and the other filters reach 0.7 to 5.4 magnitudes less deep than the clear
+one. The navigator expects a star's light to spread with a Gaussian sigma of 1.2
+pixels on the Voyager 2 narrow-angle camera and 1.1 pixels on the Voyager 2
+wide-angle camera. For each Voyager 2 camera the star width, how bright a star reads
+through the clear filter at low gain, and the faintest signal the camera shows were
+measured on star fields where the stars alone fixed the pointing. The other filters
+and high gain follow from the published calibration of Benesh and Jepsen (1978),
+because too few of the stars in those fields were taken through them to measure.
+Only one Voyager 1 frame could be fixed that way, so the Voyager 1 limits are scaled
+from Voyager 2's by the cameras' sensitivities measured before launch, and the
+Voyager 1 star width is a placeholder of 3 pixels.
 
 **Missing pixels.** The marker is ``0``.
 

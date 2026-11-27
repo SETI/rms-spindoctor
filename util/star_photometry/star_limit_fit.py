@@ -18,14 +18,14 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    filter magnitude offsets, and the gain-state DN ratios.  A fit whose stars cannot
    separate the terms (a design matrix short of full rank, before or after the robust
    weighting) is reported as unidentified, with no coefficients.  A filter or gain state with
-   fewer than ``MIN_STARS_PER_BIN`` fitting stars gets no term: its stars are left out, it
-   takes the calibration document's value (``--calibration-offsets``,
+   fewer than ``MIN_STARS_PER_BIN`` fitting stars is not given a term: its stars are left
+   out, it takes the calibration document's value (``--calibration-offsets``,
    ``--calibration-gain-ratios``), and it is reported as not measured
    (:mod:`util.star_photometry.star_zero_point`).  Its stars are left out of steps 3 and 4
-   as well, since their predicted DN rests on no measured term.
+   as well, since no measured term anchors their predicted DN.
 3. **Detection limit.**  Every clean star of the fitting frames gets a predicted DN from the
-   fit; a detection-probability model (a floor, a plateau and a normal-integral rise in log
-   DN) fitted to the stars' detections gives the DN at which detection is ``COMPLETENESS`` of
+   fit; a detection-probability model (a floor, a plateau, and a normal-integral rise in
+   log DN) fitted to the stars' detections gives the DN at which detection is ``COMPLETENESS`` of
    the way from floor to plateau (``min_detectable_dn``), with a bootstrap over frames for its
    uncertainty.  The limit is left undefined, as insufficient data, unless there are three
    times ``MIN_STARS_PER_BIN`` stars, detections and non-detections each number
@@ -46,7 +46,7 @@ Usage::
     python -m util.star_photometry.star_limit_fit RECORDS.jsonl OUT_DIR --reference-filter CLEAR
         --reference-gain 10K [--search-depth-mag 1.0] [--ee-geometry MODE:R_MAX:N_BINS ...]
 
-writes ``summary.json`` (every fitted quantity), ``frames.csv`` (the per-frame table) and
+writes ``summary.json`` (every fitted quantity), ``frames.csv`` (the per-frame table), and
 ``stars.csv`` (every measured star) into ``OUT_DIR``, and prints the summary.
 """
 
@@ -420,14 +420,14 @@ def fit_camera(
 
 
 def _measured_terms(result: FitResult, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Return the rows whose filter and gain state the zero point measured.
+    """Return the rows whose filter and gain state were both measured by the zero point.
 
-    A star through a filter or gain state the stars could not pin down is predicted with the
-    calibration document's value, which nothing anchors, so it is left out of the detection
-    limit and the held-out check, as it is left out of the zero point.  So is a star through a
-    filter or gain state that neither the fit nor the calibration document gives a value for
-    (one the fitting stars never saw, such as a state taken only on held-out frames), whose
-    DN cannot be predicted.  The count left out is stored in
+    A star through a filter or gain state that the stars could not pin down is predicted
+    with the calibration document's value, which nothing anchors, so it is left out of the
+    detection limit and the held-out check, as it is left out of the zero point.  So is a
+    star through a filter or gain state for which neither the fit nor the calibration
+    document gives a value (one the fitting stars never saw, such as a state taken only on
+    held-out frames), since its DN cannot be predicted.  The count left out is stored in
     ``result.n_limit_stars_unmeasured``.
 
     Parameters:
@@ -670,7 +670,7 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
             *mode_model,
         ]
     # The binned curve and its empirical crossing are kept even where the model cannot be
-    # identified, since they need no model.
+    # identified, since they do not need one.
     if rows:
         centers, counts, fraction = _completeness_curve(rows)
         result.completeness = [

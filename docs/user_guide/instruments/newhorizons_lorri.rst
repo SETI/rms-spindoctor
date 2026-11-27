@@ -129,7 +129,8 @@ and the binning mode. At 1 s it is magnitude 14.8 on an unbinned frame and 15.5 
 frame binned four by four, and each factor of ten in exposure reaches 2.5 magnitudes
 deeper. The navigator expects a star's light to spread with a Gaussian sigma of 0.9
 pixels on an unbinned frame and 0.45 pixels on a binned one. Both were measured on
-cruise and Pluto-approach star fields, on frames whose pointing the stars alone fixed.
+cruise and Pluto-approach star fields, on frames where the stars alone fixed the
+pointing.
 
 **Provisional values.** The blank and noisy thresholds, the full-well figure,
 the expected-noise and read-noise figures, and the magnitude-offset table are

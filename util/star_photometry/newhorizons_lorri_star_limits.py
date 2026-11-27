@@ -7,11 +7,11 @@ the photometric image.
 Frames come from the cumulative supplemental index of the calibrated volumes
 (``NHxxLO_2999``), inside the epochs the local SPICE kernels cover (before 2016), leaving out
 the targets whose disk or rings fill much of the field (Jupiter and its Galilean moons, the
-Jovian rings, the Sun), Pluto and Charon after 2015-07-04 (when Pluto spans more than a few
+Jovian rings, and the Sun), Pluto and Charon after 2015-07-04 (when Pluto spans more than a few
 dozen pixels), and the cover-closed noise and bias tests.  What remains is star calibrations,
-optical-navigation and satellite-search frames in which Pluto, a small moon or a distant
+optical-navigation and satellite-search frames in which Pluto, a small moon, or a distant
 Kuiper-belt object is a point among the stars, and similar fields; the star-cluster
-calibrations (M7, NGC 3532) all fall after the kernels end.  Every target group, binning mode
+calibrations (M7, NGC 3532) all fall after the kernels end.  Every target group, binning mode,
 and exposure octave present is sampled: up to ``--per-group`` frames each, evenly spaced in
 the index.  The target group is the target, except that minor planets (Kuiper-belt objects
 and centaurs, named by a number or a provisional designation) share one.  LORRI has one gain
@@ -156,7 +156,8 @@ def lorri_frames(holdings: Path, per_group: int) -> list[FrameInput]:
 
     Parameters:
         holdings: The PDS3 holdings root (``$PDS3_HOLDINGS_DIR``).
-        per_group: The most frames kept per target group, binning mode and exposure octave.
+        per_group: The most frames kept per target group, binning mode, and exposure
+            octave.
 
     Returns:
         The sampled frames.

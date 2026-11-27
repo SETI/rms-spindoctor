@@ -135,10 +135,10 @@ filters reach 2 to 6 magnitudes less deep than the clear one. The navigator expe
 star's light to spread with a Gaussian sigma of 0.65 pixels on a full frame and 0.40
 pixels on a summed frame. The star widths, how bright a star reads through the clear
 filter at the 10K gain state, and the faintest signal the camera shows were measured
-on the 1990 and 1992 cruise star fields, on frames whose pointing the stars alone
-fixed. The other filters and gain states follow from published calibration values
-(Klaasen 1993 and Klaasen et al. 1999), since the star fields hold too few stars
-through them to measure.
+on the 1990 and 1992 cruise star fields, on frames where the stars alone fixed the
+pointing. The other filters and gain states follow from published calibration values
+(Klaasen 1993 and Klaasen et al. 1999), because too few of the stars in those fields
+were taken through them to measure.
 
 **Provisional values.** The blank and noisy thresholds, the expected-noise and
 read-noise figures, and the magnitude-offset table are all placeholders
@@ -263,7 +263,7 @@ Known limitations
 * The blank and noisy thresholds are placeholders, so the blank and noisy
   classifications are provisional.
 * The 1990 cruise star frames record stars 0.4 to 1.7 magnitudes fainter than the
-  1992 frames at the same settings, for no reason found yet. The star limit follows
+  1992 frames at the same settings, and the cause is not known. The star limit follows
   the 1992 frames, so on a 1990 frame the navigator looks for stars somewhat fainter
   than the frame shows.
 * By default the simulator draws stars with a published estimate of this instrument's

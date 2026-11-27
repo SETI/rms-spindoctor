@@ -198,8 +198,8 @@ photometry,
 
 where :math:`R` is the DN rate of a V = 0 star through the camera's reference filter in
 its reference gain state and readout mode, :math:`f` is the frame's filter's magnitude
-offset from the reference filter, and :math:`k` is the factor the frame's gain state or
-readout mode multiplies the DN by. The dimmest visible star is the magnitude
+offset from the reference filter, and :math:`k` is the factor by which the frame's gain
+state or readout mode multiplies the DN. The dimmest visible star is the magnitude
 :math:`m_{\mathrm{dim}}` whose DN equals the camera's measured minimum detectable DN,
 and the limit searches a fixed depth past it:
 
@@ -211,8 +211,8 @@ Each factor of ten in exposure moves the limit 2.5 magnitudes deeper, and a filt
 moves it by the filter's offset. A frame whose exposure is not positive gets a limit
 of :math:`-\infty`. The values come from the ``star_photometry`` block of the camera's
 own block (see :ref:`config-camera-blocks`), and each camera's values are described in
-its chapter under :doc:`/dev_guide/instruments/instruments`. A frame whose filter, gain
-state, or readout mode the block's tables leave out is refused.
+its chapter under :doc:`/dev_guide/instruments/instruments`. A frame is refused when the
+block's tables leave out its filter, gain state, or readout mode.
 
 The anchored form scales a single measured limit with the exposure alone,
 

@@ -132,7 +132,7 @@ def test_an_untyped_camera_section_is_parsed_when_asked_for() -> None:
 
 
 def test_the_star_photometry_mode_tables_give_the_same_modes() -> None:
-    """A mode the star width table gives and the faintest-signal table leaves out is refused."""
+    """Mode tables that give different modes are refused."""
     raw = camera_mapping(raw_camera())
     raw['star_photometry'] = {
         'flux_unit': 'electrons',
