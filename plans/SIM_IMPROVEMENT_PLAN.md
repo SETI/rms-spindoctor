@@ -247,6 +247,7 @@ one. This phase's exit asks for that check.
 | #1057 | **Affects no current scene.** A Henyey-Greenstein asymmetry within rounding of 1 or -1 divides by zero in the ring renderer; cap it in the ring and haze rules |
 | #1115 | **Affects no current scene.** The outline of a relief body seen at a latitude is rebuilt on every render (5.9 s at a 1-degree correlation length); cache it by view |
 | #1127 | **Done in part (PR #1179).** Relief bodies render bit for bit as before, 2.2 to 3.0 times faster on one core (the 150 px 5% body 18.8 s to 7.5 s, the 280 px fine-relief body 195 s to 66 s, the render-budget body 4.9 s to 3.7 s); the 2 s and 20 s targets wait on compiling the walk and the march with numba (#1182). **Affects the relief scene and every relief sweep by render time only.** A body with relief takes far too long to render (17 s for a 150 px rough body, over 3 minutes for fine relief) |
+| #1214 | **Done (PR #1241).** **Affects no current scene.** A frame under 10 pixels on a side is refused at validation with a message naming the key and the size, and the scene editor's size controls stop at the same 10: the distortion margin grows steeply as the frame shrinks (hundreds of thousands of pixels at 1 by 1), so the renderer asked for terabytes |
 
 **Exit:** a frame-filling planet renders at its true position with light from beyond the frame
 edge; a rolled scene behaves as the ruling on #644 decides; a lone ring edge lands within 0.05 px
@@ -460,7 +461,7 @@ model does not gain them.
 | #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
 | #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
 | #1136 | **Affects no render; the code and its description disagree.** A cosmic-ray streak or splatter deposits the sampled charge on every pixel of its footprint, where the docstrings and the guide call it the charge per event, and the catalog amplitudes were fitted with the per-pixel behavior |
-| #1235 | **Affects no current scene noticeably; only LORRI states an extra integration time (0.705 ms).** The calibrated inverse subtracts dark current over the commanded exposure while the frame collects it over the integration time, leaving a small dark pedestal in a calibrated frame |
+| #1235 | **Done (PR #1240).** **Affects no current scene.** The calibrated inverse now subtracts the dark pedestal collected over the integration time, so a calibrated CCD that states an extra integration time keeps no residual dark pedestal; only the raw LORRI entry states one |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |

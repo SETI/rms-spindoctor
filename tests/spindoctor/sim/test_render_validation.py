@@ -11,10 +11,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from tests.spindoctor.sim.scenes import frame_scene
+from tests.spindoctor.sim.scenes import frame_scene, star_entry
 
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
+from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
 from spindoctor.sim.scene.io import load_sim_scene
 
 _SIZE = 32
@@ -51,3 +52,27 @@ def test_a_scene_file_json_cannot_encode_is_validated(tmp_path: Path) -> None:
     )
     with pytest.raises(SimSceneValidationError, match=re.escape("unknown keys: ['launch_date']")):
         load_sim_scene(scene_path)
+
+
+@pytest.mark.parametrize('key', ['size_v', 'size_u'])
+def test_render_refuses_a_frame_below_the_minimum_size(key: str) -> None:
+    """A frame under 10 pixels is refused with a message naming the key and the bound."""
+    scene = _scene(**{key: 1})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=re.escape(f'{key}: expected an integer of at least {MIN_FRAME_SIZE_PX}, got 1'),
+    ):
+        render_scene(scene)
+
+
+def test_render_draws_a_frame_of_the_minimum_size() -> None:
+    """A frame of exactly 10 pixels renders with the camera's distortion and a star in view."""
+    middle = MIN_FRAME_SIZE_PX / 2.0
+    scene = frame_scene(
+        instrument='vgiss_1_nac',
+        size=MIN_FRAME_SIZE_PX,
+        artifacts={'instrument_defaults': True},
+        stars=[star_entry(middle, middle, 5.0)],
+    )
+    image, _ = render_scene(scene)
+    assert image.shape == (MIN_FRAME_SIZE_PX, MIN_FRAME_SIZE_PX)

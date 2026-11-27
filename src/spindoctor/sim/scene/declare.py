@@ -65,15 +65,17 @@ class IntWithin:
 
     Parameters:
         low: The smallest value allowed.
-        high: The largest value allowed.
+        high: The largest value allowed; None for no upper limit.
     """
 
     low: int
-    high: int
+    high: int | None = None
 
     @property
     def expected(self) -> str:
         """The range, in the words of an error message."""
+        if self.high is None:
+            return f'an integer of at least {self.low}'
         return f'an integer from {self.low} to {self.high}'
 
     def __call__(self, value: int) -> int:
@@ -82,7 +84,7 @@ class IntWithin:
         Raises:
             RangeError: If it does not.
         """
-        if not self.low <= value <= self.high:
+        if value < self.low or (self.high is not None and value > self.high):
             raise RangeError(self.expected)
         return value
 
