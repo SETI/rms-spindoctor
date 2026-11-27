@@ -38,7 +38,7 @@ def test_render_refuses_an_invalid_scene() -> None:
     """A scene with a misspelled key is refused with the validation message."""
     with pytest.raises(
         SimSceneValidationError,
-        match=re.escape("sim_params: unknown scene keys: ['exposure_seconds']"),
+        match=re.escape("sim_params: unknown keys: ['exposure_seconds']"),
     ):
         render_scene(_scene(exposure_seconds=2.0))
 
@@ -49,7 +49,5 @@ def test_a_scene_file_json_cannot_encode_is_validated(tmp_path: Path) -> None:
     scene_path.write_text(
         'schema_version: 2\nscene_name: dated\nsize_v: 32\nsize_u: 32\nlaunch_date: 2004-07-01\n'
     )
-    with pytest.raises(
-        SimSceneValidationError, match=re.escape("unknown scene keys: ['launch_date']")
-    ):
+    with pytest.raises(SimSceneValidationError, match=re.escape("unknown keys: ['launch_date']")):
         load_sim_scene(scene_path)

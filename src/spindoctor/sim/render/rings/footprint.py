@@ -158,8 +158,10 @@ def accumulate_feature(
     phase_g = float(scene_value(feature, 'phase_g', RING_PHASE_G_DEFAULT))
     ap = albedo / 4.0 * henyey_greenstein_phase(phase_g, phase_angle)
     positive = np.clip(contribution, 0.0, None)
-    ap_weighted[sel] += ap * positive
     ap_weight[sel] += positive
+    # Scaled in place once the weight has it; ap * positive, to the last bit.
+    positive *= ap
+    ap_weighted[sel] += positive
 
 
 @dataclass(frozen=True)

@@ -33,6 +33,7 @@ def _content(cval: float, rows: slice, cols: slice) -> np.ndarray:
         pytest.param(-23.6, 41.2, slice(100, 160), slice(90, 200), id='many_pixels'),
         pytest.param(5.5, -7.25, slice(0, 40), slice(250, 280), id='frame_edge'),
         pytest.param(-25.3, 40.6, slice(10, 60), slice(220, 280), id='partly_off_the_frame'),
+        pytest.param(-0.3, -0.2, slice(0, 40), slice(250, 280), id='top_edge_sub_pixel'),
     ],
 )
 def test_translation_is_the_whole_frame_shift(
@@ -51,6 +52,15 @@ def test_a_box_taller_than_one_strip_is_the_whole_frame_shift() -> None:
     plane = _content(0.0, rows, cols)
     expected = ndimage.shift(plane, (0.62, -1.4), order=1, mode='constant', cval=0.0)
     assert np.array_equal(translate_box(plane, 0.62, -1.4, rows, cols), expected)
+
+
+def test_a_float32_plane_has_the_whole_frame_shift_bits() -> None:
+    """A float32 plane is resampled in float64 and rounded once, as the shift does."""
+    rows, cols = slice(100, 160), slice(90, 200)
+    plane = _content(0.0, rows, cols).astype(np.float32)
+    expected = ndimage.shift(plane, (0.37, -0.81), order=1, mode='constant', cval=0.0)
+    out = translate_box(plane, 0.37, -0.81, rows, cols)
+    assert np.array_equal(out, expected.astype(np.float64))
 
 
 def test_translation_with_a_fill_of_one_is_the_whole_frame_shift() -> None:

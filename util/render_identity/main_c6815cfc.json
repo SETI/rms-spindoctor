@@ -1,0 +1,2266 @@
+{
+ "catalog/algorithmic_invariants/planted_offset_blob#display": [
+  "93f4f3868698e1e0",
+  "d95c417fba79c2f0"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_blob#nav": [
+  "b254540453b3c264",
+  "bba4ee7cbf940597"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_blob_crescent#display": [
+  "6bedce6dab676502",
+  "54180739d3a5a31e"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_blob_crescent#nav": [
+  "18035f98f28a72fe",
+  "68f60028fa5c2530"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_blob_crescent_displaced#display": [
+  "6bedce6dab676502",
+  "54180739d3a5a31e"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_blob_crescent_displaced#nav": [
+  "5b02edf7459c9a54",
+  "7104623813846180"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_blob_mesh_crescent#display": [
+  "040f3f28054c377c",
+  "f5b1d6b60f202c73"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_blob_mesh_crescent#nav": [
+  "28a6d31a20f81180",
+  "f356088a3605ceb0"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_disc#display": [
+  "03c91f3a43ee7651",
+  "2ba437f0d6408106"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_disc#nav": [
+  "4a7cece4b39f8ac4",
+  "43eec98659efd1c9"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_disc_if#display": [
+  "2f199815bf8aadce",
+  "ed84c220469435f2"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_disc_if#nav": [
+  "9e2e0c7f030d0d36",
+  "13338dc99cf8e465"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_irregular#display": [
+  "040c7d60c6b063d0",
+  "212acef4489389be"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_irregular#nav": [
+  "401170cf807e6326",
+  "e0df4ec11f74ff69"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_limb#display": [
+  "47e53000a57a906b",
+  "4f81964972d0e7ca"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_limb#nav": [
+  "8b6a43e0ad3a5d4f",
+  "b174e96e64bcd7ad"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_limb_mesh#display": [
+  "9b694ae396ee26d4",
+  "4dd65c49775930f9"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_limb_mesh#nav": [
+  "6a053323cc5b3a9d",
+  "d37d8cd4b744d5b0"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_ring#display": [
+  "1c3501e9dcb2da84",
+  "2fd538b04508f9c7"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_ring#nav": [
+  "7b5c42e7ebed536d",
+  "e019f66c07f5aec3"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_shapemismatch#display": [
+  "7b4f1f5244fe89b0",
+  "e32f319ce524f238"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_shapemismatch#nav": [
+  "c6ccf28493e816c9",
+  "776dfcfd36115a51"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_small#display": [
+  "03c91f3a43ee7651",
+  "2ba437f0d6408106"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_small#nav": [
+  "4a7cece4b39f8ac4",
+  "43eec98659efd1c9"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_star_field#display": [
+  "5e91b75a2ff25182",
+  "befe2a042be5eb1d"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_star_field#nav": [
+  "0a7e4198b73488b9",
+  "24a81b4c5f2dcf5d"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_star_field_bright#display": [
+  "81ac0bd8215cdd5c",
+  "c0bfa300d532c188"
+ ],
+ "catalog/algorithmic_invariants/planted_offset_star_field_bright#nav": [
+  "70da96d9dea113be",
+  "dfe1fcc52d811b52"
+ ],
+ "catalog/algorithmic_invariants/planted_rank1_ring_flat#display": [
+  "5e2f2bc8edc813de",
+  "0a96b9c4739a9592"
+ ],
+ "catalog/algorithmic_invariants/planted_rank1_ring_flat#nav": [
+  "3614b70b3d75a237",
+  "c45856b8c2030873"
+ ],
+ "catalog/algorithmic_invariants/planted_refine_star_field#display": [
+  "4134112ed6b99a3e",
+  "4141049e4551ced6"
+ ],
+ "catalog/algorithmic_invariants/planted_refine_star_field#nav": [
+  "2f06308c468abffe",
+  "0dd298953e4e42b7"
+ ],
+ "catalog/algorithmic_invariants/planted_rotation_star_field#display": [
+  "3ed21532c5514ae5",
+  "ef72f7129b40cc0d"
+ ],
+ "catalog/algorithmic_invariants/planted_rotation_star_field#nav": [
+  "2d104a27fa1a9391",
+  "8ab1ae41144ab5d0"
+ ],
+ "catalog/algorithmic_invariants/planted_unique_star_single#display": [
+  "04fba251ce883468",
+  "c57848ab4bd8c14f"
+ ],
+ "catalog/algorithmic_invariants/planted_unique_star_single#nav": [
+  "cd1a6a7a9e939a69",
+  "b42cbf62c34fdd48"
+ ],
+ "catalog/artifact_sweep/disc_structured_loss#display": [
+  "4a4a356001aec8c7",
+  "5cf5fd228a232909"
+ ],
+ "catalog/artifact_sweep/disc_structured_loss#nav": [
+  "fa06949a6b58afcc",
+  "f0f8234d00a7b43f"
+ ],
+ "catalog/artifact_sweep/disc_structured_loss_adversarial#display": [
+  "1a5efa1a6102af18",
+  "6e2174c038412227"
+ ],
+ "catalog/artifact_sweep/disc_structured_loss_adversarial#nav": [
+  "8822a4587fc8088d",
+  "d223d875bf922690"
+ ],
+ "catalog/artifact_sweep/star_field_structured_loss#display": [
+  "2dd37ba769735c2c",
+  "5b846fe5a509792d"
+ ],
+ "catalog/artifact_sweep/star_field_structured_loss#nav": [
+  "aecd318c5f92ae9d",
+  "c9727946a5133db9"
+ ],
+ "catalog/artifact_sweep/star_field_structured_loss_adversarial#display": [
+  "274fcd14248b845c",
+  "95b5e552ad4c6d80"
+ ],
+ "catalog/artifact_sweep/star_field_structured_loss_adversarial#nav": [
+  "a0c9161587d0dad2",
+  "5fb7b5fa84de8480"
+ ],
+ "catalog/atmosphere/titan_crescent_horns#display": [
+  "8645243163b66b74",
+  "ebd01e684453ca72"
+ ],
+ "catalog/atmosphere/titan_crescent_horns#nav": [
+  "de00883e6b0a5d48",
+  "cc01960c08ce652e"
+ ],
+ "catalog/atmosphere/titan_crescent_horns_noiseless#display": [
+  "64ffcfb8a6cf60f0",
+  "ebd01e684453ca72"
+ ],
+ "catalog/atmosphere/titan_crescent_horns_noiseless#nav": [
+  "c93f4138b3edbc3d",
+  "cc01960c08ce652e"
+ ],
+ "catalog/atmosphere/titan_haze#display": [
+  "8d324b233660e044",
+  "b6dfd42264e8c093"
+ ],
+ "catalog/atmosphere/titan_haze#nav": [
+  "330e22f3ec9f13db",
+  "5367caa13ac7b165"
+ ],
+ "catalog/atmosphere/titan_haze_limb#display": [
+  "2edfc8e61c9abd1d",
+  "56aad002ff40bebe"
+ ],
+ "catalog/atmosphere/titan_haze_limb#nav": [
+  "96936fab85f3dfac",
+  "68b44bfc09346f08"
+ ],
+ "catalog/dense_rings/a_ring_edge_f_ring#display": [
+  "f340dc252886b5f8",
+  "e7f7cc57056f4e9f"
+ ],
+ "catalog/dense_rings/a_ring_edge_f_ring#nav": [
+  "c234631f070bcacc",
+  "6a2786043dd8b239"
+ ],
+ "catalog/dense_rings/a_ring_low_opening#display": [
+  "8c5b0d19c2a8f84e",
+  "2def910634fbf9ff"
+ ],
+ "catalog/dense_rings/a_ring_low_opening#nav": [
+  "7c00eb4cb6d04cab",
+  "1962199ab0d6829e"
+ ],
+ "catalog/dense_rings/b_ring_saturated_plateau#display": [
+  "aff50cf69341e269",
+  "3b12807fd42f8943"
+ ],
+ "catalog/dense_rings/b_ring_saturated_plateau#nav": [
+  "e85ed2424f419566",
+  "67ccab1a663255a9"
+ ],
+ "catalog/dense_rings/keeler_gap_unlit_ansa#display": [
+  "b4e3d5e28846a1ad",
+  "10e7d3c30b1d71f0"
+ ],
+ "catalog/dense_rings/keeler_gap_unlit_ansa#nav": [
+  "63b65c82acc87ede",
+  "e2ce06f0aac7fdb2"
+ ],
+ "catalog/dense_rings/maxwell_hidden_eccentricity#display": [
+  "599b5fb853378fa7",
+  "9087045961d79b80"
+ ],
+ "catalog/dense_rings/maxwell_hidden_eccentricity#nav": [
+  "220d373eb1575969",
+  "cc47f12aa6a763c9"
+ ],
+ "catalog/expected_fail/overwhelming_clutter#display": [
+  "ea34356653984217",
+  "34890d2929cec989"
+ ],
+ "catalog/expected_fail/overwhelming_clutter#nav": [
+  "62469bc6a444015d",
+  "3dec596e6911b6e5"
+ ],
+ "catalog/expected_fail/wrong_catalog#display": [
+  "44dfe1fb40fa7444",
+  "0a994cc60658a221"
+ ],
+ "catalog/expected_fail/wrong_catalog#nav": [
+  "462d6fa83dc1de15",
+  "b916eedca52944ab"
+ ],
+ "catalog/full_frame_cameras/coiss_calib_nac_disc#display": [
+  "36140f7513ab8b36",
+  "3f7b6bc61260aec7"
+ ],
+ "catalog/full_frame_cameras/coiss_calib_nac_disc#nav": [
+  "0692933c69584182",
+  "8a92135a37c79fd2"
+ ],
+ "catalog/full_frame_cameras/coiss_calib_wac_star_field#display": [
+  "997f594befe795bd",
+  "2adbeca4b62f3965"
+ ],
+ "catalog/full_frame_cameras/coiss_calib_wac_star_field#nav": [
+  "e7b76442e125ca10",
+  "bf1839712a238abc"
+ ],
+ "catalog/full_frame_cameras/coiss_calib_wac_star_field_large_offset#display": [
+  "997f594befe795bd",
+  "2adbeca4b62f3965"
+ ],
+ "catalog/full_frame_cameras/coiss_calib_wac_star_field_large_offset#nav": [
+  "8ebab6276fa450ed",
+  "caa904cd116002b4"
+ ],
+ "catalog/full_frame_cameras/coiss_nac_star_field#display": [
+  "c4ff5f271d278120",
+  "1df66610931343eb"
+ ],
+ "catalog/full_frame_cameras/coiss_nac_star_field#nav": [
+  "dfc38ba24bc865ee",
+  "9e45057a6dc6322b"
+ ],
+ "catalog/full_frame_cameras/coiss_wac_disc#display": [
+  "71e0fa3c6f5f4d96",
+  "91d1408202feb532"
+ ],
+ "catalog/full_frame_cameras/coiss_wac_disc#nav": [
+  "7aa01e169f814f26",
+  "4d45a8f6187ee3df"
+ ],
+ "catalog/full_frame_cameras/gossi_disc#display": [
+  "360799ea86dddeb2",
+  "08fa70be5224d494"
+ ],
+ "catalog/full_frame_cameras/gossi_disc#nav": [
+  "c6a88cc6afeb5249",
+  "e161868b0f7e3e7b"
+ ],
+ "catalog/full_frame_cameras/gossi_star_field#display": [
+  "7475ae7e44f18811",
+  "952d2d8854836e6e"
+ ],
+ "catalog/full_frame_cameras/gossi_star_field#nav": [
+  "8d767a4131cf49b5",
+  "e57ee3a49071e660"
+ ],
+ "catalog/full_frame_cameras/gossi_star_field_short_exposure#display": [
+  "2d2d937c79cbaf33",
+  "17067f875e3923d8"
+ ],
+ "catalog/full_frame_cameras/gossi_star_field_short_exposure#nav": [
+  "d90224f9f59a985a",
+  "34d45e10fc8bd3ca"
+ ],
+ "catalog/full_frame_cameras/nhlorri_star_field#display": [
+  "3dae1f2e3ef5bb48",
+  "99c9bcc39a4fb27c"
+ ],
+ "catalog/full_frame_cameras/nhlorri_star_field#nav": [
+  "2d8de6510b418a06",
+  "da1d12955a3fdf24"
+ ],
+ "catalog/full_frame_cameras/nhlorri_star_field_short_exposure#display": [
+  "9739c1232e203582",
+  "89e3bbc6876d1315"
+ ],
+ "catalog/full_frame_cameras/nhlorri_star_field_short_exposure#nav": [
+  "f4293f450989d804",
+  "adab422bd975b250"
+ ],
+ "catalog/mixed_content/crescent_stars#display": [
+  "e79e68c1203e3331",
+  "3166e13f3b88fc5b"
+ ],
+ "catalog/mixed_content/crescent_stars#nav": [
+  "e1429f92eade3bd2",
+  "d5520cf6df3e351a"
+ ],
+ "catalog/mixed_content/moon_over_ring_sheet#display": [
+  "a74c1cad4d5d2800",
+  "cfc150bb13369020"
+ ],
+ "catalog/mixed_content/moon_over_ring_sheet#nav": [
+  "462e6ba790eaef02",
+  "fa4e6440e1fdf171"
+ ],
+ "catalog/mixed_content/saturn_rings_wac#display": [
+  "99e7621f3295651b",
+  "813b2572e878a814"
+ ],
+ "catalog/mixed_content/saturn_rings_wac#nav": [
+  "4f8485c3ce10fcee",
+  "f8fff0d3e6f562b1"
+ ],
+ "catalog/mixed_content/stars_body_ephemeris_error#display": [
+  "bfe0ebad6afeecd4",
+  "dce7c857f1ca397f"
+ ],
+ "catalog/mixed_content/stars_body_ephemeris_error#nav": [
+  "597bb940cc48ee71",
+  "756e7c2fe33cb7a5"
+ ],
+ "catalog/mixed_defects/coiss_nac_lossy_moon#display": [
+  "75cfaed320055003",
+  "6b163aeeecf655f8"
+ ],
+ "catalog/mixed_defects/coiss_nac_lossy_moon#nav": [
+  "4a3c87c94655c54a",
+  "2b822b58c252f603"
+ ],
+ "catalog/mixed_defects/coiss_nac_stars_moon_lost_lines#display": [
+  "faa7241df1e8b77c",
+  "7b34dccde01861c8"
+ ],
+ "catalog/mixed_defects/coiss_nac_stars_moon_lost_lines#nav": [
+  "a54313f9756964b2",
+  "b89f0cc852d5aa2f"
+ ],
+ "catalog/mixed_defects/gossi_ict_moon#display": [
+  "d60bb828f948dd30",
+  "6afb3bbb9fbf25dd"
+ ],
+ "catalog/mixed_defects/gossi_ict_moon#nav": [
+  "c99ef05cb4efd75c",
+  "0332a6b0d25f042a"
+ ],
+ "catalog/mixed_defects/nhlorri_moon_raw#display": [
+  "c7ef05331ec83a04",
+  "a297a964315942e3"
+ ],
+ "catalog/mixed_defects/nhlorri_moon_raw#nav": [
+  "9bc1650a81611c81",
+  "9e2c039d635344c7"
+ ],
+ "catalog/model_mismatch/haze_limb_base#display": [
+  "558fcac5e1915fb4",
+  "3635b2c9c8cad37a"
+ ],
+ "catalog/model_mismatch/haze_limb_base#nav": [
+  "558fcac5e1915fb4",
+  "3635b2c9c8cad37a"
+ ],
+ "catalog/model_mismatch/minnaert_disc_base#display": [
+  "6bab189113e212e6",
+  "96c8f92ad85ff93f"
+ ],
+ "catalog/model_mismatch/minnaert_disc_base#nav": [
+  "ef5e593cba58efc1",
+  "adc8a1b20beda6b0"
+ ],
+ "catalog/model_mismatch/psf_limb_body#display": [
+  "4cd95b85c75cd77f",
+  "60c0c816d2186c9c"
+ ],
+ "catalog/model_mismatch/psf_limb_body#nav": [
+  "0a47f62924b65327",
+  "be67e6ce07948b64"
+ ],
+ "catalog/model_mismatch/spk_parallax_body#display": [
+  "6bab189113e212e6",
+  "b2ccc81ee444ef4e"
+ ],
+ "catalog/model_mismatch/spk_parallax_body#nav": [
+  "ef5e593cba58efc1",
+  "2ddb382484540c23"
+ ],
+ "catalog/multi_body_geometry/two_moons#display": [
+  "9ca1ab0e3600d46d",
+  "2ab24757eaba389e"
+ ],
+ "catalog/multi_body_geometry/two_moons#nav": [
+  "dabf262bcf16450a",
+  "ec75c039b7d9150e"
+ ],
+ "catalog/mutual_event/mutual_deep#display": [
+  "aa2dd191302828a0",
+  "2af579b9c4e3ab43"
+ ],
+ "catalog/mutual_event/mutual_deep#nav": [
+  "14431f9ae1807de1",
+  "5922121bd471f528"
+ ],
+ "catalog/mutual_event/mutual_grazing#display": [
+  "c1a3a17198dcfd4e",
+  "2f55651944938707"
+ ],
+ "catalog/mutual_event/mutual_grazing#nav": [
+  "c3c58bfcd4f8f338",
+  "3421d9647da3e29d"
+ ],
+ "catalog/mutual_event/mutual_half#display": [
+  "ef6f7ed56cde48b7",
+  "123e246690a4feb4"
+ ],
+ "catalog/mutual_event/mutual_half#nav": [
+  "1485a69fb5d6dad8",
+  "4c91bd9cc4e4af0c"
+ ],
+ "catalog/noise_sweep/clean_disc_readnoise_04#display": [
+  "09bd649ed65fface",
+  "6f48eb1b62a1afc9"
+ ],
+ "catalog/noise_sweep/clean_disc_readnoise_04#nav": [
+  "09bd649ed65fface",
+  "6f48eb1b62a1afc9"
+ ],
+ "catalog/noise_sweep/clean_disc_readnoise_20#display": [
+  "36377f5dd30fb9ab",
+  "6f48eb1b62a1afc9"
+ ],
+ "catalog/noise_sweep/clean_disc_readnoise_20#nav": [
+  "36377f5dd30fb9ab",
+  "6f48eb1b62a1afc9"
+ ],
+ "catalog/phase_sweep_irregular_body/hyperion_phase_060#display": [
+  "bd7ee20879f936ce",
+  "5c032a8780f00421"
+ ],
+ "catalog/phase_sweep_irregular_body/hyperion_phase_060#nav": [
+  "bd7ee20879f936ce",
+  "5c032a8780f00421"
+ ],
+ "catalog/phase_sweep_irregular_body/hyperion_pose_disagree#display": [
+  "37c18577fa09ac37",
+  "26dfedc5e5f26cf2"
+ ],
+ "catalog/phase_sweep_irregular_body/hyperion_pose_disagree#nav": [
+  "9f9b3305980e3acc",
+  "b552af0c813e21ca"
+ ],
+ "catalog/phase_sweep_regular_body/mimas_phase_030#display": [
+  "b1d0659044858b66",
+  "3daaa64e674fec38"
+ ],
+ "catalog/phase_sweep_regular_body/mimas_phase_030#nav": [
+  "b1d0659044858b66",
+  "3daaa64e674fec38"
+ ],
+ "catalog/phase_sweep_regular_body/mimas_phase_120#display": [
+  "438598b82635e0cb",
+  "bd2923b7782c3afc"
+ ],
+ "catalog/phase_sweep_regular_body/mimas_phase_120#nav": [
+  "438598b82635e0cb",
+  "bd2923b7782c3afc"
+ ],
+ "catalog/phase_sweep_regular_body/regular_sphere_base#display": [
+  "918dbe519236c705",
+  "ed84c220469435f2"
+ ],
+ "catalog/phase_sweep_regular_body/regular_sphere_base#nav": [
+  "fe40379bec2a8556",
+  "54edf7acc8f70f36"
+ ],
+ "catalog/phase_sweep_regular_body/regular_sphere_calib_base#display": [
+  "ff39e9999c2436d0",
+  "097dbfc3a1794616"
+ ],
+ "catalog/phase_sweep_regular_body/regular_sphere_calib_base#nav": [
+  "a4eab878a37c77eb",
+  "048c2db058cdc056"
+ ],
+ "catalog/phase_sweep_regular_body/small_sphere_base#display": [
+  "7cbceee67c4fdb0e",
+  "2f37ced964857d27"
+ ],
+ "catalog/phase_sweep_regular_body/small_sphere_base#nav": [
+  "5fb21bfae8c633b5",
+  "b51fbe67450a1223"
+ ],
+ "catalog/range_sweep/small_body#display": [
+  "201079ff2fc0ca44",
+  "c800af287b97cc44"
+ ],
+ "catalog/range_sweep/small_body#nav": [
+  "201079ff2fc0ca44",
+  "c800af287b97cc44"
+ ],
+ "catalog/regression/banded_planet_transit#display": [
+  "87588c9a8f5c5d7f",
+  "5e9654ca686bbadc"
+ ],
+ "catalog/regression/banded_planet_transit#nav": [
+  "1deea44aa2552d14",
+  "f30fe00bd2033dff"
+ ],
+ "catalog/regression/disc_subpixel_offset#display": [
+  "918dbe519236c705",
+  "ed84c220469435f2"
+ ],
+ "catalog/regression/disc_subpixel_offset#nav": [
+  "5e1a3dbdcbf21246",
+  "bcd9a72af9aedbc2"
+ ],
+ "catalog/regression/low_phase_limb_misconverge#display": [
+  "833ee83477582bc4",
+  "24846fbe6912494d"
+ ],
+ "catalog/regression/low_phase_limb_misconverge#nav": [
+  "71600cd7f2a9aa2f",
+  "096197cfa5031a31"
+ ],
+ "catalog/regression/relief_psf_stray_light#display": [
+  "a528a0cf6796e4b5",
+  "df21c65b45ca900f"
+ ],
+ "catalog/regression/relief_psf_stray_light#nav": [
+  "b25adb027744c405",
+  "ac85376ce21b4e94"
+ ],
+ "catalog/regression/star_equal_brightness#display": [
+  "410c271bf794b970",
+  "016bd543f46739e8"
+ ],
+ "catalog/regression/star_equal_brightness#nav": [
+  "cc7feb3592720e42",
+  "8afbc2a9584fe628"
+ ],
+ "catalog/regression/star_zero_offset#display": [
+  "bac1b0dada0bbf55",
+  "db02fca19855e90d"
+ ],
+ "catalog/regression/star_zero_offset#nav": [
+  "88dca5f37027ae5b",
+  "c2d026c913f2e78a"
+ ],
+ "catalog/regression/textured_moon_offset#display": [
+  "9b35f849532c2ce2",
+  "5ef41b6a9a6fa6de"
+ ],
+ "catalog/regression/textured_moon_offset#nav": [
+  "50daf4f65dd754f7",
+  "706f3af5b277e6ce"
+ ],
+ "catalog/ring_system/edge_wave_gap#display": [
+  "174175b704bf5236",
+  "207835fc78491978"
+ ],
+ "catalog/ring_system/edge_wave_gap#nav": [
+  "c210491ae4782529",
+  "a9c62229699f793a"
+ ],
+ "catalog/ring_system/mmode_ringlet#display": [
+  "b561d028f574b1c2",
+  "1b001f422c6f9961"
+ ],
+ "catalog/ring_system/mmode_ringlet#nav": [
+  "97b9196e6987c57d",
+  "963d600cd40e84f3"
+ ],
+ "catalog/ring_system/moonlet_propeller#display": [
+  "45186d7d61b7c13c",
+  "7e99821776f7a3a9"
+ ],
+ "catalog/ring_system/moonlet_propeller#nav": [
+  "8e133f7f4718915b",
+  "4f58291a4123ebdc"
+ ],
+ "catalog/ring_system/orbit_error_ringlet#display": [
+  "fb5a293743be9e3b",
+  "fde1d96f6cc0aae8"
+ ],
+ "catalog/ring_system/orbit_error_ringlet#nav": [
+  "62ae41fd48756d4f",
+  "9fb6eb4a5e1a0369"
+ ],
+ "catalog/ring_system/spoked_sheet#display": [
+  "958517cd2bd4e690",
+  "a2571f766128d544"
+ ],
+ "catalog/ring_system/spoked_sheet#nav": [
+  "bff43e8f49b120bc",
+  "ab08cdfbf27729f3"
+ ],
+ "catalog/smear_sweep/smear_star_field#display": [
+  "5e91b75a2ff25182",
+  "befe2a042be5eb1d"
+ ],
+ "catalog/smear_sweep/smear_star_field#nav": [
+  "0a7e4198b73488b9",
+  "24a81b4c5f2dcf5d"
+ ],
+ "catalog/star_confounder/double_star#display": [
+  "afb3a927f2eae2b0",
+  "70d8a3ef91869725"
+ ],
+ "catalog/star_confounder/double_star#nav": [
+  "c5d33913ca6b1995",
+  "0e1b4918b7cd428c"
+ ],
+ "catalog/star_confounder/lock_pair#display": [
+  "70c5e198b2060be0",
+  "835d332a7b7d93f8"
+ ],
+ "catalog/star_confounder/lock_pair#nav": [
+  "dfa168baa8f9f3b8",
+  "aae6cd93a6ca13ec"
+ ],
+ "catalog/star_confounder/lock_single#display": [
+  "43b93ad25c778365",
+  "87de44513c288f50"
+ ],
+ "catalog/star_confounder/lock_single#nav": [
+  "add18dad8aa79cb0",
+  "88971f617c4a99fe"
+ ],
+ "catalog/star_confounder/lock_single_dense#display": [
+  "8ecc6faf23e77adb",
+  "34890d2929cec989"
+ ],
+ "catalog/star_confounder/lock_single_dense#nav": [
+  "0b6b78d4aa8d9dae",
+  "3dec596e6911b6e5"
+ ],
+ "catalog/star_confounder/lock_triangle#display": [
+  "986c00ff019e1333",
+  "a66a69d0071c5f21"
+ ],
+ "catalog/star_confounder/lock_triangle#nav": [
+  "d7d20d874fe19cbd",
+  "a917b76af2fe87d5"
+ ],
+ "catalog/star_confounder/saturated_star#display": [
+  "a3f7bab16b7c15f4",
+  "a89cea3a4ea8f19c"
+ ],
+ "catalog/star_confounder/saturated_star#nav": [
+  "d05deb2e22ba745a",
+  "d9dd3fa25412912a"
+ ],
+ "gallery/banded_transit": [
+  "38ee947a556a23ff",
+  "856e0423424f77ec"
+ ],
+ "gallery/body_and_stars": [
+  "1630599581a18993",
+  "92b6cdf95ab33cfe"
+ ],
+ "gallery/body_craters": [
+  "ca49edded54b8ba6",
+  "d5d3d8058ce25a46"
+ ],
+ "gallery/composite_scene": [
+  "aece395e6651a6b4",
+  "966ce3f66ca33025"
+ ],
+ "gallery/crescent_body": [
+  "2a93a2a3f9628447",
+  "5d9327e5cb0d480f"
+ ],
+ "gallery/detector_noise": [
+  "41e5d2007903b335",
+  "98b0bde364ecf9b9"
+ ],
+ "gallery/ellipsoid_body": [
+  "c56c56d9ac1c0f01",
+  "db88f6c8ce21a21f"
+ ],
+ "gallery/haze_crescent_horns": [
+  "944793b867dd9b88",
+  "edb69a279fe40bfe"
+ ],
+ "gallery/haze_limb_body": [
+  "ffc90d41b74f8651",
+  "661e8d0db5c0e32c"
+ ],
+ "gallery/mesh_body": [
+  "9158d0fca991c374",
+  "80f43997a6cc3109"
+ ],
+ "gallery/mesh_body_gouraud": [
+  "c7a08ae684da798c",
+  "a540052bc8bedeab"
+ ],
+ "gallery/multi_body": [
+  "15f08ed4798ad9a2",
+  "c4dced0340e4cb69"
+ ],
+ "gallery/mutual_event": [
+  "38e74c03b3854fbb",
+  "7ec6edcdafce720c"
+ ],
+ "gallery/ragged_terminator": [
+  "d339d5b38d999b4a",
+  "da36dd4b8a75630a"
+ ],
+ "gallery/ring_edge_wave_gap": [
+  "b605927103ee6fc8",
+  "207835fc78491978"
+ ],
+ "gallery/ring_mmode": [
+  "f56789d4eafd13c7",
+  "1b001f422c6f9961"
+ ],
+ "gallery/ring_moonlet_propeller": [
+  "cf4a5e7fd0dce1ed",
+  "7e99821776f7a3a9"
+ ],
+ "gallery/ring_spokes": [
+  "8364a9cf5f676eab",
+  "a2571f766128d544"
+ ],
+ "gallery/rings": [
+  "1b1b78a424b8fc45",
+  "8f879f7a83c91ec1"
+ ],
+ "gallery/star_field": [
+  "d2469ddaaba0072c",
+  "a0a3ef95806cded8"
+ ],
+ "gallery/stray_light_gradient": [
+  "09b6f2c133df13ad",
+  "98b0bde364ecf9b9"
+ ],
+ "gallery/telemetry_loss": [
+  "6de6a57291525081",
+  "2ae352b1b487d18b"
+ ],
+ "gallery/topographic_limb": [
+  "b084b1ac1a8d2238",
+  "78a34af95fe75a00"
+ ],
+ "perf/body1024": [
+  "89343f8005fedc9b",
+  "ef611d9da3cb67fd"
+ ],
+ "perf/body512": [
+  "1ba507f707e97493",
+  "1062986862c234ed"
+ ],
+ "perf/haze1024": [
+  "1bfd502374613530",
+  "757f5434df526c58"
+ ],
+ "perf/haze512": [
+  "3555d95bcf474561",
+  "77ec7384a5f6150b"
+ ],
+ "perf/ring1024": [
+  "edd3c632f6703237",
+  "732bfdf5bd404688"
+ ],
+ "perf/star1024": [
+  "a6e276ed0900e663",
+  "6efe05e914328a82"
+ ],
+ "perf/star512": [
+  "15fc162e97fc02f3",
+  "490bcad10c395170"
+ ],
+ "sweep/artifact_missing_lines/0.0": [
+  "fe40379bec2a8556",
+  "69b4449a0f6ea1c8"
+ ],
+ "sweep/artifact_missing_lines/130.0": [
+  "ad6aab9fcf0029a1",
+  "4dee43f6deb6c6b8"
+ ],
+ "sweep/artifact_missing_lines/16.0": [
+  "8764cf2fcb22caa6",
+  "99e90eac1c1158c8"
+ ],
+ "sweep/artifact_missing_lines/32.0": [
+  "f0360a4b13fe99c6",
+  "1ff336ffeec89e9b"
+ ],
+ "sweep/artifact_missing_lines/4.0": [
+  "bdef5220cd6b827b",
+  "7fdc457c9c9fcbc4"
+ ],
+ "sweep/artifact_missing_lines/64.0": [
+  "551a0ff1a05448a3",
+  "ce7985e66837352a"
+ ],
+ "sweep/artifact_missing_lines/8.0": [
+  "eccb1c5cf2e81dfb",
+  "1e9d4123b8313513"
+ ],
+ "sweep/atmosphere_haze/0.0": [
+  "5ec0d6683457898f",
+  "3e0d6ee33fdf99d9"
+ ],
+ "sweep/atmosphere_haze/1.0": [
+  "84d67b1e9d69501e",
+  "4fda7e3827ab951d"
+ ],
+ "sweep/atmosphere_haze/2.0": [
+  "b06e7fd57652c035",
+  "19046d3545c25b2c"
+ ],
+ "sweep/atmosphere_haze/4.0": [
+  "558fcac5e1915fb4",
+  "3635b2c9c8cad37a"
+ ],
+ "sweep/atmosphere_haze/6.0": [
+  "aef828ebac6a10c9",
+  "b5c544fb39862eab"
+ ],
+ "sweep/atmosphere_haze_albedo/0.0": [
+  "5ec0d6683457898f",
+  "ff2c5b6fe5ce2ef2"
+ ],
+ "sweep/atmosphere_haze_albedo/0.15": [
+  "e6514620bc88194c",
+  "7d70282cbf9f82b8"
+ ],
+ "sweep/atmosphere_haze_albedo/0.3": [
+  "ba10a28281d02a05",
+  "8394c75d7674d52b"
+ ],
+ "sweep/atmosphere_haze_albedo/0.6": [
+  "558fcac5e1915fb4",
+  "4a63c46e8147b704"
+ ],
+ "sweep/atmosphere_haze_albedo/1.0": [
+  "a75e63d1f896b627",
+  "7524c86bfdc702be"
+ ],
+ "sweep/blob_offset_fine/0.0": [
+  "0b23f4830fab6845",
+  "b02801a9797c6e6b"
+ ],
+ "sweep/blob_offset_fine/0.05": [
+  "3a079aeec60e79f5",
+  "d3889c65d6f6d4c8"
+ ],
+ "sweep/blob_offset_fine/0.1": [
+  "c7e21aa362e804e1",
+  "59d27ca14ea48ea4"
+ ],
+ "sweep/blob_offset_fine/0.137": [
+  "7a4dc3585b1ad380",
+  "15777da11c5cdeec"
+ ],
+ "sweep/blob_offset_fine/0.2": [
+  "0694e9ce1d1d9cf4",
+  "0fda14c5ddbbb593"
+ ],
+ "sweep/blob_offset_fine/0.25": [
+  "28ab86e224773a84",
+  "7f3b8b4183094cd6"
+ ],
+ "sweep/blob_offset_fine/0.31": [
+  "8ace2182b05dd75b",
+  "2a3a6365e6f2d044"
+ ],
+ "sweep/blob_offset_fine/0.382": [
+  "13a45c1b6628bac8",
+  "812c2c167ee82d4a"
+ ],
+ "sweep/blob_offset_fine/0.45": [
+  "561dd7c257fb8114",
+  "feec9dd33a8e0f85"
+ ],
+ "sweep/blob_offset_fine/0.5": [
+  "d5f3a394ab13c7d8",
+  "7fadfe0c8a26c7a1"
+ ],
+ "sweep/blob_offset_fine/0.55": [
+  "d4fcdf5cd2fe0243",
+  "fda89a0627004b05"
+ ],
+ "sweep/blob_offset_fine/0.611": [
+  "a7d81728bb0a513d",
+  "09c6a19c21ae1b7a"
+ ],
+ "sweep/blob_offset_fine/0.667": [
+  "947fa9a8a346ff83",
+  "801312e204c2d850"
+ ],
+ "sweep/blob_offset_fine/0.7": [
+  "302743dbd868c694",
+  "afa7a0f756cf5961"
+ ],
+ "sweep/blob_offset_fine/0.75": [
+  "5a48ad34efc6b769",
+  "95b1cf7c294bcdd2"
+ ],
+ "sweep/blob_offset_fine/0.823": [
+  "00245baa6f2e3904",
+  "d3e5e81ce7ce4b71"
+ ],
+ "sweep/blob_offset_fine/0.9": [
+  "a071975778019e8a",
+  "29b03723a7b77004"
+ ],
+ "sweep/blob_offset_fine/0.95": [
+  "2424c6bb152e8b9b",
+  "a7f128ead73fd42c"
+ ],
+ "sweep/blob_offset_fine/1.0": [
+  "2bb58eeeaed4ec45",
+  "919adfe2845c2103"
+ ],
+ "sweep/blob_offset_fine/1.25": [
+  "87d2f4cfe233f82d",
+  "de677b99ada88383"
+ ],
+ "sweep/blob_offset_fine/1.5": [
+  "5fb21bfae8c633b5",
+  "b51fbe67450a1223"
+ ],
+ "sweep/blob_offset_fine/1.618": [
+  "3d55d6f6a39772e8",
+  "07d6021e522b009f"
+ ],
+ "sweep/blob_offset_fine/1.75": [
+  "19ade68c5be45171",
+  "4257f4304127d96a"
+ ],
+ "sweep/blob_offset_wide/0.5": [
+  "d5f3a394ab13c7d8",
+  "7fadfe0c8a26c7a1"
+ ],
+ "sweep/blob_offset_wide/13.4": [
+  "3b0318251860203f",
+  "49d8d3131354b1cf"
+ ],
+ "sweep/blob_offset_wide/18.7": [
+  "5430699712e42caa",
+  "4d4f607eda9f88c2"
+ ],
+ "sweep/blob_offset_wide/2.3": [
+  "dacd5521a12c6aa5",
+  "d8948e4323e42b69"
+ ],
+ "sweep/blob_offset_wide/24.2": [
+  "81fad8547736de43",
+  "37e03aab62604f26"
+ ],
+ "sweep/blob_offset_wide/31.6": [
+  "e817dd49a8e50aba",
+  "02d4cc80b5ee1985"
+ ],
+ "sweep/blob_offset_wide/38.3": [
+  "62d509b82c5943ce",
+  "9b31b60fdcfa05eb"
+ ],
+ "sweep/blob_offset_wide/45.1": [
+  "ff87b7ada289b4d4",
+  "fc16b1d21217351e"
+ ],
+ "sweep/blob_offset_wide/5.7": [
+  "945ebae1373fd4bd",
+  "4ee94c851b9a5b83"
+ ],
+ "sweep/blob_offset_wide/9.1": [
+  "73987a3c218ee44a",
+  "e6456e51ac1e8f93"
+ ],
+ "sweep/differential_smear/0.0": [
+  "0a7e4198b73488b9",
+  "24a81b4c5f2dcf5d"
+ ],
+ "sweep/differential_smear/1.0": [
+  "ce25bf04d00be340",
+  "24a81b4c5f2dcf5d"
+ ],
+ "sweep/differential_smear/2.0": [
+  "40f488b1e859dda0",
+  "24a81b4c5f2dcf5d"
+ ],
+ "sweep/differential_smear/4.0": [
+  "fecdcf9ee6d10e04",
+  "24a81b4c5f2dcf5d"
+ ],
+ "sweep/differential_smear/6.0": [
+  "01ab64f40e7c7b42",
+  "24a81b4c5f2dcf5d"
+ ],
+ "sweep/disc_offset_fine/0.0": [
+  "8391ccc20d21663d",
+  "66d9f6e45444d2c5"
+ ],
+ "sweep/disc_offset_fine/0.05": [
+  "f2f99c1553825281",
+  "1b62f09d1b77de30"
+ ],
+ "sweep/disc_offset_fine/0.1": [
+  "dd7880d4ac6bd21b",
+  "1ec47c0790fb872f"
+ ],
+ "sweep/disc_offset_fine/0.137": [
+  "ee1ccb48da668c5b",
+  "9185214bf0ceaf68"
+ ],
+ "sweep/disc_offset_fine/0.2": [
+  "864585cff848953e",
+  "8066b24b1f162769"
+ ],
+ "sweep/disc_offset_fine/0.25": [
+  "823a0b42789d87b0",
+  "051d8a6095a26acc"
+ ],
+ "sweep/disc_offset_fine/0.31": [
+  "0e15d92ea984c8b2",
+  "ddf25ca98a0f1472"
+ ],
+ "sweep/disc_offset_fine/0.382": [
+  "e7d79b1bc26c1289",
+  "c9874c3f393385f8"
+ ],
+ "sweep/disc_offset_fine/0.45": [
+  "03a1fc78f3ff0608",
+  "e5fd9c0f68f05c98"
+ ],
+ "sweep/disc_offset_fine/0.5": [
+  "5384749662cb0c66",
+  "c628bcc2095b4aba"
+ ],
+ "sweep/disc_offset_fine/0.55": [
+  "7c83c3da134ec079",
+  "92b46dd18fe051f9"
+ ],
+ "sweep/disc_offset_fine/0.611": [
+  "b5b1f926c523abe4",
+  "32f63e292bac8ebc"
+ ],
+ "sweep/disc_offset_fine/0.667": [
+  "adc261aa2592b598",
+  "01f15e71076a551b"
+ ],
+ "sweep/disc_offset_fine/0.7": [
+  "93056b0420f76ea8",
+  "f621fae7ced10b23"
+ ],
+ "sweep/disc_offset_fine/0.75": [
+  "7784460c334a120d",
+  "015c5ad7d006afa1"
+ ],
+ "sweep/disc_offset_fine/0.823": [
+  "79944f7d165e748a",
+  "513ddb368084b909"
+ ],
+ "sweep/disc_offset_fine/0.9": [
+  "3e682b3a38c8abaa",
+  "2a26d6c11e23ad59"
+ ],
+ "sweep/disc_offset_fine/0.95": [
+  "693b480abcf7fe49",
+  "1962f6f290d7fd69"
+ ],
+ "sweep/disc_offset_fine/1.0": [
+  "7359533b801801ad",
+  "6a8629d37bb46cf8"
+ ],
+ "sweep/disc_offset_fine/1.25": [
+  "48ac9c760c49647a",
+  "d01aa4c383e346cf"
+ ],
+ "sweep/disc_offset_fine/1.5": [
+  "fe40379bec2a8556",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/disc_offset_fine/1.618": [
+  "0de4c2be17ac097b",
+  "2ffe23fb0db4a95b"
+ ],
+ "sweep/disc_offset_fine/1.75": [
+  "cb136196428dae29",
+  "d647f2ff5429030c"
+ ],
+ "sweep/disc_offset_fine_calib/0.0": [
+  "71ea4989e20b4c7a",
+  "2b8600975b5743aa"
+ ],
+ "sweep/disc_offset_fine_calib/0.05": [
+  "36ff61a1a7c71301",
+  "01325666c55abf30"
+ ],
+ "sweep/disc_offset_fine_calib/0.1": [
+  "461e2423bdf15402",
+  "5f3c20102e5a300c"
+ ],
+ "sweep/disc_offset_fine_calib/0.137": [
+  "9041849545798b5b",
+  "dd5f0a92ac6d8992"
+ ],
+ "sweep/disc_offset_fine_calib/0.2": [
+  "821f65ff34621f14",
+  "be604824d773e496"
+ ],
+ "sweep/disc_offset_fine_calib/0.25": [
+  "2c4832ad9e7a1eb3",
+  "21e3491b48fd4824"
+ ],
+ "sweep/disc_offset_fine_calib/0.31": [
+  "e8b89cb6dc7f3606",
+  "0c5ca3b7c120212c"
+ ],
+ "sweep/disc_offset_fine_calib/0.382": [
+  "0d231bd3fc6d72ec",
+  "898b374822612a7c"
+ ],
+ "sweep/disc_offset_fine_calib/0.45": [
+  "b5466e467aae32b2",
+  "29fae8434a63156c"
+ ],
+ "sweep/disc_offset_fine_calib/0.5": [
+  "2e6ad05421f5b1a3",
+  "1a5b771d598cfae6"
+ ],
+ "sweep/disc_offset_fine_calib/0.55": [
+  "66d6ab239947c01f",
+  "9f811019fa3f5250"
+ ],
+ "sweep/disc_offset_fine_calib/0.611": [
+  "b2bbf181a5abada7",
+  "fc338dba2481299d"
+ ],
+ "sweep/disc_offset_fine_calib/0.667": [
+  "c730d7f278939c9b",
+  "441c5c5f5ebf1623"
+ ],
+ "sweep/disc_offset_fine_calib/0.7": [
+  "87f095df0895a4d4",
+  "cf02a3f88dcedc39"
+ ],
+ "sweep/disc_offset_fine_calib/0.75": [
+  "e85b3231adc1737b",
+  "f0e8304071ed90bb"
+ ],
+ "sweep/disc_offset_fine_calib/0.823": [
+  "9168c6da383b9326",
+  "c7392a2df708bb0b"
+ ],
+ "sweep/disc_offset_fine_calib/0.9": [
+  "b9a2d393e546b622",
+  "b7380b9534b5450d"
+ ],
+ "sweep/disc_offset_fine_calib/0.95": [
+  "df5be5acf4c4f81b",
+  "a1afc4f2062768c4"
+ ],
+ "sweep/disc_offset_fine_calib/1.0": [
+  "d42cd8b2f0fa070f",
+  "e8642c4161ec0f14"
+ ],
+ "sweep/disc_offset_fine_calib/1.25": [
+  "6ce86f71e7367869",
+  "05a140537c6e03ba"
+ ],
+ "sweep/disc_offset_fine_calib/1.5": [
+  "a4eab878a37c77eb",
+  "048c2db058cdc056"
+ ],
+ "sweep/disc_offset_fine_calib/1.618": [
+  "8b6171d1bb79266f",
+  "683c12d4882a736b"
+ ],
+ "sweep/disc_offset_fine_calib/1.75": [
+  "451aa34e4d24be1b",
+  "7d0fe507b96d3e3b"
+ ],
+ "sweep/disc_offset_wide/0.5": [
+  "5384749662cb0c66",
+  "c628bcc2095b4aba"
+ ],
+ "sweep/disc_offset_wide/13.4": [
+  "1b6b843fbef424a7",
+  "8c578fd28d9ab882"
+ ],
+ "sweep/disc_offset_wide/18.7": [
+  "1aa2da92aafd4db7",
+  "0b735ca5b7a492d0"
+ ],
+ "sweep/disc_offset_wide/2.3": [
+  "fed131617b11b58d",
+  "b26d2181167186f0"
+ ],
+ "sweep/disc_offset_wide/24.2": [
+  "0e495accadae98c9",
+  "1e7c11168a6c2e58"
+ ],
+ "sweep/disc_offset_wide/31.6": [
+  "5b59625976f8a778",
+  "0d6339e3f3c379d6"
+ ],
+ "sweep/disc_offset_wide/38.3": [
+  "b7513ce233130793",
+  "e7ade542c7d793ae"
+ ],
+ "sweep/disc_offset_wide/45.1": [
+  "b1d948de60e4d87d",
+  "78f2c5de38b49168"
+ ],
+ "sweep/disc_offset_wide/5.7": [
+  "6f3ae8d2a369a92d",
+  "da4d9bb37fbafd3b"
+ ],
+ "sweep/disc_offset_wide/9.1": [
+  "09d03644bb1a5bff",
+  "30a8bf8711ce2678"
+ ],
+ "sweep/irregularity_shape_mismatch/0.0": [
+  "0af823b7e82c081f",
+  "708f0774cddec675"
+ ],
+ "sweep/irregularity_shape_mismatch/0.1": [
+  "c6ccf28493e816c9",
+  "776dfcfd36115a51"
+ ],
+ "sweep/irregularity_shape_mismatch/0.2": [
+  "07d58d4d08c201d5",
+  "188ca83e9fc2ebf0"
+ ],
+ "sweep/irregularity_shape_mismatch/0.3": [
+  "6dbc9785773aa708",
+  "e38367607ec7d12f"
+ ],
+ "sweep/irregularity_shape_mismatch/0.4": [
+  "dd193243af0c2e91",
+  "10b2a4f5a1217d48"
+ ],
+ "sweep/irregularity_shape_mismatch/0.5": [
+  "d4330577a4ed8f9b",
+  "4c151e50d9463027"
+ ],
+ "sweep/irregularity_shape_mismatch/0.6": [
+  "f239c8f038bccfd1",
+  "e6d1ac917f032e86"
+ ],
+ "sweep/irregularity_shape_mismatch/0.7": [
+  "03f8d23ee117d621",
+  "a0f2d88c943bde22"
+ ],
+ "sweep/limb_offset_fine/0.0": [
+  "219147d5b76eb87d",
+  "86ff766ab38883bd"
+ ],
+ "sweep/limb_offset_fine/0.05": [
+  "ec73b5c469b0c197",
+  "664fb399869ac9b3"
+ ],
+ "sweep/limb_offset_fine/0.1": [
+  "4af82094f65baaec",
+  "5cca444d8b147ad0"
+ ],
+ "sweep/limb_offset_fine/0.137": [
+  "42f4c58be45da6e6",
+  "5e95420d42f431c7"
+ ],
+ "sweep/limb_offset_fine/0.2": [
+  "dcfb55a979c0f5c5",
+  "7a9db030a9dcfd82"
+ ],
+ "sweep/limb_offset_fine/0.25": [
+  "77d784aac84b121c",
+  "8ad5f20be8931c00"
+ ],
+ "sweep/limb_offset_fine/0.31": [
+  "fe7b902ef6f6cc0a",
+  "073e43bc39eaa3a1"
+ ],
+ "sweep/limb_offset_fine/0.382": [
+  "8103d70e3a35c29c",
+  "b347811b86d2e836"
+ ],
+ "sweep/limb_offset_fine/0.45": [
+  "7db348129df237b2",
+  "15f13470644f79f4"
+ ],
+ "sweep/limb_offset_fine/0.5": [
+  "e33ff20ee4ddbbb7",
+  "255442ea445a13e1"
+ ],
+ "sweep/limb_offset_fine/0.55": [
+  "c5b51042e192c78b",
+  "e9d3ba6e00ac6113"
+ ],
+ "sweep/limb_offset_fine/0.611": [
+  "d3f549bb3a830b95",
+  "058a4ded17165087"
+ ],
+ "sweep/limb_offset_fine/0.667": [
+  "e3e6cca098340395",
+  "4039c112888c3ca6"
+ ],
+ "sweep/limb_offset_fine/0.7": [
+  "f4a04b06586b02a0",
+  "d62f4e099ee62503"
+ ],
+ "sweep/limb_offset_fine/0.75": [
+  "91e8120f1a59c3e8",
+  "464d4fcb80e46929"
+ ],
+ "sweep/limb_offset_fine/0.823": [
+  "b4febc876f715e3c",
+  "59e382682aac4b07"
+ ],
+ "sweep/limb_offset_fine/0.9": [
+  "7455c3ffc9c7ac2f",
+  "be23f33c34178124"
+ ],
+ "sweep/limb_offset_fine/0.95": [
+  "b977ee849e9721e9",
+  "818accadd8aa6425"
+ ],
+ "sweep/limb_offset_fine/1.0": [
+  "8c4204b44885d640",
+  "5021fa5b21656c73"
+ ],
+ "sweep/limb_offset_fine/1.25": [
+  "3c35db1d35de9271",
+  "679ede1dc0df8899"
+ ],
+ "sweep/limb_offset_fine/1.5": [
+  "bf360d8dfd32a7f6",
+  "2bbbc3723d8c0e4e"
+ ],
+ "sweep/limb_offset_fine/1.618": [
+  "12af006a523ceaf9",
+  "c46e46ca28edcb94"
+ ],
+ "sweep/limb_offset_fine/1.75": [
+  "aa5812c1252d8495",
+  "ee9b9cc072ef7974"
+ ],
+ "sweep/limb_offset_wide/0.5": [
+  "e33ff20ee4ddbbb7",
+  "255442ea445a13e1"
+ ],
+ "sweep/limb_offset_wide/13.4": [
+  "8f49dd1ba9741aa9",
+  "b0b5ead85fab08b8"
+ ],
+ "sweep/limb_offset_wide/18.7": [
+  "0ea7d746736d7d0e",
+  "0657f117bde401ff"
+ ],
+ "sweep/limb_offset_wide/2.3": [
+  "e9c1abb7cf14ee05",
+  "7a2321aa303765bf"
+ ],
+ "sweep/limb_offset_wide/24.2": [
+  "16916570b73fbb2b",
+  "8f8e0600c716bcb0"
+ ],
+ "sweep/limb_offset_wide/31.6": [
+  "23bb7a0da050ecae",
+  "ac0f77847ee74710"
+ ],
+ "sweep/limb_offset_wide/38.3": [
+  "500ccd85a8efeb71",
+  "6313618b66a03f05"
+ ],
+ "sweep/limb_offset_wide/5.7": [
+  "8e999868bb9cc93f",
+  "27c385de0e5f825d"
+ ],
+ "sweep/limb_offset_wide/9.1": [
+  "8d76ff15e286d70a",
+  "627f4dd9e94a5833"
+ ],
+ "sweep/noise_exposure_calib/0.0001": [
+  "2fb8c2c7c9a7bb3e",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_exposure_calib/0.0003": [
+  "3927ed6b6c3f1b05",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_exposure_calib/0.001": [
+  "0bdf81a705e6db79",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_exposure_calib/0.01": [
+  "a2b3f5f1213d9da9",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_exposure_calib/0.1": [
+  "a4eab878a37c77eb",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_exposure_calib/3e-05": [
+  "c3fbe8a93c321590",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_read_noise/1.0": [
+  "41d0581f50e8eb1b",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/noise_read_noise/16.0": [
+  "ce342a220a4deeec",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/noise_read_noise/32.0": [
+  "758d6d782b9d0d04",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/noise_read_noise/4.0": [
+  "fe40379bec2a8556",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/noise_read_noise/64.0": [
+  "4abe588f57f4d965",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/noise_read_noise/8.0": [
+  "68a27473715c699f",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/noise_read_noise_calib/1.0": [
+  "879c87d576d8ed74",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_read_noise_calib/16.0": [
+  "e6e65b5a0591eeac",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_read_noise_calib/32.0": [
+  "43602b38e6b66e55",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_read_noise_calib/4.0": [
+  "f0e713fb613fc9b5",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_read_noise_calib/64.0": [
+  "450b6db1991927b7",
+  "048c2db058cdc056"
+ ],
+ "sweep/noise_read_noise_calib/8.0": [
+  "6e21be779572f8d4",
+  "048c2db058cdc056"
+ ],
+ "sweep/phase_regular_body/0.0": [
+  "6fbcf6d15ff5c11e",
+  "9fdc2ae047c935e1"
+ ],
+ "sweep/phase_regular_body/120.0": [
+  "8bb824afa7f0425b",
+  "134b156544df6e23"
+ ],
+ "sweep/phase_regular_body/150.0": [
+  "4d6982d86a9ba86f",
+  "46e2143ed2e4bb50"
+ ],
+ "sweep/phase_regular_body/30.0": [
+  "fe40379bec2a8556",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/phase_regular_body/60.0": [
+  "ee3b18bfaac73de2",
+  "bddd2c4cf7cedcd1"
+ ],
+ "sweep/phase_regular_body/90.0": [
+  "a2ebef9b1c912ea8",
+  "a51f8801f82ac8f7"
+ ],
+ "sweep/photometric_minnaert_mismatch/0.5": [
+  "d0ba35081e85780a",
+  "0bf902d7f8e3daec"
+ ],
+ "sweep/photometric_minnaert_mismatch/0.6": [
+  "f67f4e4486b93e17",
+  "ea3e7a3c8f80a4bb"
+ ],
+ "sweep/photometric_minnaert_mismatch/0.7": [
+  "8dfe7c54df220641",
+  "6144006b1e4b971a"
+ ],
+ "sweep/photometric_minnaert_mismatch/0.8": [
+  "4c7d80a1094d30ba",
+  "2e44f84355ee5cdd"
+ ],
+ "sweep/photometric_minnaert_mismatch/0.9": [
+  "ba2711008ad680e1",
+  "da5399eec0068f98"
+ ],
+ "sweep/photometric_minnaert_mismatch/1.0": [
+  "ef5e593cba58efc1",
+  "adc8a1b20beda6b0"
+ ],
+ "sweep/pose_disagreement/110.0": [
+  "9f9b3305980e3acc",
+  "598f3fb8cb27ea42"
+ ],
+ "sweep/pose_disagreement/35.0": [
+  "9f9b3305980e3acc",
+  "b552af0c813e21ca"
+ ],
+ "sweep/pose_disagreement/45.0": [
+  "9f9b3305980e3acc",
+  "adf215b9442e961c"
+ ],
+ "sweep/pose_disagreement/55.0": [
+  "9f9b3305980e3acc",
+  "964a676d576b4835"
+ ],
+ "sweep/pose_disagreement/90.0": [
+  "9f9b3305980e3acc",
+  "1ab1ad48e05ebe0e"
+ ],
+ "sweep/psf_limb_mismatch/0.54": [
+  "0a47f62924b65327",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_mismatch/1.0": [
+  "dfac7233f5e1d4f7",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_mismatch/1.5": [
+  "35ba748deda92991",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_mismatch/2.0": [
+  "fdadfca3ba43d390",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_mismatch/2.5": [
+  "eaecf0517a0fa5dd",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_mismatch/3.0": [
+  "29d5c063508a581f",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_mismatch/4.0": [
+  "7472796dcb0b8db7",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_wings/0.0": [
+  "0a47f62924b65327",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_wings/0.1": [
+  "75c415a30b94d665",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_wings/0.2": [
+  "21441ed2f5db5be8",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_wings/0.4": [
+  "edc69689c10b02a0",
+  "be67e6ce07948b64"
+ ],
+ "sweep/psf_limb_wings/0.6": [
+  "647982c911df40c2",
+  "be67e6ce07948b64"
+ ],
+ "sweep/range_body_size/10.0": [
+  "5fb21bfae8c633b5",
+  "b51fbe67450a1223"
+ ],
+ "sweep/range_body_size/2.0": [
+  "92cebe95149bad15",
+  "da0aea043d9ff4a3"
+ ],
+ "sweep/range_body_size/20.0": [
+  "514283ab3da4dff8",
+  "d6c9a0edc79aac8e"
+ ],
+ "sweep/range_body_size/3.0": [
+  "6fb8b088c343ca73",
+  "53e728100f582e45"
+ ],
+ "sweep/range_body_size/30.0": [
+  "5b426c2813ff8dac",
+  "fe818de6b49ce7e8"
+ ],
+ "sweep/range_body_size/45.0": [
+  "fe40379bec2a8556",
+  "54edf7acc8f70f36"
+ ],
+ "sweep/range_body_size/6.0": [
+  "5afdc55e88b2887d",
+  "bde2cea9853c637d"
+ ],
+ "sweep/range_body_size/65.0": [
+  "06f834ed968f790c",
+  "c42088f1f0a19702"
+ ],
+ "sweep/ring_offset_fine/0.0": [
+  "73287ee214be234b",
+  "0e55daf8faa2a96e"
+ ],
+ "sweep/ring_offset_fine/0.05": [
+  "356b8ed2c4eaf6fb",
+  "65eb145f984c3577"
+ ],
+ "sweep/ring_offset_fine/0.1": [
+  "1076e2b382c834d7",
+  "ab33a3f813ec1324"
+ ],
+ "sweep/ring_offset_fine/0.137": [
+  "4404a894be239e3a",
+  "affb905e7c868743"
+ ],
+ "sweep/ring_offset_fine/0.2": [
+  "6b5f258570973995",
+  "b01a2afa56fbfaf1"
+ ],
+ "sweep/ring_offset_fine/0.25": [
+  "6559f43a2d937932",
+  "bac02f9eb90aa32f"
+ ],
+ "sweep/ring_offset_fine/0.31": [
+  "fa3849daa6006900",
+  "7dc69a77c43ceeed"
+ ],
+ "sweep/ring_offset_fine/0.382": [
+  "05da58ce4830b53a",
+  "e0f98ed6f472ea17"
+ ],
+ "sweep/ring_offset_fine/0.45": [
+  "ac1eb73971504d70",
+  "5a0536f32870acf9"
+ ],
+ "sweep/ring_offset_fine/0.5": [
+  "4eaab0a8de296624",
+  "1f164e583f86927a"
+ ],
+ "sweep/ring_offset_fine/0.55": [
+  "31f0ea2049f2b92f",
+  "f1d423ebd06ea225"
+ ],
+ "sweep/ring_offset_fine/0.611": [
+  "cc7be770aeb8f68b",
+  "0cf4856f56b58877"
+ ],
+ "sweep/ring_offset_fine/0.667": [
+  "5afccdc7480547c6",
+  "da494388c3d06dea"
+ ],
+ "sweep/ring_offset_fine/0.7": [
+  "08a5f132b137bd18",
+  "9b45983d04ee8776"
+ ],
+ "sweep/ring_offset_fine/0.75": [
+  "8756db73118e69df",
+  "a437f21a5a4e3975"
+ ],
+ "sweep/ring_offset_fine/0.823": [
+  "997fda4e9a22e162",
+  "56b81df59720af53"
+ ],
+ "sweep/ring_offset_fine/0.9": [
+  "e3bc0da84b01dc08",
+  "80003c2c00e56af5"
+ ],
+ "sweep/ring_offset_fine/0.95": [
+  "2c597b2eedcc0bb0",
+  "476d4139edf49f46"
+ ],
+ "sweep/ring_offset_fine/1.0": [
+  "e70c747fdd85dee4",
+  "154774eac21ff3e5"
+ ],
+ "sweep/ring_offset_fine/1.25": [
+  "b52d41a53e9e2c29",
+  "1639dc7901c061a0"
+ ],
+ "sweep/ring_offset_fine/1.5": [
+  "6b0e4f0b061af2f5",
+  "24f6b17e4a3d2d33"
+ ],
+ "sweep/ring_offset_fine/1.618": [
+  "d3a53b0470b1d021",
+  "e0e0c6ec588dcd1d"
+ ],
+ "sweep/ring_offset_fine/1.75": [
+  "5dc835f1e4548c18",
+  "acff11f83ede84b2"
+ ],
+ "sweep/ring_offset_wide/0.5": [
+  "4eaab0a8de296624",
+  "1f164e583f86927a"
+ ],
+ "sweep/ring_offset_wide/13.4": [
+  "108c5f95135c5329",
+  "838d046df8580a37"
+ ],
+ "sweep/ring_offset_wide/18.7": [
+  "b747ac225047165b",
+  "3f528e1ffc461f59"
+ ],
+ "sweep/ring_offset_wide/2.3": [
+  "c26d9cd19ff155f8",
+  "58f01ed4ab1b84bb"
+ ],
+ "sweep/ring_offset_wide/24.2": [
+  "87af168250511622",
+  "8233a3a04af62fd5"
+ ],
+ "sweep/ring_offset_wide/31.6": [
+  "09ec7ac60ae7fc79",
+  "b5032d5fdb24eb70"
+ ],
+ "sweep/ring_offset_wide/38.3": [
+  "a0a53777f4f43721",
+  "9ef83ce4357934b8"
+ ],
+ "sweep/ring_offset_wide/45.1": [
+  "ecaf5256ee0fdaac",
+  "0551330db90eed9e"
+ ],
+ "sweep/ring_offset_wide/5.7": [
+  "0bd61cf1ec1578e4",
+  "920d4692c7bdf274"
+ ],
+ "sweep/ring_offset_wide/9.1": [
+  "b0774d9c6de80b88",
+  "4b6ee38300e7acab"
+ ],
+ "sweep/ring_orbit_error/0.0": [
+  "e53a124b8f7f9ab8",
+  "96867e4405cdc3cf"
+ ],
+ "sweep/ring_orbit_error/0.5": [
+  "e8ddadf5c99404ad",
+  "0aa90bfc4f67ed85"
+ ],
+ "sweep/ring_orbit_error/1.0": [
+  "440e270b8204e691",
+  "fc2a00607e169fae"
+ ],
+ "sweep/ring_orbit_error/2.0": [
+  "b0aa6e0e8c1f0286",
+  "58f7031458709213"
+ ],
+ "sweep/ring_orbit_error/3.0": [
+  "468a6a9f9ce083c2",
+  "1118d91b2979032d"
+ ],
+ "sweep/ring_orbit_error/4.0": [
+  "32f7518ce45cdbad",
+  "047bcd5f842d41fc"
+ ],
+ "sweep/spk_parallax_error/0.0": [
+  "ef5e593cba58efc1",
+  "2ddb382484540c23"
+ ],
+ "sweep/spk_parallax_error/1.0": [
+  "70e161f9acfbcf2d",
+  "193b8f3d7c56a42a"
+ ],
+ "sweep/spk_parallax_error/2.0": [
+  "92a04a90f0315b0a",
+  "e763ac96cb0dd15a"
+ ],
+ "sweep/spk_parallax_error/4.0": [
+  "d8ff3b35398b5ef0",
+  "2cf93a2afae11280"
+ ],
+ "sweep/spk_parallax_error/6.0": [
+  "9f856d4fa93599f9",
+  "d1efe6fba35735df"
+ ],
+ "sweep/star_catalog_scatter/0.0": [
+  "664301359ba1ecb9",
+  "0a4f28aced903efa"
+ ],
+ "sweep/star_catalog_scatter/0.5": [
+  "a1047fade704a15a",
+  "07bacd2067399e52"
+ ],
+ "sweep/star_catalog_scatter/1.0": [
+  "b91a91fc7c1ee47f",
+  "f84c7711f816f839"
+ ],
+ "sweep/star_catalog_scatter/1.5": [
+  "c8c7bc13e0ba6ece",
+  "6f994c35bf6fa9c9"
+ ],
+ "sweep/star_catalog_scatter/2.0": [
+  "664a97fa7bb2c391",
+  "2c154346f3bbbf27"
+ ],
+ "sweep/star_catalog_scatter/3.0": [
+  "96179006a388ef06",
+  "661ef682383e76d5"
+ ],
+ "sweep/star_catalog_scatter/4.0": [
+  "7cf2a12ae89c3774",
+  "0369ef9ef5638886"
+ ],
+ "sweep/star_catalog_scatter/6.0": [
+  "16836a69c0989d42",
+  "f16bef74085b26b5"
+ ],
+ "sweep/star_catalog_scatter/8.0": [
+  "462d6fa83dc1de15",
+  "b916eedca52944ab"
+ ],
+ "sweep/star_confounder_density/1.0": [
+  "94271eb6849598f7",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_confounder_density/100.0": [
+  "0b6b78d4aa8d9dae",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_confounder_density/150.0": [
+  "ab200532870a68fb",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_confounder_density/200.0": [
+  "555ee66eb5fe26c3",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_confounder_density/25.0": [
+  "d01ace5fb20c86c6",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_confounder_density/300.0": [
+  "503440ea55427810",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_confounder_density/400.0": [
+  "62469bc6a444015d",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_confounder_density/50.0": [
+  "29b3a69c9a170106",
+  "3dec596e6911b6e5"
+ ],
+ "sweep/star_offset_fine/0.0": [
+  "2692c1375e06c2ae",
+  "d134fc5050214f42"
+ ],
+ "sweep/star_offset_fine/0.05": [
+  "77b2b0ab1e58658e",
+  "3fb655c120ec2ce8"
+ ],
+ "sweep/star_offset_fine/0.1": [
+  "43e16aba893ee13c",
+  "5a892b0ee4e0b734"
+ ],
+ "sweep/star_offset_fine/0.137": [
+  "b076236f54c9aabd",
+  "58b174151c1055ae"
+ ],
+ "sweep/star_offset_fine/0.2": [
+  "f95d42ac575d40fd",
+  "3accb802dd18a959"
+ ],
+ "sweep/star_offset_fine/0.25": [
+  "7580c0fcd302dad8",
+  "a399d10e98b572c1"
+ ],
+ "sweep/star_offset_fine/0.31": [
+  "873654f89f06999a",
+  "315030dc8572119a"
+ ],
+ "sweep/star_offset_fine/0.382": [
+  "b32f3dae1393b68f",
+  "141867d1643ce265"
+ ],
+ "sweep/star_offset_fine/0.45": [
+  "6b2d6b4d9fa6a0b2",
+  "322edae441c5751a"
+ ],
+ "sweep/star_offset_fine/0.5": [
+  "9ac6a50a712487fb",
+  "fcc9d68407260cf4"
+ ],
+ "sweep/star_offset_fine/0.55": [
+  "0935c970d67cedca",
+  "dad844fc69f69625"
+ ],
+ "sweep/star_offset_fine/0.611": [
+  "5302ba250be19d85",
+  "b4dd53e04252e378"
+ ],
+ "sweep/star_offset_fine/0.667": [
+  "e46330f53756ca42",
+  "b67be5acc8ccd8e1"
+ ],
+ "sweep/star_offset_fine/0.7": [
+  "167966a426303303",
+  "5fdbce58704143d0"
+ ],
+ "sweep/star_offset_fine/0.75": [
+  "47b5fd665cd0e2dd",
+  "c1425f48ea34c14c"
+ ],
+ "sweep/star_offset_fine/0.823": [
+  "11c221dc1d476608",
+  "8d070fb5b8908a51"
+ ],
+ "sweep/star_offset_fine/0.9": [
+  "138b82980740371b",
+  "3ec7ddf09b2f05b9"
+ ],
+ "sweep/star_offset_fine/0.95": [
+  "e069d18fdf928e9d",
+  "703e18265c22f495"
+ ],
+ "sweep/star_offset_fine/1.0": [
+  "a512e77c73bc3bc0",
+  "54eb295c73f280d2"
+ ],
+ "sweep/star_offset_fine/1.25": [
+  "c634614f83022d21",
+  "abdb59fe781ad9db"
+ ],
+ "sweep/star_offset_fine/1.5": [
+  "f0c146e9678be9a9",
+  "22bfc3fc751ec79f"
+ ],
+ "sweep/star_offset_fine/1.618": [
+  "6cb84402a8a71b39",
+  "e860fcc20f9e2fce"
+ ],
+ "sweep/star_offset_fine/1.75": [
+  "c355574e66819b84",
+  "df67661c5378d982"
+ ],
+ "sweep/star_offset_fine_bright/0.0": [
+  "27c7f8457dcaef5b",
+  "ac0aa73fdcc3b2be"
+ ],
+ "sweep/star_offset_fine_bright/0.05": [
+  "e26ad749bdbf8e1e",
+  "1fe6a53655404b1e"
+ ],
+ "sweep/star_offset_fine_bright/0.1": [
+  "eeac5d766a301a0b",
+  "d502551c0cea8205"
+ ],
+ "sweep/star_offset_fine_bright/0.137": [
+  "090c69678aa4b3f7",
+  "d4389f780cafca58"
+ ],
+ "sweep/star_offset_fine_bright/0.2": [
+  "b058a8557e1ffef1",
+  "6961ac613decb5f0"
+ ],
+ "sweep/star_offset_fine_bright/0.25": [
+  "9876e10f5aac42b0",
+  "8b1f6156473b7b64"
+ ],
+ "sweep/star_offset_fine_bright/0.31": [
+  "8210dfbd663d47d9",
+  "69ba3cbc199fa66c"
+ ],
+ "sweep/star_offset_fine_bright/0.382": [
+  "9b406eb68581cd57",
+  "1bbe78e4b934bafa"
+ ],
+ "sweep/star_offset_fine_bright/0.45": [
+  "118b8210d73dcfa4",
+  "ea6e8ef055c91969"
+ ],
+ "sweep/star_offset_fine_bright/0.5": [
+  "91fefdcc2d858a65",
+  "2fd7f336545574a5"
+ ],
+ "sweep/star_offset_fine_bright/0.55": [
+  "8d4068015af452c4",
+  "8e3e346bd46b8e04"
+ ],
+ "sweep/star_offset_fine_bright/0.611": [
+  "9f2fffe8971baec8",
+  "0a8fbf693d51b0f3"
+ ],
+ "sweep/star_offset_fine_bright/0.667": [
+  "d3e5de56fe0ae116",
+  "2392c8ee5fac3d4a"
+ ],
+ "sweep/star_offset_fine_bright/0.7": [
+  "f85d867d25514301",
+  "f633e96f3aff6729"
+ ],
+ "sweep/star_offset_fine_bright/0.75": [
+  "3481984630af3aa9",
+  "9c71d9e08a5cf5d1"
+ ],
+ "sweep/star_offset_fine_bright/0.823": [
+  "f6fc1bdb45e3d042",
+  "e566ac6a4c8c77b3"
+ ],
+ "sweep/star_offset_fine_bright/0.9": [
+  "8f8d0cd81be4ad27",
+  "1f6d74b2175ff32d"
+ ],
+ "sweep/star_offset_fine_bright/0.95": [
+  "f724598d42e86765",
+  "3ec2aef1d8fbd997"
+ ],
+ "sweep/star_offset_fine_bright/1.0": [
+  "2083f19eefec9af3",
+  "86e7b68b88265d79"
+ ],
+ "sweep/star_offset_fine_bright/1.25": [
+  "c863b60617f71fc3",
+  "df398e302f623cb4"
+ ],
+ "sweep/star_offset_fine_bright/1.5": [
+  "86b3c7c55c723db0",
+  "445889eb258b3a95"
+ ],
+ "sweep/star_offset_fine_bright/1.618": [
+  "ae46b9ed06cf7105",
+  "14e73a49f974c374"
+ ],
+ "sweep/star_offset_fine_bright/1.75": [
+  "7aaeb85430e7c95a",
+  "457eba5f3f6a67a7"
+ ],
+ "sweep/star_offset_wide/0.5": [
+  "9ac6a50a712487fb",
+  "fcc9d68407260cf4"
+ ],
+ "sweep/star_offset_wide/1.7": [
+  "f963d58f6ebf9740",
+  "e6229c174ff419cb"
+ ],
+ "sweep/star_offset_wide/11.3": [
+  "326bd9632b747994",
+  "47277a47fd8ab8f6"
+ ],
+ "sweep/star_offset_wide/14.6": [
+  "6d239c9572e712fa",
+  "6aad33b3583915b5"
+ ],
+ "sweep/star_offset_wide/18.1": [
+  "ca10316129d6c095",
+  "d585535e0551c919"
+ ],
+ "sweep/star_offset_wide/3.4": [
+  "3864d04641ade53f",
+  "d286502c555d53bc"
+ ],
+ "sweep/star_offset_wide/5.7": [
+  "440c13fe05a06e53",
+  "bb1c90960c307ba9"
+ ],
+ "sweep/star_offset_wide/8.2": [
+  "2ffa796da019fc9c",
+  "2e9c93d4d069ce5b"
+ ],
+ "sweep/star_rotation/-1.5": [
+  "b3b38c37f44dd8f5",
+  "2696d836ce2170e1"
+ ],
+ "sweep/star_rotation/-2.0": [
+  "cf2b80d0972e96bb",
+  "2684974931637499"
+ ],
+ "sweep/star_rotation/0.5": [
+  "171921b7021d4524",
+  "f7846b5d57706ef5"
+ ],
+ "sweep/star_rotation/1.0": [
+  "82b08985a74f77f8",
+  "7926ae0615e9c7cc"
+ ],
+ "sweep/star_rotation/1.5": [
+  "d3eb2c8e7dfeba6a",
+  "cd310fa2916854eb"
+ ],
+ "sweep/star_rotation/2.0": [
+  "6f9f4327f77ce177",
+  "dd3e7e85208e2191"
+ ],
+ "sweep/titan_offset_fine/0.0": [
+  "402fa02914c9ca69",
+  "093c262ee3ac6f33"
+ ],
+ "sweep/titan_offset_fine/0.05": [
+  "b6b3373caf4c3180",
+  "6ed5e5e3b8b6fe98"
+ ],
+ "sweep/titan_offset_fine/0.1": [
+  "1925e2ae98d6ec15",
+  "8720a809fe92aa72"
+ ],
+ "sweep/titan_offset_fine/0.137": [
+  "382ab4eea5562319",
+  "192a8e4c064d0d69"
+ ],
+ "sweep/titan_offset_fine/0.2": [
+  "213c1e0199e18e90",
+  "be4b872471b52f9f"
+ ],
+ "sweep/titan_offset_fine/0.25": [
+  "137348ced7270959",
+  "cc97e61debeb5fe6"
+ ],
+ "sweep/titan_offset_fine/0.31": [
+  "2f08af118d85dd60",
+  "2728f36b63a3ac42"
+ ],
+ "sweep/titan_offset_fine/0.382": [
+  "ee60fce0834404e6",
+  "566cbae00b6ac524"
+ ],
+ "sweep/titan_offset_fine/0.45": [
+  "19ae20e31ea431d5",
+  "0d588650df012535"
+ ],
+ "sweep/titan_offset_fine/0.5": [
+  "2dc1356da0e8f566",
+  "214336cabf6cefeb"
+ ],
+ "sweep/titan_offset_fine/0.55": [
+  "cf96cc87f13670af",
+  "7bf2e0d62b172a4c"
+ ],
+ "sweep/titan_offset_fine/0.611": [
+  "c5ce91b8364445f3",
+  "464e88c9bd778c32"
+ ],
+ "sweep/titan_offset_fine/0.667": [
+  "b984c5eeaf1b0e9d",
+  "66ea57933dcce3c4"
+ ],
+ "sweep/titan_offset_fine/0.7": [
+  "776b2338c274af6e",
+  "97efad5b15e85b64"
+ ],
+ "sweep/titan_offset_fine/0.75": [
+  "7d9149b3cc08e86b",
+  "0043a02f6a40b280"
+ ],
+ "sweep/titan_offset_fine/0.823": [
+  "e2850d866d8f075f",
+  "593637b4691406cf"
+ ],
+ "sweep/titan_offset_fine/0.9": [
+  "bbe85dcf2fd3d322",
+  "4a7b03b8cdef15b1"
+ ],
+ "sweep/titan_offset_fine/0.95": [
+  "ccdf3b517187dac4",
+  "8ad6475e0dbacc4c"
+ ],
+ "sweep/titan_offset_fine/1.0": [
+  "e8185c5a0b20df85",
+  "7888e9d6c56aa9a1"
+ ],
+ "sweep/titan_offset_fine/1.25": [
+  "a11441228c37233d",
+  "bf9d55c1a056a19d"
+ ],
+ "sweep/titan_offset_fine/1.5": [
+  "88939ac29a371f81",
+  "a08473c37058814d"
+ ],
+ "sweep/titan_offset_fine/1.618": [
+  "26997cd6e0003379",
+  "5ffd27aed80a849d"
+ ],
+ "sweep/titan_offset_fine/1.75": [
+  "fec26e9336e2bfc7",
+  "379bd07a52874e69"
+ ],
+ "sweep/titan_offset_wide/0.5": [
+  "2dc1356da0e8f566",
+  "214336cabf6cefeb"
+ ],
+ "sweep/titan_offset_wide/13.4": [
+  "98b6729c88000617",
+  "d155e11416b297c2"
+ ],
+ "sweep/titan_offset_wide/18.7": [
+  "cd2bbc309c2f98c5",
+  "be05a93527f0b0d0"
+ ],
+ "sweep/titan_offset_wide/2.3": [
+  "70ee51f43bbea992",
+  "d70fcd2743a1d06f"
+ ],
+ "sweep/titan_offset_wide/24.2": [
+  "1d0b52268f0dc6fa",
+  "425a107b577aa73b"
+ ],
+ "sweep/titan_offset_wide/31.6": [
+  "eb17280335e015d5",
+  "4e6fc02ee0df044b"
+ ],
+ "sweep/titan_offset_wide/38.3": [
+  "aee71240c6e0ccba",
+  "bf8bba368a9d84d4"
+ ],
+ "sweep/titan_offset_wide/45.1": [
+  "0eb4fa21f2176aa3",
+  "94d9392d2cba00b2"
+ ],
+ "sweep/titan_offset_wide/5.7": [
+  "cbd4baf53442aa70",
+  "2df91d738bdf1edf"
+ ],
+ "sweep/titan_offset_wide/9.1": [
+  "356f93bb263f4985",
+  "21007cd8ff48eec7"
+ ]
+}

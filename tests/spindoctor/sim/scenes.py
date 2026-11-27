@@ -15,7 +15,7 @@ from typing import Any
 
 from spindoctor.sim.artifact_modes import ARTIFACT_MODES
 from spindoctor.sim.instruments.resolvers import instrument_default_modes
-from spindoctor.sim.scene.validate import CURRENT_SCHEMA_VERSION
+from spindoctor.sim.scene.idealized import CURRENT_SCHEMA_VERSION
 
 __all__ = [
     'body_scene',

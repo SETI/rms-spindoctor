@@ -33,6 +33,36 @@ spindoctor.sim.scene
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene.idealized
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.truth
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.truth_optics
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.truth_detector
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.declare
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.reference
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene.errors
    :members:
    :undoc-members:
@@ -54,6 +84,11 @@ spindoctor.sim.scene
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.scene.rules_common
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.rules_detector
    :members:
    :undoc-members:
    :show-inheritance:
@@ -114,6 +149,11 @@ spindoctor.sim.shared
 .. automodule:: spindoctor.sim.shared
 
 .. automodule:: spindoctor.sim.shared.ellipsoid
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.shared.inplace
    :members:
    :undoc-members:
    :show-inheritance:

@@ -215,9 +215,11 @@ def add_detector_relief(
     # sum would brighten rough terrain.  As it is, on the day side a Lambert
     # surface's brightness is the smooth brightness plus the interpolated
     # difference between the relief and smooth brightness.
-    normal_v += cubic_upsample(relief_v - base_v, up_factor)
-    normal_u += cubic_upsample(relief_u - base_u, up_factor)
-    normal_z += cubic_upsample(relief_z - base_z, up_factor)
+    # The three tilts are upsampled in turn into one working-grid array.
+    tilt = cubic_upsample(relief_v - base_v, up_factor)
+    normal_v += tilt
+    normal_u += cubic_upsample(relief_u - base_u, up_factor, out=tilt)
+    normal_z += cubic_upsample(relief_z - base_z, up_factor, out=tilt)
     relief_cos_i = incidence_cosines(
         relief_v,
         relief_u,

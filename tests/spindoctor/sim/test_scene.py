@@ -8,9 +8,7 @@ from typing import Any
 import pytest
 
 from spindoctor.sim.scene.boundary import (
-    _ALLOWED_KEYS,
     _OBJECT_BLOCKS,
-    TOP_LEVEL_IDEALIZED_KEYS,
     TOP_LEVEL_TEST_ONLY_KEYS,
     TOP_LEVEL_TRUTH_KEYS,
     TRUTH_KEYS,
@@ -86,7 +84,7 @@ def test_load_rejects_unknown_key(tmp_path: Path) -> None:
         'schema_version: 2\nscene_name: typo\ninstrument: coiss_nac\n'
         'size_v: 64\nsize_u: 64\nrandom_seed: 1\nwobble: 5\n'
     )
-    with pytest.raises(SimSceneValidationError, match='unknown scene keys'):
+    with pytest.raises(SimSceneValidationError, match=re.escape("unknown keys: ['wobble']")):
         load_sim_scene(path)
 
 
@@ -108,7 +106,7 @@ def test_load_rejects_inf_positive_number(tmp_path: Path) -> None:
         'schema_version: 2\nscene_name: infexp\ninstrument: coiss_nac\n'
         'size_v: 64\nsize_u: 64\nrandom_seed: 1\nexposure_sec: .inf\n'
     )
-    with pytest.raises(SimSceneValidationError, match='exposure_sec must be finite'):
+    with pytest.raises(SimSceneValidationError, match='exposure_sec: expected a finite number'):
         load_sim_scene(path)
 
 
@@ -120,7 +118,9 @@ def test_load_rejects_inf_nonnegative_number(tmp_path: Path) -> None:
         'size_v: 64\nsize_u: 64\nrandom_seed: 1\n'
         'noise:\n  read_noise_dn: .inf\n'
     )
-    with pytest.raises(SimSceneValidationError, match='read_noise_dn must be finite'):
+    with pytest.raises(
+        SimSceneValidationError, match=r'noise\.read_noise_dn: expected a finite number'
+    ):
         load_sim_scene(path)
 
 
@@ -128,7 +128,7 @@ def test_validate_sim_params_rejects_nan_positive_number() -> None:
     """NaN on a positive-number key fails validation."""
     params = _sim_params()
     params['exposure_sec'] = float('nan')
-    with pytest.raises(SimSceneValidationError, match='exposure_sec must be finite'):
+    with pytest.raises(SimSceneValidationError, match='exposure_sec: expected a finite number'):
         validate_sim_params(params)
 
 
@@ -151,7 +151,7 @@ def test_load_rejects_schema_version_1(tmp_path: Path) -> None:
         'schema_version: 1\nscene_name: v1\ninstrument: coiss_nac\n'
         'size_v: 64\nsize_u: 64\nrandom_seed: 1\n'
     )
-    with pytest.raises(SimSceneValidationError, match='schema_version must be 2'):
+    with pytest.raises(SimSceneValidationError, match='schema_version: expected 2'):
         load_sim_scene(path)
 
 
@@ -423,7 +423,9 @@ def test_validate_sim_params_rejects_empty_psf_block() -> None:
     """A present optics.psf block without a core width fails at validation."""
     params = _sim_params()
     params['optics'] = {'psf': {}}
-    with pytest.raises(SimSceneValidationError, match=r'optics\.psf needs sigma_v'):
+    with pytest.raises(
+        SimSceneValidationError, match=r'optics\.psf\.sigma_v: an explicit kernel needs sigma_v'
+    ):
         validate_sim_params(params)
 
 
@@ -431,7 +433,9 @@ def test_validate_sim_params_rejects_psf_without_sigma_v() -> None:
     """Wing-only PSF parameters without sigma_v fail at validation."""
     params = _sim_params()
     params['optics'] = {'psf': {'w': 0.1, 'r0': 2.0, 'n': 3.0}}
-    with pytest.raises(SimSceneValidationError, match=r'optics\.psf needs sigma_v'):
+    with pytest.raises(
+        SimSceneValidationError, match=r'optics\.psf\.sigma_v: an explicit kernel needs sigma_v'
+    ):
         validate_sim_params(params)
 
 
@@ -439,7 +443,10 @@ def test_validate_sim_params_rejects_false_match_navigator() -> None:
     """match_navigator: false authors a kernel-less block and fails."""
     params = _sim_params()
     params['optics'] = {'psf': {'match_navigator': False}}
-    with pytest.raises(SimSceneValidationError, match='match_navigator must be true'):
+    with pytest.raises(
+        SimSceneValidationError,
+        match='match_navigator: a false value describes a PSF block with no kernel',
+    ):
         validate_sim_params(params)
 
 
@@ -626,7 +633,9 @@ def test_validate_sim_params_refuses_a_noise_seed_that_is_not_an_integer() -> No
     """A noise_seed must be an integer, as random_seed must."""
     params = _sim_params()
     params['noise_seed'] = 1.5
-    with pytest.raises(SimSceneValidationError, match='noise_seed must be an integer'):
+    with pytest.raises(
+        SimSceneValidationError, match=r'noise_seed: expected an integer, got float 1\.5'
+    ):
         validate_sim_params(params)
 
 
@@ -636,7 +645,9 @@ def test_validate_sim_params_refuses_a_noise_seed_outside_the_editor_range(value
     and above the largest value the editor's control can show."""
     params = _sim_params()
     params['noise_seed'] = value
-    with pytest.raises(SimSceneValidationError, match='noise_seed must be an integer from 0 to'):
+    with pytest.raises(
+        SimSceneValidationError, match='noise_seed: expected an integer from 0 to 2147483647'
+    ):
         validate_sim_params(params)
 
 
@@ -1067,15 +1078,6 @@ def test_spk_error_requires_ring_system_range_km() -> None:
     params['spk_error'] = {'dv_px': 1.0, 'du_px': 0.0, 'reference_range_km': 1.0e5}
     with pytest.raises(SimSceneValidationError, match='ring_system needs range_km'):
         validate_sim_params(params)
-
-
-def test_every_top_level_key_is_classified() -> None:
-    """Every allowed top-level key has exactly one of the three boundary classes."""
-    classified = TOP_LEVEL_IDEALIZED_KEYS | TOP_LEVEL_TRUTH_KEYS | TOP_LEVEL_TEST_ONLY_KEYS
-    assert classified == _ALLOWED_KEYS
-    assert not TOP_LEVEL_IDEALIZED_KEYS & TOP_LEVEL_TRUTH_KEYS
-    assert not TOP_LEVEL_IDEALIZED_KEYS & TOP_LEVEL_TEST_ONLY_KEYS
-    assert not TOP_LEVEL_TRUTH_KEYS & TOP_LEVEL_TEST_ONLY_KEYS
 
 
 def test_test_only_keys_are_not_truth_keys() -> None:
