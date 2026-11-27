@@ -161,15 +161,15 @@ separate purposes and are not expected to agree.
 filter slot, encoded as the digit one -- and the table carries one entry with a
 default of 0.0. Both are placeholders.
 
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.33e6, described
-in the file as an interim value sized from the electron zero point over the
-single gain state.
+**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.33e7 DN per
+second, the simulator's measured zero point of 7.0e8 e- per second (see the
+simulator model below) over the 21 e-/DN of the single gain state.
 
 **Binned readout mode.** ``noise.by_binning`` gives the values for the 4x4 mode,
 keyed by the binning factor. The mode's published gain is 19.4 e-/DN, so the
 read noise of one binned pixel is the published 23 e- over 19.4, or 1.19 DN, and
-the zero point is the electron zero point of 7.0e7 e- per second over 19.4, or
-3.61e6 DN per second. Only the faint-star limit of a simulated frame reads them.
+the zero point is 7.0e8 e- per second over 19.4, or 3.61e7 DN per second. Only
+the faint-star limit of a simulated frame reads them.
 The full-resolution ``read_noise_dn`` is a placeholder above the published 23 e-
 over 21 e-/DN, or 1.10 DN, so 1.4 of the 4.4 mag step from an unbinned frame's
 star limit to a binned one's comes from the placeholder.
@@ -280,6 +280,26 @@ encircled-energy radius at 50% is 0.59 pixels -- and cannot constrain an
 unbinned kernel, so a per-readout-mode kernel is future work rather than a
 refinement of this one.
 
+**Star zero point.** ``star_flux.e_per_s_vmag0`` is 7.0e8, the electrons a star of
+V = 0 deposits each second. It was measured on sci frames from the volumes
+NHLALO_2001, NHJULO_2001, NHPCLO_2001, and NHPELO_2001, the library's two binned
+frames among them, with each frame collecting light for its exposure plus the
+camera's extra 0.63 ms. Each frame's pointing was refitted to its own brightest
+stars, and the light of every catalog star was summed within 5 pixels of where the
+star falls (3 pixels on a binned frame), less the sky around it. That sum was scaled
+by the measured ratio of the light within twice the radius, 1.064 unbinned and 1.024
+binned. Field stars of V 10 to 14, with their V and B-V from APASS, give these rates
+for a star of B-V 0.65:
+
+* Unbinned, at 21 e-/DN, 6.8e8 from 173 stars on 27 frames of 0.05 to 0.97 s. The
+  stars scatter by 0.11 mag about that rate, and the frames by 0.05 mag.
+* Binned four by four, at 19.4 e-/DN, 7.2e8 from 444 stars on 65 frames of 0.03 to
+  10 s. The stars scatter by 0.18 mag, and the frames by 0.11 mag.
+
+The zero point lies within 0.03 mag of both rates. Redder stars read brighter, by
+0.10 mag for each magnitude of B-V on unbinned frames and 0.23 mag on binned ones,
+and the simulator draws every star at the one zero point.
+
 **Distortion residuals.**
 ``{k1: 8.13e-04, k2: -1.10e-03, nonradial_rms_px: 0.0}``, measured by the
 star-field distortion analysis. The radial term is a mid-field hump close to
@@ -366,8 +386,9 @@ Image library and test coverage
 ===============================
 
 **Cohort.** Two sidecars, both under ``star_dominated``, and both binned four
-by four, which is why the photometric and PSF parameters above are all
-derivations rather than measurements.
+by four, which is why the navigator's limiting magnitude and both PSFs above are
+derivations rather than measurements. The star zero point was measured on a wider
+set of frames, described with the simulator's value.
 
 **Integration tests.** The per-image regression suite
 (``tests/integration/test_autonomous_nav.py``) and the structural-invariants
@@ -384,14 +405,14 @@ full 1024 px frame with the measured twist of +0.19 degrees. The image library's
 frames of this camera are only about a pixel off, so the scenes' 32 px offset
 instead reaches half the camera's search window.
 
-- ``nhlorri_star_field``: 18 stars of V 10.5 to 13.0 at 5 s. The twist moves the
-  four measured stars' mean position by about 0.94 px, because a translation
-  follows the turned stars it measures, and the answer lands 0.90 to 0.96 px off
-  over 16 seeds. Without the twist it lands 0.05 px off.
-- ``nhlorri_star_field_short_exposure``: the same field at 1 s. The navigator's
-  star blur for this camera is a 3.0 px placeholder against a published core
-  near 1 px, so at 1 s it predicts every star too faint to see and draws no star
-  features. The frame fails, and the scene's expected block holds the failure.
+- ``nhlorri_star_field``: 18 stars of V 10.5 to 13.0 at 5 s. The navigator
+  measures all 18. The twist moves their mean position by about 0.4 px, because
+  a translation follows the turned stars it measures, and the answer lands 0.41
+  to 0.42 px off over 24 draws. Without the twist it lands 0.02 px off.
+- ``nhlorri_star_field_short_exposure``: the same field at 1 s. The navigator
+  measures the 7 brightest stars, and the twist moves their mean position by
+  about 0.54 px. The answer lands 0.53 to 0.55 px off over 24 draws, and 0.02 px
+  off without the twist.
 
 **Mixed-defect guard scene.** ``nhlorri_moon_raw`` in the ``mixed_defects`` scene
 class (see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px

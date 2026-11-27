@@ -298,8 +298,8 @@ are the authorable parts of #904 and the ring-only part of #377:
   **Done (PR #1154; Voyager in PR #1218, after the four-camera split, #806, PR #1118):**
   the `full_frame_cameras` class holds ten full-frame scenes on the Cassini NAC and WAC (raw
   and calibrated), Galileo SSI (257 and 286 px offsets), and LORRI, each with its camera's
-  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; three of
-  them are expected failures tied to #342, #785, and #1153. Four Voyager scenes, one per
+  measured twist unfit, navigated once per run by `test_sim_full_frame_cameras.py`; one of
+  them is an expected failure, tied to #785. Four Voyager scenes, one per
   camera at the 1000 px GEOMED size and 32 to 49 px offsets, follow real frames: a
   Voyager 1 NAC moon (0.06 to 0.57 px off), a Voyager 1 WAC Saturn at the real frame's
   scale, ring radii, ring brightness, and limb profile with unmodeled rings, where the disc
@@ -415,7 +415,8 @@ gap affects, from the critique's population counts.
 | Issue | Subject |
 |---|---|
 | #895 | Stars, bodies, and rings share no radiometric scale. **Carries #925's star-count criterion (operator, 2026-11-18):** the matched NAC star twins should give a star cutout count comparable to the real frames' 25; the 2026-11-17 record gives 9, because simulated NAC stars are about 3.5 mag fainter than real ones at the same catalog magnitude. |
-| #1153 | **Affects `gossi_star_field_short_exposure`, held as an expected failure.** At the real Pleiades frames' 0.1 s the navigator predicts only the V 2.8 star of a simulated Galileo field, where the real frames lock on three stars: simulated Galileo stars are about 12 times fainter than real ones of the same magnitude (4e7 to 7e7 electrons per second at V 0 on the real frames against 4.0e6), and the simulated-frame star limit spreads that zero point over the 3.0 px placeholder blur (#342), reaching V 3.2 against V 7.8 on the real frames |
+| #1153 | **Done (PR #1252).** Measured on the 1992 Pleiades full frames, the Galileo star zero point is 2.3e8 electrons per second at V 0 (2.07e8 within 4 px at 10K on 118 stars, 1.95e8 at 100K on 62, 0.16 to 0.18 mag rms), up from 4.0e6; the 1990 frames read 1.3 mag fainter (#1211) and summed frames read 1.33 times the DN of full frames, and the navigator's copy of the zero point for simulated frames follows (1.23e6 DN/s at 187 e-/DN), so `gossi_star_field` lands 0.09 to 0.10 px off over 24 draws and `gossi_star_field_short_exposure`, at the real frames' 0.1 s, navigates 0.01 to 0.02 px off, retiring its expected failure. Before, simulated Galileo stars were about 12 times fainter than real ones, so at the real Pleiades frames' 0.1 s the navigator predicted only the V 2.8 star of a simulated field and `gossi_star_field_short_exposure` was held as an expected failure |
+| #1213 | **Done (PR #1252).** Measured on unbinned and 4x4 sci frames, the LORRI star zero point is 7.0e8 electrons per second at V 0 (6.8e8 unbinned on 173 stars, 7.2e8 binned on 444, 0.11 and 0.18 mag rms), up from 7.0e7; the navigator's copy follows (3.33e7 DN/s unbinned, 3.61e7 binned), so `nhlorri_star_field` measures all 18 stars and lands 0.41 to 0.42 px off over 24 draws, and `nhlorri_star_field_short_exposure` navigates 0.53 to 0.55 px off, retiring its expected failure. Before, simulated LORRI stars were about 11 times fainter than real ones, and the navigator's simulated-frame copy of the zero point was equally low |
 | #896 | No ring-body shadows; the planet's shadow is a fixed wedge |
 | #921 | Background star counts 3 to 10 times too sparse |
 | #899 | Navigator star limit: 30.0 on calibrated frames, filter ignored on raw ones (the Cassini part here; the Voyager part follows #907, and the Galileo, Voyager, and LORRI limits follow #342). **Carries #925's star-count criterion (operator, 2026-11-18):** the navigator on the NAC star twin N1459552012 should predict a number of stars comparable to the real frame's 4; in the 2026-11-17 record its star-field fit ranks 30, the most it takes. |

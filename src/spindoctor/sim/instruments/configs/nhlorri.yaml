@@ -33,11 +33,24 @@ nhlorri:
   # model, from the star-field FOV distortion analysis: near its noise floor.
   distortion_residual: {k1: 8.13e-04, k2: -1.10e-03, nonradial_rms_px: 0.0}
 
-  # Electrons a magnitude-0 star deposits per second.  Estimated: sized so a star
-  # at the camera's published limiting magnitude reaches SNR ~5, near the
-  # matched-filter detection boundary.
+  # Electrons a magnitude-0 star deposits per second.  Measured 2026-11-26 (#1213)
+  # by aperture photometry of catalog stars at pointing refitted to each frame's
+  # own stars, on sci frames of NHLALO_2001, NHJULO_2001, NHPCLO_2001, and
+  # NHPELO_2001 (the library's two 4x4 frames among them), with the light
+  # collected over the exposure plus extra_integration_sec.  Field stars of
+  # Johnson V 10 to 14 (APASS) give, at B-V 0.65 and in total (the light within
+  # 5 px at 1x1 or 3 px at 4x4, times its measured ratio to twice that radius,
+  # 1.064 and 1.024):
+  # - 1x1 at 21 e-/DN: 6.8e8 (173 stars on 27 frames of 0.05 to 0.97 s, 0.11 mag
+  #   rms, 0.05 mag frame to frame).
+  # - 4x4 at 19.4 e-/DN: 7.2e8 (444 stars on 65 frames of 0.03 to 10 s, 0.18 mag
+  #   rms, 0.11 mag frame to frame).
+  # The one value lies within 0.03 mag of both, and within 0.1 mag of the 3.6e7
+  # DN/s at 1x1 of the navigator's own star photometry (#130).  Redder stars read
+  # brighter, by 0.10 (1x1) to 0.23 (4x4) mag per magnitude of B-V; the simulator
+  # draws every star at this one value.
   star_flux:
-    e_per_s_vmag0: 7.0e+7
+    e_per_s_vmag0: 7.0e+8
 
   # Plate scale from the published value, ~5 urad/px (1x1).
   sky_pixel_scale_arcsec: 1.023

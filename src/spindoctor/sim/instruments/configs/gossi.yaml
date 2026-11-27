@@ -31,11 +31,28 @@ gossi:
   # reaching ~0.5 px at the corner.
   distortion_residual: {k1: -3.47e-04, k2: 1.72e-03, nonradial_rms_px: 0.0}
 
-  # Electrons a magnitude-0 star deposits per second.  Estimated: sized so a star
-  # at the camera's published limiting magnitude reaches SNR ~5, near the
-  # matched-filter detection boundary.
+  # Electrons a magnitude-0 star deposits per second through the clear filter.
+  # Measured 2026-11-26 (#1153) by aperture photometry of catalog stars at
+  # pointing refitted to each frame's own stars, on the full frames of the 1992
+  # Pleiades sequence through CLEAR (GO_0008, C0164396145R to C0164400545R).
+  # Field stars of Johnson V 10 to 14 (APASS) give, at B-V 0.65:
+  # - 10K gain state: 2.07e8 within 4 px (118 stars on 12 frames, 0.18 mag rms,
+  #   0.07 mag frame to frame); a 4 px radius holds 1/1.125 of the light within
+  #   8 px, so the total is 2.33e8.
+  # - 100K gain state: 1.95e8 within 4 px (62 stars on 18 frames, 0.16 mag rms),
+  #   2.0e8 in total, 0.15 mag below 10K.
+  # Klaasen et al. 1999's absolute response, 5.9e6 DN/s at 38.7 e-/DN, is 2.28e8,
+  # and the navigator's own star photometry measured 2.34e8 (#130).  Redder stars
+  # read brighter, by 0.3 to 0.4 mag per magnitude of B-V, and the hot Pleiades
+  # members 0.35 mag below field stars; the simulator draws every star at this one
+  # value.  No frame covers 40K or 400K through CLEAR.  Summed (AI8) frames read
+  # 1.33 times the DN of the full frames for the same 14 stars at 10K, which the
+  # simulator does not render.  The 1990 cruise frames (GO_0002 and GO_0003, among
+  # them the library's Pleiades frames C0059894800R and C0059899900R) read 1.3 mag
+  # fainter, 7.0e7 in total (#1211); the value follows the 1992 frames, as the
+  # navigator's photometry does.
   star_flux:
-    e_per_s_vmag0: 4.0e+6
+    e_per_s_vmag0: 2.3e+8
 
   # Plate scale from the published value, ~10.2 urad/px.
   sky_pixel_scale_arcsec: 2.095
