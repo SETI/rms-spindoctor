@@ -32,10 +32,11 @@ vgiss_1_nac:
   # state the same value.
   data_units: calibrated_if
 
-  # The navigator section every Voyager camera emulates.  The section holds no
-  # per-camera value, so the link is the same for all four entries.
+  # The navigator section holds one block per camera, and this entry reads the
+  # block of its own camera.
   navigator:
     section: voyager_iss
+    detector: vg1_nac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
@@ -204,10 +205,11 @@ vgiss_1_wac:
   # state the same value.
   data_units: calibrated_if
 
-  # The navigator section every Voyager camera emulates.  The section holds no
-  # per-camera value, so the link is the same for all four entries.
+  # The navigator section holds one block per camera, and this entry reads the
+  # block of its own camera.
   navigator:
     section: voyager_iss
+    detector: vg1_wac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
@@ -375,10 +377,11 @@ vgiss_2_nac:
   # state the same value.
   data_units: calibrated_if
 
-  # The navigator section every Voyager camera emulates.  The section holds no
-  # per-camera value, so the link is the same for all four entries.
+  # The navigator section holds one block per camera, and this entry reads the
+  # block of its own camera.
   navigator:
     section: voyager_iss
+    detector: vg2_nac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
@@ -555,10 +558,11 @@ vgiss_2_wac:
   # state the same value.
   data_units: calibrated_if
 
-  # The navigator section every Voyager camera emulates.  The section holds no
-  # per-camera value, so the link is the same for all four entries.
+  # The navigator section holds one block per camera, and this entry reads the
+  # block of its own camera.
   navigator:
     section: voyager_iss
+    detector: vg2_wac
 
   # The GEOMED product is a 1000 by 1000 resample of the 800 by 800 vidicon frame
   # (LINES and LINE_SAMPLES 1000 in every GEOMED label of the image library's
