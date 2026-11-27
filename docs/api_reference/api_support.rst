@@ -3,11 +3,6 @@ spindoctor.support
 
 .. automodule:: spindoctor.support
 
-.. automodule:: spindoctor.support.attrdict
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 .. automodule:: spindoctor.support.background_gradient
    :members:
    :undoc-members:

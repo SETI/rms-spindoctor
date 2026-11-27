@@ -362,21 +362,8 @@ The rules for a typed section:
 Sections
 --------
 
-Top-level YAML keys other than the typed sections, such as each camera's block, are read
-through :meth:`~spindoctor.config.Config.category`, which returns an
-:class:`~spindoctor.support.attrdict.AttrDict` so code can write
-``cfg.category('galileo_ssi').star_psf_sigma`` instead of
-``cfg.category('galileo_ssi')['star_psf_sigma']``. That
-convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
-own instance dictionary, so
-anything that sets an attribute on a section adds a key to it. ``oops`` caches
-its mutability verdict by setting an attribute on every object it walks, and it
-walks everything reachable from an observation, so building a backplane reaches
-the shared configuration and writes a key into every section of it, so a section
-read back holds a key that no configuration file declares.
-The class carries ``oops``'s own opt-out marker to prevent that; it is a
-workaround for one package rather than a general convention, and is tracked for
-removal. The shipping sections:
+Every top-level key of the configuration is a section, and every section is typed. The
+shipping sections:
 
 - ``general`` — global settings shared across programs; a typed section (see
   :ref:`config-typed-sections`).
