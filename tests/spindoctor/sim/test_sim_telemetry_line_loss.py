@@ -39,11 +39,22 @@ _NO_ROWS = np.zeros(0, dtype=np.int64)
 _NAC_HEAD_KEPT = [0.0156, 0.0312, 0.0781, 0.2031, 0.3438, 0.5625, 0.75, 0.875, 0.9688, 0.9688]
 
 
-def _compress(signal: np.ndarray, probability: float = 1.0, **params: Any) -> dict[str, Any]:
+def _compress(
+    signal: np.ndarray,
+    probability: float = 1.0,
+    *,
+    protect: tuple[int, int, int, int] | None = None,
+    **params: Any,
+) -> dict[str, Any]:
     """Run the compressor on a raw-DN frame in place; return its record."""
     cfg = {'probability': probability, **_RICE, **params}
     return apply_compression_truncated_lines(
-        signal, cfg, marker_dn=0.0, rng=np.random.default_rng(0), calibration=None
+        signal,
+        cfg,
+        marker_dn=0.0,
+        rng=np.random.default_rng(0),
+        calibration=None,
+        protect=protect,
     )
 
 
@@ -120,6 +131,16 @@ def test_only_the_second_line_of_a_pair_is_cut() -> None:
     """Where the first line of each pair fits, only the odd rows lose samples."""
     record = _compress(_noise(64, 1024, 300.0))
     assert [c['row'] for c in record['cuts']] == list(range(1, 64, 2))
+
+
+def test_the_truth_window_is_spared_the_compression_cuts() -> None:
+    """A cut that crosses the protected rectangle leaves its pixels as they were."""
+    signal = _noise(8, 256, 400.0)
+    original = signal.copy()
+    record = _compress(signal, word_bits=4, protect=(0, 8, 200, 256))
+    assert record['cuts']
+    assert np.array_equal(signal[:, 200:], original[:, 200:])
+    assert np.any(signal[:, :200] == 0.0)
 
 
 def test_a_first_line_over_the_budget_loses_the_second_line_whole() -> None:
@@ -273,7 +294,7 @@ def test_the_cluster_probability_sets_the_share_of_groups_that_start_a_cluster()
         'cluster_probability': 0.3,
         'gap_percentiles': [3.0] * 10,
     }
-    groups = _gaps(params, size_v=65536)[1]
+    groups = _gaps(params, size_v=65536, size_u=4)[1]
     gaps = np.array([b['row_start'] - a['row_end'] for a, b in itertools.pairwise(groups)])
     assert abs(float(np.mean(gaps != 3)) - 0.3) < 0.05
 
@@ -429,6 +450,30 @@ def test_a_tail_line_keeps_its_start_and_loses_its_end() -> None:
     kept = [int(np.count_nonzero(signal[g['row_end']])) for g in tails]
     assert kept == [g['tail_lost_from'] for g in tails]
     assert all(np.all(signal[g['row_end'], : g['tail_lost_from']] == _FILL) for g in tails)
+
+
+def test_a_line_between_two_groups_records_the_share_it_keeps() -> None:
+    """A line cut as one group's tail and the next group's head records its final samples."""
+    params = {
+        'mean_groups': 12.0,
+        'size_percentiles': [2.0] * 10,
+        'cluster_probability': 0.0,
+        'gap_percentiles': [1.0] * 10,
+        'head_probability': 1.0,
+        'tail_probability': 1.0,
+        'step_samples': 16,
+    }
+    signal, groups = _gaps(params)
+    pairs = [
+        (a, b)
+        for a, b in itertools.pairwise(groups)
+        if b['row_start'] - a['row_end'] == 1 and 'tail_lost_from' in a and 'head_lost_from' in b
+    ]
+    assert pairs
+    for first, second in pairs:
+        kept = int(np.count_nonzero(signal[first['row_end']]))
+        assert first['tail_lost_from'] == kept
+        assert second['head_lost_from'] == kept
 
 
 def test_a_line_no_wider_than_a_step_loses_no_end() -> None:

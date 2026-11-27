@@ -280,6 +280,7 @@ def apply_compression_truncated_lines(
     marker_dn: float,
     rng: np.random.Generator,
     calibration: CalibrationMap | None,
+    protect: tuple[int, int, int, int] | None = None,
     **_ignored: Any,
 ) -> dict[str, Any]:
     """Cut the line pairs a lossless compressor with a fixed pair budget cannot fit.
@@ -295,7 +296,9 @@ def apply_compression_truncated_lines(
     second line is lost whole.  How much is cut, and where, follows from the content:
     a smooth frame loses nothing, and noise or fine detail cuts the pairs it crosses.
     The probability decides whether the frame was compressed this way at all, and
-    adversarial placement does not steer it.
+    adversarial placement does not steer it.  A ``protect`` rectangle (the commanded
+    truth window) is left untouched; the cuts elsewhere stand and the record still
+    lists every cut the compressor made.
 
     Returns:
         The record: whether the mode fired, the pair budget in bits, and one cut per
@@ -313,6 +316,10 @@ def apply_compression_truncated_lines(
         dn, block_samples=block, id_bits=int(cfg['id_bits']), max_split=int(cfg['max_split'])
     )
     kept = pair_cuts(bits, budget_bits=budget)
+    saved = None
+    if protect is not None:
+        pv0, pv1, pu0, pu1 = protect
+        saved = signal[pv0:pv1, pu0:pu1].copy()
     cuts: list[dict[str, int]] = []
     for pair in range(size_v // 2):
         for row, blocks in (
@@ -331,6 +338,9 @@ def apply_compression_truncated_lines(
                     'pair_bits': int(kept.pair_bits[pair]),
                 }
             )
+    if protect is not None and saved is not None:
+        pv0, pv1, pu0, pu1 = protect
+        signal[pv0:pv1, pu0:pu1] = saved
     return {'active': True, 'budget_bits': budget, 'cuts': cuts}
 
 
@@ -616,8 +626,9 @@ def apply_downlink_gaps(
     with ``tail_probability`` the line just below does; such a line keeps a whole
     number of ``step_samples``, its kept share drawn from ``head_kept_percentiles`` or
     ``tail_kept_percentiles``.  A single kept line between two groups can lose its end
-    as either group's neighbor.  A frame whose lines are no wider than one step keeps
-    the lines beside its groups whole.
+    as either group's neighbor; it then keeps the smaller of the two shares drawn, and
+    the record gives that share for both groups.  A frame whose lines are no wider than
+    one step keeps the lines beside its groups whole.
 
     Parameters:
         signal: The frame's DN image, changed in place.
@@ -651,16 +662,23 @@ def apply_downlink_gaps(
         end = start + size
         signal[start:end, :] = marker_dn
         groups.append({'row_start': start, 'row_end': end})
+    # A line cut as one group's tail and another's head keeps the smaller share.
+    final_kept: dict[int, int] = {}
+    cut_fields: list[tuple[dict[str, int], str, int]] = []
     for group in groups:
         start, end = group['row_start'], group['row_end']
         if partial and start > 0 and mode_activated(rng, float(cfg['head_probability'])):
             kept = _kept_samples(rng, cfg['head_kept_percentiles'], size_u, step)
             signal[start - 1, kept:] = marker_dn
-            group['head_lost_from'] = kept
+            final_kept[start - 1] = min(kept, final_kept.get(start - 1, kept))
+            cut_fields.append((group, 'head_lost_from', start - 1))
         if partial and end < size_v and mode_activated(rng, float(cfg['tail_probability'])):
             kept = _kept_samples(rng, cfg['tail_kept_percentiles'], size_u, step)
             signal[end, kept:] = marker_dn
-            group['tail_lost_from'] = kept
+            final_kept[end] = min(kept, final_kept.get(end, kept))
+            cut_fields.append((group, 'tail_lost_from', end))
+    for group, field, row in cut_fields:
+        group[field] = final_kept[row]
     return {'active': True, 'groups': groups}
 
 
