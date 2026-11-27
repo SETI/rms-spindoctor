@@ -264,7 +264,7 @@ def test_ensemble_below_min_confidence_fails() -> None:
 def test_derive_confidence_rank_high() -> None:
     """High confidence + small sigma earns the 'high' tier."""
     rank = derive_confidence_rank(
-        confidence=0.9, sigma_px=(0.3, 0.3), tier_thresholds=packaged_tiers()
+        confidence=0.9, sigma_major_px=0.3, tier_thresholds=packaged_tiers()
     )
     assert rank == 'high'
 
@@ -272,7 +272,7 @@ def test_derive_confidence_rank_high() -> None:
 def test_derive_confidence_rank_medium_when_sigma_too_large_for_high() -> None:
     """High confidence but sigma above 'high' threshold falls back to 'medium'."""
     rank = derive_confidence_rank(
-        confidence=0.85, sigma_px=(1.5, 1.5), tier_thresholds=packaged_tiers()
+        confidence=0.85, sigma_major_px=1.5, tier_thresholds=packaged_tiers()
     )
     assert rank == 'medium'
 
@@ -280,7 +280,7 @@ def test_derive_confidence_rank_medium_when_sigma_too_large_for_high() -> None:
 def test_derive_confidence_rank_low() -> None:
     """Low confidence + any sigma earns the 'low' tier when >= 0.35."""
     rank = derive_confidence_rank(
-        confidence=0.4, sigma_px=(10.0, 10.0), tier_thresholds=packaged_tiers()
+        confidence=0.4, sigma_major_px=10.0, tier_thresholds=packaged_tiers()
     )
     assert rank == 'low'
 
@@ -288,7 +288,7 @@ def test_derive_confidence_rank_low() -> None:
 def test_derive_confidence_rank_failed_below_threshold() -> None:
     """Confidence below the 0.35 low-tier boundary yields 'failed'."""
     rank = derive_confidence_rank(
-        confidence=0.3, sigma_px=(0.3, 0.3), tier_thresholds=packaged_tiers()
+        confidence=0.3, sigma_major_px=0.3, tier_thresholds=packaged_tiers()
     )
     assert rank == 'failed'
 
@@ -297,10 +297,12 @@ def test_derive_confidence_rank_logs_when_sigma_missing(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """CODE-ORCH-003: a None sigma is logged and caps the rank at low."""
-    rank = derive_confidence_rank(confidence=0.95, sigma_px=None, tier_thresholds=packaged_tiers())
+    rank = derive_confidence_rank(
+        confidence=0.95, sigma_major_px=None, tier_thresholds=packaged_tiers()
+    )
     assert rank == 'low'
     captured = capsys.readouterr()
-    assert 'sigma_px is None' in (captured.out + captured.err)
+    assert 'sigma_major_px is None' in (captured.out + captured.err)
 
 
 def test_ensemble_order_independent() -> None:

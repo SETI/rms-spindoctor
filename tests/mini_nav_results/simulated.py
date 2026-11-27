@@ -83,7 +83,7 @@ def simulated_scene() -> dict[str, Any]:
         covariance_px2=np.diag([0.0961, 0.0784]),
         confidence=0.88,
         confidence_rank=derive_confidence_rank(
-            confidence=0.88, sigma_px=(0.31, 0.28), tier_thresholds=packaged_tiers()
+            confidence=0.88, sigma_major_px=0.31, tier_thresholds=packaged_tiers()
         ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
