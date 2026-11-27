@@ -152,6 +152,18 @@ def test_resolve_offset_limit_needs_one_margin_for_a_camera_the_record_omits(
     assert 'cameras have different extfov_margin_vu' in str(result)
 
 
+def test_resolve_offset_limit_compares_only_the_recorded_size(tmp_path: Path) -> None:
+    """Cameras that differ only at another image size still resolve the limit."""
+    override = tmp_path / 'override.yaml'
+    override.write_text(
+        'voyager_iss:\n  vg1_wac:\n    extfov_margin_vu: {1000: [400, 400], 800: [300, 300]}\n'
+    )
+    config = Config()
+    config.update_config(override)
+    result = resolve_offset_limit('vgiss', 'C3250013_GEOMED.IMG', 1000, config=config)
+    assert result == (400.0, 400.0)
+
+
 # ---------------------------------------------------------------------------
 # One CSV cell
 # ---------------------------------------------------------------------------

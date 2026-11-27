@@ -567,12 +567,16 @@ def _model_dn(model: tuple[float, float, float, float], level: float) -> float:
 def _bootstrap_sigma(rows: list[dict[str, Any]], value: float) -> float:
     """Return the bootstrap (over frames) standard deviation of the detection limit.
 
+    The bootstrap samples the limit's base-10 logarithm, and the spread is carried to DN
+    to first order (``value * ln 10`` times the spread in the logarithm), which suits the
+    narrow distributions the measured frames give.
+
     Parameters:
         rows: Star rows with ``pred_dn``.
         value: The limit fitted on all of them.
 
     Returns:
-        The standard deviation in DN.
+        The first-order standard deviation in DN.
     """
     by_frame: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for r in rows:
