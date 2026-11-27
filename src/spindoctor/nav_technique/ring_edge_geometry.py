@@ -394,8 +394,11 @@ def _orbit_inflated_covariance(
     term's MAJOR eigenvalue is exactly ``sigma**2`` whatever direction ``g``
     points (``|g|**2 + (1 - |g|**2) = 1``), and only its minor eigenvalue,
     ``sigma**2 (1 - ||g||**2)``, depends on the geometry.  The tier gate reads the
-    major semi-axis of the error ellipse, so on a zero or isotropic input covariance
-    the derived direction cannot change a tier outcome within that regime.  On an
+    major semi-axis of the error ellipse, so for this result standing alone, on a zero
+    or isotropic input covariance, the derived direction cannot change a tier outcome
+    within that regime.  Fused with another technique's anisotropic covariance it can:
+    the fused major semi-axis depends on how ``g`` lines up with that witness's axes.
+    On an
     anisotropic input it can, because the term adds most to whichever input axis
     ``g`` lies along: ``diag(4, 0.01)`` with ``sigma = 1`` and a unit ``g`` gives a
     major semi-axis of ``sqrt(5)`` along the first axis and 2 along the second.  The

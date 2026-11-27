@@ -148,7 +148,9 @@ between them is entirely the uncertainty. A result can be confident and still la
 ``low`` because its uncertainty is large. The uncertainty a tier reads is the one in the
 direction where the offset is least certain. An offset can be pinned tightly one way
 and loosely the other, and it is judged by the loose direction, at whatever angle that
-direction lies in the image. The thresholds themselves are the
+direction lies in the image. A direction no feature constrains at all (an offset along
+a single straight edge, say) is reported separately as unconstrained, and the tier is
+judged on the directions the features do constrain. The thresholds themselves are the
 ``orchestrator.ensemble.tier_thresholds`` settings.
 
 One caveat travels with every confidence value SpinDoctor writes. The numbers and the tier
