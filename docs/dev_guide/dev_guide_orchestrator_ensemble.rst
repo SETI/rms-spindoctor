@@ -304,14 +304,10 @@ check each step that reads such an ellipse against a closed-form answer.
   whether the two group.
 - **Tier.** Step 8 compares the major semi-axis of the fused ellipse, the square root of
   the largest eigenvalue of the translation covariance, with ``max_sigma_px``, so a
-  tilted ellipse earns the same tier at every angle. The larger of the two image-axis
-  sigmas, :math:`\max(\sqrt{\Sigma_{vv}}, \sqrt{\Sigma_{uu}})`, would not do that: for a
-  tilted ellipse it falls short of the major semi-axis, by up to a factor of
-  :math:`\sqrt{2}` at 45 degrees. The haze fit fused with a 0.6 px star fix gives a
-  0.52 px by 0.31 px ellipse, which is ``'medium'`` at every angle; at 45 degrees its
-  image-axis sigmas are 0.43 px, inside the ``'high'`` limit. A frame with the haze fit
-  alone is ``'medium'`` at best, because its major semi-axis is 1.02 px. On the library
-  frames the two readings give the same tier everywhere.
+  tilted ellipse earns the same tier at every angle. The haze fit fused with a 0.6 px
+  star fix gives a 0.52 px by 0.31 px ellipse, which is ``'medium'`` at every angle. A
+  frame with the haze fit alone is ``'medium'`` at best, because its major semi-axis is
+  1.02 px.
 
 
 Confident-wrong results: what the tiers price and what they cannot
