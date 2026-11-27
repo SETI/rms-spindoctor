@@ -233,7 +233,7 @@ verb_no_on='(?:rest|rel(?:y|ies|ied)|depend)(?:s|ed)?\s+on'
 verb_no_comparative='more|less|later|earlier|sooner|fewer|greater|larger|smaller|'
 verb_no_comparative+='wider|further|better|worse'
 VERB_NO="(?i)\\b(?:(?:${verb_no_stems})(?:s|es|ed|d)?|${verb_no_irregular}|${verb_no_on})"
-VERB_NO+="\\s+no\\b(?!\\s+(?:longer|matter|one)\\b(?!-)|\\s+(?:${verb_no_comparative})(?:\\s+than\\b|\\s*[.,;:)]|\\s*$))"
+VERB_NO+="\\s+no\\b(?!\\s+(?:longer|matter|one)\\b(?!-[A-Za-z])|\\s+(?:${verb_no_comparative})(?:\\s+than\\b|\\s*[.,;:)]|\\s*$))"
 VERB_NO_MSG='verb + "no" + noun -- write "does not make a", "has no", or say what does happen'
 
 # Two ways to match the verb. "names the", "naming a", "names no" and the like are
