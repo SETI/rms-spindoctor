@@ -449,11 +449,12 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
   saturates. The navigator matches 11 stars and lands 0.09 to 0.10 px off over
   24 draws, and 0.08 px off without the twist.
 - ``gossi_star_field_short_exposure``: the same field at 0.1 s, the exposure of
-  the real Pleiades frames, which navigate on three stars. The simulated stars are
-  about 12 times fainter than real stars of the same magnitude, so the fainter
-  ones lie at or below the sky noise. With the measured 0.65 px star sigma the
-  navigator predicts six stars visible and matches three of them, and on the
-  committed draw the answer lands 0.11 px off.
+  the real Pleiades frames, which navigate on three stars. With the measured 0.65 px
+  star sigma the navigator's star limit on a simulated frame reaches V 10.9. It
+  matches 10 or 11 stars and lands 0.01 to 0.02 px off over 24 draws. The real
+  frames are from 1990 and read about 1.3 mag fainter than the 1992 frames the
+  zero point follows, so the scene checks the short-exposure path rather than
+  copying those frames.
 - ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
