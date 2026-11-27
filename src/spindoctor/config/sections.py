@@ -280,13 +280,15 @@ class TypedSections:
             The camera's block.
 
         Raises:
-            KeyError: If ``section`` is not a camera section, or does not hold a camera
-                named ``camera``.
+            KeyError: If ``section`` is not a camera section, does not hold a camera
+                named ``camera``, or is one camera's block and ``camera`` is given.
         """
         if section not in self.CAMERA_SECTIONS:
             raise KeyError(f'{section!r} is not a camera section of the configuration')
         value: CameraBlock | dict[str, CameraBlock] = getattr(self, section)
         if isinstance(value, CameraBlock):
+            if camera is not None:
+                raise KeyError(f"{section} is one camera's block; it has no camera {camera!r}")
             return value
         if camera not in value:
             raise KeyError(f'{section} has no camera {camera!r}; it has {sorted(value)}')
