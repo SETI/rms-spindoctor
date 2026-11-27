@@ -136,21 +136,44 @@ match -- it is a measured offset, not a correlation.
 """
 
 
-def _disc_kernel(radius_px: float) -> NDArrayFloatType:
+def _kernel_grid(
+    radius_px: float, center_offset_vu: tuple[float, float]
+) -> tuple[NDArrayFloatType, NDArrayFloatType]:
+    """Return each kernel pixel's ``(v, u)`` offset from the disc's center.
+
+    The kernel is square and odd-sized, and the disc's center lies ``center_offset_vu``
+    from its middle pixel.  The kernel reaches ``ceil(radius_px)`` pixels (at least one)
+    beyond the middle pixel, and farther by the larger offset when the center is off it,
+    so the disc always fits.
+    """
+    reach = radius_px + max(abs(center_offset_vu[0]), abs(center_offset_vu[1]))
+    r = max(math.ceil(reach), 1)
+    yy, xx = np.mgrid[-r : r + 1, -r : r + 1].astype(np.float64)
+    return yy - center_offset_vu[0], xx - center_offset_vu[1]
+
+
+def _disc_kernel(
+    radius_px: float, *, center_offset_vu: tuple[float, float] = (0.0, 0.0)
+) -> NDArrayFloatType:
     """Return a binary filled-disc matched-filter kernel of the given radius.
 
     The kernel is the blob-shaped template the coarse acquisition correlates
     against the observed signal: a disc whose response, convolved with the
     lit-signal image, peaks where a body-sized bright region is best centered.
+    A pixel is in the disc when its center is, and the disc's center lies
+    ``center_offset_vu`` from the kernel's middle pixel (:func:`_kernel_grid`).
     """
-    r = max(math.ceil(radius_px), 1)
-    yy, xx = np.mgrid[-r : r + 1, -r : r + 1]
+    yy, xx = _kernel_grid(radius_px, center_offset_vu)
     disc: NDArrayFloatType = (yy * yy + xx * xx <= radius_px * radius_px).astype(np.float64)
     return disc
 
 
 def _crescent_kernel(
-    radius_px: float, phase_rad: float, sub_solar_dir_vu: tuple[float, float]
+    radius_px: float,
+    phase_rad: float,
+    sub_solar_dir_vu: tuple[float, float],
+    *,
+    center_offset_vu: tuple[float, float] = (0.0, 0.0),
 ) -> NDArrayFloatType:
     """Return a Lambertian-crescent matched-filter kernel.
 
@@ -174,13 +197,14 @@ def _crescent_kernel(
         phase_rad: Phase angle (Sun -> body -> observer), radians.
         sub_solar_dir_vu: Unit ``(v, u)`` image-plane direction toward the
             bright limb (the projected body-to-Sun vector).
+        center_offset_vu: ``(v, u)`` offset of the disc's center from the
+            kernel's middle pixel (:func:`_kernel_grid`).
 
     Returns:
         ``(2r + 1, 2r + 1)`` float kernel; zero outside the projected disc
         and on the unlit side.
     """
-    r = max(math.ceil(radius_px), 1)
-    yy, xx = np.mgrid[-r : r + 1, -r : r + 1].astype(np.float64)
+    yy, xx = _kernel_grid(radius_px, center_offset_vu)
     radius_sq = radius_px * radius_px
     inside = yy * yy + xx * xx <= radius_sq
     z = np.sqrt(np.clip(radius_sq - (yy * yy + xx * xx), 0.0, None))
@@ -429,7 +453,9 @@ def _missing_shift_px(
     :func:`_crescent_kernel` at the body's phase when its sub-solar direction is known,
     and the filled disc of :func:`_disc_kernel` otherwise, with the radius of
     :func:`_clamped_kernel_radius`.  It is placed so its lit centroid lies on the
-    predicted one moved by ``coarse_offset_vu``, where the centroid box was measured.
+    predicted one moved by ``coarse_offset_vu``, where the centroid box was measured,
+    and its pixels are those whose centers the silhouette covers at its fractional
+    center, so rounding the center cannot add a row or column the body does not cover.
     The shift is that of :func:`missing_light_shift_px`, and it is 0.0 without building
     the model when no pixel of the box is missing.
 
@@ -450,16 +476,29 @@ def _missing_shift_px(
     radius = _clamped_kernel_radius(feature.geometry.predicted_diameter_px, missing_mask_ext.shape)
     phase_deg = float(getattr(feature.flags, 'phase_angle_deg', 0.0))
     sub_solar_dir_vu = getattr(feature.flags, 'sub_solar_dir_vu', (0.0, 0.0))
-    if sub_solar_dir_vu != (0.0, 0.0):
-        kernel = _crescent_kernel(radius, math.radians(phase_deg), sub_solar_dir_vu)
-    else:
-        kernel = _disc_kernel(radius)
-    centroid_off_v, centroid_off_u = _kernel_centroid_offset(kernel)
-    half_v, half_u = kernel.shape[0] // 2, kernel.shape[1] // 2
+
+    def silhouette(center_offset_vu: tuple[float, float]) -> NDArrayFloatType:
+        """Return the lit silhouette with its center ``center_offset_vu`` off the middle."""
+        if sub_solar_dir_vu != (0.0, 0.0):
+            return _crescent_kernel(
+                radius,
+                math.radians(phase_deg),
+                sub_solar_dir_vu,
+                center_offset_vu=center_offset_vu,
+            )
+        return _disc_kernel(radius, center_offset_vu=center_offset_vu)
+
+    # The disc's center, off the lit centroid by the silhouette's own offset, is split
+    # into the pixel that holds it and the fraction of a pixel beyond, so the model's
+    # pixels are those the disc covers there.
+    centroid_off_v, centroid_off_u = _kernel_centroid_offset(silhouette((0.0, 0.0)))
     pred_v, pred_u = feature.geometry.predicted_center_vu
-    origin_v = round(pred_v + coarse_offset_vu[0] - centroid_off_v) - half_v
-    origin_u = round(pred_u + coarse_offset_vu[1] - centroid_off_u) - half_u
-    return missing_light_shift_px(kernel, (origin_v, origin_u), missing_mask_ext)
+    center_v = pred_v + coarse_offset_vu[0] - centroid_off_v
+    center_u = pred_u + coarse_offset_vu[1] - centroid_off_u
+    pixel_v, pixel_u = round(center_v), round(center_u)
+    kernel = silhouette((center_v - pixel_v, center_u - pixel_u))
+    half_v, half_u = kernel.shape[0] // 2, kernel.shape[1] // 2
+    return missing_light_shift_px(kernel, (pixel_v - half_v, pixel_u - half_u), missing_mask_ext)
 
 
 def _collect_per_blob_residuals(

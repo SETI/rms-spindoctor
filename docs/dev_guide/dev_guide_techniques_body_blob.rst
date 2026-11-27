@@ -113,7 +113,9 @@ a disc take that side's light away, and the centroid of what is left moves towar
 side. So after the centroid is taken, the technique places a model of the body's predicted
 lit silhouette where the box was measured: the Lambertian crescent of the coarse
 acquisition when the body's direction toward the Sun is known, and a filled disc otherwise.
-It then measures how far leaving the missing pixels out moves the model's centroid. A blob
+The model covers the pixels whose centers the silhouette covers at the body's predicted
+center, to the fraction of a pixel, so a row or column that the body itself leaves dark
+carries none of the model's light. It then measures how far leaving the missing pixels out moves the model's centroid. A blob
 whose model moves more than ``max_missing_shift_frac`` of its predicted radius is dropped,
 and the technique reports a no-signal failure when every blob is dropped. Lost lines
 through the middle of a disc, or ones that cross it symmetrically, move the model little and

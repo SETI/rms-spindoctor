@@ -30,6 +30,7 @@ from spindoctor.nav_technique.nav_technique_body_blob import (
     _disc_kernel,
     _joint_covariance,
     _kernel_centroid_offset,
+    _missing_shift_px,
     _shift_bbox,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
@@ -1033,3 +1034,18 @@ def test_body_blob_lost_lines_are_not_sky(
         lost_rows=range(125),
     )
     assert result.offset_px == pytest.approx(planted_vu, abs=0.05)
+
+
+def test_body_blob_missing_light_model_sits_at_the_fractional_center() -> None:
+    """A lost row the disc does not reach moves the model's centroid not at all.
+
+    A disc of radius 4 centered at (100.5, 100.5) covers rows 97 to 104.  Placed at the
+    rounded center (100, 100), the model would also cover a pixel of row 96, and losing
+    that row would move its centroid 4/48 px, over the 0.04 px limit.
+    """
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.5, 100.5), predicted_diameter_px=8.0
+    )
+    missing = np.zeros((200, 200), dtype=bool)
+    missing[96, :] = True
+    assert _missing_shift_px(feature, (0, 0), (90, 90, 111, 111), missing) == 0.0
