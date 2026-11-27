@@ -73,9 +73,8 @@ camera sets each key unless it is marked as one that a camera's units leave out:
   camera and left out by a ``calibrated_if`` one, whose saturation cannot be identified
   after calibration.
 - ``noise.marker_value`` — a number, or ``NaN`` for a product that fills a lost pixel
-  with NaN. The value a missing pixel carries. Every shipped block sets 0, the calibrated ones included, since their products fill lost pixels with zero.
-  On a calibrated frame a pixel of exactly 0 I/F therefore counts as missing; a valid
-  calibrated pixel is never exactly 0.
+  with NaN. The value a missing pixel carries. On a calibrated frame whose marker is 0, a
+  pixel of exactly 0 I/F counts as missing; a valid calibrated pixel is never exactly 0.
 - ``image_quality_thresholds`` — block consumed by
   :class:`~spindoctor.support.image_class.ImageQualityThresholds`. See
   :doc:`dev_guide_orchestrator_image_classifier` for the field-by-field schema.
@@ -149,8 +148,9 @@ Examples
 
 **Galileo SSI.**  ``config_410_inst_gossi.yaml`` declares a flat block rather
 than a per-camera one, so the resolution calls
-:meth:`~spindoctor.config.config.Config.camera_block` with ``'galileo_ssi'`` alone. Resolution is otherwise identical: the orchestrator's
-per-image :class:`~spindoctor.nav_orchestrator.nav_context.NavContext` inherits
+:meth:`~spindoctor.config.config.Config.camera_block` with ``'galileo_ssi'`` alone.
+Resolution is otherwise identical: the orchestrator's per-image
+:class:`~spindoctor.nav_orchestrator.nav_context.NavContext` inherits
 ``fit_camera_rotation`` and ``max_rotation_deg`` from that block exactly as it
 does from a per-camera one, and what those values then decide is unchanged by
 where they were read from.
