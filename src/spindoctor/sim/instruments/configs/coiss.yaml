@@ -179,8 +179,10 @@ coiss_nac:
       - missing_lines
       - partial_lines
       - alternating_lines
+      - compression_truncated_lines
       - truncated_frame
       - missing_blocks
+      - downlink_gaps
       - dead_pixels
       - dead_columns
       - hot_pixels
@@ -262,6 +264,70 @@ coiss_nac:
       radiation_transients: {amplitude_e: 4.0e+4}
       # Dust donuts (<1% each) accumulating over the mission.
       fixed_pattern: {dust_donut_count: 5}
+      # The lossless compressor (ISS User's Guide sections 2.3 and 3.6; Calibration
+      # Report section 5.5.2): block-adaptive Rice coding (Rice and Lee, JPL
+      # Publication 83-17) of horizontal first differences of the 12-bit DN, packed
+      # in 16-bit words, with at most one uncompressed line's bits for each pair of
+      # lines; the end of the pair's second line is dropped where the pair does not
+      # fit.  The 16-sample blocks, the 4 option bits, and the options 0 to 13 are
+      # the model that reproduces the real cuts: on the 61 NAC frames and the one
+      # WAC frame of the census below that lose the ends of alternating lines, 14,038
+      # cut pairs code to 0.970 to 1.009 of the budget (99.9th percentile range) and
+      # 5,245 whole pairs to at most 1.017 of it (util/coiss_line_loss).
+      compression_truncated_lines: {block_samples: 16, word_bits: 16, id_bits: 4, max_split: 13}
+      # Measured 2026-11-24 from the binary line prefixes, which give each line's
+      # valid samples, of every lossless 12-bit NAC frame with lost lines in the
+      # current metadata indexes of COISS_2010, 2023, 2050, and 2068: 321 frames,
+      # 233 full and 88 summed 2x2.  No 12-bit uncompressed frame lost lines.  The
+      # tables are at the 0, 5, 10, 25, 50, 75, 90, 95, 99, and 100th percentiles,
+      # measured on the 260 frames whose line ends the compressor did not cut, where
+      # 61 frames (39 full, 22 summed) lose 373 groups of whole lines inside the
+      # frame (util/coiss_line_loss/gap_census.py).  Size and gap tables spread each
+      # measured integer over its rounding interval, so a rounded draw gives each
+      # integer its measured share.  One-line groups are 2.1% of the full-frame
+      # groups, under the table's first 5%, so its 0th percentile is raised to 1.38,
+      # where the logarithmic draw gives them that share.
+      # - Sizes are in lines of their own frame: 192 groups on full frames, and 181
+      #   on summed frames for the summed table.  145 of the summed groups come from
+      #   13 frames of one 2008 sequence (N1606722214 to N1606787565); summed groups
+      #   differ from full ones with or without it.  None of the 321 frames is
+      #   summed 4x4, so 4x4 frames take the 2x2 table.
+      # - A frame loses a mean 6.1 groups (variance 127): one on 49% of the frames,
+      #   16 at the 90th percentile, and up to 59.  The count, the clustering, and
+      #   the partial-line rates pool full and summed frames.  With them, every
+      #   statistic of the full frames lies inside its 90% resampling interval; the
+      #   summed frames miss on their gaps and head lines, but the 2008 sequence
+      #   above holds 145 of their 181 groups and 132 of their 159 gaps, so they
+      #   hold too few independent sequences for a law of their own.
+      # - Groups cluster.  The gap table is the kept lines between neighboring
+      #   groups 20 lines apart or less (241 of the 312 gaps).  cluster_probability
+      #   is fitted so that simulated frames match the gaps' quartiles and 90th
+      #   percentile and the quartiles of the share of the height that the groups
+      #   of a frame span (0.14, 0.56, and 0.84), and the count law so that the
+      #   simulated count has the measured mean and share of frames with one group
+      #   after a crowded frame loses the groups that do not fit
+      #   (util/coiss_line_loss/gap_fit.py).
+      # - Of the lines just above one group, 36.6% lose their end, and of those just
+      #   below, 12.7%.  Of the 51 single kept lines between two groups, 23 (45%)
+      #   lost their end, as two independent draws predict, so a frame shows 38% of
+      #   its groups with a head line and 17% with a tail line.  Each such line
+      #   keeps a whole number of 16 samples, the share of the line in the kept
+      #   tables.
+      downlink_gaps:
+        mean_groups: 6.11
+        dispersion: 4.47
+        size_percentiles: [1.38, 1.69, 2.01, 2.92, 5.11, 10.21, 21.3, 45.9, 88.58, 373.5]
+        summed_size_percentiles: [0.5, 1.41, 2.76, 3.73, 4.42, 6.29, 11.48, 14.48, 113.69,
+                                  197.5]
+        cluster_probability: 0.4
+        gap_percentiles: [0.5, 0.74, 0.97, 1.72, 3.92, 8.23, 13.68, 17.49, 20.02, 20.5]
+        head_probability: 0.366
+        head_kept_percentiles: [0.0156, 0.0312, 0.0781, 0.2031, 0.3438, 0.5625,
+                                0.75, 0.875, 0.9688, 0.9688]
+        tail_probability: 0.127
+        tail_kept_percentiles: [0.0312, 0.0805, 0.125, 0.2188, 0.375, 0.6016,
+                                0.7094, 0.8547, 0.875, 0.875]
+        step_samples: 16
 
 # Cassini ISS wide-angle camera, raw DN products.
 #
@@ -385,8 +451,10 @@ coiss_wac:
       - missing_lines
       - partial_lines
       - alternating_lines
+      - compression_truncated_lines
       - truncated_frame
       - missing_blocks
+      - downlink_gaps
       - dead_pixels
       - dead_columns
       - hot_pixels
@@ -439,6 +507,45 @@ coiss_wac:
       bright_dark_pairs: {amplitude_e: 3.5e+3}
       radiation_transients: {amplitude_e: 3.5e+4}
       fixed_pattern: {dust_donut_count: 5}
+      # The NAC's lossless compressor; see the NAC entry.
+      compression_truncated_lines: {block_samples: 16, word_bits: 16, id_bits: 4, max_split: 13}
+      # Measured 2026-11-24 as for the NAC, on the 82 lossless 12-bit WAC frames with
+      # lost lines in the same four volumes, of which 19 lose 83 groups of whole
+      # lines inside the frame and one loses line ends to the compressor.  The tables
+      # are made as for the NAC.
+      # - Sizes: 43 groups on 13 full frames, and 40 on 6 summed frames (five 2x2,
+      #   one 4x4) for the summed table, 23 of them from one 2011 sequence.  Summed
+      #   groups are larger than full ones with or without that sequence.  Six summed
+      #   frames are too few to split 2x2 from 4x4.
+      # - A frame loses a mean 4.4 groups (variance 28.7): one on 47% of the frames
+      #   and up to 20.  Like the NAC's, the count, the clustering, and the
+      #   partial-line rates pool full and summed frames.  Per readout mode, the
+      #   gaps miss their 90% resampling intervals at the 25th percentile, and the
+      #   summed frames' share of one-line gaps misses too, but one 2011 sequence
+      #   holds 26 of the 30 full-frame gaps and another 23 of the 40 summed-frame
+      #   groups, so neither mode can support a law of its own.
+      # - The gap table is the 42 gaps of 20 lines or less of the 64, and
+      #   cluster_probability and the count law are fitted as for the NAC.  The
+      #   quartiles of the span come from only 10 frames: 0.24, 0.80, and 0.87.
+      # - Of the lines just above one group, 27.8% lose their end, and of those just
+      #   below, 11.4%; with the shared lines, 28% of the groups show a head line and
+      #   12% a tail line.  The kept shares of the 10 tail lines give their own
+      #   table: they are smaller than the NAC's (median 20% against 38%, rank-sum
+      #   p = 0.02).
+      downlink_gaps:
+        mean_groups: 4.37
+        dispersion: 3.36
+        size_percentiles: [0.5, 1.22, 1.83, 2.97, 5.31, 11.75, 19.2, 78.35, 504.07, 504.5]
+        summed_size_percentiles: [1.5, 3.5, 4.5, 6.1, 14.5, 29.5, 51.5, 59.5, 102.1, 102.5]
+        cluster_probability: 0.6
+        gap_percentiles: [0.5, 1.02, 1.57, 3.38, 7.3, 11.25, 15.7, 16.23, 18.08, 18.5]
+        head_probability: 0.278
+        head_kept_percentiles: [0.0312, 0.0953, 0.1125, 0.2578, 0.4531, 0.6562,
+                                0.8125, 0.8547, 0.9203, 0.9375]
+        tail_probability: 0.114
+        tail_kept_percentiles: [0.0156, 0.0367, 0.0578, 0.0781, 0.2031, 0.3359,
+                                0.4922, 0.5273, 0.5555, 0.5625]
+        step_samples: 16
 
 # Cassini ISS narrow-angle camera, calibrated (CALIB, I/F) products.
 #
