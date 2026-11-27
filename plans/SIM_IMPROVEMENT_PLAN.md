@@ -460,7 +460,7 @@ model does not gain them.
 | #1134 | **Affects LORRI frames drawn with its defaults, which draw 7 tail pixels of 8.** The serial tail writes one pixel fewer than its length, so a one-pixel tail draws nothing yet reports itself active |
 | #1135 | **Affects no current scene.** The 8-bit contour quantization rounds 252 to 255 DN up and clips them to 255, a level off its step grid |
 | #1136 | **Affects no render; the code and its description disagree.** A cosmic-ray streak or splatter deposits the sampled charge on every pixel of its footprint, where the docstrings and the guide call it the charge per event, and the catalog amplitudes were fitted with the per-pixel behavior |
-| #1235 | **Affects no current scene noticeably; only LORRI states an extra integration time (0.705 ms).** The calibrated inverse subtracts dark current over the commanded exposure while the frame collects it over the integration time, leaving a small dark pedestal in a calibrated frame |
+| #1235 | **Done (PR #1240).** **Affects no current scene.** The calibrated inverse now subtracts the dark pedestal collected over the integration time, so a calibrated CCD that states an extra integration time keeps no residual dark pedestal; only the raw LORRI entry states one |
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |
