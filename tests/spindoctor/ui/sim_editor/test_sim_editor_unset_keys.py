@@ -31,6 +31,7 @@ except (ImportError, OSError) as exc:
 
 from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.stars import SKY_COUNTS_DEFAULTS
+from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 
@@ -548,3 +549,10 @@ def test_the_atmosphere_reference_altitude_spin_shows_zero_when_absent(
     """An atmosphere that leaves out ``ref_altitude_px`` shows 0.0 in its spin."""
     model: Any = CreateSimulatedImageModel()
     assert _atmosphere_widget(model).atmosphere_ref_altitude_spin.value() == 0.0
+
+
+def test_size_controls_stop_at_the_minimum_frame_size(qapp: QApplication) -> None:
+    """The editor's size spins cannot go below the smallest frame a scene may state."""
+    model: Any = CreateSimulatedImageModel()
+    assert model._size_v_spin.minimum() == MIN_FRAME_SIZE_PX
+    assert model._size_u_spin.minimum() == MIN_FRAME_SIZE_PX

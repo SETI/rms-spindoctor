@@ -13,6 +13,7 @@ from spindoctor.sim.instruments.catalog import (
     load_instrument_catalog,
     sim_instrument_names,
 )
+from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
 # The seed the editor gives a scene it builds: a new scene, and a partial scene applied
@@ -30,13 +31,13 @@ class GlobalFieldsMixin(SimEditorBase):
             gen_layout: The General tab's form layout.
         """
         self._size_v_spin = QSpinBox()
-        self._size_v_spin.setRange(10, 9999)
+        self._size_v_spin.setRange(MIN_FRAME_SIZE_PX, 9999)
         self._size_v_spin.setValue(self.sim_params['size_v'])
         self._size_v_spin.valueChanged.connect(self._on_size_v)
         gen_layout.addRow('Size V (height):', self._size_v_spin)
 
         self._size_u_spin = QSpinBox()
-        self._size_u_spin.setRange(10, 9999)
+        self._size_u_spin.setRange(MIN_FRAME_SIZE_PX, 9999)
         self._size_u_spin.setValue(self.sim_params['size_u'])
         self._size_u_spin.valueChanged.connect(self._on_size_u)
         gen_layout.addRow('Size U (width):', self._size_u_spin)

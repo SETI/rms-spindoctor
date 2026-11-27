@@ -50,17 +50,33 @@ scene.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Annotated
 
-from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, Int, Positive, PositiveInt, RuleError, Str
-from spindoctor.sim.scene.declare import EditorHint, NonEmptyStr, optional, required
+from pydantic import AfterValidator
 
-__all__ = ['CURRENT_SCHEMA_VERSION', 'DEFAULT_EXPOSURE_SEC', 'IdealizedScene']
+from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, Int, Positive, RuleError, Str
+from spindoctor.sim.scene.declare import EditorHint, IntWithin, NonEmptyStr, optional, required
+
+__all__ = [
+    'CURRENT_SCHEMA_VERSION',
+    'DEFAULT_EXPOSURE_SEC',
+    'MIN_FRAME_SIZE_PX',
+    'IdealizedScene',
+]
 
 #: The scene format version every scene is written in.
 CURRENT_SCHEMA_VERSION: int = 2
 
 #: The exposure time, in seconds, of a scene that leaves ``exposure_sec`` out.
 DEFAULT_EXPOSURE_SEC = 1.0
+
+#: The smallest frame, in pixels on a side.  The margin the lens distortion needs around
+#: the frame grows steeply as the frame shrinks, so a smaller frame cannot be rendered.
+#: The scene editor's size controls stop at the same number.
+MIN_FRAME_SIZE_PX = 10
+
+#: A frame side: an integer of at least ``MIN_FRAME_SIZE_PX``.
+FrameSide = Annotated[Int, AfterValidator(IntWithin(MIN_FRAME_SIZE_PX))]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -100,15 +116,17 @@ class IdealizedScene:
         "catalog. The camera's catalog entry supplies the detector values, the navigator "
         'block, and the optics that ``artifacts.instrument_defaults`` turns on.',
     )
-    size_v: PositiveInt = required(
+    size_v: FrameSide = required(
         'idealized',
-        "The frame's height, in pixels.",
-        editor=EditorHint(minimum=10, maximum=9999),
+        "The frame's height, in pixels, at least 10.  A smaller frame is refused because the "
+        'margin the lens distortion needs grows steeply as the frame shrinks.',
+        editor=EditorHint(minimum=MIN_FRAME_SIZE_PX, maximum=9999),
     )
-    size_u: PositiveInt = required(
+    size_u: FrameSide = required(
         'idealized',
-        "The frame's width, in pixels.",
-        editor=EditorHint(minimum=10, maximum=9999),
+        "The frame's width, in pixels, at least 10.  A smaller frame is refused because the "
+        'margin the lens distortion needs grows steeply as the frame shrinks.',
+        editor=EditorHint(minimum=MIN_FRAME_SIZE_PX, maximum=9999),
     )
     exposure_sec: Positive | None = optional(
         'idealized',
