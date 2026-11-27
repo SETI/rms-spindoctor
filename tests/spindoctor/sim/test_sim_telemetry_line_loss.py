@@ -23,6 +23,7 @@ from spindoctor.sim.render.detector.params import calibration_map, resolve_detec
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.render.feature_loci import FeatureLoci
 from spindoctor.sim.render.stages import SimFrame
+from spindoctor.sim.render.telemetry import loss
 from spindoctor.sim.render.telemetry.loss import (
     apply_compression_truncated_lines,
     apply_downlink_gaps,
@@ -524,3 +525,30 @@ def test_instrument_defaults_turn_neither_form_on() -> None:
     """A scene must turn the compressor and the downlink gaps on itself."""
     defaults = {*instrument_default_modes('coiss_nac'), *instrument_default_modes('coiss_wac')}
     assert defaults.isdisjoint({'compression_truncated_lines', 'downlink_gaps'})
+
+
+def test_a_neighbor_line_another_group_lost_whole_records_no_cut(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Two 2-line groups at rows 10 and 11 overlap, so row 10 is not a partial cut.
+
+    The first group loses rows 10 and 11 and the second loses rows 11 and 12, so
+    the line above the second group is already lost whole and the line below the
+    first is lost whole by the second.  Only row 13 can be a recorded cut.
+    """
+    monkeypatch.setattr(loss, '_group_layout', lambda *args, **kwargs: [(10, 2), (11, 2)])
+    cfg = resolve_mode_with_catalog(
+        'downlink_gaps',
+        {'probability': 1.0, 'head_probability': 1.0, 'tail_probability': 1.0},
+        'generic',
+    )
+    signal = np.full((64, 64), _FILL, dtype=np.float64)
+    loci = FeatureLoci(rows=_NO_ROWS, pixel_v=_NO_ROWS, pixel_u=_NO_ROWS)
+    record = apply_downlink_gaps(
+        signal, cfg, marker_dn=0.0, rng=np.random.default_rng(5), loci=loci, adversarial=False
+    )
+    first, second = record['groups']
+    assert np.count_nonzero(signal[10]) == 0
+    assert 'head_lost_from' not in second
+    assert 'tail_lost_from' not in first
+    assert second['tail_lost_from'] == np.count_nonzero(signal[13])

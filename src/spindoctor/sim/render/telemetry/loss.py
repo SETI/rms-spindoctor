@@ -628,7 +628,8 @@ def apply_downlink_gaps(
     ``tail_kept_percentiles``.  A single kept line between two groups can lose its end
     as either group's neighbor; it then keeps the smaller of the two shares drawn, and
     the record gives that share for both groups.  A frame whose lines are no wider than
-    one step keeps the lines beside its groups whole.
+    one step keeps the lines beside its groups whole.  A neighbor line that another
+    group already lost whole is not cut again and is not recorded as a cut.
 
     Parameters:
         signal: The frame's DN image, changed in place.
@@ -658,9 +659,12 @@ def apply_downlink_gaps(
     # A line no wider than one step cannot keep a step and lose the rest.
     partial = step < size_u
     groups: list[dict[str, int]] = []
+    # Overlapping groups can lose a group's neighbor line whole.
+    wholly_lost: set[int] = set()
     for start, size in layout:
         end = start + size
         signal[start:end, :] = marker_dn
+        wholly_lost.update(range(start, end))
         groups.append({'row_start': start, 'row_end': end})
     # A line cut as one group's tail and another's head keeps the smaller share.
     final_kept: dict[int, int] = {}
@@ -669,14 +673,16 @@ def apply_downlink_gaps(
         start, end = group['row_start'], group['row_end']
         if partial and start > 0 and mode_activated(rng, float(cfg['head_probability'])):
             kept = _kept_samples(rng, cfg['head_kept_percentiles'], size_u, step)
-            signal[start - 1, kept:] = marker_dn
-            final_kept[start - 1] = min(kept, final_kept.get(start - 1, kept))
-            cut_fields.append((group, 'head_lost_from', start - 1))
+            if start - 1 not in wholly_lost:
+                signal[start - 1, kept:] = marker_dn
+                final_kept[start - 1] = min(kept, final_kept.get(start - 1, kept))
+                cut_fields.append((group, 'head_lost_from', start - 1))
         if partial and end < size_v and mode_activated(rng, float(cfg['tail_probability'])):
             kept = _kept_samples(rng, cfg['tail_kept_percentiles'], size_u, step)
-            signal[end, kept:] = marker_dn
-            final_kept[end] = min(kept, final_kept.get(end, kept))
-            cut_fields.append((group, 'tail_lost_from', end))
+            if end not in wholly_lost:
+                signal[end, kept:] = marker_dn
+                final_kept[end] = min(kept, final_kept.get(end, kept))
+                cut_fields.append((group, 'tail_lost_from', end))
     for group, field, row in cut_fields:
         group[field] = final_kept[row]
     return {'active': True, 'groups': groups}
