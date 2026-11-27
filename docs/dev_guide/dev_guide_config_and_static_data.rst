@@ -203,14 +203,17 @@ are read in (``data_units``), the margin its offset search may reach
 (``extfov_margin_vu``), its star PSF (``star_psf_sigma`` and ``star_psf_sizes``), the
 share of the offset window in which a lone star is believed
 (``one_star_ellipse_fraction``), the rotation settings (``fit_camera_rotation`` and
-``max_rotation_deg``), and its ``noise``, ``image_quality_thresholds``,
-``source_image_filter``, and ``mag_offset`` blocks. Each camera's block parses into
-:class:`~spindoctor.config.sections_camera.CameraBlock`. Each of its blocks has a type of
-its own: :class:`~spindoctor.config.sections_camera.CameraNoise`, with a
+``max_rotation_deg``), its ``noise``, ``image_quality_thresholds``,
+``source_image_filter``, and ``mag_offset`` blocks, and, for a camera whose star
+photometry has been measured, its ``star_photometry`` block. Each camera's block parses
+into :class:`~spindoctor.config.sections_camera.CameraBlock`. Each of its blocks has a
+type of its own: :class:`~spindoctor.config.sections_camera.CameraNoise`, with a
 :class:`~spindoctor.config.sections_camera.BinnedNoise` for each binned readout mode;
 :class:`~spindoctor.config.sections_camera.QualityThresholds`;
-:class:`~spindoctor.config.sections_camera.MagOffset`; and a source-image filter chosen
-by its ``kind``, either a :class:`~spindoctor.config.sections_camera.BandpassFilter` or a
+:class:`~spindoctor.config.sections_camera.MagOffset`;
+:class:`~spindoctor.config.sections_camera.StarPhotometry`; and a source-image filter
+chosen by its ``kind``, either a
+:class:`~spindoctor.config.sections_camera.BandpassFilter` or a
 :class:`~spindoctor.config.sections_camera.BlurFilter`. Each field's type is also
 exported under a name of its own, such as
 :data:`~spindoctor.config.sections_camera.ReadNoiseDn`, so code that states some of the
@@ -223,9 +226,8 @@ several cameras, keyed by camera name, and parses into a mapping of camera name 
 block. Each camera section becomes a field of the typed sections under its own name, so
 the key path of a problem starts at the section, followed by the camera in a section
 that holds several. :meth:`~spindoctor.config.config.Config.camera_block` returns one
-camera's block,
-:meth:`~spindoctor.config.config.Config.camera_names` gives the names of a section's
-cameras, and an observation carries its camera's block as
+camera's block, :meth:`~spindoctor.config.config.Config.camera_names` gives the names of
+a section's cameras, and an observation carries its camera's block as
 :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config`.
 
 Which keys a camera sets follows its ``data_units``:
@@ -242,11 +244,48 @@ Which keys a camera sets follows its ``data_units``:
   a camera has no saturation limit.
 - Every other key is either set by every camera or optional by nature. A camera that
   leaves out ``star_max_peak_per_predicted_snr`` puts no bound on a lone star's peak.
+  A camera without measured star photometry leaves out ``star_photometry``, and a reader
+  that needs it refuses the image, giving the block's key path.
 
 A key that the camera's units do not read is refused at load, and so is a missing key
 that they do read. Two more rules tie keys together: the magnitude offset's
 ``fallback_combo`` must have an entry in ``mag_offset_table``, and a bandpass filter's
 heavy blur (``lo_sigma_px``) must be wider than its light one (``hi_sigma_px``).
+
+The ``star_photometry`` block gives a camera's star limit and star width in one form for
+every camera, from which the star model's limiting magnitude follows (see
+:doc:`dev_guide_navigation_models_star`):
+
+- ``flux_unit`` — what the rate counts: ``electrons``, or ``dn`` for a camera whose
+  calibration works in DN and does not convert to electrons.
+- ``flux_per_s_vmag0`` — the rate per second of a V = 0 star through the reference
+  filter (at the reference gain state, when the unit is ``dn``).
+- ``gain`` — a table keyed by gain state: the electrons per DN when the rate counts
+  electrons, or, when it counts DN, the factor by which a star's DN is multiplied
+  against the reference gain state.
+- ``filter_mag_offset`` — a table of how many magnitudes each filter dims a star,
+  against the reference filter. A camera whose reader does not read a filter leaves it out.
+- ``min_detectable_dn`` and ``psf_sigma`` — tables keyed by readout mode: the DN of the
+  dimmest star a frame shows, and the Gaussian sigma of a star in the frame's own
+  pixels. A camera whose star limit and star width do not depend on the readout gives
+  each one entry. The two tables must give the same modes.
+- ``search_depth_mag`` — how many magnitudes past the dimmest visible star the catalog
+  search reaches.
+
+A star of V magnitude ``m`` puts ``flux_per_s_vmag0 * 10**(-0.4 * (m + offset)) * texp``
+in the image, divided or multiplied by its gain state's entry, and the dimmest visible
+star puts ``min_detectable_dn`` there. The keys of the gain, filter, and mode tables are
+spelled the way the camera's observation class spells the image's gain state, filter, and
+readout mode, so the loader cannot tell a misspelled key from one the camera never reads.
+The observation class (:meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag` and
+:meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_sigma`) refuses an image when the
+tables leave out its gain state, filter, or mode, and the message gives the block's key
+path. The camera block's own ``star_psf_sigma`` is a single number that the simulator
+reads; the instrument chapters under :doc:`/dev_guide/instruments/instruments` say which
+of the two star widths each camera's navigator reads. In the same way,
+``noise.star_flux_dn_per_s_vmag0`` is a separate key from
+``star_photometry.flux_per_s_vmag0``: the simulator reads the first for simulated
+frames, and the navigator reads the second for real ones.
 
 The simulator's camera section is left untyped when the configuration loads, so an
 override of it is read as written.

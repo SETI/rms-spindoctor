@@ -946,6 +946,29 @@ techniques:
       # by the 2-star Procrustes path; the 1-star path always reports
       # rotation as unobservable so the threshold has no effect there.
       rotation_at_edge_fraction: 0.95
+      # Model-error floor (px), added in quadrature to the covariance's
+      # translation diagonal on both paths (#210).  Measured on real frames
+      # (2026-11-25, #130): this technique's answers on the stage-1 star
+      # fields of Galileo SSI, Voyager 2 ISS, and LORRI, against each
+      # frame's independent multi-star fix evaluated at the matched stars
+      # (the fix's rotation applied), with the fix's own variance (RMS star
+      # scatter squared over twice the star count) added to the covariance.
+      # 379 answers, one per frame; the 7 that took the wrong stars
+      # (4.7-19.9 px off, all LORRI) are left out.  A third of each
+      # camera's frames is held out.  The floor is the smallest, on a
+      # 0.005 px grid, that leaves at most a two-axis Gaussian's 1.1% beyond
+      # a Mahalanobis distance of 3 on the other two thirds (250 answers:
+      # 2.0% beyond 3 without a floor, 0.8% at this value).  Held out (122
+      # answers): 1.6% beyond 3 both without a floor and at this value, 3.3%
+      # beyond 2 (a Gaussian gives 13.5%).
+      # All frames, share beyond 3 at this value: Galileo 4.8% (n 21), VG2
+      # NAC 0% (17), VG2 WAC 0% (13), LORRI 1X1 0.7% (141), LORRI 4X4 1.1%
+      # (180).  The median squared distance is 0.08 at either value, against
+      # a Gaussian's 1.39: for most answers the reported covariance is
+      # already wider than the scatter (median reported sigma 0.29 px,
+      # median error 0.08 px), and a floor only widens it.  The floor
+      # reaches the answers whose covariance is a small two-star residual.
+      model_error_floor_px: 0.030
 
   star_refine:
     # Pass-2 refinement on the pass-1 ensemble's prior offset.  Fit on

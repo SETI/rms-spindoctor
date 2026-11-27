@@ -1,5 +1,6 @@
+import math
 from fractions import Fraction
-from typing import Any, cast
+from typing import Any, Literal
 
 import numpy as np
 from filecache import FCPath
@@ -10,6 +11,15 @@ from spindoctor.support.time import et_to_utc
 from spindoctor.support.types import PathLike
 
 from .obs_snapshot_inst import ObsSnapshotInst
+
+_STAR_PHOTOMETRY = 'newhorizons_lorri.star_photometry'
+"""The key path of the camera block's star photometry."""
+
+NewHorizonsLORRIBinning = Literal['1X1', '4X4']
+"""A LORRI binning mode, as the star photometry's mode and gain tables key it."""
+
+_BINNING_BY_ROWS: dict[int, NewHorizonsLORRIBinning] = {1024: '1X1', 256: '4X4'}
+"""The binning mode of a frame of each row count, as the image host reads it."""
 
 # SCLK01_MODULI_98 and SCLK01_OFFSETS_98 of the New Horizons spacecraft clock kernel,
 # $OOPS_RESOURCES/SPICE/New-Horizons/SCLK/new_horizons_2132.tsc: whole seconds, then
@@ -133,35 +143,60 @@ class ObsNewHorizonsLORRI(ObsSnapshotInst):
         """
         return 0.0
 
-    def star_max_usable_vmag(self) -> float:
-        """Returns the maximum usable magnitude for stars in this observation.
-
-        The limiting magnitude follows the Cassini Pogson-ratio form,
-
-            star_max_usable_vmag(texp) = anchor + log(texp) / log(2.512)
-
-        where ``anchor`` is the limiting magnitude at a 1 s exposure (each
-        2.512x increase in exposure buys +1 mag of depth).
-
-        The anchor is scaled from the Cassini NAC anchor (10.5 mag at 1 s,
-        aperture D = 0.19 m) by collecting-area.  New Horizons LORRI uses a
-        CCD (no detector-sensitivity penalty) and is panchromatic with no
-        filter, so a bandpass term of +1.0 mag is added to account for the
-        wider passband collecting more flux.  These are nominal optics
-        values; the terms are approximate and pending calibration against
-        real LORRI star fields.
-
-            anchor = 10.5 + 5*log10(0.208/0.19) (CCD) + 1.0 (panchromatic) ~= 11.7
+    @property
+    def binning(self) -> NewHorizonsLORRIBinning:
+        """The binning mode this observation was read out in.
 
         Returns:
-            The maximum usable magnitude for stars in this observation.
-        """
+            ``'1X1'`` for a 1024-row frame or ``'4X4'`` for a 256-row frame, the rule
+            the image host applies.
 
-        # Anchor (limiting mag at texp = 1 s) derived above; rounded to 0.1.
-        anchor = 11.7
-        if self.texp <= 0:
-            return anchor
-        return cast(float, anchor + np.log(self.texp) / np.log(2.512))
+        Raises:
+            ValueError: If the frame has any other row count.
+        """
+        rows = int(self.data_shape_vu[0])
+        if rows not in _BINNING_BY_ROWS:
+            raise ValueError(f'LORRI frame has {rows} rows; a binning mode needs 1024 or 256')
+        return _BINNING_BY_ROWS[rows]
+
+    def star_max_usable_vmag(self) -> float:
+        """Returns the faintest V magnitude of a catalog star the star model uses.
+
+        The limit is photometric, from the camera block's ``star_photometry`` (see
+        :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate counts
+        electrons.  LORRI has no filter and one gain state, so the gain table and the mode
+        tables are both keyed by :attr:`binning`, and no filter offset is read.
+
+        Returns:
+            The limiting magnitude, or ``-inf`` for a frame whose exposure is not
+            positive.
+
+        Raises:
+            ValueError: If the frame has neither 1024 nor 256 rows, or the block has no
+                ``star_photometry``, or its tables leave out the frame's binning mode.
+        """
+        if self.texp <= 0.0:
+            return -math.inf
+        binning = self.binning
+        return self._photometric_star_limit(
+            texp=self.texp,
+            where=_STAR_PHOTOMETRY,
+            gain_state=binning,
+            mode=binning,
+            filter_name=None,
+        )
+
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        Returns:
+            The camera block's ``star_photometry.psf_sigma`` for the frame's binning mode.
+
+        Raises:
+            ValueError: If the frame has neither 1024 nor 256 rows, or the block has no
+                ``star_photometry``, or its ``psf_sigma`` leaves out the binning mode.
+        """
+        return self._photometric_star_sigma(where=_STAR_PHOTOMETRY, mode=self.binning)
 
     @property
     def camera(self) -> str:

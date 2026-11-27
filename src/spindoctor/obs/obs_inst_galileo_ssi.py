@@ -1,6 +1,7 @@
+import math
 from collections.abc import Mapping, Sequence
 from fractions import Fraction
-from typing import Any, cast
+from typing import Any, Literal
 
 import numpy as np
 
@@ -19,6 +20,33 @@ _SCLK_OFFSETS = (0, 0, 0, 0)
 
 _SCLK_FIELDS = ('RIM', 'MOD91', 'MOD10', 'MOD8')
 """The VICAR label items holding the four fields of an image's frame count."""
+
+_STAR_PHOTOMETRY = 'galileo_ssi.star_photometry'
+"""The key path of the camera block's star photometry."""
+
+GalileoSSIReadoutMode = Literal['FULL', 'SUMMED']
+"""A Galileo SSI readout mode, as the star photometry's mode tables key it: ``FULL`` for a
+full 800 x 800 frame, ``SUMMED`` for a frame read out in 2x2 summation, 400 x 400."""
+
+_GAIN_STATES = {1: '400K', 2: '100K', 3: '40K', 4: '10K'}
+"""The gain state for each value of the VICAR label's ``GAIN`` item, spelled the way the
+PDS3 label's ``GAIN_MODE_ID`` spells it."""
+
+_READOUT_MODES: dict[str, GalileoSSIReadoutMode] = {
+    'AI8': 'SUMMED',
+    'HIS': 'SUMMED',
+    'HCA': 'FULL',
+    'HCJ': 'FULL',
+    'HCM': 'FULL',
+    'HIM': 'FULL',
+    'HMA': 'FULL',
+    'IM4': 'FULL',
+    'IM8': 'FULL',
+    'XCM': 'FULL',
+}
+"""The readout mode of each telemetry format the VICAR label's ``TLMFMT`` item gives: every
+format the Galileo SSI volumes use.  The image host gives the two summed formats, AI8 and
+HIS, a 400 x 400 field of view and every other format the full 800 x 800 one."""
 
 
 def _sclk_count(fields: Sequence[int]) -> Fraction:
@@ -131,32 +159,67 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         return 0.0
 
     def star_max_usable_vmag(self) -> float:
-        """Returns the maximum usable magnitude for stars in this observation.
+        """Returns the faintest V magnitude of a catalog star the star model uses.
 
-        The limiting magnitude follows the Cassini Pogson-ratio form,
-
-            star_max_usable_vmag(texp) = anchor + log(texp) / log(2.512)
-
-        where ``anchor`` is the limiting magnitude at a 1 s exposure (each
-        2.512x increase in exposure buys +1 mag of depth).
-
-        The anchor is scaled from the Cassini NAC anchor (10.5 mag at 1 s,
-        aperture D = 0.19 m) by collecting-area.  Galileo SSI uses a CCD, so
-        no detector-sensitivity penalty is applied.  These are nominal optics
-        values; the term is approximate and pending calibration against real
-        Galileo star fields.
-
-            anchor = 10.5 + 5*log10(0.176/0.19) (CCD) ~= 10.3
+        The limit is photometric, from the camera block's ``star_photometry`` (see
+        :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate counts
+        electrons.  The filter is the label's ``FILTER_NAME``, the gain state the VICAR
+        label's ``GAIN`` item read as ``400K``, ``100K``, ``40K``, or ``10K``, and the
+        readout mode :attr:`readout_mode`.
 
         Returns:
-            The maximum usable magnitude for stars in this observation.
-        """
+            The limiting magnitude, or ``-inf`` for a frame whose exposure is not
+            positive.
 
-        # Anchor (limiting mag at texp = 1 s) derived above; rounded to 0.1.
-        anchor = 10.3
-        if self.texp <= 0:
-            return anchor
-        return cast(float, anchor + np.log(self.texp) / np.log(2.512))
+        Raises:
+            ValueError: If the label does not give a gain state or telemetry format the
+                camera has, or the block has no ``star_photometry``, or its tables leave
+                out the frame's readout mode, filter, or gain state.
+        """
+        if self.texp <= 0.0:
+            return -math.inf
+        mode = self.readout_mode
+        gain_item = self.dict.get('GAIN', None)
+        if gain_item not in _GAIN_STATES:
+            raise ValueError(f'SSI label does not give a known gain state: GAIN is {gain_item!r}')
+        return self._photometric_star_limit(
+            texp=self.texp,
+            where=_STAR_PHOTOMETRY,
+            gain_state=_GAIN_STATES[gain_item],
+            mode=mode,
+            filter_name=self.filter,
+        )
+
+    @property
+    def readout_mode(self) -> GalileoSSIReadoutMode:
+        """The readout mode this observation was read out in.
+
+        Returns:
+            ``'SUMMED'`` for a frame read out in 2x2 summation, ``'FULL'`` for a full
+            frame, from the telemetry format the VICAR label's ``TLMFMT`` item gives.
+
+        Raises:
+            ValueError: If the label does not give a telemetry format the camera has.
+        """
+        format_item = self.dict.get('TLMFMT', None)
+        if format_item not in _READOUT_MODES:
+            raise ValueError(
+                f'SSI label does not give a known telemetry format: TLMFMT is {format_item!r}'
+            )
+        return _READOUT_MODES[format_item]
+
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        Returns:
+            The camera block's ``star_photometry.psf_sigma`` for the frame's readout mode.
+
+        Raises:
+            ValueError: If the label does not give a telemetry format the camera has, or
+                the block has no ``star_photometry``, or its ``psf_sigma`` leaves out the
+                frame's readout mode.
+        """
+        return self._photometric_star_sigma(where=_STAR_PHOTOMETRY, mode=self.readout_mode)
 
     @property
     def camera(self) -> str:

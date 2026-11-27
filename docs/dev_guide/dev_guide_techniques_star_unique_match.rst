@@ -473,7 +473,7 @@ The 1-star covariance is the per-feature CRLB floor from
 :attr:`~spindoctor.feature.feature.NavFeature.position_cov_px` inflated by ``residual_px**2``
 on the diagonal. The 2-star translation covariance is the average of the two stars'
 residual-inflated matrices, plus the analytic rotation variance derived above when rotation
-is fitted.
+is fitted. Both paths then add ``model_error_floor_px**2`` to each translation variance.
 When the converged offset sits within the at-edge tolerance of any axis bound, or when the
 2-star rotation parameter is at the configured fraction of its cap, the result is flagged
 :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge` and the hard-zero
@@ -569,6 +569,18 @@ are the ones in the packaged file.
   the converged 2-star rotation magnitude trips
   :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.at_edge`. Only the
   2-star Procrustes path uses it; the 1-star path always reports rotation as unobservable.
+- ``model_error_floor_px`` — float, packaged value ``0.030`` px, at least 0. Model-error
+  floor added in quadrature to the translation diagonal of both paths' covariance. It was
+  measured on real star fields: the technique's answers against each frame's independent
+  multi-star pointing fix. Of 379 answers, the seven that matched the wrong stars are left
+  out; the floor covers only answers that matched the right ones. Of the rest, two thirds of
+  the frames (250 answers) form the fit set and a third (122) is held out. At this value at
+  most 1.1% of the fit set's answers lie beyond a Mahalanobis distance of 3, as a two-axis
+  Gaussian predicts; without it 2.0% do. The held-out answers give 1.6% with or without the
+  floor. Added in quadrature, the floor widens every answer's covariance. Most answers'
+  covariances are already wider than the scatter (median squared distance 0.08, against a
+  Gaussian's 1.39), so they widen only slightly; the answers whose covariance is a small
+  two-star residual widen the most.
 
 Per-instrument overrides
 ------------------------
