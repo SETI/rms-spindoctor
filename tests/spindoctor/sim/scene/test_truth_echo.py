@@ -7,6 +7,7 @@ truth path in ``published_equals_truth``.  On a binned frame the binned mode's e
 the frame reads counts as a published site too.
 """
 
+import re
 import warnings
 from typing import Any
 
@@ -138,7 +139,10 @@ def test_a_stale_declaration_is_refused() -> None:
 
 def test_a_malformed_declaration_is_refused() -> None:
     """published_equals_truth must be a list of strings."""
-    with pytest.raises(SimSceneValidationError, match='must be a list of truth paths'):
+    with pytest.raises(
+        SimSceneValidationError,
+        match=re.escape("published_equals_truth: expected a list, got str 'noise.read_noise_dn'"),
+    ):
         validate_sim_params(_scene(published_equals_truth='noise.read_noise_dn'))
 
 

@@ -228,7 +228,7 @@ regex = "[a-zA-Z]+"
 # metadata fixtures under the stats results tree.  The PDS4 schemas are a
 # cached, verbatim copy of the NASA information model, typos and all; fixing
 # one would mean the cache no longer matches what `validate` checks against.
-skip = "*/.git/*,*/_build/*,*/venv/*,*/*.egg-info/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json,*/pds4/check/schemas/*"
+skip = "*/.git/*,*/_build/*,*/venv/*,*/*.egg-info/*,*.lock,*.png,*.fits,*.img,*.lbl,*/tests/integration/sim_baselines/*,*/tests/integration/baselines/*,*/tests/integration/realism_results/*,*/experiments/backplanes/*.json,*/pds4/check/schemas/*,*render_identity/*.json"
 # Words the dictionaries flag that are right here.  Each is a term of art, an
 # identifier, or a spelling both dictionaries accept -- not an exception granted
 # to avoid a fix.
@@ -282,6 +282,13 @@ extend-ignore = ["N802", "N803", "N806", "PT011", "SIM105", "SIM108"]
 "src/spindoctor/cli/sd_*.py" = ["E402"]
 # Sphinx reads ``copyright`` from conf by name (builtin shadowing is unavoidable).
 "docs/conf.py" = ["A001"]
+
+[tool.ruff.lint.flake8-bugbear]
+# A typed scene field is declared by a call that builds its dataclass field.
+extend-immutable-calls = [
+  "spindoctor.sim.scene.declare.optional",
+  "spindoctor.sim.scene.declare.required",
+]
 
 [tool.ruff.format]
 quote-style = "single"

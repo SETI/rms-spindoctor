@@ -121,40 +121,22 @@ def truth_echoes(sim_params: Mapping[str, Any]) -> list[tuple[str, str]]:
     return echoes
 
 
-def _declared_paths(sim_params: Mapping[str, Any], source: str) -> list[str]:
-    """Return the scene's ``published_equals_truth`` list, empty when the key is unset.
-
-    Raises:
-        spindoctor.sim.scene.errors.SimSceneValidationError: If the value isn't a
-            list of strings.
-    """
-    declared = sim_params.get('published_equals_truth')
-    if declared is None:
-        return []
-    if not isinstance(declared, list) or not all(isinstance(path, str) for path in declared):
-        raise SimSceneValidationError(
-            f'{source}: published_equals_truth must be a list of truth paths such as '
-            f"'noise.read_noise_dn'; got {declared!r}"
-        )
-    return declared
+def _declared_paths(sim_params: Mapping[str, Any]) -> list[str]:
+    """Return the scene's ``published_equals_truth`` list, empty when the key is unset."""
+    return list(sim_params.get('published_equals_truth', []))
 
 
-def stale_truth_declarations(sim_params: Mapping[str, Any], *, source: str) -> list[str]:
+def stale_truth_declarations(sim_params: Mapping[str, Any]) -> list[str]:
     """List the ``published_equals_truth`` paths whose two values don't coincide.
 
     Parameters:
         sim_params: A scene mapping whose block types have been validated.
-        source: Label used in the error message.
 
     Returns:
         The listed truth paths that ``instrument_config`` doesn't repeat, sorted.
         Empty when every listed path coincides or the key is unset.
-
-    Raises:
-        spindoctor.sim.scene.errors.SimSceneValidationError: If
-            ``published_equals_truth`` isn't a list of strings.
     """
-    declared = _declared_paths(sim_params, source)
+    declared = _declared_paths(sim_params)
     return sorted(set(declared) - {truth for truth, _ in truth_echoes(sim_params)})
 
 
@@ -167,11 +149,10 @@ def check_truth_echo(sim_params: Mapping[str, Any], *, source: str) -> None:
 
     Raises:
         spindoctor.sim.scene.errors.SimSceneValidationError: If
-            ``published_equals_truth`` isn't a list of strings, or lists a path
-            whose values don't coincide.
+            ``published_equals_truth`` lists a path whose values don't coincide.
     """
-    declared = _declared_paths(sim_params, source)
-    stale = stale_truth_declarations(sim_params, source=source)
+    declared = _declared_paths(sim_params)
+    stale = stale_truth_declarations(sim_params)
     if stale:
         raise SimSceneValidationError(
             f"{source}: published_equals_truth lists {stale}, but instrument_config doesn't "

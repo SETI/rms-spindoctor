@@ -288,10 +288,13 @@ scene's declared navigation outcome (the ``expected`` block), read only by the
 integration suite's assertion machinery, and the ``published_equals_truth``
 list, read only by the validator; neither the renderer nor the navigator reads
 them. :data:`spindoctor.sim.scene.boundary.TRUTH_KEYS` is the machine-readable truth
-inventory; an import-time assertion in :mod:`spindoctor.sim.scene.boundary` fails if any
-schema key is left unclassified or lands in two classes, so a schema change
-cannot dodge the classification. The boundary filter is default-deny, so the
-test-only keys are stripped from the navigator view alongside the truth keys.
+inventory. The typed scene builds the classification into its structure: the idealized
+types in :mod:`spindoctor.sim.scene.idealized` hold the keys a real pipeline could know,
+the truth types extend them with the keys only the test knows, and every field declares
+its class, so a key can't be added without one. The blocks not typed yet keep their
+sets in :mod:`spindoctor.sim.scene.boundary`, where an import-time assertion fails if a
+key is left unclassified or lands in two classes. The boundary filter is default-deny,
+so the test-only keys are stripped from the navigator view alongside the truth keys.
 
 The boundary's enforcement has two distinct strengths, and it matters which
 applies where. The *channel* is structural:
@@ -1329,10 +1332,11 @@ sends ``codes`` codes (256 for an 8-bit code word), and code ``c`` decodes to
 ``whole_dn`` is set. A tabulated table lists the DN each code decodes to, in
 code order, under ``decoded_dn``, so a curve of any shape takes an instrument entry
 and no code; the load requires at least two distinct values, none of them
-negative. When a frame is companded through a listed table, the detector
-resolver refuses a table whose largest decoded value lies above the ADC ceiling,
-``saturation_dn``, because the quantizer would then write DN the ADC can't
-produce. If a camera's entry lists no table, the camera gets the plain
+negative. When a frame is companded through a listed table, the scene validator
+and the detector resolver both refuse a table whose largest decoded value lies
+above the ADC ceiling, ``saturation_dn``, because the quantizer would then write DN
+the ADC can't produce. Both apply the table's own rule,
+:meth:`~spindoctor.sim.instruments.schema.DownlinkTable.check_ceiling`. If a camera's entry lists no table, the camera gets the plain
 square-root curve over 256 codes, whose top code decodes to ``saturation_dn``:
 ``linear_dn`` 0, ``quadratic_dn`` ``saturation_dn / 255**2``, and fractional DN
 kept.
@@ -1828,9 +1832,11 @@ quantity it holds. The registry records which key each mode takes
   a frame collects only the dwell's hits. The scene validator refuses a
   non-positive ``exposure_sec``, so only a direct caller of the detector stage
   can pass one.
-* **Probability** modes are commanded or periodic (a frame edit, a cutout, most
-  detector effects). Their key is ``probability``, the per-frame probability in [0, 1]
-  that the mode activates at all.
+* **Probability** modes are commanded, periodic, or frame-level (a frame edit, a
+  cutout, the lossless compressor's cuts, downlink gaps, most detector effects).
+  Their key is ``probability``, the per-frame probability in [0, 1] that the mode
+  activates at all. A frame that ``downlink_gaps`` activates on loses at least one
+  group of lines, and the mode's own parameters draw how many.
 * **Density** mode ``hot_pixels`` takes ``pixel_fraction``, the fraction of
   detector pixels that are hot, in [0, 1].
 
@@ -1888,6 +1894,11 @@ entries.
        (see :doc:`instruments/galileo_ssi`)
      - nac, wac, gossi
      - ``probability``
+   * - ``compression_truncated_lines``
+     - the second line of each line pair that does not fit the lossless
+       compressor's budget loses its end, in whole coded blocks
+     - per camera; see :doc:`instruments/cassini_iss`
+     - ``probability``
    * - ``edited_frame``
      - only a centered column band of the camera's default width, or the top or
        bottom half of the frame, kept
@@ -1902,6 +1913,11 @@ entries.
      - compression-block-aligned bands zeroed
      - nac, wac, gossi
      - ``expected_events``
+   * - ``downlink_gaps``
+     - clustered groups of whole lines of varying size, starting on any line, and
+       the ends of the lines above and below a group
+     - per camera; see :doc:`instruments/cassini_iss`
+     - ``probability``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
      - gossi, vgiss_*
@@ -1955,6 +1971,66 @@ corrected geometry (see :doc:`instruments/voyager_iss`)
 :data:`~spindoctor.sim.artifact_modes.TELEMETRY_POST_LOSS_ORDER`). The
 commanded ``truth_window`` is resolved before the loop and passed to
 ``missing_blocks`` as a protected rectangle.
+
+Two loss modes draw the forms that a camera's real frames show. One computes its
+loss from the frame's content, and the other draws it from distributions measured on
+real frames, which the camera's entry gives as shape defaults.
+
+``compression_truncated_lines`` cuts the lines a lossless compressor cannot fit.
+The compressor codes the differences between neighboring samples of a line in
+blocks of ``block_samples``. Each block takes whichever of its code options spends
+the fewest bits: option ``k``, from 0 to ``max_split``, sends the low ``k`` bits of
+each difference as they are and the rest in unary, and ``id_bits`` name the option.
+A pair of lines may use ``word_bits`` bits for each sample of one line. The
+compressor codes the pair's first line, then the second line's blocks in order
+while they still fit, and the second line loses the rest. If the first line alone
+does not fit, it keeps the blocks that do, and the second line is lost whole. A
+smooth frame loses nothing. Noise and fine detail cut the pairs they cross, so the
+cut lines start and stop where such content does, and neighboring cut lines lose
+nearly the same share. The mode codes the DN the camera sent, after the detector
+stage and before every downlink loss. On a calibrated frame it codes the DN that
+the calibration maps back to. The scene validator refuses the mode on a frame that
+quantizes to 8 bits, because the budget for 8-bit frames was never measured. No
+camera turns the mode on under ``instrument_defaults``; a scene turns it on itself.
+The coder lives in :mod:`spindoctor.sim.render.telemetry.lossless`.
+
+``downlink_gaps`` draws the groups of whole lines that a frame loses when packets
+are lost on the way to the ground. A frame that the mode activates on loses one
+group plus a negative-binomial number more. ``mean_groups`` is the mean number of
+groups in all. The extra groups' variance is their mean plus ``dispersion`` times
+its square, and a dispersion of 0 draws them Poisson. Each group's size is drawn
+from ``size_percentiles``, a percentile table in lines, and rounds to a whole
+number of lines, at least one. A percentile table gives a distribution by its
+values at the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
+percentiles, in rising order
+(:data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`); a size table is
+interpolated in the logarithm, so its top decile does not crowd toward the
+largest size. A binned frame draws its sizes from ``summed_size_percentiles``
+when the map sets it, and from ``size_percentiles`` otherwise.
+
+The groups form clusters. The first group starts a cluster, and each later group
+starts a new one with ``cluster_probability``. Otherwise it joins the cluster
+before it, after a gap of kept lines drawn from ``gap_percentiles``, which is
+interpolated in the logarithm too and rounds to at least one line. The clusters
+then fall in a random order at uniform positions down the frame, with at least one
+kept line between two clusters and between a cluster and the frame's first or last
+line. So no two groups touch, none reaches the edge of the frame, and the frame
+shows as many groups as it drew. When the clusters do not fit, the frame draws
+the sizes and gaps again, a few times, and then loses one group fewer. With a
+``cluster_probability`` of 1, the default, every group falls on its own. With
+adversarial placement each cluster starts on a feature row instead, and clusters
+that overlap merge in the frame and stay separate in the truth record. Each
+cluster must still fit between the frame's first and last lines, and a draw
+with a longer cluster counts as one that does not fit.
+
+With ``head_probability`` the line just above a group loses its end, and with
+``tail_probability`` the line just below does. Such a line keeps a whole number of
+``step_samples`` from its start, at least one step and all but one at most, its
+kept share drawn from ``head_kept_percentiles`` or ``tail_kept_percentiles``. A
+single kept line between two groups is the line below one and the line above the
+other, and it loses its end when either draw says it does. A frame whose lines
+are no wider than one step keeps the lines beside its groups whole, since such a
+line cannot keep a step and lose the rest.
 
 .. _sim-detector-modes:
 
@@ -2067,7 +2143,8 @@ placement onto the navigation features -- a lost line crosses the disc, a dead
 pixel lands on a star -- through the shared
 :mod:`spindoctor.sim.render.feature_loci` helpers; placement is uniform when the
 switch is off or absent. Purely periodic or commanded shapes (``alternating_lines``,
-the frame-level edits) ignore the switch: their geometry is fixed once active.
+the frame-level edits) ignore the switch: their geometry is fixed once active. So
+does ``compression_truncated_lines``, whose cuts follow the frame's content.
 The switch is one scene-level flag, and it applies to every mode the scene sets
 itself. A mode that only ``instrument_defaults`` turns on keeps the camera's own
 placement. A raw Cassini camera's hot pixels therefore stay on the detector's fixed map
@@ -2112,8 +2189,10 @@ The ``artifact_sweep`` scene class (``tests/integration/sim_scenes/artifact_swee
 pins the survivable end of the artifact axis: a disc scene and a star-field scene,
 each under a modest structured loss (a few missing lines plus a few truncated
 lines per frame), in a uniform-placement and an adversarial-placement variant.
-The navigator must still reach success and recover the planted offset within
-tolerance -- the level at which realism does not break navigation. The companion
+Each scene is a stress test: its loss pattern is chosen to probe the navigator and
+does not describe how real frames lose lines. The navigator must still reach success
+and recover the planted offset within tolerance, which marks a level of loss that
+navigation survives. The companion
 ``artifact_missing_lines`` sweep (``tests/integration/sim_sweeps/``) drives the
 other end: it raises the missing-line ``expected_events`` from a clean frame past
 the navigability cliff and records the curve of navigation quality against the
@@ -3726,11 +3805,16 @@ The render performance budget
 A 512x512 scene with a whole-scene PSF plus the full detector stack at
 oversample 4 must render in under 2 s single-core, and a 1024x1024
 Cassini-class scene in under 8 s (``tests/integration/test_sim_perf.py``).
-The harness holds two scene families to those budgets: a star field (the PSF
-convolution on the oversampled grid and the electron chain) and a frame
+The harness holds four scene families to those budgets: a star field (the PSF
+convolution on the oversampled grid and the electron chain), a frame
 dominated by a large lit body with limb relief (the ellipsoid renderer's
 working-grid shading with the relief tilt interpolated from the detector grid, see
-:ref:`sim-shading-grids`). The budget is a *cold-render* budget:
+:ref:`sim-shading-grids`), a smaller body of the same kind wrapped in a haze layer
+(the haze and its halo screen on top of the body), and, at 1024x1024 only, a
+twelve-feature ring system (the ring stage's cost as features are added). Each
+check states the median CPU time of five cold renders of its scene on the
+development machine, with huge pages and without them (see below), and the margin
+each median leaves under the budget. The budget is a *cold-render* budget:
 the render caches are cleared so the timed render pays the kernel-build and
 compile costs a first render pays, while one-time non-render costs (the lazy
 config-YAML load) are paid by an untimed warm-up first. The harness pins
@@ -3747,6 +3831,27 @@ from its parallel pytest run and executes it as a dedicated serial step
 afterwards; run it the same way when measuring by hand. A breach across all
 attempts on an otherwise-quiet host is reported and investigated, not
 blessed by raising the budget.
+
+On an oversampled 1024x1024 frame, one frame-sized array of 64-bit floats holds
+about 140 MB, and on Linux a new one can cost more than the arithmetic that fills
+it. NumPy asks the kernel to back large arrays with huge pages. On a machine whose
+memory is fragmented, the kernel's answer can stall each first write to a new array
+and charge the wait to the render as CPU time. :ref:`thp-defrag` describes the stall
+and the two ways to remove it. A new 140 MB array then took 0.12 to 0.25 s to fill,
+against 0.015 s to write the same values into an array that already existed, and the
+ring scene spent more than half of its render time this way.
+
+So the renderer builds its large maps in place, with NumPy's ``out=`` arguments and
+in-place operators, and works over large regions a strip of rows at a time, which
+keeps each temporary to a few megabytes. A plane that starts as zeros comes from
+``np.zeros``, whose pages the kernel supplies already zeroed, so only the part a
+render writes is touched. Each in-place step keeps the operation and the operand
+order of the expression it replaces, so the result is the same to the last bit.
+``tests/spindoctor/sim/test_sim_inplace_forms.py`` compares each such form with its
+plain expression, and ``util/render_identity/render_digests.py`` digests every
+committed render, so a change meant to keep every render as it was can show that it
+does. A render's CPU time still depends on the state of the host's memory as well as
+on its load.
 
 Scene ingredients
 =================
@@ -3950,6 +4055,24 @@ Validation is strict: an unknown key at the top level or inside a ``bodies`` /
 ``stars`` / ``ring_system`` entry fails loudly, so a typo cannot silently
 render the default scene.
 
+The validator is :func:`spindoctor.sim.scene.validate.parse_scene`. It checks the
+mapping and returns the typed scene, :class:`spindoctor.sim.scene.truth.Scene`, a set
+of frozen dataclasses on the schema core (:mod:`spindoctor.schema`). Each field states
+its key's type and range in its annotation and the rest in its declaration
+(:mod:`spindoctor.sim.scene.declare`): its side of the information boundary, what it
+means, what a scene that leaves it out gets, and the editor's control for it. A
+typed block reports every problem it finds at once, one line each, as
+``source: key.path: message``. The detector and noise keys that a camera's instrument
+entry also states take their types from the entry's declarations
+(:mod:`spindoctor.sim.instruments.schema_detector`): a scene and the catalog accept the
+same range for each. The rules that read the instrument catalog, such as whether
+the camera catalogs a scene's gain state, are in
+:mod:`spindoctor.sim.scene.rules_detector`. The mapping stays the scene's saved form: a
+key the scene leaves out stays out, and is None in the typed scene. The top level and
+the ``optics``, ``detector``, ``noise``, and ``spk_error`` blocks are typed so far; the
+other blocks are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and checked
+by their rules modules until their types land.
+
 The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
 ``noise_sweep``, ``multi_body_geometry``, ``regression``, ``artifact_sweep``,
@@ -4025,10 +4148,11 @@ ignores; ``scene_name`` must equal the filename stem. Every other key is a flat
 **Boundary classification.** Every key carries an information-boundary side
 (see :ref:`sim-information-boundary`): *idealized* keys reach the navigator
 through ``obs.nav_params``; *truth* keys are readable only by the image-side
-renderer. The tables below state each key's side. A key added to the schema
-without a classification fails the import-time completeness assertion in
-:mod:`spindoctor.sim.scene.boundary`, so every schema change must extend the boundary in
-the same change.
+renderer. The :doc:`dev_guide_simulator_scene_schema` page and the tables below
+state each key's side. A key of a typed block takes its side from its declaration. A
+body, star, or ring key added without a classification fails the import-time
+completeness assertion in :mod:`spindoctor.sim.scene.boundary`, so every schema change
+extends the boundary in the same change.
 
 .. _sim-pixel-convention:
 
@@ -4162,185 +4286,28 @@ Scene parameter reference
 Top-level fields
 ----------------
 
-A scene either sets a key or leaves it out to take its default.
+A scene either sets a key or leaves it out to take its default. The
+:doc:`dev_guide_simulator_scene_schema` page lists every top-level key, and every key of
+the ``optics``, ``detector``, ``noise``, and ``spk_error`` blocks, with its type, range,
+default, side, and meaning. The page is generated from the scene's types when the
+documentation is built, and lists exactly what the validator accepts. The other blocks
+have sections of their own: ``bodies`` (:ref:`sim-body-params`), ``ring_system``
+(:ref:`sim-ring-system`), ``stars`` (:ref:`sim-star-params`), ``artifacts``
+(:ref:`sim-artifacts-block`), ``instrument_config`` (:ref:`sim-instrument-config`), and
+``expected`` (:ref:`sim-expected`).
 
-.. list-table::
-   :widths: 22 11 11 10 46
-   :header-rows: 1
+``sky_counts`` (truth) sets the background-sky star field: ``a`` and ``b`` set the
+cumulative count law ``log10 N(<m) = a + b*m`` per square degree, ``density_factor``
+scales the count (1 is mid galactic latitude), and ``diffuse_e_per_px`` adds an
+optional flat diffuse-sky floor in the detector's native point-source unit (electrons
+per pixel on a CCD, DN per pixel on the Voyager vidicon). The sky stars are
+contaminants: the navigator receives no catalog for them, and they render through the
+same flux and point-mass path as catalog stars.
 
-   * - Field
-     - Type
-     - Default
-     - Side
-     - Meaning
-   * - ``size_v`` / ``size_u``
-     - int
-     - required
-     - idealized
-     - Image height and width in pixels.
-   * - ``instrument``
-     - str
-     - required
-     - idealized
-     - Emulated instrument; selects the detector model and PSF (see
-       :ref:`Instruments <sim-instruments>`).
-   * - ``random_seed``
-     - int
-     - required
-     - truth
-     - Scene seed; per-stage and per-effect sub-seeds derive from it.
-   * - ``noise_seed``
-     - int
-     - ``random_seed``
-     - truth
-     - Seed for the detector's per-frame noise alone; the scene, the telemetry losses,
-       the fixed pattern, and the artifact-mode activations stay on ``random_seed``
-       (see :ref:`sim-stage-pipeline`).
-   * - ``exposure_sec``
-     - float
-     - 1.0
-     - idealized
-     - Commanded exposure time. With the camera's ``extra_integration_sec`` it
-       makes the integration time, which scales the cosmic-ray,
-       ``radiation_transients``, and ``bright_dark_pairs`` counts.
-   * - ``offset_v`` / ``offset_u``
-     - float
-     - 0.0
-     - truth
-     - Planted pointing offset (px) applied to all bodies, rings, and stars.
-   * - ``offset_rotation_deg``
-     - float
-     - 0.0
-     - truth
-     - Planted boresight roll (deg, from ``+v`` toward ``+u``), turning
-       everything in the field of view about the boresight, the frame's uv
-       center ``(size_v / 2, size_u / 2)`` after the planted offset (see
-       :ref:`the planted roll <sim-planted-roll>`).  That covers the positions
-       of stars and bodies; each body's outline, lit side, and surface; the ring
-       system; star smear, companions, and catalog errors; the optics motion
-       smear; a linear stray-light ramp, clipped at zero where the turned frame
-       reaches past the unrolled one; and the sky field.  The roll subtracts
-       from ``rotation_z``, ``illumination_angle``, and a mesh body's
-       line-of-sight pose angle, which run against it, and adds to
-       ``node_deg``.  The PSF, distortion,
-       ghosts, and radial stray-light bump belong to the camera and do not
-       turn.
-   * - ``midtime_utc``
-     - str
-     - none
-     - idealized
-     - Observation midtime the snapshot reports (label knowledge).
-   * - ``closest_planet``
-     - str
-     - none
-     - idealized
-     - Planet context the snapshot reports.
-   * - ``time`` / ``ring_epoch``
-     - float
-     - 0.0
-     - idealized
-     - Observation time and orbit epoch for ring-edge precession
-       (``rate_peri_deg_per_day`` applies across ``time - ring_epoch``); catalog
-       knowledge
-       both sides read.
-   * - ``fit_camera_rotation``
-     - bool
-     - none
-     - idealized
-     - Overrides the instrument's camera-rotation-fit setting for this scene.
-   * - ``bodies``
-     - list
-     - ``[]``
-     - idealized
-     - Per-body parameter dicts (see :ref:`sim-body-params`); some per-body
-       keys are truth-side.
-   * - ``ring_system``
-     - dict
-     - none
-     - idealized
-     - The optical-depth ring system (see :ref:`sim-ring-system`); its
-       ``azimuthal`` / ``moonlets`` blocks and some per-feature keys are
-       truth-side.
-   * - ``stars``
-     - list
-     - ``[]``
-     - idealized
-     - Explicit star dicts (see :ref:`sim-star-params`); the ``psf_sigma``,
-       ``catalog_error_v`` / ``catalog_error_u``, ``companion``, and
-       ``delta_mag`` per-star keys are truth-side.
-   * - ``sky_counts``
-     - map
-     - none
-     - truth
-     - Background-sky star field: ``a`` and ``b`` set the cumulative count law
-       ``log10 N(<m) = a + b*m`` per square degree, ``density_factor`` scales
-       the count (1 is mid galactic latitude), and ``diffuse_e_per_px`` adds an
-       optional flat diffuse-sky floor in the detector's native point-source
-       unit (electrons per pixel on a CCD, DN per pixel on the Voyager
-       vidicon). The sky stars are contaminants: the navigator receives no
-       catalog for them, and they render through the same flux/point-mass path
-       as catalog stars.
-   * - ``star_catalog_scatter_px``
-     - float
-     - none
-     - truth
-     - Scene-level per-star position-scatter sigma (px): every rendered star is
-       displaced off its catalog position by a seeded Gaussian draw of this
-       sigma, added to any explicit per-star ``catalog_error_*`` (see
-       :ref:`sim-star-params`).
-   * - ``noise``
-     - dict
-     - off
-     - truth
-     - Detector-noise block (see :ref:`sim-noise`).
-   * - ``oversample``
-     - int
-     - auto
-     - truth
-     - Pins the render oversampling factor; omit to let the renderer choose (4
-       with an active PSF, else 1).
-   * - ``optics``
-     - dict
-     - off
-     - truth
-     - Optical-path block: PSF, smear, distortion, ghosts, stray light (see
-       :ref:`sim-optics`).
-   * - ``spk_error``
-     - dict
-     - off
-     - truth
-     - Planted spacecraft-ephemeris parallax error (see :ref:`sim-spk-error`).
-   * - ``detector``
-     - dict
-     - off
-     - truth
-     - Detector-chain override: gain state, detector model, exposure reference
-       (see :ref:`sim-detector-block`).
-   * - ``artifacts``
-     - dict
-     - off
-     - truth
-     - Physical-chain opt-in switch (see :ref:`sim-artifacts-block`).
-   * - ``instrument_config``
-     - dict
-     - none
-     - idealized
-     - Overrides of the navigator block (see :ref:`sim-instrument-config`).
-   * - ``expected``
-     - map
-     - none
-     - test-only
-     - The scene's declared navigation outcome (``status``,
-       ``confidence_tier``, ``status_reason``), asserted by the integration
-       suite and read by neither the renderer nor the navigator (see
-       :ref:`sim-expected`).
-   * - ``published_equals_truth``
-     - list
-     - none
-     - test-only
-     - Truth paths, such as ``noise.read_noise_dn``, that ``instrument_config``
-       repeats on purpose, read only by the validator (see
-       :ref:`sim-instrument-config`).
+``noise_seed`` seeds the detector's per-frame noise alone; the scene, the telemetry
+losses, the fixed pattern, and the artifact-mode activations stay on ``random_seed``
+(see :ref:`sim-stage-pipeline`). ``offset_rotation_deg`` turns everything in the field
+of view about the boresight, as :ref:`the planted roll <sim-planted-roll>` describes.
 
 .. _sim-body-params:
 
@@ -4755,77 +4722,8 @@ The optional ``noise`` dict (truth-side) pins the truth-side detector noise the
 scene plants. The detector stage consumes it. Each field is off at the floor unless the
 block sets it (or ``artifacts.instrument_defaults`` turns on the camera's
 physical chain); an explicit noise key always wins over the detector default. The
-validator checks the block against exactly this inventory, so an unknown noise key
-fails loudly.
-
-.. list-table::
-   :widths: 30 12 12 46
-   :header-rows: 1
-
-   * - Field
-     - Type
-     - Default
-     - Meaning
-   * - ``poisson``
-     - bool
-     - False (floor)
-     - Apply Poisson shot noise to the electron image. On under
-       ``instrument_defaults`` unless the block sets it false.
-   * - ``read_noise_dn``
-     - float
-     - 0 (off)
-     - Gaussian read-noise sigma in DN (converted to electrons through the
-       resolved gain). ``instrument_defaults`` supplies the detector
-       defaults' value in electrons instead.
-   * - ``cosmic_ray_events_per_pixel_per_sec``
-     - float
-     - 0.0
-     - Expected cosmic-ray events per pixel per second the detector collects: a
-       frame's event count is a Poisson draw with mean rate x
-       (``exposure_sec`` + ``cosmic_ray_readout_dwell_sec``) x pixel count.
-       ``instrument_defaults`` supplies the detector defaults' rate, which each camera's
-       instrument page (:doc:`instruments/instruments`) gives. The CCD chain
-       deposits the hits in electrons; the vidicon chain deposits full-scale
-       hits in DN and adds no readout dwell (see :ref:`sim-detector-stage`).
-   * - ``cosmic_ray_readout_dwell_sec``
-     - float
-     - 0.0
-     - Effective seconds the detector collects cosmic rays outside the
-       exposure, while the frame waits to be read.
-   * - ``cosmic_ray_amplitude_e``
-     - float
-     - full well
-     - Smallest deposit per cosmic-ray event, in electrons; an event leaves
-       this times one plus a standard lognormal draw. The detector defaults' fitted
-       deposits give modest hits; unset, every hit is full-well scale.
-   * - ``cosmic_ray_spread_px``
-     - float
-     - 0.0
-     - Gaussian charge-diffusion sigma of each cosmic-ray event. The detector
-       defaults state it in native pixels, so a binned frame sees it shrink by the
-       binning; a scene value is the frame pixel's own.
-   * - ``dark_current_e_per_sec``
-     - float
-     - 0 (off)
-     - Dark-current pedestal rate in electrons / sec, the same on every line, added
-       pre-Poisson. The dark charge that grows down the frame during the readout is
-       the ``readout_dark`` mode.
-   * - ``calibration_column_residual_e``
-     - float
-     - 0 (off)
-     - Sigma of a calibrated product's fixed per-column residual, in electrons
-       per native pixel (calibrated frames only; see
-       :ref:`Instruments <sim-instruments>`).
-   * - ``calibration_pixel_residual_e``
-     - float
-     - 0 (off)
-     - Sigma of a calibrated product's per-frame per-pixel residual, in
-       electrons per native pixel (calibrated frames only).
-   * - ``vidicon``
-     - dict
-     - detector default
-     - Vidicon read-noise sub-map (vidicon path only): ``read_noise_line_dn`` and
-       ``read_noise_pixel_dn``.
+:doc:`dev_guide_simulator_scene_schema` page lists the block's keys, and an unknown
+noise key fails loudly.
 
 The noise block holds no detector defects: those are artifact modes (see
 :ref:`sim-detector-modes`). Physical saturation caps the electron image at the full well
@@ -4844,79 +4742,19 @@ the optics stage applies in its fixed internal order (see
 sub-block that is present but a true no-op renders bit-identically to one that
 is absent.
 
-``optics.psf`` -- the whole-scene point-spread function. Either the explicit
-core-plus-wing form or the exclusive navigator-matched form:
-
-.. list-table::
-   :widths: 24 12 12 52
-   :header-rows: 1
-
-   * - Field
-     - Type
-     - Default
-     - Meaning
-   * - ``sigma_v`` / ``sigma_u``
-     - float
-     - required
-     - Gaussian core sigma along v / u, in detector pixels.
-   * - ``w``
-     - float
-     - 0.0
-     - Moffat wing energy fraction, in [0, 1].
-   * - ``r0``
-     - float
-     - 2.0
-     - Moffat core radius in detector pixels.
-   * - ``n``
-     - float
-     - 3.0
-     - Moffat index.
-   * - ``match_navigator``
-     - bool
-     - --
-     - Exclusive alternative: resolve the PSF to the navigator's own Gaussian
-       at the instrument ``star_psf_sigma`` (no other PSF key may appear).
-
-``optics.smear`` -- a list of per-object-class motion-smear entries. Each entry
-has ``dv_px`` / ``du_px`` (drift in pixels) and ``object_class`` (one of
-``all``, ``stars``, ``bodies``, ``rings``; default ``all``). One ``all`` entry
-smears the whole scene; several give differential smear.
-
-``optics.distortion`` -- the residual geometric distortion:
-
-.. list-table::
-   :widths: 24 12 12 52
-   :header-rows: 1
-
-   * - Field
-     - Type
-     - Default
-     - Meaning
-   * - ``k1`` / ``k2``
-     - float
-     - 0.0
-     - Radial polynomial coefficients about the optical center.
-   * - ``center_v`` / ``center_u``
-     - float
-     - frame center
-     - Optical-center position in pixels.
-   * - ``nonradial_rms_px``
-     - float
-     - 0.0
-     - RMS amplitude of the seeded smooth non-radial wander, in pixels.
-
-``optics.ghosts`` -- a list of ghost reflections. Each entry has ``dv_px`` /
-``du_px`` (offset in pixels), ``amplitude`` (fraction; 0 disables the entry),
-and ``defocus_sigma`` (blur sigma in pixels).
+The :doc:`dev_guide_simulator_scene_schema` page lists every sub-block's keys.
+``optics.psf`` is either the explicit core-plus-wing kernel or the navigator-matched
+form ``{match_navigator: true}``, which resolves the PSF to the navigator's own Gaussian
+at the instrument's ``star_psf_sigma`` and allows no other PSF key. ``optics.smear`` is a
+list of motion-smear entries: one ``all`` entry smears the whole scene, and several give
+differential smear. ``optics.ghosts`` is a list of displaced, defocused copies of the
+scene.
 
 .. _sim-stray-light:
 
-``optics.stray_light`` -- the smooth scattered-light field applied last, before
-the detector stage: ``amplitude`` (peak fraction of full scale; 0 disables it),
-``direction_deg`` (ramp direction for the ``linear`` model), ``model``
-(``linear`` ramp or ``radial`` bump), and ``center_v`` / ``center_u`` (the
-radial-model bump center; omit for the frame center). It exercises the
-navigator's source-image background filter.
+``optics.stray_light`` is the smooth scattered-light field, applied last, before the
+detector stage: a ``linear`` ramp or a ``radial`` bump. It exercises the navigator's
+source-image background filter.
 
 .. _sim-spk-error:
 
@@ -4936,66 +4774,12 @@ Detector block
 --------------
 
 The optional ``detector`` dict (truth-side) overrides the detector defaults of the
-instrument entry. An omitted key keeps the instrument's own value.
-
-.. list-table::
-   :widths: 28 12 60
-   :header-rows: 1
-
-   * - Field
-     - Type
-     - Meaning
-   * - ``gain_state``
-     - int
-     - The electron-chain gain state, which must be cataloged for the instrument.
-   * - ``binning``
-     - int
-     - The readout mode, below.
-   * - ``detector_model``
-     - string
-     - ``ccd`` (the electron chain) or ``vidicon`` (the DN chain).
-   * - ``bias_dn``
-     - float
-     - Additive bias pedestal. It lifts dark sky off zero, the missing-data marker. A
-       calibrated frame subtracts it again in the calibration inverse (see
-       :ref:`Instruments <sim-instruments>`).
-   * - ``saturation_dn``
-     - float
-     - The ADC ceiling. The detector clips every pixel at it, and the wrong values that
-       garble and spikes write stay within it. On a raw-DN camera the navigator still
-       masks at its own block's ``noise.saturation_dn``; a calibrated camera has no
-       saturation mask.
-   * - ``full_well_dn``
-     - float
-     - The full well of a native pixel, in DN. The CCD chain converts it to electrons
-       through the resolved gain, where it replaces the entry's ``full_well_e``. On the
-       vidicon chain it is the DN full scale. A signal of 1.0 fills a fraction of the
-       well, so without a filter a smaller well also makes the frame darker in DN. A filter
-       sets the reference exposure from the well, so the frame keeps its brightness.
-   * - ``signal_full_scale_frac``
-     - float
-     - The fraction of the well a signal of 1.0 fills at the reference exposure.
-   * - ``exposure_ref_sec``
-     - float
-     - The reference exposure, in seconds.
-   * - ``filter``
-     - string
-     - The filter combination, below.
-   * - ``quantization``
-     - string
-     - The ADC sub-mode: ``exact``, ``8bit``, ``uneven_12bit``, ``sqrt_lut``, ``ls8b``,
-       or ``contour_8bit``.
-   * - ``downlink_table``
-     - string
-     - The downlink table that the ``sqrt_lut`` sub-mode decodes through (see
-       :ref:`sim-detector-stage` for when a scene may set it).
-   * - ``contour_step``
-     - int
-     - The DN step of the ``contour_8bit`` sub-mode, an integer from 1 to 255.
-   * - ``missing_data_rate``
-     - float
-     - The fraction of pixels (0-1) set to the missing-data marker. The telemetry stage
-       applies it.
+instrument entry. An omitted key keeps the instrument's own value. The
+:doc:`dev_guide_simulator_scene_schema` page lists the block's keys. Each key the
+instrument entry also states, such as ``bias_dn`` or ``missing_data_rate``, has the
+entry's range. ``downlink_table`` is read only by the ``sqrt_lut`` quantization and
+``contour_step`` only by ``contour_8bit``, so a scene that sets either with another
+quantization is refused (see :ref:`sim-detector-stage`).
 
 ``filter`` sets the filter combination the frame was shot through, written as
 the product label writes it (``CL1+CL2``). It sets how many electrons per second

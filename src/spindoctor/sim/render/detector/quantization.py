@@ -10,13 +10,10 @@ from __future__ import annotations
 import numpy as np
 
 from spindoctor.sim.render.detector.sqrt_lut import DownlinkCurve, resolve_sqrt_lut
+from spindoctor.sim.scene.truth_detector import DEFAULT_CONTOUR_STEP
 from spindoctor.support.types import NDArrayFloatType
 
-__all__ = ['DEFAULT_CONTOUR_STEP', 'quantize_dn']
-
-# The posterization step of the contour_8bit sub-mode, in DN, unless the scene sets
-# one.
-DEFAULT_CONTOUR_STEP = 8
+__all__ = ['quantize_dn']
 
 
 def quantize_dn(

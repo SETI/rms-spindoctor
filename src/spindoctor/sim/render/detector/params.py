@@ -60,14 +60,11 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_mode_with_catalog,
 )
 from spindoctor.sim.instruments.schema_detector import Detector
-from spindoctor.sim.render.detector.quantization import DEFAULT_CONTOUR_STEP
-from spindoctor.sim.render.detector.sqrt_lut import (
-    DownlinkCurve,
-    check_curve_ceiling,
-    resolve_sqrt_lut,
-)
+from spindoctor.sim.render.detector.sqrt_lut import DownlinkCurve, resolve_sqrt_lut
 from spindoctor.sim.render.optics.stage import instrument_defaults_on
 from spindoctor.sim.scene.fields import scene_binning
+from spindoctor.sim.scene.idealized import DEFAULT_EXPOSURE_SEC
+from spindoctor.sim.scene.truth_detector import DEFAULT_CONTOUR_STEP
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.support.types import NDArrayFloatType
 
@@ -473,7 +470,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
             f'binning {binning}; the vidicon DN path has no binned readout'
         )
     data_units = resolve_data_units(instrument)
-    exposure_sec = float(params.get('exposure_sec', 1.0))
+    exposure_sec = float(params.get('exposure_sec', DEFAULT_EXPOSURE_SEC))
     exposure_ref_sec = float(
         detector_block.get('exposure_ref_sec', detector_defaults.exposure_ref_sec)
     )
@@ -640,7 +637,7 @@ def resolve_detector_params(params: Mapping[str, Any]) -> DetectorParams:
     sqrt_lut = resolve_sqrt_lut(downlink_table, saturation_dn=saturation_dn)
     if quantization == 'sqrt_lut' and downlink_table is not None:
         try:
-            check_curve_ceiling(sqrt_lut, saturation_dn=saturation_dn)
+            downlink_table.check_ceiling(saturation_dn)
         except ValueError as exc:
             raise DetectorParamError(f'sim instrument {instrument!r}: {exc}') from exc
 

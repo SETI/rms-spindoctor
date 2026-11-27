@@ -9,7 +9,9 @@ checkbox maps to the mode key's presence, the activation-key spin
 (``expected_events``, ``expected_events_per_sec``, ``probability``, or
 ``pixel_fraction``, whichever the registry assigns) and one widget per parameter map
 to that mode's map keys, and each parameter's type picks the widget (a spin, a
-checkbox, a choice combo, or a group of spins for a rect/window list).
+checkbox, a choice combo, or a group of spins for a list: integers for a
+rect or window, and numbers for a percentile table, fractions where its values are
+shares).
 
 The fixed ``count`` that ``dead_pixels`` and ``dead_columns`` take in place of
 ``expected_events`` carries a "set" box, like a list parameter, so a count of 0
@@ -45,8 +47,9 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from spindoctor.schema import Bool, NonNeg, NonNegInt, PositiveInt, Unit
+from spindoctor.schema import Bool, NonNeg, NonNegInt, Positive, PositiveInt, Unit
 from spindoctor.sim.artifact_modes import (
+    AT_LEAST_ONE,
     PIXEL_FRACTION,
     ArtifactMode,
     ModeParam,
@@ -68,6 +71,8 @@ _NUMBER_DECIMALS = 4
 # A hot-pixel fraction is a small density (1.6e-5 on the calibrated Cassini
 # cameras, 2.75e-4 in the Titan truth scenes), so its spin keeps six decimals.
 _PIXEL_FRACTION_DECIMALS = 6
+# The arrows of a [0, 1] fraction step by a hundredth, not Qt's default of 1.
+_FRACTION_STEP = 0.01
 
 
 class ArtifactModeController(Protocol):
@@ -112,7 +117,7 @@ class ModeRow:
         self._scalar_widgets: dict[str, QWidget] = {}
         self._enum_choices: dict[str, tuple[Any, ...]] = {}
         self._list_checks: dict[str, QCheckBox] = {}
-        self._list_spins: dict[str, list[QSpinBox]] = {}
+        self._list_spins: dict[str, list[QSpinBox | QDoubleSpinBox]] = {}
         self._count_check: QCheckBox | None = None
         self._count_spin: QSpinBox | None = None
         self._unavailable_reason: str | None = None
@@ -134,7 +139,7 @@ class ModeRow:
     def _add_param_row(self, form: QFormLayout, param: ModeParam) -> None:
         """Add one labeled parameter widget to the row's form."""
         if param.length is not None:
-            form.addRow(f'{param.name}:', self._build_int_list_widget(param))
+            form.addRow(f'{param.name}:', self._build_list_widget(param))
             return
         if param.name == self.mode.count_alternative:
             form.addRow(f'{param.name}:', self._build_count_widget(param))
@@ -190,6 +195,13 @@ class ModeRow:
                 _PIXEL_FRACTION_DECIMALS if param.name == PIXEL_FRACTION else _NUMBER_DECIMALS
             )
             spin.setRange(0.0, 1.0 if param.annotation is Unit else _NUMBER_MAX)
+            if param.annotation is Unit:
+                spin.setSingleStep(_FRACTION_STEP)
+            return spin
+        if param.annotation is AT_LEAST_ONE:
+            spin = QDoubleSpinBox()
+            spin.setDecimals(_NUMBER_DECIMALS)
+            spin.setRange(1.0, _NUMBER_MAX)
             return spin
         if param.annotation is PositiveInt or param.annotation is NonNegInt:
             spin_int = QSpinBox()
@@ -197,11 +209,13 @@ class ModeRow:
             return spin_int
         raise TypeError(f'{self.mode.name}.{param.name}: no editor widget for {param.annotation!r}')
 
-    def _build_int_list_widget(self, param: ModeParam) -> QWidget:
-        """Build a checkable group of spins for a rect / window integer-list param.
+    def _build_list_widget(self, param: ModeParam) -> QWidget:
+        """Build a checkable group of spins for a list param.
 
-        The list key stays absent until the small enable box is checked (a
-        rect / window is optional on every mode that offers one), so the row
+        A list of integers (a rect, a window position, or an offset) gets integer
+        spins; a percentile table gets number spins, over [0, 1] where its values are
+        shares and above 0 where they are sizes.
+        The list key stays absent until the small enable box is checked, so the row
         keeps the absent-key discipline for its list parameters too.
         """
         container = QWidget()
@@ -209,13 +223,24 @@ class ModeRow:
         layout.setContentsMargins(0, 0, 0, 0)
         check = QCheckBox('set')
         layout.addWidget(check)
-        spins: list[QSpinBox] = []
+        spins: list[QSpinBox | QDoubleSpinBox] = []
         for _ in range(param.length or 0):
-            spin = QSpinBox()
-            # The validator accepts any integers in a list parameter (a ghost
-            # offset such as residual_image.offset_px is legitimately negative),
-            # so the spins must not clip below zero.
-            spin.setRange(int(_NUMBER_MIN), _INT_MAX)
+            spin: QSpinBox | QDoubleSpinBox
+            if param.item_annotation is Unit:
+                spin = QDoubleSpinBox()
+                spin.setDecimals(_PIXEL_FRACTION_DECIMALS)
+                spin.setRange(0.0, 1.0)
+                spin.setSingleStep(_FRACTION_STEP)
+            elif param.item_annotation is Positive:
+                spin = QDoubleSpinBox()
+                spin.setDecimals(_NUMBER_DECIMALS)
+                spin.setRange(10.0**-_NUMBER_DECIMALS, _NUMBER_MAX)
+            else:
+                spin = QSpinBox()
+                # The validator accepts any integers in a list parameter (a ghost
+                # offset such as residual_image.offset_px is legitimately negative),
+                # so the spins must not clip below zero.
+                spin.setRange(int(_NUMBER_MIN), _INT_MAX)
             layout.addWidget(spin)
             spins.append(spin)
         self._list_checks[param.name] = check
@@ -303,18 +328,18 @@ class ModeRow:
                 return
 
     def _on_list_toggled(self, name: str, on: bool) -> None:
-        """Write or remove an integer-list key when its enable box toggles."""
+        """Write or remove a list key when its enable box toggles."""
         if on:
             self._write_list(name)
         else:
             self._controller._remove_mode_param(self.mode.name, name)
 
     def _write_list(self, name: str) -> None:
-        """Write an integer-list parameter from its spins, if its box is checked."""
+        """Write a list parameter from its spins, if its box is checked."""
         if not self._list_checks[name].isChecked():
             return
         self._controller._set_mode_param(
-            self.mode.name, name, [int(spin.value()) for spin in self._list_spins[name]]
+            self.mode.name, name, [spin.value() for spin in self._list_spins[name]]
         )
 
     def _on_group_toggled(self, on: bool) -> None:
@@ -352,7 +377,7 @@ class ModeRow:
         current = mode_map or {}
         for param in self.mode.params:
             if param.length is not None:
-                self._sync_int_list(param, current)
+                self._sync_list(param, current)
             else:
                 self._sync_scalar(param, current)
         count_key = self.mode.count_alternative
@@ -389,18 +414,32 @@ class ModeRow:
             widget.setValue(int(value) if value is not None else widget.minimum())
         widget.blockSignals(False)
 
-    def _sync_int_list(self, param: ModeParam, current: dict[str, Any]) -> None:
-        """Show one integer-list parameter: check the box iff the key is present."""
+    def _sync_list(self, param: ModeParam, current: dict[str, Any]) -> None:
+        """Show one list parameter: check the box iff the key is present.
+
+        If the key is absent, the spins show the list the renderer resolves for it,
+        when it resolves one.
+        """
         check = self._list_checks[param.name]
         spins = self._list_spins[param.name]
         value = current.get(param.name)
         check.blockSignals(True)
         check.setChecked(value is not None)
         check.blockSignals(False)
+        if value is None:
+            value = resolve_mode_with_catalog(
+                self.mode.name,
+                {},
+                self._instrument,
+                instrument_defaults=self._controller._instrument_defaults_on(),
+            )[param.name]
         if isinstance(value, (list, tuple)):
             for spin, entry in zip(spins, value, strict=False):
                 spin.blockSignals(True)
-                spin.setValue(int(entry))
+                if isinstance(spin, QDoubleSpinBox):
+                    spin.setValue(float(entry))
+                else:
+                    spin.setValue(int(entry))
                 spin.blockSignals(False)
 
     # ---- Availability ----
