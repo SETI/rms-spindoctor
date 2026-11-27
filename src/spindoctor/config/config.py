@@ -67,7 +67,9 @@ _MERGED_LABEL = 'the merged configuration'
 """The label of the configuration as it stands when an override is merged over it."""
 
 
-def _typed_sections_type(config_dict: Mapping[str, Any]) -> type[TypedSections]:
+def _typed_sections_type(
+    config_dict: Mapping[str, Any], known_cameras: frozenset[str]
+) -> type[TypedSections]:
     """Return the type the typed sections of a configuration are parsed into.
 
     The section types import modules that import this package, so the import waits
@@ -75,13 +77,14 @@ def _typed_sections_type(config_dict: Mapping[str, Any]) -> type[TypedSections]:
 
     Parameters:
         config_dict: The merged configuration.
+        known_cameras: The camera sections of the configuration it was merged over.
 
     Returns:
         The type :func:`~spindoctor.config.sections.typed_sections_type` returns.
     """
     from spindoctor.config.sections import typed_sections_type
 
-    return typed_sections_type(config_dict)
+    return typed_sections_type(config_dict, known_cameras=known_cameras)
 
 
 def _configure_techniques(sections: TypedSections) -> None:
@@ -99,7 +102,11 @@ def _configure_techniques(sections: TypedSections) -> None:
 
 
 def _parse_typed_sections(
-    config_dict: Mapping[str, Any], origins: Mapping[KeyPath, str], *, source: str
+    config_dict: Mapping[str, Any],
+    origins: Mapping[KeyPath, str],
+    *,
+    source: str,
+    known_cameras: frozenset[str],
 ) -> tuple[TypedSections, dict[KeyPath, str]]:
     """Parse the typed sections of a merged configuration.
 
@@ -109,6 +116,7 @@ def _parse_typed_sections(
             order the files merged.  Values of other sections may be included.
         source: The label a message gives for a value that ``origins`` does not
             cover.
+        known_cameras: The camera sections of the configuration it was merged over.
 
     Returns:
         The typed sections, and the entries of ``origins`` that lie inside them.
@@ -117,7 +125,7 @@ def _parse_typed_sections(
         SchemaError: Listing every problem in the typed sections, each line in the
             form ``file: key.path: message``.
     """
-    sections_type = _typed_sections_type(config_dict)
+    sections_type = _typed_sections_type(config_dict, known_cameras)
     keys = {item.name for item in dataclasses.fields(sections_type)}
     raw = {key: value for key, value in config_dict.items() if key in keys}
     kept = {path: label for path, label in origins.items() if path[0] in keys}
@@ -266,7 +274,10 @@ class Config:
         Raises:
             SchemaError: If a typed section breaks its schema.
         """
-        sections, typed_origins = _parse_typed_sections(candidate, origins, source=source)
+        known = frozenset(self._sections.CAMERA_SECTIONS) if self._sections else frozenset()
+        sections, typed_origins = _parse_typed_sections(
+            candidate, origins, source=source, known_cameras=known
+        )
         self._config_dict = candidate
         self._override_paths = override_paths
         self._sections = sections

@@ -74,10 +74,11 @@ Configuration
 
 Per-instrument thresholds live in
 :class:`~spindoctor.support.image_class.ImageQualityThresholds`, filled by
-:func:`~spindoctor.support.image_class.image_quality_thresholds` from the camera block's
-``image_quality_thresholds`` block (see :ref:`config-camera-blocks`) and documented at
-:doc:`dev_guide_orchestrator_instrument_config`. The dataclass has no defaults; every
-value comes from the camera block.
+:func:`~spindoctor.support.image_class.image_quality_thresholds` from the camera block
+(see :ref:`config-camera-blocks`) and documented at
+:doc:`dev_guide_orchestrator_instrument_config`. The missing-data marker is the block's
+``noise.marker_value``; every other value comes from its ``image_quality_thresholds``
+block. The dataclass has no defaults; every value comes from the camera block.
 
 The thresholds dataclass:
 
