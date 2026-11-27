@@ -287,14 +287,10 @@ of the two star widths each camera's navigator reads. In the same way,
 ``star_photometry.flux_per_s_vmag0``: the simulator reads the first for simulated
 frames, and the navigator reads the second for real ones.
 
-The simulator's camera section is left untyped when the configuration loads, so an
-override of it is read as written.
-:meth:`~spindoctor.config.config.Config.camera_block` parses it into the same type when
-it is asked for. An observation whose class holds its block as a mapping, with a
-simulated scene's overrides merged over it, has the block parsed the same way when it is
-first read (:func:`~spindoctor.config.sections_camera.as_camera_block`). If a scene's
-overrides carry a top-level key that the camera block does not declare, a block read
-this way ignores it.
+The simulator's own camera section is parsed into the same type as the others when the
+configuration loads. A simulated scene's ``instrument_config`` block is merged over its
+camera's block, and the merged block is parsed into the same type again (see
+:ref:`sim-instrument-config`).
 
 .. _config-techniques-section:
 
@@ -409,8 +405,8 @@ removal. The shipping sections:
 - ``body_shape`` — static per-body shape catalog; a typed section (see
   :ref:`static-data-citations` below).
 - the camera sections — each camera's block (``noise``, ``mag_offset``,
-  ``image_quality_thresholds``, ``source_image_filter``, and the rest); typed, except
-  the simulator's (see :ref:`config-camera-blocks`).
+  ``image_quality_thresholds``, ``source_image_filter``, and the rest); typed (see
+  :ref:`config-camera-blocks`).
 - ``techniques`` — per-:class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   tunables and confidence-formula
   coefficients; see :doc:`dev_guide_techniques`.

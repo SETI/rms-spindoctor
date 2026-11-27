@@ -14,7 +14,7 @@ from tests.spindoctor.sim.scenes import body_scene
 
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.sim.instruments.catalog import sim_instrument_names
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import scene_camera_block
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.support.image_class import missing_data_marker
@@ -47,9 +47,7 @@ def _lost(instrument: str, *, marker: float | None = None) -> tuple[np.ndarray, 
     without, _ = render_scene(_scene(instrument, 0.0, marker=marker))
     params = _scene(instrument, _RATE, marker=marker)
     with_rate, _ = render_scene(params)
-    inst_config = resolve_sim_inst_config(
-        DEFAULT_CONFIG, instrument, params.get('instrument_config')
-    )
+    inst_config = scene_camera_block(DEFAULT_CONFIG, params)
     changed = with_rate[with_rate != without]
     return changed, missing_data_marker(inst_config)
 

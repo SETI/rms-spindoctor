@@ -24,13 +24,12 @@ is infinite and no finite pixel counts as saturated.
 """
 
 import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Literal, cast
 
 import numpy as np
 
-from spindoctor.config.sections_camera import CameraBlock, as_camera_block
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -47,9 +46,6 @@ __all__ = [
 
 ImageQualityClass = Literal['clean', 'blank', 'fully_overexposed', 'mostly_missing_data']
 """The classes :func:`decide_image_class` can return."""
-
-_CAMERA_SOURCE = 'the camera block'
-"""The label a message gives for a problem in a camera block held as a mapping."""
 
 
 @dataclass(frozen=True)
@@ -99,23 +95,19 @@ class ImageQualityStatistics:
     missing_frac: float
 
 
-def missing_data_marker(camera: CameraBlock | Mapping[str, Any]) -> float:
+def missing_data_marker(camera: CameraBlock) -> float:
     """Return the missing-data marker of a camera block.
 
     Parameters:
-        camera: The camera block.  A block held as a mapping is parsed first (see
-            :func:`~spindoctor.config.sections_camera.as_camera_block`).
+        camera: The camera block.
 
     Returns:
         The block's ``noise.marker_value``, possibly NaN.
-
-    Raises:
-        ~spindoctor.schema.SchemaError: If a mapping breaks the camera block's schema.
     """
-    return as_camera_block(camera, source=_CAMERA_SOURCE).noise.marker()
+    return camera.noise.marker()
 
 
-def image_quality_thresholds(camera: CameraBlock | Mapping[str, Any]) -> ImageQualityThresholds:
+def image_quality_thresholds(camera: CameraBlock) -> ImageQualityThresholds:
     """Read the classifier's thresholds from a camera block.
 
     A ``raw_dn`` block gives its blank, noise, and saturation limits in DN.  A
@@ -124,20 +116,15 @@ def image_quality_thresholds(camera: CameraBlock | Mapping[str, Any]) -> ImageQu
     other limits are the block's own.
 
     Parameters:
-        camera: The camera block.  A block held as a mapping is parsed first (see
-            :func:`~spindoctor.config.sections_camera.as_camera_block`).
+        camera: The camera block.
 
     Returns:
         The thresholds, in DN for a ``raw_dn`` block and in I/F for a
         ``calibrated_if`` one.
-
-    Raises:
-        ~spindoctor.schema.SchemaError: If a mapping breaks the camera block's schema.
     """
-    block = as_camera_block(camera, source=_CAMERA_SOURCE)
-    limits = block.image_quality_thresholds
+    limits = camera.image_quality_thresholds
     # The camera block sets every limit its units read, so none of these is None.
-    if block.data_units == 'raw_dn':
+    if camera.data_units == 'raw_dn':
         blank = limits.blank_max_dn
         noisy = limits.noisy_threshold_dn
         saturation = limits.saturation_threshold_dn
@@ -147,7 +134,7 @@ def image_quality_thresholds(camera: CameraBlock | Mapping[str, Any]) -> ImageQu
         saturation = math.inf
     return ImageQualityThresholds(
         saturation_threshold_dn=cast(float, saturation),
-        missing_data_marker_dn=block.noise.marker(),
+        missing_data_marker_dn=camera.noise.marker(),
         max_saturation_frac_clean=limits.max_overexposed_frac_clean,
         max_missing_frac_clean=limits.max_missing_frac_clean,
         partial_dropout_min_frac=limits.partial_dropout_min_frac,

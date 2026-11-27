@@ -8,6 +8,7 @@ see only the navigator view exposed as ``obs.nav_params`` (the
 information boundary -- see :func:`spindoctor.sim.scene.boundary.build_nav_params`).
 """
 
+import dataclasses
 import math
 from pathlib import Path
 from typing import Any, cast
@@ -18,7 +19,7 @@ from oops.observation import Snapshot
 
 from spindoctor.config import DEFAULT_CONFIG, IMAGE_LOGGER, Config, logged_section
 from spindoctor.obs.obs_snapshot_inst import ObsSnapshotInst
-from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin, resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin, scene_camera_block
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
 from spindoctor.sim.scene.io import load_sim_scene
@@ -149,23 +150,23 @@ class ObsSim(ObsSnapshotInst):
         # Select the navigator block of the camera the sim is emulating, so the
         # orchestrator sees the right units / noise / saturation settings.
         # Validation requires every scene to set its instrument.
-        sim_block = config.category('sim')
-        inst_config = resolve_sim_inst_config(
-            config, sim_params.get('instrument'), sim_params.get('instrument_config')
-        )
+        inst_config = scene_camera_block(config, sim_params)
         if extfov_margin_vu is None:
-            extfov_margin_vu = resolve_extfov_margin(inst_config, sim_block, size_v)
+            extfov_margin_vu = resolve_extfov_margin(
+                inst_config.extfov_margin_vu, config.camera_block('sim').extfov_margin_vu, size_v
+            )
 
         # A scene may toggle camera-rotation fitting independently of the camera
         # it emulates.  In reality ``fit_camera_rotation`` is a per-camera
         # property, but a sim scene is a navigation fixture: it can ask the
         # navigator to solve for a planted roll on top of any instrument's optics
         # (e.g. Cassini NAC's sharp PSF) without pretending to be a camera that
-        # happens to fit rotation.  The resolved block is shared live config, so
-        # copy before overriding.
+        # happens to fit rotation.
         fit_rotation_override = sim_params.get('fit_camera_rotation')
         if fit_rotation_override is not None:
-            inst_config = {**inst_config, 'fit_camera_rotation': bool(fit_rotation_override)}
+            inst_config = dataclasses.replace(
+                inst_config, fit_camera_rotation=bool(fit_rotation_override)
+            )
 
         new_obs = ObsSim(
             snapshot,
@@ -174,7 +175,7 @@ class ObsSim(ObsSnapshotInst):
             closest_planet=sim_params.get('closest_planet'),
             simulated=True,
         )
-        new_obs._inst_config = cast(dict[str, Any], inst_config)
+        new_obs._camera_block = inst_config
         new_obs.image_url = str(scene_path.absolute())
         new_obs.abspath = abspath
 
@@ -264,35 +265,28 @@ class ObsSim(ObsSnapshotInst):
         Raises:
             ValueError: If the observation has no instrument configuration.
         """
-        inst_config = self._inst_config
-        if inst_config is None:
-            raise ValueError('Instrument configuration not set')
-        inst_noise = inst_config.get('noise') or {}
-        if inst_config['data_units'] != 'raw_dn':
+        inst_config = self.inst_config
+        if inst_config.data_units != 'raw_dn':
             # calibrated_if: no published DN zero point to anchor the limit, so
             # the navigator-side detection limit is a generous constant.
             return 30.0
         # Published values only: the navigator block, with any idealized
-        # instrument_config overrides already merged over it, and the generic
-        # sim block supplying any key the navigator block leaves unset.  The
-        # scene's truth-side noise block is deliberately not consulted.
-        sim_noise = self.config.category('sim')['noise']
-        zero_point_dn = float(
-            inst_noise.get('star_flux_dn_per_s_vmag0', sim_noise['star_flux_dn_per_s_vmag0'])
-        )
-        star_psf_sigma = float(
-            inst_config.get('star_psf_sigma', self.config.category('sim')['star_psf_sigma'])
-        )
-        read_noise_dn = float(inst_noise['read_noise_dn'])
+        # instrument_config overrides already merged over it.  The scene's truth-side
+        # noise block is deliberately not consulted.  A raw_dn block sets both noise
+        # values.
+        inst_noise = inst_config.noise
+        zero_point_dn = cast(float, inst_noise.star_flux_dn_per_s_vmag0)
+        read_noise_dn = cast(float, inst_noise.read_noise_dn)
+        star_psf_sigma = inst_config.star_psf_sigma
         # A binned frame reads its readout mode's values from the navigator block, or
         # the unbinned values when the block has no entry for the readout mode, and its
         # pixels are b native pixels on a side (#993).
         binning = int(self.nav_params['binning'])
         if binning != 1:
-            mode = inst_noise.get('by_binning', {}).get(binning)
+            mode = (inst_noise.by_binning or {}).get(binning)
             if mode is not None:
-                zero_point_dn = float(mode['star_flux_dn_per_s_vmag0'])
-                read_noise_dn = float(mode['read_noise_dn'])
+                zero_point_dn = mode.star_flux_dn_per_s_vmag0
+                read_noise_dn = mode.read_noise_dn
             star_psf_sigma /= binning
         # The scene's idealized exposure (navigator-visible; see the docstring
         # for why the Snapshot's reference texp is not consulted here).

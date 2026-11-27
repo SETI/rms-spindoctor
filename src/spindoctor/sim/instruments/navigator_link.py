@@ -11,16 +11,17 @@ here:
   therefore the value a lost pixel is written with.
 - :func:`resolve_extfov_margin`: the extended-FOV margin the simulated observation pads
   its frame with.
-- :func:`resolve_sim_inst_config`: the navigator block itself.  The simulated observation
-  hands it to the navigator, which reads it as it reads a real camera's.
+- :func:`resolve_sim_inst_config` and :func:`scene_camera_block`: the navigator block
+  itself, a :class:`~spindoctor.config.sections_camera.CameraBlock`.  The simulated
+  observation hands it to the navigator, which reads it as it reads a real camera's.
 
 An instrument entry points at its navigator block by section and detector (its
 ``navigator`` key; see :mod:`spindoctor.sim.instruments.catalog`).  A value of ``None``
 (or the generic entry and its aliases) selects the ``sim`` section, the block of the
 instrument-agnostic simulated camera.
 
-A scene may also carry ``instrument_config`` overrides that are deep-merged over
-the resolved block, so a scene can:
+A scene may also carry an ``instrument_config`` block that is merged over the resolved
+block (see :mod:`spindoctor.sim.scene.idealized_camera`), so a scene can:
 
 - **inherit** every value from a chosen instrument (no overrides),
 - **inherit and override** individual values (override only those keys), or
@@ -35,8 +36,7 @@ about the camera.  The frame keeps the physics of the instrument entry, and the 
 
 A rendered frame's units come from the instrument entry (``data_units``).
 The navigator reads the frame in the units its block sets, so resolving the block
-fails if the two differ.  It also fails if the block doesn't set ``data_units``,
-which the navigator requires.  A ``raw_dn`` instrument renders detector counts
+fails if the two differ.  A ``raw_dn`` instrument renders detector counts
 with a ``0`` missing-data marker.  A ``calibrated_if`` instrument (the calibrated
 Cassini cameras and Voyager ISS) renders I/F, also with a ``0`` marker, because the
 archived Cassini CALIB and Voyager GEOMED products fill lost pixels with zero.
@@ -46,8 +46,10 @@ from collections.abc import Mapping
 from typing import Any
 
 from spindoctor.config import DEFAULT_CONFIG, Config
-from spindoctor.schema import Issue, SchemaError
+from spindoctor.config.sections_camera import CameraBlock, ExtfovMargin
+from spindoctor.schema import Issue, SchemaError, parse
 from spindoctor.sim.instruments.catalog import InstrumentCatalog, load_instrument_catalog
+from spindoctor.sim.scene.idealized_camera import InstrumentConfig, overlay_camera_block
 from spindoctor.support.image_class import missing_data_marker
 
 __all__ = [
@@ -55,60 +57,15 @@ __all__ = [
     'navigator_matched_psf',
     'resolve_extfov_margin',
     'resolve_sim_inst_config',
-    'with_integer_binning_keys',
+    'scene_camera_block',
 ]
-
-
-def _deep_merge(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any]:
-    """Return ``base`` with ``overrides`` recursively merged in.
-
-    Nested mappings merge key-by-key; any non-mapping value (scalar or list) in
-    ``overrides`` replaces the base value outright. The result is a fresh dict, so
-    the returned config is decoupled from the live config blocks it was built from.
-    """
-    merged: dict[str, Any] = {
-        key: dict(value) if isinstance(value, Mapping) else value for key, value in base.items()
-    }
-    for key, value in overrides.items():
-        existing = merged.get(key)
-        if isinstance(value, Mapping) and isinstance(existing, Mapping):
-            merged[key] = _deep_merge(existing, value)
-        else:
-            merged[key] = value
-    return merged
-
-
-def with_integer_binning_keys(overrides: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Return ``overrides`` with each digit-string ``noise.by_binning`` key read as an integer.
-
-    The navigator block keys its binned readout modes by the binning factor, an
-    integer.  JSON object keys are strings, so a scene that passes through JSON, as
-    every validated scene does, carries a key ``2`` as ``'2'``; both spellings name the
-    same mode.  Any other key is left for scene validation to refuse.
-
-    Parameters:
-        overrides: A scene's ``instrument_config`` overrides.
-
-    Returns:
-        ``overrides`` itself when it sets no ``noise.by_binning`` mapping, otherwise a
-        copy whose table has integer keys where the scene wrote digits.
-    """
-    noise = overrides.get('noise')
-    if not isinstance(noise, Mapping) or not isinstance(noise.get('by_binning'), Mapping):
-        return overrides
-    table: Mapping[Any, Any] = noise['by_binning']
-    keyed = {
-        int(key) if isinstance(key, str) and key.isascii() and key.isdigit() else key: value
-        for key, value in table.items()
-    }
-    return {**overrides, 'noise': {**noise, 'by_binning': keyed}}
 
 
 def resolve_sim_inst_config(
     config: Config,
     instrument: str | None,
-    overrides: Mapping[str, Any] | None = None,
-) -> Mapping[str, Any]:
+    overlay: InstrumentConfig | None = None,
+) -> CameraBlock:
     """Resolve a sim instrument name to its navigator block.
 
     Parameters:
@@ -117,104 +74,102 @@ def resolve_sim_inst_config(
             :func:`~spindoctor.sim.instruments.catalog.sim_instrument_names`), the
             generic entry or one of its aliases, or ``None`` for the
             instrument-agnostic block.
-        overrides: Optional scene-level overrides deep-merged over the resolved
-            block. Overridden keys are pinned to the scene; the rest continue to
-            track the instrument. Any key except ``data_units`` can be overridden,
-            so the generic block with every other key overridden is a fully
-            self-specified scene config.  A ``noise.by_binning`` key written as a
-            string of digits names the binning factor it spells.
+        overlay: A scene's ``instrument_config``, merged over the resolved block (see
+            :func:`~spindoctor.sim.scene.idealized_camera.overlay_camera_block`).
+            Overridden keys are pinned to the scene; the rest continue to track the
+            instrument.
 
     Returns:
-        The navigator block with ``overrides`` merged over it, as a fresh dict.
-        Without ``overrides`` it is the live config block itself.
+        The navigator block with ``overlay`` merged over it.  Without ``overlay`` it is
+        the configuration's own block.
 
     Raises:
-        ValueError: If ``instrument`` is unrecognized, the referenced config section
-            or detector is missing, or ``overrides`` sets ``data_units``.
-        ~spindoctor.schema.SchemaError: If the referenced
-            block doesn't set ``data_units``, or the entry's ``data_units`` differ
-            from the block's.  The message gives the entry's file and name and the
-            block; for a mismatch it also gives both units.
+        ValueError: If ``instrument`` is unrecognized, or the referenced config section
+            or detector is missing.
+        ~spindoctor.schema.SchemaError: If the entry's ``data_units`` differ from the
+            block's, or the merged block breaks the camera block's schema.  For a
+            mismatch the message gives the entry's file and name, the block, and both
+            units.
     """
-    if overrides and 'data_units' in overrides:
-        raise ValueError(
-            "instrument_config: a scene can't set data_units. Choose an instrument whose "
-            'entry renders the units you want.'
-        )
-    base = _resolve_base_block(config, instrument)
-    if not overrides:
+    base, block_name = _resolve_base_block(config, instrument)
+    if overlay is None:
         return base
-    return _deep_merge(base, with_integer_binning_keys(overrides))
+    return overlay_camera_block(
+        base, overlay, source=f'instrument_config merged over the navigator block {block_name}'
+    )
 
 
-def _resolve_base_block(config: Config, instrument: str | None) -> Mapping[str, Any]:
-    """Resolve the unmodified navigator block of an instrument (or the generic one)."""
+def scene_camera_block(config: Config, sim_params: Mapping[str, Any]) -> CameraBlock:
+    """The navigator block of a scene, its ``instrument_config`` merged over it.
+
+    The scene's ``instrument_config`` mapping is parsed here, with the type the scene
+    validator gives it.
+
+    Parameters:
+        config: The active configuration.
+        sim_params: The scene mapping.
+
+    Returns:
+        The scene's navigator block.
+
+    Raises:
+        ~spindoctor.schema.SchemaError: If ``instrument_config`` breaks its schema, or the
+            merged block breaks the camera block's.
+    """
+    raw = sim_params.get('instrument_config')
+    overlay = None if raw is None else parse(InstrumentConfig, raw, source='instrument_config')
+    return resolve_sim_inst_config(config, sim_params.get('instrument'), overlay)
+
+
+def _resolve_base_block(config: Config, instrument: str | None) -> tuple[CameraBlock, str]:
+    """Resolve the unmodified navigator block of an instrument (or the generic one).
+
+    Returns:
+        The block, and its name as ``section`` or ``section.detector``.
+    """
     catalog = load_instrument_catalog()
     navigator = catalog.entry(instrument).navigator
     section = navigator.section
     detector = navigator.detector
-    category = config.category(section)
-    if not category:
+    try:
+        cameras = config.camera_names(section)
+    except KeyError:
         raise ValueError(
             f'sim instrument {instrument!r} references config section {section!r}, '
-            'which is missing or empty'
-        )
-    if detector is None:
-        _check_units_agree(catalog, instrument, category, block_name=section)
-        return category
-    if detector not in category:
+            'which is not a camera section of the configuration'
+        ) from None
+    if detector not in cameras:
         raise ValueError(
             f'sim instrument {instrument!r} references detector {detector!r} in '
             f'section {section!r}, which has no such entry'
         )
-    detector_block = category[detector]
-    if not isinstance(detector_block, Mapping):
-        raise ValueError(
-            f'sim instrument {instrument!r} detector block {section}.{detector} '
-            f'is not a mapping; got {type(detector_block).__name__}'
-        )
-    _check_units_agree(catalog, instrument, detector_block, block_name=f'{section}.{detector}')
-    return detector_block
+    block_name = section if detector is None else f'{section}.{detector}'
+    block = config.camera_block(section, detector)
+    _check_units_agree(catalog, instrument, block, block_name=block_name)
+    return block, block_name
 
 
 def _check_units_agree(
     catalog: InstrumentCatalog,
     instrument: str | None,
-    block: Mapping[str, Any],
+    block: CameraBlock,
     *,
     block_name: str,
 ) -> None:
     """Refuse an entry whose frame units differ from the units its navigator block sets.
 
-    The navigator reads a frame in its block's ``data_units`` and refuses a frame
-    whose block doesn't set them, so a block without them is refused here as well.
-    If the entry
-    rendered I/F against a ``raw_dn`` block, the navigator would read every frame as
-    DN, and the other way round.
+    If the entry rendered I/F against a ``raw_dn`` block, the navigator would read every
+    frame as DN, and the other way round.
     """
     name = catalog.canonical_name(instrument)
-    source = catalog.sources[name]
-    if 'data_units' not in block:
-        message = (
-            f"the navigator block {block_name} doesn't set data_units, which the navigator requires"
-        )
-        raise SchemaError([Issue(source, 'data_units', message)])
     own = catalog.entry(name).data_units
-    expected = str(block['data_units'])
-    if own == expected:
+    if own == block.data_units:
         return
     message = (
         f'the entry renders {own} frames, but its navigator block {block_name} reads '
-        f'frames as {expected}; the units must match'
+        f'frames as {block.data_units}; the units must match'
     )
-    raise SchemaError([Issue(source, 'data_units', message)])
-
-
-def _scene_block(sim_params: Mapping[str, Any]) -> Mapping[str, Any]:
-    """The navigator block of a scene, its ``instrument_config`` merged over it."""
-    return resolve_sim_inst_config(
-        DEFAULT_CONFIG, sim_params.get('instrument'), sim_params.get('instrument_config')
-    )
+    raise SchemaError([Issue(catalog.sources[name], 'data_units', message)])
 
 
 def navigator_matched_psf(sim_params: Mapping[str, Any]) -> dict[str, float]:
@@ -235,7 +190,7 @@ def navigator_matched_psf(sim_params: Mapping[str, Any]) -> dict[str, float]:
         A concrete PSF parameter mapping (``sigma_v``, ``sigma_u``, ``w``,
         ``r0``, ``n``) equal to the navigator's Gaussian.
     """
-    sigma = float(_scene_block(sim_params)['star_psf_sigma'])
+    sigma = scene_camera_block(DEFAULT_CONFIG, sim_params).star_psf_sigma
     return {'sigma_v': sigma, 'sigma_u': sigma, 'w': 0.0, 'r0': 2.0, 'n': 3.0}
 
 
@@ -252,44 +207,40 @@ def navigator_marker(sim_params: Mapping[str, Any]) -> float:
         The marker, possibly NaN (see
         :func:`~spindoctor.support.image_class.missing_data_marker`).
     """
-    return missing_data_marker(_scene_block(sim_params))
+    return missing_data_marker(scene_camera_block(DEFAULT_CONFIG, sim_params))
 
 
 def resolve_extfov_margin(
-    inst_config: Mapping[str, Any],
-    fallback_config: Mapping[str, Any],
+    margin: ExtfovMargin,
+    fallback: ExtfovMargin,
     size_v: int,
-) -> Any:
+) -> tuple[int, int]:
     """Resolve the extended-FOV margin for a sim image of a given size.
 
     A per-instrument margin table may be size-keyed and need not cover the sim
     image size; when it does not, the generic ``sim`` block's margin is used.
 
     Parameters:
-        inst_config: The navigator block.
-        fallback_config: The generic ``sim`` block to fall back to.
+        margin: The navigator block's ``extfov_margin_vu``.
+        fallback: The generic ``sim`` block's ``extfov_margin_vu``, to fall back to.
         size_v: The sim image height in pixels (the margin-table key).
 
     Returns:
         The ``(v, u)`` margin entry.
 
     Raises:
-        ValueError: If the generic fallback table is itself size-keyed and
-            carries no entry for ``size_v``.
+        ValueError: If neither table covers ``size_v``.
     """
-    entry = inst_config.get('extfov_margin_vu')
-    if isinstance(entry, Mapping):
-        if size_v in entry:
-            return entry[size_v]
-    elif entry is not None:
-        return entry
-    fallback_entry = fallback_config['extfov_margin_vu']
-    if isinstance(fallback_entry, Mapping):
-        if size_v not in fallback_entry:
-            raise ValueError(
-                f'no extfov_margin_vu entry for image size {size_v}: neither the '
-                f'instrument table nor the generic sim fallback covers it '
-                f'(fallback sizes: {sorted(fallback_entry)})'
-            )
-        return fallback_entry[size_v]
-    return fallback_entry
+    if isinstance(margin, tuple):
+        return margin
+    if size_v in margin:
+        return margin[size_v]
+    if isinstance(fallback, tuple):
+        return fallback
+    if size_v not in fallback:
+        raise ValueError(
+            f'no extfov_margin_vu entry for image size {size_v}: neither the '
+            f'instrument table nor the generic sim fallback covers it '
+            f'(fallback sizes: {sorted(fallback)})'
+        )
+    return fallback[size_v]

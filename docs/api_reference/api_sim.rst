@@ -38,6 +38,11 @@ spindoctor.sim.scene
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene.idealized_camera
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene.truth
    :members:
    :undoc-members:
