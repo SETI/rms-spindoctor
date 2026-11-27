@@ -7,8 +7,11 @@ measurement can compare planted against measured.  Every mode is a no-op when
 its activation key is 0, or its ``count`` where given is 0 (the stage-activation
 rule): a count mode draws a Poisson number of events with mean
 ``expected_events`` (or plants a fixed ``count``, on the dead-pixel and
-dead-column modes), and a commanded or periodic mode fires with per-frame
-``probability``.  Each mode draws from its own seeded
+dead-column modes), and a commanded, periodic, or frame-level mode fires with
+per-frame ``probability``.  Two frame-level modes draw what they lose from the
+frame itself or from measured tables: ``compression_truncated_lines`` cuts the
+line pairs a lossless compressor cannot fit, and ``downlink_gaps`` loses groups of
+lines whose count, sizes, and spacing it draws.  Each mode draws from its own seeded
 generator (so toggling one never perturbs another), and honors adversarial
 placement through the shared :mod:`~spindoctor.sim.render.feature_loci` helpers:
 its stochastic placement biases onto the navigation features when adversarial is
@@ -35,17 +38,21 @@ from typing import Any
 
 import numpy as np
 
+from spindoctor.sim.artifact_modes import PERCENTILE_POINTS
 from spindoctor.sim.render.detector.chain import keep_off_marker
 from spindoctor.sim.render.detector.params import CalibrationMap
 from spindoctor.sim.render.feature_loci import FeatureLoci, choose_pixels, choose_rows
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.sim.render.telemetry.lossless import block_bits, pair_cuts
+from spindoctor.support.types import NDArrayFloatType, NDArrayIntType
 
 __all__ = [
     'LOSS_APPLIERS',
     'apply_alternating_lines',
+    'apply_compression_truncated_lines',
     'apply_cutout_window',
     'apply_dead_columns',
     'apply_dead_pixels',
+    'apply_downlink_gaps',
     'apply_edited_frame',
     'apply_embedded_header',
     'apply_line_garble',
@@ -113,6 +120,44 @@ def _as_valid_frame(
 def _word_bits(dn_ceiling: float) -> int:
     """The ADC word width in bits for a given DN ceiling (255 -> 8, 4095 -> 12)."""
     return max(1, int(math.log2(max(dn_ceiling, 1.0))) + 1)
+
+
+def _percentile_draws(
+    rng: np.random.Generator, percentiles: Any, count: int, *, log: bool = False
+) -> NDArrayFloatType:
+    """Draw ``count`` values from the distribution a percentile table gives.
+
+    Parameters:
+        rng: The mode's seeded generator; ``count`` uniform draws are taken.
+        percentiles: The distribution's values at
+            :data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`.
+        count: The number of values to draw.
+        log: Interpolate between the table's points in the logarithm of the value,
+            which suits a size whose table spans decades; the table's values must then
+            be positive.
+
+    Returns:
+        The values, linear in probability between the table's points.
+    """
+    table = np.asarray(percentiles, dtype=np.float64)
+    draws = rng.random(count)
+    if log:
+        logs: NDArrayFloatType = np.exp(np.interp(draws, PERCENTILE_POINTS, np.log(table)))
+        return logs
+    values: NDArrayFloatType = np.interp(draws, PERCENTILE_POINTS, table)
+    return values
+
+
+def _kept_samples(rng: np.random.Generator, percentiles: Any, size_u: int, step: int) -> int:
+    """Draw how many samples a line that loses its end keeps, in whole steps.
+
+    The kept share of the line is drawn from ``percentiles`` and rounded to the nearest
+    whole step, at least one step and at most all but one.
+    """
+    max_steps = max(1, (size_u - 1) // step)
+    share = float(_percentile_draws(rng, percentiles, 1)[0])
+    steps = int(np.clip(np.rint(share * size_u / step), 1, max_steps))
+    return steps * step
 
 
 def apply_missing_lines(
@@ -226,6 +271,77 @@ def apply_alternating_lines(
         lines = list(range(phase, size_v, period))
     signal[lines, :] = marker_dn
     return {'active': True, 'mode': line_mode, 'period': period, 'phase': phase, 'lines': lines}
+
+
+def apply_compression_truncated_lines(
+    signal: NDArrayFloatType,
+    cfg: dict[str, Any],
+    *,
+    marker_dn: float,
+    rng: np.random.Generator,
+    calibration: CalibrationMap | None,
+    protect: tuple[int, int, int, int] | None = None,
+    **_ignored: Any,
+) -> dict[str, Any]:
+    """Cut the line pairs a lossless compressor with a fixed pair budget cannot fit.
+
+    The compressor codes the transmitted DN (on a calibrated frame, the DN its
+    calibration maps back to) as a block-adaptive Rice coder does (see
+    :mod:`~spindoctor.sim.render.telemetry.lossless`): blocks of ``block_samples``
+    first differences, each at the cheapest of the options that send 0 to
+    ``max_split`` low bits as they are, plus ``id_bits`` naming the option.  Each pair
+    of lines, rows 0 and 1, 2 and 3, and so on, may use ``word_bits`` bits per sample
+    of one line.  The pair's second line keeps the blocks that still fit and loses the
+    rest; if the first line alone does not fit, it keeps the blocks that do and the
+    second line is lost whole.  How much is cut, and where, follows from the content:
+    a smooth frame loses nothing, and noise or fine detail cuts the pairs it crosses.
+    The probability decides whether the frame was compressed this way at all, and
+    adversarial placement does not steer it.  A ``protect`` rectangle (the commanded
+    truth window) is left untouched; the cuts elsewhere stand and the record still
+    lists every cut the compressor made.
+
+    Returns:
+        The record: whether the mode fired, the pair budget in bits, and one cut per
+        line that lost samples, with the first sample it lost and the coded size of
+        the samples its pair kept.
+    """
+    probability = float(cfg['probability'])
+    if not mode_activated(rng, probability):
+        return {'active': False, 'cuts': []}
+    size_v, size_u = signal.shape
+    block = int(cfg['block_samples'])
+    budget = int(cfg['word_bits']) * size_u
+    dn = np.rint(_as_dn(signal, calibration)).astype(np.int64)
+    bits = block_bits(
+        dn, block_samples=block, id_bits=int(cfg['id_bits']), max_split=int(cfg['max_split'])
+    )
+    kept = pair_cuts(bits, budget_bits=budget)
+    saved = None
+    if protect is not None:
+        pv0, pv1, pu0, pu1 = protect
+        saved = signal[pv0:pv1, pu0:pu1].copy()
+    cuts: list[dict[str, int]] = []
+    for pair in range(size_v // 2):
+        for row, blocks in (
+            (2 * pair, int(kept.first_kept[pair])),
+            (2 * pair + 1, int(kept.second_kept[pair])),
+        ):
+            lost_from = min(blocks * block, size_u)
+            if lost_from == size_u:
+                continue
+            signal[row, lost_from:] = marker_dn
+            cuts.append(
+                {
+                    'row': row,
+                    'lost_from': lost_from,
+                    'lost_to': size_u,
+                    'pair_bits': int(kept.pair_bits[pair]),
+                }
+            )
+    if protect is not None and saved is not None:
+        pv0, pv1, pu0, pu1 = protect
+        signal[pv0:pv1, pu0:pu1] = saved
+    return {'active': True, 'budget_bits': budget, 'cuts': cuts}
 
 
 def apply_edited_frame(
@@ -364,6 +480,212 @@ def apply_missing_blocks(
         signal[pv0:pv1, pu0:pu1] = saved
 
     return {'blocks': blocks, 'block_lines': block_lines}
+
+
+def _group_count(rng: np.random.Generator, mean_groups: float, dispersion: float) -> int:
+    """Draw how many groups a frame that lost packets loses: one plus a negative binomial.
+
+    The groups beyond the first have the mean ``mean_groups - 1``, and their variance is
+    that mean plus ``dispersion`` times its square; a dispersion of 0 draws them Poisson.
+    """
+    extra = mean_groups - 1.0
+    if dispersion > 0.0 and extra > 0.0:
+        extra = float(rng.gamma(1.0 / dispersion, dispersion * extra))
+    return 1 + int(rng.poisson(extra))
+
+
+# How many times a frame redraws its groups' sizes and gaps when they do not fit, before
+# it loses one group fewer.
+_LAYOUT_TRIES = 10
+
+
+def _clusters(
+    rng: np.random.Generator, sizes: list[int], cfg: dict[str, Any]
+) -> list[tuple[list[int], list[int]]]:
+    """Split a frame's groups into clusters; return each cluster's sizes and inner gaps.
+
+    The first group starts a cluster, and each later group starts a new one with
+    ``cluster_probability``.  Otherwise it joins the cluster before it, a gap drawn
+    from ``gap_percentiles`` after the group before, in kept lines, interpolated in the
+    logarithm and rounded to a whole line, at least one.
+    """
+    probability = float(cfg['cluster_probability'])
+    clusters: list[tuple[list[int], list[int]]] = [([sizes[0]], [])]
+    for size in sizes[1:]:
+        if rng.random() < probability:
+            clusters.append(([size], []))
+            continue
+        gap = float(_percentile_draws(rng, cfg['gap_percentiles'], 1, log=True)[0])
+        clusters[-1][0].append(size)
+        clusters[-1][1].append(max(1, int(np.rint(gap))))
+    return clusters
+
+
+def _uniform_starts(rng: np.random.Generator, lengths: list[int], size_v: int) -> list[int] | None:
+    """Place blocks of lines at random inside a frame; return each block's first line.
+
+    The blocks fall in a random order at uniform positions, each at least one line from
+    the next and from the frame's first and last lines, so no two touch and none
+    reaches an edge.
+
+    Returns:
+        The first line of each block, in the order of ``lengths``, or None when the
+        blocks and the lines between them do not fit.
+    """
+    free = size_v - 2 - sum(lengths) - (len(lengths) - 1)
+    if free < 0:
+        return None
+    offsets = np.sort(rng.integers(0, free + 1, len(lengths)))
+    starts = [0] * len(lengths)
+    line, previous = 1, 0
+    order = rng.permutation(len(lengths)).tolist()
+    for offset, index in zip(offsets.tolist(), order, strict=True):
+        line += offset - previous
+        previous = offset
+        starts[index] = line
+        line += lengths[index] + 1
+    return starts
+
+
+def _feature_starts(
+    rng: np.random.Generator, lengths: list[int], rows: NDArrayIntType, size_v: int
+) -> list[int]:
+    """Start each block of lines on a feature row, kept off the frame's first and last lines."""
+    return [int(np.clip(rng.choice(rows), 1, max(1, size_v - 1 - length))) for length in lengths]
+
+
+def _group_layout(
+    rng: np.random.Generator,
+    count: int,
+    size_table: Any,
+    cfg: dict[str, Any],
+    size_v: int,
+    rows: NDArrayIntType | None,
+) -> list[tuple[int, int]]:
+    """Draw a frame's groups and place them; return each group's first line and size.
+
+    Each group's size is drawn from ``size_table``, in lines, interpolated in the
+    logarithm and rounded to a whole line, at least one and at most the frame's
+    inner lines.  The groups form clusters (:func:`_clusters`), and the clusters fall
+    at uniform positions (:func:`_uniform_starts`), so every group the frame draws
+    shows in it as a group of its own.  When the clusters do not fit, the frame
+    redraws the sizes and gaps a few times, then loses one group fewer.  With
+    ``rows`` each cluster starts on one of those rows instead, and clusters may
+    overlap, but each cluster must still fit inside the frame's inner lines.
+    """
+    inner = size_v - 2
+    count = min(count, (inner + 1) // 2)
+    while count > 0:
+        for _ in range(_LAYOUT_TRIES):
+            draws = _percentile_draws(rng, size_table, count, log=True)
+            sizes = np.clip(np.rint(draws), 1, inner).astype(np.int64).tolist()
+            clusters = _clusters(rng, sizes, cfg)
+            lengths = [sum(members) + sum(gaps) for members, gaps in clusters]
+            if max(lengths) > inner:
+                continue
+            if rows is not None:
+                starts: list[int] | None = _feature_starts(rng, lengths, rows, size_v)
+            else:
+                starts = _uniform_starts(rng, lengths, size_v)
+            if starts is None:
+                continue
+            groups: list[tuple[int, int]] = []
+            for start, (members, gaps) in zip(starts, clusters, strict=True):
+                for size, gap in zip(members, [*gaps, 0], strict=True):
+                    groups.append((start, size))
+                    start += size + gap
+            return sorted(groups)
+        count -= 1
+    return []
+
+
+def apply_downlink_gaps(
+    signal: NDArrayFloatType,
+    cfg: dict[str, Any],
+    *,
+    marker_dn: float,
+    rng: np.random.Generator,
+    loci: FeatureLoci,
+    adversarial: bool,
+    binning: int = 1,
+    **_ignored: Any,
+) -> dict[str, Any]:
+    """Zero-fill groups of whole lines that packets lost on the way to the ground.
+
+    A frame that lost packets, with the mode's probability, loses one group plus a
+    negative-binomial number more, with the mean ``mean_groups`` in all and the
+    ``dispersion`` that widens the count beyond Poisson.  Each group's size is drawn
+    from ``size_percentiles``, or on a binned frame from ``summed_size_percentiles``
+    when the map sets it.  The groups form clusters, each later group starting a new
+    one with ``cluster_probability`` and otherwise following the group before at a
+    gap drawn from ``gap_percentiles``.  The clusters fall at uniform positions, apart
+    from each other and from the frame's first and last lines, so the frame shows as
+    many groups as it drew; a frame too small for its draw loses fewer groups.  With
+    adversarial placement each cluster starts on a feature row and clusters may
+    merge.  With ``head_probability`` the line just above a group loses its end, and
+    with ``tail_probability`` the line just below does; such a line keeps a whole
+    number of ``step_samples``, its kept share drawn from ``head_kept_percentiles`` or
+    ``tail_kept_percentiles``.  A single kept line between two groups can lose its end
+    as either group's neighbor; it then keeps the smaller of the two shares drawn, and
+    the record gives that share for both groups.  A frame whose lines are no wider than
+    one step keeps the lines beside its groups whole.  A neighbor line that another
+    group already lost whole is not cut again and is not recorded as a cut.
+
+    Parameters:
+        signal: The frame's DN image, changed in place.
+        cfg: The mode's resolved parameters.
+        marker_dn: The value a lost pixel takes.
+        rng: The mode's seeded generator.
+        loci: The frame's feature rows, for adversarial placement.
+        adversarial: Whether the clusters start on feature rows.
+        binning: The readout binning; above 1 the frame is summed.
+        **_ignored: The other appliers' arguments.
+
+    Returns:
+        Whether the mode fired, and each group's first line, end line (exclusive), and
+        the kept samples of a head or tail line where one lost its end.
+    """
+    probability = float(cfg['probability'])
+    if not mode_activated(rng, probability):
+        return {'active': False, 'groups': []}
+    size_v, size_u = signal.shape
+    count = _group_count(rng, float(cfg['mean_groups']), float(cfg['dispersion']))
+    size_table = cfg['size_percentiles']
+    if binning > 1 and cfg['summed_size_percentiles'] is not None:
+        size_table = cfg['summed_size_percentiles']
+    rows = loci.rows if adversarial and loci.has_rows else None
+    layout = _group_layout(rng, count, size_table, cfg, size_v, rows)
+    step = int(cfg['step_samples'])
+    # A line no wider than one step cannot keep a step and lose the rest.
+    partial = step < size_u
+    groups: list[dict[str, int]] = []
+    # Overlapping groups can lose a group's neighbor line whole.
+    wholly_lost: set[int] = set()
+    for start, size in layout:
+        end = start + size
+        signal[start:end, :] = marker_dn
+        wholly_lost.update(range(start, end))
+        groups.append({'row_start': start, 'row_end': end})
+    # A line cut as one group's tail and another's head keeps the smaller share.
+    final_kept: dict[int, int] = {}
+    cut_fields: list[tuple[dict[str, int], str, int]] = []
+    for group in groups:
+        start, end = group['row_start'], group['row_end']
+        if partial and start > 0 and mode_activated(rng, float(cfg['head_probability'])):
+            kept = _kept_samples(rng, cfg['head_kept_percentiles'], size_u, step)
+            if start - 1 not in wholly_lost:
+                signal[start - 1, kept:] = marker_dn
+                final_kept[start - 1] = min(kept, final_kept.get(start - 1, kept))
+                cut_fields.append((group, 'head_lost_from', start - 1))
+        if partial and end < size_v and mode_activated(rng, float(cfg['tail_probability'])):
+            kept = _kept_samples(rng, cfg['tail_kept_percentiles'], size_u, step)
+            if end not in wholly_lost:
+                signal[end, kept:] = marker_dn
+                final_kept[end] = min(kept, final_kept.get(end, kept))
+                cut_fields.append((group, 'tail_lost_from', end))
+    for group, field, row in cut_fields:
+        group[field] = final_kept[row]
+    return {'active': True, 'groups': groups}
 
 
 def apply_line_garble(
@@ -576,9 +898,11 @@ LOSS_APPLIERS: dict[str, Any] = {
     'missing_lines': apply_missing_lines,
     'partial_lines': apply_partial_lines,
     'alternating_lines': apply_alternating_lines,
+    'compression_truncated_lines': apply_compression_truncated_lines,
     'edited_frame': apply_edited_frame,
     'truncated_frame': apply_truncated_frame,
     'missing_blocks': apply_missing_blocks,
+    'downlink_gaps': apply_downlink_gaps,
     'line_garble': apply_line_garble,
     'pixel_spikes': apply_pixel_spikes,
     'dead_columns': apply_dead_columns,

@@ -36,9 +36,10 @@ says what quantity it holds, so a scene line reads the same way on every mode:
   the readout dwell as well as the integration time, in an environment scaled by
   its ``environment_factor``: it expects ``expected_events_per_sec *
   environment_factor * (integration time + readout_dwell_sec)``.
-* ``probability`` (commanded and periodic modes, and every deterministic-shape
-  detector mode): the per-frame probability, in [0, 1], that the mode activates at
-  all.
+* ``probability`` (commanded, periodic, and frame-level modes, and every
+  deterministic-shape detector mode): the per-frame probability, in [0, 1], that the
+  mode activates at all.  ``downlink_gaps`` uses it too: a frame that loses packets
+  loses at least one group of lines, and the mode's own parameters draw how many.
 * ``pixel_fraction`` (``hot_pixels`` alone): the fraction of detector pixels that
   are hot, a spatial density in [0, 1].
 
@@ -67,6 +68,7 @@ from __future__ import annotations
 
 import copy
 import dataclasses
+import itertools
 import keyword
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal, get_args, get_origin
@@ -77,22 +79,27 @@ from pydantic import AfterValidator, Field
 from spindoctor.schema import (
     SCHEMA_CONFIG,
     Bool,
+    Float,
     Int,
     NonNeg,
     NonNegInt,
+    Positive,
     PositiveInt,
     Unit,
     parse,
 )
+from spindoctor.schema.errors import RangeError
 
 __all__ = [
     'ACTIVATION_KEYS',
     'ARTIFACT_MODES',
+    'AT_LEAST_ONE',
     'DETECTOR_MODELS',
     'DETECTOR_MODE_ORDER',
     'EXPECTED_EVENTS',
     'EXPECTED_EVENTS_PER_SEC',
     'MODE_KEYS',
+    'PERCENTILE_POINTS',
     'PIXEL_FRACTION',
     'PROBABILITY',
     'QUANTIZATION_MODES',
@@ -108,6 +115,8 @@ __all__ = [
     'int_list',
     'mode_scene_map',
     'parse_mode_params',
+    'positive_list',
+    'unit_list',
 ]
 
 
@@ -118,8 +127,9 @@ class ModeParam:
     Parameters:
         name: The parameter key inside the mode's scene map.
         annotation: The value's type, written with the schema core's aliases:
-            ``Bool``, ``NonNeg``, ``Unit``, ``NonNegInt``, ``PositiveInt``, a
-            ``Literal`` of strings, :func:`int_choice`, or :func:`int_list`.
+            ``Bool``, ``NonNeg``, ``Unit``, ``NonNegInt``, ``PositiveInt``,
+            :data:`AT_LEAST_ONE`, a ``Literal`` of strings, :func:`int_choice`,
+            :func:`int_list`, :func:`unit_list`, or :func:`positive_list`.
         default: The value used when the key is absent.  ``None`` marks an
             optional parameter with no default shape (the renderer supplies its
             own fallback, e.g. a centered window).
@@ -146,6 +156,14 @@ class ModeParam:
             if isinstance(marker, Len):
                 return int(marker.min_length)
         return None
+
+    @property
+    def item_annotation(self) -> Any:
+        """The type of each item of a list parameter; None for any other parameter."""
+        if self.length is None:
+            return None
+        list_type = get_args(self.annotation)[0]
+        return get_args(list_type)[0]
 
 
 @dataclass(frozen=True)
@@ -194,6 +212,72 @@ def int_list(length: int) -> Any:
         ``Annotated[list[Int], Len(length, length)]``.
     """
     return Annotated[list[Int], Len(length, length)]
+
+
+def _nondecreasing(values: list[float]) -> list[float]:
+    """Return ``values`` if no item is smaller than the one before it.
+
+    Raises:
+        ValueError: If one is.
+    """
+    if any(later < earlier for earlier, later in itertools.pairwise(values)):
+        raise ValueError(f'{values!r} decreases; each value must be at least the one before it')
+    return values
+
+
+def unit_list(length: int) -> Any:
+    """The type of a nondecreasing list parameter of ``length`` numbers in [0, 1].
+
+    A percentile table of shares takes this type: its values rise with the percentile.
+
+    Parameters:
+        length: The number of items.
+
+    Returns:
+        ``Annotated[list[Unit], Len(length, length), AfterValidator(...)]``, which
+        refuses a list whose values decrease.
+    """
+    return Annotated[list[Unit], Len(length, length), AfterValidator(_nondecreasing)]
+
+
+def positive_list(length: int) -> Any:
+    """The type of a nondecreasing list parameter of ``length`` positive numbers.
+
+    A percentile table of sizes takes this type: its values rise with the percentile.
+
+    Parameters:
+        length: The number of items.
+
+    Returns:
+        ``Annotated[list[Positive], Len(length, length), AfterValidator(...)]``, which
+        refuses a list whose values decrease.
+    """
+    return Annotated[list[Positive], Len(length, length), AfterValidator(_nondecreasing)]
+
+
+def _at_least_one(value: float) -> float:
+    """Return ``value`` if it is at least 1.
+
+    Raises:
+        RangeError: If it is less.
+    """
+    if value < 1.0:
+        raise RangeError('a number of at least 1')
+    return value
+
+
+# The type of a mean count that includes one certain event, such as the groups of lines
+# a frame loses once it loses any.
+AT_LEAST_ONE: Any = Annotated[Float, AfterValidator(_at_least_one)]
+
+# The cumulative probabilities of a percentile table: a mode parameter that gives a
+# distribution by its values at the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th,
+# and 100th percentiles.  A renderer draws from it by interpolating between the points.
+PERCENTILE_POINTS: tuple[float, ...] = (0.0, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99, 1.0)
+
+# A percentile table of a share that is uniform over [0, 1]: each value is its own
+# percentile.
+_UNIFORM_TABLE: tuple[float, ...] = PERCENTILE_POINTS
 
 
 # The detector models, each a chain the detector stage implements: the CCD
@@ -447,6 +531,20 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
         activation_semantics='per-frame probability the periodic line pattern is active',
     ),
     _telemetry_mode(
+        'compression_truncated_lines',
+        # A lossless line compressor whose output must fit each pair of lines into
+        # one uncompressed line: block-adaptive Rice coding of horizontal first
+        # differences (Rice and Lee, JPL Publication 83-17).  The defaults are that
+        # coder's block size and code options on 16-bit words; the content of the
+        # frame decides which line pairs lose the end of their second line.
+        ModeParam('block_samples', PositiveInt, 16),
+        ModeParam('word_bits', PositiveInt, 16),
+        ModeParam('id_bits', NonNegInt, 4),
+        ModeParam('max_split', NonNegInt, 13),
+        activation=PROBABILITY,
+        activation_semantics='per-frame probability that the frame was compressed losslessly',
+    ),
+    _telemetry_mode(
         'edited_frame',
         # A generic fallback band width, so a bare probability keeps a centered
         # band; a camera's config states its own as a shape default.  An
@@ -475,6 +573,32 @@ _TELEMETRY_LOSS_MODES: tuple[ArtifactMode, ...] = (
         ModeParam('start_mid_line', Bool, False),
         activation=EXPECTED_EVENTS,
         activation_semantics='a Poisson expected count of compression blocks lost per frame',
+    ),
+    _telemetry_mode(
+        'downlink_gaps',
+        # Packets lost on the way to the ground take groups of whole lines that start
+        # on any line.  The generic fallbacks lose one 8-line group at a uniform line
+        # and keep the lines beside it whole; every group starts a cluster of its own,
+        # and a cluster's groups would lie one kept line apart.  A camera's config
+        # states its measured count, sizes, clustering, and partial lines as shape
+        # defaults.  summed_size_percentiles is unset by default, and a binned frame
+        # then draws from size_percentiles.
+        ModeParam('mean_groups', AT_LEAST_ONE, 1.0),
+        ModeParam('dispersion', NonNeg, 0.0),
+        ModeParam('size_percentiles', positive_list(10), (8.0,) * 10),
+        ModeParam('summed_size_percentiles', positive_list(10)),
+        ModeParam('cluster_probability', Unit, 1.0),
+        ModeParam('gap_percentiles', positive_list(10), (1.0,) * 10),
+        ModeParam('head_probability', Unit, 0.0),
+        ModeParam('head_kept_percentiles', unit_list(10), _UNIFORM_TABLE),
+        ModeParam('tail_probability', Unit, 0.0),
+        ModeParam('tail_kept_percentiles', unit_list(10), _UNIFORM_TABLE),
+        ModeParam('step_samples', PositiveInt, 1),
+        activation=PROBABILITY,
+        activation_semantics=(
+            'per-frame probability that the downlink lost packets, which loses at least '
+            'one group of whole lines'
+        ),
     ),
     _telemetry_mode(
         'line_garble',
@@ -721,18 +845,21 @@ globals().update({mode.params_type.__name__: mode.params_type for mode in ARTIFA
 MODE_KEYS: frozenset[str] = frozenset(ARTIFACT_MODES)
 
 # The fixed order the telemetry stage applies its implemented loss modes in:
-# frame-level commanded shapes, then line losses, then block losses, then
-# garble, then per-pixel losses, then the row-0 header last.  ``truth_window``
-# is not here: it is a protective carve-out resolved before the loop and passed
-# to ``missing_blocks``, not a signal-mutating loss.
+# frame-level commanded shapes, then the lossless compressor's cuts (on board, on the
+# full frame), then line losses, then block losses and downlink gaps, then garble,
+# then per-pixel losses, then the row-0 header last.  ``truth_window`` is not here: it
+# is a protective carve-out resolved before the loop and passed to ``missing_blocks``,
+# not a signal-mutating loss.
 STRUCTURED_LOSS_ORDER: tuple[str, ...] = (
     'cutout_window',
     'edited_frame',
     'truncated_frame',
+    'compression_truncated_lines',
     'missing_lines',
     'partial_lines',
     'alternating_lines',
     'missing_blocks',
+    'downlink_gaps',
     'line_garble',
     'dead_columns',
     'pixel_spikes',
