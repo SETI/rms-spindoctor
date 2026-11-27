@@ -212,8 +212,7 @@ Each of its blocks has a type of its own:
 :class:`~spindoctor.config.sections_camera.QualityThresholds`;
 :class:`~spindoctor.config.sections_camera.MagOffset`; and a source-image filter chosen
 by its ``kind``, either a :class:`~spindoctor.config.sections_camera.BandpassFilter` or a
-:class:`~spindoctor.config.sections_camera.BlurFilter`. Adding a camera never needs a new
-type. Each field's type is also exported under a name of its own, such as
+:class:`~spindoctor.config.sections_camera.BlurFilter`. Each field's type is also exported under a name of its own, such as
 :data:`~spindoctor.config.sections_camera.ReadNoiseDn`, so code that states some of the
 same keys can type them with the same ranges.
 

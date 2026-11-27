@@ -448,9 +448,8 @@ The end-to-end checklist lives at
 4. Add the per-instrument config block at
    ``src/spindoctor/config_files/config_4N0_inst_<mission>_<inst>.yaml`` so
    :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` carries the instrument's tuning
-   knobs. The block sets ``data_units`` and the other keys every camera block has, and
-   it parses into the one camera type (see :ref:`config-camera-blocks`), so no new type
-   is written.
+   knobs. The block sets ``data_units`` and the other camera-block keys (see
+   :ref:`config-camera-blocks`).
 
 API reference
 =============
