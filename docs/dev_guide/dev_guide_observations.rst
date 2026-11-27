@@ -396,8 +396,10 @@ name to the matching ``config_4N0_inst_*.yaml`` block (or the standalone ``sim``
 block for the ``generic`` alias).
 
 A scene may additionally carry an ``instrument_config`` mapping that is
-**deep-merged** over the resolved block (nested mappings merge key-by-key; scalars
-and lists replace). This gives three modes:
+**merged** over the resolved block (nested mappings merge key by key; scalars and
+lists replace; a filter of another kind replaces the whole filter). The merged block is
+parsed with the camera block's type and follows the same rules as every camera's
+block. This gives three modes:
 
 - **Inherit** -- omit ``instrument_config``; every setting tracks the instrument's
   config.
@@ -412,7 +414,7 @@ real camera's config, then editing that camera's ``star_psf_sigma`` (or noise,
 saturation, ...) silently shifts the recovered offset of
 every sim scene that uses it -- re-blessing baselines for a change that had
 nothing to do with the simulator. Pinning a key via ``instrument_config``
-decouples it from the camera config: the merge produces a fresh dict, so a later
+decouples it from the camera config: the merge produces a separate block, so a later
 camera-config edit cannot reach a pinned key. Full self-specification (generic +
 complete overrides) makes a scene immune to *all* instrument-config drift.
 

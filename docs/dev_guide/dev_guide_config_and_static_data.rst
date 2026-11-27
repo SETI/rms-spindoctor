@@ -248,14 +248,10 @@ that they do read. Two more rules tie keys together: the magnitude offset's
 ``fallback_combo`` must have an entry in ``mag_offset_table``, and a bandpass filter's
 heavy blur (``lo_sigma_px``) must be wider than its light one (``hi_sigma_px``).
 
-The simulator's camera section is left untyped when the configuration loads, so an
-override of it is read as written.
-:meth:`~spindoctor.config.config.Config.camera_block` parses it into the same type when
-it is asked for. An observation whose class holds its block as a mapping, with a
-simulated scene's overrides merged over it, has the block parsed the same way when it is
-first read (:func:`~spindoctor.config.sections_camera.as_camera_block`). If a scene's
-overrides carry a top-level key that the camera block does not declare, a block read
-this way ignores it.
+The simulator's own camera section is parsed into the same type as the others when the
+configuration loads. A simulated scene's ``instrument_config`` block is merged over its
+camera's block, and the merged block is parsed into the same type again (see
+:ref:`sim-instrument-config`).
 
 .. _config-techniques-section:
 
