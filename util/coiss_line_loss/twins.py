@@ -66,6 +66,9 @@ def filled(frame: RawFrame) -> np.ndarray:
         start, end = int(frame.first_start[line]), int(frame.first_end[line])
         if start >= 1 and end >= start:
             valid[line, start - 1 : end] = True
+        second = int(frame.second_start[line])
+        if second > 0:
+            valid[line, second - 1 :] = True
     for line in [*range(1, lines), 0]:
         source = line - 1 if line > 0 else 1
         image[line, ~valid[line]] = image[source, ~valid[line]]

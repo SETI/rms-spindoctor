@@ -245,7 +245,7 @@ def simulate(
     cfg.update(overrides)
     items: list[Item] = []
     modes: list[str] = []
-    for seed in range(count):
+    for seed in range(count if frames else 0):
         frame = frames[seed % len(frames)]
         lines = frame['lines']
         signal = np.full((lines, lines), 500.0)

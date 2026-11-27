@@ -1897,7 +1897,7 @@ entries.
    * - ``compression_truncated_lines``
      - the second line of each line pair that does not fit the lossless
        compressor's budget loses its end, in whole coded blocks
-     - nac, wac
+     - per camera; see :doc:`instruments/cassini_iss`
      - ``probability``
    * - ``edited_frame``
      - only a centered column band of the camera's default width, or the top or
@@ -1916,7 +1916,7 @@ entries.
    * - ``downlink_gaps``
      - clustered groups of whole lines of varying size, starting on any line, and
        the ends of the lines above and below a group
-     - nac, wac
+     - per camera; see :doc:`instruments/cassini_iss`
      - ``probability``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
@@ -2189,8 +2189,10 @@ The ``artifact_sweep`` scene class (``tests/integration/sim_scenes/artifact_swee
 pins the survivable end of the artifact axis: a disc scene and a star-field scene,
 each under a modest structured loss (a few missing lines plus a few truncated
 lines per frame), in a uniform-placement and an adversarial-placement variant.
-The navigator must still reach success and recover the planted offset within
-tolerance -- the level at which realism does not break navigation. The companion
+Each scene is a stress test: its loss pattern is chosen to probe the navigator and
+does not describe how real frames lose lines. The navigator must still reach success
+and recover the planted offset within tolerance, which marks a level of loss that
+navigation survives. The companion
 ``artifact_missing_lines`` sweep (``tests/integration/sim_sweeps/``) drives the
 other end: it raises the missing-line ``expected_events`` from a clean frame past
 the navigability cliff and records the curve of navigation quality against the

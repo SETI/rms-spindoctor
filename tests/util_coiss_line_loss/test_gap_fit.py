@@ -49,3 +49,10 @@ def test_a_set_the_simulation_lacks_is_skipped(capsys: pytest.CaptureFixture[str
     gap_fit.compare(_FULL_FRAMES, 'coiss_nac', 0, {})
     out = capsys.readouterr().out
     assert '== all frames: 2 real, 0 simulated; skipped' in out
+
+
+def test_an_empty_census_is_skipped_for_every_set(capsys: pytest.CaptureFixture[str]) -> None:
+    """A camera with no census frames skips every set instead of cycling an empty list."""
+    gap_fit.compare([], 'coiss_nac', 20, {})
+    out = capsys.readouterr().out
+    assert '== all frames: 0 real, 0 simulated; skipped' in out
