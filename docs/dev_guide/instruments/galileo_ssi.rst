@@ -117,8 +117,8 @@ entirely past the range.
 Configuration block
 ===================
 
-One flat section. There is one camera, so nothing is nested and the loader
-reads ``config.category('galileo_ssi')`` directly.
+One flat section. There is one camera, so nothing is nested and the
+observation reads ``config.camera_block('galileo_ssi')``.
 
 Nothing departs from the common raw-DN schema: ``data_units: raw_dn``, a full
 ``noise`` block, a full ``image_quality_thresholds`` block with a
@@ -139,20 +139,80 @@ to fit are real; :doc:`/dev_guide/dev_guide_rotation` carries the reasoning.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** The Pogson-ratio form, ``anchor + log(texp) /
-log(2.512)``, so each factor of 2.512 in exposure buys one magnitude of depth.
-The anchor is 10.3 at a 1 s exposure, and it is **derived rather than
-measured**: the project's reference anchor is 10.5 magnitudes at a 1 s exposure
-for a 0.19 m aperture, and this instrument's 0.176 m aperture scales it by
-collecting area as ``10.5 + 5*log10(0.176/0.19)``, with no detector-sensitivity
-penalty because this is a CCD. That is a nominal-optics estimate pending
-calibration against real star fields. A non-positive exposure time falls back
-to the anchor.
+**Limiting magnitude.** Photometric, from the camera block's ``star_photometry``
+(see :ref:`config-camera-blocks`), whose rate counts electrons. A star of V magnitude
+``m`` puts
+
+.. math::
+
+    \mathrm{DN} = \frac{R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}}}{g}
+
+in the image, where ``R`` is ``flux_per_s_vmag0`` (2.34e8 electrons per second for
+a V = 0 star through CLEAR), ``f`` is the frame's filter's ``filter_mag_offset``, and
+``g`` is the ``gain`` entry of its gain state, in electrons per DN. The
+dimmest visible star puts the readout mode's ``min_detectable_dn`` in the image (167
+DN on a full frame, 67 DN on a summed one), and the limit is that star's magnitude
+plus ``search_depth_mag`` (1.0). At 1 s through CLEAR a full frame's limit is V 12.4
+at the 10K gain state and V 9.9 at 100K, and a summed frame's is 1.0 mag deeper. The
+filter is the label's ``FILTER_NAME``, and the gain state is the VICAR label's
+``GAIN`` item: 1 is 400K, 2 is 100K, 3 is 40K, and 4 is 10K. The readout mode follows
+from the telemetry format, the VICAR label's ``TLMFMT`` item: AI8 and HIS are read out
+in 2x2 summation (``SUMMED``), and every other format is a full frame (``FULL``), the
+same split the image host makes when it gives a summed frame a 400 x 400 field of
+view. These are the keys of the gain and mode tables. Summing on the chip keeps a
+star's charge, so the rate and the electrons per DN hold in both modes, but summation
+changes the noise of a pixel and the width of a star in pixels, so
+``min_detectable_dn`` and ``psf_sigma`` are given per mode. A frame is refused when its
+``GAIN`` or ``TLMFMT`` item is not one of these values, or when the tables leave out its
+filter, gain state, or readout mode, and the message gives the key path
+(``galileo_ssi.star_photometry...``). A frame whose exposure is not positive gets a limit
+of ``-inf``.
+
+The rate, the detection thresholds, and the star widths were measured in 2026 on the
+cruise star fields of 1990 and 1992, read through the navigator's own reader. Each
+frame's pointing was found from the stars alone, by a vote over star and peak pairs
+refined to a translation and a rotation, and a frame was kept when three or more
+stars, each on its own image peak, agreed within 1 px and the chance of such a cluster
+anywhere in the 350 px search window was below one in a thousand. That kept 99 of
+1,419 measured frames, 78 full frames in the HCM format and 21 summed frames in AI8,
+and one frame in three was held out of the fit. A filter or gain state is measured
+only from 15 or more stars; only CLEAR and 10K have that many, so the others take the
+calibration documents' values, and their stars are left out of the fits.
+
+- The rate is 6.05e6 DN per second for V = 0 through CLEAR at 10K, times the 38.7
+  electrons per DN of 10K. The fit of 46 stars gives 5.96e6 (+-0.14 mag), within that
+  value's uncertainty. Klaasen et al. (1999) give an absolute response that predicts
+  5.9e6 DN per second. The rate is the 1992 frames' scale. The 1990 frames read 0.4 to
+  1.7 mag fainter at the same settings, and the cause is not known.
+- The electrons per DN are Klaasen (1993): 38.7 at 10K and the published ratios of the
+  other three states. The stars do not measure them: 7 stars were taken at 100K and
+  none at 40K or 400K.
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
+  stars of the mode, reaches 80% of the way from its floor to its plateau: 167 +- 96 DN
+  on the full frames and 67 +- 22 DN on the summed frames. Fitted on the stars taken
+  through CLEAR at 10K, the curve gives 233 +- 120 DN (582 stars) and 50 +- 11 DN (127
+  stars), both within those uncertainties.
+- The filter offsets are 2.5 log10 of the solar filter factors of Klaasen et al.
+  (1999). The stars measured through filters are too few to measure an offset, and are
+  mostly hot Pleiades members, far bluer than the Sun.
+
+On the held-out frames, the faintest star detected lies a median 0.17 mag past the
+predicted dimmest visible star, with a broad spread, so the limit carries about half a
+magnitude of uncertainty. That figure does not allow for the 1990 frames, whose stars
+read 0.4 to 1.7 mag fainter than the 1992 scale the limit follows.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** ``star_psf_sigma`` is 3.0 and ``star_psf_sizes`` is a single
+**PSF.** The navigator's star sigma is ``star_photometry.psf_sigma`` for the frame's
+readout mode, in that frame's own pixels. On a full frame it is 0.65 px: the
+median Gaussian sigma of 520 unsaturated stars on 76 full frames (16th to 84th
+percentile 0.41 to 1.09). A star's core is about 0.4 px across and 1.0 px along the
+direction of smear. Klaasen et al. (1999) give a line-spread FWHM of 1.39 px through
+CLEAR, a sigma of 0.59. On a summed frame it is 0.40 px, the median of 21 unsaturated
+stars on 9 summed frames (16th to 84th percentile 0.28 to 0.54). The camera block's
+own ``star_psf_sigma`` holds the full-frame value for the simulator, which reads it
+there and takes half of it on a simulated summed frame. ``star_psf_sizes`` is a single
 ``100: [7, 7]``, so every star gets a 7x7 cutout regardless of magnitude.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
@@ -171,12 +231,11 @@ faint-star limit of a simulated frame reads them. The full-resolution
 so it reads 1 DN with or without summation, and the step from an unbinned frame's
 limit to a summed one's, 1.5 mag, comes from the narrower star core alone.
 
-**Recalibrating.** Apart from the zero point, nothing here rests on a measured
-frame, so recalibration starts from acquiring star fields: the curated image cohort holds none for this
-instrument, which is also what leaves the simulator PSF unverified. With star
-frames in hand, the anchor is the faintest usable star at a known exposure and
-the PSF sigma follows from the encircled-energy radii, both edited in YAML
-rather than in code.
+**Recalibrating.** The measurement tools are in ``util/star_photometry``; its
+Galileo frame selection, the fit, and the table of independent pointing fixes are
+described in its module docstrings. Rerun the fit on new star fields and update the
+camera block's ``star_photometry`` values and their comments together, in YAML rather
+than in code.
 
 Frames, attitude, and rotation fitting
 ======================================
@@ -363,10 +422,11 @@ Image library and test coverage
 ===============================
 
 **Cohort.** Eight sidecars, all single-camera: six under ``negative_cases`` and
-two under ``scattered_light``. There is **no star frame**, which is why both
-the limiting-magnitude anchor and the simulator PSF are unverified, and why the
-twist measurement rests on seven locked frames out of eighteen in the separate
-distortion cohort.
+two under ``scattered_light``. There is **no star frame**, which is why the
+simulator PSF is unverified, and why the twist measurement rests on seven locked
+frames out of eighteen in the separate distortion cohort. The star limit and the
+navigator's star sigma were measured outside the cohort, on the cruise star fields
+described above.
 
 **Integration tests.** The per-image regression suite
 (``tests/integration/test_autonomous_nav.py``) and the structural-invariants
@@ -388,9 +448,9 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
   saturates. The navigator matches 11 stars and lands 0.09 to 0.10 px off over
   24 draws, and 0.08 px off without the twist.
 - ``gossi_star_field_short_exposure``: the same field at 0.1 s, the exposure of
-  the real Pleiades frames, which navigate on three stars. The navigator's star
-  limit on a simulated frame reaches V 7.6, against V 7.8 on the real frames.
-  It matches 8 stars and lands 0.01 to 0.02 px off over 24 draws. The real
+  the real Pleiades frames, which navigate on three stars. With the measured 0.65 px
+  star sigma the navigator's star limit on a simulated frame reaches V 10.9. It
+  matches 10 or 11 stars and lands 0.01 to 0.02 px off over 24 draws. The real
   frames are from 1990 and read about 1.3 mag fainter than the 1992 frames the
   zero point follows, so the scene checks the short-exposure path rather than
   copying those frames.
@@ -429,8 +489,11 @@ compression is realistic but moves the answer by at most 0.01 px, so the scene
 shows that the navigator is unaffected by it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_galileo_ssi.py`` pins the
-limiting-magnitude form: the anchor at unit exposure, one magnitude gained per
-Pogson ratio, the non-positive-exposure fallback, and finiteness. It also pins
+star limit: its value at 1 s through CLEAR at 10K, 2.5 mag per factor of ten in
+exposure, the shift of another gain state and of a filter, and ``-inf`` for a
+non-positive exposure. It pins the refusal of a filter that the camera block lacks,
+of a label without a known gain state or telemetry format, and of a camera block
+without star photometry, and it pins the star sigma. It also pins
 the published clock count: a fractional number of RIM counts with no midtime or
 end count, and no count at all from a label lacking one of the four items.
 
@@ -476,8 +539,10 @@ Open items
 * Every value marked ``# PLACEHOLDER`` in ``config_410_inst_gossi.yaml``:
   ``read_noise_dn``, ``blank_max_dn``,
   ``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
-* The limiting-magnitude anchor is a nominal-optics derivation, not a
-  measurement.
+* The 1990 cruise star frames read 0.4 to 1.7 mag fainter than the 1992 frames at
+  the same settings, and the cause is not known. The star limit uses the 1992 scale.
+* The filter offsets are the published solar filter factors, which the few stars
+  measured through filters do not confirm.
 * ``from_file`` carries a TODO saying the extended-FOV margin branch belongs
   somewhere shared.
 * The simulator PSF is unverified for want of star frames in the cohort.

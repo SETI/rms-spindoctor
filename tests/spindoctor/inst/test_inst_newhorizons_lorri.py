@@ -1,29 +1,28 @@
 import math
 
 import pytest
+from tests.camera_sections import packaged_camera
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_NEWHORIZONS_LORRI_CHARON_01
 from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 
 import spindoctor.obs.obs_inst_newhorizons_lorri as obstnhlorri
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.obs.obs_inst_newhorizons_lorri import ObsNewHorizonsLORRI, _published_sclk
 
 # The marker is applied per test rather than module-wide: the tests of the star gate and
 # of clock counts fetch nothing, so they run even where the external trees are absent.
 
-# Documented anchor limiting magnitude (limiting mag at texp = 1 s).
-_LORRI_ANCHOR = 11.7
 
-
-def _make_obs(texp: float) -> ObsNewHorizonsLORRI:
-    """Build a bare ObsNewHorizonsLORRI carrying only texp.
-
-    The star-magnitude gate is a pure function of ``self.texp``, so a fully
-    constructed observation (and an external image fetch) is unnecessary for
-    testing it.
-    """
-    obs = object.__new__(ObsNewHorizonsLORRI)
-    obs.texp = texp
-    return obs
+def _star_obs(*, rows: int = 1024, texp: float = 1.0) -> ObsNewHorizonsLORRI:
+    """Build a bare observation carrying what the star limit reads."""
+    return bare_observation(
+        ObsNewHorizonsLORRI,
+        {},
+        texp=texp,
+        _data_shape_vu=(rows, rows),
+        _config=DEFAULT_CONFIG,
+        _camera_block=packaged_camera('newhorizons_lorri'),
+    )
 
 
 @REQUIRES_EXTERNAL_DATA
@@ -32,35 +31,41 @@ def test_newhorizons_lorri_basic() -> None:
     assert obs.midtime == 490113790.9641424
 
 
-def test_star_max_usable_vmag_anchor_at_unit_exposure() -> None:
-    """The limiting magnitude equals the anchor at texp = 1 s."""
-    obs = _make_obs(1.0)
-    assert obs.star_max_usable_vmag() == pytest.approx(_LORRI_ANCHOR, abs=1e-6)
+@pytest.mark.parametrize(('rows', 'expected'), [(1024, 14.789), (256, 15.533)])
+def test_one_second_limit_is_each_binning_modes_calibrated_value(
+    rows: int, expected: float
+) -> None:
+    """At 1 s each binning mode reaches its own limit.
+
+    7.57e8 e-/s over 21.0 e-/DN puts 3.60e7 DN/s in an unbinned frame for V = 0, so the
+    dimmest visible star, 110 DN, is V 13.79; a binned frame reads 19.4 e-/DN and 60 DN.
+    """
+    assert _star_obs(rows=rows).star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
 
 
-def test_star_max_usable_vmag_gains_one_mag_per_pogson_ratio() -> None:
-    """A 2.512x longer exposure deepens the limit by ~1 mag."""
-    base = _make_obs(1.0).star_max_usable_vmag()
-    deeper = _make_obs(2.512).star_max_usable_vmag()
-    assert deeper - base == pytest.approx(1.0, abs=1e-3)
+def test_ten_times_the_exposure_deepens_the_limit_by_two_and_a_half_magnitudes() -> None:
+    """The limit moves with the exposure by 2.5 log10 of its ratio."""
+    deeper = _star_obs(texp=10.0).star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert deeper == pytest.approx(2.5, abs=1e-9)
 
 
-def test_star_max_usable_vmag_in_sane_range() -> None:
-    """The limiting magnitude stays within a sane 3..15 range."""
-    vmag = _make_obs(1.0).star_max_usable_vmag()
-    assert 3.0 <= vmag <= 15.0
+def test_a_non_positive_exposure_admits_no_star() -> None:
+    """A zero-length exposure gets a limit of -inf."""
+    assert _star_obs(texp=0.0).star_max_usable_vmag() == -math.inf
 
 
-def test_star_max_usable_vmag_is_finite() -> None:
-    """The limiting magnitude is finite."""
-    vmag = _make_obs(1.0).star_max_usable_vmag()
-    assert math.isfinite(vmag)
+def test_a_row_count_of_no_binning_mode_is_refused() -> None:
+    """A frame of neither 1024 nor 256 rows gives its row count in the error."""
+    with pytest.raises(
+        ValueError, match='LORRI frame has 512 rows; a binning mode needs 1024 or 256'
+    ):
+        _star_obs(rows=512).star_max_usable_vmag()
 
 
-def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
-    """A non-positive exposure falls back to the anchor magnitude."""
-    obs = _make_obs(0.0)
-    assert obs.star_max_usable_vmag() == pytest.approx(_LORRI_ANCHOR, abs=1e-6)
+@pytest.mark.parametrize(('rows', 'expected'), [(1024, 0.9), (256, 0.45)])
+def test_the_star_width_is_each_binning_modes_own(rows: int, expected: float) -> None:
+    """The star PSF has the sigma of the frame's binning mode, in its own pixels."""
+    assert _star_obs(rows=rows).star_psf_sigma() == pytest.approx(expected, abs=1e-12)
 
 
 def test_the_published_counts_are_fractional_seconds_and_their_exact_mean() -> None:

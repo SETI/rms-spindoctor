@@ -73,22 +73,6 @@ def test_a_bad_override_is_refused_and_changes_nothing(
     assert config.override_paths == ()
 
 
-def test_an_override_refused_by_validation_keeps_the_section(tmp_path: Path) -> None:
-    """An override whose section parses but fails the load-time checks changes nothing."""
-    config = Config()
-    section = config.orchestrator
-    user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text(
-        'orchestrator:\n  ensemble:\n    min_confidence: 0.1\n'
-        'extra_camera:\n  data_units: raw_dn\n',
-        encoding='utf-8',
-    )
-    with pytest.raises(ValueError, match='extra_camera sets no one_star_ellipse_fraction'):
-        config.update_config(user_path)
-    assert config.orchestrator is section
-    assert not config.override_paths
-
-
 def test_the_packaged_section_helper_keeps_technique_overrides(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

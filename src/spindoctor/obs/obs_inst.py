@@ -1,10 +1,12 @@
+import math
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
 from psfmodel import PSF, GaussianPSF
 from starcat import Star
 
 from spindoctor.config import Config
+from spindoctor.config.sections_camera import CameraBlock, StarPhotometry, as_camera_block
 from spindoctor.support.types import PathLike
 
 if TYPE_CHECKING:
@@ -56,13 +58,36 @@ class ObsInst(ABC):
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
 
+        self._camera_block: CameraBlock | None = None
+        # The simulated observation holds its camera block as a mapping, with its
+        # scene's overrides merged over it, until the simulator types it (#1029).
         self._inst_config: dict[str, Any] | None = None
+        self._parsed_inst_config: tuple[dict[str, Any], CameraBlock] | None = None
         self.is_simulated: bool = kwargs.get('simulated', False)
 
     @property
-    def inst_config(self) -> dict[str, Any] | None:
-        """Returns the instrument configuration."""
-        return self._inst_config
+    def inst_config(self) -> CameraBlock:
+        """The block of the camera that took this observation.
+
+        An observation class that holds its block as a mapping has it parsed into the
+        same type (see :func:`~spindoctor.config.sections_camera.as_camera_block`) when
+        it is first read.
+
+        Raises:
+            ValueError: If the observation has no camera block.
+            ~spindoctor.schema.SchemaError: If a block held as a mapping breaks the
+                camera block's schema.
+        """
+        if self._camera_block is not None:
+            return self._camera_block
+        if self._inst_config is None:
+            raise ValueError('Instrument configuration not set')
+        parsed = self._parsed_inst_config
+        if parsed is None or parsed[0] is not self._inst_config:
+            block = as_camera_block(self._inst_config, source='the observation camera block')
+            parsed = (self._inst_config, block)
+            self._parsed_inst_config = parsed
+        return parsed[1]
 
     @property
     @abstractmethod
@@ -122,50 +147,151 @@ class ObsInst(ABC):
         """Returns the point spread function (PSF) model appropriate for stars observed
         by this instrument.
 
-        This generic implementation uses the "star_psf_sigma" configuration value and
-        creates a Gaussian PSF with that sigma.
+        The PSF is a Gaussian whose sigma is :meth:`star_psf_sigma`.
 
         Returns:
             A PSF model appropriate for stars observed by this instrument.
+
+        Raises:
+            ValueError: If the observation has no camera block.
         """
 
-        if self._inst_config is None:
-            raise ValueError('Instrument configuration not set')
+        return GaussianPSF(sigma=self.star_psf_sigma())
 
-        sigma = self._inst_config['star_psf_sigma']
-        return GaussianPSF(sigma=sigma)
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        This generic implementation reads the camera block's ``star_psf_sigma``.  An
+        instrument whose star width depends on the camera or the readout mode overrides
+        it.
+
+        Returns:
+            The sigma in pixels of this observation's image.
+
+        Raises:
+            ValueError: If the observation has no camera block.
+        """
+
+        return self.inst_config.star_psf_sigma
+
+    def _star_photometry(self, where: str) -> StarPhotometry:
+        """Return the camera block's ``star_photometry``, refusing a block without one.
+
+        Parameters:
+            where: The key path of the camera block's ``star_photometry``, which a message
+                gives.
+
+        Returns:
+            The camera's star photometry.
+
+        Raises:
+            ValueError: If the observation has no camera block, or its block has no
+                ``star_photometry``.
+        """
+        photometry = self.inst_config.star_photometry
+        if photometry is None:
+            raise ValueError(f'{where} is not set; the star limit and star width read it')
+        return photometry
+
+    def _photometric_star_limit(
+        self,
+        *,
+        texp: float,
+        where: str,
+        gain_state: str,
+        mode: str,
+        filter_name: str | None,
+    ) -> float:
+        """Return the faintest V magnitude of a catalog star, from the star photometry.
+
+        A star of V magnitude ``m`` deposits ``flux_per_s_vmag0 * 10**(-0.4 * (m +
+        offset)) * texp`` in the unit of ``flux_unit``, divided by the gain state's entry
+        for electrons or multiplied by it for DN, where ``offset`` is the filter's
+        magnitude offset (0 when ``filter_name`` is None).  The dimmest visible star
+        deposits ``min_detectable_dn[mode]`` DN, and the limit is its magnitude plus
+        ``search_depth_mag`` (see :class:`~spindoctor.config.sections_camera.StarPhotometry`).
+
+        Parameters:
+            texp: The exposure in seconds; positive.
+            where: The key path of the camera block's ``star_photometry``, which a message
+                gives.
+            gain_state: The image's gain state, as the ``gain`` table spells it.
+            mode: The image's readout mode, as the mode tables spell it.
+            filter_name: The image's filter, as ``filter_mag_offset`` spells it, or None
+                for a camera whose reader does not read a filter.
+
+        Returns:
+            The limiting magnitude.
+
+        Raises:
+            ValueError: If the block has no ``star_photometry``, or its tables leave out the
+                image's readout mode, filter, or gain state, or it has no
+                ``filter_mag_offset`` and ``filter_name`` is not None.
+        """
+        photometry = self._star_photometry(where)
+        if mode not in photometry.min_detectable_dn:
+            raise ValueError(f'{where}.min_detectable_dn has no entry for the mode {mode!r}')
+        offset = 0.0
+        if filter_name is not None:
+            offsets = photometry.filter_mag_offset
+            if offsets is None:
+                raise ValueError(f'{where} has no filter_mag_offset, which this camera reads')
+            if filter_name not in offsets:
+                raise ValueError(
+                    f'{where}.filter_mag_offset has no entry for the filter {filter_name!r}'
+                )
+            offset = offsets[filter_name]
+        if gain_state not in photometry.gain:
+            raise ValueError(f'{where}.gain has no entry for the gain state {gain_state!r}')
+        gain = photometry.gain[gain_state]
+        signal = photometry.flux_per_s_vmag0 * texp
+        dn_vmag0 = signal / gain if photometry.flux_unit == 'electrons' else signal * gain
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[mode])
+        return dimmest_visible - offset + photometry.search_depth_mag
+
+    def _photometric_star_sigma(self, *, where: str, mode: str) -> float:
+        """Return the Gaussian sigma of a star, in pixels, from the star photometry.
+
+        Parameters:
+            where: The key path of the camera block's ``star_photometry``, which a message
+                gives.
+            mode: The image's readout mode, as the mode tables spell it.
+
+        Returns:
+            The ``psf_sigma`` entry of the mode.
+
+        Raises:
+            ValueError: If the block has no ``star_photometry``, or its ``psf_sigma`` leaves
+                out the mode.
+        """
+        widths = self._star_photometry(where).psf_sigma
+        if mode not in widths:
+            raise ValueError(f'{where}.psf_sigma has no entry for the mode {mode!r}')
+        return widths[mode]
 
     def star_psf_size(self, star: Star) -> tuple[int, int]:
         """Returns the size of the point spread function (PSF) to use for a star.
 
-        This generic implementation uses the "star_psf_sizes" configuration value and
-        returns the appropriate value for the star's magnitude.
+        This generic implementation uses the camera's ``star_psf_sizes``: the star takes
+        the first bin, in order of magnitude, whose magnitude it is brighter than, and a
+        star fainter than every bin takes the last.
 
         Parameters:
             star: The star to get the PSF size for.
 
         Returns:
             A tuple of the PSF size (v, u) in pixels.
+
+        Raises:
+            ValueError: If the observation has no camera block.
         """
 
-        if self._inst_config is None:
-            raise ValueError('Instrument configuration not set')
-
-        star_psf_sizes = self._inst_config['star_psf_sizes']
+        star_psf_sizes = self.inst_config.star_psf_sizes
         keys = sorted(star_psf_sizes)
-        if not keys:
-            raise ValueError('star_psf_sizes is empty')
-
-        default_mag = max(keys)
-        selected_mag = default_mag
-        for mag in keys:
-            if star.vmag < mag:
-                selected_mag = mag
-                break
-
-        seq = star_psf_sizes[selected_mag]
-        assert len(seq) == 2, f'star_psf_sizes[{selected_mag}] must have 2 elements, got {seq!r}'
-        return (int(seq[0]), int(seq[1]))
+        # A star reaches the PSF model only once it has a magnitude.
+        vmag = cast(float, star.vmag)
+        selected_mag = next((mag for mag in keys if vmag < mag), keys[-1])
+        return star_psf_sizes[selected_mag]
 
     @abstractmethod
     def star_min_usable_vmag(self) -> float:

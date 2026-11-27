@@ -1,39 +1,299 @@
-# Voyager ISS per-camera configuration. 8-bit cameras; noise and
-# image-quality threshold values carry `# PLACEHOLDER` markers until
+# Voyager ISS per-camera configuration: one block for each of the four cameras, keyed
+# vgiss_<spacecraft>_<nac or wac>.  No two cameras share optics or a vidicon, so each
+# block states every value of its own, even where the number is the same.  8-bit
+# cameras; noise and image-quality threshold values carry `# PLACEHOLDER` markers until
 # phase-10 calibration finalizes them.
+#
+# Each camera block's star_photometry is read by ObsVoyagerISS for its star limit and
+# star width.  The Voyager calibration works in DN and does not convert to electrons, so
+# the rate is in DN.  A star of V magnitude m and the default spectral class deposits
+#     flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[filter])) * texp
+#         * gain[gain state]
+# raw DN.  The rate is for CLEAR at low gain, and gain gives each gain state's DN factor
+# against low gain.  The star limit and star width do not depend on the readout, so the
+# mode tables have the one mode ALL.  The dimmest visible star deposits
+# min_detectable_dn, and the catalog search reaches search_depth_mag past it.  The
+# filter and the gain state (LO or HI GAIN, read as LOW or HIGH) come from the label's
+# LAB03 record.  The DN are those of the raw vidicon frame.  The navigator's image is in
+# I/F, but the limit depends only on the ratio of the rate to min_detectable_dn, and the
+# two share a scale.
+#
+# Voyager 2's cameras are measured on star fields of its cruise and encounters (#130):
+# 36 narrow-angle and 47 wide-angle frames with an independent pointing fix from three or
+# more agreeing stars, one frame in three held out.  Voyager 1 gave only 1 such frame,
+# so its rates are Voyager 2's scaled by the bench sensitivities of Benesh and Jepsen 1978
+# (JPL 618-802).  Its cameras are S/N 07 (narrow angle) and S/N 06 (wide angle);
+# Voyager 2's are S/N 05 and S/N 04.  util/star_photometry and its fit commands give the
+# method.  Filter offsets are 2.5 log10 of the camera's solar filter factor (Benesh and
+# Jepsen 1978, Tables 3-5 to 3-8), because a filter or gain state is measured only from
+# 15 or more stars, and none but CLEAR at low gain has that many.
 voyager_iss:
-  data_units: calibrated_if
-  extfov_margin_vu:
-    1000: [400, 400]
-  star_psf_sigma: 3.
-  # Fraction of the offset window, per axis, inside which
-  # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
-  # this camera: 0.6 is the Cassini NAC's value.
-  one_star_ellipse_fraction: 0.6
-  star_psf_sizes:
-    100: [7, 7]
-  fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
-                                    # carry non-negligible attitude rotation residuals, so revisit once
-                                    # the rotation search is fast enough.
-  max_rotation_deg: 5.0
-  noise:
-    saturation_dn: 255             # 8-bit ADC
-    marker_value: 0
-    read_noise_dn: 1.0             # PLACEHOLDER — calibrate in Phase 10
-    # interim: photometric zero point (DN a vmag-0 star deposits per second);
-    # the vidicon renders point sources directly in DN.
-    star_flux_dn_per_s_vmag0: 3.0e3
-  image_quality_thresholds:
-    blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
-    noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
-    max_missing_frac_clean: 0.30
-    max_overexposed_frac_clean: 0.80
-  source_image_filter:
-    kind: BANDPASS_DOG
-    lo_sigma_px: 5.0
-    hi_sigma_px: 0.7
-    enabled: false
-  mag_offset:
-    fallback_combo: 'CL'
-    mag_offset_table:
-      'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+  # Voyager 1 narrow-angle camera.
+  vgiss_1_nac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    # Read by the simulator only.  The navigator reads this camera's star width from
+    # star_photometry.psf_sigma below.
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+    star_photometry:
+      # Voyager 2's narrow-angle rate times 0.648, S/N 07's clear, low-gain, 1:1 bench
+      # response over S/N 05's (light-transfer slopes 2.10 and 3.27 DN/fLs, Figures 4-3
+      # and 4-5, over the solar conversion factors 6.88e-9 and 6.94e-9, Table 4-2).
+      flux_unit: dn
+      flux_per_s_vmag0: 5.60e+04
+      # Benesh and Jepsen 1978, Table 4-3 (S/N 07).
+      gain:
+        LOW: 1.0
+        HIGH: 3.92
+      # Voyager 2's narrow-angle value.
+      min_detectable_dn:
+        ALL: 110.0
+      # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
+      # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
+      # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
+      search_depth_mag: 2.0
+      filter_mag_offset:
+        CLEAR: 0.0
+        VIOLET: 1.35
+        BLUE: 1.00
+        GREEN: 1.48
+        ORANGE: 2.51
+        UV: 4.03
+      # PLACEHOLDER: not measured.  Only 1 Voyager 1 frame gave a pointing fix, too few
+      # stars to fit a width.
+      psf_sigma:
+        ALL: 3.0
+
+  # Voyager 1 wide-angle camera.
+  vgiss_1_wac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    # Read by the simulator only.  The navigator reads this camera's star width from
+    # star_photometry.psf_sigma below.
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+    star_photometry:
+      # Voyager 2's wide-angle rate times 0.600, S/N 06's clear, low-gain, 1:1 bench
+      # response over S/N 04's (light-transfer slopes 14.1 and 22.6 DN/fLs, Figures 4-4
+      # and 4-2, over the solar conversion factors 8.81e-9 and 8.48e-9, Table 4-2).
+      flux_unit: dn
+      flux_per_s_vmag0: 2.74e+03
+      # Benesh and Jepsen 1978, Table 4-3 (S/N 06).
+      gain:
+        LOW: 1.0
+        HIGH: 3.94
+      # Voyager 2's wide-angle value.
+      min_detectable_dn:
+        ALL: 35.0
+      # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
+      # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
+      # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
+      search_depth_mag: 2.0
+      filter_mag_offset:
+        CLEAR: 0.0
+        BLUE: 0.76
+        VIOLET: 1.72
+        GREEN: 1.01
+        ORANGE: 2.44
+        CH4_JS: 4.82
+        SODIUM: 5.18
+        CH4_U: 4.08
+      # PLACEHOLDER: not measured.  Only 1 Voyager 1 frame gave a pointing fix, too few
+      # stars to fit a width.
+      psf_sigma:
+        ALL: 3.0
+
+  # Voyager 2 narrow-angle camera.
+  vgiss_2_nac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    # Read by the simulator only.  The navigator reads this camera's star width from
+    # star_photometry.psf_sigma below.
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+    star_photometry:
+      # 8.64e4 raw DN/s for V = 0 through CLEAR at low gain.  The fit gives 8.65e4 (+-0.07
+      # mag, 48 stars), within the uncertainty of the value kept.
+      flux_unit: dn
+      flux_per_s_vmag0: 8.64e+04
+      # Benesh and Jepsen 1978, Table 4-3 (S/N 05).  Every measured frame is low gain.
+      gain:
+        LOW: 1.0
+        HIGH: 4.24
+      # Fit: 101 +- 27 DN, the DN at 80% of the way from the detection floor to the
+      # plateau of a detection-probability curve fitted to the clean stars taken through
+      # CLEAR at low gain.
+      min_detectable_dn:
+        ALL: 110.0
+      # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
+      # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
+      # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
+      search_depth_mag: 2.0
+      filter_mag_offset:
+        CLEAR: 0.0
+        VIOLET: 1.34    # 4 stars measure 1.68 +- 0.24, too few to fit (15 needed)
+        BLUE: 1.01
+        GREEN: 1.61     # 1 star
+        ORANGE: 2.49
+        UV: 3.98
+      # Gaussian sigma of a star, in pixels of the geometrically corrected image: the
+      # median of 53 stars on 15 frames read out at 5:1 (p16-p84 1.05-1.35).  The core is
+      # about 0.8 px; platform motion elongates a long exposure.
+      psf_sigma:
+        ALL: 1.2
+
+  # Voyager 2 wide-angle camera.
+  vgiss_2_wac:
+    data_units: calibrated_if
+    extfov_margin_vu:
+      1000: [400, 400]
+    # Read by the simulator only.  The navigator reads this camera's star width from
+    # star_photometry.psf_sigma below.
+    star_psf_sigma: 3.
+    # Fraction of the offset window, per axis, inside which
+    # StarUniqueMatchNav believes a lone star, in (0, 1].  Not measured on
+    # this camera: 0.6 is the Cassini NAC's value.
+    one_star_ellipse_fraction: 0.6
+    star_psf_sizes:
+      100: [7, 7]
+    fit_camera_rotation: false        # Kept off for now: rotation fitting is too slow. Voyager ISS does
+                                      # carry non-negligible attitude rotation residuals, so revisit once
+                                      # the rotation search is fast enough.
+    max_rotation_deg: 5.0
+    # The images are read in I/F, so the block has no saturation level, read
+    # noise, or star zero point in DN.
+    noise:
+      marker_value: 0
+    image_quality_thresholds:
+      blank_max_if: 1.0e-4            # PLACEHOLDER — calibrate in Phase 10
+      noisy_threshold_if: 0.005       # PLACEHOLDER — calibrate in Phase 10
+      max_missing_frac_clean: 0.30
+      max_overexposed_frac_clean: 0.80
+      partial_dropout_min_frac: 0.05
+    source_image_filter:
+      kind: BANDPASS_DOG
+      lo_sigma_px: 5.0
+      hi_sigma_px: 0.7
+      enabled: false
+    mag_offset:
+      fallback_combo: 'CL'
+      mag_offset_table:
+        'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
+    star_photometry:
+      # Fit on 13 bright Tycho stars: 4.6e3 raw DN/s for V = 0 through CLEAR at low gain
+      # (+-0.20 mag).  Fainter stars (V 8-10) read 1.1-1.5 mag brighter than this rate
+      # predicts, which points to a compressive vidicon response at high signal.
+      flux_unit: dn
+      flux_per_s_vmag0: 4.6e+03
+      # Benesh and Jepsen 1978, Table 4-3 (S/N 04).  Every measured frame is low gain.
+      gain:
+        LOW: 1.0
+        HIGH: 4.04
+      # Fit: 35 +- 22 DN, measured as for the narrow-angle camera.
+      min_detectable_dn:
+        ALL: 35.0
+      # Searched 2 mag past the dimmest visible star: the star fields measure Voyager's limits
+      # only to within 0.5-0.7 mag, and the published Voyager navigation figure (the
+      # narrow-angle camera to V 9.5 in 0.96 s) is 1.6-2.3 mag deeper than measured.
+      search_depth_mag: 2.0
+      filter_mag_offset:
+        CLEAR: 0.0
+        BLUE: 0.66
+        VIOLET: 1.48
+        GREEN: 1.35
+        ORANGE: 2.93
+        CH4_JS: 4.96
+        SODIUM: 5.43
+        CH4_U: 4.20
+      # Gaussian sigma of a star, in pixels of the geometrically corrected image: the
+      # median of 213 stars on 26 frames read out at 5:1 (p16-p84 0.99-1.49).
+      psf_sigma:
+        ALL: 1.1

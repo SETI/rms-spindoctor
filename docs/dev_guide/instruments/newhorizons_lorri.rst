@@ -113,8 +113,8 @@ entirely past the range.
 Configuration block
 ===================
 
-One flat section. There is one camera, so nothing is nested and the loader
-reads ``config.category('newhorizons_lorri')`` directly.
+One flat section. There is one camera, so nothing is nested and the
+observation reads ``config.camera_block('newhorizons_lorri')``.
 
 Nothing departs from the common raw-DN schema. ``extfov_margin_vu`` is a
 size-keyed table.
@@ -135,27 +135,64 @@ Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** The Pogson-ratio form,
-``anchor + log(texp) / log(2.512)``, so each factor of 2.512 in exposure buys
-one magnitude of depth. The anchor is 11.7 at a 1 s exposure, and it is
-**derived rather than measured**, from three terms: the project's reference
-anchor of 10.5 magnitudes at a 1 s exposure for a 0.19 m aperture, scaled by
-collecting area for this instrument's 0.208 m aperture
-(``5*log10(0.208/0.19)``), with no detector-sensitivity penalty because this is
-a CCD, plus **+1.0 magnitude for the panchromatic passband**, which collects
-more flux than a filtered one. That bandpass term is the largest single
-contributor to its depth. All of it is a nominal-optics estimate pending
-calibration against real star fields. A non-positive exposure time falls back
-to the anchor.
+**Limiting magnitude.** Photometric, from the camera block's ``star_photometry``
+(see :ref:`config-camera-blocks`), whose rate counts electrons. The camera has no
+filter, so the block has no ``filter_mag_offset``. It has one gain state, but its
+binning mode changes the electrons per DN, the noise of a pixel, and the width of a
+star in pixels, so the gain table and both mode tables are keyed by the mode, ``1X1``
+or ``4X4``. The mode follows from the row count, as the image host reads it: 1024 rows
+is ``1X1`` and 256 rows is ``4X4``, and any other row count is refused. A star of V
+magnitude ``m`` puts
+
+.. math::
+
+    \mathrm{DN} = \frac{R \cdot 10^{-0.4\,m} \cdot t_{\mathrm{exp}}}{g}
+
+in the image, where ``R`` is ``flux_per_s_vmag0`` (7.57e8 electrons per second for a
+V = 0 star) and ``g`` is the mode's ``gain`` entry, in electrons per DN. The dimmest
+visible star puts the mode's ``min_detectable_dn`` in the image, and the limit is
+that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.8
+unbinned and V 15.5 binned. A frame is refused when the tables leave out its mode, and
+the message gives the key path (``newhorizons_lorri.star_photometry...``). A frame whose
+exposure is not positive gets a limit of ``-inf``.
+
+The rate, the detection thresholds, and the star widths were measured in 2026 on star
+fields of the cruise and the Pluto approach, read through the navigator's own reader.
+Each frame's pointing was found from the stars alone, by a vote over star and peak
+pairs refined to a translation and a rotation, and a frame was kept when three or more
+stars, each on its own image peak, agreed within 1 px and the chance of such a cluster
+anywhere in the search window (100 px unbinned, 40 px binned) was below one in a
+thousand. That kept 341 of 468 measured frames, and one frame in three was held out of
+the fit. Frames shorter than 50 ms were left out: the camera has no shutter, so the
+frame transfer adds light to a short exposure.
+
+- The rate is the fit of 4,310 stars, 3.605e7 DN per second for V = 0 unbinned
+  (+-0.01 mag), times 21.0 electrons per DN. The zero point of Weaver et al. (2020)
+  gives 3.2e7 DN per second.
+- The electrons per DN are those of Weaver et al. (2020), 21.0 unbinned and 19.4
+  binned. The stars measure the binned to unbinned DN ratio at 1.054, against the
+  1.082 these give.
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to every
+  clean star of the mode, reaches 80% of the way from its floor to its plateau:
+  110 +- 7 DN unbinned and 60 +- 4 DN binned.
+
+On the held-out frames, the faintest star detected lies a median 0.04 mag past the
+predicted dimmest visible star.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** ``star_psf_sigma`` is 3.0 and ``star_psf_sizes`` is a single
-``100: [7, 7]``, so every star gets a 7x7 cutout regardless of magnitude. Note
-that the navigation-side sigma is a single number while the simulator's kernel
-for this instrument is elliptical; the two are separate parameters serving
-separate purposes and are not expected to agree.
+**PSF.** The navigator's star sigma is ``star_photometry.psf_sigma`` for the frame's mode,
+in that frame's own pixels. Unbinned it is 0.9 px, the median of 311 stars on 45 frames
+(16th to 84th percentile 0.82 to 0.97); the FWHMs of Weaver et al. (2020), 2.04 by 2.70
+px, are sigmas of 0.87 by 1.15. Binned it is 0.45 px, from the 5 to 10 s frames a
+navigation run sees; sub-second star calibrations give 0.28, since pointing jitter widens
+a long exposure. The camera block's own ``star_psf_sigma`` holds the unbinned value for
+the simulator, which reads it there in unbinned pixels and takes a quarter of it, 0.225
+px, on a simulated binned frame, so the simulator and the navigator agree only on unbinned
+frames. ``star_psf_sizes`` is a single ``100: [7, 7]``, so every star gets a 7x7 cutout
+regardless of magnitude. The simulator's kernel for this instrument is elliptical, and it
+is a separate parameter from the navigator's star sigma, with a separate purpose.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'1'`` -- the single panchromatic
 filter slot, encoded as the digit one -- and the table carries one entry with a
@@ -171,14 +208,13 @@ read noise of one binned pixel is the published 23 e- over 19.4, or 1.19 DN, and
 the zero point is 7.0e8 e- per second over 19.4, or 3.61e7 DN per second. Only
 the faint-star limit of a simulated frame reads them.
 The full-resolution ``read_noise_dn`` is a placeholder above the published 23 e-
-over 21 e-/DN, or 1.10 DN, so 1.4 of the 4.4 mag step from an unbinned frame's
+over 21 e-/DN, or 1.10 DN, so 1.4 of the 3.2 mag step from an unbinned frame's
 star limit to a binned one's comes from the placeholder.
 
-**Recalibrating.** The cohort's two frames for this instrument are binned four
-by four, so they cannot anchor an unbinned limiting magnitude or an unbinned
-PSF. Recalibration starts from acquiring unbinned star fields; with those, the
-anchor is the faintest usable star at a known exposure, and the panchromatic
-term stops being an estimate and becomes part of the measurement.
+**Recalibrating.** The measurement tools are in ``util/star_photometry``; its LORRI
+frame selection and the fit are described in its module docstrings. Rerun the fit on
+new star fields and update the camera block's ``star_photometry`` values and their
+comments together.
 
 Frames, attitude, and rotation fitting
 ======================================
@@ -410,9 +446,9 @@ instead reaches half the camera's search window.
   a translation follows the turned stars it measures, and the answer lands 0.41
   to 0.42 px off over 24 draws. Without the twist it lands 0.02 px off.
 - ``nhlorri_star_field_short_exposure``: the same field at 1 s. The navigator
-  measures the 7 brightest stars, and the twist moves their mean position by
-  about 0.54 px. The answer lands 0.53 to 0.55 px off over 24 draws, and 0.02 px
-  off without the twist.
+  measures all 18, and the twist moves their mean position by about 0.4 px. The
+  answer lands 0.41 to 0.43 px off over 24 draws, and 0.01 px off without the
+  twist.
 
 **Mixed-defect guard scene.** ``nhlorri_moon_raw`` in the ``mixed_defects`` scene
 class (see :ref:`sim-mixed-defects`) is a raw unbinned frame of a moon 197 px
@@ -445,11 +481,11 @@ but its values reach only 255 DN where the real header reaches 4,038 DN, so the
 scene shows only that the navigator ignores this approximation of the header.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_newhorizons_lorri.py`` pins
-the limiting-magnitude form: the anchor at unit exposure, one magnitude gained
-per Pogson ratio, the non-positive-exposure fallback, and finiteness. It also
-pins the published clock counts: fractional seconds, a midtime count that is
-the float nearest their exact mean, and counts read from the PDS3 label beside
-the image.
+the star limit of each binning mode at 1 s, 2.5 mag per factor of ten in exposure,
+``-inf`` for a non-positive exposure, the refusal of a row count other than 1024 or
+256, and each mode's star sigma. It also pins the published clock counts:
+fractional seconds, a midtime count that is the float nearest their exact mean, and
+counts read from the PDS3 label beside the image.
 
 PDS4 hooks
 ==========
@@ -497,8 +533,9 @@ Open items
   each with its own ``_sources`` line saying what has to be measured:
   ``read_noise_dn``,
   ``blank_max_dn``, ``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
-* The limiting-magnitude anchor, including its panchromatic bandpass term, is a
-  nominal-optics derivation rather than a measurement.
+* At the longest exposures the binned star limit passes V 17, deeper than the star
+  catalog is complete, and the star model's cap on the number of stars keeps only the
+  brightest of them.
 * The simulator PSF describes the unbinned readout mode and the cohort holds
   only binned frames; a per-readout-mode kernel is future work.
 * The camera twist is measured over one epoch cohort only. The later epochs

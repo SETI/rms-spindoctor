@@ -12,7 +12,8 @@ and refuses the first three:
 
 The checks run in that order, so a dark frame whose marker is ``0`` is blank
 rather than missing data.  This module holds that decision and the reading of
-its thresholds from a per-instrument config block, so the navigator's image
+its thresholds from a camera block
+(:class:`~spindoctor.config.sections_camera.CameraBlock`), so the navigator's image
 classifier and the simulated-image editor's verdict make it the same way.  It
 imports neither the navigator packages nor the simulator.
 
@@ -25,10 +26,11 @@ is infinite and no finite pixel counts as saturated.
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import numpy as np
 
+from spindoctor.config.sections_camera import CameraBlock, as_camera_block
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
@@ -40,12 +42,14 @@ __all__ = [
     'measure_image_quality',
     'missing_data_marker',
     'missing_data_mask',
-    'required_finite_float',
 ]
 
 
 ImageQualityClass = Literal['clean', 'blank', 'fully_overexposed', 'mostly_missing_data']
 """The classes :func:`decide_image_class` can return."""
+
+_CAMERA_SOURCE = 'the camera block'
+"""The label a message gives for a problem in a camera block held as a mapping."""
 
 
 @dataclass(frozen=True)
@@ -70,13 +74,13 @@ class ImageQualityThresholds:
             raised (image stays ``clean``).
     """
 
-    saturation_threshold_dn: float = 4095.0
-    missing_data_marker_dn: float = 0.0
-    max_saturation_frac_clean: float = 0.80
-    max_missing_frac_clean: float = 0.30
-    partial_dropout_min_frac: float = 0.05
-    blank_max_dn: float = 5.0
-    noisy_threshold: float = 10.0
+    saturation_threshold_dn: float
+    missing_data_marker_dn: float
+    max_saturation_frac_clean: float
+    max_missing_frac_clean: float
+    partial_dropout_min_frac: float
+    blank_max_dn: float
+    noisy_threshold: float
 
 
 @dataclass(frozen=True)
@@ -95,144 +99,60 @@ class ImageQualityStatistics:
     missing_frac: float
 
 
-def _coerce_marker(value: Any) -> float:
-    """Read a ``noise.marker_value`` entry as a float, ``NaN`` permitted."""
-    if value is None:
-        return math.nan
-    if isinstance(value, str):
-        if value.strip().lower() == 'nan':
-            return math.nan
-        raise ValueError(f'noise.marker_value string {value!r} must be "NaN" or numeric')
-    return float(value)
-
-
-def required_finite_float(block: Mapping[str, Any], key: str, *, location: str) -> float:
-    """Read a required finite numeric field from a config mapping.
+def missing_data_marker(camera: CameraBlock | Mapping[str, Any]) -> float:
+    """Return the missing-data marker of a camera block.
 
     Parameters:
-        block: The config mapping.
-        key: The field to read.
-        location: The mapping's path, for the error message.
+        camera: The camera block.  A block held as a mapping is parsed first (see
+            :func:`~spindoctor.config.sections_camera.as_camera_block`).
 
     Returns:
-        The value as a float.
+        The block's ``noise.marker_value``, possibly NaN.
 
     Raises:
-        ValueError: If the key is missing, or its value is not a number (a bool
-            is refused) or is not finite.
+        ~spindoctor.schema.SchemaError: If a mapping breaks the camera block's schema.
     """
-    if key not in block:
-        raise ValueError(f'{location} missing required field {key!r}')
-    value = block[key]
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ValueError(f'{location}.{key} must be numeric; got {type(value).__name__}={value!r}')
-    coerced = float(value)
-    if not math.isfinite(coerced):
-        raise ValueError(f'{location}.{key} must be a finite numeric value; got {value!r}')
-    return coerced
+    return as_camera_block(camera, source=_CAMERA_SOURCE).noise.marker()
 
 
-def _data_units(inst_config: Mapping[str, Any]) -> str:
-    """Return a block's ``data_units``, refusing anything but the two known kinds."""
-    data_units = inst_config.get('data_units')
-    if not isinstance(data_units, str) or data_units not in ('raw_dn', 'calibrated_if'):
-        raise ValueError(
-            'instrument config missing required field data_units '
-            f"(must be 'raw_dn' or 'calibrated_if'); got {data_units!r}"
-        )
-    return data_units
+def image_quality_thresholds(camera: CameraBlock | Mapping[str, Any]) -> ImageQualityThresholds:
+    """Read the classifier's thresholds from a camera block.
 
-
-def _noise_block(inst_config: Mapping[str, Any]) -> Mapping[str, Any] | None:
-    """Return a block's ``noise`` mapping, or ``None`` when it has none."""
-    noise = inst_config.get('noise')
-    if noise is not None and not isinstance(noise, Mapping):
-        raise TypeError(
-            f'instrument config noise block must be a mapping; got {type(noise).__name__}'
-        )
-    return noise
-
-
-def missing_data_marker(inst_config: Mapping[str, Any]) -> float:
-    """Return the missing-data marker of a per-instrument config block.
-
-    A number in ``noise.marker_value`` is taken as is, and the string ``'NaN'``
-    (any case) or ``None`` is NaN.  An absent key, or an absent ``noise`` block,
-    means ``0`` for a ``raw_dn`` block and NaN for a ``calibrated_if`` one.
+    A ``raw_dn`` block gives its blank, noise, and saturation limits in DN.  A
+    ``calibrated_if`` block gives its blank and noise limits in I/F, and its saturation
+    threshold is infinite.  The marker is the block's ``noise.marker_value``, and the
+    other limits are the block's own.
 
     Parameters:
-        inst_config: A per-instrument config block.
-
-    Returns:
-        The marker value, possibly NaN.
-
-    Raises:
-        ValueError: If ``data_units`` is not ``raw_dn`` or ``calibrated_if``, or
-            ``noise.marker_value`` is a string other than ``'NaN'``.
-        TypeError: If the ``noise`` entry is not a mapping.
-    """
-    raw_dn = _data_units(inst_config) == 'raw_dn'
-    noise = _noise_block(inst_config) or {}
-    return _coerce_marker(noise.get('marker_value', 0 if raw_dn else None))
-
-
-def image_quality_thresholds(inst_config: Mapping[str, Any]) -> ImageQualityThresholds:
-    """Read the classifier's thresholds from a per-instrument config block.
-
-    A ``raw_dn`` block must set ``image_quality_thresholds.saturation_threshold_dn``,
-    ``blank_max_dn``, and ``noisy_threshold_dn``.  A ``calibrated_if`` block must set
-    ``blank_max_if`` and ``noisy_threshold_if`` and must not set
-    ``saturation_threshold_if``; its saturation threshold is infinite.  Either kind
-    may set ``max_overexposed_frac_clean`` (default 0.80), ``max_missing_frac_clean``
-    (default 0.30), and ``partial_dropout_min_frac`` (default 0.05).  The marker comes
-    from :func:`missing_data_marker`.
-
-    Parameters:
-        inst_config: A per-instrument config block.
+        camera: The camera block.  A block held as a mapping is parsed first (see
+            :func:`~spindoctor.config.sections_camera.as_camera_block`).
 
     Returns:
         The thresholds, in DN for a ``raw_dn`` block and in I/F for a
         ``calibrated_if`` one.
 
     Raises:
-        ValueError: If ``data_units`` is not recognized, the
-            ``image_quality_thresholds`` block is missing, a required field is
-            missing or not a finite number, or a ``calibrated_if`` block sets
-            ``saturation_threshold_if``.
-        TypeError: If the ``noise`` entry is not a mapping.
+        ~spindoctor.schema.SchemaError: If a mapping breaks the camera block's schema.
     """
-    data_units = _data_units(inst_config)
-    iqt_block = inst_config.get('image_quality_thresholds')
-    if not isinstance(iqt_block, Mapping):
-        raise ValueError(
-            'instrument config missing required image_quality_thresholds block '
-            f'(or block is not a mapping); got {type(iqt_block).__name__}'
-        )
-    marker = missing_data_marker(inst_config)
-    location = 'image_quality_thresholds'
-    if data_units == 'raw_dn':
-        saturation = required_finite_float(iqt_block, 'saturation_threshold_dn', location=location)
-        suffix = 'dn'
+    block = as_camera_block(camera, source=_CAMERA_SOURCE)
+    limits = block.image_quality_thresholds
+    # The camera block sets every limit its units read, so none of these is None.
+    if block.data_units == 'raw_dn':
+        blank = limits.blank_max_dn
+        noisy = limits.noisy_threshold_dn
+        saturation = limits.saturation_threshold_dn
     else:
-        if 'saturation_threshold_if' in iqt_block:
-            raise ValueError(
-                'calibrated_if instrument must not declare '
-                'image_quality_thresholds.saturation_threshold_if; the '
-                'saturation gate is off for calibrated images because I/F '
-                'depends on exposure / filter / gain (see Phase 10 §F)'
-            )
+        blank = limits.blank_max_if
+        noisy = limits.noisy_threshold_if
         saturation = math.inf
-        suffix = 'if'
     return ImageQualityThresholds(
-        saturation_threshold_dn=saturation,
-        missing_data_marker_dn=marker,
-        max_saturation_frac_clean=float(iqt_block.get('max_overexposed_frac_clean', 0.80)),
-        max_missing_frac_clean=float(iqt_block.get('max_missing_frac_clean', 0.30)),
-        partial_dropout_min_frac=float(iqt_block.get('partial_dropout_min_frac', 0.05)),
-        blank_max_dn=required_finite_float(iqt_block, f'blank_max_{suffix}', location=location),
-        noisy_threshold=required_finite_float(
-            iqt_block, f'noisy_threshold_{suffix}', location=location
-        ),
+        saturation_threshold_dn=cast(float, saturation),
+        missing_data_marker_dn=block.noise.marker(),
+        max_saturation_frac_clean=limits.max_overexposed_frac_clean,
+        max_missing_frac_clean=limits.max_missing_frac_clean,
+        partial_dropout_min_frac=limits.partial_dropout_min_frac,
+        blank_max_dn=cast(float, blank),
+        noisy_threshold=cast(float, noisy),
     )
 
 

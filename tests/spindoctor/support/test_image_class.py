@@ -2,10 +2,10 @@
 
 import math
 from dataclasses import replace
-from typing import Any
 
 import numpy as np
 import pytest
+from tests.camera_sections import calibrated_camera, raw_camera, raw_thresholds
 
 from spindoctor.support.image_class import (
     ImageQualityStatistics,
@@ -16,73 +16,48 @@ from spindoctor.support.image_class import (
     missing_data_marker,
 )
 
-_RAW_BLOCK: dict[str, Any] = {
-    'data_units': 'raw_dn',
-    'noise': {'marker_value': 0},
-    'image_quality_thresholds': {
-        'saturation_threshold_dn': 4095,
-        'blank_max_dn': 5.0,
-        'noisy_threshold_dn': 10.0,
-    },
-}
 
-_CALIBRATED_BLOCK: dict[str, Any] = {
-    'data_units': 'calibrated_if',
-    'image_quality_thresholds': {'blank_max_if': 1.0e-4, 'noisy_threshold_if': 0.005},
-}
+def test_marker_is_the_camera_marker_value() -> None:
+    """The missing-data marker is the camera block's marker value."""
+    camera = raw_camera()
+    camera = replace(camera, noise=replace(camera.noise, marker_value=7.0))
+    assert missing_data_marker(camera) == 7.0
 
 
-@pytest.mark.parametrize(
-    ('block', 'expected'),
-    [
-        ({'data_units': 'raw_dn'}, 0.0),
-        ({'data_units': 'raw_dn', 'noise': {'marker_value': 7}}, 7.0),
-    ],
-    ids=['raw-default', 'explicit'],
-)
-def test_numeric_marker(block: dict[str, Any], expected: float) -> None:
-    """A raw block's marker defaults to 0, and an explicit number is taken as is."""
-    assert missing_data_marker(block) == expected
-
-
-@pytest.mark.parametrize(
-    'block',
-    [
-        {'data_units': 'calibrated_if', 'noise': {}},
-        {'data_units': 'calibrated_if', 'noise': {'marker_value': None}},
-        {'data_units': 'calibrated_if', 'noise': {'marker_value': 'nan'}},
-    ],
-    ids=['calibrated-default', 'null', 'nan-string'],
-)
-def test_nan_marker(block: dict[str, Any]) -> None:
-    """A calibrated block's marker defaults to NaN, and null or 'NaN' reads as NaN."""
-    assert math.isnan(missing_data_marker(block))
-
-
-def test_marker_rejects_a_non_nan_string() -> None:
-    """A marker string other than NaN is refused."""
-    with pytest.raises(ValueError, match='must be "NaN" or numeric'):
-        missing_data_marker({'data_units': 'raw_dn', 'noise': {'marker_value': 'zero'}})
-
-
-def test_calibrated_thresholds_have_no_saturation_limit() -> None:
-    """A calibrated block reads its I/F limits and an infinite saturation threshold."""
-    # The NaN marker is replaced so the comparison does not depend on NaN equality.
-    thresholds = replace(image_quality_thresholds(_CALIBRATED_BLOCK), missing_data_marker_dn=0.0)
-    assert thresholds == ImageQualityThresholds(
-        saturation_threshold_dn=math.inf, blank_max_dn=1.0e-4, noisy_threshold=0.005
+def test_raw_thresholds_are_in_dn() -> None:
+    """A raw_dn camera's thresholds are its DN limits and its own marker."""
+    camera = raw_camera()
+    limits = replace(
+        camera.image_quality_thresholds,
+        max_missing_frac_clean=0.25,
+        max_overexposed_frac_clean=0.75,
+        partial_dropout_min_frac=0.1,
+        blank_max_dn=6.0,
+        saturation_threshold_dn=4000.0,
+        noisy_threshold_dn=11.0,
+    )
+    camera = replace(
+        camera, noise=replace(camera.noise, marker_value=2.0), image_quality_thresholds=limits
+    )
+    assert image_quality_thresholds(camera) == ImageQualityThresholds(
+        saturation_threshold_dn=4000.0,
+        missing_data_marker_dn=2.0,
+        max_saturation_frac_clean=0.75,
+        max_missing_frac_clean=0.25,
+        partial_dropout_min_frac=0.1,
+        blank_max_dn=6.0,
+        noisy_threshold=11.0,
     )
 
 
-def test_raw_thresholds_require_the_blank_limit() -> None:
-    """A raw block without blank_max_dn is refused, naming the field."""
-    iqt = {
-        key: value
-        for key, value in _RAW_BLOCK['image_quality_thresholds'].items()
-        if key != 'blank_max_dn'
-    }
-    with pytest.raises(ValueError, match="missing required field 'blank_max_dn'"):
-        image_quality_thresholds({**_RAW_BLOCK, 'image_quality_thresholds': iqt})
+def test_calibrated_thresholds_have_no_saturation_limit() -> None:
+    """A calibrated camera reads its I/F limits and an infinite saturation threshold."""
+    camera = calibrated_camera()
+    limits = camera.image_quality_thresholds
+    thresholds = image_quality_thresholds(camera)
+    assert math.isinf(thresholds.saturation_threshold_dn)
+    assert thresholds.blank_max_dn == limits.blank_max_if
+    assert thresholds.noisy_threshold == limits.noisy_threshold_if
 
 
 @pytest.mark.parametrize(
@@ -103,13 +78,14 @@ def test_decision_order_and_limits(
     statistics = ImageQualityStatistics(
         max_dn=max_dn, saturation_frac=saturation_frac, missing_frac=missing_frac
     )
-    assert decide_image_class(statistics, ImageQualityThresholds()) == expected
+    thresholds = raw_thresholds(
+        blank_max_dn=5.0, max_saturation_frac_clean=0.80, max_missing_frac_clean=0.30
+    )
+    assert decide_image_class(statistics, thresholds) == expected
 
 
 def test_measure_counts_a_nan_marker() -> None:
     """With a NaN marker the missing share counts NaN pixels, and the peak skips them."""
     sensor = np.array([[np.nan, 2.0], [3.0, np.nan]])
-    statistics = measure_image_quality(
-        sensor, ImageQualityThresholds(missing_data_marker_dn=math.nan)
-    )
+    statistics = measure_image_quality(sensor, raw_thresholds(missing_data_marker_dn=math.nan))
     assert statistics == ImageQualityStatistics(max_dn=3.0, saturation_frac=0.0, missing_frac=0.5)
