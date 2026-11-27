@@ -22,6 +22,7 @@ import numpy as np
 import pytest
 from oops.fov import FlatFOV
 from psfmodel import GaussianPSF
+from tests.camera_sections import raw_camera
 from tests.model_sections import packaged_stars
 
 from spindoctor.feature.geometry import StarGeometry
@@ -145,6 +146,7 @@ class _Obs:
             _FOV_SIZE + 2 * extfov_margin,
             _FOV_SIZE + 2 * extfov_margin,
         )
+        self.inst_config = raw_camera()
 
     def star_psf(self) -> GaussianPSF:
         """Return the PSF the model reads its Gaussian sigma from."""

@@ -77,7 +77,7 @@ def _written_step(instrument: str, *keys: str | int) -> float:
 
     The parsed number can't tell ``0.400`` from ``0.4``, so this reads the text of the
     value in the packaged config file that sets it last, under the instrument's
-    navigator section and detector: ``3.61e6`` gives 1e4, and ``0.400`` gives 1e-3.
+    navigator section and detector: ``3.61e7`` gives 1e5, and ``0.400`` gives 1e-3.
 
     Parameters:
         instrument: The simulated instrument whose navigator block holds the value.

@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
+from tests.camera_sections import raw_camera
 from tests.spindoctor.nav_technique.conftest import NavFeatureFactory
 
 from spindoctor.annotation import Annotations
@@ -37,6 +38,7 @@ class _FakeObsForRunManual:
         self.extdata = self.data
         self._sensor_mask = np.ones(self.data.shape, bool)
         self.midtime = 0.0
+        self.inst_config = raw_camera()
 
     def extfov_data_sensor_mask(self) -> np.ndarray:
         return self._sensor_mask

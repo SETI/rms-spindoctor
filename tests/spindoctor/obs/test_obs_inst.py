@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 from starcat import Star
+from tests.camera_sections import camera_mapping, raw_camera
 
 from spindoctor.obs.obs_inst import ObsInst
 
@@ -42,42 +43,21 @@ def _make_star(vmag: float) -> Star:
     return star
 
 
-def test_star_psf_size_selects_threshold() -> None:
-    """A star below a threshold returns that threshold's size."""
+@pytest.mark.parametrize(
+    ('vmag', 'size'), [(4.0, (3, 3)), (99.0, (7, 7))], ids=['brighter', 'fainter-than-all']
+)
+def test_star_psf_size_follows_the_magnitude_bins(vmag: float, size: tuple[int, int]) -> None:
+    """A star takes the first bin it is brighter than, or the last when fainter than all."""
     inst = _ConcreteObsInst()
-    inst._inst_config = {'star_psf_sizes': {5: [3, 3], 10: [7, 7]}}
-    assert inst.star_psf_size(_make_star(4.0)) == (3, 3)
+    inst._camera_block = raw_camera(star_psf_sizes={5: (3, 3), 10: (7, 7)})
+    assert inst.star_psf_size(_make_star(vmag)) == size
 
 
-def test_star_psf_size_fainter_than_all_returns_largest() -> None:
-    """A star fainter than every threshold returns the largest size."""
+def test_a_camera_block_held_as_a_mapping_is_parsed() -> None:
+    """An observation that holds its camera block as a mapping reads it as the type."""
     inst = _ConcreteObsInst()
-    inst._inst_config = {'star_psf_sizes': {5: [3, 3], 10: [7, 7]}}
-    assert inst.star_psf_size(_make_star(99.0)) == (7, 7)
-
-
-def test_star_psf_size_empty_raises_value_error() -> None:
-    """An empty ``star_psf_sizes`` raises ValueError, not UnboundLocalError."""
-    inst = _ConcreteObsInst()
-    inst._inst_config = {'star_psf_sizes': {}}
-    with pytest.raises(ValueError, match='star_psf_sizes is empty'):
-        inst.star_psf_size(_make_star(4.0))
-
-
-def test_star_psf_size_returns_int_tuple() -> None:
-    """The selected size is coerced to a 2-element int tuple."""
-    inst = _ConcreteObsInst()
-    inst._inst_config = {'star_psf_sizes': {10: [7.0, 7.0]}}
-    result = inst.star_psf_size(_make_star(4.0))
-    assert result == (7, 7)
-
-
-def test_star_psf_size_wrong_length_raises() -> None:
-    """A non-2-element size entry trips the length assertion."""
-    inst = _ConcreteObsInst()
-    inst._inst_config = {'star_psf_sizes': {10: [7, 7, 7]}}
-    with pytest.raises(AssertionError, match='must have 2 elements'):
-        inst.star_psf_size(_make_star(4.0))
+    inst._inst_config = camera_mapping(raw_camera())
+    assert inst.inst_config == raw_camera()
 
 
 def test_shutter_mode_defaults_to_none() -> None:

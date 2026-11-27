@@ -26,7 +26,7 @@ def packaged_sections() -> TypedSections:
     layers = [read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))]
     merged = merge(layers, nulls=NullPolicy.REFUSE)
     sections, _origins = _parse_typed_sections(
-        merged.data, merged.origins, source='the packaged configuration'
+        merged.data, merged.origins, source='the packaged configuration', known_cameras=frozenset()
     )
     return sections
 

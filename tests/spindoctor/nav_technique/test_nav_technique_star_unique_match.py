@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
+from typing import Any
 
 import numpy as np
 import pytest
@@ -102,6 +104,44 @@ def test_star_unique_match_two_star_recovers_planted_offset(
     assert result.confidence <= 0.8 + 1e-12
 
 
+def test_the_two_star_covariance_carries_the_model_error_floor(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
+) -> None:
+    """A 0.5 px floor adds 0.25 px^2 to each translation variance of a two-star match."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    draw_gaussian_star(image, (60.0, 60.0), peak_dn=200.0, sigma=1.2)
+    draw_gaussian_star(image, (140.0, 140.0), peak_dn=180.0, sigma=1.2)
+    feat_a = make_star_feature('star:UCAC4:A', predicted_vu=(59.0, 58.5), predicted_snr=60.0)
+    feat_b = make_star_feature('star:UCAC4:B', predicted_vu=(139.0, 138.5), predicted_snr=40.0)
+    retune(StarUniqueMatchNav, model_error_floor_px=0.0)
+    cov_bare = StarUniqueMatchNav().navigate([feat_a, feat_b], make_nav_context(image))
+    retune(StarUniqueMatchNav, model_error_floor_px=0.5)
+    cov_floored = StarUniqueMatchNav().navigate([feat_a, feat_b], make_nav_context(image))
+    np.testing.assert_allclose(
+        cov_floored.covariance_px2 - cov_bare.covariance_px2, 0.25 * np.eye(2), atol=1e-12
+    )
+
+
+def test_the_one_star_covariance_carries_the_model_error_floor(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    retune: RetuneFactory,
+) -> None:
+    """A 0.5 px floor adds 0.25 px^2 to each translation variance of a lone-star match."""
+    image = np.zeros((200, 200), dtype=np.float64)
+    draw_gaussian_star(image, (100.0, 100.0), peak_dn=200.0, sigma=1.2)
+    feature = make_star_feature('star:UCAC4:1', predicted_vu=(98.0, 103.0), predicted_snr=40.0)
+    retune(StarUniqueMatchNav, model_error_floor_px=0.0)
+    cov_bare = StarUniqueMatchNav().navigate([feature], make_nav_context(image)).covariance_px2
+    retune(StarUniqueMatchNav, model_error_floor_px=0.5)
+    cov_floored = StarUniqueMatchNav().navigate([feature], make_nav_context(image)).covariance_px2
+    np.testing.assert_allclose(cov_floored - cov_bare, 0.25 * np.eye(2), atol=1e-12)
+
+
 def test_star_unique_match_one_star_ignores_a_comparable_star_out_of_reach(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,
@@ -176,7 +216,8 @@ def test_star_unique_match_marks_at_edge_when_offset_hits_margin(
     feature = make_star_feature('star:UCAC4:edge', predicted_vu=pred_vu, predicted_snr=40.0)
     technique = StarUniqueMatchNav()
     context = make_nav_context(image, extfov_margin_vu=margin)
-    context.obs.inst_config['one_star_ellipse_fraction'] = 1.0  # type: ignore[attr-defined]
+    obs: Any = context.obs
+    obs.inst_config = replace(obs.inst_config, one_star_ellipse_fraction=1.0)
     result = technique.navigate([feature], context)
     assert result.at_edge is True
     assert result.confidence == pytest.approx(0.0)
@@ -717,41 +758,10 @@ def test_star_unique_match_takes_the_lone_star_ellipse_from_the_camera(
     draw_gaussian_star(image, (150.0, 159.0), peak_dn=200.0, sigma=1.2)
     feature = make_star_feature('star:UCAC4:A', predicted_vu=(150.0, 150.0), predicted_snr=60.0)
     context = make_nav_context(image, extfov_margin_vu=(14, 14))
-    context.obs.inst_config['one_star_ellipse_fraction'] = fraction  # type: ignore[attr-defined]
+    obs: Any = context.obs
+    obs.inst_config = replace(obs.inst_config, one_star_ellipse_fraction=fraction)
     result = StarUniqueMatchNav().navigate([feature], context)
     assert (result.spurious is False) is accepted
-
-
-def test_star_unique_match_requires_the_camera_to_set_a_lone_star_ellipse(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-) -> None:
-    """A camera that sets no lone-star ellipse fraction is refused, never given a default."""
-    image = np.zeros((200, 200), dtype=np.float64)
-    draw_gaussian_star(image, (100.0, 101.0), peak_dn=200.0, sigma=1.2)
-    feature = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
-    context = make_nav_context(image)
-    context.obs.inst_config = {}  # type: ignore[attr-defined]
-    with pytest.raises(ValueError, match='sets no one_star_ellipse_fraction'):
-        StarUniqueMatchNav().navigate([feature], context)
-
-
-@pytest.mark.parametrize('fraction', [0.0, 1.5])
-def test_star_unique_match_refuses_a_lone_star_ellipse_outside_zero_to_one(
-    make_nav_context: NavContextFactory,
-    make_star_feature: NavFeatureFactory,
-    draw_gaussian_star: DrawGaussianStarFactory,
-    fraction: float,
-) -> None:
-    """A fraction outside (0, 1] that bypassed the load (a scene override) is refused."""
-    image = np.zeros((200, 200), dtype=np.float64)
-    draw_gaussian_star(image, (100.0, 101.0), peak_dn=200.0, sigma=1.2)
-    feature = make_star_feature('star:UCAC4:A', predicted_vu=(100.0, 100.0), predicted_snr=60.0)
-    context = make_nav_context(image)
-    context.obs.inst_config['one_star_ellipse_fraction'] = fraction  # type: ignore[attr-defined]
-    with pytest.raises(ValueError, match=r'one_star_ellipse_fraction must lie in \(0, 1\]'):
-        StarUniqueMatchNav().navigate([feature], context)
 
 
 @pytest.mark.parametrize(('offset_vu', 'passes'), [((0.0, 15.0), True), ((15.0, 0.0), False)])

@@ -312,32 +312,16 @@ class ObsCassiniISS(ObsSnapshotInst, HostLabel):
         # ``cassini_iss_calib`` config block instead of ``cassini_iss``.
         is_calibrated = '_CALIB' in fc_path.name.upper()
         inst_section = 'cassini_iss_calib' if is_calibrated else 'cassini_iss'
-        category_dict = config.category(inst_section)
-        if not category_dict:
-            raise ValueError(
-                f'Cassini ISS config section {inst_section!r} is missing or empty; '
-                f'expected for detector {detector!r}'
-            )
-        if detector not in category_dict:
-            raise ValueError(
-                f'Cassini ISS config section {inst_section!r} has no entry for '
-                f'detector {detector!r}; available detectors: {sorted(category_dict)}'
-            )
-        inst_config = category_dict[detector]
-
+        camera = config.camera_block(inst_section, detector)
         if extfov_margin_vu is None:
-            extfov_margin_vu_entry = inst_config['extfov_margin_vu']
-            if isinstance(extfov_margin_vu_entry, dict):
-                extfov_margin_vu = extfov_margin_vu_entry[data.shape[0]]
-            else:
-                extfov_margin_vu = extfov_margin_vu_entry
+            extfov_margin_vu = camera.extfov_margin_for(data.shape[0])
         logger.debug(f'  Data shape: {data.shape}')
         logger.debug(f'  Extfov margin vu: {extfov_margin_vu}')
         # TODO This is slow when debug turned off
         logger.debug(f'  Data min: {np.min(data)}, max: {np.max(data)}')
 
         new_obs = ObsCassiniISS(obs, config=config, extfov_margin_vu=extfov_margin_vu)
-        new_obs._inst_config = inst_config
+        new_obs._camera_block = camera
         return new_obs
 
     def star_min_usable_vmag(self) -> float:

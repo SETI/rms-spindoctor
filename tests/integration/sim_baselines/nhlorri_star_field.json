@@ -1,8 +1,8 @@
 {
-  "confidence": 0.6949256760022415,
-  "confidence_rank": "medium",
-  "offset_du_px": -27.030581842670678,
-  "offset_dv_px": -18.41271273357645,
+  "confidence": 0.9393252854361059,
+  "confidence_rank": "high",
+  "offset_du_px": -26.476916270646846,
+  "offset_dv_px": -18.201110139156718,
   "scene_name": "nhlorri_star_field",
   "status": "success"
 }
