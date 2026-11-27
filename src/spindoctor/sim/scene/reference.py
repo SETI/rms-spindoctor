@@ -17,6 +17,7 @@ from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_typ
 from annotated_types import Ge, Gt, Le, Lt, MinLen
 from pydantic import AfterValidator
 
+from spindoctor.config.sections_camera import MarkerValue
 from spindoctor.schema import (
     Bool,
     DigitInt,
@@ -45,6 +46,7 @@ _ALIAS_WORDS: tuple[tuple[Any, str, str], ...] = (
     (NonNegInt, 'a non-negative integer', 'non-negative integers'),
     (NonEmptyStr, 'a non-empty string', 'non-empty strings'),
     (Float, 'a number', 'numbers'),
+    (MarkerValue, 'a number, or NaN written ``.nan`` or ``NaN``', 'numbers or NaN'),
     (FloatOrNan, 'a number or NaN', 'numbers or NaN'),
     (Int, 'an integer', 'integers'),
     (DigitInt, 'an integer', 'integers'),
