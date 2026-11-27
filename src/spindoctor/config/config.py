@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from spindoctor.config.sections_camera import CameraBlock, as_camera_block
+from spindoctor.config.sections_camera import CAMERA_MARKER_KEY, CameraBlock, as_camera_block
 from spindoctor.schema import (
     Issue,
     KeyPath,
@@ -482,6 +482,31 @@ class Config:
             return sections.camera_block(section, camera)
         raw = self._config_dict[section]
         return as_camera_block(raw if camera is None else raw[camera], source=section)
+
+    def camera_names(self, section: str) -> tuple[str | None, ...]:
+        """Returns the names of the cameras a camera section holds.
+
+        Parameters:
+            section: The camera section, as the files name it.
+
+        Returns:
+            Each camera's name, in the files' order, for a section that holds several
+            cameras; ``(None,)`` for a section that is one camera's block.  Each name is
+            what :meth:`camera_block` takes as ``camera``.
+
+        Raises:
+            KeyError: If ``section`` is not a section of the configuration.
+        """
+
+        sections = self._typed_sections()
+        value: CameraBlock | Mapping[str, Any]
+        if section in sections.CAMERA_SECTIONS:
+            value = getattr(sections, section)
+        else:
+            value = self._config_dict[section]
+        if isinstance(value, CameraBlock) or CAMERA_MARKER_KEY in value:
+            return (None,)
+        return tuple(value)
 
     @property
     def offset(self) -> OffsetSection:

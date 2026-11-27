@@ -113,7 +113,8 @@ def add_narrowing_section(
 # Config section per instrument holding ``extfov_margin_vu`` (the per-axis
 # maximum expected pointing offset the search allows for).  Cassini ISS is
 # handled separately because its sections are nested per detector and split
-# between raw and CALIB blocks.
+# between raw and CALIB blocks.  A section of several cameras whose camera the
+# image name does not give is resolved only when its cameras share one margin.
 _INSTRUMENT_CONFIG_SECTIONS = {
     'gossi': 'galileo_ssi',
     'nhlorri': 'newhorizons_lorri',
@@ -134,7 +135,10 @@ def resolve_offset_limit(
     The limit is the configured ``extfov_margin_vu`` search margin for the
     instrument (for Cassini ISS: per detector, chosen from the image-name
     prefix ``N``/``W`` and the raw-vs-CALIB config block; for margin tables
-    keyed by image size, the recorded ``image_shape_v`` selects the entry).
+    keyed by image size, the recorded ``image_shape_v`` selects the entry).  For
+    another instrument whose section holds several cameras, the record does not say
+    which camera took the image, so the limit is resolved only when every camera of
+    the section has the same margin for the recorded image size.
 
     Parameters:
         instrument: Registered instrument name the record carries.
@@ -161,18 +165,58 @@ def resolve_offset_limit(
             return f'no configured search limit for instrument {instrument!r}'
         section_name = _INSTRUMENT_CONFIG_SECTIONS[instrument]
         source = section_name
-    entry = config.camera_block(section_name, camera).extfov_margin_vu
+    if camera is None:
+        selected = [
+            _select_margin(
+                config.camera_block(section_name, name).extfov_margin_vu,
+                source,
+                image_shape_v,
+            )
+            for name in config.camera_names(section_name)
+        ]
+        for margin in selected:
+            if isinstance(margin, str):
+                return margin
+        if any(margin != selected[0] for margin in selected[1:]):
+            return (
+                f'{source!r} cameras have different extfov_margin_vu for this image size, '
+                'and the record does not say which camera took the image'
+            )
+        entry = selected[0]
+    else:
+        entry = _select_margin(
+            config.camera_block(section_name, camera).extfov_margin_vu, source, image_shape_v
+        )
+    if isinstance(entry, str):
+        return entry
+    limit_v = float(entry[0])
+    limit_u = float(entry[1])
+    if limit_v <= 0.0 or limit_u <= 0.0:
+        return f'{source!r} extfov_margin_vu is not positive'
+    return limit_v, limit_u
+
+
+def _select_margin(entry: Any, source: str, image_shape_v: int | None) -> tuple[float, float] | str:
+    """Select one camera's search margin for an image size.
+
+    Parameters:
+        entry: The camera block's ``extfov_margin_vu``: one ``(v, u)`` pair, or a table
+            of pairs keyed by image size.
+        source: The block's name, for the explanation.
+        image_shape_v: Recorded V-axis image size, or None when the record carries no
+            shape.
+
+    Returns:
+        The ``(v, u)`` margin, or a human-readable string explaining why it could not
+        be selected.
+    """
     if isinstance(entry, dict):
         if image_shape_v is None:
             return 'image shape not recorded'
         if image_shape_v not in entry:
             return f'{source!r} has no extfov_margin_vu entry for image size {image_shape_v}'
         entry = entry[image_shape_v]
-    limit_v = float(entry[0])
-    limit_u = float(entry[1])
-    if limit_v <= 0.0 or limit_u <= 0.0:
-        return f'{source!r} extfov_margin_vu is not positive'
-    return limit_v, limit_u
+    return float(entry[0]), float(entry[1])
 
 
 def add_suspect_offset_section(ctx: ReportContext) -> None:

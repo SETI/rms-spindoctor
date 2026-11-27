@@ -21,7 +21,10 @@ PACKAGED_CAMERAS: tuple[tuple[str, str | None], ...] = (
     ('cassini_iss_calib', 'wac'),
     ('galileo_ssi', None),
     ('newhorizons_lorri', None),
-    ('voyager_iss', None),
+    ('voyager_iss', 'vg1_nac'),
+    ('voyager_iss', 'vg1_wac'),
+    ('voyager_iss', 'vg2_nac'),
+    ('voyager_iss', 'vg2_wac'),
 )
 
 

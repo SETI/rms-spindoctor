@@ -74,7 +74,10 @@ def test_no_shipped_instrument_fits_camera_rotation() -> None:
         ('cassini_iss_calib', 'wac', 0.7),
         ('galileo_ssi', None, 0.6),
         ('newhorizons_lorri', None, 0.6),
-        ('voyager_iss', None, 0.6),
+        ('voyager_iss', 'vg1_nac', 0.6),
+        ('voyager_iss', 'vg1_wac', 0.6),
+        ('voyager_iss', 'vg2_nac', 0.6),
+        ('voyager_iss', 'vg2_wac', 0.6),
         ('sim', None, 0.6),
     ],
 )

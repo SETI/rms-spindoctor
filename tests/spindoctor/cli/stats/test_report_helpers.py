@@ -5,12 +5,14 @@ image name or an epoch, the search limit it resolves from configuration, and how
 one column value is rendered into a CSV cell.
 """
 
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from spindoctor.cli.stats.report_common import count_pct, image_name_from_filename
 from spindoctor.cli.stats.report_sections import _csv_value, resolve_offset_limit
+from spindoctor.config import Config
 from spindoctor.nav_records.derived import (
     date_from_image_et,
     datetime_from_image_et,
@@ -136,6 +138,30 @@ def test_resolve_offset_limit_missing_size_entry() -> None:
     """A size with no margin entry reports the failure instead of guessing."""
     result = resolve_offset_limit('vgiss', 'C3250013_GEOMED.IMG', 1024)
     assert 'no extfov_margin_vu entry for image size 1024' in str(result)
+
+
+def test_resolve_offset_limit_needs_one_margin_for_a_camera_the_record_omits(
+    tmp_path: Path,
+) -> None:
+    """Cameras of one section with different margins leave the limit unresolved."""
+    override = tmp_path / 'override.yaml'
+    override.write_text('voyager_iss:\n  vg1_wac:\n    extfov_margin_vu: {1000: [300, 300]}\n')
+    config = Config()
+    config.update_config(override)
+    result = resolve_offset_limit('vgiss', 'C3250013_GEOMED.IMG', 1000, config=config)
+    assert 'cameras have different extfov_margin_vu' in str(result)
+
+
+def test_resolve_offset_limit_compares_only_the_recorded_size(tmp_path: Path) -> None:
+    """Cameras that differ only at another image size still resolve the limit."""
+    override = tmp_path / 'override.yaml'
+    override.write_text(
+        'voyager_iss:\n  vg1_wac:\n    extfov_margin_vu: {1000: [400, 400], 800: [300, 300]}\n'
+    )
+    config = Config()
+    config.update_config(override)
+    result = resolve_offset_limit('vgiss', 'C3250013_GEOMED.IMG', 1000, config=config)
+    assert result == (400.0, 400.0)
 
 
 # ---------------------------------------------------------------------------
