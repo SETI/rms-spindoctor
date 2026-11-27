@@ -22,6 +22,7 @@ from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
     'mahalanobis_distance',
+    'major_semi_axis_px',
     'mixed_scale_pinvh',
     'observable_basis',
     'observable_intersection_basis',
@@ -105,6 +106,26 @@ def positional_precision(cov: NDArrayFloatType, *, rcond: float) -> float:
     cov = np.asarray(cov, np.float64)
     info_xy = mixed_scale_pinvh(np.ascontiguousarray(cov[:2, :2]), rcond=rcond)
     return float(np.trace(info_xy))
+
+
+def major_semi_axis_px(cov: NDArrayFloatType) -> float:
+    """Return the major semi-axis of a covariance's 1-sigma translation error ellipse.
+
+    The square root of the largest eigenvalue of the translation block ``cov[:2, :2]``:
+    the 1-sigma uncertainty in the direction where it is largest.  It does not change
+    when the ellipse turns in the image, as the larger of the two image-axis sigmas
+    does: for a tilted ellipse that value falls short of the major semi-axis, by up to
+    a factor of ``sqrt(2)`` at 45 degrees.  Any rotation axis is ignored.
+
+    Parameters:
+        cov: Covariance, ``(2, 2)`` or ``(3, 3)``; only the leading ``2 x 2``
+            translation block is read.
+
+    Returns:
+        The major semi-axis in pixels.
+    """
+    block = np.asarray(cov, np.float64)[:2, :2]
+    return float(math.sqrt(max(float(np.linalg.eigvalsh(block)[-1]), 0.0)))
 
 
 def observable_basis(cov: NDArrayFloatType) -> NDArrayFloatType:

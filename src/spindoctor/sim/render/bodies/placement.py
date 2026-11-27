@@ -34,6 +34,7 @@ laid out, so the margin changes no pixel of the frame.
 
 import math
 from dataclasses import dataclass
+from functools import cached_property
 from typing import Any
 
 import numpy as np
@@ -46,6 +47,7 @@ __all__ = [
     'PARTIAL_DRAWINGS_KEPT',
     'BodyCanvas',
     'BodyCoverage',
+    'UncoveredFraction',
     'body_canvas',
     'composite_halo',
     'finish_single_body',
@@ -90,17 +92,75 @@ class BodyCoverage:
     box_u: slice
     coverage: NDArrayFloatType
 
-    @property
+    @cached_property
     def transmission(self) -> NDArrayFloatType:
         """The box-sized fraction of each pixel the body leaves uncovered.
 
         It is what shows through from behind the body: ``1 - coverage``, and exactly
         0 where the uncovered fraction is below 1e-12.  Starlight and everything the
-        body passes in front of are scaled by it.
+        body passes in front of are scaled by it.  It is computed once, on first
+        use, and is read-only.
         """
         uncovered = 1.0 - self.coverage
         uncovered[uncovered < _FULL_COVERAGE_TOLERANCE] = 0.0
+        uncovered.setflags(write=False)
         return uncovered
+
+
+class UncoveredFraction:
+    """The fraction of each pixel no body covers, over the box the bodies cover.
+
+    The fraction is the product of the bodies' transmissions, multiplied into an array
+    of ones in the order the bodies are placed, and is exactly 1 outside the box, where
+    a multiply by it leaves any value as it is.  Only the box is built, which on a
+    frame with small bodies is far less than the frame.  The box grows to take in each
+    body's box as that body is multiplied in, so no body's coverage is kept after it.
+    """
+
+    box: tuple[slice, slice]
+    """The box's rows and columns on the frame; empty while no body covers any pixel."""
+
+    fraction: NDArrayFloatType
+    """The box-sized fraction."""
+
+    def __init__(self) -> None:
+        """Start with no body: an empty box."""
+        self.box = (slice(0, 0), slice(0, 0))
+        self.fraction = np.ones((0, 0), dtype=np.float64)
+
+    def multiply(self, coverage: BodyCoverage) -> None:
+        """Multiply one body's transmission in, after those of the bodies before it.
+
+        Parameters:
+            coverage: The body's coverage.
+        """
+        box_v, box_u = coverage.box_v, coverage.box_u
+        if box_v.stop <= box_v.start or box_u.stop <= box_u.start:
+            return
+        rows, cols = self.box
+        if rows.stop <= rows.start:
+            self.box = (box_v, box_u)
+            self.fraction = np.ones((box_v.stop - box_v.start, box_u.stop - box_u.start))
+        elif not (
+            rows.start <= box_v.start
+            and box_v.stop <= rows.stop
+            and cols.start <= box_u.start
+            and box_u.stop <= cols.stop
+        ):
+            # The pixels the box takes in hold 1, as a frame of ones would.
+            grown_v = slice(min(rows.start, box_v.start), max(rows.stop, box_v.stop))
+            grown_u = slice(min(cols.start, box_u.start), max(cols.stop, box_u.stop))
+            grown = np.ones((grown_v.stop - grown_v.start, grown_u.stop - grown_u.start))
+            grown[
+                rows.start - grown_v.start : rows.stop - grown_v.start,
+                cols.start - grown_u.start : cols.stop - grown_u.start,
+            ] = self.fraction
+            self.box, self.fraction = (grown_v, grown_u), grown
+        rows, cols = self.box
+        self.fraction[
+            coverage.box_v.start - rows.start : coverage.box_v.stop - rows.start,
+            coverage.box_u.start - cols.start : coverage.box_u.stop - cols.start,
+        ] *= coverage.transmission
 
 
 @dataclass(frozen=True)
@@ -331,7 +391,10 @@ def finish_single_body(
     positioned_body, positioned_outline, box = _position_body(
         body_shape, silhouette, canvas, img.shape, dv=dv, du=du
     )
-    mask = positioned_outline > 0
+    # The outline is 0 outside the box, so the mask is found inside it alone, which
+    # leaves the rest of the outline plane unread.
+    mask = np.zeros(positioned_outline.shape, dtype=np.bool_)
+    mask[box] = positioned_outline[box] > 0
     coverage = BodyCoverage(
         box_v=box[0], box_u=box[1], coverage=np.clip(positioned_outline[box], 0.0, 1.0)
     )
@@ -341,7 +404,9 @@ def finish_single_body(
     if positioned_halo is not None:
         composite_halo(img, positioned_halo)
     view = img[box]
-    view[...] = positioned_body[box] + coverage.transmission * view
+    # positioned_body + transmission * view, with one box-sized temporary.
+    behind = coverage.transmission * view
+    np.add(positioned_body[box], behind, out=view)
 
     body_info: dict[str, Any] = {
         'name': body_name,

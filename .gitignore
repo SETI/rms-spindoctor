@@ -70,6 +70,8 @@ instance/
 
 # Sphinx documentation
 docs/_build/
+# Generated from the typed scene by the documentation build
+docs/dev_guide/dev_guide_simulator_scene_schema.rst
 docs/_linkcheck/
 
 # PyBuilder
