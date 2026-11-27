@@ -6,9 +6,10 @@ points at (:class:`~spindoctor.config.sections_camera.CameraBlock`).  The scene'
 published knowledge, which crosses into the navigator's view.  Its types are an
 all-optional form of the camera block's types, and each value takes the camera block's
 own field type, imported from :mod:`spindoctor.config.sections_camera`, so a scene and
-the packaged configuration accept the same range for every key.  ``data_units`` is the
-one key a scene can't set: a frame's units come from the instrument entry, and the
-navigator block must agree with them.
+the packaged configuration accept the same range for every key.  A scene can't set two
+keys: ``data_units``, because a frame's units come from the instrument entry and the
+navigator block must agree with them, and ``star_photometry``, which a simulated frame
+never reads.
 
 :func:`overlay_camera_block` merges a scene's block over the navigator block.  A mapping
 merges key by key, at every depth, so a scene sets only the keys it changes; any other

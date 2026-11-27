@@ -128,3 +128,21 @@ def test_a_section_that_holds_no_camera_has_no_camera_names() -> None:
     """Asking a section that holds no camera block for its cameras is refused."""
     with pytest.raises(KeyError, match="'offset' is not a camera section"):
         Config().camera_names('offset')
+
+
+def test_the_star_photometry_mode_tables_give_the_same_modes() -> None:
+    """Mode tables that give different modes are refused."""
+    raw = camera_mapping(raw_camera())
+    raw['star_photometry'] = {
+        'flux_unit': 'electrons',
+        'flux_per_s_vmag0': 1.0e8,
+        'gain': {'LOW': 20.0},
+        'min_detectable_dn': {'FULL': 100.0},
+        'psf_sigma': {'FULL': 0.9, 'SUMMED': 0.5},
+        'search_depth_mag': 1.0,
+    }
+    with pytest.raises(
+        SchemaError,
+        match=r"camera: star_photometry\.psf_sigma: gives the modes \['FULL', 'SUMMED'\]",
+    ):
+        parse(CameraBlock, raw, source='camera')

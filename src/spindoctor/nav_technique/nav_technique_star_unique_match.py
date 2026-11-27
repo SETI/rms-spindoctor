@@ -100,6 +100,7 @@ from spindoctor.nav_technique.diagnostics import StarUniqueMatchDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
+    add_model_error_floor,
     embed_rotation_unobservable,
     log_confidence_breakdown,
     reported_position_vu,
@@ -627,6 +628,8 @@ class StarUniqueMatchNav(NavTechnique):
         cov = two_star_covariance(
             chosen[0], chosen[1], residual_px=residual_px, fit_rotation=fit_rotation
         )
+        # Model-error floor (#210); rationale on add_model_error_floor.
+        cov = add_model_error_floor(cov, self.tuning.model_error_floor_px)
         sigma_rotation_rad: float | None = None
         if fit_rotation:
             sigma_rotation_rad = float(np.sqrt(max(float(cov[2, 2]), 0.0)))
@@ -839,6 +842,8 @@ class StarUniqueMatchNav(NavTechnique):
             confidence,
         )
         cov = build_star_covariance(star, residual_px=residual_px)
+        # Model-error floor (#210); rationale on add_model_error_floor.
+        cov = add_model_error_floor(cov, self.tuning.model_error_floor_px)
         cov_out = embed_rotation_unobservable(cov) if fit_rotation else cov
         return NavTechniqueResult(
             technique_name=self.name,

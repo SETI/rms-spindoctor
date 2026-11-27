@@ -1,3 +1,4 @@
+import math
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
@@ -5,7 +6,7 @@ from psfmodel import PSF, GaussianPSF
 from starcat import Star
 
 from spindoctor.config import Config
-from spindoctor.config.sections_camera import CameraBlock
+from spindoctor.config.sections_camera import CameraBlock, StarPhotometry
 from spindoctor.support.types import PathLike
 
 if TYPE_CHECKING:
@@ -129,8 +130,7 @@ class ObsInst(ABC):
         """Returns the point spread function (PSF) model appropriate for stars observed
         by this instrument.
 
-        This generic implementation uses the camera's ``star_psf_sigma`` and creates a
-        Gaussian PSF with that sigma.
+        The PSF is a Gaussian whose sigma is :meth:`star_psf_sigma`.
 
         Returns:
             A PSF model appropriate for stars observed by this instrument.
@@ -139,7 +139,118 @@ class ObsInst(ABC):
             ValueError: If the observation has no camera block.
         """
 
-        return GaussianPSF(sigma=self.inst_config.star_psf_sigma)
+        return GaussianPSF(sigma=self.star_psf_sigma())
+
+    def star_psf_sigma(self) -> float:
+        """Returns the Gaussian sigma, in pixels, of a star in this observation.
+
+        This generic implementation reads the camera block's ``star_psf_sigma``.  An
+        instrument whose star width depends on the camera or the readout mode overrides
+        it.
+
+        Returns:
+            The sigma in pixels of this observation's image.
+
+        Raises:
+            ValueError: If the observation has no camera block.
+        """
+
+        return self.inst_config.star_psf_sigma
+
+    def _star_photometry(self, where: str) -> StarPhotometry:
+        """Return the camera block's ``star_photometry``, refusing a block without one.
+
+        Parameters:
+            where: The key path of the camera block's ``star_photometry``, which a message
+                gives.
+
+        Returns:
+            The camera's star photometry.
+
+        Raises:
+            ValueError: If the observation has no camera block, or its block has no
+                ``star_photometry``.
+        """
+        photometry = self.inst_config.star_photometry
+        if photometry is None:
+            raise ValueError(f'{where} is not set; the star limit and star width read it')
+        return photometry
+
+    def _photometric_star_limit(
+        self,
+        *,
+        texp: float,
+        where: str,
+        gain_state: str,
+        mode: str,
+        filter_name: str | None,
+    ) -> float:
+        """Return the faintest V magnitude of a catalog star, from the star photometry.
+
+        A star of V magnitude ``m`` deposits ``flux_per_s_vmag0 * 10**(-0.4 * (m +
+        offset)) * texp`` in the unit of ``flux_unit``, divided by the gain state's entry
+        for electrons or multiplied by it for DN, where ``offset`` is the filter's
+        magnitude offset (0 when ``filter_name`` is None).  The dimmest visible star
+        deposits ``min_detectable_dn[mode]`` DN, and the limit is its magnitude plus
+        ``search_depth_mag`` (see :class:`~spindoctor.config.sections_camera.StarPhotometry`).
+
+        Parameters:
+            texp: The exposure in seconds; positive.
+            where: The key path of the camera block's ``star_photometry``, which a message
+                gives.
+            gain_state: The image's gain state, as the ``gain`` table spells it.
+            mode: The image's readout mode, as the mode tables spell it.
+            filter_name: The image's filter, as ``filter_mag_offset`` spells it, or None
+                for a camera whose reader does not read a filter.
+
+        Returns:
+            The limiting magnitude.
+
+        Raises:
+            ValueError: If the block has no ``star_photometry``, or its tables leave out the
+                image's readout mode, filter, or gain state, or it has no
+                ``filter_mag_offset`` and ``filter_name`` is not None.
+        """
+        photometry = self._star_photometry(where)
+        if mode not in photometry.min_detectable_dn:
+            raise ValueError(f'{where}.min_detectable_dn has no entry for the mode {mode!r}')
+        offset = 0.0
+        if filter_name is not None:
+            offsets = photometry.filter_mag_offset
+            if offsets is None:
+                raise ValueError(f'{where} has no filter_mag_offset, which this camera reads')
+            if filter_name not in offsets:
+                raise ValueError(
+                    f'{where}.filter_mag_offset has no entry for the filter {filter_name!r}'
+                )
+            offset = offsets[filter_name]
+        if gain_state not in photometry.gain:
+            raise ValueError(f'{where}.gain has no entry for the gain state {gain_state!r}')
+        gain = photometry.gain[gain_state]
+        signal = photometry.flux_per_s_vmag0 * texp
+        dn_vmag0 = signal / gain if photometry.flux_unit == 'electrons' else signal * gain
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[mode])
+        return dimmest_visible - offset + photometry.search_depth_mag
+
+    def _photometric_star_sigma(self, *, where: str, mode: str) -> float:
+        """Return the Gaussian sigma of a star, in pixels, from the star photometry.
+
+        Parameters:
+            where: The key path of the camera block's ``star_photometry``, which a message
+                gives.
+            mode: The image's readout mode, as the mode tables spell it.
+
+        Returns:
+            The ``psf_sigma`` entry of the mode.
+
+        Raises:
+            ValueError: If the block has no ``star_photometry``, or its ``psf_sigma`` leaves
+                out the mode.
+        """
+        widths = self._star_photometry(where).psf_sigma
+        if mode not in widths:
+            raise ValueError(f'{where}.psf_sigma has no entry for the mode {mode!r}')
+        return widths[mode]
 
     def star_psf_size(self, star: Star) -> tuple[int, int]:
         """Returns the size of the point spread function (PSF) to use for a star.

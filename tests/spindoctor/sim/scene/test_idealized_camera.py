@@ -119,14 +119,18 @@ def test_every_overlay_mapping_takes_the_camera_block_key_type() -> None:
     ]
 
 
-def test_the_overlay_states_every_camera_key_but_the_units() -> None:
-    """A scene may change every key of the camera block except ``data_units``."""
+# A scene cannot change the units, and a simulated frame never reads star_photometry.
+_NOT_IN_THE_OVERLAY = frozenset({'data_units', 'star_photometry'})
+
+
+def test_the_overlay_states_every_camera_key_a_simulated_frame_reads() -> None:
+    """A scene may change every key of the camera block a simulated frame reads."""
     missing = [
         f'{overlay.__name__}: {name}'
         for overlay, cameras in _PAIRS
         for camera in cameras
         for name in get_type_hints(camera)
-        if name not in get_type_hints(overlay) and name != 'data_units'
+        if name not in get_type_hints(overlay) and name not in _NOT_IN_THE_OVERLAY
     ]
     assert missing == []
 
