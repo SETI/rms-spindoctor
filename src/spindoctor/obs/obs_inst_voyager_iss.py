@@ -253,11 +253,11 @@ class ObsVoyagerISS(ObsSnapshotInst, HostLabel):
         """Returns the faintest V magnitude of a catalog star the star model uses.
 
         The limit is photometric, from the camera block's ``star_photometry`` (see
-        :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate counts
-        raw DN, since a vidicon counts no electrons.  The filter is the observation's
-        filter, the gain state is read from the VICAR label's ``LAB03`` record (``LO
-        GAIN`` or ``HI GAIN``, read as ``LOW`` or ``HIGH``), and the mode tables have the
-        one mode ``ALL``.
+        :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate is in
+        raw DN, since the Voyager calibration gives no conversion from DN to electrons.
+        The filter is the observation's filter, the gain state is read from the VICAR
+        label's ``LAB03`` record (``LO GAIN`` or ``HI GAIN``, read as ``LOW`` or
+        ``HIGH``), and the mode tables have the one mode ``ALL``.
 
         Returns:
             The limiting magnitude, or ``-inf`` for a frame whose exposure is not

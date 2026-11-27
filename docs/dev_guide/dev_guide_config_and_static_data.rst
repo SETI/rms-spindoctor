@@ -256,8 +256,8 @@ The ``star_photometry`` block gives a camera's star limit and star width in one 
 every camera, from which the star model's limiting magnitude follows (see
 :doc:`dev_guide_navigation_models_star`):
 
-- ``flux_unit`` — what the rate counts: ``electrons``, or ``dn`` for a detector that
-  counts no electrons.
+- ``flux_unit`` — what the rate counts: ``electrons``, or ``dn`` for a camera whose
+  calibration gives no conversion from DN to electrons.
 - ``flux_per_s_vmag0`` — the rate per second of a V = 0 star through the reference
   filter (at the reference gain state, when the unit is ``dn``).
 - ``gain`` — a table keyed by gain state: the electrons per DN when the rate counts

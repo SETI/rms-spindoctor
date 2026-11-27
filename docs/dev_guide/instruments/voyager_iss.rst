@@ -184,9 +184,9 @@ Photometric and PSF calibration
 ===============================
 
 **Limiting magnitude.** Photometric, from the ``star_photometry`` of the camera's
-block (see :ref:`config-camera-blocks`). A vidicon counts no electrons, so the rate
-counts raw DN (``flux_unit: dn``), and the gain state's entry multiplies it. A star of
-V magnitude ``m`` puts
+block (see :ref:`config-camera-blocks`). The Voyager calibration gives no conversion from
+DN to electrons, so the rate is in raw DN (``flux_unit: dn``), and the gain state's entry
+multiplies it. A star of V magnitude ``m`` puts
 
 .. math::
 

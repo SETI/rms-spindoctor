@@ -153,8 +153,8 @@ MaxMissingFracClean = Unit
 MaxOverexposedFracClean = Unit
 #: The share of missing pixels above which a clean image is flagged partial dropout.
 PartialDropoutMinFrac = Unit
-#: What a camera's star rate counts: electrons, or DN for a detector that counts no
-#: electrons.
+#: What a camera's star rate is in: electrons, or DN for a camera whose calibration
+#: gives no conversion from DN to electrons.
 StarFluxUnit = Literal['electrons', 'dn']
 #: The rate, per second, at which a star of V magnitude 0 deposits signal through the
 #: reference filter, in the unit ``flux_unit`` gives.
