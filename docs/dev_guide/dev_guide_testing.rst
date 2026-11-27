@@ -130,6 +130,114 @@ copies of the trees (see :doc:`dev_guide_introduction`):
    export YBSC_PATH=/path/to/star-catalogs/YBSC
    # plus SPICE kernels at $SPICE_PATH for any real navigation run
 
+.. _thp-defrag:
+
+Slow runs on a machine with fragmented memory
+=============================================
+
+On Linux, a job that makes many large NumPy arrays can spend much of its CPU time
+waiting on the kernel instead of computing. This affects every NumPy-heavy job,
+navigation runs and renders alike, and it can push the render-time checks in
+``tests/integration/test_sim_perf.py`` over their budgets.
+
+NumPy asks the kernel to back each large array with 2 MB transparent huge pages. The
+kernel's ``defrag`` setting decides what happens when no free 2 MB block is ready. At
+``madvise``, which is a common default, a process that asked for huge pages stops
+while the kernel compacts memory to make a block. The stop comes on the first write to
+each new large array, and it is charged to the process as its own CPU time. On a
+machine that has run heavy jobs for weeks, memory is fragmented and nearly every new
+large array waits. As one example, the kernel's counters on the development machine
+showed 220 million of these stalls, and 99% of them failed to produce a huge page
+anyway. Run on that machine, two renders spent 60 to 70% of their CPU time in
+compaction.
+
+The setting ``defer`` removes the stall. A process gets ordinary pages at once, the
+kernel compacts memory in the background, and the process's memory is upgraded to huge
+pages later, when a block is free. ``defer+madvise`` does not help, because it keeps
+the stall for the processes that asked for huge pages, and NumPy is one of them.
+
+Before you change anything, note the current value, because it may not be
+``madvise``; undoing the change means writing that value back:
+
+.. code-block:: bash
+
+   cat /sys/kernel/mm/transparent_hugepage/defrag
+
+To apply ``defer`` now, which lasts until the next reboot, and to check it:
+
+.. code-block:: bash
+
+   echo defer | sudo tee /sys/kernel/mm/transparent_hugepage/defrag
+   cat /sys/kernel/mm/transparent_hugepage/defrag
+
+The second command shows ``always [defer] defer+madvise madvise never``. The
+brackets mark the setting in force.
+
+To keep the setting across reboots, use a systemd tmpfiles rule, which the service
+``systemd-tmpfiles-setup.service`` applies at every boot. First see whether a rule
+already writes the same file:
+
+.. code-block:: bash
+
+   systemd-tmpfiles --cat-config | grep -e '^# /' -e transparent_hugepage/defrag
+
+``--cat-config`` prints every tmpfiles file systemd reads, each under a line that gives
+its path, in the order systemd applies them. It leaves out a file that another file of the
+same name replaces, so the list holds only files in force, from whichever directories this
+systemd version reads. When several rules write one file, systemd-tmpfiles applies the
+first and ignores the others. Save a copy of any file before changing it.
+
+* If the first rule listed is in ``/etc/tmpfiles.d``, change its value there to
+  ``defer``.
+* If it is in another directory, copy that file into ``/etc/tmpfiles.d`` under the same
+  name and change the value in the copy. A file in ``/etc/tmpfiles.d`` replaces a file of
+  the same name in every other directory.
+* If no rule writes the file, add one. The commands below write
+  ``/etc/tmpfiles.d/thp-defrag.conf``; if the list already shows a file
+  ``thp-defrag.conf`` in any directory, use another name that it does not list and that
+  ends in ``.conf``, in both commands. The second command applies the rule now as well:
+
+.. code-block:: bash
+
+   echo 'w /sys/kernel/mm/transparent_hugepage/defrag - - - - defer' | sudo tee /etc/tmpfiles.d/thp-defrag.conf
+   sudo systemd-tmpfiles --create /etc/tmpfiles.d/thp-defrag.conf
+   cat /sys/kernel/mm/transparent_hugepage/defrag
+
+To undo the change, delete the file you added or copied to ``/etc/tmpfiles.d``, or put
+back the copy you saved of the file you changed, and write the ``defrag`` value you
+noted back to ``/sys/kernel/mm/transparent_hugepage/defrag``.
+
+Without root, set ``NUMPY_MADVISE_HUGEPAGE=0`` in the environment of the job. NumPy
+then asks for no huge pages, so the kernel has nothing to compact. This comes close
+to what ``defer`` gives, for that job only.
+
+The variable stops NumPy asking, so whether it removes the stall depends on what the
+kernel does for a process that did not ask. Check both settings, and on kernels that
+have them, the per-size settings for 2 MB pages, which can override the top-level
+``enabled``:
+
+.. code-block:: bash
+
+   cat /sys/kernel/mm/transparent_hugepage/enabled
+   cat /sys/kernel/mm/transparent_hugepage/defrag
+   cat /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled
+
+The 2 MB setting decides for 2 MB pages unless it reads ``[inherit]``, and then
+``enabled`` decides. On kernels without the 2 MB file, ``enabled`` always decides.
+Whichever decides is the effective setting. If the effective setting is ``[madvise]``
+or ``[never]``, huge pages are given only on request, and the variable removes the
+stall. It also removes it when the effective setting is ``[always]`` but ``defrag`` is
+``[madvise]``, because the kernel then compacts only for processes that asked. Only
+with the effective setting and ``defrag`` both at ``[always]`` does every process still
+stall, even when ``enabled`` reads ``[madvise]``, and then ``defer`` is the fix.
+
+Continuous integration is unaffected. The GitHub runners are fresh virtual machines
+whose memory is not fragmented. CI runs the integration tests marked
+``sim_integration``, but not the render-time checks in ``test_sim_perf.py``, which are
+marked ``integration`` only. On a fragmented machine without the setting, those checks
+can fail, and the 1024 by 1024 body and haze checks are the likeliest to. The renders
+themselves are the same either way.
+
 Test kinds
 ==========
 

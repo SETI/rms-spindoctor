@@ -32,6 +32,9 @@ __all__ = [
     'ring_screen_op',
 ]
 
+# Image rows a screen op composites at a time.
+_SCREEN_STRIP_ROWS = 256
+
 
 @dataclass(frozen=True)
 class ScreenOp:
@@ -84,7 +87,14 @@ def apply_screen_op(img: NDArrayFloatType, op: ScreenOp) -> None:
         op: The screen op.
     """
     view = img[op.box_v, op.box_u]
-    view[op.mask] = op.intensity[op.mask] + op.transmission[op.mask] * view[op.mask]
+    # A strip of rows at a time, which keeps the gathered temporaries small when the
+    # screen covers most of an oversampled frame.  Each pixel is composited on its
+    # own, so the strips give the same bits as one pass.
+    for start in range(0, view.shape[0], _SCREEN_STRIP_ROWS):
+        rows = slice(start, start + _SCREEN_STRIP_ROWS)
+        mask = op.mask[rows]
+        strip = view[rows]
+        strip[mask] = op.intensity[rows][mask] + op.transmission[rows][mask] * strip[mask]
 
 
 def check_depth_ambiguity(

@@ -286,6 +286,20 @@ def linkcode_resolve(domain: str, info: dict[str, str]) -> str | None:
     return f'{GITHUB_BLOB_URL}/{SOURCE_REF}/src/spindoctor/{path.as_posix()}#L{start}-L{end}'
 
 
+# The scene schema reference page, generated from the typed scene before the sources are
+# read, so it cannot drift from the types.
+SCENE_REFERENCE_PAGE = Path(__file__).parent / 'dev_guide' / 'dev_guide_simulator_scene_schema.rst'
+
+
+def _write_scene_reference(app: Sphinx) -> None:
+    """Generate the scene schema reference page from the typed scene's declarations."""
+    # The package is importable once the path above holds the source tree.
+    from spindoctor.sim.scene.reference import write_scene_reference
+
+    write_scene_reference(SCENE_REFERENCE_PAGE)
+
+
 def setup(app: Sphinx) -> None:
-    """Connect the sidebar handler."""
+    """Connect the scene reference generator and the sidebar handler."""
+    app.connect('builder-inited', _write_scene_reference)
     app.connect('html-page-context', _sidebar_toctree)
