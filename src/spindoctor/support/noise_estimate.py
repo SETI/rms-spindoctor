@@ -15,6 +15,15 @@ is dominated by structure (for example rings filling the frame) it measures the
 bright-to-dark spread rather than the noise and overestimates sigma by orders
 of magnitude, which in turn pushes the edge-detection threshold above every
 real gradient and empties the distance transform.
+
+A response whose nine input pixels all hold one value is left out.  Its value is
+exactly 0 whatever the noise, so it says nothing about the noise.  Such
+neighborhoods come from fill rather than sensor data: the zero-filled lines of a
+truncated readout, a saturated region, the border a geometric correction leaves.
+When fill covers more than half the frame, a median over all responses is 0 and
+so is the estimate, although the rest of the frame is noisy.  On quantized data
+whose noise is below one count, chance runs of identical counts are left out as
+well, so the estimate there is of the order of one count.
 """
 
 import numpy as np
@@ -45,7 +54,8 @@ def estimate_image_noise_sigma(
     (Laplacian) response, divided by 6.  The second difference cancels smooth
     brightness structure so the value reflects pixel-to-pixel noise rather than
     scene content, and the MAD rejects the minority of pixels on sharp edges or
-    cosmic rays.
+    cosmic rays.  A response whose 3x3 neighborhood holds a single value is left
+    out, so fill covering most of the frame cannot drive the estimate to 0.
 
     Parameters:
         image: 2-D float input array.
@@ -90,8 +100,20 @@ def estimate_image_noise_sigma(
         + 4.0 * img[1:-1, 1:-1]
     )
 
+    # A neighborhood of nine identical values is fill, and its response is 0
+    # whatever the noise; leave it out.  A neighborhood touching a NaN is never
+    # flagged here (NaN compares unequal), and its NaN response is dropped below.
+    low = img[:-2, :-2].copy()
+    high = low.copy()
+    for dv in range(3):
+        for du in range(3):
+            window = img[dv : dv + img.shape[0] - 2, du : du + img.shape[1] - 2]
+            np.minimum(low, window, out=low)
+            np.maximum(high, window, out=high)
+    informative = low != high
+
     if sensor_mask is None:
-        samples = response.ravel()
+        samples = response[informative]
         fallback = img.ravel()
     else:
         m = sensor_mask
@@ -106,13 +128,14 @@ def estimate_image_noise_sigma(
             & m[2:, 1:-1]
             & m[2:, 2:]
         )
-        samples = response[interior_valid]
+        samples = response[interior_valid & informative]
         fallback = img[sensor_mask].ravel()
 
     # A second difference touching a NaN missing-data marker is NaN, so drop
-    # non-finite responses.  If none survive (no fully-finite 3x3 neighborhood,
-    # e.g. an image that is almost entirely markers), fall back to a global MAD
-    # over the finite sensor pixels rather than failing.
+    # non-finite responses.  If none survive (no fully-finite 3x3 neighborhood
+    # that holds more than one value, e.g. an image that is almost entirely
+    # markers or entirely constant), fall back to a global MAD over the finite
+    # sensor pixels rather than failing.
     finite = samples[np.isfinite(samples)]
     if finite.size == 0:
         return float(mad_std(fallback))

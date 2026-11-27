@@ -1205,12 +1205,20 @@ def test_each_voyager_camera_is_an_instrument() -> None:
     assert set(_VOYAGER_CAMERAS) <= names
 
 
-@pytest.mark.parametrize('name', _VOYAGER_CAMERAS)
-def test_each_voyager_camera_emulates_the_voyager_navigator_block(name: str) -> None:
-    """Every Voyager camera points at the one voyager_iss section, with no detector."""
+@pytest.mark.parametrize(
+    ('name', 'detector'),
+    [
+        ('vgiss_1_nac', 'vgiss_1_nac'),
+        ('vgiss_1_wac', 'vgiss_1_wac'),
+        ('vgiss_2_nac', 'vgiss_2_nac'),
+        ('vgiss_2_wac', 'vgiss_2_wac'),
+    ],
+)
+def test_each_voyager_camera_emulates_its_own_navigator_block(name: str, detector: str) -> None:
+    """Every Voyager camera points at the voyager_iss block of its own camera."""
     navigator = load_instrument_catalog().entry(name).navigator
     assert navigator.section == 'voyager_iss'
-    assert navigator.detector is None
+    assert navigator.detector == detector
 
 
 # The optical keys of a Voyager camera, as paths into its own entry: the PSF, the residual

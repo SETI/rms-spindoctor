@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8086539853010697,
-  "confidence_rank": "medium",
-  "offset_du_px": -226.3561935998533,
-  "offset_dv_px": -121.53714971478864,
+  "confidence": 0.9039573470975253,
+  "confidence_rank": "high",
+  "offset_du_px": -226.39999365401786,
+  "offset_dv_px": -121.61373685764303,
   "scene_name": "gossi_star_field_short_exposure",
   "status": "success"
 }

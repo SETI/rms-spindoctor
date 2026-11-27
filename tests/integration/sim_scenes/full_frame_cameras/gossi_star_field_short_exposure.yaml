@@ -7,15 +7,20 @@ random_seed: 7
 exposure_sec: 0.1
 # gossi_star_field at 0.1 s, the exposure of the real Pleiades frames
 # C0059894800R and C0059899900R, which navigate by locking on three stars.
-# The simulated Galileo stars are about 12 times fainter than real ones of the
-# same magnitude: the real frames' V 6.3 to 7.3 stars, two of which the real
-# lock uses, hold 4e7 to 7e7 electrons per second at V 0, against the
-# simulator's 4.0e6, so the scene's V 5.7 to 8.0 stars lie at or below the sky
-# noise.  On a simulated frame the navigator's star limit divides that zero
-# point over the navigator's star blur, now the measured 0.65 px (#342), so it
-# predicts six stars visible and the frame navigates on three of them.  At the
-# earlier 3.0 px placeholder blur the navigator predicted only the V 2.8 star and
-# the frame failed all_techniques_spurious (#1153).
+# The simulator's Galileo star zero point is measured on real frames, 2.3e8
+# electrons per second at V 0 (#1153).  At the catalog's gain of 187 e-/DN the
+# V 2.8 and V 4.2 stars saturate, and the V 7.3 stars peak about 20 times the
+# sky noise.  The navigator's copy of the zero point for simulated frames
+# matches the simulator's, so it predicts stars to V 7.6, matches 8 of them,
+# and lands 0.01 to 0.02 px off at high confidence over 24 draws (0.05 px on
+# the committed draw without the roll).
+#
+# The scene keeps the camera's zero point, which follows the 1992 Pleiades
+# frames.  The 1990 frames it is modeled on (GO_0002 and GO_0003) read about
+# 1.3 mag fainter than the 1992 frames (#1211), so the scene checks the
+# short-exposure path rather than twinning those frames.
+artifacts:
+  instrument_defaults: true
 noise:
   read_noise_dn: 0.96
 sky_counts: {}

@@ -12,10 +12,13 @@ exposure_sec: 1.6
 # the camera's 350 px search window, and the offset brings a different part of
 # it into view.  The brightest star saturates and blooms.
 #
-# The real frames ran 0.1 s and lock on three stars.  At 0.1 s this field
-# navigates on three stars (gossi_star_field_short_exposure).
-# At 1.6 s the navigator predicts enough stars for the star-field technique's
-# wide-offset lock, the path the real frames take, so this scene runs at 1.6 s.
+# The real frames ran 0.1 s and lock on three stars, the path
+# gossi_star_field_short_exposure checks.  This scene runs at 1.6 s, where every
+# star saturates at the simulator's star zero point, 2.3e8 electrons per second
+# at V 0, measured on real frames (#1153): the image holds 30 sources at the
+# 8-bit ceiling.  The navigator's copy of the zero point for simulated frames
+# matches the simulator's, so it predicts stars to V 10.6, matches 11 of them,
+# and lands 0.09 to 0.10 px off at high confidence over 24 draws.
 #
 # instrument_defaults turns on the camera's whole chain.  The scene plants the
 # measured Galileo sky noise, 0.96 DN, in place of the catalog's read noise,
@@ -25,8 +28,8 @@ exposure_sec: 1.6
 # The roll is the camera's measured twist, -0.0526 deg (0.5 px at the corner),
 # planted with roll fitting off as the camera ships.  The roll turns the scene
 # about the boresight, the frame center after the offset, so it moves the two
-# bright stars in view by 0.02 and 0.34 px, and the answer lands 0.04 to
-# 0.06 px off over 16 seeds, against 0.02 px without the roll.
+# bright stars in view by 0.02 and 0.34 px.  Without the roll the committed
+# draw lands 0.08 px off.
 artifacts:
   instrument_defaults: true
 noise:

@@ -103,7 +103,7 @@ def test_a_star_collects_light_for_the_exposure_plus_the_extra_time() -> None:
     whole DN allows the looser tolerance; leaving out the extra time moves the ratio by
     5.9%.
     """
-    star = {'bodies': [], 'stars': [{'name': 'S1', 'v': 600.0, 'u': 600.0, 'vmag': 2.5}]}
+    star = {'bodies': [], 'stars': [{'name': 'S1', 'v': 600.0, 'u': 600.0, 'vmag': 5.0}]}
     ratio = _signal_dn(_scene(0.010, **star)) / _signal_dn(_scene(0.005, **star))
     expected = (0.010 + _EXTRA_INTEGRATION_SEC) / (0.005 + _EXTRA_INTEGRATION_SEC)
     assert ratio == pytest.approx(expected, rel=5e-3)

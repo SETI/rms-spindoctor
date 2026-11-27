@@ -5,12 +5,15 @@ size_v: 1024
 size_u: 1024
 random_seed: 7
 exposure_sec: 1.0
-# nhlorri_star_field at 1 s instead of 5 s.  The brightest star, V 10.5, still
-# peaks about 20 times the sky noise.  With the navigator's LORRI star blur at
-# the measured 0.9 px (#342) it predicts the seven brightest stars visible, and
-# the star-field technique locks on all seven.  At the earlier 3.0 px
-# placeholder the blur spread each predicted star over about nine times the
-# pixels, the navigator predicted none visible, and the frame failed.
+# nhlorri_star_field at 1 s instead of 5 s.  The brightest star, V 10.5, peaks
+# about 175 times the sky noise at the simulator's measured zero point, 7.0e8
+# electrons per second at V 0 (#1213).  The navigator's copy of the zero point
+# for simulated frames matches the simulator's, so it predicts stars to V 12.2
+# and measures the 7 brightest.  Their mean position lies about 160 px from the
+# boresight, so the +0.19 deg twist moves it about 0.54 px, and the answer
+# lands 0.53 to 0.55 px off at high confidence over 24 draws (0.02 px on the
+# committed draw without the roll).  The navigator's star blur, star_psf_sigma,
+# is still a 3.0 px placeholder against a published core near 1 px (#342).
 artifacts:
   instrument_defaults: true
 sky_counts: {}

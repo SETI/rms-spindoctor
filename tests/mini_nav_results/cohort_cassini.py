@@ -411,7 +411,7 @@ def cassini_body_limb() -> dict[str, Any]:
         covariance_px2=np.diag([0.0576, 0.0441]),
         confidence=0.88,
         confidence_rank=derive_confidence_rank(
-            confidence=0.88, sigma_px=(0.24, 0.21), tier_thresholds=packaged_tiers()
+            confidence=0.88, sigma_major_px=0.24, tier_thresholds=packaged_tiers()
         ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,
@@ -507,7 +507,7 @@ def cassini_ring_edges() -> dict[str, Any]:
         covariance_px2=np.diag([0.1024, 0.0729]),
         confidence=0.77,
         confidence_rank=derive_confidence_rank(
-            confidence=0.77, sigma_px=(0.32, 0.27), tier_thresholds=packaged_tiers()
+            confidence=0.77, sigma_major_px=0.32, tier_thresholds=packaged_tiers()
         ),
         status_reason=NavStatusReason.OK,
         per_technique=per_technique,

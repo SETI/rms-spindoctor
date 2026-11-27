@@ -230,7 +230,7 @@ From the fused covariance the result derives:
 - :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.sigma_rotation_rad`
   -- from the rotation diagonal, when rotation was fitted;
 - the ``confidence_rank`` tier, whose ``max_sigma_px`` requirement is
-  checked against the larger per-axis sigma (the
+  checked against the major semi-axis of the translation error ellipse (the
   ``orchestrator.ensemble.tier_thresholds`` configuration): a result can be
   confident but too imprecise to earn a tier
   (``final_sigma_above_threshold``).

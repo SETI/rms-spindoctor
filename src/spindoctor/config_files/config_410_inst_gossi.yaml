@@ -34,18 +34,18 @@ galileo_ssi:
     read_noise_dn: 1.0             # PLACEHOLDER — calibrate in Phase 10
     # interim: photometric zero point (DN a vmag-0 star deposits per second),
     # the electron zero point over the standard gain state.
-    star_flux_dn_per_s_vmag0: 2.14e4
+    star_flux_dn_per_s_vmag0: 1.23e6
     # The summed readout mode, keyed by the binning factor: the read noise of one
     # summed pixel in DN and the zero point in DN/s.  A mode this table leaves out
     # reads with the values above.  The published sources (Belton et al. 1992 and
     # Klaasen 1993) give the 2x2 summation mode a read noise of 44 e- and no gain
     # of its own, so at the 187 e-/DN of gain state 2 it reads 44 / 187 = 0.235 DN
     # (read_noise_dn above is a placeholder).  Summing on the chip keeps a star's
-    # charge, so the zero point stays 2.14e4 DN/s.  0.235 DN is below the star
+    # charge, so the zero point stays 1.23e6 DN/s.  0.235 DN is below the star
     # limit's 1 DN noise floor, so the limit reads 1 DN in this mode, as it does
     # unbinned.
     by_binning:
-      2: {read_noise_dn: 0.235, star_flux_dn_per_s_vmag0: 2.14e4}
+      2: {read_noise_dn: 0.235, star_flux_dn_per_s_vmag0: 1.23e6}
   image_quality_thresholds:
     blank_max_dn: 5.0              # PLACEHOLDER — calibrate in Phase 10
     saturation_threshold_dn: 255   # 8-bit ADC
