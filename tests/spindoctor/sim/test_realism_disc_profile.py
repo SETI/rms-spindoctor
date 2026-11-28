@@ -13,6 +13,7 @@ from spindoctor.sim.realism.disc_profile import (
     equator_profile,
     fit_lunar_lambert,
     fit_minnaert,
+    fit_minnaert_together,
     photometric_coordinates,
     profile_residual,
     select_disc_pixels,
@@ -110,6 +111,77 @@ def test_too_few_pixels_give_no_blend(n: int) -> None:
     """With one pixel, or one fewer than the minimum, the lunar-Lambert fit returns None."""
     intensity, mu0, mu = _disc('lambert')
     assert fit_lunar_lambert(intensity[:n], mu0[:n], mu[:n]) is None
+
+
+def test_no_pixels_give_no_fit() -> None:
+    """An empty disc returns None before any median of its residuals is taken."""
+    empty = np.zeros(0)
+    assert fit_minnaert(empty, empty, empty) is None
+
+
+def test_a_rejection_that_leaves_too_few_pixels_gives_no_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A rejection so tight that no pixel survives it gives None.
+
+    An even number of pixels puts the median between two residuals, so none lies on it.
+    """
+    monkeypatch.setattr(disc_profile, '_CLIP_SIGMAS', 1e-12)
+    intensity, mu0, mu = (a[: a.size // 2 * 2] for a in _disc('lambert'))
+    noisy = intensity * np.exp(0.01 * np.random.default_rng(2).normal(size=intensity.size))
+    assert fit_minnaert(noisy, mu0, mu) is None
+
+
+def _marked_twins() -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """A real-like Lambert disc and a twin that one albedo marking sets apart.
+
+    The first disc carries 3% noise and is 5% too bright where ``mu0 * mu`` exceeds
+    0.8, too little for its own fit to drop.  The second is noiseless and five times
+    too bright there, and its fit drops those pixels.
+    """
+    intensity, mu0, mu = _disc('lambert')
+    marked = np.where(mu0 * mu > 0.8, 1.0, 0.0)
+    noise = np.exp(0.03 * np.random.default_rng(4).normal(size=intensity.size))
+    real = intensity * noise * (1.0 + 0.05 * marked)
+    twin = intensity * (1.0 + 4.0 * marked)
+    return [(real, mu0, mu), (twin, mu0, mu)]
+
+
+def test_a_marking_one_fit_drops_is_left_out_of_every_fit() -> None:
+    """The real-like disc, fitted over the pixels the twin's fit keeps, fits k near 1."""
+    fits = fit_minnaert_together(_marked_twins())
+    assert fits[0] is not None
+    assert fits[0].k == pytest.approx(1.0, abs=0.002)
+
+
+def test_fits_that_keep_every_pixel_give_their_own_exponents() -> None:
+    """Two clean discs fitted together give the exponents each gives on its own."""
+    lambert, minnaert = _disc('lambert'), _disc('minnaert', minnaert_k=0.7)
+    fits = fit_minnaert_together([lambert, minnaert])
+    assert fits[1] is not None
+    assert fits[1].k == pytest.approx(0.7, abs=1e-9)
+
+
+def test_too_few_shared_pixels_give_no_fit_for_any_disc() -> None:
+    """Two discs of 150 pixels whose fits each drop a different quarter share 75.
+
+    Each fit keeps 112 or 113 pixels, enough on its own.
+    """
+    intensity, mu0, mu = _disc('lambert')
+    pick = np.linspace(0, intensity.size - 1, 150).astype(int)
+    intensity, mu0, mu = intensity[pick], mu0[pick], mu[pick]
+    index = np.arange(150)
+    first = intensity * np.where(index % 4 == 0, 5.0, 1.0)
+    second = intensity * np.where(index % 4 == 2, 5.0, 1.0)
+    fits = fit_minnaert_together([(first, mu0, mu), (second, mu0, mu)])
+    assert fits == [None, None]
+
+
+def test_discs_of_different_sizes_are_refused() -> None:
+    """A twin with one pixel fewer than the real disc cannot be fitted with it."""
+    intensity, mu0, mu = _disc('lambert')
+    with pytest.raises(ValueError, match=r'different numbers of pixels'):
+        fit_minnaert_together([(intensity, mu0, mu), (intensity[1:], mu0[1:], mu[1:])])
 
 
 def test_pixels_that_cannot_fix_the_exponent_give_no_fit() -> None:

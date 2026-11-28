@@ -77,3 +77,15 @@ def test_a_law_value_that_underflows_gives_no_estimate() -> None:
         np.full(50, 0.1), mu0, mu0, law='minnaert', phase_angle=_PHASE, minnaert_k=400.0
     )
     assert albedo is None
+
+
+def test_a_quotient_that_overflows_gives_no_estimate() -> None:
+    """A Minnaert exponent of 307 leaves the law subnormal at cosines of 0.3.
+
+    I/F 0.5 divided by it overflows, so none of the pixels gives an estimate.
+    """
+    mu0 = np.full(50, 0.3)
+    albedo = disc_normal_albedo(
+        np.full(50, 0.5), mu0, mu0, law='minnaert', phase_angle=_PHASE, minnaert_k=307.0
+    )
+    assert albedo is None

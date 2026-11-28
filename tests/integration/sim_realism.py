@@ -197,7 +197,7 @@ class FrameRecord:
         stars: For a star frame, its catalog stars as the twin's scene star
             entries, at the frame's verified offset; else None.
         limb_directions_deg: When the real frame's limb gave a gradient peak, the
-            directions of the vertices its fit read, which the matched frame's limb is
+            directions of the vertices its fit kept, which the matched frame's limb is
             measured over; else None.
         limb_width_directions_deg: The directions of the real limb's vertices that gave
             rise widths, which the matched frame's widths are taken near; empty when the
@@ -493,7 +493,7 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
             # The real frame has no limb of this body, so neither does its twin.
             features = [f for f in features if not isinstance(f.geometry, LimbPolyline)]
         bodies = scene.get('bodies') or []
-        # The twin's limb peak is measured over the directions the real fit read, and its
+        # The twin's limb peak is measured over the directions the real fit kept, and its
         # widths near the directions of the real widths.
         used = record.limb_directions_deg if bodies else None
         features_sim = extract_feature_samples(

@@ -277,7 +277,7 @@ def _figure_fits(study: LawStudy, out: Path) -> None:
         ax.set_xlabel('phase angle (deg)')
         ax.set_ylabel(ylabel)
         ax.set_xlim(0.0, 180.0)
-    ax_l.set_ylim(-0.6, 1.6)
+    ax_l.set_ylim(*_blend_limits(study.rows))
     handles, labels = ax_k.get_legend_handles_labels()
     unique = dict(zip(labels, handles, strict=True))
     ax_k.legend(unique.values(), unique.keys(), fontsize=7, loc='lower right')
@@ -286,6 +286,25 @@ def _figure_fits(study: LawStudy, out: Path) -> None:
     fig.tight_layout()
     fig.savefig(out, dpi=110)
     plt.close(fig)
+
+
+def _blend_limits(rows: list[DiscRow]) -> tuple[float, float]:
+    """The blend axis's limits: -0.6 to 1.6, widened to hold every fitted blend.
+
+    Parameters:
+        rows: The discs, each with its twins.
+
+    Returns:
+        The lower and upper limits, each with every finite blend and its error bar inside
+        it.
+    """
+    low, high = -0.6, 1.6
+    for row in rows:
+        fit = row.disc.lunar_lambert
+        if fit is not None and math.isfinite(fit.blend) and math.isfinite(fit.blend_sigma):
+            low = min(low, fit.blend - fit.blend_sigma - 0.05)
+            high = max(high, fit.blend + fit.blend_sigma + 0.05)
+    return low, high
 
 
 def _default_law_pairs(rows: list[DiscRow]) -> list[tuple[float, float, float]]:
@@ -559,7 +578,8 @@ def record_law_comparison_problems(record: dict[str, Any]) -> list[str]:
     Raises:
         ValueError: If a bin's agreements leave out the default law or name no other
             law, if its separations do not name exactly the other laws, or if a recorded
-            separation differs from the one the numbers give.
+            separation, or whether the default law agrees best, differs from what the
+            numbers give.
     """
     study = record.get('law_study', {})
     default = study.get('default_law', DEFAULT_LAW)
@@ -573,6 +593,7 @@ def record_law_comparison_problems(record: dict[str, Any]) -> list[str]:
                 f'{default!r} and says whether {sorted(entry["separates"])} separate from it; '
                 'each law other than the default needs one such entry'
             )
+        best = True
         for law, recorded in sorted(entry['separates'].items()):
             gap = abs(agreement[law] - agreement[default])
             apart = bool(gap > entry['band_k'])
@@ -583,9 +604,15 @@ def record_law_comparison_problems(record: dict[str, Any]) -> list[str]:
                     f'{entry["band_k"]:.3f}'
                 )
             if apart and agreement[law] < agreement[default]:
+                best = False
                 problems.append(
                     f'{label}: {law} agrees with the real discs to a median |dk| of '
                     f"{agreement[law]:.3f}, better than {default}'s {agreement[default]:.3f} "
                     f'by more than the band of {entry["band_k"]:.3f} ({entry["n"]} discs)'
                 )
+        if entry['default_best'] is not best:
+            raise ValueError(
+                f'{label}: the record says {default} agrees best is {entry["default_best"]}, '
+                f'but its agreements and band give {best}'
+            )
     return problems

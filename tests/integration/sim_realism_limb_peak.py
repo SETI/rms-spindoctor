@@ -29,7 +29,7 @@ the planet, the planet's rings, and its shadow over the body, which the real fra
 geometry gives (:func:`~tests.integration.sim_realism_laws_discs.foreign_pixels`).  The
 matched frame's sphere is lit from the real body's direction and has nothing beside it,
 so its limb is measured over the same stretch of limb instead: a matched vertex is used
-only near the directions of the real vertices the real fit used, each measured from the
+only near the directions of the real vertices the real fit kept, each measured from the
 direction the light comes from.  A fit whose used vertices span too short an arc is
 refused, because over a short arc a translation of the limb mimics a radial offset
 (:data:`MAX_OFFSET_TRANSLATION_CORRELATION`).
@@ -130,7 +130,7 @@ ceiling, against 5.3 for an evenly sampled half and 12 for the largest limb of t
 frame.
 """
 
-# A matched vertex is used when a real vertex the real fit used lies within this many
+# A matched vertex is used when a real vertex the real fit kept lies within this many
 # of the real limb's median vertex spacings of its direction, so a gap the rule left in
 # the real limb stays a gap in the matched one.
 _DIRECTION_MATCH_SPACINGS = 2.0
@@ -301,7 +301,7 @@ class LimbSelection:
             own body and the sky; a vertex that fails it is left out.  None on a matched
             frame.
         peak_deg: On a matched frame, the directions of the real vertices the real
-            gradient-peak fit used; a vertex far from all of them gives no peak.  None on
+            gradient-peak fit kept; a vertex far from all of them gives no peak.  None on
             a real frame.
         width_deg: On a matched frame, the directions of the real vertices that gave
             rise widths; a vertex far from all of them gives no width.  None on a real
@@ -351,8 +351,8 @@ class LimbPeak:
         offset_px: The offset from the silhouette, negative inside it, or None when the
             limb was refused.
         refusal: Why the limb was refused, or None when it gave an offset.
-        used_deg: The directions of the vertices whose peaks the fit read (see
-            :class:`LimbOrientation`).
+        used_deg: The directions of the vertices whose peaks the fit kept, or of every
+            vertex that had a peak when the fit failed (see :class:`LimbOrientation`).
     """
 
     offset_px: float | None
@@ -536,7 +536,7 @@ def limb_peak_offset(
     is used when its silhouette was found and ``selection`` keeps it.  On a real frame
     the track the gradient peak is looked for along, 4 px to each side of the
     silhouette, must touch only the body and the sky.  On a matched frame the vertex
-    must lie near a direction the real fit used.
+    must lie near a direction whose peak the real fit kept.
 
     The arc is judged on the real limb alone, and a matched limb is measured over the
     real limb's directions only after the real limb kept its offset.
@@ -574,6 +574,9 @@ def limb_peak_offset(
     fit = fit_limb_peak_offset(peaks, outward)
     if fit is None:
         return LimbPeak(None, 'the robust fit kept too few vertices to separate the offset', used)
+    # A matched limb is measured over the directions whose peaks the fit kept, so a
+    # stretch the robust fit dropped on the real limb is left out of it as well.
+    used = tuple(float(d) for d in selection.orientation.directions_deg(silhouette[fit.kept]))
     if fit.offset_sigma_px > MAX_OFFSET_SIGMA_PX:
         return LimbPeak(
             None, f'the offset is known to {fit.offset_sigma_px:.2f} px, worse than 0.2 px', used

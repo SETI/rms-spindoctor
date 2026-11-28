@@ -300,6 +300,20 @@ def test_a_vertex_whose_track_touches_another_body_is_left_out() -> None:
     assert not any(25.0 <= d <= 45.0 for d in peak.used_deg)
 
 
+def test_a_real_limb_lists_only_the_directions_its_fit_kept() -> None:
+    """A stretch of limb whose peaks the robust fit drops is left out of the directions.
+
+    From 20 to 50 degrees past the direction the light comes from, the disc's edge lies
+    2 px outside its silhouette, so the fit drops the peaks of the vertices there.
+    """
+    vv, uu = np.mgrid[0:120, 0:120].astype(np.float64)
+    angle = np.degrees(np.arctan2(vv - 60.0, uu - 60.0))
+    sector = (angle >= 20.0) & (angle <= 50.0)
+    image = np.where(sector, _disc_image((60.0, 60.0), 32.0), _disc_image((60.0, 60.0), 30.0))
+    peak = _measure(_limb(_CENTER_EXTFOV, 30.0), image)
+    assert not any(25.0 <= d <= 45.0 for d in peak.used_deg)
+
+
 def test_the_matched_limb_is_measured_over_the_real_limbs_directions() -> None:
     """A real limb that used only the half before the light's direction limits its twin.
 

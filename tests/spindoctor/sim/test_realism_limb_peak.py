@@ -117,6 +117,21 @@ def test_the_fit_drops_outlying_peaks() -> None:
     assert fit.n_kept == normals.shape[0] - 8
 
 
+def test_the_fit_marks_the_peaks_it_kept() -> None:
+    """The fit keeps every peak but the eight on a crater rim and the one not measured."""
+    rng = np.random.default_rng(3)
+    normals = _disc_normals(120, -90.0, 90.0)
+    peaks = np.asarray(rng.normal(-0.25, 0.05, normals.shape[0]), dtype=np.float64)
+    peaks[::15] += 2.5
+    peaks[7] = np.nan
+    expected = np.ones(normals.shape[0], dtype=bool)
+    expected[::15] = False
+    expected[7] = False
+    fit = fit_limb_peak_offset(peaks, normals)
+    assert fit is not None
+    assert np.array_equal(fit.kept, expected)
+
+
 def test_the_fit_needs_twenty_measured_peaks() -> None:
     """Nineteen measured peaks are too few to fit."""
     normals = _disc_normals(30, -90.0, 90.0)

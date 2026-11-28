@@ -55,8 +55,8 @@ def disc_normal_albedo(
 
     Returns:
         The median over the pixels whose I/F is finite, whose two cosines are both at
-        least 0.3, and where the law's value is finite and positive, of the I/F divided
-        by the law's value there.  None when fewer than 50 pixels count or the median
+        least 0.3, and where the law's value is positive and the I/F divided by it is
+        finite, of that quotient.  None when fewer than 50 pixels count or the median
         is not positive.
     """
     values = np.asarray(disc_if, dtype=np.float64).ravel()
@@ -67,11 +67,15 @@ def disc_normal_albedo(
     shaded[keep] = shade_surface(
         mu0[keep], mu[keep], law=law, phase_angle=phase_angle, minnaert_k=minnaert_k
     )
-    # A law value that underflows to zero (a large Minnaert exponent) gives no estimate.
+    # A law value that underflows to zero (a large Minnaert exponent) does not give an
+    # estimate, and neither does one so small that the division overflows.
     keep &= np.isfinite(shaded) & (shaded > 0.0)
-    if int(np.count_nonzero(keep)) < MIN_ALBEDO_PIXELS:
+    with np.errstate(over='ignore'):
+        ratios = values[keep] / shaded[keep]
+    ratios = ratios[np.isfinite(ratios)]
+    if ratios.size < MIN_ALBEDO_PIXELS:
         return None
-    albedo = float(np.median(values[keep] / shaded[keep]))
+    albedo = float(np.median(ratios))
     if not albedo > 0.0:
         return None
     return albedo

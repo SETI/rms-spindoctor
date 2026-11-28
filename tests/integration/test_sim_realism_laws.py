@@ -37,6 +37,7 @@ from tests.integration.sim_realism_laws import (
     DEFAULT_LAW,
     DiscProfileBin,
     DiscRow,
+    ExcludedDisc,
     LawComparisonBin,
     LawStudyInputs,
     RealDisc,
@@ -578,6 +579,15 @@ def test_clipped_pixels_that_a_nearer_body_hides_do_not_clip_the_disc() -> None:
     assert len(inputs.discs) == 1
 
 
+def test_a_disc_whose_fit_fails_says_its_pixels_do_not_support_one(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A disc with enough clear pixels whose Minnaert fit fails gives that as the reason."""
+    monkeypatch.setattr(sim_realism_laws_discs, 'fit_minnaert', lambda *_args: None)
+    reason = _measured(100, 40.0).excluded[0].reason
+    assert reason.endswith("do not support a fit of Minnaert's law")
+
+
 def test_a_body_the_offset_moves_into_the_frame_is_in_view() -> None:
     """A box 3 px past the frame's right edge, moved 5 px left, overlaps the frame."""
     fov = SimpleNamespace(fov_u_min=0, fov_u_max=99, fov_v_min=0, fov_v_max=99)
@@ -617,12 +627,21 @@ def _sphere_disc(law: str, *, albedo: float = 0.05, **kwargs: float) -> RealDisc
     return disc
 
 
+def _twins_of(
+    disc: RealDisc, laws: tuple[str, ...], *, minnaert_k: float, limb_peak: bool
+) -> dict[str, TwinDisc]:
+    """The twins of a disc that gives a normal albedo under every law."""
+    twins = sim_realism_laws._twins(disc, laws, minnaert_k=minnaert_k, limb_peak=limb_peak)
+    assert twins is not None
+    return twins
+
+
 @pytest.fixture(scope='module')
 def lambert_twin() -> TwinDisc:
     """The rendered Lambert twin of a Lambert disc whose exponent is recorded as 1."""
-    return sim_realism_laws._twins(
-        _sphere_disc('lambert'), ('lambert',), minnaert_k=0.6, limb_peak=False
-    )['lambert']
+    return _twins_of(_sphere_disc('lambert'), ('lambert',), minnaert_k=0.6, limb_peak=False)[
+        'lambert'
+    ]
 
 
 def test_a_lambert_twin_fits_the_exponent_one(lambert_twin: TwinDisc) -> None:
@@ -643,7 +662,7 @@ def bright_twin() -> TwinDisc:
     """
     disc = _sphere_disc('lambert', albedo=3.0)
     disc.limb_peak = ('limb_peak_p0_r1', 0.0)
-    return sim_realism_laws._twins(disc, ('lambert',), minnaert_k=0.6, limb_peak=True)['lambert']
+    return _twins_of(disc, ('lambert',), minnaert_k=0.6, limb_peak=True)['lambert']
 
 
 def test_a_twin_counts_its_pixels_at_the_ceiling(bright_twin: TwinDisc) -> None:
@@ -687,7 +706,7 @@ def test_a_twin_is_cropped_to_the_real_discs_bounds(lambert_twin: TwinDisc) -> N
 
 def test_a_minnaert_twin_takes_the_exponent_it_is_given() -> None:
     """A rendered Minnaert twin fits the exponent it was rendered with."""
-    twin = sim_realism_laws._twins(
+    twin = _twins_of(
         _sphere_disc('minnaert', minnaert_k=0.6), ('minnaert',), minnaert_k=0.6, limb_peak=False
     )['minnaert']
     assert twin.k == pytest.approx(0.6, abs=0.03)
@@ -703,13 +722,17 @@ def _keep_selected(disc: RealDisc, keep: NDArrayBoolType) -> None:
 
 
 def test_a_twin_is_fitted_only_over_the_real_discs_pixels() -> None:
-    """A real disc that counted 50 pixels leaves its twin too few to fit."""
+    """A real disc that counted 99 pixels leaves its twin too few to fit.
+
+    They lie where both cosines are at least 0.3, so they give the twin its albedo.
+    """
     disc = _sphere_disc('lambert')
+    facing = np.flatnonzero((disc.mu0 >= 0.3) & (disc.mu >= 0.3))[:99]
     rows, cols = np.nonzero(disc.selection)
     first = np.zeros_like(disc.selection)
-    first[rows[:50], cols[:50]] = True
+    first[rows[facing], cols[facing]] = True
     _keep_selected(disc, first)
-    twin = sim_realism_laws._twins(disc, ('lambert',), minnaert_k=0.6, limb_peak=False)['lambert']
+    twin = _twins_of(disc, ('lambert',), minnaert_k=0.6, limb_peak=False)['lambert']
     assert twin.k is None
 
 
@@ -732,7 +755,7 @@ def test_a_twin_that_leaves_out_real_pixels_pairs_with_the_real_disc_over_the_re
     disc.mu = mu[lit]
     disc.intensity = 0.05 * disc.mu0 * np.where(clear[lit], 1.0, 3.0)
     disc.minnaert = MinnaertFit(k=0.3, b0=0.05, k_sigma=0.01, n_pixels=int(lit.sum()))
-    twin = sim_realism_laws._twins(disc, ('lambert',), minnaert_k=0.6, limb_peak=False)['lambert']
+    twin = _twins_of(disc, ('lambert',), minnaert_k=0.6, limb_peak=False)['lambert']
     assert twin.real_k == pytest.approx(1.0, abs=1e-9)
 
 
@@ -757,7 +780,13 @@ def test_a_pixel_one_twin_clips_is_left_out_of_every_twins_fit(
     bright = lit & (mu0 > 0.6)
 
     def render(
-        disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool, on_body: NDArrayBoolType
+        disc: RealDisc,
+        law: str,
+        *,
+        normal_albedo: float,
+        minnaert_k: float,
+        limb_peak: bool,
+        on_body: NDArrayBoolType,
     ) -> Any:
         steep = law == 'lommel_seeliger'
         data = np.where(bright & steep, lambert * (mu0 / 0.6) ** 2, lambert)
@@ -771,10 +800,63 @@ def test_a_pixel_one_twin_clips_is_left_out_of_every_twins_fit(
         )
 
     monkeypatch.setattr(sim_realism_laws, '_render_twin', render)
-    twins = sim_realism_laws._twins(
+    twins = _twins_of(
         _sphere_disc('lambert'), ('lambert', 'lommel_seeliger'), minnaert_k=0.6, limb_peak=False
     )
     assert twins['lommel_seeliger'].k == pytest.approx(1.0, abs=1e-6)
+
+
+def test_pixels_one_twins_fit_drops_are_left_out_of_the_real_fit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Every exponent of a disc is fitted over the pixels all of its fits keep.
+
+    The real disc is Lambert with 3% noise, and 5% too bright where the disc faces both
+    the Sun and the camera most closely, too little for its own fit to drop.  One twin
+    is five times too bright there, and its fit drops those pixels.  Only a real fit
+    that leaves them out as well gives back the Lambert exponent 1.
+    """
+    phase = 30.0
+    on_body, mu0, mu = sim_realism_laws._sphere_cosines(
+        (256, 256), (128.0, 128.0), 60.0, illumination_deg=90.0, phase_deg=phase
+    )
+    lambert = np.where(on_body, 0.05 * np.clip(mu0, 0.0, None), 0.0)
+    marked = on_body & (mu0 * mu > 0.8)
+    disc = _sphere_disc('lambert')
+    noise = np.exp(0.03 * np.random.default_rng(5).normal(size=disc.intensity.size))
+    disc.intensity = disc.intensity * noise * np.where(marked[disc.selection], 1.05, 1.0)
+
+    def render(
+        disc: RealDisc,
+        law: str,
+        *,
+        normal_albedo: float,
+        minnaert_k: float,
+        limb_peak: bool,
+        on_body: NDArrayBoolType,
+    ) -> Any:
+        spot = law == 'lambert'
+        return sim_realism_laws._TwinRender(
+            law=law,
+            normal_albedo=normal_albedo,
+            data=np.where(marked & spot, 5.0 * lambert, lambert),
+            at_ceiling=np.zeros(on_body.shape, dtype=bool),
+            limb_peak=None,
+            limb_peak_refusal=None,
+        )
+
+    monkeypatch.setattr(sim_realism_laws, '_render_twin', render)
+    twins = _twins_of(disc, ('lambert', 'lommel_seeliger'), minnaert_k=0.6, limb_peak=False)
+    assert twins['lommel_seeliger'].real_k == pytest.approx(1.0, abs=0.002)
+
+
+def test_a_disc_without_a_normal_albedo_is_left_out_of_the_study() -> None:
+    """A disc whose pixels all lie at an incidence cosine of 0.1 is listed as left out."""
+    disc = _sphere_disc('lambert')
+    disc.mu0 = np.full(disc.mu0.shape, 0.1)
+    study = run_law_study(LawStudyInputs(discs=[disc]), laws=('lambert',))
+    reason = 'its disc does not give a normal albedo for its twins'
+    assert study.excluded == [ExcludedDisc(_FRAME.image_id, 'DIONE', reason)]
 
 
 def _record(
@@ -784,6 +866,7 @@ def _record(
     *,
     agreement: dict[str, float] | None = None,
     separates: bool = False,
+    default_best: bool = True,
 ) -> dict[str, Any]:
     """A record holding one disc-profile bin and one law-comparison bin.
 
@@ -814,7 +897,7 @@ def _record(
                     'band_k': 0.05,
                     'agreement': agreement or {'lunar_lambert': 0.06, 'lambert': 0.08},
                     'separates': {'lambert': separates},
-                    'default_best': True,
+                    'default_best': default_best,
                 }
             },
         },
@@ -858,7 +941,12 @@ def test_a_recorded_verdict_its_numbers_contradict_is_refused() -> None:
 def test_a_law_that_separates_and_agrees_better_is_a_problem() -> None:
     """A law better than the default by more than the band is reported."""
     record = _record(
-        0.03, 0.05, True, agreement={'lunar_lambert': 0.2, 'lambert': 0.05}, separates=True
+        0.03,
+        0.05,
+        True,
+        agreement={'lunar_lambert': 0.2, 'lambert': 0.05},
+        separates=True,
+        default_best=False,
     )
     assert record_law_comparison_problems(record) == [
         'p0: lambert agrees with the real discs to a median |dk| of 0.050, better than '
@@ -885,6 +973,28 @@ def test_a_recorded_separation_its_numbers_contradict_is_refused() -> None:
     record = _record(0.03, 0.05, True, agreement={'lunar_lambert': 0.2, 'lambert': 0.05})
     with pytest.raises(ValueError, match=r'separates from lunar_lambert is False, but'):
         record_law_comparison_problems(record)
+
+
+def test_a_recorded_default_best_its_numbers_contradict_is_refused() -> None:
+    """A bin the default wins, 0.08 ahead against a band of 0.05, recorded as lost."""
+    record = _record(
+        0.03,
+        0.05,
+        True,
+        agreement={'lunar_lambert': 0.02, 'lambert': 0.10},
+        separates=True,
+        default_best=False,
+    )
+    with pytest.raises(ValueError, match=r'agrees best is False, but its agreements and band'):
+        record_law_comparison_problems(record)
+
+
+def test_the_blend_axis_widens_to_hold_a_fitted_blend() -> None:
+    """A blend of 1.8 with an error of 0.1 lifts the axis's top above 1.9."""
+    disc = _disc(30.0, 0.6)
+    disc.lunar_lambert = LunarLambertFit(blend=1.8, b0=0.5, blend_sigma=0.1, n_pixels=500)
+    row = DiscRow(disc=disc, twins={})
+    assert sim_realism_laws_report._blend_limits([row])[1] > 1.9
 
 
 def test_a_comparison_that_leaves_out_a_laws_separation_is_refused() -> None:

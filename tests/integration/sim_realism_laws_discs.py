@@ -637,20 +637,19 @@ def _measure_moon(
             )
             continue
         kept = decimate(selected)
+        n_selected = int(selected.sum())
         minnaert = (
-            fit_minnaert(data[kept], mu0[kept], mu[kept])
-            if int(selected.sum()) >= MIN_FIT_PIXELS
-            else None
+            fit_minnaert(data[kept], mu0[kept], mu[kept]) if n_selected >= MIN_FIT_PIXELS else None
         )
         if minnaert is None:
-            inputs.excluded.append(
-                ExcludedDisc(
-                    frame.image_id,
-                    label,
-                    f'only {int(selected.sum())} lit pixels lie {DISC_CLEARANCE_PX:g} px '
-                    'clear of the limb and the terminator',
-                )
+            reason = (
+                f'only {n_selected} lit pixels lie {DISC_CLEARANCE_PX:g} px clear of the limb '
+                'and the terminator'
+                if n_selected < MIN_FIT_PIXELS
+                else f'its {n_selected} lit pixels clear of the limb and the terminator do '
+                "not support a fit of Minnaert's law"
             )
+            inputs.excluded.append(ExcludedDisc(frame.image_id, label, reason))
             continue
         inputs.discs.append(
             RealDisc(

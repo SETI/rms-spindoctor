@@ -20,12 +20,12 @@ coordinates are pixel centers.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import scipy.ndimage
 
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'LimbPeakFit',
@@ -74,6 +74,8 @@ class LimbPeakFit:
             normals rounded to fixed steps do not turn with it.  A full circle of
             normals gives 0, an evenly sampled half circle 0.90, and a quarter circle
             0.995.
+        kept: ``(N,)``, over every vertex given to the fit, True where the fit kept
+            the vertex's peak.
     """
 
     offset_px: float
@@ -83,6 +85,7 @@ class LimbPeakFit:
     n_kept: int
     residual_scale_px: float
     offset_translation_correlation: float
+    kept: NDArrayBoolType = field(compare=False, repr=False)
 
 
 def _unit_normals(normals_vu: NDArrayFloatType) -> NDArrayFloatType:
@@ -275,6 +278,8 @@ def fit_limb_peak_offset(
     # The offset's variance is 1 / (1 - R**2) times what it would be if the translation
     # were known, where R is its multiple correlation with the translation.
     shared = 1.0 - 1.0 / (float(normal[0, 0]) * float(inverse[0, 0]))
+    kept = np.zeros(x_all.shape, dtype=bool)
+    kept[measured] = weights > 0.0
     return LimbPeakFit(
         offset_px=float(coef[0]),
         offset_sigma_px=float(np.sqrt(covariance[0, 0])),
@@ -283,4 +288,5 @@ def fit_limb_peak_offset(
         n_kept=n_kept,
         residual_scale_px=scale,
         offset_translation_correlation=float(np.sqrt(max(shared, 0.0))),
+        kept=kept,
     )

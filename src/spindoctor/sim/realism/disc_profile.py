@@ -17,6 +17,9 @@ angles.  Taking logarithms, ``log(I * mu) = log(B0) + k * log(mu0 * mu)`` is a s
 line, so ``k`` is its slope.  The slope does not depend on the overall brightness, and an
 albedo marking moves a few pixels off the line, where the fit's outlier rejection drops
 them.  ``k = 1`` is Lambert's law and ``k = 0.5`` the classic limb-brightened lunar value.
+:func:`fit_minnaert_together` fits several images of one disc, such as a real disc and
+its simulated twins, over the pixels that every one of their fits keeps, so a marking
+that one image's fit drops is left out of all of them.
 
 **The lunar-Lambert blend.**  :func:`fit_lunar_lambert` fits
 ``I = B0 * (2 * L * mu0 / (mu0 + mu) + (1 - L) * mu0)``, the blend of Lommel-Seeliger
@@ -25,14 +28,17 @@ them.  ``k = 1`` is Lambert's law and ``k = 0.5`` the classic limb-brightened lu
 **The profile along the photometric equator.**  :func:`equator_profile` bins the pixels
 within :data:`EQUATOR_HALF_WIDTH_DEG` of the great circle through the sub-solar and
 sub-observer points by their luminance longitude, from the terminator to the sunlit limb.
-Below :data:`LOW_PHASE_DEG` that circle is not defined, so the pixels are binned by
-``mu`` instead.  :func:`profile_residual` compares two such profiles after scaling each
-to the same median, so only their shapes enter.
+The luminance coordinates come from the two cosines divided by the sine of the phase, so
+any error in the cosines grows as the phase falls, and at zero phase the circle is not
+defined.  Below :data:`LOW_PHASE_DEG` the pixels are binned by ``mu`` instead.
+:func:`profile_residual` compares two such profiles after scaling each to the same
+median, so only their shapes enter.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -51,6 +57,7 @@ __all__ = [
     'equator_profile',
     'fit_lunar_lambert',
     'fit_minnaert',
+    'fit_minnaert_together',
     'photometric_coordinates',
     'profile_residual',
     'select_disc_pixels',
@@ -73,7 +80,11 @@ EQUATOR_HALF_WIDTH_DEG = 8.0
 """How far from the photometric equator a pixel may lie and enter its profile."""
 
 LOW_PHASE_DEG = 5.0
-"""Below this phase the profile is binned by the emission cosine."""
+"""Below this phase the profile is binned by the emission cosine.
+
+The luminance coordinates divide by the sine of the phase, so near zero phase a small
+error in either cosine moves a pixel far along the photometric equator.
+"""
 
 _LONGITUDE_EDGES_DEG = np.arange(-90.0, 90.0 + 1e-9, 5.0)
 _MU_EDGES = np.linspace(0.0, 1.0, 21)
@@ -157,34 +168,40 @@ def select_disc_pixels(
 
 
 def _robust_line(
-    design: NDArrayFloatType, target: NDArrayFloatType
+    design: NDArrayFloatType, target: NDArrayFloatType, *, clip: bool = True
 ) -> tuple[NDArrayFloatType, NDArrayFloatType, NDArrayBoolType] | None:
     """Least squares with iterative outlier rejection.
 
     Parameters:
         design: The (N, P) design matrix.
         target: The (N,) values to fit.
+        clip: Whether to reject outliers; without it every point is kept.
 
     Returns:
         The coefficients, their covariance from the kept points' residuals, and which
-        points were kept.  None when the kept points cannot fix every coefficient: the
-        final solve's rank is below P.
+        points were kept.  None when fewer than P points are given or kept, or when the
+        kept points cannot fix every coefficient: the final solve's rank is below P.
     """
+    n_coef = design.shape[1]
+    if target.size < n_coef:
+        return None
     keep = np.ones(target.size, dtype=bool)
-    for _ in range(_CLIP_ROUNDS):
+    for _ in range(_CLIP_ROUNDS if clip else 0):
         coef, *_ = np.linalg.lstsq(design[keep], target[keep], rcond=None)
         residual = target - np.sum(design * coef, axis=1)
         center = float(np.median(residual[keep]))
         spread = _MAD_TO_SIGMA * float(np.median(np.abs(residual[keep] - center)))
         new_keep = np.abs(residual - center) < _CLIP_SIGMAS * max(spread, 1e-9)
+        if int(np.count_nonzero(new_keep)) < n_coef:
+            return None
         if np.array_equal(new_keep, keep):
             break
         keep = new_keep
     coef, _, rank, _ = np.linalg.lstsq(design[keep], target[keep], rcond=None)
-    if int(rank) < design.shape[1]:
+    if int(rank) < n_coef:
         return None
     residual = target[keep] - np.sum(design[keep] * coef, axis=1)
-    dof = max(int(keep.sum()) - design.shape[1], 1)
+    dof = max(int(keep.sum()) - n_coef, 1)
     variance = float(np.sum(residual**2)) / dof
     # The covariance is variance * (A^T A)^-1 for the kept design A, taken from A's own
     # singular values, s_i^-2 v_i v_i^T summed, so a narrow spread in the design keeps
@@ -198,6 +215,37 @@ def _robust_line(
     outer = vt[:, :, np.newaxis] * vt[:, np.newaxis, :]
     covariance = variance * np.sum(outer / (singular**2)[:, np.newaxis, np.newaxis], axis=0)
     return coef, covariance, keep
+
+
+def _minnaert(
+    intensity: NDArrayFloatType, mu0: NDArrayFloatType, mu: NDArrayFloatType, *, clip: bool
+) -> tuple[MinnaertFit, NDArrayBoolType] | None:
+    """Minnaert's law fitted to a disc's pixels, and which pixels the fit kept.
+
+    Parameters:
+        intensity: Each pixel's brightness, in any units, positive.
+        mu0: The cosine of the incidence angle at each pixel, positive.
+        mu: The cosine of the emission angle at each pixel, positive.
+        clip: Whether the fit rejects outliers.
+
+    Returns:
+        The fit and its kept pixels, or None as :func:`fit_minnaert` gives it.
+    """
+    x = np.log(mu0 * mu)
+    design = np.column_stack([np.ones_like(x), x])
+    solved = _robust_line(design, np.log(intensity * mu), clip=clip)
+    if solved is None:
+        return None
+    coef, covariance, keep = solved
+    if int(keep.sum()) < MIN_FIT_PIXELS:
+        return None
+    fit = MinnaertFit(
+        k=float(coef[1]),
+        b0=float(np.exp(coef[0])),
+        k_sigma=float(math.sqrt(covariance[1, 1])),
+        n_pixels=int(keep.sum()),
+    )
+    return fit, keep
 
 
 def fit_minnaert(
@@ -214,20 +262,49 @@ def fit_minnaert(
         The fit, or None when the fit keeps fewer than :data:`MIN_FIT_PIXELS` pixels or
         the kept pixels cannot fix both coefficients.
     """
-    x = np.log(mu0 * mu)
-    design = np.column_stack([np.ones_like(x), x])
-    solved = _robust_line(design, np.log(intensity * mu))
-    if solved is None:
-        return None
-    coef, covariance, keep = solved
-    if int(keep.sum()) < MIN_FIT_PIXELS:
-        return None
-    return MinnaertFit(
-        k=float(coef[1]),
-        b0=float(np.exp(coef[0])),
-        k_sigma=float(math.sqrt(covariance[1, 1])),
-        n_pixels=int(keep.sum()),
-    )
+    solved = _minnaert(intensity, mu0, mu, clip=True)
+    return None if solved is None else solved[0]
+
+
+def fit_minnaert_together(
+    discs: Sequence[tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]],
+) -> list[MinnaertFit | None]:
+    """Fit Minnaert's law to several images of one disc over the same pixels.
+
+    Each disc is fitted on its own first, as :func:`fit_minnaert` fits it.  Then every
+    disc is fitted again, without rejecting any pixel, over the pixels that all of those
+    fits kept.  So each exponent describes the same part of the disc.  When every fit
+    keeps every pixel, each disc's exponent is the one its own fit gave.
+
+    Parameters:
+        discs: Each disc's ``(intensity, mu0, mu)``, as :func:`fit_minnaert` takes them,
+            over the same pixels in the same order.
+
+    Returns:
+        One fit per disc, in order.  A disc whose own fit fails gives None and does
+        not narrow the others' pixels.  Every disc gives None when fewer than
+        :data:`MIN_FIT_PIXELS` pixels are kept by every fit that succeeded.
+
+    Raises:
+        ValueError: If the discs do not all hold the same number of pixels.
+    """
+    sizes = {np.size(array) for disc in discs for array in disc}
+    if len(sizes) > 1:
+        raise ValueError(f'the discs hold different numbers of pixels: {sorted(sizes)}')
+    solved = [_minnaert(*disc, clip=True) for disc in discs]
+    shared = np.ones(sizes.pop() if sizes else 0, dtype=bool)
+    for one in solved:
+        if one is not None:
+            shared &= one[1]
+    fits: list[MinnaertFit | None] = []
+    for (intensity, mu0, mu), one in zip(discs, solved, strict=True):
+        refit = (
+            None
+            if one is None
+            else _minnaert(intensity[shared], mu0[shared], mu[shared], clip=False)
+        )
+        fits.append(None if refit is None else refit[0])
+    return fits
 
 
 def fit_lunar_lambert(

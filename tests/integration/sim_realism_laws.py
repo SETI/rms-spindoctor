@@ -20,11 +20,12 @@ Minnaert's form allows.
 **The pairing.**  The real disc's fits count at most 60,000 of its pixels, and every
 twin's fit counts the same pixels, less any the twins' sphere geometry leaves out and
 any that any one of the twins reads at its camera's ceiling (:func:`twin_ceiling_if`).
-When the twins leave some out, the real disc is fitted again over the pixels they all
-counted, and that fit is the one every twin is compared with.  So a real disc that lost
-pixels to its terrain cap, a nearer body, the rings, a shadow, or clipping has twins
-fitted over the same part of the disc, every fit of the disc reads exactly the same
-pixels, and the laws are compared over the same part of each disc.  A twin whose disc is
+The real disc is fitted again over the pixels they all counted, and every exponent is
+fitted once more over the pixels that all of those fits kept, so a marking that one fit
+drops as an outlier is dropped from all of them.  So a real disc that lost pixels to its
+terrain cap, a nearer body, the rings, a shadow, or clipping has twins fitted over the
+same part of the disc, and the laws are compared over the same pixels.  A disc that
+does not give a normal albedo under every law is left out.  A twin whose disc is
 clipped as a real disc would be (at least 1% of its interior at the ceiling) does not
 give a limb gradient peak, because its limb rises to a plateau.
 
@@ -67,7 +68,7 @@ from spindoctor.sim.realism.disc_profile import (
     LunarLambertFit,
     MinnaertFit,
     equator_profile,
-    fit_minnaert,
+    fit_minnaert_together,
     profile_residual,
     select_disc_pixels,
 )
@@ -198,7 +199,7 @@ class RealDisc:
         limb_peak: The realism match's limb gradient-peak sample for the frame, as
             ``(kind, offset)``, when this moon is the one the match measured.
         limb_directions_deg: The directions of the real limb's vertices whose peaks
-            the fit read, which its twins' limbs are measured over (see
+            the fit kept, which its twins' limbs are measured over (see
             :class:`~tests.integration.sim_realism_limb_peak.LimbOrientation`).
     """
 
@@ -273,7 +274,7 @@ class LawStudyInputs:
             image_id: The real frame's image ID.
             body: The body the realism match measured the limb of, or None.
             samples: The real frame's samples; only ``limb_peak_*`` kinds are read.
-            directions_deg: The directions of the vertices the real fit read.
+            directions_deg: The directions of the vertices the real fit kept.
         """
         kinds = [k for k in samples if k.startswith(LIMB_PEAK_KIND_PREFIX)]
         if body is None or len(kinds) != 1 or len(samples[kinds[0]]) != 1:
@@ -295,7 +296,7 @@ class TwinDisc:
         k: Minnaert's exponent fitted to the twin's counted pixels, or None.
         real_k: Minnaert's exponent fitted to the real disc over the same pixels, or
             None; every twin of the disc shares it.  It is the real disc's own exponent
-            when the twins counted every pixel the real fits did.
+            when the twins counted every pixel the real fits did and no fit dropped one.
         profile_residual: The residual between the real and the twin's equator
             profiles over those pixels, or None.
         limb_peak: The twin's limb gradient-peak offset, when the real frame's was
@@ -309,7 +310,7 @@ class TwinDisc:
     """
 
     law: str
-    normal_albedo: float | None
+    normal_albedo: float
     minnaert_k: float | None
     k: float | None
     real_k: float | None
@@ -598,7 +599,7 @@ class _TwinRender:
     """
 
     law: str
-    normal_albedo: float | None
+    normal_albedo: float
     data: NDArrayFloatType
     at_ceiling: NDArrayBoolType
     limb_peak: float | None
@@ -607,14 +608,16 @@ class _TwinRender:
 
 def _twins(
     disc: RealDisc, laws: Iterable[str], *, minnaert_k: float, limb_peak: bool
-) -> dict[str, TwinDisc]:
+) -> dict[str, TwinDisc] | None:
     """Render one real disc's twin under each law and fit every one over the same pixels.
 
     The twins and the real disc are all fitted over the real fits' own pixels, less any
     the twins' sphere leaves out and any that any of the twins reads at its camera's
-    ceiling.  When that leaves some out, the real disc is fitted again over the rest.
-    So every law is compared with the real disc over the same part of it, and a law
-    whose twin clips the pixels it matches worst does not shed them from its fit.
+    ceiling.  Each exponent is then fitted again over the pixels that the real disc's
+    fit and every twin's fit kept (:func:`fit_minnaert_together`), so a marking that one
+    fit drops as an outlier is left out of all of them.  So every law is compared with
+    the real disc over the same part of it, and a law whose twin clips the pixels it
+    matches worst does not shed them from its fit.
 
     Parameters:
         disc: The real disc.
@@ -623,8 +626,17 @@ def _twins(
         limb_peak: Whether to measure each twin's limb gradient peak.
 
     Returns:
-        Each law's twin, keyed by law.
+        Each law's twin, keyed by law.  None, before any twin is rendered, when the real
+        disc does not give a normal albedo under one of the laws, so a twin could not
+        match its brightness.
     """
+    phase_rad = math.radians(disc.phase_deg)
+    albedos = {
+        law: disc_normal_albedo(
+            disc.intensity, disc.mu0, disc.mu, law=law, phase_angle=phase_rad, minnaert_k=minnaert_k
+        )
+        for law in laws
+    }
     radius = disc.diameter_px / 2.0
     on_body, mu0, mu = _sphere_cosines(
         disc.frame.frame_shape_vu,
@@ -634,29 +646,34 @@ def _twins(
         phase_deg=disc.phase_deg,
     )
     renders = []
-    for law in laws:
+    for law, albedo in albedos.items():
+        if albedo is None:
+            return None
         renders.append(
-            _render_twin(disc, law, minnaert_k=minnaert_k, limb_peak=limb_peak, on_body=on_body)
+            _render_twin(
+                disc,
+                law,
+                normal_albedo=albedo,
+                minnaert_k=minnaert_k,
+                limb_peak=limb_peak,
+                on_body=on_body,
+            )
         )
         release_transient_memory()
     usable = np.array(disc.selection, dtype=bool)
     for render in renders:
         usable &= np.isfinite(render.data) & (render.data > 0.0) & ~render.at_ceiling
     counted = select_disc_pixels(on_body, mu0, mu, usable=usable)
-    phase_rad = math.radians(disc.phase_deg)
     shared = counted[disc.selection]
-    if bool(shared.all()):
-        real_k: float | None = disc.minnaert.k
-        real_profile = disc.profile
-    else:
-        intensity, real_mu0, real_mu = disc.intensity[shared], disc.mu0[shared], disc.mu[shared]
-        real_fit = fit_minnaert(intensity, real_mu0, real_mu)
-        real_k = None if real_fit is None else real_fit.k
-        real_profile = equator_profile(intensity, real_mu0, real_mu, phase_rad)
+    real = (disc.intensity[shared], disc.mu0[shared], disc.mu[shared])
+    real_profile = disc.profile if bool(shared.all()) else equator_profile(*real, phase_rad)
+    fits = fit_minnaert_together(
+        [real] + [(r.data[counted], mu0[counted], mu[counted]) for r in renders]
+    )
+    real_k = None if fits[0] is None else fits[0].k
     twins: dict[str, TwinDisc] = {}
-    for render in renders:
+    for render, fit in zip(renders, fits[1:], strict=True):
         values = render.data[counted]
-        fit = fit_minnaert(values, mu0[counted], mu[counted])
         twin_profile = equator_profile(values, mu0[counted], mu[counted], phase_rad)
         twins[render.law] = TwinDisc(
             law=render.law,
@@ -674,13 +691,20 @@ def _twins(
 
 
 def _render_twin(
-    disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool, on_body: NDArrayBoolType
+    disc: RealDisc,
+    law: str,
+    *,
+    normal_albedo: float,
+    minnaert_k: float,
+    limb_peak: bool,
+    on_body: NDArrayBoolType,
 ) -> _TwinRender:
     """Render one real disc's twin under one law and measure its limb.
 
     Parameters:
         disc: The real disc.
         law: The twin's law.
+        normal_albedo: The albedo measured from the real disc against that law.
         minnaert_k: The exponent of a Minnaert twin.
         limb_peak: Whether to measure the twin's limb gradient peak.
         on_body: The twin's sphere's pixels.
@@ -689,10 +713,6 @@ def _render_twin(
         The rendered twin.
     """
     frame = disc.frame
-    phase_rad = math.radians(disc.phase_deg)
-    albedo = disc_normal_albedo(
-        disc.intensity, disc.mu0, disc.mu, law=law, phase_angle=phase_rad, minnaert_k=minnaert_k
-    )
     scene = matched_scene(
         f'{frame.image_id}_{disc.body}',
         'body_full_fov',
@@ -701,7 +721,7 @@ def _render_twin(
         size_vu=frame.frame_shape_vu,
         diameter_px=disc.diameter_px,
         phase_angle_deg=disc.phase_deg,
-        normal_albedo=albedo,
+        normal_albedo=normal_albedo,
         filter_name=frame.filter_name,
         gain_state=frame.gain_state,
         quantization=frame.quantization,
@@ -735,7 +755,7 @@ def _render_twin(
             )
     return _TwinRender(
         law=law,
-        normal_albedo=albedo,
+        normal_albedo=normal_albedo,
         data=data,
         at_ceiling=at_ceiling,
         limb_peak=peak,
@@ -748,7 +768,7 @@ def _twin_limb_peak(
 ) -> tuple[float | None, str | None]:
     """The twin's limb gradient-peak offset in the real frame's limb bin, and a refusal.
 
-    The twin's limb is measured over the directions the real fit read.  It gives no
+    The twin's limb is measured over the directions the real fit kept.  It gives no
     offset, with the reason, when its limb is refused, and when its offset falls in
     another limb bin than the real one.
     """
@@ -923,9 +943,15 @@ def run_law_study(inputs: LawStudyInputs, *, laws: tuple[str, ...] = STUDY_LAWS)
     """
     k0, k1 = minnaert_line(inputs.discs)
     rows: list[DiscRow] = []
+    excluded = list(inputs.excluded)
     for disc in inputs.discs:
         k_line = minnaert_twin_k(k0, k1, disc.phase_deg)
         twins = _twins(disc, laws, minnaert_k=k_line, limb_peak=disc.limb_peak is not None)
+        if twins is None:
+            name = disc.body if disc.part is None else f'{disc.body} ({disc.part})'
+            reason = 'its disc does not give a normal albedo for its twins'
+            excluded.append(ExcludedDisc(disc.frame.image_id, name, reason))
+            continue
         rows.append(DiscRow(disc=disc, twins=twins))
     law_bins: dict[str, dict[str, LawBin]] = {}
     body_bins: dict[str, dict[str, LawBin]] = {}
@@ -953,7 +979,7 @@ def run_law_study(inputs: LawStudyInputs, *, laws: tuple[str, ...] = STUDY_LAWS)
         by_instrument.setdefault(row.disc.frame.instrument, []).append(row)
     return LawStudy(
         rows=rows,
-        excluded=list(inputs.excluded),
+        excluded=excluded,
         minnaert_k0=k0,
         minnaert_k1=k1,
         law_bins=law_bins,
