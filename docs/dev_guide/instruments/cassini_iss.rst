@@ -896,7 +896,7 @@ The wide angle PSF rests on two frames.
 limb's brightness gradient peaks against the body's silhouette. For Mimas, Enceladus,
 Tethys, Dione, and Rhea the frame reader sets that silhouette from the IAU radii in
 NAIF's pck00010 and pck00011 (Thomas 2010), in
-``tests/integration/sim_realism_frames_cassini.py``. The Cassini frames load the
+``util/sim_realism/sim_realism_frames_cassini.py``. The Cassini frames load the
 Cassini PCK after NAIF's, and it gives the older radii of Thomas et al. (2007): Tethys
 540.4 by 531.1 by 527.5 km against 538.4 by 528.3 by 526.3 km, and Rhea's long axis
 767.2 km against 765.0 km. Against the older radii, four of the five real Tethys limbs

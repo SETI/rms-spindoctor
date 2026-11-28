@@ -181,7 +181,7 @@ close image match doesn't show that simulated navigation error predicts real
 error.  The match also has no threshold for how close is close enough, and it
 was tuned on the same frames that report it.
 
-The realism runner (``python -m tests.integration.sim_realism``; see
+The realism runner (``python -m util.sim_realism.sim_realism``; see
 :ref:`sim-realism-match` for the machinery) compares the curated real-image
 library against matched simulated frames -- one per real frame, same
 instrument signal chain, same exposure, same content class -- on seven
@@ -191,19 +191,17 @@ quantile-clipped samples, normalized by the real distribution's IQR (a
 value of 1.0 means the two distributions are displaced by about one real
 IQR).  The numbers below are read against each cohort's support.
 
-A regression check holds the simulator to the committed record.  It reruns the
-match on the two LORRI frames, which takes seconds, and compares selected values
-with the record.  For each statistic whose support is *limited* or *supported*
-(defined below), it holds the normalized W1, the real median, and the
-simulated median, each when the record gives a number.  For each curve with that support, it holds
-the curve's normalized W1.  On LORRI that is 19 values.  It doesn't hold the raw
-W1 distances, the real IQRs, or the frame and sample counts, so a change that
-moves only those goes unnoticed.  Each held value must stay within a band: the larger of 3 times its run-to-run spread over 10 runs and 2%
-of its value.  The bands are two-sided, because a better-looking number can come
-from a worse simulator.  A second test requires the record and the band table to
-agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``a36bcdc0`` on
-2026-11-28.
+The realism match runs only when someone runs it. It needs the image library's
+holdings, SPICE kernels, and star catalogs and takes about an hour for the whole
+library, so neither CI nor the test suite runs it. Its committed record is the
+evidence for the numbers below. The record stores the commit of the code that made it.
+The current record was made at commit ``a36bcdc0`` on 2026-11-28. A separate tool
+measures how far each statistic moves between runs on unchanged code (see
+:ref:`sim-realism-record`), so that a later run can be read against that spread.
+For each statistic whose support is *limited* or *supported* (defined below) it
+measures the normalized W1, the real median, and the simulated median, each when the
+record gives a number, and for each curve with that support the curve's normalized W1.
+On LORRI that is 19 values. The spread of every one of them was 0 over 10 runs.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -643,7 +641,7 @@ Enceladus limbs, 869 and 789 px across, that peak 0.83 and 1.17 px outside their
 shape model's silhouette, while the matched spheres peak within 0.05 px of theirs.  At
 those scales a pixel is 0.58 to 0.64 km, so the difference between Enceladus's shape model
 and its true shape is a large part of a pixel, and a sphere cannot show it.  The
-regression check lists the bin as a known finding.  Three real NAC discs are clipped at
+record keeps the bin as a finding.  Three real NAC discs are clipped at
 the camera's full scale; they have no real limb and no albedo, and their matched bodies
 render white.  Prometheus and Pan have no limb in the real frames, because the
 navigator places none on their shapes, so their matched limbs are not measured.  Of the

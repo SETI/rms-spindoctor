@@ -463,7 +463,7 @@ can tell the four cameras apart. The entry states ``data_units: calibrated_if``,
 of the GEOMED product and of each camera's block, so a simulated frame is in I/F.
 
 **Realism match.** The match compares each camera with its own library frames
-(the 2026-11-26 record in ``tests/integration/realism_results/``). The two
+(the 2026-11-26 record in ``util/sim_realism/realism_results/``). The two
 entries without a library frame have no row.
 
 * ``vgiss_1_wac``, two Saturn frames. The simulated sky noise is 3.1e-3 I/F
