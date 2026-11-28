@@ -14,7 +14,7 @@ from util.star_photometry.star_limit_fit import (
     _measured_terms,
     fit_camera,
 )
-from util.star_photometry.star_zero_point import _tukey_lstsq, fit_zero_point
+from util.star_photometry.star_zero_point import _tukey_lstsq, fit_star_rates, fit_zero_point
 
 # The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, and gain term.
 ZERO_POINT, RED_OFFSET, GAIN_40K = 15.0, 2.0, -1.5
@@ -171,6 +171,91 @@ def test_zero_point_counts_only_frames_with_a_fitting_star() -> None:
         row['image_id'] = 'F1'
     result = _fit(_rows([('CLEAR', '10K')]) + red)
     assert result.n_fit_frames == 1
+
+
+# The planted rate fit: 2.5 log10 of the rate of a V = 0 star of B - V 0.65, its color term.
+RATE_ZP, RATE_COLOR = 21.0, 0.3
+
+
+def _rate_rows(
+    n: int, *, gain_offset: float = 0.0, radius_slope: float = 0.0
+) -> list[dict[str, Any]]:
+    """Return star rows whose rates follow the planted rate fit, with 0.05 mag of scatter.
+
+    Every other star is at gain ``'12'`` and reads ``gain_offset`` magnitudes brighter;
+    every star reads ``radius_slope`` magnitudes brighter for each unit of its ``radius``.
+
+    Parameters:
+        n: The number of stars.
+        gain_offset: The planted offset of the gain-12 stars (magnitudes).
+        radius_slope: The planted change per unit of radius (magnitudes).
+
+    Returns:
+        The rows, three stars to a frame.
+    """
+    rng = np.random.default_rng(1294)
+    rows = []
+    for k in range(n):
+        vmag, bv, radius = rng.uniform(10.0, 14.0), rng.uniform(0.2, 1.4), rng.uniform(0.0, 1.0)
+        gain = '12' if k % 2 else '29'
+        z = RATE_ZP + RATE_COLOR * (bv - 0.65) + rng.normal(0.0, 0.05) + radius_slope * radius
+        z += gain_offset if gain == '12' else 0.0
+        rows.append(
+            {
+                'image_id': f'F{k // 3}',
+                'vmag': vmag,
+                'bv': bv,
+                'gain': gain,
+                'radius': radius,
+                'rate': 10 ** (0.4 * (z - vmag)),
+            }
+        )
+    return rows
+
+
+def test_rate_fit_recovers_the_rate_at_the_reference_color() -> None:
+    """Stars of many colors give the planted rate of a V = 0 star of B - V 0.65."""
+    fit = fit_star_rates(_rate_rows(200), reference_color=0.65)
+    assert fit is not None
+    assert 2.5 * math.log10(fit.rate_vmag0) == pytest.approx(RATE_ZP, abs=0.02)
+
+
+def test_rate_fit_recovers_the_color_term() -> None:
+    """Redder stars reading brighter give the planted color slope."""
+    fit = fit_star_rates(_rate_rows(200), reference_color=0.65)
+    assert fit is not None
+    assert fit.color_slope == pytest.approx(RATE_COLOR, abs=0.03)
+
+
+def test_rate_fit_reports_a_group_offset() -> None:
+    """Gain-12 stars reading 0.2 mag brighter sit 0.2 mag from the gain-29 stars."""
+    fit = fit_star_rates(
+        _rate_rows(200, gain_offset=0.2), reference_color=0.65, group_keys=['gain']
+    )
+    assert fit is not None
+    offset = fit.groups['gain']['12'][0] - fit.groups['gain']['29'][0]
+    assert offset == pytest.approx(0.2, abs=0.03)
+
+
+def test_rate_fit_reports_a_covariate_slope() -> None:
+    """Stars reading 0.3 mag brighter per unit of radius give a residual slope of 0.3."""
+    fit = fit_star_rates(
+        _rate_rows(200, radius_slope=0.3), reference_color=0.65, covariates=['radius']
+    )
+    assert fit is not None
+    assert fit.slopes['radius'][0] == pytest.approx(0.3, abs=0.04)
+
+
+def test_rate_fit_scatter_between_frames() -> None:
+    """Thirty stars, three to a frame, give a frame-to-frame scatter from their ten frames."""
+    fit = fit_star_rates(_rate_rows(30), reference_color=0.65)
+    assert fit is not None
+    assert fit.frame_scatter_mag is not None
+
+
+def test_rate_fit_needs_five_stars() -> None:
+    """Four stars give no fit."""
+    assert fit_star_rates(_rate_rows(4), reference_color=0.65) is None
 
 
 def _terms_result() -> FitResult:

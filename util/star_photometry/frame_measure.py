@@ -10,6 +10,7 @@ star at the pointing.
 
 For each star the record holds what the limit and PSF fits need:
 
+* the catalog's magnitude, and the star's Johnson V and B where the catalog holds them;
 * detection statistics on the navigator's image, high-passed (peak SNR, pixels above three
   sigma);
 * background-subtracted aperture DN on the photometric image in two apertures, the smaller for
@@ -465,6 +466,7 @@ def _measure_star(
     out: dict[str, Any] = {
         'index': index,
         'vmag': float(star.vmag),
+        'johnson_v': None if star.johnson_mag_faked else _float_or_none(star.johnson_mag_v),
         'bmag': None if star.johnson_mag_faked else _float_or_none(star.johnson_mag_b),
         'catalog': str(star.catalog_name),
         'photometry_saturated': bool(star.photometry_saturated),
