@@ -2,18 +2,26 @@
 
 The per-star fits come from :mod:`util.star_photometry.frame_measure`; the fitting program
 :mod:`util.star_photometry.star_limit_fit` reports this summary beside the photometric limit.
+The encircled-energy radii of a Gaussian and of a simulator kernel, measured the same way as
+a real star's, are here too, for comparing a model with the stars.
 """
 
 from __future__ import annotations
 
 import math
 from collections import defaultdict
+from collections.abc import Sequence
 from typing import Any
 
 import numpy as np
-from util.star_photometry.star_field import encircled_energy_radii, integrated_gaussian
+from util.star_photometry.star_field import (
+    KERNEL_OVERSAMPLE,
+    encircled_energy_radii,
+    integrated_gaussian,
+    kernel_star_image,
+)
 
-__all__ = ['PSF_MAX_SMEAR_PX', 'gaussian_ee', 'psf_summary']
+__all__ = ['PSF_MAX_SMEAR_PX', 'gaussian_ee', 'kernel_encircled_energy', 'psf_summary']
 
 #: Smallest smear (pixels) of a star excluded from the PSF summary.
 PSF_MAX_SMEAR_PX = 0.5
@@ -44,6 +52,52 @@ def gaussian_ee(sigma: float, r_max: float, n_bins: int) -> tuple[float, float]:
     ]
     image_ee = np.array(ee)
     return float(np.mean(image_ee[:, 0])), float(np.mean(image_ee[:, 1]))
+
+
+def kernel_encircled_energy(
+    kernel: dict[str, float],
+    centers: Sequence[tuple[float, float]],
+    *,
+    size: int,
+    truncation_px: int,
+    r_max: float,
+    n_bins: int,
+    oversample: int = KERNEL_OVERSAMPLE,
+) -> tuple[float, float]:
+    """Return the median EE50 and EE80 of a kernel's stars at the given centers.
+
+    Each star is drawn noise-free by :func:`kernel_star_image` and measured by
+    :func:`encircled_energy_radii`.  Both radii depend on where the star falls within its
+    pixel, so a kernel is compared with real stars at the real stars' own centers.
+
+    Parameters:
+        kernel: The kernel, with the keys of the simulator's catalog kernel.
+        centers: Each star's ``(v, u)`` in a ``size``-square grid's array-index
+            coordinates.
+        size: The side of the grid each star is drawn on.
+        truncation_px: The kernel's half-width in detector pixels.
+        r_max: Outer radius of the profile (pixels).
+        n_bins: Radial bins between 0 and ``r_max``.
+        oversample: The render grid's oversampling.
+
+    Returns:
+        ``(ee50, ee80)`` in pixels, the medians over the stars.
+    """
+    radii = np.array(
+        [
+            encircled_energy_radii(
+                kernel_star_image(
+                    kernel, size, v, u, truncation_px=truncation_px, oversample=oversample
+                ),
+                v,
+                u,
+                r_max=r_max,
+                n_bins=n_bins,
+            )
+            for v, u in centers
+        ]
+    )
+    return float(np.median(radii[:, 0])), float(np.median(radii[:, 1]))
 
 
 def psf_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:

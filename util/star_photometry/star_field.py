@@ -3,7 +3,8 @@
 These functions take plain arrays and know nothing about any instrument, holdings layout, or
 the navigator.  The per-instrument measurement programs in this package load a frame, query the
 star catalog, and call them.  The pointing fix that matches catalog stars to peaks is in
-:mod:`util.star_photometry.star_pointing`.
+:mod:`util.star_photometry.star_pointing`.  :func:`fit_psf_kernel` fits the simulator's own
+core-plus-wing kernel to many stars at once, drawing each star as the simulator renders it.
 
 Coordinates are array-index coordinates ``(v, u)``: the center of array element ``[i, j]`` is
 ``(i, j)``.  The navigator's pixel coordinates put that center at ``(i + 0.5, j + 0.5)``; the
@@ -13,27 +14,37 @@ caller converts.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from collections.abc import Sequence
+from dataclasses import dataclass, replace
+from functools import lru_cache
 
 import numpy as np
 import scipy.ndimage
 import scipy.optimize
 import scipy.special
 from numpy.typing import NDArray
+from scipy.signal import fftconvolve
 
 from spindoctor.sim.realism.profiles import ee_radius, encircled_energy, radial_profile
+from spindoctor.sim.render.optics.psf import psf_kernel
 
 __all__ = [
     'ApertureResult',
     'GaussianFit',
+    'KernelFit',
+    'KernelStarFit',
     'PeakList',
+    'StarCutout',
     'aperture_photometry',
     'detect_peaks',
     'detection_test',
     'encircled_energy_radii',
     'fit_gaussian_psf',
+    'fit_kernel_star',
+    'fit_psf_kernel',
     'highpass',
     'integrated_gaussian',
+    'kernel_star_image',
     'noise_sigma',
     'robust_sigma',
 ]
@@ -624,3 +635,326 @@ def encircled_energy_radii(
     radius, intensity = radial_profile(image, (v, u), r_max=r_max, n_bins=n_bins)
     r, ee = encircled_energy(radius, intensity)
     return ee_radius(r, ee, 0.5), ee_radius(r, ee, 0.8)
+
+
+#: The render grid's oversampling, which the simulator uses for every scene with a PSF.
+KERNEL_OVERSAMPLE = 4
+
+#: A pixel this many noise sigmas off a star's model is left out of a kernel fit ...
+OUTLIER_SIGMA = 5.0
+
+#: ... when it lies at least this far (pixels) from the star's center, so a hit or a hot
+#: pixel goes and the star's own core stays.
+OUTLIER_MIN_RADIUS_PX = 2.5
+
+#: The variance of rounding to whole DN, the least sky variance a kernel fit assumes.
+QUANTIZATION_VARIANCE_DN2 = 1.0 / 12.0
+
+#: How far (pixels) a star's fitted center may move from where its fit starts.
+CENTER_SEARCH_PX = 2.0
+
+#: Relative step of the finite-difference derivatives of a kernel fit.
+_KERNEL_FIT_STEP = 1e-3
+
+#: The kernel parameters a fit varies: the circular core's sigma and the wing fraction.
+_KERNEL_FIT_LOWER = (0.1, 0.0)
+_KERNEL_FIT_UPPER = (2.0, 0.95)
+
+
+@dataclass(frozen=True)
+class StarCutout:
+    """One star's cutout, for fitting a PSF kernel of the simulator's form.
+
+    Attributes:
+        image: The square cutout, in DN.
+        valid: True where a pixel may be used.
+        v: Where the star's center line is thought to be, in the cutout's array-index
+            coordinates.
+        u: Where its center sample is thought to be.
+        sky_var: The variance of the sky, in DN squared.
+        gain_e_per_dn: Electrons per DN, which sets the shot noise of the star's light.
+    """
+
+    image: FloatArray
+    valid: NDArray[np.bool_]
+    v: float
+    u: float
+    sky_var: float
+    gain_e_per_dn: float
+
+
+@dataclass(frozen=True)
+class KernelStarFit:
+    """One star fitted with a fixed kernel.
+
+    Attributes:
+        center_v: Fitted center line (the cutout's array-index coordinates).
+        center_u: Fitted center sample.
+        flux: Total flux of the star, in DN.
+        background: Constant background, in DN per pixel.
+        residuals: Residual of each valid pixel over its noise sigma.
+    """
+
+    center_v: float
+    center_u: float
+    flux: float
+    background: float
+    residuals: FloatArray
+
+
+@dataclass(frozen=True)
+class KernelFit:
+    """A core-plus-wing kernel fitted to many stars at once.
+
+    Attributes:
+        kernel: The fitted kernel, with the keys of the simulator's catalog kernel
+            (``sigma_v``, ``sigma_u``, ``w``, ``r0``, ``n``).
+        sigma_err: One-sigma formal uncertainty of the core sigma.
+        w_err: One-sigma formal uncertainty of the wing fraction.
+        reduced_chi2: The residuals' sum of squares over the degrees of freedom.
+        stars: Each star's fit with the fitted kernel, in the order of the cutouts.
+    """
+
+    kernel: dict[str, float]
+    sigma_err: float
+    w_err: float
+    reduced_chi2: float
+    stars: list[KernelStarFit]
+
+
+#: The keys of a kernel, in the order the simulator's kernel function takes them.
+_KERNEL_KEYS = ('sigma_v', 'sigma_u', 'w', 'r0', 'n')
+
+
+@lru_cache(maxsize=16)
+def _block_response(key: tuple[float, ...], truncation_px: int, oversample: int) -> FloatArray:
+    """Return the kernel on the render grid, summed over one detector pixel's block.
+
+    Parameters:
+        key: The kernel's values, in the order of ``_KERNEL_KEYS``.
+        truncation_px: The kernel's half-width in detector pixels.
+        oversample: The render grid's oversampling.
+
+    Returns:
+        The kernel convolved with an ``oversample``-square box of ones.
+    """
+    kernel = psf_kernel(*key, truncation_px=truncation_px, oversample=oversample)
+    response: FloatArray = fftconvolve(kernel, np.ones((oversample, oversample)))
+    return response
+
+
+def kernel_star_image(
+    kernel: dict[str, float],
+    size: int,
+    center_v: float,
+    center_u: float,
+    *,
+    truncation_px: int,
+    oversample: int = KERNEL_OVERSAMPLE,
+) -> FloatArray:
+    """Return a star of unit flux on a square grid, as the simulator renders it.
+
+    The simulator samples the kernel on its render grid, ``oversample`` times finer than
+    the detector's.  It shares a star's light between the four render-grid points around
+    it, convolves, and averages each block of render-grid points into one detector
+    pixel.  The image here is the same: the kernel summed over one block, interpolated
+    bilinearly at the star's place.  A sub-pixel of the render grid has its center at
+    ``(k + 0.5) / oversample - 0.5`` in the detector pixel's array-index coordinates.
+
+    Parameters:
+        kernel: The kernel, with the keys of the simulator's catalog kernel.
+        size: The grid's side, in detector pixels.
+        center_v: The star's line, in the grid's array-index coordinates.
+        center_u: The star's sample.
+        truncation_px: The kernel's half-width in detector pixels.
+        oversample: The render grid's oversampling.
+
+    Returns:
+        The ``(size, size)`` image, summing to 1 when the star and the kernel lie wholly
+        inside it.
+    """
+    key = tuple(float(kernel[name]) for name in _KERNEL_KEYS)
+    response = _block_response(key, int(truncation_px), int(oversample))
+    middle = int(truncation_px) * int(oversample) + (oversample - 1) / 2.0
+    index = np.arange(size, dtype=np.float64)
+    iv = oversample * (index - center_v) + middle
+    iu = oversample * (index - center_u) + middle
+    gv, gu = np.meshgrid(iv, iu, indexing='ij')
+    image: FloatArray = scipy.ndimage.map_coordinates(
+        response, [gv, gu], order=1, mode='constant', cval=0.0
+    )
+    return image
+
+
+def fit_kernel_star(
+    cutout: StarCutout,
+    kernel: dict[str, float],
+    *,
+    truncation_px: int,
+    oversample: int = KERNEL_OVERSAMPLE,
+) -> KernelStarFit:
+    """Fit one star's center, flux, and background with the kernel held fixed.
+
+    For each trial center the flux and background are solved linearly, weighted by each
+    pixel's noise: the sky variance, at least the rounding variance, plus the star's shot
+    noise.  The center may move up to :data:`CENTER_SEARCH_PX` from the cutout's.
+
+    Parameters:
+        cutout: The star.
+        kernel: The kernel, with the keys of the simulator's catalog kernel.
+        truncation_px: The kernel's half-width in detector pixels.
+        oversample: The render grid's oversampling.
+
+    Returns:
+        The fit.
+    """
+    size = cutout.image.shape[0]
+    data = cutout.image[cutout.valid]
+    sky_var = max(cutout.sky_var, QUANTIZATION_VARIANCE_DN2)
+
+    def solve(center: FloatArray) -> tuple[FloatArray, FloatArray]:
+        star = kernel_star_image(
+            kernel,
+            size,
+            float(center[0]),
+            float(center[1]),
+            truncation_px=truncation_px,
+            oversample=oversample,
+        )[cutout.valid]
+        design = np.column_stack([star, np.ones_like(star)])
+        coeffs, *_ = np.linalg.lstsq(design, data, rcond=None)
+        shot = np.clip(star * coeffs[0], 0.0, None) / cutout.gain_e_per_dn
+        weight = 1.0 / np.sqrt(sky_var + shot)
+        coeffs, *_ = np.linalg.lstsq(design * weight[:, None], data * weight, rcond=None)
+        return coeffs, (design @ coeffs - data) * weight
+
+    start = np.array([cutout.v, cutout.u])
+    res = scipy.optimize.least_squares(
+        lambda center: solve(center)[1],
+        start,
+        bounds=(start - CENTER_SEARCH_PX, start + CENTER_SEARCH_PX),
+        x_scale=0.3,
+    )
+    coeffs, residuals = solve(res.x)
+    return KernelStarFit(
+        center_v=float(res.x[0]),
+        center_u=float(res.x[1]),
+        flux=float(coeffs[0]),
+        background=float(coeffs[1]),
+        residuals=residuals,
+    )
+
+
+def _without_outliers(
+    cutout: StarCutout, kernel: dict[str, float], *, truncation_px: int, oversample: int
+) -> StarCutout:
+    """Return the cutout with its hits and hot pixels marked invalid.
+
+    A pixel is an outlier when it lies :data:`OUTLIER_SIGMA` noise sigmas off the star's
+    model and at least :data:`OUTLIER_MIN_RADIUS_PX` from its center.  Each outlier's
+    neighbors that are as far from the center go with it, so a hit's skirt goes too.
+
+    Parameters:
+        cutout: The star.
+        kernel: The kernel the star's model is drawn with.
+        truncation_px: The kernel's half-width in detector pixels.
+        oversample: The render grid's oversampling.
+
+    Returns:
+        A copy of the cutout with a narrower ``valid``.
+    """
+    fit = fit_kernel_star(cutout, kernel, truncation_px=truncation_px, oversample=oversample)
+    size = cutout.image.shape[0]
+    star = fit.flux * kernel_star_image(
+        kernel,
+        size,
+        fit.center_v,
+        fit.center_u,
+        truncation_px=truncation_px,
+        oversample=oversample,
+    )
+    sigma = np.sqrt(
+        max(cutout.sky_var, QUANTIZATION_VARIANCE_DN2)
+        + np.clip(star, 0.0, None) / cutout.gain_e_per_dn
+    )
+    gv, gu = np.mgrid[:size, :size]
+    far = np.hypot(gv - fit.center_v, gu - fit.center_u) >= OUTLIER_MIN_RADIUS_PX
+    off = np.abs(cutout.image - star - fit.background) > OUTLIER_SIGMA * sigma
+    outliers = scipy.ndimage.binary_dilation(far & off) & far
+    return replace(cutout, valid=cutout.valid & ~outliers)
+
+
+def fit_psf_kernel(
+    cutouts: Sequence[StarCutout],
+    *,
+    r0: float,
+    n: float,
+    start_sigma: float,
+    start_w: float,
+    truncation_px: int,
+    oversample: int = KERNEL_OVERSAMPLE,
+) -> KernelFit:
+    """Fit a circular core and its wing fraction to many stars at once.
+
+    The kernel is the simulator's (see :func:`kernel_star_image`), with its wing radius
+    ``r0`` and index ``n`` held fixed: those two trade off against the core sigma and
+    the wing fraction on stars a pixel or so wide, so they are chosen by the caller.
+    Every star keeps its own center, flux, and background, fitted anew for each trial
+    kernel (:func:`fit_kernel_star`), and the core sigma and wing fraction minimize the
+    sum of all the stars' squared, noise-weighted residuals.  The fit runs twice: the
+    first fit finds each star's hits and hot pixels, which the second leaves out.
+
+    Parameters:
+        cutouts: The stars.
+        r0: The wing's Moffat radius, in detector pixels.
+        n: The wing's Moffat index.
+        start_sigma: The core sigma the fit starts from.
+        start_w: The wing fraction the fit starts from.
+        truncation_px: The kernel's half-width in detector pixels.
+        oversample: The render grid's oversampling.
+
+    Returns:
+        The fit.
+    """
+
+    def kernel_of(p: FloatArray) -> dict[str, float]:
+        sigma, w = float(p[0]), float(p[1])
+        return {'sigma_v': sigma, 'sigma_u': sigma, 'w': w, 'r0': r0, 'n': n}
+
+    def run(stars: Sequence[StarCutout], start: FloatArray) -> scipy.optimize.OptimizeResult:
+        return scipy.optimize.least_squares(
+            lambda p: np.concatenate(
+                [
+                    fit_kernel_star(
+                        s, kernel_of(p), truncation_px=truncation_px, oversample=oversample
+                    ).residuals
+                    for s in stars
+                ]
+            ),
+            start,
+            bounds=(_KERNEL_FIT_LOWER, _KERNEL_FIT_UPPER),
+            diff_step=_KERNEL_FIT_STEP,
+            x_scale='jac',
+        )
+
+    first = run(cutouts, np.array([start_sigma, start_w]))
+    cleaned = [
+        _without_outliers(s, kernel_of(first.x), truncation_px=truncation_px, oversample=oversample)
+        for s in cutouts
+    ]
+    final = run(cleaned, first.x)
+    n_free = 2 + 4 * len(cleaned)
+    reduced_chi2 = float(np.sum(final.fun**2)) / (final.fun.size - n_free)
+    covariance = np.linalg.pinv(final.jac.T @ final.jac) * reduced_chi2
+    errors = np.sqrt(np.clip(np.diag(covariance), 0.0, None))
+    kernel = kernel_of(final.x)
+    return KernelFit(
+        kernel=kernel,
+        sigma_err=float(errors[0]),
+        w_err=float(errors[1]),
+        reduced_chi2=reduced_chi2,
+        stars=[
+            fit_kernel_star(s, kernel, truncation_px=truncation_px, oversample=oversample)
+            for s in cleaned
+        ],
+    )
