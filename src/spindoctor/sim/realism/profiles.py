@@ -15,10 +15,11 @@ the caller's image array; coordinates follow the (v, u) convention.
 import numpy as np
 import scipy.ndimage
 
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'edge_normal_profiles',
+    'edge_tracks_in_image',
     'ee_radius',
     'encircled_energy',
     'profile_rise_width',
@@ -130,6 +131,44 @@ def ee_radius(radius: NDArrayFloatType, ee: NDArrayFloatType, fraction: float) -
     return float(r[i - 1] + frac * (r[i] - r[i - 1]))
 
 
+def edge_tracks_in_image(
+    shape_vu: tuple[int, ...],
+    vertices_vu: NDArrayFloatType,
+    normals_vu: NDArrayFloatType,
+    *,
+    half_length_px: float = 8.0,
+) -> NDArrayBoolType:
+    """Which vertices' sampling tracks stay inside the image.
+
+    Parameters:
+        shape_vu: The image's shape.
+        vertices_vu: ``(N, 2)`` vertex positions (v, u).
+        normals_vu: ``(N, 2)`` outward normal per vertex (normalized here).
+        half_length_px: Half-length of the sampling track in pixels.
+
+    Returns:
+        ``(N,)`` True where the track from ``half_length_px`` inside the vertex to as far
+        outside it lies within the image's pixel centers.
+    """
+    verts = np.asarray(vertices_vu, dtype=np.float64)
+    if verts.size == 0:
+        return np.zeros(0, dtype=bool)
+    norms = np.asarray(normals_vu, dtype=np.float64)
+    lengths = np.linalg.norm(norms, axis=1, keepdims=True)
+    lengths[lengths == 0.0] = 1.0
+    unit = norms / lengths
+    ends = np.array([-half_length_px, half_length_px])
+    coords_v = verts[:, 0:1] + unit[:, 0:1] * ends[np.newaxis, :]
+    coords_u = verts[:, 1:2] + unit[:, 1:2] * ends[np.newaxis, :]
+    return np.asarray(
+        (coords_v.min(axis=1) >= 0.0)
+        & (coords_v.max(axis=1) <= shape_vu[0] - 1.0)
+        & (coords_u.min(axis=1) >= 0.0)
+        & (coords_u.max(axis=1) <= shape_vu[1] - 1.0),
+        dtype=bool,
+    )
+
+
 def edge_normal_profiles(
     image: NDArrayFloatType,
     vertices_vu: NDArrayFloatType,
@@ -143,7 +182,8 @@ def edge_normal_profiles(
     Each row of the result is the image sampled at ``n_samples`` points
     from ``-half_length_px`` (inside the edge) to ``+half_length_px``
     (outside, along the outward normal) centered on the vertex.  Vertices
-    whose sample track leaves the image are dropped.
+    whose sample track leaves the image (:func:`edge_tracks_in_image`) are
+    dropped.
 
     Parameters:
         image: 2-D frame.
@@ -168,12 +208,7 @@ def edge_normal_profiles(
     # (N, n_samples) coordinates per axis.
     coords_v = verts[:, 0:1] + unit[:, 0:1] * taps[np.newaxis, :]
     coords_u = verts[:, 1:2] + unit[:, 1:2] * taps[np.newaxis, :]
-    in_bounds = (
-        (coords_v.min(axis=1) >= 0.0)
-        & (coords_v.max(axis=1) <= arr.shape[0] - 1.0)
-        & (coords_u.min(axis=1) >= 0.0)
-        & (coords_u.max(axis=1) <= arr.shape[1] - 1.0)
-    )
+    in_bounds = edge_tracks_in_image(arr.shape, verts, norms, half_length_px=half_length_px)
     coords_v = coords_v[in_bounds]
     coords_u = coords_u[in_bounds]
     if coords_v.size == 0:

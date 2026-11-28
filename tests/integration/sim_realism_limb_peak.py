@@ -8,7 +8,7 @@ the point where the brightness falls fastest, reduced to one radial offset per l
 :func:`spindoctor.sim.realism.limb_peak.fit_limb_peak_offset`.
 
 The silhouette comes from each side's own geometry.  On a real frame it is where the
-rays along each vertex's normal stop hitting the body, from the SPICE geometry through
+rays along each vertex's track stop hitting the body, from the SPICE geometry through
 oops (:func:`real_silhouette_offsets`), with the body radii the mission's frame reader
 gives where they differ from the kernels'.  On a matched frame it is the circle the scene
 states (:func:`matched_silhouette_offsets`).  The fit solves for a translation of the
@@ -16,16 +16,23 @@ whole limb beside the radial offset, so the frame's offset error, the body's eph
 error, and the half pixel between two coordinate conventions all move the translation
 and leave the radial offset alone.
 
+Every limb statistic reads a vertex by its direction from the body's center
+(:class:`LimbOrientation`).  The gradient peak is looked for along that direction, the
+silhouette is found along it, the fit takes it as the vertex's normal, and it decides
+whether the vertex is lit and which vertices of a matched limb match a real one.  The
+navigator's own normals point only in steps of 45 degrees, so they would make the
+statistic depend on how the limb is turned in the image.
+
 A real limb vertex is used only when nothing but its own body and the sky lies along
 its track.  :func:`tracks_touching` tests each track against a mask of the other bodies,
-the planet, and the rings and shadow over the body, which the real frame's geometry
-gives (:func:`~tests.integration.sim_realism_laws_discs.foreign_pixels`).  The matched
-frame's sphere has nothing beside it, so its limb is measured over the same stretch of
-limb instead: :class:`LimbOrientation` gives each vertex's direction from the body's
-center, measured from the direction the light comes from, and a matched vertex is used
-only near the directions of the real vertices the real fit used.  A fit whose used
-vertices span too short an arc is refused, because over a short arc a translation of the
-limb mimics a radial offset (:data:`MAX_OFFSET_TRANSLATION_CORRELATION`).
+the planet, the planet's rings, and its shadow over the body, which the real frame's
+geometry gives (:func:`~tests.integration.sim_realism_laws_discs.foreign_pixels`).  The
+matched frame's sphere is lit from the real body's direction and has nothing beside it,
+so its limb is measured over the same stretch of limb instead: a matched vertex is used
+only near the directions of the real vertices the real fit used, each measured from the
+direction the light comes from.  A fit whose used vertices span too short an arc is
+refused, because over a short arc a translation of the limb mimics a radial offset
+(:data:`MAX_OFFSET_TRANSLATION_CORRELATION`).
 
 Each limb's offset is a sample of kind ``limb_peak_<bin>``, binned like the limb widths.
 Each frame measures one limb, that of the body its matched scene renders, and
@@ -104,18 +111,23 @@ MAX_OFFSET_SIGMA_PX = 0.2
 MAX_OFFSET_TRANSLATION_CORRELATION = 0.97
 """The highest correlation of the offset with the translation that a kept limb may have.
 
-The correlation is the fit's ``offset_translation_correlation``.  Over a short arc a
-translation moves every peak almost as the offset does, so a small error that varies
-along the limb, such as light another body spills onto part of it, is magnified into
-the offset: its variance grows by ``1 / (1 - R**2)``.  On Dione in N1487595731_1_CALIB the
-whole limb reads 0.86, and 0.74 with the 86 vertices backed by Rhea's lit crescent left
-out; Rhea's limb in the same frame reads 0.91 to 0.92, and an evenly sampled lit
-half-limb 0.90.  With every vertex whose track crosses Rhea left out, Dione keeps 43
-vertices on a 90 degree arc, which read 0.988, and the fit gives +0.89 px at a sigma of
-0.07 px, which the sigma limit passes, against +0.09 px for the whole limb and +0.05 px
-with the 86 left out.  The ceiling sits halfway between the largest kept limb and that
-arc in the factor the variance grows by (6.7 and 42, against 17 at the ceiling), and an
-evenly sampled arc reaches it at about 135 degrees.
+The correlation is the fit's ``offset_translation_correlation``, with each vertex's
+direction from the body's center as its normal, so it depends only on which directions
+the kept vertices cover.  Over a short arc a translation moves every peak almost as the
+offset does, so a small error that varies along the limb, such as light another body
+spills onto part of it, is magnified into the offset: its variance grows by
+``1 / (1 - R**2)``.  The lit half of a limb is a half circle, which reads 0.90 when
+evenly sampled.  On Dione in N1487595731_1_CALIB, which passes in front of Rhea, the
+whole limb reads 0.91, and 0.88 with the 84 vertices backed by Rhea's lit crescent left
+out; Rhea's limb in the same frame reads 0.95, and 0.96 with the vertices near Dione left
+out.  With every vertex whose track crosses Rhea left out, Dione keeps 43 vertices on a
+46 degree arc, which read 0.9997, and the fit gives +2.0 px at a sigma of 0.40 px, which
+the sigma limit refuses.  The ceiling sits above every limb of that frame that keeps
+most of its lit half, and an evenly sampled arc reaches it at about 135 degrees, three
+quarters of a lit half: a limb that loses more than about a quarter of its lit half, to
+the frame's edge or to another body, is refused.  The variance grows by 17 at the
+ceiling, against 5.3 for an evenly sampled half and 12 for the largest limb of that
+frame.
 """
 
 # A matched vertex is used when a real vertex the real fit used lies within this many
@@ -182,6 +194,12 @@ def tracks_touching(
 class LimbOrientation:
     """Where a body lies in the image and where its light comes from.
 
+    Every limb statistic reads a vertex by its direction from the center: the gradient
+    peak's track runs along it, the fit takes it as the vertex's normal, and a matched
+    vertex is matched to a real one by it.  The navigator's own normals point only in
+    steps of 45 degrees, so a statistic read along them would change as the limb turns
+    in the image.
+
     Parameters:
         center_vu: The body's center in the image's pixel-centric coordinates.
         light_deg: The in-image direction the light comes from, as a scene's
@@ -206,6 +224,20 @@ class LimbOrientation:
         rel_u = points[:, 1] - self.center_vu[1]
         angle = np.degrees(np.arctan2(rel_u, -rel_v)) - self.light_deg
         return np.asarray((angle + 180.0) % 360.0 - 180.0, dtype=np.float64)
+
+    def outward(self, points_vu: NDArrayFloatType) -> NDArrayFloatType:
+        """The unit vector from the center toward each point.
+
+        Parameters:
+            points_vu: ``(N, 2)`` points in the image's pixel-centric coordinates.
+
+        Returns:
+            ``(N, 2)`` unit vectors; a point on the center gives a zero vector.
+        """
+        rel = np.asarray(points_vu, dtype=np.float64) - np.asarray(self.center_vu)
+        lengths = np.linalg.norm(rel, axis=1, keepdims=True)
+        lengths[lengths == 0.0] = 1.0
+        return np.asarray(rel / lengths, dtype=np.float64)
 
 
 def matched_orientation(scene: Mapping[str, Any]) -> LimbOrientation:
@@ -241,7 +273,8 @@ def directions_near(
 
     Parameters:
         directions_deg: ``(N,)`` directions to test, in degrees.
-        used_deg: The directions of the real vertices the real fit used, in degrees.
+        used_deg: The directions of the real vertices a real measurement used, in
+            degrees.
 
     Returns:
         ``(N,)`` True where a direction lies near a used one; all False when fewer than
@@ -259,20 +292,54 @@ def directions_near(
 
 @dataclass(frozen=True)
 class LimbSelection:
-    """Which vertices of a frame's measured limb the gradient peak may use.
+    """Which vertices of a frame's measured limb the limb statistics may use.
 
     Parameters:
         orientation: The body's orientation, which gives each vertex its direction.
         clear_track: On a real frame, the test that a vertex's track touches only its
             own body and the sky; a vertex that fails it is left out.  None on a matched
             frame.
-        used_deg: On a matched frame, the directions of the real vertices the real fit
-            used; a vertex far from all of them is left out.  None on a real frame.
+        peak_deg: On a matched frame, the directions of the real vertices the real
+            gradient-peak fit used; a vertex far from all of them gives no peak.  None on
+            a real frame.
+        width_deg: On a matched frame, the directions of the real vertices that gave
+            rise widths; a vertex far from all of them gives no width.  None on a real
+            frame.
     """
 
     orientation: LimbOrientation
     clear_track: TrackTest | None = None
-    used_deg: tuple[float, ...] | None = None
+    peak_deg: tuple[float, ...] | None = None
+    width_deg: tuple[float, ...] | None = None
+
+    def keeps(
+        self,
+        points_vu: NDArrayFloatType,
+        normals_vu: NDArrayFloatType,
+        half_length_px: float,
+        near_deg: tuple[float, ...] | None,
+    ) -> NDArrayBoolType:
+        """Which points the selection keeps.
+
+        A point is kept when its track passes :attr:`clear_track` and, when
+        ``near_deg`` is given, its direction lies near one of those directions
+        (:func:`directions_near`).
+
+        Parameters:
+            points_vu: ``(N, 2)`` points in the image's pixel-centric coordinates.
+            normals_vu: ``(N, 2)`` directions of their tracks.
+            half_length_px: How far each track reaches to each side of its point.
+            near_deg: The directions a kept point must lie near, or None to keep any.
+
+        Returns:
+            ``(N,)`` True where the point is kept.
+        """
+        keep = np.ones(np.shape(points_vu)[0], dtype=bool)
+        if self.clear_track is not None:
+            keep &= self.clear_track(points_vu, normals_vu, half_length_px)
+        if near_deg is not None:
+            keep &= directions_near(self.orientation.directions_deg(points_vu), near_deg)
+        return keep
 
 
 @dataclass(frozen=True)
@@ -284,7 +351,7 @@ class LimbPeak:
             limb was refused.
         refusal: Why the limb was refused, or None when it gave an offset.
         used_deg: The directions of the vertices whose peaks the fit read (see
-            :class:`LimbOrientation`), or an empty tuple without an orientation.
+            :class:`LimbOrientation`).
     """
 
     offset_px: float | None
@@ -397,12 +464,13 @@ def matched_silhouette_offsets(scene: dict[str, Any], obs: Any) -> SilhouetteOff
     A matched limb scene holds one sphere.  Its center is a pixel-corner position, so
     its pixel-centric center lies half a pixel lower on each axis, and its silhouette is
     the circle of radius ``semi_a_px`` around that center.  Only the lit half of the
-    circle has an edge to measure.  At a limb point whose outward normal is ``n``, the
-    cosine of the solar incidence is ``sin(phase)`` times the component of ``n`` along
-    the direction the light comes from in the image (``illumination_angle`` 0 is the
-    top of the image, 90 the right).  A vertex whose normal gives a cosine of 0 or less
-    gets NaN.  At zero phase the light comes from behind the camera and lights the
-    whole limb, so every vertex keeps its silhouette.
+    circle has an edge to measure.  At the limb point in the direction ``r`` from the
+    center, the cosine of the solar incidence is ``sin(phase)`` times the component of
+    ``r`` along the direction the light comes from in the image (``illumination_angle``
+    0 is the top of the image, 90 the right).  A vertex whose direction gives a cosine
+    of 0 or less gets NaN, whatever the normal it is traced along.  At zero phase the
+    light comes from behind the camera and lights the whole limb, so every vertex keeps
+    its silhouette.
 
     Parameters:
         scene: The matched scene the frame was rendered from.
@@ -441,7 +509,7 @@ def matched_silhouette_offsets(scene: dict[str, Any], obs: Any) -> SilhouetteOff
         rel = vertices_vu - center
         along = np.sum(rel * unit, axis=1)
         discriminant = along**2 - (np.sum(rel * rel, axis=1) - radius**2)
-        lit = (phase_deg == 0.0) | (sin_phase * np.sum(unit * toward_light_vu, axis=1) > 0.0)
+        lit = (phase_deg == 0.0) | (sin_phase * np.sum(rel * toward_light_vu, axis=1) > 0.0)
         out = np.full(vertices_vu.shape[0], np.nan)
         keep = (discriminant >= 0.0) & lit
         out[keep] = -along[keep] + np.sqrt(discriminant[keep])
@@ -457,14 +525,20 @@ def limb_peak_offset(
     *,
     shift_vu: NDArrayFloatType,
     silhouette_offsets: SilhouetteOffsets,
-    selection: LimbSelection | None = None,
+    selection: LimbSelection,
 ) -> LimbPeak:
     """One limb's gradient-peak offset from the silhouette, in pixels.
 
-    A vertex is used when its silhouette was found and ``selection`` keeps it.  On a real
-    frame the track the gradient peak is looked for along, 4 px to each side of the
-    silhouette, must touch only the body and the sky.  On a matched frame the vertex must
-    lie near a direction the real fit used.
+    Each vertex is read along its direction from the body's center
+    (:meth:`LimbOrientation.outward`): the silhouette is found along it, the gradient
+    peak is looked for along it, and the fit takes it as the vertex's normal.  A vertex
+    is used when its silhouette was found and ``selection`` keeps it.  On a real frame
+    the track the gradient peak is looked for along, 4 px to each side of the
+    silhouette, must touch only the body and the sky.  On a matched frame the vertex
+    must lie near a direction the real fit used.
+
+    The arc is judged on the real limb alone, and a matched limb is measured over the
+    real limb's directions only after the real limb kept its offset.
 
     Parameters:
         image: The sensor-area image.
@@ -473,52 +547,43 @@ def limb_peak_offset(
         shift_vu: What moves a predicted extended-FOV position onto ``image`` at the
             frame's known offset: the offset less the extended-FOV margins.
         silhouette_offsets: The frame's silhouette.
-        selection: Which vertices may be used, or None to use every one.
-
-    The arc is judged on the real limb alone.  A matched limb is measured over the real
-    limb's directions only after the real limb kept its offset, and the navigator places
-    a matched sphere's limb vertices one per image column or row, so they crowd toward
-    the middle of the arc and its correlation reads higher than the real limb's over the
-    same directions (0.985 against at most 0.97 on Rhea in N1489603610_2_CALIB).
+        selection: Which vertices may be used, and the body's orientation.
 
     Returns:
         The measurement.  The limb is refused when fewer than 20 vertices have a peak,
         when the fit fails, or when it knows the offset to worse than 0.2 px; a real limb
-        also when the offset's correlation with the translation exceeds 0.97.
+        also when the offset's correlation with the translation exceeds the ceiling.
     """
     vertices = np.asarray(geometry.vertices_vu, dtype=np.float64)
-    normals = np.asarray(geometry.normals_vu, dtype=np.float64)
     if vertices.shape[0] == 0:
         return LimbPeak(None, 'the limb has no vertices')
-    unit = normals / np.linalg.norm(normals, axis=1, keepdims=True)
-    to_silhouette = silhouette_offsets(model_name, vertices, normals)
+    outward = selection.orientation.outward(vertices + shift_vu)
+    to_silhouette = silhouette_offsets(model_name, vertices, outward)
     found = np.isfinite(to_silhouette)
-    silhouette = vertices + unit * np.where(found, to_silhouette, 0.0)[:, np.newaxis] + shift_vu
-    directions = None if selection is None else selection.orientation.directions_deg(silhouette)
-    if selection is not None and selection.clear_track is not None:
-        found &= selection.clear_track(silhouette, unit, PEAK_TRACK_HALF_LENGTH_PX)
-    if selection is not None and selection.used_deg is not None and directions is not None:
-        found &= directions_near(directions, selection.used_deg)
+    silhouette = vertices + outward * np.where(found, to_silhouette, 0.0)[:, np.newaxis] + shift_vu
+    found &= selection.keeps(silhouette, outward, PEAK_TRACK_HALF_LENGTH_PX, selection.peak_deg)
     peaks = np.full(vertices.shape[0], np.nan)
-    peaks[found] = gradient_peak_positions(image, silhouette[found], normals[found])
+    peaks[found] = gradient_peak_positions(image, silhouette[found], outward[found])
     measured = np.isfinite(peaks)
-    used = () if directions is None else tuple(float(d) for d in directions[measured])
+    directions = selection.orientation.directions_deg(silhouette[measured])
+    used = tuple(float(d) for d in directions)
     n_measured = int(np.count_nonzero(measured))
     if n_measured < MIN_FIT_VERTICES:
         return LimbPeak(None, f'only {n_measured} vertices have a gradient peak', used)
-    fit = fit_limb_peak_offset(peaks, normals)
+    fit = fit_limb_peak_offset(peaks, outward)
     if fit is None:
         return LimbPeak(None, 'the robust fit kept too few vertices to separate the offset', used)
     if fit.offset_sigma_px > MAX_OFFSET_SIGMA_PX:
         return LimbPeak(
             None, f'the offset is known to {fit.offset_sigma_px:.2f} px, worse than 0.2 px', used
         )
-    judges_arc = selection is None or selection.used_deg is None
+    judges_arc = selection.peak_deg is None
     if judges_arc and fit.offset_translation_correlation > MAX_OFFSET_TRANSLATION_CORRELATION:
         return LimbPeak(
             None,
             f'the arc is too short: the offset correlates with the translation at '
-            f'{fit.offset_translation_correlation:.3f}, above 0.97',
+            f'{fit.offset_translation_correlation:.3f}, above '
+            f'{MAX_OFFSET_TRANSLATION_CORRELATION}',
             used,
         )
     return LimbPeak(fit.offset_px, None, used)

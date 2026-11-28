@@ -199,6 +199,12 @@ class FrameRecord:
         limb_directions_deg: When the real frame's limb gave a gradient peak, the
             directions of the vertices its fit read, which the matched frame's limb is
             measured over; else None.
+        limb_width_directions_deg: The directions of the real limb's vertices that gave
+            rise widths, which the matched frame's widths are taken near; empty when the
+            real frame gave none.
+        light_deg: The in-image direction the light comes from on the real body, as a
+            scene's ``illumination_angle`` gives it, which the matched body is lit from;
+            None when the real frame has no body in view.
     """
 
     image_id: str
@@ -218,6 +224,8 @@ class FrameRecord:
     quantization: str | None = None
     stars: list[dict[str, Any]] | None = None
     limb_directions_deg: tuple[float, ...] | None = None
+    limb_width_directions_deg: tuple[float, ...] = ()
+    light_deg: float | None = None
 
 
 @dataclass
@@ -425,6 +433,9 @@ def _frame_samples_real(
             record.normal_albedo = body.normal_albedo
             record.limb_emitted = body.limb_emitted
             record.body_name = body.name
+        selection = None if body is None else bodies.limb_selection(body.name)
+        if selection is not None:
+            record.light_deg = selection.orientation.light_deg
         features_real = extract_feature_samples(
             image,
             features,
@@ -435,10 +446,11 @@ def _frame_samples_real(
             matched_model=None if body is None else body.model,
             silhouette_offsets=real_silhouette_offsets(obs, radii_km=silhouette_radii_km),
             limb_peak_model=None if body is None else body.limb_peak_model,
-            limb_selection=None if body is None else bodies.limb_selection(body.name),
+            limb_selection=selection,
         )
         samples.merge(features_real)
         samples.limb_peak = features_real.limb_peak
+        record.limb_width_directions_deg = features_real.limb_width_directions_deg
         if samples.limb_peak is not None and samples.limb_peak.offset_px is not None:
             record.limb_directions_deg = samples.limb_peak.used_deg
     return samples, record, rates
@@ -455,6 +467,7 @@ def _sim_obs_for_record(record: FrameRecord) -> tuple[ObsSim, dict[str, Any]]:
         diameter_px=record.diameter_px,
         phase_angle_deg=record.phase_angle_deg,
         normal_albedo=record.normal_albedo,
+        illumination_deg=0.0 if record.light_deg is None else record.light_deg,
         filter_name=record.filter_name,
         gain_state=record.gain_state,
         quantization=record.quantization,
@@ -480,7 +493,8 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
             # The real frame has no limb of this body, so neither does its twin.
             features = [f for f in features if not isinstance(f.geometry, LimbPolyline)]
         bodies = scene.get('bodies') or []
-        # The twin's limb peak is measured over the directions the real fit read.
+        # The twin's limb peak is measured over the directions the real fit read, and its
+        # widths near the directions of the real widths.
         used = record.limb_directions_deg if bodies else None
         features_sim = extract_feature_samples(
             image,
@@ -493,7 +507,13 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
             silhouette_offsets=None if used is None else matched_silhouette_offsets(scene, obs),
             limb_peak_model=f'body_sim:{bodies[0]["name"]}' if bodies else None,
             limb_selection=(
-                None if used is None else LimbSelection(matched_orientation(scene), used_deg=used)
+                LimbSelection(
+                    matched_orientation(scene),
+                    peak_deg=used,
+                    width_deg=record.limb_width_directions_deg,
+                )
+                if bodies
+                else None
             ),
         )
         samples.merge(features_sim)

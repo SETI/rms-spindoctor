@@ -15,7 +15,8 @@ pixels in the planet's shadow, each widened by the disc clearance for the blur. 
 other than the main rings, such as a faint dusty ring, is not taken as hiding a moon.
 The same geometry gives the realism match's limb statistics what lies near a limb that
 is neither its body nor the sky (:func:`foreign_pixels`): every other body's disc, in
-front or behind, the planet's, and the rings and shadow over the body.
+front or behind, the planet's, the main rings in front of the body or beside it, and the
+shadow over the body.
 
 The disc's pixels are selected and fitted with :mod:`spindoctor.sim.realism.disc_profile`:
 Minnaert's exponent ``k``, the lunar-Lambert blend ``L``, and the brightness profile
@@ -203,24 +204,33 @@ def _boxes_overlap(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
 
 
 def _cover(
-    backplane: Any, body: str, others: Sequence[str], *, planet: str | None
+    backplane: Any,
+    body: str,
+    others: Sequence[str],
+    *,
+    planet: str | None,
+    rings_beside: bool = False,
 ) -> NDArrayBoolType:
     """The pixels of ``others`` and of the planet's rings and shadow over ``body``.
 
     The frame's geometry traces each body alone, so a body's backplanes still mark as its
     own the pixels where another body lies across it, where the planet's main rings lie
-    in front of it, and where it lies in the planet's shadow.  The union is widened by
-    the disc clearance for the blur.  The planet's shadow is left out for the planet
-    itself.
+    in front of it, and where it lies in the planet's shadow.  With ``rings_beside`` the
+    main rings off the body's disc, over the sky beside it, are added too.  The union is
+    widened by the disc clearance for the blur.  The planet's shadow is left out for the
+    planet itself.
     """
-    shape = np.shape(backplane.where_intercepted(body).vals)
-    cover = np.zeros(shape, dtype=bool)
+    on_body = np.asarray(backplane.where_intercepted(body).vals, dtype=bool)
+    cover = np.zeros(on_body.shape, dtype=bool)
     for other in others:
         cover |= np.asarray(backplane.where_intercepted(other).vals, dtype=bool)
     if planet is not None:
         ring = OCCULTING_RINGS.get(planet)
         if ring is not None:
             cover |= np.asarray(backplane.where_in_back(body, ring).vals, dtype=bool)
+            if rings_beside:
+                on_ring = np.asarray(backplane.where_intercepted(ring).vals, dtype=bool)
+                cover |= on_ring & ~on_body
         if body != planet:
             cover |= np.asarray(backplane.where_inside_shadow(body, planet).vals, dtype=bool)
     if cover.any():
@@ -272,10 +282,11 @@ def foreign_pixels(
     """Everything near a body's limb that is neither the body nor the sky.
 
     These are the discs of every other body in view, in front of the body or behind it,
-    lit or not, the planet's among them, with the planet's rings and shadow over the
-    body, all widened by the disc clearance for the blur as :func:`hidden_pixels` widens
-    them.  A limb vertex whose track touches one of these pixels measures that other
-    light as well as the limb's, so the limb statistics leave it out.
+    lit or not, the planet's among them, the planet's main rings wherever they lie in
+    front of the body or beside it over the sky, and the planet's shadow over the body,
+    all widened by the disc clearance for the blur as :func:`hidden_pixels` widens them.
+    A limb vertex whose track touches one of these pixels measures that other light as
+    well as the limb's, so the limb statistics leave it out.
 
     Parameters:
         backplane: The frame's offset backplane.
@@ -287,7 +298,7 @@ def foreign_pixels(
         A mask in the image's shape.
     """
     others = [other for other, _entry in in_view if other != body]
-    return _cover(backplane, body, others, planet=planet)
+    return _cover(backplane, body, others, planet=planet, rings_beside=True)
 
 
 @dataclass(frozen=True)

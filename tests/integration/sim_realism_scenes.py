@@ -177,6 +177,7 @@ def limb_scene(
     diameter_px: float,
     phase_angle_deg: float,
     normal_albedo: float | None = None,
+    illumination_deg: float = 0.0,
 ) -> dict[str, Any]:
     """A matched limb frame: one ellipsoid at the real body's scale and phase.
 
@@ -195,6 +196,9 @@ def limb_scene(
         phase_angle_deg: The real frame's phase angle.
         normal_albedo: The real body's normal albedo, measured from its disc's I/F;
             None leaves the body white (normal albedo 1).
+        illumination_deg: The in-image direction the real body's light comes from, as
+            the scene's ``illumination_angle`` (0 from the top of the image, 90 from the
+            right), so the matched limb is lit along the same stretch as the real one.
     """
     seed = _seed_for(image_id)
     scene = _base_scene(f'realism_limb_{image_id}', instrument, exposure_sec, seed, size_vu)
@@ -210,7 +214,7 @@ def limb_scene(
             'semi_a_px': semi_px,
             'semi_b_px': semi_px,
             'semi_c_px': semi_px,
-            'illumination_angle': 0.0,
+            'illumination_angle': float(illumination_deg),
             'phase_angle': float(min(max(phase_angle_deg, 0.0), 179.0)),
             'photometric_law': MATCHED_BODY_LAW,
         }
@@ -237,6 +241,7 @@ def ring_scene(
     diameter_px: float = 150.0,
     phase_angle_deg: float = 45.0,
     normal_albedo: float | None = None,
+    illumination_deg: float = 0.0,
 ) -> dict[str, Any]:
     """A matched ring frame: three sharp-edged features around an annulus.
 
@@ -256,6 +261,8 @@ def ring_scene(
             case (same stratification argument).
         normal_albedo: The real body's normal albedo for the ``with_body`` case;
             None leaves the body white.
+        illumination_deg: The in-image direction the real body's light comes from, for
+            the ``with_body`` case.
     """
     seed = _seed_for(image_id)
     scene = _base_scene(f'realism_ring_{image_id}', instrument, exposure_sec, seed, size_vu)
@@ -325,7 +332,7 @@ def ring_scene(
                 'semi_a_px': semi_px,
                 'semi_b_px': semi_px,
                 'semi_c_px': semi_px,
-                'illumination_angle': 0.0,
+                'illumination_angle': float(illumination_deg),
                 'phase_angle': float(min(max(phase_angle_deg, 0.0), 179.0)),
                 'photometric_law': MATCHED_BODY_LAW,
             }
@@ -345,6 +352,7 @@ def matched_scene(
     diameter_px: float = 150.0,
     phase_angle_deg: float = 45.0,
     normal_albedo: float | None = None,
+    illumination_deg: float = 0.0,
     filter_name: str | None = None,
     gain_state: int | None = None,
     quantization: str | None = None,
@@ -370,6 +378,8 @@ def matched_scene(
             ring_plus_body, measured from its disc's I/F
             (:func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).  None
             leaves the body white.
+        illumination_deg: The in-image direction the real body's light comes from, for
+            the limb classes and ring_plus_body, as a scene's ``illumination_angle``.
         filter_name: The real frame's filter combination.  It sets the sim's
             DN-to-I/F scale and dims every star by the filter's throughput.  None
             keeps the camera's nominal scale and the clear filter.
@@ -404,6 +414,7 @@ def matched_scene(
             diameter_px=diameter_px,
             phase_angle_deg=phase_angle_deg,
             normal_albedo=normal_albedo,
+            illumination_deg=illumination_deg,
         )
     elif scene_class in _RING_CLASSES:
         scene = ring_scene(
@@ -416,6 +427,7 @@ def matched_scene(
             diameter_px=diameter_px,
             phase_angle_deg=phase_angle_deg,
             normal_albedo=normal_albedo,
+            illumination_deg=illumination_deg,
         )
     else:
         scene = sky_scene(image_id, instrument, exposure_sec, size_vu)

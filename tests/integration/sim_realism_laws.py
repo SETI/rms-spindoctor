@@ -732,7 +732,7 @@ def _twin_limb_peak(
         matched_model=model,
         silhouette_offsets=matched_silhouette_offsets(scene, obs),
         limb_peak_model=model,
-        limb_selection=LimbSelection(matched_orientation(scene), used_deg=directions_deg),
+        limb_selection=LimbSelection(matched_orientation(scene), peak_deg=directions_deg),
     )
     if frame.limb_peak is None:
         return None, 'the navigator placed no limb'

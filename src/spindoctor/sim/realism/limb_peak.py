@@ -68,8 +68,10 @@ class LimbPeakFit:
         residual_scale_px: The robust scale of the kept peaks about the fit.
         offset_translation_correlation: How closely the translation can mimic the
             offset over the kept vertices, from 0 to 1: the multiple correlation of the
-            offset with the two translation components in the fit's covariance.  It
-            does not depend on how the arc is turned in the image.  A full circle of
+            offset with the two translation components in the fit's covariance.  When
+            the normals turn with the arc, as each vertex's direction from the body's
+            center does, it does not depend on how the arc is turned in the image;
+            normals rounded to fixed steps do not turn with it.  A full circle of
             normals gives 0, an evenly sampled half circle 0.90, and a quarter circle
             0.995.
     """

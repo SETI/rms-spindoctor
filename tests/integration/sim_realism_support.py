@@ -48,6 +48,7 @@ from spindoctor.sim.realism.noise import (
 )
 from spindoctor.sim.realism.profiles import (
     edge_normal_profiles,
+    edge_tracks_in_image,
     ee_radius,
     encircled_energy,
     profile_rise_width,
@@ -224,12 +225,17 @@ class FrameSamples:
             :func:`add_sky_samples`.  :meth:`merge` doesn't copy this field.
         limb_peak: The gradient-peak measurement of the frame's measured limb, or None
             when the frame measured none.  :meth:`merge` doesn't copy this field.
+        limb_width_directions_deg: The directions (see
+            :class:`~tests.integration.sim_realism_limb_peak.LimbOrientation`) of the
+            measured limb's vertices that gave a rise width, which the matched frame's
+            widths are taken near.  :meth:`merge` doesn't copy this field.
     """
 
     samples: dict[str, list[float]] = field(default_factory=dict)
     curves: dict[str, list[tuple[NDArrayFloatType, NDArrayFloatType]]] = field(default_factory=dict)
     sky: FrameSky | None = None
     limb_peak: LimbPeak | None = None
+    limb_width_directions_deg: tuple[float, ...] = ()
 
     def add(self, kind: str, values: list[float] | NDArrayFloatType) -> None:
         """Append scalar samples under ``kind``, dropping non-finite values."""
@@ -580,7 +586,8 @@ def extract_feature_samples(
             rejected on every cohort.
         matched_model: The one body model whose limb adds FOM 3 widths and a limb
             profile: the body the matched scene renders, so each width has a
-            counterpart of the same body.  None adds no limb widths.
+            counterpart of the same body.  None, or no ``limb_selection``, adds no limb
+            widths.
         silhouette_offsets: The frame's body silhouettes, which the gradient peak of
             ``limb_peak_model``'s limb is measured from.
         limb_peak_model: The one body model whose binned limb also adds its
@@ -588,10 +595,11 @@ def extract_feature_samples(
             ``limb_peak_<bin>`` (see :mod:`tests.integration.sim_realism_limb_peak`).
             It is the body the matched scene renders, so each frame of a pair measures
             the same body.  None, or no silhouettes, adds no gradient peak.
-        limb_selection: Which vertices of the measured limb may be used.  On a real
-            frame its track test also leaves out the width profiles whose 8 px tracks
-            touch another body, the planet, or the rings or shadow over the body.
-            None uses every vertex.
+        limb_selection: Which vertices of the measured limb may be used, and the
+            body's orientation, which gives each vertex its direction.  On a real frame
+            its track test also leaves out the width profiles whose 8 px tracks touch
+            another body, the planet, or the planet's rings or shadow.  On a matched
+            frame a width is taken only near the directions of the real widths.
 
     Returns:
         The frame's feature samples, with the gradient-peak measurement when one was
@@ -654,16 +662,19 @@ def extract_feature_samples(
             star_candidates.append((peak, radius, intensity))
             star_radius = radius
         elif isinstance(geometry, LimbPolyline):
-            if feature.source_model != matched_model:
+            if feature.source_model != matched_model or limb_selection is None:
                 continue
             vertices, normals = _decimate(
                 np.asarray(geometry.vertices_vu, dtype=np.float64) + shift,
                 np.asarray(geometry.normals_vu, dtype=np.float64),
                 _MAX_PROFILES_PER_FEATURE,
             )
-            if limb_selection is not None and limb_selection.clear_track is not None:
-                clear = limb_selection.clear_track(vertices, normals, _EDGE_HALF_LENGTH_PX)
-                vertices, normals = vertices[clear], normals[clear]
+            keep = limb_selection.keeps(
+                vertices, normals, _EDGE_HALF_LENGTH_PX, limb_selection.width_deg
+            ) & edge_tracks_in_image(
+                image.shape, vertices, normals, half_length_px=_EDGE_HALF_LENGTH_PX
+            )
+            vertices, normals = vertices[keep], normals[keep]
             profiles = edge_normal_profiles(
                 image,
                 vertices,
@@ -686,6 +697,10 @@ def extract_feature_samples(
                 # pooled FOM 3 statistic from strata populated on both
                 # sides, so a raw cross-strata pool never appears.
                 out.add(f'limb_width_{_limb_bin_label(phase, diameter)}', widths)
+                measured = np.isfinite(np.asarray(widths, dtype=np.float64))
+                out.limb_width_directions_deg += tuple(
+                    float(d) for d in limb_selection.orientation.directions_deg(vertices[measured])
+                )
                 if silhouette_offsets is not None and feature.source_model == limb_peak_model:
                     out.limb_peak = limb_peak_offset(
                         image,
