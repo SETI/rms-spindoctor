@@ -27,6 +27,12 @@
 # method.  Filter offsets are 2.5 log10 of the camera's solar filter factor (Benesh and
 # Jepsen 1978, Tables 3-5 to 3-8), because a filter or gain state is measured only from
 # 15 or more stars, and none but CLEAR at low gain has that many.
+#
+# No block gives a color term (color_term), so each camera's magnitude of a star is its
+# V.  The 33 Voyager 2 narrow-angle stars with a measured color give +0.18 +- 0.19, which
+# cannot be told from zero, and only 3 of the 17 wide-angle stars have a measured color
+# (the rest are bright Tycho-2 stars, whose color the catalog reduction does not keep).
+# Voyager 1's cameras carry Voyager 2's, which is none.
 voyager_iss:
   # Voyager 1 narrow-angle camera.
   vgiss_1_nac:

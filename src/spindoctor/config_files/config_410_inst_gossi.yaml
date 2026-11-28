@@ -63,7 +63,8 @@ galileo_ssi:
     mag_offset_table:
       'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
   # Star photometry of the camera, read by ObsGalileoSSI for its star limit and star
-  # width.  A star of V magnitude m and the default spectral class deposits
+  # width.  A star of Johnson V magnitude V and color B - V has the camera magnitude
+  # m = V + color_term * (B - V), and deposits
   #     flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[FILTER_NAME]))
   #         * texp / gain[gain state]
   # DN, the rate counting electrons and gain giving electrons per DN.  The dimmest
@@ -84,31 +85,41 @@ galileo_ssi:
   # that many, so the others take the calibration documents' values and their stars are
   # left out of the fits.
   star_photometry:
-    # Fit: 8.23e6 DN/s for V = 0 through CLEAR at 10K (+-0.09 mag, 83 stars), times the
-    # 38.7 e-/DN of 10K.  Klaasen et al. 1999's absolute response (Table 2) gives 5.9e6
-    # DN/s.  The scale is the 1992 frames': the 1990 frames read 0.4-1.7 mag fainter at the
-    # same settings, unexplained (#1211).
+    # Fit: 6.16e6 DN/s for V = 0 and B - V = 0 through CLEAR at 10K (+-0.14 mag, 75 stars
+    # with a measured color), times the 38.7 e-/DN of 10K; a star of the default class
+    # (G0, B - V 0.59) gives 7.7e6 DN/s.  Klaasen et al. 1999's absolute response (Table
+    # 2) gives 5.9e6 DN/s.  The scale is the 1992 frames': the 1990 frames read 0.4-1.7 mag
+    # fainter at the same settings, unexplained (#1211).
     flux_unit: electrons
-    flux_per_s_vmag0: 3.18e+08
+    flux_per_s_vmag0: 2.385e+08
     # Klaasen 1993 (JPL D-5880, Tables 3-1 and 3-2): 38.7 e-/DN at 10K and the published
     # ratios 4.824 and 47.135 of 40K and 400K, which the stars do not measure (no stars).
-    # 100K is measured: 27 stars give a DN ratio of 0.0816 (+-0.14 mag) against 10K, or
-    # 474.5 e-/DN, where Klaasen's ratio 9.771 gives 378.1.
+    # 100K is measured: 20 stars give a DN ratio of 0.1098 (+-0.12 mag) against 10K, or
+    # 352.3 e-/DN, where Klaasen's ratio 9.771 gives 378.1.
     gain:
       '10K': 38.7
       '40K': 186.7
-      '100K': 474.5
+      '100K': 352.3
       '400K': 1824.1
     # The DN at 80% of the way from the detection floor to the plateau of a
     # detection-probability curve fitted to the clean stars of the mode taken through
-    # CLEAR at the measured gain states: 180 +- 82 DN on the full frames (1359 stars) and
-    # 59 +- 9 DN on the summed frames (109 stars).
+    # CLEAR at the measured gain states: 153 +- 72 DN on the full frames (1641 stars) and
+    # 56 +- 8 DN on the summed frames (131 stars).  The limit is one DN per mode at every
+    # gain state, and on the 12 held-out 100K frames the faintest star detected lies a
+    # median 1.6 mag past the predicted dimmest visible star, against 0.15 mag on the 16
+    # held-out 10K frames.
     min_detectable_dn:
-      FULL: 180.0
-      SUMMED: 59.0
+      FULL: 153.0
+      SUMMED: 56.0
     # As in the earlier navigation software, which searched 1 mag past the dimmest
     # visible star.
     search_depth_mag: 1.0
+    # Fitted with the rate: -0.41 +- 0.14 from the 75 CLEAR stars with a measured color
+    # (B - V -0.2 to 2.3), so a red star reads brighter than its V.  It takes the robust
+    # scatter of the stars about the fit from 0.55 to 0.36 mag.  The stars through other
+    # filters are too few to measure a color term of their own, so every filter takes
+    # this one.
+    color_term: -0.41
     # Klaasen et al. 1999 (Table 3): 2.5 log10 of each filter's solar filter factor.  The
     # stars through filters (count beside each) are too few to measure an offset, and are
     # mostly hot Pleiades members, far bluer than the Sun.
