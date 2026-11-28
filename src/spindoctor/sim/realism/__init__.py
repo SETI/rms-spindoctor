@@ -46,7 +46,7 @@ from spindoctor.sim.realism.disc_profile import (
     equator_profile,
     fit_lunar_lambert,
     fit_minnaert,
-    fit_minnaert_together,
+    fit_minnaert_paired,
     profile_residual,
     select_disc_pixels,
 )
@@ -101,7 +101,7 @@ __all__ = [
     'fit_limb_peak_offset',
     'fit_lunar_lambert',
     'fit_minnaert',
-    'fit_minnaert_together',
+    'fit_minnaert_paired',
     'frame_dynamic_range',
     'gradient_peak_positions',
     'lattice_noise_sigma',

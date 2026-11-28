@@ -17,9 +17,8 @@ angles.  Taking logarithms, ``log(I * mu) = log(B0) + k * log(mu0 * mu)`` is a s
 line, so ``k`` is its slope.  The slope does not depend on the overall brightness, and an
 albedo marking moves a few pixels off the line, where the fit's outlier rejection drops
 them.  ``k = 1`` is Lambert's law and ``k = 0.5`` the classic limb-brightened lunar value.
-:func:`fit_minnaert_together` fits several images of one disc, such as a real disc and
-its simulated twins, over the pixels that every one of their fits keeps, so a marking
-that one image's fit drops is left out of all of them.
+:func:`fit_minnaert_paired` fits a real disc and its simulated twins over the pixels
+the real disc's fit keeps, so a marking that fit drops is left out of every twin's fit.
 
 **The lunar-Lambert blend.**  :func:`fit_lunar_lambert` fits
 ``I = B0 * (2 * L * mu0 / (mu0 + mu) + (1 - L) * mu0)``, the blend of Lommel-Seeliger
@@ -57,7 +56,7 @@ __all__ = [
     'equator_profile',
     'fit_lunar_lambert',
     'fit_minnaert',
-    'fit_minnaert_together',
+    'fit_minnaert_paired',
     'photometric_coordinates',
     'profile_residual',
     'select_disc_pixels',
@@ -266,45 +265,45 @@ def fit_minnaert(
     return None if solved is None else solved[0]
 
 
-def fit_minnaert_together(
-    discs: Sequence[tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]],
-) -> list[MinnaertFit | None]:
-    """Fit Minnaert's law to several images of one disc over the same pixels.
+def fit_minnaert_paired(
+    reference: tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType],
+    twins: Sequence[tuple[NDArrayFloatType, NDArrayFloatType, NDArrayFloatType]],
+) -> tuple[MinnaertFit | None, list[MinnaertFit | None]]:
+    """Fit Minnaert's law to a disc and to its twins over the same pixels.
 
-    Each disc is fitted on its own first, as :func:`fit_minnaert` fits it.  Then every
-    disc is fitted again, without rejecting any pixel, over the pixels that all of those
-    fits kept.  So each exponent describes the same part of the disc.  When every fit
-    keeps every pixel, each disc's exponent is the one its own fit gave.
+    The reference, such as a real disc, is fitted as :func:`fit_minnaert` fits it, so
+    an albedo marking on it is dropped.  Each twin, such as a smooth simulated sphere,
+    is then fitted over the pixels that fit kept, without dropping any pixel of its own.
+    So every exponent describes the same part of the disc, and which part does not
+    depend on which twins are fitted.  A twin's own rejection would mostly drop the
+    stretches where its law curves away from Minnaert's line, which are the stretches
+    that tell the laws apart.
 
     Parameters:
-        discs: Each disc's ``(intensity, mu0, mu)``, as :func:`fit_minnaert` takes them,
-            over the same pixels in the same order.
+        reference: The reference's ``(intensity, mu0, mu)``, as :func:`fit_minnaert`
+            takes them.
+        twins: Each twin's, over the same pixels in the same order.
 
     Returns:
-        One fit per disc, in order.  A disc whose own fit fails gives None and does
-        not narrow the others' pixels.  Every disc gives None when fewer than
-        :data:`MIN_FIT_PIXELS` pixels are kept by every fit that succeeded.
+        The reference's fit and each twin's, in order.  Every fit is None when the
+        reference's fit fails, and a twin's is None when its pixels cannot fix both
+        coefficients.
 
     Raises:
-        ValueError: If the discs do not all hold the same number of pixels.
+        ValueError: If the twins do not all hold the reference's number of pixels.
     """
-    sizes = {np.size(array) for disc in discs for array in disc}
+    sizes = {np.size(array) for disc in (reference, *twins) for array in disc}
     if len(sizes) > 1:
         raise ValueError(f'the discs hold different numbers of pixels: {sorted(sizes)}')
-    solved = [_minnaert(*disc, clip=True) for disc in discs]
-    shared = np.ones(sizes.pop() if sizes else 0, dtype=bool)
-    for one in solved:
-        if one is not None:
-            shared &= one[1]
-    fits: list[MinnaertFit | None] = []
-    for (intensity, mu0, mu), one in zip(discs, solved, strict=True):
-        refit = (
-            None
-            if one is None
-            else _minnaert(intensity[shared], mu0[shared], mu[shared], clip=False)
-        )
-        fits.append(None if refit is None else refit[0])
-    return fits
+    solved = _minnaert(*reference, clip=True)
+    if solved is None:
+        return None, [None] * len(twins)
+    fit, kept = solved
+    twin_fits: list[MinnaertFit | None] = []
+    for intensity, mu0, mu in twins:
+        refit = _minnaert(intensity[kept], mu0[kept], mu[kept], clip=False)
+        twin_fits.append(None if refit is None else refit[0])
+    return fit, twin_fits
 
 
 def fit_lunar_lambert(

@@ -806,15 +806,15 @@ def test_a_pixel_one_twin_clips_is_left_out_of_every_twins_fit(
     assert twins['lommel_seeliger'].k == pytest.approx(1.0, abs=1e-6)
 
 
-def test_pixels_one_twins_fit_drops_are_left_out_of_the_real_fit(
+def test_pixels_the_real_fit_drops_are_left_out_of_every_twins_fit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every exponent of a disc is fitted over the pixels all of its fits keep.
+    """Every twin of a disc is fitted over the pixels the real disc's fit keeps.
 
-    The real disc is Lambert with 3% noise, and 5% too bright where the disc faces both
-    the Sun and the camera most closely, too little for its own fit to drop.  One twin
-    is five times too bright there, and its fit drops those pixels.  Only a real fit
-    that leaves them out as well gives back the Lambert exponent 1.
+    The real disc is Lambert and five times too bright where the disc faces both the
+    Sun and the camera most closely, and its fit drops those pixels.  The twin carries
+    3% noise and is 5% too bright there, too little for a fit of its own to drop, so
+    only a fit that leaves them out gives the twin the Lambert exponent 1.
     """
     phase = 30.0
     on_body, mu0, mu = sim_realism_laws._sphere_cosines(
@@ -822,9 +822,9 @@ def test_pixels_one_twins_fit_drops_are_left_out_of_the_real_fit(
     )
     lambert = np.where(on_body, 0.05 * np.clip(mu0, 0.0, None), 0.0)
     marked = on_body & (mu0 * mu > 0.8)
+    noise = np.exp(0.03 * np.random.default_rng(5).normal(size=on_body.shape))
     disc = _sphere_disc('lambert')
-    noise = np.exp(0.03 * np.random.default_rng(5).normal(size=disc.intensity.size))
-    disc.intensity = disc.intensity * noise * np.where(marked[disc.selection], 1.05, 1.0)
+    disc.intensity = disc.intensity * np.where(marked[disc.selection], 5.0, 1.0)
 
     def render(
         disc: RealDisc,
@@ -835,19 +835,18 @@ def test_pixels_one_twins_fit_drops_are_left_out_of_the_real_fit(
         limb_peak: bool,
         on_body: NDArrayBoolType,
     ) -> Any:
-        spot = law == 'lambert'
         return sim_realism_laws._TwinRender(
             law=law,
             normal_albedo=normal_albedo,
-            data=np.where(marked & spot, 5.0 * lambert, lambert),
+            data=lambert * noise * np.where(marked, 1.05, 1.0),
             at_ceiling=np.zeros(on_body.shape, dtype=bool),
             limb_peak=None,
             limb_peak_refusal=None,
         )
 
     monkeypatch.setattr(sim_realism_laws, '_render_twin', render)
-    twins = _twins_of(disc, ('lambert', 'lommel_seeliger'), minnaert_k=0.6, limb_peak=False)
-    assert twins['lommel_seeliger'].real_k == pytest.approx(1.0, abs=0.002)
+    twins = _twins_of(disc, ('lambert',), minnaert_k=0.6, limb_peak=False)
+    assert twins['lambert'].k == pytest.approx(1.0, abs=0.002)
 
 
 def test_a_disc_without_a_normal_albedo_is_left_out_of_the_study() -> None:

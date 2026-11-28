@@ -13,7 +13,7 @@ from spindoctor.sim.realism.disc_profile import (
     equator_profile,
     fit_lunar_lambert,
     fit_minnaert,
-    fit_minnaert_together,
+    fit_minnaert_paired,
     photometric_coordinates,
     profile_residual,
     select_disc_pixels,
@@ -132,56 +132,51 @@ def test_a_rejection_that_leaves_too_few_pixels_gives_no_fit(
     assert fit_minnaert(noisy, mu0, mu) is None
 
 
-def _marked_twins() -> list[tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    """A real-like Lambert disc and a twin that one albedo marking sets apart.
+def test_a_marking_the_real_fit_drops_is_left_out_of_a_twins_fit() -> None:
+    """A twin is fitted over the pixels the real disc's fit keeps.
 
-    The first disc carries 3% noise and is 5% too bright where ``mu0 * mu`` exceeds
-    0.8, too little for its own fit to drop.  The second is noiseless and five times
-    too bright there, and its fit drops those pixels.
+    The real disc is Lambert and five times too bright where ``mu0 * mu`` exceeds 0.8,
+    and its fit drops those pixels.  The twin carries 3% noise and is 5% too bright
+    there, too little for a fit of its own to drop, so only a fit that leaves them out
+    gives the twin the Lambert exponent 1.
     """
     intensity, mu0, mu = _disc('lambert')
     marked = np.where(mu0 * mu > 0.8, 1.0, 0.0)
     noise = np.exp(0.03 * np.random.default_rng(4).normal(size=intensity.size))
-    real = intensity * noise * (1.0 + 0.05 * marked)
-    twin = intensity * (1.0 + 4.0 * marked)
-    return [(real, mu0, mu), (twin, mu0, mu)]
+    real = intensity * (1.0 + 4.0 * marked)
+    twin = intensity * noise * (1.0 + 0.05 * marked)
+    _, twins = fit_minnaert_paired((real, mu0, mu), [(twin, mu0, mu)])
+    assert twins[0] is not None
+    assert twins[0].k == pytest.approx(1.0, abs=0.002)
 
 
-def test_a_marking_one_fit_drops_is_left_out_of_every_fit() -> None:
-    """The real-like disc, fitted over the pixels the twin's fit keeps, fits k near 1."""
-    fits = fit_minnaert_together(_marked_twins())
-    assert fits[0] is not None
-    assert fits[0].k == pytest.approx(1.0, abs=0.002)
+def test_a_twin_keeps_the_pixels_its_own_law_curves_away_on() -> None:
+    """A Lommel-Seeliger twin of a Lambert disc is fitted over all the Lambert pixels.
 
-
-def test_fits_that_keep_every_pixel_give_their_own_exponents() -> None:
-    """Two clean discs fitted together give the exponents each gives on its own."""
-    lambert, minnaert = _disc('lambert'), _disc('minnaert', minnaert_k=0.7)
-    fits = fit_minnaert_together([lambert, minnaert])
-    assert fits[1] is not None
-    assert fits[1].k == pytest.approx(0.7, abs=1e-9)
-
-
-def test_too_few_shared_pixels_give_no_fit_for_any_disc() -> None:
-    """Two discs of 150 pixels whose fits each drop a different quarter share 75.
-
-    Each fit keeps 112 or 113 pixels, enough on its own.
+    A fit of its own would drop the pixels where its law curves farthest from
+    Minnaert's line; over all of them it fits the plain least-squares slope.
     """
-    intensity, mu0, mu = _disc('lambert')
-    pick = np.linspace(0, intensity.size - 1, 150).astype(int)
-    intensity, mu0, mu = intensity[pick], mu0[pick], mu[pick]
-    index = np.arange(150)
-    first = intensity * np.where(index % 4 == 0, 5.0, 1.0)
-    second = intensity * np.where(index % 4 == 2, 5.0, 1.0)
-    fits = fit_minnaert_together([(first, mu0, mu), (second, mu0, mu)])
-    assert fits == [None, None]
+    real, mu0, mu = _disc('lambert')
+    twin = _disc('lommel_seeliger')[0]
+    x = np.log(mu0 * mu)
+    slope = np.polyfit(x, np.log(twin * mu), 1)[0]
+    _, twins = fit_minnaert_paired((real, mu0, mu), [(twin, mu0, mu)])
+    assert twins[0] is not None
+    assert twins[0].k == pytest.approx(slope, abs=1e-9)
+
+
+def test_a_real_disc_without_a_fit_leaves_its_twins_without_one() -> None:
+    """A real disc of 99 pixels gives no fit, so its twin gives none either."""
+    intensity, mu0, mu = (a[:99] for a in _disc('lambert'))
+    _, twins = fit_minnaert_paired((intensity, mu0, mu), [(intensity, mu0, mu)])
+    assert twins == [None]
 
 
 def test_discs_of_different_sizes_are_refused() -> None:
     """A twin with one pixel fewer than the real disc cannot be fitted with it."""
     intensity, mu0, mu = _disc('lambert')
     with pytest.raises(ValueError, match=r'different numbers of pixels'):
-        fit_minnaert_together([(intensity, mu0, mu), (intensity[1:], mu0[1:], mu[1:])])
+        fit_minnaert_paired((intensity, mu0, mu), [(intensity[1:], mu0[1:], mu[1:])])
 
 
 def test_pixels_that_cannot_fix_the_exponent_give_no_fit() -> None:

@@ -20,9 +20,9 @@ Minnaert's form allows.
 **The pairing.**  The real disc's fits count at most 60,000 of its pixels, and every
 twin's fit counts the same pixels, less any the twins' sphere geometry leaves out and
 any that any one of the twins reads at its camera's ceiling (:func:`twin_ceiling_if`).
-The real disc is fitted again over the pixels they all counted, and every exponent is
-fitted once more over the pixels that all of those fits kept, so a marking that one fit
-drops as an outlier is dropped from all of them.  So a real disc that lost pixels to its
+The real disc is fitted again over the pixels they all counted, and every twin is fitted
+over the pixels that fit keeps, without dropping any of its own, so a marking the real
+fit drops is dropped from every twin's fit.  So a real disc that lost pixels to its
 terrain cap, a nearer body, the rings, a shadow, or clipping has twins fitted over the
 same part of the disc, and the laws are compared over the same pixels.  A disc that
 does not give a normal albedo under every law is left out.  A twin whose disc is
@@ -68,7 +68,7 @@ from spindoctor.sim.realism.disc_profile import (
     LunarLambertFit,
     MinnaertFit,
     equator_profile,
-    fit_minnaert_together,
+    fit_minnaert_paired,
     profile_residual,
     select_disc_pixels,
 )
@@ -296,7 +296,7 @@ class TwinDisc:
         k: Minnaert's exponent fitted to the twin's counted pixels, or None.
         real_k: Minnaert's exponent fitted to the real disc over the same pixels, or
             None; every twin of the disc shares it.  It is the real disc's own exponent
-            when the twins counted every pixel the real fits did and no fit dropped one.
+            when the twins counted every pixel the real fits did.
         profile_residual: The residual between the real and the twin's equator
             profiles over those pixels, or None.
         limb_peak: The twin's limb gradient-peak offset, when the real frame's was
@@ -613,9 +613,9 @@ def _twins(
 
     The twins and the real disc are all fitted over the real fits' own pixels, less any
     the twins' sphere leaves out and any that any of the twins reads at its camera's
-    ceiling.  Each exponent is then fitted again over the pixels that the real disc's
-    fit and every twin's fit kept (:func:`fit_minnaert_together`), so a marking that one
-    fit drops as an outlier is left out of all of them.  So every law is compared with
+    ceiling.  Every twin is fitted over the pixels the real disc's fit of them keeps
+    (:func:`fit_minnaert_paired`), so a marking that fit drops is left out of every
+    twin's fit as well.  So every law is compared with
     the real disc over the same part of it, and a law whose twin clips the pixels it
     matches worst does not shed them from its fit.
 
@@ -667,12 +667,12 @@ def _twins(
     shared = counted[disc.selection]
     real = (disc.intensity[shared], disc.mu0[shared], disc.mu[shared])
     real_profile = disc.profile if bool(shared.all()) else equator_profile(*real, phase_rad)
-    fits = fit_minnaert_together(
-        [real] + [(r.data[counted], mu0[counted], mu[counted]) for r in renders]
+    real_fit, fits = fit_minnaert_paired(
+        real, [(r.data[counted], mu0[counted], mu[counted]) for r in renders]
     )
-    real_k = None if fits[0] is None else fits[0].k
+    real_k = None if real_fit is None else real_fit.k
     twins: dict[str, TwinDisc] = {}
-    for render, fit in zip(renders, fits[1:], strict=True):
+    for render, fit in zip(renders, fits, strict=True):
         values = render.data[counted]
         twin_profile = equator_profile(values, mu0[counted], mu[counted], phase_rad)
         twins[render.law] = TwinDisc(
