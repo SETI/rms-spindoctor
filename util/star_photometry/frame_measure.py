@@ -466,6 +466,8 @@ def _measure_star(
         'index': index,
         'vmag': float(star.vmag),
         'bmag': None if star.johnson_mag_faked else _float_or_none(star.johnson_mag_b),
+        # The color the navigator gives the star, measured or faked from its star class.
+        'b_minus_v': float(star.johnson_mag_b) - float(star.johnson_mag_v),
         'catalog': str(star.catalog_name),
         'photometry_saturated': bool(star.photometry_saturated),
         'v': v,

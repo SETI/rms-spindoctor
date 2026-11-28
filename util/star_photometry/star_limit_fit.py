@@ -15,7 +15,12 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    (Tukey biweight) of the zero points on an intercept, one term per filter but the reference
    filter, and one term per gain state but the reference state gives the reference rate (DN
    per second for a V = 0 star through the reference filter in the reference gain state), the
-   filter magnitude offsets, and the gain-state DN ratios.  A fit whose stars cannot
+   filter magnitude offsets, and the gain-state DN ratios.  For a camera given to
+   ``--color-term``, the fit also gives the camera's color term ``c`` from the stars with a
+   measured color (:mod:`util.star_photometry.star_zero_point`): a star's camera magnitude
+   is ``V + c (B - V)``, with the ``B - V`` the navigator gives the star, and every later
+   step reads it in place of V.  Without it the camera magnitude is V.  A fit whose stars
+   cannot
    separate the terms (a design matrix short of full rank, before or after the robust
    weighting) is reported as unidentified, with no coefficients.  A filter or gain state with
    fewer than ``MIN_STARS_PER_BIN`` fitting stars is not given a term: its stars are left
@@ -44,7 +49,8 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
 Usage::
 
     python -m util.star_photometry.star_limit_fit RECORDS.jsonl OUT_DIR --reference-filter CLEAR
-        --reference-gain 10K [--search-depth-mag 1.0] [--ee-geometry MODE:R_MAX:N_BINS ...]
+        --reference-gain 10K [--search-depth-mag 1.0] [--color-term CAMERA ...]
+        [--ee-geometry MODE:R_MAX:N_BINS ...]
 
 writes ``summary.json`` (every fitted quantity), ``frames.csv`` (the per-frame table), and
 ``stars.csv`` (every measured star) into ``OUT_DIR``, and prints the summary.
@@ -211,6 +217,9 @@ class FitResult:
             offsets, and ratios are then left out.
         rate_vmag0: DN per second of a V = 0 star, reference filter and gain state.
         rate_sigma_mag: Uncertainty of the rate, in magnitudes.
+        color_term: The color term ``c`` of the camera magnitude ``V + c (B - V)``; zero
+            unless it was fitted.
+        color_term_sigma: Uncertainty of the color term; NaN unless it was fitted.
         filter_offsets: Magnitude offset of each filter from the reference filter.
         filter_offset_sigma: Uncertainty of each filter offset.
         gain_ratio: DN of each gain state per DN of the reference state.
@@ -223,7 +232,8 @@ class FitResult:
             value at all.
         zp_scatter_mag: Robust scatter of the zero-point residuals.
         n_zp_stars: Stars in the zero-point fit.
-        color_slope: Slope of the zero-point residual against B - V (mag per mag).
+        color_slope: Slope of the zero-point residual against B - V (mag per mag), after the
+            color term.
         min_detectable_dn: Predicted DN at which the fitted detection probability covers
             ``COMPLETENESS`` of its span from floor to plateau.
         min_detectable_dn_sigma: Bootstrap (over frames) standard deviation of it.
@@ -251,6 +261,8 @@ class FitResult:
     zero_point_identified: bool = True
     rate_vmag0: float = float('nan')
     rate_sigma_mag: float = float('nan')
+    color_term: float = 0.0
+    color_term_sigma: float = float('nan')
     filter_offsets: dict[str, float] = field(default_factory=dict)
     filter_offset_sigma: dict[str, float] = field(default_factory=dict)
     filter_counts: dict[str, int] = field(default_factory=dict)
@@ -341,6 +353,7 @@ def fit_camera(
     search_depth_mag: float = 1.0,
     calibration_offsets: dict[str, float] | None = None,
     calibration_gain_ratios: dict[str, float] | None = None,
+    color_term: bool = False,
 ) -> FitResult:
     """Fit one camera's photometric limit and summarize its PSF.
 
@@ -363,6 +376,7 @@ def fit_camera(
             too few stars to fit.
         calibration_gain_ratios: The calibration document's gain ratios, for gain states
             with too few stars to fit.
+        color_term: Whether to fit the camera's color term.
 
     Returns:
         The fit.
@@ -390,6 +404,7 @@ def fit_camera(
     result.n_zp_stars = len(fit_rows)
     if len(fit_rows) < 5:
         # The frames stay in the table, with the fitted columns NaN.
+        _set_camera_mags(result, rows)
         result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
         result.psf = psf_summary(rows)
         return result
@@ -401,7 +416,9 @@ def fit_camera(
         min_term_stars=MIN_STARS_PER_BIN,
         calibration_offsets=calibration_offsets or {},
         calibration_gain_ratios=calibration_gain_ratios or {},
+        color_term=color_term,
     )
+    _set_camera_mags(result, rows)
     for row in rows:
         row['pred_dn'] = _predict_dn(result, row)
     limit_rows = _measured_terms(
@@ -449,19 +466,33 @@ def _measured_terms(result: FitResult, rows: list[dict[str, Any]]) -> list[dict[
     return kept
 
 
+def _set_camera_mags(result: FitResult, rows: list[dict[str, Any]]) -> None:
+    """Give each star row its camera magnitude, ``V + c (B - V)``, as ``camera_mag``.
+
+    The color is the ``b_minus_v`` the navigator gives the star, which a star without a
+    measured color takes from its star class, as the navigator does.
+
+    Parameters:
+        result: The camera's fit, whose ``color_term`` is ``c``.
+        rows: The star rows, updated in place.
+    """
+    for row in rows:
+        row['camera_mag'] = row['vmag'] + result.color_term * row['b_minus_v']
+
+
 def _predict_dn(result: FitResult, row: dict[str, Any]) -> float:
     """Return the fitted total DN of a star, or NaN for an unfitted filter or gain state.
 
     Parameters:
         result: The camera's fit.
-        row: The star row.
+        row: The star row, with its ``camera_mag``.
 
     Returns:
         The predicted DN.
     """
     if row['filter'] not in result.filter_offsets or row['gain'] not in result.gain_ratio:
         return float('nan')
-    magnitude = row['vmag'] + result.filter_offsets[row['filter']]
+    magnitude = row['camera_mag'] + result.filter_offsets[row['filter']]
     rate = result.rate_vmag0 * result.gain_ratio[row['gain']]
     return float(rate * 10 ** (-0.4 * magnitude) * row['texp'])
 
@@ -693,7 +724,7 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
 def _dimmest_visible(
     result: FitResult, filter_name: str, gain: str, texp: float, mode: str
 ) -> float:
-    """Return the V magnitude whose predicted DN is the detection limit.
+    """Return the camera magnitude whose predicted DN is the detection limit.
 
     The limit is the mode's ``min_detectable_dn`` when the mode has one, else the camera's.
 
@@ -717,7 +748,9 @@ def _dimmest_visible(
 
 
 def _faintest_detected(stars: list[dict[str, Any]], rank: int = 2) -> float:
-    """Return the ``rank``-th faintest detected clean star's magnitude (robust to one fluke).
+    """Return the ``rank``-th faintest detected clean star's camera magnitude.
+
+    The second faintest, the default, is robust to one fluke.
 
     Parameters:
         stars: Star rows of one frame.
@@ -726,7 +759,7 @@ def _faintest_detected(stars: list[dict[str, Any]], rank: int = 2) -> float:
     Returns:
         The magnitude, or NaN when fewer stars were detected.
     """
-    mags = sorted((s['vmag'] for s in stars if s['detected']), reverse=True)
+    mags = sorted((s['camera_mag'] for s in stars if s['detected']), reverse=True)
     return float(mags[rank - 1]) if len(mags) >= rank else float('nan')
 
 
@@ -762,9 +795,9 @@ def _holdout_check(result: FitResult, rows: list[dict[str, Any]]) -> dict[str, A
         if math.isfinite(faint):
             diffs.append(faint - limit)
         for s in stars:
-            if s['vmag'] <= limit:
+            if s['camera_mag'] <= limit:
                 brighter.append(s['detected'])
-            elif s['vmag'] <= limit + result.search_depth_mag:
+            elif s['camera_mag'] <= limit + result.search_depth_mag:
                 between.append(s['detected'])
     out: dict[str, Any] = {'n_frames': len(by_frame), 'n_frames_compared': len(diffs)}
     if diffs:
@@ -908,6 +941,13 @@ def main() -> None:
         '--search-depth-mag', type=float, default=1.0, help='The camera search depth (mag)'
     )
     parser.add_argument(
+        '--color-term',
+        nargs='*',
+        default=[],
+        metavar='CAMERA',
+        help='Fit a color term for these cameras',
+    )
+    parser.add_argument(
         '--ee-geometry',
         nargs='*',
         default=[],
@@ -936,6 +976,7 @@ def main() -> None:
             search_depth_mag=args.search_depth_mag,
             calibration_offsets=_calibration(args.calibration_offsets, camera),
             calibration_gain_ratios=_calibration(args.calibration_gain_ratios, camera),
+            color_term=camera in args.color_term,
         )
         frame_rows += [{'camera': camera, **row} for row in result.frames]
         for group in result.psf.values():

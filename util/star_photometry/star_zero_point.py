@@ -7,6 +7,12 @@ for a V = 0 star through the reference filter in the reference gain state), the 
 magnitude offsets, and the gain-state DN ratios.  :mod:`util.star_photometry.star_limit_fit`
 calls it for each camera.
 
+A camera whose band differs from V sees a star of color ``B - V`` at the camera magnitude
+``V + c (B - V)``.  When asked, the fit adds a term in ``B - V`` whose coefficient is the
+color term ``c``; the rate then refers to a V = 0 star of ``B - V = 0``.  Only stars whose
+catalog color was measured (a ``bmag``) enter such a fit, since a color guessed from a
+default star class would pull ``c`` toward zero.
+
 A filter or gain state with fewer fitting stars than the minimum is not given a term: the
 stars cannot pin it down, so the fit reports it as not measured, and it takes the
 calibration document's value, fixed, when one is given.  Its stars are left out of the fit.
@@ -100,8 +106,9 @@ def fit_zero_point(
     min_term_stars: int,
     calibration_offsets: dict[str, float],
     calibration_gain_ratios: dict[str, float],
+    color_term: bool = False,
 ) -> None:
-    """Fit the reference rate, filter offsets, and gain ratios into ``result``.
+    """Fit the reference rate, filter offsets, gain ratios, and color term into ``result``.
 
     When the stars cannot separate the terms, before or after the robust weighting drops
     outliers, ``result.zero_point_identified`` is set False and no coefficient is stored.
@@ -116,7 +123,12 @@ def fit_zero_point(
             from the reference filter, used for a filter with too few stars.
         calibration_gain_ratios: The calibration document's DN ratio of each gain state to
             the reference state, used for a gain state with too few stars.
+        color_term: Whether to fit the color term ``c`` (see the module docstring), from
+            the stars with a measured color alone.  Otherwise ``result.color_term`` stays
+            zero.
     """
+    if color_term:
+        rows = [r for r in rows if r['bmag'] is not None]
     result.filter_counts = dict(sorted(_count(r['filter'] for r in rows).items()))
     result.gain_counts = dict(sorted(_count(r['gain'] for r in rows).items()))
     observed_filters = set(result.filter_counts) - {reference_filter}
@@ -145,7 +157,8 @@ def fit_zero_point(
     result.n_zp_stars = len(rows)
     result.n_fit_frames = len({r['image_id'] for r in rows})
     n = len(rows)
-    a = np.zeros((n, 1 + len(filters) + len(gains)))
+    color_column = 1 + len(filters) + len(gains)
+    a = np.zeros((n, color_column + int(color_term)))
     a[:, 0] = 1.0
     b = np.empty(n)
     for i, r in enumerate(rows):
@@ -154,6 +167,9 @@ def fit_zero_point(
             a[i, 1 + filters.index(r['filter'])] = -1.0
         if r['gain'] in gains:
             a[i, 1 + len(filters) + gains.index(r['gain'])] = 1.0
+        if color_term:
+            # A star of larger B - V is fainter in the camera by c (B - V).
+            a[i, color_column] = -(r['bmag'] - r['vmag'])
     if not _full_rank(a):
         result.zero_point_identified = False
         return
@@ -175,6 +191,9 @@ def fit_zero_point(
     for k, name in enumerate(gains):
         result.gain_ratio[name] = float(10 ** (0.4 * x[1 + len(filters) + k]))
         result.gain_ratio_sigma_mag[name] = float(sx[1 + len(filters) + k])
+    if color_term:
+        result.color_term = float(x[color_column])
+        result.color_term_sigma = float(sx[color_column])
     for name in result.filters_not_measured:
         if name in calibration_offsets:
             result.filter_offsets[name] = calibration_offsets[name]
