@@ -117,7 +117,10 @@ Each is a scope commitment the downstream work waits on:
   (`N1597846115_2`, `N1550270436_1`, `N1633925572_1`): check each against a
   star overlay and re-record it if the stars confirm the new position. Found
   while validating the frozen stack, but it does not wait for it: the check
-  needs only a star overlay and can run any time.
+  needs only a star overlay and can run any time. The #1302 PR re-pins
+  `N1597846115_2` to the stars' offset, together with a fourth frame of the
+  same kind, `N1669606966_1`; its star-check images are what to verify before
+  merging it. The other two frames stay open here.
 
 **The simulator's decisions** (order and context in
 `plans/SIM_IMPROVEMENT_PLAN.md`; ask them one at a time):
@@ -374,7 +377,9 @@ environment 6 of 75 sidecars disagree on `main` (measured 2026-11-16 and
 not marked re-pinned. PR #1304 (Cassini's measured star limit) adds four
 more, so 10 of 75 disagree once it lands: `N1669606966_1` and
 `N1597846115_2` under #1302, `N1461997416_1` under #1303, and
-`N1644757096_1` under #1312. Every one is
+`N1644757096_1` under #1312. The #1302 PR finds that the stars were right
+on the first two and their truths wrong, and re-pins both, which brings the
+count back to 8 of 75. Every one is
 owned by an open issue or by your decision. The two under #744 await your decision in Section 0.1. (On
 2026-10-31 the count was 19: the ten star-frame pins, `N1492091163`, and the
 two Encke gap frames' `primary_technique` pins have since been re-pinned on
@@ -395,7 +400,7 @@ frame no longer navigates).
 | frame(s) | disagreement | owner |
 |---|---|---|
 | N1492091163 | **Re-pinned 2026-10-31 (PR #754): pinned as a success at the stars' offset; passes.** Expected `failed`; navigates to (5.21, -26.02) at medium tier, 1.70 px in du from operator truth: RingEdgeNav converges 1.1 px from truth and a two-star StarRefineNav moves the fused answer 0.7 px in du (the sparse-star family). The expectation predated a working ring fit | #346 |
-| N1669606966_1, N1597846115_2 | **Expected failures from PR #1304.** A lone-star match on a non-star source, refined to confidence 0.92, outweighs the body techniques: 16.7 px off on N1669606966 (Hyperion, 0.38 s CL1+GRN), 3.1 px off in v on N1597846115 (0.07 s clear) | #1302 |
+| N1669606966_1, N1597846115_2 | **Re-pinned 2026-11-28 (the #1302 PR, operator decision): truth moved to the stars' offset; both pass.** PR #1304 recorded them as expected failures, read as a lone-star match on a non-star source outweighing the body techniques (24.5 px off on N1669606966, Hyperion, 0.38 s CL1+GRN; 3.1 px off in v on N1597846115, 0.07 s clear). The star matches are real: cross-checked pairs whose stars, and fainter catalog stars, sit on image sources at the star answer and on empty sky at the old truth. The old truths came from Hyperion's blob centroid (an irregular body with chaotic rotation) and from a limb fit at 110 degree phase. N1597846115_2 is also one of #867's frames | #1302, #867 |
 | N1644757096_1 | **Expected failure from PR #1304.** The one predicted star (V 10.21) is matched onto Calypso's sunlit limb, 24.6 px from truth, and StarUniqueMatchNav becomes the primary technique; the answer itself stays on the body blob, 1.3 px from truth, so the expected BodyBlobNav primary fails. No star in the frame (0.46 s CL1+IR3, trails 21 px) is detectable at any offset | #1312 |
 | N1461997416_1 | **Expected failure from PR #1304.** The methane pair CL1+MT1's offset puts the 0.26 s frame's limit at 7.2, so only the V 6.5 star is predicted and its match is judged spurious; the frame fails | #1303 |
 | N1465178827_2, N1486991973_1, N1492091163_1, N1506004925_1, N1519300016_2, N1572105349_1, N1598065103_1, N1828122657_1, N1503576135_2, N1548432342_1, N1555145539_1, N1633925572_1, N1777325846_1, W1449079117_1 | **Re-pinned 2026-11-28 (PR #1304, operator decision to keep Cassini's measured star limit): pass.** More predicted stars move the primary technique to a star technique, or raise the tier, or both; every offset stays within tolerance. PR #1304 lists each old and new value | Section 0.1 (decided) |

@@ -774,11 +774,15 @@ tests.
     :math:`(\Delta v, \Delta u) = (6.08, -1.53)` px.
 
 ``high_phase_terminator`` (Cassini ISS NAC, image ``N1597846115_2``)
-    A high-phase terminator arc with no other features in the FOV. The model emits a
+    A high-phase terminator arc. A few stars share the field, but no other body or ring. The
+    model emits a
     :data:`~spindoctor.feature.feature_type.NavFeatureType.LIMB_ARC` feature (the lit limb survives)
     and a :data:`~spindoctor.feature.feature_type.NavFeatureType.TERMINATOR_ARC` feature (the
     terminator polyline meets the minimum vertex count and the phase factor sits above the
-    minimum). Operator-verified offset is :math:`(\Delta v, \Delta u) = (5.19, 1.30)` px.
+    minimum). The stars put the offset at :math:`(\Delta v, \Delta u) = (8.17, 1.48)` px,
+    relative to Cassini's reconstructed C kernels for 2008 day 232 (the metadata document's
+    provenance lists every kernel furnished); the limb fit lands about 2.6 px short of that in
+    :math:`v`.
 
 ``multi_body`` (Cassini ISS NAC, image ``N1487595731_1``)
     Dione and Rhea both visible and overlapping at phase angle approximately 90 degrees.
