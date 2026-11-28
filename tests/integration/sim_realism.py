@@ -5,7 +5,8 @@ seven figures of merit:
 
 1. Sky-region noise statistics (paired-difference sigma, noise vs signal,
    sky power spectrum), with the sky patches restricted to those on dark sky
-   in both the real and the matched frame (:func:`pair_sky`).
+   in both the real and the matched frame
+   (:func:`~tests.integration.sim_realism_sky.pair_sky`).
 2. Star-cutout radial profiles / encircled energy where the cohort has
    star frames.
 3. Normalized limb profiles, 10-90% rise widths, and gradient-peak offsets
@@ -49,7 +50,6 @@ import os
 import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from enum import StrEnum
 from typing import Any, cast
 
 import numpy as np
@@ -61,8 +61,6 @@ from spindoctor.obs import ObsSnapshotInst
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.catalog import realism_cohort_instruments
 from spindoctor.sim.instruments.resolvers import (
-    resolve_calibrated_sky_if,
-    resolve_dark_sky_ceiling_if,
     resolve_data_units,
 )
 from spindoctor.sim.realism.artifact_rates import (
@@ -76,7 +74,6 @@ from spindoctor.sim.realism.divergence import (
     w1_divergence,
 )
 from spindoctor.sim.realism.dynamic_range import stratify_by_exposure
-from spindoctor.sim.realism.noise import SkyPatch, dark_sky_patches, noisy_patches
 from spindoctor.support.memory import release_transient_memory
 from tests.integration.checkout_guard import require_checkout_package
 from tests.integration.sidecar import LibraryRoot, Sidecar, load_sidecar
@@ -87,26 +84,27 @@ from tests.integration.sim_realism_laws import (
     StudyFrame,
     run_law_study,
 )
-from tests.integration.sim_realism_laws_discs import collect_real_discs
+from tests.integration.sim_realism_laws_discs import FrameBodies, collect_real_discs
 from tests.integration.sim_realism_limb_peak import (
     LimbPeakBin,
+    LimbSelection,
     compare_limb_peaks,
+    limb_peak_refusals,
+    matched_orientation,
     matched_silhouette_offsets,
     pair_limb_peaks,
     real_silhouette_offsets,
 )
 from tests.integration.sim_realism_scenes import STAR_CLASSES, matched_scene
+from tests.integration.sim_realism_sky import SkyPair, pair_sky, twins_have_sky
 from tests.integration.sim_realism_support import (
     FrameSamples,
-    add_sky_samples,
     diagnostic_rows,
     extract_feature_samples,
     extract_pixel_samples,
     frame_settings_reader,
     mean_curve_density,
-    median_patch_sigma,
     prepare_frame_features,
-    reported_sky_level,
 )
 from tests.integration.sim_realism_twin_stars import catalog_twin_stars
 
@@ -114,12 +112,8 @@ __all__ = [
     'FrameRecord',
     'InstrumentComparison',
     'RealismResults',
-    'SkyPair',
-    'SkyPairStatus',
-    'pair_sky',
     'pool_frame_pairs',
     'run_realism_match',
-    'twins_have_sky',
 ]
 
 # (mission, spacecraft or None, camera) -> sim instrument whose signal chain and units match the
@@ -202,6 +196,9 @@ class FrameRecord:
             else None.
         stars: For a star frame, its catalog stars as the twin's scene star
             entries, at the frame's verified offset; else None.
+        limb_directions_deg: When the real frame's limb gave a gradient peak, the
+            directions of the vertices its fit read, which the matched frame's limb is
+            measured over; else None.
     """
 
     image_id: str
@@ -220,101 +217,7 @@ class FrameRecord:
     gain_state: int | None = None
     quantization: str | None = None
     stars: list[dict[str, Any]] | None = None
-
-
-class SkyPairStatus(StrEnum):
-    """What became of one frame pair's FOM 1 sky patches.
-
-    A frame's sky patches are the darkest quarter of its uniform patches whose noise
-    sigma is positive.  The statuses are:
-
-    - ``COMPARED``: both frames kept dark-sky patches, and those patches entered the
-      pooled sky statistics.
-    - ``DROPPED``: neither frame added any patches.  Either a frame didn't keep any
-      dark-sky patch, or the matched frame has no sky patches while other matched
-      frames of the instrument have some.
-    - ``NOT_JUDGED``: the instrument doesn't have a dark-sky ceiling, so every patch
-      of both frames entered the pools.  Its products are raw DN, or its entry
-      doesn't set a ceiling.
-    - ``NO_REAL_SKY``: the real frame has no sky patches, so neither frame added
-      any.
-    - ``NO_SIM_SKY``: no matched frame of the instrument has sky patches.  The real
-      frame's dark-sky patches entered the real pool alone.  On an instrument
-      that doesn't set a ceiling, all of its sky patches did.
-    """
-
-    COMPARED = 'compared'
-    DROPPED = 'dropped'
-    NOT_JUDGED = 'not_judged'
-    NO_REAL_SKY = 'no_real_sky'
-    NO_SIM_SKY = 'no_sim_sky'
-
-
-@dataclass(frozen=True)
-class SkyPair:
-    """How one real frame's FOM 1 sky patches compared with its matched frame's.
-
-    Parameters:
-        image_id: The real frame's image_id.
-        quantization: The real frame's downlink quantization (``'sqrt_lut'`` for a
-            frame downlinked through a companding table), else None.
-        status: What became of the pair's sky patches.
-        real_level: The median of the means of the real frame's kept patches, in
-            native units.  If the frame didn't keep any, it is the median over all
-            its sky patches.  It is NaN if the frame has no sky patches.
-        sim_level: The same for the matched frame.
-        n_real_patches: The number of the real frame's sky patches.
-        n_sim_patches: The number of the matched frame's sky patches.
-        n_real_kept: The number of real sky patches kept: those at or below the
-            dark-sky ceiling, or all of them if the instrument doesn't set one.  It
-            is 0 when the pair is dropped because its matched frame has no sky
-            patches.
-        n_sim_kept: The number of the matched frame's sky patches kept, counted the
-            same way.  It is 0 when either frame has no sky patches.
-        real_sigma: The median noise sigma of the real patches that entered the
-            pool, NaN when none did.
-        sim_sigma: The same for the matched frame.
-    """
-
-    image_id: str
-    quantization: str | None
-    status: SkyPairStatus
-    real_level: float
-    sim_level: float
-    n_real_patches: int
-    n_sim_patches: int
-    n_real_kept: int
-    n_sim_kept: int
-    real_sigma: float
-    sim_sigma: float
-
-    @property
-    def compared(self) -> bool:
-        """Whether both frames kept dark-sky patches."""
-        return self.status is SkyPairStatus.COMPARED
-
-    @property
-    def real_added(self) -> bool:
-        """Whether the real frame added sky samples to the pool."""
-        return self.status in (
-            SkyPairStatus.COMPARED,
-            SkyPairStatus.NOT_JUDGED,
-            SkyPairStatus.NO_SIM_SKY,
-        )
-
-    @property
-    def sim_added(self) -> bool:
-        """Whether the matched frame added sky samples to the pool."""
-        return self.status in (SkyPairStatus.COMPARED, SkyPairStatus.NOT_JUDGED)
-
-    @property
-    def sigma_ratio(self) -> float:
-        """The sim-to-real ratio of median sky sigma, NaN unless both added samples."""
-        if not (np.isfinite(self.sim_sigma) and np.isfinite(self.real_sigma)):
-            return float('nan')
-        if self.real_sigma <= 0.0:
-            return float('nan')
-        return self.sim_sigma / self.real_sigma
+    limb_directions_deg: tuple[float, ...] | None = None
 
 
 @dataclass
@@ -349,6 +252,8 @@ class InstrumentComparison:
         sky_pairs: Per frame, how its FOM 1 sky patches compared with the
             matched frame's.
         limb_peaks: Per FOM 3 stratum, the limb gradient-peak comparison.
+        limb_peak_refusals: Why each frame whose limb was measured gave no gradient
+            peak (:func:`~tests.integration.sim_realism_limb_peak.limb_peak_refusals`).
     """
 
     instrument: str
@@ -369,6 +274,7 @@ class InstrumentComparison:
     fom7_rows: list[dict[str, Any]] = field(default_factory=list)
     sky_pairs: list[SkyPair] = field(default_factory=list)
     limb_peaks: dict[str, LimbPeakBin] = field(default_factory=dict)
+    limb_peak_refusals: list[dict[str, str]] = field(default_factory=list)
     real_rates: list[ArtifactRates] = field(default_factory=list)
     sim_rates: list[ArtifactRates] = field(default_factory=list)
     spike_split_real: tuple[float, float] = (float('nan'), float('nan'))
@@ -503,6 +409,7 @@ def _frame_samples_real(
     )
     if only_models is not None:
         image, features, model_metadata = prepare_frame_features(obs, only_models=only_models)
+        bodies = FrameBodies.of(obs, backplane, offset)
         body = real_body(
             obs,
             features,
@@ -510,6 +417,7 @@ def _frame_samples_real(
             backplane=backplane,
             calibrated=calibrated,
             clipped=clipped,
+            hidden=bodies.hidden,
         )
         if body is not None:
             record.diameter_px = body.diameter_px
@@ -517,18 +425,22 @@ def _frame_samples_real(
             record.normal_albedo = body.normal_albedo
             record.limb_emitted = body.limb_emitted
             record.body_name = body.name
-        samples.merge(
-            extract_feature_samples(
-                image,
-                features,
-                model_metadata,
-                offset_vu=offset,
-                extfov_margin_vu=obs.extfov_margin_vu,
-                saturation_level=saturation,
-                silhouette_offsets=real_silhouette_offsets(obs, radii_km=silhouette_radii_km),
-                limb_peak_model=None if body is None else body.limb_peak_model,
-            )
+        features_real = extract_feature_samples(
+            image,
+            features,
+            model_metadata,
+            offset_vu=offset,
+            extfov_margin_vu=obs.extfov_margin_vu,
+            saturation_level=saturation,
+            matched_model=None if body is None else body.model,
+            silhouette_offsets=real_silhouette_offsets(obs, radii_km=silhouette_radii_km),
+            limb_peak_model=None if body is None else body.limb_peak_model,
+            limb_selection=None if body is None else bodies.limb_selection(body.name),
         )
+        samples.merge(features_real)
+        samples.limb_peak = features_real.limb_peak
+        if samples.limb_peak is not None and samples.limb_peak.offset_px is not None:
+            record.limb_directions_deg = samples.limb_peak.used_deg
     return samples, record, rates
 
 
@@ -568,18 +480,24 @@ def _frame_samples_sim(record: FrameRecord) -> tuple[FrameSamples, ArtifactRates
             # The real frame has no limb of this body, so neither does its twin.
             features = [f for f in features if not isinstance(f.geometry, LimbPolyline)]
         bodies = scene.get('bodies') or []
-        samples.merge(
-            extract_feature_samples(
-                image,
-                features,
-                model_metadata,
-                offset_vu=(0.0, 0.0),  # matched scenes plant zero offset
-                extfov_margin_vu=obs.extfov_margin_vu,
-                saturation_level=saturation,
-                silhouette_offsets=matched_silhouette_offsets(scene, obs) if bodies else None,
-                limb_peak_model=f'body_sim:{bodies[0]["name"]}' if bodies else None,
-            )
+        # The twin's limb peak is measured over the directions the real fit read.
+        used = record.limb_directions_deg if bodies else None
+        features_sim = extract_feature_samples(
+            image,
+            features,
+            model_metadata,
+            offset_vu=(0.0, 0.0),  # matched scenes plant zero offset
+            extfov_margin_vu=obs.extfov_margin_vu,
+            saturation_level=saturation,
+            matched_model=f'body_sim:{bodies[0]["name"]}' if bodies else None,
+            silhouette_offsets=None if used is None else matched_silhouette_offsets(scene, obs),
+            limb_peak_model=f'body_sim:{bodies[0]["name"]}' if bodies else None,
+            limb_selection=(
+                None if used is None else LimbSelection(matched_orientation(scene), used_deg=used)
+            ),
         )
+        samples.merge(features_sim)
+        samples.limb_peak = features_sim.limb_peak
     return samples, rates
 
 
@@ -604,130 +522,6 @@ def _run_fom7(
         sim_result = NavOrchestrator(build_models_for_obs(sim_obs)).navigate(sim_obs)
         rows.extend(diagnostic_rows(record.instrument, record.image_id, 'sim', sim_result))
     return rows
-
-
-def _sky_patches(frame: FrameSamples) -> list[SkyPatch]:
-    """A frame's sky patches whose noise sigma is positive."""
-    return noisy_patches(frame.sky.patches) if frame.sky is not None else []
-
-
-def twins_have_sky(sims: list[FrameSamples]) -> bool:
-    """Whether any of an instrument's matched frames has sky patches.
-
-    Parameters:
-        sims: The instrument's matched frames' samples.
-
-    Returns:
-        True when at least one matched frame has a sky patch whose noise sigma is
-        positive.
-    """
-    return any(_sky_patches(sim) for sim in sims)
-
-
-def _dark_sky_ceiling_level(instrument: str) -> float | None:
-    """The highest mean a dark-sky patch may have on ``instrument``, or None.
-
-    The level is the calibrated sky residual plus the instrument's dark-sky ceiling.
-    It is None on a raw-DN instrument, and on a calibrated one whose entry doesn't set
-    a ceiling.
-    """
-    if resolve_data_units(instrument) != 'calibrated_if':
-        return None
-    ceiling = resolve_dark_sky_ceiling_if(instrument)
-    if ceiling is None:
-        return None
-    return resolve_calibrated_sky_if(instrument) + ceiling
-
-
-def pair_sky(
-    record: FrameRecord, real: FrameSamples, sim: FrameSamples, *, twins_with_sky: bool
-) -> SkyPair:
-    """Add one frame pair's FOM 1 sky samples from the patches that lie on dark sky.
-
-    A frame's sky patches are the darkest quarter of its uniform patches whose noise
-    sigma is positive.  The sigma of a constant tile, such as zero-filled missing
-    data, can't be measured, so such a tile never becomes a patch.  On a frame
-    filled with rings or a body, the sky patches lie on that content.  Comparing
-    them with the other frame's dark sky would set signal-dependent noise against
-    sky noise.  So on an instrument that sets a dark-sky ceiling, a patch of either
-    frame counts only when its mean is at most the calibrated sky residual plus that
-    ceiling.  The pair adds sky samples only when both frames keep at least one
-    patch.  On an instrument without a ceiling, every patch is added.
-
-    Parameters:
-        record: The real frame's record.
-        real: The real frame's samples.  The sky samples that enter the pool are
-            added to it.
-        sim: The matched frame's samples, which are handled the same way.
-        twins_with_sky: Whether any matched frame of the instrument has sky
-            patches.  If none has, the real frame's dark-sky patches are added
-            alone, or all its sky patches if the instrument doesn't set a ceiling.
-            If some have, a pair whose matched frame has no sky patches is dropped.
-
-    Returns:
-        The pair's sky comparison.
-    """
-    real_patches = _sky_patches(real)
-    sim_patches = _sky_patches(sim)
-    ceiling_level = _dark_sky_ceiling_level(record.instrument)
-    real_kept: list[SkyPatch] = []
-    sim_kept: list[SkyPatch] = []
-    added_real: list[SkyPatch] = []
-    added_sim: list[SkyPatch] = []
-    if not real_patches:
-        status = SkyPairStatus.NO_REAL_SKY
-    elif not sim_patches and not twins_with_sky:
-        # No matched frame of the instrument has sky, so the real frame's sky is
-        # recorded alone.  Where a ceiling is set, it still has to lie on dark sky.
-        real_kept = (
-            real_patches if ceiling_level is None else dark_sky_patches(real_patches, ceiling_level)
-        )
-        if real_kept:
-            status = SkyPairStatus.NO_SIM_SKY
-            added_real = real_kept
-        else:
-            status = SkyPairStatus.DROPPED
-    elif not sim_patches:
-        status = SkyPairStatus.DROPPED
-    elif ceiling_level is None:
-        # A raw-DN frame's zero point is its bias pedestal.  The real product may
-        # have had the pedestal removed, while the matched frame keeps the
-        # simulator's, so the two levels can't be compared.  A calibrated camera
-        # whose entry doesn't set a ceiling is handled the same way.
-        status = SkyPairStatus.NOT_JUDGED
-        real_kept = added_real = real_patches
-        sim_kept = added_sim = sim_patches
-    else:
-        # Both frames are tested by level alone.  The reference is the calibrated
-        # sky residual, the level at which the simulator draws empty sky.  A noise
-        # sigma in the test would make the selection depend on the quantity being
-        # compared.  A tolerance scaled by the matched frame's sigma shrinks when
-        # the matched frame is too quiet, and one scaled by the real frame's sigma
-        # grows on content.  The instrument config holds the ceiling and the
-        # measurements behind it.
-        real_kept = dark_sky_patches(real_patches, ceiling_level)
-        sim_kept = dark_sky_patches(sim_patches, ceiling_level)
-        if real_kept and sim_kept:
-            status = SkyPairStatus.COMPARED
-            added_real = real_kept
-            added_sim = sim_kept
-        else:
-            status = SkyPairStatus.DROPPED
-    add_sky_samples(real, added_real)
-    add_sky_samples(sim, added_sim)
-    return SkyPair(
-        image_id=record.image_id,
-        quantization=record.quantization,
-        status=status,
-        real_level=reported_sky_level(real_kept, real_patches),
-        sim_level=reported_sky_level(sim_kept, sim_patches),
-        n_real_patches=len(real_patches),
-        n_sim_patches=len(sim_patches),
-        n_real_kept=len(real_kept),
-        n_sim_kept=len(sim_kept),
-        real_sigma=median_patch_sigma(added_real),
-        sim_sigma=median_patch_sigma(added_sim),
-    )
 
 
 def _fom_for_kind(kind: str) -> str | None:
@@ -880,6 +674,11 @@ def pool_frame_pairs(
         comparison.sky_pairs.append(
             pair_sky(record, real_samples, sim_samples, twins_with_sky=with_sky)
         )
+        comparison.limb_peak_refusals.extend(
+            limb_peak_refusals(
+                record.image_id, record.body_name, real_samples.limb_peak, sim_samples.limb_peak
+            )
+        )
         pair_limb_peaks(real_samples.samples, sim_samples.samples)
         comparison.real.merge(real_samples)
         comparison.sim.merge(sim_samples)
@@ -923,7 +722,12 @@ def run_realism_match(
             # The study takes every real limb peak, before pairing drops those whose
             # matched frame measured none.
             if study is not None:
-                study.add_limb_peak(record.image_id, record.body_name, frame_samples.samples)
+                study.add_limb_peak(
+                    record.image_id,
+                    record.body_name,
+                    frame_samples.samples,
+                    directions_deg=record.limb_directions_deg or (),
+                )
             # Each frame's backplanes and feature extraction leave cycles and freed arenas
             # behind; without this the resident size grows by gigabytes over a cohort.
             release_transient_memory()

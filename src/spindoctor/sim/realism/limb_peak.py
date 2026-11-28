@@ -66,6 +66,12 @@ class LimbPeakFit:
         n_measured: How many vertices had a gradient peak.
         n_kept: How many of those the robust fit kept.
         residual_scale_px: The robust scale of the kept peaks about the fit.
+        offset_translation_correlation: How closely the translation can mimic the
+            offset over the kept vertices, from 0 to 1: the multiple correlation of the
+            offset with the two translation components in the fit's covariance.  It
+            does not depend on how the arc is turned in the image.  A full circle of
+            normals gives 0, an evenly sampled half circle 0.90, and a quarter circle
+            0.995.
     """
 
     offset_px: float
@@ -74,6 +80,7 @@ class LimbPeakFit:
     n_measured: int
     n_kept: int
     residual_scale_px: float
+    offset_translation_correlation: float
 
 
 def _unit_normals(normals_vu: NDArrayFloatType) -> NDArrayFloatType:
@@ -261,7 +268,11 @@ def fit_limb_peak_offset(
     coef = np.asarray(solution[0], dtype=np.float64)
     resid = x - np.sum(design * coef, axis=1)
     scale = max(_MAD_TO_SIGMA * float(np.median(np.abs(resid[weights > 0.0]))), _MIN_SCALE_PX)
-    covariance = np.linalg.inv(normal) * scale**2
+    inverse = np.linalg.inv(normal)
+    covariance = inverse * scale**2
+    # The offset's variance is 1 / (1 - R**2) times what it would be if the translation
+    # were known, where R is its multiple correlation with the translation.
+    shared = 1.0 - 1.0 / (float(normal[0, 0]) * float(inverse[0, 0]))
     return LimbPeakFit(
         offset_px=float(coef[0]),
         offset_sigma_px=float(np.sqrt(covariance[0, 0])),
@@ -269,4 +280,5 @@ def fit_limb_peak_offset(
         n_measured=n_measured,
         n_kept=n_kept,
         residual_scale_px=scale,
+        offset_translation_correlation=float(np.sqrt(max(shared, 0.0))),
     )

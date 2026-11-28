@@ -44,17 +44,15 @@ from tests.integration.sim_realism import (
     FrameRecord,
     InstrumentComparison,
     RealismResults,
-    SkyPairStatus,
     _aggregate,
     _frame_samples_real,
     _frame_samples_sim,
     discover_cohort,
-    pair_sky,
     pool_frame_pairs,
-    twins_have_sky,
 )
 from tests.integration.sim_realism_report import _sky_comparison, summary_dict
 from tests.integration.sim_realism_scenes import matched_scene
+from tests.integration.sim_realism_sky import SkyPairStatus, pair_sky, twins_have_sky
 from tests.integration.sim_realism_support import (
     FrameSamples,
     FrameSky,

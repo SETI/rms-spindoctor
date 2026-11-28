@@ -80,7 +80,9 @@ from tests.integration.sim_realism_body import EDGE_CLEARANCE_PX, MIN_CLIPPED_FR
 from tests.integration.sim_realism_limb_peak import (
     LIMB_PEAK_KIND_PREFIX,
     LimbPeakBin,
+    LimbSelection,
     compare_limb_peaks,
+    matched_orientation,
     matched_silhouette_offsets,
 )
 from tests.integration.sim_realism_scenes import MATCHED_BODY_LAW, matched_scene
@@ -200,6 +202,9 @@ class RealDisc:
             ``mu`` hold these pixels in row-major order.
         limb_peak: The realism match's limb gradient-peak sample for the frame, as
             ``(kind, offset)``, when this moon is the one the match measured.
+        limb_directions_deg: The directions of the real limb's vertices whose peaks
+            the fit read, which its twins' limbs are measured over (see
+            :class:`~tests.integration.sim_realism_limb_peak.LimbOrientation`).
     """
 
     frame: StudyFrame
@@ -219,6 +224,7 @@ class RealDisc:
     crop_bounds: tuple[int, int, int, int]
     selection: NDArrayBoolType
     limb_peak: tuple[str, float] | None = None
+    limb_directions_deg: tuple[float, ...] = ()
 
     @property
     def label(self) -> str:
@@ -254,7 +260,14 @@ class LawStudyInputs:
     discs: list[RealDisc] = field(default_factory=list)
     excluded: list[ExcludedDisc] = field(default_factory=list)
 
-    def add_limb_peak(self, image_id: str, body: str | None, samples: Mapping[str, Any]) -> None:
+    def add_limb_peak(
+        self,
+        image_id: str,
+        body: str | None,
+        samples: Mapping[str, Any],
+        *,
+        directions_deg: tuple[float, ...] = (),
+    ) -> None:
         """Attach a frame's limb gradient-peak sample to the disc it was measured on.
 
         The realism match calls this with the real frame's own samples, before it pairs
@@ -265,6 +278,7 @@ class LawStudyInputs:
             image_id: The real frame's image ID.
             body: The body the realism match measured the limb of, or None.
             samples: The real frame's samples; only ``limb_peak_*`` kinds are read.
+            directions_deg: The directions of the vertices the real fit read.
         """
         kinds = [k for k in samples if k.startswith(LIMB_PEAK_KIND_PREFIX)]
         if body is None or len(kinds) != 1 or len(samples[kinds[0]]) != 1:
@@ -272,6 +286,7 @@ class LawStudyInputs:
         for disc in self.discs:
             if disc.frame.image_id == image_id and disc.body == body and disc.part is None:
                 disc.limb_peak = (kinds[0], float(samples[kinds[0]][0]))
+                disc.limb_directions_deg = directions_deg
 
 
 @dataclass(frozen=True)
@@ -290,6 +305,8 @@ class TwinDisc:
             profiles over those pixels, or None.
         limb_peak: The twin's limb gradient-peak offset, when the real frame's was
             measured and the twin's could be.
+        limb_peak_refusal: Why the twin's limb gave no offset when the real frame's
+            did, else None.
         crop: The twin's image over the real disc's crop bounds, block-averaged the same
             way.
         clipped_px: How many of the real fits' pixels the twin reads at its camera's
@@ -305,6 +322,7 @@ class TwinDisc:
     limb_peak: float | None
     crop: NDArrayFloatType
     clipped_px: int
+    limb_peak_refusal: str | None = None
 
 
 @dataclass
@@ -669,11 +687,15 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         real_fit = fit_minnaert(intensity, real_mu0, real_mu)
         real_k = None if real_fit is None else real_fit.k
         real_profile = equator_profile(intensity, real_mu0, real_mu, phase_rad)
-    peak = (
-        _twin_limb_peak(obs, scene, disc.limb_peak[0])
-        if limb_peak and disc.limb_peak and not _disc_clipped(on_body, at_ceiling)
-        else None
-    )
+    peak: float | None = None
+    refusal: str | None = None
+    if limb_peak and disc.limb_peak:
+        if _disc_clipped(on_body, at_ceiling):
+            refusal = "its disc is clipped at the camera's ceiling"
+        else:
+            peak, refusal = _twin_limb_peak(
+                obs, scene, disc.limb_peak[0], directions_deg=disc.limb_directions_deg
+            )
     return TwinDisc(
         law=law,
         normal_albedo=albedo,
@@ -684,25 +706,42 @@ def _twin(disc: RealDisc, law: str, *, minnaert_k: float, limb_peak: bool) -> Tw
         limb_peak=peak,
         crop=crop_image(data, disc.crop_bounds),
         clipped_px=int(np.count_nonzero(at_ceiling & disc.selection)),
+        limb_peak_refusal=refusal,
     )
 
 
-def _twin_limb_peak(obs: Any, scene: dict[str, Any], kind: str) -> float | None:
-    """The twin's limb gradient-peak offset in the real frame's limb bin, if measured."""
+def _twin_limb_peak(
+    obs: Any, scene: dict[str, Any], kind: str, *, directions_deg: tuple[float, ...]
+) -> tuple[float | None, str | None]:
+    """The twin's limb gradient-peak offset in the real frame's limb bin, and a refusal.
+
+    The twin's limb is measured over the directions the real fit read.  It gives no
+    offset, with the reason, when its limb is refused, and when its offset falls in
+    another limb bin than the real one.
+    """
     image, features, model_metadata = prepare_frame_features(obs, only_models='body_sim:*')
     features = [f for f in features if isinstance(f.geometry, LimbPolyline)]
-    samples = extract_feature_samples(
+    model = f'body_sim:{scene["bodies"][0]["name"]}'
+    frame = extract_feature_samples(
         image,
         features,
         model_metadata,
         offset_vu=(0.0, 0.0),
         extfov_margin_vu=obs.extfov_margin_vu,
         saturation_level=math.nan,
+        matched_model=model,
         silhouette_offsets=matched_silhouette_offsets(scene, obs),
-        limb_peak_model=f'body_sim:{scene["bodies"][0]["name"]}',
-    ).samples
-    values = samples.get(kind, [])
-    return float(values[0]) if len(values) == 1 else None
+        limb_peak_model=model,
+        limb_selection=LimbSelection(matched_orientation(scene), used_deg=directions_deg),
+    )
+    if frame.limb_peak is None:
+        return None, 'the navigator placed no limb'
+    if frame.limb_peak.offset_px is None:
+        return None, frame.limb_peak.refusal
+    values = frame.samples.get(kind, [])
+    if len(values) != 1:
+        return None, 'its limb falls in another bin'
+    return float(values[0]), None
 
 
 def _robust_scatter(values: NDArrayFloatType) -> float:

@@ -136,6 +136,7 @@ def _disc_entry(row: DiscRow) -> dict[str, Any]:
                 'delta_k': _round(row.delta_k(law)),
                 'profile_residual': _round(twin.profile_residual),
                 'limb_peak_px': _round(twin.limb_peak),
+                'limb_peak_refusal': twin.limb_peak_refusal,
                 'clipped_px': twin.clipped_px,
             }
             for law, twin in sorted(row.twins.items())

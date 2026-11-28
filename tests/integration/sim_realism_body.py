@@ -22,7 +22,9 @@ and moves the limb's gradient peak outward.  :func:`real_normal_albedo` reads th
 lighting and viewing angles of the real body from its SPICE geometry through oops, at
 each image pixel's center after moving the frame by its verified offset
 (:func:`offset_backplane`), and passes the disc's I/F and the two cosines to
-:func:`spindoctor.sim.realism.albedo.disc_normal_albedo`.  Only a calibrated product is
+:func:`spindoctor.sim.realism.albedo.disc_normal_albedo`.  The disc leaves out the pixels
+a nearer body, the planet's main rings, or the planet's shadow covers, as the disc fits
+of the photometric-law study do.  Only a calibrated product is
 in I/F, and a clipped disc's I/F is the clip level, so a raw product or a clipped disc
 gives no albedo and the matched body stays white.
 
@@ -36,6 +38,7 @@ frame's is.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -121,12 +124,17 @@ class RealBody:
     limb_emitted: bool
 
     @property
+    def model(self) -> str:
+        """The body's model, whose limb gives the real frame's FOM 3 widths."""
+        return f'body:{self.name}'
+
+    @property
     def limb_peak_model(self) -> str | None:
         """The body model whose limb gives the real frame's gradient peak, or None.
 
         A clipped disc's limb rises to a plateau, so it gives none.
         """
-        return None if self.disc_clipped else f'body:{self.name}'
+        return None if self.disc_clipped else self.model
 
 
 def offset_backplane(obs: Any, offset_vu: tuple[float, float]) -> Backplane:
@@ -155,19 +163,24 @@ def offset_backplane(obs: Any, offset_vu: tuple[float, float]) -> Backplane:
     return Backplane(obs, meshgrid=Meshgrid(obs.fov, Pair(uv)))
 
 
-def _disc_pixels(backplane: Any, body_name: str) -> tuple[NDArrayIntType, NDArrayIntType]:
+def _disc_pixels(
+    backplane: Any, body_name: str, *, hidden: NDArrayBoolType | None = None
+) -> tuple[NDArrayIntType, NDArrayIntType]:
     """The rows and columns of the body's interior pixels in the image.
 
     Parameters:
         backplane: The frame's offset backplane (:func:`offset_backplane`).
         body_name: The body, as SPICE knows it.
+        hidden: Pixels to leave out, in the image's shape, or None.
 
     Returns:
         The rows and columns of each pixel at least :data:`EDGE_CLEARANCE_PX` erosion
-        steps inside the body's silhouette.
+        steps inside the body's silhouette and outside ``hidden``.
     """
     on_body = np.asarray(backplane.where_intercepted(body_name).vals, dtype=bool)
     interior = scipy.ndimage.binary_erosion(on_body, iterations=EDGE_CLEARANCE_PX)
+    if hidden is not None:
+        interior &= ~np.asarray(hidden, dtype=bool)
     rows, cols = np.nonzero(interior)
     return rows, cols
 
@@ -192,7 +205,12 @@ def disc_is_clipped(backplane: Any, body_name: str, *, clipped: NDArrayBoolType)
 
 
 def real_normal_albedo(
-    data: NDArrayFloatType, backplane: Any, body_name: str, *, phase_angle_deg: float
+    data: NDArrayFloatType,
+    backplane: Any,
+    body_name: str,
+    *,
+    phase_angle_deg: float,
+    hidden: NDArrayBoolType | None = None,
 ) -> float | None:
     """The normal albedo of one body in a calibrated real frame.
 
@@ -201,14 +219,16 @@ def real_normal_albedo(
         backplane: The frame's offset backplane (:func:`offset_backplane`).
         body_name: The body, as SPICE knows it (``'DIONE'``).
         phase_angle_deg: The body's phase angle in degrees.
+        hidden: The pixels of the disc that something else hides, which are left out
+            (:func:`~tests.integration.sim_realism_laws_discs.hidden_pixels`), or None.
 
     Returns:
         The median normal albedo of the disc's interior pixels (see
-        :data:`EDGE_CLEARANCE_PX`), measured against the matched body's law, or None
-        when the disc has too few such pixels (see
+        :data:`EDGE_CLEARANCE_PX`) that nothing hides, measured against the matched
+        body's law, or None when the disc has too few such pixels (see
         :func:`~spindoctor.sim.realism.albedo.disc_normal_albedo`).
     """
-    rows, cols = _disc_pixels(backplane, body_name)
+    rows, cols = _disc_pixels(backplane, body_name, hidden=hidden)
     incidence = np.ma.filled(backplane.incidence_angle(body_name).mvals, np.pi)
     emission = np.ma.filled(backplane.emission_angle(body_name).mvals, np.pi)
     return disc_normal_albedo(
@@ -228,6 +248,7 @@ def real_body(
     backplane: Any,
     calibrated: bool,
     clipped: NDArrayBoolType | None,
+    hidden: Callable[[str], NDArrayBoolType | None] | None = None,
 ) -> RealBody | None:
     """The facts a matched scene takes from a real frame's largest body.
 
@@ -239,6 +260,8 @@ def real_body(
         calibrated: Whether the frame's data are I/F.
         clipped: Which of the image's pixels read the camera's full scale, or None when
             that is not known.
+        hidden: Gives the pixels of a body's disc that something else hides, which the
+            albedo leaves out, or None to leave none out.
 
     Returns:
         The largest body's facts, or None when no body model states both a diameter and
@@ -250,7 +273,13 @@ def real_body(
     disc_clipped = clipped is not None and disc_is_clipped(backplane, name, clipped=clipped)
     albedo = None
     if calibrated and not disc_clipped:
-        albedo = real_normal_albedo(obs.data, backplane, name, phase_angle_deg=phase)
+        albedo = real_normal_albedo(
+            obs.data,
+            backplane,
+            name,
+            phase_angle_deg=phase,
+            hidden=None if hidden is None else hidden(name),
+        )
     model = f'body:{name}'
     limb_emitted = any(
         feature.source_model == model and isinstance(feature.geometry, LimbPolyline)

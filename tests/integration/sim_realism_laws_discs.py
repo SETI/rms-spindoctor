@@ -13,6 +13,9 @@ leaves out the pixels a nearer moon or the planet covers, the pixels behind the 
 main rings (:data:`~tests.integration.sim_realism_body_facts.OCCULTING_RINGS`), and the
 pixels in the planet's shadow, each widened by the disc clearance for the blur.  A ring
 other than the main rings, such as a faint dusty ring, is not taken as hiding a moon.
+The same geometry gives the realism match's limb statistics what lies near a limb that
+is neither its body nor the sky (:func:`foreign_pixels`): every other body's disc, in
+front or behind, the planet's, and the rings and shadow over the body.
 
 The disc's pixels are selected and fitted with :mod:`spindoctor.sim.realism.disc_profile`:
 Minnaert's exponent ``k``, the lunar-Lambert blend ``L``, and the brightness profile
@@ -27,6 +30,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -43,6 +47,7 @@ from spindoctor.sim.realism.disc_profile import (
     fit_minnaert,
     select_disc_pixels,
 )
+from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 from tests.integration.sim_realism_body import EDGE_CLEARANCE_PX, MIN_CLIPPED_FRACTION
 from tests.integration.sim_realism_body_facts import (
@@ -60,16 +65,26 @@ from tests.integration.sim_realism_laws import (
     crop_image,
     decimate,
 )
+from tests.integration.sim_realism_limb_peak import (
+    LimbOrientation,
+    LimbSelection,
+    tracks_touching,
+)
 
 __all__ = [
     'MIN_DIAMETER_PX',
     'MIN_LIT_FRACTION',
+    'FrameBodies',
+    'bodies_in_view',
     'box_in_fov_at_offset',
     'cap_lit_area_px',
     'collect_real_discs',
     'disc_lit_area_px',
+    'foreign_pixels',
+    'hidden_pixels',
     'light_direction_deg',
     'lit_share',
+    'real_limb_selection',
 ]
 
 MIN_DIAMETER_PX = 10.0
@@ -112,11 +127,7 @@ def collect_real_discs(
         np.zeros(data.shape, dtype=bool) if clipped is None else np.asarray(clipped, dtype=bool)
     )
     usable = np.isfinite(data) & (data > 0.0) & ~full_scale
-    in_view = [
-        (body, entry)
-        for body, entry in bodies_in_extfov(obs, config=DEFAULT_CONFIG)
-        if box_in_fov_at_offset(obs, entry, frame.offset_vu)
-    ]
+    in_view = bodies_in_view(obs, frame.offset_vu)
     for body, entry in in_view:
         if body == planet:
             continue
@@ -140,8 +151,25 @@ def collect_real_discs(
             data=data,
             usable=usable,
             full_scale=full_scale,
-            hidden=_hidden_pixels(backplane, body, entry, in_view, planet=planet),
+            hidden=hidden_pixels(backplane, body, in_view, planet=planet),
         )
+
+
+def bodies_in_view(obs: Any, offset_vu: tuple[float, float]) -> list[tuple[str, Mapping[str, Any]]]:
+    """Every body whose predicted box, moved by the verified offset, overlaps the frame.
+
+    Parameters:
+        obs: The real observation.
+        offset_vu: The frame's verified offset ``(dv, du)``.
+
+    Returns:
+        Each body in view with its inventory entry, the planet among them.
+    """
+    return [
+        (body, entry)
+        for body, entry in bodies_in_extfov(obs, config=DEFAULT_CONFIG)
+        if box_in_fov_at_offset(obs, entry, offset_vu)
+    ]
 
 
 def box_in_fov_at_offset(
@@ -174,47 +202,210 @@ def _boxes_overlap(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
     )
 
 
-def _hidden_pixels(
+def _cover(
+    backplane: Any, body: str, others: Sequence[str], *, planet: str | None
+) -> NDArrayBoolType:
+    """The pixels of ``others`` and of the planet's rings and shadow over ``body``.
+
+    The frame's geometry traces each body alone, so a body's backplanes still mark as its
+    own the pixels where another body lies across it, where the planet's main rings lie
+    in front of it, and where it lies in the planet's shadow.  The union is widened by
+    the disc clearance for the blur.  The planet's shadow is left out for the planet
+    itself.
+    """
+    shape = np.shape(backplane.where_intercepted(body).vals)
+    cover = np.zeros(shape, dtype=bool)
+    for other in others:
+        cover |= np.asarray(backplane.where_intercepted(other).vals, dtype=bool)
+    if planet is not None:
+        ring = OCCULTING_RINGS.get(planet)
+        if ring is not None:
+            cover |= np.asarray(backplane.where_in_back(body, ring).vals, dtype=bool)
+        if body != planet:
+            cover |= np.asarray(backplane.where_inside_shadow(body, planet).vals, dtype=bool)
+    if cover.any():
+        cover = scipy.ndimage.binary_dilation(cover, iterations=math.ceil(DISC_CLEARANCE_PX))
+    return np.asarray(cover, dtype=bool)
+
+
+def hidden_pixels(
     backplane: Any,
     body: str,
-    entry: Mapping[str, Any],
     in_view: Sequence[tuple[str, Mapping[str, Any]]],
     *,
     planet: str | None,
 ) -> NDArrayBoolType:
     """The pixels of a moon's disc that something else hides, widened by the blur.
 
-    The frame's geometry traces each body alone, so the moon's backplanes still mark as
-    its own the pixels where a nearer body passes in front of it, where the planet's
-    main rings lie in front of it, and where it lies in the planet's shadow.  Those
-    pixels are left out of its disc, with a margin of the disc clearance for the blur.
+    These are the pixels where a nearer body passes in front of the moon, where the
+    planet's main rings lie in front of it, and where it lies in the planet's shadow,
+    with a margin of the disc clearance for the blur.  The disc fits and the albedo
+    leave them out.
 
     Parameters:
         backplane: The frame's offset backplane.
         body: The moon.
-        entry: The moon's inventory entry.
-        in_view: Every body in view with its inventory entry.
+        in_view: Every body in view with its inventory entry (:func:`bodies_in_view`).
         planet: The frame's planet, or None.
 
     Returns:
         A mask in the image's shape.
     """
-    shape = np.shape(backplane.where_intercepted(body).vals)
-    cover = np.zeros(shape, dtype=bool)
-    for other, other_entry in in_view:
-        if other_entry is entry or other_entry['range'] >= entry['range']:
-            continue
-        if not _boxes_overlap(entry, other_entry):
-            continue
-        cover |= np.asarray(backplane.where_intercepted(other).vals, dtype=bool)
-    if planet is not None:
-        ring = OCCULTING_RINGS.get(planet)
-        if ring is not None:
-            cover |= np.asarray(backplane.where_in_back(body, ring).vals, dtype=bool)
-        cover |= np.asarray(backplane.where_inside_shadow(body, planet).vals, dtype=bool)
-    if cover.any():
-        cover = scipy.ndimage.binary_dilation(cover, iterations=math.ceil(DISC_CLEARANCE_PX))
-    return np.asarray(cover, dtype=bool)
+    entry = dict(in_view)[body]
+    nearer = [
+        other
+        for other, other_entry in in_view
+        if other != body
+        and other_entry['range'] < entry['range']
+        and _boxes_overlap(entry, other_entry)
+    ]
+    return _cover(backplane, body, nearer, planet=planet)
+
+
+def foreign_pixels(
+    backplane: Any,
+    body: str,
+    in_view: Sequence[tuple[str, Mapping[str, Any]]],
+    *,
+    planet: str | None,
+) -> NDArrayBoolType:
+    """Everything near a body's limb that is neither the body nor the sky.
+
+    These are the discs of every other body in view, in front of the body or behind it,
+    lit or not, the planet's among them, with the planet's rings and shadow over the
+    body, all widened by the disc clearance for the blur as :func:`hidden_pixels` widens
+    them.  A limb vertex whose track touches one of these pixels measures that other
+    light as well as the limb's, so the limb statistics leave it out.
+
+    Parameters:
+        backplane: The frame's offset backplane.
+        body: The body whose limb is measured.
+        in_view: Every body in view with its inventory entry (:func:`bodies_in_view`).
+        planet: The frame's planet, or None.
+
+    Returns:
+        A mask in the image's shape.
+    """
+    others = [other for other, _entry in in_view if other != body]
+    return _cover(backplane, body, others, planet=planet)
+
+
+@dataclass(frozen=True)
+class FrameBodies:
+    """The bodies in view of one real frame, for the masks the limb and albedo take.
+
+    Parameters:
+        backplane: The frame's offset backplane.
+        in_view: Every body in view with its inventory entry (:func:`bodies_in_view`).
+        planet: The frame's planet, or None.
+        offset_vu: The frame's verified offset ``(dv, du)``.
+    """
+
+    backplane: Any
+    in_view: list[tuple[str, Mapping[str, Any]]]
+    planet: str | None
+    offset_vu: tuple[float, float]
+
+    @classmethod
+    def of(cls, obs: Any, backplane: Any, offset_vu: tuple[float, float]) -> FrameBodies:
+        """The bodies in view of a real frame.
+
+        Parameters:
+            obs: The real observation.
+            backplane: The frame's offset backplane.
+            offset_vu: The frame's verified offset ``(dv, du)``.
+
+        Returns:
+            The frame's bodies.
+        """
+        return cls(
+            backplane,
+            bodies_in_view(obs, offset_vu),
+            getattr(obs, 'closest_planet', None),
+            offset_vu,
+        )
+
+    def _has(self, body: str) -> bool:
+        """Whether ``body`` is in view."""
+        return any(name == body for name, _entry in self.in_view)
+
+    def hidden(self, body: str) -> NDArrayBoolType | None:
+        """The pixels of ``body``'s disc that something else hides, or None out of view.
+
+        Parameters:
+            body: The body.
+
+        Returns:
+            The mask of :func:`hidden_pixels`, or None when the body is not in view.
+        """
+        if not self._has(body):
+            return None
+        return hidden_pixels(self.backplane, body, self.in_view, planet=self.planet)
+
+    def limb_selection(self, body: str) -> LimbSelection | None:
+        """The vertices of ``body``'s limb the limb statistics may use, or None.
+
+        Parameters:
+            body: The body.
+
+        Returns:
+            The selection of :func:`real_limb_selection`, or None when the body is not
+            in view.
+        """
+        if not self._has(body):
+            return None
+        return real_limb_selection(
+            self.backplane, body, self.in_view, planet=self.planet, offset_vu=self.offset_vu
+        )
+
+
+def real_limb_selection(
+    backplane: Any,
+    body: str,
+    in_view: Sequence[tuple[str, Mapping[str, Any]]],
+    *,
+    planet: str | None,
+    offset_vu: tuple[float, float],
+) -> LimbSelection:
+    """Which vertices of a real body's limb the limb statistics may use.
+
+    A vertex is used when its track touches nothing in :func:`foreign_pixels`.  The
+    body's orientation places its center at its predicted center moved by the verified
+    offset, and its light where the disc's incidence cosines put it
+    (:func:`light_direction_deg`).
+
+    Parameters:
+        backplane: The frame's offset backplane.
+        body: The body whose limb is measured.
+        in_view: Every body in view with its inventory entry (:func:`bodies_in_view`).
+        planet: The frame's planet, or None.
+        offset_vu: The frame's verified offset ``(dv, du)``.
+
+    Returns:
+        The selection, with its track test.
+    """
+    entry = dict(in_view)[body]
+    center_vu = (entry['center_uv'][1] + offset_vu[0], entry['center_uv'][0] + offset_vu[1])
+    on_body = np.asarray(backplane.where_intercepted(body).vals, dtype=bool)
+    mu0 = np.cos(_plane(backplane.incidence_angle(body), np.pi))
+    radius = float(max(entry['u_pixel_size'], entry['v_pixel_size'])) / 2.0
+    foreign = foreign_pixels(backplane, body, in_view, planet=planet)
+
+    def clear_track(
+        points_vu: NDArrayFloatType, normals_vu: NDArrayFloatType, half_length_px: float
+    ) -> NDArrayBoolType:
+        return ~tracks_touching(foreign, points_vu, normals_vu, half_length_px)
+
+    return LimbSelection(
+        orientation=LimbOrientation(
+            center_vu=(
+                float(center_vu[0]) - PIXEL_CENTER_TO_CORNER_PX,
+                float(center_vu[1]) - PIXEL_CENTER_TO_CORNER_PX,
+            ),
+            light_deg=light_direction_deg(on_body, mu0, center_vu, radius),
+        ),
+        clear_track=clear_track,
+    )
 
 
 def _exclusion_by_kind(body: str) -> str | None:

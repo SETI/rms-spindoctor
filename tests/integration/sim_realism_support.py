@@ -56,6 +56,8 @@ from spindoctor.sim.realism.profiles import (
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 from tests.integration.sim_realism_limb_peak import (
     LIMB_PEAK_KIND_PREFIX,
+    LimbPeak,
+    LimbSelection,
     SilhouetteOffsets,
     limb_peak_offset,
 )
@@ -220,11 +222,14 @@ class FrameSamples:
         sky: The frame's FOM 1 sky patches.  The runner tests them against the
             matched frame's, then turns the kept ones into sky samples with
             :func:`add_sky_samples`.  :meth:`merge` doesn't copy this field.
+        limb_peak: The gradient-peak measurement of the frame's measured limb, or None
+            when the frame measured none.  :meth:`merge` doesn't copy this field.
     """
 
     samples: dict[str, list[float]] = field(default_factory=dict)
     curves: dict[str, list[tuple[NDArrayFloatType, NDArrayFloatType]]] = field(default_factory=dict)
     sky: FrameSky | None = None
+    limb_peak: LimbPeak | None = None
 
     def add(self, kind: str, values: list[float] | NDArrayFloatType) -> None:
         """Append scalar samples under ``kind``, dropping non-finite values."""
@@ -546,8 +551,10 @@ def extract_feature_samples(
     offset_vu: tuple[float, float],
     extfov_margin_vu: tuple[int, int],
     saturation_level: float,
+    matched_model: str | None = None,
     silhouette_offsets: SilhouetteOffsets | None = None,
     limb_peak_model: str | None = None,
+    limb_selection: LimbSelection | None = None,
 ) -> FrameSamples:
     """FOM 2-4 samples around the frame's extracted features.
 
@@ -571,6 +578,9 @@ def extract_feature_samples(
             CALIB saturation is not represented by a fixed level).  The
             flat-top plateau guard runs regardless, so clipped cores are
             rejected on every cohort.
+        matched_model: The one body model whose limb adds FOM 3 widths and a limb
+            profile: the body the matched scene renders, so each width has a
+            counterpart of the same body.  None adds no limb widths.
         silhouette_offsets: The frame's body silhouettes, which the gradient peak of
             ``limb_peak_model``'s limb is measured from.
         limb_peak_model: The one body model whose binned limb also adds its
@@ -578,9 +588,14 @@ def extract_feature_samples(
             ``limb_peak_<bin>`` (see :mod:`tests.integration.sim_realism_limb_peak`).
             It is the body the matched scene renders, so each frame of a pair measures
             the same body.  None, or no silhouettes, adds no gradient peak.
+        limb_selection: Which vertices of the measured limb may be used.  On a real
+            frame its track test also leaves out the width profiles whose 8 px tracks
+            touch another body, the planet, or the rings or shadow over the body.
+            None uses every vertex.
 
     Returns:
-        The frame's feature samples.
+        The frame's feature samples, with the gradient-peak measurement when one was
+        made.
     """
     out = FrameSamples()
     dv, du = float(offset_vu[0]), float(offset_vu[1])
@@ -639,11 +654,16 @@ def extract_feature_samples(
             star_candidates.append((peak, radius, intensity))
             star_radius = radius
         elif isinstance(geometry, LimbPolyline):
+            if feature.source_model != matched_model:
+                continue
             vertices, normals = _decimate(
                 np.asarray(geometry.vertices_vu, dtype=np.float64) + shift,
                 np.asarray(geometry.normals_vu, dtype=np.float64),
                 _MAX_PROFILES_PER_FEATURE,
             )
+            if limb_selection is not None and limb_selection.clear_track is not None:
+                clear = limb_selection.clear_track(vertices, normals, _EDGE_HALF_LENGTH_PX)
+                vertices, normals = vertices[clear], normals[clear]
             profiles = edge_normal_profiles(
                 image,
                 vertices,
@@ -667,16 +687,17 @@ def extract_feature_samples(
                 # sides, so a raw cross-strata pool never appears.
                 out.add(f'limb_width_{_limb_bin_label(phase, diameter)}', widths)
                 if silhouette_offsets is not None and feature.source_model == limb_peak_model:
-                    peak_offset = limb_peak_offset(
+                    out.limb_peak = limb_peak_offset(
                         image,
                         geometry,
                         feature.source_model,
                         shift_vu=shift,
                         silhouette_offsets=silhouette_offsets,
+                        selection=limb_selection,
                     )
-                    if peak_offset is not None:
+                    if out.limb_peak.offset_px is not None:
                         label = _limb_bin_label(phase, diameter)
-                        out.add(f'{LIMB_PEAK_KIND_PREFIX}{label}', [peak_offset])
+                        out.add(f'{LIMB_PEAK_KIND_PREFIX}{label}', [out.limb_peak.offset_px])
             mean_profile = _normalized_mean_profile(profiles)
             if mean_profile is not None:
                 taps = np.linspace(-_EDGE_HALF_LENGTH_PX, _EDGE_HALF_LENGTH_PX, _EDGE_N_SAMPLES)

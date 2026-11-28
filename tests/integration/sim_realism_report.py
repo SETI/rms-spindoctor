@@ -37,18 +37,14 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_defaults_native,
 )
 from spindoctor.support.types import NDArrayFloatType
-from tests.integration.sim_realism import (
-    InstrumentComparison,
-    RealismResults,
-    SkyPair,
-    SkyPairStatus,
-)
+from tests.integration.sim_realism import InstrumentComparison, RealismResults
 from tests.integration.sim_realism_laws_report import (
     disc_profile_entries,
     law_study_summary,
     write_law_figures,
 )
 from tests.integration.sim_realism_limb_peak import LimbPeakBin
+from tests.integration.sim_realism_sky import SkyPair, SkyPairStatus
 
 __all__ = [
     'CodeProvenance',
@@ -661,6 +657,9 @@ def summary_dict(results: RealismResults) -> dict[str, Any]:
                 label: _limb_peak_entry(peak)
                 for label, peak in sorted(comparison.limb_peaks.items())
             },
+            'limb_peak_refusals': sorted(
+                comparison.limb_peak_refusals, key=lambda r: (r['image_id'], r['side'])
+            ),
             'disc_profiles': disc_profile_entries(
                 results.law_study.disc_check.get(instrument, {})
                 if results.law_study is not None
