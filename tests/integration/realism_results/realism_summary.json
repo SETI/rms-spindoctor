@@ -1,5 +1,5 @@
 {
-  "code_commit": "8fe1bd353a5498f335b64d9e7a5a0c47ae574ed0",
+  "code_commit": "0418dcc34d572433715fb9f3595a231d9a6fd075",
   "code_dirty": false,
   "instruments": {
     "coiss_calib_nac": {
@@ -52,18 +52,18 @@
       },
       "disc_profiles": {
         "p0": {
-          "band_k": 0.0281977,
+          "band_k": 0.028197712484311004,
           "delta_scatter_k": 0.0467606,
-          "median_delta_k": -0.0121522,
+          "median_delta_k": -0.012152245371594428,
           "n": 11,
           "real_median_k": 0.676149,
           "sim_median_k": 0.663996,
           "within_band": true
         },
         "p1": {
-          "band_k": 0.04706,
+          "band_k": 0.047060049549495,
           "delta_scatter_k": 0.0848387,
-          "median_delta_k": 0.0423339,
+          "median_delta_k": 0.04233388856226161,
           "n": 13,
           "real_median_k": 0.882964,
           "sim_median_k": 0.889101,
@@ -72,7 +72,7 @@
         "p2": {
           "band_k": null,
           "delta_scatter_k": null,
-          "median_delta_k": 0.141802,
+          "median_delta_k": 0.14180170543242937,
           "n": 2,
           "real_median_k": 0.83199,
           "sim_median_k": 0.973792,
@@ -1791,7 +1791,7 @@
         "p0": {
           "band_k": null,
           "delta_scatter_k": null,
-          "median_delta_k": 0.0706082,
+          "median_delta_k": 0.07060819315451194,
           "n": 1,
           "real_median_k": 0.596966,
           "sim_median_k": 0.667574,
@@ -3545,8 +3545,8 @@
           "n": 4
         },
         "Tethys": {
-          "median_abs_delta_k": 0.241556,
-          "median_delta_k": 0.241556,
+          "median_abs_delta_k": 0.244491,
+          "median_delta_k": 0.244491,
           "median_profile_residual": 0.134871,
           "n": 6
         }
@@ -3559,8 +3559,8 @@
           "n": 7
         },
         "Enceladus": {
-          "median_abs_delta_k": 0.171437,
-          "median_delta_k": -0.171437,
+          "median_abs_delta_k": 0.171785,
+          "median_delta_k": -0.171785,
           "median_profile_residual": 0.11069,
           "n": 3
         },
@@ -3605,7 +3605,7 @@
         "Enceladus": {
           "median_abs_delta_k": 0.0285889,
           "median_delta_k": 0.00357207,
-          "median_profile_residual": 0.0696534,
+          "median_profile_residual": 0.0855567,
           "n": 3
         },
         "Iapetus (bright terrain)": {
@@ -3633,9 +3633,9 @@
           "n": 4
         },
         "Tethys": {
-          "median_abs_delta_k": 0.0585676,
+          "median_abs_delta_k": 0.0540549,
           "median_delta_k": 0.0221915,
-          "median_profile_residual": 0.0533357,
+          "median_profile_residual": 0.0475312,
           "n": 6
         }
       },
@@ -3647,9 +3647,9 @@
           "n": 7
         },
         "Enceladus": {
-          "median_abs_delta_k": 0.0229636,
-          "median_delta_k": -0.0229636,
-          "median_profile_residual": 0.0748302,
+          "median_abs_delta_k": 0.0206748,
+          "median_delta_k": -0.0206748,
+          "median_profile_residual": 0.0819834,
           "n": 3
         },
         "Iapetus (bright terrain)": {
@@ -3677,9 +3677,9 @@
           "n": 4
         },
         "Tethys": {
-          "median_abs_delta_k": 0.0254328,
+          "median_abs_delta_k": 0.0211895,
           "median_delta_k": -0.00355286,
-          "median_profile_residual": 0.0362075,
+          "median_profile_residual": 0.0355291,
           "n": 6
         }
       }
@@ -3687,12 +3687,12 @@
     "comparison": {
       "p0": {
         "agreement": {
-          "lambert": 0.327738,
-          "lommel_seeliger": 0.139752,
-          "lunar_lambert": 0.037229,
-          "minnaert": 0.0225209
+          "lambert": 0.3319654714736813,
+          "lommel_seeliger": 0.13975222644941915,
+          "lunar_lambert": 0.037228972853115494,
+          "minnaert": 0.01955117205720691
         },
-        "band_k": 0.0318672,
+        "band_k": 0.0318672379071271,
         "default_best": true,
         "n": 12,
         "separates": {
@@ -3703,12 +3703,12 @@
       },
       "p1": {
         "agreement": {
-          "lambert": 0.118012,
-          "lommel_seeliger": 0.148136,
-          "lunar_lambert": 0.0565353,
-          "minnaert": 0.0634262
+          "lambert": 0.11801206281537446,
+          "lommel_seeliger": 0.1481360203461458,
+          "lunar_lambert": 0.056535341803751415,
+          "minnaert": 0.0634261746451561
         },
-        "band_k": 0.04706,
+        "band_k": 0.047060049549495,
         "default_best": true,
         "n": 13,
         "separates": {
@@ -5018,47 +5018,47 @@
         "twins": {
           "lambert": {
             "clipped_px": 12057,
-            "delta_k": 0.309477,
-            "k": 1.00056,
+            "delta_k": 0.316031,
+            "k": 1.00044,
             "limb_peak_px": null,
             "limb_peak_refusal": "its disc is clipped at the camera's ceiling",
             "minnaert_k": null,
             "normal_albedo": 1.21174,
-            "profile_residual": 0.206971,
-            "real_k": 0.691079
+            "profile_residual": 0.23773,
+            "real_k": 0.684412
           },
           "lommel_seeliger": {
             "clipped_px": 4446,
-            "delta_k": -0.171437,
-            "k": 0.51185,
+            "delta_k": -0.171785,
+            "k": 0.512626,
             "limb_peak_px": null,
             "limb_peak_refusal": "its disc is clipped at the camera's ceiling",
             "minnaert_k": null,
             "normal_albedo": 0.912084,
-            "profile_residual": 0.128273,
-            "real_k": 0.683286
+            "profile_residual": 0.139796,
+            "real_k": 0.684412
           },
           "lunar_lambert": {
             "clipped_px": 1193,
-            "delta_k": -0.0485583,
-            "k": 0.635695,
+            "delta_k": -0.0541546,
+            "k": 0.630257,
             "limb_peak_px": null,
             "limb_peak_refusal": "its disc is clipped at the camera's ceiling",
             "minnaert_k": null,
             "normal_albedo": 0.98468,
-            "profile_residual": 0.0696534,
-            "real_k": 0.684254
+            "profile_residual": 0.0855567,
+            "real_k": 0.684412
           },
           "minnaert": {
             "clipped_px": 625,
-            "delta_k": -0.0229636,
-            "k": 0.663681,
+            "delta_k": -0.0206748,
+            "k": 0.663737,
             "limb_peak_px": null,
             "limb_peak_refusal": "its disc is clipped at the camera's ceiling",
             "minnaert_k": 0.663249,
             "normal_albedo": 0.995089,
-            "profile_residual": 0.0651727,
-            "real_k": 0.686645
+            "profile_residual": 0.0819834,
+            "real_k": 0.684412
           }
         }
       },
@@ -5079,14 +5079,14 @@
         "twins": {
           "lambert": {
             "clipped_px": 0,
-            "delta_k": 0.324803,
-            "k": 1.00018,
+            "delta_k": 0.333259,
+            "k": 1.0002,
             "limb_peak_px": null,
             "limb_peak_refusal": null,
             "minnaert_k": null,
             "normal_albedo": 1.02515,
-            "profile_residual": 0.262249,
-            "real_k": 0.675377
+            "profile_residual": 0.202289,
+            "real_k": 0.666939
           },
           "lommel_seeliger": {
             "clipped_px": 2018,
@@ -5101,25 +5101,25 @@
           },
           "lunar_lambert": {
             "clipped_px": 0,
-            "delta_k": -0.0605999,
-            "k": 0.614777,
+            "delta_k": -0.0515745,
+            "k": 0.615365,
             "limb_peak_px": null,
             "limb_peak_refusal": null,
             "minnaert_k": null,
             "normal_albedo": 0.873728,
-            "profile_residual": 0.0459117,
-            "real_k": 0.675377
+            "profile_residual": 0.0343028,
+            "real_k": 0.666939
           },
           "minnaert": {
             "clipped_px": 0,
-            "delta_k": -0.023554,
-            "k": 0.651823,
+            "delta_k": -0.0150675,
+            "k": 0.651872,
             "limb_peak_px": null,
             "limb_peak_refusal": null,
             "minnaert_k": 0.65184,
             "normal_albedo": 0.887224,
-            "profile_residual": 0.0294794,
-            "real_k": 0.675377
+            "profile_residual": 0.0224217,
+            "real_k": 0.666939
           }
         }
       },
@@ -6114,9 +6114,9 @@
     "phase_bins": {
       "lambert": {
         "p0": {
-          "median_abs_delta_k": 0.327738,
-          "median_delta_k": 0.327738,
-          "median_profile_residual": 0.249531,
+          "median_abs_delta_k": 0.331965,
+          "median_delta_k": 0.331965,
+          "median_profile_residual": 0.237993,
           "n": 12
         },
         "p1": {
@@ -6174,7 +6174,7 @@
       },
       "minnaert": {
         "p0": {
-          "median_abs_delta_k": 0.0225209,
+          "median_abs_delta_k": 0.0195512,
           "median_delta_k": 0.00894428,
           "median_profile_residual": 0.0577583,
           "n": 12
@@ -6194,5 +6194,5 @@
       }
     }
   },
-  "runtime_sec": 3600.7
+  "runtime_sec": 3614.5
 }
