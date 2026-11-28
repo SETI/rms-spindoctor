@@ -48,6 +48,13 @@ class NavContext:
             instrument's full-well DN.
         cosmic_ray_mask_ext: ``True`` where single-pixel cosmic-ray spikes
             were detected.
+        missing_data_mask_ext: ``True`` where a sensor pixel carries the
+            instrument's missing-data marker, as lost lines and dropped packets
+            do.  ``image_ext`` holds 0.0 there when no source-image filter
+            runs; when one runs, the 0.0 is filtered with the rest of the image,
+            and a blurring filter spreads the light of the pixels around into
+            it.  Neither value is a measurement, so a technique that reads pixel
+            values leaves these pixels out.  The extfov padding is ``False``.
         image_classifier: The image-quality classifier's verdict.
         image_gradient_ext: Optional shared Sobel-of-Gaussian magnitude
             (computed once, reused by every DT-based technique).
@@ -82,6 +89,7 @@ class NavContext:
     image_noise_sigma: float
     saturation_mask_ext: NDArrayBoolType
     cosmic_ray_mask_ext: NDArrayBoolType
+    missing_data_mask_ext: NDArrayBoolType
     image_classifier: NavImageClassifierResult
     provenance: Provenance
     image_gradient_ext: NDArrayFloatType | None = None

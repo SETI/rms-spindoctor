@@ -1185,8 +1185,11 @@ real frames of this camera carry together:
   defects, and 0.063 to 0.098 px off with any one of them removed, so the scene
   shows that the fused answer is unaffected by the truncation and the lost groups.
   The star-field technique returns spurious on every draw, because hot pixels and
-  cosmic rays together crowd the stars out of the sources it matches, and the blob
-  technique lands 6 to 14 px off the gibbous disc without flagging it.
+  cosmic rays together crowd the stars out of the sources it matches. On 5 of the
+  16 random seeds, the committed seed among them, lost groups across the disc would
+  move the blob's centroid by more than 1% of the radius, and the blob technique
+  drops the body. On the other 11 it lands 8.2 to 10.7 px off the gibbous disc
+  without flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.

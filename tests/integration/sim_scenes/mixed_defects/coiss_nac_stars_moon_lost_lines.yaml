@@ -73,7 +73,7 @@ exposure_sec: 1.0
 # lines as zeros (#1164).  The stars hold the fused answer at 0.098 px off with the
 # groups and 0.100 px without them.  The tier is high on 6 of the 24 draws: random
 # seeds 505, 808, 1010, and 1212, and noise seeds 505 and 808, at a fused
-# confidence of 0.88 to 0.93, against 0.77 to 0.85 on the rest.  On the committed
+# confidence of 0.88 to 0.94, against 0.77 to 0.85 on the rest.  On the committed
 # seed and seeds 101 to 303 the fused answer lands 0.071 to 0.098 px off.  On a
 # Lambert surface those draws landed 0.069 to 0.098 px off, and removing any one
 # defect (the truncation, the lost groups, the smear, the hot pixels, or the
@@ -87,11 +87,12 @@ exposure_sec: 1.0
 # seed and seeds 101 to 303 (0.059 to 0.11 px off); with the hot pixels removed
 # alone it stayed spurious, and with the cosmic rays removed alone it navigated
 # on the committed seed only.  StarUniqueMatchNav returns spurious on 3 of the 24
-# draws, random seeds 505 and 808 and noise seed 808.  BodyBlobNav lands 6.4 to
-# 14.1 px off the gibbous disc without flagging it (#975).  The lost groups move
-# it most (#1207): on random seed 1010 it lands 14.1 px off with them and 9.6 px
-# off without, and on random seed 1414 6.4 px off with them and 9.6 px without.
-# sim_truth holds it to a band.
+# draws, random seeds 505 and 808 and noise seed 808.  BodyBlobNav drops the body
+# where lost groups across the disc would move its centroid by more than 1% of the
+# radius: it returns spurious on the committed seed and its 8 noise draws and on
+# random seeds 707, 1010, 1212, and 1414, and lands 8.2 to 10.7 px off the gibbous
+# disc without flagging it on the other 11 random seeds (#975, #1207).  sim_truth has
+# no band for it.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}

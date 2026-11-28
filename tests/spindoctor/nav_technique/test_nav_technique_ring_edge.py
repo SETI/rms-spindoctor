@@ -817,6 +817,7 @@ def test_ring_edge_nav_raises_when_navcontext_lacks_derivatives(
         image_noise_sigma=context.image_noise_sigma,
         saturation_mask_ext=context.saturation_mask_ext,
         cosmic_ray_mask_ext=context.cosmic_ray_mask_ext,
+        missing_data_mask_ext=context.missing_data_mask_ext,
         image_classifier=context.image_classifier,
         provenance=context.provenance,
     )
