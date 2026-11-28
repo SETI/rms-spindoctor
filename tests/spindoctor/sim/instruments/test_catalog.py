@@ -43,6 +43,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_defaults_native,
     resolve_downlink_table,
     resolve_integration_sec,
+    resolve_psf_kernel,
     resolve_readout_mode,
 )
 from spindoctor.sim.instruments.schema import DownlinkTable, parametric_decoded_dn
@@ -1361,3 +1362,22 @@ def test_a_zero_signal_full_scale_frac_fails() -> None:
         match=r'detector\.signal_full_scale_frac: expected a positive number',
     ):
         validate_sim_params(scene)
+
+
+# The Galileo kernel's fit to 23 images of 15 stars on the 1992 Pleiades frames at 0.1 s or
+# less (#1258): the core sigma and the wing fraction with their formal errors, and the
+# wing's r0 and n, which the fit holds fixed.
+_GOSSI_FIT_SIGMA_PX, _GOSSI_FIT_SIGMA_ERR_PX = 0.360, 0.001
+_GOSSI_FIT_W, _GOSSI_FIT_W_ERR = 0.251, 0.003
+_GOSSI_FIT_R0_PX, _GOSSI_FIT_N = 2.0, 5.0
+
+
+def test_the_galileo_kernel_is_its_fit_to_real_stars() -> None:
+    """The Galileo kernel holds the values fitted to real stars, within the fit's errors."""
+    kernel = resolve_psf_kernel('gossi')
+    assert kernel is not None
+    assert kernel.sigma_v == pytest.approx(_GOSSI_FIT_SIGMA_PX, abs=_GOSSI_FIT_SIGMA_ERR_PX)
+    assert kernel.sigma_u == pytest.approx(_GOSSI_FIT_SIGMA_PX, abs=_GOSSI_FIT_SIGMA_ERR_PX)
+    assert kernel.w == pytest.approx(_GOSSI_FIT_W, abs=_GOSSI_FIT_W_ERR)
+    assert kernel.r0 == _GOSSI_FIT_R0_PX
+    assert kernel.n == _GOSSI_FIT_N
