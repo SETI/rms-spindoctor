@@ -19,17 +19,20 @@ gossi:
   native_frame_size_px: 800
 
   psf:
-    # Measured 2026-11-27 (#1258) on 23 bright, isolated, unsaturated stars on 11
-    # frames of the 1992 Pleiades sequence at 0.1 s or less (GO_0008, C0164396400R
-    # to C0164399945R), 18 of them at the 100K gain state, at pointing refitted to
-    # each frame's own stars.  The core sigma and wing fraction are fitted with the
-    # wing's r0 and n held fixed, which trade off against them on stars this narrow.
-    # Measured the way the realism match measures stars, the stars give EE50
-    # 0.585 px and EE80 1.22 px (star scatter 0.054 and 0.38 px), and this kernel,
-    # rendered as the simulator renders it at the same centers, gives 0.558 and
-    # 1.17 px.  The wing at the 10K gain state is not confirmed: only 9 clean stars
-    # were taken in it.  Longer exposures were left out because their stars smear
-    # 1 to 10 px, which the simulator does not model (#1278).  Radii in native
+    # Fitted 2026-11-27 (#1258) to 23 images of 15 bright, isolated, unsaturated
+    # stars on 11 frames of the 1992 Pleiades sequence at 0.1 s or less (GO_0008,
+    # C0164396400R to C0164399945R), 18 of the images at the 100K gain state, at
+    # pointing refitted to each frame's own stars.  The core, sigma 0.360 +- 0.001
+    # px, is well measured.  The wing is not determined by these frames: r0 and n
+    # trade off against the core and w on stars this narrow, so they are held at
+    # 2 and 5, and the form misfits the stars (reduced chi-square 1.21, where copies
+    # of the stars drawn with this kernel give about 0.27).  Drawn like the stars,
+    # with their 8-bit rounding, sky, and noise, and measured the same way, this
+    # kernel gives EE50 0.54 px and EE80 1.03 px against the stars' 0.585 and
+    # 1.22 px (star scatter 0.054 and 0.38 px); no kernel of this form over a grid
+    # of r0 and n reaches the stars' EE80 (0.92 to 1.07 px).  The wing at the 10K
+    # gain state is not confirmed: only 9 clean stars were taken in it.  Longer
+    # exposures were left out because their stars smear (#1278).  Radii in native
     # detector pixels.
     kernel: {sigma_v: 0.36, sigma_u: 0.36, w: 0.25, r0: 2.0, n: 5.0}
     truncation_px: 16

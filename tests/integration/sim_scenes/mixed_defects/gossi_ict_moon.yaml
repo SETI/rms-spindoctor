@@ -47,16 +47,18 @@ exposure_sec: 0.1
 # camera's 350 px search window.  The roll is the camera's measured twist,
 # -0.0526 deg, planted with roll fitting off as the camera ships.
 #
-# The fused answer lands 0.033 to 0.067 px off over 24 draws.  The disc
+# The fused answer lands 0.033 to 0.065 px off over the committed draw and the 15
+# other random seeds, the draws its truth row records, and at most 0.067 px off
+# over the 8 noise_seed draws (on noise seed 202).  The disc
 # correlation lands 0.020 to 0.039 px off on every draw, including the six seeds
 # whose band of lost slices crosses the disc (3, 101, 505, 707, 808, and 1212),
 # so the slices leave the answer where it is.  The tier is medium on 23 draws and
 # low on one: on random seed 1212, whose band covers rows 576-599 on the bottom
 # limb, BodyLimbNav flags its answer, the fused answer rests on the disc
 # correlation alone, and the confidence drops to 0.79.  No expected block asserts
-# the tier.  BodyBlobNav lands 0.14 to 6.2 px off without flagging it (#975); the
-# lost slices that cross the disc cause it (0.18 to 0.22 px off without them),
-# and its error follows where they land.
+# the tier.  BodyBlobNav follows the lost slices (#975): on the draws whose band
+# crosses the disc it flags its answer, except on random seed 1212, where it lands
+# 3.0 px off without flagging it; on the other draws it lands 0.13 to 0.31 px off.
 #
 # The twist moves the fused answer by at most 0.02 px: without the roll the frame
 # lands 0.046 to 0.075 px off on four seeds whose bands cross the disc.  The

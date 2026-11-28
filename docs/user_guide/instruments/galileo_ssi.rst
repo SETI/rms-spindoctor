@@ -269,9 +269,12 @@ Known limitations
 * By default the simulator draws stars with this camera's point-spread function as
   measured on the 1992 star frames of 0.1 s or less. Three quarters of a star's light
   falls in a core with a sigma of 0.36 pixels on a full frame, and the rest in a wider
-  halo. In real frames of 0.2 s and longer, camera motion smears stars by 1 to 10
-  pixels. The simulator does not draw that smear, so in a simulated frame of that
-  length a star is sharper than in a real one.
+  halo. The core is well measured. How the halo falls off is not, and a real star
+  spreads more of its light beyond a pixel from its center than a simulated star does.
+* On the one 1992 star sequence measured, camera motion smears stars by 0.7 to 2
+  pixels at 0.2 s and by 1 to 10 pixels at 0.8 s. The simulator does not draw that
+  smear, so in a simulated frame of those lengths a star is sharper than in a real
+  one.
 
 References
 ==========
