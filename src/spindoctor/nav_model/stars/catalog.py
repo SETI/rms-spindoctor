@@ -815,7 +815,14 @@ def reduce_catalogs(
             )
             next_per_catalog.extend(chunk)
             first_bin = False
-            if len(next_per_catalog) >= max_stars or last_bin:
+            # A bright UCAC4 star kept past the usable range for the correction does not
+            # count against the budget, since the correction may yet drop it.
+            n_usable = sum(
+                1
+                for star in next_per_catalog
+                if mag_min_cap <= star_camera_mag(star, color_term) <= mag_max_cap
+            )
+            if n_usable >= max_stars or last_bin:
                 break
 
         if catalog_name in _PHOTOMETRY_REFERENCE_CATALOGS:

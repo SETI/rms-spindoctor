@@ -132,8 +132,10 @@ def test_color_term_fit_leaves_out_stars_without_a_color() -> None:
 
 
 def test_color_term_fit_needs_the_minimum_of_colored_stars() -> None:
-    """Ten stars with a measured color, fewer than the 15 a term needs, identify nothing."""
-    rows = _colored_rows()[20:]
+    """Two CLEAR stars left after 13 RED stars are pruned cannot carry a color term."""
+    rows = _colored_rows()[:2] + [
+        _zp_row('RED', '10K', 8.0 + 0.1 * k, b_minus_v=0.1 * k) for k in range(13)
+    ]
     assert not _fit(rows, color_term=True).zero_point_identified
 
 

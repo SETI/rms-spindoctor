@@ -130,10 +130,6 @@ def fit_zero_point(
     """
     if color_term:
         rows = [r for r in rows if r['bmag'] is not None]
-        if len(rows) < min_term_stars:
-            result.zero_point_identified = False
-            result.n_zp_stars = len(rows)
-            return
     result.filter_counts = dict(sorted(_count(r['filter'] for r in rows).items()))
     result.gain_counts = dict(sorted(_count(r['gain'] for r in rows).items()))
     observed_filters = set(result.filter_counts) - {reference_filter}
@@ -161,6 +157,10 @@ def fit_zero_point(
     )
     result.n_zp_stars = len(rows)
     result.n_fit_frames = len({r['image_id'] for r in rows})
+    if color_term and len(rows) < min_term_stars:
+        # The color term rests on every star the pruning keeps, like the intercept.
+        result.zero_point_identified = False
+        return
     n = len(rows)
     color_column = 1 + len(filters) + len(gains)
     a = np.zeros((n, color_column + int(color_term)))

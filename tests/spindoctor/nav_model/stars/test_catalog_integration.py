@@ -337,6 +337,39 @@ def test_reduce_catalogs_caps_at_max_stars(
     assert len(out) == DEFAULT_CONFIG.stars.max_stars
 
 
+def test_reduce_catalogs_budget_counts_only_usable_stars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bright UCAC4 stars kept past the limit for the correction do not end the walk.
+
+    A full budget of aperture-7.5 stars whose APASS V of 9.2 reads past the limit of 9 fills
+    the first bin; the walk still reaches the next bin's star of V 8.6.
+    """
+    obs = FakeObs(
+        data=np.zeros((100, 100), dtype=np.float64),
+        extfov_margin_vu=(10, 10),
+        ra_dec_limits_ext_rad=(0.0, 0.5, -0.1, 0.1),
+        star_max_vmag=9.0,
+    )
+    bright = [
+        make_star(
+            unique_number=i,
+            ra=0.01 + 0.004 * i,
+            dec=0.0,
+            vmag=7.5,
+            apass_mag_v=9.2,
+            apass_mag_v_sigma=0.05,
+        )
+        for i in range(DEFAULT_CONFIG.stars.max_stars)
+    ]
+    usable = make_star(
+        unique_number=999, ra=0.2, dec=0.05, vmag=8.5, apass_mag_v=8.6, apass_mag_v_sigma=0.05
+    )
+    install_fake_catalogs(monkeypatch, ucac4=[*bright, usable])
+    out = reduce_catalogs(cast(Any, obs), DEFAULT_CONFIG)
+    assert 999 in [star.unique_number for star in out]
+
+
 def test_stars_in_extfov_skips_records_with_missing_radec(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:
