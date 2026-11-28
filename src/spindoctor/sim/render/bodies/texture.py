@@ -111,15 +111,16 @@ class DiscTextureSpec:
     """One body's ``disc_texture`` block (zones/belts plus storm ovals).
 
     The band factor is ``1 + band_amplitude * cos(band_wavenumber * lat_p
-    + band_phase)`` with ``lat_p`` the body-polar latitude in radians, so
-    ``band_wavenumber`` counts full cosine cycles per radian of latitude
-    (a Saturn-like scene uses ~6-10) and ``band_phase_deg`` slides the
+    + radians(band_phase_deg))`` with ``lat_p`` the body-polar latitude in
+    radians, so ``band_wavenumber`` is the cosine's phase in radians per
+    radian of latitude and the bands repeat every ``2 * pi / band_wavenumber``
+    radians (a Saturn-like scene uses ~6-10).  ``band_phase_deg`` slides the
     pattern in latitude.
 
     Parameters:
         band_amplitude: Multiplicative contrast of the banded pattern
             (0 disables the bands; storms still apply).
-        band_wavenumber: Cosine cycles per radian of body-polar latitude.
+        band_wavenumber: Cosine phase, in radians, per radian of body-polar latitude.
         band_phase_deg: Phase offset of the band pattern, in degrees.
         storms: Storm ovals as ``(lat_deg, lon_deg, radius_deg,
             albedo_factor)`` tuples in the body-polar frame.

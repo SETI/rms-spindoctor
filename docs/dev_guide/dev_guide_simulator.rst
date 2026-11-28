@@ -3000,7 +3000,8 @@ the navigator fits (``bodies/texture.py``):
   can, and large-scale hemispheric contrast is exactly what the texture exists
   to plant). ``rms`` is its area-weighted standard deviation over the sphere.
 - ``disc_texture`` (truth): a low-frequency latitude band pattern
-  ``1 + band_amplitude cos(band_wavenumber lat_p + band_phase)`` plus discrete
+  ``1 + band_amplitude cos(band_wavenumber lat_p + band_phase)``, with the phase in
+  radians, plus discrete
   storm ovals -- the zones/belts and a great-red-spot-class storm of a giant
   planet.
 - ``transits`` (truth): a list of entries, each a transiting moon disc

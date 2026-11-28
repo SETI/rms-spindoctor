@@ -282,11 +282,12 @@ class BodyDiscTexture:
     """A giant planet's disc texture: latitude bands and storm ovals.
 
     The bands multiply the shading by ``1 + band_amplitude * cos(band_wavenumber *
-    latitude + band_phase_deg)``, with the body-polar latitude in radians.
+    latitude + radians(band_phase_deg))``, with the body-polar latitude in radians.
+    The bands repeat every ``2 * pi / band_wavenumber`` radians of latitude.
 
     Parameters:
         band_amplitude: The bands' contrast.
-        band_wavenumber: The bands' cosine cycles per radian of latitude.
+        band_wavenumber: The bands' cosine phase per radian of latitude, in radians.
         band_phase_deg: The bands' phase, in degrees.
         storms: The storm ovals.
     """
@@ -301,8 +302,8 @@ class BodyDiscTexture:
     )
     band_wavenumber: NonNeg | None = optional(
         'truth',
-        "The bands' cosine cycles per radian of body-polar latitude; a Saturn-like disc "
-        'takes about 6 to 10.',
+        "The bands' cosine phase per radian of body-polar latitude, so they repeat every "
+        '2 pi divided by this many radians of latitude; a Saturn-like disc takes about 6 to 10.',
         default=DEFAULT_BAND_WAVENUMBER,
         editor=EditorHint(minimum=0.0, maximum=64.0, decimals=2, step=0.5),
     )

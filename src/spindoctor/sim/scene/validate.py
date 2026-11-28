@@ -187,8 +187,10 @@ def parse_body(raw: Mapping[str, Any], *, source: str = 'body') -> Body:
         The typed body.
 
     Raises:
-        SimSceneValidationError: On any unknown or invalid key of the entry.
+        SimSceneValidationError: On a null at any depth of the entry, or any unknown or
+            invalid key.
     """
+    _refuse_nulls(raw, '', source=source)
     try:
         return parse(Body, raw, source=source)
     except SchemaError as exc:

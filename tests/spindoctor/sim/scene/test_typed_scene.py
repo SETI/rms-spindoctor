@@ -551,6 +551,14 @@ def test_parse_body_refuses_an_unknown_key() -> None:
         parse_body({'semi_a_px': 20.0, 'semi_b_px': 15.0, 'radius': 4.0}, source='probe')
 
 
+def test_parse_body_refuses_an_explicit_null() -> None:
+    """A body entry with a key set to null is refused, as it is inside a scene."""
+    with pytest.raises(
+        SimSceneValidationError, match=r'probe: atmosphere is null; leave the key out'
+    ):
+        parse_body({'semi_a_px': 20.0, 'semi_b_px': 15.0, 'atmosphere': None}, source='probe')
+
+
 def test_parse_scene_types_the_bodies_and_stars() -> None:
     """The typed scene holds each body and star as its typed entry."""
     scene = parse_scene(body_scene(stars=[star_entry(5.0, 5.0, 6.0)]), source='probe')
