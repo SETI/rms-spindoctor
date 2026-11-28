@@ -20,13 +20,18 @@ from spindoctor.feature.geometry import LimbPolyline
 from tests.integration import sim_realism_limb_peak
 from tests.integration.realism_regression import REGENERATE_HINT, load_record, made_at
 from tests.integration.sim_realism_limb_peak import (
+    LimbPeak,
+    LimbSelection,
     compare_limb_peaks,
     limb_peak_offset,
+    limb_peak_refusals,
+    matched_orientation,
     matched_silhouette_offsets,
     pair_limb_peaks,
     real_silhouette_offsets,
     record_has_limb_peaks,
     record_limb_peak_problems,
+    tracks_touching,
 )
 
 _RECORD = load_record()
@@ -154,7 +159,7 @@ def test_a_limbs_peak_offset_is_its_edge_less_its_silhouette(
         shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
         silhouette_offsets=offsets,
     )
-    assert peak == pytest.approx(expected, abs=0.02)
+    assert peak.offset_px == pytest.approx(expected, abs=0.02)
 
 
 def test_a_misplaced_limb_moves_the_translation_and_keeps_the_offset() -> None:
@@ -169,7 +174,7 @@ def test_a_misplaced_limb_moves_the_translation_and_keeps_the_offset() -> None:
         shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
         silhouette_offsets=offsets,
     )
-    assert peak == pytest.approx(-0.5, abs=0.03)
+    assert peak.offset_px == pytest.approx(-0.5, abs=0.03)
 
 
 def test_a_limb_at_zero_phase_is_measured() -> None:
@@ -186,14 +191,14 @@ def test_a_limb_at_zero_phase_is_measured() -> None:
         shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
         silhouette_offsets=offsets,
     )
-    assert peak == pytest.approx(0.0, abs=0.02)
+    assert peak.offset_px == pytest.approx(0.0, abs=0.02)
 
 
-def test_a_limb_on_a_short_arc_gives_no_offset() -> None:
+def test_a_noisy_limb_on_a_short_arc_is_refused_for_its_sigma() -> None:
     """A noisy 30 degree arc fits, but knows its offset to worse than 0.2 px.
 
     Over so short an arc a radial offset and a translation along the arc's middle normal
-    move the peaks almost alike, so the fit cannot tell them apart.
+    move the peaks almost alike, so the noise is magnified into the offset.
     """
     offsets = matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS)
     rng = np.random.default_rng(1)
@@ -206,7 +211,90 @@ def test_a_limb_on_a_short_arc_gives_no_offset() -> None:
         shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
         silhouette_offsets=offsets,
     )
-    assert peak is None
+    assert peak.refusal is not None
+    assert 'worse than 0.2 px' in peak.refusal
+
+
+def _measure(
+    limb: LimbPolyline, image: np.ndarray, selection: LimbSelection | None = None
+) -> LimbPeak:
+    """The gradient peak of ``limb`` on ``image`` under the sphere scene, lit from +u."""
+    return limb_peak_offset(
+        image,
+        limb,
+        'body_sim:REALISM_BODY',
+        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
+        silhouette_offsets=matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS),
+        selection=selection,
+    )
+
+
+def test_a_limb_on_a_short_arc_is_refused_for_its_arc() -> None:
+    """A clean 90 degree arc knows its offset well but cannot tell it from a translation.
+
+    Its offset correlates with the translation at 0.995, above the 0.97 ceiling, so the
+    limb is refused with that reason although its sigma lies far below 0.2 px.
+    """
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, 60, half_deg=45.0)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0))
+    assert peak.refusal is not None
+    assert 'the arc is too short' in peak.refusal
+
+
+def test_a_vertex_whose_track_touches_another_body_is_left_out() -> None:
+    """The vertices whose 4 px track reaches another body's disc give no peak.
+
+    The other body covers the sky just outside the limb from 20 to 50 degrees past the
+    direction the light comes from, so the vertices between 25 and 45 degrees are left
+    out.
+    """
+    vv, uu = np.mgrid[0:120, 0:120].astype(np.float64)
+    angle = np.degrees(np.arctan2(vv - 60.0, uu - 60.0))
+    radius = np.hypot(vv - 60.0, uu - 60.0)
+    other = (angle >= 20.0) & (angle <= 50.0) & (radius > 31.0) & (radius < 36.0)
+    selection = LimbSelection(
+        matched_orientation(_sphere_scene((60.5, 60.5), 30.0)),
+        clear_track=lambda points, normals, half: ~tracks_touching(other, points, normals, half),
+    )
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), selection)
+    assert len(peak.used_deg) > 60
+    assert not any(25.0 <= d <= 45.0 for d in peak.used_deg)
+
+
+def test_the_matched_limb_is_measured_over_the_real_limbs_directions() -> None:
+    """A real limb that used only the half before the light's direction limits its twin.
+
+    The real fit read directions from -85 to -1 degrees, so the twin's vertices beyond
+    two vertex spacings past -1 degree are left out.
+    """
+    used = tuple(float(d) for d in np.linspace(-85.0, -1.0, 45))
+    selection = LimbSelection(matched_orientation(_sphere_scene((60.5, 60.5), 30.0)), used_deg=used)
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), selection)
+    assert max(peak.used_deg) < 3.0
+
+
+def test_a_matched_limb_keeps_the_arc_the_real_limb_kept() -> None:
+    """A matched limb measured over a real limb's 90 degree arc is not refused for it.
+
+    The real limb's own fit judged the arc; the matched limb only follows it.
+    """
+    used = tuple(float(d) for d in np.linspace(-45.0, 45.0, 45))
+    selection = LimbSelection(matched_orientation(_sphere_scene((60.5, 60.5), 30.0)), used_deg=used)
+    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), selection)
+    assert peak.refusal is None
+
+
+def test_a_refused_limb_is_listed_with_its_reason() -> None:
+    """A real limb refused beside a measured twin gives one entry, for the real side."""
+    refusals = limb_peak_refusals(
+        'N1', 'DIONE', LimbPeak(None, 'the arc is too short'), LimbPeak(0.1, None)
+    )
+    assert refusals == [
+        {'image_id': 'N1', 'body': 'DIONE', 'side': 'real', 'reason': 'the arc is too short'}
+    ]
 
 
 class _CircleBackplane:

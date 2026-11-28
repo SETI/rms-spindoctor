@@ -420,8 +420,8 @@ def _hiding_backplane() -> tuple[Any, dict[str, dict[str, Any]]]:
 def _hidden(body: str, planet: str | None) -> Any:
     """The pixels of one body of the frame above that something hides."""
     backplane, entries = _hiding_backplane()
-    return sim_realism_laws_discs._hidden_pixels(
-        backplane, body, entries[body], list(entries.items()), planet=planet
+    return sim_realism_laws_discs.hidden_pixels(
+        backplane, body, list(entries.items()), planet=planet
     )
 
 
@@ -443,6 +443,19 @@ def test_the_planets_main_rings_hide_the_pixels_behind_them() -> None:
 def test_the_planets_shadow_hides_its_pixels() -> None:
     """The far body loses the pixels in the planet's shadow, with a margin."""
     assert _hidden('FAR', 'SATURN')[32, 15]
+
+
+def test_a_body_behind_the_limb_is_foreign() -> None:
+    """The far body's disc lies beyond the near body's limb, so it is foreign to it.
+
+    It hides nothing of the near body, yet a track from the near body's limb that
+    reaches it measures its light.
+    """
+    backplane, entries = _hiding_backplane()
+    foreign = sim_realism_laws_discs.foreign_pixels(
+        backplane, 'NEAR', list(entries.items()), planet=None
+    )
+    assert foreign[25, 25]
 
 
 def _moon_backplane(size: int, radius: float) -> tuple[Any, NDArrayFloatType]:

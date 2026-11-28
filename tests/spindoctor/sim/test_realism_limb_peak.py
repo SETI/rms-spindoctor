@@ -87,6 +87,18 @@ def test_the_fit_separates_the_radial_offset_from_a_translation() -> None:
     assert fit.translation_vu == pytest.approx((0.7, -1.1), abs=1e-9)
 
 
+def test_a_half_circle_of_normals_ties_the_offset_to_the_translation_at_0_90() -> None:
+    """Over an evenly sampled half circle the offset ties to the translation at 0.90.
+
+    The squared correlation is the squared mean of the normals' component along the
+    arc's middle over the mean of its square, (2 / pi)**2 / (1 / 2).
+    """
+    normals = _disc_normals(2001, -90.0, 90.0)
+    fit = fit_limb_peak_offset(np.zeros(2001), normals)
+    assert fit is not None
+    assert fit.offset_translation_correlation == pytest.approx(np.sqrt(8.0) / np.pi, abs=1e-3)
+
+
 def test_a_limb_whose_normals_all_point_one_way_gives_no_fit() -> None:
     """Forty peaks along one normal cannot tell the offset from the translation."""
     normals = np.tile([1.0, 0.0], (40, 1))

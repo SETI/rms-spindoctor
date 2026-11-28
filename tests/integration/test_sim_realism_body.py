@@ -123,6 +123,28 @@ def test_the_disc_measures_the_albedo_it_is_drawn_at() -> None:
     assert albedo == pytest.approx(0.6, rel=1e-12)
 
 
+def test_the_albedo_leaves_out_the_pixels_something_hides() -> None:
+    """Disc pixels a ring covers, drawn twice as bright, leave the albedo at 0.6.
+
+    The covered rows hold more than half of the disc, so they would set the median.
+    """
+    frame = _real_frame(0.6)
+    under_ring = np.zeros((_SIZE, _SIZE), dtype=bool)
+    under_ring[:52, :] = True
+    frame.data[under_ring] *= 2.0
+    body = real_body(
+        frame,
+        [],
+        _METADATA,
+        backplane=frame.bp,
+        calibrated=True,
+        clipped=None,
+        hidden=lambda _name: under_ring,
+    )
+    assert body is not None
+    assert body.normal_albedo == pytest.approx(0.6, rel=1e-12)
+
+
 def test_the_offset_backplane_applies_the_offset_unrounded(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
