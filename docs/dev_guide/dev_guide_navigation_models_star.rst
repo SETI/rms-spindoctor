@@ -106,10 +106,13 @@ at 10 to 11 to 21% at 15 to 16. The 2MASS color covers most of the rest, and up 
 the stars fainter than 14 take the uncorrected fallback.
 
 The record keeps its aperture magnitude as ``catalog_vmag``, which the bright-end
-correction below reads. UCAC4 cuts a query on the aperture magnitude, so the reduction
-widens each UCAC4 query by
-:data:`~spindoctor.nav_model.stars.catalog.UCAC4_QUERY_MARGIN_MAG` (0.2 mag) at both ends
-and keeps the stars whose Johnson V falls in the magnitude range asked for. The 2MASS
+correction below reads. UCAC4 cuts a query on the aperture magnitude, and a star's Johnson
+V can fall in a different magnitude bin from its aperture magnitude. So the reduction walks
+UCAC4 in bins of aperture magnitude, keeps every star whose Johnson V lies in the
+observation's usable range, and lets the first and last bins reach
+:data:`~spindoctor.nav_model.stars.catalog.UCAC4_QUERY_MARGIN_MAG` (0.2 mag) past that
+range. A single query for a range of Johnson V, as other callers make, reaches the same
+margin past both ends. The 2MASS
 conversion brightens 99.9% of the stars by less than 0.06 mag, and APASS V is brighter
 than the aperture magnitude by more than 0.2 mag for 5% of the stars fainter than aperture
 magnitude 10.

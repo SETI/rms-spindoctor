@@ -200,6 +200,8 @@ def test_find_stars_in_one_catalog_rejects_invalid_catalog_name() -> None:
             dec_max=1.0,
             mag_min=0.0,
             mag_max=20.0,
+            catalog_mag_min=0.0,
+            catalog_mag_max=20.0,
             radec_movement=None,
         )
 

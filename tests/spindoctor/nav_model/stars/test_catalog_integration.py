@@ -100,6 +100,27 @@ def test_stars_in_extfov_drops_ucac4_star_by_johnson_v(
     assert out == []
 
 
+def test_reduce_catalogs_keeps_ucac4_star_whose_v_is_in_the_next_bin(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose V lies one magnitude bin past its aperture magnitude is kept once."""
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1,
+                ra=0.1,
+                dec=0.0,
+                vmag=13.65,
+                apass_mag_v=14.05,
+                apass_mag_v_sigma=0.05,
+            )
+        ],
+    )
+    out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
+    assert len(out) == 1
+
+
 def test_stars_in_extfov_keeps_ucac4_aperture_magnitude(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:

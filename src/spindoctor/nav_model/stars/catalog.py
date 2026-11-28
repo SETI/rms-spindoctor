@@ -150,12 +150,12 @@ from Johnson V, but not the part that depends on the star's color.
 # than 0.2 mag for 5% of the stars fainter than aperture magnitude 10, and the 2MASS
 # conversion brightens a star by at most 0.055 mag (99.9% of stars).
 UCAC4_QUERY_MARGIN_MAG: float = 0.2
-"""Magnitudes by which a UCAC4 query reaches past the Johnson V range it serves.
+"""Magnitudes by which a UCAC4 query reaches past the ends of the Johnson V range it serves.
 
 UCAC4 cuts a query on its aperture magnitude, and a star's Johnson V can be brighter or
-fainter than that.  Each UCAC4 query is widened by this margin at both ends, and the stars
-are then kept by their Johnson V, so a star whose Johnson V is inside the range is not lost
-because its aperture magnitude is just outside it.
+fainter than that.  A UCAC4 query is widened by this margin at both ends of the range, and
+the stars are then kept by their Johnson V, so a star whose Johnson V is inside the range is
+not lost because its aperture magnitude is just outside it.
 """
 
 
@@ -361,6 +361,8 @@ def _find_stars_in_one_catalog(
     dec_max: float,
     mag_min: float,
     mag_max: float,
+    catalog_mag_min: float,
+    catalog_mag_max: float,
     radec_movement: tuple[float, float] | None,
 ) -> list[MutableStar]:
     """Pull stars from a single catalog inside the (ra, dec, mag) box.
@@ -380,6 +382,10 @@ def _find_stars_in_one_catalog(
         mag_min, mag_max: Johnson V bounds, inclusive.  A UCAC4 star is kept by the
             Johnson V of :func:`ucac4_johnson_photometry`, not by its aperture
             magnitude.
+        catalog_mag_min, catalog_mag_max: Bounds, inclusive, on the magnitude the
+            catalog lists, which the catalog query cuts on.  For Tycho-2 and YBSC they
+            must equal ``mag_min`` and ``mag_max``; for UCAC4 they bound the aperture
+            magnitude.
         radec_movement: Optional ``(dra, ddec)`` vector representing half
             the per-exposure pointing motion in radians; passed through
             to the FOV projection so smear-affected stars near the edge
@@ -398,8 +404,8 @@ def _find_stars_in_one_catalog(
             ra_max=ra_max,
             dec_min=dec_min,
             dec_max=dec_max,
-            vmag_min=mag_min - UCAC4_QUERY_MARGIN_MAG,
-            vmag_max=mag_max + UCAC4_QUERY_MARGIN_MAG,
+            vmag_min=catalog_mag_min,
+            vmag_max=catalog_mag_max,
         ):
             if record.vmag is None:
                 continue
@@ -629,6 +635,7 @@ def stars_in_extfov(
     catalog_name: str,
     mag_min: float,
     mag_max: float,
+    ucac4_aperture_window: tuple[float, float] | None = None,
     radec_movement: tuple[float, float] | None = None,
 ) -> list[MutableStar]:
     """Return all stars from one catalog that lie inside the extfov.
@@ -643,12 +650,23 @@ def stars_in_extfov(
         catalog_name: One of ``'ucac4'``, ``'tycho2'``, ``'ybsc'``.
         mag_min, mag_max: Johnson V window, inclusive (for UCAC4, the Johnson V of
             :func:`ucac4_johnson_photometry`).
+        ucac4_aperture_window: For UCAC4, the ``(min, max)`` aperture magnitudes,
+            inclusive, to query; the stars it returns are then kept by their Johnson V.
+            By default it is the Johnson V window widened by
+            :data:`UCAC4_QUERY_MARGIN_MAG` at both ends.  Ignored for Tycho-2 and YBSC,
+            which are queried on the Johnson V window.
         radec_movement: Optional half-exposure ``(dra, ddec)`` shift.
 
     Returns:
         Stars that fit inside the extfov with PSF support included.
     """
     ra_min, ra_max, dec_min, dec_max = obs.ra_dec_limits_ext()
+    catalog_mag_min, catalog_mag_max = mag_min, mag_max
+    if catalog_name == 'ucac4':
+        catalog_mag_min, catalog_mag_max = ucac4_aperture_window or (
+            mag_min - UCAC4_QUERY_MARGIN_MAG,
+            mag_max + UCAC4_QUERY_MARGIN_MAG,
+        )
     return _find_stars_in_one_catalog(
         obs=obs,
         config=config,
@@ -659,6 +677,8 @@ def stars_in_extfov(
         dec_max=dec_max,
         mag_min=mag_min,
         mag_max=mag_max,
+        catalog_mag_min=catalog_mag_min,
+        catalog_mag_max=catalog_mag_max,
         radec_movement=radec_movement,
     )
 
@@ -675,10 +695,13 @@ def reduce_catalogs(
     ``config.stars.catalogs``.
     Within each catalog the search proceeds bin-by-bin against
     ``CATALOG_MAGNITUDE_BINS`` until the configured ``max_stars`` budget
-    is hit.  Across catalogs, stars whose RA/DEC and magnitude match a
-    star already kept from an earlier (more precise) catalog are
-    dropped; the kept entry inherits any nicer ``name`` field the later
-    catalog supplies.
+    is hit.  UCAC4's bins are on its aperture magnitude, so each star is
+    pulled by exactly one bin, and every star it pulls is kept whose
+    Johnson V lies within the observation's usable range; the first and last
+    bins reach :data:`UCAC4_QUERY_MARGIN_MAG` past that range.  Across
+    catalogs, stars whose RA/DEC and magnitude match a star already kept
+    from an earlier (more precise) catalog are dropped; the kept entry
+    inherits any nicer ``name`` field the later catalog supplies.
 
     Parameters:
         obs: Observation snapshot supplying extfov RA/DEC limits.
@@ -704,6 +727,7 @@ def reduce_catalogs(
 
     for catalog_name in stars_config.catalogs:
         next_per_catalog: list[MutableStar] = []
+        first_bin = True
         for mag_min, mag_max in itertools.pairwise(CATALOG_MAGNITUDE_BINS):
             if mag_min > mag_max_cap:
                 break
@@ -711,16 +735,35 @@ def reduce_catalogs(
                 continue
             mag_min_clamped = max(mag_min, mag_min_cap)
             mag_max_clamped = min(mag_max, mag_max_cap)
-            chunk = stars_in_extfov(
-                obs,
-                config,
-                catalog_name=catalog_name,
-                mag_min=mag_min_clamped,
-                mag_max=mag_max_clamped,
-                radec_movement=radec_movement,
-            )
+            last_bin = mag_max >= mag_max_cap
+            if catalog_name == 'ucac4':
+                # A star's Johnson V can sit in a different bin from its aperture
+                # magnitude, so the bins split the aperture magnitude and every
+                # star is kept by its V over the whole usable range.  Only the
+                # outermost bins reach past that range.
+                low = mag_min_clamped - (UCAC4_QUERY_MARGIN_MAG if first_bin else 0.0)
+                high = mag_max_clamped + (UCAC4_QUERY_MARGIN_MAG if last_bin else 0.0)
+                chunk = stars_in_extfov(
+                    obs,
+                    config,
+                    catalog_name=catalog_name,
+                    mag_min=mag_min_cap,
+                    mag_max=mag_max_cap,
+                    ucac4_aperture_window=(low, high),
+                    radec_movement=radec_movement,
+                )
+            else:
+                chunk = stars_in_extfov(
+                    obs,
+                    config,
+                    catalog_name=catalog_name,
+                    mag_min=mag_min_clamped,
+                    mag_max=mag_max_clamped,
+                    radec_movement=radec_movement,
+                )
             next_per_catalog.extend(chunk)
-            if len(next_per_catalog) >= max_stars:
+            first_bin = False
+            if len(next_per_catalog) >= max_stars or (catalog_name == 'ucac4' and last_bin):
                 break
 
         if catalog_name in _PHOTOMETRY_REFERENCE_CATALOGS:
@@ -741,10 +784,10 @@ def reduce_catalogs(
     # several magnitudes too faint.  YBSC and Tycho-2 are authoritative through
     # the saturated regime (Tycho-2 reaches the V6.5 to V10 stars YBSC misses);
     # correct the merged list against them before overlaps and DN ordering are
-    # computed so both depend on the true brightness.  Run the correction whenever a reference
-    # catalog is configured, even when its in-field query returned nothing: a
-    # bright UCAC4 record with no reference in either catalog must still be
-    # flagged saturated rather than silently trusted.
+    # computed so both depend on the true brightness.  Run the correction
+    # whenever a reference catalog is configured, even when its in-field query
+    # returned nothing: a bright UCAC4 record with no reference in either catalog
+    # must still be flagged saturated rather than silently trusted.
     reference_configured = any(
         name in _PHOTOMETRY_REFERENCE_CATALOGS for name in stars_config.catalogs
     )
