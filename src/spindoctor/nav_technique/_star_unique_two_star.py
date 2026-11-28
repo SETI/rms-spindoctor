@@ -497,16 +497,16 @@ def third_star_votes(
 
     Each other star is first sought with ``detect_near`` where ``place`` puts its
     prediction; a detection there within ``tolerance_px`` of that position agrees,
-    whatever else the star's own search window holds.  A star not found there does not
-    vote when a missing pixel lies where :func:`source_peak` would read it there
-    (:func:`_unread_at`): the star may sit in those pixels unseen, so a source elsewhere
-    in its window says nothing against the solution.  Otherwise the star is searched for
+    whatever else the star's own search window holds.  Otherwise the star is searched for
     around its own prediction with ``detect``: a detection within ``tolerance_px`` of where
-    the solution puts the star agrees, any other detection disagrees, and a star that
-    yields no detection casts no vote.  A brighter source elsewhere in a star's window,
-    such as a cosmic-ray hit, therefore outvotes the star only when the star is not where
-    the solution puts it.  Overlapping windows can return
-    one source for several stars; a disagreeing detection within ``SAME_SOURCE_PX`` of
+    the solution puts the star agrees, any other detection disagrees, and a star that is
+    not detected does not vote.  A detection elsewhere does not disagree when a
+    missing pixel lies where :func:`source_peak` would read the star at the solution
+    (:func:`_unread_at`): the star may sit in those pixels unseen, so a source elsewhere
+    in its window says nothing against the solution.  A brighter source elsewhere in a
+    star's window, such as a cosmic-ray hit, therefore outvotes the star only when the
+    star is not where the solution puts it.  Overlapping windows can return one source for
+    several stars; a disagreeing detection within ``SAME_SOURCE_PX`` of
     one already counted is that source again and is not counted twice.
 
     Parameters:
@@ -534,13 +534,13 @@ def third_star_votes(
         ):
             agree += 1
             continue
-        if _unread_at(missing_mask_ext, target, box_half_px=box_half_px):
-            continue
         det = detect(feature)
         if det is None:
             continue
         if math.hypot(det[0] - target[0], det[1] - target[1]) <= tolerance_px:
             agree += 1
+        elif _unread_at(missing_mask_ext, target, box_half_px=box_half_px):
+            continue
         elif all(
             math.hypot(det[0] - seen[0], det[1] - seen[1]) >= SAME_SOURCE_PX for seen in disagreeing
         ):

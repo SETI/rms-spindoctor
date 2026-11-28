@@ -260,22 +260,27 @@ def test_absent_stars_do_not_judge_a_star_where_lines_were_lost(
 
 
 @pytest.mark.parametrize(
-    ('near', 'votes'),
-    [((52.1, 46.9), (1, 0)), (None, (0, 0))],
-    ids=['found-beside-lost-lines', 'not-found-beside-lost-lines'],
+    ('near', 'found', 'votes'),
+    [
+        ((52.1, 46.9), (70.0, 30.0), (1, 0)),
+        (None, (52.1, 46.9), (1, 0)),
+        (None, (70.0, 30.0), (0, 0)),
+    ],
+    ids=['found-near-the-target', 'found-in-its-window-at-the-target', 'found-elsewhere'],
 )
 def test_a_star_put_beside_lost_lines_votes_only_when_found(
     make_star_feature: NavFeatureFactory,
     near: tuple[float, float] | None,
+    found: tuple[float, float],
     votes: tuple[int, int],
 ) -> None:
-    """A star put on row 52 with lost rows from 58 agrees when found there, and a source
-    elsewhere in its window does not count against the solution when it is not."""
+    """A star put on row 52 with lost rows from 58 agrees when found there, by either
+    search, and a source elsewhere in its window does not count against the solution."""
     star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
     result = third_star_votes(
         [star],
         _SHIFT,
-        detect=lambda feature: (70.0, 30.0),
+        detect=lambda feature: found,
         detect_near=lambda feature, target: near,
         tolerance_px=2.4,
         missing_mask_ext=_lost_from_row(58),

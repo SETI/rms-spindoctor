@@ -318,13 +318,12 @@ pair's offset (``refute_pair``) when:
   brighter than many of its stars: on F ring frame N1799563905 the brightest source in
   each of three other stars' windows is such a hit, and the stars at the pair's offset,
   with peaks 0.68 to 2.04 times what the pair predicts, keep the pair, 0.12 px from the
-  answer four other stars confirm. A star not found at the offset does not vote when the
-  offset puts it beside missing pixels (described below). Otherwise it votes against the
-  pair when exactly one of its candidates is as bright as it should be
-  (``star_like_source``), and that one lies elsewhere and is not one of the pair's own two sources, which a
-  fainter star predicted near a star of the pair can hold in its window; with no scale (a
-  star of the pair whose catalog magnitude is only a saturated lower bound) every
-  candidate qualifies, so only a window holding one candidate votes. A window that holds
+  answer four other stars confirm. A star not found at the offset votes against the pair
+  when the offset does not put it beside missing pixels (described below), exactly one of
+  its candidates is as bright as it should be (``star_like_source``), and that one lies
+  elsewhere and is not one of the pair's own two sources, which a fainter star predicted
+  near a star of the pair can hold in its window; with no scale (a star of the pair whose
+  catalog magnitude is only a saturated lower bound) every candidate qualifies, so only a window holding one candidate votes. A window that holds
   several sources the star could be does not locate it at all: on the Galileo black-sky
   frame ``C0164958745R`` every window holds saturated cosmic-ray hits as bright as its
   star. Overlapping windows can return one source for several stars, so sources within 1
@@ -359,8 +358,8 @@ never sent, are marked in the navigation context's ``missing_data_mask_ext``. A 
 an offset puts within ``centroid_box_half_px + 3`` px of a missing pixel, which covers the
 box ``source_peak`` searches for its peak and the ring around that box that sets the
 background, may be there unseen (``_unread_at``). On both paths such a star is not judged
-absent, and on the 2-star path, if it is not found there, it does not vote either way. A
-star found there still counts as found. The rule has no threshold, because any missing
+absent, and on the 2-star path a source elsewhere in its window does not vote against
+the offset. A star found there still counts as found. The rule has no threshold, because any missing
 pixel in that square can hide the star's peak or move its background. On F ring frame
 ``N1849746145``, a readout that stopped with 709 of its 1024 lines unread, three stars at
 least as bright as the pair's fainter star fall in the unread lines at the pair's offset.
