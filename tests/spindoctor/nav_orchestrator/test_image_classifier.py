@@ -90,7 +90,7 @@ def test_classifier_mostly_missing_data() -> None:
 
 
 def test_classifier_truncated_readout_is_clean() -> None:
-    """Unread lines over the missing-pixel limit leave a frame clean when enough were read."""
+    """Unread lines over the missing-pixel limit leave a frame clean."""
     rng = np.random.default_rng(seed=4)
     image = rng.standard_normal(size=(64, 64)) + 100.0
     image[24:, :] = 0.0  # The readout stopped after 24 of 64 lines.
@@ -98,7 +98,6 @@ def test_classifier_truncated_readout_is_clean() -> None:
         thresholds=raw_thresholds(
             missing_data_marker_dn=0.0,
             max_missing_frac_clean=0.30,
-            min_read_line_frac=0.25,
         )
     )
     result = classifier.classify(image)
@@ -107,16 +106,14 @@ def test_classifier_truncated_readout_is_clean() -> None:
     assert 'partial_dropout' in result.flags
 
 
-def test_classifier_too_few_lines_read() -> None:
-    """A readout that stopped below the read-out limit yields mostly_missing_data."""
-    rng = np.random.default_rng(seed=5)
-    image = rng.standard_normal(size=(64, 64)) + 100.0
-    image[15:, :] = 0.0  # 15 of 64 lines read, under a quarter.
+def test_classifier_no_line_read_is_blank() -> None:
+    """A frame with no line read out is blank, even when its marker is above the limit."""
+    image = np.full((64, 64), 7.0, np.float64)
     classifier = NavImageClassifier(
-        thresholds=raw_thresholds(missing_data_marker_dn=0.0, min_read_line_frac=0.25)
+        thresholds=raw_thresholds(missing_data_marker_dn=7.0, blank_max_dn=5.0)
     )
     result = classifier.classify(image)
-    assert result.image_class == 'mostly_missing_data'
+    assert result.image_class == 'blank'
 
 
 def test_classifier_nan_marker_detects_missing_data() -> None:

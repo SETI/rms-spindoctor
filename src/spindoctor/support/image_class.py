@@ -71,8 +71,6 @@ class ImageQualityThresholds:
         partial_dropout_min_frac: Above this fraction of missing pixels, unread
             lines included, a clean image carries the ``partial_dropout`` advisory
             flag.
-        min_read_line_frac: Below this fraction of the sensor's lines read out the
-            image is ``mostly_missing_data``.
         blank_max_dn: If the image's max DN is below this, the image is
             ``blank``.
         noisy_threshold: Above this MAD-noise sigma, the ``noisy`` flag is
@@ -84,7 +82,6 @@ class ImageQualityThresholds:
     max_saturation_frac_clean: float
     max_missing_frac_clean: float
     partial_dropout_min_frac: float
-    min_read_line_frac: float
     blank_max_dn: float
     noisy_threshold: float
 
@@ -94,15 +91,13 @@ class ImageQualityStatistics:
     """The sensor-pixel measurements the decision reads.
 
     Parameters:
-        max_dn: The brightest finite sensor pixel, or ``0.0`` when none is finite.
+        max_dn: The brightest finite sensor pixel that was read, or ``0.0`` when none
+            is.
         saturation_frac: Fraction of sensor pixels at or above the saturation
             threshold.
         missing_frac: Fraction of sensor pixels carrying the missing-data marker.
         unread_line_frac: Fraction of the sensor's lines on which every sensor pixel
             carries the marker.
-        read_line_frac: Fraction of the sensor's lines that were read out, the other
-            lines.  It is counted on its own rather than as one minus
-            ``unread_line_frac``, so a share exactly at its limit compares equal.
         scattered_missing_frac: Fraction of sensor pixels that carry the marker and
             lie outside the unread lines.
     """
@@ -111,7 +106,6 @@ class ImageQualityStatistics:
     saturation_frac: float
     missing_frac: float
     unread_line_frac: float
-    read_line_frac: float
     scattered_missing_frac: float
 
 
@@ -158,7 +152,6 @@ def image_quality_thresholds(camera: CameraBlock) -> ImageQualityThresholds:
         max_saturation_frac_clean=limits.max_overexposed_frac_clean,
         max_missing_frac_clean=limits.max_missing_frac_clean,
         partial_dropout_min_frac=limits.partial_dropout_min_frac,
-        min_read_line_frac=limits.min_read_line_frac,
         blank_max_dn=cast(float, blank),
         noisy_threshold=cast(float, noisy),
     )
@@ -222,10 +215,11 @@ def measure_image_quality(
     n_lines = max(int(sensor_lines.sum()), 1)
     n_unread = int(unread_lines.sum())
     scattered = float(sensor_missing[~unread_lines].sum()) / n_total
-    # ``np.nanmax`` ignores NaN markers that survive in the sensor pixels; with no
-    # finite pixel the peak is 0.0, so the frame is blank.
-    if sensor.size > 0 and np.isfinite(sensor).any():
-        max_dn = float(np.nanmax(sensor))
+    # The peak is taken over the pixels that were read; with no finite one it is 0.0,
+    # so a frame with no line read out is blank whatever its marker.
+    read = image[sensor_mask & ~missing_mask]
+    if read.size > 0 and np.isfinite(read).any():
+        max_dn = float(np.nanmax(read))
     else:
         max_dn = 0.0
     return ImageQualityStatistics(
@@ -233,7 +227,6 @@ def measure_image_quality(
         saturation_frac=saturation_frac,
         missing_frac=missing_frac,
         unread_line_frac=n_unread / n_lines,
-        read_line_frac=(int(sensor_lines.sum()) - n_unread) / n_lines,
         scattered_missing_frac=scattered,
     )
 
@@ -245,9 +238,11 @@ def decide_image_class(
 
     The checks run in a fixed order: below the blank limit is ``blank``; else more
     than the allowed saturated share is ``fully_overexposed``; else more than the
-    allowed share of missing pixels outside the unread lines, or less than the
-    allowed share of lines read out, is ``mostly_missing_data``; else ``clean``.  A
-    share exactly at its limit is allowed.
+    allowed share of missing pixels outside the unread lines is
+    ``mostly_missing_data``; else ``clean``.  A share exactly at its limit is allowed.
+    Unread lines never refuse an image by themselves: the techniques judge whether the
+    lines that were read hold enough to navigate on.  An image with no line read out
+    has a peak of 0.0 and is ``blank``.
 
     Parameters:
         statistics: The sensor measurements (see :func:`measure_image_quality`).
@@ -261,7 +256,5 @@ def decide_image_class(
     if statistics.saturation_frac > thresholds.max_saturation_frac_clean:
         return 'fully_overexposed'
     if statistics.scattered_missing_frac > thresholds.max_missing_frac_clean:
-        return 'mostly_missing_data'
-    if statistics.read_line_frac < thresholds.min_read_line_frac:
         return 'mostly_missing_data'
     return 'clean'

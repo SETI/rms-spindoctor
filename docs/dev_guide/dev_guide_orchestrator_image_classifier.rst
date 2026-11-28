@@ -41,15 +41,11 @@ The decision tree is order-sensitive:
 2. **Fully overexposed.**  When the saturation fraction exceeds
    ``max_saturation_frac_clean``, the image is ``fully_overexposed``.
 3. **Mostly missing data.**  When the scattered missing fraction exceeds
-   ``max_missing_frac_clean``, or the fraction of lines read out is below
-   ``min_read_line_frac``, the image is
-   ``mostly_missing_data``. The unread lines do not count against
-   ``max_missing_frac_clean``: the lines that were read out hold good data, so a
-   truncated readout passes the read-line check however much of the frame is
-   missing, unless fewer than ``min_read_line_frac`` of its lines were read out. The
-   fraction of lines read out is the count of lines read out divided by the count of
-   the sensor's lines, so a share exactly equal to ``min_read_line_frac`` is
-   accepted. The techniques read the
+   ``max_missing_frac_clean``, the image is ``mostly_missing_data``. Unread lines never
+   refuse an image by themselves, however many there are. The lines that were read out
+   hold good data, and whether they hold a star pattern, a body, or a ring to navigate
+   on is for the techniques to judge. An image with no line read out has a peak of 0
+   and stops at the blank check. The techniques read the
    context's missing-data mask
    (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.missing_data_mask_ext`)
    to varying degrees: the star techniques and the blob centroid leave the missing
@@ -121,10 +117,6 @@ The thresholds dataclass:
   — float, the camera's ``partial_dropout_min_frac``. Above this fraction of missing
   pixels, unread lines included, a clean image carries the ``partial_dropout`` advisory
   flag.
-- :attr:`~spindoctor.support.image_class.ImageQualityThresholds.min_read_line_frac`
-  — float, the camera's ``min_read_line_frac``. Below this fraction of the sensor's lines
-  read out the image is ``mostly_missing_data``. Each camera block's comment gives the
-  basis of its value, whether a measurement or a provisional choice awaiting one.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.blank_max_dn` —
   float, the camera's ``blank_max_dn`` or ``blank_max_if``. Below this maximum sensor
   value the image is ``blank``.
@@ -165,7 +157,7 @@ Public classes (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   :class:`~spindoctor.nav_orchestrator.image_classifier_result.NavImageClassifierResult`.
 
 - :class:`~spindoctor.support.image_class.ImageQualityThresholds` — frozen
-  dataclass carrying the eight thresholds documented above (autodocumented at
+  dataclass carrying the seven thresholds documented above (autodocumented at
   :doc:`/api_reference/api_support`).
 
 - :class:`~spindoctor.nav_orchestrator.image_classifier_result.NavImageClassifierResult` — frozen
@@ -233,8 +225,7 @@ across a campaign.
 reading out in its 316th line, after 315 complete lines and 192 pixels of the 316th;
 the calibration fills the other 708 lines, and the rest of the 316th, with the marker 0.
 Almost all of the 69% missing pixels lie on unread lines, so the scattered share is far
-below ``max_missing_frac_clean``, and the 31% of lines read out is above the camera's
-``min_read_line_frac``. The classifier reports::
+below ``max_missing_frac_clean``. The classifier reports::
 
     NavImageClassifierResult(
         image_class='clean',

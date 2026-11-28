@@ -133,9 +133,10 @@ Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 and ``marker_value`` are hard facts. The ``_sources`` convention is not used in
 this file.
 
-``min_read_line_frac`` is 0.70, one minus ``max_missing_frac_clean``, until a sample
-of Galileo frames that lost whole lines sets it. A summed frame, stored in a quarter of
-the full array, reads out half its lines, so it stays refused.
+A summed frame's 400 x 400 image fills one corner of the 800 x 800 array. Half its
+lines are unread, and each line it read out is missing its other half, a quarter of the
+array's pixels in all. That quarter is within ``max_missing_frac_clean``, so the frame
+passes the image classifier and is navigated on the corner that holds the image.
 
 ``fit_camera_rotation: false``, commented in place. The residuals it declines
 to fit are real; :doc:`/dev_guide/dev_guide_rotation` carries the reasoning.

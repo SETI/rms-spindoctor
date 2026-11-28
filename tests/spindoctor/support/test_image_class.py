@@ -32,7 +32,6 @@ def test_raw_thresholds_are_in_dn() -> None:
         max_missing_frac_clean=0.25,
         max_overexposed_frac_clean=0.75,
         partial_dropout_min_frac=0.1,
-        min_read_line_frac=0.2,
         blank_max_dn=6.0,
         saturation_threshold_dn=4000.0,
         noisy_threshold_dn=11.0,
@@ -46,7 +45,6 @@ def test_raw_thresholds_are_in_dn() -> None:
         max_saturation_frac_clean=0.75,
         max_missing_frac_clean=0.25,
         partial_dropout_min_frac=0.1,
-        min_read_line_frac=0.2,
         blank_max_dn=6.0,
         noisy_threshold=11.0,
     )
@@ -70,8 +68,7 @@ def test_calibrated_thresholds_have_no_saturation_limit() -> None:
         (100.0, 0.80, 0.31, 0.0, 'mostly_missing_data'),
         (100.0, 0.80, 0.30, 0.75, 'clean'),
         (5.0, 0.0, 0.0, 0.0, 'clean'),
-        (100.0, 0.0, 0.0, 0.70, 'clean'),
-        (100.0, 0.0, 0.0, 0.76, 'mostly_missing_data'),
+        (100.0, 0.0, 0.0, 0.99, 'clean'),
     ],
     ids=[
         'blank-first',
@@ -79,8 +76,7 @@ def test_calibrated_thresholds_have_no_saturation_limit() -> None:
         'missing',
         'at-limits',
         'peak-at-blank',
-        'unread-lines-within-limit',
-        'too-few-lines-read',
+        'unread-lines-never-refuse',
     ],
 )
 def test_decision_order_and_limits(
@@ -88,22 +84,20 @@ def test_decision_order_and_limits(
 ) -> None:
     """Blank, then overexposed, then missing data; a share at its limit is allowed.
 
-    Missing pixels outside the unread lines count against the missing-pixel limit, and
-    the unread lines count only against the share of lines read out.
+    Only the missing pixels outside the unread lines count against the missing-pixel
+    limit; the unread lines never refuse a frame.
     """
     statistics = ImageQualityStatistics(
         max_dn=max_dn,
         saturation_frac=saturation_frac,
         missing_frac=scattered + unread,
         unread_line_frac=unread,
-        read_line_frac=1.0 - unread,
         scattered_missing_frac=scattered,
     )
     thresholds = raw_thresholds(
         blank_max_dn=5.0,
         max_saturation_frac_clean=0.80,
         max_missing_frac_clean=0.30,
-        min_read_line_frac=0.25,
     )
     assert decide_image_class(statistics, thresholds) == expected
 
@@ -117,7 +111,6 @@ def test_measure_counts_a_nan_marker() -> None:
         saturation_frac=0.0,
         missing_frac=0.5,
         unread_line_frac=0.0,
-        read_line_frac=1.0,
         scattered_missing_frac=0.5,
     )
 
@@ -133,7 +126,6 @@ def test_measure_separates_unread_lines_from_scattered_loss() -> None:
         saturation_frac=0.0,
         missing_frac=5 / 16,
         unread_line_frac=0.25,
-        read_line_frac=0.75,
         scattered_missing_frac=1 / 16,
     )
 
@@ -162,12 +154,3 @@ def test_measure_reads_a_supplied_missing_mask() -> None:
         image, raw_thresholds(missing_data_marker_dn=0.0), missing_mask=missing
     )
     assert statistics.unread_line_frac == 0.5
-
-
-def test_a_read_out_share_at_its_limit_is_allowed() -> None:
-    """One line read out of five meets a limit of 0.2, though 1 - 0.8 falls just short."""
-    image = np.zeros((5, 4))
-    image[0, :] = 10.0
-    thresholds = raw_thresholds(missing_data_marker_dn=0.0, min_read_line_frac=0.2)
-    statistics = measure_image_quality(image, thresholds)
-    assert decide_image_class(statistics, thresholds) == 'clean'

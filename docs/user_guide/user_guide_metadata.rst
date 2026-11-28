@@ -521,7 +521,7 @@ accompany ``conflicted``. Every other value accompanies ``failed``.
      - The image classifier saw most pixels at full-well DN.
    * - ``missing_data_dominant``
      - The image classifier saw too many missing-data pixels on the lines that
-       were read out, or too few lines read out.
+       were read out.
    * - ``image_corrupt``
      - The image file failed to parse or read after loading began.
    * - ``kernels_unavailable``
@@ -809,11 +809,9 @@ The image-quality verdict for this frame:
      - number
      - Fraction of the image's lines on which every pixel is missing, 3 decimals.
        These are lines whose pixels are all missing, such as the end of a readout
-       that stopped early. They do not count against the limit on missing pixels. A
-       separate limit applies to the fraction of lines read out: a frame below it is
-       refused. A frame at or above that limit is still refused if it fails the other
-       checks, on missing pixels among the lines that were read out, on a blank image,
-       or on saturation.
+       that stopped early. They do not count against the limit on missing pixels, and
+       they never refuse a frame by themselves: the frame is navigated on the lines it
+       read out, if those lines hold enough to navigate on.
    * - ``noise_sigma``
      - number
      - Per-image MAD-based noise sigma in DN units, 3 decimals. Areas where every pixel
