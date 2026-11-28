@@ -198,7 +198,7 @@ class BodyHazeColumn:
     albedo: Unit | None = optional(
         'truth',
         "The haze's single-scattering albedo. Zero is a purely absorbing haze, which "
-        'dims what lies behind the halo but adds no light.',
+        'dims what lies behind the halo but adds nothing of its own.',
         default=DEFAULT_HAZE_ALBEDO,
     )
 

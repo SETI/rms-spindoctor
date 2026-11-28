@@ -146,8 +146,8 @@ def roll_body_params(body_params: Mapping[str, Any], *, roll_deg: float) -> dict
     turned.  A key the scene leaves out turns from its default.
     The body's relief, albedo texture, and disc texture are fixed to its surface and
     turn with its orientation.  Its craters are drawn on the image grid, so the
-    renderer turns their layout itself (see
-    :class:`~spindoctor.sim.render.bodies.spec.BodySpec`).  The body's center is
+    renderer turns their layout itself (see the ``roll_deg`` argument of
+    :func:`~spindoctor.sim.render.bodies.render.render_single_body`).  The body's center is
     left alone: it turns about the frame center, which the caller handles.
 
     Parameters:

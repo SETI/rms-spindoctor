@@ -48,7 +48,7 @@ DEFAULT_PSF_SIZE: tuple[int, int] = (11, 11)
 # The spectral class of a star entry that omits one.  G2 is the Sun's class.
 DEFAULT_SPECTRAL_CLASS = 'G2'
 
-# The catalog a star entry's record names when the entry omits one.
+# The catalog a star entry's record gives when the entry omits one.
 DEFAULT_CATALOG_NAME = 'SIM'
 
 # The visual magnitude of a star entry that omits one.

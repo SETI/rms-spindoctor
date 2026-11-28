@@ -65,9 +65,7 @@ from spindoctor.schema import (
     Float,
     Int,
     NonNeg,
-    NonNegInt,
     Positive,
-    PositiveInt,
     RuleError,
     Str,
 )
@@ -121,15 +119,33 @@ ShapeModel = Literal['ellipsoid', 'polyhedral_mesh']
 DEFAULT_SHAPE_MODEL: ShapeModel = 'ellipsoid'
 #: The fewest latitude bands a mesh can have.
 MIN_MESH_N_LAT = 2
+#: The most latitude bands a mesh can have, the editor's limit.
+MAX_MESH_N_LAT = 256
 #: The fewest longitude divisions a mesh can have.
 MIN_MESH_N_LON = 3
+#: The most longitude divisions a mesh can have, the editor's limit.
+MAX_MESH_N_LON = 512
+#: The largest mesh seed, the editor's limit.
+MAX_MESH_SEED = 2147483647
+#: The most detail octaves a mesh can have. The relief's highest harmonic degree is 5
+#: times 2 to the power of the octaves, and its coefficient array grows as the square of
+#: the degree, so 8 octaves keep the largest array near 30 MB.
+MAX_MESH_DETAIL_OCTAVES = 8
+#: The largest side of a star's PSF fitting window, in pixels, the editor's limit.
+MAX_PSF_SIZE = 23
 
 #: A sub-observer latitude, in degrees.
 Latitude = Annotated[Float, AfterValidator(FloatWithin(-90.0, 90.0))]
 #: A mesh's number of latitude bands.
-MeshLatitudeBands = Annotated[Int, AfterValidator(IntWithin(MIN_MESH_N_LAT))]
+MeshLatitudeBands = Annotated[Int, AfterValidator(IntWithin(MIN_MESH_N_LAT, MAX_MESH_N_LAT))]
 #: A mesh's number of longitude divisions.
-MeshLongitudeDivisions = Annotated[Int, AfterValidator(IntWithin(MIN_MESH_N_LON))]
+MeshLongitudeDivisions = Annotated[Int, AfterValidator(IntWithin(MIN_MESH_N_LON, MAX_MESH_N_LON))]
+#: A mesh's seed.
+MeshSeed = Annotated[Int, AfterValidator(IntWithin(0, MAX_MESH_SEED))]
+#: A mesh's number of detail octaves.
+MeshDetailOctaves = Annotated[Int, AfterValidator(IntWithin(0, MAX_MESH_DETAIL_OCTAVES))]
+#: One side of a star's PSF fitting window, in pixels.
+PsfWindowSide = Annotated[Int, AfterValidator(IntWithin(1, MAX_PSF_SIZE))]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -138,7 +154,7 @@ class IdealizedStar:
 
     Parameters:
         name: The star's name.
-        catalog_name: The catalog the star's record names.
+        catalog_name: The catalog the star's record gives.
         v: The star's catalog position along v, in pixels.
         u: The star's catalog position along u, in pixels.
         vmag: The star's cataloged visual magnitude.
@@ -158,7 +174,7 @@ class IdealizedStar:
     )
     catalog_name: Str | None = optional(
         'idealized',
-        "The catalog the star's record names.",
+        "The catalog the star's record gives.",
         default=DEFAULT_CATALOG_NAME,
     )
     v: Float | None = optional(
@@ -199,7 +215,7 @@ class IdealizedStar:
         default=0.0,
         editor=EditorHint(minimum=-200.0, maximum=200.0, decimals=2),
     )
-    psf_size: tuple[PositiveInt, PositiveInt] | None = optional(
+    psf_size: tuple[PsfWindowSide, PsfWindowSide] | None = optional(
         'idealized',
         "The window the navigator fits the star's PSF in, in pixels along v and u.",
         when_absent='``[11, 11]``',
@@ -275,13 +291,13 @@ class IdealizedBody:
         'idealized',
         "Semi-axis a, in pixels: half the body's extent along v before ``rotation_z`` "
         "turns it. The body's pole lies along it.",
-        when_absent='required on a body entry',
+        when_absent="the body's value",
         editor=EditorHint(minimum=0.5, maximum=2500.0, decimals=2, step=0.5),
     )
     semi_b_px: Positive | None = optional(
         'idealized',
         "Semi-axis b, in pixels: half the body's extent along u before ``rotation_z`` turns it.",
-        when_absent='required on a body entry',
+        when_absent="the body's value",
         editor=EditorHint(minimum=0.5, maximum=2500.0, decimals=2, step=0.5),
     )
     semi_c_px: Positive | None = optional(
@@ -331,7 +347,7 @@ class IdealizedBody:
         'The physical scale at the limb, in km per pixel. The navigator reads it, and a '
         'Titan haze takes its altitudes from it.',
         when_absent="unknown; a Titan haze takes Titan's radius over the mean semi-axis",
-        editor=EditorHint(minimum=0.0, maximum=1.0e9, decimals=4),
+        editor=EditorHint(minimum=0.0001, maximum=1.0e9, decimals=4),
     )
     mesh_lumpiness: NonNeg | None = optional(
         'idealized',
@@ -344,21 +360,21 @@ class IdealizedBody:
         'idealized',
         "A mesh body's latitude bands, at least 2.",
         default=DEFAULT_MESH_N_LAT,
-        editor=EditorHint(minimum=MIN_MESH_N_LAT, maximum=256),
+        editor=EditorHint(minimum=MIN_MESH_N_LAT, maximum=MAX_MESH_N_LAT),
     )
     mesh_n_lon: MeshLongitudeDivisions | None = optional(
         'idealized',
         "A mesh body's longitude divisions, at least 3.",
         default=DEFAULT_MESH_N_LON,
-        editor=EditorHint(minimum=MIN_MESH_N_LON, maximum=512),
+        editor=EditorHint(minimum=MIN_MESH_N_LON, maximum=MAX_MESH_N_LON),
     )
-    mesh_seed: NonNegInt | None = optional(
+    mesh_seed: MeshSeed | None = optional(
         'idealized',
         "The seed that chooses a mesh body's irregular shape.",
         default=0,
-        editor=EditorHint(minimum=0, maximum=2147483647),
+        editor=EditorHint(minimum=0, maximum=MAX_MESH_SEED),
     )
-    mesh_detail_octaves: NonNegInt | None = optional(
+    mesh_detail_octaves: MeshDetailOctaves | None = optional(
         'idealized',
         "The bands of higher harmonic degrees added to a mesh body's relief. The mesh "
         'needs more longitude divisions to show each band it adds.',
@@ -381,23 +397,6 @@ class IdealizedBody:
             ``name``, or ``SIM-BODY-<index + 1>`` when the entry leaves it out.
         """
         return default_body_name(index) if self.name is None else self.name
-
-    def semi_axes_px(self) -> tuple[float, float, float]:
-        """The body's three semi-axes, in pixels, with semi-axis c at its default.
-
-        Returns:
-            Semi-axes a, b, and c.  Semi-axis c defaults to the smaller of a and b.
-
-        Raises:
-            ValueError: If semi-axis a or b is not set, as in a ``nav_override`` that
-                leaves them out.
-        """
-        if self.semi_a_px is None or self.semi_b_px is None:
-            raise ValueError('a body sets semi_a_px and semi_b_px')
-        semi_c_px = self.semi_c_px
-        if semi_c_px is None:
-            semi_c_px = min(self.semi_a_px, self.semi_b_px)
-        return self.semi_a_px, self.semi_b_px, semi_c_px
 
 
 @dataclass(frozen=True, kw_only=True)

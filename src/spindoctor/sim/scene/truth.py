@@ -30,6 +30,7 @@ from spindoctor.sim.scene.truth_detector import DetectorOverride, Noise
 from spindoctor.sim.scene.truth_optics import Optics
 
 __all__ = [
+    'DEFAULT_COMPANION_DELTA_MAG',
     'NOISE_SEED_MAX',
     'UNTYPED_BLOCKS',
     'NoiseSeed',
@@ -56,6 +57,10 @@ UNTYPED_BLOCKS: dict[str, Boundary] = {
 }
 
 
+#: How much fainter a companion is than its star when the scene leaves it out, in magnitudes.
+DEFAULT_COMPANION_DELTA_MAG = 0.0
+
+
 @dataclass(frozen=True, kw_only=True)
 class StarCompanion:
     """An unresolved companion of a star: a second point source beside it.
@@ -73,14 +78,15 @@ class StarCompanion:
 
     sep_px: NonNeg | None = optional(
         'truth',
-        "The companion's separation from the star, in detector pixels. Zero draws no companion.",
+        "The companion's separation from the star, in detector pixels. Zero leaves the "
+        'companion out of the render.',
         default=0.0,
         editor=EditorHint(minimum=0.0, maximum=200.0, decimals=3),
     )
     delta_mag: Float | None = optional(
         'truth',
         'How much fainter the companion is than the star as drawn, in magnitudes.',
-        default=0.0,
+        default=DEFAULT_COMPANION_DELTA_MAG,
     )
     angle_deg: Float | None = optional(
         'truth',
@@ -94,20 +100,12 @@ class Star(IdealizedStar):
     """A whole ``stars`` entry: the catalog keys and the errors the render plants.
 
     Parameters:
-        psf_sigma: A PSF width for this star, which the renderer does not read.
         catalog_error_v: The drawn star's offset from its catalog position along v.
         catalog_error_u: The drawn star's offset from its catalog position along u.
         companion: An unresolved companion.
         delta_mag: The drawn star's brightness offset from its catalog magnitude.
     """
 
-    psf_sigma: Positive | None = optional(
-        'truth',
-        'A PSF width for this star, in pixels. The renderer draws every star with the '
-        "scene's PSF and does not read it.",
-        when_absent="the scene's PSF",
-        editor=EditorHint(minimum=0.1, maximum=20.0, decimals=2),
-    )
     catalog_error_v: Float | None = optional(
         'truth',
         "The drawn star's offset from the catalog position the navigator predicts from, "

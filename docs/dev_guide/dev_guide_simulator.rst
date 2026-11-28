@@ -4549,7 +4549,6 @@ The truth-side star keys never reach the navigator. ``catalog_error_v`` and
 from, on top of the scene-level ``star_catalog_scatter_px`` draw. ``companion`` plants
 an unresolved binary whose blended photocenter sits off the catalog position.
 ``delta_mag`` draws a variable star at a brightness other than its cataloged ``vmag``.
-``psf_sigma`` is accepted but not drawn: every star renders with the scene's PSF.
 
 **Information asymmetry.** The navigator predicts each surviving star from its
 idealized catalog ``v`` / ``u`` and ``vmag``; the renderer draws it at those

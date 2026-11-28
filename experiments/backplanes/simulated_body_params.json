@@ -10,8 +10,7 @@
       "v": 0.0,
       "u": 61.0,
       "vmag": 3.0,
-      "spectral_class": "G2",
-      "psf_sigma": 3.0
+      "spectral_class": "G2"
     }
   ],
   "bodies": [

@@ -209,8 +209,14 @@ def _default_text(value: float | str | bool) -> str:
     return str(value)
 
 
-def _table(cls: type) -> list[str]:
-    """The rows of one block's table, in the field order of the block's type."""
+def _table(cls: type, *, override: bool = False) -> list[str]:
+    """The rows of one block's table, in the field order of the block's type.
+
+    Parameters:
+        cls: The block's type.
+        override: Whether the block overrides another block's values, so that a key it
+            leaves out keeps the value the overridden block has.
+    """
     hints = get_type_hints(cls, include_extras=True)
     lines = [
         '.. list-table::',
@@ -225,7 +231,9 @@ def _table(cls: type) -> list[str]:
     ]
     for item in dataclasses.fields(cls):
         declared = declaration_of(item)
-        if declared.required:
+        if override:
+            absent = "the body's value"
+        elif declared.required:
             absent = 'required'
         elif declared.default is not None:
             absent = _default_text(declared.default)
@@ -262,7 +270,7 @@ def scene_reference() -> str:
             lines += [*_heading(f'Each entry of ``{path}``', '='), '']
         else:
             lines += [*_heading(f'The ``{path}`` block', '='), '']
-        lines += [*_table(cls), '']
+        lines += [*_table(cls, override=path.endswith('nav_override')), '']
         hints = get_type_hints(cls, include_extras=True)
         for item in dataclasses.fields(cls):
             record = _record(hints[item.name])

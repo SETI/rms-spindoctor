@@ -13,6 +13,7 @@ the smooth Lambert ellipsoid).
 """
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from typing import Any
@@ -46,6 +47,10 @@ from spindoctor.sim.render.bodies.texture import (
     disc_texture_spec_from_block,
     transit_specs_from_block,
 )
+from spindoctor.sim.render.bodies.titan_haze import (
+    resolve_model_atmosphere,
+    resolved_atmosphere_params,
+)
 from spindoctor.sim.scene.fields import value_or
 from spindoctor.sim.scene.truth_body import (
     DEFAULT_ANTI_ALIASING,
@@ -59,11 +64,88 @@ from spindoctor.sim.scene.truth_body import (
     DEFAULT_SURGE_WIDTH_DEG,
     Body,
 )
+from spindoctor.sim.scene.validate import parse_body
 from spindoctor.sim.seeds import body_identity_seed, derive_effect_seed
 from spindoctor.sim.shared.ellipsoid import outline_half_extents
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
-__all__ = ['clear_ellipsoid_shape_caches', 'render_single_body']
+__all__ = [
+    'clear_ellipsoid_shape_caches',
+    'render_single_body',
+    'resolve_scene_body',
+    'scaled_body',
+]
+
+
+def resolve_scene_body(
+    body_params: Mapping[str, Any],
+    *,
+    index: int,
+    instrument: str | None,
+    filter_name: str | None,
+) -> tuple[Body, dict[str, Any]]:
+    """Parse one scene body and resolve its name and named haze.
+
+    A body that takes Titan's haze by name gets it in explicit keys, evaluated over the
+    scene filter's passband.  A body without a name takes its positional default, so every
+    name-keyed consumer (render order, masks, inventory) sees the same identity and two
+    unnamed bodies cannot collide.
+
+    Parameters:
+        body_params: The body's scene mapping, after the planted roll has turned it.
+        index: The body's position in the scene's ``bodies`` list.
+        instrument: The scene's instrument.
+        filter_name: The scene's ``detector.filter``, or None for the clear filter.
+
+    Returns:
+        The typed body, and a copy of its scene mapping holding the values it is drawn
+        with: its name and its haze in explicit keys.
+    """
+    parsed = parse_body(body_params, source=f'bodies[{index}]')
+    body = resolve_model_atmosphere(parsed, instrument=instrument, filter_name=filter_name)
+    name = body.name_at(index)
+    truth_params = dict(body_params)
+    if body.atmosphere is not parsed.atmosphere:
+        truth_params['atmosphere'] = resolved_atmosphere_params(body_params, body)
+    truth_params['name'] = name
+    return replace(body, name=name), truth_params
+
+
+def scaled_body(
+    body: Body,
+    *,
+    center_v: float,
+    center_u: float,
+    range_km: float,
+    oversample: int,
+    preview: bool,
+) -> Body:
+    """The body as the renderer draws it: placed, ranged, and scaled to the render grid.
+
+    Parameters:
+        body: The body from :func:`resolve_scene_body`.
+        center_v: The center row on the render grid.
+        center_u: The center column on the render grid.
+        range_km: The body's range, explicit or positional.
+        oversample: The oversampling factor, which scales the semi-axes.
+        preview: Whether this is the editor's fast preview.  It draws each limb without
+            supersampling, which at the default setting (a grid 4 times finer in each
+            direction) costs most of a preview's time.
+
+    Returns:
+        The body with its center, semi-axes, range, and anti-aliasing set.
+    """
+    semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
+    return replace(
+        body,
+        center_v=center_v,
+        center_u=center_u,
+        semi_a_px=semi_a_px * oversample,
+        semi_b_px=semi_b_px * oversample,
+        semi_c_px=semi_c_px * oversample,
+        range_km=range_km,
+        anti_aliasing=0.0 if preview else value_or(body.anti_aliasing, DEFAULT_ANTI_ALIASING),
+    )
 
 
 def _reference_center(size_v: int, size_u: int) -> tuple[float, float]:

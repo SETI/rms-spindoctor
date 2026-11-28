@@ -29,7 +29,7 @@ through ``nav_params``:
 - ``cloud_blobs`` add Gaussian clouds on the disc.
 
 Every field is optional and the whole module is bypassed when a body's
-``atmosphere`` block names none of them: :func:`haze_structure_from_block`
+``atmosphere`` block sets none of them: :func:`haze_structure_from_block`
 returns None, and the haze renders through exactly the arithmetic it did
 before this structure existed.  That gating is a performance contract, not
 only a tidiness one -- the per-pixel scale-height field costs an array where
@@ -281,7 +281,7 @@ def haze_structure_from_block(
         oversample: The render grid's oversampling factor.
 
     Returns:
-        The scaled structure, or None when the block carries no structure keys.
+        The scaled structure, or None when the block sets none of the structure keys.
     """
     if all(getattr(atmosphere, key) is None for key in HAZE_STRUCTURE_KEYS):
         return None

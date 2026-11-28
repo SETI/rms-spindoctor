@@ -880,6 +880,13 @@ def test_star_companion_toggle_inserts_and_removes(model: Any) -> None:
     assert 'companion' not in model.sim_params['stars'][0]
 
 
+def test_star_companion_delta_mag_shows_the_declared_default(model: Any) -> None:
+    """A star without a companion shows the delta magnitude the scene types declare."""
+    model._add_star_tab()
+    spin = _star_tab(model).companion_dmag_spin
+    assert spin.value() == 0.0
+
+
 def test_star_companion_spin_writes_sub_key(model: Any) -> None:
     """A companion spin edit updates its own sub-key in the companion map."""
     model._add_star_tab()

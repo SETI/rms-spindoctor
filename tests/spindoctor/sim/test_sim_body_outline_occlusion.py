@@ -50,7 +50,7 @@ def _scene(*bodies: dict[str, Any], **extra: Any) -> dict[str, Any]:
 def _star_light(scene: dict[str, Any], v: float, u: float) -> float:
     """The most light a bright star at ``(v, u)`` adds to ``scene``'s render."""
     without, _meta = render_scene(scene)
-    with_star, _meta = render_scene({**scene, 'stars': [star_entry(v, u, 2.0, psf_sigma=1.0)]})
+    with_star, _meta = render_scene({**scene, 'stars': [star_entry(v, u, 2.0)]})
     return float(np.max(with_star - without))
 
 
@@ -121,7 +121,7 @@ def test_relief_moves_the_occluding_outline_off_the_ellipse(kind: str, visible: 
     with_star, _meta = render_scene(
         {
             **scene,
-            'stars': [star_entry(v + 0.5, u + 0.5, 2.0, psf_sigma=1.0)],
+            'stars': [star_entry(v + 0.5, u + 0.5, 2.0)],
         }
     )
     assert bool(with_star[v, u] > without[v, u]) == visible

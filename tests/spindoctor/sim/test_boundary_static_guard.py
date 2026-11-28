@@ -421,9 +421,9 @@ def test_neutral_guard_flags_a_render_import_in_a_simulated_model() -> None:
 def test_neutral_guard_flags_a_scene_rules_import_in_a_shared_module() -> None:
     """The neutral-import scanner flags a shared module importing scene rules."""
     imports = _non_neutral_sim_imports(
-        'from ..scene.rules_body import ATMOSPHERE_KEYS\n', package='spindoctor.sim.shared'
+        'from ..scene.truth_atmosphere import ATMOSPHERE_KEYS\n', package='spindoctor.sim.shared'
     )
-    assert imports == [(1, 'spindoctor.sim.scene.rules_body.ATMOSPHERE_KEYS')]
+    assert imports == [(1, 'spindoctor.sim.scene.truth_atmosphere.ATMOSPHERE_KEYS')]
 
 
 def test_neutral_guard_flags_an_editor_import_in_a_shared_module() -> None:

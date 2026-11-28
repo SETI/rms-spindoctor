@@ -27,7 +27,7 @@ from typing import Annotated, Literal, get_args
 from pydantic import AfterValidator
 
 from spindoctor.schema import SCHEMA_CONFIG, Float, NonNeg, Positive, RuleError, Unit
-from spindoctor.sim.scene.declare import EditorHint, FloatWithin, optional
+from spindoctor.sim.scene.declare import EditorHint, FloatWithin, optional, required
 from spindoctor.sim.scene.fields import (
     ELLIPSOID_UNSUPPORTED_KEYS,
     MESH_UNSUPPORTED_KEYS,
@@ -232,7 +232,7 @@ class BodySurfaceSpot:
         'truth',
         "The spot's angular radius, in degrees.",
         default=DEFAULT_SPOT_RADIUS_DEG,
-        editor=EditorHint(minimum=0.0, maximum=180.0, decimals=1, step=1.0),
+        editor=EditorHint(minimum=0.1, maximum=180.0, decimals=1, step=1.0),
     )
     albedo_factor: NonNeg | None = optional(
         'truth',
@@ -268,7 +268,7 @@ class BodyAlbedoTexture:
         "The noise field's correlation length, in detector pixels on the disc, exact "
         'where the surface faces the observer and foreshortened toward the limb.',
         default=DEFAULT_ALBEDO_CORR_PX,
-        editor=EditorHint(minimum=0.0, maximum=1000.0, decimals=2, step=1.0),
+        editor=EditorHint(minimum=0.01, maximum=1000.0, decimals=2, step=1.0),
     )
     spots: tuple[BodySurfaceSpot, ...] | None = optional(
         'truth',
@@ -349,7 +349,7 @@ class BodyTransitMoon:
         'truth',
         "The disc's radius, in detector pixels. It shows only where it overlaps the body.",
         default=DEFAULT_TRANSIT_RADIUS_PX,
-        editor=EditorHint(minimum=0.0, maximum=5000.0, decimals=2, step=1.0),
+        editor=EditorHint(minimum=0.01, maximum=5000.0, decimals=2, step=1.0),
     )
     albedo_factor: NonNeg | None = optional(
         'truth',
@@ -389,7 +389,7 @@ class BodyTransitShadow:
         'truth',
         "The shadow's radius, in detector pixels.",
         default=DEFAULT_TRANSIT_RADIUS_PX,
-        editor=EditorHint(minimum=0.0, maximum=5000.0, decimals=2, step=1.0),
+        editor=EditorHint(minimum=0.01, maximum=5000.0, decimals=2, step=1.0),
     )
     darkness: Unit | None = optional(
         'truth',
@@ -434,6 +434,8 @@ class Body(IdealizedBody):
     """A whole ``bodies`` entry: the idealized keys and the keys only the test knows.
 
     Parameters:
+        semi_a_px: Semi-axis a, in pixels.
+        semi_b_px: Semi-axis b, in pixels.
         crater_fill: The fraction of the surface the craters cover.
         crater_min_radius: The smallest crater radius, a fraction of semi-axis a.
         crater_max_radius: The largest crater radius, a fraction of semi-axis a.
@@ -454,6 +456,17 @@ class Body(IdealizedBody):
         nav_override: The values the navigator is given in place of the body's.
     """
 
+    semi_a_px: Positive = required(
+        'idealized',
+        "Semi-axis a, in pixels: half the body's extent along v before ``rotation_z`` "
+        "turns it. The body's pole lies along it.",
+        editor=EditorHint(minimum=0.5, maximum=2500.0, decimals=2, step=0.5),
+    )
+    semi_b_px: Positive = required(
+        'idealized',
+        "Semi-axis b, in pixels: half the body's extent along u before ``rotation_z`` turns it.",
+        editor=EditorHint(minimum=0.5, maximum=2500.0, decimals=2, step=0.5),
+    )
     crater_fill: NonNeg | None = optional(
         'truth',
         "Roughly the fraction of an ellipsoid body's surface the craters cover; 0 draws none.",
@@ -521,7 +534,7 @@ class Body(IdealizedBody):
         'truth',
         'The Minnaert exponent, which only the ``minnaert`` law reads.',
         default=DEFAULT_MINNAERT_K,
-        editor=EditorHint(minimum=0.0, maximum=2.0, decimals=3, step=0.05),
+        editor=EditorHint(minimum=0.001, maximum=2.0, decimals=3, step=0.05),
     )
     opposition_surge: BodyOppositionSurge | None = optional(
         'truth',
@@ -568,15 +581,12 @@ class Body(IdealizedBody):
     )
 
     def __post_init__(self) -> None:
-        """Refuse a body without its size, keys its shape ignores, or an empty crater band.
+        """Refuse keys the body's shape ignores and an empty crater band.
 
         Raises:
-            RuleError: If semi-axis a or b is left out, the body sets a key its shape
-                model does not draw, or the crater radius band is empty.
+            RuleError: If the body sets a key its shape model does not draw, or the
+                crater radius band is empty.
         """
-        for key in ('semi_a_px', 'semi_b_px'):
-            if getattr(self, key) is None:
-                raise RuleError('a body sets semi_a_px and semi_b_px, its size', at=key)
         if self.shape_model == 'polyhedral_mesh':
             refused = [key for key in MESH_UNSUPPORTED_KEYS if getattr(self, key) is not None]
             if refused:
@@ -601,3 +611,14 @@ class Body(IdealizedBody):
                 at=(),
                 reads=('crater_min_radius', 'crater_max_radius'),
             )
+
+    def semi_axes_px(self) -> tuple[float, float, float]:
+        """The body's three semi-axes, in pixels, with semi-axis c at its default.
+
+        Returns:
+            Semi-axes a, b, and c.  Semi-axis c defaults to the smaller of a and b.
+        """
+        semi_c_px = self.semi_c_px
+        if semi_c_px is None:
+            semi_c_px = min(self.semi_a_px, self.semi_b_px)
+        return self.semi_a_px, self.semi_b_px, semi_c_px

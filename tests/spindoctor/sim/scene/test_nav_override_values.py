@@ -35,7 +35,7 @@ def test_a_latitude_past_the_pole_is_refused() -> None:
 def test_a_mesh_with_no_latitude_bands_is_refused() -> None:
     """A mesh latitude count below 2 is refused inside the override, as on the body."""
     scene = body_scene(body={'nav_override': {'shape_model': 'polyhedral_mesh', 'mesh_n_lat': 0}})
-    message = 'bodies[0].nav_override.mesh_n_lat: expected an integer of at least 2, got 0'
+    message = 'bodies[0].nav_override.mesh_n_lat: expected an integer from 2 to 256, got 0'
     with pytest.raises(SimSceneValidationError, match=re.escape(message)):
         validate_sim_params(scene, source='probe')
 

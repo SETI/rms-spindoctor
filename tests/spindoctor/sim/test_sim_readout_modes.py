@@ -185,7 +185,7 @@ def test_a_binned_pixel_collects_the_extended_signal_of_its_block() -> None:
 
 def test_a_star_keeps_its_total_charge_when_binned() -> None:
     """Binning concentrates a star into fewer pixels without changing its total."""
-    star = {'stars': [star_entry(32.5, 32.5, 6.0, psf_sigma=1.5)]}
+    star = {'stars': [star_entry(32.5, 32.5, 6.0)]}
     totals = []
     for binning in (None, 2):
         image, _meta = render_scene(_scene('coiss_nac', binning, **star))

@@ -7,7 +7,7 @@ its declared default, and the two frames, and the star records the render makes,
 match to the last bit.  It also checks that the base value renders differently from the
 default, so a key the render ignores cannot pass.  Some defaults are constants that the
 renderer imports from the scene types; the rest are values the renderer writes where it
-reads key, and this test is what holds those to the declarations.  The keys of a body's
+reads the key, and this test is what holds those to the declarations.  The keys of a body's
 ``nav_override`` are left out: the renderer never reads them, and they are the body's
 own idealized keys, which the test covers on the body.
 """
@@ -172,7 +172,7 @@ _CONTEXT: dict[Path, dict[Path, Any]] = {
         ('detector', 'contour_step'): 5,
     },
     ('optics', 'stray_light', 'direction_deg'): {('optics', 'stray_light', 'model'): 'linear'},
-    # A mesh body writing the default shape keeps no key an ellipsoid refuses.
+    # A mesh body writing the default shape keeps every key an ellipsoid accepts.
     ('bodies', 0, 'shape_model'): {('bodies', 0): _MESH_BODY},
     **{
         ('bodies', 0, key): {('bodies', 0): _FULL_MESH_BODY}
@@ -291,3 +291,40 @@ def test_a_left_out_key_renders_as_its_declared_default(path: Path, default: Any
     declared = _render(_with(base, path, default))
     assert not _same(_render(base), declared), 'the base scene does not read the key'
     assert _same(_render(_without(base, path)), declared)
+
+
+def _left_out_matches(base: dict[str, Any], path: Path, value: Any, *, other: Any) -> None:
+    """Assert a key left out renders as ``value`` and differently from ``other``."""
+    left_out = _render(_without(base, path))
+    assert _same(left_out, _render(_with(base, path, value)))
+    assert not _same(left_out, _render(_with(base, path, other)))
+
+
+def test_a_left_out_semi_axis_c_renders_as_the_smaller_of_a_and_b() -> None:
+    """A body without semi-axis c draws it as the smaller of semi-axes a and b."""
+    path: Path = ('bodies', 0, 'semi_c_px')
+    _left_out_matches(_BODY_BASE, path, 16.0, other=10.0)
+
+
+def test_a_left_out_psf_window_renders_as_eleven_by_eleven() -> None:
+    """A star without a PSF window gets the 11 by 11 window."""
+    path: Path = ('stars', 0, 'psf_size')
+    _left_out_matches(_with(_BASE, path, [13, 13]), path, [11, 11], other=[15, 15])
+
+
+def test_a_left_out_mesh_pose_renders_as_no_turn() -> None:
+    """A mesh body without Euler angles is posed at zero on every axis."""
+    base = _with(_BODY_BASE, ('bodies', 0), _FULL_MESH_BODY)
+    _left_out_matches(
+        base, ('bodies', 0, 'pose_euler_deg'), [0.0, 0.0, 0.0], other=[0.0, 0.0, 40.0]
+    )
+
+
+def test_a_left_out_cloud_center_renders_at_the_body_center() -> None:
+    """A cloud without a center is drawn at the body center."""
+    cloud: dict[str, Any] = {'sigma_px': 3.0, 'amplitude': 0.3}
+    base = _with(
+        _BODY_BASE, ('bodies', 0, 'atmosphere', 'cloud_blobs'), [{**cloud, 'center_vu': [1.0, 1.0]}]
+    )
+    path: Path = ('bodies', 0, 'atmosphere', 'cloud_blobs', 0, 'center_vu')
+    _left_out_matches(base, path, [0.0, 0.0], other=[5.0, 4.0])

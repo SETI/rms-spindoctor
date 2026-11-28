@@ -213,7 +213,7 @@ def resolved_atmosphere_params(body_params: Mapping[str, Any], resolved: Body) -
     block that named a haze model is recorded with the column's keys in its place.
 
     Parameters:
-        body_params: The body's scene mapping, whose ``atmosphere`` block names the model.
+        body_params: The body's scene mapping, whose ``atmosphere`` block sets the model.
         resolved: The body as :func:`resolve_model_atmosphere` resolved it.
 
     Returns:

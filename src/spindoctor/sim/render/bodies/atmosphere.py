@@ -305,7 +305,7 @@ def atmosphere_spec_from_block(
     Returns None when the body carries no atmosphere, so a body without the
     block never enters the haze path.  Pixel lengths are scaled to the render
     grid by ``oversample`` exactly as the body's axes are.  An optional key that
-    the block leaves out takes its default.  A block that names a haze model is
+    the block leaves out takes its default.  A block that sets a haze model is
     resolved into the column's keys first (see
     :func:`~spindoctor.sim.render.bodies.titan_haze.resolve_model_atmosphere`).
 
@@ -317,7 +317,7 @@ def atmosphere_spec_from_block(
         The scaled spec, or None when the body has no atmosphere.
 
     Raises:
-        ValueError: If the block names a haze model, whose column keys are not
+        ValueError: If the block sets a haze model, whose column keys are not
             resolved yet.
     """
     if atmosphere is None:

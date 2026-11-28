@@ -43,7 +43,6 @@ The ring-screen machinery and the depth-ambiguity checks behind every stacking
 decision live in the sibling :mod:`spindoctor.sim.render.radiance.compositing`.
 """
 
-import dataclasses
 from collections.abc import Callable, Mapping
 from typing import Any
 
@@ -59,10 +58,10 @@ from spindoctor.sim.instruments.resolvers import (
 )
 from spindoctor.sim.render.bodies.atmosphere import HaloScreen
 from spindoctor.sim.render.bodies.placement import BodyCoverage, UncoveredFraction
-from spindoctor.sim.render.bodies.render import render_single_body
-from spindoctor.sim.render.bodies.titan_haze import (
-    resolve_model_atmosphere,
-    resolved_atmosphere_params,
+from spindoctor.sim.render.bodies.render import (
+    render_single_body,
+    resolve_scene_body,
+    scaled_body,
 )
 from spindoctor.sim.render.optics.stage import effective_psf
 from spindoctor.sim.render.radiance.compositing import (
@@ -82,15 +81,9 @@ from spindoctor.sim.render.radiance.stars import (
 from spindoctor.sim.render.rings.render import RingSystemMaps, render_ring_system
 from spindoctor.sim.render.roll import boresight_shift, roll_body_params
 from spindoctor.sim.render.stages import SimFrame
-from spindoctor.sim.scene.fields import (
-    default_body_range_km,
-    scene_binning,
-    scene_value,
-    value_or,
-)
-from spindoctor.sim.scene.truth_body import DEFAULT_ANTI_ALIASING, Body
+from spindoctor.sim.scene.fields import default_body_range_km, scene_binning, scene_value
+from spindoctor.sim.scene.truth_body import Body
 from spindoctor.sim.scene.truth_optics import DEFAULT_SMEAR_OBJECT_CLASS
-from spindoctor.sim.scene.validate import parse_body
 from spindoctor.sim.seeds import derive_effect_seed
 from spindoctor.sim.shared.stars import DEFAULT_PSF_SIZE
 from spindoctor.support.stable_math import stable_hypot
@@ -305,21 +298,16 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             if offset_rotation_deg == 0.0
             else roll_body_params(scene_body, roll_deg=offset_rotation_deg)
         )
-        parsed = parse_body(body_params, source=f'bodies[{body_number}]')
-        # A body that takes Titan's haze by name gets it in explicit keys, evaluated
-        # over the scene filter's passband.
-        body = resolve_model_atmosphere(parsed, instrument=instrument_name, filter_name=filter_name)
+        body, truth_params = resolve_scene_body(
+            body_params,
+            index=body_number,
+            instrument=instrument_name,
+            filter_name=filter_name,
+        )
         explicit_ranges.append(body.range_km is not None)
-        # The positional default name and range are applied once here, so
-        # every name-keyed consumer (render order, masks, inventory) sees the
-        # same identity and two unnamed bodies cannot collide.
-        name = body.name_at(body_number)
+        # The positional default range is applied once here, so every name-keyed
+        # consumer (render order, masks, inventory) sees the same identity.
         range_km = default_body_range_km(body_number) if body.range_km is None else body.range_km
-        truth_params = dict(body_params)
-        if body.atmosphere is not parsed.atmosphere:
-            # The truth holds the haze the body is drawn with, in explicit keys.
-            truth_params['atmosphere'] = resolved_atmosphere_params(body_params, body)
-        truth_params['name'] = name
         truth_params['range_km'] = range_km
         cv = det_center_v if body.center_v is None else body.center_v
         cu = det_center_u if body.center_u is None else body.center_u
@@ -339,22 +327,13 @@ def compose_scene_radiance(frame: SimFrame, *, params: Mapping[str, Any]) -> Non
             axis_val = body_params.get(axis_key)
             if axis_val is not None:
                 truth_params[axis_key] = float(axis_val) * os
-        semi_a_px, semi_b_px, semi_c_px = body.semi_axes_px()
-        render_body = dataclasses.replace(
+        render_body = scaled_body(
             body,
-            name=name,
             center_v=cv * os,
             center_u=cu * os,
-            semi_a_px=semi_a_px * os,
-            semi_b_px=semi_b_px * os,
-            semi_c_px=semi_c_px * os,
             range_km=range_km,
-            # The editor's fast preview draws each limb without supersampling.
-            # At the default setting the limb is drawn on a grid 4 times finer in
-            # each direction, which costs most of a preview's time.
-            anti_aliasing=0.0
-            if frame.preview
-            else value_or(body.anti_aliasing, DEFAULT_ANTI_ALIASING),
+            oversample=os,
+            preview=frame.preview,
         )
         bodies_with_ranges.append((render_body, truth_params))
 
@@ -1038,7 +1017,7 @@ def _scale_star_params(star_params: dict[str, Any], os: int) -> dict[str, Any]:
         A scaled copy of the star entry.
     """
     scaled = dict(star_params)
-    for key in ('v', 'u', 'psf_sigma', 'move_v', 'move_u', 'catalog_error_v', 'catalog_error_u'):
+    for key in ('v', 'u', 'move_v', 'move_u', 'catalog_error_v', 'catalog_error_u'):
         if star_params.get(key) is not None:
             scaled[key] = float(star_params[key]) * os
     # The record builder's default window is materialized here so a defaulted

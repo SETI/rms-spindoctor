@@ -90,9 +90,8 @@ Configuration
 
 The model consumes no YAML configuration of its own; it reads the ``stars`` entries of
 the observation's navigator view (``obs.nav_params``). The per-star geometry comes
-from the scene's ``stars`` entries (see :doc:`dev_guide_simulator`); the truth-side
-per-star ``psf_sigma`` override is stripped by the boundary filter, so the model knows
-only the instrument's published PSF.
+from the scene's ``stars`` entries (see :doc:`dev_guide_simulator`); a star
+carries no PSF width of its own, so the model knows only the instrument's published PSF.
 
 Implementation
 ==============

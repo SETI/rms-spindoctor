@@ -94,8 +94,8 @@ class IntWithin:
 class FloatWithin:
     """A check that a number lies in a range, for an ``AfterValidator``.
 
-    Each bound is closed unless its ``open`` flag is set, and a bound of None sets no
-    limit on that side.
+    Each bound is closed unless its ``open`` flag is set, and a bound of None leaves
+    that side unlimited.
 
     Parameters:
         low: The lower bound, or None for no lower limit.

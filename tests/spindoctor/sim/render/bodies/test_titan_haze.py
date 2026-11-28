@@ -11,10 +11,12 @@ from spindoctor.sim.render.bodies.titan_haze import (
     TITAN_MEAN_RADIUS_KM,
     effective_titan_haze,
     resolve_model_atmosphere,
+    resolved_atmosphere_params,
     tangent_depth_at_reference,
 )
 from spindoctor.sim.render.bodies.titan_haze_table import TITAN_HAZE_ROWS
 from spindoctor.sim.scene.rules_body import TITAN_HAZE_SPAN_NM
+from spindoctor.sim.scene.truth_atmosphere import HAZE_MODEL_KEYS
 from spindoctor.sim.scene.truth_body import Body
 from spindoctor.sim.scene.validate import parse_body
 
@@ -141,3 +143,14 @@ def test_the_haze_limb_sits_higher_in_the_blue() -> None:
     assert blue.atmosphere.tau_ref is not None
     assert red.atmosphere.tau_ref is not None
     assert blue.atmosphere.tau_ref > 2.0 * red.atmosphere.tau_ref
+
+
+def test_the_recorded_haze_has_the_column_keys_and_no_model_name() -> None:
+    """A body that took Titan's haze by name is recorded with the column's seven keys."""
+    params = _titan_params()
+    resolved = resolve_model_atmosphere(
+        parse_body(params), instrument='coiss_nac', filter_name=None
+    )
+    recorded = resolved_atmosphere_params(params, resolved)
+    assert 'haze_model' not in recorded
+    assert set(recorded) == set(HAZE_MODEL_KEYS)

@@ -78,7 +78,7 @@ def _ring_system() -> dict[str, Any]:
 
 
 _SCENES: dict[str, Callable[[], dict[str, Any]]] = {
-    'star': lambda: _scene(stars=[star_entry(_STATED, _STATED, 2.0, psf_sigma=2.0)]),
+    'star': lambda: _scene(stars=[star_entry(_STATED, _STATED, 2.0)]),
     'body': lambda: _scene(bodies=[_sphere()]),
     'titan': lambda: _scene(bodies=[_titan()]),
     'ringlet': lambda: _scene(ring_system=_ring_system()),

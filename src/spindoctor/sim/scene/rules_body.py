@@ -3,11 +3,11 @@
 A body entry's keys, their ranges, and the rules among its own keys are checked by its
 type (:class:`~spindoctor.sim.scene.truth_body.Body` and the blocks it holds).  Two
 rules need more than one entry: :func:`check_body_names_unique` compares the bodies'
-names, and :func:`check_model_atmosphere_filters` reads the scene's camera and filter
-for a body that takes Titan's haze by name.  The Titan haze is modeled over a span of
-wavelengths and leaves out methane absorption, so this module also holds what the
-model covers: :data:`TITAN_HAZE_SPAN_NM`, :data:`METHANE_BANDS_NM`, and the share of a
-passband's light each may leave uncovered.
+name strings with one another, and :func:`check_model_atmosphere_filters` reads the
+scene's camera and filter for a body that takes Titan's haze by name.  The Titan haze
+is modeled over a span of wavelengths and leaves out methane absorption, so this
+module also holds what the model covers: :data:`TITAN_HAZE_SPAN_NM`,
+:data:`METHANE_BANDS_NM`, and the share of a passband's light each may leave uncovered.
 
 :func:`spindoctor.sim.scene.validate.parse_scene` applies both rules to the typed scene.
 """

@@ -326,6 +326,13 @@ def test_the_reference_lists_every_typed_key_under_its_block() -> None:
     assert missing == []
 
 
+def test_the_reference_gives_an_override_key_the_bodys_value_when_left_out() -> None:
+    """A key of a body's ``nav_override`` keeps the body's value, even a required one."""
+    section = _page_sections(scene_reference())['The ``bodies.nav_override`` block']
+    assert 'required' not in section
+    assert section.count("     - the body's value\n") == len(dataclasses.fields(IdealizedBody))
+
+
 def test_the_reference_lists_every_untyped_block() -> None:
     """The generated reference lists each block the typed scene does not hold yet."""
     page = scene_reference()
@@ -417,9 +424,14 @@ def test_a_gain_state_the_selected_mode_lacks_is_refused(
         ('range_km', 0.0, 'a positive number'),
         ('km_per_pixel', 0.0, 'a positive number'),
         ('mesh_lumpiness', -0.1, 'a non-negative number'),
-        ('mesh_n_lat', 0, 'an integer of at least 2'),
-        ('mesh_n_lon', 2, 'an integer of at least 3'),
-        ('mesh_seed', -1, 'a non-negative integer'),
+        ('mesh_n_lat', 0, 'an integer from 2 to 256'),
+        ('mesh_n_lat', 257, 'an integer from 2 to 256'),
+        ('mesh_n_lon', 2, 'an integer from 3 to 512'),
+        ('mesh_n_lon', 513, 'an integer from 3 to 512'),
+        ('mesh_seed', -1, 'an integer from 0 to 2147483647'),
+        ('mesh_seed', 2147483648, 'an integer from 0 to 2147483647'),
+        ('mesh_detail_octaves', -1, 'an integer from 0 to 8'),
+        ('mesh_detail_octaves', 9, 'an integer from 0 to 8'),
         ('crater_fill', -0.1, 'a non-negative number'),
         ('anti_aliasing', 1.5, 'a number in [0, 1]'),
     ],
@@ -432,12 +444,69 @@ def test_a_body_key_outside_its_range_is_refused(key: str, value: float, expecte
         parse_scene(scene, source='probe')
 
 
+@pytest.mark.parametrize(
+    ('key', 'expected'),
+    [
+        ('mesh_n_lat', 'an integer from 2 to 256'),
+        ('mesh_n_lon', 'an integer from 3 to 512'),
+        ('mesh_seed', 'an integer from 0 to 2147483647'),
+        ('mesh_detail_octaves', 'an integer from 0 to 8'),
+    ],
+)
+def test_a_400_digit_body_integer_is_refused_with_its_range(key: str, expected: str) -> None:
+    """A 400-digit integer in an integer body key is refused with the key's range."""
+    scene = body_scene(body={key: 10**400})
+    with pytest.raises(
+        SimSceneValidationError, match=re.escape(f'bodies[0].{key}: expected {expected}')
+    ):
+        parse_scene(scene, source='probe')
+
+
+def test_a_400_digit_star_window_is_refused_with_its_range() -> None:
+    """A 400-digit star PSF window is refused with the window's range."""
+    scene = frame_scene(stars=[star_entry(5.0, 5.0, 6.0, psf_size=[11, 10**400])])
+    with pytest.raises(
+        SimSceneValidationError,
+        match=re.escape('stars[0].psf_size[1]: expected an integer from 1 to 23'),
+    ):
+        parse_scene(scene, source='probe')
+
+
+def test_a_star_refuses_a_psf_width_of_its_own() -> None:
+    """A star has no PSF width of its own, so ``psf_sigma`` is an unknown key."""
+    scene = frame_scene(stars=[star_entry(5.0, 5.0, 6.0, psf_sigma=1.0)])
+    with pytest.raises(
+        SimSceneValidationError, match=re.escape("stars[0]: unknown keys: ['psf_sigma']")
+    ):
+        parse_scene(scene, source='probe')
+
+
+def test_a_transit_without_a_moon_or_a_shadow_is_refused() -> None:
+    """A transit entry that sets neither a moon nor a shadow is refused."""
+    scene = body_scene(body={'transits': [{}]})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=re.escape('bodies[0].transits[0]: a transit needs a moon, a shadow, or both'),
+    ):
+        parse_scene(scene, source='probe')
+
+
+def test_an_atmosphere_without_a_haze_column_is_refused() -> None:
+    """An atmosphere block with neither a haze model nor its scale height is refused."""
+    scene = body_scene(body={'atmosphere': {'tau_ref': 1.0}})
+    with pytest.raises(
+        SimSceneValidationError,
+        match=re.escape('bodies[0].atmosphere.scale_height_px: required unless haze_model is set'),
+    ):
+        parse_scene(scene, source='probe')
+
+
 def test_a_star_window_of_no_pixels_is_refused() -> None:
     """A star's PSF fitting window is at least one pixel along each axis."""
     scene = frame_scene(stars=[star_entry(5.0, 5.0, 6.0, psf_size=[0, 11])])
     with pytest.raises(
         SimSceneValidationError,
-        match=re.escape('stars[0].psf_size[0]: expected a positive integer, got 0'),
+        match=re.escape('stars[0].psf_size[0]: expected an integer from 1 to 23, got 0'),
     ):
         parse_scene(scene, source='probe')
 
@@ -450,11 +519,12 @@ def test_an_integer_too_large_for_a_float_is_refused() -> None:
 
 
 def test_a_body_without_its_size_is_refused() -> None:
-    """A body entry that leaves semi-axis b out is refused, naming the key."""
+    """A body entry that leaves semi-axis b out is refused, and the message gives the key."""
     scene = body_scene()
     del scene['bodies'][0]['semi_b_px']
     with pytest.raises(
-        SimSceneValidationError, match=re.escape('bodies[0].semi_b_px: a body sets semi_a_px')
+        SimSceneValidationError,
+        match=re.escape("bodies[0]: missing required keys: ['semi_b_px']"),
     ):
         parse_scene(scene, source='probe')
 
@@ -466,7 +536,7 @@ def test_an_unnamed_body_takes_the_name_its_position_gives() -> None:
 
 def test_semi_axis_c_defaults_to_the_smaller_of_a_and_b() -> None:
     """A body that leaves semi-axis c out takes the smaller of semi-axes a and b."""
-    assert IdealizedBody(semi_a_px=20.0, semi_b_px=15.0).semi_axes_px() == (20.0, 15.0, 15.0)
+    assert Body(semi_a_px=20.0, semi_b_px=15.0).semi_axes_px() == (20.0, 15.0, 15.0)
 
 
 def test_parse_body_returns_the_typed_body() -> None:
@@ -486,7 +556,8 @@ def test_parse_scene_types_the_bodies_and_stars() -> None:
     scene = parse_scene(body_scene(stars=[star_entry(5.0, 5.0, 6.0)]), source='probe')
     assert scene.bodies is not None
     assert scene.stars is not None
-    assert (type(scene.bodies[0]), type(scene.stars[0])) == (Body, Star)
+    assert type(scene.bodies[0]) is Body
+    assert type(scene.stars[0]) is Star
 
 
 def test_the_haze_structure_keys_are_the_keys_the_column_lacks() -> None:
