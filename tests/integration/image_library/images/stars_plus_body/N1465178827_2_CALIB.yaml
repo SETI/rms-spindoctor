@@ -5,7 +5,7 @@ camera: NAC
 filter_combo: CL1+CL2
 image_url: pds3://calibrated/COISS_2xxx/COISS_2003/data/1465118023_1465220364/N1465178827_2_CALIB.IMG
 scene_tags:
-- below_resolution_body
+- stars_plus_body
 - enceladus
 ground_truth:
   offset_dv_px: 5.5
@@ -30,6 +30,11 @@ ground_truth:
     predicts more stars in this frame than the old rule of thumb did;
     the star techniques now lead the answer, which stays within
     tolerance (0.20 px in v and 0.02 px in u from truth).
+
+    Moved 2026-11-28 (PR #1304) from below_resolution_body to
+    stars_plus_body: the measured limit predicts 6 usable stars, 5 of
+    them matched, besides the 6 px Enceladus, so the frame no longer
+    has the blob as its only navigable feature.
 expected:
   status: success
   confidence_tier: medium

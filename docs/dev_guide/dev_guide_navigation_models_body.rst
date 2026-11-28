@@ -737,8 +737,8 @@ The named scenes in ``tests/integration/image_library/images/`` exercise the fou
 types. Numbers below are taken from the operator-curated YAML sidecars and the integration
 tests.
 
-``body_full_fov`` (Cassini ISS NAC, image ``N1572105349_1``)
-    Dione fills the FOV — predicted disc diameter approximately 155 px, mostly lit with a
+``stars_plus_body`` (Cassini ISS NAC, image ``N1572105349_1``)
+    Dione among field stars — predicted disc diameter approximately 155 px, mostly lit with a
     sliver of terminator, ``overflow_fraction = 0.0``, ``visible_lit_fraction`` approximately
     ``0.97``. The model emits a single
     :data:`~spindoctor.feature.feature_type.NavFeatureType.BODY_DISC` feature carrying the rendered
@@ -761,7 +761,7 @@ tests.
     about 100 px from the operator-verified offset.
     Operator-verified offset is :math:`(\Delta v, \Delta u) = (11.0, 29.5)` px.
 
-``below_resolution_body`` (Cassini ISS NAC, image ``N1777325846_1``)
+``stars_plus_body`` (Cassini ISS NAC, image ``N1777325846_1``)
     Mimas is approximately 20 px in diameter in the lower left, at phase angle 72 degrees.
     The predicted disc diameter is well above
     :data:`~spindoctor.nav_model.nav_model_body_base.BODY_BLOB_MIN_DIAMETER_PX` but the per-pixel

@@ -682,14 +682,16 @@ Call path traced through
 Examples
 ========
 
-``one_bright_star_no_body`` (Cassini ISS WAC, image ``W1449079117_1``)
-    Single bright star (Vega) in an otherwise empty FOV. The star model emits one STAR
-    feature for Vega, which is far brighter than the limiting magnitude and carries no
-    body / ring conflict flags. The
+``star_dominated`` (Cassini ISS WAC, image ``W1449079117_1``)
+    Vega and two fainter stars in an otherwise empty FOV. The star model emits three STAR
+    features: Vega, far brighter than the limiting magnitude, and two stars near it. None
+    carries a body or ring conflict flag. The
     pass-1 :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
-    consumes the feature in its 1-star path and reports the operator-verified offset
-    :math:`(\Delta v, \Delta u) = (3.06, -0.02)` px. Other catalog stars in the WAC's
-    extended FOV are below the magnitude floor and produce no STAR feature.
+    takes its 2-star path, the pass-2
+    :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` matches all
+    three, and the answer lies within 0.25 px of the operator-verified offset
+    :math:`(\Delta v, \Delta u) = (3.56, 0.48)` px. The other catalog stars in the WAC's
+    extended FOV are fainter than the magnitude floor and produce no STAR feature.
 
 ``star_dominated`` (Cassini ISS WAC, image ``W1580760393_1``)
     Dense star field with no body in FOV. The star model emits dozens of STAR features
@@ -698,7 +700,7 @@ Examples
     the cohort and reports the operator-verified offset
     :math:`(\Delta v, \Delta u) = (-2.68, -3.68)` px via the triplet-hash matcher.
 
-``below_resolution_body`` (Cassini ISS NAC, image ``N1777325846_1``)
+``stars_plus_body`` (Cassini ISS NAC, image ``N1777325846_1``)
     Mimas in the lower left at ~20 px diameter at phase 72 degrees. The star model emits
     STAR features for catalog stars in the FOV; stars whose predicted positions fall
     inside the predicted Mimas silhouette are flagged ``in_body_silhouette`` and the

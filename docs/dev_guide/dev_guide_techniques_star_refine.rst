@@ -388,15 +388,14 @@ Call path traced through
 Examples
 ========
 
-``one_bright_star_no_body`` (Cassini ISS WAC, image ``W1449079117_1``)
-    Single bright star (Vega) in an otherwise empty field. The pass-1 ensemble's
+``star_dominated`` (Cassini ISS WAC, image ``W1449079117_1``)
+    Vega and two fainter stars in an otherwise empty field. The pass-1 ensemble's
     :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` recovers a
-    1-star prior; :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` runs on
-    pass 2, finds that single star at the shifted
-    prediction, and reports a polished offset within sub-pixel of the prior. The result fires
-    the single-inlier confidence cap (one inlier, no cross-check) and is reported with
-    confidence at most 0.5. Operator-verified ground-truth offset is
-    :math:`(\Delta v, \Delta u) = (3.06, -0.02)` px.
+    2-star prior; :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` runs on
+    pass 2, finds all three stars at the shifted prediction, and reports a polished offset
+    within 0.12 px of the prior. With three inliers, the single-inlier confidence cap does
+    not apply. Operator-verified ground-truth offset is
+    :math:`(\Delta v, \Delta u) = (3.56, 0.48)` px.
 
 ``star_dominated`` (Cassini ISS WAC, image ``W1580760393_1``)
     Dense star field, no body in FOV. When the pass-1

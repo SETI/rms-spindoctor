@@ -6,7 +6,7 @@ filter_combo: 'CL1+CL2'          # canonicalized: filters sorted, '+'-joined
 image_url: 'pds3://calibrated/COISS_2xxx/COISS_2090/data/1776647595_1777844466/N1777325846_1_CALIB.IMG'
 
 scene_tags:
-  - below_resolution_body              # First tag is the primary class;
+  - stars_plus_body                    # First tag is the primary class;
   - mimas                              # must match the directory the
   - medium_phase                       # sidecar lives in.
 
@@ -32,6 +32,11 @@ ground_truth:
     the old rule of thumb did; the star techniques now lead the
     answer, which stays within tolerance (0.02 px in v and 0.44 px in
     u from truth).
+
+    Moved 2026-11-28 (PR #1304) from below_resolution_body to
+    stars_plus_body: Mimas is about 20 px across, above the class's
+    15 px bound, and the measured limit predicts 21 usable stars, 12
+    of them matched, so stars and the limb both navigate the frame.
 
 expected:
   status: success                           # success | failed | conflicted

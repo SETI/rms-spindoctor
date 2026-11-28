@@ -6,7 +6,7 @@ filter_combo: 'CL1+RED'          # canonicalized: filters sorted, '+'-joined
 image_url: 'pds3://calibrated/COISS_1xxx/COISS_1009/data/1449071343_1449079877/W1449079117_1_CALIB.IMG'
 
 scene_tags:
-  - one_bright_star_no_body            # First tag is the primary class;
+  - star_dominated                     # First tag is the primary class;
                                        # must match the directory the
                                        # sidecar lives in.
 
@@ -36,6 +36,12 @@ ground_truth:
     in this frame than the old rule of thumb did; the star techniques
     now lead the answer, which stays within tolerance (0.23 px in v
     and 0.11 px in u from truth).
+
+    Moved 2026-11-28 (PR #1304) from one_bright_star_no_body to
+    star_dominated: the measured limit predicts 3 usable stars, Vega
+    and two fainter ones, and the refine matches all 3, so the answer
+    no longer rests on one star and the one-star tier cap does not
+    apply.
 
 expected:
   status: success                           # success | failed | conflicted

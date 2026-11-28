@@ -7,7 +7,7 @@ exposure_time_sec: 0.68
 filter_combo: CL1+CL2
 image_url: pds3://calibrated/COISS_2xxx/COISS_2031/data/1555090699_1555229867/N1555145539_1_CALIB.IMG
 scene_tags:
-- one_bright_star_no_body
+- star_dominated
 ground_truth:
   offset_dv_px: 4.5251
   offset_du_px: -11.9600
@@ -43,6 +43,11 @@ ground_truth:
     in this frame than the old rule of thumb did; the star techniques
     now lead the answer, which stays within tolerance (0.01 px in v
     and 0.00 px in u from truth).
+
+    Moved 2026-11-28 (PR #1304) from one_bright_star_no_body to
+    star_dominated: the measured limit predicts 16 usable stars, and
+    the refine matches 7 of them, so the answer no longer rests on one
+    star and the one-star tier cap does not apply.
 
 expected:
   status: success

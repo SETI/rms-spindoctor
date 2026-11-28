@@ -5,7 +5,7 @@ camera: NAC
 filter_combo: CL1+GRN
 image_url: pds3://calibrated/COISS_2xxx/COISS_2028/data/1548328237_1548434084/N1548432342_1_CALIB.IMG
 scene_tags:
-- two_bright_stars_no_body
+- star_dominated
 ground_truth:
   offset_dv_px: 8.2380
   offset_du_px: 2.1507
@@ -30,6 +30,10 @@ ground_truth:
     this frame than the old rule of thumb did; the star answer now
     rests on more of them, and it stays within tolerance (0.07 px in v
     and 0.20 px in u from truth).
+
+    Moved 2026-11-28 (PR #1304) from two_bright_stars_no_body to
+    star_dominated: the measured limit predicts 4 usable stars, and the
+    refine matches all 4.
 
 expected:
   status: success
