@@ -414,3 +414,15 @@ def test_weak_fit_keeps_the_frame_table() -> None:
     result = fit_camera('TEST', records, reference_filter='CLEAR', reference_gain='10K')
     assert [row['image_id'] for row in result.frames] == ['F0', 'F1']
     assert math.isnan(result.frames[0]['proposed_limit'])
+
+
+def test_rate_fit_refuses_when_rejection_leaves_under_five_stars() -> None:
+    """Three exact stars and two opposite outliers at the reference color leave three stars."""
+    rows = _rate_rows(5)
+    for k, r in enumerate(rows):
+        z = RATE_ZP + RATE_COLOR * (r['bv'] - 0.65)
+        r['rate'] = 10 ** (0.4 * (z - r['vmag']))
+        if k >= 3:
+            r['bv'] = 0.65
+            r['rate'] = 10 ** (0.4 * (RATE_ZP + (10.0 if k == 3 else -10.0) - r['vmag']))
+    assert fit_star_rates(rows, reference_color=0.65) is None

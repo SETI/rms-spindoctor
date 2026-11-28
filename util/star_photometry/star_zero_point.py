@@ -273,9 +273,10 @@ def fit_star_rates(
         covariates: Row keys of numeric values the residuals are regressed on.
 
     Returns:
-        The fit, or None when there are fewer than ``MIN_RATE_STARS`` rows or when the
-        stars, before or after the robust weighting drops outliers, all share one color
-        so that the rate and the color term cannot be told apart.
+        The fit, or None when there are fewer than ``MIN_RATE_STARS`` rows, when the robust
+        weighting leaves fewer than that many stars, or when the stars, before or after
+        the weighting drops outliers, all share one color so that the rate and the color
+        term cannot be told apart.
     """
     if len(rows) < MIN_RATE_STARS:
         return None
@@ -286,7 +287,7 @@ def fit_star_rates(
         return None
     x, sx, resid, weights = _tukey_lstsq(design, z)
     used = weights > 0.0
-    if not _full_rank(design[used]):
+    if used.sum() < MIN_RATE_STARS or not _full_rank(design[used]):
         return None
     kept = resid[used]
     scatter = float(1.4826 * np.median(np.abs(kept - np.median(kept))))

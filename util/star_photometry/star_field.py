@@ -36,6 +36,7 @@ __all__ = [
     'highpass',
     'integrated_gaussian',
     'noise_sigma',
+    'quantization_step',
     'robust_sigma',
 ]
 
@@ -70,6 +71,25 @@ CLIP_SIGMA = 3.0
 CLIP_ITERATIONS = 5
 
 
+def quantization_step(values: FloatArray) -> float:
+    """Return the quantization step of a sample, or 0 for a sample of continuous values.
+
+    A sample with fewer distinct values than ``QUANTIZED_FRACTION`` of its size is
+    quantized, and its step is the smallest gap between distinct values (a step of one unit
+    when the sample holds a single value).
+
+    Parameters:
+        values: The finite values of the sample.
+
+    Returns:
+        The step, or 0.0 when the sample is not quantized.
+    """
+    levels = np.unique(values)
+    if levels.size >= QUANTIZED_FRACTION * values.size:
+        return 0.0
+    return float(np.min(np.diff(levels))) if levels.size > 1 else 1.0
+
+
 def noise_sigma(values: FloatArray) -> float:
     """Return the noise of a sample of background pixels, robust to a few bright outliers.
 
@@ -90,7 +110,8 @@ def noise_sigma(values: FloatArray) -> float:
     finite = values[np.isfinite(values)]
     if finite.size == 0:
         return float('nan')
-    if np.unique(finite).size >= QUANTIZED_FRACTION * finite.size:
+    step = quantization_step(finite)
+    if step == 0.0:
         return robust_sigma(finite)
     kept = finite
     for _ in range(CLIP_ITERATIONS):
@@ -99,8 +120,6 @@ def noise_sigma(values: FloatArray) -> float:
         if std == 0.0 or inside.sum() == kept.size:
             break
         kept = finite[inside]
-    levels = np.unique(finite)
-    step = float(np.min(np.diff(levels))) if levels.size > 1 else 1.0
     return max(float(kept.std()), step / math.sqrt(12.0))
 
 
@@ -109,7 +128,9 @@ def clipped_mean(values: FloatArray) -> float:
 
     The center starts at the median and becomes the mean of the values within
     ``CLIP_SIGMA`` times :func:`noise_sigma` of it, for up to ``CLIP_ITERATIONS`` rounds.
-    Unlike the median, it is not held to the levels of an integer image.
+    For a quantized sample the distance is at least one quantization step, so the level
+    next to the sky's median is kept.  Unlike the median, it is not held to the levels of
+    an integer image.
 
     Parameters:
         values: The sample; non-finite values are ignored.
@@ -121,7 +142,7 @@ def clipped_mean(values: FloatArray) -> float:
     if finite.size == 0:
         return float('nan')
     center = float(np.median(finite))
-    limit = CLIP_SIGMA * noise_sigma(finite)
+    limit = max(CLIP_SIGMA * noise_sigma(finite), quantization_step(finite))
     for _ in range(CLIP_ITERATIONS):
         kept = finite[np.abs(finite - center) <= limit]
         if kept.size == 0:
