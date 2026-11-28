@@ -157,7 +157,7 @@ def test_a_detection_limit_table_by_gain_state_gives_every_gain_state() -> None:
     with pytest.raises(
         SchemaError,
         match=(
-            r"camera: star_photometry\.min_detectable_dn\.FULL: gives the gain states "
+            r'camera: star_photometry\.min_detectable_dn\.FULL: gives the gain states '
             r"\['LOW'\] for the mode 'FULL', but gain gives \['HIGH', 'LOW'\]"
         ),
     ):
