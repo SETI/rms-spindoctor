@@ -184,6 +184,9 @@ class StarRefineTuning(StarTuning):
             one inlier.
         model_error_floor_px: The model-error floor in pixels, added in quadrature to
             the translation covariance.
+        max_missing_shift_px: A star is dropped when leaving the missing pixels of its
+            centroid box out would move the centroid of the star, modeled from its own
+            light, by more than this many pixels.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -194,6 +197,7 @@ class StarRefineTuning(StarTuning):
     min_inliers: PositiveInt
     single_inlier_confidence_cap: Unit
     model_error_floor_px: NonNeg
+    max_missing_shift_px: Positive
 
 
 @dataclass(frozen=True)

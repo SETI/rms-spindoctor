@@ -55,6 +55,7 @@ def bare_nav_context(
         image_noise_sigma=image_noise_sigma,
         saturation_mask_ext=np.zeros(shape, dtype=bool),
         cosmic_ray_mask_ext=np.zeros(shape, dtype=bool),
+        missing_data_mask_ext=np.zeros(shape, dtype=bool),
         image_classifier=NavImageClassifierResult(
             image_class='clean',
             saturation_frac=0.0,

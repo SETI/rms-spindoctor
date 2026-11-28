@@ -30,8 +30,10 @@ from spindoctor.nav_technique.nav_technique_body_blob import (
     _disc_kernel,
     _joint_covariance,
     _kernel_centroid_offset,
+    _missing_shift_px,
     _shift_bbox,
 )
+from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.types import NDArrayFloatType
 
@@ -120,6 +122,8 @@ def test_the_blob_line_states_both_positions_in_the_image_frame(
         image_signal=np.clip(image, 0.0, None),
         margin_vu=(32, 32),
         prior_offset_vu=None,
+        missing_mask_ext=np.zeros(image.shape, dtype=bool),
+        max_missing_shift_frac=0.01,
     )
     args = logger.debug_calls[-1][1]
     assert args[1:3] == (68.5, 68.5)
@@ -958,3 +962,90 @@ def test_coarse_crescent_offset_bounded_for_offframe_giant() -> None:
     assert isinstance(offset, tuple)
     assert abs(offset[0]) <= 32 + abs(centroid_v) + 1.0
     assert abs(offset[1]) <= 32 + abs(centroid_u) + 1.0
+
+
+def _navigate_blob_with_lost_lines(
+    image: NDArrayFloatType,
+    make_nav_context: NavContextFactory,
+    *,
+    center_vu: tuple[float, float],
+    radius: float,
+    planted_vu: tuple[float, float],
+    lost_rows: range,
+) -> NavTechniqueResult:
+    """Navigate one blob on ``image`` after its ``lost_rows`` are set to 0.0 and missing.
+
+    Parameters:
+        image: The frame, with the disc drawn at ``center_vu``; it is changed in place.
+        make_nav_context: Builds the navigation context.
+        center_vu: The disc's center.
+        radius: The disc's radius in pixels.
+        planted_vu: The planted offset; the prediction is the center less it.
+        lost_rows: The rows lost from the frame.
+
+    Returns:
+        The technique's result.
+    """
+    missing = np.zeros(image.shape, dtype=bool)
+    missing[lost_rows, :] = True
+    image[missing] = 0.0
+    feature = _make_blob_feature(
+        'moonA',
+        predicted_center_vu=(center_vu[0] - planted_vu[0], center_vu[1] - planted_vu[1]),
+        predicted_diameter_px=2.0 * radius,
+    )
+    context = dataclasses.replace(make_nav_context(image), missing_data_mask_ext=missing)
+    return BodyBlobNav().navigate([feature], context)
+
+
+def test_body_blob_drops_a_blob_whose_lost_lines_move_its_centroid(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """Lost lines across one side of the disc drop the blob, and the answer is spurious."""
+    result = _navigate_blob_with_lost_lines(
+        disc_image((200, 200), (100.0, 100.0), 20.0),
+        make_nav_context,
+        center_vu=(100.0, 100.0),
+        radius=20.0,
+        planted_vu=(2.0, -3.0),
+        lost_rows=range(85, 92),
+    )
+    assert result.spurious is True
+
+
+def test_body_blob_lost_lines_are_not_sky(
+    disc_image: DiscImageFactory,
+    make_nav_context: NavContextFactory,
+) -> None:
+    """Lost lines away from the disc, most of the frame, leave the sky level at 100 DN.
+
+    Counted as sky, the lost lines would set the background to 0 DN, and the 100 DN sky
+    inside the blob's box would pull its centroid toward the box's center.
+    """
+    center_vu = (165.0, 100.0)
+    planted_vu = (2.4, -3.3)
+    result = _navigate_blob_with_lost_lines(
+        disc_image((200, 200), center_vu, 15.0) + 100.0,
+        make_nav_context,
+        center_vu=center_vu,
+        radius=15.0,
+        planted_vu=planted_vu,
+        lost_rows=range(125),
+    )
+    assert result.offset_px == pytest.approx(planted_vu, abs=0.05)
+
+
+def test_body_blob_missing_light_model_sits_at_the_fractional_center() -> None:
+    """A lost row the disc does not reach moves the model's centroid not at all.
+
+    A disc of radius 4 centered at (100.5, 100.5) covers rows 97 to 104.  Placed at the
+    rounded center (100, 100), the model would also cover a pixel of row 96, and losing
+    that row would move its centroid 4/48 px, over the 0.04 px limit.
+    """
+    feature = _make_blob_feature(
+        'moonA', predicted_center_vu=(100.5, 100.5), predicted_diameter_px=8.0
+    )
+    missing = np.zeros((200, 200), dtype=bool)
+    missing[96, :] = True
+    assert _missing_shift_px(feature, (0, 0), (90, 90, 111, 111), missing) == 0.0

@@ -244,6 +244,14 @@ techniques:
       # localization_uncertainty_scale.
       model_error_size_frac: 0.05
       model_error_floor_px: 0.1
+      # Drop a blob when leaving its lost pixels out would move the
+      # centroid of the body's predicted lit silhouette by more than this
+      # fraction of the body radius.  Lost lines across a disc take its
+      # light with them, so the centroid of what is left moves away from
+      # them.  0.01 is a fifth of model_error_size_frac: a bias that size
+      # adds 2% to the centroid error the covariance already allows,
+      # sqrt(0.05^2 + 0.01^2) = 1.02 * 0.05 (#1207).
+      max_missing_shift_frac: 0.01
 
   body_limb:
     # Sim campaign (seed 20260718, full-truth-axis renderer): n=461
@@ -1042,6 +1050,15 @@ techniques:
       # 0.83 at the previous 0.22 floor, 0.87 at this value
       # (util/calibration/fit_floors).
       model_error_floor_px: 0.27
+      # Drop a star when leaving the lost pixels of its centroid box out
+      # would move its centroid by more than this (px).  The model of the
+      # star is its own light in the box, with a lost pixel given the light
+      # at its mirror image through the centroid.  The lost part of a
+      # star takes its light with it, so the centroid of what is left moves
+      # away from the gap.  0.05 px is a fifth of model_error_floor_px: a
+      # bias that size adds 2% to the per-star error the covariance
+      # already allows, sqrt(0.27^2 + 0.054^2) = 1.02 * 0.27 (#1207).
+      max_missing_shift_px: 0.05
 
   star_field_from_catalog:
     # Multi-star RANSAC pattern matcher.

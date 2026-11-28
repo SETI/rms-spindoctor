@@ -38,6 +38,7 @@ def _minimal_context(**overrides: Any) -> NavContext:
         'image_noise_sigma': 1.0,
         'saturation_mask_ext': np.zeros((4, 4), bool),
         'cosmic_ray_mask_ext': np.zeros((4, 4), bool),
+        'missing_data_mask_ext': np.zeros((4, 4), bool),
         'image_classifier': classifier,
         'provenance': provenance,
     }

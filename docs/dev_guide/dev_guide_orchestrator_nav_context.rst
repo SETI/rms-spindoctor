@@ -24,7 +24,7 @@ The context is the single source of truth for per-image state. Three invariants 
   :func:`dataclasses.replace`; mutation is not supported.
 - Every image-shaped field is **extfov-shaped** — zero-padded around the original sensor
   rectangle. ``image_ext`` is the canonical post-source-filter extfov image; the matching
-  sensor / saturation / cosmic-ray masks share its shape.
+  sensor / saturation / cosmic-ray / missing-data masks share its shape.
 - The pass-1 → pass-2 hand-off carries only the **2x2 translation block** of the prior
   covariance. Any rotation prior is re-derived per technique from the per-instrument
   flag, not propagated through the context.
@@ -84,6 +84,14 @@ Public fields (autodocumented at :doc:`/api_reference/api_nav_orchestrator`):
   ``True`` where pixels are at or above the per-instrument full-well DN.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.cosmic_ray_mask_ext` — boolean mask
   ``True`` where single-pixel cosmic-ray spikes were detected.
+- :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.missing_data_mask_ext` — boolean
+  mask ``True`` where a sensor pixel carries the instrument's missing-data marker, as lost
+  lines and dropped packets do; ``False`` on the extfov padding. ``image_ext`` holds 0.0
+  there when no source-image filter runs. When one runs, the 0.0 is filtered with the rest
+  of the image, and a blurring filter spreads the light of the pixels around into it.
+  Neither value is a measurement, so a technique that reads pixel values leaves these
+  pixels out. :func:`~spindoctor.support.missing_light.missing_light_shift_px` predicts how
+  far leaving them out moves a source's centroid.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.image_classifier` — the
   :class:`~spindoctor.nav_orchestrator.image_classifier_result.NavImageClassifierResult` verdict.
 - :attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.provenance` — per-image

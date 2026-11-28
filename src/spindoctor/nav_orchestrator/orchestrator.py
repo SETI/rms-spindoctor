@@ -1225,7 +1225,9 @@ class NavOrchestrator(NavBase):
         # pixels are replaced with a finite fill (0.0) so the gradient /
         # noise path always sees finite data.  The *true* missing fraction
         # is threaded into the classifier so missing/dropout detection
-        # still fires for calibrated images.
+        # still fires for calibrated images, and the sensor part of the mask
+        # rides on the context so a technique can leave the filled pixels
+        # out of its measurement (#1207).
         missing_mask = missing_data_mask(raw_image, settings.marker_value)
         if missing_mask.any():
             raw_image = np.where(missing_mask, 0.0, raw_image)
@@ -1276,6 +1278,7 @@ class NavOrchestrator(NavBase):
             image_noise_sigma=noise_sigma,
             saturation_mask_ext=sat_mask,
             cosmic_ray_mask_ext=cr_mask,
+            missing_data_mask_ext=sensor_missing,
             image_classifier=classifier_result,
             provenance=provenance,
             image_gradient_ext=gradient_ext,
