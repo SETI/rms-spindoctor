@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+from tests.packaged_sections import NavConfigWith
 
 from spindoctor.config import Config
 from spindoctor.nav_model.nav_model_body import NavModelBody
@@ -20,17 +20,22 @@ class _FakeJupiterObs:
     ext_bp = object()
 
 
-def _config_with_jupiter_rings(tmp_path: Path) -> Config:
-    override = tmp_path / 'override.yaml'
-    override.write_text(
-        "rings:\n  ring_features:\n    JUPITER:\n      epoch: '2000-01-01 12:00:00'\n"
-        '      fade_width_pix: 100.0\n      min_allowed_fade_width_pix: 3.0\n'
-        '      min_feature_pixels: 2.0\n      features: {}\n',
-        encoding='utf-8',
+def _config_with_jupiter_rings(nav_config_with: NavConfigWith) -> Config:
+    return nav_config_with(
+        {
+            'rings': {
+                'ring_features': {
+                    'JUPITER': {
+                        'epoch': '2000-01-01 12:00:00',
+                        'fade_width_pix': 100.0,
+                        'min_allowed_fade_width_pix': 3.0,
+                        'min_feature_pixels': 2.0,
+                        'features': {},
+                    }
+                }
+            }
+        }
     )
-    config = Config()
-    config.update_config(override)
-    return config
 
 
 def test_rings_selection_defaults_to_no_jupiter_model() -> None:
@@ -39,10 +44,10 @@ def test_rings_selection_defaults_to_no_jupiter_model() -> None:
     assert instances == []
 
 
-def test_rings_selection_honors_config_override(tmp_path: Path) -> None:
+def test_rings_selection_honors_config_override(nav_config_with: NavConfigWith) -> None:
     # A per-run override that adds a Jupiter ring catalog must change which
     # models are instantiated, not just how the instances behave.
-    config = _config_with_jupiter_rings(tmp_path)
+    config = _config_with_jupiter_rings(nav_config_with)
     instances = NavModelRings.instances_for_obs(cast(Any, _FakeJupiterObs()), config=config)
     assert len(instances) == 1
     assert instances[0].name == 'rings:JUPITER'
@@ -66,32 +71,28 @@ class _FakeSaturnObs:
         return True
 
 
-def _config_with_titan_only_satellites(tmp_path: Path) -> Config:
-    override = tmp_path / 'satellites_override.yaml'
+def _config_with_titan_only_satellites(nav_config_with: NavConfigWith) -> Config:
     # List values replace wholesale on merge, so this shrinks Saturn's
     # satellite catalog to a single body.
-    override.write_text('satellites:\n  SATURN:\n    - TITAN\n')
-    config = Config()
-    config.update_config(override)
-    return config
+    return nav_config_with({'satellites': {'SATURN': ['TITAN']}})
 
 
-def test_body_selection_uses_config_satellite_catalog(tmp_path: Path) -> None:
+def test_body_selection_uses_config_satellite_catalog(nav_config_with: NavConfigWith) -> None:
     # The satellite catalog in the supplied config decides which bodies are
     # even considered.  Titan is handled as a special opaque-atmosphere case,
     # so it never builds a shape-based NavModelBody even when it is the only
     # satellite: only Saturn remains.
-    config = _config_with_titan_only_satellites(tmp_path)
+    config = _config_with_titan_only_satellites(nav_config_with)
     instances = NavModelBody.instances_for_obs(cast(Any, _FakeSaturnObs()), config=config)
     assert sorted(m.name for m in instances) == ['body:saturn']
     default_instances = NavModelBody.instances_for_obs(cast(Any, _FakeSaturnObs()))
     assert len(default_instances) > len(instances)
 
 
-def test_body_selection_threads_config_to_instances(tmp_path: Path) -> None:
+def test_body_selection_threads_config_to_instances(nav_config_with: NavConfigWith) -> None:
     # The selection stage and the constructed instances must share the same
     # per-run config object.
-    config = _config_with_jupiter_rings(tmp_path)
+    config = _config_with_jupiter_rings(nav_config_with)
     instances = NavModelBody.instances_for_obs(cast(Any, _FakeSaturnObs()), config=config)
     assert len(instances) > 0
     assert all(m._config is config for m in instances)

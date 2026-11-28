@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import numpy as np
 import pytest
-from tests.camera_sections import raw_camera
+from tests.packaged_sections import raw_camera
 from tests.spindoctor.nav_technique.conftest import NavFeatureFactory
 
 from spindoctor.annotation import Annotations

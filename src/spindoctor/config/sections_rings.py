@@ -11,7 +11,7 @@ turns each entry into a :class:`~spindoctor.nav_model.rings.RingFeature` when it
 renders.  Every check on a catalog is made here, when the configuration loads.
 
 A planet key of ``ring_features`` must be a planet of the ``planets`` section.  That
-rule reads two sections, so :class:`~spindoctor.config.sections.TypedSections` checks
+rule reads two sections, so :class:`~spindoctor.config.sections.NavConfig` checks
 it.
 
 A field that has no default takes its value from the packaged YAML.

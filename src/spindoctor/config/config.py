@@ -1,13 +1,18 @@
 """YAML-backed configuration for SpinDoctor.
 
-Reads the packaged configuration files in filename order, then any user override
-files, and merges them with :func:`spindoctor.schema.layers.merge` under
+:func:`load_nav_config` reads the packaged configuration files in filename order, then
+any user override files, then any overrides held in memory, and merges them with
+:func:`spindoctor.schema.layers.merge` under
 :attr:`~spindoctor.schema.layers.NullPolicy.REFUSE`: mappings merge key by key, any
-other value replaces the earlier one whole, and a null in any file is refused.  The
-typed sections (:mod:`spindoctor.config.sections`) are parsed into frozen dataclasses
-each time a configuration is installed.  The other sections are exposed as
-:class:`spindoctor.support.attrdict.AttrDict` for attribute-style access.  The
-:class:`Config` class is the main public entry.
+other value replaces the earlier one whole, and a null in any layer is refused.  It then
+parses the whole merged configuration into one
+:class:`~spindoctor.config.sections.NavConfig`, so an unknown key in any section, and a
+top-level section that the navigator does not declare, are refused when the
+configuration loads.
+
+:class:`Config` holds the current :class:`~spindoctor.config.sections.NavConfig` and the
+overrides it was built from.  Its section properties return the sections of that
+object.  :data:`DEFAULT_CONFIG` is the configuration the programs share.
 """
 
 from __future__ import annotations
@@ -15,14 +20,13 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.schema import (
     Issue,
-    KeyPath,
     Layer,
     NullPolicy,
     SchemaError,
@@ -31,7 +35,6 @@ from spindoctor.schema import (
     parse,
     read_layer,
 )
-from spindoctor.support.attrdict import AttrDict
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     # nav_records is imported whole so the results_tree annotation is qualified: the
@@ -42,9 +45,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.config.sections import (
         EnvironmentSection,
         GeneralSection,
+        NavConfig,
         OffsetSection,
         OrchestratorSection,
-        TypedSections,
     )
     from spindoctor.config.sections_body_shape import BodyShapeEntry
     from spindoctor.config.sections_models import (
@@ -63,89 +66,56 @@ _PACKAGED_CONFIG_DIR = Path(__file__).resolve().parent.parent / 'config_files'
 _PACKAGED_LABEL = 'the packaged configuration'
 """The source a message gives for a packaged value when no file is recorded for it."""
 
-_MERGED_LABEL = 'the merged configuration'
-"""The label of the configuration as it stands when an override is merged over it."""
 
-
-def _typed_sections_type(
+def _nav_config_type(
     config_dict: Mapping[str, Any], known_cameras: frozenset[str]
-) -> type[TypedSections]:
-    """Return the type the typed sections of a configuration are parsed into.
+) -> type[NavConfig]:
+    """Return the type a merged configuration is parsed into.
 
     The section types import modules that import this package, so the import waits
-    until a configuration is installed, by which time this package has loaded.
+    until a configuration is loaded, by which time this package has loaded.
 
     Parameters:
         config_dict: The merged configuration.
-        known_cameras: The camera sections of the configuration it was merged over.
+        known_cameras: The camera sections of the packaged configuration.
 
     Returns:
-        The type :func:`~spindoctor.config.sections.typed_sections_type` returns.
+        The type :func:`~spindoctor.config.sections.nav_config_type` returns.
     """
-    from spindoctor.config.sections import typed_sections_type
+    from spindoctor.config.sections import nav_config_type
 
-    return typed_sections_type(config_dict, known_cameras=known_cameras)
+    return nav_config_type(config_dict, known_cameras=known_cameras)
 
 
-def _configure_techniques(sections: TypedSections) -> None:
+def _configure_techniques(nav_config: NavConfig) -> None:
     """Assign each shipped technique class its confidence formula and tuning.
 
     Parameters:
-        sections: The typed sections of the configuration being installed.
+        nav_config: The configuration being installed.
     """
     from spindoctor.nav_technique.confidence_config import shipped_techniques
 
     for technique in shipped_techniques():
-        block = sections.techniques.block(technique)
+        block = nav_config.techniques.block(technique)
         technique.confidence_spec = block.confidence_spec()
         technique.tuning = block.technique_tuning()
 
 
-def _parse_typed_sections(
-    config_dict: Mapping[str, Any],
-    origins: Mapping[KeyPath, str],
-    *,
-    source: str,
-    known_cameras: frozenset[str],
-) -> tuple[TypedSections, dict[KeyPath, str]]:
-    """Parse the typed sections of a merged configuration.
-
-    Parameters:
-        config_dict: The merged configuration.
-        origins: The label of the file that set each value, keyed by key path, in the
-            order the files merged.  Values of other sections may be included.
-        source: The label a message gives for a value that ``origins`` does not
-            cover.
-        known_cameras: The camera sections of the configuration it was merged over.
-
-    Returns:
-        The typed sections, and the entries of ``origins`` that lie inside them.
-
-    Raises:
-        SchemaError: Listing every problem in the typed sections, each line in the
-            form ``file: key.path: message``.
-    """
-    sections_type = _typed_sections_type(config_dict, known_cameras)
-    keys = {item.name for item in dataclasses.fields(sections_type)}
-    raw = {key: value for key, value in config_dict.items() if key in keys}
-    kept = {path: label for path, label in origins.items() if path[0] in keys}
-    return parse(sections_type, raw, source=source, origins=kept), kept
-
-
-def _refuse_replaced_sections(merged: Mapping[Any, Any], layer: Layer) -> None:
+def _refuse_replaced_sections(packaged: Mapping[Any, Any], layer: Layer) -> None:
     """Refuse an override that gives a section as anything but a mapping.
 
-    A section is a top-level key whose value in the merged configuration is a
+    A section is a top-level key whose value in the packaged configuration is a
     mapping.  The merge would let a scalar or a list replace it whole, which would
-    leave every reader of the section to fail on its own.  A null is left to the
-    merge, which refuses every null.
+    leave a camera section to be refused as an unknown key rather than as a value of
+    the wrong type.  A null is left to the merge, which refuses every null.
 
     Parameters:
-        merged: The configuration merged so far.
-        layer: The override about to be merged over it.
+        packaged: The packaged configuration, merged.
+        layer: An override to be merged over it.
 
     Raises:
-        SchemaError: Naming the file and each section it gives as something else.
+        SchemaError: If the override gives a section as something else, with one line
+            for each such section, which gives the override's label and the section.
     """
     issues = [
         Issue(
@@ -156,11 +126,54 @@ def _refuse_replaced_sections(merged: Mapping[Any, Any], layer: Layer) -> None:
         )
         for key, value in layer.data.items()
         if value is not None
-        and isinstance(merged.get(key), dict)
+        and isinstance(packaged.get(key), dict)
         and not isinstance(value, Mapping)
     ]
     if issues:
         raise SchemaError(issues)
+
+
+def load_nav_config(
+    paths: Iterable[str | Path] = (), *, overrides: Iterable[Layer] = ()
+) -> NavConfig:
+    """Read, merge, and parse the navigator configuration.
+
+    The packaged files merge first, in filename order, then each file of ``paths``, then
+    each layer of ``overrides``, each over the ones before it.  Every key beginning with
+    an underscore is dropped as its file is read, so a file can carry notes, such as
+    ``_sources`` citations, beside its values.  The whole merged configuration is then
+    parsed.  Each call reads the files again and builds a new object, and nothing else
+    changes: the technique classes take their settings only when a :class:`Config`
+    installs the result.
+
+    Parameters:
+        paths: User override files, in the order they merge.  A message gives each one
+            as written here.
+        overrides: Overrides held in memory, merged after the files; a message gives
+            each one by its label.
+
+    Returns:
+        The parsed configuration.
+
+    Raises:
+        FileNotFoundError: If a file of ``paths`` does not exist.
+        SchemaError: If a file is not a YAML mapping, a layer holds a null or gives a
+            section as anything but a mapping, or the merged configuration breaks its
+            schema, as with an unknown key or section, a value of the wrong type or out
+            of range, or a technique block that refers to a diagnostic attribute its
+            technique does not declare.  Each line of the message gives the file that set
+            the value, and the key path.
+    """
+    packaged = [read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))]
+    layers = [*(read_layer(Path(path), label=str(path)) for path in paths), *overrides]
+    base = merge(packaged, nulls=NullPolicy.REFUSE)
+    for layer in layers:
+        _refuse_replaced_sections(base.data, layer)
+    merged = merge([*packaged, *layers], nulls=NullPolicy.REFUSE)
+    known_cameras = frozenset(_nav_config_type(base.data, frozenset()).CAMERA_SECTIONS)
+    nav_config_type = _nav_config_type(merged.data, known_cameras)
+    source = layers[-1].label if layers else _PACKAGED_LABEL
+    return parse(nav_config_type, merged.data, source=source, origins=merged.origins)
 
 
 HASH_EXCLUDED_SECTIONS = frozenset({'environment', 'logging', 'results_tree'})
@@ -194,41 +207,46 @@ def _stringify_keys(value: Any) -> Any:
     integer keys such as image sizes and PSF-size thresholds).
 
     Parameters:
-        value: A YAML-parsed value (mapping, list, or scalar).
+        value: A mapping, list, tuple, or scalar.
 
     Returns:
-        ``value`` with every mapping key converted to its ``str`` form;
-        lists are walked element-wise and scalars pass through unchanged.
+        ``value`` with every mapping key converted to its ``str`` form; lists and tuples
+        are walked element-wise and scalars pass through unchanged.
     """
 
     if isinstance(value, dict):
         return {str(k): _stringify_keys(v) for k, v in value.items()}
-    if isinstance(value, list):
+    if isinstance(value, list | tuple):
         return [_stringify_keys(v) for v in value]
     return value
 
 
 class Config:
-    """Manages configuration settings for the navigation system.
+    """The navigator configuration a program reads, and the overrides it was built from.
 
-    This class handles loading, updating, and accessing configuration settings from YAML files.
-    It provides access to various configuration sections through properties and methods.
+    It holds the current :class:`~spindoctor.config.sections.NavConfig`, which
+    :func:`load_nav_config` builds, and reads the packaged files the first time a section
+    is asked for.  Installing a configuration also assigns each shipped technique class
+    its confidence formula and tuning.
+
+    Parameters:
+        overrides: Overrides held in memory, merged over the packaged files each time
+            the configuration is read, and before any file :meth:`update_config` merges.
     """
 
-    def __init__(self) -> None:
-        """Initializes a new Config instance with empty configuration containers."""
+    def __init__(self, *, overrides: Iterable[Layer] = ()) -> None:
+        """Make a configuration that reads nothing until a section is asked for."""
 
-        self._config_dict: dict[str, Any] = {}
-        self._category_cache: dict[str, AttrDict] = {}
-        self._override_paths: list[str] = []
-        self._sections: TypedSections | None = None
-        self._typed_origins: dict[KeyPath, str] = {}
+        self._base_overrides: tuple[Layer, ...] = tuple(overrides)
+        self._overrides: tuple[Layer, ...] = self._base_overrides
+        self._override_paths: tuple[str, ...] = ()
+        self._nav_config: NavConfig | None = None
 
     @property
     def is_loaded(self) -> bool:
-        """Whether merged YAML is present (after ``read_config`` / ``update_config``)."""
+        """Whether a configuration is installed (after ``read_config`` / ``update_config``)."""
 
-        return bool(self._config_dict)
+        return self._nav_config is not None
 
     def ensure_loaded(self) -> None:
         """Load bundled default YAML if not already loaded.
@@ -239,85 +257,54 @@ class Config:
 
         self.read_config()
 
-    def _update_attrdicts(self) -> None:
-        """Updates all attribute dictionaries from the main configuration dictionary.
+    def _install(self, overrides: tuple[Layer, ...], override_paths: tuple[str, ...]) -> NavConfig:
+        """Load a configuration from a set of overrides, and keep it only if it passes.
 
-        Converts dictionary sections to AttrDict instances for convenient attribute-style access.
-        """
-
-        # The config was (re)loaded; drop any cached per-category AttrDicts so
-        # category() rebuilds them from the fresh dict (mirrors the named
-        # section properties below being reassigned here).
-        self._category_cache = {}
-
-    def _install(
-        self,
-        candidate: dict[str, Any],
-        override_paths: list[str],
-        *,
-        origins: Mapping[KeyPath, str],
-        source: str,
-    ) -> None:
-        """Parse a merged configuration, and keep it only if it passes.
-
-        A refused candidate leaves the configuration, its typed sections, and
+        A refused configuration leaves the configuration, the techniques' settings, and
         :attr:`override_paths` as they were.
 
         Parameters:
-            candidate: The merged configuration to keep.
-            override_paths: The override files it includes, in order.
-            origins: The label of the file that set each value of the typed sections,
-                keyed by key path, in the order the files merged.
-            source: The label a message gives for a value that ``origins`` does not
-                cover.
+            overrides: The overrides to merge over the packaged files, in order.
+            override_paths: The override files among them, in order.
+
+        Returns:
+            The configuration installed.
 
         Raises:
-            SchemaError: If a typed section breaks its schema.
+            SchemaError: As :func:`load_nav_config` raises it.
         """
-        known = frozenset(self._sections.CAMERA_SECTIONS) if self._sections else frozenset()
-        sections, typed_origins = _parse_typed_sections(
-            candidate, origins, source=source, known_cameras=known
-        )
-        self._config_dict = candidate
+        nav_config = load_nav_config(overrides=overrides)
+        self._nav_config = nav_config
+        self._overrides = overrides
         self._override_paths = override_paths
-        self._sections = sections
-        self._typed_origins = typed_origins
-        self._update_attrdicts()
-        _configure_techniques(sections)
+        _configure_techniques(nav_config)
+        return nav_config
 
     def read_config(self, *, reread: bool = False) -> None:
         """Read the packaged configuration files, unless they have been read already.
 
-        The files merge in filename order.  Every key beginning with an underscore is
-        dropped as its file is read, so a file can carry notes, such as ``_sources``
-        citations, beside its values.  A reread starts again from the packaged files
-        alone, so it drops every override applied since.
+        A reread starts again from the packaged files and the overrides given when the
+        configuration was made, so it drops every file merged since.
 
         Parameters:
             reread: Whether to read the files again if the configuration is loaded.
 
         Raises:
-            SchemaError: If a file is not a YAML mapping, or holds a null, or if a
-                typed section breaks its schema, as with a technique block that names
-                a diagnostic attribute its technique does not declare.
+            SchemaError: As :func:`load_nav_config` raises it.
         """
 
-        if not reread and self._config_dict:
-            return
-
-        layers = [read_layer(path) for path in sorted(_PACKAGED_CONFIG_DIR.glob('*.yaml'))]
-        merged = merge(layers, nulls=NullPolicy.REFUSE)
-        self._install(merged.data, [], origins=merged.origins, source=_PACKAGED_LABEL)
+        if reread or self._nav_config is None:
+            self._install(self._base_overrides, ())
 
     def update_config(self, config_path: str | Path) -> None:
         """Merge a user override file over the configuration.
 
-        The packaged files are read first if they have not been.  The merged
-        configuration is then parsed again, and each shipped technique is
-        assigned the confidence formula and tuning it sets, so per-technique overrides
-        take effect.  A refused override, whatever the reason, leaves the
-        configuration, the techniques' settings, and :attr:`override_paths` as they
-        were.
+        The file is read once and kept, and the configuration is loaded again from the
+        packaged files and every override merged so far, then this one.  Each shipped
+        technique is assigned the confidence formula and tuning the result sets, so
+        per-technique overrides take effect.  A refused override, whatever the reason,
+        leaves the configuration, the techniques' settings, and :attr:`override_paths` as
+        they were.
 
         Parameters:
             config_path: The override file.  Error messages and :attr:`override_paths`
@@ -325,56 +312,41 @@ class Config:
 
         Raises:
             FileNotFoundError: If the file does not exist.
-            SchemaError: If the file is not a YAML mapping, holds a null, or gives a
-                section as anything but a mapping, or if a typed section of the merged
-                result breaks its schema, as with an unknown key or a value of the
-                wrong type or out of range; each line of the message gives the file
-                that set the value and the key path.
+            SchemaError: As :func:`load_nav_config` raises it.
         """
 
         self.read_config()
         layer = read_layer(Path(config_path), label=str(config_path))
-        _refuse_replaced_sections(self._config_dict, layer)
-        # Only the sections the override names are merged again, and the candidate
-        # shares the rest with the configuration as it stands, so the cost follows the
-        # size of the override and never the number of overrides before it.
-        named = {key: self._config_dict[key] for key in layer.data if key in self._config_dict}
-        merged = merge([Layer(named, _MERGED_LABEL), layer], nulls=NullPolicy.REFUSE)
-        candidate = {**self._config_dict, **merged.data}
-        # A value the override leaves alone keeps the file recorded for it before.
-        origins = {
-            path: label for path, label in self._typed_origins.items() if path[0] not in named
-        }
-        origins.update(
-            (path, self._typed_origins.get(path, label) if label == _MERGED_LABEL else label)
-            for path, label in merged.origins.items()
-        )
-        self._install(
-            candidate,
-            [*self._override_paths, str(config_path)],
-            origins=origins,
-            source=str(config_path),
-        )
+        self._install((*self._overrides, layer), (*self._override_paths, str(config_path)))
 
     @property
     def override_paths(self) -> tuple[str, ...]:
         """The user override files applied by :meth:`update_config`, in order.
 
-        The packaged files are not overrides and never appear here.  Each path is
-        given as it was passed to :meth:`update_config`.
+        The packaged files are not overrides and never appear here, and neither do the
+        overrides held in memory.  Each path is given as it was passed to
+        :meth:`update_config`.
         """
 
-        return tuple(self._override_paths)
+        return self._override_paths
+
+    @property
+    def nav_config(self) -> NavConfig:
+        """Returns the current configuration, reading the packaged files first if need be."""
+
+        nav_config = self._nav_config
+        if nav_config is None:
+            nav_config = self._install(self._base_overrides, ())
+        return nav_config
 
     def resolved_config_hash(self) -> str:
         """Return a stable sha256 hex digest of the fully-resolved config.
 
-        The merged config dict (bundled defaults plus every applied
-        override) is serialized deterministically -- mapping keys are
-        stringified and sorted, list order is preserved -- and hashed, so
-        two configs with identical resolved content produce identical
-        digests regardless of load order or comment/whitespace changes in
-        the source YAML files.
+        The parsed configuration (bundled defaults plus every applied override) is
+        serialized deterministically -- mapping keys are stringified and sorted, list
+        order is preserved -- and hashed, so two configs with identical resolved
+        content produce identical digests regardless of load order or
+        comment/whitespace changes in the source YAML files.
 
         Sections in :data:`HASH_EXCLUDED_SECTIONS` are left out, because this
         digest answers "was this result produced by the same configuration",
@@ -387,10 +359,9 @@ class Config:
             64-character sha256 hex digest of the resolved config content.
         """
 
-        self.read_config()
         hashed = {
             key: value
-            for key, value in self._config_dict.items()
+            for key, value in dataclasses.asdict(self.nav_config).items()
             if key not in HASH_EXCLUDED_SECTIONS
         }
         canonical = json.dumps(
@@ -401,27 +372,11 @@ class Config:
         )
         return hashlib.sha256(canonical.encode('utf-8')).hexdigest()
 
-    def category(self, category: str) -> AttrDict:
-        """Returns the configuration settings for the specified category.
-
-        The result is cached per category and rebuilt on config reload (see
-        ``_update_attrdicts``), matching the caching semantics of the named
-        section properties.  Config is treated read-only; mutating the returned
-        AttrDict is not supported.
-        """
-
-        self.read_config()
-        cached = self._category_cache.get(category)
-        if cached is None:
-            cached = AttrDict(self._config_dict.get(category, {}))
-            self._category_cache[category] = cached
-        return cached
-
     @property
     def general(self) -> GeneralSection:
         """Returns the general section: settings no single part of the pipeline owns."""
 
-        return self._typed_sections().general
+        return self.nav_config.general
 
     @property
     def environment(self) -> EnvironmentSection:
@@ -434,7 +389,7 @@ class Config:
         of those three places.
         """
 
-        return self._typed_sections().environment
+        return self.nav_config.environment
 
     @property
     def logging(self) -> LoggingSection:
@@ -443,17 +398,17 @@ class Config:
         Holds the per-logger defaults (``main``, ``image``), the per-module
         override categories (``techniques``, ``models``, ``other``), the
         ``strict_scope`` switch, and per-program overrides under ``programs``.
-        The section is parsed when the configuration is installed, so every key and
+        The section is parsed when the configuration loads, so every key and
         level has been checked.
         """
 
-        return self._typed_sections().logging
+        return self.nav_config.logging
 
     @property
     def planets(self) -> list[str]:
         """Returns the SPICE names of the configured planets."""
 
-        return list(self._typed_sections().planets)
+        return list(self.nav_config.planets)
 
     def satellites(self, planet: str) -> list[str]:
         """Returns the list of satellites for the specified planet.
@@ -466,7 +421,7 @@ class Config:
             ``satellites`` section leaves out.
         """
 
-        return list(self._typed_sections().satellites.get(planet.upper(), ()))
+        return list(self.nav_config.satellites.get(planet.upper(), ()))
 
     def camera_block(self, section: str, camera: str | None = None) -> CameraBlock:
         """Returns one camera's block.
@@ -485,7 +440,7 @@ class Config:
                 ``camera`` is given.
         """
 
-        return self._typed_sections().camera_block(section, camera)
+        return self.nav_config.camera_block(section, camera)
 
     def camera_names(self, section: str) -> tuple[str | None, ...]:
         """Returns the names of the cameras a camera section holds.
@@ -502,10 +457,10 @@ class Config:
             KeyError: If ``section`` is not a camera section of the configuration.
         """
 
-        sections = self._typed_sections()
-        if section not in sections.CAMERA_SECTIONS:
+        nav_config = self.nav_config
+        if section not in nav_config.CAMERA_SECTIONS:
             raise KeyError(f'{section!r} is not a camera section of the configuration')
-        value: CameraBlock | dict[str, CameraBlock] = getattr(sections, section)
+        value: CameraBlock | dict[str, CameraBlock] = getattr(nav_config, section)
         if isinstance(value, CameraBlock):
             return (None,)
         return tuple(value)
@@ -514,13 +469,13 @@ class Config:
     def offset(self) -> OffsetSection:
         """Returns the offset section, which sets how finely a correlation resolves a peak."""
 
-        return self._typed_sections().offset
+        return self.nav_config.offset
 
     @property
     def bodies(self) -> BodiesSection:
         """Returns the ``bodies`` section: how a body is rendered, gated, and labeled."""
 
-        return self._typed_sections().bodies
+        return self.nav_config.bodies
 
     @property
     def body_shape(self) -> Mapping[str, BodyShapeEntry]:
@@ -531,67 +486,52 @@ class Config:
         the next tier.
         """
 
-        return self._typed_sections().body_shape
+        return self.nav_config.body_shape
 
     @property
     def rings(self) -> RingsSection:
         """Returns the ``rings`` section: the ring model's settings and the ring catalogs."""
 
-        return self._typed_sections().rings
+        return self.nav_config.rings
 
     @property
     def stars(self) -> StarsSection:
         """Returns the ``stars`` section: the catalogs, their reduction, and conflicts."""
 
-        return self._typed_sections().stars
+        return self.nav_config.stars
 
     @property
     def titan(self) -> TitanSection:
         """Returns the ``titan`` section: the haze envelope, its feature, and its fit."""
 
-        return self._typed_sections().titan
+        return self.nav_config.titan
 
     @property
     def feature_emission(self) -> FeatureEmissionSection:
         """Returns the ``feature_emission`` section: which features the ring model emits."""
 
-        return self._typed_sections().feature_emission
+        return self.nav_config.feature_emission
 
     @property
     def orchestrator(self) -> OrchestratorSection:
         """Returns the orchestrator section: the ensemble and the reliability gate.
 
-        The section is parsed when the configuration is installed, so every value has
-        been checked against its type and range.
+        The section is parsed when the configuration loads, so every value has been
+        checked against its type and range.
         """
 
-        return self._typed_sections().orchestrator
-
-    def _typed_sections(self) -> TypedSections:
-        """Return the typed sections, reading the packaged files first if need be.
-
-        Returns:
-            The sections parsed when the configuration was installed.
-
-        Raises:
-            RuntimeError: If the configuration is read but its sections were not parsed.
-        """
-
-        self.read_config()
-        if self._sections is None:
-            raise RuntimeError('the configuration is read but its sections were not parsed')
-        return self._sections
+        return self.nav_config.orchestrator
 
     @property
     def techniques(self) -> TechniquesSection:
         """Returns the techniques section: each technique's confidence formula and tuning.
 
-        The section is parsed when the configuration is installed.  Its
+        The section is parsed when the configuration loads.  Its
         :meth:`~spindoctor.nav_technique.confidence_config.TechniquesSection.block`
         method gives one technique's block.
         """
 
-        return self._typed_sections().techniques
+        return self.nav_config.techniques
 
     @property
     def results_tree(self) -> spindoctor.nav_records.TreeTuning:
@@ -602,20 +542,17 @@ class Config:
         passes it to whatever reads the tree.
         """
 
-        return self._typed_sections().results_tree
+        return self.nav_config.results_tree
 
     @property
     def backplanes(self) -> BackplanesSection:
         """Returns the backplanes section: the planes each image gets, and their targets.
 
-        The section is parsed when the configuration is installed, so every value has
-        been checked against its type.
+        The section is parsed when the configuration loads, so every value has been
+        checked against its type.
         """
 
-        self.read_config()
-        if self._sections is None:
-            raise RuntimeError('the configuration is read but its sections were not parsed')
-        return self._sections.backplanes
+        return self.nav_config.backplanes
 
     @property
     def pds4(self) -> Pds4Section:
@@ -625,10 +562,7 @@ class Config:
         one bundle's entry.
         """
 
-        self.read_config()
-        if self._sections is None:
-            raise RuntimeError('the configuration is read but its sections were not parsed')
-        return self._sections.pds4
+        return self.nav_config.pds4
 
 
 DEFAULT_CONFIG = Config()

@@ -34,7 +34,7 @@ from typing import Any, cast
 import numpy as np
 from astropy.io import fits
 from filecache import FCPath
-from tests.product_sections import packaged_backplanes
+from tests.packaged_sections import packaged_backplanes
 from tests.spindoctor.cli.sd_create_bundle_helpers import (
     STAND_IN_INFORMATION_MODEL_VERSION,
     STAND_IN_SCHEMAS,

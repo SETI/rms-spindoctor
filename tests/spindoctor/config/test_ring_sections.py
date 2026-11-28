@@ -7,10 +7,10 @@ that a catalog's planet is a planet of the ``planets`` section.
 """
 
 import re
-from pathlib import Path
 from typing import Any
 
 import pytest
+from tests.packaged_sections import TEST_OVERRIDE_LABEL, NavConfigWith
 
 from spindoctor.config import Config
 from spindoctor.config.sections_rings import RingCatalog, RingFeatureEntry, RingsSection
@@ -275,18 +275,20 @@ def test_features_that_do_not_overlap_are_accepted(features: dict[str, Any]) -> 
     assert list(catalog.features) == list(features)
 
 
-def test_a_ring_catalog_planet_not_in_the_planets_section_is_refused(tmp_path: Path) -> None:
+def test_a_ring_catalog_planet_not_in_the_planets_section_is_refused(
+    nav_config_with: NavConfigWith,
+) -> None:
     """A catalog's planet must be a planet of ``planets``, written in upper case."""
-    user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text(
-        "rings:\n  ring_features:\n    saturn:\n      epoch: '2008-01-01 12:00:00'\n"
-        '      fade_width_pix: 100.0\n      min_allowed_fade_width_pix: 3.0\n'
-        '      min_feature_pixels: 2.0\n      features: {}\n',
-        encoding='utf-8',
-    )
+    catalog = {
+        'epoch': '2008-01-01 12:00:00',
+        'fade_width_pix': 100.0,
+        'min_allowed_fade_width_pix': 3.0,
+        'min_feature_pixels': 2.0,
+        'features': {},
+    }
     expected = (
-        f"{user_path}: rings.ring_features.saturn: 'saturn' is not a planet of the planets "
-        'section; a planet is written in upper case, as SPICE spells it'
+        f"{TEST_OVERRIDE_LABEL}: rings.ring_features.saturn: 'saturn' is not a planet of the "
+        'planets section; a planet is written in upper case, as SPICE spells it'
     )
     with pytest.raises(SchemaError, match=re.escape(expected)):
-        Config().update_config(user_path)
+        nav_config_with({'rings': {'ring_features': {'saturn': catalog}}})

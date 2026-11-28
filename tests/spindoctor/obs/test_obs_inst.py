@@ -4,7 +4,7 @@ from typing import Any
 
 import pytest
 from starcat import Star
-from tests.camera_sections import raw_camera
+from tests.packaged_sections import raw_camera
 
 from spindoctor.obs.obs_inst import ObsInst
 

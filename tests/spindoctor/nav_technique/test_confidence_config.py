@@ -7,9 +7,10 @@ refuses a block by a name the section does not use.
 """
 
 import re
-from pathlib import Path
+from typing import Any
 
 import pytest
+from tests.packaged_sections import TEST_OVERRIDE_LABEL, NavConfigWith
 
 from spindoctor.config import Config
 from spindoctor.nav_technique import BodyLimbNav
@@ -26,38 +27,34 @@ def test_packaged_techniques_section_parses() -> None:
 
 
 @pytest.mark.parametrize(
-    ('text', 'path'),
+    ('block', 'path'),
     [
-        ('    terms:\n      - feature: nope\n        alpha: 1.0\n', 'terms[0].feature'),
-        ('    hard_zero_if:\n      nope: true\n', 'hard_zero_if.nope'),
+        ({'terms': [{'feature': 'nope', 'alpha': 1.0}]}, 'terms[0].feature'),
+        ({'hard_zero_if': {'nope': True}}, 'hard_zero_if.nope'),
     ],
     ids=['term', 'hard-zero'],
 )
-def test_an_undeclared_attribute_is_refused(tmp_path: Path, text: str, path: str) -> None:
+def test_an_undeclared_attribute_is_refused(
+    nav_config_with: NavConfigWith, block: dict[str, Any], path: str
+) -> None:
     """A block that names an attribute its technique does not declare is refused at load.
 
     Parameters:
-        tmp_path: A directory for the override file.
-        text: The ``body_limb`` block's lines in the override.
+        nav_config_with: Builds a configuration from an override mapping.
+        block: The ``body_limb`` block in the override.
         path: The key path the message gives inside the block.
     """
-    user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text(f'techniques:\n  body_limb:\n{text}', encoding='utf-8')
-    expected = f'{user_path}: techniques.body_limb.{path}: BodyLimbNav declares no such attribute'
+    message = 'BodyLimbNav declares no such attribute'
+    expected = f'{TEST_OVERRIDE_LABEL}: techniques.body_limb.{path}: {message}'
     with pytest.raises(SchemaError, match=re.escape(expected)):
-        Config().update_config(user_path)
+        nav_config_with({'techniques': {'body_limb': block}})
 
 
-def test_a_technique_block_under_its_class_name_is_refused(tmp_path: Path) -> None:
-    """A block under a technique's class name is an unknown key, and changes nothing."""
-    config = Config()
-    tuning = config.techniques.block(BodyLimbNav).technique_tuning()
-    user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text(
-        'techniques:\n  BodyLimbNav:\n    tuning:\n      spurious_dt_floor_px: 9.0\n',
-        encoding='utf-8',
-    )
-    expected = f"{user_path}: techniques: unknown keys: ['BodyLimbNav']"
+def test_a_technique_block_under_its_class_name_is_refused(nav_config_with: NavConfigWith) -> None:
+    """A block under a technique's class name is an unknown key, and leaves the tuning alone."""
+    tuning = Config().techniques.block(BodyLimbNav).technique_tuning()
+    overrides = {'techniques': {'BodyLimbNav': {'tuning': {'spurious_dt_floor_px': 9.0}}}}
+    expected = f"{TEST_OVERRIDE_LABEL}: techniques: unknown keys: ['BodyLimbNav']"
     with pytest.raises(SchemaError, match=re.escape(expected)):
-        config.update_config(user_path)
+        nav_config_with(overrides)
     assert BodyLimbNav.tuning is tuning

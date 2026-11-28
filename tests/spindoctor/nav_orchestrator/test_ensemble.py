@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 import pytest
-from tests.orchestrator_section import packaged_ensemble, packaged_tiers
+from tests.packaged_sections import packaged_ensemble, packaged_tiers
 
 from spindoctor.nav_orchestrator.ensemble import (
     _combine_confidence,

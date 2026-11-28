@@ -14,11 +14,11 @@ from typing import Any
 from xml.etree import ElementTree
 
 import pytest
-from ruamel.yaml import YAML
 from tests.mini_nav_results.cohort import WrittenCohorts
 from tests.mini_nav_results.cohort_cassini import LIMB_STUB, RINGS_STUB, CohortCassiniISSSaturn
+from tests.packaged_sections import NavConfigWith
 
-from spindoctor.config import DEFAULT_CONFIG, Config
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISSSaturn
 
 from .cohort_bundle import CohortBundleEnv, label_cohort_images, summarize_bundle
@@ -84,7 +84,11 @@ def cassini_cohort(mini_nav_cohorts: WrittenCohorts) -> CohortCassiniISSSaturn:
 
 
 def _bundle_under(
-    cohort: CohortCassiniISSSaturn, tmp_path: Path, overrides: dict[str, Any]
+    cohort: CohortCassiniISSSaturn,
+    tmp_path: Path,
+    overrides: dict[str, Any],
+    *,
+    nav_config_with: NavConfigWith,
 ) -> CohortBundleEnv:
     """Build the cohort's bundle under a configuration changed in its ``pds4`` block.
 
@@ -95,9 +99,9 @@ def _bundle_under(
     Parameters:
         cohort: The session's cohort, holding the navigation and backplane roots the
             run reads.
-        tmp_path: Base temporary directory for the templates, the configuration file and
-            the bundle.
+        tmp_path: Base temporary directory for the templates and the bundle.
         overrides: Keys merged into ``pds4.coiss_saturn``, beside the template directory.
+        nav_config_with: Builds the configuration with the changed block.
 
     Returns:
         The environment the bundle was written into.
@@ -108,10 +112,7 @@ def _bundle_under(
     guide = templates / shipped.pds4_user_guide_file_name()
     guide.write_bytes(b'%PDF-1.4 a stand-in user guide\n')
     block = {'template_dir': str(templates), **overrides}
-    override = tmp_path / 'override.yaml'
-    YAML(typ='safe').dump({'pds4': {'coiss_saturn': block}}, override)
-    config = Config()
-    config.update_config(override)
+    config = nav_config_with({'pds4': {'coiss_saturn': block}})
     dataset = DataSetPDS3CassiniISSSaturn(cohort.holdings_root, config=config)
     bundle_results_root = tmp_path / 'bundle'
     bundle_results_root.mkdir()
@@ -216,7 +217,7 @@ def _version_code(version: str) -> str:
 
 
 def test_the_bundle_takes_the_configured_name_and_version(
-    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path, nav_config_with: NavConfigWith
 ) -> None:
     """Under another name and version, no file of the bundle holds the shipped ones.
 
@@ -230,11 +231,14 @@ def test_the_bundle_takes_the_configured_name_and_version(
     data user guide, a schema -- is, file by file, the one the bundle built under the
     shipped configuration names: an external reference keeps its own version.
     """
-    shipped = _bundle_under(cassini_cohort, tmp_path / 'shipped', {})
+    shipped = _bundle_under(
+        cassini_cohort, tmp_path / 'shipped', {}, nav_config_with=nav_config_with
+    )
     env = _bundle_under(
         cassini_cohort,
         tmp_path / 'other',
         {'bundle_name': OTHER_NAME, 'bundle_version': OTHER_VERSION},
+        nav_config_with=nav_config_with,
     )
     shipped_name = DEFAULT_CONFIG.pds4.bundle('coiss_saturn').bundle_name
     bundle_lid = f'urn:nasa:pds:{OTHER_NAME}'
@@ -281,7 +285,10 @@ def test_the_bundle_takes_the_configured_name_and_version(
 
 @pytest.mark.parametrize('prefix', list(NAMESPACES))
 def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
-    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path, prefix: str
+    cassini_cohort: CohortCassiniISSSaturn,
+    tmp_path: Path,
+    nav_config_with: NavConfigWith,
+    prefix: str,
 ) -> None:
     """A dictionary's schema moved in the configuration moves in every label declaring it.
 
@@ -294,6 +301,7 @@ def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
     Parameters:
         cassini_cohort: The cohort the bundle is built over.
         tmp_path: Base temporary directory.
+        nav_config_with: Builds the configuration with the moved schema.
         prefix: The dictionary whose schema is moved, by its namespace's prefix.
     """
     shipped = DEFAULT_CONFIG.pds4.bundle('coiss_saturn').schemas
@@ -301,7 +309,9 @@ def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
         'location': f'https://example.invalid/{prefix}/v1/PDS4_MOVED',
         'lidvid': f'urn:nasa:pds:system_bundle:xml_schema:{prefix}-moved::9.9',
     }
-    env = _bundle_under(cassini_cohort, tmp_path, {'schemas': {prefix: moved}})
+    env = _bundle_under(
+        cassini_cohort, tmp_path, {'schemas': {prefix: moved}}, nav_config_with=nav_config_with
+    )
     labels = _labels(env.bundle_dir)
     declaring = [path for path, text in labels.items() if f'="{NAMESPACES[prefix]}"' in text]
     without_schematron = [
@@ -326,11 +336,14 @@ def test_a_schema_moved_in_the_configuration_moves_in_every_label_declaring_it(
 
 
 def test_every_label_states_the_configured_information_model_version(
-    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path
+    cassini_cohort: CohortCassiniISSSaturn, tmp_path: Path, nav_config_with: NavConfigWith
 ) -> None:
     """Every label states the information model version the configuration gives."""
     env = _bundle_under(
-        cassini_cohort, tmp_path, {'information_model_version': OTHER_INFORMATION_MODEL_VERSION}
+        cassini_cohort,
+        tmp_path,
+        {'information_model_version': OTHER_INFORMATION_MODEL_VERSION},
+        nav_config_with=nav_config_with,
     )
     stated = {
         path: ElementTree.parse(env.bundle_dir / path)

@@ -7,9 +7,9 @@ shipped bundle entry holds is tested with its dataset.
 """
 
 import re
-from pathlib import Path
 
 import pytest
+from tests.packaged_sections import TEST_OVERRIDE_LABEL, NavConfigWith
 
 from spindoctor.config import Config
 from spindoctor.config.sections_products import (
@@ -42,13 +42,11 @@ def test_the_pds4_section_accepts_each_registered_dataset_s_bundle() -> None:
     assert fields == set(pds4_config_keys())
 
 
-def test_a_pds4_key_no_dataset_names_is_refused_at_load(tmp_path: Path) -> None:
-    """An entry for a bundle that no dataset makes is refused with the file and the key."""
-    user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text('pds4:\n  no_such_bundle:\n    bundle_name: x\n', encoding='utf-8')
-    expected = f"{user_path}: pds4: unknown keys: ['no_such_bundle']"
+def test_a_pds4_key_no_dataset_names_is_refused_at_load(nav_config_with: NavConfigWith) -> None:
+    """An entry for a bundle that no dataset makes is refused with the source and the key."""
+    expected = f"{TEST_OVERRIDE_LABEL}: pds4: unknown keys: ['no_such_bundle']"
     with pytest.raises(SchemaError, match=re.escape(expected)):
-        Config().update_config(user_path)
+        nav_config_with({'pds4': {'no_such_bundle': {'bundle_name': 'x'}}})
 
 
 def test_the_pds4_section_accepts_exactly_the_bundle_keys_of_the_datasets() -> None:
@@ -56,13 +54,13 @@ def test_the_pds4_section_accepts_exactly_the_bundle_keys_of_the_datasets() -> N
     assert set(pds4_config_keys()) == {'coiss_cruise', 'coiss_saturn'}
 
 
-def test_an_entry_for_a_dataset_that_has_no_bundle_is_refused_at_load(tmp_path: Path) -> None:
+def test_an_entry_for_a_dataset_that_has_no_bundle_is_refused_at_load(
+    nav_config_with: NavConfigWith,
+) -> None:
     """An entry under a key that is not a bundle key, such as vgiss, is refused."""
-    user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text('pds4:\n  vgiss:\n    bundle_name: x\n', encoding='utf-8')
-    expected = f"{user_path}: pds4: unknown keys: ['vgiss']"
+    expected = f"{TEST_OVERRIDE_LABEL}: pds4: unknown keys: ['vgiss']"
     with pytest.raises(SchemaError, match=re.escape(expected)):
-        Config().update_config(user_path)
+        nav_config_with({'pds4': {'vgiss': {'bundle_name': 'x'}}})
 
 
 def test_a_bundle_with_no_entry_is_refused() -> None:
@@ -72,25 +70,26 @@ def test_a_bundle_with_no_entry_is_refused() -> None:
         section.bundle('a_bundle')
 
 
-def test_a_lower_case_target_key_is_refused_at_load(tmp_path: Path) -> None:
+def test_a_lower_case_target_key_is_refused_at_load(nav_config_with: NavConfigWith) -> None:
     """A target key is a SPICE name, so one not in upper case is refused."""
-    user_path = tmp_path / 'user_config.yaml'
-    user_path.write_text(
-        'backplanes:\n'
-        '  target_lids:\n'
-        '    saturn:\n'
-        '      lid: urn:x\n'
-        "      version: '1.0'\n"
-        '      name: Saturn\n'
-        '      type: Planet\n',
-        encoding='utf-8',
-    )
+    override = {
+        'backplanes': {
+            'target_lids': {
+                'saturn': {
+                    'lid': 'urn:x',
+                    'version': '1.0',
+                    'name': 'Saturn',
+                    'type': 'Planet',
+                }
+            }
+        }
+    }
     expected = (
-        f"{user_path}: backplanes.target_lids.saturn: 'saturn' is not in upper case; "
-        'a target is written in upper case, as SPICE and the PDS spell it'
+        f"{TEST_OVERRIDE_LABEL}: backplanes.target_lids.saturn: 'saturn' is not in upper "
+        'case; a target is written in upper case, as SPICE and the PDS spell it'
     )
     with pytest.raises(SchemaError, match=re.escape(expected)):
-        Config().update_config(user_path)
+        nav_config_with(override)
 
 
 def test_a_wrapped_range_given_one_end_is_refused() -> None:

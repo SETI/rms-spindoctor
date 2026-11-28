@@ -36,7 +36,7 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
-from tests.ring_sections import config_with_rings, packaged_rings, ring_catalog
+from tests.packaged_sections import config_with_rings, packaged_rings, ring_catalog
 from tests.shims import FakeBackplane, FakeObs, RingBackplaneData, bare_nav_context
 from tests.shims.backplane import RingEdgeBackplane, edge_meshgrid
 
