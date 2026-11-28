@@ -186,6 +186,15 @@ images overlap, the fainter one is set aside, and both are set aside when they a
 can then be trusted. What survives is sorted brightest first and cut to
 ``stars.max_stars``.
 
+Every star magnitude the model uses is a Johnson V magnitude. YBSC and Tycho-2 give V
+directly. UCAC4 gives its own magnitude, measured through one wide filter, which differs
+from V by up to half a magnitude depending on the star's color. So a UCAC4 star takes its
+V from the APASS survey magnitude that UCAC4 carries for it. When there is none, its V is
+worked out from its UCAC4 magnitude and its infrared color from the 2MASS survey. When
+neither survey has a usable measurement, the average difference between the two systems is
+added to its UCAC4 magnitude. UCAC4 and APASS both read bright stars too faint, so a UCAC4
+star brighter than magnitude 10 takes its magnitude from Tycho-2 or YBSC instead.
+
 Each catalog position is then corrected for the star's own proper motion at the time of
 the exposure, and for stellar aberration, the small apparent displacement caused by the
 spacecraft's own velocity. Both corrections are on by default and can be turned off with

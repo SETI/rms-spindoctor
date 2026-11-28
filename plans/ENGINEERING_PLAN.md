@@ -781,9 +781,14 @@ where they differ).
   placeholder on Galileo, Voyager and LORRI. The measured sigmas live in
   each camera block's `star_photometry.psf_sigma`, per readout mode on
   Galileo and per binning mode on LORRI; Voyager 1's stays a marked placeholder (three measurable frames).
-- **#1210** — UCAC4 stars at V 8-9 keep magnitudes 0.5-0.9 mag too faint
-  after the catalog reduction's correction, which stops at V 8.0; found by
-  the #130 measurement on all three cameras.
+- **#1210** (this PR, with #1257) — UCAC4 stars at V 8-9 keep magnitudes
+  0.5-0.9 mag too faint after the catalog reduction's correction, which
+  stops at V 8.0; found by the #130 measurement on all three cameras. The
+  correction now reaches UCAC4 aperture magnitude 10.0.
+- **#1257** (this PR) — UCAC4 stars used the aperture magnitude as Johnson
+  V. They now take APASS V, else V from 2MASS J - K, else the aperture
+  magnitude plus the mean offset, and the #130 star photometry is refitted
+  against the new magnitudes.
 - **#1211** — the Galileo 1990 cruise star frames read 0.4-1.7 mag fainter
   than the 1992 frames at the same settings; the star limit uses the 1992
   scale until this is explained.
