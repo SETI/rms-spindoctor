@@ -18,8 +18,8 @@ exposure_sec: 1.6
 # at V 0, measured on real frames (#1153): the image holds 30 sources at the
 # 8-bit ceiling.  The navigator's copy of the zero point for simulated frames
 # matches the simulator's, and its star width is the measured 0.65 px, so it
-# predicts stars to V 13.9, matches 11 of them, and lands 0.09 to 0.10 px off at
-# high confidence over 24 draws (0.08 px on the committed draw without the roll).
+# predicts stars to V 13.9, matches 11 of them, and lands 0.03 to 0.04 px off at
+# high confidence over 24 draws (0.025 px on the committed draw without the roll).
 #
 # instrument_defaults turns on the camera's whole chain.  The scene plants the
 # measured Galileo sky noise, 0.96 DN, in place of the catalog's read noise,

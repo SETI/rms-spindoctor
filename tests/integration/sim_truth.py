@@ -217,25 +217,28 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # full_frame_cameras.  On these scenes a noise_seed draw gives the same answer as the
     # random_seed of the same value: random_seed reaches the noise and, apart from that,
     # only the fixed-pattern and sky streams, which change a few pixels of the render.
-    # The unfit twist sets the larger errors on the star fields and the Galileo disc,
-    # since a translation follows the turned stars or disc it measures.  The roll turns
+    # The unfit twist sets the larger errors on the LORRI star fields and the Galileo
+    # disc, since a translation follows the turned stars or disc it measures.  The roll turns
     # the scene about the boresight, the frame center after the offset.  The Galileo
     # and LORRI star-field rows are measured on all 24 draws, with the simulator's star
     # zero points measured on real frames and the navigator's star limits and star
     # widths measured on real frames too (#1153, #1213).  In nhlorri_star_field the
     # navigator measures all 18 stars, whose mean position lies about 120 px from the
     # boresight, and the +0.19 deg twist moves it about 0.4 px; at 1 s it also measures
-    # all 18, and the answer lands 0.41 to 0.43 px off.  gossi_disc lands 0.17 px off
-    # with its twist and 0.04 px off without it.  coiss_wac_disc's error is the limb
-    # fit's own: 0.16 px with the roll, 0.17 px without.  The large-offset scene fails as
-    # its expected block declares (#785).
+    # all 18, and the answer lands 0.41 to 0.43 px off.  In the two Galileo star fields,
+    # rendered with the camera's PSF measured on real stars (#1258), the navigator
+    # measures 11 stars and lands 0.03 to 0.04 px off, and 0.025 and 0.038 px off on the
+    # committed draw without the twist.  gossi_disc lands 0.17 px off with its twist and
+    # 0.04 px off without it.  coiss_wac_disc's error is the limb fit's own: 0.16 px with
+    # the roll, 0.17 px without.  The large-offset scene fails as its expected block
+    # declares (#785).
     ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
     ('coiss_calib_wac_star_field', FUSED): _t(0.015, 0.035, 0.028, 0.05),
     ('coiss_nac_star_field', FUSED): _t(0.017, 0.231, 0.220, 0.05),
     ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
-    ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
-    ('gossi_star_field', FUSED): _t(0.098, 0.102, 0.008, 0.05),
-    ('gossi_star_field_short_exposure', FUSED): _t(0.017, 0.020, 0.008, 0.05),
+    ('gossi_disc', FUSED): _t(0.166, 0.178, 0.014, 0.05),
+    ('gossi_star_field', FUSED): _t(0.034, 0.042, 0.008, 0.05),
+    ('gossi_star_field_short_exposure', FUSED): _t(0.038, 0.042, 0.008, 0.05),
     ('nhlorri_star_field', FUSED): _t(0.416, 0.417, 0.007, 0.09),
     ('nhlorri_star_field_short_exposure', FUSED): _t(0.409, 0.428, 0.023, 0.09),
     # full_frame_cameras, Voyager.  These rows are measured on all 24 draws, the 16
@@ -279,7 +282,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # either way.
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
     ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.098, 0.166, 0.147, 0.05),
-    ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
+    ('gossi_ict_moon', FUSED): _t(0.065, 0.065, 0.032, 0.05),
     ('nhlorri_moon_raw', FUSED): _t(0.109, 0.118, 0.011, 0.05),
     # multi_body_geometry.
     ('two_moons', FUSED): _t(0.016, 0.016, 0.011, 0.05),

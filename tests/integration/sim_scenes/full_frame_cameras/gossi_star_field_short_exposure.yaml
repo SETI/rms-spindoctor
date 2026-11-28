@@ -12,9 +12,9 @@ exposure_sec: 0.1
 # V 2.8 and V 4.2 stars saturate, and the V 7.3 stars peak about 20 times the
 # sky noise.  The navigator's copy of the zero point for simulated frames
 # matches the simulator's, and its star width is the measured 0.65 px, so it
-# predicts stars to V 10.9, matches 10 or 11 of them, and lands 0.01 to 0.02 px
-# off at high confidence over 24 draws (0.05 px on the committed draw without
-# the roll).
+# predicts stars to V 10.9, matches 11 of them, and lands 0.03 to 0.04 px off
+# over 24 draws, at high confidence on 23 and medium on one (0.04 px on the
+# committed draw without the roll).
 #
 # The scene keeps the camera's zero point, which follows the 1992 Pleiades
 # frames.  The 1990 frames it is modeled on (GO_0002 and GO_0003) read about

@@ -9,6 +9,7 @@ data_units.  The detector chain renders in the entry's units.  The navigator's s
 values are checked against the catalog in ``test_navigator_star_values.py``.
 """
 
+import dataclasses
 import pickle
 from pathlib import Path
 from typing import Any, get_type_hints
@@ -43,13 +44,17 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_defaults_native,
     resolve_downlink_table,
     resolve_integration_sec,
+    resolve_psf_kernel,
+    resolve_psf_truncation_px,
     resolve_readout_mode,
 )
 from spindoctor.sim.instruments.schema import DownlinkTable, parametric_decoded_dn
 from spindoctor.sim.instruments.schema_detector import Detector, ReadoutMode
+from spindoctor.sim.realism.profiles import ee_radius, encircled_energy, radial_profile
 from spindoctor.sim.render.detector.params import DetectorParamError, resolve_detector_params
 from spindoctor.sim.render.detector.sqrt_lut import LUTSqrt, LUTTabulated
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.render.optics.psf import apply_psf
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.validate import validate_sim_params
 
@@ -1361,3 +1366,55 @@ def test_a_zero_signal_full_scale_frac_fails() -> None:
         match=r'detector\.signal_full_scale_frac: expected a positive number',
     ):
         validate_sim_params(scene)
+
+
+# Measured on 23 bright stars of the 1992 Galileo Pleiades frames at 0.1 s or less, the way
+# the realism match measures stars (#1258): the median EE50 and EE80 in pixels, and the
+# stars' scatter about each.
+_GOSSI_MEASURED_EE50_PX, _GOSSI_EE50_SCATTER_PX = 0.585, 0.054
+_GOSSI_MEASURED_EE80_PX, _GOSSI_EE80_SCATTER_PX = 1.22, 0.38
+
+
+def _gossi_star_encircled_energy() -> tuple[float, float]:
+    """Return the mean EE50 and EE80 of Galileo stars the simulator renders noise-free.
+
+    A star is placed on each of the render grid's points within one detector pixel,
+    blurred with the camera's kernel, and averaged into detector pixels, as the
+    simulator renders it.  Each is measured the way the realism match measures stars.
+
+    Returns:
+        (ee50, ee80) in pixels, the means over the star positions.
+    """
+    entry = resolve_psf_kernel('gossi')
+    assert entry is not None
+    kernel = dataclasses.asdict(entry)
+    truncation_px = resolve_psf_truncation_px('gossi')
+    oversample, size, middle = 4, 27, 13
+    radii = []
+    for step_v in range(oversample):
+        for step_u in range(oversample):
+            plane = np.zeros((size * oversample, size * oversample))
+            point_v, point_u = middle * oversample + step_v, middle * oversample + step_u
+            plane[point_v, point_u] = oversample**2
+            apply_psf(
+                np.zeros_like(plane),
+                plane,
+                **kernel,
+                truncation_px=truncation_px,
+                oversample=oversample,
+            )
+            image = plane.reshape(size, oversample, size, oversample).mean(axis=(1, 3))
+            # A render-grid point k has its center at (k + 0.5) / oversample - 0.5.
+            center = ((point_v + 0.5) / oversample - 0.5, (point_u + 0.5) / oversample - 0.5)
+            radius, intensity = radial_profile(image, center, r_max=8.0, n_bins=16)
+            r_ee, ee = encircled_energy(radius, intensity)
+            radii.append((ee_radius(r_ee, ee, 0.5), ee_radius(r_ee, ee, 0.8)))
+    ee50, ee80 = np.mean(radii, axis=0)
+    return float(ee50), float(ee80)
+
+
+def test_the_galileo_kernel_matches_the_measured_star_widths() -> None:
+    """The Galileo kernel gives the real stars' EE50 and EE80, within the stars' scatter."""
+    ee50, ee80 = _gossi_star_encircled_energy()
+    assert abs(ee50 - _GOSSI_MEASURED_EE50_PX) <= _GOSSI_EE50_SCATTER_PX
+    assert abs(ee80 - _GOSSI_MEASURED_EE80_PX) <= _GOSSI_EE80_SCATTER_PX

@@ -19,11 +19,19 @@ gossi:
   native_frame_size_px: 800
 
   psf:
-    # The published core sigma, kept: the Galileo cohort holds no star frames
-    # (negative cases only), so there is no independent PSF evidence; sim
-    # accuracy is bounded by unverified PSF fidelity until the
-    # star-calibration frames land.  Radii in native detector pixels.
-    kernel: {sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}
+    # Measured 2026-11-27 (#1258) on 23 bright, isolated, unsaturated stars on 11
+    # frames of the 1992 Pleiades sequence at 0.1 s or less (GO_0008, C0164396400R
+    # to C0164399945R), 18 of them at the 100K gain state, at pointing refitted to
+    # each frame's own stars.  The core sigma and wing fraction are fitted with the
+    # wing's r0 and n held fixed, which trade off against them on stars this narrow.
+    # Measured the way the realism match measures stars, the stars give EE50
+    # 0.585 px and EE80 1.22 px (star scatter 0.054 and 0.38 px), and this kernel,
+    # rendered as the simulator renders it at the same centers, gives 0.558 and
+    # 1.17 px.  The wing at the 10K gain state is not confirmed: only 9 clean stars
+    # were taken in it.  Longer exposures were left out because their stars smear
+    # 1 to 10 px, which the simulator does not model (#1278).  Radii in native
+    # detector pixels.
+    kernel: {sigma_v: 0.36, sigma_u: 0.36, w: 0.25, r0: 2.0, n: 5.0}
     truncation_px: 16
 
   # The residual geometric distortion left after the navigator's distortion
