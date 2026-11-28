@@ -385,19 +385,19 @@ real IQR):
      - 10.0
      - 0.73 [#table]_
      - 4585
-     - 7350
+     - 7344
    * - sky level above floor (FOM 1)
      - 3.3e-4 I/F
      - 13.9
-     - 1.61 [#tail]_
+     - 1.60 [#tail]_
      - 4585
-     - 7350
+     - 7344
    * - noise at signal (FOM 1)
      - 2.8e-4 I/F
      - 13.8
      - 1.62
      - 15700
-     - 33317
+     - 33288
    * - star EE50 (FOM 2)
      - 0.91 px
      - 1.09
@@ -413,9 +413,9 @@ real IQR):
    * - limb rise width, co-populated strata (FOM 3)
      - 2.62 px
      - -- [#copop]_
-     - 0.60
-     - 3256
-     - 3138
+     - 0.61
+     - 3247
+     - 2912
    * - ring-edge rise width (FOM 4)
      - 3.36 px
      - 0.47
@@ -425,13 +425,13 @@ real IQR):
    * - near-floor fraction, 0.05-0.5 s (FOM 5)
      - 0.107
      - 0.76
-     - 0.70
+     - 0.69
      - 27
      - 27
    * - p99 - p50 stretch, 0.05-0.5 s (FOM 5)
      - 0.104 I/F
      - 0.89
-     - 0.15
+     - 0.14
      - 27
      - 27
    * - spike fraction (FOM 6)
@@ -492,53 +492,53 @@ The FOM 3 strata behind the pooled number (2026-11-27; p = phase bin
      - n real
      - n sim
    * - p0 r0
-     - 0.65
+     - 0.63
      - 2.87
-     - 2.33
+     - 2.35
      - 522
-     - 538
+     - 534
    * - p0 r1
-     - 1.01
+     - 1.04
      - 2.75
-     - 2.34
+     - 2.33
      - 400
      - 400
    * - p0 r2
-     - 1.35
+     - 1.34
      - 3.09
-     - 2.32
+     - 2.34
      - 733
-     - 782
+     - 724
    * - p1 r0
-     - 0.32
-     - 2.17
-     - 2.15
-     - 235
-     - 246
+     - 0.41
+     - 2.19
+     - 2.14
+     - 226
+     - 228
    * - p1 r1
-     - 0.60
+     - 0.58
      - 2.29
-     - 2.16
+     - 2.17
      - 623
-     - 770
+     - 623
    * - p1 r2
-     - 0.75
+     - 0.72
      - 2.58
      - 2.18
      - 525
-     - 195
+     - 191
    * - p2 r0
-     - 1.97
+     - 1.79
      - 1.75
-     - 1.37
+     - 1.36
      - 70
      - 65
    * - p2 r1
-     - 0.78
+     - 0.99
      - 1.71
-     - 1.52
+     - 1.49
      - 148
-     - 142
+     - 147
 
 The record also holds the limb gradient-peak comparison
 (:ref:`sim-realism-limb-peak`), which measures how far each limb's steepest
@@ -559,90 +559,100 @@ of the body its matched frame renders, and only when both frames measured it:
      - n sim
      - within
    * - p0 r0
-     - -0.06
-     - -0.11
+     - +0.04
+     - +0.02
      - --
      - 2
      - 2
      - --
    * - p0 r1
-     - +0.51
-     - -0.09
+     - +0.82
+     - +0.05
      - --
      - 2
      - 2
      - --
    * - p0 r2
-     - +0.28
-     - -0.13
-     - 0.82
-     - 4
-     - 4
-     - yes
-   * - p1 r0
+     - +0.83
      - +0.01
-     - -0.10
+     - 0.58
+     - 3
+     - 3
+     - no
+   * - p1 r0
+     - -0.00
+     - +0.11
      - --
      - 2
      - 2
      - --
    * - p1 r1
-     - -0.03
-     - -0.04
+     - +0.09
+     - +0.09
      - 0.10
      - 3
      - 3
      - yes
    * - p1 r2
-     - -0.29
-     - -0.03
+     - -0.65
+     - +0.08
      - --
      - 1
      - 1
      - --
    * - p2 r0
-     - -0.00
-     - +0.07
+     - +0.33
+     - +0.49
      - --
      - 1
      - 1
      - --
    * - p2 r1
-     - +0.07
-     - +0.11
+     - +0.19
+     - +0.34
      - --
      - 1
      - 1
      - --
 
 Each matched body takes the real body's brightness, measured from the real disc's
-I/F, and is shaded with the lunar-Lambert law.  Each real limb is measured against
-a silhouette whose radii, for the mid-sized Saturnian moons, are the IAU values; the
-Cassini kernels give older radii, which put four of the five real Tethys limbs
-inside their matched limbs by 0.24% to 0.35% of the radius.  Both bins with a verdict
-lie within their bands.  In p1 r1 the real median lies 0.01 px outside the matched
-one, and one real limb, of Dione through a methane-band filter, lies 0.06 px inside
-its silhouette for no reason yet found.  A real limb vertex counts only when nothing but
-its body and the sky lies along its track: another moon in front or behind, the planet,
-and the planet's rings and shadow over the body are kept out, and so are the rise
+I/F, is shaded with the lunar-Lambert law, and is lit from the direction the real
+body's light comes from.  Each real limb is measured against a silhouette whose radii,
+for the mid-sized Saturnian moons, are the IAU values; the Cassini kernels give older
+radii, which put four of the five real Tethys limbs inside their matched limbs by 0.24%
+to 0.35% of the radius.  Every limb is read along each point's direction from the
+body's center, so the result does not change as a limb turns in the image.  A real limb
+point counts only when nothing but its body and the sky lies along its track: another
+moon in front or behind, the planet, the planet's main rings in front of the body or
+beside it, and the planet's shadow over the body are kept out, and so are the rise
 widths whose profiles reach them.  The widths come only from the body the matched frame
-renders.  The matched limb is measured over the same stretch of limb as the real one.
-A real limb whose remaining arc is too short to tell a radial offset from a shift of the
-whole limb is left out with its reason.  This rule took out one of the four limbs p1 r1
-held, a Dione limb in front of Rhea: with the vertices in front of Rhea dropped, 43
-vertices on a 90 degree arc remain, whose fit gave +0.89 px.  It also took 486 of the
-3,742 real widths in the co-populated pool, among them Rhea's widths in that frame,
-which its matched frame does not render.  Three real NAC discs are
-clipped at the camera's full scale; they give no real limb and no albedo, and their
-matched bodies render white.  Prometheus and Pan have no limb in the real frames,
-because the navigator places none on their shapes, so their matched limbs are not
-measured.  Of the 23 matched bodies with an unclipped real disc, one still overflows
-the detector's full well, an Enceladus at 21 degrees phase (11,878 pixels, at up to
-1.13 times the full well), where the law brightens the limb above the disc interior
-the albedo is measured on; its real limb peaks 0.97 px outside its shape model's
-silhouette.  The bins without a verdict are set by one or two limbs, such
-as a 377 px Mimas whose real limb peaks +1.02 px outside.  The WAC cohort's one limb
-peaks -0.12 px real against +0.04 px matched.
+renders, and the matched frame's limb and widths are measured over the same stretch of
+limb as the real ones.  A real limb whose remaining arc is too short to tell a radial
+offset from a shift of the whole limb, or whose offset is known to worse than 0.2 px,
+is left out with its reason.  Four real NAC limbs are left out this way.  A Dione limb
+that runs off the frame keeps too short an arc (128 degrees).  Three give too imprecise
+an offset: a Rhea limb that runs off the frame, a Dione limb mostly off the frame, and
+the Dione limb in front of Rhea, of which 38 points on a 41 degree arc remain.
+
+In p1 r1, the three real limbs, of Dione and Tethys between 75 and 111 degrees phase,
+lie from 0.06 px inside the silhouette to 0.10 px outside it, with a median 0.09 px
+outside, and their matched limbs give 0.09 px: the two medians differ by 0.005 px.  The
+11 real limbs of bodies under 400 px across have a median of +0.09 px, and their
+matched limbs +0.08 px.  p0 r2 lies outside its band: two of its three real limbs are
+Enceladus limbs, 869 and 789 px across, that peak 0.83 and 1.17 px outside their
+shape model's silhouette, while the matched spheres peak within 0.05 px of theirs.  At
+those scales a pixel is 0.58 to 0.64 km, so the difference between Enceladus's shape model
+and its true shape is a large part of a pixel, and a sphere cannot show it.  The
+regression check lists the bin as a known finding.  Three real NAC discs are clipped at
+the camera's full scale; they have no real limb and no albedo, and their matched bodies
+render white.  Prometheus and Pan have no limb in the real frames, because the
+navigator places none on their shapes, so their matched limbs are not measured.  Of the
+23 matched bodies with an unclipped real disc, one still overflows the detector's full
+well, an Enceladus at 21 degrees phase (11,878 pixels, at up to 1.13 times the full
+well), where the law brightens the limb above the disc interior the albedo is measured
+on.  The bins without a verdict are set by one or two limbs, such as a 377 px Mimas
+whose real limb peaks 1.63 px outside.  The WAC cohort's one limb peaks -0.12 px real
+against +0.09 px matched.
 
 The record also holds the photometric-law study
 (:ref:`sim-realism-law-study`).  For every moon the cohort shows resolved, whatever its
@@ -740,10 +750,10 @@ recurring at fixed detector positions on both sides; :ref:`the Cassini ISS
 chapter <coiss-calibrated-hot-pixels>` explains the difference.  The transient (cosmic-ray) share
 comes from the catalog's fitted cosmic-ray terms (see the measured-transients
 known gap).  Limb rise widths differ in the
-like-for-like pool (co-populated-strata medians 2.24 sim vs 2.62 px
-real, W1/IQR 0.60) with per-stratum divergences from 0.32 to 1.98.  The
+like-for-like pool (co-populated-strata medians 2.25 sim vs 2.62 px
+real, W1/IQR 0.61) with per-stratum divergences from 0.41 to 1.79.  The
 simulated limb measures narrower than the real one in every stratum: at low
-phase 2.32-2.34 px against 2.75-3.09 px, and above 60 degrees phase 1.37-2.18 px
+phase 2.33-2.35 px against 2.75-3.09 px, and above 60 degrees phase 1.36-2.18 px
 against 1.71-2.58 px.  The matched bodies shade with the lunar-Lambert law, which
 keeps more of the brightness near the limb than Lambert's does and so steepens the
 rise.  Ring-edge widths
