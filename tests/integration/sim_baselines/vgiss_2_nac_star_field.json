@@ -1,8 +1,8 @@
 {
-  "confidence": 0.840072985047381,
+  "confidence": 0.8397841649948623,
   "confidence_rank": "medium",
-  "offset_du_px": -46.75335587588374,
-  "offset_dv_px": -12.825075976344603,
+  "offset_du_px": -46.745579810133975,
+  "offset_dv_px": -12.830775502708303,
   "scene_name": "vgiss_2_nac_star_field",
   "status": "success"
 }

@@ -46,11 +46,9 @@ vgiss_1_nac:
   native_frame_size_px: 1000
 
   psf:
-    # An estimate, kept: the cohort's one star frame (8 usable star cutouts, EE50
-    # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
-    # flat-top guard leaves two simulated cutouts to compare against); the
-    # Voyager references publish no FWHM.  Radii in native detector pixels.
-    # The kernel is one estimate for all cameras and is not measured for the Voyager 1 narrow angle camera.
+    # An estimate, kept (#1259): the pointing fix locks on 5 of the 543 frames of
+    # this camera tried, which hold one usable star, too few to measure the kernel.
+    # Radii in GEOMED pixels.
     kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
     truncation_px: 16
 
@@ -219,11 +217,8 @@ vgiss_1_wac:
   native_frame_size_px: 1000
 
   psf:
-    # An estimate, kept: the cohort's one star frame (8 usable star cutouts, EE50
-    # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
-    # flat-top guard leaves two simulated cutouts to compare against); the
-    # Voyager references publish no FWHM.  Radii in native detector pixels.
-    # The kernel is one estimate for all cameras and is not measured for the Voyager 1 wide angle camera.
+    # An estimate, kept (#1259): the pointing fix locks on none of the 130 frames
+    # of this camera tried, so no star measures the kernel.  Radii in GEOMED pixels.
     kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
     truncation_px: 16
 
@@ -391,12 +386,12 @@ vgiss_2_nac:
   native_frame_size_px: 1000
 
   psf:
-    # An estimate, kept: the cohort's one star frame (8 usable star cutouts, EE50
-    # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
-    # flat-top guard leaves two simulated cutouts to compare against); the
-    # Voyager references publish no FWHM.  Radii in native detector pixels.
-    # The kernel is one estimate for all cameras and is not measured for the Voyager 2 narrow angle camera.
-    kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
+    # Fitted 2026-11-28 (#1259) to 12 images of 6 stars on 6 RAW Pleiades frames
+    # at 0.96 and 1.44 s, peaks 15 to 100 DN, with r0 2 raw px and n 3 held (no
+    # wing form of a grid fits better).  Carried to GEOMED pixels with the archive's
+    # resample folded in: stretched 1.165 per raw pixel and blurred by its bilinear
+    # interpolation.  The Voyager ISS chapter of the developer guide gives the fit.
+    kernel: {sigma_v: 0.946, sigma_u: 0.946, w: 0.093, r0: 2.330, n: 3.0}
     truncation_px: 16
 
   # The residual geometric distortion left after the navigator's distortion
@@ -572,12 +567,12 @@ vgiss_2_wac:
   native_frame_size_px: 1000
 
   psf:
-    # An estimate, kept: the cohort's one star frame (8 usable star cutouts, EE50
-    # 1.22 px) cannot constrain the kernel through GEOMED resampling (the
-    # flat-top guard leaves two simulated cutouts to compare against); the
-    # Voyager references publish no FWHM.  Radii in native detector pixels.
-    # The kernel is one estimate for all cameras and is not measured for the Voyager 2 wide angle camera.
-    kernel: {sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}
+    # Fitted 2026-11-28 (#1259) to 215 images of 57 stars on 43 RAW frames at
+    # 0.48 to 15.36 s, peaks 15 to 100 DN, with r0 2 raw px and n 5 held, the best
+    # wing form of a grid.  Carried to GEOMED pixels with the archive's resample
+    # folded in: stretched 1.172 per raw pixel and blurred by its bilinear
+    # interpolation.  The Voyager ISS chapter of the developer guide gives the fit.
+    kernel: {sigma_v: 0.948, sigma_u: 0.948, w: 0.649, r0: 2.344, n: 5.0}
     truncation_px: 16
 
   # The residual geometric distortion left after the navigator's distortion

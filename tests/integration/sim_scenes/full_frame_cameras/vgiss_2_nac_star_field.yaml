@@ -17,10 +17,12 @@ exposure_sec: 0.48
 #
 # The camera's star zero point is measured on its own star frames (see the
 # instrument catalog).  The two brightest stars in the frame, V 3.86 and V
-# 4.28, peak 224 and 152 DN above the simulated sky, where on the real frame
-# the compressing vidicon holds them to 167 and 115 raw DN.  In I/F the
-# brightest peaks at 1.76, against 2.97 on the real frame: the simulator's
-# DN-to-I/F scale differs from the archive's at this exposure (#907).
+# 4.28, peak 174 and 118 DN above the simulated sky, near the 167 and 115 raw
+# DN of the real frame.  The simulated vidicon does not compress them as the
+# real one does, and the camera's kernel, which carries the archive's resample
+# blur, lowers their peaks.  In I/F the brightest peaks at 1.36, against 2.97
+# on the real frame: the simulator's DN-to-I/F scale differs from the
+# archive's at this exposure (#907).
 #
 # The planted offset, 48.6 px, is the size of the real frame's offset (48.7 px)
 # turned to point mostly along -u.  The roll is the camera's measured mean
@@ -28,8 +30,8 @@ exposure_sec: 0.48
 # the camera ships.  The twist varies from frame to frame by 0.28 px at the
 # corner, and the mean lies inside that spread.
 #
-# The fused answer lands 0.03 to 0.26 px off over 24 distinct draws, at
-# medium tier on 19 and high tier on 5 (confidence 0.81 to 0.92).  As on the
+# The fused answer lands 0.02 to 0.26 px off over 24 distinct draws, at
+# medium tier on 19 and high tier on 5 (confidence 0.81 to 0.91).  As on the
 # real frame, the star-field fit locks normally, on 6 or 7 of 13 predicted
 # stars at confidence 0.93, and the refinement carries the answer on 6 or 7
 # stars.  Without the roll the committed draw lands 0.10 px off, against

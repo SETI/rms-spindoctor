@@ -303,11 +303,15 @@ of magnitude and regardless of camera.
 entry with a default of 0.0. Both are placeholders.
 
 **Recalibrating.** The measurement tools are in ``util/star_photometry``; its Voyager
-frame selection and the fit are described in its module docstrings. The cohort's one
-star frame cannot constrain a kernel through the geometric resampling: eight usable
-cutouts survive, and the flat-top guard leaves only two simulated cutouts to compare
-against. Rerun the fit on new star fields, on each camera of each spacecraft, and
-update that camera block's ``star_photometry`` and its comments together.
+frame selection and the fit are described in its module docstrings. Rerun the fit on
+new star fields, on each camera of each spacecraft, and update that camera block's
+``star_photometry`` and its comments together. The simulator's PSF kernels are measured
+on the raw frames instead (see PSF kernel under Simulator model). To measure a camera's
+kernel, run ``util.star_photometry.voyager_iss_star_limits`` over its star frames, then
+run it again with ``--raw-cutouts-from`` on that output, which cuts every pointed
+frame's isolated stars out of the raw product and refits each frame's translation and
+twist on them. Fit the cutouts with ``fit_psf_kernel`` and carry the result to GEOMED
+pixels with ``resampled_kernel``, as that section describes.
 
 Frames, attitude, and rotation fitting
 ======================================
@@ -452,11 +456,12 @@ entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``. Each entry
 every value itself and none takes a value from another, because each vidicon and telescope
 is unique. The optical values (the PSF, the residual distortion, the plate scale, the star
 zero point, and the vidicon detector values) are per camera. Apart from the Voyager 2
-cameras' star zero points, they hold the same numbers in all four entries today, and a
-comment beside each says where the number comes from and that it is not yet measured for
-that camera. The values that do not describe a camera's optics (the data units, the
-navigator link, the readout modes, and the artifact-mode availability) are repeated in
-each entry as well, because a shared parent would have to be one of the cameras. Every
+cameras' star zero points and PSF kernels, they hold the same numbers in all four entries
+today, and a comment beside each says where the number comes from and that it is not yet
+measured for that camera. The values that do not describe a camera's optics (the data
+units, the navigator link, the readout modes, and the artifact-mode availability) are
+repeated in each entry as well, because a shared parent would have to be one of the
+cameras. Every
 analysis is per camera too: the realism match, the field-of-view distortion, and the
 rotation each use one camera's frames. No simulator entry holds a rotation value today.
 Each entry is read with the block of its own camera in the ``voyager_iss`` section of the
@@ -513,6 +518,13 @@ clips. The Voyager 1 cameras keep the
 3.0e3 estimate from the published limiting magnitudes, since no Voyager 1 star
 frame has been measured.
 
+Each rate is a sum over raw pixels, and the simulator spreads it over GEOMED pixels. The
+archive's resample keeps each pixel's DN, so a real star holds about 1.36 times its raw
+sum on the GEOMED grid, and a simulated star is drawn about a third of a magnitude faint
+against it. On the wide angle camera the 6-pixel aperture the rate was measured in also
+misses part of the light the measured wing spreads (see the open item on restating the
+star zero points on the GEOMED grid).
+
 The simulator's vidicon chain works in raw DN, and it converts DN to I/F at 127.5
 DN per unit I/F at every exposure. The archive's calibration depends on the
 exposure and the filter: at 0.48 s through the clear filter it maps about 30 raw
@@ -521,12 +533,202 @@ a simulated narrow angle star at that exposure has the real star's raw DN but
 reads about four times fainter in I/F, while a wide angle star reads about the
 same.
 
-**PSF kernel.** ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2, r0: 2.0, n: 3.0}``,
-a **retained interim estimate**. The cohort's one star frame gives eight usable
-cutouts with a 50% encircled-energy radius of 1.22 pixels, but the geometric
-resampling cannot be inverted well enough to constrain a kernel through it --
-the flat-top guard leaves two simulated cutouts to compare against -- and the
-Voyager references publish no FWHM to fall back on.
+**PSF kernel.** Each Voyager 2 camera's kernel is fitted to its own stars on real
+frames, and includes the blur of the archive's resampling to the GEOMED grid:
+
+* ``vgiss_2_nac``: ``{sigma_v: 0.946, sigma_u: 0.946, w: 0.093, r0: 2.330, n: 3.0}``.
+* ``vgiss_2_wac``: ``{sigma_v: 0.948, sigma_u: 0.948, w: 0.649, r0: 2.344, n: 5.0}``.
+
+The two Voyager 1 entries keep the estimate ``{sigma_v: 0.85, sigma_u: 0.85, w: 1.2e-2,
+r0: 2.0, n: 3.0}``. Of the Voyager 1 frames the measurement tried, the pointing fix
+locks on 5 of 543 narrow angle frames, which hold one usable star, and on none of 130
+wide angle frames. Neither camera has enough stars to fit, and a Voyager 2 kernel would
+describe another camera's optics, so the estimate stays.
+
+*Frames and stars.* The frames are the star-limit measurement's (see Photometric and
+PSF calibration), each pointed by its own stars on the GEOMED product. Each star is
+carried to the raw geometry through the frame's ``*_GEOMA.TAB`` tiepoints and cut out of
+the ``*_RAW.IMG`` product: 8-bit DN, 800 by 800, before any resampling. The cleaned,
+calibrated, and GEOMED products can't be used, because the archive's despike step
+treats a sharp star core as a spike. Of the Voyager 2 stars that peak 15 to 60 DN above
+the sky, 64% have a pixel within 2.5 raw pixels of their center changed in the cleaned
+product, and 44% of those that peak 60 to 100 DN. In a sample of 40 stars that peak 15
+to 100 DN, the brightest pixel itself changed on 15 of 21 stars at 15 to 30 DN, 4 of 9 at
+30 to 60 DN, and 3 of 10 at 60 to 100 DN, often to a value near the sky. Pixels within 3.5
+raw pixels of a reseau mark are left out, and so is a star within 6 pixels of one. A
+star is used when no catalog star less than 3 magnitudes fainter lies within 14 raw
+pixels, it peaks 15 to 100 DN above the sky, and its cutout is at least 85% valid. Each
+frame's translation and twist are fitted to its own stars' centers (the translation
+alone on a frame with fewer than three stars), and a star more than 1 raw pixel from
+that fit is dropped.
+
+*Exposure and smear.* On the narrow angle camera only the Pleiades frames are used.
+Its frames of moons and planets track their target, and their stars are up to 2.8
+times longer than wide, most of them more than twice, in a direction that changes
+between targets. On the Pleiades frames at 0.96 and 1.44 s the stars are 1.4 times
+longer than wide, 12 degrees from the lines' direction. On the wide angle camera the
+stars are 1.2 to 1.7 times longer than wide, about 41 degrees from the lines, on frames
+from 0.18 to 15.36 s and from 1979 to 1989, so the elongation belongs to the camera
+rather than to the exposure; the one 61 s frame, whose stars point other ways, is left
+out. The round kernel draws neither elongation (see the open item on drawing Voyager
+stars elongated).
+
+*Fit.* The fit is ``fit_psf_kernel`` in ``util/star_photometry/star_field.py``, which
+draws each star as the simulator renders it, in raw pixels, with the wing's ``r0`` and
+``n`` held. The wing form is chosen on a grid of ``r0`` 0.5 to 3 raw pixels and ``n``
+2.5 to 5. A grid point replaces the catalog's form, ``r0`` 2 and ``n`` 3, only when it
+beats the next best point by more than one in chi-square after the difference is divided
+by the fit's reduced chi-square, which allows for a model that misfits the stars. On the
+wide angle camera ``r0`` 2 and ``n`` 5 beats the next point, ``r0`` 1 and ``n`` 3, by
+160 in chi-square, or 127 after the division, over 153,139 degrees of freedom, so it is
+used. On the narrow angle camera the best point, ``r0`` 3 and ``n`` 4, beats the
+catalog's form by 0.7, or 0.4 after the division, over 8,572 degrees of freedom, so the
+catalog's form stays. There a wing of about 0.1 is detected, since a Gaussian alone fits
+worse by 235 in chi-square, but its form is not.
+
+.. list-table::
+   :header-rows: 1
+
+   * -
+     - Narrow angle
+     - Wide angle
+   * - Star images, stars, frames
+     - 12, 6, 6 (``VGISS_8210``, 1989)
+     - 215, 57, 43 (1979 to 1989)
+   * - Wing form, raw pixels
+     - ``r0`` 2, ``n`` 3
+     - ``r0`` 2, ``n`` 5
+   * - Core sigma and wing fraction, raw pixels
+     - 0.679 +- 0.003, 0.096 +- 0.023
+     - 0.643 +- 0.003, 0.604 +- 0.005
+   * - Reduced chi-square: fit, perfect model, Gaussian alone
+     - 1.61, 1.0, 1.64
+     - 1.26, 1.0, 1.34
+   * - Over the grid: reduced chi-square, core sigma
+     - 1.615 to 1.618, 0.675 to 0.689
+     - 1.262 to 1.276, 0.64 to 1.05
+
+The perfect-model value refits copies of the same stars drawn with the fitted kernel
+and the stars' own sky noise and rounding. Neither camera's stars fit this round form
+to their noise. On the wide angle camera the core and the wing trade off against each
+other along the grid, so the core sigma depends on the wing form chosen. The formal
+errors understate what moves between subsets of the stars, below.
+
+*To GEOMED pixels.* The simulator renders the GEOMED grid, and the real frames the
+navigator reads are GEOMED products, so the kernel carries the archive's resampling.
+``resampled_kernel`` in ``util/star_photometry/star_psf_summary.py`` takes the raw
+kernel spread over a raw pixel, stretches it by the tiepoints' GEOMED pixels per raw
+pixel, blurs it with the response of the archive's bilinear interpolation, and fits the
+kernel that, spread over a GEOMED pixel, draws the same light. ``r0`` is stretched with
+the grid and ``n`` kept. The stretch is the median over the stars, 1.165 on the narrow
+angle camera and 1.172 on the wide angle camera. It varies over the field, from 1.16 at
+the center to about 1.20 most of the way to the corners and 1.3 in the corners
+themselves. Over the stars the fit uses, the single factor holds to 3% for all the
+narrow angle stars and for 91% of the wide angle stars (see the open item on using the
+measured GEOMED stretch). The fitted kernel matches its target to 0.3% (narrow angle)
+and 0.4% (wide angle) of the peak. Without the interpolation's blur the GEOMED kernel
+would be sigma 0.811 and ``w`` 0.095 (narrow angle) and sigma 0.778 and ``w`` 0.608
+(wide angle). The blur widens the core by about 0.14 and 0.17 pixel.
+
+*Checks.* A star's core sigma grows with its brightness on both cameras. Fitted in bins
+of peak DN with the wing fraction held at the camera's fitted value, the core sigma in
+raw pixels runs:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Peak above the sky (DN)
+     - Narrow angle: images, stars, sigma, reduced chi-square
+     - Wide angle: images, stars, sigma, reduced chi-square
+   * - 15 to 30
+     - 4, 2, 0.58, 1.20
+     - 119, 46, 0.48, 1.14
+   * - 30 to 60
+     - 4, 3, 0.65, 1.40
+     - 58, 30, 0.58, 1.34
+   * - 60 to 100
+     - 4, 3, 0.69, 2.26
+     - 38, 14, 0.70, 1.67
+   * - 100 to 150
+     - 3, 3, 0.85, 6.0
+     - 22, 8, 0.92, 2.25
+   * - 150 to 255
+     - 9, 5, 0.97, 12.5
+     - 17, 7, 1.53, 23.1
+
+The two brightest bins fit poorly and rest on few stars, so their sigmas show the trend
+and do not measure a kernel. On the wide angle camera the encircled energy runs the
+other way: the faint stars spread more of their light. The real stars that peak 15 to
+30 DN hold 80% of their light within 4.6 raw pixels, against 2.1 for those that peak 60
+to 100 DN. The faint stars are 119 of the 215 images, so the far light the wing draws
+comes mostly from them. Copies of the 15 to 30 DN stars drawn with the wider kernel of
+the 30 to 60 DN stars refit to that wider kernel, so the narrow faint cores are not an
+effect of the rounding. The fit uses stars that peak 15 to 100 DN above the sky. The
+simulated vidicon draws every star with the one kernel, so a simulated bright star has
+a narrower core than a real one.
+
+With the wing fraction held, the fainter and brighter halves of the fitted stars give a
+core sigma of 0.60 and 0.69 raw pixels on the narrow angle camera and 0.48 and 0.66 on
+the wide angle camera. On the wide angle camera the stars in the inner and outer halves
+of the field give 0.67 and 0.60.
+
+*Encircled energy.* EE50 and EE80 are the radii holding half and 80% of a star's light
+within 8 pixels, the median over the stars. In raw pixels, with each kernel star drawn
+at a real star's center, flux, and background, with its sky noise and 8-bit rounding:
+
+.. list-table::
+   :header-rows: 1
+
+   * -
+     - Narrow angle EE50, EE80
+     - Wide angle EE50, EE80
+   * - Real stars (scatter)
+     - 0.74 (0.16), 1.28 (0.35)
+     - 1.18 (0.43), 3.42 (2.47)
+   * - Raw kernel, drawn like the stars
+     - 0.77, 1.39
+     - 1.11, 2.51
+   * - Raw kernel, noise-free
+     - 0.74, 1.24
+     - 1.02, 1.98
+
+In GEOMED pixels, against the same stars on the GEOMED product, three ways: the set
+kernel drawn the way the simulator records a frame, on the GEOMED grid with the raw sky
+noise and rounding; a kernel of the same wing form fitted directly to the GEOMED stars,
+drawn the same way; and the raw kernel drawn like the stars and resampled through the
+frame's tiepoints with bilinear interpolation, which is how the archive resamples (on
+C1205021 the calibrated product resampled this way differs from the GEOMED product by 10
+rms, where the GEOMED sky is about 320 and the brightest star reaches 29,700).
+
+.. list-table::
+   :header-rows: 1
+
+   * -
+     - Narrow angle EE50, EE80
+     - Wide angle EE50, EE80
+   * - Real GEOMED stars (scatter)
+     - 1.06 (0.13), 1.78 (0.28)
+     - 1.46 (0.25), 2.71 (0.68)
+   * - Set kernel, as the simulator draws it
+     - 1.12, 1.92
+     - 1.44, 2.88
+   * - Kernel fitted to the GEOMED stars, as the simulator draws it
+     - 1.16, 2.02
+     - 1.50, 2.91
+   * - Raw kernel through the resample
+     - 1.08, 1.77
+     - 1.38, 2.72
+   * - Estimate it replaces, as the simulator draws it
+     - 0.96, 1.78
+     - 1.00, 1.80
+
+The kernel fitted directly to the GEOMED stars is sigma 0.982 and ``w`` 0.067, with a
+reduced chi-square of 2.18, on the narrow angle camera, and sigma 1.076 and ``w`` 0.630,
+with 1.65, on the wide angle camera. Its core is wider than the set kernel's, by 0.04 and
+0.13 pixel, and its stars carry the despike damage, which flattens a faint core, while
+the raw stars do not (see the open item on modeling the archive despike). The set kernel
+draws stars within 0.06 pixel of the real GEOMED stars' EE50 on both cameras, and within
+0.17 pixel of their EE80.
 
 **Distortion residuals.**
 ``{k1: -6.88e-03, k2: 1.46e-02, nonradial_rms_px: 0.2}``. The non-radial wander
@@ -591,9 +793,10 @@ catalog rate is a retained zero. The cohort
 measures a 3.5e-5 transient fraction, mostly interpolated away by the
 reseau-anchored resampling, so it can't say how many hits the target took.
 
-**Realism-match status.** The PSF is unverified and unverifiable through the
-resampling with the frames held locally. The distortion is measured, but on
-one of the four cameras.
+**Realism-match status.** The Voyager 2 PSF kernels are fitted to real stars on
+the raw frames and carried through the archive's resample (see PSF kernel above); the
+Voyager 1 kernels are not measured. The distortion is measured, but on one of the four
+cameras.
 
 Image library and test coverage
 ===============================
@@ -655,16 +858,22 @@ frames peak at 0.3 to 0.5.
 - ``vgiss_2_nac_star_field``: the Pleiades field of the library frame C1205021 at
   0.48 s, offset 49 px. With the camera's measured star zero point, the star-field
   fit locks on 6 or 7 of 13 predicted stars at confidence 0.93, as on the real
-  frame, and the answer lands 0.03 to 0.26 px off over 24 draws, at medium or high
-  confidence. The two brightest stars peak at 224 and 152 DN above the sky,
-  against 167 and 115 raw DN on the real frame, because the simulated vidicon
-  does not compress them.
+  frame, and the answer lands 0.02 to 0.26 px off over 24 draws, at medium or high
+  confidence. The two brightest stars peak at 174 and 118 DN above the sky, near
+  the 167 and 115 raw DN of the real frame. The simulated vidicon does not compress
+  them, and the camera's kernel, which carries the resample's blur, lowers their
+  peaks.
 - ``vgiss_2_wac_star_field``: a Scorpius field at 0.48 s, after a frame of the
-  twist measurement, offset 35 px. Its brightest star peaks 42 DN above the
-  simulated sky, near the real frame's 44. The twist of +0.358 degrees moves the
+  twist measurement, offset 35 px. Its brightest star, beta1 Scorpii at V 2.6, has
+  a V 4.5 companion, beta2 Scorpii, 1.1 px away. The pair peaks 24 DN above the
+  simulated sky, against the real frame's 44. In a 6-pixel raw aperture the real
+  pair holds 0.47 magnitude more than the camera's star zero point gives it, and
+  the simulator spreads the zero point's raw-pixel flux over GEOMED pixels, where
+  a real star holds about 1.36 times its raw sum (see the open item on restating
+  the star zero points on the GEOMED grid). The twist of +0.358 degrees moves the
   stars the navigator measures by 0.07 to 3.2 px, and their mean position by 1.6
   px, so the answer lands 1.0 to 1.4 px off over 24 draws. Without the twist it
-  lands 0.21 px off.
+  lands 0.16 px off.
 
 The two scenes with a disc are the slowest in the class. Each takes about a
 minute to render and navigate on a quiet machine and two to three minutes on a
@@ -740,8 +949,20 @@ Open items
   pointing fix.
 * The wide-angle rate rests on 13 bright stars, and fainter stars read brighter than
   it predicts.
-* The four simulator cameras carry the same distortion block and PSF kernel
-  numbers, although each camera's optics are its own.
+* The four simulator cameras carry the same distortion block, although each camera's
+  optics are its own, and the two Voyager 1 cameras carry the estimated PSF kernel.
+* Draw Voyager stars elongated as the real ones are. The simulator's Voyager kernels
+  are round and do not depend on brightness. Real Voyager 2 stars are 1.4 (narrow
+  angle) and 1.2 to 1.7 (wide angle) times longer than wide, and a star's core sigma
+  grows with its peak brightness.
+* Restate the Voyager star zero points on the GEOMED grid. The rates are raw-pixel sums
+  the simulator spreads over GEOMED pixels, where a real star holds about 1.36 times its
+  raw sum, and the wide angle aperture misses part of the wing.
+* Model the archive despike that damages Voyager star cores. The cleaned, calibrated,
+  and GEOMED products carry it, and simulated stars have undamaged cores.
+* Use the measured GEOMED stretch in the Voyager entries. The entries scale raw lengths
+  to the GEOMED grid by 1.25, where the tiepoints give 1.165 to 1.172 at the center,
+  rising toward the corners.
 * The Voyager 1 simulator cameras keep an estimated star zero point, and the
   simulator converts vidicon DN to I/F at one scale for every exposure and
   filter, so for equal raw DN a simulated star's I/F is the real one's times

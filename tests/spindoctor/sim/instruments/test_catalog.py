@@ -43,6 +43,7 @@ from spindoctor.sim.instruments.resolvers import (
     resolve_detector_defaults_native,
     resolve_downlink_table,
     resolve_integration_sec,
+    resolve_psf_kernel,
     resolve_readout_mode,
 )
 from spindoctor.sim.instruments.schema import DownlinkTable, parametric_decoded_dn
@@ -1361,3 +1362,46 @@ def test_a_zero_signal_full_scale_frac_fails() -> None:
         match=r'detector\.signal_full_scale_frac: expected a positive number',
     ):
         validate_sim_params(scene)
+
+
+# Each Voyager 2 camera's kernel is its fit to real stars on RAW frames (#1259), carried
+# to GEOMED pixels through the archive's resample, bilinear blur included: the core sigma
+# and the wing fraction with their formal errors, and the wing's r0 and n, which the fit
+# holds (r0 is 2 raw pixels in GEOMED pixels).  The narrow angle fit uses 12 images of 6
+# stars, the wide angle fit 215 images of 57 stars.
+_VGISS_2_NAC_FIT_SIGMA_PX, _VGISS_2_NAC_FIT_SIGMA_ERR_PX = 0.946, 0.004
+_VGISS_2_NAC_FIT_W, _VGISS_2_NAC_FIT_W_ERR = 0.093, 0.023
+_VGISS_2_NAC_FIT_R0_PX, _VGISS_2_NAC_FIT_N = 2.330, 3.0
+_VGISS_2_WAC_FIT_SIGMA_PX, _VGISS_2_WAC_FIT_SIGMA_ERR_PX = 0.948, 0.004
+_VGISS_2_WAC_FIT_W, _VGISS_2_WAC_FIT_W_ERR = 0.649, 0.006
+_VGISS_2_WAC_FIT_R0_PX, _VGISS_2_WAC_FIT_N = 2.344, 5.0
+
+
+def test_the_voyager_2_narrow_angle_kernel_is_its_fit_to_real_stars() -> None:
+    """The Voyager 2 narrow angle kernel is its fit to real stars, within the errors."""
+    kernel = resolve_psf_kernel('vgiss_2_nac')
+    assert kernel is not None
+    assert kernel.sigma_v == pytest.approx(
+        _VGISS_2_NAC_FIT_SIGMA_PX, abs=_VGISS_2_NAC_FIT_SIGMA_ERR_PX
+    )
+    assert kernel.sigma_u == pytest.approx(
+        _VGISS_2_NAC_FIT_SIGMA_PX, abs=_VGISS_2_NAC_FIT_SIGMA_ERR_PX
+    )
+    assert kernel.w == pytest.approx(_VGISS_2_NAC_FIT_W, abs=_VGISS_2_NAC_FIT_W_ERR)
+    assert kernel.r0 == _VGISS_2_NAC_FIT_R0_PX
+    assert kernel.n == _VGISS_2_NAC_FIT_N
+
+
+def test_the_voyager_2_wide_angle_kernel_is_its_fit_to_real_stars() -> None:
+    """The Voyager 2 wide angle kernel is its fit to real stars, within the errors."""
+    kernel = resolve_psf_kernel('vgiss_2_wac')
+    assert kernel is not None
+    assert kernel.sigma_v == pytest.approx(
+        _VGISS_2_WAC_FIT_SIGMA_PX, abs=_VGISS_2_WAC_FIT_SIGMA_ERR_PX
+    )
+    assert kernel.sigma_u == pytest.approx(
+        _VGISS_2_WAC_FIT_SIGMA_PX, abs=_VGISS_2_WAC_FIT_SIGMA_ERR_PX
+    )
+    assert kernel.w == pytest.approx(_VGISS_2_WAC_FIT_W, abs=_VGISS_2_WAC_FIT_W_ERR)
+    assert kernel.r0 == _VGISS_2_WAC_FIT_R0_PX
+    assert kernel.n == _VGISS_2_WAC_FIT_N
