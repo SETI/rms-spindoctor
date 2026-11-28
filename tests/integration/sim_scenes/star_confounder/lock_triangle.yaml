@@ -6,8 +6,8 @@ size_u: 200
 random_seed: 7
 exposure_sec: 1.0
 # Three-star triangle lock in a field of near-equal-brightness confounders.
-# Three navigable stars (vmag 6.2) reach the navigator's catalog; six
-# non-navigable confounders render at vmag 6.4 -- barely dimmer than the lock
+# Three navigable stars (vmag 6.14) reach the navigator's catalog; six
+# non-navigable confounders render at vmag 6.34 -- barely dimmer than the lock
 # stars, so brightness alone does not separate them.  StarFieldFromCatalogNav's
 # RANSAC triangle match is what wins here: it matches the predicted three-star
 # pattern against detected peaks by triangle geometry, which the scattered
@@ -24,15 +24,15 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: N1, v: 60.5, u: 70.5, vmag: 6.2}
-  - {name: N2, v: 140.5, u: 120.5, vmag: 6.2}
-  - {name: N3, v: 80.5, u: 150.5, vmag: 6.2}
-  - {name: X0, v: 40.5, u: 160.5, vmag: 6.4, navigable: false}
-  - {name: X1, v: 160.5, u: 40.5, vmag: 6.4, navigable: false}
-  - {name: X2, v: 45.5, u: 45.5, vmag: 6.4, navigable: false}
-  - {name: X3, v: 155.5, u: 155.5, vmag: 6.4, navigable: false}
-  - {name: X4, v: 100.5, u: 45.5, vmag: 6.4, navigable: false}
-  - {name: X5, v: 45.5, u: 120.5, vmag: 6.4, navigable: false}
+  - {name: N1, v: 60.5, u: 70.5, vmag: 6.14}
+  - {name: N2, v: 140.5, u: 120.5, vmag: 6.14}
+  - {name: N3, v: 80.5, u: 150.5, vmag: 6.14}
+  - {name: X0, v: 40.5, u: 160.5, vmag: 6.34, navigable: false}
+  - {name: X1, v: 160.5, u: 40.5, vmag: 6.34, navigable: false}
+  - {name: X2, v: 45.5, u: 45.5, vmag: 6.34, navigable: false}
+  - {name: X3, v: 155.5, u: 155.5, vmag: 6.34, navigable: false}
+  - {name: X4, v: 100.5, u: 45.5, vmag: 6.34, navigable: false}
+  - {name: X5, v: 45.5, u: 120.5, vmag: 6.34, navigable: false}
 noise:
   poisson: true
   read_noise_dn: 4.0

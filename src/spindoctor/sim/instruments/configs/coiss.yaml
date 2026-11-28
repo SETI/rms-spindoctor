@@ -51,9 +51,9 @@ coiss_nac:
   distortion_residual: {k1: 3.17e-04, k2: -3.51e-04, nonradial_rms_px: 0.0}
 
   # Electrons a V = 0 star deposits per second through CL1+CL2.
-  # Measured 2026-11-28: 82 clear sky frames, 952 stars of V 10-14, 1.88e8, 0.12 mag rms.
+  # Measured 2026-11-28: 83 clear sky frames, 944 stars of V 10-14, 1.84e8 +- 0.014 mag.
   star_flux:
-    e_per_s_vmag0: 1.9e+8
+    e_per_s_vmag0: 1.8e+8
 
   # Plate scale from the published value, ~6 urad/px.
   sky_pixel_scale_arcsec: 1.237
@@ -364,7 +364,7 @@ coiss_wac:
   distortion_residual: {k1: 9.0e-06, k2: 5.48e-05, nonradial_rms_px: 0.0}
 
   # Electrons a V = 0 star deposits per second through CL1+CL2.
-  # Measured 2026-11-28: 37 clear sky frames, 1198 stars of V 10-14, 1.92e7, 0.14 mag rms.
+  # Measured 2026-11-28: 37 clear sky frames, 1188 stars of V 10-14, 1.90e7 +- 0.015 mag.
   star_flux:
     e_per_s_vmag0: 1.9e+7
 

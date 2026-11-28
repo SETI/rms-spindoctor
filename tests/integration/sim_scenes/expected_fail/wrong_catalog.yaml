@@ -25,12 +25,12 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: F1, v: 55.5, u: 70.5, vmag: 6.2}
-  - {name: F2, v: 145.5, u: 130.5, vmag: 6.4}
-  - {name: F3, v: 70.5, u: 150.5, vmag: 6.6}
-  - {name: F4, v: 150.5, u: 60.5, vmag: 6.3}
-  - {name: F5, v: 100.5, u: 100.5, vmag: 6.5}
-  - {name: F6, v: 60.5, u: 120.5, vmag: 6.2}
+  - {name: F1, v: 55.5, u: 70.5, vmag: 6.14}
+  - {name: F2, v: 145.5, u: 130.5, vmag: 6.34}
+  - {name: F3, v: 70.5, u: 150.5, vmag: 6.54}
+  - {name: F4, v: 150.5, u: 60.5, vmag: 6.24}
+  - {name: F5, v: 100.5, u: 100.5, vmag: 6.44}
+  - {name: F6, v: 60.5, u: 120.5, vmag: 6.14}
 star_catalog_scatter_px: 8.0
 noise:
   poisson: true

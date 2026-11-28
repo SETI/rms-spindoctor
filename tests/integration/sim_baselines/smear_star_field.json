@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8024854542002865,
+  "confidence": 0.8024866390553741,
   "confidence_rank": "medium",
-  "offset_du_px": -0.5944745163928,
-  "offset_dv_px": 1.4390960763844238,
+  "offset_du_px": -0.5944207635760499,
+  "offset_dv_px": 1.4391084016775169,
   "scene_name": "smear_star_field",
   "status": "success"
 }

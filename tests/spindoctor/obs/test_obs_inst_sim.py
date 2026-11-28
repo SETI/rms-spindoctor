@@ -169,7 +169,7 @@ def _star_limit(instrument: str, exposure_sec: float, *, binning: int | None = N
     ('instrument', 'exposure_sec', 'expected'),
     [
         ('nhlorri', 5.0, 16.529148409034075),
-        ('coiss_nac', 1.0, 14.088365837553399),
+        ('coiss_nac', 1.0, 14.030234688469122),
         ('coiss_wac', 1.0, 10.894046171463698),
         ('gossi', 1.0, 13.412171335328978),
     ],
@@ -194,7 +194,7 @@ def test_unbinned_star_limit_is_unchanged(
         # noise; binned 4x4, 3.61e7 DN/s over 1.19 DN, with the 0.9 px core shrunk
         # below one pixel, which then holds it all.
         ('nhlorri', 4, 2.5 * math.log10((3.61e7 / 3.33e7) * (4.0 / 1.19) * 2.0 * math.pi * 0.9**2)),
-        # From the navigator's NAC block: unbinned, 6.33e6 DN/s over 4.0 DN; summed
+        # From the navigator's NAC block: unbinned, 6.00e6 DN/s over 4.0 DN; summed
         # 2x2, the same zero point over 0.400 DN, which the 1 DN floor raises to 1.0,
         # and the 0.54 px core shrinks below one pixel, which then holds it all.
         ('coiss_nac', 2, 2.5 * math.log10((4.0 / 1.0) * 2.0 * math.pi * 0.54**2)),

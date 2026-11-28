@@ -32,8 +32,8 @@ cassini_iss:
       marker_value: 0              # CISS RAW missing-pixel marker
       read_noise_dn: 4.0           # PLACEHOLDER — calibrate in Phase 10
       # Photometric zero point (DN a vmag-0 star deposits per second): the
-      # simulator's measured 1.9e8 e-/s over the NAC standard gain state, 30 e-/DN.
-      star_flux_dn_per_s_vmag0: 6.33e6
+      # simulator's measured 1.8e8 e-/s over the NAC standard gain state, 30 e-/DN.
+      star_flux_dn_per_s_vmag0: 6.00e6
       # The summed readout modes, keyed by the binning factor: the read noise of
       # one summed pixel in DN and the zero point in DN/s.  A mode this table
       # leaves out reads with the values above.  The published sources (Porco et
@@ -41,13 +41,13 @@ cassini_iss:
       # SUM4 no read noise or gain of their own, so each reads as the
       # full-resolution camera at gain state 2: the published 12 e- read noise over
       # the published 30 e-/DN is 12 / 30 = 0.400 DN, and summing on the chip keeps
-      # a star's charge, so the zero point stays 6.33e6 DN/s.  read_noise_dn above
+      # a star's charge, so the zero point stays 6.00e6 DN/s.  read_noise_dn above
       # is a placeholder above that 0.400 DN, so part of the step from the unbinned
       # star limit to the summed one comes from the placeholder; 0.400 DN is below
       # the limit's 1 DN noise floor, so the limit reads 1 DN in these modes.
       by_binning:
-        2: {read_noise_dn: 0.400, star_flux_dn_per_s_vmag0: 6.33e6}
-        4: {read_noise_dn: 0.400, star_flux_dn_per_s_vmag0: 6.33e6}
+        2: {read_noise_dn: 0.400, star_flux_dn_per_s_vmag0: 6.00e6}
+        4: {read_noise_dn: 0.400, star_flux_dn_per_s_vmag0: 6.00e6}
     image_quality_thresholds:
       blank_max_dn: 5.0
       saturation_threshold_dn: 4095

@@ -25,7 +25,7 @@ exposure_sec: 1.2
 # from the body's pass-1 answer, lands 0.02 to 0.03 px off.
 #
 # The fused answer combines the star answers with the body's, so it lands between
-# them, 0.17 to 0.18 px from the truth over the 16 draws in the direction of the
+# them, 0.17 to 0.18 px from the truth over the 24 draws in the direction of the
 # body's error, within 0.7 of its reported sigmas.  The tolerance, 0.23 px, sits
 # far below the 1.81 px of a body-only answer, so a fused answer that drops the
 # stars fails.

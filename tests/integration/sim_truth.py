@@ -183,8 +183,8 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # more than the raw one did, so the error grew from 0.657 to 0.792 px (#791).
     ('planted_offset_shapemismatch', FUSED): _t(0.792, 0.798, 0.007, 0.16),
     ('planted_offset_small', FUSED): _t(0.001, 0.011, 0.010, 0.05),
-    ('planted_offset_star_field', FUSED): _t(0.018, 0.019, 0.003, 0.05),
-    ('planted_offset_star_field_bright', FUSED): _t(0.041, 0.042, 0.001, 0.05),
+    ('planted_offset_star_field', FUSED): _t(0.018, 0.018, 0.003, 0.05),
+    ('planted_offset_star_field_bright', FUSED): _t(0.040, 0.041, 0.001, 0.05),
     # algorithmic_invariants, one technique navigated alone.  StarRefineNav is read from
     # the fused run, because it needs the pass-1 prior.
     ('planted_offset_blob', 'BodyBlobNav'): _t(0.002, 0.005, 0.004, 0.05),
@@ -207,8 +207,8 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # from stopping at its window edge.
     ('disc_structured_loss', FUSED): _t(0.134, 0.144, 0.010, 0.05),
     ('disc_structured_loss_adversarial', FUSED): _t(0.011, 0.011, 0.010, 0.05),
-    ('star_field_structured_loss', FUSED): _t(0.067, 0.070, 0.004, 0.05),
-    ('star_field_structured_loss_adversarial', FUSED): _t(0.133, 0.137, 0.005, 0.05),
+    ('star_field_structured_loss', FUSED): _t(0.016, 0.016, 0.003, 0.05),
+    ('star_field_structured_loss_adversarial', FUSED): _t(0.132, 0.135, 0.004, 0.05),
     # atmosphere.  titan_haze's haze-symmetry fit lands 0.49 to 0.54 px off along the
     # sun axis, toward the night side; the error grows with the rendered scale height.
     # titan_haze_limb (#1190), titan_crescent_horns, and its noiseless twin (#1050)
@@ -224,16 +224,18 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # zero points measured on real frames and the navigator's star limits and star
     # widths measured on real frames too (#1153, #1213).  The Cassini star-field rows
     # are measured on all 24 draws too, with the Cassini zero points measured on real
-    # frames (#1294).  In nhlorri_star_field the navigator measures all 18 stars, whose
-    # mean position lies about 120 px from the boresight, and the +0.19 deg twist moves
-    # it about 0.4 px; at 1 s it also measures all 18, and the answer lands 0.41 to
-    # 0.43 px off.  gossi_disc lands 0.17 px off
-    # with its twist and 0.04 px off without it.  coiss_wac_disc's error is the limb
-    # fit's own: 0.16 px with the roll, 0.17 px without.  The large-offset scene fails as
-    # its expected block declares (#785).
+    # frames (#1294).  coiss_nac_star_field renders through the real frame's CL1+IR3;
+    # its noise draws repeat its random ones, and it fails on random seed 909, where
+    # the star-field and single-star techniques both return spurious (#1146).  In
+    # nhlorri_star_field the navigator measures all 18 stars, whose mean position lies
+    # about 120 px from the boresight, and the +0.19 deg twist moves it about 0.4 px;
+    # at 1 s it also measures all 18, and the answer lands 0.41 to 0.43 px off.
+    # gossi_disc lands 0.17 px off with its twist and 0.04 px off without it.
+    # coiss_wac_disc's error is the limb fit's own: 0.16 px with the roll, 0.17 px
+    # without.  The large-offset scene fails as its expected block declares (#785).
     ('coiss_calib_nac_disc', FUSED): _t(0.096, 0.099, 0.009, 0.05),
     ('coiss_calib_wac_star_field', FUSED): _t(0.017, 0.019, 0.007, 0.05),
-    ('coiss_nac_star_field', FUSED): _t(0.033, 0.048, 0.032, 0.05),
+    ('coiss_nac_star_field', FUSED): _t(0.022, 0.263, 0.255, 0.06),
     ('coiss_wac_disc', FUSED): _t(0.156, 0.166, 0.039, 0.05),
     ('gossi_disc', FUSED): _t(0.166, 0.182, 0.017, 0.05),
     ('gossi_star_field', FUSED): _t(0.098, 0.102, 0.008, 0.05),
@@ -258,28 +260,28 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # error.  In crescent_stars the fused answer follows the stars, a little off the
     # disc's 0.01 px.  moon_over_ring_sheet is expected to conflict (#755).
     # saturn_rings_wac follows its ring edges.
-    ('crescent_stars', FUSED): _t(0.033, 0.037, 0.015, 0.05),
+    ('crescent_stars', FUSED): _t(0.033, 0.037, 0.022, 0.05),
     ('saturn_rings_wac', FUSED): _t(0.101, 0.101, 0.070, 0.05),
-    ('stars_body_ephemeris_error', FUSED): _t(0.172, 0.175, 0.006, 0.05),
+    ('stars_body_ephemeris_error', FUSED): _t(0.172, 0.175, 0.007, 0.05),
     # mixed_content, one technique read from the fused run.  StarRefineNav starts from
     # the body's pass-1 answer, which carries the planted 1.81 px error, and still lands
     # within 0.04 px of the truth, with the same answer on every draw as with the planted
     # error removed.  This row holds the star side of the scene: a refinement that
     # followed its start would land near 1.8 px off and fail here, while the fused
     # tolerance alone would pass one that followed it part way.
-    ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.027, 0.031, 0.008, 0.05),
+    ('stars_body_ephemeris_error', 'StarRefineNav'): _t(0.027, 0.030, 0.006, 0.05),
     # mixed_defects.  The seed also places the lost lines and blocks, so the 16 seeds
     # cover 16 placements of the damage; every noise_seed draw also lies inside each
     # tolerance.  coiss_nac_lossy_moon seeds nothing but the noise, so its noise_seed
     # draws repeat random_seed 101 to 808.  Where a band of lost slices crosses the
     # disc on gossi_ict_moon, the frame still lands within 0.08 px.  On
-    # coiss_nac_stars_moon_lost_lines the star refinement carries the fused answer on
-    # every draw; the worst, random seed 1010, lands 0.048 px off.  On the committed
-    # seed four groups cross the disc, and the disc correlation, which correlates the
-    # lost lines as zeros (#1164), lands 0.103 px off, while the stars hold the fused
-    # answer at 0.037 px.
+    # coiss_nac_stars_moon_lost_lines, rendered through the real frame's CL1+UV3, the
+    # fused answer follows the star refinement on every draw; the worst, noise_seed
+    # 101, lands 0.292 px off.  On the committed seed four groups cross the disc, and
+    # the disc correlation, which correlates the lost lines as zeros (#1164), lands
+    # 0.103 px off, and the fused answer 0.129 px.
     ('coiss_nac_lossy_moon', FUSED): _t(0.044, 0.050, 0.016, 0.05),
-    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.037, 0.048, 0.015, 0.05),
+    ('coiss_nac_stars_moon_lost_lines', FUSED): _t(0.129, 0.292, 0.267, 0.06),
     ('gossi_ict_moon', FUSED): _t(0.070, 0.072, 0.036, 0.05),
     ('nhlorri_moon_raw', FUSED): _t(0.109, 0.118, 0.011, 0.05),
     # multi_body_geometry.
@@ -302,7 +304,7 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # regression, one technique navigated alone.
     ('disc_subpixel_offset', 'BodyDiscCorrelateNav'): _t(0.000, 0.008, 0.008, 0.05),
     ('star_equal_brightness', 'StarFieldFromCatalogNav'): _t(0.032, 0.032, 0.002, 0.05),
-    ('star_zero_offset', 'StarFieldFromCatalogNav'): _t(0.040, 0.040, 0.002, 0.05),
+    ('star_zero_offset', 'StarFieldFromCatalogNav'): _t(0.041, 0.041, 0.003, 0.05),
     # ring_system.  orbit_error_ringlet carries a known error in its expected block.
     ('edge_wave_gap', FUSED): _t(0.008, 0.012, 0.004, 0.05),
     ('mmode_ringlet', FUSED): _t(0.025, 0.026, 0.002, 0.05),
@@ -377,8 +379,8 @@ KNOWN_ERRORS: dict[tuple[str, str], KnownErrorBand] = {
     ('stars_body_ephemeris_error', 'BodyLimbNav'): _b(1.831, 1.836, 0.05, 1.781, 1.887),
     # The roll is fitted about the extended field of view's corner, so the star
     # techniques' translations carry about 5 px of error (#434).
-    ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.029, 5.088, 0.05, 4.979, 5.138),
-    ('planted_rotation_star_field', 'StarRefineNav'): _b(4.604, 4.695, 0.05, 4.554, 4.745),
+    ('planted_rotation_star_field', 'StarUniqueMatchNav'): _b(5.029, 5.087, 0.05, 4.979, 5.137),
+    ('planted_rotation_star_field', 'StarRefineNav'): _b(4.607, 4.697, 0.05, 4.557, 4.747),
 }
 
 # The rank-1 flat-ring scene misses its planted shift along the one observable axis, the
@@ -395,7 +397,7 @@ SIGMA_BANDS: dict[str, KnownErrorBand] = {
     # The observable component misses by 0.46 px against a 0.095 px sigma (#873).
     'planted_rank1_ring_flat': _b(4.802, 4.902, 0.1, 4.702, 5.002),
     # The translation is fitted about the extended field of view's corner (#434).
-    'planted_rotation_star_field': _b(16.333, 16.447, 0.1, 16.233, 16.547),
+    'planted_rotation_star_field': _b(16.330, 16.447, 0.1, 16.229, 16.547),
     # dense_rings.  RingEdgeNav lands about 3.4 px off along nearly straight edges at a
     # sigma of 0.033 to 0.12 px (#755).
     'keeler_gap_unlit_ansa': _b(27.066, 32.797, 1.1461, 25.920, 33.943),

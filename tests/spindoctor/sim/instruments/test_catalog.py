@@ -899,13 +899,13 @@ def test_a_readout_mode_types_each_detector_key_as_the_detector_does() -> None:
 
 
 # The Cassini star zero points (electrons per second for a V = 0 star through CL1+CL2)
-# measured on real clear-filter star frames in 2026-11 (#1294): 1.88e8 for the narrow
-# angle camera and 1.92e7 for the wide angle camera, written to two digits.  The
+# measured on real clear-filter star frames in 2026-11 (#1294): 1.84e8 for the narrow
+# angle camera and 1.90e7 for the wide angle camera, written to two digits.  The
 # calibrated entries share their raw camera's value.
 _MEASURED_CASSINI_ZERO_POINTS = {
-    'coiss_nac': 1.9e8,
+    'coiss_nac': 1.8e8,
     'coiss_wac': 1.9e7,
-    'coiss_calib_nac': 1.9e8,
+    'coiss_calib_nac': 1.8e8,
     'coiss_calib_wac': 1.9e7,
 }
 

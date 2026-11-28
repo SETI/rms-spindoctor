@@ -1,8 +1,8 @@
 {
-  "confidence": 0.8029397957942037,
+  "confidence": 0.8029375965524879,
   "confidence_rank": "medium",
-  "offset_du_px": -0.19692323512538645,
-  "offset_dv_px": 0.26437958762544184,
+  "offset_du_px": -0.1969880091882802,
+  "offset_dv_px": 0.2644050548228372,
   "scene_name": "star_zero_offset",
   "status": "success"
 }
