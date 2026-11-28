@@ -771,8 +771,8 @@ where they differ).
   (`nav_model_body.py`) at high resolution. Investigation first: measure
   whether it actually moves offsets on library close-flyby frames.
 - **#130** (done for Galileo SSI, Voyager ISS and New Horizons LORRI,
-  2026-11-25; Cassini's photometric limit is #766's) — per-instrument star
-  limiting magnitudes measured from real star fields. Each of the three
+  2026-11-25; Cassini ISS in this PR, with #1257) — per-instrument star
+  limiting magnitudes measured from real star fields. Each of the four
   instruments now computes a photometric limit from the generic
   `star_photometry` sub-block of each camera's typed camera block (#1029;
   `voyager_iss` split into one block per camera), measured with
@@ -790,7 +790,22 @@ where they differ).
   magnitude plus the mean offset, and the #130 star photometry is refitted
   against the new magnitudes. Each camera's `star_photometry` gains a
   measured `color_term` (camera magnitude V + c (B - V)), which the star
-  limit, the predicted DN, and the effective SNR read.
+  limit, the predicted DN, and the effective SNR read. Cassini ISS is
+  measured here too (650 tour star fields), replacing its exposure-only
+  limit, and `min_detectable_dn` may give a table by gain state, which
+  Cassini and Galileo now use.
+- **#1295** — APASS V and B-V carry most of LORRI's remaining star
+  zero-point scatter; found by #1257.
+- **#1296** — the star-limit fit leaves out UCAC4 stars brighter than V 9.5,
+  which the reduction now corrects; found by #1257.
+- **#1297** — star overlap marking compares magnitudes with a signed
+  difference; found by the CodeRabbit CLI on #1257.
+- **#1298** — LORRI 1X1 frames lose star answers with the joint color term;
+  found by #1257's comparison.
+- **#1299** — the Cassini star limit ignores the extra noise of long
+  exposures; found by #1257's Cassini measurement.
+- **#1300** — the star-limit fit reads narrow filters' offsets too bright;
+  found by #1257's Cassini measurement.
 - **#1211** — the Galileo 1990 cruise star frames read 0.4-1.7 mag fainter
   than the 1992 frames at the same settings; the star limit uses the 1992
   scale until this is explained.
