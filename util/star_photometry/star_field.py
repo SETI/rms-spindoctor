@@ -21,7 +21,7 @@ import scipy.optimize
 import scipy.special
 from numpy.typing import NDArray
 
-from spindoctor.sim.realism.profiles import ee_radius, encircled_energy, radial_profile
+from util.sim_realism.profiles import ee_radius, encircled_energy, radial_profile
 
 __all__ = [
     'ApertureResult',
