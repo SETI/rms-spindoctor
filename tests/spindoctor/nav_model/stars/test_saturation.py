@@ -799,6 +799,27 @@ def test_correct_star_photometry_no_widening_for_small_gap() -> None:
     assert star.photometry_saturated is True
 
 
+def test_correct_star_photometry_no_collapse_widening_for_a_brighter_candidate() -> None:
+    """A candidate brighter than its reference does not widen the duplicate collapse.
+
+    The candidate (8.0) matches a 9.0 reference 1 arcsec away; a distinct 9.0 Tycho-2 star
+    7 arcsec away lies outside the 5 arcsec base radius and must not absorb it.
+    """
+    arcsec = math.radians(1.0 / 3600.0)
+    star = _ucac4(*_ETA_TAU, 8.0)
+    ref = _tycho2(_ETA_TAU[0], _ETA_TAU[1] + arcsec, 9.0)
+    neighbor = _tycho2(_ETA_TAU[0], _ETA_TAU[1] + 7.0 * arcsec, 9.0)
+    out = correct_star_photometry(
+        [star, neighbor],
+        [ref, neighbor],
+        match_radius_rad=_MATCH_RAD,
+        duplicate_vmag=_DVMAG,
+        catalog_order=_ORDER,
+        color_term=0.0,
+    )
+    assert star in out
+
+
 # --------------------------------------------------------------------------
 # Same-reference guard (a reference corrects at most one record)
 # --------------------------------------------------------------------------

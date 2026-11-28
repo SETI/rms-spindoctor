@@ -281,7 +281,7 @@ and S/N 04, so the narrow-angle rate is scaled by 0.648 and the wide-angle rate 
 0.600. Voyager 1 keeps its own filter factors and high-gain constants, and takes
 Voyager 2's ``min_detectable_dn``. Like Voyager 2's cameras, it has no color term.
 
-On the held-out Voyager 2 frames, the faintest star detected lies a median 0.57 mag
+On the held-out Voyager 2 frames, the second-faintest star detected lies a median 0.57 mag
 inside the predicted dimmest visible star on the narrow-angle camera, and 0.62 mag
 past it on the wide-angle camera, with broad spreads, so the limit carries about half
 a magnitude of uncertainty.

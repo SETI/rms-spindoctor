@@ -192,7 +192,7 @@ frame transfer adds light to a short exposure.
   clean star of the mode, reaches 80% of the way from its floor to its plateau:
   115 +- 13 DN unbinned and 60 +- 3 DN binned.
 
-On the held-out frames, the faintest star detected lies a median 0.02 mag inside the
+On the held-out frames, the second-faintest star detected lies a median 0.02 mag inside the
 predicted dimmest visible star.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are

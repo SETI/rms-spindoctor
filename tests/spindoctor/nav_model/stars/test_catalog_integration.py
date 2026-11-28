@@ -672,6 +672,33 @@ def test_reduce_catalogs_corrects_sole_source_ucac4_in_place(
     assert out[0].vmag == pytest.approx(5.09)
 
 
+def test_reduce_catalogs_keeps_a_bright_ucac4_star_whose_v_reads_past_the_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bright UCAC4 star whose saturated APASS V reads past the limit reaches the correction.
+
+    Its aperture magnitude is 7.5 and its APASS V 8.2, past the limit of 8.  No reference
+    star lies near it, so the correction flags it saturated, and it is kept.
+    """
+    obs = FakeObs(
+        data=np.zeros((100, 100), dtype=np.float64),
+        extfov_margin_vu=(10, 10),
+        ra_dec_limits_ext_rad=(0.0, 0.5, -0.1, 0.1),
+        star_max_vmag=8.0,
+    )
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1, ra=0.10, dec=0.0, vmag=7.5, apass_mag_v=8.2, apass_mag_v_sigma=0.05
+            )
+        ],
+        ybsc=[make_star(unique_number=2, ra=0.40, dec=0.05, vmag=3.0, b_v=0.0)],
+    )
+    out = reduce_catalogs(cast(Any, obs), DEFAULT_CONFIG)
+    assert [star.unique_number for star in out if star.photometry_saturated] == [1]
+
+
 def test_reduce_catalogs_flags_bright_star_without_ybsc_match(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:

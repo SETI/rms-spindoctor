@@ -421,7 +421,10 @@ def _find_stars_in_one_catalog(
         mag_min, mag_max: Camera magnitude bounds, inclusive (see
             :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`).  A UCAC4
             star's camera magnitude starts from the Johnson V of
-            :func:`ucac4_johnson_photometry`, not from its aperture magnitude.
+            :func:`ucac4_johnson_photometry`, not from its aperture magnitude.  A UCAC4
+            star whose aperture magnitude is brighter than
+            :data:`~spindoctor.nav_model.stars.saturation.UCAC4_SATURATION_VMAG_LIMIT` is
+            kept whatever its camera magnitude, for the bright-end correction.
         catalog_mag_min, catalog_mag_max: Bounds, inclusive, on the magnitude the
             catalog lists, which the catalog query cuts on: Johnson V for Tycho-2 and
             YBSC, the aperture magnitude for UCAC4.
@@ -519,8 +522,14 @@ def _find_stars_in_one_catalog(
             star.johnson_mag_b = star.vmag + SCLASS_TO_B_MINUS_V[clean_sclass(star.spectral_class)]
             star.johnson_mag_faked = True
         # The star is kept by its magnitude in the camera's band, which needs its color.
+        # A UCAC4 star brighter than the saturation limit has a magnitude that may read
+        # too faint until the bright-end correction replaces it, so it is kept whatever
+        # its camera magnitude and ``reduce_catalogs`` judges it after the correction.
         camera_mag = star_camera_mag(star, color_term)
-        if not mag_min <= camera_mag <= mag_max:
+        saturation_candidate = (
+            catalog_name == 'ucac4' and cast(float, star.catalog_vmag) < UCAC4_SATURATION_VMAG_LIMIT
+        )
+        if not (mag_min <= camera_mag <= mag_max or saturation_candidate):
             continue
         star.catalog_name = catalog_name
         star.pretty_name = str(star.unique_number)
@@ -697,7 +706,9 @@ def stars_in_extfov(
             UCAC4 it starts from the Johnson V of :func:`ucac4_johnson_photometry`).
         catalog_window: The ``(min, max)`` magnitudes, inclusive, that the catalog lists
             to query (the aperture magnitude for UCAC4, Johnson V for Tycho-2 and
-            YBSC); the stars it returns are then kept by their camera magnitude.  By
+            YBSC); the stars it returns are then kept by their camera magnitude, but for
+            the bright UCAC4 stars the bright-end correction may change (see
+            :func:`_find_stars_in_one_catalog`).  By
             default it is the camera magnitude window widened at both ends by
             :func:`catalog_query_margin`.
         radec_movement: Optional half-exposure ``(dra, ddec)`` shift.
@@ -742,8 +753,9 @@ def reduce_catalogs(
     aperture magnitude, Johnson V for the others), and every star a bin
     pulls is kept whose camera magnitude (see
     :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`) lies
-    within the observation's usable range; the first and last bins reach
-    :func:`catalog_query_margin` past that range.  Across
+    within the observation's usable range (a UCAC4 star brighter than the
+    saturation limit is judged after the bright-end correction instead); the
+    first and last bins reach :func:`catalog_query_margin` past that range.  Across
     catalogs, stars whose RA/DEC and magnitude match a star already kept
     from an earlier (more precise) catalog are dropped; the kept entry
     inherits any nicer ``name`` field the later catalog supplies.
@@ -841,6 +853,15 @@ def reduce_catalogs(
             color_term=color_term,
             saturation_limit=UCAC4_SATURATION_VMAG_LIMIT,
         )
+    # The bright UCAC4 stars kept past the usable range for the correction are judged
+    # now, on their corrected camera magnitudes.  A star flagged saturated stays: its
+    # magnitude is a lower bound on its brightness, and the star model exempts it.
+    kept = [
+        star
+        for star in kept
+        if star.photometry_saturated
+        or mag_min_cap <= star_camera_mag(star, color_term) <= mag_max_cap
+    ]
 
     _mark_visual_overlaps(kept, overlap_vmag=overlap_vmag, color_term=color_term)
 

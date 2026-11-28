@@ -131,6 +131,12 @@ def test_color_term_fit_leaves_out_stars_without_a_color() -> None:
     assert _fit(_colored_rows(), color_term=True).n_zp_stars == 30
 
 
+def test_color_term_fit_needs_the_minimum_of_colored_stars() -> None:
+    """Ten stars with a measured color, fewer than the 15 a term needs, identify nothing."""
+    rows = _colored_rows()[20:]
+    assert not _fit(rows, color_term=True).zero_point_identified
+
+
 def test_predicted_dn_reads_the_camera_magnitude() -> None:
     """A star of V 10 and B - V 1 is predicted at camera magnitude 9.6 for c = -0.4."""
     result = FitResult(

@@ -124,11 +124,16 @@ def fit_zero_point(
         calibration_gain_ratios: The calibration document's DN ratio of each gain state to
             the reference state, used for a gain state with too few stars.
         color_term: Whether to fit the color term ``c`` (see the module docstring), from
-            the stars with a measured color alone.  Otherwise ``result.color_term`` stays
-            zero.
+            the stars with a measured color alone.  Like any other term, it needs at
+            least ``min_term_stars`` of them, and with fewer the zero point is reported
+            as unidentified.  Otherwise ``result.color_term`` stays zero.
     """
     if color_term:
         rows = [r for r in rows if r['bmag'] is not None]
+        if len(rows) < min_term_stars:
+            result.zero_point_identified = False
+            result.n_zp_stars = len(rows)
+            return
     result.filter_counts = dict(sorted(_count(r['filter'] for r in rows).items()))
     result.gain_counts = dict(sorted(_count(r['gain'] for r in rows).items()))
     observed_filters = set(result.filter_counts) - {reference_filter}

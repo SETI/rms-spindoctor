@@ -119,6 +119,12 @@ conversion brightens 99.9% of the stars by less than 0.06 mag, and APASS V is br
 than the aperture magnitude by more than 0.2 mag for 5% of the stars fainter than aperture
 magnitude 10.
 
+A UCAC4 star brighter than the bright-end correction's limit (below) is kept whatever its
+camera magnitude, because both its aperture magnitude and its APASS V may read too faint.
+Once the correction has run, such a star is kept only if its corrected camera magnitude
+lies in the usable range, or if the correction found no reference for it and flagged it
+saturated.
+
 Camera magnitudes
 -----------------
 

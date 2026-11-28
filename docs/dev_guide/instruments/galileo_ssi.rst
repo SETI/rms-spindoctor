@@ -208,13 +208,14 @@ take the calibration documents' values, and their stars are left out of the fits
   (1999). The stars measured through filters are too few to measure an offset, and are
   mostly hot Pleiades members, far bluer than the Sun.
 
-On the 16 held-out frames taken at 10K, the faintest star detected lies a median 0.15
-mag past the predicted dimmest visible star. On the 12 held-out frames taken at 100K, it
-lies a median 1.6 mag past it: ``min_detectable_dn`` gives one DN per readout mode,
-whatever the gain state, and at 100K a DN holds about nine times the electrons, so the
-camera shows stars well past the limit there. Over all 28 frames the median is 0.86 mag, with a spread from
-0.15 mag inside the limit to 1.6 mag past it. That figure does not allow for the 1990
-frames, whose stars read 0.4 to 1.7 mag fainter than the 1992 scale the limit follows.
+On the 16 held-out frames taken at 10K, the second-faintest star detected lies a median
+0.15 mag past the predicted dimmest visible star. On the 12 held-out frames taken at
+100K, it lies a median 1.6 mag past it: ``min_detectable_dn`` gives one DN per readout
+mode, whatever the gain state, and at 100K a DN holds about nine times the electrons,
+so the camera shows stars well past the limit there. Over all 28 frames the median is
+0.86 mag, with a spread from 0.15 mag inside the limit to 1.6 mag past it. That figure
+does not allow for the 1990 frames, whose stars read 0.4 to 1.7 mag fainter than the
+1992 scale the limit follows.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.

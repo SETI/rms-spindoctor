@@ -459,7 +459,9 @@ def correct_star_photometry(
             star.photometry_saturated = True
             continue
         consumed[idx] = True
-        gap = abs(float(catalog_vmag) - float(ref_vmag[idx]))
+        # Saturation reads a star too faint, so only a candidate fainter than its reference
+        # widens the duplicate collapse, as only such a gap widens the match.
+        gap = max(float(catalog_vmag) - float(ref_vmag[idx]), 0.0)
         _apply_reference_photometry(star, ref_stars[idx], color_term=color_term)
         corrected.append((star, _widened_radius(gap, match_radius_rad)))
     if not corrected:
