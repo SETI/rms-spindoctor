@@ -37,8 +37,9 @@ the shell renders solely as a second band in the tangent glow.
 single and multiple scattering together, by the reflectance of
 :mod:`spindoctor.sim.render.bodies.haze_scattering` (Hapke's isotropic
 multiple-scattering approximation, scaled for a finite column).  It takes the
-block's single-scattering ``albedo`` (:data:`DEFAULT_HAZE_ALBEDO` when the scene
-leaves it out) and a Henyey-Greenstein phase factor ``P`` (forward-scattering when
+block's single-scattering ``albedo``
+(:data:`~spindoctor.sim.scene.truth_atmosphere.DEFAULT_HAZE_ALBEDO` when the scene leaves
+it out) and a Henyey-Greenstein phase factor ``P`` (forward-scattering when
 ``g`` > 0, which brightens the limb at high phase and, in the limit, produces the
 ring of light past phase 150 deg), with an optional second term (``g2`` with the
 share ``g2_fraction``) for a two-term phase function such as the fit to Titan's
@@ -114,9 +115,8 @@ renders hard-limbed, byte-for-byte as before.
 """
 
 import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, cast
+from typing import cast
 
 import numpy as np
 from scipy import ndimage
@@ -125,7 +125,7 @@ from spindoctor.sim.render.bodies.haze import (
     HazeStructure,
     apply_disc_structure,
     apply_hemispheric_scaling,
-    haze_structure_from_params,
+    haze_structure_from_block,
     hemisphere_weight,
     scale_height_field,
     tilted_illumination_2d,
@@ -145,6 +145,8 @@ from spindoctor.sim.render.bodies.haze_scattering import (
     tangent_reflectance,
     twilight_weight,
 )
+from spindoctor.sim.scene.fields import value_or
+from spindoctor.sim.scene.truth_atmosphere import DEFAULT_HAZE_ALBEDO, BodyAtmosphere
 from spindoctor.sim.shared.ellipsoid import (
     EllipsoidGeometry,
     outline_semi_a,
@@ -154,23 +156,12 @@ from spindoctor.support.constants import PIXEL_CENTER_TO_CORNER_PX
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
-    'DEFAULT_HAZE_ALBEDO',
     'AtmosphereLayers',
     'AtmosphereSpec',
     'HaloScreen',
     'apply_atmosphere',
-    'atmosphere_spec_from_params',
+    'atmosphere_spec_from_block',
 ]
-
-DEFAULT_HAZE_ALBEDO: float = 0.6
-"""The haze ``albedo`` a scene's ``atmosphere`` block takes when it leaves the key out.
-
-The albedo is the haze particles' single-scattering albedo and lies in [0, 1].  A
-fully lit, optically thick grazing haze column reflects ``albedo * P / 4`` in I/F,
-where ``P`` is the phase factor.  The haze's emergent intensity is not capped, so a
-strong forward-scattering peak can carry the signal above 1, and the detector
-saturates there as a real camera does.
-"""
 
 # Amplitude of a detached shell's Gaussian tau bump, as a multiple of
 # tau_ref; the shell's radial width is one scale height.
@@ -306,42 +297,45 @@ class AtmosphereSpec:
     structure: HazeStructure | None = None
 
 
-def atmosphere_spec_from_params(
-    atmosphere: Mapping[str, Any] | None, *, oversample: int
+def atmosphere_spec_from_block(
+    atmosphere: BodyAtmosphere | None, *, oversample: int
 ) -> AtmosphereSpec | None:
     """Build an :class:`AtmosphereSpec` from a body's ``atmosphere`` block.
 
     Returns None when the body carries no atmosphere, so a body without the
     block never enters the haze path.  Pixel lengths are scaled to the render
     grid by ``oversample`` exactly as the body's axes are.  An optional key that
-    the block leaves out takes its default.
+    the block leaves out takes its default.  A block that sets a haze model is
+    resolved into the column's keys first (see
+    :func:`~spindoctor.sim.render.bodies.titan_haze.resolve_model_atmosphere`).
 
     Parameters:
-        atmosphere: One body's ``atmosphere`` mapping, or None.
+        atmosphere: One body's ``atmosphere`` block, or None.
         oversample: The render grid's oversampling factor.
 
     Returns:
-        The scaled spec, or None when ``atmosphere`` is not a mapping.
+        The scaled spec, or None when the body has no atmosphere.
+
+    Raises:
+        ValueError: If the block sets a haze model, whose column keys are not
+            resolved yet.
     """
-    if not isinstance(atmosphere, Mapping):
+    if atmosphere is None:
         return None
+    if atmosphere.scale_height_px is None or atmosphere.tau_ref is None:
+        raise ValueError('a named haze is resolved into its column before it is drawn')
     os_factor = max(1, int(oversample))
-    detached = atmosphere.get('detached_px')
-    ref_altitude = atmosphere.get('ref_altitude_px')
-    g = atmosphere.get('g')
-    g2 = atmosphere.get('g2')
-    g2_fraction = atmosphere.get('g2_fraction')
-    albedo = atmosphere.get('albedo')
+    detached = atmosphere.detached_px
     return AtmosphereSpec(
-        scale_height_px=float(atmosphere['scale_height_px']) * os_factor,
-        tau_ref=float(atmosphere['tau_ref']),
-        ref_altitude_px=(0.0 if ref_altitude is None else float(ref_altitude)) * os_factor,
-        g=0.0 if g is None else float(g),
-        g2=0.0 if g2 is None else float(g2),
-        g2_fraction=0.0 if g2_fraction is None else float(g2_fraction),
-        detached_px=(float(detached) * os_factor if detached is not None else None),
-        albedo=DEFAULT_HAZE_ALBEDO if albedo is None else float(albedo),
-        structure=haze_structure_from_params(atmosphere, oversample=os_factor),
+        scale_height_px=atmosphere.scale_height_px * os_factor,
+        tau_ref=atmosphere.tau_ref,
+        ref_altitude_px=value_or(atmosphere.ref_altitude_px, 0.0) * os_factor,
+        g=value_or(atmosphere.g, 0.0),
+        g2=value_or(atmosphere.g2, 0.0),
+        g2_fraction=value_or(atmosphere.g2_fraction, 0.0),
+        detached_px=(detached * os_factor if detached is not None else None),
+        albedo=value_or(atmosphere.albedo, DEFAULT_HAZE_ALBEDO),
+        structure=haze_structure_from_block(atmosphere, oversample=os_factor),
     )
 
 

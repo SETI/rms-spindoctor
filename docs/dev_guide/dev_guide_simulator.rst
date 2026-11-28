@@ -127,9 +127,8 @@ relative to ``sim/render/``):
        ``bodies/texture.py`` / ``bodies/mesh.py``
      - The ellipsoid renderer (relief, photometric laws, craters, surface texture,
        transits) with its grids, its relief shading, and its crater carving, and the
-       polyhedral-mesh renderer. The parsed body entry and the body's identity seed
-       (``bodies/spec.py``), the relief field (``bodies/relief.py``), the search along
-       each line of sight for its terrain (``bodies/relief_sight.py``), and the
+       polyhedral-mesh renderer. The relief field (``bodies/relief.py``), the search
+       along each line of sight for its terrain (``bodies/relief_sight.py``), and the
        photometric laws (``bodies/photometry.py``) sit beside them.
    * - ``bodies/translate.py``
      - Moves a body drawn at a reference position into place by linear
@@ -737,7 +736,7 @@ The integration tests use the key to measure a check over several noise draws.
 
 Every random stream of one body (its craters, its relief terrain, its albedo noise,
 and a mesh body's pose scatter) derives from one identity seed.
-:func:`~spindoctor.sim.render.bodies.spec.body_identity_seed` computes it from the
+:func:`~spindoctor.sim.seeds.body_identity_seed` computes it from the
 scene's ``scene_radiance/craters`` stream, mixed with the body's index and name, so
 two bodies of the same geometry get independent surfaces. The craters are seeded with
 the identity seed itself, and each other effect with a named stream of it. Each body
@@ -2483,23 +2482,27 @@ imports run one way. The dispatcher imports both renderers and the placement, th
 ellipsoid renderer imports the crater carving, and the mesh renderer imports the
 placement. No body module imports the dispatcher.
 
-**The body spec.** The scene radiance stage parses each ``bodies`` entry once into a
-frozen :class:`~spindoctor.sim.render.bodies.spec.BodySpec`
-(:func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`). Every default is
-applied there. Under a planted roll the stage first turns the entry about the body's
-own center (:func:`~spindoctor.sim.render.roll.roll_body_params`; see
-:ref:`the planted roll <sim-planted-roll>`) and records the roll in the spec's
-``roll_deg``, which turns the crater layout. The stage then shifts each center by the
-ephemeris parallax, turns it about the frame center by the roll, and scales the
-centers and axes to the render grid. The body renderer adds the planted offset,
-turned by the roll, when it draws the body, which makes the roll a turn about the
-boresight. Both renderers read only the
-spec. Two sub-blocks stay as their validated mappings, because their specs depend on the
-render: the ``atmosphere`` block's pixel lengths scale with the oversampling factor, and
-the ``albedo_texture`` noise draws its seed from the body's identity. The renderer builds
-them with :func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_params` and
-:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_params`, which apply the
-defaults of those blocks.
+**The typed body.** The scene radiance stage parses each ``bodies`` entry into the
+typed body, :class:`~spindoctor.sim.scene.truth_body.Body`
+(:func:`~spindoctor.sim.scene.validate.parse_body`). Under a planted roll the stage
+first turns the entry about the body's own center
+(:func:`~spindoctor.sim.render.roll.roll_body_params`; see
+:ref:`the planted roll <sim-planted-roll>`), and it hands the roll to the body renderer,
+which turns the crater layout by it. A body that takes Titan's haze by name gets the
+haze in the column's keys
+(:func:`~spindoctor.sim.render.bodies.titan_haze.resolve_model_atmosphere`). The stage
+then fills in the body's name and range when the entry leaves them out, shifts each
+center by the ephemeris parallax, turns it about the frame center by the roll, and
+scales the centers and axes to the render grid. The body renderer adds the planted
+offset, turned by the roll, when it draws the body, which makes the roll a turn about
+the boresight. A key the entry leaves out is None in the typed body, and the renderer
+reads it with the default its declaration gives; those defaults are constants of
+:mod:`spindoctor.sim.scene.truth_body` that the renderer imports. Two blocks become
+render specs only once the render is known, because the ``atmosphere`` block's pixel
+lengths scale with the oversampling factor and the ``albedo_texture`` noise draws its
+seed from the body's identity. The renderer builds them with
+:func:`~spindoctor.sim.render.bodies.atmosphere.atmosphere_spec_from_block` and
+:func:`~spindoctor.sim.render.bodies.texture.albedo_spec_from_block`.
 
 The stage also writes each body's entry in the render truth. The entry starts as a
 copy of the scene entry. Under a planted roll the entry is the turned one, and the
@@ -2997,7 +3000,8 @@ the navigator fits (``bodies/texture.py``):
   can, and large-scale hemispheric contrast is exactly what the texture exists
   to plant). ``rms`` is its area-weighted standard deviation over the sphere.
 - ``disc_texture`` (truth): a low-frequency latitude band pattern
-  ``1 + band_amplitude cos(band_wavenumber lat_p + band_phase)`` plus discrete
+  ``1 + band_amplitude cos(band_wavenumber lat_p + band_phase)``, with the phase in
+  radians, plus discrete
   storm ovals -- the zones/belts and a great-red-spot-class storm of a giant
   planet.
 - ``transits`` (truth): a list of entries, each a transiting moon disc
@@ -3406,8 +3410,8 @@ one exponential column, one illumination weight, no azimuthal or hemispheric
 structure. That is a problem for grading
 :doc:`the haze solar-symmetry fit <dev_guide_techniques_titan_haze>`, which
 measures pointing FROM that symmetry and would otherwise be scored against a
-scene built from its own assumption. ``bodies/haze.py`` supplies six optional
-truth keys inside the same ``atmosphere`` block that break it, each with its own
+scene built from its own assumption. Six optional truth keys inside the same
+``atmosphere`` block break it, and ``bodies/haze.py`` renders them, each with its own
 render-level test asserting the effect is measurably present:
 
 .. list-table::
@@ -4051,8 +4055,8 @@ scene authors -- the calibration-campaign generator
 through the same core, :func:`spindoctor.sim.scene.validate.validate_sim_params`. Every
 render calls it too, so a dict that skips this step is still checked before it
 renders.
-Validation is strict: an unknown key at the top level or inside a ``bodies`` /
-``stars`` / ``ring_system`` entry fails loudly, so a typo cannot silently
+Validation is strict: an unknown key at the top level or inside a ``bodies``,
+``stars``, or ``ring_system`` entry fails loudly, so a typo cannot silently
 render the default scene.
 
 The validator is :func:`spindoctor.sim.scene.validate.parse_scene`. It checks the
@@ -4070,12 +4074,14 @@ the camera catalogs a scene's gain state, are in
 :mod:`spindoctor.sim.scene.rules_detector`. The ``instrument_config`` keys take their
 types from the navigator's camera block (:mod:`spindoctor.config.sections_camera`), and
 the rules that read the scene's camera are in
-:mod:`spindoctor.sim.scene.rules_instrument_config`. The mapping stays the scene's saved
-form: a key the scene leaves out stays out, and is None in the typed scene. The top
-level and the ``optics``, ``detector``, ``noise``, ``spk_error``, and
-``instrument_config`` blocks are typed so far; the other blocks are listed in
-:data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and checked by their rules modules
-until their types land.
+:mod:`spindoctor.sim.scene.rules_instrument_config`. The rules that compare one body
+with another, and the rule that reads the camera's passbands for a body that takes
+Titan's haze, are in :mod:`spindoctor.sim.scene.rules_body`. The mapping stays the
+scene's saved form: a key the scene leaves out stays out, and is None in the typed
+scene. The top level, the ``optics``, ``detector``, ``noise``, ``spk_error``, and
+``instrument_config`` blocks, and the ``stars`` and ``bodies`` entries are typed so far;
+the other blocks are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and
+checked by their rules modules until their types land.
 
 The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
@@ -4291,15 +4297,15 @@ Top-level fields
 ----------------
 
 A scene either sets a key or leaves it out to take its default. The
-:doc:`dev_guide_simulator_scene_schema` page lists every top-level key, and every key of
+:doc:`dev_guide_simulator_scene_schema` page lists every top-level key, every key of
 the ``optics``, ``detector``, ``noise``, ``spk_error``, and ``instrument_config``
-blocks, with its type, range, default, side, and meaning. The page is generated from the
-scene's types when the documentation is built, and lists exactly what the validator
-accepts. The other blocks have sections of their own: ``bodies``
-(:ref:`sim-body-params`), ``ring_system`` (:ref:`sim-ring-system`), ``stars``
-(:ref:`sim-star-params`), ``artifacts`` (:ref:`sim-artifacts-block`), and ``expected``
-(:ref:`sim-expected`). How ``instrument_config`` merges over the navigator block is in
-:ref:`sim-instrument-config`.
+blocks, and every key of a ``bodies`` or ``stars`` entry, with its type, range, default,
+side, and meaning. The page is generated from the scene's types when the documentation
+is built, and lists exactly what the validator accepts. The bodies and the stars also
+have sections of their own, :ref:`sim-body-params` and :ref:`sim-star-params`, and so do
+the blocks the page does not list yet: ``ring_system`` (:ref:`sim-ring-system`),
+``artifacts`` (:ref:`sim-artifacts-block`), and ``expected`` (:ref:`sim-expected`). How
+``instrument_config`` merges over the navigator block is in :ref:`sim-instrument-config`.
 
 ``sky_counts`` (truth) sets the background-sky star field: ``a`` and ``b`` set the
 cumulative count law ``log10 N(<m) = a + b*m`` per square degree, ``density_factor``
@@ -4319,143 +4325,35 @@ of view about the boresight, as :ref:`the planted roll <sim-planted-roll>` descr
 Body parameters
 ---------------
 
-Each entry of ``bodies`` is a dict. The geometry, pose, lighting, and physical
-scale are idealized (the published shape model of a body is catalog knowledge;
-a scene plants shape error through ``nav_override``, not by hiding the mesh).
-A ``nav_override`` may set only the idealized keys, and each value it sets passes the
-same check as the body's own value for that key, so a two-angle ``pose_euler_deg`` or a
-center that isn't finite is refused there with the override's key path. Common
-fields:
+Each entry of ``bodies`` is a mapping. The :doc:`dev_guide_simulator_scene_schema` page
+lists every key of a body entry and of the blocks inside it, with its type, range,
+default, side, and meaning. Every body sets ``semi_a_px`` and ``semi_b_px``; every other
+key may be left out. The geometry, pose, lighting, and physical scale are idealized (the
+published shape model of a body is catalog knowledge, so a scene plants shape error
+through ``nav_override``). A ``nav_override`` may set only the idealized keys, and each
+value it sets has the range the body's own value has, so a two-angle ``pose_euler_deg``
+or a ``mesh_n_lat`` of 0 is refused there with the override's key path.
 
-.. list-table::
-   :widths: 22 11 11 10 46
-   :header-rows: 1
-
-   * - Field
-     - Type
-     - Default
-     - Side
-     - Meaning
-   * - ``name``
-     - str
-     - generated
-     - idealized
-     - Body label used in metadata and annotations.
-   * - ``center_v`` / ``center_u``
-     - float
-     - frame center
-     - idealized
-     - Body center in pixels, as a pixel corner (see
-       :ref:`sim-pixel-convention`).
-   * - ``semi_a_px`` / ``semi_b_px`` / ``semi_c_px``
-     - float (px)
-     - 0.0
-     - idealized
-     - The three semi-axes of the body in pixels, each half the body's width
-       along that axis, like a radius. ``semi_a_px`` runs along the image's
-       ``v`` axis and ``semi_b_px`` along ``u`` before ``rotation_z`` turns the
-       body, and ``semi_c_px`` points toward the observer.
-       ``semi_c_px`` defaults to ``min(semi_a_px, semi_b_px)``.
-   * - ``illumination_angle``
-     - float (deg)
-     - 0.0
-     - idealized
-     - Image-plane light azimuth (0 = from the top).
-   * - ``phase_angle``
-     - float (deg)
-     - 0.0
-     - idealized
-     - Phase angle (0 = fully lit, 180 = back-lit crescent).
-   * - ``range_km``
-     - float
-     - body index
-     - idealized
-     - Subject distance in km; also the depth-ordering key (smaller renders
-       in front).
-   * - ``km_per_pixel``
-     - float
-     - none
-     - idealized
-     - Optional physical scale at the limb.
-   * - ``shape_model``
-     - str
-     - ``ellipsoid``
-     - idealized
-     - ``ellipsoid`` or ``polyhedral_mesh``.
-
-Ellipsoid bodies add ``rotation_z`` and ``sub_observer_lat_deg`` (degrees,
-idealized). The body's pole is semi-axis a, and its north pole, where latitudes are
-positive, is the end of semi-axis a that points along +v before ``rotation_z`` turns
-it. ``sub_observer_lat_deg`` is the latitude of the point on the body directly below
-the observer, from -90 to 90 degrees. A positive value tips the north pole toward the
-observer, who then sees the northern hemisphere, as in a real Saturn or Jupiter frame
-whose sub-observer latitude is positive. The ellipsoid turns as a solid body: its
-outline foreshortens along the pole to ``sqrt((a cos lat)^2 + (c sin lat)^2)``, so a
-sphere stays the same circle at any latitude, the shading and the haze follow the
-turned surface, and latitude bands curve across the disc. The navigator's predicted
-body turns the same way, through the same projection.
-Mesh bodies (``shape_model: polyhedral_mesh``) instead read the idealized mesh
-keys ``mesh_lumpiness`` (relief amplitude, default 0.3: the non-ellipsoidal
-relief has an RMS of ``mesh_lumpiness / 8`` of the radius), ``mesh_seed`` (which
-irregular shape is generated, default 0), ``mesh_n_lat`` / ``mesh_n_lon`` (mesh
-resolution, defaults 16 / 32; 64 / 128 hides the facets on a large body),
-``mesh_detail_octaves`` (bands of higher harmonic degrees, default 0), and
-``pose_euler_deg`` (intrinsic X, Y, Z Euler angles, default ``[0, 0, 0]``).
+Ellipsoid bodies read ``rotation_z`` and ``sub_observer_lat_deg``. The body's pole is
+semi-axis a, and its north pole, where latitudes are positive, is the end of semi-axis
+a that points along +v before ``rotation_z`` turns it. ``sub_observer_lat_deg`` is the
+latitude of the point on the body directly below the observer, from -90 to 90 degrees.
+A positive value tips the north pole toward the observer, who then sees the northern
+hemisphere, as in a real Saturn or Jupiter frame whose sub-observer latitude is
+positive. The ellipsoid turns as a solid body: its outline foreshortens along the pole
+to ``sqrt((a cos lat)^2 + (c sin lat)^2)``, so a sphere stays the same circle at any
+latitude, the shading and the haze follow the turned surface, and latitude bands curve
+across the disc. The navigator's predicted body turns the same way, through the same
+projection. Mesh bodies (``shape_model: polyhedral_mesh``) instead read the idealized
+mesh keys and ``pose_euler_deg``; 64 latitude bands and 128 longitude divisions hide the
+facets on a large body.
 
 The truth-side body keys never reach the navigator, which predicts each body as
-described in :ref:`sim-body-renderer`. The ellipsoid renderer consumes the relief,
-photometry, texture, and transit keys, and the mesh renderer consumes the relief
-keys and the mesh extras. A key in a row marked
-*ellipsoid only*, or the ``atmosphere`` block, is refused on a
-``polyhedral_mesh`` body (see :ref:`sim-mesh-appearance`).
-
-.. list-table::
-   :widths: 30 70
-   :header-rows: 1
-
-   * - Field (truth)
-     - Meaning
-   * - ``crater_fill``, ``crater_min_radius``, ``crater_max_radius``,
-       ``crater_power_law_exponent``, ``crater_relief_scale``
-     - Procedural crater terrain -- nature's surface, which the navigator's
-       smooth predicted template does not know. *Ellipsoid only.*
-   * - ``limb_relief_rms``, ``limb_relief_corr_deg``
-     - The limb/terminator relief field: RMS of the limb slice as a fraction
-       of the body radius (at most 0.1), and its correlation length in
-       degrees of surface arc (at least 1). On an ellipsoid, the relief
-       surface's ragged outline, its slope shading, and its cast shadows; on a
-       mesh, the same field displaces the vertices.
-   * - ``photometric_law``, ``minnaert_k``
-     - The surface-scattering law (``lambert`` / ``lommel_seeliger`` /
-       ``minnaert`` / ``lunar_lambert``) and its Minnaert exponent. *Ellipsoid
-       only.*
-   * - ``opposition_surge``
-     - ``{amplitude, width_deg}`` -- the normalized brightness surge near
-       opposition. *Ellipsoid only.*
-   * - ``albedo_texture``
-     - ``{rms, corr_px, spots}`` -- a multiplicative noise field plus circular
-       albedo spots on the disc shading. *Ellipsoid only.*
-   * - ``disc_texture``
-     - ``{band_amplitude, band_wavenumber, band_phase_deg, storms}`` -- a
-       giant-planet latitude band pattern plus storm ovals. *Ellipsoid only.*
-   * - ``transits``
-     - A list of ``{moon, shadow}`` discs (each ``dv_px``, ``du_px``,
-       ``radius_px``, and a brightness/darkness) on the parent disc; the cast
-       shadow is the sharp *false crater* the disc techniques must not chase.
-       *Ellipsoid only.*
-   * - ``shading``
-     - Rendered mesh shading mode (``flat`` default, ``gouraud`` smooth); the
-       predicted mesh always renders flat.
-   * - ``pose_scatter``
-     - ``{sigma_deg}`` -- a seeded per-frame Gaussian perturbation of the
-       *rendered* mesh pose only; the navigator predicts the catalog pose.
-   * - ``anti_aliasing``
-     - Image-side rendering-fidelity knob; the predicted template always
-       renders at full anti-aliasing.
-   * - ``nav_override``
-     - Mapping overlaid on the body's *idealized view* by the boundary
-       filter, then dropped (see below). Only idealized body keys may appear
-       in it.
+described in :ref:`sim-body-renderer`. The ellipsoid renderer reads the crater,
+photometry, texture, transit, and ``atmosphere`` keys, and a ``polyhedral_mesh`` body
+refuses them (see :ref:`sim-mesh-appearance`). The mesh renderer reads ``shading`` and
+``pose_scatter``, and an ellipsoid body refuses them. Both read the relief keys and
+``anti_aliasing``.
 
 .. note::
 
@@ -4636,43 +4534,22 @@ exactly on the navigable features.
 Star parameters
 ---------------
 
-Each entry of ``stars`` is a dict with ``name`` and an optional
-``catalog_name``, a ``v`` / ``u`` position (a pixel corner, like every other
-scene position -- see :ref:`sim-pixel-convention`), a ``vmag`` (visual
-magnitude; lower is brighter), an optional ``spectral_class``, an optional
-per-star smear vector
-``move_v`` / ``move_u``, an optional PSF fitting-window size ``psf_size`` (a
-two-integer list), and an optional ``navigable`` flag. All of those are
-idealized -- they are the catalog and instrument knowledge a real pipeline has.
-``navigable`` defaults to true when absent; setting it to ``false`` renders the
-star but drops it from the navigator view entirely, so a *surviving*
-star's flag is always true and carries no hidden truth (which is why it is
-idealized, not truth).
+Each entry of ``stars`` is a mapping. The :doc:`dev_guide_simulator_scene_schema` page
+lists every key of a star entry, with its type, range, default, side, and meaning. A
+star's name, catalog name, ``v`` / ``u`` position (a pixel corner, like every other
+scene position -- see :ref:`sim-pixel-convention`), ``vmag`` (visual magnitude; lower
+is brighter), spectral class, smear vector ``move_v`` / ``move_u``, PSF fitting-window
+size ``psf_size``, and ``navigable`` flag are idealized: they are the catalog and
+instrument knowledge a real pipeline has. ``navigable`` defaults to true; setting it to
+``false`` renders the star but drops it from the navigator view entirely, so the flag
+of every star the navigator sees is true and hides nothing, which is why it is idealized
+rather than truth.
 
-The truth-side star keys never reach the navigator:
-
-.. list-table::
-   :widths: 26 74
-   :header-rows: 1
-
-   * - Field (truth)
-     - Meaning
-   * - ``psf_sigma``
-     - A per-star PSF width override -- an anomaly of the rendered image. The
-       navigator knows only the instrument's published PSF.
-   * - ``catalog_error_v``, ``catalog_error_u``
-     - Displace the RENDERED star (px) off the catalog position the navigator
-       predicts from -- unrecoverable astrometric residual, added on top of the
-       scene-level ``star_catalog_scatter_px`` draw.
-   * - ``companion``
-     - An unresolved binary: a second point source at ``sep_px`` along
-       ``angle_deg``, ``delta_mag`` fainter. The blended photocenter sits off
-       the catalog position by a magnitude-weighted amount -- a physical catalog
-       error the navigator cannot know.
-   * - ``delta_mag``
-     - Renders a variable star at a brightness other than its cataloged
-       ``vmag`` (positive is fainter); the catalog ``vmag`` stays what the
-       navigator sees.
+The truth-side star keys never reach the navigator. ``catalog_error_v`` and
+``catalog_error_u`` move the drawn star off the catalog position the navigator predicts
+from, on top of the scene-level ``star_catalog_scatter_px`` draw. ``companion`` plants
+an unresolved binary whose blended photocenter sits off the catalog position.
+``delta_mag`` draws a variable star at a brightness other than its cataloged ``vmag``.
 
 **Information asymmetry.** The navigator predicts each surviving star from its
 idealized catalog ``v`` / ``u`` and ``vmag``; the renderer draws it at those
@@ -5287,13 +5164,12 @@ value the renderer draws with:
 * **Unset keys.** Leaving a key out means "use the default", and the control shows
   the renderer's default. The tabs take every
   default from the renderer. They read each optional key through
-  :func:`~spindoctor.sim.scene.fields.scene_value` with the renderer's default, or read
-  the spec the renderer builds: the body tab and its appearance groups use
-  :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`, and the
-  background-sky controls use :data:`~spindoctor.sim.render.radiance.stars.SKY_COUNTS_DEFAULTS`.
+  :func:`~spindoctor.sim.scene.fields.scene_value` with the renderer's default: the
+  body tab and its appearance groups take the defaults the scene types declare
+  (:mod:`spindoctor.sim.scene.truth_body`), and the background-sky controls use
+  :data:`~spindoctor.sim.render.radiance.stars.SKY_COUNTS_DEFAULTS`.
 * **Values outside a control's range.** A control shows the nearest end of its range.
-  For example, if a body's ``semi_a_px`` is unset, the renderer draws that semi-axis as
-  0, and its control shows its minimum, half a pixel.
+  For example, a body's ``mesh_n_lat`` of 300 shows as 256, the control's maximum.
 * **Bodies whose name, center, or range is unset.** A body whose name is unset shows
   the name the renderer gives it, from
   :func:`~spindoctor.sim.scene.fields.default_body_name` (``SIM-BODY-1`` for the first

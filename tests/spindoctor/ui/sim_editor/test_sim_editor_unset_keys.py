@@ -29,9 +29,9 @@ except (ImportError, OSError) as exc:
         allow_module_level=True,
     )
 
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.radiance.stars import SKY_COUNTS_DEFAULTS
 from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
+from spindoctor.sim.scene.truth_body import DEFAULT_ANTI_ALIASING
 from spindoctor.sim.scene.validate import validate_sim_params
 from spindoctor.ui.sim_editor import CreateSimulatedImageModel
 
@@ -130,7 +130,6 @@ _FRAME_300_BY_400: dict[str, Any] = {'instrument': 'coiss_nac', 'size_v': 300, '
 def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
     """An unset key's control shows the value the renderer draws with."""
     body = {'semi_a_px': 20.0, 'semi_b_px': 15.0, 'opposition_surge': {}}
-    spec = body_spec_from_params(body, index=0)
     model = _loaded({**_FRAME_300_BY_400, 'bodies': [body], 'sky_counts': {}, 'spk_error': {}})
     tab = _body_tab(model, 0)
     shown = (
@@ -141,9 +140,9 @@ def test_unset_keys_show_the_renderers_defaults(qapp: QApplication) -> None:
         model._spk_range_spin.value(),
     )
     assert shown == (
-        spec.anti_aliasing,
-        spec.semi_c_px,
-        spec.surge_amplitude,
+        DEFAULT_ANTI_ALIASING,
+        15.0,
+        0.0,
         SKY_COUNTS_DEFAULTS['density_factor'],
         0.0,
     )
@@ -300,6 +299,22 @@ def test_clearing_a_range_rechecks_the_duplicate_warning(qapp: QApplication) -> 
     assert model._warning_label.text() == ''
     assert tab.range_spin.value() == pytest.approx(2.0)
     assert not tab.range_spin.isEnabled()
+
+
+def test_an_unset_km_per_pixel_stays_absent_and_never_writes_zero(qapp: QApplication) -> None:
+    """A body that omits km_per_pixel shows a disabled spin; checking and clearing the box
+    writes the declared minimum, then removes the key, and never writes 0."""
+    model = _loaded(_SECOND_UNSET_SCENE)
+    tab = _body_tab(model, 1)
+    body = model.sim_params['bodies'][1]
+    assert 'km_per_pixel' not in body
+    assert not tab.km_per_pixel_spin.isEnabled()
+    assert tab.km_per_pixel_spin.minimum() > 0.0
+    tab.km_per_pixel_check.click()
+    assert body['km_per_pixel'] == pytest.approx(tab.km_per_pixel_spin.minimum())
+    validate_sim_params(model.sim_params, source='probe')
+    tab.km_per_pixel_check.click()
+    assert 'km_per_pixel' not in body
 
 
 # A mesh body whose override group is on and sets none of its keys.

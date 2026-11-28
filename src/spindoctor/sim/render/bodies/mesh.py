@@ -37,9 +37,17 @@ from spindoctor.sim.render.bodies.placement import (
     finish_unseen_body,
 )
 from spindoctor.sim.render.bodies.relief import ReliefField, synthesize_relief_field
-from spindoctor.sim.render.bodies.spec import BodySpec, body_identity_seed
-from spindoctor.sim.seeds import derive_effect_seed
+from spindoctor.sim.scene.fields import value_or
+from spindoctor.sim.scene.truth_body import (
+    DEFAULT_LIMB_RELIEF_CORR_DEG,
+    DEFAULT_SHADING,
+    Body,
+)
+from spindoctor.sim.seeds import body_identity_seed, derive_effect_seed
 from spindoctor.sim.shared.mesh import (
+    DEFAULT_MESH_LUMPINESS,
+    DEFAULT_MESH_N_LAT,
+    DEFAULT_MESH_N_LON,
     Mesh,
     MeshBodyRender,
     MeshBodySpec,
@@ -48,7 +56,7 @@ from spindoctor.sim.shared.mesh import (
 )
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
-__all__ = ['clear_mesh_shape_caches', 'render_single_mesh_body']
+__all__ = ['clear_mesh_shape_caches', 'mesh_spec_from_body', 'render_single_mesh_body']
 
 
 def _perturb_mesh_radially(mesh: Mesh, field: ReliefField) -> Mesh:
@@ -157,7 +165,7 @@ def clear_mesh_shape_caches() -> None:
 
 def render_single_mesh_body(
     img: NDArrayFloatType,
-    body: BodySpec,
+    body: Body,
     *,
     center_v: float,
     center_u: float,
@@ -179,11 +187,11 @@ def render_single_mesh_body(
 
     Parameters:
         img: Image array to modify in-place.
-        body: The body, parsed by
-            :func:`~spindoctor.sim.render.bodies.spec.body_spec_from_params`.
+        body: The body, parsed by :func:`~spindoctor.sim.scene.validate.parse_body`.
             Its name, its mesh shape and pose, and the truth fields ``shading``,
-            ``limb_relief_*``, and ``pose_scatter_sigma_deg``, are read here.  The
-            upper-cased name keys the inventory and the body's identity seed.
+            ``limb_relief_*``, and ``pose_scatter``, are read here.  The upper-cased
+            name, or the name ``body_index`` gives an unnamed body, keys the inventory
+            and the body's identity seed.
         center_v: Body center V in the image (offset already applied).
         center_u: Body center U in the image (offset already applied).
         semi_a_px: Semi-axis a of the ellipsoidal envelope in pixels.
@@ -207,7 +215,9 @@ def render_single_mesh_body(
     """
     size_v = img.shape[0] - 2 * margin
     size_u = img.shape[1] - 2 * margin
-    body_name = body.name.upper()
+    body_name = body.name_at(body_index).upper()
+    relief_rms = value_or(body.limb_relief_rms, 0.0)
+    relief_corr_deg = value_or(body.limb_relief_corr_deg, DEFAULT_LIMB_RELIEF_CORR_DEG)
     streams = _draw_mesh_streams(body, body_streams_seed=body_streams_seed, body_index=body_index)
     # A mesh body's pose is an arbitrary 3D rotation, so fall back to the
     # bounding sphere of the ellipsoidal envelope for both image axes.
@@ -216,8 +226,8 @@ def render_single_mesh_body(
     # pose, since a rotation keeps each vertex's distance from the center.
     mesh = _body_mesh(
         streams.mesh,
-        relief_rms=body.limb_relief_rms,
-        relief_corr_deg=body.limb_relief_corr_deg,
+        relief_rms=relief_rms,
+        relief_corr_deg=relief_corr_deg,
         relief_seed=streams.relief_seed,
     )
     reach = float(
@@ -254,9 +264,9 @@ def render_single_mesh_body(
             illumination_angle=illumination_angle,
             phase_angle=phase_angle,
             anti_aliasing=anti_aliasing,
-            shading=body.shading,
-            relief_rms=body.limb_relief_rms,
-            relief_corr_deg=body.limb_relief_corr_deg,
+            shading=value_or(body.shading, DEFAULT_SHADING),
+            relief_rms=relief_rms,
+            relief_corr_deg=relief_corr_deg,
             relief_seed=streams.relief_seed,
         )
         mask, body_info = finish_single_body(
@@ -293,7 +303,26 @@ class _MeshStreams:
     drawn_deg: list[float] | None
 
 
-def _draw_mesh_streams(body: BodySpec, *, body_streams_seed: int, body_index: int) -> _MeshStreams:
+def mesh_spec_from_body(body: Body) -> MeshBodySpec:
+    """The mesh shape and pose of a body, each key it leaves out at its default.
+
+    Parameters:
+        body: The body (its ``mesh_*`` keys and ``pose_euler_deg`` are read).
+
+    Returns:
+        The body's mesh spec.
+    """
+    return MeshBodySpec(
+        lumpiness=value_or(body.mesh_lumpiness, DEFAULT_MESH_LUMPINESS),
+        n_lat=value_or(body.mesh_n_lat, DEFAULT_MESH_N_LAT),
+        n_lon=value_or(body.mesh_n_lon, DEFAULT_MESH_N_LON),
+        seed=value_or(body.mesh_seed, 0),
+        pose_euler_deg=value_or(body.pose_euler_deg, (0.0, 0.0, 0.0)),
+        detail_octaves=value_or(body.mesh_detail_octaves, 0),
+    )
+
+
+def _draw_mesh_streams(body: Body, *, body_streams_seed: int, body_index: int) -> _MeshStreams:
     """Seed a mesh body's relief terrain and draw its pose scatter.
 
     The relief terrain and the pose scatter each draw from their own named stream
@@ -310,17 +339,20 @@ def _draw_mesh_streams(body: BodySpec, *, body_streams_seed: int, body_index: in
         The mesh spec to render, with the drawn pose scatter added to its pose, the
         relief seed, and the drawn pose scatter.
     """
-    mesh = body.mesh
-    if body.limb_relief_rms <= 0.0 and body.pose_scatter_sigma_deg <= 0.0:
+    mesh = mesh_spec_from_body(body)
+    relief_rms = value_or(body.limb_relief_rms, 0.0)
+    scatter = body.pose_scatter
+    sigma_deg = 0.0 if scatter is None else value_or(scatter.sigma_deg, 0.0)
+    if relief_rms <= 0.0 and sigma_deg <= 0.0:
         return _MeshStreams(mesh=mesh, relief_seed=0, drawn_deg=None)
-    identity_seed = body_identity_seed(body_streams_seed, body, body_index)
+    identity_seed = body_identity_seed(body_streams_seed, body.name_at(body_index), body_index)
     relief_seed = 0
-    if body.limb_relief_rms > 0.0:
+    if relief_rms > 0.0:
         relief_seed = derive_effect_seed(identity_seed, 'relief')
     drawn_deg: list[float] | None = None
-    if body.pose_scatter_sigma_deg > 0.0:
+    if sigma_deg > 0.0:
         rng = np.random.default_rng(derive_effect_seed(identity_seed, 'pose_scatter'))
-        drawn = rng.normal(0.0, body.pose_scatter_sigma_deg, size=3)
+        drawn = rng.normal(0.0, sigma_deg, size=3)
         drawn_deg = [float(d) for d in drawn]
         mesh = replace(
             mesh,

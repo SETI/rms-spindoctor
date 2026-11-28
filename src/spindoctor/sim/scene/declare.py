@@ -29,6 +29,7 @@ __all__ = [
     'Boundary',
     'EditorHint',
     'FieldDeclaration',
+    'FloatWithin',
     'IntWithin',
     'NonEmptyStr',
     'declaration_of',
@@ -85,6 +86,53 @@ class IntWithin:
             RangeError: If it does not.
         """
         if value < self.low or (self.high is not None and value > self.high):
+            raise RangeError(self.expected)
+        return value
+
+
+@dataclass(frozen=True)
+class FloatWithin:
+    """A check that a number lies in a range, for an ``AfterValidator``.
+
+    Each bound is closed unless its ``open`` flag is set, and a bound of None leaves
+    that side unlimited.
+
+    Parameters:
+        low: The lower bound, or None for no lower limit.
+        high: The upper bound, or None for no upper limit.
+        low_open: Whether ``low`` itself lies outside the range.
+        high_open: Whether ``high`` itself lies outside the range.
+    """
+
+    low: float | None
+    high: float | None = None
+    low_open: bool = False
+    high_open: bool = False
+
+    @property
+    def expected(self) -> str:
+        """The range, in the words of an error message."""
+        if self.low is not None and self.high is not None:
+            left = '(' if self.low_open else '['
+            right = ')' if self.high_open else ']'
+            return f'a number in {left}{self.low:g}, {self.high:g}{right}'
+        if self.low is not None:
+            words = 'greater than' if self.low_open else 'of at least'
+            return f'a number {words} {self.low:g}'
+        words = 'less than' if self.high_open else 'of at most'
+        return f'a number {words} {self.high:g}'
+
+    def __call__(self, value: float) -> float:
+        """Return ``value`` if it lies in the range.
+
+        Raises:
+            RangeError: If it does not.
+        """
+        below = self.low is not None and (value < self.low or (self.low_open and value == self.low))
+        above = self.high is not None and (
+            value > self.high or (self.high_open and value == self.high)
+        )
+        if below or above:
             raise RangeError(self.expected)
         return value
 

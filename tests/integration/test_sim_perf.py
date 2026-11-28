@@ -56,6 +56,7 @@ import pytest
 from threadpoolctl import threadpool_limits
 
 from spindoctor.sim.render.driver import clear_render_caches, render_scene
+from spindoctor.sim.scene.idealized import MIN_FRAME_SIZE_PX
 
 pytestmark = pytest.mark.integration
 
@@ -245,8 +246,8 @@ def _warm_non_render_costs() -> None:
     """
     render_scene(
         {
-            'size_v': 8,
-            'size_u': 8,
+            'size_v': MIN_FRAME_SIZE_PX,
+            'size_u': MIN_FRAME_SIZE_PX,
             'random_seed': 1,
             'instrument': 'coiss_nac',
             'noise': {'read_noise_dn': 1.0},

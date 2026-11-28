@@ -58,6 +58,16 @@ spindoctor.sim.scene
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene.truth_body
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.scene.truth_atmosphere
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene.declare
    :members:
    :undoc-members:
@@ -274,11 +284,6 @@ spindoctor.sim.render.bodies
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.bodies.placement
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.sim.render.bodies.spec
    :members:
    :undoc-members:
    :show-inheritance:

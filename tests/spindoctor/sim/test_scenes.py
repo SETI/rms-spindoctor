@@ -32,7 +32,7 @@ _BLOCK_SCENES: dict[str, Callable[[], dict[str, Any]]] = {
         scene_name='probe', noise=quiet_noise(), detector=zero_bias()
     ),
     'disc_body': lambda: frame_scene(bodies=[disc_body(20.0, 40.0, 6.0, range_km=1.0e6)]),
-    'star_entry': lambda: frame_scene(stars=[star_entry(32.5, 32.5, 6.0, psf_sigma=1.5)]),
+    'star_entry': lambda: frame_scene(stars=[star_entry(32.5, 32.5, 6.0)]),
     'ring_system_block': lambda: frame_scene(
         ring_system=ring_system_block(32.0, 32.0, [_RINGLET], opening_deg_obs=30.0)
     ),

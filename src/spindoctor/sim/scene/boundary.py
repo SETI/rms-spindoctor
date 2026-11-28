@@ -11,10 +11,11 @@ The top-level sets are derived from the typed scene: a key of
 :class:`~spindoctor.sim.scene.idealized.IdealizedScene` is idealized, and a key that
 :class:`~spindoctor.sim.scene.truth.Scene` adds is truth or test-only, as its field
 declares.  A block the typed scene does not hold yet takes its class from
-:data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`.  The per-object sets of the
-``bodies``, ``stars``, and ``ring_system`` blocks are written out below until those
-blocks are typed.  An import-time assertion keeps them complete and disjoint, and keeps
-the typed fields, the untyped blocks, and the three top-level classes apart.
+:data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`.  The keys of a ``bodies`` or
+``stars`` entry are derived the same way, from the entry's idealized and truth types.
+The keys of the ``ring_system`` block are written out below until that block is typed.
+An import-time assertion keeps them complete and disjoint, and keeps the typed fields,
+the untyped blocks, and the three top-level classes apart.
 
 :data:`TRUTH_KEYS` is the machine-readable truth set the ObsSim boundary filter strips
 and the structural boundary test iterates; the test-only keys are likewise stripped
@@ -28,8 +29,9 @@ from typing import Any
 
 from spindoctor.sim.scene.declare import Boundary, declaration_of
 from spindoctor.sim.scene.fields import scene_binning
-from spindoctor.sim.scene.idealized import IdealizedScene
-from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
+from spindoctor.sim.scene.idealized import IdealizedBody, IdealizedScene, IdealizedStar
+from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene, Star
+from spindoctor.sim.scene.truth_body import Body
 
 __all__ = [
     'PLANTED_POINTING_KEYS',
@@ -96,123 +98,29 @@ TOP_LEVEL_KEYS: frozenset[str] = (
 # render zeroes them and leaves them out of its cache key.
 PLANTED_POINTING_KEYS: tuple[str, ...] = ('offset_v', 'offset_u', 'offset_rotation_deg')
 
-# Per-body idealized keys: the ellipsoid/mesh geometry, pose, lighting, and
-# physical scale the production pipeline knows from SPICE and shape catalogs.
-# The mesh keys are idealized because the published shape model of an
-# irregular body is catalog knowledge; a scene plants shape error through
-# 'nav_override', not by hiding the mesh.
-_BODY_IDEALIZED_KEYS: frozenset[str] = frozenset(
-    {
-        'name',
-        'shape_model',
-        'center_v',
-        'center_u',
-        'semi_a_px',
-        'semi_b_px',
-        'semi_c_px',
-        'rotation_z',
-        'sub_observer_lat_deg',
-        'illumination_angle',
-        'phase_angle',
-        'range_km',
-        'km_per_pixel',
-        'mesh_lumpiness',
-        'mesh_n_lat',
-        'mesh_n_lon',
-        'mesh_seed',
-        'mesh_detail_octaves',
-        'pose_euler_deg',
-    }
-)
 
-# Per-body truth keys: surface texture (craters, the multiplicative albedo
-# texture, giant-planet bands/storms, transiting moons and their shadows)
-# and the limb-relief field are nature's terrain, the photometric law and
-# opposition surge are nature's
-# scattering behavior (the navigator's template always shades Lambert),
-# 'atmosphere' is the exponential haze layer above the surface (the
-# navigator's template keeps a hard limb at the reference radius, so the
-# soft rendered limb is a designed mismatch, and the block's structure keys
-# -- axis tilt, hemispheric and azimuthal falloff scaling, hemispheric
-# brightness, the axial interior ramp, and clouds -- are the ways nature
-# breaks the mirror symmetry a haze navigator assumes; the whole block is
-# one atomic truth entry, so every key inside it is truth), 'shading' is the rendered
-# mesh's smooth-shading mode (the shared rasterizer gains the capability;
-# the navigator's predicted mesh keeps flat shading because this key never
-# crosses), 'pose_scatter' is a per-frame unmodelable rotation-state error
-# (the navigator predicts the catalog pose), and 'anti_aliasing' is an
-# image-side rendering-fidelity knob (the navigator's template always
-# renders at full anti-aliasing).  'nav_override' is special: its VALUES
-# are what the navigator believes (idealized), so build_nav_params overlays
-# them onto the body and drops the key; the underlying overridden true
-# values never cross.
-_BODY_TRUTH_KEYS: frozenset[str] = frozenset(
-    {
-        'crater_fill',
-        'crater_min_radius',
-        'crater_max_radius',
-        'crater_power_law_exponent',
-        'crater_relief_scale',
-        'limb_relief_rms',
-        'limb_relief_corr_deg',
-        'photometric_law',
-        'minnaert_k',
-        'opposition_surge',
-        'albedo_texture',
-        'disc_texture',
-        'transits',
-        'atmosphere',
-        'shading',
-        'pose_scatter',
-        'anti_aliasing',
-        'nav_override',
-    }
-)
-
-_BODY_KEYS: frozenset[str] = _BODY_IDEALIZED_KEYS | _BODY_TRUTH_KEYS
+def _field_names(cls: type) -> frozenset[str]:
+    """The keys a typed block declares."""
+    return frozenset(item.name for item in dataclasses.fields(cls))
 
 
-# Per-star idealized keys: catalog identity, position, magnitude, spectral
-# class, the predicted smear vector (the pipeline computes it from attitude
-# telemetry), and the PSF fitting-window size (instrument configuration).
-# 'navigable' is idealized: it is the flag that drives the boundary filter --
-# a non-navigable star is dropped from nav_params entirely, so a surviving
-# star's flag is always true and carries no hidden truth.
-_STAR_IDEALIZED_KEYS: frozenset[str] = frozenset(
-    {
-        'name',
-        'catalog_name',
-        'v',
-        'u',
-        'vmag',
-        'spectral_class',
-        'move_v',
-        'move_u',
-        'psf_size',
-        'navigable',
-    }
-)
-
-# Per-star truth keys: a per-star PSF width override is an anomaly of the
-# rendered image (the navigator only knows the instrument's published PSF);
-# 'catalog_error_v/u' displace the RENDERED star from the catalog position the
-# navigator predicts from; 'companion' plants an unresolved binary whose
-# photocenter sits off the catalog position (a physical catalog error); and
-# 'delta_mag' renders a variable star at a brightness other than its cataloged
-# vmag.  None of these are knowable from a catalog, so all are truth.
-_STAR_TRUTH_KEYS: frozenset[str] = frozenset(
-    {'psf_sigma', 'catalog_error_v', 'catalog_error_u', 'companion', 'delta_mag'}
-)
-
-_STAR_KEYS: frozenset[str] = _STAR_IDEALIZED_KEYS | _STAR_TRUTH_KEYS
-
-# The object blocks of the schema: block name -> (allowed, idealized, truth).
-# Rings are not an object block: the optical-depth ring system is a single
-# mapping (shared projection geometry plus a feature list) with its own
-# two-level classification below.
+# The object blocks of the scene, each a list of entries: block name -> (allowed,
+# idealized, truth).  An entry's idealized keys are the fields of its idealized type,
+# and its truth keys are the fields its truth type adds.  A body's 'nav_override' is a
+# truth key whose VALUES are what the navigator believes, so build_nav_params overlays
+# them onto the body and drops the key; the overridden true values never cross.  Rings
+# are not an object block: the optical-depth ring system is a single mapping (shared
+# projection geometry plus a feature list) with its own two-level classification below.
 _OBJECT_BLOCKS: dict[str, tuple[frozenset[str], frozenset[str], frozenset[str]]] = {
-    'bodies': (_BODY_KEYS, _BODY_IDEALIZED_KEYS, _BODY_TRUTH_KEYS),
-    'stars': (_STAR_KEYS, _STAR_IDEALIZED_KEYS, _STAR_TRUTH_KEYS),
+    block: (
+        _field_names(truth),
+        _field_names(idealized),
+        _field_names(truth) - _field_names(idealized),
+    )
+    for block, idealized, truth in (
+        ('bodies', IdealizedBody, Body),
+        ('stars', IdealizedStar, Star),
+    )
 }
 
 # ---------------------------------------------------------------------------

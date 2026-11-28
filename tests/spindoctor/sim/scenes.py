@@ -195,7 +195,7 @@ def star_entry(v: float, u: float, vmag: float, *, name: str = 'S', **keys: Any)
         u: The star's ``u`` position.
         vmag: The star's visual magnitude.
         name: The star's ``name``.
-        **keys: Further star keys (``psf_sigma``, ``catalog_error_v``, and so on),
+        **keys: Further star keys (``move_v``, ``catalog_error_v``, and so on),
             deep-copied into the entry.
 
     Returns:

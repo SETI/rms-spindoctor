@@ -71,7 +71,7 @@ def test_sweep_stepping_a_body_value_out_of_range_is_refused(tmp_path: Path) -> 
     path.write_text(text.replace('values: [0.0,', 'values: [-1.0,'))
     with pytest.raises(
         SimSceneValidationError,
-        match=r'\(value -1\.0\).*atmosphere\.tau_ref must be a non-negative number',
+        match=r'\(value -1\.0\).*atmosphere\.tau_ref: expected a non-negative number',
     ):
         build_sweep_params(load_sweep(path))
 

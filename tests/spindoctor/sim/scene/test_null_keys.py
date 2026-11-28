@@ -42,9 +42,9 @@ def test_a_null_key_in_a_nested_block_is_refused() -> None:
 
 def test_a_null_key_in_a_list_entry_is_refused() -> None:
     """A null key of a mapping inside a list is refused, and its path gives the index."""
-    scene = frame_scene(stars=[star_entry(20.0, 20.0, 8.0, psf_sigma=None)])
+    scene = frame_scene(stars=[star_entry(20.0, 20.0, 8.0, catalog_error_v=None)])
     with pytest.raises(
-        SimSceneValidationError, match=re.escape(f'stars[0].psf_sigma {_LEAVE_OUT}')
+        SimSceneValidationError, match=re.escape(f'stars[0].catalog_error_v {_LEAVE_OUT}')
     ):
         validate_sim_params(scene, source='probe')
 

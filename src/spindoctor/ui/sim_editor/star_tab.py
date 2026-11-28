@@ -1,6 +1,6 @@
 """Star tab builder and change handlers.
 
-Builds the per-star editing tab (position, magnitude, spectral class, PSF sigma,
+Builds the per-star editing tab (position, magnitude, spectral class,
 smear vector, catalog name, and the V / U PSF-window sizes) and owns the
 handlers that write star fields back into the data model.  It also carries the
 truth-side information-asymmetry controls a scene plants on a star: the
@@ -49,6 +49,7 @@ from PyQt6.QtWidgets import (
 )
 
 from spindoctor.sim.scene.fields import scene_value
+from spindoctor.sim.scene.truth import DEFAULT_COMPANION_DELTA_MAG
 from spindoctor.ui.sim_editor.base import SimEditorBase
 
 # Tooltip for the position spin boxes, which write the scene value directly.
@@ -127,13 +128,6 @@ class StarTabMixin(SimEditorBase):
         sclass = QLineEdit(scene_value(p, 'spectral_class', 'G2'))
         sclass.textChanged.connect(lambda t, i=idx: self._on_star_field(i, 'spectral_class', t))
         fl.addRow('Spectral class:', sclass)
-        psf = QDoubleSpinBox()
-        psf.setRange(0.1, 20.0)
-        psf.setDecimals(2)
-        psf.setValue(scene_value(p, 'psf_sigma', 1.0))
-        psf.valueChanged.connect(lambda v, i=idx: self._on_star_field(i, 'psf_sigma', v))
-        fl.addRow('PSF sigma:', psf)
-
         move_v_spin = QDoubleSpinBox()
         move_v_spin.setRange(-200.0, 200.0)
         move_v_spin.setDecimals(2)
@@ -252,7 +246,9 @@ class StarTabMixin(SimEditorBase):
         companion_dmag_spin = QDoubleSpinBox()
         companion_dmag_spin.setRange(-10.0, 10.0)
         companion_dmag_spin.setDecimals(2)
-        companion_dmag_spin.setValue(float(scene_value(companion, 'delta_mag', 1.0)))
+        companion_dmag_spin.setValue(
+            float(scene_value(companion, 'delta_mag', DEFAULT_COMPANION_DELTA_MAG))
+        )
         companion_dmag_spin.valueChanged.connect(
             lambda v, i=idx: self._on_star_companion_value(i, 'delta_mag', v)
         )

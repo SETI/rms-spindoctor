@@ -4,12 +4,14 @@
 typed :class:`~spindoctor.sim.scene.truth.Scene`.  The typed blocks are checked by
 their types (:mod:`spindoctor.sim.scene.truth` and the modules it builds on) and by the
 rules that read the scene's camera: :mod:`spindoctor.sim.scene.rules_detector` and
-:mod:`spindoctor.sim.scene.rules_instrument_config`.  The blocks not typed yet
+:mod:`spindoctor.sim.scene.rules_instrument_config`.  The rules that compare one body
+with another, or read the camera for a body, are in
+:mod:`spindoctor.sim.scene.rules_body`.  The blocks not typed yet
 (:data:`~spindoctor.sim.scene.truth.UNTYPED_BLOCKS`) are checked by their rules
-modules: body entries by :mod:`spindoctor.sim.scene.rules_body`, the ring_system block
-by :mod:`spindoctor.sim.scene.rules_ring`, the artifacts block by
-:mod:`spindoctor.sim.scene.rules_artifacts`, and the rest by
-:mod:`spindoctor.sim.scene.rules_common`.
+modules: the ring_system block by :mod:`spindoctor.sim.scene.rules_ring`, the artifacts
+block by :mod:`spindoctor.sim.scene.rules_artifacts`, and the rest by
+:mod:`spindoctor.sim.scene.rules_common`.  :func:`parse_body` builds the typed form of
+one body entry, which the renderer reads.
 
 ``validate_sim_params`` validates an in-memory ``sim_params`` dict and returns it;
 programmatic scene authors call it directly, and loading and saving a scene file
@@ -28,20 +30,13 @@ from typing import Any
 
 from spindoctor.schema import SchemaError, parse
 from spindoctor.schema.errors import describe_value
-from spindoctor.sim.scene.boundary import _OBJECT_BLOCKS
 from spindoctor.sim.scene.errors import SimSceneValidationError
 from spindoctor.sim.scene.fields import scene_binning
 from spindoctor.sim.scene.rules_artifacts import _check_artifacts
-from spindoctor.sim.scene.rules_body import (
-    _check_body_names_unique,
-    _check_body_object,
-    check_model_atmosphere_filters,
-)
+from spindoctor.sim.scene.rules_body import check_body_names_unique, check_model_atmosphere_filters
 from spindoctor.sim.scene.rules_common import (
     _check_expected,
-    _check_optional_mapping_list,
     _check_sky_counts,
-    _check_star_object,
     _refuse_nulls,
     _require_ranges_for_spk_error,
 )
@@ -49,10 +44,12 @@ from spindoctor.sim.scene.rules_detector import check_scene_camera
 from spindoctor.sim.scene.rules_instrument_config import check_instrument_config
 from spindoctor.sim.scene.rules_ring import _check_ring_system
 from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
+from spindoctor.sim.scene.truth_body import Body
 from spindoctor.sim.scene.truth_echo import check_truth_echo
 
 __all__ = [
     'clear_validation_cache',
+    'parse_body',
     'parse_scene',
     'validate_scene',
     'validate_sim_params',
@@ -164,11 +161,40 @@ def parse_scene(raw: Mapping[str, Any], *, source: str = 'sim_params') -> Scene:
         binning=scene_binning(raw),
         source=source,
     )
+    check_body_names_unique(scene.bodies or (), source=source)
+    check_model_atmosphere_filters(scene, source=source)
     _check_untyped_blocks(raw, instrument=scene.instrument, source=source)
     if scene.spk_error is not None:
         _require_ranges_for_spk_error(raw, source=source)
     check_truth_echo(raw, source=source)
     return scene
+
+
+def parse_body(raw: Mapping[str, Any], *, source: str = 'body') -> Body:
+    """Check one ``bodies`` entry and build its typed form.
+
+    The entry is checked as :func:`parse_scene` checks it inside a scene: its keys,
+    their ranges, and the rules among its own keys.  The rules that compare it with
+    the other bodies, or read the scene's camera, need the whole scene and are not
+    applied.  The renderer parses each body of a validated scene here, after the
+    planted roll has turned it.
+
+    Parameters:
+        raw: One entry of a scene's ``bodies`` list.
+        source: The label that begins each error message.
+
+    Returns:
+        The typed body.
+
+    Raises:
+        SimSceneValidationError: On a null at any depth of the entry, or any unknown or
+            invalid key.
+    """
+    _refuse_nulls(raw, '', source=source)
+    try:
+        return parse(Body, raw, source=source)
+    except SchemaError as exc:
+        raise SimSceneValidationError(str(exc)) from exc
 
 
 def _refuse_non_file_values(raw: Mapping[str, Any], *, source: str) -> bool:
@@ -269,21 +295,6 @@ def _check_untyped_blocks(raw: Mapping[str, Any], *, instrument: str, source: st
     )
     _check_sky_counts(raw.get('sky_counts'), source=source)
     _check_expected(raw.get('expected'), source=source)
-    for block in ('bodies', 'stars'):
-        _check_optional_mapping_list(raw.get(block), block, source=source)
-        allowed = _OBJECT_BLOCKS[block][0]
-        for index, obj in enumerate(raw.get(block) or []):
-            unknown = set(obj) - allowed
-            if unknown:
-                raise SimSceneValidationError(
-                    f'{source}: {block}[{index}]: unknown keys: {sorted(unknown)}'
-                )
-            if block == 'bodies':
-                _check_body_object(obj, index=index, source=source)
-            else:
-                _check_star_object(obj, index=index, source=source)
-    _check_body_names_unique(raw.get('bodies') or [], source=source)
-    check_model_atmosphere_filters(raw, instrument=instrument, source=source)
 
 
 def validate_sim_params(

@@ -18,9 +18,9 @@ from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.sim.render.bodies import render as body_render
 from spindoctor.sim.render.bodies.mesh import render_single_mesh_body
-from spindoctor.sim.render.bodies.spec import body_spec_from_params
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.boundary import build_nav_params
+from spindoctor.sim.scene.validate import parse_body
 from spindoctor.sim.shared.mesh import (
     MeshBodyRender,
     make_irregular_mesh,
@@ -121,7 +121,7 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     render_single_mesh_body(
         img,
-        body_spec_from_params(body, index=0),
+        parse_body(body),
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a_px=_RADIUS,
@@ -139,6 +139,9 @@ def _render_mesh_body(body: dict[str, Any]) -> NDArrayFloatType:
 _MESH_SPHERE: dict[str, Any] = {
     'name': 'LUMP',
     'shape_model': 'polyhedral_mesh',
+    'semi_a_px': _RADIUS,
+    'semi_b_px': _RADIUS,
+    'semi_c_px': _RADIUS,
     'mesh_lumpiness': 0.0,
     'mesh_n_lat': 48,
     'mesh_n_lon': 96,
@@ -218,7 +221,7 @@ def test_pose_scatter_draw_is_returned_with_the_body_info() -> None:
     img = np.zeros((_SIZE, _SIZE), dtype=np.float64)
     _, info = render_single_mesh_body(
         img,
-        body_spec_from_params(body, index=0),
+        parse_body(body),
         center_v=_CENTER,
         center_u=_CENTER,
         semi_a_px=_RADIUS,
@@ -285,7 +288,7 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
     img = np.zeros((64, 64), dtype=np.float64)
     body_render.render_single_body(
         img,
-        body_spec_from_params(body_params, index=0),
+        parse_body(body_params),
         0.0,
         shift_u=0.0,
         body_streams_seed=7,
@@ -296,7 +299,7 @@ def test_mesh_anti_aliasing_suppressed_on_oversampled_grid(
         scaled[axis_key] = float(cast(float, scaled[axis_key])) * 2
     body_render.render_single_body(
         img_os,
-        body_spec_from_params(scaled, index=0),
+        parse_body(scaled),
         0.0,
         shift_u=0.0,
         body_streams_seed=7,

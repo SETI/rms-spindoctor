@@ -232,28 +232,24 @@ def _hazy_sphere() -> dict[str, Any]:
 
 def _smeared_star() -> dict[str, Any]:
     """A star off the frame center whose image drifts during the exposure."""
-    return {'stars': [star_entry(30.5, 60.5, 2.0, psf_sigma=1.0, move_v=2.0, move_u=7.0)]}
+    return {'stars': [star_entry(30.5, 60.5, 2.0, move_v=2.0, move_u=7.0)]}
 
 
 def _star_with_companion() -> dict[str, Any]:
     """A star off the frame center with an unresolved companion."""
     companion = {'sep_px': 6.0, 'angle_deg': 30.0, 'delta_mag': 0.5}
-    return {'stars': [star_entry(30.5, 60.5, 2.0, psf_sigma=1.0, companion=companion)]}
+    return {'stars': [star_entry(30.5, 60.5, 2.0, companion=companion)]}
 
 
 def _star_with_catalog_error() -> dict[str, Any]:
     """A star off the frame center drawn away from its catalog position."""
-    return {
-        'stars': [
-            star_entry(30.5, 60.5, 2.0, psf_sigma=1.0, catalog_error_v=3.0, catalog_error_u=-5.0)
-        ]
-    }
+    return {'stars': [star_entry(30.5, 60.5, 2.0, catalog_error_v=3.0, catalog_error_u=-5.0)]}
 
 
 def _scene_smear() -> dict[str, Any]:
     """A star off the frame center smeared by a whole-scene drift."""
     return {
-        'stars': [star_entry(30.5, 60.5, 2.0, psf_sigma=1.0)],
+        'stars': [star_entry(30.5, 60.5, 2.0)],
         'optics': {'smear': [{'dv_px': 3.0, 'du_px': 8.0, 'object_class': 'all'}]},
     }
 
@@ -310,7 +306,7 @@ def _star_beside_a_limb() -> dict[str, Any]:
     """A star just outside a body's limb, which dims it by the share the limb covers."""
     return {
         'bodies': [disc_body(_CENTER, _CENTER - 10.0, 14.0, phase_angle=0.0, range_km=1.0e6)],
-        'stars': [star_entry(_CENTER + 0.5, _CENTER + 4.4, 2.0, psf_sigma=1.0)],
+        'stars': [star_entry(_CENTER + 0.5, _CENTER + 4.4, 2.0)],
     }
 
 
@@ -468,14 +464,14 @@ def test_roll_turns_a_star_smear_track_by_the_roll() -> None:
     The star sits at the frame center, so the roll moves it nowhere and turns only
     its track.
     """
-    star = star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0, move_v=4.0, move_u=14.0)
+    star = star_entry(_CENTER, _CENTER, 2.0, move_v=4.0, move_u=14.0)
     assert abs(_axis_turn_deg({'stars': [star]}) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
 
 
 def test_roll_turns_the_optics_smear_by_the_roll() -> None:
     """A 30 degree roll turns the optics block's whole-scene smear by 30 degrees."""
     blocks = {
-        'stars': [star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0)],
+        'stars': [star_entry(_CENTER, _CENTER, 2.0)],
         'optics': {'smear': [{'dv_px': 4.0, 'du_px': 14.0, 'object_class': 'all'}]},
     }
     assert abs(_axis_turn_deg(blocks) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
@@ -595,7 +591,7 @@ _CAMERA_OPTICS: dict[str, dict[str, Any]] = {
         }
     },
     'ghost': {
-        'stars': [star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0)],
+        'stars': [star_entry(_CENTER, _CENTER, 2.0)],
         'optics': {'ghosts': [{'amplitude': 0.2, 'dv_px': 10.0, 'du_px': 25.0}]},
     },
 }

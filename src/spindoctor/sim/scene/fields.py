@@ -2,7 +2,8 @@
 
 The renderer, the validator, the scene editor, and the navigator-side simulated
 models all read scene keys through these helpers, so they agree on what a key
-means: :func:`scene_value` reads an optional key or its default,
+means: :func:`scene_value` reads an optional key or its default, :func:`value_or`
+does the same for a field of a typed block,
 :func:`scene_binning` reads the readout binning (:data:`DEFAULT_BINNING` when a
 scene sets none), and
 :func:`default_body_name` and :func:`default_body_range_km` give the name and range
@@ -18,7 +19,9 @@ it; :mod:`spindoctor.sim` explains the rule.
 """
 
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import Any, TypeVar
+
+T = TypeVar('T')
 
 #: The readout binning of a scene that leaves ``detector.binning`` out: the native
 #: readout, one native pixel per frame pixel.
@@ -128,6 +131,22 @@ RING_KIND_SHAPE_KEYS: dict[str, dict[str, str]] = {
 # 'in' fills every radius inward of its orbit (the sheet bounded by its outer
 # edge); a ramp's default 'out' rises outward from zero at its orbit.
 RING_SIDE_DEFAULTS: dict[str, str] = {'edge': 'in', 'ramp': 'out'}
+
+
+def value_or(value: T | None, default: T) -> T:
+    """Read a field of a typed scene block, or its default when the scene leaves it out.
+
+    A typed block holds None for a key the scene leaves out, and the renderer reads such
+    a field here with the default its declaration gives.
+
+    Parameters:
+        value: The field's value, or None.
+        default: The value an absent key takes.
+
+    Returns:
+        ``value``, or ``default`` when it is None.
+    """
+    return default if value is None else value
 
 
 def scene_value(block: Mapping[str, Any], key: str, default: Any) -> Any:

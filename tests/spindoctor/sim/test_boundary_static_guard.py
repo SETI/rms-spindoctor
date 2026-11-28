@@ -47,8 +47,7 @@ frame has to share with the navigator.
 
 A sixth scan covers the scene package (``sim/scene/``).  The scene's types own every
 key, and the renderer reads them, so no scene module imports the renderer
-(``spindoctor.sim.render``), except those in ``_SCENE_MODULES_READING_THE_RENDERER``,
-whose blocks are not typed yet.
+(``spindoctor.sim.render``).
 
 Legitimate exceptions, should one ever exist, go in ``_ALLOWED_REFERENCES``:
 a mapping from ``(module path relative to the spindoctor package, name)`` to a
@@ -62,7 +61,7 @@ from pathlib import Path
 import pytest
 
 import spindoctor
-from spindoctor.sim.scene.rules_body import ATMOSPHERE_KEYS
+from spindoctor.sim.scene.truth_atmosphere import ATMOSPHERE_KEYS, HAZE_STRUCTURE_KEYS
 
 # Truth-bearing attribute names stored on the simulated observation by
 # ObsSim.from_file (src/spindoctor/obs/obs_inst_sim.py), plus the historical
@@ -136,13 +135,8 @@ _NAVIGATOR_MATCHES: frozenset[str] = frozenset({'navigator_marker', 'navigator_m
 _NAVIGATOR_LINK = 'spindoctor.sim.instruments.navigator_link'
 _RENDER_DIR = 'sim/render'
 
-# The scene package, and the scene modules that still import the renderer, relative to
-# the spindoctor package, each with the reason.  The list shrinks as the blocks are
-# typed.
+# The scene package, relative to the spindoctor package.
 _SCENE_DIR = 'sim/scene'
-_SCENE_MODULES_READING_THE_RENDERER: dict[str, str] = {
-    'sim/scene/rules_body.py': 'the body rules read body constants until the bodies are typed',
-}
 
 
 def _within(module: str, packages: tuple[str, ...]) -> bool:
@@ -427,9 +421,9 @@ def test_neutral_guard_flags_a_render_import_in_a_simulated_model() -> None:
 def test_neutral_guard_flags_a_scene_rules_import_in_a_shared_module() -> None:
     """The neutral-import scanner flags a shared module importing scene rules."""
     imports = _non_neutral_sim_imports(
-        'from ..scene.rules_body import ATMOSPHERE_KEYS\n', package='spindoctor.sim.shared'
+        'from ..scene.truth_atmosphere import ATMOSPHERE_KEYS\n', package='spindoctor.sim.shared'
     )
-    assert imports == [(1, 'spindoctor.sim.scene.rules_body.ATMOSPHERE_KEYS')]
+    assert imports == [(1, 'spindoctor.sim.scene.truth_atmosphere.ATMOSPHERE_KEYS')]
 
 
 def test_neutral_guard_flags_an_editor_import_in_a_shared_module() -> None:
@@ -447,8 +441,6 @@ def test_atmosphere_guard_covers_the_structure_keys() -> None:
     deny-set comment); every key that describes structure is long enough to
     scan for, so none may be dropped silently.
     """
-    from spindoctor.sim.render.bodies.haze import HAZE_STRUCTURE_KEYS
-
     assert HAZE_STRUCTURE_KEYS <= ATMOSPHERE_TRUTH_KEY_NAMES
 
 
@@ -554,14 +546,14 @@ def _render_imports(source: str, *, package: str) -> list[tuple[int, str]]:
     return imports
 
 
-def test_the_scene_modules_import_the_renderer_only_where_listed() -> None:
-    """A scene module imports the renderer only while its block is not typed."""
-    importing = {
+def test_no_scene_module_imports_the_renderer() -> None:
+    """No module of the scene package imports the renderer."""
+    importing = [
         path.relative_to(_PACKAGE_ROOT).as_posix()
         for path in sorted((_PACKAGE_ROOT / _SCENE_DIR).rglob('*.py'))
         if _render_imports(path.read_text(encoding='utf-8'), package=_module_package(path))
-    }
-    assert importing == set(_SCENE_MODULES_READING_THE_RENDERER)
+    ]
+    assert importing == []
 
 
 def test_the_renderer_import_scan_flags_a_relative_import() -> None:

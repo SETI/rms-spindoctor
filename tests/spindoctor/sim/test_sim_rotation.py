@@ -67,7 +67,7 @@ def test_roll_rotates_star_about_boresight() -> None:
     """
     params = _noiseless_params(
         offset_rotation_deg=90.0,
-        stars=[star_entry(40.5, 90.5, 2.0, psf_sigma=2.0)],
+        stars=[star_entry(40.5, 90.5, 2.0)],
     )
     img, _meta = render_scene(params)
     centroid_v, centroid_u = _centroid(img)
@@ -79,7 +79,7 @@ def test_zero_roll_leaves_star_in_place() -> None:
     """A zero roll renders the star at its catalog position (no displacement)."""
     params = _noiseless_params(
         offset_rotation_deg=0.0,
-        stars=[star_entry(40.5, 90.5, 2.0, psf_sigma=2.0)],
+        stars=[star_entry(40.5, 90.5, 2.0)],
     )
     img, _meta = render_scene(params)
     centroid_v, centroid_u = _centroid(img)
@@ -213,7 +213,7 @@ def test_roll_turns_stars_and_geometry_about_one_point(
     star_img, _star_meta = render_scene(
         _noiseless_params(
             offset_rotation_deg=_PIVOT_PROBE_ROLL_DEG,
-            stars=[star_entry(_PIVOT_PROBE_V, _PIVOT_PROBE_U, 2.0, psf_sigma=2.0)],
+            stars=[star_entry(_PIVOT_PROBE_V, _PIVOT_PROBE_U, 2.0)],
         )
     )
     star_v, star_u = _centroid(star_img)
@@ -256,9 +256,7 @@ def _turned_about_the_boresight(v: float, u: float) -> tuple[float, float]:
 
 
 _BORESIGHT_FACTORIES: dict[str, Callable[[], dict[str, object]]] = {
-    'star': lambda: {
-        'stars': [star_entry(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U, 2.0, psf_sigma=2.0)]
-    },
+    'star': lambda: {'stars': [star_entry(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U, 2.0)]},
     'body': lambda: {'bodies': [_sphere_at(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U)]},
     'ring': lambda: {'ring_system': _ring_system_at(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U)},
     # A smear that applies to stars only, and no stars: the body goes through the
@@ -273,7 +271,7 @@ _BORESIGHT_FACTORIES: dict[str, Callable[[], dict[str, object]]] = {
     # A smear that applies to bodies only, and no bodies: the separately rendered
     # star layer replaces the composite's star plane.
     'star_in_a_layer': lambda: {
-        'stars': [star_entry(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U, 2.0, psf_sigma=2.0)],
+        'stars': [star_entry(_BORESIGHT_PROBE_V, _BORESIGHT_PROBE_U, 2.0)],
         'optics': {
             **_BORESIGHT_OPTICS,
             'smear': [{'dv_px': 3.0, 'du_px': 8.0, 'object_class': 'bodies'}],

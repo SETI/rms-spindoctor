@@ -273,7 +273,6 @@ _FULL_SCENE: dict[str, Any] = {
             'move_v': 1.0,
             'move_u': -2.0,
             'psf_size': [11, 11],
-            'psf_sigma': 1.2,
         },
         {
             # A non-navigable confounder star carrying every truth-side star key:

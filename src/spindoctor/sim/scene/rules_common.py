@@ -1,14 +1,12 @@
 """Validators for the scene blocks not typed yet, and the primitives they share.
 
 The ``_check_*`` / ``_require_*`` helpers here enforce the per-field types of the
-per-object ``stars`` entries, the ``sky_counts`` block, and the ``expected`` block,
-plus the primitive scalar checks every rules module shares.  Each block's key
-inventory lives beside its checker, so an unknown key fails validation.  The
-``bodies``-entry checkers live in :mod:`spindoctor.sim.scene.rules_body`, the
-``ring_system`` block's checkers in :mod:`spindoctor.sim.scene.rules_ring`, and the
-``artifacts`` block's checkers in :mod:`spindoctor.sim.scene.rules_artifacts`; all
-three build on the same primitives.  The typed blocks are checked by their types (see
-:mod:`spindoctor.sim.scene.idealized`).
+``sky_counts`` block and the ``expected`` block, plus the primitive scalar checks the
+rules modules share.  Each block's key inventory lives beside its checker, so an
+unknown key fails validation.  The ``ring_system`` block's checkers live in
+:mod:`spindoctor.sim.scene.rules_ring` and the ``artifacts`` block's checkers in
+:mod:`spindoctor.sim.scene.rules_artifacts`; both build on the same primitives.  The
+typed blocks are checked by their types (see :mod:`spindoctor.sim.scene.idealized`).
 
 :func:`spindoctor.sim.scene.validate.parse_scene` drives these helpers; every
 violation raises :class:`~spindoctor.sim.scene.errors.SimSceneValidationError`.
@@ -41,59 +39,6 @@ _EXPECTED_KEYS: frozenset[str] = frozenset(
 _EXPECTED_STATUSES: frozenset[str] = frozenset({'success', 'failed', 'conflicted'})
 _EXPECTED_TIERS: frozenset[str] = frozenset({'high', 'medium', 'low', 'failed', 'conflicted'})
 _EXPECTED_STATUS_REASONS: frozenset[str] = frozenset(reason.value for reason in NavStatusReason)
-
-
-def _check_star_object(obj: dict[str, Any], *, index: int, source: str) -> None:
-    """Validate one ``stars`` entry's field types."""
-    label = f'stars[{index}]'
-    _check_optional_str(obj.get('name'), f'{label}.name', source=source)
-    _check_optional_str(obj.get('catalog_name'), f'{label}.catalog_name', source=source)
-    _check_optional_str(obj.get('spectral_class'), f'{label}.spectral_class', source=source)
-    for key in (
-        'v',
-        'u',
-        'vmag',
-        'move_v',
-        'move_u',
-        'catalog_error_v',
-        'catalog_error_u',
-        'delta_mag',
-    ):
-        _check_optional_number(obj.get(key), f'{label}.{key}', source=source)
-    _check_optional_positive_number(obj.get('psf_sigma'), f'{label}.psf_sigma', source=source)
-    _check_optional_bool(obj.get('navigable'), f'{label}.navigable', source=source)
-    _check_star_companion(obj.get('companion'), label=label, source=source)
-    psf_size = obj.get('psf_size')
-    if psf_size is not None:
-        valid = isinstance(psf_size, (list, tuple)) and len(psf_size) == 2
-        if not valid or any(isinstance(x, bool) or not isinstance(x, int) for x in psf_size):
-            raise SimSceneValidationError(
-                f'{source}: {label}.psf_size must be a list of 2 integers when present'
-            )
-
-
-# An unresolved binary: a second point source at ``sep_px`` from the primary
-# along ``angle_deg``, ``delta_mag`` fainter.  Its photocenter pull off the
-# catalog position is a physical catalog error the navigator cannot know.
-_COMPANION_KEYS: frozenset[str] = frozenset({'sep_px', 'delta_mag', 'angle_deg'})
-
-
-def _check_star_companion(value: Any, *, label: str, source: str) -> None:
-    """Validate one star's ``companion`` map (unresolved-binary parameters)."""
-    if value is None:
-        return
-    if not isinstance(value, dict):
-        raise SimSceneValidationError(f'{source}: {label}.companion must be a mapping when present')
-    unknown = set(value) - _COMPANION_KEYS
-    if unknown:
-        raise SimSceneValidationError(
-            f'{source}: {label}.companion: unknown keys: {sorted(unknown)}'
-        )
-    _check_optional_nonnegative_number(
-        value.get('sep_px'), f'{label}.companion.sep_px', source=source
-    )
-    _check_optional_number(value.get('delta_mag'), f'{label}.companion.delta_mag', source=source)
-    _check_optional_number(value.get('angle_deg'), f'{label}.companion.angle_deg', source=source)
 
 
 # The background-sky star-count law: cumulative log10 N(<m) = a + b*m per square
@@ -311,16 +256,6 @@ def _check_optional_positive_number(value: Any, key: str, *, source: str) -> Non
         raise SimSceneValidationError(f'{source}: {key} must be a positive number when present')
     if not math.isfinite(float(value)):
         raise SimSceneValidationError(f'{source}: {key} must be finite; got {value!r}')
-
-
-def _check_optional_nonnegative_int(value: Any, key: str, *, source: str) -> None:
-    """Fail validation unless ``value`` is None or a non-negative integer."""
-    if value is None:
-        return
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise SimSceneValidationError(
-            f'{source}: {key} must be a non-negative integer when present'
-        )
 
 
 def _check_optional_nonnegative_number(value: Any, key: str, *, source: str) -> None:

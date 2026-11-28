@@ -42,42 +42,34 @@ albedo and the phase-function terms are averaged directly.
 
 **What the definition leaves out.**  Methane absorbs strongly in bands at 619, 727, and
 889 nm (Karkoschka 1994, Icarus 111, 174), and through the windows between them the
-surface can show.  Neither is rendered, so :func:`methane_band_fraction` measures how
-much of a passband falls in those bands' cores, and scene validation refuses a filter
-that sees them.  Below 430 nm the table holds its end values, so
-:func:`uncovered_fraction` measures how much of a passband lies outside it.
+surface can show.  Neither is rendered, so scene validation refuses a filter that
+sees those bands' cores or puts too much of its light outside the table, which holds its
+end values below 430 nm (see :mod:`spindoctor.sim.scene.rules_body`).
 """
 
 from __future__ import annotations
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 import numpy as np
 
 from spindoctor.sim.instruments.passbands import Passband, solar_weighted_passband
-from spindoctor.sim.render.bodies.spec import body_semi_axes_px
 from spindoctor.sim.render.bodies.titan_haze_table import TITAN_HAZE_ROWS
+from spindoctor.sim.scene.truth_atmosphere import HAZE_MODEL_KEYS, TITAN_HAZE_MODEL
+from spindoctor.sim.scene.truth_body import Body
 from spindoctor.support.types import NDArrayFloatType
 
 __all__ = [
-    'MAX_METHANE_BAND_FRACTION',
-    'MAX_UNCOVERED_FRACTION',
-    'METHANE_BANDS_NM',
-    'TITAN_HAZE_MODEL',
     'TITAN_MEAN_RADIUS_KM',
     'TitanHaze',
     'effective_titan_haze',
-    'methane_band_fraction',
     'resolve_model_atmosphere',
+    'resolved_atmosphere_params',
     'tangent_depth_at_reference',
-    'uncovered_fraction',
 ]
-
-TITAN_HAZE_MODEL = 'titan'
-"""The ``atmosphere.haze_model`` value that selects Titan's published haze."""
 
 TITAN_MEAN_RADIUS_KM = 2575.0
 """Titan's mean radius, km."""
@@ -95,19 +87,6 @@ _TAU_COEFFICIENT = 1.012e7
 _TAU_EXPONENT = -2.339
 _LOW_HAZE_BASE_KM = 80.0
 _LOW_HAZE_SCALE_HEIGHT_KM = 65.0
-
-METHANE_BANDS_NM: tuple[tuple[float, float], ...] = ((619.0, 4.0), (727.0, 4.0), (889.0, 10.0))
-"""The cores of Titan's strong methane bands, as ``(center, half width)`` in nm."""
-
-MAX_METHANE_BAND_FRACTION = 0.1
-"""The largest share of a passband's light in the methane band cores a Titan haze takes.
-
-Broadband and continuum passbands put 0.07 or less of their light there, and those
-that overlap a band 0.11 or more.
-"""
-
-MAX_UNCOVERED_FRACTION = 0.25
-"""The largest share of a passband's light outside the haze table's span a scene takes."""
 
 _TABLE = np.array(TITAN_HAZE_ROWS, dtype=np.float64)
 
@@ -181,71 +160,41 @@ def effective_titan_haze(passband: Passband) -> TitanHaze:
     )
 
 
-def uncovered_fraction(passband: Passband) -> float:
-    """The share of a passband's solar-weighted light outside the haze table's span.
-
-    Parameters:
-        passband: The passband.
-
-    Returns:
-        The weight below the table's first wavelength or above its last.
-    """
-    wavelength = passband.wavelength_nm
-    outside = (wavelength < _TABLE[0, 0]) | (wavelength > _TABLE[-1, 0])
-    return float(np.sum(passband.weight[outside]))
-
-
-def methane_band_fraction(passband: Passband) -> float:
-    """The share of a passband's solar-weighted light in the methane band cores.
-
-    Parameters:
-        passband: The passband.
-
-    Returns:
-        The weight within :data:`METHANE_BANDS_NM`.
-    """
-    wavelength = passband.wavelength_nm
-    inside = np.zeros(wavelength.shape, dtype=np.bool_)
-    for center, half_width in METHANE_BANDS_NM:
-        inside |= np.abs(wavelength - center) <= half_width
-    return float(np.sum(passband.weight[inside]))
-
-
-def _km_per_pixel(body: Mapping[str, Any]) -> float:
+def _km_per_pixel(body: Body) -> float:
     """The body's kilometers per pixel: its own, or Titan's radius over its mean semi-axis.
 
-    The semi-axes take the renderer's defaults, so a body that leaves out an axis
-    and one that states the default value get the same scale.
+    Semi-axis c takes its default, so a body that leaves it out and one that states the
+    default value get the same scale.
     """
-    stated = body.get('km_per_pixel')
-    if stated is not None:
-        return float(stated)
-    axes = body_semi_axes_px(body)
+    if body.km_per_pixel is not None:
+        return body.km_per_pixel
+    axes = body.semi_axes_px()
     return TITAN_MEAN_RADIUS_KM / (sum(axes) / len(axes))
 
 
 def resolve_model_atmosphere(
-    body: Mapping[str, Any], *, instrument: str | None, filter_name: str | None
-) -> Mapping[str, Any]:
+    body: Body, *, instrument: str | None, filter_name: str | None
+) -> Body:
     """Replace a ``haze_model: titan`` atmosphere block with Titan's haze in explicit keys.
 
-    A body without such a block comes back unchanged, as the same mapping.
+    A body without such a block comes back unchanged, as the same body.
 
     Parameters:
-        body: One body's scene mapping.
+        body: One body of the scene.
         instrument: The scene's instrument.
         filter_name: The scene's ``detector.filter``, or None for the clear filter.
 
     Returns:
         The body, with its atmosphere block resolved.
     """
-    atmosphere = body.get('atmosphere')
-    if not isinstance(atmosphere, Mapping) or atmosphere.get('haze_model') != TITAN_HAZE_MODEL:
+    atmosphere = body.atmosphere
+    if atmosphere is None or atmosphere.haze_model != TITAN_HAZE_MODEL:
         return body
     haze = effective_titan_haze(solar_weighted_passband(instrument, filter_name))
     km_per_px = _km_per_pixel(body)
-    resolved = {key: value for key, value in atmosphere.items() if key != 'haze_model'}
-    resolved.update(
+    resolved = replace(
+        atmosphere,
+        haze_model=None,
         scale_height_px=SCALE_HEIGHT_KM / km_per_px,
         tau_ref=haze.tangent_depth,
         ref_altitude_px=REFERENCE_ALTITUDE_KM / km_per_px,
@@ -254,4 +203,22 @@ def resolve_model_atmosphere(
         g2_fraction=haze.g2_fraction,
         albedo=haze.albedo,
     )
-    return {**body, 'atmosphere': resolved}
+    return replace(body, atmosphere=resolved)
+
+
+def resolved_atmosphere_params(body_params: Mapping[str, Any], resolved: Body) -> dict[str, Any]:
+    """A body's ``atmosphere`` mapping with its named haze written out in the column's keys.
+
+    The render truth records each body's scene entry with the haze it is drawn with, so a
+    block that named a haze model is recorded with the column's keys in its place.
+
+    Parameters:
+        body_params: The body's scene mapping, whose ``atmosphere`` block sets the model.
+        resolved: The body as :func:`resolve_model_atmosphere` resolved it.
+
+    Returns:
+        The block without ``haze_model`` and with the column's keys of the resolved haze.
+    """
+    assert resolved.atmosphere is not None
+    kept = {key: value for key, value in body_params['atmosphere'].items() if key != 'haze_model'}
+    return kept | {key: getattr(resolved.atmosphere, key) for key in HAZE_MODEL_KEYS}

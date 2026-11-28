@@ -33,8 +33,10 @@ from spindoctor.support.types import MutableStar
 
 __all__ = [
     'DEFAULT_BMV',
+    'DEFAULT_CATALOG_NAME',
     'DEFAULT_PSF_SIZE',
     'DEFAULT_SPECTRAL_CLASS',
+    'DEFAULT_VMAG',
     'star_record_from_params',
 ]
 
@@ -45,6 +47,12 @@ DEFAULT_PSF_SIZE: tuple[int, int] = (11, 11)
 
 # The spectral class of a star entry that omits one.  G2 is the Sun's class.
 DEFAULT_SPECTRAL_CLASS = 'G2'
+
+# The catalog a star entry's record gives when the entry omits one.
+DEFAULT_CATALOG_NAME = 'SIM'
+
+# The visual magnitude of a star entry that omits one.
+DEFAULT_VMAG = 8.0
 
 # The Sun's Johnson B-V color index.  A star gets this color when the star
 # catalog cannot map its spectral class to a color.
@@ -81,14 +89,14 @@ def star_record_from_params(
     """
     star = cast(MutableStar, Star())
     star.unique_number = index + 1
-    star.catalog_name = str(scene_value(star_params, 'catalog_name', 'SIM'))
+    star.catalog_name = str(scene_value(star_params, 'catalog_name', DEFAULT_CATALOG_NAME))
     star.pretty_name = str(scene_value(star_params, 'name', f'SIM-{index + 1}'))
     star.name = star.pretty_name
     star.v = float(scene_value(star_params, 'v', default_v))
     star.u = float(scene_value(star_params, 'u', default_u))
     star.move_v = float(scene_value(star_params, 'move_v', 0.0))
     star.move_u = float(scene_value(star_params, 'move_u', 0.0))
-    star.vmag = float(scene_value(star_params, 'vmag', 8.0))
+    star.vmag = float(scene_value(star_params, 'vmag', DEFAULT_VMAG))
     star.spectral_class = str(scene_value(star_params, 'spectral_class', DEFAULT_SPECTRAL_CLASS))
     star.temperature = Star.temperature_from_sclass(star.spectral_class)
     star.temperature_faked = star.temperature is None

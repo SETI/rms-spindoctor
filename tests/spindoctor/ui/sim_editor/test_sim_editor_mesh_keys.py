@@ -126,7 +126,7 @@ def _scene(body: dict[str, Any]) -> dict[str, Any]:
 def _refusal(keys: list[str]) -> str:
     """The validator's sentence for a mesh body carrying ``keys``, without its prefix."""
     body = {key: _FULL_ELLIPSOID[key] for key in keys}
-    body.update(name='MESH', semi_a_px=15.0, shape_model='polyhedral_mesh')
+    body.update(name='MESH', semi_a_px=15.0, semi_b_px=15.0, shape_model='polyhedral_mesh')
     with pytest.raises(SimSceneValidationError) as excinfo:
         validate_sim_params(_scene(body), source='SRC')
     return str(excinfo.value).removeprefix('SRC: bodies[0]: ')
@@ -199,7 +199,9 @@ def test_an_ellipsoid_body_reenables_the_controls(model: Any, key: str) -> None:
 
 def test_a_new_body_built_as_a_mesh_starts_disabled(model: Any) -> None:
     """A body tab built for a mesh body opens with the refused controls disabled."""
-    model._add_body_tab({'name': 'M', 'shape_model': 'polyhedral_mesh', 'semi_a_px': 15.0})
+    model._add_body_tab(
+        {'name': 'M', 'shape_model': 'polyhedral_mesh', 'semi_a_px': 15.0, 'semi_b_px': 15.0}
+    )
     tab = _tab(model)
     enabled = [
         attr
@@ -268,7 +270,9 @@ def test_a_rebuilt_mesh_tab_shows_the_stashed_values(model: Any) -> None:
 
 def test_a_mesh_round_trip_adds_no_keys(model: Any) -> None:
     """A body that carried no refused key gains none from a mesh round trip."""
-    model._add_body_tab({'name': 'BARE', 'shape_model': 'ellipsoid', 'semi_a_px': 20.0})
+    model._add_body_tab(
+        {'name': 'BARE', 'shape_model': 'ellipsoid', 'semi_a_px': 20.0, 'semi_b_px': 20.0}
+    )
     _set_shape(model, 'polyhedral_mesh')
     _set_shape(model, 'ellipsoid')
     assert [key for key in MESH_UNSUPPORTED_KEYS if key in model.sim_params['bodies'][0]] == []
@@ -394,7 +398,9 @@ def test_switching_to_a_mesh_names_the_moved_keys_in_the_status_bar(model: Any) 
 
 def test_a_switch_that_moves_nothing_shows_no_message(model: Any) -> None:
     """A body that carried no refused key switches to a mesh without a message."""
-    model._add_body_tab({'name': 'BARE', 'shape_model': 'ellipsoid', 'semi_a_px': 20.0})
+    model._add_body_tab(
+        {'name': 'BARE', 'shape_model': 'ellipsoid', 'semi_a_px': 20.0, 'semi_b_px': 20.0}
+    )
     _set_shape(model, 'polyhedral_mesh')
     assert model.statusBar().currentMessage() == ''
 
