@@ -207,7 +207,8 @@ spacecraft's own velocity. Both corrections are on by default and can be turned 
 ``stars.proper_motion`` and ``stars.stellar_aberration``.
 
 How faint a star can be and still be used is not a setting. It is worked out for each
-image from the camera's aperture and detector and from the exposure time: each factor of
+image from the camera's measured sensitivity and the faintest signal it shows, and from
+the image's exposure time, filter, gain state, and on-chip summation: each factor of
 2.512 more exposure buys one more magnitude of depth. A star fainter than that limit, or
 one that has no recorded magnitude, is dropped. How much brighter than the limit a star is
 determines its predicted signal-to-noise ratio, which in turn sets its reliability and how

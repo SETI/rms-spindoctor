@@ -239,28 +239,113 @@ file.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** Both cameras follow the Pogson-ratio form, an anchor
-plus ``log(texp) / log(2.512)``, so each factor of 2.512 in exposure buys one
-magnitude of depth. The two anchors are measured rather than derived, and each
-gives the frame it came from:
+**Limiting magnitude.** Photometric, from the ``star_photometry`` of the camera's
+block (see :ref:`config-camera-blocks`), whose rate counts electrons. The raw and the
+calibrated block of a camera carry the same values, since the limit is set by the raw
+signal either way. A star of Johnson V magnitude ``V`` and color ``B-V`` has the camera
+magnitude ``m = V + c (B-V)``, where ``c`` is the block's ``color_term`` (-0.61 for the
+narrow angle camera, -0.48 for the wide angle), and puts
 
-* NAC: 10.5 at a 1 s exposure, from the clear-filter star field
-  ``N1521881358``, which was not useful beyond magnitude 10.7. The returned
-  value is ``10.5 + log(texp) / log(2.512)``.
-* WAC: 10.7 at a **26 s** exposure, from the clear-filter star field
-  ``W1580760393``. Because the anchor is not at unit exposure, the form
-  carries the reference explicitly: ``10.7 + log(texp / 26) / log(2.512)``.
-  Copying the NAC form here would shift the wide angle limit by more than
-  three magnitudes.
+.. math::
 
-Neither compensates for a non-clear filter. A non-positive exposure time falls
-back to the anchor, since ``np.log`` would otherwise return ``-inf`` or
-``nan``. ``star_min_usable_vmag`` is 0.0 for both cameras: there is no
-bright-end cutoff, and saturated stars are handled downstream.
+    \mathrm{DN} = \frac{R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}}}{g}
 
-**PSF.** ``star_psf_sigma`` is 0.54 for the NAC and 0.77 for the WAC.
-``star_psf_sizes`` is keyed by magnitude upper bound: brighter than 7 gives a
-15x15 cutout, brighter than 8 gives 13x13, brighter than 9 gives 11x11, and
+in the image, where ``R`` is ``flux_per_s_vmag0`` (1.257e8 electrons per second for the
+narrow angle camera and 1.472e7 for the wide angle, for a star of V = 0 and B-V = 0
+through CL1+CL2), ``f`` is the frame's filter pair's ``filter_mag_offset``, and ``g`` is
+the ``gain`` entry of its gain state, in electrons per DN. The dimmest visible star puts
+``min_detectable_dn`` for the frame's readout mode and gain state in the image, and the
+limit is that star's camera magnitude plus ``search_depth_mag`` (1.0). At 1 s through
+CL1+CL2 at 29 e/DN a full narrow angle frame's limit is camera magnitude 13.7 and a full
+wide angle frame's is 9.7; a star of the Sun's color (B-V 0.65) reaches them at a V 0.39
+and 0.31 mag fainter.
+
+The filter pair is the label's two ``FILTER_NAME`` values joined by ``+`` (``CL1+CL2``),
+the gain state is the nominal electrons per DN of the label's ``GAIN_MODE_ID`` (``215``,
+``95``, ``29``, or ``12``), and the readout mode is the label's ``INSTRUMENT_MODE_ID``
+(``FULL``, or ``SUM2`` or ``SUM4`` for a frame summed 2x2 or 4x4 on the chip). These are
+the keys of the filter, gain, and mode tables. Summing on the chip keeps a star's charge,
+so the rate holds in every mode, but summation changes the noise of a pixel and the
+width of a star in pixels, so ``min_detectable_dn`` and ``psf_sigma`` are given per mode.
+The noise in DN also changes with the gain state, so ``min_detectable_dn`` gives each
+mode a table by gain state. A frame is refused when its readout mode or gain state is
+not one of these values, or when the tables leave out its filter pair, gain state, or
+readout mode, and the message gives the key path (``cassini_iss.nac.star_photometry...``
+or ``cassini_iss_calib.nac.star_photometry...``). A frame whose exposure is not positive
+gets a limit of ``-inf``.
+
+The values were measured in 2026 on tour star fields, read through the navigator's own
+reader, against the catalog stars' Johnson V magnitudes (see
+:doc:`/dev_guide/dev_guide_navigation_models_star`), with
+``util/star_photometry/cassini_iss_star_limits.py`` and the fit of
+``util/star_photometry/star_limit_fit.py``. The sample is 1,046 frames from the
+cumulative index of the tour volumes: frames whose index marks every ring as out of
+view, whose inventory lists neither Saturn nor Jupiter, not aimed at Titan, with lossless or no
+compression and no missing lines, exposed at least 0.1 s, and sampled across camera,
+gain state, readout mode, filter pair, and exposure. Detection and the pointing are
+measured on the calibrated image the navigator reads; each star's DN is measured on
+the raw image at the same point, decoded through the calibration volume's inverse
+lookup table when the raw image is table-encoded. Each frame's pointing was found from
+the stars alone, as for the other cameras, and a frame was kept when three or more stars
+agreed within 1 px. That kept 650 frames, 388 narrow angle and 262 wide angle. The rate,
+the gain states, the color term, and the detection limits come from the frames through
+CL1+CL2 (256 narrow angle, 157 wide angle), one in three held out of the fit.
+
+- The rate and the color term are fitted together on the stars with a measured color:
+  4.15e6 DN per second for a narrow angle star of V = 0 and B-V = 0 at 29 e/DN (+-0.01
+  mag, 5,847 stars) and 5.32e5 for a wide angle one (+-0.01 mag, 7,977 stars), times
+  the calibration software's (CISSCAL's) 30.27 and 27.68 electrons per DN at that state.
+  The color terms are -0.61 +- 0.01 and -0.48 +- 0.01: a redder star reads brighter than
+  its V. With them the stars scatter by 0.34 and 0.19 mag about the fit, and their
+  residuals stay flat across color. The stars through other filter pairs are too few to measure a color
+  term of their own, so every pair takes the camera's.
+- The electrons per DN are CISSCAL's value at 29 e/DN over its gain ratios. The stars
+  measure the DN ratio of 12 e/DN to 29 e/DN as 2.238 (+-0.01 mag, 1,895 stars) on the
+  narrow angle camera and 2.362 (+-0.01 mag, 3,128 stars) on the wide angle, where
+  CISSCAL gives 2.357 and 2.360, and of 95 e/DN on the narrow angle camera as 0.318
+  (+-0.03 mag, 125 stars), where CISSCAL gives 0.310; the measured ratios are used. The
+  other states take CISSCAL's ratios.
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean,
+  unsmeared stars of one readout mode and gain state on frames exposed 46 s or less,
+  reaches 80% of the way from its floor to its plateau. Longer exposures, most of them
+  tracking a distant moon, carry several times the noise of a short one and would set
+  the limit of every frame. On a full narrow angle frame it is 34 +- 6 DN at 29 e/DN
+  and 77 +- 23 DN at 12 e/DN, which hold the same number of electrons to 1%; on a 2x2
+  summed one 78 +- 16, 153 +- 34, and 8 +- 1 DN at 29, 12, and 95 e/DN. On a full wide
+  angle frame it is 178 +- 85 DN at 29 e/DN and 369 +- 67 DN at 12 e/DN, and on a summed
+  one 101 +- 35 and 337 +- 84 DN. Every other pair takes the value of the same mode's
+  nearest measured gain state, scaled by the ratio of their DN per electron, so that the
+  dimmest visible star holds the same number of electrons. The 4x4 summed values rest on
+  a few frames each.
+- The filter offsets are CISSCAL's prediction for a solar spectrum (see
+  ``systrans_filter_offsets`` in the measurement program): 2.5 log10 of the clear pair's
+  signal over the pair's, each the pair's system transmission times the solar photon
+  flux, times the camera's quantum-efficiency correction, times the pair's absolute
+  correction factor, with the mean of the parallel and perpendicular tables for a
+  polarizer, since starlight is unpolarized. The offsets the stars measure agree for the
+  broad pairs (narrow angle RED+CL2 1.07 +- 0.02 against 1.10; wide angle CL1+GRN 1.13
+  against 1.11, CL1+RED 0.89 against 0.87) but read a magnitude or more too bright in
+  the narrow and infrared pairs, where only the stars that came out bright pass the
+  fitting cut, so the measured offsets are not used.
+
+On the held-out frames, the second-faintest star detected lies a median 0.87 mag
+(narrow angle, 37 frames) and 1.18 mag (wide angle, 22 frames) past the predicted
+dimmest visible star. The detection curves rise over a wide span of DN, so the faintest
+stars a frame shows lie well past the 80% point; the stars between the dimmest visible
+star and the limit are detected 61% and 64% of the time.
+
+``star_min_usable_vmag`` is 0.0 for both cameras: there is no bright-end cutoff, and
+saturated stars are handled downstream.
+
+**PSF.** The navigator's star sigma is ``star_photometry.psf_sigma`` for the frame's
+readout mode, in that frame's own pixels. On a full frame it is the camera block's own
+``star_psf_sigma``, 0.54 px for the narrow angle camera and 0.77 px for the wide angle.
+The clear-pair stars of the star-field measurement on frames exposed under 10 s give
+medians of 0.58 px (1,001 stars) and 0.86 px (1,522 stars); longer exposures widen as
+the pointing drifts. On a 2x2 summed frame it is 0.39 px and 0.49 px, and on a 4x4
+summed frame 0.32 px and 0.43 px, the medians of the same stars (1,171 and 817 stars,
+and 41 and 33). ``star_psf_sizes`` is keyed by magnitude upper bound: brighter than 7
+gives a 15x15 cutout, brighter than 8 gives 13x13, brighter than 9 gives 11x11, and
 everything fainter gives 9x9.
 
 **Lone-star brightness bound.** ``star_max_peak_per_predicted_snr`` is 150 for the NAC
@@ -285,7 +370,8 @@ spokes star frames changes.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL1+CL2'``, the two clear
 filter slots, and the table carries one entry with a default of 0.0. Both are
-placeholders.
+placeholders. The star limit does not read them; it reads the filter pair's offset in
+``star_photometry``.
 
 **Photometric zero points.** ``star_flux_dn_per_s_vmag0`` is 3.33e5 for the
 NAC and 9.29e4 for the WAC, described in the file as interim values sized from
@@ -304,9 +390,13 @@ frame's star limit to a summed one's comes from the placeholder: 1.5 of 2.2 mag
 on the NAC, and 1.5 of 2.9 mag on the WAC. Both summed read noises are below the
 limit's 1 DN noise floor, so the limit reads 1 DN in these modes.
 
-**Recalibrating.** The anchors are the two frames named above; re-measure the
-faintest usable star on each and update the anchor and its comment together.
-The placeholders are all in the config file rather than in code, so a
+**Recalibrating.** The star photometry is re-measured with the two programs named
+above: ``cassini_iss_star_limits.py OUT.jsonl`` measures the sample, and
+``star_limit_fit.py`` fits its clear-pair frames with ``--reference-filter CL1+CL2
+--reference-gain 29 --color-term NAC WAC --limit-exclude-smeared --limit-by-gain
+--limit-max-texp 46``, CISSCAL's gain ratios as ``--calibration-gain-ratios``, and the
+filter offsets of ``systrans_filter_offsets`` as ``--calibration-offsets``. The
+placeholders are all in the config file rather than in code, so a
 calibration pass edits YAML, and the ``# PLACEHOLDER`` marker is what says a
 value has not been through that pass.
 

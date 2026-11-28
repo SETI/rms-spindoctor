@@ -154,6 +154,23 @@ overexposed.
 **Corrections applied at load.** None beyond what the host reader does. The
 data array is used as the archive supplies it.
 
+**Stars.** The faintest catalog star the navigator looks for depends on the exposure,
+the filter pair, the gain state, and whether the frame was summed on the chip, and on
+the star's color: both cameras see red stars brighter than their V magnitude says. At
+1 s through the two clear filters at 29 electrons per DN a full narrow angle frame
+reaches a star of the Sun's color at magnitude 14.1, and a full wide angle frame at
+magnitude 10.0. Each factor of ten in exposure reaches 2.5 magnitudes deeper, and every
+other filter pair reaches less deep by the share of sunlight it passes. The navigator
+expects a star's light to spread with a Gaussian sigma of 0.54 pixels on a full narrow
+angle frame and 0.77 pixels on a full wide angle frame, and less on a summed frame. How
+bright a star of each color reads through the clear filters, the gain states, and the
+faintest signal each camera shows at each gain state and summation were measured on
+star fields from 2004 to 2017, on frames where the stars alone fixed the pointing. The
+other filter pairs follow from the archive's calibration software: too few stars were
+measured through most of them, and through the narrow ones only stars that happened to
+read bright passed the measurement, which would make those filters look clearer than
+they are.
+
 **Provisional values.** The calibrated block's blank and noisy thresholds, the
 expected-noise and read-noise figures in the raw block, and the
 magnitude-offset table are all placeholders awaiting calibration. They are
@@ -649,6 +666,9 @@ Known limitations
   angle partner writes one. Its pixel offset in the metadata is unaffected.
 * The package ships PDS4 label templates and bundle configuration for the Saturn
   dataset only. To bundle the cruise dataset, you supply both.
+* The faintest signal each camera shows was measured on exposures of 46 seconds or
+  less. Longer exposures carry several times the noise, so on such a frame the
+  navigator looks for stars fainter than the frame shows.
 
 References
 ==========
