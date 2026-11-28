@@ -33,7 +33,7 @@ from spindoctor.nav_technique._star_helpers import (
     similarity_transform_fit,
 )
 from spindoctor.nav_technique.nav_technique import ROTATION_UNOBSERVABLE_VARIANCE
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'PairChoice',
@@ -55,6 +55,9 @@ __all__ = [
     'two_star_covariance',
     'two_star_covariance_3dof',
 ]
+
+_BACKGROUND_RING_PX = 3
+"""Outer radius (px) beyond a source's box of the ring that sets its local background."""
 
 
 @dataclass(frozen=True)
@@ -386,7 +389,7 @@ def source_peak(
         The background-subtracted peak, at least ``0.0``; ``0.0`` when the box and its
         ring do not fit inside the image.
     """
-    outer = box_half_px + 3
+    outer = box_half_px + _BACKGROUND_RING_PX
     v_c, u_c = round(center_vu[0]), round(center_vu[1])
     rows, cols = image_ext.shape
     if not (outer <= v_c < rows - outer and outer <= u_c < cols - outer):
@@ -398,6 +401,33 @@ def source_peak(
     dist = np.maximum(steps[:, None], steps[None, :])
     background = float(np.median(patch[dist > box_half_px + 1]))
     return max(float(patch[dist <= box_half_px].max()) - background, 0.0)
+
+
+def _unread_at(
+    missing_mask_ext: NDArrayBoolType, center_vu: tuple[float, float], *, box_half_px: int
+) -> bool:
+    """Return whether a missing pixel lies where :func:`source_peak` would read a source.
+
+    Those pixels are the box centered on the pixel holding ``center_vu`` and the ring of
+    pixels around it that sets the background, ``box_half_px + 3`` px each way.  The part
+    of that square outside the image is not looked at.
+
+    Parameters:
+        missing_mask_ext: ``True`` where a pixel of the extended field of view is missing.
+        center_vu: ``(v, u)`` position of the source.
+        box_half_px: Half-width of the box :func:`source_peak` searches.
+
+    Returns:
+        True when at least one of those pixels is missing.
+    """
+    reach = box_half_px + _BACKGROUND_RING_PX
+    v_c, u_c = round(center_vu[0]), round(center_vu[1])
+    return bool(
+        missing_mask_ext[
+            max(v_c - reach, 0) : max(v_c + reach + 1, 0),
+            max(u_c - reach, 0) : max(u_c + reach + 1, 0),
+        ].any()
+    )
 
 
 def photometry_saturated(feature: NavFeature) -> bool:
@@ -460,12 +490,17 @@ def third_star_votes(
     detect: Callable[[NavFeature], tuple[float, float] | None],
     detect_near: Callable[[NavFeature, tuple[float, float]], tuple[float, float] | None],
     tolerance_px: float,
+    missing_mask_ext: NDArrayBoolType,
+    box_half_px: int,
 ) -> tuple[int, int]:
     """Return how many other stars agree and disagree with a solution.
 
     Each other star is first sought with ``detect_near`` where ``place`` puts its
     prediction; a detection there within ``tolerance_px`` of that position agrees,
-    whatever else the star's own search window holds.  Otherwise the star is searched for
+    whatever else the star's own search window holds.  A star not found there does not
+    vote when a missing pixel lies where :func:`source_peak` would read it there
+    (:func:`_unread_at`): the star may sit in those pixels unseen, so a source elsewhere
+    in its window says nothing against the solution.  Otherwise the star is searched for
     around its own prediction with ``detect``: a detection within ``tolerance_px`` of where
     the solution puts the star agrees, any other detection disagrees, and a star that
     yields no detection casts no vote.  A brighter source elsewhere in a star's window,
@@ -482,6 +517,8 @@ def third_star_votes(
         detect_near: Returns the detection centroid for a star searched around the given
             ``(v, u)`` position, or ``None``.
         tolerance_px: Largest offset difference that agrees.
+        missing_mask_ext: ``True`` where a pixel of the extended field of view is missing.
+        box_half_px: Half-width of the box :func:`source_peak` searches.
 
     Returns:
         ``(agree, disagree)`` counts.
@@ -496,6 +533,8 @@ def third_star_votes(
             tolerance_px
         ):
             agree += 1
+            continue
+        if _unread_at(missing_mask_ext, target, box_half_px=box_half_px):
             continue
         det = detect(feature)
         if det is None:
@@ -573,18 +612,21 @@ def absent_stars(
     margin_vu: tuple[int, int],
     noise_sigma: float,
     box_half_px: int,
+    missing_mask_ext: NDArrayBoolType,
 ) -> int:
     """Count the stars a solution puts on clear sky in the image where nothing is seen.
 
     A star counts when it is at least as bright (predicted SNR) as ``faint_snr``, the
     fainter of two stars already found at the solution, so it should be seen at least as
     well; its catalog magnitude is not a saturated lower bound; where ``place`` puts its
-    prediction lies inside the image, not the extended field of view's padding; the pixels
-    around that position are clear sky, their robust spread at most twice the image noise,
-    so a ring, a limb, or a bright neighbor that could hide the star rules it out; and the
-    brightest pixel of the box there stands above its local background
-    (:func:`source_peak`) by less than its expected peak, ``peak_per_snr`` times its
-    predicted SNR, divided by ``peak_factor``.
+    prediction lies inside the image, not the extended field of view's padding; every
+    pixel the test below reads there (the box and the ring of :func:`source_peak`) holds
+    a measurement, none of them missing (:func:`_unread_at`), so a star in or beside
+    lines that were never read out is not judged; the pixels around that position are
+    clear sky, their robust spread at most twice the image noise, so a ring, a limb, or a
+    bright neighbor that could hide the star rules it out; and the brightest pixel of the
+    box there stands above its local background (:func:`source_peak`) by less than its
+    expected peak, ``peak_per_snr`` times its predicted SNR, divided by ``peak_factor``.
 
     Parameters:
         image_ext: 2-D extfov image array.
@@ -597,6 +639,7 @@ def absent_stars(
         margin_vu: ``(v, u)`` padding of the extended field of view, in pixels.
         noise_sigma: Image noise sigma.
         box_half_px: Half-width of the box :func:`source_peak` searches.
+        missing_mask_ext: ``True`` where a pixel of the extended field of view is missing.
 
     Returns:
         The number of absent stars.
@@ -604,7 +647,7 @@ def absent_stars(
     if peak_per_snr is None:
         return 0
     rows, cols = image_ext.shape
-    reach = box_half_px + 3
+    reach = box_half_px + _BACKGROUND_RING_PX
     count = 0
     for star in stars:
         snr = predicted_snr(star)
@@ -616,6 +659,8 @@ def absent_stars(
             margin_vu[0] + reach <= v < rows - margin_vu[0] - reach
             and margin_vu[1] + reach <= u < cols - margin_vu[1] - reach
         ):
+            continue
+        if _unread_at(missing_mask_ext, target, box_half_px=box_half_px):
             continue
         patch = np.asarray(image_ext[v - reach : v + reach + 1, u - reach : u + reach + 1])
         spread = 1.4826 * float(np.median(np.abs(patch - np.median(patch))))
@@ -687,6 +732,7 @@ def refute_pair(
     contradiction_stars: int,
     absent_stars_needed: int,
     box_half_px: int,
+    missing_mask_ext: NDArrayBoolType,
 ) -> str | None:
     """Return why the other searched stars refute a pair's offset, or None when they do not.
 
@@ -705,6 +751,10 @@ def refute_pair(
       carries both in.  Each absent star is at least as bright as the pair's fainter star
       and lies on clear sky in the image, so it should be seen.
 
+    A star the pair puts on or beside missing pixels, and that is not found there, is
+    counted neither way: it is not absent, and a source elsewhere in its window does not
+    vote against the pair.
+
     Parameters:
         image_ext: 2-D extfov image array.
         hyp: The pair.
@@ -721,6 +771,7 @@ def refute_pair(
         contradiction_stars: Distinct sources elsewhere that refute an unsupported offset.
         absent_stars_needed: Absent stars that refute an offset.
         box_half_px: Half-width of the box :func:`source_peak` searches.
+        missing_mask_ext: ``True`` where a pixel of the extended field of view is missing.
 
     Returns:
         The reason, or ``None``.
@@ -753,6 +804,8 @@ def refute_pair(
         ),
         detect_near=lambda star, target: detect_star_like_at(star, target, tolerance_vu, scale),
         tolerance_px=tolerance_px,
+        missing_mask_ext=missing_mask_ext,
+        box_half_px=box_half_px,
     )
     if agree == 0 and disagree >= contradiction_stars:
         return (
@@ -769,6 +822,7 @@ def refute_pair(
         margin_vu=margin_vu,
         noise_sigma=noise_sigma,
         box_half_px=box_half_px,
+        missing_mask_ext=missing_mask_ext,
     )
     needed = (
         1

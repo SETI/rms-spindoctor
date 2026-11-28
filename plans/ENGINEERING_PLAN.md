@@ -808,6 +808,11 @@ where they differ).
   `BodyBlobNav` centroided lost lines as zero-valued data. #1164, the disc
   correlation's form of the same fault, is still open and can read the same
   mask.
+- **#1245** (this PR's work: `rf_nav_1245_unread_star_lines`) — the star
+  unique match counted predicted stars that an offset puts in lines a
+  truncated readout never read as absent, and let them vote against a pair.
+  Such a star is now counted neither way unless found. #1249 (navigate
+  truncated readouts whose read lines hold features) follows it.
 - **#836 / #994** — the star model sometimes emits one catalog star twice
   under one feature ID (#836, 23 of 1986 F ring and spokes frames). #994 is
   a likely cause: the catalog reduction queries magnitude bins whose ends

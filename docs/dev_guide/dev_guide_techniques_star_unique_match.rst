@@ -184,7 +184,8 @@ the pair search found for it, is a hypothesis about the offset (``lone_star_hypo
   2-star path applies). The lone source's peak per unit of predicted SNR says how bright
   each should be, and a star whose peak there is below that divided by
   ``pair_vote_peak_factor`` is absent. A star the offset puts in the padding, behind a ring
-  or a limb, or too faint to stand above the noise at that scale cannot be absent. One
+  or a limb, on or beside missing pixels (as the 2-star path below describes), or too faint
+  to stand above the noise at that scale cannot be absent. One
   absent star suffices, where a pair needs two, because a pair is two stars' agreement and
   a lone star has none. On 978 one-star frames of the F ring and spokes movies, requiring
   two answers 13 fewer frames within 1 px of the bundle's answer and one more 39 px from
@@ -317,9 +318,10 @@ pair's offset (``refute_pair``) when:
   brighter than many of its stars: on F ring frame N1799563905 the brightest source in
   each of three other stars' windows is such a hit, and the stars at the pair's offset,
   with peaks 0.68 to 2.04 times what the pair predicts, keep the pair, 0.12 px from the
-  answer four other stars confirm. A star not found at the offset votes against the pair
-  when exactly one of its candidates is as bright as it should be (``star_like_source``),
-  and that one lies elsewhere and is not one of the pair's own two sources, which a
+  answer four other stars confirm. A star not found at the offset does not vote when the
+  offset puts it beside missing pixels (described below). Otherwise it votes against the
+  pair when exactly one of its candidates is as bright as it should be
+  (``star_like_source``), and that one lies elsewhere and is not one of the pair's own two sources, which a
   fainter star predicted near a star of the pair can hold in its window; with no scale (a
   star of the pair whose catalog magnitude is only a saturated lower bound) every
   candidate qualifies, so only a window holding one candidate votes. A window that holds
@@ -336,7 +338,8 @@ pair's offset (``refute_pair``) when:
   carries both into the image puts them in it. A star is
   absent when it is at least as bright as the pair's fainter star, so it should be seen at
   least as well as a star already found; the solution puts it inside the image, not the
-  padding; the pixels around that position are clear sky, their robust spread at most
+  padding; no missing pixel lies near that position (described below); the pixels
+  around that position are clear sky, their robust spread at most
   twice the image noise, so no ring, limb, or bright neighbor can hide it; and the
   brightest pixel there stands above its local background by less than its expected peak
   divided by ``pair_vote_peak_factor``. On the library frame ``N1598093741`` every star is
@@ -350,6 +353,21 @@ pair's offset (``refute_pair``) when:
   clear sky there, shows nothing; at the right offset it stands 3000 noise sigmas high.
   Three faint sources that agree with one another outnumber a bright pair, and the two
   bright stars, absent where the faint three put them, refute that offset.
+
+Pixels that carry the camera's missing-data marker, such as the lines a truncated readout
+never sent, are marked in the navigation context's ``missing_data_mask_ext``. A star that
+an offset puts within ``centroid_box_half_px + 3`` px of a missing pixel, which covers the
+box ``source_peak`` searches for its peak and the ring around that box that sets the
+background, may be there unseen (``_unread_at``). On both paths such a star is not judged
+absent, and on the 2-star path, if it is not found there, it does not vote either way. A
+star found there still counts as found. The rule has no threshold, because any missing
+pixel in that square can hide the star's peak or move its background. On F ring frame
+``N1849746145``, a readout that stopped with 709 of its 1024 lines unread, three stars at
+least as bright as the pair's fainter star fall in the unread lines at the pair's offset.
+Counted as absent, they refuted the pair; left uncounted, the pair answers, and the star
+refinement then agrees with it to 0.01 px on three stars that scatter by 0.08 px. The
+image classifier refuses that frame as mostly missing data before any technique runs,
+so this was measured with that refusal switched off.
 
 A refuted offset sets aside every pair within twice ``max_residual_px`` of it
 (``choose_pair``), since the votes and absences speak to the offset, not to the pair. The
