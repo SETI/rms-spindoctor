@@ -13,11 +13,11 @@ exposure_sec: 0.68
 #
 # The simulated body model emits no limb arc above 60 degrees phase, so the body is
 # navigated by BodyDiscCorrelateNav, which lands 0.01 px from the truth on every
-# draw.  StarFieldFromCatalogNav finds too few stars on every draw, but
-# StarUniqueMatchNav and StarRefineNav navigate on the stars, 0.01 to 0.30 px and 0.02
-# to 0.22 px off; on the committed seed StarRefineNav reports confidence 0.95, above
-# the disc's 0.79.  The fused answer follows the stars, 0.01 to 0.18 px from the truth
-# over the 16 draws, within 0.6 of its reported sigmas.  BodyBlobNav lands 0.01 to
+# draw.  With the star zero point measured on real frames (#1294), all three star
+# techniques navigate on the stars: StarFieldFromCatalogNav lands 0.03 to 0.05 px
+# off, StarUniqueMatchNav 0.01 to 0.05 px, and StarRefineNav 0.01 to 0.08 px.  The
+# fused answer follows the stars at high confidence, 0.02 to 0.04 px from the truth
+# over the 16 draws, within 0.1 of its reported sigmas.  BodyBlobNav lands 0.01 to
 # 0.09 px off.
 #
 # The pointing error is the size real NAC frames carry, halved for the summed pixels

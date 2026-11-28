@@ -127,8 +127,8 @@ def test_scene_scatter_survives_differential_star_smear() -> None:
 
 def test_variable_star_renders_fainter() -> None:
     """A positive delta_mag renders the star fainter than its catalog vmag."""
-    catalog = _scene([star_entry(64.5, 64.5, 4.0, name='A')])
-    variable = _scene([star_entry(64.5, 64.5, 4.0, name='A', delta_mag=2.5)])
+    catalog = _scene([star_entry(64.5, 64.5, 7.2, name='A')])
+    variable = _scene([star_entry(64.5, 64.5, 7.2, name='A', delta_mag=2.5)])
     img_c, _ = render_scene(catalog)
     img_v, _ = render_scene(variable)
     sum_c = float(img_c[54:75, 54:75].sum())

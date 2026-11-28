@@ -468,14 +468,14 @@ def test_roll_turns_a_star_smear_track_by_the_roll() -> None:
     The star sits at the frame center, so the roll moves it nowhere and turns only
     its track.
     """
-    star = star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0, move_v=4.0, move_u=14.0)
+    star = star_entry(_CENTER, _CENTER, 5.2, psf_sigma=1.0, move_v=4.0, move_u=14.0)
     assert abs(_axis_turn_deg({'stars': [star]}) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG
 
 
 def test_roll_turns_the_optics_smear_by_the_roll() -> None:
     """A 30 degree roll turns the optics block's whole-scene smear by 30 degrees."""
     blocks = {
-        'stars': [star_entry(_CENTER, _CENTER, 2.0, psf_sigma=1.0)],
+        'stars': [star_entry(_CENTER, _CENTER, 5.2, psf_sigma=1.0)],
         'optics': {'smear': [{'dv_px': 4.0, 'du_px': 14.0, 'object_class': 'all'}]},
     }
     assert abs(_axis_turn_deg(blocks) - _ROLL_DEG) < _ANGLE_TOLERANCE_DEG

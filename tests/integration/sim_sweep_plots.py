@@ -98,8 +98,8 @@ def _star_regime_figure() -> None:
     bright = _load('star_offset_fine_bright')
     fig, ax = plt.subplots(figsize=(8.0, 5.0))
     for rows, marker, label in [
-        (dim, 'v', 'dim field (PSF-refined, vmag 3-4)'),
-        (bright, 'o', 'bright field (moment, vmag 0-0.8)'),
+        (dim, 'v', 'dim field (PSF-refined, vmag 6.2-7.2)'),
+        (bright, 'o', 'bright field (moment, vmag 3.2-4.0)'),
     ]:
         xs, ys = _xy(rows, 'offset_error_px')
         if xs:

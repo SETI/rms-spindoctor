@@ -898,6 +898,27 @@ def test_a_readout_mode_types_each_detector_key_as_the_detector_does() -> None:
     assert get_type_hints(ReadoutMode, include_extras=True) == expected
 
 
+# The Cassini star zero points (electrons per second for a V = 0 star through CL1+CL2)
+# measured on real clear-filter star frames in 2026-11 (#1294): 1.88e8 for the narrow
+# angle camera and 1.92e7 for the wide angle camera, written to two digits.  The
+# calibrated entries share their raw camera's value.
+_MEASURED_CASSINI_ZERO_POINTS = {
+    'coiss_nac': 1.9e8,
+    'coiss_wac': 1.9e7,
+    'coiss_calib_nac': 1.9e8,
+    'coiss_calib_wac': 1.9e7,
+}
+
+
+@pytest.mark.parametrize(('instrument', 'zero_point'), _MEASURED_CASSINI_ZERO_POINTS.items())
+def test_each_cassini_star_zero_point_is_its_measured_value(
+    instrument: str, zero_point: float
+) -> None:
+    """Each Cassini entry draws its stars at the zero point measured on real stars."""
+    star_flux = load_instrument_catalog().entry(instrument).star_flux
+    assert star_flux.e_per_s_vmag0 == zero_point
+
+
 def test_a_camera_that_states_no_extra_time_integrates_for_its_exposure() -> None:
     """A camera whose entry states no extra integration time collects for its exposure."""
     assert resolve_integration_sec({'instrument': 'coiss_nac', 'exposure_sec': 2.0}) == 2.0

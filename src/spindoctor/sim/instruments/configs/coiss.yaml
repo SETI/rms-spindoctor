@@ -50,12 +50,10 @@ coiss_nac:
   # close to radially symmetric.
   distortion_residual: {k1: 3.17e-04, k2: -3.51e-04, nonradial_rms_px: 0.0}
 
-  # Electrons a magnitude-0 star deposits per second.  Estimated: sized so a star
-  # at the camera's published clear-filter limiting magnitude reaches SNR ~5,
-  # near the matched-filter detection boundary at the camera's read noise and PSF
-  # core.
+  # Electrons a V = 0 star deposits per second through CL1+CL2.
+  # Measured 2026-11-28: 82 clear sky frames, 952 stars of V 10-14, 1.88e8, 0.12 mag rms.
   star_flux:
-    e_per_s_vmag0: 1.0e+7
+    e_per_s_vmag0: 1.9e+8
 
   # Plate scale from the published value, ~6 urad/px.
   sky_pixel_scale_arcsec: 1.237
@@ -162,8 +160,7 @@ coiss_nac:
       UV1+CL2: 13100.0
       UV2+CL2: 20800.0
       UV2+UV3: 6700.0
-    # The combination the star zero point refers to: it is sized from the
-    # published clear-filter limiting magnitude.
+    # The combination the star zero point refers to: it is measured through it.
     clear: CL1+CL2
     # CISSCAL gives the polarizers the efficiency of the clear element they
     # replace, so the real products carry the same DN-to-I/F scale with or
@@ -366,11 +363,10 @@ coiss_wac:
   # radially symmetric.
   distortion_residual: {k1: 9.0e-06, k2: 5.48e-05, nonradial_rms_px: 0.0}
 
-  # Electrons a magnitude-0 star deposits per second.  Estimated: sized so a star
-  # at the camera's published limiting magnitude reaches SNR ~5, near the
-  # matched-filter detection boundary.
+  # Electrons a V = 0 star deposits per second through CL1+CL2.
+  # Measured 2026-11-28: 37 clear sky frames, 1198 stars of V 10-14, 1.92e7, 0.14 mag rms.
   star_flux:
-    e_per_s_vmag0: 2.6e+6
+    e_per_s_vmag0: 1.9e+7
 
   # Plate scale from the published value, ~60 urad/px.
   sky_pixel_scale_arcsec: 12.37
