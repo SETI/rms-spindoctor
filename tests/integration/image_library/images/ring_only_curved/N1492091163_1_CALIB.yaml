@@ -26,9 +26,16 @@ ground_truth:
     bright catalog stars confirm it. This supersedes the failed
     pin above and the earlier ring-edge truth (4.919, -24.324).
 
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    primary_technique StarRefineNav -> StarFieldFromCatalogNav.
+    Cassini now has a photometric star limit measured on tour star
+    fields, which predicts more stars in this frame than the old rule
+    of thumb did; the star techniques now lead the answer, which stays
+    within tolerance (0.04 px in v and 0.01 px in u from truth).
+
 expected:
   status: success
   confidence_tier: medium
-  primary_technique: StarRefineNav
+  primary_technique: StarFieldFromCatalogNav
   techniques_must_run: []
   techniques_must_skip: []

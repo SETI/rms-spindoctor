@@ -31,7 +31,11 @@ pytestmark = pytest.mark.integration
 MIN_SIDECARS_PER_CLASS = 2
 """The fewest sidecars a scene class may hold."""
 
-KNOWN_THIN_CLASSES: frozenset[str] = frozenset({'body_mostly_offscreen', 'faint_stars'})
+# below_resolution_body and one_bright_star_no_body were emptied when Cassini's measured
+# star limit put several usable stars in each of their frames (PR #1304).
+KNOWN_THIN_CLASSES: frozenset[str] = frozenset(
+    {'below_resolution_body', 'body_mostly_offscreen', 'faint_stars', 'one_bright_star_no_body'}
+)
 """Scene classes known to hold fewer than ``MIN_SIDECARS_PER_CLASS`` sidecars."""
 
 KNOWN_UNEXERCISED_TECHNIQUES: frozenset[str] = frozenset({'RingAnnulusNav', 'TitanHazeNav'})

@@ -514,8 +514,8 @@ attribute each contribution at audit time.
 Examples
 ========
 
-``body_full_fov`` (Cassini ISS NAC, image ``N1572105349_1``)
-    Dione fills the FOV at predicted disc diameter approximately 155 px. The body model
+``stars_plus_body`` (Cassini ISS NAC, image ``N1572105349_1``)
+    Dione, at predicted disc diameter approximately 155 px, among field stars. The body model
     emits a ``BODY_DISC`` feature; the technique converges to (9.17, -17.01) px against the
     operator-verified ground truth :math:`(\Delta v, \Delta u) = (8.68, -17.37)` px (within
     0.5 px of true). The pyramid wrapper's ``consistency`` reports 2.78 px disagreement

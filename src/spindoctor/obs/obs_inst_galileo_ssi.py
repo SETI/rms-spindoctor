@@ -159,7 +159,7 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
         return 0.0
 
     def star_max_usable_vmag(self) -> float:
-        """Returns the faintest V magnitude of a catalog star the star model uses.
+        """Returns the faintest camera magnitude of a catalog star the star model uses.
 
         The limit is photometric, from the camera block's ``star_photometry`` (see
         :class:`~spindoctor.config.sections_camera.StarPhotometry`), whose rate counts
@@ -220,6 +220,18 @@ class ObsGalileoSSI(ObsSnapshotInst, HostLabel):
                 frame's readout mode.
         """
         return self._photometric_star_sigma(where=_STAR_PHOTOMETRY, mode=self.readout_mode)
+
+    def star_color_term(self) -> float:
+        """Returns how a star's color changes its magnitude in this camera's band.
+
+        Returns:
+            The camera block's ``star_photometry.color_term``, zero when the block leaves it
+            out.
+
+        Raises:
+            ValueError: If the block has no ``star_photometry``.
+        """
+        return self._star_photometry(_STAR_PHOTOMETRY).color_term
 
     @property
     def camera(self) -> str:

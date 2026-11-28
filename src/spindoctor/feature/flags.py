@@ -38,8 +38,9 @@ class StarFlags:
         in_saturation_or_cosmic_mask: True if the predicted star position
             falls inside a saturation or cosmic-ray mask pixel.
         predicted_snr: Magnitude-margin-derived effective SNR for the
-            catalog star (``SNR_REF * 2.512 ** (mag_limit - vmag)``), not a
-            DN-based photometric SNR.  Monotone in catalog brightness, so
+            catalog star (``SNR_REF * 2.512 ** (mag_limit - m)``, where ``m`` is
+            the star's camera magnitude), not a DN-based photometric SNR.
+            Monotone in the star's brightness in the camera, so
             ``StarUniqueMatchNav`` can still rank stars by it when picking
             the unique-bright pair.  ``0.0`` for fixtures or features whose
             model did not populate it.  Must be ``>= 0``.

@@ -419,7 +419,7 @@ attribute each contribution at audit time.
 Examples
 ========
 
-``below_resolution_body`` (Cassini ISS NAC, image ``N1777325846_1``)
+``stars_plus_body`` (Cassini ISS NAC, image ``N1777325846_1``)
     Mimas approximately 20 px in diameter in the lower left, at phase angle 72 degrees. The
     body model emits a single ``BODY_BLOB`` feature (the per-pixel ellipsoid uncertainty exceeds
     :data:`~spindoctor.nav_model.nav_model_body.LIMB_ARC_MAX_UNCERTAINTY_PX` so ``LIMB_ARC`` is

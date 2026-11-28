@@ -797,17 +797,17 @@ attribute each match at audit time.
 Examples
 ========
 
-``one_bright_star_no_body`` (Cassini ISS WAC, image ``W1449079117_1``)
-    Single star (Vega) in an otherwise empty FOV. The stars model emits a single ``STAR``
-    feature with a brightness margin of ``+inf`` to the (nonexistent) next-brightest.
+``star_dominated`` (Cassini ISS WAC, image ``W1449079117_1``)
+    Vega and two fainter stars in an otherwise empty FOV. The stars model emits three
+    ``STAR`` features.
     :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav` runs the
-    1-star path: Vega's offset window holds one isolated source far brighter than any
-    other, the brightness-weighted moment recovers its centroid, and the per-star residual
-    is reported as the translation. The 1-star post-sigmoid cap of
-    0.7 holds the technique's confidence below 0.7 even when every term saturates.
-    Operator-verified offset is :math:`(\Delta v, \Delta u) = (3.06, -0.02)` px. The
+    2-star path on Vega and a Tycho-2 star, with a brightness margin of 4.2 mag and a
+    residual of 0.12 px, and reports an
+    offset within 0.2 px of the operator-verified offset
+    :math:`(\Delta v, \Delta u) = (3.56, 0.48)` px. The
     pass-2 :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` consumes
-    this prior and polishes it; see :doc:`dev_guide_techniques_star_refine`.
+    this prior and polishes it on all three stars; see
+    :doc:`dev_guide_techniques_star_refine`.
 
 ``two_bright_stars_no_body`` (Cassini ISS / NHLORRI star-calibration scene class)
     Catalog yields exactly two unambiguous stars in the FOV, each at least 1.5 magnitudes

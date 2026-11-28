@@ -124,7 +124,7 @@ def test_if_factor_non_string_raises() -> None:
 
 @pytest.mark.parametrize(
     ('spacecraft', 'detector', 'expected'),
-    [('1', 'NAC', 8.767), ('1', 'WAC', 6.734), ('2', 'NAC', 9.238), ('2', 'WAC', 7.297)],
+    [('1', 'NAC', 9.122), ('1', 'WAC', 6.837), ('2', 'NAC', 9.594), ('2', 'WAC', 7.391)],
 )
 def test_clear_one_second_limit_is_each_cameras_calibrated_value(
     spacecraft: str, detector: str, expected: float
@@ -132,7 +132,7 @@ def test_clear_one_second_limit_is_each_cameras_calibrated_value(
     """At 1 s through CLEAR at low gain each camera reaches its own limit.
 
     Each is 2.5 log10 of the camera's V = 0 rate over its dimmest visible DN, plus 2 mag:
-    8.64e4 / 110 for the Voyager 2 narrow-angle camera, for example.
+    6.98e4 / 64 for the Voyager 2 narrow-angle camera, for example.
     """
     obs = _star_obs(spacecraft=spacecraft, detector=detector)
     assert obs.star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
@@ -189,6 +189,11 @@ def test_the_star_width_is_each_cameras_own(
     """Each camera's star PSF has the sigma of its own entry."""
     obs = _star_obs(spacecraft=spacecraft, detector=detector)
     assert obs.star_psf_sigma() == pytest.approx(expected, abs=1e-12)
+
+
+def test_a_block_without_a_color_term_sees_v() -> None:
+    """A camera block that leaves out ``color_term`` has a color term of zero."""
+    assert _star_obs(spacecraft='2', detector='NAC').star_color_term() == 0.0
 
 
 @REQUIRES_EXTERNAL_DATA

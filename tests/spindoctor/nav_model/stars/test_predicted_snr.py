@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -16,6 +17,7 @@ from spindoctor.nav_model.stars.predicted_snr import (
     predicted_snr,
     psf_aperture_pixels,
     psf_sigma_px,
+    star_camera_mag,
 )
 
 
@@ -119,6 +121,12 @@ def test_integrated_signal_dn_returns_zero_when_vmag_missing() -> None:
     """Stars without a catalog vmag produce zero predicted DN."""
     star: Any = _FakeStar(vmag=None)
     assert integrated_signal_dn(star, mag_offset=0.0) == 0.0
+
+
+def test_star_camera_mag_adds_the_color_term_times_b_minus_v() -> None:
+    """A star of V 10 and B - V 1.2 is at 10 - 0.6 in a camera of color term -0.5."""
+    star: Any = SimpleNamespace(vmag=10.0, johnson_mag_v=10.0, johnson_mag_b=11.2)
+    assert star_camera_mag(star, -0.5) == pytest.approx(9.4)
 
 
 def test_predicted_snr_matches_design_formula() -> None:

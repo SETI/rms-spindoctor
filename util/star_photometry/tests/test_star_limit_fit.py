@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -10,17 +12,28 @@ import pytest
 import scipy.special
 from util.star_photometry.star_limit_fit import (
     FitResult,
+    _dimmest_visible,
     _fit_detection_limit,
     _measured_terms,
+    _predict_dn,
+    _set_camera_mags,
     fit_camera,
+    load_records,
 )
 from util.star_photometry.star_zero_point import _tukey_lstsq, fit_zero_point
 
-# The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, and gain term.
-ZERO_POINT, RED_OFFSET, GAIN_40K = 15.0, 2.0, -1.5
+# The planted zero point (2.5 log10 of DN per second for V = 0), filter offset, gain term,
+# and color term.
+ZERO_POINT, RED_OFFSET, GAIN_40K, COLOR_TERM = 15.0, 2.0, -1.5, -0.4
 
 
-def _zp_row(filter_name: str, gain: str, vmag: float, zp_error: float = 0.0) -> dict[str, Any]:
+def _zp_row(
+    filter_name: str,
+    gain: str,
+    vmag: float,
+    zp_error: float = 0.0,
+    b_minus_v: float | None = None,
+) -> dict[str, Any]:
     """Return a zero-point star row whose DN follows the planted photometry.
 
     Parameters:
@@ -28,18 +41,21 @@ def _zp_row(filter_name: str, gain: str, vmag: float, zp_error: float = 0.0) -> 
         gain: ``'10K'`` or ``'40K'``.
         vmag: The star's V magnitude.
         zp_error: Magnitudes added to the star's zero point.
+        b_minus_v: The star's measured color, which dims it by ``COLOR_TERM`` times
+            itself, or None for a star without a measured color.
 
     Returns:
         The row.
     """
     zp = ZERO_POINT + zp_error + (GAIN_40K if gain == '40K' else 0.0)
     zp -= RED_OFFSET if filter_name == 'RED' else 0.0
+    zp -= 0.0 if b_minus_v is None else COLOR_TERM * b_minus_v
     return {
         'image_id': 'F0',
         'filter': filter_name,
         'gain': gain,
         'vmag': vmag,
-        'bmag': None,
+        'bmag': None if b_minus_v is None else vmag + b_minus_v,
         'texp': 1.0,
         'total_dn': 10 ** (0.4 * (zp - vmag)),
     }
@@ -62,12 +78,15 @@ def _rows(states: list[tuple[str, str]]) -> list[dict[str, Any]]:
     ]
 
 
-def _fit(rows: list[dict[str, Any]], *, calibrated: bool = True) -> FitResult:
+def _fit(
+    rows: list[dict[str, Any]], *, calibrated: bool = True, color_term: bool = False
+) -> FitResult:
     """Fit rows against CLEAR and 10K, with a minimum of 15 stars per term.
 
     Parameters:
         rows: The rows.
         calibrated: Whether RED has a calibration offset (2.5 mag); no other state has one.
+        color_term: Whether to fit the color term.
 
     Returns:
         The fit.
@@ -81,8 +100,61 @@ def _fit(rows: list[dict[str, Any]], *, calibrated: bool = True) -> FitResult:
         min_term_stars=15,
         calibration_offsets={'RED': 2.5} if calibrated else {},
         calibration_gain_ratios={},
+        color_term=color_term,
     )
     return result
+
+
+def _colored_rows() -> list[dict[str, Any]]:
+    """Return 30 CLEAR stars at 10K with colors from 0 to 1.5, and 10 without a color.
+
+    Returns:
+        The rows.
+    """
+    rng = np.random.default_rng(130)
+    colored = [
+        _zp_row(
+            'CLEAR',
+            '10K',
+            float(rng.uniform(6.0, 10.0)),
+            float(rng.normal(0.0, 0.02)),
+            b_minus_v=float(rng.uniform(0.0, 1.5)),
+        )
+        for _ in range(30)
+    ]
+    return colored + [_zp_row('CLEAR', '10K', 8.0, 1.0) for _ in range(10)]
+
+
+def test_zero_point_fits_a_planted_color_term() -> None:
+    """Stars whose DN follows V + c (B - V) give back c."""
+    assert _fit(_colored_rows(), color_term=True).color_term == pytest.approx(COLOR_TERM, abs=0.05)
+
+
+def test_color_term_fit_leaves_out_stars_without_a_color() -> None:
+    """Only the stars with a measured color enter a fit of the color term."""
+    assert _fit(_colored_rows(), color_term=True).n_zp_stars == 30
+
+
+def test_color_term_fit_needs_the_minimum_of_colored_stars() -> None:
+    """Two CLEAR stars left after 13 RED stars are pruned cannot carry a color term."""
+    rows = _colored_rows()[:2] + [
+        _zp_row('RED', '10K', 8.0 + 0.1 * k, b_minus_v=0.1 * k) for k in range(13)
+    ]
+    assert not _fit(rows, color_term=True).zero_point_identified
+
+
+def test_predicted_dn_reads_the_camera_magnitude() -> None:
+    """A star of V 10 and B - V 1 is predicted at camera magnitude 9.6 for c = -0.4."""
+    result = FitResult(
+        camera='TEST',
+        rate_vmag0=1.0e6,
+        color_term=COLOR_TERM,
+        filter_offsets={'CLEAR': 0.0},
+        gain_ratio={'10K': 1.0},
+    )
+    rows = [{'vmag': 10.0, 'b_minus_v': 1.0, 'filter': 'CLEAR', 'gain': '10K', 'texp': 1.0}]
+    _set_camera_mags(result, rows)
+    assert _predict_dn(result, rows[0]) == pytest.approx(1.0e6 * 10 ** (-0.4 * 9.6))
 
 
 def test_zero_point_separates_filter_and_gain() -> None:
@@ -277,6 +349,19 @@ def test_detection_limit_undefined_without_a_rise() -> None:
     )
 
 
+def test_dimmest_visible_reads_the_limit_of_the_frames_mode_and_gain_state() -> None:
+    """A frame of a pair with its own limit takes it in place of its mode's."""
+    result = FitResult(
+        camera='TEST',
+        rate_vmag0=1.0e6,
+        filter_offsets={'CLEAR': 0.0},
+        gain_ratio={'10K': 1.0},
+        min_detectable_dn_by_mode={'FULL': [1000.0]},
+        min_detectable_dn_by_mode_gain={'FULL': {'10K': [100.0]}},
+    )
+    assert _dimmest_visible(result, 'CLEAR', '10K', 1.0, 'FULL') == pytest.approx(2.5 * 4.0)
+
+
 def test_weak_fit_keeps_the_frame_table() -> None:
     """A camera with too few fitting stars still lists its accepted frames, fit columns NaN."""
     records = [
@@ -299,3 +384,13 @@ def test_weak_fit_keeps_the_frame_table() -> None:
     result = fit_camera('TEST', records, reference_filter='CLEAR', reference_gain='10K')
     assert [row['image_id'] for row in result.frames] == ['F0', 'F1']
     assert math.isnan(result.frames[0]['proposed_limit'])
+
+
+def test_load_records_refuses_a_frame_measured_without_star_colors(tmp_path: Path) -> None:
+    """A frame whose stars lack ``b_minus_v`` is refused with the remedy in the message."""
+    path = tmp_path / 'records.jsonl'
+    record = {'frame': {'image_id': 'F0'}, 'stars': [{'vmag': 12.0}]}
+    path.write_text(json.dumps(record) + '\n')
+    with pytest.raises(ValueError, match='frame F0 has stars without b_minus_v') as exc_info:
+        load_records(path)
+    assert 'run the measurement again' in str(exc_info.value)

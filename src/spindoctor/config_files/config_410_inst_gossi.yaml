@@ -63,53 +63,75 @@ galileo_ssi:
     mag_offset_table:
       'CL': {default: 0.0}         # PLACEHOLDER — calibrate in Phase 10
   # Star photometry of the camera, read by ObsGalileoSSI for its star limit and star
-  # width.  A star of V magnitude m and the default spectral class deposits
+  # width.  A star of Johnson V magnitude V and color B - V has the camera magnitude
+  # m = V + color_term * (B - V), and deposits
   #     flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[FILTER_NAME]))
   #         * texp / gain[gain state]
   # DN, the rate counting electrons and gain giving electrons per DN.  The dimmest
-  # visible star deposits min_detectable_dn[readout mode], and the catalog search reaches
-  # search_depth_mag past it.  The gain state is the VICAR label's GAIN item (1 = 400K,
-  # 2 = 100K, 3 = 40K, 4 = 10K).  The readout mode follows from the telemetry format, the
-  # VICAR label's TLMFMT item: AI8 and HIS are read out in 2x2 summation (SUMMED,
-  # 400 x 400), every other format as a full 800 x 800 frame (FULL), as the image host
-  # reads it.  Summing on the chip keeps a star's charge, so the rate and the electrons
-  # per DN hold in both modes; it changes the noise of a pixel and the width of a star in
-  # pixels, so min_detectable_dn and psf_sigma are given per mode.
+  # visible star deposits min_detectable_dn[readout mode][gain state], and the catalog
+  # search reaches search_depth_mag past it.  The gain state is the VICAR label's GAIN
+  # item (1 = 400K, 2 = 100K, 3 = 40K, 4 = 10K).  The readout mode follows from the
+  # telemetry format, the VICAR label's TLMFMT item: AI8 and HIS are read out in 2x2
+  # summation (SUMMED, 400 x 400), every other format as a full 800 x 800 frame (FULL),
+  # as the image host reads it.  Summing on the chip keeps a star's charge, so the rate
+  # and the electrons per DN hold in both modes; it changes the noise of a pixel and the
+  # width of a star in pixels, so min_detectable_dn and psf_sigma are given per mode.
+  # The noise in DN also changes with the gain state, so min_detectable_dn gives each
+  # mode a table by gain state.
   #
-  # Measured on star fields of the 1990 and 1992 cruise (#130): 99 frames with an
-  # independent pointing fix from three or more agreeing stars (78 full frames in the HCM
+  # Measured on star fields of the 1990 and 1992 cruise (#130): 100 frames with an
+  # independent pointing fix from three or more agreeing stars (79 full frames in the HCM
   # format and 21 summed frames in AI8), one frame in three held out; util/star_photometry
-  # and its fit commands give the method.  A filter or gain state is measured only from 15
-  # or more stars; none but CLEAR and 10K has that many, so the others take the calibration
-  # documents' values and their stars are left out of the fits.
+  # and its fit commands give the method.  The magnitudes are Johnson V (#1257).  A filter
+  # or gain state is measured only from 15 or more stars; only CLEAR, 10K, and 100K have
+  # that many, so the others take the calibration documents' values and their stars are
+  # left out of the fits.
   star_photometry:
-    # 6.05e6 DN/s for V = 0 through CLEAR at 10K, times the 38.7 e-/DN of 10K.  The fit
-    # gives 5.96e6 (+-0.14 mag, 46 stars), within the uncertainty of the value kept.
-    # Klaasen et al. 1999's absolute response (Table 2) gives 5.9e6 DN/s.  The scale is
-    # the 1992 frames': the 1990 frames read 0.4-1.7 mag fainter at the same settings,
-    # unexplained (#1211).
+    # Fit: 6.16e6 DN/s for V = 0 and B - V = 0 through CLEAR at 10K (+-0.14 mag, 75 stars
+    # with a measured color), times the 38.7 e-/DN of 10K; a star of the default class
+    # (G0, B - V 0.59) gives 7.7e6 DN/s.  Klaasen et al. 1999's absolute response (Table
+    # 2) gives 5.9e6 DN/s.  The scale is the 1992 frames': the 1990 frames read 0.4-1.7 mag
+    # fainter at the same settings, unexplained (#1211).
     flux_unit: electrons
-    flux_per_s_vmag0: 2.34e+08
+    flux_per_s_vmag0: 2.385e+08
     # Klaasen 1993 (JPL D-5880, Tables 3-1 and 3-2): 38.7 e-/DN at 10K and the published
-    # ratios 4.824, 9.771, and 47.135 of the other states.  The stars do not measure them:
-    # 7 stars at 100K, none at 40K or 400K.
+    # ratios 4.824 and 47.135 of 40K and 400K, which the stars do not measure (no stars).
+    # 100K is measured: 20 stars give a DN ratio of 0.1098 (+-0.12 mag) against 10K, or
+    # 352.3 e-/DN, where Klaasen's ratio 9.771 gives 378.1.
     gain:
       '10K': 38.7
       '40K': 186.7
-      '100K': 378.1
+      '100K': 352.3
       '400K': 1824.1
     # The DN at 80% of the way from the detection floor to the plateau of a
-    # detection-probability curve fitted to the clean stars of the mode taken through
-    # CLEAR at 10K: 233 +- 120 DN on the full frames (582 stars) and 50 +- 11 DN on the
-    # summed frames (127 stars), within the uncertainties of the values kept, 167 +- 96
-    # and 67 +- 22, which an earlier fit gave on 2108 and 260 stars.  One curve fitted to
-    # both modes gives 190 +- 113.
+    # detection-probability curve fitted to the clean stars of each mode and gain state
+    # taken through CLEAR: on the full frames 297 +- 175 DN at 10K (654 stars) and 42 +- 5
+    # DN at 100K (987 stars), on the summed frames 56 +- 8 DN at 10K (131 stars).  The
+    # other pairs take the value of the same mode's nearest measured gain state, scaled by
+    # the ratio of their DN per electron, so that the dimmest visible star holds the same
+    # electrons.  On the 28 held-out frames the second-faintest star detected lies a median
+    # 0.20 mag past the predicted dimmest visible star (p16-p84 -0.23 to 1.28), where one
+    # DN per mode at every gain state gave 0.86 mag, the 100K frames 1.6 mag past it.
     min_detectable_dn:
-      FULL: 167.0
-      SUMMED: 67.0
+      FULL:
+        '10K': 297.0
+        '40K': 78.4   # scaled from 100K
+        '100K': 41.6
+        '400K': 8.0   # scaled from 100K
+      SUMMED:
+        '10K': 56.0
+        '40K': 11.6   # scaled from 10K
+        '100K': 6.1   # scaled from 10K
+        '400K': 1.2   # scaled from 10K
     # As in the earlier navigation software, which searched 1 mag past the dimmest
     # visible star.
     search_depth_mag: 1.0
+    # Fitted with the rate: -0.41 +- 0.14 from the 75 CLEAR stars with a measured color
+    # (B - V -0.2 to 2.3), so a red star reads brighter than its V.  It takes the robust
+    # scatter of the stars about the fit from 0.55 to 0.36 mag.  The stars through other
+    # filters are too few to measure a color term of their own, so every filter takes
+    # this one.
+    color_term: -0.41
     # Klaasen et al. 1999 (Table 3): 2.5 log10 of each filter's solar filter factor.  The
     # stars through filters (count beside each) are too few to measure an offset, and are
     # mostly hot Pleiades members, far bluer than the Sun.

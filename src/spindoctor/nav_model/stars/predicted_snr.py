@@ -6,7 +6,8 @@ selected purely by magnitude against ``obs.star_max_usable_vmag()`` (see
 any DN-to-image-unit scale.  This module is retained for its reusable
 photometry helpers — ``psf_sigma_px`` (imported by ``detection`` and
 ``nav_model_body``), ``psf_aperture_pixels``, ``integrated_signal_dn``,
-and the ``SCLASS_TO_B_MINUS_V`` re-export — and the ``predicted_snr``
+``star_camera_mag`` (the magnitude a star limit is compared with), and the
+``SCLASS_TO_B_MINUS_V`` re-export — and the ``predicted_snr``
 formula is kept as a raw-DN diagnostic, not used by the navigator's star
 gate.
 
@@ -17,8 +18,8 @@ at its predicted pixel position uses three inputs:
 - ``NavContext.image_noise_sigma`` — robust MAD-based noise estimate over
   the sensor area in the image's native units.
 - ``star.dn`` — the integrated DN expected for the star in the
-  instrument's bandpass, computed from its catalog V magnitude via the
-  ``2.512 ** -(vmag - 4)`` flux-to-DN scaling.  ``star.dn`` is the
+  instrument's bandpass, computed from its camera magnitude
+  (:func:`star_camera_mag`) via the ``2.512 ** -(mag - 4)`` flux-to-DN scaling.  ``star.dn`` is the
   total signal across the PSF support; the per-pixel signal is that
   total spread over a circular Gaussian-PSF aperture.
 
@@ -68,7 +69,27 @@ __all__ = [
     'predicted_snr',
     'psf_aperture_pixels',
     'psf_sigma_px',
+    'star_camera_mag',
 ]
+
+
+def star_camera_mag(star: MutableStar, color_term: float) -> float:
+    """Return a star's magnitude in the camera's band, ``V + color_term * (B - V)``.
+
+    The star's ``B - V`` is ``johnson_mag_b - johnson_mag_v``, which the catalog reduction
+    sets for every star it keeps (faked from the star's spectral class when the catalog
+    does not give a color).  The camera's star limits and a star's predicted brightness are in
+    this magnitude (see :meth:`~spindoctor.obs.obs_inst.ObsInst.star_color_term`).
+
+    Parameters:
+        star: A star with a magnitude and both Johnson magnitudes.
+        color_term: The camera's color term.
+
+    Returns:
+        The camera magnitude.
+    """
+    b_minus_v = cast(float, star.johnson_mag_b) - cast(float, star.johnson_mag_v)
+    return cast(float, star.vmag) + color_term * b_minus_v
 
 
 def psf_sigma_px(psf: PSF) -> float:

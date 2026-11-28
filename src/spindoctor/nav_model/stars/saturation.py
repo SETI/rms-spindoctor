@@ -1,11 +1,13 @@
 """UCAC4 bright-end photometric saturation correction against YBSC and Tycho-2.
 
-UCAC4 aperture V-magnitudes saturate at the bright end: the reported
-magnitude reads systematically too faint for bright stars.  A UCAC4-vs-
-YBSC cross-match shows the residual (UCAC4 minus the true Johnson V) is a
-few tenths of a magnitude near V8 and climbs to several magnitudes by
-V3.  For the Pleiades, UCAC4 lists Eta Tau near V6.7 when the true value
-is V2.9, and 27 Tau near V6.7 against a true V3.6.
+UCAC4's aperture magnitudes saturate at the bright end: the listed
+magnitude reads systematically too faint for bright stars.  Against
+Tycho-2 the aperture magnitude reads a third of a magnitude too faint at
+V9 to V9.5, more than half a magnitude at V8.5 to V9, a magnitude at V7
+to V8, and several magnitudes by V3.  For the Pleiades, UCAC4 lists Eta
+Tau near V6.7 when the true value is V2.9, and 27 Tau near V6.7 against a
+true V3.6.  The APASS V magnitudes the catalog reduction prefers for a
+UCAC4 star saturate as well, by about 0.3 mag at V8.5 to V9.
 
 Both the per-star detectability prediction and the navigable-content
 screen read the catalog V-magnitude, so a field of two genuinely bright
@@ -23,22 +25,25 @@ hundredths of a magnitude (Eta Tau V2.84 vs YBSC V2.87, Theta-2 Tau V3.39
 vs V3.40) where UCAC4 reads the same stars near V6.7.  The reference set
 is the in-field union of the two: YBSC wherever it covers a star (it
 carries a self-consistent Johnson V/B pair), and Tycho-2 elsewhere, which
-reaches the V6.5 to V8 stars YBSC misses.  A star corrected against YBSC
+reaches the V6.5 to V10 stars YBSC misses.  A star corrected against YBSC
 inherits its Johnson pair; a star corrected against Tycho-2 adopts
-Tycho-2's V and fakes its color from spectral class, because this
-pipeline discards Tycho-2's own color.  Only UCAC4 saturates: Tycho-2
-and YBSC records are references, never correction candidates, so a
-reference is never corrected against itself.
+Tycho-2's V and keeps its own measured color, or fakes one from its
+spectral class when it has none, because this pipeline discards Tycho-2's
+own color.  Only UCAC4 saturates: Tycho-2 and YBSC records are references,
+never correction candidates, so a reference is never corrected against
+itself.
 
-Extending the reference to Tycho-2 also keeps the ``photometry_saturated``
-flag off stars that are not saturated.  A genuine V7 to V8 star absent from
-YBSC used to be flagged saturated merely for sitting beyond YBSC
-completeness; Tycho-2 covers it, so it matches a reference, agrees with it,
-and is left unflagged.  Only a bright star left without an available
-reference in either catalog -- now genuinely rare -- is flagged, and its
-magnitude is treated as an untrusted lower bound on brightness rather than a
-trustworthy reading.  A reference is unavailable when none lies within the
-match radius or when an earlier candidate has already consumed it.
+A UCAC4 star whose aperture magnitude is brighter than the saturation limit
+and that matches a reference takes the reference magnitude, even when the two
+already agree, because neither the aperture magnitude nor APASS can be
+trusted there.  Extending the reference to Tycho-2 keeps the
+``photometry_saturated`` flag off stars that are not saturated: a genuine V7
+to V10 star absent from YBSC matches its Tycho-2 reference and is left
+unflagged.  Only a bright star left without an available reference in either
+catalog is flagged, and its magnitude is treated as an untrusted lower bound
+on brightness rather than a trustworthy reading.  A reference is unavailable
+when none lies within the match radius or when an earlier candidate has
+already consumed it.
 
 Because UCAC4's saturated magnitude disagrees with the Tycho-2/YBSC value
 by more than the merge's duplicate-magnitude tolerance, a bright star that
@@ -70,7 +75,7 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
-from spindoctor.nav_model.stars.predicted_snr import SCLASS_TO_B_MINUS_V
+from spindoctor.nav_model.stars.predicted_snr import SCLASS_TO_B_MINUS_V, star_camera_mag
 from spindoctor.support.flux import clean_sclass
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -80,7 +85,6 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 
 __all__ = [
     'REFERENCE_CATALOGS',
-    'SATURATION_CORRECTION_MIN_MAG',
     'SATURATION_MATCH_MAX_WIDEN_RADII',
     'SATURATION_MATCH_WIDEN_PER_MAG',
     'UCAC4_SATURATION_VMAG_LIMIT',
@@ -90,29 +94,20 @@ __all__ = [
 ]
 
 
-UCAC4_SATURATION_VMAG_LIMIT: float = 8.0
-"""V-magnitude brighter than which UCAC4 aperture photometry is untrusted.
+# Measured on the 886 UCAC4 stars with a Tycho-2 star within 3 arcsec in the fields of the
+# 98 Galileo and 341 LORRI star-field frames the star-limit measurement accepted (#1257,
+# #1210): by aperture magnitude, the median of aperture minus Tycho-2 V is +0.68 at 8.5-9.0,
+# +0.41 at 9.0-9.5, and +0.25 at 9.5-10.0, and the share of stars more than 0.3 mag too
+# faint is 87%, 54%, and 42%; at 10.0-10.5 the median is -0.13 and the share 3%.  APASS V
+# saturates too: APASS minus Tycho-2 V is +0.30 at Tycho V 8.5-9.0 and +0.12 at 9.0-9.5.
+UCAC4_SATURATION_VMAG_LIMIT: float = 10.0
+"""UCAC4 aperture magnitude brighter than which a UCAC4 star's photometry is untrusted.
 
-Chosen from a UCAC4-vs-YBSC cross-match: the residual (UCAC4 minus the
-true Johnson V) is a few tenths of a magnitude near V8 and climbs to
-about 4 magnitudes by V3, and UCAC4 itself documents its aperture
-photometry as reliable only over roughly V9 to V14.  8.0 is a
-conservative onset that captures every saturated Pleiades member
-observed (reported by UCAC4 between V6.5 and V7.6) without reaching into
-the regime where the aperture magnitude is trustworthy.
-"""
-
-
-SATURATION_CORRECTION_MIN_MAG: float = 0.5
-"""Smallest catalog-versus-reference magnitude gap treated as real saturation.
-
-A bright record whose magnitude already agrees with the reference to
-within this tolerance is not saturated -- its photometry (and, for a
-bright star, its astrometry) is trustworthy -- so it is left untouched and
-unflagged.  Only a larger gap marks a genuinely saturated record to
-correct and, absent any reference, to flag.  The value sits just above the
-catalog-versus-reference scatter for well-behaved bright stars and well
-below the multi-magnitude error of a truly saturated one.
+The limit is compared with the magnitude UCAC4 lists, its aperture magnitude (a star
+record's ``catalog_vmag``), before the reduction converts it to Johnson V.  Brighter than
+10.0 a large share of UCAC4 stars read too faint by more than 0.3 mag, and the APASS V
+magnitudes UCAC4 carries are saturated too, so such a star takes its magnitude from Tycho-2
+or YBSC.  Fainter than 10.0 the aperture magnitude is no longer saturated.
 """
 
 
@@ -382,25 +377,24 @@ def correct_star_photometry(
     match_radius_rad: float,
     duplicate_vmag: float,
     catalog_order: Sequence[str],
+    color_term: float,
     saturation_limit: float = UCAC4_SATURATION_VMAG_LIMIT,
-    min_correction_mag: float = SATURATION_CORRECTION_MIN_MAG,
 ) -> list[MutableStar]:
     """Correct UCAC4 bright-end saturation against a YBSC/Tycho-2 reference.
 
     Each candidate record (one whose catalog is not in
-    :data:`REFERENCE_CATALOGS`) brighter than ``saturation_limit`` that
-    positionally matches a reference star and disagrees with it by more
-    than ``min_correction_mag`` adopts that reference's photometry
-    (``vmag``, the Johnson pair, ``b_v``, and a recomputed ``dn``) while
-    keeping its own astrometry.  A match against YBSC propagates YBSC's
-    self-consistent Johnson pair; a match against Tycho-2 adopts Tycho-2's
-    V and fakes the color from the candidate's spectral class.  A matched
+    :data:`REFERENCE_CATALOGS`) whose ``catalog_vmag`` is brighter than
+    ``saturation_limit`` and that positionally matches a reference star
+    adopts that reference's photometry (``vmag``, the Johnson pair, ``b_v``,
+    and a recomputed ``dn``) while keeping its own astrometry, whether or not
+    the two magnitudes already agree.  A match against YBSC propagates YBSC's
+    self-consistent Johnson pair.  A match against Tycho-2 adopts Tycho-2's V
+    and keeps the candidate's own color when the catalog measured one, or fakes
+    the color from the candidate's spectral class when it did not.  A matched
     record is flagged ``photometry_corrected``; a bright record with no
     available reference in either catalog (none in range, or each one in
     range already consumed) is flagged ``photometry_saturated`` so
     downstream consumers know its magnitude is an untrusted lower bound.
-    A record that matches a reference and already agrees with it is not
-    saturated, so it is left untouched and unflagged.
 
     The position match widens with the magnitude gap so a saturated record
     displaced beyond the base radius still matches its true-magnitude
@@ -429,10 +423,11 @@ def correct_star_photometry(
             records the same star once photometry is corrected.
         catalog_order: Catalog names in precedence order (most precise
             first); decides which record of a revealed duplicate survives.
-        saturation_limit: V-magnitude brighter than which a candidate
-            record is a saturation-correction candidate.
-        min_correction_mag: Smallest candidate-versus-reference magnitude
-            gap treated as saturation; a smaller gap is left untouched.
+        color_term: The camera's color term, from which a corrected record's ``dn``
+            follows its camera magnitude (see
+            :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`).
+        saturation_limit: Catalog magnitude (``catalog_vmag``) brighter than
+            which a candidate record is a saturation-correction candidate.
 
     Returns:
         The corrected star list with correction-revealed duplicates removed.
@@ -443,12 +438,15 @@ def correct_star_photometry(
     for star in stars:
         if star.catalog_name.lower() in REFERENCE_CATALOGS:
             continue
-        if star.vmag is None or float(star.vmag) >= saturation_limit:
+        # The saturated reading is the catalog's own magnitude, so both the limit and the
+        # magnitude gap that widens the match are measured on it.
+        catalog_vmag = star.catalog_vmag
+        if catalog_vmag is None or float(catalog_vmag) >= saturation_limit:
             continue
         idx = _best_mag_aware_match(
             float(star.ra_pm),
             float(star.dec_pm),
-            float(star.vmag),
+            float(catalog_vmag),
             ref_ra,
             ref_dec,
             ref_vmag,
@@ -461,13 +459,10 @@ def correct_star_photometry(
             star.photometry_saturated = True
             continue
         consumed[idx] = True
-        gap = abs(float(star.vmag) - float(ref_vmag[idx]))
-        if gap < min_correction_mag:
-            # Already agrees with the reference: not saturated, so leave it
-            # be.  Consuming the reference keeps a second record from
-            # claiming this same true-magnitude star.
-            continue
-        _apply_reference_photometry(star, ref_stars[idx])
+        # Saturation reads a star too faint, so only a candidate fainter than its reference
+        # widens the duplicate collapse, as only such a gap widens the match.
+        gap = max(float(catalog_vmag) - float(ref_vmag[idx]), 0.0)
+        _apply_reference_photometry(star, ref_stars[idx], color_term=color_term)
         corrected.append((star, _widened_radius(gap, match_radius_rad)))
     if not corrected:
         return stars
@@ -552,19 +547,22 @@ def _drop_revealed_duplicates(
     return [s for s in stars if id(s) not in removed]
 
 
-def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
+def _apply_reference_photometry(star: MutableStar, ref: MutableStar, *, color_term: float) -> None:
     """Overwrite a star's photometry with a reference star's values.
 
     A YBSC reference supplies a self-consistent Johnson V/B pair, which is
     propagated directly.  A Tycho-2 reference (this pipeline discards its
-    color) supplies only V; the color is faked from the corrected star's
-    own spectral class, matching the catalog reduction's color-faking, and
-    ``johnson_mag_faked`` is set so downstream code knows the color is
-    synthetic.
+    color) supplies only V.  The corrected star keeps its own B - V when the
+    catalog reduction measured one (``johnson_mag_faked`` False); otherwise the
+    color is faked from the star's own spectral class, matching the catalog
+    reduction's color-faking, and ``johnson_mag_faked`` is set so downstream
+    code knows the color is synthetic.  The star's ``dn`` follows its new camera
+    magnitude.
 
     Parameters:
         star: Record to correct in place.
         ref: Reference star supplying the trusted photometry.
+        color_term: The camera's color term.
     """
     ref_vmag = cast(float, ref.vmag)
     star.vmag = ref_vmag
@@ -580,14 +578,19 @@ def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
             star.b_v = 0.0
         star.johnson_mag_faked = False
     else:
-        # Tycho-2 reference (or a YBSC record lacking Johnson V): adopt V and
-        # fake the color from the star's own spectral class.
+        # Tycho-2 reference (or a YBSC record lacking Johnson V): adopt V and keep the
+        # star's own measured color, or fake one from its spectral class.
+        if star.johnson_mag_faked or star.johnson_mag_v is None or star.johnson_mag_b is None:
+            b_minus_v = SCLASS_TO_B_MINUS_V[clean_sclass(star.spectral_class)]
+            star.johnson_mag_faked = True
+        else:
+            b_minus_v = star.johnson_mag_b - star.johnson_mag_v
         star.johnson_mag_v = ref_vmag
-        star.johnson_mag_b = ref_vmag + SCLASS_TO_B_MINUS_V[clean_sclass(star.spectral_class)]
-        star.b_v = star.johnson_mag_b - star.johnson_mag_v
-        star.johnson_mag_faked = True
-    # Standard flux-to-DN scaling, matching the catalog reduction's anchor.
-    star.dn = float(2.512 ** -(ref_vmag - 4.0))
+        star.johnson_mag_b = ref_vmag + b_minus_v
+        star.b_v = b_minus_v
+    # Standard flux-to-DN scaling of the camera magnitude, matching the catalog
+    # reduction's anchor.
+    star.dn = float(2.512 ** -(star_camera_mag(star, color_term) - 4.0))
     star.photometry_corrected = True
     star.photometry_saturated = False
 
@@ -599,19 +602,15 @@ def correct_saturated_vmags(
     *,
     match_radius_rad: float,
     saturation_limit: float = UCAC4_SATURATION_VMAG_LIMIT,
-    min_correction_mag: float = SATURATION_CORRECTION_MIN_MAG,
 ) -> list[float]:
-    """Return catalog V-magnitudes with UCAC4 bright-end saturation corrected.
+    """Return catalog magnitudes with UCAC4 bright-end saturation corrected.
 
     Each catalog star brighter than ``saturation_limit`` that positionally
-    matches a reference bright star (YBSC or Tycho-2) and disagrees with it
-    by more than ``min_correction_mag`` adopts the reference magnitude; the
-    position match widens with the magnitude gap so a saturated star
-    displaced beyond the base radius still matches.  A catalog star that
-    matches a reference but already agrees with it is not saturated, so it
-    keeps its own reading (the same no-op band as
-    :func:`correct_star_photometry`, so the two paths share one policy).
-    Each reference is consumed by at most one catalog star, so a reference
+    matches a reference bright star (YBSC or Tycho-2) adopts the reference
+    magnitude, as :func:`correct_star_photometry` does, so the two paths
+    share one policy; the position match widens with the magnitude gap so a
+    saturated star displaced beyond the base radius still matches.  Each
+    reference is consumed by at most one catalog star, so a reference
     is never counted twice.  Reference stars the catalog missed entirely
     are appended so the returned set reflects the field's true bright
     content.  Faint catalog stars and bright catalog stars with no
@@ -629,14 +628,11 @@ def correct_saturated_vmags(
         ybsc_positions: ``(ra, dec, vmag)`` triples for the YBSC bright
             stars in the same field.
         tycho2_positions: ``(ra, dec, vmag)`` triples for the Tycho-2 stars
-            in the same field, complete well past YBSC into the V6.5 to V8
+            in the same field, complete well past YBSC into the V6.5 to V10
             range UCAC4 saturates.
         match_radius_rad: Base position match radius in radians.
-        saturation_limit: V-magnitude brighter than which a catalog star is
-            a saturation-correction candidate.
-        min_correction_mag: Smallest candidate-versus-reference magnitude
-            gap treated as saturation; a smaller gap keeps the catalog
-            reading, matching :func:`correct_star_photometry`.
+        saturation_limit: Catalog magnitude brighter than which a catalog star
+            is a saturation-correction candidate.
 
     Returns:
         Corrected V-magnitudes sorted ascending (brightest first).
@@ -662,13 +658,6 @@ def correct_saturated_vmags(
             out.append(float(vmag))
             continue
         consumed[idx] = True
-        if abs(float(vmag) - float(ref_vmag[idx])) < min_correction_mag:
-            # Already agrees with the reference: not saturated, so keep the
-            # catalog reading (the reference is still consumed above, so it
-            # is not counted again).  This mirrors the no-op band in
-            # correct_star_photometry so the screen and the reduction agree.
-            out.append(float(vmag))
-            continue
         out.append(float(ref_vmag[idx]))
     # Append reference stars with no catalog counterpart.  A reference a
     # saturated catalog star already matched (and consumed) is skipped so it

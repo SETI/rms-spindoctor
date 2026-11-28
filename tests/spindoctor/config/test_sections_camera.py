@@ -141,3 +141,24 @@ def test_the_star_photometry_mode_tables_give_the_same_modes() -> None:
         match=r"camera: star_photometry\.psf_sigma: gives the modes \['FULL', 'SUMMED'\]",
     ):
         parse(CameraBlock, raw, source='camera')
+
+
+def test_a_detection_limit_table_by_gain_state_gives_every_gain_state() -> None:
+    """A mode's table by gain state that leaves out a gain state of ``gain`` is refused."""
+    raw = camera_mapping(raw_camera())
+    raw['star_photometry'] = {
+        'flux_unit': 'electrons',
+        'flux_per_s_vmag0': 1.0e8,
+        'gain': {'LOW': 20.0, 'HIGH': 5.0},
+        'min_detectable_dn': {'FULL': {'LOW': 100.0}},
+        'psf_sigma': {'FULL': 0.9},
+        'search_depth_mag': 1.0,
+    }
+    with pytest.raises(
+        SchemaError,
+        match=(
+            r'camera: star_photometry\.min_detectable_dn\.FULL: gives the gain states '
+            r"\['LOW'\] for the mode 'FULL', but gain gives \['HIGH', 'LOW'\]"
+        ),
+    ):
+        parse(CameraBlock, raw, source='camera')

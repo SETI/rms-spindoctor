@@ -294,17 +294,16 @@ Examples
     :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.status` ``'success'`` against the
     operator-verified offset :math:`(\Delta v, \Delta u) = (11.0, 29.5)` px.
 
-``one_bright_star_no_body`` (Cassini ISS WAC, image ``W1449079117_1``)
-    Single bright star (Vega) in an otherwise empty FOV. The orchestrator's pass-1
+``star_dominated`` (Cassini ISS WAC, image ``W1449079117_1``)
+    Vega and two fainter stars in an otherwise empty FOV. The orchestrator's pass-1
     :class:`~spindoctor.nav_technique.nav_technique_star_unique_match.StarUniqueMatchNav`
-    produces a 1-star prior; pass 2 runs
+    matches Vega and one of the fainter stars and produces a 2-star prior; pass 2 runs
     :class:`~spindoctor.nav_technique.nav_technique_star_refine.StarRefineNav` against that
-    prior, polishes the offset, and returns it with
-    :attr:`~spindoctor.nav_technique.technique_result.NavTechniqueResult.confidence` capped at
-    0.5 by the single-inlier post-sigmoid cap. The final ensemble fuses both technique
-    results and reports
-    :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.status` ``'success'`` against the
-    operator-verified offset :math:`(\Delta v, \Delta u) = (3.06, -0.02)` px.
+    prior, which finds all three stars and polishes the offset. The final ensemble fuses
+    both technique results and reports
+    :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.status` ``'success'`` at the
+    medium tier, within 0.25 px of the operator-verified offset
+    :math:`(\Delta v, \Delta u) = (3.56, 0.48)` px.
 
 ``star_dominated`` (Cassini ISS WAC, image ``W1580760393_1``)
     Dense star field with no body in FOV. Pass 1 runs

@@ -118,6 +118,8 @@ class _StarRecord:
         self.move_v = 0.0
         self.move_u = 0.0
         self.vmag: float | None = 5.0
+        self.johnson_mag_v = 5.0
+        self.johnson_mag_b = 5.6
         self.photometry_corrected = False
         self.photometry_saturated = False
         self.spectral_class = 'G0'
@@ -149,6 +151,10 @@ class _Obs:
     def star_max_usable_vmag(self) -> float:
         """Return the limiting magnitude, set well past the test star."""
         return 12.0
+
+    def star_color_term(self) -> float:
+        """Return a camera without a color term."""
+        return 0.0
 
 
 class _Context:

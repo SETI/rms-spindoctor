@@ -6,7 +6,7 @@ filter_combo: 'CL1+CL2'          # canonicalized: filters sorted, '+'-joined
 image_url: 'pds3://calibrated/COISS_2xxx/COISS_2090/data/1776647595_1777844466/N1777325846_1_CALIB.IMG'
 
 scene_tags:
-  - below_resolution_body              # First tag is the primary class;
+  - stars_plus_body                    # First tag is the primary class;
   - mimas                              # must match the directory the
   - medium_phase                       # sidecar lives in.
 
@@ -25,9 +25,22 @@ ground_truth:
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix lands in the low tier. The primary is BodyLimbNav, the highest-confidence contributor. BodyBlobNav emits no result on this frame.
 
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    confidence_tier low -> medium and primary_technique BodyLimbNav ->
+    StarRefineNav. Cassini now has a photometric star limit measured
+    on tour star fields, which predicts more stars in this frame than
+    the old rule of thumb did; the star techniques now lead the
+    answer, which stays within tolerance (0.02 px in v and 0.44 px in
+    u from truth).
+
+    Moved 2026-11-28 (PR #1304) from below_resolution_body to
+    stars_plus_body: Mimas is about 20 px across, above the class's
+    15 px bound, and the measured limit predicts 21 usable stars, 12
+    of them matched, so stars and the limb both navigate the frame.
+
 expected:
   status: success                           # success | failed | conflicted
-  confidence_tier: low                # high | medium | low | failed
-  primary_technique: BodyLimbNav  # e.g. BodyLimbNav
+  confidence_tier: medium                # high | medium | low | failed
+  primary_technique: StarRefineNav  # e.g. BodyLimbNav
   techniques_must_run: [BodyLimbNav]
   techniques_must_skip: []

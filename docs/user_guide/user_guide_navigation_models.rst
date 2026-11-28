@@ -186,13 +186,29 @@ images overlap, the fainter one is set aside, and both are set aside when they a
 can then be trusted. What survives is sorted brightest first and cut to
 ``stars.max_stars``.
 
+Every star magnitude the model uses is a Johnson V magnitude. YBSC and Tycho-2 give V
+directly. UCAC4 gives its own magnitude, measured through one wide filter, which differs
+from V by up to half a magnitude depending on the star's color. So a UCAC4 star takes its
+V from the APASS survey magnitude that UCAC4 carries for it. When there is none, its V is
+worked out from its UCAC4 magnitude and its infrared color from the 2MASS survey. When
+neither survey has a usable measurement, the average difference between the two systems is
+added to its UCAC4 magnitude. UCAC4 and APASS both read bright stars too faint, so a UCAC4
+star brighter than magnitude 10 takes its magnitude from Tycho-2 or YBSC instead.
+
+A camera does not see exactly the V band, so a red star can look brighter or fainter to it
+than its V says. For a camera whose response to star color has been measured, the model
+corrects each star's V by the star's color before comparing it with the camera's faintest
+usable magnitude and before predicting how bright the star will be. The instrument chapters
+say which cameras have this correction and how large it is.
+
 Each catalog position is then corrected for the star's own proper motion at the time of
 the exposure, and for stellar aberration, the small apparent displacement caused by the
 spacecraft's own velocity. Both corrections are on by default and can be turned off with
 ``stars.proper_motion`` and ``stars.stellar_aberration``.
 
 How faint a star can be and still be used is not a setting. It is worked out for each
-image from the camera's aperture and detector and from the exposure time: each factor of
+image from the camera's measured sensitivity and the faintest signal it shows, and from
+the image's exposure time, filter, gain state, and on-chip summation: each factor of
 2.512 more exposure buys one more magnitude of depth. A star fainter than that limit, or
 one that has no recorded magnitude, is dropped. How much brighter than the limit a star is
 determines its predicted signal-to-noise ratio, which in turn sets its reliability and how

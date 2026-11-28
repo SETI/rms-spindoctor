@@ -137,6 +137,10 @@ class MeasureParams:
         missing_value: A photometric-image pixel at or below this value is missing data (a
             lost line or a part of the frame not returned); a star with one in its large
             aperture or sky annulus is flagged ``no_data``.  None when every value is data.
+        max_peaks_per_line: Peaks on an image line or column holding more of them than this
+            are dropped as a defective line (see
+            :func:`util.star_photometry.star_field.detect_peaks`); a camera whose star fields
+            hold several stars above the threshold on most lines raises it.
     """
 
     catalog_depth_mag: float
@@ -169,6 +173,7 @@ class MeasureParams:
     ee_n_bins: int
     highpass_subsample: int = 1
     missing_value: float | None = None
+    max_peaks_per_line: int = 4
 
 
 #: Maps navigator-image array-index positions to photometric-image positions.
@@ -259,6 +264,7 @@ def measure_frame(
         threshold_snr=params.peak_threshold_snr,
         edge=params.edge_px,
         max_peaks=params.max_peaks,
+        max_per_line=params.max_peaks_per_line,
     )
     record['n_peaks'] = int(peaks.v.size)
     record['hp_noise'] = robust_sigma(hp.ravel())
@@ -466,6 +472,8 @@ def _measure_star(
         'index': index,
         'vmag': float(star.vmag),
         'bmag': None if star.johnson_mag_faked else _float_or_none(star.johnson_mag_b),
+        # The color the navigator gives the star, measured or faked from its star class.
+        'b_minus_v': float(star.johnson_mag_b) - float(star.johnson_mag_v),
         'catalog': str(star.catalog_name),
         'photometry_saturated': bool(star.photometry_saturated),
         'v': v,

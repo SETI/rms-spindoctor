@@ -29,7 +29,7 @@ dependencies = [
   "rms-polymath>=2.1.1",
   "rms-psfmodel",
   "rms-oops>=0.4.0",
-  "rms-starcat>=1.0.1",
+  "rms-starcat>=1.3.0",
   "ruamel.yaml",
   "scipy",
   "sqlalchemy>=2.1",

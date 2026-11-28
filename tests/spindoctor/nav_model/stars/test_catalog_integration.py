@@ -76,6 +76,153 @@ def test_stars_in_extfov_returns_records_from_fake_ucac4(
     assert star.u != 0.0 or star.v != 0.0
 
 
+def _ucac4_window(monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs, **star: object) -> list[Any]:
+    """Return what a UCAC4 query for Johnson V 0-15 keeps of one fake UCAC4 star."""
+    install_fake_catalogs(monkeypatch, ucac4=[make_star(unique_number=1, ra=0.1, dec=0.0, **star)])
+    return stars_in_extfov(
+        cast(Any, fake_obs), DEFAULT_CONFIG, catalog_name='ucac4', mag_min=0.0, mag_max=15.0
+    )
+
+
+def test_stars_in_extfov_keeps_ucac4_star_by_johnson_v(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose aperture magnitude is past the window but whose V is inside is kept."""
+    out = _ucac4_window(monkeypatch, fake_obs, vmag=15.1, apass_mag_v=14.95, apass_mag_v_sigma=0.05)
+    assert len(out) == 1
+
+
+def test_stars_in_extfov_drops_ucac4_star_by_johnson_v(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose aperture magnitude is inside the window but whose V is past it drops."""
+    out = _ucac4_window(monkeypatch, fake_obs, vmag=14.95)
+    assert out == []
+
+
+def _red_ybsc_query(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Return what a query for camera magnitudes 0-8, color term -0.5, keeps of a red star.
+
+    The YBSC star has V 8.4 and B - V 1.0, so its camera magnitude is 7.9.
+    """
+    obs = FakeObs(
+        data=np.zeros((100, 100), dtype=np.float64),
+        extfov_margin_vu=(10, 10),
+        ra_dec_limits_ext_rad=(0.0, 0.5, -0.1, 0.1),
+        star_max_vmag=8.0,
+        color_term=-0.5,
+    )
+    install_fake_catalogs(
+        monkeypatch, ybsc=[make_star(unique_number=1, ra=0.1, dec=0.0, vmag=8.4, b_v=1.0)]
+    )
+    return stars_in_extfov(
+        cast(Any, obs), DEFAULT_CONFIG, catalog_name='ybsc', mag_min=0.0, mag_max=8.0
+    )
+
+
+def test_stars_in_extfov_keeps_a_star_by_its_camera_magnitude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A star past the window in V but inside it in camera magnitude is kept."""
+    assert len(_red_ybsc_query(monkeypatch)) == 1
+
+
+def test_stars_in_extfov_gives_a_star_the_dn_of_its_camera_magnitude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A star's ``dn`` follows its camera magnitude, not its V."""
+    assert _red_ybsc_query(monkeypatch)[0].dn == pytest.approx(2.512 ** -(7.9 - 4.0))
+
+
+def test_reduce_catalogs_keeps_ucac4_star_whose_v_is_in_the_next_bin(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose V lies one magnitude bin past its aperture magnitude is kept once."""
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1,
+                ra=0.1,
+                dec=0.0,
+                vmag=13.65,
+                apass_mag_v=14.05,
+                apass_mag_v_sigma=0.05,
+            )
+        ],
+    )
+    out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
+    assert len(out) == 1
+
+
+def test_reduce_catalogs_gives_a_ucac4_star_on_a_bin_edge_to_one_bin(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose aperture magnitude is exactly a bin edge is kept once."""
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1,
+                ra=0.1,
+                dec=0.0,
+                vmag=14.0,
+                apass_mag_v=14.1,
+                apass_mag_v_sigma=0.05,
+            )
+        ],
+    )
+    out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
+    assert len(out) == 1
+
+
+def test_reduce_catalogs_reaches_past_the_last_grid_bin(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """With a limit past the magnitude grid, the last UCAC4 bin still reaches past the limit."""
+    fake_obs.star_max_vmag = 17.1
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1,
+                ra=0.1,
+                dec=0.0,
+                vmag=17.05,
+                apass_mag_v=16.9,
+                apass_mag_v_sigma=0.05,
+            )
+        ],
+    )
+    out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
+    assert len(out) == 1
+
+
+def test_stars_in_extfov_keeps_ucac4_aperture_magnitude(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A reduced UCAC4 star keeps its aperture magnitude beside its Johnson V."""
+    out = _ucac4_window(monkeypatch, fake_obs, vmag=12.0, apass_mag_v=12.3, apass_mag_v_sigma=0.05)
+    assert out[0].catalog_vmag == pytest.approx(12.0)
+
+
+def test_stars_in_extfov_derives_ucac4_spectral_class_from_its_color(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star's spectral class follows the color its Johnson photometry gives."""
+    out = _ucac4_window(
+        monkeypatch,
+        fake_obs,
+        vmag=12.0,
+        spectral_class='M0',
+        apass_mag_v=12.3,
+        apass_mag_v_sigma=0.05,
+        apass_mag_b=12.3,
+        apass_mag_b_sigma=0.05,
+    )
+    assert out[0].spectral_class == 'A0'
+
+
 def test_stars_in_extfov_drops_stars_outside_ra_window(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:
@@ -190,6 +337,39 @@ def test_reduce_catalogs_caps_at_max_stars(
     assert len(out) == DEFAULT_CONFIG.stars.max_stars
 
 
+def test_reduce_catalogs_budget_counts_only_usable_stars(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Bright UCAC4 stars kept past the limit for the correction do not end the walk.
+
+    A full budget of aperture-7.5 stars whose APASS V of 9.2 reads past the limit of 9 fills
+    the first bin; the walk still reaches the next bin's star of V 8.6.
+    """
+    obs = FakeObs(
+        data=np.zeros((100, 100), dtype=np.float64),
+        extfov_margin_vu=(10, 10),
+        ra_dec_limits_ext_rad=(0.0, 0.5, -0.1, 0.1),
+        star_max_vmag=9.0,
+    )
+    bright = [
+        make_star(
+            unique_number=i,
+            ra=0.01 + 0.004 * i,
+            dec=0.0,
+            vmag=7.5,
+            apass_mag_v=9.2,
+            apass_mag_v_sigma=0.05,
+        )
+        for i in range(DEFAULT_CONFIG.stars.max_stars)
+    ]
+    usable = make_star(
+        unique_number=999, ra=0.2, dec=0.05, vmag=8.5, apass_mag_v=8.6, apass_mag_v_sigma=0.05
+    )
+    install_fake_catalogs(monkeypatch, ucac4=[*bright, usable])
+    out = reduce_catalogs(cast(Any, obs), DEFAULT_CONFIG)
+    assert 999 in [star.unique_number for star in out]
+
+
 def test_stars_in_extfov_skips_records_with_missing_radec(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:
@@ -281,6 +461,14 @@ def test_stars_in_extfov_handles_star_without_name_attribute(
         conflicts = ''
         diff_u = 0.0
         diff_v = 0.0
+        apass_mag_v = None
+        apass_mag_v_sigma = None
+        apass_mag_b = None
+        apass_mag_b_sigma = None
+        twomass_mag_j = None
+        twomass_mag_k = None
+        twomass_ph_qual_j = None
+        twomass_ph_qual_k = None
 
         def ra_dec_with_pm(self, _tdb: float) -> tuple[float, float]:
             return self.ra, self.dec
@@ -517,6 +705,33 @@ def test_reduce_catalogs_corrects_sole_source_ucac4_in_place(
     assert out[0].vmag == pytest.approx(5.09)
 
 
+def test_reduce_catalogs_keeps_a_bright_ucac4_star_whose_v_reads_past_the_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A bright UCAC4 star whose saturated APASS V reads past the limit reaches the correction.
+
+    Its aperture magnitude is 7.5 and its APASS V 8.2, past the limit of 8.  No reference
+    star lies near it, so the correction flags it saturated, and it is kept.
+    """
+    obs = FakeObs(
+        data=np.zeros((100, 100), dtype=np.float64),
+        extfov_margin_vu=(10, 10),
+        ra_dec_limits_ext_rad=(0.0, 0.5, -0.1, 0.1),
+        star_max_vmag=8.0,
+    )
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1, ra=0.10, dec=0.0, vmag=7.5, apass_mag_v=8.2, apass_mag_v_sigma=0.05
+            )
+        ],
+        ybsc=[make_star(unique_number=2, ra=0.40, dec=0.05, vmag=3.0, b_v=0.0)],
+    )
+    out = reduce_catalogs(cast(Any, obs), DEFAULT_CONFIG)
+    assert [star.unique_number for star in out if star.photometry_saturated] == [1]
+
+
 def test_reduce_catalogs_flags_bright_star_without_ybsc_match(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:
@@ -586,8 +801,8 @@ def test_reduce_catalogs_does_not_flag_genuine_faint_star(
 ) -> None:
     """A genuine V7 to V8 star Tycho-2 covers is not flagged saturated.
 
-    The UCAC4 reading agrees with Tycho-2, so the star is neither corrected
-    nor flagged even though YBSC (empty here) does not reach it.
+    The UCAC4 reading agrees with Tycho-2, so the star takes Tycho-2's V and
+    is not flagged, even though YBSC (empty here) does not reach it.
     """
     install_fake_catalogs(
         monkeypatch,

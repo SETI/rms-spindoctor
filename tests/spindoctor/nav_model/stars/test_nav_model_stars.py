@@ -44,6 +44,8 @@ class _FakeMutableStar:
     pretty_name: str = '12345'
     name: str = ''
     vmag: float | None = 5.0
+    johnson_mag_v: float = 5.0
+    johnson_mag_b: float = 5.6
     photometry_corrected: bool = False
     photometry_saturated: bool = False
     spectral_class: str = 'G0'
@@ -81,7 +83,9 @@ class _FakeContext:
 class _FakeObs:
     """Observation stand-in covering the methods ``NavModelStars`` reads."""
 
-    def __init__(self, *, extfov_margin: int = 14, star_max_vmag: float = 12.0) -> None:
+    def __init__(
+        self, *, extfov_margin: int = 14, star_max_vmag: float = 12.0, color_term: float = 0.0
+    ) -> None:
         self.extfov_margin_v = extfov_margin
         self.extfov_margin_u = extfov_margin
         self.extdata_shape_vu = (128, 128)
@@ -89,6 +93,7 @@ class _FakeObs:
         self.data_shape_u = 100
         self._psf = _FakePSF(sigma=1.0)
         self._star_max_vmag = star_max_vmag
+        self._color_term = color_term
         self.inst_config = raw_camera()
 
     def star_psf(self) -> _FakePSF:
@@ -98,6 +103,10 @@ class _FakeObs:
     def star_max_usable_vmag(self) -> float:
         """Return the limiting magnitude used by the star gate."""
         return self._star_max_vmag
+
+    def star_color_term(self) -> float:
+        """Return the camera's color term."""
+        return self._color_term
 
     def make_extfov_false(self) -> np.ndarray:
         """Return a False-filled boolean array of the extfov shape."""
@@ -115,9 +124,11 @@ class _FakeObs:
         )
 
 
-def _make_model(*, star_max_vmag: float = 12.0) -> tuple[NavModelStars, _FakeObs]:
+def _make_model(
+    *, star_max_vmag: float = 12.0, color_term: float = 0.0
+) -> tuple[NavModelStars, _FakeObs]:
     """Build a NavModelStars instance with the fake obs and stars config."""
-    obs = _FakeObs(star_max_vmag=star_max_vmag)
+    obs = _FakeObs(star_max_vmag=star_max_vmag, color_term=color_term)
     config = mock.Mock()
     config.stars = packaged_stars()
     model = NavModelStars('stars', cast(Any, obs), config=config)
@@ -270,6 +281,16 @@ def test_to_features_star_at_limit_gets_snr_ref() -> None:
     model, _obs = _make_model(star_max_vmag=8.0)
     at_limit = _FakeMutableStar(vmag=8.0)
     model._stars = [cast(MutableStar, at_limit)]
+    feat = model.to_features(cast(NavContext, _FakeContext()))[0]
+    assert isinstance(feat.flags, StarFlags)
+    assert feat.flags.predicted_snr == pytest.approx(SNR_REF)
+
+
+def test_to_features_reads_the_camera_magnitude() -> None:
+    """A red star past the limit in V but at it in camera magnitude is kept at ``SNR_REF``."""
+    model, _obs = _make_model(star_max_vmag=8.0, color_term=-0.5)
+    red = _FakeMutableStar(vmag=8.5, johnson_mag_v=8.5, johnson_mag_b=9.5)
+    model._stars = [cast(MutableStar, red)]
     feat = model.to_features(cast(NavContext, _FakeContext()))[0]
     assert isinstance(feat.flags, StarFlags)
     assert feat.flags.predicted_snr == pytest.approx(SNR_REF)

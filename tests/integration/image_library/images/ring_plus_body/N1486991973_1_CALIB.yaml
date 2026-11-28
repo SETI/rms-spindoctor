@@ -22,10 +22,17 @@ ground_truth:
     Pipeline at curation: status=success, confidence=0.771, rank=medium, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav', 'StarFieldFromCatalogNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"BodyDiscCorrelateNav": [-29.5, 27.5], "BodyLimbNav": [8.8129, 8.4537], "RingEdgeNav": [-49.9978, 95.0056], "StarFieldFromCatalogNav": [0.0, 0.0], "StarUniqueMatchNav": [6.3535, 8.9801], "StarRefineNav": [6.3885, 8.9523]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
+
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    primary_technique StarRefineNav -> StarFieldFromCatalogNav.
+    Cassini now has a photometric star limit measured on tour star
+    fields, which predicts more stars in this frame than the old rule
+    of thumb did; the star techniques now lead the answer, which stays
+    within tolerance (0.69 px in v and 0.77 px in u from truth).
 expected:
   status: success
   confidence_tier: medium
-  primary_technique: StarRefineNav
+  primary_technique: StarFieldFromCatalogNav
   techniques_must_run:
   - BodyLimbNav
   techniques_must_skip: []

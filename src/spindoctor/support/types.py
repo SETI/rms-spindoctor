@@ -61,8 +61,12 @@ class MutableStar(Protocol):
     move_v: float
     move_u: float
 
-    # Photometry and spectral info
+    # Photometry and spectral info.  ``vmag`` is the star's Johnson V magnitude;
+    # ``catalog_vmag`` is the magnitude its catalog lists, which for UCAC4 is the
+    # aperture magnitude the catalog reduction converts to Johnson V (see
+    # nav_model.stars.catalog), and for Tycho-2 and YBSC is ``vmag`` itself.
     vmag: float | None
+    catalog_vmag: float | None
     b_v: float | None
     johnson_mag_v: float | None
     johnson_mag_b: float | None

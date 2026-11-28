@@ -40,6 +40,7 @@ from spindoctor.nav_model.stars.conflicts import mark_body_and_ring_conflicts
 from spindoctor.nav_model.stars.predicted_snr import (
     SCLASS_TO_B_MINUS_V,
     psf_sigma_px,
+    star_camera_mag,
 )
 from spindoctor.nav_model.stars.smeared_psf import compute_smear_vector_px, smear_length_px
 from spindoctor.obs import ObsSnapshotInst
@@ -64,7 +65,8 @@ __all__ = [
 # Effective-SNR constants for the magnitude-margin reliability shape.
 #
 # The star gate is purely magnitude based: the catalog reduction and this
-# model drop any star fainter than ``obs.star_max_usable_vmag()``.  The
+# model drop any star whose camera magnitude (``star_camera_mag``) is fainter
+# than ``obs.star_max_usable_vmag()``.  The
 # CRLB-covariance and reliability helpers still want an SNR-like quantity,
 # so we synthesize one from how far below the limiting magnitude the star
 # sits.  A star exactly at the limit gets ``snr_eff == SNR_REF``; every
@@ -186,8 +188,8 @@ class NavModelStars(NavModel):
         Stars with body or ring conflicts are emitted with the matching
         ``in_body_silhouette`` / ``in_saturation_or_cosmic_mask`` flags
         set; the reliability gate decides whether to keep them.  Stars
-        fainter than ``obs.star_max_usable_vmag()`` (or with no catalog
-        magnitude) are skipped.  Detectability is expressed through a
+        whose camera magnitude is fainter than ``obs.star_max_usable_vmag()``
+        (or with no catalog magnitude) are skipped.  Detectability is expressed through a
         magnitude-margin-derived effective SNR rather than a DN-based
         photometric SNR, so the gate carries no dependence on any
         DN-to-image-unit scale.
@@ -215,15 +217,17 @@ class NavModelStars(NavModel):
             )
             return []
         mag_limit = float(self.obs.star_max_usable_vmag())
+        color_term = self.obs.star_color_term()
         min_snr = self._stars_config.min_predicted_snr
         max_smear = self._stars_config.max_smear
         mag_offset_value = _resolve_mag_offset(self.obs)
         self._logger.debug(
-            'image_noise_sigma = %.3g, star_max_usable_vmag = %.3f, '
+            'image_noise_sigma = %.3g, star_max_usable_vmag = %.3f, color_term = %.3f, '
             'sigma_psf = %.3f px, mag_offset = %.3f, '
             'min_predicted_snr = %.2f, max_smear = %.2f px',
             image_noise_sigma,
             mag_limit,
+            color_term,
             sigma_psf,
             mag_offset_value,
             min_snr,
@@ -237,14 +241,18 @@ class NavModelStars(NavModel):
         in_ring_count = 0
         for star in self._stars:
             # Magnitude gate: drop stars with no catalog magnitude and stars
-            # fainter than the per-image limiting magnitude.  This is mostly
-            # redundant with the catalog reduction's magnitude cap, but it
-            # keeps the model self-contained and handles ``vmag is None``.  A
-            # ``photometry_saturated`` star is exempt from the faint cut: its
-            # magnitude is an untrusted, too-faint saturated reading, so it
-            # must not be rejected on that reading.
+            # whose camera magnitude is fainter than the per-image limiting
+            # magnitude.  This is mostly redundant with the catalog reduction's
+            # magnitude cap, but it keeps the model self-contained and handles
+            # ``vmag is None``.  A ``photometry_saturated`` star is exempt from
+            # the faint cut: its magnitude is an untrusted, too-faint saturated
+            # reading, so it must not be rejected on that reading.
             is_saturated = bool(star.photometry_saturated)
-            if star.vmag is None or (float(star.vmag) > mag_limit and not is_saturated):
+            if star.vmag is None:
+                skipped_faint += 1
+                continue
+            camera_mag = star_camera_mag(star, color_term)
+            if camera_mag > mag_limit and not is_saturated:
                 skipped_faint += 1
                 continue
             # Magnitude-margin-derived effective SNR: how far the star sits
@@ -254,10 +262,10 @@ class NavModelStars(NavModel):
             # saturated star's recorded magnitude is a lower bound on
             # brightness, so it is treated as at least as bright as the
             # limiting magnitude without fabricating a specific brighter value.
-            eff_vmag = float(star.vmag)
+            eff_mag = camera_mag
             if is_saturated:
-                eff_vmag = min(eff_vmag, mag_limit)
-            snr_eff = SNR_REF * (2.512 ** (mag_limit - eff_vmag))
+                eff_mag = min(eff_mag, mag_limit)
+            snr_eff = SNR_REF * (2.512 ** (mag_limit - eff_mag))
             snr_eff = max(snr_eff, SNR_FLOOR)
             smear_len = smear_length_px(star.move_v, star.move_u)
             # Per the design's "max_smear" gate — stars with a smear longer

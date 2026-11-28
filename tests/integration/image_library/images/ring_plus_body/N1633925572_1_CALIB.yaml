@@ -27,10 +27,18 @@ ground_truth:
 
     Tier history: from 2026-08-26 until 2026-10-27 the medium tier pin was held deliberately red by an operator ruling not to re-ratchet, on the reading that the measured low tier came from a wrong RingEdgeNav lock at (-39.8367, -11.9602), 39 px away in dv on 452 of 6786 inliers (6.7%), which entered the combine with the fused sigma at 2.5012 px, while BodyLimbNav (-0.8371, -8.6414) and the one-star match (-0.9198, -8.6333) agreed to 0.08 px and to the operator ground truth.
     Re-pinned 2026-10-27 (operator decision): confidence_tier medium -> low, because the wrong ring lock no longer contributes. Since the Saturn routing change this frame's 150.6 km/px radial resolution routes it to the annulus technique, so RingEdgeNav does not run on it. The low tier now comes from contributors that agree with the ground truth (BodyLimbNav and a one-star StarUniqueMatchNav), whose fused sigma of about 2.49 px sits just past the 2.0 px medium-tier cap. That is within 0.01 px of the 2.5012 px measured with the ring lock in the combine (on different code), so the pair was probably low on its own all along. Whether that sigma is sized right for two agreeing answers is a sigma-calibration matter, tracked in #788.
+
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    confidence_tier low -> medium and primary_technique BodyLimbNav ->
+    StarRefineNav. Cassini now has a photometric star limit measured
+    on tour star fields, which predicts more stars in this frame than
+    the old rule of thumb did; the star techniques now lead the
+    answer, which stays within tolerance (0.48 px in v and 0.38 px in
+    u from truth).
 expected:
   status: success
-  confidence_tier: low
-  primary_technique: BodyLimbNav
+  confidence_tier: medium
+  primary_technique: StarRefineNav
   techniques_must_run:
   - StarRefineNav
   techniques_must_skip: []

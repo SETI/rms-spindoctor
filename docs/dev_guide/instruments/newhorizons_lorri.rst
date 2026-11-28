@@ -141,42 +141,58 @@ filter, so the block has no ``filter_mag_offset``. It has one gain state, but it
 binning mode changes the electrons per DN, the noise of a pixel, and the width of a
 star in pixels, so the gain table and both mode tables are keyed by the mode, ``1X1``
 or ``4X4``. The mode follows from the row count, as the image host reads it: 1024 rows
-is ``1X1`` and 256 rows is ``4X4``, and any other row count is refused. A star of V
-magnitude ``m`` puts
+is ``1X1`` and 256 rows is ``4X4``, and any other row count is refused. A star of
+Johnson V magnitude ``V`` and color ``B-V`` has the camera magnitude
+``m = V + c (B-V)``, where ``c`` is the block's ``color_term`` (-0.57), and puts
 
 .. math::
 
     \mathrm{DN} = \frac{R \cdot 10^{-0.4\,m} \cdot t_{\mathrm{exp}}}{g}
 
-in the image, where ``R`` is ``flux_per_s_vmag0`` (7.57e8 electrons per second for a
-V = 0 star) and ``g`` is the mode's ``gain`` entry, in electrons per DN. The dimmest
-visible star puts the mode's ``min_detectable_dn`` in the image, and the limit is
-that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.8
-unbinned and V 15.5 binned. A frame is refused when the tables leave out its mode, and
+in the image, where ``R`` is ``flux_per_s_vmag0`` (4.883e8 electrons per second for a
+star of V = 0 and B-V = 0) and ``g`` is the mode's ``gain`` entry, in electrons per DN.
+The dimmest visible star puts the mode's ``min_detectable_dn`` in the image, and the
+limit is that star's camera magnitude plus ``search_depth_mag`` (1.0). At 1 s the
+limit is camera magnitude 14.3 unbinned and 15.1 binned. A star of the Sun's color
+(B-V 0.65) reaches it at a V 0.37 mag fainter, and a red star of B-V 1.5 at a V 0.86
+mag fainter. A frame is refused when the tables leave out its mode, and
 the message gives the key path (``newhorizons_lorri.star_photometry...``). A frame whose
 exposure is not positive gets a limit of ``-inf``.
 
 The rate, the detection thresholds, and the star widths were measured in 2026 on star
-fields of the cruise and the Pluto approach, read through the navigator's own reader.
+fields of the cruise and the Pluto approach, read through the navigator's own reader,
+against the catalog stars' Johnson V magnitudes (see
+:doc:`/dev_guide/dev_guide_navigation_models_star`).
 Each frame's pointing was found from the stars alone, by a vote over star and peak
 pairs refined to a translation and a rotation, and a frame was kept when three or more
 stars, each on its own image peak, agreed within 1 px and the chance of such a cluster
 anywhere in the search window (100 px unbinned, 40 px binned) was below one in a
-thousand. That kept 341 of 468 measured frames, and one frame in three was held out of
+thousand. That kept 342 of 468 measured frames, and one frame in three was held out of
 the fit. Frames shorter than 50 ms were left out: the camera has no shutter, so the
 frame transfer adds light to a short exposure.
 
-- The rate is the fit of 4,310 stars, 3.605e7 DN per second for V = 0 unbinned
-  (+-0.01 mag), times 21.0 electrons per DN. The zero point of Weaver et al. (2020)
-  gives 3.2e7 DN per second.
+- The rate and the color term are fitted together on the 3,949 stars with a measured
+  color: 2.325e7 DN per second for a star of V = 0 and B-V = 0 unbinned (+-0.02 mag),
+  times 21.0 electrons per DN, and a color term of -0.571 +- 0.009. A star of the
+  default class, G0 (B-V 0.59), gets 3.17e7 DN per second, and the zero point of Weaver
+  et al. (2020) gives 3.2e7.
+- The camera has no filter, and its band reaches far into the red, so a redder star
+  reads brighter than its V. Without the color term the stars scatter by 0.33 mag about
+  the fit and rise 0.42 mag for each magnitude of B-V. With it they scatter by 0.27 mag
+  and rise 0.02 mag. The fields lie near the galactic center, and their stars reach a
+  B-V of 3.6.
+- The remaining scatter comes mostly from the stars whose V and B-V come from APASS:
+  between V 12 and 13 they scatter by 0.25 mag about the fit, against 0.15 mag for the
+  stars whose V and color come from 2MASS. Fitted on the UCAC4 aperture magnitude
+  instead, the same APASS stars scatter by 0.05 mag.
 - The electrons per DN are those of Weaver et al. (2020), 21.0 unbinned and 19.4
-  binned. The stars measure the binned to unbinned DN ratio at 1.054, against the
+  binned. The stars measure the binned to unbinned DN ratio at 1.110, against the
   1.082 these give.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to every
   clean star of the mode, reaches 80% of the way from its floor to its plateau:
-  110 +- 7 DN unbinned and 60 +- 4 DN binned.
+  115 +- 13 DN unbinned and 60 +- 3 DN binned.
 
-On the held-out frames, the faintest star detected lies a median 0.04 mag past the
+On the held-out frames, the second-faintest star detected lies a median 0.02 mag inside the
 predicted dimmest visible star.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are

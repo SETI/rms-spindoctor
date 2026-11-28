@@ -128,17 +128,19 @@ are missing or more than 80% are overexposed.
 
 **Stars.** The faintest catalog star the navigator looks for depends on the
 exposure, the filter, the gain state, and whether the frame was read out in full or
-in 2x2 summation. At 1 s through the clear filter a full frame reaches magnitude 12.4
-at the 10K gain state and 9.9 at 100K, and a summed frame reaches 1.0 magnitude
-deeper. Each factor of ten in exposure reaches 2.5 magnitudes deeper, and the other
-filters reach 2 to 6 magnitudes less deep than the clear one. The navigator expects a
-star's light to spread with a Gaussian sigma of 0.65 pixels on a full frame and 0.40
-pixels on a summed frame. The star widths, how bright a star reads through the clear
-filter at the 10K gain state, and the faintest signal the camera shows were measured
-on the 1990 and 1992 cruise star fields, on frames where the stars alone fixed the
-pointing. The other filters and gain states follow from published calibration values
-(Klaasen 1993 and Klaasen et al. 1999), because too few of the stars in those fields
-were taken through them to measure.
+in 2x2 summation, and on the star's color: the camera sees red stars brighter than
+their V magnitude says. At 1 s through the clear filter a full frame reaches a star of
+the Sun's color at magnitude 12.1 at the 10K gain state and 11.8 at 100K, and a summed
+frame reaches magnitude 13.9 at 10K. A red star of B-V 1.5 is reached 0.35 magnitudes
+deeper again. Each factor of ten in exposure reaches 2.5 magnitudes deeper, and the
+other filters reach 2 to 6 magnitudes less deep than the clear one. The navigator
+expects a star's light to spread with a Gaussian sigma of 0.65 pixels on a full frame
+and 0.40 pixels on a summed frame. The star widths, how bright a star of each color
+reads through the clear filter at the 10K and 100K gain states, and the faintest signal
+the camera shows at those gain states were measured on the 1990 and 1992 cruise star
+fields, on frames where the stars alone fixed the pointing. The other filters and gain states follow from published calibration
+values (Klaasen 1993 and Klaasen et al. 1999), because too few of the stars in those
+fields were taken through them to measure.
 
 **Provisional values.** The blank and noisy thresholds, the expected-noise and
 read-noise figures, and the magnitude-offset table are all placeholders

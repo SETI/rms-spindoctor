@@ -418,8 +418,8 @@ Examples
     sigmoid is drawn down by the modest visible-arc length of each limb on its own — but the
     fit is geometrically correct.
 
-``body_full_fov`` (Cassini ISS NAC, image ``N1572105349_1``)
-    Dione fills the FOV, predicted disc diameter approximately 155 px. The body model emits a
+``stars_plus_body`` (Cassini ISS NAC, image ``N1572105349_1``)
+    Dione, at predicted disc diameter approximately 155 px, among field stars. The body model emits a
     ``LIMB_ARC`` feature, but the upstream feature-reliability gate drops it before
     :meth:`~spindoctor.nav_technique.nav_technique_body_limb.BodyLimbNav.is_feasible` is consulted
     (the textbook full-disc, fully-lit limb saturates
