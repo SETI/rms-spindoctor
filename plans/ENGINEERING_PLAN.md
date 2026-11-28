@@ -806,6 +806,12 @@ where they differ).
   exposures; found by #1257's Cassini measurement.
 - **#1300** — the star-limit fit reads narrow filters' offsets too bright;
   found by #1257's Cassini measurement.
+- **#1302** — Cassini moon frames answer confidently on a false lone-star
+  match (N1669606966_1, N1597846115_2, library expected failures); found by
+  #1257's Cassini limit.
+- **#1303** — the Cassini methane-filter star field N1461997416_1 loses its
+  stars under the narrow-filter limit (library expected failure); found by
+  #1257's Cassini limit.
 - **#1211** — the Galileo 1990 cruise star frames read 0.4-1.7 mag fainter
   than the 1992 frames at the same settings; the star limit uses the 1992
   scale until this is explained.

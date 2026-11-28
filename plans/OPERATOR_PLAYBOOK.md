@@ -371,8 +371,10 @@ environment 6 of 75 sidecars disagree on `main` (measured 2026-11-16 and
 2026-11-17 by PRs #1003 and #999): `C0059894800R` and `C0059899900R` under
 #744, `N1484593951_2` under #350, `N1487595731_1` and `N1686349893_1` under
 #483, and `N1853392805_1` under #338, exactly the rows of the table below
-not marked re-pinned. Every one is owned by an open issue or by your
-decision. The two under #744 await your decision in Section 0.1. (On
+not marked re-pinned. PR #1304 (Cassini's measured star limit) adds three
+more, so 9 of 75 disagree once it lands: `N1669606966_1` and
+`N1597846115_2` under #1302, and `N1461997416_1` under #1303. Every one is
+owned by an open issue or by your decision. The two under #744 await your decision in Section 0.1. (On
 2026-10-31 the count was 19: the ten star-frame pins, `N1492091163`, and the
 two Encke gap frames' `primary_technique` pins have since been re-pinned on
 your decisions, PR #754.) Three of the six are
@@ -392,6 +394,9 @@ frame no longer navigates).
 | frame(s) | disagreement | owner |
 |---|---|---|
 | N1492091163 | **Re-pinned 2026-10-31 (PR #754): pinned as a success at the stars' offset; passes.** Expected `failed`; navigates to (5.21, -26.02) at medium tier, 1.70 px in du from operator truth: RingEdgeNav converges 1.1 px from truth and a two-star StarRefineNav moves the fused answer 0.7 px in du (the sparse-star family). The expectation predated a working ring fit | #346 |
+| N1669606966_1, N1597846115_2 | **Expected failures from PR #1304.** A lone-star match on a non-star source, refined to confidence 0.92, outweighs the body techniques: 16.7 px off on N1669606966 (Hyperion, 0.38 s CL1+GRN), 3.1 px off in v on N1597846115 (0.07 s clear) | #1302 |
+| N1461997416_1 | **Expected failure from PR #1304.** The methane pair CL1+MT1's offset puts the 0.26 s frame's limit at 7.2, so only the V 6.5 star is predicted and its match is judged spurious; the frame fails | #1303 |
+| N1465178827_2, N1486991973_1, N1492091163_1, N1506004925_1, N1519300016_2, N1572105349_1, N1598065103_1, N1828122657_1, N1503576135_2, N1548432342_1, N1555145539_1, N1633925572_1, N1777325846_1, W1449079117_1, N1644757096_1 | **Re-pinned 2026-11-28 (PR #1304, operator decision to keep Cassini's measured star limit): pass.** More predicted stars move the primary technique to a star technique, or raise the tier, or both; every offset stays within tolerance. PR #1304 lists each old and new value | Section 0.1 (decided) |
 | N1853392805 | highly-irregular exclusion discards the terminator fit; the ring fit is right across the edge but about 8 px off along it, so the ensemble reports `conflicted` | #338 |
 | N1484593951 | dv error 2.687 px, a limb bias pinned red on purpose | #350 |
 | N1487595731_1 | expects BodyDiscCorrelateNav primary, gets BodyLimbNav; the pin is stale | #483 |
