@@ -100,6 +100,40 @@ def test_stars_in_extfov_drops_ucac4_star_by_johnson_v(
     assert out == []
 
 
+def _red_ybsc_query(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Return what a query for camera magnitudes 0-8, color term -0.5, keeps of a red star.
+
+    The YBSC star has V 8.4 and B - V 1.0, so its camera magnitude is 7.9.
+    """
+    obs = FakeObs(
+        data=np.zeros((100, 100), dtype=np.float64),
+        extfov_margin_vu=(10, 10),
+        ra_dec_limits_ext_rad=(0.0, 0.5, -0.1, 0.1),
+        star_max_vmag=8.0,
+        color_term=-0.5,
+    )
+    install_fake_catalogs(
+        monkeypatch, ybsc=[make_star(unique_number=1, ra=0.1, dec=0.0, vmag=8.4, b_v=1.0)]
+    )
+    return stars_in_extfov(
+        cast(Any, obs), DEFAULT_CONFIG, catalog_name='ybsc', mag_min=0.0, mag_max=8.0
+    )
+
+
+def test_stars_in_extfov_keeps_a_star_by_its_camera_magnitude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A star past the window in V but inside it in camera magnitude is kept."""
+    assert len(_red_ybsc_query(monkeypatch)) == 1
+
+
+def test_stars_in_extfov_gives_a_star_the_dn_of_its_camera_magnitude(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A star's ``dn`` follows its camera magnitude, not its V."""
+    assert _red_ybsc_query(monkeypatch)[0].dn == pytest.approx(2.512 ** -(7.9 - 4.0))
+
+
 def test_reduce_catalogs_keeps_ucac4_star_whose_v_is_in_the_next_bin(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:

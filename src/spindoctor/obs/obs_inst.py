@@ -185,9 +185,10 @@ class ObsInst(ABC):
         mode: str,
         filter_name: str | None,
     ) -> float:
-        """Return the faintest V magnitude of a catalog star, from the star photometry.
+        """Return the faintest camera magnitude of a catalog star, from the star photometry.
 
-        A star of V magnitude ``m`` deposits ``flux_per_s_vmag0 * 10**(-0.4 * (m +
+        A star of camera magnitude ``m`` (see :meth:`star_color_term`) deposits
+        ``flux_per_s_vmag0 * 10**(-0.4 * (m +
         offset)) * texp`` in the unit of ``flux_unit``, divided by the gain state's entry
         for electrons or multiplied by it for DN, where ``offset`` is the filter's
         magnitude offset (0 when ``filter_name`` is None).  The dimmest visible star
@@ -251,6 +252,21 @@ class ObsInst(ABC):
         if mode not in widths:
             raise ValueError(f'{where}.psf_sigma has no entry for the mode {mode!r}')
         return widths[mode]
+
+    def star_color_term(self) -> float:
+        """Return how a star's color changes its magnitude in this camera's band.
+
+        A star of Johnson V magnitude ``V`` and color ``B - V`` has the camera magnitude
+        ``V + c (B - V)``, where ``c`` is this color term.  The star limits
+        (:meth:`star_min_usable_vmag` and :meth:`star_max_usable_vmag`) are camera
+        magnitudes, and a star's predicted brightness follows its camera magnitude.  This
+        generic implementation returns 0, so the camera magnitude is V; a camera whose
+        star limit comes from its ``star_photometry`` returns that block's color term.
+
+        Returns:
+            The color term, in magnitudes per magnitude of ``B - V``.
+        """
+        return 0.0
 
     def star_psf_size(self, star: Star) -> tuple[int, int]:
         """Returns the size of the point spread function (PSF) to use for a star.

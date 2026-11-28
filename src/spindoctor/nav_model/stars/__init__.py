@@ -43,6 +43,7 @@ from spindoctor.nav_model.stars.predicted_snr import (
     predicted_snr,
     psf_aperture_pixels,
     psf_sigma_px,
+    star_camera_mag,
 )
 from spindoctor.nav_model.stars.saturation import (
     UCAC4_SATURATION_VMAG_LIMIT,
@@ -86,5 +87,6 @@ __all__ = [
     'render_smeared_psf',
     'select_radec_list',
     'smear_length_px',
+    'star_camera_mag',
     'stars_in_extfov',
 ]

@@ -143,6 +143,7 @@ class FakeObs:
         psf_size: Tuple returned by ``star_psf_size``.
         star_min_vmag: Lower magnitude floor.
         star_max_vmag: Upper magnitude floor.
+        color_term: Value returned by ``star_color_term``.
         ra_dec_limits_ext_rad: ``(ra_min, ra_max, dec_min, dec_max)``
             tuple returned by ``ra_dec_limits_ext()``.
         radec_to_uv: Optional callable mapping ``(ra, dec, tfrac)`` to
@@ -164,6 +165,7 @@ class FakeObs:
     psf_size: tuple[int, int] = (5, 5)
     star_min_vmag: float = 0.0
     star_max_vmag: float = 17.0
+    color_term: float = 0.0
     ra_dec_limits_ext_rad: tuple[float, float, float, float] = (0.0, 0.1, 0.0, 0.1)
     radec_to_uv: Callable[[float, float, float], tuple[float, float]] | None = None
     center_ra_rad: float = 0.0
@@ -383,6 +385,10 @@ class FakeObs:
     def star_max_usable_vmag(self) -> float:
         """Return the catalog-search upper magnitude floor."""
         return self.star_max_vmag
+
+    def star_color_term(self) -> float:
+        """Return the camera's color term."""
+        return self.color_term
 
     def ra_dec_limits_ext(self, apparent: bool = True) -> tuple[float, float, float, float]:
         """Return the configured RA / DEC limits in radians."""

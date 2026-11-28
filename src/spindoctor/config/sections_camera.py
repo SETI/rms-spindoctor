@@ -78,6 +78,7 @@ __all__ = [
     'SaturationThresholdDn',
     'SearchDepthMag',
     'SourceImageFilter',
+    'StarColorTerm',
     'StarFluxDnPerSVmag0',
     'StarFluxPerSVmag0',
     'StarFluxUnit',
@@ -166,6 +167,9 @@ MinDetectableDnTable = Annotated[dict[Str, Positive], MinLen(1)]
 StarPhotometryPsfSigmaTable = Annotated[dict[Str, StarPsfSigma], MinLen(1)]
 #: The magnitudes past the dimmest visible star that the catalog search reaches.
 SearchDepthMag = NonNeg
+#: How a star's color changes its magnitude in the camera's band: a star of Johnson V
+#: magnitude ``V`` and color ``B - V`` has the camera magnitude ``V + c (B - V)``.
+StarColorTerm = Float
 
 
 @dataclass(frozen=True)
@@ -360,7 +364,8 @@ class MagOffset:
 class StarPhotometry:
     """A camera's ``star_photometry`` block: its measured star limit and star width.
 
-    A star of V magnitude ``m`` and the default spectral class deposits
+    A star of Johnson V magnitude ``V`` and color ``B - V`` has the camera magnitude
+    ``m = V + color_term * (B - V)``, and deposits
     ``flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[filter])) * texp`` in the
     unit that ``flux_unit`` gives, divided by the gain state's electrons per DN when the
     unit is ``electrons``, or multiplied by the gain state's factor when it is ``dn``.
@@ -372,8 +377,9 @@ class StarPhotometry:
 
     Parameters:
         flux_unit: What the rate counts: ``electrons``, or ``dn``.
-        flux_per_s_vmag0: The rate per second of a V = 0 star through the reference
-            filter, at the reference gain state when the unit is ``dn``.
+        flux_per_s_vmag0: The rate per second of a star of camera magnitude 0 (V = 0
+            and, with a color term, B - V = 0) through the reference filter, at the
+            reference gain state when the unit is ``dn``.
         gain: Each gain state's electrons per DN, or its DN factor (see above).
         min_detectable_dn: The DN of the dimmest star a frame of each readout mode shows.
         psf_sigma: The Gaussian sigma of a star, in the pixels of a frame of each readout
@@ -382,6 +388,9 @@ class StarPhotometry:
             search reaches.
         filter_mag_offset: How many magnitudes each filter dims a star, against the
             reference filter.  A camera whose reader does not read a filter leaves it out.
+        color_term: How a star's color changes its camera magnitude (see above).  A
+            camera whose stars have not measured one leaves it out, and its camera
+            magnitude is then V.
 
     Raises:
         RuleError: If ``psf_sigma`` and ``min_detectable_dn`` give different modes.
@@ -396,6 +405,7 @@ class StarPhotometry:
     psf_sigma: StarPhotometryPsfSigmaTable
     search_depth_mag: SearchDepthMag
     filter_mag_offset: FilterMagOffsetTable | None = None
+    color_term: StarColorTerm = 0.0
 
     def __post_init__(self) -> None:
         """Refuse mode tables that do not give the same modes.

@@ -13,7 +13,10 @@ The star pipeline pulls catalog records, then reduces them through:
    matching entries so the most precise catalog wins per star.  A UCAC4
    star's own magnitude is UCAC's aperture magnitude, so each UCAC4 star
    is given a Johnson V magnitude and color first (see
-   ``ucac4_johnson_photometry``).
+   ``ucac4_johnson_photometry``).  Every star is then kept by its camera
+   magnitude, its Johnson V corrected by the camera's color term (see
+   ``star_camera_mag``), which is also what its predicted brightness
+   (``dn``) follows.
 4. **FOV projection + edge culling.**  Stars too close to the extfov
    edge for their PSF support to fit, or whose smear motion would push
    them off the edge mid-exposure, are dropped.
@@ -45,7 +48,7 @@ from starcat import (
     YBSCStarCatalog,
 )
 
-from spindoctor.nav_model.stars.predicted_snr import SCLASS_TO_B_MINUS_V
+from spindoctor.nav_model.stars.predicted_snr import SCLASS_TO_B_MINUS_V, star_camera_mag
 from spindoctor.nav_model.stars.saturation import (
     REFERENCE_CATALOGS as _PHOTOMETRY_REFERENCE_CATALOGS,
 )
@@ -64,6 +67,7 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
 __all__ = [
     'CATALOG_MAGNITUDE_BINS',
     'aberrate_star',
+    'catalog_query_margin',
     'get_tycho2_catalog',
     'get_ucac4_catalog',
     'get_ybsc_catalog',
@@ -98,9 +102,10 @@ CATALOG_MAGNITUDE_BINS: tuple[float, ...] = (
 
 The bins are tighter near the threshold (10.0-13.0) where most catalog
 stars in a typical Cassini-WAC FOV live, and looser at the bright and
-faint ends.  The walk stops when the configured ``max_stars`` budget is
-reached or the next bin's lower edge exceeds the obs's
-``star_max_usable_vmag()``.
+faint ends.  They split the magnitude each catalog lists.  The walk stops
+when the configured ``max_stars`` budget is reached or the next bin's
+lower edge exceeds the obs's ``star_max_usable_vmag()`` plus the catalog's
+query margin (see :func:`catalog_query_margin`).
 """
 
 
@@ -153,13 +158,44 @@ UCAC4_HALF_MILLIMAG: float = 0.0005
 # than 0.2 mag for 5% of the stars fainter than aperture magnitude 10, and the 2MASS
 # conversion brightens a star by at most 0.055 mag (99.9% of stars).
 UCAC4_QUERY_MARGIN_MAG: float = 0.2
-"""Magnitudes by which a UCAC4 query reaches past the ends of the Johnson V range it serves.
+"""Magnitudes by which a UCAC4 query reaches past the ends of the range it serves.
 
 UCAC4 cuts a query on its aperture magnitude, and a star's Johnson V can be brighter or
 fainter than that.  A UCAC4 query is widened by this margin at both ends of the range, and
-the stars are then kept by their Johnson V, so a star whose Johnson V is inside the range is
+the stars are then kept by their magnitude, so a star whose Johnson V is inside the range is
 not lost because its aperture magnitude is just outside it.
 """
+
+# Of the star records the star-limit measurement made on the star-field frames (#1257),
+# 99.9% of those with a measured color have B - V from -0.18 to 3.15 in the LORRI fields,
+# which lie near the galactic center where reddening is strong, and below 2.0 and 2.8 in
+# the Galileo and Voyager fields.
+STAR_QUERY_MAX_B_MINUS_V: float = 3.5
+"""The largest ``|B - V|`` a catalog query allows for in a camera's color term.
+
+A catalog cuts a query on the magnitude it lists, and a star's camera magnitude differs
+from its Johnson V by the color term times its ``B - V``.  A query is widened by the
+color term's size times this at both ends, and the stars are then kept by their camera
+magnitude.
+"""
+
+
+def catalog_query_margin(catalog_name: str, color_term: float) -> float:
+    """Return how far a catalog query reaches past the ends of the camera magnitudes it serves.
+
+    Parameters:
+        catalog_name: One of ``'ucac4'``, ``'tycho2'``, ``'ybsc'``.
+        color_term: The camera's color term.
+
+    Returns:
+        :data:`STAR_QUERY_MAX_B_MINUS_V` times the size of the color term, plus
+        :data:`UCAC4_QUERY_MARGIN_MAG` for UCAC4, which lists an aperture magnitude rather
+        than Johnson V.
+    """
+    margin = abs(color_term) * STAR_QUERY_MAX_B_MINUS_V
+    if catalog_name == 'ucac4':
+        margin += UCAC4_QUERY_MARGIN_MAG
+    return margin
 
 
 def ucac4_johnson_photometry(star: UCAC4Star) -> tuple[float, float | None]:
@@ -382,13 +418,13 @@ def _find_stars_in_one_catalog(
             ``stars.default_star_class`` and stellar-aberration toggle).
         catalog_name: One of ``'ucac4'``, ``'tycho2'``, ``'ybsc'``.
         ra_min, ra_max, dec_min, dec_max: Search box in radians.
-        mag_min, mag_max: Johnson V bounds, inclusive.  A UCAC4 star is kept by the
-            Johnson V of :func:`ucac4_johnson_photometry`, not by its aperture
-            magnitude.
+        mag_min, mag_max: Camera magnitude bounds, inclusive (see
+            :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`).  A UCAC4
+            star's camera magnitude starts from the Johnson V of
+            :func:`ucac4_johnson_photometry`, not from its aperture magnitude.
         catalog_mag_min, catalog_mag_max: Bounds, inclusive, on the magnitude the
-            catalog lists, which the catalog query cuts on.  For Tycho-2 and YBSC they
-            must equal ``mag_min`` and ``mag_max``; for UCAC4 they bound the aperture
-            magnitude.
+            catalog lists, which the catalog query cuts on: Johnson V for Tycho-2 and
+            YBSC, the aperture magnitude for UCAC4.
         radec_movement: Optional ``(dra, ddec)`` vector representing half
             the per-exposure pointing motion in radians; passed through
             to the FOV projection so smear-affected stars near the edge
@@ -414,8 +450,7 @@ def _find_stars_in_one_catalog(
                 continue
             star = cast('MutableStar', record)
             _set_ucac4_johnson_photometry(star, cast(UCAC4Star, record))
-            if mag_min <= cast(float, star.vmag) <= mag_max:
-                raw.append(star)
+            raw.append(star)
     elif catalog_name == 'tycho2':
         raw = cast(
             list['MutableStar'],
@@ -426,8 +461,8 @@ def _find_stars_in_one_catalog(
                     ra_max=ra_max,
                     dec_min=dec_min,
                     dec_max=dec_max,
-                    vmag_min=mag_min,
-                    vmag_max=mag_max,
+                    vmag_min=catalog_mag_min,
+                    vmag_max=catalog_mag_max,
                 )
             ),
         )
@@ -445,8 +480,8 @@ def _find_stars_in_one_catalog(
                     ra_max=ra_max,
                     dec_min=dec_min,
                     dec_max=dec_max,
-                    vmag_min=mag_min,
-                    vmag_max=mag_max,
+                    vmag_min=catalog_mag_min,
+                    vmag_max=catalog_mag_max,
                 )
             ),
         )
@@ -467,10 +502,25 @@ def _find_stars_in_one_catalog(
     typed_raw: list[MutableStar] = [copy.deepcopy(s) for s in raw]
     stars_config = config.stars
     default_star_class = stars_config.default_star_class
+    color_term = obs.star_color_term()
 
     fixed: list[MutableStar] = []
     for star in typed_raw:
         if star.ra is None or star.dec is None or star.vmag is None:
+            continue
+        star.temperature_faked = False
+        star.johnson_mag_faked = False
+        if star.temperature is None:
+            star.temperature_faked = True
+            star.temperature = SCLASS_TO_SURFACE_TEMP[default_star_class]
+            star.spectral_class = default_star_class
+        if star.johnson_mag_v is None or star.johnson_mag_b is None:
+            star.johnson_mag_v = star.vmag
+            star.johnson_mag_b = star.vmag + SCLASS_TO_B_MINUS_V[clean_sclass(star.spectral_class)]
+            star.johnson_mag_faked = True
+        # The star is kept by its magnitude in the camera's band, which needs its color.
+        camera_mag = star_camera_mag(star, color_term)
+        if not mag_min <= camera_mag <= mag_max:
             continue
         star.catalog_name = catalog_name
         star.pretty_name = str(star.unique_number)
@@ -483,25 +533,16 @@ def _find_stars_in_one_catalog(
         elif name.strip():
             star.pretty_name = ' '.join(name.split())
         star.conflicts = ''
-        star.temperature_faked = False
-        star.johnson_mag_faked = False
         star.photometry_corrected = False
         star.photometry_saturated = False
         # The catalog's records are starcat stars, whatever protocol they are handled by.
         star.psf_size = obs.star_psf_size(cast(Star, star))
-        if star.temperature is None:
-            star.temperature_faked = True
-            star.temperature = SCLASS_TO_SURFACE_TEMP[default_star_class]
-            star.spectral_class = default_star_class
-        if star.johnson_mag_v is None or star.johnson_mag_b is None:
-            star.johnson_mag_v = star.vmag
-            star.johnson_mag_b = star.vmag + SCLASS_TO_B_MINUS_V[clean_sclass(star.spectral_class)]
-            star.johnson_mag_faked = True
         if stars_config.stellar_aberration:
             aberrate_star(obs, star)
-        # Standard flux-to-DN scaling.  The 4.0 anchor is conventional; the
-        # downstream SNR formula consumes ``star.dn`` as a relative DN value.
-        star.dn = float(2.512 ** -(star.vmag - 4.0))
+        # Standard flux-to-DN scaling of the camera magnitude.  The 4.0 anchor is
+        # conventional; the downstream SNR formula consumes ``star.dn`` as a relative
+        # DN value.
+        star.dn = float(2.512 ** -(camera_mag - 4.0))
         fixed.append(star)
 
     return _project_stars_to_fov(
@@ -638,7 +679,7 @@ def stars_in_extfov(
     catalog_name: str,
     mag_min: float,
     mag_max: float,
-    ucac4_aperture_window: tuple[float, float] | None = None,
+    catalog_window: tuple[float, float] | None = None,
     radec_movement: tuple[float, float] | None = None,
 ) -> list[MutableStar]:
     """Return all stars from one catalog that lie inside the extfov.
@@ -651,25 +692,24 @@ def stars_in_extfov(
         obs: Observation snapshot.
         config: Project config.
         catalog_name: One of ``'ucac4'``, ``'tycho2'``, ``'ybsc'``.
-        mag_min, mag_max: Johnson V window, inclusive (for UCAC4, the Johnson V of
-            :func:`ucac4_johnson_photometry`).
-        ucac4_aperture_window: For UCAC4, the ``(min, max)`` aperture magnitudes,
-            inclusive, to query; the stars it returns are then kept by their Johnson V.
-            By default it is the Johnson V window widened by
-            :data:`UCAC4_QUERY_MARGIN_MAG` at both ends.  Ignored for Tycho-2 and YBSC,
-            which are queried on the Johnson V window.
+        mag_min, mag_max: Camera magnitude window, inclusive (see
+            :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`; for
+            UCAC4 it starts from the Johnson V of :func:`ucac4_johnson_photometry`).
+        catalog_window: The ``(min, max)`` magnitudes, inclusive, that the catalog lists
+            to query (the aperture magnitude for UCAC4, Johnson V for Tycho-2 and
+            YBSC); the stars it returns are then kept by their camera magnitude.  By
+            default it is the camera magnitude window widened at both ends by
+            :func:`catalog_query_margin`.
         radec_movement: Optional half-exposure ``(dra, ddec)`` shift.
 
     Returns:
         Stars that fit inside the extfov with PSF support included.
     """
     ra_min, ra_max, dec_min, dec_max = obs.ra_dec_limits_ext()
-    catalog_mag_min, catalog_mag_max = mag_min, mag_max
-    if catalog_name == 'ucac4':
-        catalog_mag_min, catalog_mag_max = ucac4_aperture_window or (
-            mag_min - UCAC4_QUERY_MARGIN_MAG,
-            mag_max + UCAC4_QUERY_MARGIN_MAG,
-        )
+    if catalog_window is None:
+        margin = catalog_query_margin(catalog_name, obs.star_color_term())
+        catalog_window = (mag_min - margin, mag_max + margin)
+    catalog_mag_min, catalog_mag_max = catalog_window
     return _find_stars_in_one_catalog(
         obs=obs,
         config=config,
@@ -698,10 +738,12 @@ def reduce_catalogs(
     ``config.stars.catalogs``.
     Within each catalog the search proceeds bin-by-bin against
     ``CATALOG_MAGNITUDE_BINS`` until the configured ``max_stars`` budget
-    is hit.  UCAC4's bins are on its aperture magnitude, so each star is
-    pulled by exactly one bin, and every star it pulls is kept whose
-    Johnson V lies within the observation's usable range; the first and last
-    bins reach :data:`UCAC4_QUERY_MARGIN_MAG` past that range.  Across
+    is hit.  The bins split the magnitude the catalog lists (UCAC4's
+    aperture magnitude, Johnson V for the others), and every star a bin
+    pulls is kept whose camera magnitude (see
+    :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`) lies
+    within the observation's usable range; the first and last bins reach
+    :func:`catalog_query_margin` past that range.  Across
     catalogs, stars whose RA/DEC and magnitude match a star already kept
     from an earlier (more precise) catalog are dropped; the kept entry
     inherits any nicer ``name`` field the later catalog supplies.
@@ -720,6 +762,7 @@ def reduce_catalogs(
     max_stars = stars_config.max_stars
     mag_min_cap = obs.star_min_usable_vmag()
     mag_max_cap = obs.star_max_usable_vmag()
+    color_term = obs.star_color_term()
 
     duplicate_radec = float(np.radians(stars_config.duplicate_ra_dec_threshold_arcsec / 3600.0))
     duplicate_vmag = stars_config.duplicate_vmag_threshold
@@ -730,50 +773,37 @@ def reduce_catalogs(
 
     for catalog_name in stars_config.catalogs:
         next_per_catalog: list[MutableStar] = []
+        margin = catalog_query_margin(catalog_name, color_term)
         first_bin = True
         for mag_min, mag_max in itertools.pairwise(CATALOG_MAGNITUDE_BINS):
             if mag_min > mag_max_cap:
                 break
             if mag_max < mag_min_cap:
                 continue
-            mag_min_clamped = max(mag_min, mag_min_cap)
-            mag_max_clamped = min(mag_max, mag_max_cap)
             last_bin = mag_max >= mag_max_cap or mag_max == CATALOG_MAGNITUDE_BINS[-1]
-            if catalog_name == 'ucac4':
-                # A star's Johnson V can sit in a different bin from its aperture
-                # magnitude, so the bins split the aperture magnitude and every
-                # star is kept by its V over the whole usable range.  Only the
-                # outermost bins reach past that range.  UCAC4 lists whole
-                # millimagnitudes and its query is inclusive, so an interior bin
-                # stops half a millimagnitude short of its upper edge and a star on
-                # the edge belongs to the next bin alone.
-                low = mag_min_cap - UCAC4_QUERY_MARGIN_MAG if first_bin else mag_min_clamped
-                high = (
-                    mag_max_cap + UCAC4_QUERY_MARGIN_MAG
-                    if last_bin
-                    else mag_max_clamped - UCAC4_HALF_MILLIMAG
-                )
-                chunk = stars_in_extfov(
-                    obs,
-                    config,
-                    catalog_name=catalog_name,
-                    mag_min=mag_min_cap,
-                    mag_max=mag_max_cap,
-                    ucac4_aperture_window=(low, high),
-                    radec_movement=radec_movement,
-                )
-            else:
-                chunk = stars_in_extfov(
-                    obs,
-                    config,
-                    catalog_name=catalog_name,
-                    mag_min=mag_min_clamped,
-                    mag_max=mag_max_clamped,
-                    radec_movement=radec_movement,
-                )
+            # A star's camera magnitude can sit in a different bin from the
+            # magnitude its catalog lists, so the bins split the catalog's
+            # magnitude and every star is kept by its camera magnitude over the
+            # whole usable range.  Only the outermost bins reach past that range.
+            # UCAC4 lists whole millimagnitudes and its query is inclusive, so an
+            # interior bin stops half a millimagnitude short of its upper edge and
+            # a star on the edge belongs to the next bin alone.
+            low = mag_min_cap - margin if first_bin else mag_min
+            high = mag_max_cap + margin if last_bin else mag_max
+            if catalog_name == 'ucac4' and not last_bin:
+                high -= UCAC4_HALF_MILLIMAG
+            chunk = stars_in_extfov(
+                obs,
+                config,
+                catalog_name=catalog_name,
+                mag_min=mag_min_cap,
+                mag_max=mag_max_cap,
+                catalog_window=(low, high),
+                radec_movement=radec_movement,
+            )
             next_per_catalog.extend(chunk)
             first_bin = False
-            if len(next_per_catalog) >= max_stars or (catalog_name == 'ucac4' and last_bin):
+            if len(next_per_catalog) >= max_stars or last_bin:
                 break
 
         if catalog_name in _PHOTOMETRY_REFERENCE_CATALOGS:
@@ -808,10 +838,11 @@ def reduce_catalogs(
             match_radius_rad=duplicate_radec,
             duplicate_vmag=duplicate_vmag,
             catalog_order=stars_config.catalogs,
+            color_term=color_term,
             saturation_limit=UCAC4_SATURATION_VMAG_LIMIT,
         )
 
-    _mark_visual_overlaps(kept, overlap_vmag=overlap_vmag)
+    _mark_visual_overlaps(kept, overlap_vmag=overlap_vmag, color_term=color_term)
 
     kept.sort(key=lambda s: s.dn, reverse=True)
     return kept[:max_stars]
@@ -874,12 +905,15 @@ def _merge_catalogs(
     return earlier + additions
 
 
-def _mark_visual_overlaps(stars: list[MutableStar], *, overlap_vmag: float) -> None:
+def _mark_visual_overlaps(
+    stars: list[MutableStar], *, overlap_vmag: float, color_term: float
+) -> None:
     """Mark stars whose PSF supports overlap.
 
-    Two-star overlap policy:
+    Two-star overlap policy, on the stars' camera magnitudes (see
+    :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`):
 
-    * If both stars have similar magnitudes (``|delta_vmag| <
+    * If both stars have similar magnitudes (``|delta_mag| <
       overlap_vmag``), tag both with conflict ``'STAR'``: each one
       blinds the centroid fit for the other.
     * Otherwise, tag only the fainter one — the brighter star's PSF
@@ -887,7 +921,8 @@ def _mark_visual_overlaps(stars: list[MutableStar], *, overlap_vmag: float) -> N
 
     Parameters:
         stars: All catalog stars after reduction.
-        overlap_vmag: V-mag delta below which both stars are tagged.
+        overlap_vmag: Magnitude delta below which both stars are tagged.
+        color_term: The camera's color term.
     """
     n = len(stars)
     if n < 2:
@@ -907,7 +942,7 @@ def _mark_visual_overlaps(stars: list[MutableStar], *, overlap_vmag: float) -> N
                 # for this pair, every later sj only moves further away.
                 break
             if abs(dv) < v_gap and abs(si.u - sj.u) < u_gap:
-                if cast(float, sj.vmag) - cast(float, si.vmag) < overlap_vmag:
+                if star_camera_mag(sj, color_term) - star_camera_mag(si, color_term) < overlap_vmag:
                     si.conflicts = 'STAR'
                     sj.conflicts = 'STAR'
                 else:

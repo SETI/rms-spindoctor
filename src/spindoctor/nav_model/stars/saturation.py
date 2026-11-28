@@ -75,7 +75,7 @@ from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
-from spindoctor.nav_model.stars.predicted_snr import SCLASS_TO_B_MINUS_V
+from spindoctor.nav_model.stars.predicted_snr import SCLASS_TO_B_MINUS_V, star_camera_mag
 from spindoctor.support.flux import clean_sclass
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
@@ -377,6 +377,7 @@ def correct_star_photometry(
     match_radius_rad: float,
     duplicate_vmag: float,
     catalog_order: Sequence[str],
+    color_term: float,
     saturation_limit: float = UCAC4_SATURATION_VMAG_LIMIT,
 ) -> list[MutableStar]:
     """Correct UCAC4 bright-end saturation against a YBSC/Tycho-2 reference.
@@ -422,6 +423,9 @@ def correct_star_photometry(
             records the same star once photometry is corrected.
         catalog_order: Catalog names in precedence order (most precise
             first); decides which record of a revealed duplicate survives.
+        color_term: The camera's color term, from which a corrected record's ``dn``
+            follows its camera magnitude (see
+            :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`).
         saturation_limit: Catalog magnitude (``catalog_vmag``) brighter than
             which a candidate record is a saturation-correction candidate.
 
@@ -456,7 +460,7 @@ def correct_star_photometry(
             continue
         consumed[idx] = True
         gap = abs(float(catalog_vmag) - float(ref_vmag[idx]))
-        _apply_reference_photometry(star, ref_stars[idx])
+        _apply_reference_photometry(star, ref_stars[idx], color_term=color_term)
         corrected.append((star, _widened_radius(gap, match_radius_rad)))
     if not corrected:
         return stars
@@ -541,7 +545,7 @@ def _drop_revealed_duplicates(
     return [s for s in stars if id(s) not in removed]
 
 
-def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
+def _apply_reference_photometry(star: MutableStar, ref: MutableStar, *, color_term: float) -> None:
     """Overwrite a star's photometry with a reference star's values.
 
     A YBSC reference supplies a self-consistent Johnson V/B pair, which is
@@ -550,11 +554,13 @@ def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
     catalog reduction measured one (``johnson_mag_faked`` False); otherwise the
     color is faked from the star's own spectral class, matching the catalog
     reduction's color-faking, and ``johnson_mag_faked`` is set so downstream
-    code knows the color is synthetic.
+    code knows the color is synthetic.  The star's ``dn`` follows its new camera
+    magnitude.
 
     Parameters:
         star: Record to correct in place.
         ref: Reference star supplying the trusted photometry.
+        color_term: The camera's color term.
     """
     ref_vmag = cast(float, ref.vmag)
     star.vmag = ref_vmag
@@ -580,8 +586,9 @@ def _apply_reference_photometry(star: MutableStar, ref: MutableStar) -> None:
         star.johnson_mag_v = ref_vmag
         star.johnson_mag_b = ref_vmag + b_minus_v
         star.b_v = b_minus_v
-    # Standard flux-to-DN scaling, matching the catalog reduction's anchor.
-    star.dn = float(2.512 ** -(ref_vmag - 4.0))
+    # Standard flux-to-DN scaling of the camera magnitude, matching the catalog
+    # reduction's anchor.
+    star.dn = float(2.512 ** -(star_camera_mag(star, color_term) - 4.0))
     star.photometry_corrected = True
     star.photometry_saturated = False
 

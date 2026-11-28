@@ -191,6 +191,11 @@ def test_the_star_width_is_each_cameras_own(
     assert obs.star_psf_sigma() == pytest.approx(expected, abs=1e-12)
 
 
+def test_a_block_without_a_color_term_sees_v() -> None:
+    """A camera block that leaves out ``color_term`` has a color term of zero."""
+    assert _star_obs(spacecraft='2', detector='NAC').star_color_term() == 0.0
+
+
 @REQUIRES_EXTERNAL_DATA
 def test_voyager_iss_reports_spacecraft_digit() -> None:
     """The spacecraft digit is read from the image label."""
