@@ -9,8 +9,8 @@ scene_tags:
   - high_phase_terminator
 
 ground_truth:
-  offset_dv_px: 5.1857
-  offset_du_px: 1.3026
+  offset_dv_px: 8.172
+  offset_du_px: 1.475
   offset_uncertainty_px: 1.0
   source: operator_verified
   operator: rfrench
@@ -21,9 +21,16 @@ ground_truth:
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). BodyTerminatorNav emits no result on this frame, so with only BodyLimbNav voting it resolves to a clean low-tier success on the operator offset.
 
+    Re-pinned 2026-11-28 (issue #1302): the ground truth moves from the limb's (5.1857, 1.3026) to the stars' (8.172, 1.475), 3.0 px away in v.
+    Issue #867 found the same disagreement while validating the held ring and star changes.
+    The frame does hold stars: the four brightest predicted catalog stars (UCAC4 145540755, 145781906, 145653403, and 145778110, V 9.82 to 11.91) are 26-, 10-, 5-, and 5-sigma sources at the new offset, and all four sit 3 px from where the old offset puts them.
+    The new offset is their SNR-weighted mean, centroided independently of the star techniques; three more catalog stars to V 13.7 agree within 0.7 px.
+    The limb fit (BodyLimbNav, 5.60, 1.08) lies 2.6 px from the stars at this 110 degree phase.
+    The expectation follows: medium tier, primary StarRefineNav.
+
 expected:
   status: success
-  confidence_tier: low
-  primary_technique: BodyLimbNav
+  confidence_tier: medium
+  primary_technique: StarRefineNav
   techniques_must_run: [BodyLimbNav]
   techniques_must_skip: []
