@@ -271,11 +271,15 @@ class _InstConfigOnly:
         self.inst_config = inst_config
 
 
-def test_raised_missing_limit_from_the_scene_is_honored() -> None:
-    """A scene's max_missing_frac_clean override moves the summary's limit with the navigator's."""
+def test_lowered_read_line_limit_from_the_scene_is_honored() -> None:
+    """A scene's min_read_line_frac override moves the summary's limit with the navigator's.
+
+    The lost lines are whole unread lines, so the read-out limit, and not
+    max_missing_frac_clean, is what lets the frame through.
+    """
     params = {
         **_NAVIGATED_SCENES['vgiss-disc-lost-lines'],
-        'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.70}},
+        'instrument_config': {'image_quality_thresholds': {'min_read_line_frac': 0.30}},
     }
     img, _ = render_scene(params)
     inst_config = scene_camera_block(DEFAULT_CONFIG, params)
