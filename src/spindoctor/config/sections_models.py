@@ -1,6 +1,6 @@
 """The typed configuration sections the navigation models read.
 
-Five top-level sections of the navigator configuration are parsed here:
+Six top-level sections of the navigator configuration are parsed here:
 
 - ``bodies`` (:class:`BodiesSection`): how a body is rendered, when it emits a blob,
   and how its label is placed.
@@ -9,6 +9,13 @@ Five top-level sections of the navigator configuration are parsed here:
 - ``titan`` (:class:`TitanSection`): the haze envelope of a body whose atmosphere hides
   its surface, the reliability its feature reports, and the haze fit's tunables.
 - ``satellites``: each planet's satellites, keyed by the planet's SPICE name.
+- ``body_shape`` (:class:`BodyShapeEntry`): the body-shape table, one entry per body,
+  keyed by the body's SPICE name in upper case.  Its values are static data taken from
+  published shape fits, and each one carries a citation in the entry's ``_sources``
+  mapping, which the loader drops before the section is parsed.  Every key of an entry
+  is optional; a key left out is read as None, and
+  :func:`~spindoctor.nav_model.body_shape.load_body_shape` takes that value from the
+  next tier, the body's built-in profile or the generic profile.
 - ``feature_emission`` (:class:`FeatureEmissionSection`): when the ring model emits one
   annulus in place of the edges it would trace.
 
@@ -42,10 +49,12 @@ from spindoctor.schema import (
 
 __all__ = [
     'BodiesSection',
+    'BodyShapeEntry',
     'FeatureEmissionSection',
     'RingAnnulusEmission',
     'RingAnnulusEmissionOverride',
     'RingAnnulusEmissionTable',
+    'ShapeClass',
     'StarsSection',
     'TitanAnnotation',
     'TitanNavigation',
@@ -60,6 +69,40 @@ Rgb = tuple[Channel, Channel, Channel]
 AnnulusKm = tuple[NonNeg, NonNeg]
 #: A star catalog the star model can read.
 StarCatalog = Literal['ucac4', 'tycho2', 'ybsc']
+
+
+#: A body's coarse shape class, from a regular ellipsoid to a highly irregular body.
+ShapeClass = Literal['regular', 'irregular', 'highly_irregular', 'unknown']
+
+
+@dataclass(frozen=True)
+class BodyShapeEntry:
+    """One body's entry in the body-shape table; a key left out uses the next tier.
+
+    Parameters:
+        radii_km: The body's triaxial ellipsoid, ``[a, b, c]`` in km.  The navigator
+            takes its radii from SPICE; the calibration tooling reads these.
+        ellipsoid_rms_residual_km: The RMS deviation, in km, of the body's limb from the
+            best-fit ellipsoid.
+        crater_scale_km: The characteristic limb relief, in km, from craters and
+            topography beyond the ellipsoid.
+        albedo_variation: The fractional brightness variation across the disc.
+        spice_orbital_residual_km: The SPK ephemeris uncertainty, in km, projected to the
+            limb plane.
+        min_blob_diameter_px: The predicted disc diameter, in pixels, below which a blob
+            is preferred over an unresolved limb.
+        shape_class_hint: The body's coarse shape class.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    radii_km: tuple[Positive, Positive, Positive] | None = None
+    ellipsoid_rms_residual_km: NonNeg | None = None
+    crater_scale_km: NonNeg | None = None
+    albedo_variation: Unit | None = None
+    spice_orbital_residual_km: NonNeg | None = None
+    min_blob_diameter_px: Positive | None = None
+    shape_class_hint: ShapeClass | None = None
 
 
 def _check_annulus(annulus: AnnulusKm, *, at: tuple[str | int, ...]) -> None:

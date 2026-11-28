@@ -1761,7 +1761,9 @@ asserts the generated half matches the registries.
     in-memory override over the packaged files, the test sites that wrote
     an override file moved onto it, and the six section helpers at the
     `tests/` root merged into `tests/packaged_sections.py` with one cached
-    loader, #1267's test-helper part)
+    loader, #1267's test-helper part; #1267's source part merged `dt_tuning.py`,
+    `correlation_tuning.py`, and `star_tuning.py` into `technique_tuning.py`, and
+    `sections_body_shape.py` into `sections_models.py`)
 
 ## Track E — Test and documentation debt
 

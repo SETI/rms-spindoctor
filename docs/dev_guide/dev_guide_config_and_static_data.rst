@@ -176,7 +176,7 @@ unknown key, with the file that set it. The matching
   or an environment variable wins. Each reader applies its own order, and the helpers in
   :mod:`spindoctor.config.config_helper` define the usual one.
 - ``body_shape`` — the body-shape table: one
-  :class:`~spindoctor.config.sections_body_shape.BodyShapeEntry` per body, keyed by the
+  :class:`~spindoctor.config.sections_models.BodyShapeEntry` per body, keyed by the
   body's SPICE name. Every key of an entry is optional, and a key that the entry leaves
   out takes its value from the next tier (see :ref:`static-data-citations`).
 - ``logging`` — :class:`~spindoctor.config.logging_keys.LoggingSection`, holding the
@@ -352,14 +352,14 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
   type:
 
   - The DT techniques' types share
-    :class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which in turn holds the keys
+    :class:`~spindoctor.nav_technique.technique_tuning.DTTuning`, which in turn holds the keys
     of the shared fit-quality gates
     (:class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`).
-  - :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning` holds the
+  - :class:`~spindoctor.nav_technique.technique_tuning.NCCCovarianceTuning` holds the
     model-error terms of a correlation technique's covariance. The ring-annulus
     technique's tuning is that type, and the body-disc technique's type extends it.
   - The star techniques' types share
-    :class:`~spindoctor.nav_technique.star_tuning.StarTuning`, which holds the keys of
+    :class:`~spindoctor.nav_technique.technique_tuning.StarTuning`, which holds the keys of
     the detection kernel, the centroid box, the detection threshold, and the at-edge
     tests.
 
@@ -630,7 +630,7 @@ carries an optional sibling ``_sources`` mapping. The loader drops it (see
 :ref:`config-merge`), so the citation lives in the file for human review only.
 
 The loader then parses the entry into a
-:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry`, whose fields give each
+:class:`~spindoctor.config.sections_models.BodyShapeEntry`, whose fields give each
 key's type and range. Every key is optional. A key that the entry leaves out is read as
 None, and :func:`~spindoctor.nav_model.body_shape.load_body_shape` takes that value from
 the body's built-in profile. The loader refuses a key that the type does not declare,
@@ -691,7 +691,7 @@ have no standard published per-body scalar; entries carry
 ``'ESTIMATE — <physical basis>'`` sources and feed sigma/reliability
 terms only.  ``albedo_mean`` is left out of every entry because it has no
 runtime consumer, and each entry's ``_sources`` says so.
-:class:`~spindoctor.config.sections_body_shape.BodyShapeEntry` does not declare it
+:class:`~spindoctor.config.sections_models.BodyShapeEntry` does not declare it
 either, so the loader refuses a value written for it.  A developer adding a consumer
 should add the key to the type and populate it with cited values at that point,
 following the procedure below.

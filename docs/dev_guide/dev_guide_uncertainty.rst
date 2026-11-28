@@ -177,7 +177,7 @@ reported sigma. Three shared corrections restore calibration:
 
 **Size-scaled NCC terms.**
     The correlation techniques additionally carry
-    :class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning`:
+    :class:`~spindoctor.nav_technique.technique_tuning.NCCCovarianceTuning`:
     a size-proportional silhouette-error term (``model_error_size_frac``
     times the template extent -- a coherent shape mismatch displaces the
     peak by a roughly fixed fraction of the extent) and a

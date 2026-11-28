@@ -62,8 +62,3 @@ spindoctor.config
    :members:
    :undoc-members:
    :show-inheritance:
-
-.. automodule:: spindoctor.config.sections_body_shape
-   :members:
-   :undoc-members:
-   :show-inheritance:

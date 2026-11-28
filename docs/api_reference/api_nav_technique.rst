@@ -41,7 +41,7 @@ spindoctor.nav_technique
    :undoc-members:
    :show-inheritance:
 
-.. automodule:: spindoctor.nav_technique.dt_tuning
+.. automodule:: spindoctor.nav_technique.technique_tuning
    :members:
    :undoc-members:
    :show-inheritance:
@@ -52,11 +52,6 @@ spindoctor.nav_technique
    :show-inheritance:
 
 .. automodule:: spindoctor.nav_technique.nav_technique_body_terminator
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.nav_technique.correlation_tuning
    :members:
    :undoc-members:
    :show-inheritance:
@@ -77,11 +72,6 @@ spindoctor.nav_technique
    :show-inheritance:
 
 .. automodule:: spindoctor.nav_technique.nav_technique_ring_annulus
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-.. automodule:: spindoctor.nav_technique.star_tuning
    :members:
    :undoc-members:
    :show-inheritance:

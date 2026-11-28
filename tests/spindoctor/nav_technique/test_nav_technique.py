@@ -15,8 +15,8 @@ from spindoctor.nav_technique.nav_technique import (
     add_size_scaled_model_error,
     filter_technique_names,
 )
-from spindoctor.nav_technique.star_tuning import StarTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import StarTuning
 
 
 class _ConcreteTechniqueForTest(NavTechnique):
