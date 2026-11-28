@@ -202,8 +202,8 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``74f1d170`` on
-2026-11-26.
+code that made it.  The current record was made at commit ``fc241ae7`` on
+2026-11-27.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -211,7 +211,7 @@ the navigator's own outputs, and tuning the image side until the
 navigator's diagnostics agree would re-admit circularity through parameter
 fitting.
 
-Cohort support (2026-11-26 record, 75 frames).  A label counts the frames that
+Cohort support (2026-11-27 record, 75 frames).  A label counts the frames that
 contribute to the figure of merit on each side, real and simulated, and the
 smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 *supported* for 8 or more.
@@ -367,7 +367,7 @@ rendered frames match the real Cassini cohort on FOMs 1-6.  The instrument
 entries under ``sim/instruments/configs/`` state each tuned value, with its
 tuning date and cohort statistics in the comment beside it.  This table records
 the headline divergences before that pass and in the current record
-(2026-11-26; normalized W1; smaller is better, ~1 means displaced by one
+(2026-11-27; normalized W1; smaller is better, ~1 means displaced by one
 real IQR):
 
 .. list-table::
@@ -411,10 +411,10 @@ real IQR):
      - 25
      - 9
    * - limb rise width, co-populated strata (FOM 3)
-     - 2.54 px
+     - 2.62 px
      - -- [#copop]_
-     - 0.54
-     - 3742
+     - 0.60
+     - 3256
      - 3138
    * - ring-edge rise width (FOM 4)
      - 3.36 px
@@ -478,7 +478,7 @@ real IQR):
    like-for-like "before" number cannot be reconstructed for the
    pre-tuning model, so the cell is blank.
 
-The FOM 3 strata behind the pooled number (2026-11-26; p = phase bin
+The FOM 3 strata behind the pooled number (2026-11-27; p = phase bin
 < 60 / 60-120 / > 120 deg, r = diameter bin < 100 / 100-400 / > 400 px):
 
 .. list-table::
@@ -510,16 +510,16 @@ The FOM 3 strata behind the pooled number (2026-11-26; p = phase bin
      - 733
      - 782
    * - p1 r0
-     - 0.61
-     - 2.18
+     - 0.32
+     - 2.17
      - 2.15
-     - 435
+     - 235
      - 246
    * - p1 r1
-     - 0.58
-     - 2.24
+     - 0.60
+     - 2.29
      - 2.16
-     - 909
+     - 623
      - 770
    * - p1 r2
      - 0.75
@@ -580,18 +580,18 @@ of the body its matched frame renders, and only when both frames measured it:
      - 4
      - yes
    * - p1 r0
-     - +0.02
+     - +0.01
      - -0.10
      - --
      - 2
      - 2
      - --
    * - p1 r1
-     - +0.03
-     - -0.05
-     - 0.11
-     - 4
-     - 4
+     - -0.03
+     - -0.04
+     - 0.10
+     - 3
+     - 3
      - yes
    * - p1 r2
      - -0.29
@@ -620,9 +620,19 @@ I/F, and is shaded with the lunar-Lambert law.  Each real limb is measured again
 a silhouette whose radii, for the mid-sized Saturnian moons, are the IAU values; the
 Cassini kernels give older radii, which put four of the five real Tethys limbs
 inside their matched limbs by 0.24% to 0.35% of the radius.  Both bins with a verdict
-lie within their bands.  In p1 r1 the real median lies 0.08 px outside the matched
+lie within their bands.  In p1 r1 the real median lies 0.01 px outside the matched
 one, and one real limb, of Dione through a methane-band filter, lies 0.06 px inside
-its silhouette for no reason yet found.  Three real NAC discs are
+its silhouette for no reason yet found.  A real limb vertex counts only when nothing but
+its body and the sky lies along its track: another moon in front or behind, the planet,
+and the planet's rings and shadow over the body are kept out, and so are the rise
+widths whose profiles reach them.  The widths come only from the body the matched frame
+renders.  The matched limb is measured over the same stretch of limb as the real one.
+A real limb whose remaining arc is too short to tell a radial offset from a shift of the
+whole limb is left out with its reason.  This rule took out one of the four limbs p1 r1
+held, a Dione limb in front of Rhea: with the vertices in front of Rhea dropped, 43
+vertices on a 90 degree arc remain, whose fit gave +0.89 px.  It also took 486 of the
+3,742 real widths in the co-populated pool, among them Rhea's widths in that frame,
+which its matched frame does not render.  Three real NAC discs are
 clipped at the camera's full scale; they give no real limb and no albedo, and their
 matched bodies render white.  Prometheus and Pan have no limb in the real frames,
 because the navigator places none on their shapes, so their matched limbs are not
@@ -730,8 +740,8 @@ recurring at fixed detector positions on both sides; :ref:`the Cassini ISS
 chapter <coiss-calibrated-hot-pixels>` explains the difference.  The transient (cosmic-ray) share
 comes from the catalog's fitted cosmic-ray terms (see the measured-transients
 known gap).  Limb rise widths differ in the
-like-for-like pool (co-populated-strata medians 2.24 sim vs 2.54 px
-real, W1/IQR 0.54) with per-stratum divergences from 0.58 to 1.97.  The
+like-for-like pool (co-populated-strata medians 2.24 sim vs 2.62 px
+real, W1/IQR 0.60) with per-stratum divergences from 0.32 to 1.98.  The
 simulated limb measures narrower than the real one in every stratum: at low
 phase 2.32-2.34 px against 2.75-3.09 px, and above 60 degrees phase 1.37-2.18 px
 against 1.71-2.58 px.  The matched bodies shade with the lunar-Lambert law, which
@@ -887,7 +897,7 @@ pixels cover 9e-5 of the pixels (see :ref:`the Galileo SSI chapter
 transient fraction, 1.2e-4 of pixels, meets 1.6e-4 from the catalog's fitted
 cosmic-ray terms (spike-fraction W1/IQR 0.44; the measured-transients known
 gap).  In FOM 1 every frame pair contributes sky patches, and the matched
-frames have about a quarter of the real sky noise: 0.19 DN against 0.96 DN, over 353 simulated and 822
+frames have about a quarter of the real sky noise: 0.19 DN against 0.96 DN, over 355 simulated and 822
 real sky patches (W1/IQR 8.5).  The real frames also carry an extended
 background glow the matched sky frames do not model (see the known gaps).
 
@@ -903,12 +913,12 @@ star fields, and the matched frames render through the 4x4 readout mode,
 where the catalog's native kernel is rescaled to binned pixels.  Each
 matched frame holds its field's catalog stars, and the two sides give 16
 star cutouts each.  The simulated stars are narrower than the real ones
-at both radii (EE50 0.42 sim vs 0.59 px real, EE80 0.72 vs 1.23 px;
-normalized W1 1.3 and 2.4), and the wing falls further short: the real
+at both radii (EE50 0.39 sim vs 0.59 px real, EE80 0.67 vs 1.23 px;
+normalized W1 1.5 and 1.6), and the wing falls further short: the real
 profile carries far more energy between the two radii than the kernel's
 interim 1.2% wing allows, the signature the NAC kernel showed before its
 wing was tuned.  The frames' bright tail is short by the same mechanism
-(p99 - p50 stretch 4.0 vs 26.8 DN).  The 4x4 frames
+(p99 - p50 stretch 15 vs 26.8 DN).  The 4x4 frames
 test the native kernel only through the rescaling, and say its wing is too
 weak; they say nothing separate about a 1x1 frame.  The sky statistics are
 pedestal-invariant by construction (the sci products are bias-subtracted;
@@ -921,13 +931,16 @@ For a handful of matched pairs per instrument (at most three: one star
 field, one limb frame, one ring frame) the full navigator ran on both the
 real frame and its matched simulated frame; the per-technique diagnostics
 are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
-2026-11-26 pairs:
+2026-11-27 pairs:
 
 - Star-field pairs behave comparably where both sides lock:
   ``StarFieldFromCatalogNav`` reports 0.95 confidence on both sides of the
   WAC and LORRI star pairs, with the simulated inlier residuals tighter
-  than the real ones (0.02-0.14 px vs 0.06-0.32 px) -- the sim errs
-  optimistic on star sharpness.
+  than the real ones (0.02-0.11 px vs 0.06-0.30 px) -- the sim errs
+  optimistic on star sharpness.  The Voyager pair locks on both sides too, at
+  0.95 on 7 of 18 predicted stars real and 9 of 14 simulated, but there the
+  simulated inliers sit farther from their predictions (0.83 px against
+  0.39 px).
 - The Cassini ring pair separates on residual texture: ``RingEdgeNav``
   reports 0.71 on the real frame versus 0.94 on its matched render.
   The real frame's ring structure the renderer does not model leaves a
@@ -938,8 +951,8 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   the tighter.  On the NAC pair (0.77 real vs 0.79 sim) the DT RMS is 0.23
   px simulated against 0.34 px real; on the WAC pair (0.76 real vs 0.84
   sim) it is 0.27 against 0.62 px.
-- The NAC and Voyager star pairs lock weakly or not at all on the simulated
-  side.  The NAC
+- The NAC star pair locks weakly on the real side and not at all on the
+  simulated side.  The NAC
   frame, an H-alpha (HAL+CL2) exposure, predicts 4 catalog stars and locks
   at only 0.6, a wide-offset lock on 3 inliers (a known caveat of that
   cohort frame).  Its matched render holds the field's catalog stars, and
@@ -947,9 +960,7 @@ are recorded in the summary JSON (``fom7_rows``).  Headline reading of the
   navigator ranks 30 predicted stars on it, the most the star-field fit
   takes, because its star prediction ignores the filter and uses a
   placeholder star limit on a simulated calibrated frame.  The fit finds 2
-  inliers and doesn't lock.  The Voyager frame locks at 0.94 on 7 of 11
-  predicted stars, while its matched render predicts 5 and locks at only
-  0.6, a wide-offset lock on 3 inliers.
+  inliers and doesn't lock.
 
 These rows are the evidence a human reads to judge whether the techniques
 *behave* comparably on matched frames.  They were not consulted during

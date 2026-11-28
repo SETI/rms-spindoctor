@@ -5688,7 +5688,11 @@ instrument, on seven figures of merit:
    uncertainty and per-star catalog/distortion residuals, while sim-side
    centers are exact by construction, so misregistration inflates only
    the real widths and part of any tuned PSF wing may absorb
-   registration error rather than optics.  The same limbs also give the
+   registration error rather than optics.  The widths come only from the limb
+   of the body the matched frame renders, so that every real width has a
+   simulated width of the same body beside it, and a real width is left out
+   when its profile runs onto anything other than its body and the sky (see
+   :ref:`sim-realism-limb-peak`).  The same limbs also give the
    position of each limb's gradient peak relative to the body's silhouette,
    described under :ref:`sim-realism-limb-peak` below.  Every resolved moon of a
    calibrated frame also enters the photometric-law study, which compares how
@@ -6255,9 +6259,34 @@ by its component along that vertex's normal, so along an arc that turns through 
 wide angle the two separate.  An error in a real frame's verified offset or in the
 body's ephemeris moves the translation and leaves the radial offset alone, and so
 does the half pixel between the two coordinate conventions.  A real frame therefore
-doesn't have to be star-navigated to contribute.  A limb whose radial offset is
-known to worse than 0.2 px, which happens on a short arc of a body that runs off the
-frame, is left out.
+doesn't have to be star-navigated to contribute.
+
+**Other bodies near the limb.**  A real limb can pass in front of another moon, or
+have the planet, the planet's rings, or its shadow just beside it.  A vertex there
+measures that other light as well as the limb's.  So a real vertex is left out when
+any sample of its track, inside the silhouette or outside it, lands on another body's
+disc (whether that body lies in front or behind, lit or dark), on the planet's
+disc, on the planet's main rings in front of the body, or in the planet's shadow on
+it.  These are the same pixels the disc fits leave out (see
+:ref:`sim-realism-law-study`), from the same geometry, widened by the same 3 px for
+the blur, with every other body counted rather than only the nearer ones.  The rule
+applies to the gradient peak, whose track reaches 4 px to each side of the
+silhouette, and to the rise widths and profiles of figure of merit 3, whose track
+reaches 8 px to each side of the vertex.
+
+**Short arcs.**  Along a short arc a translation of the limb moves every vertex's
+peak almost as the radial offset does, so the fit cannot tell the two apart, and a
+small error that varies along the limb grows into a large error in the offset.  The
+fit gives the correlation between the offset and the translation, from 0 for a full
+circle to 0.90 for a half circle and 0.995 for a quarter circle, and a real limb whose
+correlation exceeds 0.97 is left out, with the reason in the record.  An evenly
+sampled arc reaches 0.97 at about 135 degrees.  The threshold comes from a frame in
+which Dione passes in front of Rhea.  Dione's whole limb reads 0.86, and 0.74 with
+the vertices in front of Rhea's lit crescent left out; Rhea's limb reads 0.91.  With
+every vertex whose track crosses Rhea left out, 43 vertices on a 90 degree arc remain.
+They read 0.988, and their offset, +0.89 px against +0.09 px for the whole limb, is
+known to 0.07 px, so the precision limit below does not catch it.  A limb whose radial
+offset is known to worse than 0.2 px is also left out.
 
 **Pairs of limbs.**  A matched frame renders one body, the largest body of its real
 frame, so each frame measures the limb of that body alone.  A pair of frames
@@ -6267,7 +6296,16 @@ highly irregular, such as Prometheus, or one whose shape lies too far from its
 ellipsoid, such as Pan.  The matched sphere always has a limb, so for such a body the
 matched frame's limbs are not measured at all, in the rise widths as in the peaks.
 Other bodies in a real frame are left out, since their matched frame doesn't hold
-them.
+them.  The matched frame's limb is measured over the same stretch of limb as the real
+one: each vertex's direction from the body's center is measured from the direction
+the light comes from, and a matched vertex counts only when a real vertex the real
+fit used lies within two vertex spacings of its direction.  The real frame's light
+direction is the one that best explains its disc's incidence angles.  The short-arc
+limit is applied to the real limb alone, because the navigator places a matched
+sphere's limb vertices one per image column or row, so they crowd toward the middle
+of the arc and read a higher correlation than the real limb's over the same
+directions.  Every limb that gives no offset, on either side, is listed in the
+record's ``limb_peak_refusals`` with its reason.
 
 **Clipped discs.**  A real disc that reaches the camera's full scale reads one flat
 level over its brightest part, so its limb rises to a plateau and its I/F is the
@@ -6297,11 +6335,13 @@ fails when a bin's matched median lies outside its band.  The check reads only t
 record, or the summary that ``SPINDOCTOR_TEST_REALISM_RECORD`` points to, and it skips on
 a record that predates the statistic.
 
-**What the real limbs show.**  On 2026-11-26 the Cassini NAC cohort gave 17 paired
-real limbs and the WAC cohort 1.  The real limbs of bodies under 400 px across lie
-close to the silhouette.  Over 12 limbs of Mimas, Tethys, Dione, and Rhea, between 15
-and 136 degrees phase, their median offset is -0.01 px, with a robust scatter of
-0.10 px.  The 6 limbs of bodies over 400 px across scatter more, from -0.44 to
+**What the real limbs show.**  On 2026-11-27 the Cassini NAC cohort gave 16 paired
+real limbs and the WAC cohort 1.  Three real NAC limbs are left out for their short
+arcs: the Dione limb in front of Rhea (0.988), a Rhea limb 1,581 px across that runs
+off the frame (0.979), and a Dione limb mostly off the frame (0.988), which gave no
+paired peak before the limit either.  The real limbs of bodies under 400 px across lie close to the silhouette.
+Over 11 limbs of Mimas, Tethys, Dione, and Rhea, between 15 and 136 degrees phase,
+their median offset is -0.01 px, with a robust scatter of 0.11 px.  The 6 limbs of bodies over 400 px across scatter more, from -0.44 to
 +0.97 px.  At those scales a pixel is 0.6 to 1.8 km, so the difference
 between a body's shape model and its true shape is a large part of a pixel, and the
 scatter mostly measures that.  Their band is wide accordingly.  There are too few
@@ -6317,8 +6357,9 @@ neighbors, which puts it at least 3.5 px inside the silhouette along a row or a 
 and about 2.1 px inside along a diagonal.  It also needs the cosines of incidence and
 emission both at least 0.3.  The angles come from the real frame's SPICE geometry,
 computed at each image pixel's center after the frame is moved by its verified offset,
-fraction and all (``tests/integration/sim_realism_body.py``).  The clipped-disc test
-reads the same pixels.  The value includes the surface's darkening with phase, since
+fraction and all (``tests/integration/sim_realism_body.py``).  A pixel that a nearer
+body, the planet's main rings, or the planet's shadow covers is left out, as the disc
+fits leave it out.  The clipped-disc test reads the same pixels.  The value includes the surface's darkening with phase, since
 the laws have no phase function: a Dione disc at 34 degrees phase in the RED and GRN
 filters measures 0.50, and one at 107 degrees through a methane-band filter 0.14.  A
 raw product is not in I/F, and a clipped disc's I/F is the clip level, so either leaves
@@ -6327,7 +6368,7 @@ albedo it was given to 0.1% on the four NAC limb frames.  Over all 22 matched NA
 that take an albedo it comes back within 1.6%, least closely on small discs and at high
 phase.
 
-**What the matched limbs show.**  On 2026-11-26, with each matched body at its real
+**What the matched limbs show.**  On 2026-11-27, with each matched body at its real
 body's brightness, two NAC bins have at least 3 real limbs, and both lie within their
 bands (offsets in pixels, negative inside the silhouette):
 
@@ -6350,24 +6391,25 @@ bands (offsets in pixels, negative inside the silhouette):
      - 4 / 4
      - within
    * - phase 60 to 120, 100 to 400 px
-     - +0.03
-     - 0.11
-     - 0.11
-     - -0.05
-     - 4 / 4
+     - -0.03
+     - 0.04
+     - 0.10
+     - -0.04
+     - 3 / 3
      - within
 
-In the bin at 60 to 120 degrees and 100 to 400 px, the four real limbs, of Dione and
+In the bin at 60 to 120 degrees and 100 to 400 px, the three real limbs, of Dione and
 Tethys between 74 and 111 degrees phase, lie from 0.06 px inside the silhouette to
-0.19 px outside it, and their median lies 0.08 px outside the matched median.  The
+0.19 px outside it, and their median lies 0.01 px outside the matched median.  The
 limb 0.06 px inside, a Dione limb at 107 degrees phase through a polarizer and a
-methane-band filter, lies the farthest inside its silhouette of the four, and that is
+methane-band filter, lies the farthest inside its silhouette of the three, and that is
 not explained.  The next, a Dione limb at 75 degrees phase, lies 0.03 px inside.  The
-Cassini chapter gives the frame.
+Cassini chapter gives the frame.  The fourth limb the bin held, of Dione in front of
+Rhea, is left out for its short arc once the vertices in front of Rhea are dropped.
 
 The other bins hold one or two paired limbs and have no verdict: below 60 degrees
 under 100 px, -0.06 real against -0.11 matched (2 limbs each); below 60 degrees at
-100 to 400 px, +0.51 against -0.09 (2 each); 60 to 120 degrees under 100 px, +0.02
+100 to 400 px, +0.51 against -0.09 (2 each); 60 to 120 degrees under 100 px, +0.01
 against -0.10 (2 each); 60 to 120 degrees over 400 px, -0.29 against -0.03 (1 each);
 above 120 degrees, -0.00 against +0.07 under 100 px and +0.07 against +0.11 at 100 to
 400 px (1 each); and the WAC's one limb, -0.12 against +0.04.
@@ -6534,7 +6576,7 @@ Iapetus's dark terrain, on one frame.  The cohort does not hold a resolved frame
 Jovian moons, the Uranian and Neptunian moons, Charon, Phoebe, Janus, Helene, Telesto,
 or Daphnis.
 
-**What the study finds.**  On 2026-11-26 the study measured 27 discs on 23 frames
+**What the study finds.**  On 2026-11-27 the study measured 27 discs on 23 frames
 between 1.5 and 136 degrees phase: 7 of Dione, 6 of Tethys, 5 of Mimas, 4 of Rhea, 3 of
 Enceladus, and Iapetus's dark terrain and its bright terrain once each.  One Rhea is a
 wide-angle frame and the rest are narrow-angle.  It left out 93 moons in view: 70 under
@@ -6637,17 +6679,26 @@ the dark terrain's between 0.84 and 0.93, so the caps' size does not decide eith
 finding.  One frame of each terrain cannot say what law it follows.
 
 The limb peaks of the twins, where the realism match measured the real limb, bin as the
-limb-peak check does.  In the two bins with a verdict, the real medians are -0.13 px
-(phase below 60 degrees, over 400 px, 4 limbs) and +0.03 px (60 to 120 degrees, 100 to
-400 px, 4 limbs).  The default's twins give +0.03 and +0.08 px, within both bands
-(0.24 and 0.11 px); Lambert's -0.18 and +0.05 px, within both; Minnaert's +0.08 and
-+0.10 px, within both; and Lommel-Seeliger's +0.05 and +0.14 px, outside the second band.
-The first bin holds 4 limbs because the Enceladus twins at 21 degrees are clipped.  The
-Rhea limb at 79 degrees, 1,581 px across, peaks 0.36 px inside its silhouette; its
-matched frame did not measure a limb peak, and it shares its bin with one other limb,
-so that bin has no verdict.
+limb-peak check does, and each twin's limb is measured over the directions its real
+limb used.  In the two bins with a verdict, the real medians are -0.13 px (phase below
+60 degrees, over 400 px, 4 limbs) and -0.03 px (60 to 120 degrees, 100 to 400 px, 3
+limbs).  The default's twins give +0.03 and +0.08 px; Lambert's -0.18 and +0.07 px;
+Minnaert's +0.08 and +0.12 px; and Lommel-Seeliger's +0.05 and +0.14 px.  Every law lies
+within the first band (0.24 px) and outside the second (0.10 px, the band's floor): the
+default by 0.106 px, Lambert by 0.104 px.  The second bin holds three limbs, of Dione at
+75 and 107 degrees and Tethys at 111 degrees, because the realism match leaves out the
+Dione limb that passes in front of Rhea, and its median moved from +0.03 to -0.03 px
+when that limb left.  With so few limbs the bin's median is set by one limb, and the
+band is its floor, so the finding is weak.  The twins of the realism match's own matched
+frames, a sphere in the middle of the frame lit from the top, lie at -0.04 px in the
+same bin, within the band; the study's twins sit where the real disc does and are lit
+from the real direction, and on these three limbs they peak about 0.12 px farther out.
+That difference is not explained.  The first bin holds 4 limbs because the Enceladus
+twins at 21 degrees are clipped.  The Rhea limb at 79 degrees, 1,581 px across, runs off
+the frame, and the arc left reads a correlation of 0.979 between offset and translation,
+so it is left out.
 On the two limbs under 100 px across below 60 degrees, without a verdict, the real median
-is -0.06 px, the default's -0.01 px, and Lambert's -0.53 px.
+is -0.06 px, the default's -0.00 px, and Lambert's -0.50 px.
 
 The JSON summary's ``law_study`` block holds every disc's fits and twins, the moons left
 out with their reasons, and the statistics by phase bin, body, and limb bin.  The
@@ -6682,8 +6733,8 @@ navigation pairs.  Outputs:
   labels, FOM 7 rows, runtime).
 
 The full-cohort run takes 32 to 54 minutes on a workstation with local
-holdings without the photometric-law study, and 60 to 90 minutes with it: the
-committed record of 2026-11-26 took 85 minutes (5,089 seconds), with other heavy runs
+holdings without the photometric-law study, and 45 to 90 minutes with it: the
+committed record of 2026-11-27 took 49 minutes (2,941 seconds), with other heavy runs
 sharing the machine.  ``--skip-law-study`` leaves the study out.
 That includes building the 19 star frames' catalog star lists, which takes
 about one minute (62 seconds measured on 2026-11-15, 45 of them on

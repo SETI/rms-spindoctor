@@ -908,7 +908,11 @@ models, the albedo measurement, and real navigation keep the Cassini PCK's.
 
 One limb in that bin is not explained: a Dione frame taken through the P120 polarizer
 and the MT2 methane-band filter at 107 degrees phase, N1489256001, peaks 0.06 px inside
-its silhouette, where the other three real limbs of the bin lie on or outside theirs.
+its silhouette. Of the other two real limbs the bin keeps, one, Dione at 75 degrees, lies
+0.03 px inside its silhouette and the other, Tethys at 111 degrees, 0.19 px outside it.
+The bin's fourth limb, of Dione in N1487595731 at 92 degrees, passes in front of Rhea;
+with the vertices whose tracks cross Rhea's disc left out, its arc is too short to
+measure, so the realism match leaves it out.
 Its filter's PSF and the frame's smear were not examined.
 
 **Iapetus in the photometric-law study.** The study measures Iapetus over a cap inside

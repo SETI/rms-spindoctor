@@ -477,11 +477,10 @@ entries without a library frame have no row.
   level above the floor is 7.3e-3 against 2.1e-2 I/F (W1/IQR 1.8), and the noise
   at signal is 3.0e-3 against 9.0e-3 I/F (W1/IQR 4.4). The realism match's star
   cutouts are its own, separate from the kernel fit's under PSF kernel below: the
-  real frame gives 6 (EE50 median 1.26 px), and its matched frame holds the
-  field's catalog stars, but none yields a usable simulated cutout, so the match
-  leaves the PSF unconstrained. On the real frame the star-field fit locks at
-  0.94 on 7 of 11 predicted stars. On the matched frame it predicts 5 and locks
-  at 0.6, a wide-offset lock on 3 inliers.
+  real frame gives 6 (EE50 median 1.27 px), and its matched frame, which holds the
+  field's catalog stars, gives 4 (0.93 px). One frame pair leaves the PSF
+  unconstrained. On the real frame the star-field fit locks at
+  0.95 on 7 of 18 predicted stars, and on the matched frame at 0.95 on 9 of 14.
 
 The simulated values are nearly the same for both cameras, because their entries
 hold the same numbers. The real frames differ: the narrow angle frame's sky is
