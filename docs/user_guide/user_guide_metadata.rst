@@ -804,14 +804,16 @@ The image-quality verdict for this frame:
      - Fraction of pixels at or above the saturation DN, 3 decimals.
    * - ``missing_frac``
      - number
-     - Fraction of pixels equal to the missing-data marker, 3 decimals.
+     - Fraction of pixels that are missing, 3 decimals.
    * - ``unread_line_frac``
      - number
-     - Fraction of the image's lines on which every pixel equals the missing-data
-       marker, 3 decimals. These are the lines a readout never sent, such as the end
-       of a readout that stopped early. They do not count against the limit on
-       missing pixels. The frame is navigated on the lines that were read out,
-       unless too few of them were read out to hold anything to navigate on.
+     - Fraction of the image's lines on which every pixel is missing, 3 decimals.
+       These are the lines a readout never sent, such as the end of a readout that
+       stopped early. They do not count against the limit on missing pixels. A
+       separate limit applies to the fraction of lines read out: a frame below it is
+       refused. A frame at or above that limit is still refused if it fails the other
+       checks, on missing pixels among the lines that were read out, on a blank image,
+       or on saturation.
    * - ``noise_sigma``
      - number
      - Per-image MAD-based noise sigma in DN units, 3 decimals. Areas where every pixel

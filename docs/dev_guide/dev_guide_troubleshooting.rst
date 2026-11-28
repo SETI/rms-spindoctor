@@ -102,7 +102,9 @@ it.
     Too many missing-data pixels on the lines that were read out, or too few
     lines read out; see ``missing_frac`` and ``unread_line_frac``. The unread
     lines of a truncated readout count only against the share of lines read
-    out, so a frame that read out enough lines is navigated on them. A frame
+    out, so a frame that read out enough lines is navigated on them, provided it
+    also passes the scattered-missing check (``max_missing_frac_clean`` on the
+    lines that were read out), the blank check, and the saturation check. A frame
     that is navigated with more than ``partial_dropout_min_frac`` of its pixels
     missing carries the advisory ``partial_dropout`` flag.
 

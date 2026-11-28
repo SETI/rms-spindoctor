@@ -41,13 +41,15 @@ The decision tree is order-sensitive:
 2. **Fully overexposed.**  When the saturation fraction exceeds
    ``max_saturation_frac_clean``, the image is ``fully_overexposed``.
 3. **Mostly missing data.**  When the scattered missing fraction exceeds
-   ``max_missing_frac_clean``, or the fraction of lines read out (one minus
-   ``unread_line_frac``) is below ``min_read_line_frac``, the image is
+   ``max_missing_frac_clean``, or the fraction of lines read out is below
+   ``min_read_line_frac``, the image is
    ``mostly_missing_data``. The unread lines do not count against
    ``max_missing_frac_clean``: the lines that were read out hold good data, so a
    truncated readout is navigated on the lines it has, however much of the frame is
-   missing, unless fewer than ``min_read_line_frac`` of its lines were read out. Each
-   camera block's comment gives the basis of its value. The techniques read the
+   missing, unless fewer than ``min_read_line_frac`` of its lines were read out. The fraction
+   of lines read out is the count of lines read out divided by the count of the
+   sensor's lines, so a share exactly equal to ``min_read_line_frac`` is accepted.
+   The techniques read the
    context's missing-data mask
    (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.missing_data_mask_ext`)
    to varying degrees: the star techniques and the blob centroid leave the missing
@@ -122,7 +124,7 @@ The thresholds dataclass:
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.min_read_line_frac`
   — float, the camera's ``min_read_line_frac``. Below this fraction of the sensor's lines
   read out the image is ``mostly_missing_data``. Each camera block's comment gives the
-  measurement its value rests on.
+  basis of its value, whether a measurement or a provisional choice awaiting one.
 - :attr:`~spindoctor.support.image_class.ImageQualityThresholds.blank_max_dn` —
   float, the camera's ``blank_max_dn`` or ``blank_max_if``. Below this maximum sensor
   value the image is ``blank``.
@@ -228,10 +230,11 @@ per-image JSON sidecar so reviewer tooling can correlate noisy / partially-dropp
 across a campaign.
 
 **Truncated readout.**  The calibrated Cassini narrow-angle frame N1849746145 stopped
-reading out after 316 of its 1024 lines; the calibration fills the other 708 lines, and
-part of the 317th, with the marker 0. Almost all of the 69% missing pixels lie on unread
-lines, so the scattered share is far below ``max_missing_frac_clean``, and the 31% of
-lines read out is above the camera's ``min_read_line_frac``. The classifier reports::
+reading out in its 316th line, after 315 complete lines and 192 pixels of the 316th;
+the calibration fills the other 708 lines, and the rest of the 316th, with the marker 0.
+Almost all of the 69% missing pixels lie on unread lines, so the scattered share is far
+below ``max_missing_frac_clean``, and the 31% of lines read out is above the camera's
+``min_read_line_frac``. The classifier reports::
 
     NavImageClassifierResult(
         image_class='clean',
