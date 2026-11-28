@@ -80,8 +80,8 @@ def test_match_navigator_tracks_the_instrument_config() -> None:
     """The resolved sigma equals the emulated instrument's star_psf_sigma."""
     psf = effective_psf(_floor_scene('coiss_wac'))
     assert psf is not None
-    inst = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_wac', None)
-    assert psf['sigma_v'] == float(inst['star_psf_sigma'])
+    inst = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_wac')
+    assert psf['sigma_v'] == inst.star_psf_sigma
 
 
 def test_floor_psf_must_be_explicit() -> None:

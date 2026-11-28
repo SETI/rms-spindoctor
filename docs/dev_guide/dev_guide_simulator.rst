@@ -1619,7 +1619,7 @@ star limit, so it must state ``star_flux_dn_per_s_vmag0``; without it the
 navigator would take the generic block's value. That value must match the entry's
 star zero point, converted to DN through the default gain state for a CCD, within
 half the place value of the last digit the navigator's config file writes, so
-``3.61e6`` is held to 5e3 and ``0.400`` to 5e-4. The navigator states its own
+``3.61e7`` is held to 5e4 and ``0.400`` to 5e-4. The navigator states its own
 value, so a simulator retune does not move what the navigator knows; the test
 fails when the two drift apart by more than the navigator value's rounding.
 Each binned readout mode an entry offers needs its own values in a raw-DN navigator
@@ -1832,9 +1832,11 @@ quantity it holds. The registry records which key each mode takes
   a frame collects only the dwell's hits. The scene validator refuses a
   non-positive ``exposure_sec``, so only a direct caller of the detector stage
   can pass one.
-* **Probability** modes are commanded or periodic (a frame edit, a cutout, most
-  detector effects). Their key is ``probability``, the per-frame probability in [0, 1]
-  that the mode activates at all.
+* **Probability** modes are commanded, periodic, or frame-level (a frame edit, a
+  cutout, the lossless compressor's cuts, downlink gaps, most detector effects).
+  Their key is ``probability``, the per-frame probability in [0, 1] that the mode
+  activates at all. A frame that ``downlink_gaps`` activates on loses at least one
+  group of lines, and the mode's own parameters draw how many.
 * **Density** mode ``hot_pixels`` takes ``pixel_fraction``, the fraction of
   detector pixels that are hot, in [0, 1].
 
@@ -1892,6 +1894,11 @@ entries.
        (see :doc:`instruments/galileo_ssi`)
      - nac, wac, gossi
      - ``probability``
+   * - ``compression_truncated_lines``
+     - the second line of each line pair that does not fit the lossless
+       compressor's budget loses its end, in whole coded blocks
+     - per camera; see :doc:`instruments/cassini_iss`
+     - ``probability``
    * - ``edited_frame``
      - only a centered column band of the camera's default width, or the top or
        bottom half of the frame, kept
@@ -1906,6 +1913,11 @@ entries.
      - compression-block-aligned bands zeroed
      - nac, wac, gossi
      - ``expected_events``
+   * - ``downlink_gaps``
+     - clustered groups of whole lines of varying size, starting on any line, and
+       the ends of the lines above and below a group
+     - per camera; see :doc:`instruments/cassini_iss`
+     - ``probability``
    * - ``line_garble``
      - a line's tail replaced with random DN, not the marker
      - gossi, vgiss_*
@@ -1959,6 +1971,66 @@ corrected geometry (see :doc:`instruments/voyager_iss`)
 :data:`~spindoctor.sim.artifact_modes.TELEMETRY_POST_LOSS_ORDER`). The
 commanded ``truth_window`` is resolved before the loop and passed to
 ``missing_blocks`` as a protected rectangle.
+
+Two loss modes draw the forms that a camera's real frames show. One computes its
+loss from the frame's content, and the other draws it from distributions measured on
+real frames, which the camera's entry gives as shape defaults.
+
+``compression_truncated_lines`` cuts the lines a lossless compressor cannot fit.
+The compressor codes the differences between neighboring samples of a line in
+blocks of ``block_samples``. Each block takes whichever of its code options spends
+the fewest bits: option ``k``, from 0 to ``max_split``, sends the low ``k`` bits of
+each difference as they are and the rest in unary, and ``id_bits`` name the option.
+A pair of lines may use ``word_bits`` bits for each sample of one line. The
+compressor codes the pair's first line, then the second line's blocks in order
+while they still fit, and the second line loses the rest. If the first line alone
+does not fit, it keeps the blocks that do, and the second line is lost whole. A
+smooth frame loses nothing. Noise and fine detail cut the pairs they cross, so the
+cut lines start and stop where such content does, and neighboring cut lines lose
+nearly the same share. The mode codes the DN the camera sent, after the detector
+stage and before every downlink loss. On a calibrated frame it codes the DN that
+the calibration maps back to. The scene validator refuses the mode on a frame that
+quantizes to 8 bits, because the budget for 8-bit frames was never measured. No
+camera turns the mode on under ``instrument_defaults``; a scene turns it on itself.
+The coder lives in :mod:`spindoctor.sim.render.telemetry.lossless`.
+
+``downlink_gaps`` draws the groups of whole lines that a frame loses when packets
+are lost on the way to the ground. A frame that the mode activates on loses one
+group plus a negative-binomial number more. ``mean_groups`` is the mean number of
+groups in all. The extra groups' variance is their mean plus ``dispersion`` times
+its square, and a dispersion of 0 draws them Poisson. Each group's size is drawn
+from ``size_percentiles``, a percentile table in lines, and rounds to a whole
+number of lines, at least one. A percentile table gives a distribution by its
+values at the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
+percentiles, in rising order
+(:data:`~spindoctor.sim.artifact_modes.PERCENTILE_POINTS`); a size table is
+interpolated in the logarithm, so its top decile does not crowd toward the
+largest size. A binned frame draws its sizes from ``summed_size_percentiles``
+when the map sets it, and from ``size_percentiles`` otherwise.
+
+The groups form clusters. The first group starts a cluster, and each later group
+starts a new one with ``cluster_probability``. Otherwise it joins the cluster
+before it, after a gap of kept lines drawn from ``gap_percentiles``, which is
+interpolated in the logarithm too and rounds to at least one line. The clusters
+then fall in a random order at uniform positions down the frame, with at least one
+kept line between two clusters and between a cluster and the frame's first or last
+line. So no two groups touch, none reaches the edge of the frame, and the frame
+shows as many groups as it drew. When the clusters do not fit, the frame draws
+the sizes and gaps again, a few times, and then loses one group fewer. With a
+``cluster_probability`` of 1, the default, every group falls on its own. With
+adversarial placement each cluster starts on a feature row instead, and clusters
+that overlap merge in the frame and stay separate in the truth record. Each
+cluster must still fit between the frame's first and last lines, and a draw
+with a longer cluster counts as one that does not fit.
+
+With ``head_probability`` the line just above a group loses its end, and with
+``tail_probability`` the line just below does. Such a line keeps a whole number of
+``step_samples`` from its start, at least one step and all but one at most, its
+kept share drawn from ``head_kept_percentiles`` or ``tail_kept_percentiles``. A
+single kept line between two groups is the line below one and the line above the
+other, and it loses its end when either draw says it does. A frame whose lines
+are no wider than one step keeps the lines beside its groups whole, since such a
+line cannot keep a step and lose the rest.
 
 .. _sim-detector-modes:
 
@@ -2071,7 +2143,8 @@ placement onto the navigation features -- a lost line crosses the disc, a dead
 pixel lands on a star -- through the shared
 :mod:`spindoctor.sim.render.feature_loci` helpers; placement is uniform when the
 switch is off or absent. Purely periodic or commanded shapes (``alternating_lines``,
-the frame-level edits) ignore the switch: their geometry is fixed once active.
+the frame-level edits) ignore the switch: their geometry is fixed once active. So
+does ``compression_truncated_lines``, whose cuts follow the frame's content.
 The switch is one scene-level flag, and it applies to every mode the scene sets
 itself. A mode that only ``instrument_defaults`` turns on keeps the camera's own
 placement. A raw Cassini camera's hot pixels therefore stay on the detector's fixed map
@@ -2116,8 +2189,10 @@ The ``artifact_sweep`` scene class (``tests/integration/sim_scenes/artifact_swee
 pins the survivable end of the artifact axis: a disc scene and a star-field scene,
 each under a modest structured loss (a few missing lines plus a few truncated
 lines per frame), in a uniform-placement and an adversarial-placement variant.
-The navigator must still reach success and recover the planted offset within
-tolerance -- the level at which realism does not break navigation. The companion
+Each scene is a stress test: its loss pattern is chosen to probe the navigator and
+does not describe how real frames lose lines. The navigator must still reach success
+and recover the planted offset within tolerance, which marks a level of loss that
+navigation survives. The companion
 ``artifact_missing_lines`` sweep (``tests/integration/sim_sweeps/``) drives the
 other end: it raises the missing-line ``expected_events`` from a clean frame past
 the navigability cliff and records the curve of navigation quality against the
@@ -4070,11 +4145,15 @@ entry also states take their types from the entry's declarations
 (:mod:`spindoctor.sim.instruments.schema_detector`): a scene and the catalog accept the
 same range for each. The rules that read the instrument catalog, such as whether
 the camera catalogs a scene's gain state, are in
-:mod:`spindoctor.sim.scene.rules_detector`. The mapping stays the scene's saved form: a
-key the scene leaves out stays out, and is None in the typed scene. The top level and
-the ``optics``, ``detector``, ``noise``, and ``spk_error`` blocks are typed so far; the
-other blocks are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and checked
-by their rules modules until their types land.
+:mod:`spindoctor.sim.scene.rules_detector`. The ``instrument_config`` keys take their
+types from the navigator's camera block (:mod:`spindoctor.config.sections_camera`), and
+the rules that read the scene's camera are in
+:mod:`spindoctor.sim.scene.rules_instrument_config`. The mapping stays the scene's saved
+form: a key the scene leaves out stays out, and is None in the typed scene. The top
+level and the ``optics``, ``detector``, ``noise``, ``spk_error``, and
+``instrument_config`` blocks are typed so far; the other blocks are listed in
+:data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and checked by their rules modules
+until their types land.
 
 The scene classes (for example ``algorithmic_invariants``,
 ``phase_sweep_regular_body``, ``phase_sweep_irregular_body``, ``range_sweep``,
@@ -4291,13 +4370,14 @@ Top-level fields
 
 A scene either sets a key or leaves it out to take its default. The
 :doc:`dev_guide_simulator_scene_schema` page lists every top-level key, and every key of
-the ``optics``, ``detector``, ``noise``, and ``spk_error`` blocks, with its type, range,
-default, side, and meaning. The page is generated from the scene's types when the
-documentation is built, and lists exactly what the validator accepts. The other blocks
-have sections of their own: ``bodies`` (:ref:`sim-body-params`), ``ring_system``
-(:ref:`sim-ring-system`), ``stars`` (:ref:`sim-star-params`), ``artifacts``
-(:ref:`sim-artifacts-block`), ``instrument_config`` (:ref:`sim-instrument-config`), and
-``expected`` (:ref:`sim-expected`).
+the ``optics``, ``detector``, ``noise``, ``spk_error``, and ``instrument_config``
+blocks, with its type, range, default, side, and meaning. The page is generated from the
+scene's types when the documentation is built, and lists exactly what the validator
+accepts. The other blocks have sections of their own: ``bodies``
+(:ref:`sim-body-params`), ``ring_system`` (:ref:`sim-ring-system`), ``stars``
+(:ref:`sim-star-params`), ``artifacts`` (:ref:`sim-artifacts-block`), and ``expected``
+(:ref:`sim-expected`). How ``instrument_config`` merges over the navigator block is in
+:ref:`sim-instrument-config`.
 
 ``sky_counts`` (truth) sets the background-sky star field: ``a`` and ``b`` set the
 cumulative count law ``log10 N(<m) = a + b*m`` per square degree, ``density_factor``
@@ -4947,14 +5027,37 @@ class are in :ref:`sim-artifact-framework`.
 Navigator-block overrides
 -------------------------
 
-The optional ``instrument_config`` dict is deep-merged over the navigator block, so
+The optional ``instrument_config`` block is merged over the navigator block, so
 a scene can pin individual settings (PSF sigma, noise, extfov margin) without
 tracking later camera-config edits. Omit it to inherit
 everything. To fully self-specify, choose ``generic`` and override every key except
 ``data_units``, which a scene can't set here. A frame's units come only from the
-instrument entry. Scene validation refuses the key, and so does
-:func:`~spindoctor.sim.instruments.navigator_link.resolve_sim_inst_config` for a scene
-that skipped validation.
+instrument entry, and the block has no ``data_units`` key, so validation refuses it.
+
+Each key of the block has the type and range of the same key in the navigator's camera
+block, since the block's types
+(:class:`~spindoctor.sim.scene.idealized_camera.InstrumentConfig` and the types inside
+it) import the camera block's field types instead of stating their own. The block is
+merged over the navigator block by
+:func:`~spindoctor.sim.scene.idealized_camera.overlay_camera_block`. A mapping merges key
+by key at every depth, and any other value replaces the block's. Two keys have rules of
+their own:
+
+- ``source_image_filter``: a scene that sets ``kind`` to a kind other than the
+  navigator block's replaces the whole filter, and must set ``enabled`` and every sigma
+  the new kind reads. A scene that leaves ``kind`` out, or sets the block's own kind,
+  changes keys of the block's filter. Keeping the old kind's sigmas under a new kind
+  would make a block no camera type accepts, and dropping them quietly would discard
+  values the scene wrote.
+- ``mag_offset.mag_offset_table``: each entry is a mapping that sets ``default``, as in
+  the camera block, and replaces the block's entry for its filter combination. A bare
+  number is refused when the scene is validated, at the entry's key path.
+
+Scene validation parses the merged block with the camera block's type, so every rule of
+that type holds for it: the keys a camera's units read, the fallback combination's
+entry, and a bandpass filter's heavy blur being the wider one. A problem there is
+reported against the merged block, as in ``instrument_config merged over the navigator
+block sim: source_image_filter.lo_sigma_px: ...``.
 
 The block changes what the navigator believes about the camera, and the frame keeps the
 instrument entry's physics. Two of its values reach the frame, because the frame has to
@@ -4963,8 +5066,8 @@ match the navigator there. A lost pixel carries ``noise.marker_value``. A scene 
 faint cutoff in a scene without a PSF counts a one-pixel core, since that frame is
 unblurred.
 
-``instrument_config.noise`` must be a mapping. It may set only the keys the navigator
-reads: ``saturation_dn``, ``marker_value``, ``read_noise_dn``,
+``instrument_config.noise`` may set the keys of the camera block's ``noise`` block:
+``saturation_dn``, ``marker_value``, ``read_noise_dn``,
 ``star_flux_dn_per_s_vmag0``, and ``by_binning``. A scene leaves a key out to keep the
 navigator block's value, and a scene that wants lost lines marked with NaN sets
 ``marker_value`` to ``.nan``. On a binned frame the star limit reads its zero point and
@@ -4976,24 +5079,21 @@ under ``instrument_config.noise.by_binning.<b>``, where ``<b>`` is the binning, 
 validation refuses one that doesn't.
 
 A scene is where values from outside the packaged configuration enter the navigator
-block, so scene validation checks every value a scene sets that the faint-star
-limit reads, at every binning. Every read noise must be a finite number of at least
-0, the unbinned one and each binned readout mode's alike. A read noise of 0 is an ideal
-detector, which the limit reads at its 1 DN noise floor. Every zero point must be a
-finite, positive number, and so must ``star_psf_sigma``. Each key of
-``noise.by_binning`` is a binning factor of at least 2, and each entry is a mapping
-that sets nothing but ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. A key may
-be written only as an integer or as a string of ASCII digits, since a scene read
-through JSON carries every key as a string. Validation refuses any other key before
-the scene's table is merged over the navigator's, so a float key such as ``2.0``,
-which would otherwise merge into the navigator's key ``2``, gets the same answer as
-the ``'2.0'`` it becomes when the scene is read through JSON. Validation also
-refuses a key with a leading zero, such as ``'02'``, and a table that writes one
-binning both ways. It refuses a noise value that no frame of the instrument reads:
-an entry for a binning the instrument's readout modes don't offer, and on a
-calibrated-unit camera, whose star limit is a constant that reads no noise value,
-any table and any unbinned ``read_noise_dn`` or ``star_flux_dn_per_s_vmag0``. See
-:doc:`dev_guide_observations`.
+block, so every value a scene sets that the faint-star limit reads has the camera
+block's range. Every read noise is a finite number of at least 0, the unbinned one and
+each binned readout mode's alike. A read noise of 0 is an ideal detector, which the
+limit reads at its 1 DN noise floor. Every zero point is a finite, positive number, and
+so is ``star_psf_sigma``. Each key of ``noise.by_binning`` is a binning factor of at
+least 2, and each entry is a mapping that sets nothing but ``read_noise_dn`` and
+``star_flux_dn_per_s_vmag0``. A key is written as an integer, as YAML reads ``2:``, or
+as a string of digits without a leading zero, since a scene read through JSON carries
+every key as a string; a table that writes one binning both ways is refused. A float
+key such as ``2.0`` is refused, since it would otherwise merge into the navigator's key
+``2``. Validation also refuses a noise value that no frame of the instrument reads: an
+entry for a binning the instrument's readout modes don't offer, and on a
+calibrated-unit camera, whose star limit is a constant that does not read noise
+values, any table and any unbinned ``read_noise_dn`` or ``star_flux_dn_per_s_vmag0``.
+See :doc:`dev_guide_observations`.
 
 ``instrument_config`` is idealized and crosses the information boundary
 unfiltered. A planted value copied into it reaches the navigator as published

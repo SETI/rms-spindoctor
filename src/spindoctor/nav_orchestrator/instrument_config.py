@@ -1,29 +1,20 @@
 """Per-instrument configuration consumed by the orchestrator.
 
-Each ``ObsSnapshotInst`` carries its already-resolved per-camera config
-mapping on ``obs.inst_config`` (set by ``ObsInst.from_file``).  This
-module reads the ``data_units``, ``noise``, and
-``image_quality_thresholds`` blocks defined in
-``config_4N0_inst_*.yaml`` and returns the values the orchestrator
-needs.
+Each observation carries its camera's block on ``obs.inst_config``
+(:class:`~spindoctor.config.sections_camera.CameraBlock`, set when the observation is
+read from its file).  This module gathers the values the orchestrator needs from it:
+the units, the saturation level, the missing-data marker, the image-quality thresholds,
+the rotation settings, and the filter applied to the image before navigation.
 
-The returned ``InstrumentSettings`` is a plain dataclass so the
-orchestrator can branch on ``data_units`` without re-reading raw YAML.
+The returned :class:`InstrumentSettings` is a plain dataclass, so the orchestrator can
+branch on ``data_units`` without reading the block again.
 """
 
-from __future__ import annotations
-
-import math
-from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal, cast
+from typing import Any
 
-from spindoctor.support.image_class import (
-    ImageQualityThresholds,
-    image_quality_thresholds,
-    missing_data_marker,
-    required_finite_float,
-)
+from spindoctor.config.sections_camera import CameraBlock, DataUnits, SourceImageFilter
+from spindoctor.support.image_class import ImageQualityThresholds, image_quality_thresholds
 
 __all__ = [
     'InstrumentSettings',
@@ -31,34 +22,21 @@ __all__ = [
 ]
 
 
-DataUnits = Literal['raw_dn', 'calibrated_if']
-"""The two recognized per-instrument data-unit kinds.
-
-``raw_dn`` instruments expose pixels in raw analog-to-digital counts; their
-saturation, blank, and noise thresholds are quoted in DN.  ``calibrated_if``
-instruments expose pixels in I/F (incidence-corrected reflectance);
-DN-keyed thresholds are unavailable and the I/F variants are used instead.
-"""
-
-
 @dataclass(frozen=True)
 class InstrumentSettings:
     """Per-instrument settings the orchestrator needs at navigate time.
 
     Parameters:
-        data_units: ``raw_dn`` or ``calibrated_if`` per
-            ``config_4N0_inst_*.yaml``.
-        saturation_dn: Per-instrument saturation DN; ``None`` for
-            calibrated-IF instruments.
-        marker_value: Missing-data sentinel value (``0`` for most raw
-            instruments; ``NaN`` for calibrated-IF).
-        thresholds: Image-quality thresholds for the classifier.  All
-            values normalized to the appropriate units (DN for
-            ``raw_dn``, I/F for ``calibrated_if``).
-        fit_camera_rotation: Per-camera flag enabling 3-DoF technique
-            fits.
-        max_rotation_deg: Maximum allowed rotation magnitude when
-            ``fit_camera_rotation`` is True.
+        data_units: ``raw_dn`` for images in raw detector counts, or ``calibrated_if``
+            for images in I/F.
+        saturation_dn: The saturation level in DN; None for a ``calibrated_if``
+            camera, which has no saturation mask.
+        marker_value: The value a missing pixel carries.
+        thresholds: The image-quality thresholds for the classifier, in DN for
+            ``raw_dn`` and in I/F for ``calibrated_if``.
+        fit_camera_rotation: Whether a technique's fit solves for a camera rotation.
+        max_rotation_deg: The largest rotation, in degrees, a fit may find.
+        source_image_filter: The filter applied to the image before navigation.
     """
 
     data_units: DataUnits
@@ -67,76 +45,30 @@ class InstrumentSettings:
     thresholds: ImageQualityThresholds
     fit_camera_rotation: bool
     max_rotation_deg: float
+    source_image_filter: SourceImageFilter
 
 
 def instrument_settings_from_obs(obs: Any) -> InstrumentSettings:
-    """Build the orchestrator's per-instrument settings from an obs.
-
-    Reads ``obs.inst_config`` (an ``AttrDict`` populated by
-    ``ObsInst.from_file``) and returns a frozen ``InstrumentSettings``
-    instance.  When ``inst_config`` is ``None`` (test fixtures, simulated
-    obs without per-instrument wiring), defaults appropriate for an
-    untyped ``raw_dn`` instrument are returned: ``saturation_dn=None``
-    (no saturation mask) and the standard ``ImageQualityThresholds``
-    defaults so the legacy code path stays unchanged.
+    """Build the orchestrator's per-instrument settings from an observation.
 
     Parameters:
-        obs: An ``ObsSnapshotInst`` (or a stand-in carrying the
-            ``inst_config`` attribute).
+        obs: An observation, or a stand-in carrying the ``inst_config`` attribute.
 
     Returns:
-        An ``InstrumentSettings`` instance.
-
-    Raises:
-        ValueError: If ``inst_config`` is supplied but missing
-            required fields, or carries an unrecognized ``data_units``
-            value.
-        TypeError: If ``inst_config`` or its ``noise`` entry is not a
-            mapping.
+        The settings.
     """
-    inst_config = getattr(obs, 'inst_config', None)
-    if inst_config is None:
-        return InstrumentSettings(
-            data_units='raw_dn',
-            saturation_dn=None,
-            marker_value=0.0,
-            thresholds=ImageQualityThresholds(),
-            fit_camera_rotation=False,
-            max_rotation_deg=5.0,
-        )
-    if not isinstance(inst_config, Mapping):
-        raise TypeError(
-            f'obs.inst_config must be a mapping (dict / AttrDict); got {type(inst_config).__name__}'
-        )
-    # The thresholds and the marker come from the reader the simulated-image
-    # editor's verdict shares (spindoctor.support.image_class); it also refuses an
-    # unknown data_units, a missing image_quality_thresholds block, a noise entry
-    # that is not a mapping, and a saturation_threshold_if on a calibrated block.
-    thresholds = image_quality_thresholds(inst_config)
-    marker_value = missing_data_marker(inst_config)
-    data_units: DataUnits = cast(DataUnits, inst_config['data_units'])
-    saturation_dn: float | None = None
-    if data_units == 'raw_dn':
-        noise = inst_config.get('noise')
-        if noise is None:
-            raise ValueError(
-                "instrument config with data_units='raw_dn' missing required noise block"
-            )
-        saturation_dn = required_finite_float(noise, 'saturation_dn', location='noise')
-    # A calibrated_if block has no saturation mask: the same physical full-well
-    # DN maps to a different I/F for every combination of exposure time, filter,
-    # and gain.  The orchestrator emits an empty saturation mask (see
-    # ``_build_saturation_mask``) and the thresholds carry an infinite saturation
-    # threshold, so the ``fully_overexposed`` early-out cannot fire.
-    fit_rotation = bool(inst_config.get('fit_camera_rotation', False))
-    max_rotation = float(inst_config.get('max_rotation_deg', 5.0))
-    if not math.isfinite(max_rotation) or max_rotation <= 0.0:
-        raise ValueError(f'max_rotation_deg must be finite and > 0; got {max_rotation!r}')
+    camera: CameraBlock = obs.inst_config
+    # A calibrated_if camera has no saturation mask: the same physical full-well DN
+    # maps to a different I/F for every combination of exposure time, filter, and gain,
+    # so its block leaves noise.saturation_dn out.  The orchestrator emits an empty
+    # saturation mask (see ``_build_saturation_mask``) and the thresholds carry an
+    # infinite saturation threshold, so the ``fully_overexposed`` early-out cannot fire.
     return InstrumentSettings(
-        data_units=data_units,
-        saturation_dn=saturation_dn,
-        marker_value=marker_value,
-        thresholds=thresholds,
-        fit_camera_rotation=fit_rotation,
-        max_rotation_deg=max_rotation,
+        data_units=camera.data_units,
+        saturation_dn=camera.noise.saturation_dn,
+        marker_value=camera.noise.marker(),
+        thresholds=image_quality_thresholds(camera),
+        fit_camera_rotation=camera.fit_camera_rotation,
+        max_rotation_deg=camera.max_rotation_deg,
+        source_image_filter=camera.source_image_filter,
     )

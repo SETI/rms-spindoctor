@@ -6,6 +6,7 @@ applies to a real frame.  These tests cover the config resolver, the obs-level
 ``InstrumentSettings``, and the DN-vs-I/F rendering split.
 """
 
+import dataclasses
 from pathlib import Path
 from typing import Any
 
@@ -15,9 +16,14 @@ from tests.spindoctor.sim.scenes import frame_scene
 from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.nav_orchestrator.instrument_config import instrument_settings_from_obs
 from spindoctor.obs.obs_inst_sim import ObsSim
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import (
+    resolve_extfov_margin,
+    resolve_sim_inst_config,
+)
 from spindoctor.sim.instruments.resolvers import resolve_detector_defaults_native
 from spindoctor.sim.render.driver import render_scene
+from spindoctor.sim.scene.idealized_camera import InstrumentConfig, InstrumentConfigNoise
+from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
 
 
 def _obs(instrument: str, *, size: int = 64) -> ObsSim:
@@ -29,25 +35,25 @@ def _obs(instrument: str, *, size: int = 64) -> ObsSim:
 def test_resolver_maps_coiss_nac_to_raw_dn() -> None:
     """The coiss_nac name resolves to the Cassini NAC raw block."""
     cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')
-    assert cfg['data_units'] == 'raw_dn'
+    assert cfg.data_units == 'raw_dn'
 
 
 def test_resolver_maps_coiss_nac_saturation() -> None:
     """The resolved coiss_nac block carries the Cassini full-well DN."""
     cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')
-    assert float(cfg['noise']['saturation_dn']) == 4095.0
+    assert cfg.noise.saturation_dn == 4095.0
 
 
 def test_resolver_maps_vgiss_to_calibrated_if() -> None:
     """The vgiss name resolves to a calibrated-IF block."""
     cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac')
-    assert cfg['data_units'] == 'calibrated_if'
+    assert cfg.data_units == 'calibrated_if'
 
 
 def test_resolver_generic_returns_sim_block() -> None:
     """A None instrument resolves to the standalone sim block."""
     cfg = resolve_sim_inst_config(DEFAULT_CONFIG, None)
-    assert cfg is DEFAULT_CONFIG.category('sim')
+    assert cfg is DEFAULT_CONFIG.camera_block('sim')
 
 
 def test_resolver_rejects_unknown_instrument() -> None:
@@ -128,46 +134,16 @@ def test_calibrated_if_render_stays_in_if_range() -> None:
 def test_overrides_pin_an_individual_key() -> None:
     """An override pins one key while the rest still come from the instrument."""
     base = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')
-    cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', {'star_psf_sigma': 0.9})
-    assert cfg['star_psf_sigma'] == 0.9
-    assert cfg['data_units'] == base['data_units']
+    cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', InstrumentConfig(star_psf_sigma=0.9))
+    assert cfg == dataclasses.replace(base, star_psf_sigma=0.9)
 
 
 def test_overrides_deep_merge_nested_block() -> None:
     """A nested override changes one sub-key and preserves its siblings."""
     base = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')
-    cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', {'noise': {'read_noise_dn': 7.0}})
-    assert cfg['noise']['read_noise_dn'] == 7.0
-    assert cfg['noise']['saturation_dn'] == base['noise']['saturation_dn']
-
-
-def test_overrides_do_not_mutate_the_live_block() -> None:
-    """Resolving with overrides leaves the navigator block untouched."""
-    before = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
-    resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', {'star_psf_sigma': 9.0})
-    after = float(resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac')['star_psf_sigma'])
-    assert before == after
-
-
-def test_generic_plus_overrides_self_specifies() -> None:
-    """The generic block plus overrides expresses a fully self-specified config."""
-    cfg = resolve_sim_inst_config(
-        DEFAULT_CONFIG,
-        'generic',
-        {'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
-    )
-    assert cfg['star_psf_sigma'] == 1.5
-    assert cfg['noise']['read_noise_dn'] == 3.0
-
-
-def test_overrides_cannot_set_data_units() -> None:
-    """The resolver refuses a data_units override, even for an unvalidated scene."""
-    message = (
-        r"instrument_config: a scene can't set data_units\. Choose an instrument whose "
-        r'entry renders the units you want\.'
-    )
-    with pytest.raises(ValueError, match=message):
-        resolve_sim_inst_config(DEFAULT_CONFIG, 'vgiss_1_nac', {'data_units': 'raw_dn'})
+    overlay = InstrumentConfig(noise=InstrumentConfigNoise(read_noise_dn=7.0))
+    cfg = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', overlay)
+    assert cfg.noise == dataclasses.replace(base.noise, read_noise_dn=7.0)
 
 
 def test_no_overrides_returns_the_live_block() -> None:
@@ -180,14 +156,11 @@ def test_overrides_reach_the_obs_inst_config() -> None:
     """A scene's instrument_config override is visible on the obs inst config."""
     params = frame_scene(instrument_config={'noise': {'read_noise_dn': 12.0}})
     obs = ObsSim.from_file('/tmp/sim_test.json', sim_params=params)
-    assert obs._inst_config is not None
-    assert float(obs._inst_config['noise']['read_noise_dn']) == 12.0
+    assert obs.inst_config.noise.read_noise_dn == 12.0
 
 
 def test_instrument_config_round_trips_through_the_scene_schema(tmp_path: Path) -> None:
     """instrument_config survives a scene save/load round-trip (GUI save path)."""
-    from spindoctor.sim.scene.io import load_sim_scene, save_sim_scene
-
     sim_params = frame_scene(
         instrument='generic',
         instrument_config={'star_psf_sigma': 1.5, 'noise': {'read_noise_dn': 3.0}},
@@ -200,23 +173,11 @@ def test_instrument_config_round_trips_through_the_scene_schema(tmp_path: Path) 
 
 def test_extfov_margin_unmatched_size_names_the_available_keys() -> None:
     """An uncovered image size fails with the size and the fallback keys."""
-    from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin
-
     with pytest.raises(ValueError, match=r'image size 777.*fallback sizes.*\[64, 512\]'):
-        resolve_extfov_margin(
-            {'extfov_margin_vu': {512: [10, 10]}},
-            {'extfov_margin_vu': {64: [4, 4], 512: [10, 10]}},
-            777,
-        )
+        resolve_extfov_margin({512: (10, 10)}, {64: (4, 4), 512: (10, 10)}, 777)
 
 
 def test_extfov_margin_fallback_covers_uncatalogued_size() -> None:
     """A size the instrument table lacks resolves through the generic table."""
-    from spindoctor.sim.instruments.navigator_link import resolve_extfov_margin
-
-    margin = resolve_extfov_margin(
-        {'extfov_margin_vu': {512: [10, 10]}},
-        {'extfov_margin_vu': {64: [4, 4], 512: [10, 10]}},
-        64,
-    )
-    assert margin == [4, 4]
+    margin = resolve_extfov_margin({512: (10, 10)}, {64: (4, 4), 512: (10, 10)}, 64)
+    assert margin == (4, 4)

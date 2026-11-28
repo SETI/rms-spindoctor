@@ -9,16 +9,14 @@ table holds no null.  The scene validator checks every value a scene sets that t
 faint-star limit reads, unbinned and binned, at every binning: a read noise is a finite
 number of at least 0, a zero point and the PSF width are finite and positive, and none
 of them is null.  A calibrated-unit camera's limit reads no noise value, so a scene sets
-none there.  The table spells each binning once, holds only entries a frame of the
-instrument reads, and each of its entries is a mapping that sets nothing but a read
-noise and a zero point.  A binned scene can't set an unbinned value that its frame reads
-from the table instead, and the limit of a binned frame reads the value the scene pins
-for its mode.
+none there.  The table is keyed by binning factors of at least 2, holds only entries a
+frame of the instrument reads, and each of its entries is a mapping that sets nothing
+but a read noise and a zero point.  A binned scene can't set an unbinned value that its
+frame reads from the table instead, and the limit of a binned frame reads the value the
+scene pins for its mode.
 """
 
-import json
 import math
-import re
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
@@ -30,13 +28,17 @@ from tests.spindoctor.sim.scenes import frame_scene
 
 import spindoctor
 from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config.sections_camera import BinnedNoise
 from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.catalog import (
     GENERIC_INSTRUMENT,
     load_instrument_catalog,
     sim_instrument_names,
 )
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.sim.instruments.navigator_link import (
+    resolve_sim_inst_config,
+    scene_camera_block,
+)
 from spindoctor.sim.instruments.resolvers import (
     cataloged_binnings,
     resolve_data_units,
@@ -77,7 +79,7 @@ def _written_step(instrument: str, *keys: str | int) -> float:
 
     The parsed number can't tell ``0.400`` from ``0.4``, so this reads the text of the
     value in the packaged config file that sets it last, under the instrument's
-    navigator section and detector: ``3.61e6`` gives 1e4, and ``0.400`` gives 1e-3.
+    navigator section and detector: ``3.61e7`` gives 1e5, and ``0.400`` gives 1e-3.
 
     Parameters:
         instrument: The simulated instrument whose navigator block holds the value.
@@ -108,8 +110,8 @@ def test_the_navigator_states_a_zero_point_for_a_raw_dn_block(instrument: str) -
 
     Without one the navigator falls back to the generic block's value silently.
     """
-    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
-    assert 'star_flux_dn_per_s_vmag0' in navigator
+    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument).noise
+    assert navigator.star_flux_dn_per_s_vmag0 is not None
 
 
 @pytest.mark.parametrize('instrument', _raw_dn_navigator_instruments())
@@ -129,9 +131,7 @@ def test_the_navigator_zero_point_matches_the_simulators(instrument: str) -> Non
             {'instrument': instrument, 'random_seed': 42}
         ).gain_e_per_dn
     # A block without the key fails here and in the test above, which says why.
-    stated = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise'][
-        'star_flux_dn_per_s_vmag0'
-    ]
+    stated = resolve_sim_inst_config(DEFAULT_CONFIG, instrument).noise.star_flux_dn_per_s_vmag0
     step = _written_step(instrument, 'noise', 'star_flux_dn_per_s_vmag0')
     assert zero_point == pytest.approx(stated, rel=0.0, abs=step / 2.0)
 
@@ -142,9 +142,9 @@ def test_the_navigator_states_values_for_each_binned_mode(instrument: str) -> No
 
     Without one the star limit of a frame in that mode reads the unbinned values.
     """
-    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']
+    navigator = resolve_sim_inst_config(DEFAULT_CONFIG, instrument).noise
     offered = {binning for binning in cataloged_binnings(instrument) if binning != 1}
-    assert set(navigator.get('by_binning', {})) == offered
+    assert set(navigator.by_binning or {}) == offered
 
 
 _BINNED_RAW_DN_MODES = [
@@ -153,6 +153,13 @@ _BINNED_RAW_DN_MODES = [
     for binning in cataloged_binnings(instrument)
     if binning != 1
 ]
+
+
+def _binned_mode(instrument: str, binning: int) -> BinnedNoise:
+    """The navigator block's values for one binned readout mode of an instrument."""
+    table = resolve_sim_inst_config(DEFAULT_CONFIG, instrument).noise.by_binning
+    assert table is not None
+    return table[binning]
 
 
 def _binned_mode_detector(instrument: str, binning: int) -> Any:
@@ -179,9 +186,9 @@ def test_the_navigator_binned_zero_point_matches_the_simulators(
     zero_point, domain = resolve_star_flux_zero_point(instrument)
     assert domain == 'electrons'
     zero_point /= _binned_mode_detector(instrument, binning).gain_e_per_dn
-    mode = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['by_binning'][binning]
+    mode = _binned_mode(instrument, binning)
     step = _written_step(instrument, 'noise', 'by_binning', binning, 'star_flux_dn_per_s_vmag0')
-    assert zero_point == pytest.approx(mode['star_flux_dn_per_s_vmag0'], rel=0.0, abs=step / 2.0)
+    assert zero_point == pytest.approx(mode.star_flux_dn_per_s_vmag0, rel=0.0, abs=step / 2.0)
 
 
 @pytest.mark.parametrize(('instrument', 'binning'), _BINNED_RAW_DN_MODES)
@@ -195,9 +202,9 @@ def test_the_navigator_binned_read_noise_matches_the_simulators(
     """
     detector = _binned_mode_detector(instrument, binning)
     read_noise_dn = detector.read_noise_e / detector.gain_e_per_dn
-    mode = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)['noise']['by_binning'][binning]
+    mode = _binned_mode(instrument, binning)
     step = _written_step(instrument, 'noise', 'by_binning', binning, 'read_noise_dn')
-    assert read_noise_dn == pytest.approx(mode['read_noise_dn'], rel=0.0, abs=step / 2.0)
+    assert read_noise_dn == pytest.approx(mode.read_noise_dn, rel=0.0, abs=step / 2.0)
 
 
 def _scene(
@@ -213,26 +220,24 @@ def _scene(
 @pytest.mark.parametrize(
     ('table', 'message'),
     [
-        ([2], r'instrument_config\.noise\.by_binning must be a mapping keyed by binning'),
+        ([2], r'instrument_config\.noise\.by_binning: expected a mapping, got list \[2\]$'),
         (
             {2: {'star_flux_dn_per_s_vmag0': -3.33e5}},
-            r'instrument_config\.noise\.by_binning\.2\.star_flux_dn_per_s_vmag0 must be '
-            r'a finite number greater than 0; got -333000\.0$',
+            r'instrument_config\.noise\.by_binning\.2\.star_flux_dn_per_s_vmag0: expected a '
+            r'positive number, got -333000\.0$',
         ),
         (
             {'x2': {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0}},
-            r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
-            r"of at least 2; got 'x2'",
+            r'instrument_config\.noise\.by_binning\.x2: expected an integer as the key, got '
+            r"str 'x2'$",
         ),
         (
             {2: {'gain_e_per_dn': 28.0}},
-            r'instrument_config\.noise\.by_binning\.2 must be a mapping that sets only '
-            r"read_noise_dn and star_flux_dn_per_s_vmag0; got \{'gain_e_per_dn': 28\.0\}$",
+            r"instrument_config\.noise\.by_binning\.2: unknown keys: \['gain_e_per_dn'\]$",
         ),
         (
             {2: 5.0},
-            r'instrument_config\.noise\.by_binning\.2 must be a mapping that sets only '
-            r'read_noise_dn and star_flux_dn_per_s_vmag0; got 5\.0$',
+            r'instrument_config\.noise\.by_binning\.2: expected a mapping, got float 5\.0$',
         ),
     ],
     ids=[
@@ -258,24 +263,8 @@ def test_an_unbinned_scene_with_a_malformed_by_binning_override_is_refused() -> 
     scene = _scene({'noise': {'by_binning': {2: {'read_noise_dn': -1.0}}}}, binning=1)
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning\.2\.read_noise_dn must be a finite '
-        r'number of at least 0; got -1\.0$',
-    ):
-        validate_sim_params(scene, source='by_binning_probe')
-
-
-@pytest.mark.parametrize(
-    ('value', 'shown'),
-    [(math.inf, 'inf'), (10**400, str(10**400)), ('abc', "'abc'"), (True, 'True')],
-    ids=['infinite', 'too_large_for_a_float', 'text', 'boolean'],
-)
-def test_a_binned_read_noise_that_is_not_a_finite_number_is_refused(value: Any, shown: str) -> None:
-    """A binned mode's read noise must be a finite float, and a boolean isn't a number."""
-    scene = _scene({'noise': {'by_binning': {2: {'read_noise_dn': value}}}})
-    with pytest.raises(
-        SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning\.2\.read_noise_dn must be a finite '
-        rf'number of at least 0; got {re.escape(shown)}$',
+        match=r'instrument_config\.noise\.by_binning\.2\.read_noise_dn: expected a '
+        r'non-negative number, got -1\.0$',
     ):
         validate_sim_params(scene, source='by_binning_probe')
 
@@ -285,8 +274,8 @@ def test_an_unbinned_negative_read_noise_is_refused() -> None:
     scene = _scene({'noise': {'read_noise_dn': -1.0}}, binning=1)
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.noise\.read_noise_dn must be a finite number of at '
-        r'least 0; got -1\.0$',
+        match=r'instrument_config\.noise\.read_noise_dn: expected a non-negative number, got '
+        r'-1\.0$',
     ):
         validate_sim_params(scene, source='by_binning_probe')
 
@@ -296,45 +285,29 @@ def test_an_unbinned_zero_point_of_zero_is_refused() -> None:
     scene = _scene({'noise': {'star_flux_dn_per_s_vmag0': 0.0}}, binning=1)
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.noise\.star_flux_dn_per_s_vmag0 must be a finite number '
-        r'greater than 0; got 0\.0$',
+        match=r'instrument_config\.noise\.star_flux_dn_per_s_vmag0: expected a positive '
+        r'number, got 0\.0$',
     ):
         validate_sim_params(scene, source='by_binning_probe')
 
 
-@pytest.mark.parametrize('instrument', ['coiss_nac', 'vgiss_1_nac'])
-def test_a_star_psf_sigma_of_zero_is_refused(instrument: str) -> None:
-    """The PSF width must be positive on every camera, since other navigator code reads it.
-
-    The faint-star limit divides by it on a raw-DN camera.
-    """
-    scene = _scene({'star_psf_sigma': 0.0}, instrument=instrument, binning=1)
+def test_a_star_psf_sigma_of_zero_is_refused() -> None:
+    """The PSF width must be positive, since the faint-star limit divides by it."""
+    scene = _scene({'star_psf_sigma': 0.0}, binning=1)
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.star_psf_sigma must be a finite number greater than 0; '
-        r'got 0\.0$',
+        match=r'instrument_config\.star_psf_sigma: expected a positive number, got 0\.0$',
     ):
         validate_sim_params(scene, source='by_binning_probe')
 
 
-def test_a_generic_scene_with_a_malformed_by_binning_override_is_refused() -> None:
-    """The generic block, which has no table of its own, is checked too."""
-    scene = _scene({'noise': {'by_binning': [2]}}, instrument=GENERIC_INSTRUMENT, binning=1)
-    with pytest.raises(
-        SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning must be a mapping keyed by binning',
-    ):
-        validate_sim_params(scene, source='by_binning_probe')
-
-
-@pytest.mark.parametrize('noise', [[2], 'read_noise_dn'], ids=['list', 'string'])
-def test_a_noise_override_that_is_not_a_mapping_is_refused(noise: Any) -> None:
+def test_a_noise_override_that_is_not_a_mapping_is_refused() -> None:
     """``instrument_config.noise`` must be a mapping, or the frame's star limit can't read it."""
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.noise must be a mapping when present',
+        match=r'instrument_config\.noise: expected a mapping, got list \[2\]$',
     ):
-        validate_sim_params(_scene({'noise': noise}), source='by_binning_probe')
+        validate_sim_params(_scene({'noise': [2]}), source='by_binning_probe')
 
 
 def test_a_null_binned_noise_value_is_refused() -> None:
@@ -355,100 +328,34 @@ def test_a_binning_key_written_as_digits_names_that_mode() -> None:
     reach the same entry.
     """
     overrides = {'noise': {'by_binning': {'2': {'read_noise_dn': 3.0}}}}
-    noise = resolve_sim_inst_config(DEFAULT_CONFIG, 'coiss_nac', overrides)['noise']
-    assert noise['by_binning'][2]['read_noise_dn'] == 3.0
+    scene = {'instrument': 'coiss_nac', 'instrument_config': overrides}
+    by_binning = scene_camera_block(DEFAULT_CONFIG, scene).noise.by_binning
+    assert by_binning is not None
+    assert by_binning[2].read_noise_dn == 3.0
 
 
-def test_a_binning_written_both_as_an_integer_and_as_digits_is_refused() -> None:
-    """Keys ``2`` and ``'2'`` name one mode, so a table holding both sets it twice."""
-    table = {2: {'read_noise_dn': 3.0}, '2': {'read_noise_dn': 1.0}}
-    with pytest.raises(
-        SimSceneValidationError,
-        match=r"instrument_config\.noise\.by_binning holds both 2 and '2', which name the "
-        r'same binning; keep one',
-    ):
-        validate_sim_params(_scene({'noise': {'by_binning': table}}), source='by_binning_probe')
+def test_a_binning_key_written_as_a_float_is_refused() -> None:
+    """A key ``2.0`` is refused as written: a scene file's keys are strings or integers.
 
-
-@pytest.mark.parametrize(
-    ('through_json', 'shown'),
-    [(False, '2.0'), (True, "'2.0'")],
-    ids=['as_written', 'through_json'],
-)
-def test_a_binning_key_written_as_a_float_is_refused(through_json: bool, shown: str) -> None:
-    """A key ``2.0`` is refused whether the scene is read as written or through JSON.
-
-    As written, ``2.0`` equals and hashes as the packaged table's key ``2``, so it must
-    be refused before the scene's table is merged over the packaged one.
+    ``2.0`` equals and hashes as the packaged table's key ``2``, so it must be refused
+    before the scene's table is merged over the packaged one.
     """
     table = {2.0: {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}}
-    scene = _scene({'noise': {'by_binning': table}})
-    if through_json:
-        scene = json.loads(json.dumps(scene))
     with pytest.raises(
         SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
-        rf'of at least 2; got {re.escape(shown)}$',
-    ):
-        validate_sim_params(scene, source='by_binning_probe')
-
-
-@pytest.mark.parametrize(
-    ('key', 'through_json', 'shown'),
-    [
-        (-1, False, '-1'),
-        (-1, True, "'-1'"),
-        (0, False, '0'),
-        (0, True, "'0'"),
-        (1, False, '1'),
-        (1, True, "'1'"),
-    ],
-    ids=[
-        'minus_one_as_written',
-        'minus_one_through_json',
-        'zero_as_written',
-        'zero_through_json',
-        'one_as_written',
-        'one_through_json',
-    ],
-)
-def test_a_binning_key_below_2_is_refused(key: int, through_json: bool, shown: str) -> None:
-    """A key below 2 gets the same refusal whether read as written or through JSON."""
-    table = {key: {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}}
-    scene = _scene({'noise': {'by_binning': table}})
-    if through_json:
-        scene = json.loads(json.dumps(scene))
-    with pytest.raises(
-        SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
-        rf'of at least 2; got {re.escape(shown)}$',
-    ):
-        validate_sim_params(scene, source='by_binning_probe')
-
-
-def test_a_float_key_beside_its_digits_is_refused_for_its_form() -> None:
-    """A table holding ``'2'`` and ``2.0`` is refused for the float key.
-
-    Every key's form is checked before any two keys are compared, so the float isn't
-    reported as a second spelling of binning 2.
-    """
-    entry = {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}
-    table = {'2': dict(entry), 2.0: dict(entry)}
-    with pytest.raises(
-        SimSceneValidationError,
-        match=r'instrument_config\.noise\.by_binning: a key must be an integer binning factor '
-        r'of at least 2; got 2\.0$',
+        match=r'instrument_config\.noise\.by_binning: expected a string or integer key, got '
+        r'float 2\.0$',
     ):
         validate_sim_params(_scene({'noise': {'by_binning': table}}), source='by_binning_probe')
 
 
-def test_a_binning_key_with_a_leading_zero_is_refused() -> None:
-    """A key ``'02'`` would be a second spelling of binning 2."""
-    table = {'02': {'read_noise_dn': 3.0}}
+def test_a_binning_key_below_2_is_refused() -> None:
+    """A binned mode's key is a binning factor of at least 2."""
+    table = {1: {'read_noise_dn': 1.0, 'star_flux_dn_per_s_vmag0': 1.0e6}}
     with pytest.raises(
         SimSceneValidationError,
-        match=r"instrument_config\.noise\.by_binning: the key '02' has a leading zero; "
-        r'write it as 2',
+        match=r'instrument_config\.noise\.by_binning\.1: expected a number of at least 2 as '
+        r'the key, got 1$',
     ):
         validate_sim_params(_scene({'noise': {'by_binning': table}}), source='by_binning_probe')
 

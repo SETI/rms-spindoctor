@@ -9,7 +9,7 @@ exposure_sec: 5.0
 # stars, V 10.5 to 13.0, drawn uniformly over the frame with the count rising
 # 0.45 dex per magnitude; the sky_counts field adds the faint stars no catalog
 # lists.  instrument_defaults turns on the camera's whole chain.  At 5 s the
-# navigator expects to see the four brightest stars.
+# navigator predicts stars to V 16.5 and measures all 18.
 #
 # The planted offset, 32 px, has no measured LORRI counterpart: the image
 # library's two LORRI frames are each about 1.2 px off, and no larger
@@ -18,9 +18,10 @@ exposure_sec: 5.0
 # the small real errors.  The roll is the camera's measured twist, +0.1912 deg
 # (2.4 px at the corner), planted with roll fitting off as the camera ships.  A
 # translation cannot undo a roll, so the answer lands where the turned stars it
-# measures moved: the four stars' mean position lies about 280 px from the
+# measures moved: the 18 stars' mean position lies about 120 px from the
 # boresight, the frame center after the offset, and the twist moves it about
-# 0.94 px.  That is the error the tolerance holds.
+# 0.4 px.  The answer lands 0.41 to 0.42 px off at high confidence over 24
+# draws, and 0.02 px off on the committed draw without the roll.
 artifacts:
   instrument_defaults: true
 sky_counts: {}

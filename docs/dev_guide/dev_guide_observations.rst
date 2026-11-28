@@ -318,7 +318,10 @@ must implement:
   :class:`~psfmodel.PSF` (typically a
   :class:`~psfmodel.GaussianPSF`). Used by
   :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` to predict
-  the per-star detection footprint.
+  the per-star detection footprint. Its sigma comes from
+  :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_sigma`, which reads the camera
+  block's ``star_psf_sigma`` unless the instrument overrides it to read
+  ``star_photometry.psf_sigma`` for the frame's readout mode.
 - :meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_size` — returns the per-star kernel support
   rectangle in pixels.
 - :meth:`~spindoctor.obs.obs_inst.ObsInst.star_min_usable_vmag` /
@@ -347,10 +350,11 @@ must implement:
   :class:`~spindoctor.obs.obs_snapshot_inst.ObsSnapshotInst` sets
   ``_abstract = True`` instead.
 
-The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property exposes the
-per-instrument YAML block loaded from
-``src/spindoctor/config_files/config_4N0_inst_*.yaml`` so subclass methods can read
-instrument-specific knobs without hard-coding them.
+The :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` property gives the block of
+the camera that took the image, a :class:`~spindoctor.config.sections_camera.CameraBlock`
+(see :ref:`config-camera-blocks`), so subclass methods can read instrument-specific
+knobs without hard-coding them. A subclass's ``from_file`` takes the block from
+:meth:`~spindoctor.config.config.Config.camera_block` and sets it on the new observation.
 
 Per-instrument subclasses
 =========================
@@ -395,8 +399,10 @@ name to the matching ``config_4N0_inst_*.yaml`` block (or the standalone ``sim``
 block for the ``generic`` alias).
 
 A scene may additionally carry an ``instrument_config`` mapping that is
-**deep-merged** over the resolved block (nested mappings merge key-by-key; scalars
-and lists replace). This gives three modes:
+**merged** over the resolved block (nested mappings merge key by key; scalars and
+lists replace; a filter of another kind replaces the whole filter). The merged block is
+parsed with the camera block's type and follows the same rules as every camera's
+block. This gives three modes:
 
 - **Inherit** -- omit ``instrument_config``; every setting tracks the instrument's
   config.
@@ -411,7 +417,7 @@ real camera's config, then editing that camera's ``star_psf_sigma`` (or noise,
 saturation, ...) silently shifts the recovered offset of
 every sim scene that uses it -- re-blessing baselines for a change that had
 nothing to do with the simulator. Pinning a key via ``instrument_config``
-decouples it from the camera config: the merge produces a fresh dict, so a later
+decouples it from the camera config: the merge produces a separate block, so a later
 camera-config edit cannot reach a pinned key. Full self-specification (generic +
 complete overrides) makes a scene immune to *all* instrument-config drift.
 
@@ -446,7 +452,9 @@ The end-to-end checklist lives at
    :meth:`~spindoctor.obs.obs_inst.ObsInst.from_file`.
 4. Add the per-instrument config block at
    ``src/spindoctor/config_files/config_4N0_inst_<mission>_<inst>.yaml`` so
-   :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` carries the instrument's tuning knobs.
+   :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config` carries the instrument's tuning
+   knobs. The block sets ``data_units`` and the other camera-block keys (see
+   :ref:`config-camera-blocks`).
 
 API reference
 =============

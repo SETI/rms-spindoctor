@@ -28,7 +28,6 @@ A preview that fails on a valid scene opens an error dialog.
 """
 
 import copy
-from collections.abc import Mapping
 from typing import Any
 
 import numpy as np
@@ -37,7 +36,11 @@ from PyQt6.QtGui import QCloseEvent, QColor, QImage, QPainter, QPen, QPixmap
 from PyQt6.QtWidgets import QFileDialog, QFormLayout, QGroupBox, QLabel, QMessageBox, QVBoxLayout
 
 from spindoctor.config import DEFAULT_CONFIG
-from spindoctor.sim.instruments.navigator_link import resolve_sim_inst_config
+from spindoctor.config.sections_camera import CameraBlock
+from spindoctor.sim.instruments.navigator_link import (
+    resolve_sim_inst_config,
+    scene_camera_block,
+)
 from spindoctor.sim.render.detector.params import resolve_detector_params
 from spindoctor.sim.render.driver import render_scene
 from spindoctor.sim.scene.errors import SimSceneValidationError
@@ -136,7 +139,7 @@ class RenderDisplayMixin(SimEditorBase):
         if not self._psf_group.isChecked():
             return
         inst_config = resolve_sim_inst_config(DEFAULT_CONFIG, self.sim_params.get('instrument'))
-        sigma = float(inst_config.get('star_psf_sigma', 1.0))
+        sigma = inst_config.star_psf_sigma
         size = 25
         coords = np.arange(size) - size // 2
         vv, uu = np.meshgrid(coords.astype(float), coords.astype(float), indexing='ij')
@@ -305,18 +308,16 @@ class RenderDisplayMixin(SimEditorBase):
         self._display_image()
 
     @staticmethod
-    def _inst_config(scene: dict[str, Any]) -> Mapping[str, Any]:
-        """Return the instrument configuration a scene renders with.
+    def _inst_config(scene: dict[str, Any]) -> CameraBlock:
+        """Return the navigator block a scene's frame is read with.
 
         Parameters:
             scene: The scene mapping.
 
         Returns:
-            The resolved instrument configuration.
+            The scene's navigator block.
         """
-        return resolve_sim_inst_config(
-            DEFAULT_CONFIG, scene.get('instrument'), scene.get('instrument_config')
-        )
+        return scene_camera_block(DEFAULT_CONFIG, scene)
 
     def _show_verdict(self, scene: dict[str, Any], summary: str) -> None:
         """Show the navigated frame's summary, if its scene is current.

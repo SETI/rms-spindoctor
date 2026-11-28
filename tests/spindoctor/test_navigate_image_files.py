@@ -23,6 +23,7 @@ import numpy as np
 import pytest
 from filecache import FCPath
 from PIL import Image
+from tests.camera_sections import raw_camera
 
 from spindoctor.annotation import Annotation, Annotations
 from spindoctor.dataset.dataset import ImageFile, ImageFiles
@@ -79,6 +80,7 @@ class _FakeSnapshot:
         self.extdata = self.data
         self._sensor_mask = np.ones(self.data.shape, bool)
         self.midtime = midtime
+        self.inst_config = raw_camera()
         # Stands in for ObsInst.camera, written to observation.camera.
         self.camera = 'NAC'
         # Stands in for ObsInst.shutter_mode, written to

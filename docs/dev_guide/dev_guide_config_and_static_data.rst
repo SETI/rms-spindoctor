@@ -64,16 +64,13 @@ A file the merge refuses raises :class:`~spindoctor.schema.errors.SchemaError`, 
 :class:`ValueError` whose message has one line per problem, in the form
 ``file: key.path: message``. An override is given by the path it was loaded from, and
 a packaged file by its name. The merged result's typed sections are then parsed (see
-:ref:`config-typed-sections`), and the result goes through the load-time checks, which
-raise a :class:`ValueError` of their own. An override refused at any of these steps
-leaves the configuration as it was, so a later override still loads.
+:ref:`config-typed-sections`). An override refused at either step leaves the
+configuration as it was, so a later override still loads.
 :attr:`~spindoctor.config.config.Config.override_paths` lists the overrides applied, in
 order, for provenance.
 
-Numeric values are typed by YAML; downstream consumers convert with explicit casts
-where the section schema is mixed (e.g. the per-instrument
-``image_quality_thresholds`` block constructs a frozen
-:class:`~spindoctor.support.image_class.ImageQualityThresholds` dataclass).
+Numeric values are typed by YAML. A consumer of a section that is not typed converts a
+value with an explicit cast.
 
 Direct programmatic use:
 
@@ -170,6 +167,9 @@ returns the typed object:
   that key, and the loader refuses an entry under any other key.
   :meth:`~spindoctor.config.sections_products.Pds4Section.bundle` returns one bundle's
   entry; see :doc:`dev_guide_pds4`.
+- the camera sections — each camera's block, a
+  :class:`~spindoctor.config.sections_camera.CameraBlock`, under the section the files
+  give it; see :ref:`config-camera-blocks`.
 
 Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_km``,
 ``feature_emission.ring_annulus.planets``, and ``rings.ring_features``. Each of their
@@ -192,6 +192,105 @@ feature type by its name, such as ``STAR`` or ``LIMB_ARC``. Body names stay in u
 because SPICE, the metadata documents, the backplanes, the logs, and the simulator scenes
 all spell them that way. A lower-case key would show the user a second spelling of the
 same body, and every lookup would have to convert the SPICE name before reading it.
+
+.. _config-camera-blocks:
+
+Camera blocks
+^^^^^^^^^^^^^
+
+A camera block holds what the navigator knows about one camera: the units its images
+are read in (``data_units``), the margin its offset search may reach
+(``extfov_margin_vu``), its star PSF (``star_psf_sigma`` and ``star_psf_sizes``), the
+share of the offset window in which a lone star is believed
+(``one_star_ellipse_fraction``), the rotation settings (``fit_camera_rotation`` and
+``max_rotation_deg``), its ``noise``, ``image_quality_thresholds``,
+``source_image_filter``, and ``mag_offset`` blocks, and, for a camera whose star
+photometry has been measured, its ``star_photometry`` block. Each camera's block parses
+into :class:`~spindoctor.config.sections_camera.CameraBlock`. Each of its blocks has a
+type of its own: :class:`~spindoctor.config.sections_camera.CameraNoise`, with a
+:class:`~spindoctor.config.sections_camera.BinnedNoise` for each binned readout mode;
+:class:`~spindoctor.config.sections_camera.QualityThresholds`;
+:class:`~spindoctor.config.sections_camera.MagOffset`;
+:class:`~spindoctor.config.sections_camera.StarPhotometry`; and a source-image filter
+chosen by its ``kind``, either a
+:class:`~spindoctor.config.sections_camera.BandpassFilter` or a
+:class:`~spindoctor.config.sections_camera.BlurFilter`. Each field's type is also
+exported under a name of its own, such as
+:data:`~spindoctor.config.sections_camera.ReadNoiseDn`, so code that states some of the
+same keys can type them with the same ranges.
+
+The loader finds the camera blocks by the key that every one of them sets,
+``data_units`` (:func:`~spindoctor.config.sections_camera.camera_sections`). A top-level
+section that sets it is one camera's block. A section whose entries set it holds
+several cameras, keyed by camera name, and parses into a mapping of camera name to
+block. Each camera section becomes a field of the typed sections under its own name, so
+the key path of a problem starts at the section, followed by the camera in a section
+that holds several. :meth:`~spindoctor.config.config.Config.camera_block` returns one
+camera's block, :meth:`~spindoctor.config.config.Config.camera_names` gives the names of
+a section's cameras, and an observation carries its camera's block as
+:attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config`.
+
+Which keys a camera sets follows its ``data_units``:
+
+- A ``raw_dn`` camera sets ``noise.saturation_dn``, ``noise.read_noise_dn``, and
+  ``noise.star_flux_dn_per_s_vmag0``, and the DN limits of its quality thresholds:
+  ``blank_max_dn``, ``saturation_threshold_dn``, and ``noisy_threshold_dn``. It may also
+  set ``noise.by_binning``, keyed by binning factors of 2 or more. Each entry of that
+  table sets ``read_noise_dn`` and ``star_flux_dn_per_s_vmag0``. If the table has no
+  entry for a binned mode, that mode reads the unbinned values.
+- A ``calibrated_if`` camera sets the I/F limits, ``blank_max_if`` and
+  ``noisy_threshold_if``, and leaves out every DN value of the two blocks. The same
+  full-well count maps to a different I/F for every exposure, filter, and gain, so such
+  a camera has no saturation limit.
+- Every other key is either set by every camera or optional by nature. A camera that
+  leaves out ``star_max_peak_per_predicted_snr`` puts no bound on a lone star's peak.
+  A camera without measured star photometry leaves out ``star_photometry``, and a reader
+  that needs it refuses the image, giving the block's key path.
+
+A key that the camera's units do not read is refused at load, and so is a missing key
+that they do read. Two more rules tie keys together: the magnitude offset's
+``fallback_combo`` must have an entry in ``mag_offset_table``, and a bandpass filter's
+heavy blur (``lo_sigma_px``) must be wider than its light one (``hi_sigma_px``).
+
+The ``star_photometry`` block gives a camera's star limit and star width in one form for
+every camera, from which the star model's limiting magnitude follows (see
+:doc:`dev_guide_navigation_models_star`):
+
+- ``flux_unit`` — what the rate counts: ``electrons``, or ``dn`` for a camera whose
+  calibration works in DN and does not convert to electrons.
+- ``flux_per_s_vmag0`` — the rate per second of a V = 0 star through the reference
+  filter (at the reference gain state, when the unit is ``dn``).
+- ``gain`` — a table keyed by gain state: the electrons per DN when the rate counts
+  electrons, or, when it counts DN, the factor by which a star's DN is multiplied
+  against the reference gain state.
+- ``filter_mag_offset`` — a table of how many magnitudes each filter dims a star,
+  against the reference filter. A camera whose reader does not read a filter leaves it out.
+- ``min_detectable_dn`` and ``psf_sigma`` — tables keyed by readout mode: the DN of the
+  dimmest star a frame shows, and the Gaussian sigma of a star in the frame's own
+  pixels. A camera whose star limit and star width do not depend on the readout gives
+  each one entry. The two tables must give the same modes.
+- ``search_depth_mag`` — how many magnitudes past the dimmest visible star the catalog
+  search reaches.
+
+A star of V magnitude ``m`` puts ``flux_per_s_vmag0 * 10**(-0.4 * (m + offset)) * texp``
+in the image, divided or multiplied by its gain state's entry, and the dimmest visible
+star puts ``min_detectable_dn`` there. The keys of the gain, filter, and mode tables are
+spelled the way the camera's observation class spells the image's gain state, filter, and
+readout mode, so the loader cannot tell a misspelled key from one the camera never reads.
+The observation class (:meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag` and
+:meth:`~spindoctor.obs.obs_inst.ObsInst.star_psf_sigma`) refuses an image when the
+tables leave out its gain state, filter, or mode, and the message gives the block's key
+path. The camera block's own ``star_psf_sigma`` is a single number that the simulator
+reads; the instrument chapters under :doc:`/dev_guide/instruments/instruments` say which
+of the two star widths each camera's navigator reads. In the same way,
+``noise.star_flux_dn_per_s_vmag0`` is a separate key from
+``star_photometry.flux_per_s_vmag0``: the simulator reads the first for simulated
+frames, and the navigator reads the second for real ones.
+
+The simulator's own camera section is parsed into the same type as the others when the
+configuration loads. A simulated scene's ``instrument_config`` block is merged over its
+camera's block, and the merged block is parsed into the same type again (see
+:ref:`sim-instrument-config`).
 
 .. _config-techniques-section:
 
@@ -266,8 +365,8 @@ Sections
 Top-level YAML keys other than the typed sections, such as each camera's block, are read
 through :meth:`~spindoctor.config.Config.category`, which returns an
 :class:`~spindoctor.support.attrdict.AttrDict` so code can write
-``cfg.category('voyager_iss').star_psf_sigma`` instead of
-``cfg.category('voyager_iss')['star_psf_sigma']``. That
+``cfg.category('galileo_ssi').star_psf_sigma`` instead of
+``cfg.category('galileo_ssi')['star_psf_sigma']``. That
 convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
 own instance dictionary, so
 anything that sets an attribute on a section adds a key to it. ``oops`` caches
@@ -305,9 +404,9 @@ removal. The shipping sections:
   section (see :ref:`config-typed-sections`) described in :doc:`dev_guide_pds4`.
 - ``body_shape`` — static per-body shape catalog; a typed section (see
   :ref:`static-data-citations` below).
-- ``coiss`` / ``vgiss`` / ``gossi`` / ``nhlorri`` — per-camera blocks
-  (``noise``, ``mag_offset``, ``image_quality_thresholds``,
-  ``source_image_filter``, etc.).
+- the camera sections — each camera's block (``noise``, ``mag_offset``,
+  ``image_quality_thresholds``, ``source_image_filter``, and the rest); typed (see
+  :ref:`config-camera-blocks`).
 - ``techniques`` — per-:class:`~spindoctor.nav_technique.nav_technique.NavTechnique`
   tunables and confidence-formula
   coefficients; see :doc:`dev_guide_techniques`.
@@ -478,10 +577,10 @@ Static-data files
   — per-ring-edge radii, eccentricities, RMS radial precision; consumed by
   the ring-edge extractor to derive per-edge ``sigma_radial``. See
   :doc:`dev_guide_navigation_models_ring`.
-- ``config_4N0_inst_*.yaml`` populate ``config.<camera>`` — per-camera
-  ``noise``, ``mag_offset``, ``image_quality_thresholds``, and
-  ``source_image_filter`` blocks; consumed by the orchestrator preflight, the
-  star photometry helper, and the per-instrument PSF model.
+- ``config_4N0_inst_*.yaml`` populate the camera sections (see
+  :ref:`config-camera-blocks`) — each camera's ``noise``, ``mag_offset``,
+  ``image_quality_thresholds``, and ``source_image_filter`` blocks; consumed by the
+  orchestrator preflight, the star photometry helper, and the per-instrument PSF model.
 
 Citation requirement
 --------------------

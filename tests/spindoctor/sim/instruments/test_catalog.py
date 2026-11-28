@@ -10,7 +10,6 @@ values are checked against the catalog in ``test_navigator_star_values.py``.
 """
 
 import pickle
-from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, get_type_hints
 
@@ -26,6 +25,7 @@ from tests.spindoctor.sim.fictional_camera import (
 from tests.spindoctor.sim.scenes import frame_scene
 
 from spindoctor.config import DEFAULT_CONFIG
+from spindoctor.config.sections_camera import CameraBlock
 from spindoctor.schema import SchemaError
 from spindoctor.sim.instruments import catalog as instrument_catalog
 from spindoctor.sim.instruments import navigator_link
@@ -957,7 +957,7 @@ def test_the_load_check_decodes_a_parametric_table_as_the_renderer_does(
 def test_each_entry_names_a_navigator_block_that_exists(instrument: str) -> None:
     """Each entry's navigator section and detector point at a block of the packaged config."""
     block = resolve_sim_inst_config(DEFAULT_CONFIG, instrument)
-    assert isinstance(block.get('noise'), Mapping)
+    assert isinstance(block, CameraBlock)
 
 
 def test_an_inherited_detector_under_another_section_is_caught(
@@ -976,10 +976,8 @@ def test_an_inherited_detector_under_another_section_is_caught(
 def test_each_entry_states_the_units_its_navigator_block_reads(instrument: str) -> None:
     """Each entry's units are the units its navigator block sets."""
     navigator = load_instrument_catalog().entry(instrument).navigator
-    block = DEFAULT_CONFIG.category(navigator.section)
-    if navigator.detector is not None:
-        block = block[navigator.detector]
-    assert resolve_data_units(instrument) == block['data_units']
+    block = DEFAULT_CONFIG.camera_block(navigator.section, navigator.detector)
+    assert resolve_data_units(instrument) == block.data_units
 
 
 @pytest.fixture
@@ -1000,26 +998,6 @@ def test_units_that_differ_from_the_navigator_block_fail(calibrated_cam_on_raw_b
     )
     with pytest.raises(SchemaError, match=message):
         resolve_sim_inst_config(DEFAULT_CONFIG, calibrated_cam_on_raw_block)
-
-
-def test_a_navigator_block_without_units_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A navigator block that doesn't set data_units fails when it is resolved."""
-    monkeypatch.setattr(
-        instrument_catalog,
-        'INSTRUMENT_CONFIG_DIR',
-        catalog_dir_with(tmp_path, {'cam.yaml': _cam(_CAMERA)}),
-    )
-    block = dict(DEFAULT_CONFIG.category('sim'))
-    del block['data_units']
-    monkeypatch.setattr(DEFAULT_CONFIG, 'category', lambda section: block)
-    message = (
-        r"cam\.yaml: cam: data_units: the navigator block sim doesn't set data_units, which "
-        r'the navigator requires'
-    )
-    with pytest.raises(SchemaError, match=message):
-        resolve_sim_inst_config(DEFAULT_CONFIG, 'cam')
 
 
 def test_the_frame_units_follow_the_entry(
@@ -1205,12 +1183,20 @@ def test_each_voyager_camera_is_an_instrument() -> None:
     assert set(_VOYAGER_CAMERAS) <= names
 
 
-@pytest.mark.parametrize('name', _VOYAGER_CAMERAS)
-def test_each_voyager_camera_emulates_the_voyager_navigator_block(name: str) -> None:
-    """Every Voyager camera points at the one voyager_iss section, with no detector."""
+@pytest.mark.parametrize(
+    ('name', 'detector'),
+    [
+        ('vgiss_1_nac', 'vgiss_1_nac'),
+        ('vgiss_1_wac', 'vgiss_1_wac'),
+        ('vgiss_2_nac', 'vgiss_2_nac'),
+        ('vgiss_2_wac', 'vgiss_2_wac'),
+    ],
+)
+def test_each_voyager_camera_emulates_its_own_navigator_block(name: str, detector: str) -> None:
+    """Every Voyager camera points at the voyager_iss block of its own camera."""
     navigator = load_instrument_catalog().entry(name).navigator
     assert navigator.section == 'voyager_iss'
-    assert navigator.detector is None
+    assert navigator.detector == detector
 
 
 # The optical keys of a Voyager camera, as paths into its own entry: the PSF, the residual

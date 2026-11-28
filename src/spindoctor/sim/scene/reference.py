@@ -14,11 +14,15 @@ import types
 from pathlib import Path
 from typing import Annotated, Any, Literal, Union, get_args, get_origin, get_type_hints
 
+from annotated_types import Ge, Gt, Le, Lt, MinLen
 from pydantic import AfterValidator
 
+from spindoctor.config.sections_camera import MarkerValue
 from spindoctor.schema import (
     Bool,
+    DigitInt,
     Float,
+    FloatOrNan,
     Int,
     NonNeg,
     NonNegInt,
@@ -32,18 +36,30 @@ from spindoctor.sim.scene.truth import UNTYPED_BLOCKS, Scene
 
 __all__ = ['scene_reference', 'write_scene_reference']
 
-# The words for each schema alias, as the validator's messages use them.
-_ALIAS_WORDS: tuple[tuple[Any, str], ...] = (
-    (Positive, 'a positive number'),
-    (NonNeg, 'a non-negative number'),
-    (Unit, 'a number in [0, 1]'),
-    (PositiveInt, 'a positive integer'),
-    (NonNegInt, 'a non-negative integer'),
-    (NonEmptyStr, 'a non-empty string'),
-    (Float, 'a number'),
-    (Int, 'an integer'),
-    (Bool, 'true or false'),
-    (Str, 'a string'),
+# The words for each schema alias, as the validator's messages use them: one value,
+# then several.
+_ALIAS_WORDS: tuple[tuple[Any, str, str], ...] = (
+    (Positive, 'a positive number', 'positive numbers'),
+    (NonNeg, 'a non-negative number', 'non-negative numbers'),
+    (Unit, 'a number in [0, 1]', 'numbers in [0, 1]'),
+    (PositiveInt, 'a positive integer', 'positive integers'),
+    (NonNegInt, 'a non-negative integer', 'non-negative integers'),
+    (NonEmptyStr, 'a non-empty string', 'non-empty strings'),
+    (Float, 'a number', 'numbers'),
+    (MarkerValue, 'a number, or NaN written ``.nan`` or ``NaN``', 'numbers or NaN'),
+    (FloatOrNan, 'a number or NaN', 'numbers or NaN'),
+    (Int, 'an integer', 'integers'),
+    (DigitInt, 'an integer', 'integers'),
+    (Bool, 'true or false', 'values true or false'),
+    (Str, 'a string', 'strings'),
+)
+
+# The words for each bound an annotation adds to an alias.
+_BOUND_WORDS: tuple[tuple[type, str, str], ...] = (
+    (Gt, 'gt', 'greater than'),
+    (Ge, 'ge', 'of at least'),
+    (Lt, 'lt', 'less than'),
+    (Le, 'le', 'of at most'),
 )
 
 # The boundary classes as the page writes them.
@@ -76,14 +92,100 @@ def _without_none(annotation: Any) -> Any:
     return annotation
 
 
+def _is_record(annotation: Any) -> bool:
+    """Whether an annotation is a typed block, which the page tabulates on its own."""
+    return isinstance(annotation, type) and dataclasses.is_dataclass(annotation)
+
+
 def _record(annotation: Any) -> type | None:
-    """The dataclass a field holds, alone or as the items of a list; else None."""
+    """The dataclass a field holds, alone, as a list's items, or as a mapping's values."""
     base = _without_none(annotation)
     if get_origin(base) is tuple:
         base = get_args(base)[0]
-    if isinstance(base, type) and dataclasses.is_dataclass(base):
-        return base
-    return None
+    elif get_origin(base) is dict:
+        base = get_args(base)[1]
+    return base if _is_record(base) else None
+
+
+def _holds_entries(annotation: Any) -> bool:
+    """Whether a field that holds a typed block holds a list or mapping of them."""
+    return get_origin(_without_none(annotation)) in (tuple, dict)
+
+
+def _bounded_words(base: Any) -> tuple[str, str] | None:
+    """The words for an alias that an annotation narrows with bounds, or None.
+
+    Parameters:
+        base: An ``Annotated`` type.
+
+    Returns:
+        The words for one value and for several, or None when the annotation adds no
+        bound to the type it annotates.
+    """
+    inner, *extras = get_args(base)
+    # Each bound's words, with the separator that comes before them.
+    bounds: list[str] = []
+    while extras and isinstance(extras[-1], Gt | Ge | Lt | Le | MinLen):
+        bound = extras.pop()
+        if isinstance(bound, MinLen):
+            entries = 'entry' if bound.min_length == 1 else 'entries'
+            bounds.insert(0, f', with at least {bound.min_length} {entries}')
+            continue
+        for kind, attribute, words in _BOUND_WORDS:
+            if isinstance(bound, kind):
+                bounds.insert(0, f' {words} {getattr(bound, attribute)}')
+    if not bounds:
+        return None
+    one, many = _words(Annotated[(inner, *extras)] if extras else inner)
+    suffix = ''.join(bounds)
+    return f'{one}{suffix}', f'{many}{suffix}'
+
+
+def _words(annotation: Any) -> tuple[str, str]:
+    """The type and range of a field, in words, for one value and for several.
+
+    Raises:
+        TypeError: If the page has no words for the annotation.
+    """
+    base = _without_none(annotation)
+    for alias, one, many in _ALIAS_WORDS:
+        if base == alias:
+            return one, many
+    origin = get_origin(base)
+    if origin is Union or origin is types.UnionType:
+        members = [_words(member) for member in get_args(base) if member is not type(None)]
+        return ', or '.join(one for one, _ in members), ', or '.join(many for _, many in members)
+    if origin is Literal:
+        choices = [f'``{choice}``' for choice in get_args(base)]
+        if len(choices) == 1:
+            return choices[0], choices[0]
+        listed = 'one of ' + ', '.join(choices)
+        return listed, listed
+    if origin is tuple:
+        items = get_args(base)
+        if len(items) == 2 and items[1] is Ellipsis:
+            if _is_record(items[0]):
+                return 'a list of mappings, below', 'lists of mappings, below'
+            many = _words(items[0])[1]
+            return f'a list of {many}', f'lists of {many}'
+        if len(set(items)) == 1:
+            many = _words(items[0])[1]
+            return f'a list of {len(items)} {many}', f'lists of {len(items)} {many}'
+    if origin is dict:
+        key, value = get_args(base)
+        keys = _words(key)[1]
+        values = 'mappings, below' if _is_record(value) else _words(value)[1]
+        return f'a mapping from {keys} to {values}', f'mappings from {keys} to {values}'
+    if _is_record(base):
+        return 'a mapping, below', 'mappings, below'
+    if origin is Annotated:
+        for extra in get_args(base)[1:]:
+            if isinstance(extra, AfterValidator) and isinstance(extra.func, IntWithin):
+                return extra.func.expected, extra.func.expected
+        bounded = _bounded_words(base)
+        if bounded is not None:
+            return bounded
+    raise TypeError(f'the scene reference has no words for {annotation!r}')
 
 
 def _describe(annotation: Any) -> str:
@@ -92,35 +194,7 @@ def _describe(annotation: Any) -> str:
     Raises:
         TypeError: If the page has no words for the annotation.
     """
-    base = _without_none(annotation)
-    for alias, words in _ALIAS_WORDS:
-        if base == alias:
-            return words
-    origin = get_origin(base)
-    if origin is Literal:
-        return 'one of ' + ', '.join(f'``{choice}``' for choice in get_args(base))
-    if origin is tuple:
-        item = get_args(base)[0]
-        if isinstance(item, type) and dataclasses.is_dataclass(item):
-            return 'a list of mappings, below'
-        return f'a list of {_plural(_describe(item))}'
-    if isinstance(base, type) and dataclasses.is_dataclass(base):
-        return 'a mapping, below'
-    if origin is Annotated:
-        for extra in get_args(base)[1:]:
-            if isinstance(extra, AfterValidator) and isinstance(extra.func, IntWithin):
-                return extra.func.expected
-    raise TypeError(f'the scene reference has no words for {annotation!r}')
-
-
-def _plural(words: str) -> str:
-    """Turn ``a mapping`` into ``mappings`` and ``a number`` into ``numbers``."""
-    for article in ('a ', 'an '):
-        if words.startswith(article):
-            noun = words[len(article) :]
-            head, _, rest = noun.partition(' ')
-            return f'{head}s {rest}'.rstrip()
-    return words
+    return _words(annotation)[0]
 
 
 def _default_text(value: float | str | bool) -> str:
@@ -190,9 +264,8 @@ def scene_reference() -> str:
         for item in dataclasses.fields(cls):
             record = _record(hints[item.name])
             if record is not None:
-                inner = _without_none(hints[item.name])
                 child = f'{path}.{item.name}' if path else item.name
-                queue.append((child, record, get_origin(inner) is tuple))
+                queue.append((child, record, _holds_entries(hints[item.name])))
     lines += [*_heading('Blocks not typed yet', '='), '', _UNTYPED_INTRO]
     lines += [
         '.. list-table::',

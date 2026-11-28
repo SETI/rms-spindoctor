@@ -31,6 +31,7 @@ from spindoctor.sim.instruments.resolvers import (
     instrument_default_modes,
     mode_available,
     mode_unavailable_message,
+    resolve_detector_defaults,
     resolve_detector_model,
 )
 from spindoctor.sim.scene.errors import SimSceneValidationError
@@ -41,6 +42,10 @@ from spindoctor.sim.scene.rules_common import _check_optional_bool
 # the mode-key registry.  Unknown keys fail.
 _ARTIFACTS_SWITCH_KEYS: frozenset[str] = frozenset({'instrument_defaults', 'adversarial'})
 _ARTIFACTS_KEYS: frozenset[str] = _ARTIFACTS_SWITCH_KEYS | MODE_KEYS
+
+# The quantization sub-modes that downlink 8-bit words.  The lossless compressor's pair
+# budget was measured on 12-bit frames only, so compression truncation refuses these.
+_EIGHT_BIT_QUANTIZATIONS: frozenset[str] = frozenset({'8bit', 'ls8b', 'sqrt_lut', 'contour_8bit'})
 
 
 def _check_artifacts(value: Any, *, instrument: str, detector: Any, source: str) -> None:
@@ -85,6 +90,36 @@ def _check_artifacts(value: Any, *, instrument: str, detector: Any, source: str)
         )
     if value.get('instrument_defaults'):
         _check_instrument_default_modes(instrument, model=model, source=source)
+    if 'compression_truncated_lines' in value:
+        _check_lossless_word_depth(instrument, detector, source=source)
+
+
+def _check_lossless_word_depth(instrument: str, detector: Any, *, source: str) -> None:
+    """Refuse compression truncation on a frame that downlinks 8-bit words.
+
+    The compressor's budget of one uncompressed line per pair was measured on 12-bit
+    frames, packed in 16-bit words.  An 8-bit frame would have its own budget, which no
+    measurement gives, so a scene that sets the mode must quantize to 12 bits.
+
+    Parameters:
+        instrument: The scene's (already validated) instrument name.
+        detector: The scene's (already validated) ``detector`` block, or None.
+        source: Label used in error messages.
+
+    Raises:
+        SimSceneValidationError: If the scene's quantization downlinks 8-bit words.
+    """
+    block = detector if isinstance(detector, dict) else {}
+    binning = block.get('binning')
+    defaults = resolve_detector_defaults(instrument, 1 if binning is None else binning)
+    quantization = block.get('quantization', defaults.quantization)
+    if quantization in _EIGHT_BIT_QUANTIZATIONS:
+        raise SimSceneValidationError(
+            f'{source}: artifacts.compression_truncated_lines models a compressor whose '
+            f'budget was measured on 12-bit frames; this scene quantizes with '
+            f'{quantization!r}, which downlinks 8-bit words; drop the mode or quantize '
+            f'with exact'
+        )
 
 
 def _chain_names(mode: ArtifactMode) -> str:

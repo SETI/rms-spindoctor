@@ -18,7 +18,8 @@ Code map
      - :class:`~spindoctor.dataset.dataset_pds3_voyager_iss.DataSetPDS3VoyagerISS`,
        registered under ``vgiss`` with a ``vgiss_pds3`` alias
    * - Config block
-     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, flat
+     - ``voyager_iss`` in ``config_430_inst_vgiss.yaml``, one block per camera:
+       ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Sim instrument keys
      - ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``
    * - Statistics key
@@ -30,9 +31,9 @@ Code map
      - ``oops.hosts.voyager.iss``
 
 One instrument key serves two spacecraft and four cameras. Everything that has
-to distinguish them derives the distinction from the image's own label rather
-than from configuration, which is why the frame identities below are computed
-per image.
+to distinguish them derives the distinction from the image's own label, which is
+why the frame identities below are computed per image, and the camera block is
+chosen the same way.
 
 Loading the image
 =================
@@ -61,7 +62,8 @@ It also **modifies the pixel data**, in two steps:
    so this is the only case, and the constant is written out rather than
    computed from distances. The step logs at debug when it fires.
 
-Beyond that it reads the flat ``voyager_iss`` config section and resolves the
+Beyond that it reads the camera's block, ``voyager_iss.vg<digit>_<nac or wac>``,
+chosen by the ``LAB02`` spacecraft digit and the oops detector, and resolves the
 extended-FOV margin from the size-keyed table by ``obs.data.shape[0]``. That
 table has exactly one entry, for size 1000, which is what a geometrically
 corrected product is; an image of any other size raises ``KeyError`` from the
@@ -155,25 +157,20 @@ cost of scanning every requested volume.
 Configuration block
 ===================
 
-One flat section, shared by two spacecraft and four cameras. Nothing in it
-varies per camera.
+One section holding a block for each of the four cameras, ``vgiss_1_nac``,
+``vgiss_1_wac``, ``vgiss_2_nac``, and ``vgiss_2_wac``. Each camera's optics and vidicon
+are its own, so each block states every value itself, even where the number is the same
+in all four.
 
-The departure from the common schema is a units mismatch that is worth
-understanding rather than tidying. ``data_units`` is ``calibrated_if``, and the
-``image_quality_thresholds`` are correspondingly ``blank_max_if`` and
-``noisy_threshold_if``. But the ``noise`` block is a raw-DN block:
-``saturation_dn: 255``, ``read_noise_dn``, and ``star_flux_dn_per_s_vmag0`` are
-all DN quantities. The
-DN values describe the detector, which is real; the pipeline navigates the
-scaled I/F product, so ``NavOrchestrator._build_saturation_mask`` returns an
-empty mask for this instrument as for any ``calibrated_if`` input, and
-``saturation_dn`` is never consulted. There is no ``saturation_threshold_if``
-and adding one would not restore the mask: the mask is gated on the units, not
-on the presence of the key. There is no raw product this pipeline can navigate
+``data_units`` is ``calibrated_if``, so the block carries what a calibrated camera
+block carries (see :ref:`config-camera-blocks`): the ``image_quality_thresholds`` are
+``blank_max_if`` and ``noisy_threshold_if``, and the ``noise`` block holds only
+``marker_value: 0``. The pipeline navigates the scaled I/F product, so
+``NavOrchestrator._build_saturation_mask`` returns an empty mask for this instrument as
+for any ``calibrated_if`` input. There is no raw product this pipeline can navigate
 instead.
 
-Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
-``read_noise_dn``, ``blank_max_if``,
+Placeholder values, carrying inline ``# PLACEHOLDER`` markers: ``blank_max_if``,
 ``noisy_threshold_if``, and the ``mag_offset_table`` entry. The ``_sources``
 convention is not used in this file.
 
@@ -186,44 +183,125 @@ and should move with the flag if the flag moves.
 Photometric and PSF calibration
 ===============================
 
-**Limiting magnitude.** The Pogson-ratio form,
-``anchor + log(texp) / log(2.512)``, with a **per-camera anchor** selected from
-the oops detector. Both are **derived rather than measured**, from the
-project's reference anchor of 10.5 magnitudes at a 1 s exposure for a 0.19 m
-aperture, scaled by collecting area and then penalized for the detector:
+**Limiting magnitude.** Photometric, from the ``star_photometry`` of the camera's
+block (see :ref:`config-camera-blocks`). The Voyager calibration works in DN and does
+not convert to electrons, so the rate is in raw DN (``flux_unit: dn``), and the gain
+state's entry multiplies it. A star of V magnitude ``m`` puts
 
-.. code-block:: text
+.. math::
 
-   NAC: 10.5 + 5*log10(0.176/0.19) - 2.0 (vidicon)  ~= 8.3
-   WAC: 10.5 + 5*log10(0.057/0.19) - 2.0 (vidicon)  ~= 5.9
+    \mathrm{DN} = R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}} \cdot k
 
-The -2.0 vidicon term is there because a vidicon is roughly two magnitudes less
-sensitive than a CCD. Combined with the wide angle camera's small aperture, it
-puts the wide angle anchor at 5.9, which is why star navigation locks on so few
-of these frames. All of it is a nominal-optics estimate pending calibration
-against real star fields. A non-positive exposure time falls back to the
-anchor.
+in the raw frame, where ``R`` is the camera's ``flux_per_s_vmag0`` (raw DN per
+second for a V = 0 star through CLEAR at low gain), ``f`` is the frame's filter's
+``filter_mag_offset``, and ``k`` is the ``gain`` entry of its gain state, its DN
+factor against low gain. A camera's star limit and star width do not depend on the
+readout, so its mode tables have one entry, ``ALL``. The dimmest visible star puts
+``min_detectable_dn`` in the frame, and the limit is that star's magnitude plus the
+camera's ``search_depth_mag``. The navigator's image is in
+I/F, but the limit depends only on the ratio of the rate to ``min_detectable_dn``,
+and those share a scale. The filter and the gain state (``LO GAIN`` or ``HI GAIN``,
+read as ``LOW`` or ``HIGH``) come from the VICAR label's ``LAB03`` record. A frame is
+refused when its label does not give a gain state, or when the camera's tables leave out
+its filter or gain state, and the message gives the key path (for example
+``voyager_iss.vgiss_2_nac.star_photometry.filter_mag_offset``). A frame whose exposure
+is not positive gets a limit of ``-inf``.
+
+Each of the four cameras searches 2.0 mag past its dimmest visible star. The star
+fields measure the limits below only to within 0.5 to 0.7 mag. The published Voyager
+navigation figure, V 9.5 for the narrow-angle camera in 0.96 s, is 1.6 to 2.3 mag
+deeper than the measured dimmest visible star, so a search of 1 mag would leave out
+stars the camera can show.
+
+.. list-table:: Each camera's values, and its limit at 1 s through CLEAR at low gain
+   :header-rows: 1
+
+   * - Camera
+     - Rate (DN/s)
+     - High-gain factor
+     - ``min_detectable_dn``
+     - Limit at 1 s
+   * - Voyager 1 narrow angle
+     - 5.60e4
+     - 3.92
+     - 110
+     - V 8.8
+   * - Voyager 1 wide angle
+     - 2.74e3
+     - 3.94
+     - 35
+     - V 6.7
+   * - Voyager 2 narrow angle
+     - 8.64e4
+     - 4.24
+     - 110
+     - V 9.2
+   * - Voyager 2 wide angle
+     - 4.6e3
+     - 4.04
+     - 35
+     - V 7.3
+
+The Voyager 2 rates, detection thresholds, and star widths were measured in 2026 on
+star fields of its cruise and encounters, read through the navigator's own reader and
+photometered on the raw vidicon frame. Each frame's pointing was found from the stars
+alone, by a vote over star and peak pairs refined to a translation and a rotation, and
+a frame was kept when three or more stars, each on its own image peak, agreed within
+1.5 px and the chance of such a cluster anywhere in the 400 px search window was below
+one in a thousand. That kept 36 narrow-angle and 47 wide-angle frames, and one frame
+in three was held out of the fit.
+
+- The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4
+  (+-0.07 mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter
+  wide-angle stars, V 8 to 10, read 1.1 to 1.5 mag brighter than that rate predicts,
+  which points to a compressive vidicon response at high signal.
+- ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
+  stars taken through CLEAR at low gain, reaches 80% of the way from its floor to its
+  plateau: 101 +- 27 DN on the narrow-angle camera and 35 +- 22 DN on the wide-angle
+  camera. The narrow-angle camera keeps 110 DN, within that uncertainty.
+- Every measured frame is at low gain, so the high-gain factor is the published
+  constant ``g`` of Benesh and Jepsen (1978, Table 4-3) for the camera's serial number.
+- The filter offsets are 2.5 log10 of each camera's solar filter factors (Benesh and
+  Jepsen 1978). A filter or gain state is measured only from 15 or more stars, and only
+  CLEAR at low gain has that many. The 4 narrow-angle VIOLET stars, for example, give
+  1.68 +- 0.24 mag against the 1.34 in use.
+
+Voyager 1 gave only one such frame, too few to fit. Its rates are Voyager 2's for
+the same kind of camera, scaled by the bench sensitivities Benesh and Jepsen (1978)
+measured before launch: the clear, low-gain light-transfer slope in DN per
+foot-lambert-second over the solar conversion factor of each serial number. Voyager
+1's cameras are S/N 07 (narrow angle) and S/N 06 (wide angle), Voyager 2's S/N 05
+and S/N 04, so the narrow-angle rate is scaled by 0.648 and the wide-angle rate by
+0.600. Voyager 1 keeps its own filter factors and high-gain constants, and takes
+Voyager 2's ``min_detectable_dn``.
+
+On the held-out Voyager 2 frames, the faintest star detected lies a median 0.02 mag
+inside the predicted dimmest visible star on the narrow-angle camera, and 1.21 mag
+past it on the wide-angle camera, with broad spreads, so the limit carries about half
+a magnitude of uncertainty.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
 
-**PSF.** ``star_psf_sigma`` is 3.0 and ``star_psf_sizes`` is a single
-``100: [7, 7]``, so every star gets a 7x7 cutout regardless of magnitude and
-regardless of camera.
+**PSF.** Each camera's star sigma is its block's ``star_photometry.psf_sigma``, in pixels
+of the geometrically corrected image. On Voyager 2 it is the median Gaussian sigma of
+stars on frames read out at 5:1: 1.2 px for the narrow-angle camera (53 stars on 15
+frames) and 1.1 px for the wide-angle camera (213 stars on 26 frames). A star's core is
+about 0.8 px, and platform motion elongates a long exposure. The Voyager 1 values are a
+3.0 px placeholder, since its one frame holds too few stars to fit. Each camera block's
+own ``star_psf_sigma``, 3.0 px in all four, is read only by the simulator.
+``star_psf_sizes`` is a single ``100: [7, 7]``, so every star gets a 7x7 cutout regardless
+of magnitude and regardless of camera.
 
 **Magnitude offsets.** ``fallback_combo`` is ``'CL'`` and the table carries one
 entry with a default of 0.0. Both are placeholders.
 
-**Photometric zero point.** ``star_flux_dn_per_s_vmag0`` is 3.0e3, and its
-comment records why the units are DN rather than electrons: a vidicon has no
-electron domain, so it renders point sources directly in DN.
-
-**Recalibrating.** The cohort holds one star frame for this instrument, and the
-geometric resampling the navigated product has been through defeats a kernel
-fit made through it -- eight usable cutouts survive, and the flat-top guard
-leaves only two simulated cutouts to compare against. Recalibration therefore
-needs more star frames, and per-camera anchors need star frames on each camera
-of each spacecraft.
+**Recalibrating.** The measurement tools are in ``util/star_photometry``; its Voyager
+frame selection and the fit are described in its module docstrings. The cohort's one
+star frame cannot constrain a kernel through the geometric resampling: eight usable
+cutouts survive, and the flat-top guard leaves only two simulated cutouts to compare
+against. Rerun the fit on new star fields, on each camera of each spacecraft, and
+update that camera block's ``star_photometry`` and its comments together.
 
 Frames, attitude, and rotation fitting
 ======================================
@@ -363,27 +441,26 @@ Simulator model
 ===============
 
 **Instrument keys.** One key for each spacecraft and camera: ``vgiss_1_nac`` and
-``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2.
-The four entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``.
-Each entry states every value itself and none takes a value from another, because each
-vidicon and telescope is unique. The optical values (the PSF, the residual
-distortion, the plate scale, the star zero point, and the vidicon detector values)
-are per camera. Apart from the Voyager 2 cameras' star zero points, they hold the
-same numbers in all four entries today, and a comment beside each says where the
-number comes from and that it is not yet measured for that camera. The values
-that do not describe a camera's optics (the
-data units, the navigator link, the readout modes, and the artifact-mode
-availability) are repeated in each entry as well, because a shared parent would
-have to be one of the cameras. Every analysis is per camera too: the realism match,
-the field-of-view distortion, and the rotation each use one camera's frames. No
-simulator entry holds a rotation value today. All four emulate the one ``voyager_iss``
-section of the navigator configuration. The realism match pairs the image
-library's two Voyager 1 wide angle frames with ``vgiss_1_wac`` and its one Voyager 2
-narrow angle frame with ``vgiss_2_nac``; the other two entries have no frame in the
-library. A library sidecar for a Voyager frame gives its spacecraft (``VG1`` or
-``VG2``) beside the mission and the camera, so the match can tell the four cameras
-apart. The entry states ``data_units: calibrated_if``, the units of the
-GEOMED product and of the ``voyager_iss`` block, so a simulated frame is in I/F.
+``vgiss_1_wac`` for Voyager 1, ``vgiss_2_nac`` and ``vgiss_2_wac`` for Voyager 2. The four
+entries sit in ``src/spindoctor/sim/instruments/configs/vgiss.yaml``. Each entry states
+every value itself and none takes a value from another, because each vidicon and telescope
+is unique. The optical values (the PSF, the residual distortion, the plate scale, the star
+zero point, and the vidicon detector values) are per camera. Apart from the Voyager 2
+cameras' star zero points, they hold the same numbers in all four entries today, and a
+comment beside each says where the number comes from and that it is not yet measured for
+that camera. The values that do not describe a camera's optics (the data units, the
+navigator link, the readout modes, and the artifact-mode availability) are repeated in
+each entry as well, because a shared parent would have to be one of the cameras. Every
+analysis is per camera too: the realism match, the field-of-view distortion, and the
+rotation each use one camera's frames. No simulator entry holds a rotation value today.
+Each entry is read with the block of its own camera in the ``voyager_iss`` section of the
+navigator configuration: ``vgiss_1_nac``, ``vgiss_1_wac``, ``vgiss_2_nac``, and
+``vgiss_2_wac``. The realism match pairs the image library's two Voyager 1 wide angle
+frames with ``vgiss_1_wac`` and its one Voyager 2 narrow angle frame with ``vgiss_2_nac``;
+the other two entries have no frame in the library. A library sidecar for a Voyager frame
+gives its spacecraft (``VG1`` or ``VG2``) beside the mission and the camera, so the match
+can tell the four cameras apart. The entry states ``data_units: calibrated_if``, the units
+of the GEOMED product and of each camera's block, so a simulated frame is in I/F.
 
 **Realism match.** The match compares each camera with its own library frames
 (the 2026-11-26 record in ``tests/integration/realism_results/``). The two
@@ -596,7 +673,10 @@ star fields take a few seconds.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_voyager_iss.py`` covers the
 spacecraft-digit parser and all four of its refusals, the I/F factor parser and
-all three of its refusals, the per-camera limiting-magnitude anchors, the
+all three of its refusals, each camera's star limit at 1 s through CLEAR at low gain
+and its shifts with exposure, gain state, and filter, ``-inf`` for a non-positive
+exposure, the refusal of a filter that the camera's block lacks and of a label without
+a gain state, each camera's star sigma, the
 per-spacecraft metadata LIDs, and the published clock counts: fractional
 leading units with no midtime count, read from the PDS3 label beside the image.
 
@@ -634,10 +714,12 @@ approximation at all: the navigated attitude was constant to begin with.
 **Mosaics.** Nothing instrument-specific.
 
 **Statistics.** Nothing particular.
-:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` reads
-``voyager_iss.extfov_margin_vu`` from the flat section and indexes the
-size-keyed table with the recorded image height, so a database row with no
-recorded shape, or one recording a height other than 1000, resolves to an
+:func:`~spindoctor.cli.stats.report_sections.resolve_offset_limit` cannot
+tell from a record which spacecraft took the image, so it selects the
+``extfov_margin_vu`` entry for the recorded image height in each of the
+four camera blocks and gives a limit only when all four agree. A database
+row with no recorded shape, one recording a height other than 1000, or an
+override that gives one camera a different margin resolves to an
 explanatory string instead of a limit. The report's image-name rule is
 ``stem.split('_', 1)[0]``, so ``C1234567_GEOMED`` reduces to ``C1234567``.
 
@@ -648,14 +730,16 @@ Open items
   Saturn correction belong in the host once the host grows them, at which point
   this loader stops modifying pixel data.
 * Every value marked ``# PLACEHOLDER`` in ``config_430_inst_vgiss.yaml``:
-  ``read_noise_dn``, ``blank_max_if``,
-  ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
+  ``blank_max_if``, ``noisy_threshold_if``, and the ``mag_offset_table`` entry.
 * ``fit_camera_rotation`` is off for cost against a measurement that says it
   should be on. Revisiting it means both speeding the rotation search and
   accepting the loss of corrected C-kernels for this instrument, or recording
   the rotation pivot so the two can coexist.
-* Both limiting-magnitude anchors are nominal-optics derivations rather than
-  measurements, and the cohort holds one star frame.
+* The Voyager 1 star limits are scaled from Voyager 2 by bench sensitivities, and
+  the Voyager 1 star sigma is a placeholder: only one Voyager 1 star frame gave a
+  pointing fix.
+* The wide-angle rate rests on 13 bright stars, and fainter stars read brighter than
+  it predicts.
 * The four simulator cameras carry the same distortion block and PSF kernel
   numbers, although each camera's optics are its own.
 * The Voyager 1 simulator cameras keep an estimated star zero point, and the

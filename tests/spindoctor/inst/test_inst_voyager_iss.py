@@ -1,6 +1,7 @@
 import math
 
 import pytest
+from tests.camera_sections import packaged_camera
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_VOYAGER_ISS_IO_01
 from tests.spindoctor.inst.conftest import (
     VicarLabelStandIn,
@@ -9,6 +10,7 @@ from tests.spindoctor.inst.conftest import (
 )
 
 import spindoctor.obs.obs_inst_voyager_iss as obstvgiss
+from spindoctor.config import DEFAULT_CONFIG
 from spindoctor.obs.obs_inst_voyager_iss import (
     ObsVoyagerISS,
     _voyager_if_factor,
@@ -19,22 +21,30 @@ from spindoctor.obs.obs_inst_voyager_iss import (
 # clock counts and the star gate fetch nothing, so they run even where the external
 # trees are absent.
 
-# Documented anchor limiting magnitudes (limiting mag at texp = 1 s).
-_VOYAGER_NAC_ANCHOR = 8.3
-_VOYAGER_WAC_ANCHOR = 5.9
+# A real LAB03 record (fixed format), captured from a holdings GEOMED image, with the
+# gain state written in.
+_LAB03 = 'NA CAMERA  EXP    5760.0 MSEC FILT 2(BLUE  )  {gain} GAIN  SCAN RATE  1:1  C'
 
 
-def _make_obs(detector: str, texp: float) -> ObsVoyagerISS:
-    """Build a bare ObsVoyagerISS carrying only detector and texp.
-
-    The star-magnitude gate is a pure function of ``self.detector`` and
-    ``self.texp``, so a fully constructed observation (and an external image
-    fetch) is unnecessary for testing it.
-    """
-    obs = object.__new__(ObsVoyagerISS)
-    obs.detector = detector
-    obs.texp = texp
-    return obs
+def _star_obs(
+    *,
+    spacecraft: str = '2',
+    detector: str = 'NAC',
+    filter_name: str = 'CLEAR',
+    texp: float = 1.0,
+    gain: str = 'LO',
+) -> ObsVoyagerISS:
+    """Build a bare observation carrying what the star limit reads."""
+    lab02 = _LAB02_V1 if spacecraft == '1' else _LAB02_V2
+    return bare_observation(
+        ObsVoyagerISS,
+        VicarLabelStandIn(LAB02=lab02, LAB03=_LAB03.format(gain=gain)),
+        detector=detector,
+        filter=filter_name,
+        texp=texp,
+        _config=DEFAULT_CONFIG,
+        _camera_block=packaged_camera('voyager_iss', f'vgiss_{spacecraft}_{detector.lower()}'),
+    )
 
 
 # Real Voyager VICAR LAB02 records (fixed-format strings; index 4 is the
@@ -112,41 +122,73 @@ def test_if_factor_non_string_raises() -> None:
         _voyager_if_factor(None)
 
 
-def test_star_max_usable_vmag_nac_anchor_at_unit_exposure() -> None:
-    """The NAC limiting magnitude equals its anchor at texp = 1 s."""
-    obs = _make_obs('NAC', 1.0)
-    assert obs.star_max_usable_vmag() == pytest.approx(_VOYAGER_NAC_ANCHOR, abs=1e-6)
+@pytest.mark.parametrize(
+    ('spacecraft', 'detector', 'expected'),
+    [('1', 'NAC', 8.767), ('1', 'WAC', 6.734), ('2', 'NAC', 9.238), ('2', 'WAC', 7.297)],
+)
+def test_clear_one_second_limit_is_each_cameras_calibrated_value(
+    spacecraft: str, detector: str, expected: float
+) -> None:
+    """At 1 s through CLEAR at low gain each camera reaches its own limit.
+
+    Each is 2.5 log10 of the camera's V = 0 rate over its dimmest visible DN, plus 2 mag:
+    8.64e4 / 110 for the Voyager 2 narrow-angle camera, for example.
+    """
+    obs = _star_obs(spacecraft=spacecraft, detector=detector)
+    assert obs.star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
 
 
-def test_star_max_usable_vmag_wac_anchor_at_unit_exposure() -> None:
-    """The WAC limiting magnitude equals its anchor at texp = 1 s."""
-    obs = _make_obs('WAC', 1.0)
-    assert obs.star_max_usable_vmag() == pytest.approx(_VOYAGER_WAC_ANCHOR, abs=1e-6)
+def test_ten_times_the_exposure_deepens_the_limit_by_two_and_a_half_magnitudes() -> None:
+    """The limit moves with the exposure by 2.5 log10 of its ratio."""
+    deeper = _star_obs(texp=10.0).star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert deeper == pytest.approx(2.5, abs=1e-9)
 
 
-def test_star_max_usable_vmag_gains_one_mag_per_pogson_ratio() -> None:
-    """A 2.512x longer exposure deepens the limit by ~1 mag."""
-    base = _make_obs('NAC', 1.0).star_max_usable_vmag()
-    deeper = _make_obs('NAC', 2.512).star_max_usable_vmag()
-    assert deeper - base == pytest.approx(1.0, abs=1e-3)
+def test_high_gain_deepens_the_limit_by_its_dn_factor() -> None:
+    """At high gain a Voyager 2 narrow-angle star puts 4.24 times the DN in the image."""
+    shift = _star_obs(gain='HI').star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert shift == pytest.approx(2.5 * math.log10(4.24), abs=1e-9)
 
 
-def test_star_max_usable_vmag_in_sane_range() -> None:
-    """The NAC limiting magnitude stays within a sane 3..15 range."""
-    vmag = _make_obs('NAC', 15.0).star_max_usable_vmag()
-    assert 3.0 <= vmag <= 15.0
+def test_a_filter_brightens_the_limit_by_its_magnitude_offset() -> None:
+    """UV passes less light than CLEAR; its offset brightens the limit."""
+    shift = _star_obs(filter_name='UV').star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert shift == pytest.approx(-3.98, abs=1e-9)
 
 
-def test_star_max_usable_vmag_is_finite() -> None:
-    """The NAC limiting magnitude is finite."""
-    vmag = _make_obs('NAC', 15.0).star_max_usable_vmag()
-    assert math.isfinite(vmag)
+def test_a_non_positive_exposure_admits_no_star() -> None:
+    """A zero-length exposure gets a limit of -inf."""
+    assert _star_obs(texp=0.0).star_max_usable_vmag() == -math.inf
 
 
-def test_star_max_usable_vmag_non_positive_exposure_returns_anchor() -> None:
-    """A non-positive exposure falls back to the anchor magnitude."""
-    obs = _make_obs('NAC', 0.0)
-    assert obs.star_max_usable_vmag() == pytest.approx(_VOYAGER_NAC_ANCHOR, abs=1e-6)
+def test_a_filter_the_camera_lacks_is_refused() -> None:
+    """The narrow-angle camera lacks a SODIUM filter; the error gives the block and filter."""
+    with pytest.raises(
+        ValueError,
+        match=(
+            r'voyager_iss\.vgiss_2_nac\.star_photometry\.filter_mag_offset has no entry for the '
+            r"filter 'SODIUM'"
+        ),
+    ):
+        _star_obs(filter_name='SODIUM').star_max_usable_vmag()
+
+
+def test_a_label_without_a_gain_state_is_refused() -> None:
+    """The limit needs the gain state, so a LAB03 record without one is refused."""
+    with pytest.raises(ValueError, match='NAC label does not give a gain state in LAB03'):
+        _star_obs(gain='XX').star_max_usable_vmag()
+
+
+@pytest.mark.parametrize(
+    ('spacecraft', 'detector', 'expected'),
+    [('1', 'NAC', 3.0), ('1', 'WAC', 3.0), ('2', 'NAC', 1.2), ('2', 'WAC', 1.1)],
+)
+def test_the_star_width_is_each_cameras_own(
+    spacecraft: str, detector: str, expected: float
+) -> None:
+    """Each camera's star PSF has the sigma of its own entry."""
+    obs = _star_obs(spacecraft=spacecraft, detector=detector)
+    assert obs.star_psf_sigma() == pytest.approx(expected, abs=1e-12)
 
 
 @REQUIRES_EXTERNAL_DATA

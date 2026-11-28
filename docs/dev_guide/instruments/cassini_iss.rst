@@ -213,23 +213,22 @@ Configuration block
 ===================
 
 Two sections, each nested per detector (``nac``, ``wac``), which is why the
-loader indexes the block by detector.
+observation asks for its block by section and detector, as in
+``config.camera_block('cassini_iss', 'nac')``.
 
-``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` departs from the
-common schema by **omission**: its ``noise`` block carries only
-``marker_value: 0``, and its ``image_quality_thresholds`` carry only the two
-``_if`` thresholds and the two fractions. It has no ``saturation_dn``, no
-``read_noise_dn``, no ``star_flux_dn_per_s_vmag0``, and -- the consequential one -- no
-``saturation_threshold_if``.
+``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` sets
+``data_units: calibrated_if``, so it carries what a calibrated camera block carries
+(see :ref:`config-camera-blocks`): its ``noise`` block holds only ``marker_value: 0``,
+and its ``image_quality_thresholds`` hold only the two ``_if`` thresholds and the three
+fractions. It has no ``saturation_dn``, no ``read_noise_dn``, and no
+``star_flux_dn_per_s_vmag0``, and the loader refuses any of them.
 
-That last omission is deliberate and is documented in the file. The calibration
-pipeline applies an exposure-, filter- and gain-dependent scaling, so no single
-I/F constant identifies the saturated DN ceiling.
+The calibration pipeline applies an exposure-, filter-, and gain-dependent scaling, so
+no single I/F constant identifies the saturated DN ceiling.
 ``NavOrchestrator._build_saturation_mask`` returns an empty mask for any
 ``calibrated_if`` input and the classifier sees an infinite threshold, so
 ``saturation_frac`` is always 0.0 and the ``fully_overexposed`` early-out is
-disabled. Adding a threshold to this block would not restore the mask; the
-mask is gated on the units, not on the presence of the key.
+disabled. A camera block has no I/F saturation threshold to set.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
 ``read_noise_dn``, the calibrated block's
@@ -625,6 +624,271 @@ calibrated entries drop ``banding`` and ``bias_structure``, which CISSCAL remove
 set the hot-pixel fraction to the calibrated populations described above: 3.3e-5 on
 the narrow angle camera and 7.9e-7 on the wide angle camera.
 
+**Lost lines.** The raw entries offer ``compression_truncated_lines`` and
+``downlink_gaps``, and the calibrated entries inherit them. Neither is turned on
+by ``instrument_defaults``; a scene sets each one itself. The facts below come
+from the binary line prefixes, which give each line's valid samples, of every
+losslessly compressed 12-bit frame with lost lines in the current metadata
+indexes of COISS_2010, COISS_2023, COISS_2050, and COISS_2068: 321 narrow angle
+frames and 82 wide angle frames. No uncompressed 12-bit frame in them lost lines.
+
+*The lossless compressor.* The ISS User's Guide (sections 2.3 and 3.6) says that
+the lossless mode must reach 2:1 on each pair of lines and truncates as many
+pixels as it needs from the end of the pair to get there. The Calibration Report
+(section 5.5.2) adds that the compressor codes the differences between
+horizontally adjacent pixels, that it works on 12-bit data packed in 16-bit
+words, and that its coder is the one of Rice and Lee, "Some Practical Universal
+Noiseless Coding Techniques, Part II" (JPL Publication 83-17). That coder splits
+the differences into blocks and codes each block with the cheapest of a family of
+codes. The entries' shape defaults are that model: 16-sample blocks, 4 bits to
+name a block's code, codes that send 0 to 13 low bits as they are, and a budget
+of 16 bits for each sample of one line, so a pair may use one uncompressed line's
+bits. The 16-sample block is why every real cut keeps a whole number of 16
+samples.
+
+61 narrow angle frames and one wide angle frame lose line ends to the compressor.
+On them, ``util/coiss_line_loss/lossless_check.py`` codes every pair whose first
+line is whole. The 14,038 pairs whose second line lost its end code to 0.970 to
+1.009 of the budget between the 0.1st and 99.9th percentiles, with a median of
+0.991, and the budget left at the cut is a median 0.65 of a block. The 5,245 whole
+pairs fit in all but 6, which exceed the budget by at most 1.7%.
+
+On the real frames the cut lines are the second lines of their pairs, the cuts
+start and stop where bright or detailed content does, a frame of sparse content
+cuts few of its pairs, and within one frame the lost share varies by a few percent
+of the line. ``util/coiss_line_loss/twins.py`` checks that the simulator draws the
+same. It builds a simulated twin of each of ten such frames, from the frame's
+smooth brightness and fresh noise of its measured local spread, and cuts it with
+the simulator. The twins cut the same sections as their frames, such as the first
+37% of the lines on one frame and the last 21% on another. Their median lost share
+is within one block of the real one on nine of the ten, and within two on the
+tenth. Their spread of lost share within the frame is within 35% of the real one
+on all ten, and neighboring cut lines lose the same share at the median. Where
+the content is sparse, a twin cuts somewhat more of its pairs than its frame does:
+29% against 20%, 48% against 31%, and 13% against 4%.
+
+*Downlink gaps.* Packets lost on the way to the ground take groups of whole lines.
+The shape defaults are measured on the 260 narrow angle frames whose line ends the
+compressor did not cut, where 61 frames (39 full and 22 summed) lose 373 groups
+inside the frame, and on the 81 such wide angle frames, where 19 frames (13 full
+and 6 summed) lose 83 groups. ``util/coiss_line_loss/gap_census.py`` measures
+them, and ``util/coiss_line_loss/gap_fit.py`` fits the values that the frames do
+not give directly and compares simulated frames with the real ones. The tables
+give the 0th, 5th, 10th, 25th, 50th, 75th, 90th, 95th, 99th, and 100th
+percentiles. In a size or gap table each measured whole number is spread evenly
+over the half line on either side of it, so a draw rounded to a whole line comes
+out at each number as often as on the real frames. The simulator draws between
+a table's points in the logarithm of the value. On full narrow angle frames
+one-line groups are only 2.1% of the groups, so the lowest 5% of the table holds
+two-line groups too, and a logarithmic draw starting from half a line would come
+out at one line about twice as often as the frames do. That table therefore
+starts at 1.38 lines, where the draw gives one-line groups their 2.1%.
+
+- Sizes are in lines of their own frame. Full and summed frames each have their
+  own table, because summed groups have other sizes. A narrow angle group on a
+  full frame is 2, 3, 5, 10, and 20.7 lines at the 10th, 25th, 50th, 75th, and 90th
+  percentiles, and on a summed frame 3, 4, 4, 6, and 11. A sequence of 13 summed
+  frames from 2008 holds 145 of the 181 summed groups, and the summed groups still
+  differ from the full ones without it. None of the narrow angle frames is summed
+  4x4, so 4x4 frames take the 2x2 table. A wide angle group is 2, 3, 5, 11.5,
+  and 18.8 lines on a full frame, and 5, 6, 13, 30, and 52 on a summed one. The
+  wide angle summed table rests on six frames (five summed 2x2 and one 4x4), too
+  few to give each mode its own.
+- A narrow angle frame loses a mean 6.1 groups with a variance of 127: one group
+  on 49% of the frames, 16 at the 90th percentile, and up to 59. A wide angle
+  frame loses a mean 4.4 with a variance of 28.7, one on 47% of the frames. The
+  count, the clustering, and the partial lines pool full and summed frames; the
+  check of each readout mode below says why.
+- Groups cluster. On the narrow angle camera the kept lines between neighboring
+  groups are 1, 2, 6, 19, and 55 at the 10th, 25th, 50th, 75th, and 90th
+  percentiles. On a frame with more than one group, the first and last span 14%,
+  56%, and 84% of its height at the quartiles. Frames that lose many groups
+  spread them over the whole frame, and frames that lose a few hold them close
+  together or far apart. The gap table inside a cluster is the gaps of 20 lines or
+  less, 241 of the 312. On the wide angle camera it is the 42 gaps of 20 lines or
+  less of the 64.
+- The chance that a group starts a new cluster is fitted on simulated frames, 3,000
+  for each value from 0.20 to 0.70 in steps of 0.05. The fit takes the value with
+  the smallest loss: the sum of the squared logarithms of the ratios of simulated
+  to real gaps at the 25th, 50th, 75th, and 90th percentiles, plus a quarter of the
+  sum of the squared differences of the span's quartiles, in tenths of the height.
+  On the narrow angle camera the loss is 0.43, 0.33, and 0.40 at 0.35, 0.40, and
+  0.45, against 0.84 at 0.30 and at 0.50, so the fit is flat from 0.35 to 0.45 and
+  takes 0.40. On the wide angle camera it is 1.48 at 0.60 and 1.60, 1.51, and 1.57
+  at 0.55, 0.65, and 0.70, so that fit takes 0.60 and is flat from 0.55 to 0.70.
+- The count law is fitted on simulated frames, because a frame too small for its
+  groups loses some of them: a negative binomial of mean 5.11 and dispersion 4.47
+  beyond the first group gives the measured mean and share of frames with one
+  group on the narrow angle camera, and one of mean 3.37 and dispersion 3.36 on the
+  wide angle camera.
+- 36.6% of the narrow angle lines just above one group lose their end, and 12.7%
+  of those just below. A single kept line between two groups is the line below
+  one and the line above the other, and 23 of the 51 such lines lost their end,
+  the 45% that two independent draws give. So
+  38% of the groups show a head line and 17% a tail line. On the wide angle camera
+  the shares are 27.8% and 11.4%, and 28% and 12% with the shared lines. Every such
+  line keeps a whole number of 16 samples. A narrow angle line above a group keeps
+  a median 34% of the line, and one below 38%. A wide angle line above keeps a
+  median 45%, and one below 20%, from its own 10 lines; that is lower than the
+  narrow angle share at a rank-sum p of 0.02.
+
+Over 20,000 simulated frames of each camera, at the heights and readout modes of
+the real frames in turn, and measured the same way, every statistic lies inside
+the real frames' 90% interval. The interval comes from resampling: 2,000 sets of
+the real frames drawn with replacement, each readout mode keeping its number of
+frames, and the interval runs from the 5th to the 95th percentile of the statistic
+over the sets. Each real value below is followed by its interval.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Statistic
+     - Narrow angle, real
+     - Narrow angle, simulated
+     - Wide angle, real
+     - Wide angle, simulated
+   * - Groups per frame, mean
+     - 6.1 (3.9 to 8.6)
+     - 6.1
+     - 4.4 (2.6 to 6.4)
+     - 4.4
+   * - Groups per frame, variance
+     - 127 (40 to 225)
+     - 112
+     - 28.7 (5.0 to 50.2)
+     - 38.5
+   * - Frames with one group
+     - 49% (39 to 59%)
+     - 49%
+     - 47% (32 to 63%)
+     - 47%
+   * - Groups per frame, 90th percentile
+     - 16 (7 to 29)
+     - 17
+     - 10.6 (5.2 to 20)
+     - 11
+   * - Full-frame sizes, 25th percentile
+     - 3 (2 to 3)
+     - 3
+     - 3 (2 to 4)
+     - 3
+   * - Full-frame sizes, 50th percentile
+     - 5 (4 to 7)
+     - 5
+     - 5 (4 to 7)
+     - 5
+   * - Full-frame sizes, 75th percentile
+     - 10 (7 to 15)
+     - 10
+     - 11.5 (7 to 18)
+     - 12
+   * - Full-frame sizes, 90th percentile
+     - 20.7 (12 to 42)
+     - 21
+     - 18.8 (13 to 158)
+     - 19
+   * - Summed-frame sizes, 25th percentile
+     - 4 (4 to 4)
+     - 4
+     - 6 (5 to 10)
+     - 6
+   * - Summed-frame sizes, 50th percentile
+     - 4 (4 to 5)
+     - 4
+     - 13 (8 to 27)
+     - 13
+   * - Summed-frame sizes, 75th percentile
+     - 6 (6 to 8)
+     - 6
+     - 30 (16 to 51)
+     - 27
+   * - Summed-frame sizes, 90th percentile
+     - 11 (8 to 14)
+     - 11
+     - 52 (30 to 59)
+     - 48
+   * - One-line groups
+     - 3.8% (2.2 to 5.8%)
+     - 3.4%
+     - 3.6% (1.1 to 7.4%)
+     - 5.4%
+   * - Gaps, 25th percentile
+     - 2 (2 to 4)
+     - 2
+     - 6 (5 to 7)
+     - 5
+   * - Gaps, 50th percentile
+     - 6 (4 to 11)
+     - 6
+     - 11.5 (9 to 16)
+     - 12
+   * - Gaps, 75th percentile
+     - 19 (11 to 34)
+     - 18
+     - 30 (16 to 162)
+     - 49
+   * - Gaps, 90th percentile
+     - 55 (31 to 113)
+     - 87
+     - 181 (41 to 244)
+     - 155
+   * - Span, 25th percentile
+     - 0.14 (0.08 to 0.45)
+     - 0.17
+     - 0.24 (0.05 to 0.82)
+     - 0.30
+   * - Span, 50th percentile
+     - 0.56 (0.41 to 0.71)
+     - 0.57
+     - 0.80 (0.16 to 0.87)
+     - 0.63
+   * - Span, 75th percentile
+     - 0.84 (0.70 to 0.93)
+     - 0.84
+     - 0.87 (0.76 to 0.91)
+     - 0.86
+   * - Groups with a head line
+     - 37.8% (28.4 to 45.0%)
+     - 37.6%
+     - 27.7% (23.1 to 33.3%)
+     - 28.0%
+   * - Groups with a tail line
+     - 17.2% (11.8 to 21.2%)
+     - 17.1%
+     - 12.0% (7.5 to 15.4%)
+     - 12.7%
+
+The largest differences are the narrow angle 90th percentile of the gaps, 87
+lines against 55, and the wide angle median span, 0.63 against 0.80, and 75th
+percentile of the gaps, 49 lines against 30. The wide angle frames with more than
+one group are only 10, so their span and gaps are loosely known.
+
+*Each readout mode.* The check is repeated on the full frames alone and on the
+summed frames alone, with the pooled count, clustering, and partial-line laws. A
+sequence here is a run of frames less than a day apart.
+
+- On the 39 full narrow angle frames, in 15 sequences, every statistic lies inside
+  its interval. The simulated frames lose a mean 6.2 groups against 4.9 (2.0 to
+  8.3), one group on 49% of the frames against 59% (46 to 72%), and their gaps reach
+  112 lines at the 90th percentile against 30 (12 to 316).
+- On the 22 summed narrow angle frames five statistics miss their intervals: the
+  gaps are 2, 5, and 14 lines at the quartiles against 4, 10, and 27 (3 to 6, 8 to
+  18, and 19 to 54), 18% of the gaps are one line against 5.7% (3.3 to 8.3%), and
+  38% of the groups show a head line against 31% (26 to 37%). One sequence of 13 frames from 2008
+  (N1606722214 to N1606787565) holds 145 of the 181 summed groups and 132 of the 159
+  gaps, so these statistics are mostly that sequence's. The other nine summed
+  frames hold their groups closer together than the pooled law does, at 2, 3, and 7
+  lines between groups at the quartiles. The frames therefore cannot give summed
+  frames a law of their own, and they take the pooled one.
+- On the 13 full wide angle frames, in nine sequences, the gaps' 25th percentile
+  misses: 6 lines against 8.75 (7 to 101.5). Three frames of one 2011 sequence
+  (W1683625725 to W1683626155) hold 29 of the 43 groups and 26 of the 30 gaps.
+- On the six summed wide angle frames, in three sequences, two statistics miss: the
+  gaps' 25th percentile, 3 lines against 5 (5 to 5.5), and the one-line gaps, 11%
+  against 5.9% (0 to 10.3%). Two frames of one 2011 sequence (W1683220339 and
+  W1683220356) hold 23 of the 40 groups and 21 of the 34 gaps. Both wide angle modes
+  therefore take the pooled law too.
+
 **Realism-match status.** The narrow angle PSF is tuned against eleven frames.
 The wide angle PSF rests on two frames.
 
@@ -901,28 +1165,28 @@ real frames of this camera carry together:
   shows that the navigator is unaffected by them.
 - ``coiss_nac_stars_moon_lost_lines`` is a frame of stars and a gibbous moon that
   lost its last 41 lines and several groups of whole lines down the frame, and whose
-  scene drifts 2 px during the exposure. In those four volumes, 321 of the 5,489
-  12-bit narrow angle frames lost lines, all of them losslessly compressed, in three
-  ways. 195 lost lines at the bottom, most of them when the readout window closed
-  before the camera finished. 62 lost groups of whole lines inside the frame, when
-  packets were lost on the way to the ground. 61 lost the ends of alternating lines,
-  where a pair of lines would not compress to half its size. The scene follows one
-  real frame of each of the first two kinds: one lost its last 41 lines, and the
-  other lost 43 lines in six groups of 4 to 11 lines. The simulator draws groups of
-  7 lines on a 7-line grid, 6 expected in each frame. On the committed seed three of
-  the seven groups cross the disc. The truncated lines hold dark sky, as they do on
-  the real truncated frame, so the scene shows that the navigator is unaffected by
-  the truncation. The fused answer follows the stars, 0.030 to 0.11 px off over 24
-  draws, at high confidence on 13 of them and medium on 11. The disc correlation
-  lands 0.07 to 0.09 px off, toward the Sun, where the navigator's Lambert template
-  meets the lunar-Lambert surface (see :ref:`sim-photometric-laws`). On a Lambert
-  surface the groups crossing the disc on the committed seed moved the disc
-  correlation from 0.019 to 0.050 px off, and removing any one defect on four draws
-  left the fused answer 0.030 to 0.089 px off, where all the defects together left
-  it 0.032 to 0.089 px off. The star-field technique returns spurious on every draw,
-  because hot pixels and cosmic rays together crowd the stars out of the sources it
-  matches, and the blob technique lands 7.4 to 11.3 px off the gibbous disc without
-  flagging it.
+  scene drifts 2 px during the exposure. It follows two real frames, one that lost
+  its last 41 lines and one that lost 43 lines in six groups of 4 to 11 lines. The
+  scene draws groups with ``downlink_gaps`` at this camera's measured sizes,
+  clustering, and partial lines (see **Lost lines** above), with a mean of six
+  groups. Neither real frame lost line ends to the compressor, and with the
+  compressor on the scene's draws lose none either, so the scene leaves it off. The
+  committed seed loses seven groups and 50 lines in two clusters, as the real frame
+  lost four of its six groups in one cluster, and four of the groups cross the
+  disc, as the real groups crossed the planet. The truncated lines hold dark sky,
+  as they do on the real truncated frame. The fused answer follows the stars, 0.020
+  to 0.16 px off over 24 draws, at high confidence on 6 of them and medium on 18.
+  The disc correlation lands 0.074 to 0.16 px off, toward the Sun, where the
+  navigator's Lambert template meets the lunar-Lambert surface (see
+  :ref:`sim-photometric-laws`). On the committed seed the disc correlation, which
+  treats the lost lines as zeros, lands 0.16 px off where it lands 0.074 px off
+  without the groups, and the stars hold the answer at 0.098 to 0.100 px either
+  way. On a Lambert surface four draws landed 0.069 to 0.098 px off with all the
+  defects, and 0.063 to 0.098 px off with any one of them removed, so the scene
+  shows that the fused answer is unaffected by the truncation and the lost groups.
+  The star-field technique returns spurious on every draw, because hot pixels and
+  cosmic rays together crowd the stars out of the sources it matches, and the blob
+  technique lands 6 to 14 px off the gibbous disc without flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
 config-block selection, the shutter-mode property and the metadata surface.

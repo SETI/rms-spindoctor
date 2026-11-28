@@ -662,8 +662,8 @@ Stars:
 - **#785** — WAC star answers near the extended-FOV margin are zeroed by the
   `at_edge` rule though the star windows reach farther, refusing whole
   observations the stars answer (one window per camera is #830).
-- **#787** — the star model emits no features when its noise estimate is 0;
-  five of eleven such frames were navigable on stars.
+- **#787** (#1244) — the star model emits no features when its noise estimate
+  is 0; five of eleven such frames were navigable on stars.
 - **#852** — StarRefineNav gives a clipped star the largest weight although
   its centroid is the least reliable; #754 handles a flat clipped core in
   raw frames, not a calibrated one.
@@ -770,9 +770,23 @@ where they differ).
   PSF-blurred image; investigate blur-matching the model
   (`nav_model_body.py`) at high resolution. Investigation first: measure
   whether it actually moves offsets on library close-flyby frames.
-- **#130** — per-instrument star limiting magnitudes measured from real
-  star fields (a small campaign over the library's star classes;
-  coordinate with #233's measured-SNR work — same frames, same tooling).
+- **#130** (done for Galileo SSI, Voyager ISS and New Horizons LORRI,
+  2026-11-25; Cassini's photometric limit is #766's) — per-instrument star
+  limiting magnitudes measured from real star fields. Each of the three
+  instruments now computes a photometric limit from the generic
+  `star_photometry` sub-block of each camera's typed camera block (#1029;
+  `voyager_iss` split into one block per camera), measured with
+  `util/star_photometry` on star fields whose pointing the stars alone fix.
+- **#342** (done, 2026-11-25, with #130) — `star_psf_sigma` was a 3.0
+  placeholder on Galileo, Voyager and LORRI. The measured sigmas live in
+  each camera block's `star_photometry.psf_sigma`, per readout mode on
+  Galileo and per binning mode on LORRI; Voyager 1's stays a marked placeholder (three measurable frames).
+- **#1210** — UCAC4 stars at V 8-9 keep magnitudes 0.5-0.9 mag too faint
+  after the catalog reduction's correction, which stops at V 8.0; found by
+  the #130 measurement on all three cameras.
+- **#1211** — the Galileo 1990 cruise star frames read 0.4-1.7 mag fainter
+  than the 1992 frames at the same settings; the star limit uses the 1992
+  scale until this is explained.
 - **#239** — implement the sub-5 px body policy the operator settled on
   (expected-failure curation); the open work is the targeted diameter-
   filtered cohort scan for a qualifying single-body frame.
@@ -959,8 +973,13 @@ where they differ).
   window rather than by where the limb can be (#403), the flat arc-residual
   cap that behaves as a size-dependent gate (#404), the uncharacterized
   extreme-phase edge (#401), and opaque-ring masking that refuses frames
-  visible through the C ring or the gaps (#402). The ensemble has never been
-  exercised on the oblique covariance the fit reports (#400). Two
+  visible through the C ring or the gaps (#402). Tests now pin the
+  ensemble's merge, agreement test, and tier on the oblique covariance the
+  fit reports (#400, in review); the merge keeps the ellipse's orientation
+  and the Mahalanobis test respects it, and by the operator's decision of
+  2026-11-26 the tier reads the fused ellipse's major semi-axis rather than
+  the larger image-axis sigma, so it no longer depends on the ellipse's tilt
+  (no library tier moves). Two
   extensions are filed: a haze-radius table accumulated from production
   fitted radii, which would pin the radius and remove the dominant
   along-track error (#397), and a correlation refinement stage on the
@@ -1659,8 +1678,23 @@ asserts the generated half matches the registries.
     modules deleted; the tree readers take the tuning as a required
     argument; the flag, then config, then environment-variable order
     unchanged)
-  - [ ] #1029: the camera blocks, after the simulator's #1023 and #1024;
-    no earlier step waits for it
+  - [x] #1029: the five real camera blocks (done: each camera block parses
+    into one generic `CameraBlock` in `config/sections_camera.py`, with
+    nested `Noise`, `BinnedNoise`, `QualityThresholds`, `MagOffset`, and a
+    source-image filter tagged by `kind`; the camera sections are found by
+    `data_units` and each becomes a `TypedSections` field, read through
+    `Config.camera_block`; a key the camera's `data_units` does not read
+    is refused, and Voyager ISS's three unread DN noise keys deleted;
+    `partial_dropout_min_frac` became a key of each camera's
+    `image_quality_thresholds`, and `noise.marker_value` a `FloatOrNan`,
+    a finite-or-NaN float added to the schema core;
+    `Config._validate_camera_blocks`, `Config._validate`, the literal
+    fallbacks of `instrument_settings_from_obs`, `_resolve_mag_offset`,
+    and the source-image filter, the threshold defaults of
+    `ImageQualityThresholds`, `required_finite_float`, and the readers'
+    own range checks deleted; the simulator's `sim` block stays untyped
+    at load until the simulator types it with the same type, and is
+    parsed through `as_camera_block` where the navigator reads it)
   - [x] `backplanes` and `pds4`, the second half of the step above (done:
     parsed at load into `BackplanesSection` and a `Pds4Section` whose
     fields come from each registered dataset class's `PDS4_CONFIG_KEY`, in
@@ -1897,7 +1931,8 @@ same change.
   done), and turning it on waits on its accuracy (#1040) and an
   operator decision.
 - **Galileo SSI:** #18 — star navigation broken (same cluster).
-- **New Horizons LORRI:** #2 — PSF sigma calibration; #138 — decide and
+- **New Horizons LORRI:** #2 — PSF sigma calibration (done with #130 and
+  #342, 2026-11-25: 0.9 px unbinned, 0.45 px binned); #138 — decide and
   enforce the `_eng` product policy; #33 (deferred) — new instrument
   kernel.
 - **Ring models:** #82 Jupiter, #81 Uranus, #83 Neptune — extend the

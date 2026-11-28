@@ -13,6 +13,11 @@ exposure_sec: 1.0
 # body shades with the default lunar-Lambert law, and the navigator's Lambert
 # template pulls the answer 0.44 px toward the Sun (#1110), which the expected
 # block holds to a band.
+# The loss pattern is a stress axis, not a real form.  A real Cassini frame loses
+# groups of whole lines when packets are lost on the way to the ground, and the
+# ends of every second line when line pairs will not compress enough (the
+# downlink_gaps and compression_truncated_lines modes draw those).  It does not
+# lose scattered single lines, or lines cut at random columns.
 bodies:
   - name: RHEA
     center_v: 110.0

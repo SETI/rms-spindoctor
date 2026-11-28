@@ -165,8 +165,15 @@ reported sigma. Three shared corrections restore calibration:
     ``tuning`` block, where its tuning type declares ``model_error_floor_px``;
     the shipped values were fitted so that the 2-sigma coverage of the
     reported sigmas matches planted-truth recovery on the simulation
-    campaign (the provenance notes live alongside the values in
-    ``config_510_techniques.yaml``).
+    campaign. The star unique match floor was measured on real star fields
+    instead, against each frame's independent multi-star pointing fix. Of
+    379 answers, the seven that matched the wrong stars were left out, and
+    the floor was chosen on two thirds of the frames (250 answers) so that
+    no more of them lie beyond a Mahalanobis distance of 3 than a two-axis
+    Gaussian predicts; the other 122 were held out as the check. The floor
+    says nothing about an answer that matched the wrong stars. The
+    provenance notes live alongside the values in
+    ``config_510_techniques.yaml``.
 
 **Size-scaled NCC terms.**
     The correlation techniques additionally carry
@@ -223,7 +230,7 @@ From the fused covariance the result derives:
 - :attr:`~spindoctor.nav_orchestrator.nav_result.NavResult.sigma_rotation_rad`
   -- from the rotation diagonal, when rotation was fitted;
 - the ``confidence_rank`` tier, whose ``max_sigma_px`` requirement is
-  checked against the larger per-axis sigma (the
+  checked against the major semi-axis of the translation error ellipse (the
   ``orchestrator.ensemble.tier_thresholds`` configuration): a result can be
   confident but too imprecise to earn a tier
   (``final_sigma_above_threshold``).

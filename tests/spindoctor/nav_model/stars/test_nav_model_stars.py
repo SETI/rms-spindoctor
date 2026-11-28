@@ -15,6 +15,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
+from tests.camera_sections import raw_camera
 from tests.model_sections import packaged_stars
 
 from spindoctor.annotation import Annotations
@@ -89,6 +90,7 @@ class _FakeObs:
         self.data_shape_u = 100
         self._psf = _FakePSF(sigma=1.0)
         self._star_max_vmag = star_max_vmag
+        self.inst_config = raw_camera()
 
     def star_psf(self) -> _FakePSF:
         """Return the fake PSF shared by every test star."""

@@ -41,7 +41,6 @@ UNTYPED_BLOCKS: dict[str, Boundary] = {
     'bodies': 'idealized',
     'stars': 'idealized',
     'ring_system': 'idealized',
-    'instrument_config': 'idealized',
     'sky_counts': 'truth',
     'artifacts': 'truth',
     'expected': 'test',

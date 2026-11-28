@@ -43,11 +43,13 @@ def _without_none(annotation: Any) -> Any:
 
 
 def _record(annotation: Any) -> tuple[type | None, bool]:
-    """The typed block a field holds, and whether it holds a list of them."""
+    """The typed block a field holds, and whether it holds a list or mapping of them."""
     inner = _without_none(annotation)
-    is_list = get_origin(inner) is tuple
-    if is_list:
+    is_list = get_origin(inner) in (tuple, dict)
+    if get_origin(inner) is tuple:
         inner = get_args(inner)[0]
+    elif get_origin(inner) is dict:
+        inner = get_args(inner)[1]
     if isinstance(inner, type) and dataclasses.is_dataclass(inner):
         return inner, is_list
     return None, False

@@ -29,12 +29,14 @@ Idealized type             Truth type                 Block
 (none)                     ``Expected``               ``expected``
 =========================  =========================  ==================================
 
-The idealized types live in this module, and the truth types in the ``truth``
-modules (:mod:`spindoctor.sim.scene.truth`, :mod:`spindoctor.sim.scene.truth_optics`,
-and :mod:`spindoctor.sim.scene.truth_detector`).  The top level, the optics, detector,
-and noise blocks, and the ``spk_error`` block are typed so far.  The blocks not yet
-typed are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS` and checked by
-the rules modules until their types land.
+The idealized types live in this module, except the ``instrument_config`` block's,
+which live in :mod:`spindoctor.sim.scene.idealized_camera`.  The truth types live in
+the ``truth`` modules (:mod:`spindoctor.sim.scene.truth`,
+:mod:`spindoctor.sim.scene.truth_optics`, and
+:mod:`spindoctor.sim.scene.truth_detector`).  The top level, the optics, detector,
+noise, and ``instrument_config`` blocks, and the ``spk_error`` block are typed so far.
+The blocks not yet typed are listed in :data:`spindoctor.sim.scene.truth.UNTYPED_BLOCKS`
+and checked by the rules modules until their types land.
 
 One value crosses from a truth block into the navigator's view: the readout binning.
 A real frame's label states its readout mode, so a real pipeline knows it, but a
@@ -50,17 +52,34 @@ scene.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Annotated
 
-from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, Int, Positive, PositiveInt, RuleError, Str
-from spindoctor.sim.scene.declare import EditorHint, NonEmptyStr, optional, required
+from pydantic import AfterValidator
 
-__all__ = ['CURRENT_SCHEMA_VERSION', 'DEFAULT_EXPOSURE_SEC', 'IdealizedScene']
+from spindoctor.schema import SCHEMA_CONFIG, Bool, Float, Int, Positive, RuleError, Str
+from spindoctor.sim.scene.declare import EditorHint, IntWithin, NonEmptyStr, optional, required
+from spindoctor.sim.scene.idealized_camera import InstrumentConfig
+
+__all__ = [
+    'CURRENT_SCHEMA_VERSION',
+    'DEFAULT_EXPOSURE_SEC',
+    'MIN_FRAME_SIZE_PX',
+    'IdealizedScene',
+]
 
 #: The scene format version every scene is written in.
 CURRENT_SCHEMA_VERSION: int = 2
 
 #: The exposure time, in seconds, of a scene that leaves ``exposure_sec`` out.
 DEFAULT_EXPOSURE_SEC = 1.0
+
+#: The smallest frame, in pixels on a side.  The margin the lens distortion needs around
+#: the frame grows steeply as the frame shrinks, so a smaller frame cannot be rendered.
+#: The scene editor's size controls stop at the same number.
+MIN_FRAME_SIZE_PX = 10
+
+#: A frame side: an integer of at least ``MIN_FRAME_SIZE_PX``.
+FrameSide = Annotated[Int, AfterValidator(IntWithin(MIN_FRAME_SIZE_PX))]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -79,6 +98,7 @@ class IdealizedScene:
         time: The observation time, in TDB seconds.
         ring_epoch: The epoch of the ring orbits, in TDB seconds.
         fit_camera_rotation: Whether the navigator fits the camera's rotation.
+        instrument_config: The keys the scene changes in its camera's navigator block.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -100,15 +120,17 @@ class IdealizedScene:
         "catalog. The camera's catalog entry supplies the detector values, the navigator "
         'block, and the optics that ``artifacts.instrument_defaults`` turns on.',
     )
-    size_v: PositiveInt = required(
+    size_v: FrameSide = required(
         'idealized',
-        "The frame's height, in pixels.",
-        editor=EditorHint(minimum=10, maximum=9999),
+        "The frame's height, in pixels, at least 10.  A smaller frame is refused because the "
+        'margin the lens distortion needs grows steeply as the frame shrinks.',
+        editor=EditorHint(minimum=MIN_FRAME_SIZE_PX, maximum=9999),
     )
-    size_u: PositiveInt = required(
+    size_u: FrameSide = required(
         'idealized',
-        "The frame's width, in pixels.",
-        editor=EditorHint(minimum=10, maximum=9999),
+        "The frame's width, in pixels, at least 10.  A smaller frame is refused because the "
+        'margin the lens distortion needs grows steeply as the frame shrinks.',
+        editor=EditorHint(minimum=MIN_FRAME_SIZE_PX, maximum=9999),
     )
     exposure_sec: Positive | None = optional(
         'idealized',
@@ -150,6 +172,14 @@ class IdealizedScene:
         "Whether the navigator fits the camera's rotation, overriding the setting of the "
         "instrument's navigator block.",
         when_absent="the navigator block's setting",
+    )
+    instrument_config: InstrumentConfig | None = optional(
+        'idealized',
+        "The keys the scene changes in its camera's navigator block, which is what the "
+        'navigator knows about the camera. Each key a scene leaves out keeps the '
+        "block's value. A scene can't set ``data_units``: the frame's units come from the "
+        'instrument entry.',
+        when_absent="the navigator block's values",
     )
 
     def __post_init__(self) -> None:

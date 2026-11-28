@@ -138,6 +138,8 @@ class StarUniqueMatchTuning(StarTuning):
             other usable stars show nothing on clear sky where it puts them.
         one_star_confidence_cap: The post-sigmoid confidence cap of the 1-star path.
         two_star_confidence_cap: The post-sigmoid confidence cap of the 2-star path.
+        model_error_floor_px: The model-error floor in pixels, added in quadrature to
+            the translation covariance on both paths.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -159,6 +161,7 @@ class StarUniqueMatchTuning(StarTuning):
     one_star_absent_stars: PositiveInt
     one_star_confidence_cap: Unit
     two_star_confidence_cap: Unit
+    model_error_floor_px: NonNeg
 
     def __post_init__(self) -> None:
         """Refuse an inverted isolation annulus."""

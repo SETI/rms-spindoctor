@@ -14,6 +14,7 @@ from spindoctor.schema.core import (
     DigitInt,
     FCPath,
     Float,
+    FloatOrNan,
     Int,
     NonNeg,
     NonNegInt,
@@ -40,6 +41,7 @@ class Aliases:
 
     __pydantic_config__ = SCHEMA_CONFIG
     float_: Float = 0.0
+    float_or_nan: FloatOrNan = 0.0
     int_: Int = 0
     bool_: Bool = False
     str_: Str = ''

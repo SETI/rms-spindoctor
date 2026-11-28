@@ -444,35 +444,10 @@ class NavModelStars(NavModel):
 def _resolve_mag_offset(obs: ObsSnapshotInst) -> float:
     """Return the per-camera-per-filter magnitude offset for a navigation.
 
-    Reads ``obs.inst_config.mag_offset.{fallback_combo, mag_offset_table}``
-    populated by ``ObsInst.from_file``.  When no per-instrument
-    ``mag_offset`` block is configured (test fixtures, simulated obs
-    that skip the ``from_file`` path), the offset is ``0.0`` — the
-    legacy hard-coded value.
-
-    The resolved offset is read from
-    ``mag_offset_table[fallback_combo]['default']``; the per-color-bin
-    sub-keys are reserved for phase-10 calibration.
+    The offset is the camera block's ``mag_offset_table`` entry for its
+    ``fallback_combo``.
     """
-    inst_config = getattr(obs, 'inst_config', None)
-    if inst_config is None:
-        return 0.0
-    block = inst_config.get('mag_offset')
-    if not block:
-        return 0.0
-    fallback = block.get('fallback_combo')
-    table = block.get('mag_offset_table') or {}
-    entry = table.get(fallback) if fallback is not None else None
-    if entry is None and table:
-        entry = next(iter(table.values()), None)
-    if entry is None:
-        return 0.0
-    if isinstance(entry, (int, float)) and not isinstance(entry, bool):
-        return float(entry)
-    if isinstance(entry, dict):
-        default = entry.get('default', 0.0)
-        return float(default) if isinstance(default, (int, float)) else 0.0
-    return 0.0
+    return obs.inst_config.mag_offset.offset()
 
 
 def _safe_mask_lookup(

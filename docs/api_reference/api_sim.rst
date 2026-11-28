@@ -38,6 +38,11 @@ spindoctor.sim.scene
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.sim.scene.idealized_camera
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.sim.scene.truth
    :members:
    :undoc-members:
@@ -482,6 +487,11 @@ spindoctor.sim.render.telemetry
    :show-inheritance:
 
 .. automodule:: spindoctor.sim.render.telemetry.loss
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+.. automodule:: spindoctor.sim.render.telemetry.lossless
    :members:
    :undoc-members:
    :show-inheritance:
