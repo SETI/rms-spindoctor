@@ -84,7 +84,7 @@ __all__ = [
     'pair_limb_peaks',
     'real_silhouette_offsets',
     'record_has_limb_peaks',
-    'record_limb_peak_problems',
+    'record_limb_peak_failures',
     'tracks_touching',
 ]
 
@@ -718,7 +718,7 @@ def compare_limb_peaks(
     return out
 
 
-def record_limb_peak_problems(record: dict[str, Any]) -> list[str]:
+def record_limb_peak_failures(record: dict[str, Any]) -> dict[tuple[str, str], str]:
     """The bins of a realism record whose matched median lies outside its band.
 
     Parameters:
@@ -726,20 +726,21 @@ def record_limb_peak_problems(record: dict[str, Any]) -> list[str]:
             :func:`tests.integration.realism_regression.load_record` reads it.
 
     Returns:
-        One line per bin that lies outside its band, giving the instrument, the bin, both
-        medians, the band, and both counts.  Bins without a verdict are left out.
+        For each bin outside its band, keyed by ``(instrument, bin)``, a line that gives
+        the instrument, the bin, both medians, the band, and both counts.  Bins without a
+        verdict are left out.
     """
-    problems: list[str] = []
+    failures: dict[tuple[str, str], str] = {}
     for instrument, entry in sorted(record.get('instruments', {}).items()):
         for label, peak in sorted(entry.get('limb_peaks', {}).items()):
             if peak['within_band'] is not False:
                 continue
-            problems.append(
+            failures[(instrument, label)] = (
                 f'{instrument} {label}: matched median {peak["sim_median_px"]:+.3f} px '
                 f'({_limbs(peak["n_sim"])}) lies more than {peak["band_px"]:.3f} px from the '
                 f'real median {peak["real_median_px"]:+.3f} px ({_limbs(peak["n_real"])})'
             )
-    return problems
+    return failures
 
 
 def _limbs(count: int) -> str:
