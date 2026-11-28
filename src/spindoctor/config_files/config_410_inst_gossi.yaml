@@ -68,14 +68,16 @@ galileo_ssi:
   #     flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[FILTER_NAME]))
   #         * texp / gain[gain state]
   # DN, the rate counting electrons and gain giving electrons per DN.  The dimmest
-  # visible star deposits min_detectable_dn[readout mode], and the catalog search reaches
-  # search_depth_mag past it.  The gain state is the VICAR label's GAIN item (1 = 400K,
-  # 2 = 100K, 3 = 40K, 4 = 10K).  The readout mode follows from the telemetry format, the
-  # VICAR label's TLMFMT item: AI8 and HIS are read out in 2x2 summation (SUMMED,
-  # 400 x 400), every other format as a full 800 x 800 frame (FULL), as the image host
-  # reads it.  Summing on the chip keeps a star's charge, so the rate and the electrons
-  # per DN hold in both modes; it changes the noise of a pixel and the width of a star in
-  # pixels, so min_detectable_dn and psf_sigma are given per mode.
+  # visible star deposits min_detectable_dn[readout mode][gain state], and the catalog
+  # search reaches search_depth_mag past it.  The gain state is the VICAR label's GAIN
+  # item (1 = 400K, 2 = 100K, 3 = 40K, 4 = 10K).  The readout mode follows from the
+  # telemetry format, the VICAR label's TLMFMT item: AI8 and HIS are read out in 2x2
+  # summation (SUMMED, 400 x 400), every other format as a full 800 x 800 frame (FULL),
+  # as the image host reads it.  Summing on the chip keeps a star's charge, so the rate
+  # and the electrons per DN hold in both modes; it changes the noise of a pixel and the
+  # width of a star in pixels, so min_detectable_dn and psf_sigma are given per mode.
+  # The noise in DN also changes with the gain state, so min_detectable_dn gives each
+  # mode a table by gain state.
   #
   # Measured on star fields of the 1990 and 1992 cruise (#130): 100 frames with an
   # independent pointing fix from three or more agreeing stars (79 full frames in the HCM
@@ -102,15 +104,25 @@ galileo_ssi:
       '100K': 352.3
       '400K': 1824.1
     # The DN at 80% of the way from the detection floor to the plateau of a
-    # detection-probability curve fitted to the clean stars of the mode taken through
-    # CLEAR at the measured gain states: 153 +- 72 DN on the full frames (1641 stars) and
-    # 56 +- 8 DN on the summed frames (131 stars).  The limit is one DN per mode at every
-    # gain state, and on the 12 held-out 100K frames the faintest star detected lies a
-    # median 1.6 mag past the predicted dimmest visible star, against 0.15 mag on the 16
-    # held-out 10K frames.
+    # detection-probability curve fitted to the clean stars of each mode and gain state
+    # taken through CLEAR: on the full frames 297 +- 175 DN at 10K (654 stars) and 42 +- 5
+    # DN at 100K (987 stars), on the summed frames 56 +- 8 DN at 10K (131 stars).  The
+    # other pairs take the value of the same mode's nearest measured gain state, scaled by
+    # the ratio of their DN per electron, so that the dimmest visible star holds the same
+    # electrons.  On the 28 held-out frames the second-faintest star detected lies a median
+    # 0.20 mag past the predicted dimmest visible star (p16-p84 -0.23 to 1.28), where one
+    # DN per mode at every gain state gave 0.86 mag, the 100K frames 1.6 mag past it.
     min_detectable_dn:
-      FULL: 153.0
-      SUMMED: 56.0
+      FULL:
+        '10K': 297.0
+        '40K': 78.4   # scaled from 100K
+        '100K': 41.6
+        '400K': 8.0   # scaled from 100K
+      SUMMED:
+        '10K': 56.0
+        '40K': 11.6   # scaled from 10K
+        '100K': 6.1   # scaled from 10K
+        '400K': 1.2   # scaled from 10K
     # As in the earlier navigation software, which searched 1 mag past the dimmest
     # visible star.
     search_depth_mag: 1.0

@@ -151,12 +151,13 @@ magnitude ``V`` and color ``B-V`` has the camera magnitude ``m = V + c (B-V)``, 
 in the image, where ``R`` is ``flux_per_s_vmag0`` (2.385e8 electrons per second for
 a star of V = 0 and B-V = 0 through CLEAR), ``f`` is the frame's filter's
 ``filter_mag_offset``, and ``g`` is the ``gain`` entry of its gain state, in electrons
-per DN. The dimmest visible star puts the readout mode's ``min_detectable_dn`` in the
-image (153 DN on a full frame, 56 DN on a summed one), and the limit is that star's
-camera magnitude plus ``search_depth_mag`` (1.0). At 1 s through CLEAR a full frame's
-limit is camera magnitude 12.5 at the 10K gain state and 10.1 at 100K, and a summed
-frame's is 1.1 mag deeper. A star of the Sun's color (B-V 0.65) reaches the limit at a
-V 0.27 mag fainter. The
+per DN. The dimmest visible star puts ``min_detectable_dn`` for the frame's readout
+mode and gain state in the image (on a full frame 297 DN at 10K and 41.6 DN at 100K, on
+a summed frame 56 DN at 10K), and the limit is that star's camera magnitude plus
+``search_depth_mag`` (1.0). At 1 s through CLEAR a full frame's limit is camera
+magnitude 11.8 at the 10K gain state and 11.5 at 100K, and a summed frame's is 13.6 at
+10K. A star of the Sun's color (B-V 0.65) reaches the limit at a V 0.27 mag fainter.
+The
 filter is the label's ``FILTER_NAME``, and the gain state is the VICAR label's
 ``GAIN`` item: 1 is 400K, 2 is 100K, 3 is 40K, and 4 is 10K. The readout mode follows
 from the telemetry format, the VICAR label's ``TLMFMT`` item: AI8 and HIS are read out
@@ -165,7 +166,9 @@ same split the image host makes when it gives a summed frame a 400 x 400 field o
 view. These are the keys of the gain and mode tables. Summing on the chip keeps a
 star's charge, so the rate and the electrons per DN hold in both modes, but summation
 changes the noise of a pixel and the width of a star in pixels, so
-``min_detectable_dn`` and ``psf_sigma`` are given per mode. A frame is refused when its
+``min_detectable_dn`` and ``psf_sigma`` are given per mode. The noise in DN also changes
+with the gain state, so ``min_detectable_dn`` gives each mode a table by gain state. A
+frame is refused when its
 ``GAIN`` or ``TLMFMT`` item is not one of these values, or when the tables leave out its
 filter, gain state, or readout mode, and the message gives the key path
 (``galileo_ssi.star_photometry...``). A frame whose exposure is not positive gets a limit
@@ -201,21 +204,23 @@ take the calibration documents' values, and their stars are left out of the fits
   100K measure its DN at 0.1098 (+-0.12 mag) of 10K's, or 352.3 electrons per DN,
   where Klaasen's ratio gives 378.1.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
-  stars of the mode taken through CLEAR at the measured gain states, reaches 80% of the
-  way from its floor to its plateau: 153 +- 72 DN on the full frames (1,641 stars) and
-  56 +- 8 DN on the summed frames (131 stars).
+  stars of one readout mode and gain state taken through CLEAR, reaches 80% of the way
+  from its floor to its plateau: on the full frames 297 +- 175 DN at 10K (654 stars)
+  and 42 +- 5 DN at 100K (987 stars), and on the summed frames 56 +- 8 DN at 10K (131
+  stars). Every other pair takes the value of the same mode's nearest measured gain
+  state, scaled by the ratio of their DN per electron, so that the dimmest visible star
+  holds the same number of electrons: 78.4 and 8.0 DN at 40K and 400K on a full frame,
+  and 11.6, 6.1, and 1.2 DN at 40K, 100K, and 400K on a summed one.
 - The filter offsets are 2.5 log10 of the solar filter factors of Klaasen et al.
   (1999). The stars measured through filters are too few to measure an offset, and are
   mostly hot Pleiades members, far bluer than the Sun.
 
-On the 16 held-out frames taken at 10K, the second-faintest star detected lies a median
-0.15 mag past the predicted dimmest visible star. On the 12 held-out frames taken at
-100K, it lies a median 1.6 mag past it: ``min_detectable_dn`` gives one DN per readout
-mode, whatever the gain state, and at 100K a DN holds about nine times the electrons,
-so the camera shows stars well past the limit there. Over all 28 frames the median is
-0.86 mag, with a spread from 0.15 mag inside the limit to 1.6 mag past it. That figure
-does not allow for the 1990 frames, whose stars read 0.4 to 1.7 mag fainter than the
-1992 scale the limit follows.
+On the 28 held-out frames, the second-faintest star detected lies a median 0.20 mag
+past the predicted dimmest visible star, with a spread from 0.23 mag inside the limit
+to 1.28 mag past it. One DN per readout mode at every gain state gave a median of 0.86
+mag, and 1.6 mag on the frames taken at 100K, where a DN holds about nine times the
+electrons. That figure does not allow for the 1990 frames, whose stars read 0.4 to 1.7
+mag fainter than the 1992 scale the limit follows.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are
 handled downstream.
