@@ -157,7 +157,7 @@ def test_an_annulus_whose_inner_radius_is_not_below_its_outer_is_refused(
 
 
 def test_an_unknown_key_is_refused(nav_config_with: NavConfigWith) -> None:
-    """An unknown nested key is refused at load, naming the source and the key path."""
+    """An unknown nested key is refused at load, with the source and the key path."""
     expected = f"{TEST_OVERRIDE_LABEL}: titan.navigation.arc: unknown keys: ['min_ray']"
     with pytest.raises(SchemaError, match=re.escape(expected)):
         nav_config_with({'titan': {'navigation': {'arc': {'min_ray': 3}}}})

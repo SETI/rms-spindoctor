@@ -1211,7 +1211,7 @@ def test_the_enumeration_hands_the_filter_the_tuning_the_configuration_names(
 
 
 _CONFIGURED_ROOT = {'environment': {'pds3_holdings_root': '/configured/holdings'}}
-"""An override whose environment block names one holdings root."""
+"""An override whose environment block sets one holdings root."""
 
 
 def _enumerated_image_url(

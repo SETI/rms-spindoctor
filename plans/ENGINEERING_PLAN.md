@@ -1705,11 +1705,20 @@ asserts the generated half matches the registries.
     Cassini's `_dataset_name_for_pds4_config` and
     `_default_pds4_template_dir`, and the Voyager, Galileo, and LORRI
     `pds4_bundle_template_dir`/`pds4_bundle_name` fallbacks deleted)
-  - [ ] `load_nav_config`, `AttrDict` off the config path, and one test
-    fixture for config overrides; #118 and #1001 close here. Until this
-    step parses the whole tree, a top-level section nothing types (for
-    example the deleted `fuzzy_satellites`) is still accepted silently in
-    an override
+  - [x] `load_nav_config`, `AttrDict` off the config path, and one test
+    fixture for config overrides; #118 and #1001 close here (done:
+    `load_nav_config(paths, *, overrides)` reads, merges, and parses the
+    whole tree into one `NavConfig`, `TypedSections` renamed, so an
+    unknown top-level section such as the deleted `fuzzy_satellites` is
+    refused at load with its file; `Config` holds the current `NavConfig`
+    and its override layers, and `category()`, the raw merged dictionary,
+    and `AttrDict` itself deleted, nothing else having used it, so #552
+    and #39 concern a deleted class; `resolved_config_hash` hashes the
+    parsed configuration; the `nav_config_with` fixture layers an
+    in-memory override over the packaged files, the test sites that wrote
+    an override file moved onto it, and the six section helpers at the
+    `tests/` root merged into `tests/packaged_sections.py` with one cached
+    loader, #1267's test-helper part)
 
 ## Track E — Test and documentation debt
 

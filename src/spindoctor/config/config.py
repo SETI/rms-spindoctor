@@ -114,7 +114,8 @@ def _refuse_replaced_sections(packaged: Mapping[Any, Any], layer: Layer) -> None
         layer: An override to be merged over it.
 
     Raises:
-        SchemaError: Naming the override and each section it gives as something else.
+        SchemaError: If the override gives a section as something else, with one line
+            for each such section, which gives the override's label and the section.
     """
     issues = [
         Issue(
@@ -159,7 +160,7 @@ def load_nav_config(
         SchemaError: If a file is not a YAML mapping, a layer holds a null or gives a
             section as anything but a mapping, or the merged configuration breaks its
             schema, as with an unknown key or section, a value of the wrong type or out
-            of range, or a technique block that names a diagnostic attribute its
+            of range, or a technique block that refers to a diagnostic attribute its
             technique does not declare.  Each line of the message gives the file that set
             the value, and the key path.
     """

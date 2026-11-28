@@ -80,7 +80,7 @@ def test_an_inverted_body_witness_phase_window_is_refused(nav_config_with: NavCo
 def test_a_bad_orchestrator_override_is_refused(
     nav_config_with: NavConfigWith, override: dict[str, object], expected: str
 ) -> None:
-    """A bad value or an unknown key is refused at load, naming the source and the key.
+    """A bad value or an unknown key is refused at load, with the source and the key.
 
     Parameters:
         nav_config_with: Builds a configuration with an override.

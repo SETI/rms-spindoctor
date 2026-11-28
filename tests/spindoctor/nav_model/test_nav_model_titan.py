@@ -1176,7 +1176,7 @@ def test_ring_material_outside_the_annulus_does_not_occlude(
 
 
 def _satellites_override(names: tuple[str, ...]) -> dict[str, Any]:
-    """Return a satellite-list override naming exactly ``names`` for Saturn."""
+    """Return a satellite-list override listing exactly ``names`` for Saturn."""
     return {'satellites': {'SATURN': list(names)}}
 
 
