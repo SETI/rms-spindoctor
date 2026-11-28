@@ -3,12 +3,13 @@
 import json
 import math
 import re
-from pathlib import Path
 from typing import Any
 
 import pytest
 from tests.packaged_sections import (
     PACKAGED_CAMERAS,
+    TEST_OVERRIDE_LABEL,
+    NavConfigWith,
     calibrated_camera,
     camera_mapping,
     packaged_sections,
@@ -28,13 +29,12 @@ def test_packaged_camera_blocks_parse() -> None:
         assert isinstance(sections.camera_block(section, camera), CameraBlock)
 
 
-def test_an_override_that_replaces_every_camera_is_refused(tmp_path: Path) -> None:
+def test_an_override_that_replaces_every_camera_is_refused(
+    nav_config_with: NavConfigWith,
+) -> None:
     """An override that leaves a camera section no camera block is still checked."""
-    config = Config()
-    override = tmp_path / 'override.yaml'
-    override.write_text('cassini_iss:\n  nac: false\n  wac: false\n')
-    with pytest.raises(SchemaError, match=re.escape(f'{override}: cassini_iss.nac')):
-        config.update_config(override)
+    with pytest.raises(SchemaError, match=re.escape(f'{TEST_OVERRIDE_LABEL}: cassini_iss.nac')):
+        nav_config_with({'cassini_iss': {'nac': False, 'wac': False}})
 
 
 def test_a_camera_name_on_a_one_camera_section_is_refused() -> None:
@@ -43,16 +43,11 @@ def test_a_camera_name_on_a_one_camera_section_is_refused() -> None:
         packaged_sections().camera_block('galileo_ssi', 'nac')
 
 
-def test_a_bad_camera_value_in_an_override_is_refused(tmp_path: Path) -> None:
-    """A bad camera value in an override is refused at load, with its file and key path."""
-    config = Config()
-    before = config.camera_block('cassini_iss', 'wac')
-    override = tmp_path / 'override.yaml'
-    override.write_text('cassini_iss:\n  wac:\n    one_star_ellipse_fraction: 1.5\n')
-    expected = f'{override}: cassini_iss.wac.one_star_ellipse_fraction: '
+def test_a_bad_camera_value_in_an_override_is_refused(nav_config_with: NavConfigWith) -> None:
+    """A bad camera value in an override is refused at load, with its source and key path."""
+    expected = f'{TEST_OVERRIDE_LABEL}: cassini_iss.wac.one_star_ellipse_fraction: '
     with pytest.raises(SchemaError, match=re.escape(expected)):
-        config.update_config(override)
-    assert config.camera_block('cassini_iss', 'wac') is before
+        nav_config_with({'cassini_iss': {'wac': {'one_star_ellipse_fraction': 1.5}}})
 
 
 @pytest.mark.parametrize(

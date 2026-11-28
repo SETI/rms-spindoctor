@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from tests.packaged_sections import NavConfigWith
 
 from spindoctor.config import Config
 from spindoctor.nav_orchestrator.provenance import (
@@ -180,14 +181,12 @@ def test_resolved_config_hash_identical_for_identical_inputs() -> None:
     assert a.resolved_config_hash() == b.resolved_config_hash()
 
 
-def test_resolved_config_hash_changes_with_override_content(tmp_path: Path) -> None:
+def test_resolved_config_hash_changes_with_override_content(
+    nav_config_with: NavConfigWith,
+) -> None:
     """An override that changes resolved content changes the hash."""
-    base = Config()
-    override = tmp_path / 'override.yaml'
-    override.write_text('stars:\n  max_stars: 12345\n', encoding='utf-8')
-    modified = Config()
-    modified.update_config(override)
-    assert modified.resolved_config_hash() != base.resolved_config_hash()
+    modified = nav_config_with({'stars': {'max_stars': 12345}})
+    assert modified.resolved_config_hash() != Config().resolved_config_hash()
 
 
 def test_resolved_config_hash_ignores_override_provenance_not_content(tmp_path: Path) -> None:

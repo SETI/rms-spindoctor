@@ -7,12 +7,15 @@ from typing import Any
 import pdslogger
 import pytest
 from filecache import FCPath
-from tests.packaged_sections import configure_tree_tuning, packaged_tree_tuning
+from tests.packaged_sections import (
+    NavConfigWith,
+    configure_tree_tuning,
+    packaged_tree_tuning,
+)
 from tests.spindoctor.conftest import metadata_document
 from tests.spindoctor.dataset.conftest import coiss_filespecs, install_fake_index
 
 from spindoctor.cli.results_index import ingest_metadata_files
-from spindoctor.config import Config
 from spindoctor.dataset import dataset_pds3 as dataset_pds3_module
 from spindoctor.dataset.dataset_pds3 import DataSetPDS3
 from spindoctor.dataset.dataset_pds3_cassini_iss import DataSetPDS3CassiniISS
@@ -1207,22 +1210,8 @@ def test_the_enumeration_hands_the_filter_the_tuning_the_configuration_names(
     assert handed == [configured]
 
 
-def _named_config(tmp_path: Path, holdings_root: str) -> Config:
-    """Return a configuration whose environment block names one holdings root.
-
-    Parameters:
-        tmp_path: Directory the override file is written into.
-        holdings_root: The root the configuration names.
-
-    Returns:
-        The configuration, with the shipped defaults under the override.
-    """
-    override = tmp_path / 'holdings.yaml'
-    override.write_text(f'environment:\n  pds3_holdings_root: {holdings_root}\n', encoding='utf-8')
-    config = Config()
-    config.read_config()
-    config.update_config(str(override))
-    return config
+_CONFIGURED_ROOT = {'environment': {'pds3_holdings_root': '/configured/holdings'}}
+"""An override whose environment block names one holdings root."""
 
 
 def _enumerated_image_url(
@@ -1282,11 +1271,11 @@ def test_the_exported_root_is_read_when_no_option_names_one(
 
 
 def test_the_root_named_on_the_command_line_beats_the_configured_one(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """The configuration is the level between the two, and loses to the command line."""
     monkeypatch.delenv('PDS3_HOLDINGS_DIR', raising=False)
-    ds = DataSetPDS3CassiniISS(config=_named_config(tmp_path, '/configured/holdings'))
+    ds = DataSetPDS3CassiniISS(config=nav_config_with(_CONFIGURED_ROOT))
 
     url = _enumerated_image_url(ds, monkeypatch, '--pds3-holdings-root', '/typed/holdings')
 
@@ -1294,11 +1283,11 @@ def test_the_root_named_on_the_command_line_beats_the_configured_one(
 
 
 def test_the_configured_root_is_read_when_no_option_names_one(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """The control for that one."""
     monkeypatch.delenv('PDS3_HOLDINGS_DIR', raising=False)
-    ds = DataSetPDS3CassiniISS(config=_named_config(tmp_path, '/configured/holdings'))
+    ds = DataSetPDS3CassiniISS(config=nav_config_with(_CONFIGURED_ROOT))
 
     url = _enumerated_image_url(ds, monkeypatch)
 
@@ -1306,7 +1295,7 @@ def test_the_configured_root_is_read_when_no_option_names_one(
 
 
 def test_the_configured_root_is_read_over_the_exported_one(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """The bottom two rungs, which the command line is above rather than between.
 
@@ -1315,7 +1304,7 @@ def test_the_configured_root_is_read_over_the_exported_one(
     must not silently redirect it.
     """
     monkeypatch.setenv('PDS3_HOLDINGS_DIR', '/exported/holdings')
-    ds = DataSetPDS3CassiniISS(config=_named_config(tmp_path, '/configured/holdings'))
+    ds = DataSetPDS3CassiniISS(config=nav_config_with(_CONFIGURED_ROOT))
 
     url = _enumerated_image_url(ds, monkeypatch)
 

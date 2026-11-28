@@ -20,7 +20,7 @@ from typing import Any
 import numpy as np
 import pdslogger
 import pytest
-from tests.packaged_sections import packaged_tree_tuning, preserved_technique_settings
+from tests.packaged_sections import NavConfigWith, packaged_tree_tuning
 
 from spindoctor.cli.results_index import IngestCounts, ingest_metadata_files
 from spindoctor.config import Config
@@ -336,14 +336,8 @@ OVERRIDDEN_UPSAMPLE_FACTOR = 256
 
 
 @pytest.fixture
-def upsample_override_config(tmp_path: Path) -> Config:
+def upsample_override_config(nav_config_with: NavConfigWith) -> Config:
     """A configuration whose correlation upsample factor is overridden to 256."""
-    override = tmp_path / 'upsample_override.yaml'
-    override.write_text(
-        f'offset:\n  correlation_fft_upsample_factor: {OVERRIDDEN_UPSAMPLE_FACTOR}\n'
+    return nav_config_with(
+        {'offset': {'correlation_fft_upsample_factor': OVERRIDDEN_UPSAMPLE_FACTOR}}
     )
-    config = Config()
-    with preserved_technique_settings():
-        config.read_config()
-        config.update_config(override)
-    return config

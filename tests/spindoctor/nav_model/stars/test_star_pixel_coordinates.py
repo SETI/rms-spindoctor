@@ -22,8 +22,9 @@ import numpy as np
 import pytest
 from oops.fov import FlatFOV
 from psfmodel import GaussianPSF
-from tests.packaged_sections import packaged_stars, raw_camera
+from tests.packaged_sections import raw_camera
 
+from spindoctor.config import Config
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.nav_model_stars import (
     NavModelStars,
@@ -127,12 +128,6 @@ class _StarRecord:
         self.dn = 1.0
 
 
-class _Config:
-    """Stand-in for ``Config`` exposing only its ``stars`` section."""
-
-    stars = packaged_stars()
-
-
 class _Obs:
     """Observation stand-in for a square detector with a chosen extfov margin."""
 
@@ -168,7 +163,7 @@ class _Context:
 def _predicted_vu(star: MutableStar, *, extfov_margin: int) -> tuple[float, float]:
     """Return the position the star model predicts for one record."""
     obs = _Obs(extfov_margin=extfov_margin)
-    model = NavModelStars('stars', cast(Any, obs), config=cast(Any, _Config()))
+    model = NavModelStars('stars', cast(Any, obs), config=Config())
     model._stars = [star]
     context = _Context(obs.extdata_shape_vu)
     feature = model.to_features(cast(NavContext, context))[0]

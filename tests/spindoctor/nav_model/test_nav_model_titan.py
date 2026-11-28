@@ -14,13 +14,13 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import math
-from collections.abc import Callable
-from pathlib import Path
+from collections.abc import Callable, Mapping
 from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
 import pytest
+from tests.packaged_sections import NavConfigWith
 from tests.shims import BodyBackplaneData, FakeBackplane, FakeObs
 
 import spindoctor.nav_model.titan_geometry as geometry_module
@@ -297,11 +297,9 @@ def test_high_phase_flag_is_clear_at_moderate_phase(config: Config) -> None:
     assert feature.flags.high_phase is False  # type: ignore[union-attr]
 
 
-def test_high_phase_threshold_is_configurable(config: Config, tmp_path: Path) -> None:
+def test_high_phase_threshold_is_configurable(nav_config_with: NavConfigWith) -> None:
     """Lowering titan.navigation.high_phase_deg moves the flag's threshold."""
-    override = tmp_path / 'high_phase_override.yaml'
-    override.write_text('titan:\n  navigation:\n    high_phase_deg: 90.0\n')
-    config.update_config(override)
+    config = nav_config_with({'titan': {'navigation': {'high_phase_deg': 90.0}}})
     feature = build_titan_feature(
         _inputs(phase_deg=120.0), source_model='titan:TITAN', config=config
     )
@@ -313,13 +311,9 @@ def test_high_phase_threshold_is_configurable(config: Config, tmp_path: Path) ->
 # ---------------------------------------------------------------------------
 
 
-def _titan_only_config(tmp_path: Path) -> Config:
+def _titan_only_config(nav_config_with: NavConfigWith) -> Config:
     """Configuration whose Saturn satellite list contains Titan alone."""
-    override = tmp_path / 'satellites_override.yaml'
-    override.write_text('satellites:\n  SATURN:\n    - TITAN\n')
-    config = Config()
-    config.update_config(override)
-    return config
+    return nav_config_with(_satellites_override(('TITAN',)))
 
 
 def _inventory_entry(
@@ -338,9 +332,9 @@ def _inventory_entry(
     }
 
 
-def test_titan_model_built_for_titan_in_fov(tmp_path: Path) -> None:
+def test_titan_model_built_for_titan_in_fov(nav_config_with: NavConfigWith) -> None:
     """Titan in the FOV builds one active NavModelTitan."""
-    config = _titan_only_config(tmp_path)
+    config = _titan_only_config(nav_config_with)
     obs = FakeObs(
         data=np.zeros((120, 120)),
         closest_planet='SATURN',
@@ -350,9 +344,9 @@ def test_titan_model_built_for_titan_in_fov(tmp_path: Path) -> None:
     assert [m.name for m in instances] == ['titan:TITAN']
 
 
-def test_body_model_excludes_titan(tmp_path: Path) -> None:
+def test_body_model_excludes_titan(nav_config_with: NavConfigWith) -> None:
     """The shape-based body model builds nothing for Titan."""
-    config = _titan_only_config(tmp_path)
+    config = _titan_only_config(nav_config_with)
     obs = FakeObs(
         data=np.zeros((120, 120)),
         closest_planet='SATURN',
@@ -655,7 +649,7 @@ _STAGE_FAULTS: dict[str, tuple[_FaultPlanter, str]] = {
 @pytest.mark.parametrize('stage', list(_STAGE_FAULTS), ids=list(_STAGE_FAULTS))
 def test_every_stage_propagates_its_leaf_failure(
     scene: type[_SceneBackplane],
-    tmp_path: Path,
+    nav_config_with: NavConfigWith,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
     stage: str,
@@ -680,7 +674,7 @@ def test_every_stage_propagates_its_leaf_failure(
     planter(obs, scene, monkeypatch, fault)
     with pytest.raises(RuntimeError, match='the stage could not be evaluated') as exc_info:
         geometry_module.geometry_from_obs(
-            cast(Any, obs), _titan_only_config(tmp_path), inventory=entry, siblings=[]
+            cast(Any, obs), _titan_only_config(nav_config_with), inventory=entry, siblings=[]
         )
     assert f'{log_line}: {exc_info.value}' in capsys.readouterr().out
 
@@ -692,7 +686,7 @@ def test_every_stage_propagates_its_leaf_failure(
 
 @pytest.mark.parametrize('margin', [0, 7])
 def test_predicted_center_of_a_centered_body_is_the_array_center(
-    scene: type[_SceneBackplane], tmp_path: Path, margin: int
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, margin: int
 ) -> None:
     """A body on the frame's center predicts the center of the array.
 
@@ -715,14 +709,14 @@ def test_predicted_center_of_a_centered_body_is_the_array_center(
     entry = _inventory_entry((rows / 2.0, rows / 2.0), 26.0, 1.2e6)
     obs = _scene_obs(titan_entry=entry, extra={})
     obs.extfov_margin_vu = (margin, margin)
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     expected = (rows - 1) / 2.0 + margin
     assert geometry.predicted_center_vu[0] == pytest.approx(expected, abs=1e-9)
     assert geometry.predicted_center_vu[1] == pytest.approx(expected, abs=1e-9)
 
 
 def test_predicted_center_of_an_offset_body_keeps_the_same_half_pixel(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The conversion is the same half pixel away from the frame's center.
 
@@ -733,14 +727,14 @@ def test_predicted_center_of_an_offset_body_keeps_the_same_half_pixel(
     entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
     obs = _scene_obs(titan_entry=entry, extra={})
     obs.extfov_margin_vu = (0, 0)
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.predicted_center_vu[0] == pytest.approx(44.0, abs=1e-9)
     assert geometry.predicted_center_vu[1] == pytest.approx(71.0, abs=1e-9)
 
 
 @pytest.mark.parametrize('margin', [0, 7])
 def test_the_recorded_center_is_the_inventory_position(
-    scene: type[_SceneBackplane], tmp_path: Path, margin: int
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, margin: int
 ) -> None:
     """What the model records is the inventory's own number for the body.
 
@@ -756,13 +750,15 @@ def test_the_recorded_center_is_the_inventory_position(
     entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
     obs = _scene_obs(titan_entry=entry, extra={})
     obs.extfov_margin_vu = (margin, margin)
-    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model = NavModelTitan.instances_for_obs(
+        cast(Any, obs), config=_titan_only_config(nav_config_with)
+    )[0]
     model.create_model()
     assert model.metadata['predicted_center_vu'] == pytest.approx([44.5, 71.5], abs=1e-9)
 
 
 def test_the_logged_center_is_the_inventory_position(
-    scene: type[_SceneBackplane], tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The per-image log states the center where the document does.
 
@@ -773,7 +769,9 @@ def test_the_logged_center_is_the_inventory_position(
     entry = _inventory_entry((44.5, 71.5), 26.0, 1.2e6)
     obs = _scene_obs(titan_entry=entry, extra={})
     obs.extfov_margin_vu = (7, 7)
-    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model = NavModelTitan.instances_for_obs(
+        cast(Any, obs), config=_titan_only_config(nav_config_with)
+    )[0]
     model.create_model()
     assert 'Predicted center (v, u) = (44.50, 71.50)' in capsys.readouterr().out
 
@@ -896,7 +894,7 @@ def _recorded_boxes(monkeypatch: pytest.MonkeyPatch) -> list[_RecordedBackplane]
 
 
 def test_every_titan_backplane_stays_within_the_sample_cap(
-    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A body far wider than the frame still evaluates a bounded grid.
 
@@ -909,7 +907,7 @@ def test_every_titan_backplane_stays_within_the_sample_cap(
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
     calls = _recorded_boxes(monkeypatch)
-    config = _titan_only_config(tmp_path)
+    config = _titan_only_config(nav_config_with)
     cap = config.titan.navigation.backplane_max_samples
     _geometry(
         _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0), config
@@ -920,7 +918,7 @@ def test_every_titan_backplane_stays_within_the_sample_cap(
 
 
 def test_the_mask_backplane_is_clipped_to_the_extended_frame(
-    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """No mask backplane reaches outside the frame, whose pixels alone survive.
 
@@ -937,7 +935,7 @@ def test_the_mask_backplane_is_clipped_to_the_extended_frame(
     calls = _recorded_boxes(monkeypatch)
     geometry = _geometry(
         _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0),
-        _titan_only_config(tmp_path),
+        _titan_only_config(nav_config_with),
     )
     rows, cols = geometry.extfov_shape_vu
     margin_v, margin_u = geometry.extfov_margin_vu
@@ -1001,7 +999,7 @@ def test_striped_occlusion_matches_the_whole_box_evaluation(
 
 
 def test_a_strided_envelope_box_still_points_the_axis_sunward(
-    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Striding the envelope box quantizes the axis without turning it."""
     scene.titan_center_vu = (60.5, 60.5)
@@ -1012,14 +1010,14 @@ def test_a_strided_envelope_box_still_points_the_axis_sunward(
     calls = _recorded_boxes(monkeypatch)
     geometry = _geometry(
         _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0),
-        _titan_only_config(tmp_path),
+        _titan_only_config(nav_config_with),
     )
     assert calls[0].stride > 1
     assert geometry.theta_rad == pytest.approx(math.pi / 2.0, abs=0.02)
 
 
 def test_degenerate_axis_guard_scales_with_the_stride(
-    scene: type[_SceneBackplane], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """An arm above 3 px but under 3 strides is degenerate on a strided box.
 
@@ -1034,7 +1032,7 @@ def test_degenerate_axis_guard_scales_with_the_stride(
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
     calls = _recorded_boxes(monkeypatch)
-    config = _titan_only_config(tmp_path)
+    config = _titan_only_config(nav_config_with)
     obs = _close_scene_obs(resolution_km_px=_TITAN_RADIUS_KM / 2000.0, half_size_px=2000.0)
     _geometry(obs, config)
     stride = calls[0].stride
@@ -1047,29 +1045,31 @@ def test_degenerate_axis_guard_scales_with_the_stride(
 
 
 def test_symmetry_axis_points_at_the_sub_solar_pixel(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The minimum-incidence pixel sets the axis angle."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.theta_rad == pytest.approx(math.pi / 2.0, abs=1.0e-6)
 
 
-def test_near_zero_phase_axis_is_degenerate(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_near_zero_phase_axis_is_degenerate(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """A sub-solar point at the disc center marks the axis degenerate."""
     scene.sub_solar_offset_vu = (0.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.axis_degenerate is True
 
 
 def test_sibling_moon_enters_the_contaminant_mask(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """A moon beside Titan is masked so its sliver cannot pollute the fit."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1079,15 +1079,14 @@ def test_sibling_moon_enters_the_contaminant_mask(
         titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6),
         extra={'RHEA': _inventory_entry((60.0, 100.0), 4.0, 2.0e6)},
     )
-    config = _titan_only_config(tmp_path)
-    config.update_config(_satellites_override(tmp_path, ('TITAN', 'RHEA')))
+    config = nav_config_with(_satellites_override(('TITAN', 'RHEA')))
     geometry = _geometry(obs, config)
     assert geometry.contaminant_mask is not None
     assert bool(geometry.contaminant_mask[70, 110]) is True
 
 
 def test_farther_sibling_does_not_count_as_occlusion(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """A moon behind Titan hides nothing, so it stays out of the fraction."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1097,14 +1096,13 @@ def test_farther_sibling_does_not_count_as_occlusion(
         titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6),
         extra={'RHEA': _inventory_entry((60.0, 100.0), 4.0, 2.0e6)},
     )
-    config = _titan_only_config(tmp_path)
-    config.update_config(_satellites_override(tmp_path, ('TITAN', 'RHEA')))
+    config = nav_config_with(_satellites_override(('TITAN', 'RHEA')))
     geometry = _geometry(obs, config)
     assert geometry.occluded_fraction == 0.0
 
 
 def test_nearer_moon_counts_toward_the_occluded_fraction(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """A nearer moon covering the disc raises the occluded fraction."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1115,14 +1113,13 @@ def test_nearer_moon_counts_toward_the_occluded_fraction(
         titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6),
         extra={'RHEA': _inventory_entry((60.0, 60.0), 8.0, 5.0e5)},
     )
-    config = _titan_only_config(tmp_path)
-    config.update_config(_satellites_override(tmp_path, ('TITAN', 'RHEA')))
+    config = nav_config_with(_satellites_override(('TITAN', 'RHEA')))
     geometry = _geometry(obs, config)
     assert geometry.occluded_fraction > 0.0
 
 
 def test_nearer_moon_also_enters_the_contaminant_mask(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The occluding moon is masked as well as counted."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1133,15 +1130,14 @@ def test_nearer_moon_also_enters_the_contaminant_mask(
         titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6),
         extra={'RHEA': _inventory_entry((60.0, 60.0), 8.0, 5.0e5)},
     )
-    config = _titan_only_config(tmp_path)
-    config.update_config(_satellites_override(tmp_path, ('TITAN', 'RHEA')))
+    config = nav_config_with(_satellites_override(('TITAN', 'RHEA')))
     geometry = _geometry(obs, config)
     assert geometry.contaminant_mask is not None
     assert bool(geometry.contaminant_mask[70, 70]) is True
 
 
 def test_rings_in_front_count_toward_the_occluded_fraction(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """Main-ring material nearer than the body occludes it."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1149,23 +1145,25 @@ def test_rings_in_front_count_toward_the_occluded_fraction(
     scene.ring_radius_at_u = 100000.0
     scene.ring_distance_km = 5.0e5
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.occluded_fraction > 0.5
 
 
-def test_rings_behind_the_body_do_not_occlude(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_rings_behind_the_body_do_not_occlude(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """Ring material farther than the body hides nothing."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = 100000.0
     scene.ring_distance_km = 5.0e6
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.occluded_fraction == 0.0
 
 
 def test_ring_material_outside_the_annulus_does_not_occlude(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """Ring-plane intercepts outside the configured radii are not opaque."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1173,16 +1171,13 @@ def test_ring_material_outside_the_annulus_does_not_occlude(
     scene.ring_radius_at_u = 500000.0
     scene.ring_distance_km = 5.0e5
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.occluded_fraction == 0.0
 
 
-def _satellites_override(tmp_path: Path, names: tuple[str, ...]) -> Path:
-    """Write a satellite-list override naming exactly ``names`` for Saturn."""
-    path = tmp_path / f'satellites_{"_".join(names)}.yaml'
-    body = '\n'.join(f'    - {name}' for name in names)
-    path.write_text(f'satellites:\n  SATURN:\n{body}\n')
-    return path
+def _satellites_override(names: tuple[str, ...]) -> dict[str, Any]:
+    """Return a satellite-list override naming exactly ``names`` for Saturn."""
+    return {'satellites': {'SATURN': list(names)}}
 
 
 # ---------------------------------------------------------------------------
@@ -1217,7 +1212,7 @@ def _install_star_catalog(monkeypatch: pytest.MonkeyPatch, stars: list[_FakeStar
 
 
 def test_bright_star_contributes_a_masked_disc(
-    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """A star brighter than the mask limit paints a disc at its prediction."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1225,13 +1220,13 @@ def test_bright_star_contributes_a_masked_disc(
     scene.ring_radius_at_u = None
     _install_star_catalog(monkeypatch, [_FakeStar(v=60.0, u=95.0, vmag=5.0)])
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.contaminant_mask is not None
     assert bool(geometry.contaminant_mask[70, 105]) is True
 
 
 def test_faint_star_is_left_unmasked(
-    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """A star fainter than ``star_mask_vmag_limit`` is deliberately not masked."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1239,12 +1234,12 @@ def test_faint_star_is_left_unmasked(
     scene.ring_radius_at_u = None
     _install_star_catalog(monkeypatch, [_FakeStar(v=60.0, u=95.0, vmag=9.0)])
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.contaminant_mask is None
 
 
 def _record_star_queries(
-    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> list[tuple[str, float, float]]:
     """Run the geometry and return the ``(catalog, mag_min, mag_max)`` queries it made."""
     queried: list[tuple[str, float, float]] = []
@@ -1266,12 +1261,12 @@ def _record_star_queries(
     scene.ring_radius_at_u = None
     monkeypatch.setattr(geometry_module, 'stars_in_extfov', _record)
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    _geometry(obs, _titan_only_config(tmp_path))
+    _geometry(obs, _titan_only_config(nav_config_with))
     return queried
 
 
 def test_star_mask_queries_exactly_the_photometry_catalogs(
-    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """The mask is built from two windows of the two photometry catalogs.
 
@@ -1279,15 +1274,15 @@ def test_star_mask_queries_exactly_the_photometry_catalogs(
     without a gap, and each must come from the catalog whose bright-end
     photometry is trusted over that range.
     """
-    queried = _record_star_queries(scene, monkeypatch, tmp_path)
+    queried = _record_star_queries(scene, monkeypatch, nav_config_with)
     assert queried == [('ybsc', -2.0, 6.5), ('tycho2', 6.5, 8.0)]
 
 
 def test_star_mask_never_queries_ucac4(
-    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """UCAC4's saturated bright end is never used to build the mask."""
-    queried = _record_star_queries(scene, monkeypatch, tmp_path)
+    queried = _record_star_queries(scene, monkeypatch, nav_config_with)
     assert 'ucac4' not in [name for name, _lo, _hi in queried]
 
 
@@ -1304,7 +1299,7 @@ class _BrokenObs(FakeObs):
         raise ValueError('body not resolvable in this scene')
 
 
-def test_an_unresolvable_body_fails_the_image(tmp_path: Path) -> None:
+def test_an_unresolvable_body_fails_the_image(nav_config_with: NavConfigWith) -> None:
     """``create_model`` propagates an inventory lookup that raises.
 
     Nothing between the lookup and the caller absorbs the exception, so the
@@ -1313,7 +1308,7 @@ def test_an_unresolvable_body_fails_the_image(tmp_path: Path) -> None:
     the frame as marginal when its geometry was never evaluated.
     """
     obs = _BrokenObs(data=np.zeros((120, 120)), extfov_margin_vu=(10, 10))
-    model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(tmp_path))
+    model = NavModelTitan('titan:TITAN', cast(Any, obs), config=_titan_only_config(nav_config_with))
     with pytest.raises(ValueError, match='body not resolvable'):
         model.create_model()
 
@@ -1321,7 +1316,7 @@ def test_an_unresolvable_body_fails_the_image(tmp_path: Path) -> None:
 def _degenerate_geometry_feature(
     scene: type[_SceneBackplane],
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    nav_config_with: NavConfigWith,
     *,
     bbox_fill: float | None = None,
     radius_km: float | None = None,
@@ -1355,7 +1350,7 @@ def _degenerate_geometry_feature(
         cast(Any, obs),
         inventory=entry,
         siblings=[],
-        config=_titan_only_config(tmp_path),
+        config=_titan_only_config(nav_config_with),
     )
     model.create_model()
     features = model.to_features(cast(Any, None))
@@ -1376,7 +1371,7 @@ def _degenerate_geometry_feature(
 def test_degenerate_geometry_emits_a_hard_zeroed_feature(
     scene: type[_SceneBackplane],
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
+    nav_config_with: NavConfigWith,
     bbox_fill: float | None,
     radius_km: float | None,
     range_km: float | None,
@@ -1396,14 +1391,21 @@ def test_degenerate_geometry_emits_a_hard_zeroed_feature(
         range_km: Inventory range to plant, if any.
     """
     feature = _degenerate_geometry_feature(
-        scene, monkeypatch, tmp_path, bbox_fill=bbox_fill, radius_km=radius_km, range_km=range_km
+        scene,
+        monkeypatch,
+        nav_config_with,
+        bbox_fill=bbox_fill,
+        radius_km=radius_km,
+        range_km=range_km,
     )
     assert feature.feature_type is NavFeatureType.TITAN_LIMB
     assert feature.reliability == 0.0
     assert feature.geometry.axis_degenerate is True
 
 
-def test_negative_range_is_a_defect(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_negative_range_is_a_defect(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """A negative inventory range propagates rather than reading as unknown.
 
     It would make every sibling and every ring intercept count as nearer than
@@ -1414,7 +1416,7 @@ def test_negative_range_is_a_defect(scene: type[_SceneBackplane], tmp_path: Path
     scene.ring_radius_at_u = None
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, -1.0), extra={})
     with pytest.raises(ValueError, match='range is negative'):
-        _geometry(obs, _titan_only_config(tmp_path))
+        _geometry(obs, _titan_only_config(nav_config_with))
 
 
 _SUB_STRIDE_RADIUS_KM = 50.0
@@ -1434,7 +1436,7 @@ def _all_masked_scene(scene: type[_SceneBackplane]) -> None:
 
 
 def test_sub_stride_body_with_no_surface_intercept_keeps_its_radii(
-    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """A body narrower than the sampling stride may miss every sample.
 
@@ -1444,23 +1446,23 @@ def test_sub_stride_body_with_no_surface_intercept_keeps_its_radii(
     _all_masked_scene(scene)
     monkeypatch.setattr(geometry_module, '_body_radius_km', lambda name: _SUB_STRIDE_RADIUS_KM)
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    geometry = _geometry(obs, _titan_only_config(tmp_path))
+    geometry = _geometry(obs, _titan_only_config(nav_config_with))
     assert geometry.axis_degenerate is True
     assert geometry.r_solid_px == pytest.approx(_SUB_STRIDE_RADIUS_KM * 26.0 / _TITAN_RADIUS_KM)
 
 
 def test_body_wider_than_the_stride_with_no_surface_intercept_is_a_defect(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """An envelope box that must contain the body cannot be empty."""
     _all_masked_scene(scene)
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
     with pytest.raises(RuntimeError, match='must contain the body'):
-        _geometry(obs, _titan_only_config(tmp_path))
+        _geometry(obs, _titan_only_config(nav_config_with))
 
 
 def test_incidence_backplane_shape_mismatch_is_a_defect(
-    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    scene: type[_SceneBackplane], monkeypatch: pytest.MonkeyPatch, nav_config_with: NavConfigWith
 ) -> None:
     """A backplane evaluated over a different shape than its meshgrid raises."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
@@ -1475,29 +1477,35 @@ def test_incidence_backplane_shape_mismatch_is_a_defect(
     monkeypatch.setattr(scene, 'incidence_angle', _truncated)
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
     with pytest.raises(RuntimeError, match='does not match its meshgrid'):
-        _geometry(obs, _titan_only_config(tmp_path))
+        _geometry(obs, _titan_only_config(nav_config_with))
 
 
-def test_create_model_records_the_geometry(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_create_model_records_the_geometry(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """``create_model`` publishes the envelope size into the model metadata."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model = NavModelTitan.instances_for_obs(
+        cast(Any, obs), config=_titan_only_config(nav_config_with)
+    )[0]
     model.create_model()
     assert model.metadata['envelope_diameter_px'] > 0.0
 
 
 def test_create_model_logs_the_titan_section(
-    scene: type[_SceneBackplane], tmp_path: Path, capsys: Any
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith, capsys: Any
 ) -> None:
     """The model keeps its named log section for per-image inspection."""
     scene.sub_solar_offset_vu = (10.0, 0.0)
     scene.occluder_center_vu = None
     scene.ring_radius_at_u = None
     obs = _scene_obs(titan_entry=_inventory_entry((60.5, 60.5), 26.0, 1.2e6), extra={})
-    model = NavModelTitan.instances_for_obs(cast(Any, obs), config=_titan_only_config(tmp_path))[0]
+    model = NavModelTitan.instances_for_obs(
+        cast(Any, obs), config=_titan_only_config(nav_config_with)
+    )[0]
     model.create_model()
     assert 'TITAN MODEL' in capsys.readouterr().out
 
@@ -1660,23 +1668,23 @@ def test_overlay_is_empty_for_a_non_finite_solid_radius() -> None:
 
 def _annotated_model(
     scene: type[_SceneBackplane],
-    tmp_path: Path,
+    nav_config_with: NavConfigWith,
     *,
     center_vu: tuple[float, float] = (60.5, 60.5),
     occluder: bool = False,
-    config_override_yaml: str | None = None,
+    config_override: Mapping[str, Any] | None = None,
 ) -> tuple[NavModelTitan, FakeObs]:
     """Build and evaluate a Titan model over the analytic scene.
 
     Parameters:
         scene: The patched analytic backplane class.
-        tmp_path: Per-test directory for the satellite-list override.
+        nav_config_with: Builds a configuration from an override mapping.
         center_vu: Titan's field-of-view center.
         occluder: When True, a nearer moon covers enough of the disc to
             drive the occlusion hard-zero, leaving every drawn quantity
             (center, radii, axis) untouched.
-        config_override_yaml: Optional YAML text layered onto the config
-            after every other override.
+        config_override: Optional override sections layered onto the config
+            after the satellite list.
     """
     scene.sub_solar_offset_vu = (10.0, 0.0)
     scene.ring_radius_at_u = None
@@ -1687,36 +1695,37 @@ def _annotated_model(
         {'RHEA': _inventory_entry((center_vu[0], center_vu[1]), 20.0, 5.0e5)} if occluder else {}
     )
     obs = _scene_obs(titan_entry=_inventory_entry(center_vu, 26.0, 1.2e6), extra=extra)
-    config = _titan_only_config(tmp_path)
-    if occluder:
-        config.update_config(_satellites_override(tmp_path, ('TITAN', 'RHEA')))
-    if config_override_yaml is not None:
-        extra_override = tmp_path / 'extra_override.yaml'
-        extra_override.write_text(config_override_yaml)
-        config.update_config(extra_override)
+    overrides = _satellites_override(('TITAN', 'RHEA') if occluder else ('TITAN',))
+    if config_override is not None:
+        overrides.update(config_override)
+    config = nav_config_with(overrides)
     model = NavModelTitan.instances_for_obs(cast(Any, obs), config=config)[0]
     model.create_model()
     return cast(NavModelTitan, model), obs
 
 
-def test_to_annotations_emits_one_annotation(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_to_annotations_emits_one_annotation(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """A navigable Titan contributes exactly one annotation."""
-    model, _obs = _annotated_model(scene, tmp_path)
+    model, _obs = _annotated_model(scene, nav_config_with)
     assert len(model.to_annotations(cast(Any, None)).annotations) == 1
 
 
 def test_annotation_overlay_matches_the_extended_frame(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The overlay is extfov-shaped, which the Annotation itself enforces."""
-    model, obs = _annotated_model(scene, tmp_path)
+    model, obs = _annotated_model(scene, nav_config_with)
     annotation = model.to_annotations(cast(Any, None)).annotations[0]
     assert annotation.overlay.shape == obs.extdata_shape_vu
 
 
-def test_annotation_draws_the_envelope_circle(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_annotation_draws_the_envelope_circle(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """The circle is painted at the envelope radius around the disc center."""
-    model, _obs = _annotated_model(scene, tmp_path)
+    model, _obs = _annotated_model(scene, nav_config_with)
     geometry = model.geometry_inputs
     annotation = model.to_annotations(cast(Any, None)).annotations[0]
     painted = _painted_near(
@@ -1726,23 +1735,25 @@ def test_annotation_draws_the_envelope_circle(scene: type[_SceneBackplane], tmp_
 
 
 def test_annotation_uses_the_body_overlay_color(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """Titan's overlay is drawn in the same color as every other body's limb."""
-    model, _obs = _annotated_model(scene, tmp_path)
+    model, _obs = _annotated_model(scene, nav_config_with)
     annotation = model.to_annotations(cast(Any, None)).annotations[0]
     assert tuple(annotation.overlay_color) == tuple(Config().bodies.label_limb_color)
 
 
-def test_annotation_labels_the_body(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_annotation_labels_the_body(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """The overlay carries the body label every other body overlay carries."""
-    model, _obs = _annotated_model(scene, tmp_path)
+    model, _obs = _annotated_model(scene, nav_config_with)
     annotation = model.to_annotations(cast(Any, None)).annotations[0]
     assert annotation.text_info_list[0].text == 'TITAN'
 
 
 def test_annotation_label_names_a_low_reliability_feature(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """A hard-zeroed frame says so; a dotted circle alone would not explain it.
 
@@ -1750,41 +1761,43 @@ def test_annotation_label_names_a_low_reliability_feature(
     per-type threshold -- rather than a gate verdict, because manual
     navigation renders the same overlay with the gate deliberately skipped.
     """
-    model, _obs = _annotated_model(scene, tmp_path, occluder=True)
+    model, _obs = _annotated_model(scene, nav_config_with, occluder=True)
     annotation = model.to_annotations(cast(Any, None)).annotations[0]
     assert annotation.text_info_list[0].text == 'TITAN (low reliability)'
 
 
 def test_low_reliability_annotation_overlay_is_dotted(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The same geometry draws fewer pixels once its feature scores below the gate."""
-    kept_model, _kept_obs = _annotated_model(scene, tmp_path)
+    kept_model, _kept_obs = _annotated_model(scene, nav_config_with)
     kept = kept_model.to_annotations(cast(Any, None)).annotations[0]
-    gated_model, _gated_obs = _annotated_model(scene, tmp_path, occluder=True)
+    gated_model, _gated_obs = _annotated_model(scene, nav_config_with, occluder=True)
     gated = gated_model.to_annotations(cast(Any, None)).annotations[0]
     assert int(gated.overlay.sum()) < int(kept.overlay.sum())
 
 
-def test_gated_dot_spacing_is_configurable(scene: type[_SceneBackplane], tmp_path: Path) -> None:
+def test_gated_dot_spacing_is_configurable(
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
+) -> None:
     """titan.annotation.gated_dot_spacing of one renders a gated overlay solid."""
-    kept_model, _kept_obs = _annotated_model(scene, tmp_path)
+    kept_model, _kept_obs = _annotated_model(scene, nav_config_with)
     kept = kept_model.to_annotations(cast(Any, None)).annotations[0]
     solid_gated_model, _obs = _annotated_model(
         scene,
-        tmp_path,
+        nav_config_with,
         occluder=True,
-        config_override_yaml='titan:\n  annotation:\n    gated_dot_spacing: 1\n',
+        config_override={'titan': {'annotation': {'gated_dot_spacing': 1}}},
     )
     solid_gated = solid_gated_model.to_annotations(cast(Any, None)).annotations[0]
     assert int(solid_gated.overlay.sum()) == int(kept.overlay.sum())
 
 
 def test_annotation_avoids_placing_text_over_the_disc(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The label-avoid mask covers the envelope so text lands off the body."""
-    model, _obs = _annotated_model(scene, tmp_path)
+    model, _obs = _annotated_model(scene, nav_config_with)
     geometry = model.geometry_inputs
     annotation = model.to_annotations(cast(Any, None)).annotations[0]
     assert annotation.avoid_mask is not None
@@ -1794,10 +1807,10 @@ def test_annotation_avoids_placing_text_over_the_disc(
 
 
 def test_annotation_renders_into_the_summary_overlay(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The annotation composites into the RGB the summary PNG is written from."""
-    model, obs = _annotated_model(scene, tmp_path)
+    model, obs = _annotated_model(scene, nav_config_with)
     geometry = model.geometry_inputs
     rgb = model.to_annotations(cast(Any, None)).combine(offset=(0.0, 0.0), include_text=False)
     assert rgb is not None
@@ -1810,7 +1823,7 @@ def test_annotation_renders_into_the_summary_overlay(
 
 
 def test_summary_overlay_follows_the_navigated_offset(
-    scene: type[_SceneBackplane], tmp_path: Path
+    scene: type[_SceneBackplane], nav_config_with: NavConfigWith
 ) -> None:
     """The committed offset shifts the overlay onto the fitted center.
 
@@ -1818,7 +1831,7 @@ def test_summary_overlay_follows_the_navigated_offset(
     the summary PNG combines annotations at the navigated offset, so the
     center cross lands where the technique put the body.
     """
-    model, obs = _annotated_model(scene, tmp_path)
+    model, obs = _annotated_model(scene, nav_config_with)
     geometry = model.geometry_inputs
     rgb = model.to_annotations(cast(Any, None)).combine(offset=(4.0, -3.0), include_text=False)
     assert rgb is not None
