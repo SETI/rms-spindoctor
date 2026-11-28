@@ -30,7 +30,6 @@ from spindoctor.feature.feature import NavFeature, body_names_from_features
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import BodyDiscGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
-from spindoctor.nav_technique.correlation_tuning import BodyDiscTuning
 from spindoctor.nav_technique.diagnostics import BodyDiscDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
@@ -41,6 +40,7 @@ from spindoctor.nav_technique.nav_technique import (
     search_window_for_obs,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import BodyDiscTuning
 from spindoctor.support.correlate import (
     gradient_magnitude,
     navigate_with_pyramid_kpeaks,

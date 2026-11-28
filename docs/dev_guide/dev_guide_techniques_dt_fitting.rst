@@ -508,7 +508,7 @@ fitting machinery's health signals; every DT technique calls
 :class:`~spindoctor.nav_technique.dt_fitting.LMRefineResult`, its coarse acquisition score,
 and its per-technique thresholds, which are the technique's own tuning: each DT
 technique's tuning type extends
-:class:`~spindoctor.nav_technique.dt_tuning.DTTuning`, which extends
+:class:`~spindoctor.nav_technique.technique_tuning.DTTuning`, which extends
 :class:`~spindoctor.nav_technique.dt_fit_gates.DTFitGateConfig`, the four gate keys of the
 technique's ``tuning`` block. Three signals feed the verdict:
 

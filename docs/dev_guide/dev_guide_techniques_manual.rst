@@ -66,6 +66,11 @@ Restrictions and assumptions
 
 - Manual navigation requires PyQt6 and an interactive display. Background driver runs that
   cannot open a window must not invoke this technique.
+- A pass builds the process's ``QApplication`` when the process has none, and keeps it until
+  the process exits. Every later pass reuses it. PyQt destroys an application it built once
+  nothing refers to it, and from then on it no longer notices when Qt deletes an object that
+  Qt made itself, so a second application built after the first is gone hands later dialogs
+  the wrong widgets.
 - The auto-pick path consults the same NCC pyramid the
   :class:`~spindoctor.nav_technique.nav_technique_body_disc.BodyDiscCorrelateNav` and
   :class:`~spindoctor.nav_technique.nav_technique_ring_annulus.RingAnnulusNav` techniques use,

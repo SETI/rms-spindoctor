@@ -1733,7 +1733,9 @@ asserts the generated half matches the registries.
     in-memory override over the packaged files, the test sites that wrote
     an override file moved onto it, and the six section helpers at the
     `tests/` root merged into `tests/packaged_sections.py` with one cached
-    loader, #1267's test-helper part)
+    loader, #1267's test-helper part; #1267's source part merged `dt_tuning.py`,
+    `correlation_tuning.py`, and `star_tuning.py` into `technique_tuning.py`, and
+    `sections_body_shape.py` into `sections_models.py`)
 
 ## Track E — Test and documentation debt
 
@@ -1922,6 +1924,14 @@ CI and test infrastructure:
   `REQUIRES_PDS3_HOLDINGS`, because #820's fix stopped setting
   `PDS3_HOLDINGS_DIR` there and the live archive was their only source.
   Run them in CI again once a more reliable holdings source exists.
+- **#1194** (this PR's work: `rf_nav_1194_qt_fixture`) — the Qt fixture
+  test failed now and then in full parallel runs. The cause: a manual
+  navigation pass built a `QApplication` when the process had none and
+  dropped it on return, so the manual-navigation tests destroyed one, and
+  the UI fixture later built a second in the same worker. The pass now
+  keeps its application until the process exits. #144 (QApplication
+  lifetime) still covers the dialog's and the backplane viewer's copies of
+  the old pattern.
 
 Documentation bugs:
 

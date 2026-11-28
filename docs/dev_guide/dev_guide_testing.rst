@@ -115,7 +115,10 @@ test module must never build one at import. Once PyQt has destroyed an applicati
 longer notices when Qt deletes an object that Qt made itself, such as a spin box's line
 edit. Qt soon builds something else at the same address, PyQt takes it for the deleted object, and a
 later test sees the wrong widget or crashes. A window that stays open causes trouble
-too, because its timers fire in any later test that runs the event loop.
+too, because its timers fire in any later test that runs the event loop. Library code
+that builds an application for itself, such as a manual navigation pass, keeps it until
+the process exits, so a test outside the UI tests that runs such code leaves an
+application the fixture then reuses.
 
 Archive-backed tests additionally require the holdings and catalog environment.
 CI leaves it unset and these tests skip there, so run them locally, against local

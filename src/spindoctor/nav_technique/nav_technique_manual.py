@@ -32,6 +32,8 @@ from spindoctor.nav_technique.nav_technique_ring_edge import aggregate_edge_norm
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
+    from PyQt6.QtWidgets import QApplication
+
     from spindoctor.nav_orchestrator.nav_context import NavContext
     from spindoctor.nav_orchestrator.nav_result import NavResult
     from spindoctor.obs import ObsSnapshotInst
@@ -45,6 +47,26 @@ __all__ = ['NavTechniqueManual', 'run_manual_nav']
 # never combines a manual result with auto results, so this number only
 # determines what shows up in JSON metadata.
 _MANUAL_OFFSET_SIGMA_PX = 1.0
+
+# The Qt application a manual pass built, kept until the process exits.
+_application: QApplication | None = None
+
+
+def _ensure_qt_application() -> None:
+    """Make sure the process has a Qt application, building one that is never released.
+
+    PyQt destroys an application it built as soon as nothing refers to it.  After that it
+    no longer notices when Qt deletes an object that Qt made itself, such as a spin box's
+    line edit, so a later dialog finds the wrong widget at that address or crashes.  The
+    application built here is therefore held for the life of the process, and every later
+    manual pass, or anything else that needs an application, reuses it.
+    """
+    global _application
+    # Imported here to keep PyQt6 out of the import graph of the autonomous pipeline.
+    from PyQt6.QtWidgets import QApplication
+
+    if QApplication.instance() is None:
+        _application = QApplication([])
 
 
 class NavTechniqueManual(NavTechnique):
@@ -147,8 +169,6 @@ class NavTechniqueManual(NavTechnique):
         """
         # Local imports keep PyQt6 out of import-time graphs; the dialog
         # is only ever loaded when manual navigation is invoked.
-        from PyQt6.QtWidgets import QApplication
-
         from spindoctor.ui.manual_nav_dialog import ManualNavDialog
 
         with self.log_section('NAVIGATION PASS: MANUAL'):
@@ -158,11 +178,7 @@ class NavTechniqueManual(NavTechnique):
                 features,
                 (int(shape[0]), int(shape[1])),
             )
-            app_created = False
-            app = QApplication.instance()
-            if app is None:
-                app = QApplication([])
-                app_created = True
+            _ensure_qt_application()
             dialog = ManualNavDialog(
                 obs=obs,  # type: ignore[arg-type]
                 model_img_ext=model_img,
@@ -173,8 +189,6 @@ class NavTechniqueManual(NavTechnique):
                 parent=None,
             )
             accepted, chosen_offset, _last_corr = dialog.run_modal()
-            if app_created:
-                app.quit()
         if not accepted or chosen_offset is None:
             self.logger.info('Manual navigation canceled by user')
             return NavTechniqueResult(

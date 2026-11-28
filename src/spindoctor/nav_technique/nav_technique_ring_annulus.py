@@ -32,7 +32,6 @@ from spindoctor.feature.feature import NavFeature
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.geometry import RingAnnulusGeometry
 from spindoctor.nav_technique.confidence import evaluate_sigmoid_combination
-from spindoctor.nav_technique.correlation_tuning import NCCCovarianceTuning
 from spindoctor.nav_technique.diagnostics import RingAnnulusDiagnostics
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
@@ -48,6 +47,7 @@ from spindoctor.nav_technique.ring_edge_geometry import (
     _orbit_inflated_covariance,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import NCCCovarianceTuning
 from spindoctor.support.correlate import navigate_with_pyramid_kpeaks, peak_to_runner_up_ratio
 from spindoctor.support.correlate_subpixel import SubpixelRefinement
 from spindoctor.support.types import NDArrayFloatType
