@@ -64,6 +64,239 @@ cassini_iss:
       fallback_combo: 'CL1+CL2'
       mag_offset_table:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
+    # Star photometry of the camera, read by ObsCassiniISS for its star limit and star
+    # width, on raw and calibrated images alike.  A star of Johnson V magnitude V and color
+    # B - V has the camera magnitude m = V + color_term * (B - V), and deposits
+    #     flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[FILTER PAIR]))
+    #         * texp / gain[gain state]
+    # raw DN, the rate counting electrons and gain giving electrons per DN.  The dimmest
+    # visible star deposits min_detectable_dn[readout mode][gain state], and the catalog
+    # search reaches search_depth_mag past it.  The filter pair is the label's two
+    # FILTER_NAME values joined by '+'; the gain state is the nominal electrons per DN of
+    # the label's GAIN_MODE_ID (215, 95, 29, or 12); the readout mode is the label's
+    # INSTRUMENT_MODE_ID (FULL, or SUM2 or SUM4 for a frame summed 2x2 or 4x4 on the
+    # chip).  Summing on the chip keeps a star's charge, so the rate holds in every mode.
+    #
+    # Measured on tour star fields (#130, #1257): util/star_photometry measured 1,046
+    # frames sampled from the COISS_2999 index, 650 of them with an independent pointing
+    # fix from three or more agreeing stars (388 of them NAC); the rate, the gain states,
+    # the color term, and the detection limits are fitted from the 256 NAC frames through
+    # the clear pair (one in three held out), and every other filter pair takes the calibration's offset below.  The
+    # magnitudes are Johnson V (#1257).  The photometry is the raw image's DN (a
+    # table-encoded image decoded through the calibration volume's inverse lookup table),
+    # measured at the pointing found on the calibrated image.
+    #
+    # Rate: 4.15e6 DN/s for V = 0 and B - V = 0 through CL1+CL2 at 29 e/DN (+-0.01 mag,
+    # 5,847 stars with a measured color), times CISSCAL's 30.27 e-/DN at that state; a star
+    # of the default class (G0, B - V 0.59) gives 1.75e8 e-/s.
+    # Gain: CISSCAL's 30.27 e-/DN at 29 e/DN over its gain ratios (cassimg__dntoelectrons
+    # on COISS_0011).  12 and 95 are measured from the stars: DN ratios against 29 of
+    # 2.238 (+-0.01 mag, 1,895 stars) and 0.318 (+-0.03 mag, 125 stars), where CISSCAL
+    # gives 2.357 and 0.310.  215 has no stars.
+    # Detection limit: the DN at 80% of the way from the detection floor to the plateau
+    # of a detection-probability curve fitted to the clean, unsmeared stars of each readout
+    # mode and gain state on frames exposed 46 s or less (longer exposures carry several
+    # times the noise and would set the limit of every frame).  The noise in DN changes
+    # with the gain state, so each mode gives a table by gain state.  A pair without enough
+    # stars takes the value of the same mode's nearest measured gain state, scaled by the
+    # ratio of their DN per electron, so that the dimmest visible star holds the same
+    # electrons.  The full-frame values at 12 and 29 e/DN hold the same electrons to 1%.
+    # The SUM4 values rest on a few frames each (97 and 76 stars), and disagree with that
+    # scaling.
+    # Color term: fitted with the rate, -0.61 +- 0.01, so a red star reads brighter than
+    # its V.  It takes the robust scatter of the stars about the fit to 0.34 mag.  The
+    # stars through other filters are too few to measure a color term of their own, so
+    # every filter pair takes this one.
+    # Filter offsets: CISSCAL's prediction for a solar spectrum, 2.5 log10 of the clear
+    # pair's signal over the pair's, each signal the pair's system transmission times the
+    # solar photon flux (efficiency/systrans) times the camera's quantum-efficiency
+    # correction, times the pair's absolute correction factor (correction/), with the mean
+    # of the parallel and perpendicular tables for a polarizer, since starlight is
+    # unpolarized (util/star_photometry/cassini_iss_star_limits.py,
+    # systrans_filter_offsets).  The offsets the stars measure agree for the broad pairs
+    # (RED+CL2 1.07 +- 0.02 against 1.10) but read a magnitude or more too bright in the
+    # narrow and infrared ones, where only the stars that happened to come out bright pass the
+    # fitting cut, so none of them is used.
+    # Star width: the Gaussian sigma of a star in the frame's own pixels.  FULL is the
+    # camera's 0.54 (star_psf_sigma above); the clear-pair stars on frames exposed under
+    # 10 s give 0.58 (1,001 stars), and longer exposures widen to 1.0 as the pointing
+    # drifts.  SUM2 and SUM4 are those stars' medians, 0.39 (1,171 stars) and 0.32 (41
+    # stars).
+    star_photometry:
+      flux_unit: electrons
+      flux_per_s_vmag0: 1.257e+08
+      gain:
+        '12': 13.53  # measured
+        '29': 30.27
+        '95': 95.32  # measured
+        '215': 223.58
+      min_detectable_dn:
+        FULL:
+          '12': 77.0  # +- 23, 375 stars
+          '29': 34.2  # +- 6, 2176 stars
+          '95': 10.9  # scaled from '29'
+          '215': 4.6  # scaled from '29'
+        SUM2:
+          '12': 153.0  # +- 34, 496 stars
+          '29': 78.4  # +- 16, 1440 stars
+          '95': 8.2  # +- 1, 431 stars
+          '215': 3.5  # scaled from '95'
+        SUM4:
+          '12': 170.0  # +- 22, 97 stars
+          '29': 353.0  # +- 23, 76 stars
+          '95': 112.0  # scaled from '29'
+          '215': 47.8  # scaled from '29'
+      search_depth_mag: 1.0
+      color_term: -0.61
+      filter_mag_offset:
+        'BL1+BL2': 4.58
+        'BL1+CB1': 17.84
+        'BL1+CB2': 17.88
+        'BL1+CB3': 18.50
+        'BL1+CL2': 2.83
+        'BL1+GRN': 5.88
+        'BL1+IR1': 16.00
+        'BL1+IR3': 25.67
+        'BL1+MT1': 17.81
+        'BL1+MT2': 18.48
+        'BL1+MT3': 18.72
+        'BL1+UV3': 14.57
+        'CL1+BL2': 4.51
+        'CL1+CB1': 3.20
+        'CL1+CB2': 4.06
+        'CL1+CB3': 5.98
+        'CL1+CL2': -0.00
+        'CL1+GRN': 1.33
+        'CL1+IR1': 1.15
+        'CL1+IR3': 3.11
+        'CL1+MT1': 5.08
+        'CL1+MT2': 4.96
+        'CL1+MT3': 5.08
+        'CL1+UV3': 4.59
+        'HAL+BL2': 19.05
+        'HAL+CB1': 12.26
+        'HAL+CB2': 17.28
+        'HAL+CB3': 18.75
+        'HAL+CL2': 4.10
+        'HAL+GRN': 12.61
+        'HAL+IR1': 11.31
+        'HAL+IR3': 19.45
+        'HAL+MT1': 15.85
+        'HAL+MT2': 19.80
+        'HAL+MT3': 19.94
+        'HAL+UV3': 18.67
+        'IR2+BL2': 15.61
+        'IR2+CB1': 17.18
+        'IR2+CB2': 17.29
+        'IR2+CB3': 9.66
+        'IR2+CL2': 2.36
+        'IR2+GRN': 14.58
+        'IR2+IR1': 3.50
+        'IR2+IR3': 3.67
+        'IR2+MT1': 14.70
+        'IR2+MT2': 17.57
+        'IR2+MT3': 5.12
+        'IR2+UV3': 13.67
+        'IR4+BL2': 18.36
+        'IR4+CB1': 17.73
+        'IR4+CB2': 18.54
+        'IR4+CB3': 15.02
+        'IR4+CL2': 5.39
+        'IR4+GRN': 15.82
+        'IR4+IR1': 14.54
+        'IR4+IR3': 5.61
+        'IR4+MT1': 18.22
+        'IR4+MT2': 19.73
+        'IR4+MT3': 15.33
+        'IR4+UV3': 15.43
+        'IRP0+BL2': 15.84
+        'IRP0+CB1': 4.26
+        'IRP0+CB2': 4.86
+        'IRP0+CB3': 6.72
+        'IRP0+CL2': 1.26
+        'IRP0+GRN': 3.82
+        'IRP0+IR1': 1.95
+        'IRP0+IR3': 3.85
+        'IRP0+MT1': 6.02
+        'IRP0+MT2': 5.77
+        'IRP0+MT3': 5.83
+        'IRP0+UV3': 13.15
+        'P0+BL2': 5.84
+        'P0+CB1': 4.39
+        'P0+CB2': 4.91
+        'P0+CB3': 16.42
+        'P0+CL2': 1.28
+        'P0+GRN': 2.56
+        'P0+IR1': 2.24
+        'P0+IR3': 13.31
+        'P0+MT1': 6.26
+        'P0+MT2': 5.87
+        'P0+MT3': 17.08
+        'P0+UV3': 6.07
+        'P120+BL2': 5.84
+        'P120+CB1': 4.39
+        'P120+CB2': 4.91
+        'P120+CB3': 16.42
+        'P120+CL2': 1.28
+        'P120+GRN': 2.56
+        'P120+IR1': 2.24
+        'P120+IR3': 13.31
+        'P120+MT1': 6.26
+        'P120+MT2': 5.87
+        'P120+MT3': 17.08
+        'P120+UV3': 6.07
+        'P60+BL2': 5.84
+        'P60+CB1': 4.39
+        'P60+CB2': 4.91
+        'P60+CB3': 16.42
+        'P60+CL2': 1.28
+        'P60+GRN': 2.56
+        'P60+IR1': 2.24
+        'P60+IR3': 13.31
+        'P60+MT1': 6.26
+        'P60+MT2': 5.87
+        'P60+MT3': 17.08
+        'P60+UV3': 6.07
+        'RED+BL2': 16.18
+        'RED+CB1': 3.33
+        'RED+CB2': 12.67
+        'RED+CB3': 16.07
+        'RED+CL2': 1.10
+        'RED+GRN': 2.31
+        'RED+IR1': 2.38
+        'RED+IR3': 13.28
+        'RED+MT1': 5.23
+        'RED+MT2': 6.82
+        'RED+MT3': 16.97
+        'RED+UV3': 15.96
+        'UV1+BL2': 18.68
+        'UV1+CB1': 18.13
+        'UV1+CB2': 19.23
+        'UV1+CB3': 19.43
+        'UV1+CL2': 8.66
+        'UV1+GRN': 16.18
+        'UV1+IR1': 16.43
+        'UV1+IR3': 16.36
+        'UV1+MT1': 19.95
+        'UV1+MT2': 20.55
+        'UV1+MT3': 18.29
+        'UV1+UV3': 15.19
+        'UV2+BL2': 17.79
+        'UV2+CB1': 18.71
+        'UV2+CB2': 19.28
+        'UV2+CB3': 19.44
+        'UV2+CL2': 6.51
+        'UV2+GRN': 16.45
+        'UV2+IR1': 16.22
+        'UV2+IR3': 16.49
+        'UV2+MT1': 20.47
+        'UV2+MT2': 19.96
+        'UV2+MT3': 18.31
+        'UV2+UV3': 7.32
+      psf_sigma:
+        FULL: 0.54
+        SUM2: 0.39
+        SUM4: 0.32
   wac:
     data_units: raw_dn
     # Every technique, the star searches among them, finds offsets only
@@ -124,6 +357,134 @@ cassini_iss:
       fallback_combo: 'CL1+CL2'
       mag_offset_table:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
+    # Star photometry of the camera; see the narrow angle camera above for the form and
+    # the method.  Measured on the same sample: 262 WAC frames with a pointing fix, 157 of
+    # them through the clear pair.
+    # Rate: 5.32e5 DN/s for V = 0 and B - V = 0 through CL1+CL2 at 29 e/DN (+-0.01 mag,
+    # 7,977 stars with a measured color), times CISSCAL's 27.68 e-/DN at that state.
+    # Gain: CISSCAL's 27.68 e-/DN over its gain ratios; 12 is measured, a DN ratio of
+    # 2.362 (+-0.01 mag, 3,128 stars) against CISSCAL's 2.360; 95 and 215 have too few
+    # stars.
+    # Detection limit: as for the narrow angle camera.  SUM4 rests on 3 frames at 12 e/DN.
+    # Color term: -0.48 +- 0.01; the robust scatter about the fit is 0.19 mag.
+    # Filter offsets: CISSCAL's, as for the narrow angle camera; the broad pairs the stars
+    # measure agree (CL1+GRN 1.13 +- 0.02 against 1.11, CL1+RED 0.89 +- 0.01 against 0.87,
+    # CL1+IR1 1.26 +- 0.02 against 1.29).
+    # Star width: FULL is the camera's 0.77 (star_psf_sigma above); the clear-pair stars on
+    # frames exposed under 10 s give 0.86 (1,522 stars).  SUM2 and SUM4 are those stars'
+    # medians, 0.49 (817 stars) and 0.43 (33 stars).
+    star_photometry:
+      flux_unit: electrons
+      flux_per_s_vmag0: 1.472e+07
+      gain:
+        '12': 11.72  # measured
+        '29': 27.68
+        '95': 95.24
+        '215': 220.65
+      min_detectable_dn:
+        FULL:
+          '12': 369.0  # +- 67, 9359 stars
+          '29': 178.0  # +- 85, 5875 stars
+          '95': 51.8  # scaled from '29'
+          '215': 22.4  # scaled from '29'
+        SUM2:
+          '12': 337.0  # +- 84, 2325 stars
+          '29': 101.0  # +- 35, 769 stars
+          '95': 29.4  # scaled from '29'
+          '215': 12.7  # scaled from '29'
+        SUM4:
+          '12': 1072.0  # +- 649, 97 stars
+          '29': 454.0  # scaled from '12'
+          '95': 132.0  # scaled from '12'
+          '215': 56.9  # scaled from '12'
+      search_depth_mag: 1.0
+      color_term: -0.48
+      filter_mag_offset:
+        'CB2+BL1': 18.07
+        'CB2+CL2': 4.21
+        'CB2+GRN': 16.80
+        'CB2+HAL': 18.31
+        'CB2+IR1': 4.28
+        'CB2+IRP0': 5.03
+        'CB2+IRP90': 5.03
+        'CB2+RED': 12.98
+        'CB2+VIO': 19.57
+        'CB3+BL1': 17.99
+        'CB3+CL2': 7.85
+        'CB3+GRN': 16.49
+        'CB3+HAL': 19.10
+        'CB3+IR1': 16.60
+        'CB3+IRP0': 8.61
+        'CB3+IRP90': 8.61
+        'CB3+RED': 16.35
+        'CB3+VIO': 19.99
+        'CL1+BL1': 2.73
+        'CL1+CL2': -0.00
+        'CL1+GRN': 1.11
+        'CL1+HAL': 4.00
+        'CL1+IR1': 1.29
+        'CL1+IRP0': 1.41
+        'CL1+IRP90': 1.41
+        'CL1+RED': 0.87
+        'CL1+VIO': 5.08
+        'IR2+BL1': 16.75
+        'IR2+CL2': 3.33
+        'IR2+GRN': 15.74
+        'IR2+HAL': 15.62
+        'IR2+IR1': 4.24
+        'IR2+IRP0': 4.10
+        'IR2+IRP90': 4.10
+        'IR2+RED': 15.54
+        'IR2+VIO': 16.69
+        'IR3+BL1': 17.83
+        'IR3+CL2': 4.65
+        'IR3+GRN': 17.11
+        'IR3+HAL': 15.74
+        'IR3+IR1': 12.43
+        'IR3+IRP0': 5.42
+        'IR3+IRP90': 5.42
+        'IR3+RED': 13.19
+        'IR3+VIO': 17.70
+        'IR4+BL1': 18.74
+        'IR4+CL2': 7.97
+        'IR4+GRN': 17.22
+        'IR4+HAL': 19.52
+        'IR4+IR1': 16.80
+        'IR4+IRP0': 8.73
+        'IR4+IRP90': 8.73
+        'IR4+RED': 16.90
+        'IR4+VIO': 20.53
+        'IR5+BL1': 18.99
+        'IR5+CL2': 10.34
+        'IR5+GRN': 16.94
+        'IR5+HAL': 20.24
+        'IR5+IR1': 16.87
+        'IR5+IRP0': 11.10
+        'IR5+IRP90': 11.10
+        'IR5+RED': 16.98
+        'IR5+VIO': 21.09
+        'MT2+BL1': 17.73
+        'MT2+CL2': 4.98
+        'MT2+GRN': 16.31
+        'MT2+HAL': 18.64
+        'MT2+IR1': 5.11
+        'MT2+IRP0': 5.82
+        'MT2+IRP90': 5.82
+        'MT2+RED': 6.92
+        'MT2+VIO': 20.28
+        'MT3+BL1': 18.07
+        'MT3+CL2': 6.47
+        'MT3+GRN': 16.82
+        'MT3+HAL': 17.70
+        'MT3+IR1': 15.21
+        'MT3+IRP0': 7.24
+        'MT3+IRP90': 7.24
+        'MT3+RED': 16.57
+        'MT3+VIO': 18.96
+      psf_sigma:
+        FULL: 0.77
+        SUM2: 0.49
+        SUM4: 0.43
 
 # Calibrated (I/F) variants of the Cassini ISS cameras.  The CISS
 # CALIB pipeline produces reflectance values typically <= 1.0 for
@@ -204,6 +565,182 @@ cassini_iss_calib:
       fallback_combo: 'CL1+CL2'
       mag_offset_table:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
+    # The same star photometry as the raw-image camera above.
+    star_photometry:
+      flux_unit: electrons
+      flux_per_s_vmag0: 1.257e+08
+      gain:
+        '12': 13.53
+        '29': 30.27
+        '95': 95.32
+        '215': 223.58
+      min_detectable_dn:
+        FULL:
+          '12': 77.0
+          '29': 34.2
+          '95': 10.9
+          '215': 4.6
+        SUM2:
+          '12': 153.0
+          '29': 78.4
+          '95': 8.2
+          '215': 3.5
+        SUM4:
+          '12': 170.0
+          '29': 353.0
+          '95': 112.0
+          '215': 47.8
+      search_depth_mag: 1.0
+      color_term: -0.61
+      filter_mag_offset:
+        'BL1+BL2': 4.58
+        'BL1+CB1': 17.84
+        'BL1+CB2': 17.88
+        'BL1+CB3': 18.50
+        'BL1+CL2': 2.83
+        'BL1+GRN': 5.88
+        'BL1+IR1': 16.00
+        'BL1+IR3': 25.67
+        'BL1+MT1': 17.81
+        'BL1+MT2': 18.48
+        'BL1+MT3': 18.72
+        'BL1+UV3': 14.57
+        'CL1+BL2': 4.51
+        'CL1+CB1': 3.20
+        'CL1+CB2': 4.06
+        'CL1+CB3': 5.98
+        'CL1+CL2': -0.00
+        'CL1+GRN': 1.33
+        'CL1+IR1': 1.15
+        'CL1+IR3': 3.11
+        'CL1+MT1': 5.08
+        'CL1+MT2': 4.96
+        'CL1+MT3': 5.08
+        'CL1+UV3': 4.59
+        'HAL+BL2': 19.05
+        'HAL+CB1': 12.26
+        'HAL+CB2': 17.28
+        'HAL+CB3': 18.75
+        'HAL+CL2': 4.10
+        'HAL+GRN': 12.61
+        'HAL+IR1': 11.31
+        'HAL+IR3': 19.45
+        'HAL+MT1': 15.85
+        'HAL+MT2': 19.80
+        'HAL+MT3': 19.94
+        'HAL+UV3': 18.67
+        'IR2+BL2': 15.61
+        'IR2+CB1': 17.18
+        'IR2+CB2': 17.29
+        'IR2+CB3': 9.66
+        'IR2+CL2': 2.36
+        'IR2+GRN': 14.58
+        'IR2+IR1': 3.50
+        'IR2+IR3': 3.67
+        'IR2+MT1': 14.70
+        'IR2+MT2': 17.57
+        'IR2+MT3': 5.12
+        'IR2+UV3': 13.67
+        'IR4+BL2': 18.36
+        'IR4+CB1': 17.73
+        'IR4+CB2': 18.54
+        'IR4+CB3': 15.02
+        'IR4+CL2': 5.39
+        'IR4+GRN': 15.82
+        'IR4+IR1': 14.54
+        'IR4+IR3': 5.61
+        'IR4+MT1': 18.22
+        'IR4+MT2': 19.73
+        'IR4+MT3': 15.33
+        'IR4+UV3': 15.43
+        'IRP0+BL2': 15.84
+        'IRP0+CB1': 4.26
+        'IRP0+CB2': 4.86
+        'IRP0+CB3': 6.72
+        'IRP0+CL2': 1.26
+        'IRP0+GRN': 3.82
+        'IRP0+IR1': 1.95
+        'IRP0+IR3': 3.85
+        'IRP0+MT1': 6.02
+        'IRP0+MT2': 5.77
+        'IRP0+MT3': 5.83
+        'IRP0+UV3': 13.15
+        'P0+BL2': 5.84
+        'P0+CB1': 4.39
+        'P0+CB2': 4.91
+        'P0+CB3': 16.42
+        'P0+CL2': 1.28
+        'P0+GRN': 2.56
+        'P0+IR1': 2.24
+        'P0+IR3': 13.31
+        'P0+MT1': 6.26
+        'P0+MT2': 5.87
+        'P0+MT3': 17.08
+        'P0+UV3': 6.07
+        'P120+BL2': 5.84
+        'P120+CB1': 4.39
+        'P120+CB2': 4.91
+        'P120+CB3': 16.42
+        'P120+CL2': 1.28
+        'P120+GRN': 2.56
+        'P120+IR1': 2.24
+        'P120+IR3': 13.31
+        'P120+MT1': 6.26
+        'P120+MT2': 5.87
+        'P120+MT3': 17.08
+        'P120+UV3': 6.07
+        'P60+BL2': 5.84
+        'P60+CB1': 4.39
+        'P60+CB2': 4.91
+        'P60+CB3': 16.42
+        'P60+CL2': 1.28
+        'P60+GRN': 2.56
+        'P60+IR1': 2.24
+        'P60+IR3': 13.31
+        'P60+MT1': 6.26
+        'P60+MT2': 5.87
+        'P60+MT3': 17.08
+        'P60+UV3': 6.07
+        'RED+BL2': 16.18
+        'RED+CB1': 3.33
+        'RED+CB2': 12.67
+        'RED+CB3': 16.07
+        'RED+CL2': 1.10
+        'RED+GRN': 2.31
+        'RED+IR1': 2.38
+        'RED+IR3': 13.28
+        'RED+MT1': 5.23
+        'RED+MT2': 6.82
+        'RED+MT3': 16.97
+        'RED+UV3': 15.96
+        'UV1+BL2': 18.68
+        'UV1+CB1': 18.13
+        'UV1+CB2': 19.23
+        'UV1+CB3': 19.43
+        'UV1+CL2': 8.66
+        'UV1+GRN': 16.18
+        'UV1+IR1': 16.43
+        'UV1+IR3': 16.36
+        'UV1+MT1': 19.95
+        'UV1+MT2': 20.55
+        'UV1+MT3': 18.29
+        'UV1+UV3': 15.19
+        'UV2+BL2': 17.79
+        'UV2+CB1': 18.71
+        'UV2+CB2': 19.28
+        'UV2+CB3': 19.44
+        'UV2+CL2': 6.51
+        'UV2+GRN': 16.45
+        'UV2+IR1': 16.22
+        'UV2+IR3': 16.49
+        'UV2+MT1': 20.47
+        'UV2+MT2': 19.96
+        'UV2+MT3': 18.31
+        'UV2+UV3': 7.32
+      psf_sigma:
+        FULL: 0.54
+        SUM2: 0.39
+        SUM4: 0.32
   wac:
     data_units: calibrated_if
     # The same margin as the raw-image camera above.
@@ -251,3 +788,116 @@ cassini_iss_calib:
       fallback_combo: 'CL1+CL2'
       mag_offset_table:
         'CL1+CL2': {default: 0.0}  # PLACEHOLDER — calibrate in Phase 10
+    # The same star photometry as the raw-image camera above.
+    star_photometry:
+      flux_unit: electrons
+      flux_per_s_vmag0: 1.472e+07
+      gain:
+        '12': 11.72
+        '29': 27.68
+        '95': 95.24
+        '215': 220.65
+      min_detectable_dn:
+        FULL:
+          '12': 369.0
+          '29': 178.0
+          '95': 51.8
+          '215': 22.4
+        SUM2:
+          '12': 337.0
+          '29': 101.0
+          '95': 29.4
+          '215': 12.7
+        SUM4:
+          '12': 1072.0
+          '29': 454.0
+          '95': 132.0
+          '215': 56.9
+      search_depth_mag: 1.0
+      color_term: -0.48
+      filter_mag_offset:
+        'CB2+BL1': 18.07
+        'CB2+CL2': 4.21
+        'CB2+GRN': 16.80
+        'CB2+HAL': 18.31
+        'CB2+IR1': 4.28
+        'CB2+IRP0': 5.03
+        'CB2+IRP90': 5.03
+        'CB2+RED': 12.98
+        'CB2+VIO': 19.57
+        'CB3+BL1': 17.99
+        'CB3+CL2': 7.85
+        'CB3+GRN': 16.49
+        'CB3+HAL': 19.10
+        'CB3+IR1': 16.60
+        'CB3+IRP0': 8.61
+        'CB3+IRP90': 8.61
+        'CB3+RED': 16.35
+        'CB3+VIO': 19.99
+        'CL1+BL1': 2.73
+        'CL1+CL2': -0.00
+        'CL1+GRN': 1.11
+        'CL1+HAL': 4.00
+        'CL1+IR1': 1.29
+        'CL1+IRP0': 1.41
+        'CL1+IRP90': 1.41
+        'CL1+RED': 0.87
+        'CL1+VIO': 5.08
+        'IR2+BL1': 16.75
+        'IR2+CL2': 3.33
+        'IR2+GRN': 15.74
+        'IR2+HAL': 15.62
+        'IR2+IR1': 4.24
+        'IR2+IRP0': 4.10
+        'IR2+IRP90': 4.10
+        'IR2+RED': 15.54
+        'IR2+VIO': 16.69
+        'IR3+BL1': 17.83
+        'IR3+CL2': 4.65
+        'IR3+GRN': 17.11
+        'IR3+HAL': 15.74
+        'IR3+IR1': 12.43
+        'IR3+IRP0': 5.42
+        'IR3+IRP90': 5.42
+        'IR3+RED': 13.19
+        'IR3+VIO': 17.70
+        'IR4+BL1': 18.74
+        'IR4+CL2': 7.97
+        'IR4+GRN': 17.22
+        'IR4+HAL': 19.52
+        'IR4+IR1': 16.80
+        'IR4+IRP0': 8.73
+        'IR4+IRP90': 8.73
+        'IR4+RED': 16.90
+        'IR4+VIO': 20.53
+        'IR5+BL1': 18.99
+        'IR5+CL2': 10.34
+        'IR5+GRN': 16.94
+        'IR5+HAL': 20.24
+        'IR5+IR1': 16.87
+        'IR5+IRP0': 11.10
+        'IR5+IRP90': 11.10
+        'IR5+RED': 16.98
+        'IR5+VIO': 21.09
+        'MT2+BL1': 17.73
+        'MT2+CL2': 4.98
+        'MT2+GRN': 16.31
+        'MT2+HAL': 18.64
+        'MT2+IR1': 5.11
+        'MT2+IRP0': 5.82
+        'MT2+IRP90': 5.82
+        'MT2+RED': 6.92
+        'MT2+VIO': 20.28
+        'MT3+BL1': 18.07
+        'MT3+CL2': 6.47
+        'MT3+GRN': 16.82
+        'MT3+HAL': 17.70
+        'MT3+IR1': 15.21
+        'MT3+IRP0': 7.24
+        'MT3+IRP90': 7.24
+        'MT3+RED': 16.57
+        'MT3+VIO': 18.96
+      psf_sigma:
+        FULL: 0.77
+        SUM2: 0.49
+        SUM4: 0.43

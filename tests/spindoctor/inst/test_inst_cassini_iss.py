@@ -1,5 +1,6 @@
 """Tests for ``spindoctor.obs.obs_inst_cassini_iss.ObsCassiniISS``."""
 
+import math
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
@@ -12,6 +13,7 @@ from tests.config import (
     URL_CASSINI_ISS_CRUISE_01,
     URL_CASSINI_ISS_RHEA_01,
 )
+from tests.packaged_sections import packaged_camera
 from tests.spindoctor.inst.conftest import (
     VicarLabelStandIn,
     bare_observation,
@@ -799,3 +801,92 @@ def test_a_cruise_era_label_publishes_the_same_attributes_and_nulls_the_rest() -
         for attribute, keyword, element in _LABEL_METADATA
         if keyword is not None and keyword in section and element is None
     }
+
+
+def _star_obs(
+    *,
+    filter2: str = 'CL2',
+    texp: float = 1.0,
+    gain_mode: int | None = 2,
+    mode: str = 'FULL',
+    section: str = 'cassini_iss',
+    **block_changes: Any,
+) -> ObsCassiniISS:
+    """Build a bare narrow angle observation carrying what the star limit reads.
+
+    The host's gain mode 2 is the 29 e/DN gain state.  The observation carries the packaged
+    camera block of ``section``, with any fields given in ``block_changes`` changed.
+    """
+    return bare_observation(
+        ObsCassiniISS,
+        VicarLabelStandIn(INSTRUMENT_MODE_ID=mode),
+        detector='NAC',
+        filter1='CL1',
+        filter2=filter2,
+        gain_mode=gain_mode,
+        texp=texp,
+        _config=DEFAULT_CONFIG,
+        _camera_block=packaged_camera(section, 'nac', **block_changes),
+    )
+
+
+@pytest.mark.parametrize(('mode', 'expected'), [('FULL', 13.711), ('SUM2', 12.810)])
+def test_clear_one_second_limit_is_each_readout_modes_calibrated_value(
+    mode: str, expected: float
+) -> None:
+    """At 1 s through CL1+CL2 at 29 e/DN each readout mode reaches its own limit.
+
+    1.257e8 e-/s over 30.27 e-/DN puts 4.15e6 DN/s in the image for a star of camera
+    magnitude 0, so the dimmest visible star of a full frame, 34.2 DN, is at camera
+    magnitude 12.71, and of a 2x2 summed frame, 78.4 DN, at 11.81.
+    """
+    assert _star_obs(mode=mode).star_max_usable_vmag() == pytest.approx(expected, abs=0.001)
+
+
+def test_the_calibrated_image_reads_its_own_blocks_star_photometry() -> None:
+    """A calibrated image's limit comes from the calibrated block, which is refused without it."""
+    with pytest.raises(ValueError, match=r'cassini_iss_calib\.nac\.star_photometry is not set'):
+        _star_obs(section='cassini_iss_calib', star_photometry=None).star_max_usable_vmag()
+
+
+def test_the_cassini_color_term_is_the_camera_blocks() -> None:
+    """The camera's color term is its block's measured -0.61."""
+    assert _star_obs().star_color_term() == pytest.approx(-0.61)
+
+
+def test_the_gain_mode_selects_the_gain_state() -> None:
+    """Gain mode 3 is the 12 e/DN state: 13.53 e-/DN and a dimmest visible star of 77 DN."""
+    shift = _star_obs(gain_mode=3).star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert shift == pytest.approx(2.5 * math.log10((30.27 / 13.53) * (34.2 / 77.0)), abs=1e-9)
+
+
+def test_a_filter_pair_brightens_the_limit_by_its_magnitude_offset() -> None:
+    """CL1+GRN passes less sunlight than CL1+CL2; its offset brightens the limit."""
+    shift = _star_obs(filter2='GRN').star_max_usable_vmag() - _star_obs().star_max_usable_vmag()
+    assert shift == pytest.approx(-1.33, abs=1e-9)
+
+
+def test_a_non_positive_exposure_admits_no_cassini_star() -> None:
+    """A zero-length exposure gets a limit of -inf."""
+    assert _star_obs(texp=0.0).star_max_usable_vmag() == -math.inf
+
+
+def test_a_label_without_a_known_readout_mode_is_refused() -> None:
+    """An INSTRUMENT_MODE_ID outside FULL, SUM2, and SUM4 appears in the error."""
+    with pytest.raises(
+        ValueError,
+        match="ISS label does not give a known readout mode: INSTRUMENT_MODE_ID is 'SUM8'",
+    ):
+        _star_obs(mode='SUM8').star_max_usable_vmag()
+
+
+def test_an_unknown_gain_mode_is_refused() -> None:
+    """A gain mode the host could not read appears in the error."""
+    with pytest.raises(ValueError, match='ISS label does not give a known gain state: None'):
+        _star_obs(gain_mode=None).star_max_usable_vmag()
+
+
+@pytest.mark.parametrize(('mode', 'expected'), [('FULL', 0.54), ('SUM2', 0.39), ('SUM4', 0.32)])
+def test_the_cassini_star_width_is_each_readout_modes_own(mode: str, expected: float) -> None:
+    """The star PSF has the sigma of the frame's readout mode, in its own pixels."""
+    assert _star_obs(mode=mode).star_psf_sigma() == pytest.approx(expected, abs=1e-12)
