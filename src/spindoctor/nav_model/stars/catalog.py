@@ -167,9 +167,11 @@ UCAC4_QUERY_MARGIN_MAG: float = 0.2
 UCAC4 cuts a query on its aperture magnitude, and a star's Johnson V can be brighter or
 fainter than that.  A UCAC4 query is widened by this margin, plus the color-term margin of
 :func:`catalog_query_margin`, at both ends of the range, and the stars are then kept by
-their camera magnitude.  A star whose Johnson V is inside the range is read when its
-aperture magnitude lies within the margin of the range; one whose APASS V is brighter than
-its aperture magnitude by more than the whole margin is not read.
+their camera magnitude.  A star is read only when its aperture magnitude lies inside the
+widened bounds, so a star whose camera magnitude is in range is missed when its aperture
+magnitude lies past them.  That can happen only near the faint limit, to a star whose
+camera magnitude is brighter than its aperture magnitude by more than the whole margin,
+which in practice means one with an APASS V.
 """
 
 # Of the star records the star-limit measurement made on the star-field frames (#1257),
