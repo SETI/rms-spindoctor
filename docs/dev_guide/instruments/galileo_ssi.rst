@@ -316,12 +316,48 @@ Simulator model
 ``gossi`` entry in ``src/spindoctor/sim/instruments/configs/gossi.yaml`` holds the
 values below.
 
-**PSF kernel.** ``{sigma_v: 0.80, sigma_u: 0.80, w: 1.2e-2, r0: 2.0, n: 3.0}``,
-a **retained interim published sigma**. The curated cohort holds no star frames
-for this instrument, so nothing independent has constrained the kernel, and
-simulated frames rest on unverified PSF fidelity until star calibration frames
-land. This is the weakest link in this instrument's
-simulator support.
+**PSF kernel.** ``{sigma_v: 0.36, sigma_u: 0.36, w: 0.25, r0: 2.0, n: 5.0}``,
+measured on real stars. The stars are 23 bright, isolated, unsaturated stars on 11
+full frames of the 1992 Pleiades sequence on volume GO_0008, all taken at 0.1 s or
+less, 18 of them at the 100K gain state. Each frame's pointing is the one the star
+zero point uses, refitted to the frame's own stars.
+
+Each star was fitted with the kernel drawn the way the simulator renders a star:
+sampled on the 4x render grid, with the star's light shared between the four nearest
+grid points, and averaged into detector pixels. Every star has its own center, flux,
+and background, and all of them share the core sigma and the wing fraction ``w``. On
+stars this narrow the wing's ``r0`` and ``n`` trade off against the core, and a fit
+that frees all five parameters runs to its bounds, so ``r0`` and ``n`` are held fixed.
+The fit gives a core sigma of 0.360 +- 0.001 px and a wing fraction of 0.251 +- 0.003.
+Those are formal errors. Fitted on different subsets of the stars, the core moves by
+about 0.05 px and the wing fraction by about 0.1.
+
+Measured the way the realism match measures stars, the stars' median EE50 is 0.585 px
+and their median EE80 is 1.22 px. From star to star these scatter by 0.054 and 0.38
+px. The kernel, drawn at the same centers and measured the same way, gives 0.558 and
+1.17 px. Both radii depend on where a star falls within its pixel, which is why the
+kernel is compared at the stars' own centers.
+
+Three checks bound the result:
+
+* Brightness. Saturation would broaden the bright stars. Instead the brighter half of
+  the clean stars gives a smaller wing than the fainter half (0.28 against 0.40, with
+  ``r0`` 2 and ``n`` 3). The faint stars' wing most likely comes from their sky level,
+  which is measured at a fraction of a DN.
+* Gain state. Only 9 clean stars were taken at the 10K gain state. They fit a larger
+  wing (0.56) than the 100K stars (0.27). Nine stars cannot confirm it, and 18 of the
+  23 stars the kernel is fitted to were taken at 100K.
+* Exposure. Stars in the sequence's longer exposures are smeared by camera motion: by
+  0.7 to 2 px at 0.2 s and by 1 to 10 px at 0.8 s, mostly along the lines, in a
+  direction that holds within a frame and changes from one frame to the next. The
+  C-kernels predict no smear for these frames, and the simulator does not draw it, so
+  those frames are left out.
+
+.. The smear of the long exposures is #1278; the measurement is #1258.
+
+``util/star_photometry/star_field.py`` holds the kernel fit (``fit_psf_kernel``) and
+``util/star_photometry/star_psf_summary.py`` the kernel's encircled energy at given star
+centers (``kernel_encircled_energy``).
 
 **Star zero point.** ``star_flux.e_per_s_vmag0`` is 2.3e8, the electrons a star of
 V = 0 deposits each second through the clear filter. It was measured on the full
@@ -415,18 +451,19 @@ offset, the extra time the shutter adds to each line: 1.5 ms at the first line a
 the mode scales the light by their ratio, so the last line gets 0.70 of the first
 line's light at every exposure. The entry doesn't state an exclusion reason.
 
-**Realism-match status.** Unverified. Every optical parameter is a published
-or scaled estimate and the cohort offers nothing to check them against.
+**Realism-match status.** The PSF kernel and the star zero point are measured on
+real star frames outside the cohort. The cohort has no star frame, so the realism
+match does not compare stars for this camera, and it offers nothing to check the
+other optical values against.
 
 Image library and test coverage
 ===============================
 
 **Cohort.** Eight sidecars, all single-camera: six under ``negative_cases`` and
-two under ``scattered_light``. There is **no star frame**, which is why the
-simulator PSF is unverified, and why the twist measurement rests on seven locked
-frames out of eighteen in the separate distortion cohort. The star limit and the
-navigator's star sigma were measured outside the cohort, on the cruise star fields
-described above.
+two under ``scattered_light``. There is **no star frame**, which is why the twist
+measurement rests on seven locked frames out of eighteen in the separate distortion
+cohort. The star limit, the navigator's star sigma, and the simulator's PSF kernel
+were measured outside the cohort, on the cruise star fields described above.
 
 **Integration tests.** The per-image regression suite
 (``tests/integration/test_autonomous_nav.py``) and the structural-invariants
@@ -445,16 +482,16 @@ the measured sky noise of 0.96 DN in place of the catalog's read noise.
 
 - ``gossi_star_field``: two bright stars among 14 fainter ones at 1.6 s, offset
   257 px, the size of the library's scattered-light frames. Every star in view
-  saturates. The navigator matches 11 stars and lands 0.09 to 0.10 px off over
-  24 draws, and 0.08 px off without the twist.
+  saturates. The navigator matches 11 stars and lands 0.03 to 0.04 px off over
+  24 draws, and 0.025 px off without the twist.
 - ``gossi_star_field_short_exposure``: the same field at 0.1 s, the exposure of
   the real Pleiades frames, which navigate on three stars. With the measured 0.65 px
   star sigma the navigator's star limit on a simulated frame reaches V 10.9. It
-  matches 10 or 11 stars and lands 0.01 to 0.02 px off over 24 draws. The real
+  matches 11 stars and lands 0.03 to 0.04 px off over 24 draws. The real
   frames are from 1990 and read about 1.3 mag fainter than the 1992 frames the
   zero point follows, so the scene checks the short-exposure path rather than
   copying those frames.
-- ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.17 to
+- ``gossi_disc``: a moon 240 px across, offset 286 px. The answer lands 0.16 to
   0.18 px off with the twist, and 0.04 px off without it. The scene takes about
   20 seconds to navigate, because the search window reaches 350 px.
 
@@ -478,8 +515,8 @@ expected, so some seeds lose none and some lose two. On the committed seed one
 band crosses the middle of the disc.
 
 The scene plants a 260 px offset and the camera's twist. The fused answer lands
-0.036 to 0.072 px off over 24 draws. The disc correlation lands 0.020 to
-0.046 px off on every draw, including the six seeds whose band of lost slices
+0.033 to 0.067 px off over 24 draws. The disc correlation lands 0.020 to
+0.039 px off on every draw, including the six seeds whose band of lost slices
 crosses the disc, so the slices leave the answer where it is. On one draw, whose
 band covers the bottom limb, the limb fit flags its answer. The fused answer
 rests on the disc correlation alone, at low confidence; the other 23 draws are
@@ -545,4 +582,7 @@ Open items
   measured through filters do not confirm.
 * ``from_file`` carries a TODO saying the extended-FOV margin branch belongs
   somewhere shared.
-* The simulator PSF is unverified for want of star frames in the cohort.
+* The simulator's PSF wing rests on stars taken at the 100K gain state. The 9 clean
+  stars at 10K fit a larger wing, which needs more short exposures at 10K to confirm.
+* Real star frames of 0.2 s and longer are smeared by 1 to 10 px of camera motion,
+  which the simulator does not draw.

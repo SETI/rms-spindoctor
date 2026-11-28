@@ -465,6 +465,8 @@ model does not gain them.
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |
+| #1258 | **Done (PR #TBD).** Measured on 23 bright, unsaturated stars of the 1992 Galileo Pleiades frames at 0.1 s or less (18 of them at 100K), the Galileo PSF kernel is a 0.36 px core with a quarter of the light in a wing at `r0` 2 and `n` 5 (stars EE50 0.585 and EE80 1.22 px, kernel 0.558 and 1.17 px), where it was the published 0.80 px core; the 10K wing rests on 9 stars and is not confirmed, and the longer exposures smear (#1278). `gossi_star_field` lands 0.03 to 0.04 px off over 24 draws (was 0.09 to 0.10), `gossi_star_field_short_exposure` 0.03 to 0.04 px (was 0.01 to 0.02), and the two disc scenes move by less than 0.01 px. The Galileo PSF kernel was never checked against real stars |
+| #1278 | **Affects no current scene.** Real Galileo star frames of 0.2 s and longer smear 1 to 10 px, mostly along lines, in a direction that holds within a frame and changes between frames; the C-kernels do not predict it and the simulator does not draw it |
 | #359 | PSF error forms the simulator cannot render, for the agreement estimator |
 | #877, simulator part | Windowed frames |
 | #333 | Four physical error axes are unmodeled |

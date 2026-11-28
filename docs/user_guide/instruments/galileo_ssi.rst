@@ -266,10 +266,12 @@ Known limitations
   1992 frames at the same settings, and the cause is not known. The star limit follows
   the 1992 frames, so on a 1990 frame the navigator looks for stars somewhat fainter
   than the frame shows.
-* By default the simulator draws stars with a published estimate of this instrument's
-  point-spread function, a Gaussian core of sigma 0.80 pixels on a full frame. The
-  cruise star fields measure 0.65 pixels, so a simulated star is wider than a real
-  one.
+* By default the simulator draws stars with this camera's point-spread function as
+  measured on the 1992 star frames of 0.1 s or less. Three quarters of a star's light
+  falls in a core with a sigma of 0.36 pixels on a full frame, and the rest in a wider
+  halo. In real frames of 0.2 s and longer, camera motion smears stars by 1 to 10
+  pixels. The simulator does not draw that smear, so in a simulated frame of that
+  length a star is sharper than in a real one.
 
 References
 ==========

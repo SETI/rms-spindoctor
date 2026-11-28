@@ -277,10 +277,10 @@ smaller count sets it: *unsupported* below 2 frames, *limited* for 2 to 7, and
 Where a figure of merit is *unsupported* and no independent evidence
 exists, that instrument's simulated frames rest on **unverified
 forward-model fidelity** for that figure: the Galileo cohort holds only negative-case
-frames (no star, limb, or ring content), so nothing currently verifies the
-gossi PSF or shape rendering; the Voyager and LORRI cohorts support only
-fragments.  This is a Cassini match first, and the labels say exactly how
-far the others reach.
+frames (no star, limb, or ring content), so nothing in it verifies the gossi
+shape rendering, and its PSF is measured on star frames outside the cohort; the
+Voyager and LORRI cohorts support only fragments.  This is a Cassini match first,
+and the labels say exactly how far the others reach.
 
 Artifact-rate defaults and provenance
 -------------------------------------
@@ -697,10 +697,11 @@ frames per stratum and are reported in the summary JSON without
 distributional claims.
 
 **Galileo SSI** (8 frames).  Every Galileo frame in the library is a
-negative case, so FOMs 2-4 are unsupported and *the gossi PSF and shape
-rendering rest on unverified forward-model fidelity* until the
-star-calibration frames land.  What the cohort does support is FOM 6 and
-FOM 1.  In FOM 6 the real frames' stationary spike fraction is 1.4e-6, and
+negative case, so FOMs 2-4 are unsupported and *the gossi shape rendering
+rests on unverified forward-model fidelity*.  The gossi PSF is measured on real
+star frames outside the cohort (see :doc:`/dev_guide/instruments/galileo_ssi`).
+What the cohort does support is FOM 6 and FOM 1.  In FOM 6 the real frames'
+stationary spike fraction is 1.4e-6, and
 the matched frames show no stationary spikes, although the catalog's hot
 pixels cover 9e-5 of the pixels (see :ref:`the Galileo SSI chapter
 <gossi-hot-pixels>`).  The real
