@@ -44,10 +44,15 @@ The decision tree is order-sensitive:
    ``max_missing_frac_clean``, or the fraction of lines read out (one minus
    ``unread_line_frac``) is below ``min_read_line_frac``, the image is
    ``mostly_missing_data``. The unread lines do not count against
-   ``max_missing_frac_clean``: the lines that were read out hold good data, and the
-   techniques already leave the missing pixels out of what they measure, so a
+   ``max_missing_frac_clean``: the lines that were read out hold good data, so a
    truncated readout is navigated on the lines it has, however much of the frame is
-   missing. Only a readout too short to hold anything is refused.
+   missing, unless fewer than ``min_read_line_frac`` of its lines were read out. Each
+   camera block's comment gives the basis of its value. The techniques read the
+   context's missing-data mask
+   (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.missing_data_mask_ext`)
+   to varying degrees: the star techniques and the blob centroid leave the missing
+   pixels out, while the correlation techniques, the edge images, and the noise
+   estimate still read the filled lines as data.
 4. **Clean.**  Otherwise the image is ``clean``. Two advisory flags may attach:
    ``partial_dropout`` when the missing fraction, unread lines included, exceeds
    ``partial_dropout_min_frac``; ``noisy`` when the noise sigma exceeds

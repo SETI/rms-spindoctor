@@ -106,7 +106,7 @@ def read_frame_as_navigator(
         max_overexposed_frac=thresholds.max_saturation_frac_clean,
         too_few_lines_read=(
             statistics.scattered_missing_frac <= thresholds.max_missing_frac_clean
-            and 1.0 - statistics.unread_line_frac < thresholds.min_read_line_frac
+            and statistics.read_line_frac < thresholds.min_read_line_frac
         ),
         min_read_line_frac=thresholds.min_read_line_frac,
     )

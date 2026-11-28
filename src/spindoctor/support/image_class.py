@@ -100,6 +100,9 @@ class ImageQualityStatistics:
         missing_frac: Fraction of sensor pixels carrying the missing-data marker.
         unread_line_frac: Fraction of the sensor's lines on which every sensor pixel
             carries the marker.
+        read_line_frac: Fraction of the sensor's lines that were read out, the other
+            lines.  It is counted on its own rather than as one minus
+            ``unread_line_frac``, so a share exactly at its limit compares equal.
         scattered_missing_frac: Fraction of sensor pixels that carry the marker and
             lie outside the unread lines.
     """
@@ -108,6 +111,7 @@ class ImageQualityStatistics:
     saturation_frac: float
     missing_frac: float
     unread_line_frac: float
+    read_line_frac: float
     scattered_missing_frac: float
 
 
@@ -215,7 +219,8 @@ def measure_image_quality(
     missing_frac = float(sensor_missing.sum()) / n_total
     sensor_lines = sensor_mask.any(axis=1)
     unread_lines = sensor_lines & (sensor_missing == sensor_mask).all(axis=1)
-    unread_line_frac = float(unread_lines.sum()) / max(int(sensor_lines.sum()), 1)
+    n_lines = max(int(sensor_lines.sum()), 1)
+    n_unread = int(unread_lines.sum())
     scattered = float(sensor_missing[~unread_lines].sum()) / n_total
     # ``np.nanmax`` ignores NaN markers that survive in the sensor pixels; with no
     # finite pixel the peak is 0.0, so the frame is blank.
@@ -227,7 +232,8 @@ def measure_image_quality(
         max_dn=max_dn,
         saturation_frac=saturation_frac,
         missing_frac=missing_frac,
-        unread_line_frac=unread_line_frac,
+        unread_line_frac=n_unread / n_lines,
+        read_line_frac=(int(sensor_lines.sum()) - n_unread) / n_lines,
         scattered_missing_frac=scattered,
     )
 
@@ -256,6 +262,6 @@ def decide_image_class(
         return 'fully_overexposed'
     if statistics.scattered_missing_frac > thresholds.max_missing_frac_clean:
         return 'mostly_missing_data'
-    if 1.0 - statistics.unread_line_frac < thresholds.min_read_line_frac:
+    if statistics.read_line_frac < thresholds.min_read_line_frac:
         return 'mostly_missing_data'
     return 'clean'

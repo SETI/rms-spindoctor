@@ -102,9 +102,9 @@ it.
     Too many missing-data pixels on the lines that were read out, or too few
     lines read out; see ``missing_frac`` and ``unread_line_frac``. The unread
     lines of a truncated readout count only against the share of lines read
-    out, so a frame that read out enough lines is navigated on them. A partial
-    dropout below the refusal cutoff instead sets the advisory
-    ``partial_dropout`` flag and navigation proceeds.
+    out, so a frame that read out enough lines is navigated on them. A frame
+    that is navigated with more than ``partial_dropout_min_frac`` of its pixels
+    missing carries the advisory ``partial_dropout`` flag.
 
 ``image_corrupt``
     The pixel data failed to parse after the file opened.

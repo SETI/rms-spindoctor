@@ -96,6 +96,7 @@ def test_decision_order_and_limits(
         saturation_frac=saturation_frac,
         missing_frac=scattered + unread,
         unread_line_frac=unread,
+        read_line_frac=1.0 - unread,
         scattered_missing_frac=scattered,
     )
     thresholds = raw_thresholds(
@@ -116,6 +117,7 @@ def test_measure_counts_a_nan_marker() -> None:
         saturation_frac=0.0,
         missing_frac=0.5,
         unread_line_frac=0.0,
+        read_line_frac=1.0,
         scattered_missing_frac=0.5,
     )
 
@@ -131,6 +133,7 @@ def test_measure_separates_unread_lines_from_scattered_loss() -> None:
         saturation_frac=0.0,
         missing_frac=5 / 16,
         unread_line_frac=0.25,
+        read_line_frac=0.75,
         scattered_missing_frac=1 / 16,
     )
 
@@ -159,3 +162,12 @@ def test_measure_reads_a_supplied_missing_mask() -> None:
         image, raw_thresholds(missing_data_marker_dn=0.0), missing_mask=missing
     )
     assert statistics.unread_line_frac == 0.5
+
+
+def test_a_read_out_share_at_its_limit_is_allowed() -> None:
+    """One line read out of five meets a limit of 0.2, though 1 - 0.8 falls just short."""
+    image = np.zeros((5, 4))
+    image[0, :] = 10.0
+    thresholds = raw_thresholds(missing_data_marker_dn=0.0, min_read_line_frac=0.2)
+    statistics = measure_image_quality(image, thresholds)
+    assert decide_image_class(statistics, thresholds) == 'clean'
