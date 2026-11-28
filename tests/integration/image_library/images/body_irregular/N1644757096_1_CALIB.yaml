@@ -21,17 +21,10 @@ ground_truth:
     Operator verified the pipeline overlay alignment at the proposed offset during batch review (summary PNG plus, for star classes, a hard-stretch star-check PNG with circled catalog positions).
     Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav'], per-technique offsets={"BodyBlobNav": [13.4533, -3.7217], "BodyTerminatorNav": [14.8509, -3.0129]}.
     The NCC/blob covariance carries a size-scaled centroid-model-error term, so the sigma-based tier gate rates the ground-truth-consistent BodyBlobNav solution low.
-
-    Re-pinned 2026-11-28 (operator decision, PR #1304):
-    primary_technique BodyBlobNav -> StarUniqueMatchNav. Cassini now
-    has a photometric star limit measured on tour star fields, which
-    predicts more stars in this frame than the old rule of thumb did;
-    the star techniques now lead the answer, which stays within
-    tolerance (1.11 px in v and 0.63 px in u from truth).
 expected:
   status: success
   confidence_tier: low
-  primary_technique: StarUniqueMatchNav
+  primary_technique: BodyBlobNav
   techniques_must_run:
   - BodyBlobNav
   techniques_must_skip: []
