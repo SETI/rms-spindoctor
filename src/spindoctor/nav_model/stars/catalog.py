@@ -155,15 +155,21 @@ UCAC4_HALF_MILLIMAG: float = 0.0005
 """Half the step of UCAC4's magnitudes, which it lists in whole millimagnitudes."""
 
 # Over the same fields, a star's APASS V is brighter than its aperture magnitude by more
-# than 0.2 mag for 5% of the stars fainter than aperture magnitude 10, and the 2MASS
-# conversion brightens a star by at most 0.055 mag (99.9% of stars).
+# than 0.2 mag for 5% of the APASS stars fainter than aperture magnitude 10 (by more than
+# 1 mag for 0.7%), and the 2MASS conversion brightens a star by at most 0.055 mag (99.9% of
+# stars).  For the APASS stars more than 0.5 mag brighter, the 2MASS color puts V a median
+# 0.28 mag fainter than the aperture magnitude, so most of that tail is APASS error.  At
+# each frame's own limit and color term, the 439 frames' queries leave out 28 of their
+# 69,636 stars in range; with no color term, 0.08% to 1% for limits from 11 to 14.5 (#1257).
 UCAC4_QUERY_MARGIN_MAG: float = 0.2
 """Magnitudes by which a UCAC4 query reaches past the ends of the range it serves.
 
 UCAC4 cuts a query on its aperture magnitude, and a star's Johnson V can be brighter or
-fainter than that.  A UCAC4 query is widened by this margin at both ends of the range, and
-the stars are then kept by their magnitude, so a star whose Johnson V is inside the range is
-not lost because its aperture magnitude is just outside it.
+fainter than that.  A UCAC4 query is widened by this margin, plus the color-term margin of
+:func:`catalog_query_margin`, at both ends of the range, and the stars are then kept by
+their camera magnitude.  A star whose Johnson V is inside the range is read when its
+aperture magnitude lies within the margin of the range; one whose APASS V is brighter than
+its aperture magnitude by more than the whole margin is not read.
 """
 
 # Of the star records the star-limit measurement made on the star-field frames (#1257),

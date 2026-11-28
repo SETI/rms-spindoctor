@@ -472,8 +472,9 @@ against the table:**
 ```bash
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMEXPR_NUM_THREADS=1
 pytest tests/integration/test_autonomous_nav.py -m '' -n 4 --dist=loadfile
-# Expect, while #288 is open: the same red set as main — the six frames
-# above. Any delta either way must be attributed in the merging PR.
+# Expect, while #288 is open: the same red set as main, the frames listed
+# above (six, and nine once PR #1304 lands). Any delta either way must be
+# attributed in the merging PR.
 ```
 
 The thread pins are not optional and are not set anywhere in the repository —

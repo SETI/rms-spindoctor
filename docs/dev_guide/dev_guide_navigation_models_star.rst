@@ -110,14 +110,25 @@ the stars fainter than 14 take the uncorrected fallback.
 The record keeps its aperture magnitude as ``catalog_vmag``, which the bright-end
 correction below reads. UCAC4 cuts a query on the aperture magnitude, and a star's Johnson
 V can fall in a different magnitude bin from its aperture magnitude. So the reduction walks
-UCAC4 in bins of aperture magnitude, keeps every star whose camera magnitude lies in the
-observation's usable range, and lets the first and last bins reach past that range by
-:data:`~spindoctor.nav_model.stars.catalog.UCAC4_QUERY_MARGIN_MAG` (0.2 mag) plus the
+UCAC4 in bins of aperture magnitude, keeps each star it reads whose camera magnitude lies
+in the observation's usable range, and lets the first and last bins reach past that range
+by :data:`~spindoctor.nav_model.stars.catalog.UCAC4_QUERY_MARGIN_MAG` (0.2 mag) plus the
 camera's color-term margin (see `Camera magnitudes`_). A single query for a range of
-camera magnitudes, as other callers make, reaches the same margin past both ends. The 2MASS
-conversion brightens 99.9% of the stars by less than 0.06 mag, and APASS V is brighter
-than the aperture magnitude by more than 0.2 mag for 5% of the stars fainter than aperture
-magnitude 10.
+camera magnitudes, as other callers make, reaches the same margin past both ends.
+
+A star whose aperture magnitude lies beyond that reach is not read, even when its camera
+magnitude is in range. The 2MASS conversion brightens 99.9% of the stars by less than
+0.06 mag, and the fallback makes every star fainter, so the stars left out are ones whose
+APASS V is brighter than their aperture magnitude. Of the APASS stars fainter than
+aperture magnitude 10 in the measurement's fields, 5% read brighter in V by more than
+0.2 mag, 0.7% by more than 1 mag, and 0.06% by more than 2 mag. With no color term, the
+reach is 0.2 mag, and for limits from 11 to 14.5 the stars left out are 0.08% to 1% of
+the stars in range. The measured color terms widen the reach to 1.6 to 2.3 mag, and at each
+frame's own limit the measurement's frames leave out under 0.05% of their stars in range.
+Most of the large offsets are APASS errors rather than real colors: for the stars whose
+APASS V reads more than 0.5 mag brighter than their aperture magnitude, the 2MASS color
+puts V a median 0.28 mag fainter than the aperture magnitude, and two thirds of their
+APASS magnitudes come from a single observation.
 
 A UCAC4 star brighter than the bright-end correction's limit (below) is kept whatever its
 camera magnitude, because both its aperture magnitude and its APASS V may read too faint.

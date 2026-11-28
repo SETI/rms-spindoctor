@@ -142,10 +142,23 @@ def load_records(path: Path) -> list[dict[str, Any]]:
 
     Returns:
         The records.
+
+    Raises:
+        ValueError: If a star lacks ``b_minus_v``.  Measurements made before the star
+            colors were recorded also hold UCAC4's aperture magnitude in place of Johnson
+            V, so such a frame has to be measured again.
     """
     with path.open() as fh:
         records = [json.loads(line) for line in fh if line.strip()]
-    return [r for r in records if 'error' not in r]
+    records = [r for r in records if 'error' not in r]
+    for record in records:
+        if any('b_minus_v' not in star for star in record.get('stars', [])):
+            raise ValueError(
+                f'{path}: frame {record["frame"]["image_id"]} has stars without b_minus_v, '
+                'so it was measured before the star colors and Johnson V magnitudes were '
+                'recorded; delete its line and run the measurement again'
+            )
+    return records
 
 
 def camera_key(record: dict[str, Any]) -> str:

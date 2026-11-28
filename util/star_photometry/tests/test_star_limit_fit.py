@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import math
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -16,6 +18,7 @@ from util.star_photometry.star_limit_fit import (
     _predict_dn,
     _set_camera_mags,
     fit_camera,
+    load_records,
 )
 from util.star_photometry.star_zero_point import _tukey_lstsq, fit_zero_point
 
@@ -381,3 +384,13 @@ def test_weak_fit_keeps_the_frame_table() -> None:
     result = fit_camera('TEST', records, reference_filter='CLEAR', reference_gain='10K')
     assert [row['image_id'] for row in result.frames] == ['F0', 'F1']
     assert math.isnan(result.frames[0]['proposed_limit'])
+
+
+def test_load_records_refuses_a_frame_measured_without_star_colors(tmp_path: Path) -> None:
+    """A frame whose stars lack ``b_minus_v`` is refused with the remedy in the message."""
+    path = tmp_path / 'records.jsonl'
+    record = {'frame': {'image_id': 'F0'}, 'stars': [{'vmag': 12.0}]}
+    path.write_text(json.dumps(record) + '\n')
+    with pytest.raises(ValueError, match='frame F0 has stars without b_minus_v') as exc_info:
+        load_records(path)
+    assert 'run the measurement again' in str(exc_info.value)
