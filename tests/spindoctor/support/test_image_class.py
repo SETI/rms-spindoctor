@@ -115,6 +115,13 @@ def test_measure_counts_a_nan_marker() -> None:
     )
 
 
+def test_measure_peak_skips_infinite_pixels() -> None:
+    """The peak is the brightest finite pixel, so an infinite one does not raise it."""
+    image = np.array([[1.0, np.inf], [2.0, 3.0]])
+    statistics = measure_image_quality(image, raw_thresholds(missing_data_marker_dn=0.0))
+    assert statistics.max_dn == 3.0
+
+
 def test_measure_separates_unread_lines_from_scattered_loss() -> None:
     """A row whose pixels are all missing is an unread line; other missing pixels scatter."""
     image = np.full((4, 4), 10.0)

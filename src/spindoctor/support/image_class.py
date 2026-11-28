@@ -218,10 +218,8 @@ def measure_image_quality(
     # The peak is taken over the pixels that were read; with no finite one it is 0.0,
     # so a frame with no line read out is blank whatever its marker.
     read = image[sensor_mask & ~missing_mask]
-    if read.size > 0 and np.isfinite(read).any():
-        max_dn = float(np.nanmax(read))
-    else:
-        max_dn = 0.0
+    finite = read[np.isfinite(read)]
+    max_dn = float(finite.max()) if finite.size > 0 else 0.0
     return ImageQualityStatistics(
         max_dn=max_dn,
         saturation_frac=saturation_frac,
