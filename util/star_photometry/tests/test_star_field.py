@@ -133,6 +133,17 @@ def test_the_fit_leaves_out_hits() -> None:
     assert fit.reduced_chi2 == pytest.approx(1.0, abs=0.1)
 
 
+def test_the_fit_does_not_spread_from_an_invalid_hit() -> None:
+    """A hit on a pixel already left out takes none of its neighbors with it."""
+    cutouts = _stars(KERNEL, flux=4000.0, gain_e_per_dn=1.0e9, seed=1258, hit_dn=200.0)
+    for cutout in cutouts:
+        cutout.valid[round(cutout.v) + 4, round(cutout.u)] = False
+    fit = fit_psf_kernel(
+        cutouts, r0=2.0, n=5.0, start_sigma=0.7, start_w=0.05, truncation_px=TRUNCATION_PX
+    )
+    assert fit.outlier_pixels == 0
+
+
 @pytest.mark.parametrize(
     'gain_e_per_dn', [pytest.param(1.0e9, id='sky noise'), pytest.param(1.0, id='shot noise')]
 )

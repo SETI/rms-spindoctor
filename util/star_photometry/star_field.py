@@ -869,7 +869,8 @@ def _without_outliers(
     The noise counts the shot noise of the model's light or the pixel's, whichever is
     larger, so a wing brighter than the model is not judged against too small a noise.
     Each outlier's neighbors that are as far from the center go with it, so a hit's
-    skirt goes too.
+    skirt goes too.  A pixel already invalid is not an outlier, so a hit there takes
+    none of its neighbors.
 
     Parameters:
         cutout: The star.
@@ -904,7 +905,7 @@ def _without_outliers(
     )
     far = radius >= OUTLIER_MIN_RADIUS_PX
     off = np.abs(residual - profile) > OUTLIER_SIGMA * sigma
-    outliers = scipy.ndimage.binary_dilation(far & off) & far
+    outliers = scipy.ndimage.binary_dilation(far & off & cutout.valid) & far
     return replace(cutout, valid=cutout.valid & ~outliers)
 
 
