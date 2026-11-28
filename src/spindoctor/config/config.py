@@ -49,9 +49,9 @@ if TYPE_CHECKING:  # pragma: no cover - typing-only import
         OffsetSection,
         OrchestratorSection,
     )
-    from spindoctor.config.sections_body_shape import BodyShapeEntry
     from spindoctor.config.sections_models import (
         BodiesSection,
+        BodyShapeEntry,
         FeatureEmissionSection,
         StarsSection,
         TitanSection,

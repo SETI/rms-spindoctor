@@ -36,7 +36,6 @@ from spindoctor.nav_technique.dt_fitting import (
     edge_strength_score,
     lm_subpixel_refine,
 )
-from spindoctor.nav_technique.dt_tuning import DTTuning
 from spindoctor.nav_technique.feasibility import NavFeasibilityReport
 from spindoctor.nav_technique.nav_technique import (
     NavTechnique,
@@ -62,6 +61,7 @@ from spindoctor.nav_technique.ring_edge_stats import (
     _per_edge_rms_summed,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import DTTuning
 from spindoctor.schema import SCHEMA_CONFIG, Bool, NonNeg, NonNegInt, Positive, Unit
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
