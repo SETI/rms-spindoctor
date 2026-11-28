@@ -76,6 +76,55 @@ def test_stars_in_extfov_returns_records_from_fake_ucac4(
     assert star.u != 0.0 or star.v != 0.0
 
 
+def _ucac4_window(monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs, **star: object) -> list[Any]:
+    """Return what a UCAC4 query for Johnson V 0-15 keeps of one fake UCAC4 star."""
+    install_fake_catalogs(monkeypatch, ucac4=[make_star(unique_number=1, ra=0.1, dec=0.0, **star)])
+    return stars_in_extfov(
+        cast(Any, fake_obs), DEFAULT_CONFIG, catalog_name='ucac4', mag_min=0.0, mag_max=15.0
+    )
+
+
+def test_stars_in_extfov_keeps_ucac4_star_by_johnson_v(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose aperture magnitude is past the window but whose V is inside is kept."""
+    out = _ucac4_window(monkeypatch, fake_obs, vmag=15.1, apass_mag_v=14.95, apass_mag_v_sigma=0.05)
+    assert len(out) == 1
+
+
+def test_stars_in_extfov_drops_ucac4_star_by_johnson_v(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose aperture magnitude is inside the window but whose V is past it drops."""
+    out = _ucac4_window(monkeypatch, fake_obs, vmag=14.95)
+    assert out == []
+
+
+def test_stars_in_extfov_keeps_ucac4_aperture_magnitude(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A reduced UCAC4 star keeps its aperture magnitude beside its Johnson V."""
+    out = _ucac4_window(monkeypatch, fake_obs, vmag=12.0, apass_mag_v=12.3, apass_mag_v_sigma=0.05)
+    assert out[0].catalog_vmag == pytest.approx(12.0)
+
+
+def test_stars_in_extfov_derives_ucac4_spectral_class_from_its_color(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star's spectral class follows the color its Johnson photometry gives."""
+    out = _ucac4_window(
+        monkeypatch,
+        fake_obs,
+        vmag=12.0,
+        spectral_class='M0',
+        apass_mag_v=12.3,
+        apass_mag_v_sigma=0.05,
+        apass_mag_b=12.3,
+        apass_mag_b_sigma=0.05,
+    )
+    assert out[0].spectral_class == 'A0'
+
+
 def test_stars_in_extfov_drops_stars_outside_ra_window(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:
@@ -281,6 +330,14 @@ def test_stars_in_extfov_handles_star_without_name_attribute(
         conflicts = ''
         diff_u = 0.0
         diff_v = 0.0
+        apass_mag_v = None
+        apass_mag_v_sigma = None
+        apass_mag_b = None
+        apass_mag_b_sigma = None
+        twomass_mag_j = None
+        twomass_mag_k = None
+        twomass_ph_qual_j = None
+        twomass_ph_qual_k = None
 
         def ra_dec_with_pm(self, _tdb: float) -> tuple[float, float]:
             return self.ra, self.dec

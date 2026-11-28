@@ -56,7 +56,9 @@ class FakeStar:
         name: Optional canonical name from the catalog.
         ra: Catalog right ascension in radians.
         dec: Catalog declination in radians.
-        vmag: Catalog V-band magnitude.
+        vmag: Catalog V-band magnitude (for a UCAC4 record, the aperture
+            magnitude, which the reduction converts to Johnson V).
+        catalog_vmag: The magnitude the catalog lists (set by the reduction).
         b_v: Catalog ``B-V`` color, or ``None``.
         johnson_mag_v: Johnson V magnitude (set by the reduction when
             absent).
@@ -90,6 +92,14 @@ class FakeStar:
             ``'RING: <planet>'`` otherwise.
         diff_u: Per-star delta-U used by some technique paths.
         diff_v: Per-star delta-V used by some technique paths.
+        apass_mag_v: A UCAC4 record's APASS V magnitude, or ``None``.
+        apass_mag_v_sigma: Its error (zero marks a substituted Tycho-2 value).
+        apass_mag_b: A UCAC4 record's APASS B magnitude, or ``None``.
+        apass_mag_b_sigma: Its error.
+        twomass_mag_j: A UCAC4 record's 2MASS J magnitude, or ``None``.
+        twomass_mag_k: A UCAC4 record's 2MASS K magnitude, or ``None``.
+        twomass_ph_qual_j: The 2MASS photometric quality code of J, or ``None``.
+        twomass_ph_qual_k: The 2MASS photometric quality code of K, or ``None``.
     """
 
     unique_number: int | None = None
@@ -99,6 +109,7 @@ class FakeStar:
     ra: float | None = None
     dec: float | None = None
     vmag: float | None = None
+    catalog_vmag: float | None = None
     b_v: float | None = None
     johnson_mag_v: float | None = None
     johnson_mag_b: float | None = None
@@ -119,6 +130,14 @@ class FakeStar:
     conflicts: str = ''
     diff_u: float = 0.0
     diff_v: float = 0.0
+    apass_mag_v: float | None = None
+    apass_mag_v_sigma: float | None = None
+    apass_mag_b: float | None = None
+    apass_mag_b_sigma: float | None = None
+    twomass_mag_j: float | None = None
+    twomass_mag_k: float | None = None
+    twomass_ph_qual_j: int | None = None
+    twomass_ph_qual_k: int | None = None
 
     def __post_init__(self) -> None:
         """Mirror the proper-motion fields onto the catalog RA/DEC by default."""

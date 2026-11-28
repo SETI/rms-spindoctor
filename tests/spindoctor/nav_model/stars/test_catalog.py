@@ -9,14 +9,22 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
+from starcat import UCAC4Star
+from tests.shims import make_star
 
 from spindoctor.nav_model.stars.catalog import (
     CATALOG_MAGNITUDE_BINS,
+    UCAC4_TWOMASS_B_MINUS_V_PER_J_MINUS_K,
+    UCAC4_TWOMASS_B_MINUS_V_ZERO_POINT,
+    UCAC4_TWOMASS_V_PER_J_MINUS_K,
+    UCAC4_TWOMASS_V_ZERO_POINT,
+    UCAC4_UNCORRECTED_V_OFFSET,
     _find_stars_in_one_catalog,
     _mark_visual_overlaps,
     _merge_catalogs,
     aberrate_star,
     select_radec_list,
+    ucac4_johnson_photometry,
 )
 from spindoctor.support.types import MutableStar
 
@@ -194,3 +202,76 @@ def test_find_stars_in_one_catalog_rejects_invalid_catalog_name() -> None:
             mag_max=20.0,
             radec_movement=None,
         )
+
+
+_GRADE_A = UCAC4Star.UCAC4_2MASS_PH_QUAL_A
+_GRADE_E = UCAC4Star.UCAC4_2MASS_PH_QUAL_E
+
+
+def _ucac4_record(**kwargs: object) -> UCAC4Star:
+    """A UCAC4 record of aperture magnitude 12.0 with the given photometry fields."""
+    fields: dict[str, object] = {'vmag': 12.0}
+    fields.update(kwargs)
+    return cast(UCAC4Star, make_star(**fields))
+
+
+def _twomass(j_minus_k: float, *, grade: int = _GRADE_A) -> dict[str, object]:
+    """2MASS J and K fields giving ``j_minus_k``, both of quality ``grade``."""
+    return {
+        'twomass_mag_j': 11.0 + j_minus_k,
+        'twomass_mag_k': 11.0,
+        'twomass_ph_qual_j': grade,
+        'twomass_ph_qual_k': grade,
+    }
+
+
+def test_ucac4_johnson_photometry_takes_measured_apass_v() -> None:
+    """A measured APASS V is the star's Johnson V."""
+    star = _ucac4_record(apass_mag_v=12.3, apass_mag_v_sigma=0.04, **_twomass(0.5))
+    assert ucac4_johnson_photometry(star)[0] == pytest.approx(12.3)
+
+
+@pytest.mark.parametrize(
+    'sigma', [0.0, 0.99], ids=['substituted-tycho2', 'error-outside-valid-range']
+)
+def test_ucac4_johnson_photometry_skips_unmeasured_apass_v(sigma: float) -> None:
+    """An APASS V that APASS did not measure gives way to the 2MASS conversion."""
+    star = _ucac4_record(apass_mag_v=12.3, apass_mag_v_sigma=sigma, **_twomass(0.5))
+    expected = 12.0 + UCAC4_TWOMASS_V_ZERO_POINT + UCAC4_TWOMASS_V_PER_J_MINUS_K * 0.5
+    assert ucac4_johnson_photometry(star)[0] == pytest.approx(expected)
+
+
+def test_ucac4_johnson_photometry_falls_back_below_grade_d() -> None:
+    """A 2MASS color of grade E is not used; the uncorrected offset applies."""
+    star = _ucac4_record(**_twomass(0.5, grade=_GRADE_E))
+    assert ucac4_johnson_photometry(star)[0] == pytest.approx(12.0 + UCAC4_UNCORRECTED_V_OFFSET)
+
+
+def test_ucac4_johnson_photometry_has_no_color_without_sources() -> None:
+    """A record with neither APASS nor 2MASS photometry has no color."""
+    assert ucac4_johnson_photometry(_ucac4_record())[1] is None
+
+
+def test_ucac4_johnson_photometry_takes_apass_color() -> None:
+    """With APASS V and B both measured, the color is APASS B - V."""
+    star = _ucac4_record(
+        apass_mag_v=12.3,
+        apass_mag_v_sigma=0.04,
+        apass_mag_b=13.1,
+        apass_mag_b_sigma=-0.05,
+        **_twomass(0.5),
+    )
+    assert ucac4_johnson_photometry(star)[1] == pytest.approx(0.8)
+
+
+def test_ucac4_johnson_photometry_takes_twomass_color_without_apass_b() -> None:
+    """Without a measured APASS B, the color comes from 2MASS J - K."""
+    star = _ucac4_record(apass_mag_v=12.3, apass_mag_v_sigma=0.04, **_twomass(0.5))
+    expected = UCAC4_TWOMASS_B_MINUS_V_ZERO_POINT + UCAC4_TWOMASS_B_MINUS_V_PER_J_MINUS_K * 0.5
+    assert ucac4_johnson_photometry(star)[1] == pytest.approx(expected)
+
+
+def test_ucac4_johnson_photometry_rejects_record_without_magnitude() -> None:
+    """A record with no aperture magnitude cannot be converted."""
+    with pytest.raises(ValueError, match='has no aperture magnitude'):
+        ucac4_johnson_photometry(_ucac4_record(vmag=None))

@@ -10,7 +10,10 @@ The star pipeline pulls catalog records, then reduces them through:
 3. **Multi-catalog precedence.**  ``reduce_catalogs`` walks the
    configured catalog order (``ucac4`` → ``tycho2`` → ``ybsc`` by
    default), pulls stars in incremental magnitude bins, and dedupes
-   matching entries so the most precise catalog wins per star.
+   matching entries so the most precise catalog wins per star.  A UCAC4
+   star's own magnitude is UCAC's aperture magnitude, so each UCAC4 star
+   is given a Johnson V magnitude and color first (see
+   ``ucac4_johnson_photometry``).
 4. **FOV projection + edge culling.**  Stars too close to the extfov
    edge for their PSF support to fit, or whose smear motion would push
    them off the edge mid-exposure, are dropped.
@@ -37,6 +40,7 @@ from starcat import (
     SCLASS_TO_SURFACE_TEMP,
     SpiceStarCatalog,
     Star,
+    UCAC4Star,
     UCAC4StarCatalog,
     YBSCStarCatalog,
 )
@@ -66,6 +70,7 @@ __all__ = [
     'reduce_catalogs',
     'select_radec_list',
     'stars_in_extfov',
+    'ucac4_johnson_photometry',
 ]
 
 
@@ -97,6 +102,172 @@ faint ends.  The walk stops when the configured ``max_stars`` budget is
 reached or the next bin's lower edge exceeds the obs's
 ``star_max_usable_vmag()``.
 """
+
+
+# The UCAC4 photometry constants below convert the catalog's own magnitude, the UCAC
+# aperture magnitude (a single wide band, 579-642 nm), to Johnson V.  They were measured
+# on the 47,087 UCAC4 stars to aperture magnitude 16 in the fields of the 98 Galileo and
+# 341 LORRI star-field frames the star-limit measurement accepted (#1257), fitted on the
+# 4,404 of them with APASS V 10-14, APASS V and B both measured, and 2MASS J and K both
+# of grade A-D.  Each fit is a least-squares line with 3-sigma clipping.
+
+UCAC4_APASS_MAX_SIGMA: float = 0.90
+"""Largest APASS magnitude error, in magnitudes, that marks a measured APASS magnitude.
+
+UCAC4 documents the valid range of an APASS error as -0.90 to +0.90 mag (a negative error
+marks a single observation).  An error of exactly zero marks a Tycho-2 magnitude that
+UCAC4 substituted for a missing APASS one, and an error outside the range is not a valid
+error.  Neither is treated as an APASS measurement.
+"""
+
+# V - aperture = -0.0707 + 0.4893 (J - K), scatter 0.083 mag after clipping (4,102 stars
+# kept); without a color the scatter is 0.156.  The residual stays within 0.025 mag of zero
+# across J - K 0.0-1.5 and APASS V 10-14.
+UCAC4_TWOMASS_V_ZERO_POINT: float = -0.0707
+"""Johnson V minus the UCAC4 aperture magnitude of a star with 2MASS J - K of zero."""
+
+UCAC4_TWOMASS_V_PER_J_MINUS_K: float = 0.4893
+"""Change of Johnson V minus the UCAC4 aperture magnitude per magnitude of 2MASS J - K."""
+
+# B - V = 0.0980 + 1.5294 (J - K), scatter 0.084 mag after clipping (4,162 stars kept).
+UCAC4_TWOMASS_B_MINUS_V_ZERO_POINT: float = 0.0980
+"""Johnson B - V of a star with 2MASS J - K of zero."""
+
+UCAC4_TWOMASS_B_MINUS_V_PER_J_MINUS_K: float = 1.5294
+"""Change of Johnson B - V per magnitude of 2MASS J - K."""
+
+# The median of V - aperture over the same 4,404 stars is +0.161 mag; the robust spread
+# about it is 0.156 mag, set by the color term the fallback cannot see.
+UCAC4_UNCORRECTED_V_OFFSET: float = 0.161
+"""Johnson V minus the UCAC4 aperture magnitude for a star with no usable color.
+
+This is the uncorrected fallback, used only when a star has neither an APASS V magnitude
+nor 2MASS J and K of grade A-D.  It removes the mean offset of the aperture magnitude
+from Johnson V, but not the part that depends on the star's color.
+"""
+
+# Over the same fields, a star's APASS V is brighter than its aperture magnitude by more
+# than 0.2 mag for 5% of the stars fainter than aperture magnitude 10, and the 2MASS
+# conversion brightens a star by at most 0.055 mag (99.9% of stars).
+UCAC4_QUERY_MARGIN_MAG: float = 0.2
+"""Magnitudes by which a UCAC4 query reaches past the Johnson V range it serves.
+
+UCAC4 cuts a query on its aperture magnitude, and a star's Johnson V can be brighter or
+fainter than that.  Each UCAC4 query is widened by this margin at both ends, and the stars
+are then kept by their Johnson V, so a star whose Johnson V is inside the range is not lost
+because its aperture magnitude is just outside it.
+"""
+
+
+def ucac4_johnson_photometry(star: UCAC4Star) -> tuple[float, float | None]:
+    """Return a UCAC4 star's Johnson V magnitude and its B - V color.
+
+    UCAC4 lists each star's UCAC aperture magnitude (``star.vmag``), measured in one wide
+    band, which is not Johnson V.  Johnson V comes from the first of these sources that the
+    star's record carries:
+
+    1. APASS V, where APASS measured it: an error that is nonzero and within
+       :data:`UCAC4_APASS_MAX_SIGMA`.
+    2. The aperture magnitude converted with the 2MASS J - K color, where 2MASS J and K are
+       both of grade A-D: ``V = aperture + UCAC4_TWOMASS_V_ZERO_POINT +
+       UCAC4_TWOMASS_V_PER_J_MINUS_K * (J - K)``.
+    3. The aperture magnitude plus :data:`UCAC4_UNCORRECTED_V_OFFSET`.
+
+    The color is APASS B - V where APASS measured both V and B, else the 2MASS J - K color
+    converted to B - V where J and K are both of grade A-D, else unknown.
+
+    Parameters:
+        star: A UCAC4 record that has an aperture magnitude.
+
+    Returns:
+        ``(v, b_minus_v)``: the Johnson V magnitude, and the B - V color or ``None`` when
+        the record does not carry a color.
+
+    Raises:
+        ValueError: If the record has no aperture magnitude.
+    """
+    if star.vmag is None:
+        raise ValueError(f'UCAC4 star {star.unique_number} has no aperture magnitude')
+    apass_v = _measured_apass_mag(star.apass_mag_v, star.apass_mag_v_sigma)
+    apass_b = _measured_apass_mag(star.apass_mag_b, star.apass_mag_b_sigma)
+    j_minus_k = _twomass_j_minus_k(star)
+    if apass_v is not None:
+        v = apass_v
+    elif j_minus_k is not None:
+        v = star.vmag + UCAC4_TWOMASS_V_ZERO_POINT + UCAC4_TWOMASS_V_PER_J_MINUS_K * j_minus_k
+    else:
+        v = star.vmag + UCAC4_UNCORRECTED_V_OFFSET
+    if apass_v is not None and apass_b is not None:
+        return v, apass_b - apass_v
+    if j_minus_k is not None:
+        return v, (
+            UCAC4_TWOMASS_B_MINUS_V_ZERO_POINT + UCAC4_TWOMASS_B_MINUS_V_PER_J_MINUS_K * j_minus_k
+        )
+    return v, None
+
+
+def _measured_apass_mag(mag: float | None, sigma: float | None) -> float | None:
+    """Return an APASS magnitude when APASS measured it, else ``None``.
+
+    Parameters:
+        mag: The magnitude UCAC4 lists in an APASS column.
+        sigma: Its error.  Zero marks a substituted Tycho-2 magnitude.
+
+    Returns:
+        ``mag`` when its error is nonzero and within :data:`UCAC4_APASS_MAX_SIGMA`.
+    """
+    if mag is None or sigma is None or sigma == 0.0 or abs(sigma) > UCAC4_APASS_MAX_SIGMA:
+        return None
+    return mag
+
+
+def _twomass_j_minus_k(star: UCAC4Star) -> float | None:
+    """Return a UCAC4 star's 2MASS J - K color when both magnitudes are of grade A-D.
+
+    Parameters:
+        star: The UCAC4 record.
+
+    Returns:
+        J - K, or ``None`` when J or K is missing or of a grade below D.
+    """
+    if (
+        star.twomass_mag_j is None
+        or star.twomass_mag_k is None
+        or star.twomass_ph_qual_j is None
+        or star.twomass_ph_qual_k is None
+        or star.twomass_ph_qual_j < UCAC4Star.UCAC4_2MASS_PH_QUAL_A
+        or star.twomass_ph_qual_k < UCAC4Star.UCAC4_2MASS_PH_QUAL_A
+    ):
+        return None
+    return star.twomass_mag_j - star.twomass_mag_k
+
+
+def _set_ucac4_johnson_photometry(star: MutableStar, record: UCAC4Star) -> None:
+    """Replace a UCAC4 star's aperture magnitude with its Johnson V and color.
+
+    ``catalog_vmag`` keeps the aperture magnitude, ``vmag`` and ``johnson_mag_v`` take
+    the Johnson V of :func:`ucac4_johnson_photometry`, and ``johnson_mag_b`` follows the
+    color.  The spectral class and temperature are derived from that same color, so every
+    color the star model reads has one source.  A star with no color is left with no
+    Johnson B, spectral class, or temperature, which the catalog reduction then fills in
+    from the default star class.
+
+    Parameters:
+        star: The record as the catalog reduction handles it, mutated in place.
+        record: The same record as UCAC4 read it.
+    """
+    v, b_minus_v = ucac4_johnson_photometry(record)
+    star.catalog_vmag = record.vmag
+    star.vmag = v
+    star.johnson_mag_v = v
+    if b_minus_v is None:
+        star.johnson_mag_b = None
+        star.spectral_class = None
+        star.temperature = None
+        return
+    star.johnson_mag_b = v + b_minus_v
+    star.spectral_class = Star.sclass_from_bv(star.johnson_mag_b, v)
+    star.temperature = Star.temperature_from_sclass(star.spectral_class)
 
 
 @functools.lru_cache(maxsize=1)
@@ -206,7 +377,9 @@ def _find_stars_in_one_catalog(
             ``stars.default_star_class`` and stellar-aberration toggle).
         catalog_name: One of ``'ucac4'``, ``'tycho2'``, ``'ybsc'``.
         ra_min, ra_max, dec_min, dec_max: Search box in radians.
-        mag_min, mag_max: Catalog V-magnitude bounds.
+        mag_min, mag_max: Johnson V bounds, inclusive.  A UCAC4 star is kept by the
+            Johnson V of :func:`ucac4_johnson_photometry`, not by its aperture
+            magnitude.
         radec_movement: Optional ``(dra, ddec)`` vector representing half
             the per-exposure pointing motion in radians; passed through
             to the FOV projection so smear-affected stars near the edge
@@ -217,21 +390,23 @@ def _find_stars_in_one_catalog(
     """
     raw: list[MutableStar]
     if catalog_name == 'ucac4':
-        raw = cast(
-            list['MutableStar'],
-            list(
-                get_ucac4_catalog().find_stars(
-                    allow_double=True,
-                    allow_galaxy=False,
-                    ra_min=ra_min,
-                    ra_max=ra_max,
-                    dec_min=dec_min,
-                    dec_max=dec_max,
-                    vmag_min=mag_min,
-                    vmag_max=mag_max,
-                )
-            ),
-        )
+        raw = []
+        for record in get_ucac4_catalog().find_stars(
+            allow_double=True,
+            allow_galaxy=False,
+            ra_min=ra_min,
+            ra_max=ra_max,
+            dec_min=dec_min,
+            dec_max=dec_max,
+            vmag_min=mag_min - UCAC4_QUERY_MARGIN_MAG,
+            vmag_max=mag_max + UCAC4_QUERY_MARGIN_MAG,
+        ):
+            if record.vmag is None:
+                continue
+            star = cast('MutableStar', record)
+            _set_ucac4_johnson_photometry(star, cast(UCAC4Star, record))
+            if mag_min <= cast(float, star.vmag) <= mag_max:
+                raw.append(star)
     elif catalog_name == 'tycho2':
         raw = cast(
             list['MutableStar'],
@@ -248,6 +423,7 @@ def _find_stars_in_one_catalog(
             ),
         )
         for star in raw:
+            star.catalog_vmag = star.vmag
             star.johnson_mag_v = None
             star.johnson_mag_b = None
     elif catalog_name == 'ybsc':
@@ -266,6 +442,7 @@ def _find_stars_in_one_catalog(
             ),
         )
         for star in raw:
+            star.catalog_vmag = star.vmag
             if star.vmag is None:
                 continue
             star.johnson_mag_v = star.vmag
@@ -464,7 +641,8 @@ def stars_in_extfov(
         obs: Observation snapshot.
         config: Project config.
         catalog_name: One of ``'ucac4'``, ``'tycho2'``, ``'ybsc'``.
-        mag_min, mag_max: Catalog magnitude window.
+        mag_min, mag_max: Johnson V window, inclusive (for UCAC4, the Johnson V of
+            :func:`ucac4_johnson_photometry`).
         radec_movement: Optional half-exposure ``(dra, ddec)`` shift.
 
     Returns:
@@ -558,12 +736,12 @@ def reduce_catalogs(
             duplicate_vmag=duplicate_vmag,
         )
 
-    # UCAC4 aperture photometry saturates at the bright end, so a merged
-    # UCAC4 star can carry a magnitude several magnitudes too faint.  YBSC
-    # and Tycho-2 are authoritative through the saturated regime (Tycho-2
-    # reaches the V6.5 to V8 stars YBSC misses); correct the merged list
-    # against them before overlaps and DN ordering are computed so both
-    # depend on the true brightness.  Run the correction whenever a reference
+    # UCAC4 aperture photometry saturates at the bright end, and so does the
+    # APASS V that replaces it, so a merged UCAC4 star can carry a magnitude
+    # several magnitudes too faint.  YBSC and Tycho-2 are authoritative through
+    # the saturated regime (Tycho-2 reaches the V6.5 to V10 stars YBSC misses);
+    # correct the merged list against them before overlaps and DN ordering are
+    # computed so both depend on the true brightness.  Run the correction whenever a reference
     # catalog is configured, even when its in-field query returned nothing: a
     # bright UCAC4 record with no reference in either catalog must still be
     # flagged saturated rather than silently trusted.
