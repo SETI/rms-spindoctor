@@ -36,12 +36,19 @@ ground_truth:
     slack until that is fixed; the underlying body fix (disc + limb)
     is correct.
 
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    primary_technique BodyLimbNav -> StarRefineNav. Cassini now has a
+    photometric star limit measured on tour star fields, which
+    predicts more stars in this frame than the old rule of thumb did;
+    the star techniques now lead the answer, which stays within
+    tolerance (0.12 px in v and 0.12 px in u from truth).
+
 expected:
   # success | failed | conflicted
   status: success
   # high | medium | low | failed
   confidence_tier: medium
   # e.g. BodyLimbNav
-  primary_technique: BodyLimbNav
+  primary_technique: StarRefineNav
   techniques_must_run: []
   techniques_must_skip: []

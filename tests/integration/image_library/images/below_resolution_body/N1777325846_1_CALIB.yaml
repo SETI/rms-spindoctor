@@ -25,9 +25,17 @@ ground_truth:
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is low under the model-error covariance floors, dominated by the 2.61 px BodyLimbNav limb floor: a body-led fuse reports fused sigma above the medium tier 2.0 px cap, so the confident body fix lands in the low tier. The primary is BodyLimbNav, the highest-confidence contributor. BodyBlobNav emits no result on this frame.
 
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    confidence_tier low -> medium and primary_technique BodyLimbNav ->
+    StarRefineNav. Cassini now has a photometric star limit measured
+    on tour star fields, which predicts more stars in this frame than
+    the old rule of thumb did; the star techniques now lead the
+    answer, which stays within tolerance (0.02 px in v and 0.44 px in
+    u from truth).
+
 expected:
   status: success                           # success | failed | conflicted
-  confidence_tier: low                # high | medium | low | failed
-  primary_technique: BodyLimbNav  # e.g. BodyLimbNav
+  confidence_tier: medium                # high | medium | low | failed
+  primary_technique: StarRefineNav  # e.g. BodyLimbNav
   techniques_must_run: [BodyLimbNav]
   techniques_must_skip: []

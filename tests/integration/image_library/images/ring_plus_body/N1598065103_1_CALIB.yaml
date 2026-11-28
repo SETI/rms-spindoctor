@@ -22,10 +22,17 @@ ground_truth:
     Pipeline at curation: status=success, confidence=0.388, rank=low, techniques=['BodyDiscCorrelateNav', 'BodyLimbNav', 'RingEdgeNav'], per-technique offsets={"BodyDiscCorrelateNav": [6.5703, 17.1875], "BodyLimbNav": [6.7784, 17.1911], "RingEdgeNav": [42.9999, 16.047]}.
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is BodyDiscCorrelateNav: the ring-vocabulary refit re-ordered the per-technique confidences and the disc fix is now highest-confidence.
+
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    primary_technique BodyDiscCorrelateNav -> StarRefineNav. Cassini
+    now has a photometric star limit measured on tour star fields,
+    which predicts more stars in this frame than the old rule of thumb
+    did; the star techniques now lead the answer, which stays within
+    tolerance (0.05 px in v and 0.05 px in u from truth).
 expected:
   status: success
   confidence_tier: medium
-  primary_technique: BodyDiscCorrelateNav
+  primary_technique: StarRefineNav
   techniques_must_run:
   - BodyLimbNav
   techniques_must_skip: []

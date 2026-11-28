@@ -23,9 +23,17 @@ ground_truth:
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines.
 
     This frame's two bright stars are Theta-1 and Theta-2 Tau, which UCAC4 catalogs saturated near V6.8 (see the selection's star_vmags [6.83, 6.88, ...]); correcting them against YBSC to their true V3.4/V3.8 also exposes that the UCAC4 and Tycho-2 records of Theta-2 Tau are the same star (their saturated magnitudes had disagreed by more than the dedup threshold), so the double-counted record is dropped. Fused confidence sits at about 0.84, below the 0.85 high-tier boundary, because the field carries two independent stars rather than the three the saturated catalog implied.
+
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    confidence_tier medium -> high. Cassini now has a photometric star
+    limit measured on tour star fields, which predicts more stars in
+    this frame than the old rule of thumb did; the star answer now
+    rests on more of them, and it stays within tolerance (0.07 px in v
+    and 0.20 px in u from truth).
+
 expected:
   status: success
-  confidence_tier: medium
+  confidence_tier: high
   primary_technique: StarRefineNav
   techniques_must_run:
   - StarUniqueMatchNav

@@ -23,10 +23,17 @@ ground_truth:
     Pipeline at curation: status=success, confidence=0.821, rank=high, techniques=['BodyDiscCorrelateNav'], per-technique offsets={"BodyDiscCorrelateNav": [5.5, -14.75]}.
     Operator comment: rescued with relaxed gates
     The default pipeline navigates this frame at medium/0.40; expected.confidence_tier reflects that behavior.
+
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    primary_technique BodyBlobNav -> StarRefineNav. Cassini now has a
+    photometric star limit measured on tour star fields, which
+    predicts more stars in this frame than the old rule of thumb did;
+    the star techniques now lead the answer, which stays within
+    tolerance (0.20 px in v and 0.02 px in u from truth).
 expected:
   status: success
   confidence_tier: medium
-  primary_technique: BodyBlobNav
+  primary_technique: StarRefineNav
   techniques_must_run:
   - BodyBlobNav
   techniques_must_skip: []

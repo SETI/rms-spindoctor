@@ -29,9 +29,17 @@ ground_truth:
     the answer rests on a single star, and a one-star answer is
     capped at low.
 
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    confidence_tier low -> medium and primary_technique
+    StarUniqueMatchNav -> StarRefineNav. Cassini now has a photometric
+    star limit measured on tour star fields, which predicts more stars
+    in this frame than the old rule of thumb did; the star techniques
+    now lead the answer, which stays within tolerance (0.23 px in v
+    and 0.11 px in u from truth).
+
 expected:
   status: success                           # success | failed | conflicted
-  confidence_tier: low             # high | medium | low | failed
-  primary_technique: StarUniqueMatchNav  # e.g. BodyLimbNav
+  confidence_tier: medium             # high | medium | low | failed
+  primary_technique: StarRefineNav  # e.g. BodyLimbNav
   techniques_must_run: [StarUniqueMatchNav]
   techniques_must_skip: []

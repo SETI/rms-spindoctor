@@ -22,10 +22,17 @@ ground_truth:
     Operator comment: this actually has two stars
 
     The expected pins follow the seed-20260718 recalibration (attribution basis util/calibration/CAMPAIGN_20260718.md). The tier is medium under the 0.85 high-tier boundary: fused confidence sits in the 0.55-0.85 band. The primary is StarRefineNav: a multi-star refine (uncapped, confidence >0.50) is the highest-confidence contributor, and the single-inlier 0.50 confidence cap does not apply to multi-star refines. StarFieldFromCatalogNav emits no result on this frame (below the RANSAC inlier floor).
+
+    Re-pinned 2026-11-28 (operator decision, PR #1304):
+    primary_technique StarRefineNav -> StarFieldFromCatalogNav.
+    Cassini now has a photometric star limit measured on tour star
+    fields, which predicts more stars in this frame than the old rule
+    of thumb did; the star techniques now lead the answer, which stays
+    within tolerance (0.02 px in v and 0.12 px in u from truth).
 expected:
   status: success
   confidence_tier: medium
-  primary_technique: StarRefineNav
+  primary_technique: StarFieldFromCatalogNav
   techniques_must_run:
   - StarRefineNav
   techniques_must_skip: []
