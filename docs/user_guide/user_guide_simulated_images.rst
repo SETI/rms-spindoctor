@@ -157,8 +157,9 @@ sky stays above 0. The editor's status bar shows the units and value range of ea
 render.
 
 The status bar also warns when the navigator would refuse a render: when more than
-30% of its pixels are lost, or when the frame would read as blank, as an empty
-calibrated Cassini frame does. It reads the frame the navigator sees, with the scene's
+30% of its pixels are lost on the lines that were read out, when too few of its lines
+were read out, or when the frame would read as blank, as an empty calibrated Cassini
+frame does. A line counts as read out unless every one of its pixels is lost. It reads the frame the navigator sees, with the scene's
 planted offset applied, so its verdict can differ from what the picture shows. When
 the scene plants an offset, the editor draws that frame in the background too, at the
 same time as the full render. Each preview sets the status bar to the units followed by

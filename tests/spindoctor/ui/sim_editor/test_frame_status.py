@@ -284,17 +284,20 @@ def test_raised_missing_limit_from_the_scene_is_honored() -> None:
     assert _orchestrator_class(params) == 'clean'
 
 
-def test_lowered_missing_limit_from_the_scene_is_honored() -> None:
-    """A lowered max_missing_frac_clean refuses a frame the default would accept."""
+def test_raised_read_line_limit_from_the_scene_is_honored() -> None:
+    """A raised min_read_line_frac refuses a frame with lost lines the default would accept.
+
+    The lost lines are whole unread lines, so they count against the share of lines read
+    out and not against max_missing_frac_clean.
+    """
     params = {
         **_with_lost_lines(_NAVIGATED_SCENES['vgiss-offset'], 6.0),
-        'instrument_config': {'image_quality_thresholds': {'max_missing_frac_clean': 0.02}},
+        'instrument_config': {'image_quality_thresholds': {'min_read_line_frac': 1.0}},
     }
     img, _ = render_scene(params)
     inst_config = scene_camera_block(DEFAULT_CONFIG, params)
-    assert '(over 2%: the navigator refuses it as missing data)' in frame_units_summary(
-        img, inst_config
-    )
+    expected = '(under 100% of lines read out: the navigator refuses it as missing data)'
+    assert expected in frame_units_summary(img, inst_config)
 
 
 @pytest.mark.parametrize(

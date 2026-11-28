@@ -43,6 +43,7 @@ from spindoctor.config.sections_camera import (
     MaxMissingFracClean,
     MaxOverexposedFracClean,
     MaxRotationDeg,
+    MinReadLineFrac,
     NoisyThresholdDn,
     NoisyThresholdIf,
     OneStarEllipseFraction,
@@ -156,12 +157,14 @@ class InstrumentConfigQuality:
     """The limits a scene changes in the navigator block's ``image_quality_thresholds``.
 
     Parameters:
-        max_missing_frac_clean: The largest share of missing pixels a clean image may
-            have.
+        max_missing_frac_clean: The largest share of missing pixels, outside the unread
+            lines, that a clean image may have.
         max_overexposed_frac_clean: The largest share of saturated pixels a clean image
             may have.
         partial_dropout_min_frac: The share of missing pixels above which a clean image
             is flagged partial dropout.
+        min_read_line_frac: The smallest share of the lines a clean image may have read
+            out.
         blank_max_dn: The peak, in DN, below which an image is blank.
         saturation_threshold_dn: The DN at and above which a pixel counts as saturated.
         noisy_threshold_dn: The noise sigma, in DN, above which an image is flagged
@@ -175,7 +178,8 @@ class InstrumentConfigQuality:
 
     max_missing_frac_clean: MaxMissingFracClean | None = optional(
         'idealized',
-        'The largest share of missing pixels a clean image may have.',
+        'The largest share of missing pixels, outside the unread lines, that a clean image '
+        'may have.',
         when_absent=_BLOCK_VALUE,
     )
     max_overexposed_frac_clean: MaxOverexposedFracClean | None = optional(
@@ -186,6 +190,12 @@ class InstrumentConfigQuality:
     partial_dropout_min_frac: PartialDropoutMinFrac | None = optional(
         'idealized',
         'The share of missing pixels above which a clean image is flagged partial dropout.',
+        when_absent=_BLOCK_VALUE,
+    )
+    min_read_line_frac: MinReadLineFrac | None = optional(
+        'idealized',
+        'The smallest share of the lines a clean image may have read out. A line is unread '
+        'when every one of its pixels is missing.',
         when_absent=_BLOCK_VALUE,
     )
     blank_max_dn: BlankMaxDn | None = optional(
