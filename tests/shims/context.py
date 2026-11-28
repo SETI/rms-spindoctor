@@ -60,6 +60,7 @@ def bare_nav_context(
             image_class='clean',
             saturation_frac=0.0,
             missing_frac=0.0,
+            unread_line_frac=0.0,
             noise_sigma=image_noise_sigma,
             max_dn=float(image_ext.max()) if image_ext.size else 0.0,
             flags=[],

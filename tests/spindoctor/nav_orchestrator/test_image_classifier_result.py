@@ -9,6 +9,7 @@ def test_navimageclassifierresult_clean_default_flags_empty() -> None:
         image_class='clean',
         saturation_frac=0.0,
         missing_frac=0.0,
+        unread_line_frac=0.0,
         noise_sigma=1.0,
         max_dn=4000.0,
     )
@@ -21,6 +22,7 @@ def test_navimageclassifierresult_noisy_clean_image() -> None:
         image_class='clean',
         saturation_frac=0.0,
         missing_frac=0.0,
+        unread_line_frac=0.0,
         noise_sigma=15.0,
         max_dn=4000.0,
         flags=['noisy'],
@@ -35,6 +37,7 @@ def test_navimageclassifierresult_corrupt_image() -> None:
         image_class='corrupt',
         saturation_frac=0.0,
         missing_frac=0.0,
+        unread_line_frac=0.0,
         noise_sigma=0.0,
         max_dn=0.0,
     )

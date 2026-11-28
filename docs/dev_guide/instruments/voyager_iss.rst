@@ -174,6 +174,9 @@ Placeholder values, carrying inline ``# PLACEHOLDER`` markers: ``blank_max_if``,
 ``noisy_threshold_if``, and the ``mag_offset_table`` entry. The ``_sources``
 convention is not used in this file.
 
+``min_read_line_frac`` is 0.70 in every block, one minus ``max_missing_frac_clean``,
+until a sample of Voyager frames that lost whole lines sets it.
+
 ``fit_camera_rotation: false`` carries a three-line comment saying it is kept
 off because rotation fitting is too slow, that the instrument does carry
 non-negligible attitude rotation residuals, and that it should be revisited

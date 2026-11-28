@@ -132,6 +132,9 @@ Placeholder values, carrying inline ``# PLACEHOLDER`` markers:
 ``read_noise_dn``, ``blank_max_dn``,
 ``noisy_threshold_dn``, and the ``mag_offset_table`` entry.
 
+``min_read_line_frac`` is 0.70, one minus ``max_missing_frac_clean``, until a sample
+of LORRI frames that lost whole lines sets it.
+
 Photometric and PSF calibration
 ===============================
 

@@ -219,7 +219,7 @@ observation asks for its block by section and detector, as in
 ``cassini_iss`` is a full raw-DN block. ``cassini_iss_calib`` sets
 ``data_units: calibrated_if``, so it carries what a calibrated camera block carries
 (see :ref:`config-camera-blocks`): its ``noise`` block holds only ``marker_value: 0``,
-and its ``image_quality_thresholds`` hold only the two ``_if`` thresholds and the three
+and its ``image_quality_thresholds`` hold only the two ``_if`` thresholds and the four
 fractions. It has no ``saturation_dn``, no ``read_noise_dn``, and no
 ``star_flux_dn_per_s_vmag0``, and the loader refuses any of them.
 
@@ -229,6 +229,15 @@ no single I/F constant identifies the saturated DN ceiling.
 ``calibrated_if`` input and the classifier sees an infinite threshold, so
 ``saturation_frac`` is always 0.0 and the ``fully_overexposed`` early-out is
 disabled. A camera block has no I/F saturation threshold to set.
+
+A Cassini readout that stopped early leaves its last lines unread, and the label's
+``MISSING_LINES`` counts them. The raw and calibrated products both fill them with 0,
+the marker.
+All four blocks set ``min_read_line_frac`` to 0.10. It was measured on 98 raw and
+calibrated frames that were refused for missing pixels lost as whole lines, drawn from
+the PDS3 index rows whose ``MISSING_LINES`` is over 30% of the frame. No frame with
+under 10% of its lines read out gave an answer. The smallest share that did was 12.2%
+for the narrow-angle camera and 20.0% for the wide-angle camera.
 
 Placeholder values, carrying inline ``# PLACEHOLDER`` markers: the raw block's
 ``read_noise_dn``, the calibrated block's

@@ -68,6 +68,7 @@ __all__ = [
     'MaxOverexposedFracClean',
     'MaxRotationDeg',
     'MinDetectableDnTable',
+    'MinReadLineFrac',
     'NoisyThresholdDn',
     'NoisyThresholdIf',
     'OneStarEllipseFraction',
@@ -139,12 +140,14 @@ NoisyThresholdDn = Positive
 BlankMaxIf = NonNeg
 #: The noise sigma above which an image is flagged noisy, in I/F.
 NoisyThresholdIf = Positive
-#: The largest share of missing pixels a clean image may have.
+#: The largest share of missing pixels, outside the unread lines, a clean image may have.
 MaxMissingFracClean = Unit
 #: The largest share of saturated pixels a clean image may have.
 MaxOverexposedFracClean = Unit
 #: The share of missing pixels above which a clean image is flagged partial dropout.
 PartialDropoutMinFrac = Unit
+#: The smallest share of an image's lines a clean image may have read out.
+MinReadLineFrac = Unit
 #: What a camera's star rate counts: electrons, or DN for a camera whose calibration
 #: works in DN and does not convert to electrons.
 StarFluxUnit = Literal['electrons', 'dn']
@@ -232,13 +235,19 @@ class QualityThresholds:
     the ``_dn`` keys, and a ``calibrated_if`` camera sets the ``_if`` keys and has no
     saturation limit (see :class:`CameraBlock`).
 
+    A line is unread when every one of its pixels is missing, as in a readout that
+    stopped early.  Missing pixels on unread lines count against ``min_read_line_frac``,
+    and the other missing pixels count against ``max_missing_frac_clean``.
+
     Parameters:
-        max_missing_frac_clean: The largest share of missing pixels a clean image may
-            have.
+        max_missing_frac_clean: The largest share of missing pixels, outside the unread
+            lines, that a clean image may have.
         max_overexposed_frac_clean: The largest share of saturated pixels a clean image
             may have.
         partial_dropout_min_frac: The share of missing pixels above which a clean image
             is flagged ``partial_dropout``.
+        min_read_line_frac: The smallest share of the image's lines that a clean image
+            may have read out.
         blank_max_dn: The peak, in DN, below which an image is blank.
         saturation_threshold_dn: The DN at and above which a pixel counts as saturated.
         noisy_threshold_dn: The noise sigma, in DN, above which an image is flagged
@@ -253,6 +262,7 @@ class QualityThresholds:
     max_missing_frac_clean: MaxMissingFracClean
     max_overexposed_frac_clean: MaxOverexposedFracClean
     partial_dropout_min_frac: PartialDropoutMinFrac
+    min_read_line_frac: MinReadLineFrac
     blank_max_dn: BlankMaxDn | None = None
     saturation_threshold_dn: SaturationThresholdDn | None = None
     noisy_threshold_dn: NoisyThresholdDn | None = None

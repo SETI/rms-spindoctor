@@ -816,6 +816,12 @@ where they differ).
 - **#1275** — `StarFieldFromCatalogNav`'s wide-offset fallback takes its
   anchors from the brightest catalog stars, which on a truncated readout can
   all fall in the unread lines (N1849746145); found by #1245.
+- **#1249** (this PR's work: `rf_nav_1249_truncated_readouts`) — the image
+  classifier refused every frame with more than 30% of its pixels missing,
+  so a truncated readout was refused however much the lines it read out
+  held. The lines on which every pixel is missing now count only against a
+  per-camera `min_read_line_frac`, and only the other missing pixels count
+  against `max_missing_frac_clean`.
 - **#836 / #994** — the star model sometimes emits one catalog star twice
   under one feature ID (#836, 23 of 1986 F ring and spokes frames). #994 is
   a likely cause: the catalog reduction queries magnitude bins whose ends

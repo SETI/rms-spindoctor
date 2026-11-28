@@ -55,6 +55,16 @@ cassini_iss:
       max_missing_frac_clean: 0.30
       max_overexposed_frac_clean: 0.80
       partial_dropout_min_frac: 0.05
+      # A frame whose missing pixels are whole unread lines, such as a readout that
+      # stopped early, is navigated on the lines it read out when at least this share
+      # of its lines was read out.  Measured 2026-11-27 on 98 Cassini ISS frames, raw
+      # and calibrated, refused before for their missing pixels and lost as whole
+      # lines (drawn from the COISS_2xxx metadata index rows whose MISSING_LINES is
+      # over 30% of the frame): no frame under 10% read out gave an answer, and the
+      # smallest narrow-angle read-out share that did was 12.2% (N1457457832, on
+      # stars).  The techniques refused every shorter frame without a wrong answer,
+      # so the limit spares the run frames too short to hold a feature.
+      min_read_line_frac: 0.10
     source_image_filter:
       kind: BANDPASS_DOG
       lo_sigma_px: 5.0
@@ -115,6 +125,16 @@ cassini_iss:
       max_missing_frac_clean: 0.30
       max_overexposed_frac_clean: 0.80
       partial_dropout_min_frac: 0.05
+      # A frame whose missing pixels are whole unread lines, such as a readout that
+      # stopped early, is navigated on the lines it read out when at least this share
+      # of its lines was read out.  Measured 2026-11-27 on 98 Cassini ISS frames, raw
+      # and calibrated, refused before for their missing pixels and lost as whole
+      # lines (drawn from the COISS_2xxx metadata index rows whose MISSING_LINES is
+      # over 30% of the frame): no frame under 10% read out gave an answer, and the
+      # smallest wide-angle read-out share that did was 20.0% (W1652985545, on
+      # stars).  The techniques refused every shorter frame without a wrong answer,
+      # so the limit spares the run frames too short to hold a feature.
+      min_read_line_frac: 0.10
     source_image_filter:
       kind: BANDPASS_DOG
       lo_sigma_px: 5.0
@@ -195,6 +215,16 @@ cassini_iss_calib:
       max_missing_frac_clean: 0.30
       max_overexposed_frac_clean: 0.80
       partial_dropout_min_frac: 0.05
+      # A frame whose missing pixels are whole unread lines, such as a readout that
+      # stopped early, is navigated on the lines it read out when at least this share
+      # of its lines was read out.  Measured 2026-11-27 on 98 Cassini ISS frames, raw
+      # and calibrated, refused before for their missing pixels and lost as whole
+      # lines (drawn from the COISS_2xxx metadata index rows whose MISSING_LINES is
+      # over 30% of the frame): no frame under 10% read out gave an answer, and the
+      # smallest narrow-angle read-out share that did was 12.2% (N1457457832, on
+      # stars).  The techniques refused every shorter frame without a wrong answer,
+      # so the limit spares the run frames too short to hold a feature.
+      min_read_line_frac: 0.10
     source_image_filter:
       kind: BANDPASS_DOG
       lo_sigma_px: 5.0
@@ -242,6 +272,16 @@ cassini_iss_calib:
       max_missing_frac_clean: 0.30
       max_overexposed_frac_clean: 0.80
       partial_dropout_min_frac: 0.05
+      # A frame whose missing pixels are whole unread lines, such as a readout that
+      # stopped early, is navigated on the lines it read out when at least this share
+      # of its lines was read out.  Measured 2026-11-27 on 98 Cassini ISS frames, raw
+      # and calibrated, refused before for their missing pixels and lost as whole
+      # lines (drawn from the COISS_2xxx metadata index rows whose MISSING_LINES is
+      # over 30% of the frame): no frame under 10% read out gave an answer, and the
+      # smallest wide-angle read-out share that did was 20.0% (W1652985545, on
+      # stars).  The techniques refused every shorter frame without a wrong answer,
+      # so the limit spares the run frames too short to hold a feature.
+      min_read_line_frac: 0.10
     source_image_filter:
       kind: BANDPASS_DOG
       lo_sigma_px: 5.0

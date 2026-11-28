@@ -176,6 +176,7 @@ def classifier(
         image_class='clean',
         saturation_frac=0.0,
         missing_frac=0.0,
+        unread_line_frac=0.0,
         noise_sigma=noise_sigma,
         max_dn=max_dn,
         background_gradient_score=gradient_score,

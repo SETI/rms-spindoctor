@@ -104,7 +104,12 @@ def _accepted(obs: Any, *, config: Any) -> NavResult:
         per_technique=[],
         feature_inventory=[],
         image_classifier=NavImageClassifierResult(
-            image_class='clean', saturation_frac=0.0, missing_frac=0.0, noise_sigma=1.0, max_dn=1.0
+            image_class='clean',
+            saturation_frac=0.0,
+            missing_frac=0.0,
+            unread_line_frac=0.0,
+            noise_sigma=1.0,
+            max_dn=1.0,
         ),
         provenance=Provenance(
             spindoctor_version='0.0.0',

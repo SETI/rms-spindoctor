@@ -22,9 +22,11 @@ ImageClass = Literal[
 
 ``clean``, ``blank``, ``fully_overexposed``, and ``mostly_missing_data``
 are emitted by ``NavImageClassifier``; ``corrupt`` is set by the caller
-when image-file parsing raises.  Additional classes (e.g. partial-dropout,
-alternating-lines, truncated-readout, ccd-bloom-dominant) are not yet
-emitted; their detection paths are tracked separately.
+when image-file parsing raises.  A truncated readout is not a class of its
+own: its unread lines are measured by ``unread_line_frac``, and the image is
+``clean`` when enough lines were read out.  Additional classes (e.g.
+alternating-lines, ccd-bloom-dominant) are not yet emitted; their detection
+paths are tracked separately.
 """
 
 ImageFlag = Literal[
@@ -33,9 +35,9 @@ ImageFlag = Literal[
 ]
 """Advisory flags that may appear on a classifier result.
 
-``partial_dropout`` is raised when the missing-data fraction exceeds the
-``partial_dropout_min_frac`` advisory threshold but stays below the
-``mostly_missing_data`` cutoff.  ``noisy`` is raised when the MAD-based
+``partial_dropout`` is raised on a clean image when the missing-data fraction,
+unread lines included, exceeds the ``partial_dropout_min_frac`` advisory
+threshold.  ``noisy`` is raised when the MAD-based
 noise sigma exceeds the per-instrument threshold.
 """
 
@@ -52,6 +54,8 @@ class NavImageClassifierResult:
         image_class: One of the ``ImageClass`` literal values.
         saturation_frac: Fraction of pixels at or above the saturation DN.
         missing_frac: Fraction of pixels equal to the missing-data marker.
+        unread_line_frac: Fraction of the image's lines on which every pixel is
+            missing.
         noise_sigma: Per-image MAD-based noise sigma (DN units).
         max_dn: Maximum DN observed in the image.
         background_gradient_score: Dimensionless score of the low-order
@@ -71,6 +75,7 @@ class NavImageClassifierResult:
     image_class: ImageClass
     saturation_frac: float
     missing_frac: float
+    unread_line_frac: float
     noise_sigma: float
     max_dn: float
     background_gradient_score: float | None = None

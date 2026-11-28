@@ -76,14 +76,44 @@ def test_classifier_inf_saturation_threshold_disables_gate() -> None:
 
 
 def test_classifier_mostly_missing_data() -> None:
-    """An image dominated by the missing-data marker yields mostly_missing_data."""
+    """Missing pixels over the limit, on lines that were read, yield mostly_missing_data."""
     image = np.full((64, 64), 0.0, np.float64)
-    image[:48, :] = 100.0  # Some non-zero data, but most is zero (missing marker).
+    image[:, :48] = 100.0  # Every line keeps its start and loses its end.
     classifier = NavImageClassifier(
         thresholds=raw_thresholds(
             missing_data_marker_dn=0.0,
             max_missing_frac_clean=0.10,
         )
+    )
+    result = classifier.classify(image)
+    assert result.image_class == 'mostly_missing_data'
+
+
+def test_classifier_truncated_readout_is_clean() -> None:
+    """Unread lines over the missing-pixel limit leave a frame clean when enough were read."""
+    rng = np.random.default_rng(seed=4)
+    image = rng.standard_normal(size=(64, 64)) + 100.0
+    image[24:, :] = 0.0  # The readout stopped after 24 of 64 lines.
+    classifier = NavImageClassifier(
+        thresholds=raw_thresholds(
+            missing_data_marker_dn=0.0,
+            max_missing_frac_clean=0.30,
+            min_read_line_frac=0.25,
+        )
+    )
+    result = classifier.classify(image)
+    assert result.image_class == 'clean'
+    assert result.unread_line_frac == pytest.approx(40 / 64)
+    assert 'partial_dropout' in result.flags
+
+
+def test_classifier_too_few_lines_read() -> None:
+    """A readout that stopped below the read-out limit yields mostly_missing_data."""
+    rng = np.random.default_rng(seed=5)
+    image = rng.standard_normal(size=(64, 64)) + 100.0
+    image[15:, :] = 0.0  # 15 of 64 lines read, under a quarter.
+    classifier = NavImageClassifier(
+        thresholds=raw_thresholds(missing_data_marker_dn=0.0, min_read_line_frac=0.25)
     )
     result = classifier.classify(image)
     assert result.image_class == 'mostly_missing_data'
@@ -99,7 +129,7 @@ def test_classifier_nan_marker_detects_missing_data() -> None:
     fraction and the image classifies as ``mostly_missing_data``.
     """
     image = np.full((64, 64), 0.5, np.float64)
-    image[:48, :] = np.nan  # 75% NaN (missing) data
+    image[:, :48] = np.nan  # 75% NaN (missing) data, on every line
     classifier = NavImageClassifier(
         thresholds=raw_thresholds(
             saturation_threshold_dn=float('inf'),
@@ -135,22 +165,23 @@ def test_classifier_nan_marker_max_dn_uses_nanmax() -> None:
     assert result.max_dn == pytest.approx(123.0)
 
 
-def test_classifier_explicit_missing_frac_overrides_internal() -> None:
-    """A caller-supplied missing_frac drives the verdict instead of the marker count.
+def test_classifier_explicit_missing_mask_overrides_internal() -> None:
+    """A caller-supplied missing mask drives the verdict instead of the marker count.
 
-    The orchestrator computes the true missing fraction from the raw
-    image before NaN sanitization and threads it in; the classifier must
-    use that value rather than recomputing from the (already-filled)
-    sensor pixels.
+    The orchestrator finds the missing pixels in the raw image before NaN
+    sanitization and threads the mask in; the classifier must use it rather
+    than recounting the (already-filled) sensor pixels.
     """
     image = np.full((64, 64), 100.0, np.float64)  # no NaN, no marker hits
+    missing = np.zeros((64, 64), dtype=bool)
+    missing[:, :32] = True
     classifier = NavImageClassifier(
         thresholds=raw_thresholds(
             missing_data_marker_dn=0.0,
             max_missing_frac_clean=0.30,
         )
     )
-    result = classifier.classify(image, missing_frac=0.5)
+    result = classifier.classify(image, missing_mask=missing)
     assert result.missing_frac == pytest.approx(0.5)
     assert result.image_class == 'mostly_missing_data'
 

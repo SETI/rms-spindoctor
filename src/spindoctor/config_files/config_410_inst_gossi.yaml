@@ -53,6 +53,10 @@ galileo_ssi:
     max_missing_frac_clean: 0.30
     max_overexposed_frac_clean: 0.80
     partial_dropout_min_frac: 0.05
+    # Not measured on this camera, whose reader does not report lost lines.  0.70 is
+    # one minus max_missing_frac_clean, so a frame that lost more than 30% of its
+    # lines is refused until a sample of this camera's frames sets the value.
+    min_read_line_frac: 0.70
   source_image_filter:
     kind: BANDPASS_DOG
     lo_sigma_px: 5.0

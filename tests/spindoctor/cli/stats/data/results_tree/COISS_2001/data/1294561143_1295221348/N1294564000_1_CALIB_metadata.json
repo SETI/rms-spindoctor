@@ -433,6 +433,7 @@
       "class": "clean",
       "saturation_frac": 0.0,
       "missing_frac": 0.0,
+      "unread_line_frac": 0.0,
       "noise_sigma": 0.75,
       "max_dn": 1.06,
       "background_gradient_score": 3.298,
