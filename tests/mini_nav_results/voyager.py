@@ -18,7 +18,7 @@ from spindoctor.nav_technique.diagnostics import RingEdgeDiagnostics
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
 from spindoctor.obs.obs_inst_voyager_iss import _published_sclk
 from spindoctor.support.status_reason import NavStatusReason
-from tests.orchestrator_section import packaged_tiers
+from tests.packaged_sections import packaged_tiers
 
 from .host_voyager import VGISS_KERNELS, VOYAGER_ISS, voyager_sclk_open
 from .shared import (

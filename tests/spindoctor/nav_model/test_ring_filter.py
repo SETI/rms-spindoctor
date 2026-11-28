@@ -17,7 +17,7 @@ import logging
 from typing import Any
 
 import pytest
-from tests.ring_sections import ring_feature
+from tests.packaged_sections import ring_feature
 
 from spindoctor.nav_model.rings.ring_feature import RingFeature
 from spindoctor.nav_model.rings.ring_filter import RingFeatureFilter

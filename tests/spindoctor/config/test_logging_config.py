@@ -5,11 +5,13 @@ import itertools
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import pdslogger
 import pytest
 from filecache import FCPath
+from tests.packaged_sections import NavConfigWith
 
 from spindoctor.config import IMAGE_LOGGER, logging_config
 from spindoctor.config.config import Config
@@ -36,25 +38,6 @@ from spindoctor.config.program_names import SD_MOSAIC, SD_OFFSET
 
 _STAMP = '2026-07-29T12-00-00'
 _RUN_STAMP = '2099-12-31T23-59-59'
-
-
-def _config(tmp_path: Path, body: str = '') -> Config:
-    """Build a Config carrying the shipped defaults plus a logging override.
-
-    Parameters:
-        tmp_path: Directory to write the override file into.
-        body: YAML text placed under a ``logging:`` key; empty for defaults only.
-
-    Returns:
-        The loaded Config.
-    """
-    config = Config()
-    config.read_config()
-    if body:
-        override = tmp_path / 'override.yaml'
-        override.write_text(f'logging:\n{body}')
-        config.update_config(str(override))
-    return config
 
 
 def _args(**kwargs: object) -> argparse.Namespace:
@@ -99,68 +82,74 @@ def _sinks(tmp_path: Path, **kwargs: bool) -> LogSinks:
 # ---------------------------------------------------------------------------
 
 
-def test_defaults_resolve_to_info(tmp_path: Path) -> None:
+def test_defaults_resolve_to_info() -> None:
     """With nothing configured, both loggers resolve to the fallback level."""
-    levels = resolve_log_levels(SD_OFFSET, None, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, None, Config())
     assert levels.main == DEFAULT_LEVEL
 
 
-def test_image_default_resolves_to_info(tmp_path: Path) -> None:
+def test_image_default_resolves_to_info() -> None:
     """The image logger shares the fallback level."""
-    levels = resolve_log_levels(SD_OFFSET, None, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, None, Config())
     assert levels.image == DEFAULT_LEVEL
 
 
-def test_config_sets_the_main_level(tmp_path: Path) -> None:
+def test_config_sets_the_main_level(nav_config_with: NavConfigWith) -> None:
     """A configured main level is used."""
-    levels = resolve_log_levels(SD_OFFSET, None, _config(tmp_path, '  main: WARNING\n'))
+    levels = resolve_log_levels(SD_OFFSET, None, nav_config_with({'logging': {'main': 'WARNING'}}))
     assert levels.main == 'WARNING'
 
 
-def test_config_level_is_canonicalized(tmp_path: Path) -> None:
+def test_config_level_is_canonicalized(nav_config_with: NavConfigWith) -> None:
     """A lower-case configured level resolves to its canonical spelling."""
-    levels = resolve_log_levels(SD_OFFSET, None, _config(tmp_path, '  main: warning\n'))
+    levels = resolve_log_levels(SD_OFFSET, None, nav_config_with({'logging': {'main': 'warning'}}))
     assert levels.main == 'WARNING'
 
 
-def test_module_override_beats_the_image_default(tmp_path: Path) -> None:
+def test_module_override_beats_the_image_default(nav_config_with: NavConfigWith) -> None:
     """A named module takes its own level rather than the image default."""
-    config = _config(tmp_path, '  image: WARNING\n  techniques:\n    titan_haze: DEBUG\n')
+    config = nav_config_with(
+        {'logging': {'image': 'WARNING', 'techniques': {'titan_haze': 'DEBUG'}}}
+    )
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('titan_haze') == 'DEBUG'
 
 
-def test_unnamed_module_takes_the_image_default(tmp_path: Path) -> None:
+def test_unnamed_module_takes_the_image_default(nav_config_with: NavConfigWith) -> None:
     """A module with no override of its own follows the image level."""
-    config = _config(tmp_path, '  image: WARNING\n  techniques:\n    titan_haze: DEBUG\n')
+    config = nav_config_with(
+        {'logging': {'image': 'WARNING', 'techniques': {'titan_haze': 'DEBUG'}}}
+    )
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('body_limb') == 'WARNING'
 
 
-def test_category_default_applies_to_its_members(tmp_path: Path) -> None:
+def test_category_default_applies_to_its_members(nav_config_with: NavConfigWith) -> None:
     """A category default governs every module in that category."""
-    config = _config(tmp_path, '  techniques:\n    default: DEBUG\n')
+    config = nav_config_with({'logging': {'techniques': {'default': 'DEBUG'}}})
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('body_limb') == 'DEBUG'
 
 
-def test_category_default_does_not_cross_categories(tmp_path: Path) -> None:
+def test_category_default_does_not_cross_categories(nav_config_with: NavConfigWith) -> None:
     """A technique category default leaves models alone."""
-    config = _config(tmp_path, '  techniques:\n    default: DEBUG\n')
+    config = nav_config_with({'logging': {'techniques': {'default': 'DEBUG'}}})
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('rings') == DEFAULT_LEVEL
 
 
-def test_module_override_beats_its_category_default(tmp_path: Path) -> None:
+def test_module_override_beats_its_category_default(nav_config_with: NavConfigWith) -> None:
     """A named module wins over the default of its own category."""
-    config = _config(tmp_path, '  techniques:\n    default: DEBUG\n    titan_haze: ERROR\n')
+    config = nav_config_with(
+        {'logging': {'techniques': {'default': 'DEBUG', 'titan_haze': 'ERROR'}}}
+    )
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('titan_haze') == 'ERROR'
 
 
-def test_shipped_annotation_level_survives_resolution(tmp_path: Path) -> None:
+def test_shipped_annotation_level_survives_resolution() -> None:
     """The shipped annotation override reaches the resolved levels."""
-    levels = resolve_log_levels(SD_OFFSET, None, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, None, Config())
     assert levels.for_module('annotate') == 'ERROR'
 
 
@@ -169,50 +158,56 @@ def test_shipped_annotation_level_survives_resolution(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_program_block_overrides_the_global_default(tmp_path: Path) -> None:
+def test_program_block_overrides_the_global_default(nav_config_with: NavConfigWith) -> None:
     """A program's block wins over the top-level value for that program."""
-    config = _config(
-        tmp_path, f'  main: INFO\n  programs:\n    {SD_MOSAIC}:\n      main: WARNING\n'
+    config = nav_config_with(
+        {'logging': {'main': 'INFO', 'programs': {SD_MOSAIC: {'main': 'WARNING'}}}}
     )
     levels = resolve_log_levels(SD_MOSAIC, None, config)
     assert levels.main == 'WARNING'
 
 
-def test_program_block_does_not_affect_another_program(tmp_path: Path) -> None:
+def test_program_block_does_not_affect_another_program(nav_config_with: NavConfigWith) -> None:
     """One program's block leaves every other program untouched."""
-    config = _config(
-        tmp_path, f'  main: INFO\n  programs:\n    {SD_MOSAIC}:\n      main: WARNING\n'
+    config = nav_config_with(
+        {'logging': {'main': 'INFO', 'programs': {SD_MOSAIC: {'main': 'WARNING'}}}}
     )
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.main == 'INFO'
 
 
-def test_program_block_inherits_unmentioned_keys(tmp_path: Path) -> None:
+def test_program_block_inherits_unmentioned_keys(nav_config_with: NavConfigWith) -> None:
     """Overriding one key leaves the rest of the global block in force."""
-    config = _config(
-        tmp_path, f'  image: WARNING\n  programs:\n    {SD_MOSAIC}:\n      main: ERROR\n'
+    config = nav_config_with(
+        {'logging': {'image': 'WARNING', 'programs': {SD_MOSAIC: {'main': 'ERROR'}}}}
     )
     levels = resolve_log_levels(SD_MOSAIC, None, config)
     assert levels.image == 'WARNING'
 
 
-def test_program_block_merges_within_a_category(tmp_path: Path) -> None:
+def test_program_block_merges_within_a_category(nav_config_with: NavConfigWith) -> None:
     """A program overriding one module keeps the global entries for the others."""
-    config = _config(
-        tmp_path,
-        '  techniques:\n    titan_haze: DEBUG\n    body_limb: ERROR\n'
-        f'  programs:\n    {SD_MOSAIC}:\n      techniques:\n        titan_haze: WARNING\n',
+    config = nav_config_with(
+        {
+            'logging': {
+                'techniques': {'titan_haze': 'DEBUG', 'body_limb': 'ERROR'},
+                'programs': {SD_MOSAIC: {'techniques': {'titan_haze': 'WARNING'}}},
+            }
+        }
     )
     levels = resolve_log_levels(SD_MOSAIC, None, config)
     assert levels.for_module('body_limb') == 'ERROR'
 
 
-def test_program_block_wins_within_a_category(tmp_path: Path) -> None:
+def test_program_block_wins_within_a_category(nav_config_with: NavConfigWith) -> None:
     """The program's value for a module wins over the global one."""
-    config = _config(
-        tmp_path,
-        '  techniques:\n    titan_haze: DEBUG\n'
-        f'  programs:\n    {SD_MOSAIC}:\n      techniques:\n        titan_haze: WARNING\n',
+    config = nav_config_with(
+        {
+            'logging': {
+                'techniques': {'titan_haze': 'DEBUG'},
+                'programs': {SD_MOSAIC: {'techniques': {'titan_haze': 'WARNING'}}},
+            }
+        }
     )
     levels = resolve_log_levels(SD_MOSAIC, None, config)
     assert levels.for_module('titan_haze') == 'WARNING'
@@ -223,85 +218,85 @@ def test_program_block_wins_within_a_category(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_bare_log_level_sets_both_loggers(tmp_path: Path) -> None:
+def test_bare_log_level_sets_both_loggers() -> None:
     """A bare --log-level sets the default for the main logger."""
-    levels = resolve_log_levels(SD_OFFSET, _args(log_level=['DEBUG']), _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, _args(log_level=['DEBUG']), Config())
     assert levels.main == 'DEBUG'
 
 
-def test_bare_log_level_sets_the_image_logger_too(tmp_path: Path) -> None:
+def test_bare_log_level_sets_the_image_logger_too() -> None:
     """A bare --log-level sets the default for the image logger as well."""
-    levels = resolve_log_levels(SD_OFFSET, _args(log_level=['DEBUG']), _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, _args(log_level=['DEBUG']), Config())
     assert levels.image == 'DEBUG'
 
 
-def test_log_level_main_beats_the_bare_form(tmp_path: Path) -> None:
+def test_log_level_main_beats_the_bare_form() -> None:
     """The per-logger flag is more specific than the global one."""
     args = _args(log_level=['DEBUG'], log_level_main='ERROR')
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.main == 'ERROR'
 
 
-def test_log_level_main_leaves_the_image_logger_alone(tmp_path: Path) -> None:
+def test_log_level_main_leaves_the_image_logger_alone() -> None:
     """Setting the main level does not change the image level."""
     args = _args(log_level=['DEBUG'], log_level_main='ERROR')
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.image == 'DEBUG'
 
 
-def test_module_form_sets_one_module(tmp_path: Path) -> None:
+def test_module_form_sets_one_module() -> None:
     """--log-level MODULE=LEVEL sets that module."""
     args = _args(log_level=['titan_haze=DEBUG'])
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.for_module('titan_haze') == 'DEBUG'
 
 
-def test_module_form_leaves_other_modules_alone(tmp_path: Path) -> None:
+def test_module_form_leaves_other_modules_alone() -> None:
     """A per-module flag affects only the module it names."""
     args = _args(log_level=['titan_haze=DEBUG'])
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.for_module('body_limb') == DEFAULT_LEVEL
 
 
-def test_module_form_beats_the_configuration(tmp_path: Path) -> None:
+def test_module_form_beats_the_configuration(nav_config_with: NavConfigWith) -> None:
     """A module named on the command line wins over the configured value."""
-    config = _config(tmp_path, '  techniques:\n    titan_haze: ERROR\n')
+    config = nav_config_with({'logging': {'techniques': {'titan_haze': 'ERROR'}}})
     args = _args(log_level=['titan_haze=DEBUG'])
     levels = resolve_log_levels(SD_OFFSET, args, config)
     assert levels.for_module('titan_haze') == 'DEBUG'
 
 
-def test_bare_and_module_forms_combine(tmp_path: Path) -> None:
+def test_bare_and_module_forms_combine() -> None:
     """The documented "debug everywhere except one" invocation works."""
     args = _args(log_level=['debug', 'titan_haze=info'])
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.for_module('titan_haze') == 'INFO'
 
 
-def test_bare_form_still_applies_to_other_modules(tmp_path: Path) -> None:
+def test_bare_form_still_applies_to_other_modules() -> None:
     """The bare form governs every module the per-module form did not name."""
     args = _args(log_level=['debug', 'titan_haze=info'])
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.for_module('body_limb') == 'DEBUG'
 
 
-def test_a_later_bare_form_wins(tmp_path: Path) -> None:
+def test_a_later_bare_form_wins() -> None:
     """Repeating the bare form takes the last value rather than combining."""
     args = _args(log_level=['debug', 'error'])
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.main == 'ERROR'
 
 
-def test_command_line_beats_a_program_block(tmp_path: Path) -> None:
+def test_command_line_beats_a_program_block(nav_config_with: NavConfigWith) -> None:
     """A per-logger flag wins over a per-program configured value."""
-    config = _config(tmp_path, f'  programs:\n    {SD_MOSAIC}:\n      main: WARNING\n')
+    config = nav_config_with({'logging': {'programs': {SD_MOSAIC: {'main': 'WARNING'}}}})
     levels = resolve_log_levels(SD_MOSAIC, _args(log_level_main='ERROR'), config)
     assert levels.main == 'ERROR'
 
 
-def test_configured_module_beats_a_bare_command_line_level(tmp_path: Path) -> None:
+def test_configured_module_beats_a_bare_command_line_level(nav_config_with: NavConfigWith) -> None:
     """A configured module is more specific than a global command-line default."""
-    config = _config(tmp_path, '  techniques:\n    titan_haze: ERROR\n')
+    config = nav_config_with({'logging': {'techniques': {'titan_haze': 'ERROR'}}})
     levels = resolve_log_levels(SD_OFFSET, _args(log_level=['DEBUG']), config)
     assert levels.for_module('titan_haze') == 'ERROR'
 
@@ -661,7 +656,7 @@ def test_handlers_are_built_at_the_most_verbose_module_level(tmp_path: Path) -> 
     assert level == logging.DEBUG
 
 
-def test_most_verbose_level_ignores_a_quieter_module(tmp_path: Path) -> None:
+def test_most_verbose_level_ignores_a_quieter_module() -> None:
     """A module quieter than the image level does not raise the handler level."""
     levels = LogLevels(image='INFO', modules={'body_limb': 'ERROR'})
     assert levels.most_verbose_image_level() == 'INFO'
@@ -709,48 +704,46 @@ def test_a_silent_image_logger_reports_no_path(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_an_unknown_command_line_level_is_rejected(tmp_path: Path) -> None:
+def test_an_unknown_command_line_level_is_rejected() -> None:
     """A misspelled level fails with a named error rather than a later KeyError."""
     with pytest.raises(ValueError, match='VERBOSE'):
-        resolve_log_levels(SD_OFFSET, _args(log_level=['VERBOSE']), _config(tmp_path))
+        resolve_log_levels(SD_OFFSET, _args(log_level=['VERBOSE']), Config())
 
 
-def test_an_unknown_per_logger_level_is_rejected(tmp_path: Path) -> None:
+def test_an_unknown_per_logger_level_is_rejected() -> None:
     """A misspelled --log-level-main value is rejected."""
     with pytest.raises(ValueError, match='log-level-main'):
-        resolve_log_levels(SD_OFFSET, _args(log_level_main='CHATTY'), _config(tmp_path))
+        resolve_log_levels(SD_OFFSET, _args(log_level_main='CHATTY'), Config())
 
 
-def test_an_unknown_command_line_module_is_rejected(tmp_path: Path) -> None:
+def test_an_unknown_command_line_module_is_rejected() -> None:
     """A module key naming nothing is rejected rather than silently ignored."""
     with pytest.raises(ValueError, match='bogus_module'):
-        resolve_log_levels(SD_OFFSET, _args(log_level=['bogus_module=DEBUG']), _config(tmp_path))
+        resolve_log_levels(SD_OFFSET, _args(log_level=['bogus_module=DEBUG']), Config())
 
 
-def test_a_hyphenated_module_key_is_rejected(tmp_path: Path) -> None:
+def test_a_hyphenated_module_key_is_rejected() -> None:
     """A near-miss spelling is rejected rather than quietly doing nothing."""
     with pytest.raises(ValueError, match='titan-haze'):
-        resolve_log_levels(SD_OFFSET, _args(log_level=['titan-haze=DEBUG']), _config(tmp_path))
+        resolve_log_levels(SD_OFFSET, _args(log_level=['titan-haze=DEBUG']), Config())
 
 
-def test_an_empty_module_key_is_rejected(tmp_path: Path) -> None:
+def test_an_empty_module_key_is_rejected() -> None:
     """A value with nothing before the equals sign is rejected."""
     with pytest.raises(ValueError, match='no module'):
-        resolve_log_levels(SD_OFFSET, _args(log_level=['=DEBUG']), _config(tmp_path))
+        resolve_log_levels(SD_OFFSET, _args(log_level=['=DEBUG']), Config())
 
 
-def test_an_empty_command_line_level_is_rejected(tmp_path: Path) -> None:
+def test_an_empty_command_line_level_is_rejected() -> None:
     """A value with nothing after the equals sign is rejected."""
     with pytest.raises(ValueError, match='expected one of'):
-        resolve_log_levels(SD_OFFSET, _args(log_level=['titan_haze=']), _config(tmp_path))
+        resolve_log_levels(SD_OFFSET, _args(log_level=['titan_haze=']), Config())
 
 
-def test_an_empty_per_logger_level_is_rejected(tmp_path: Path) -> None:
+def test_an_empty_per_logger_level_is_rejected() -> None:
     """An empty level is rejected rather than falling through to a lesser source."""
     with pytest.raises(ValueError, match='log-level-main'):
-        resolve_log_levels(
-            SD_OFFSET, _args(log_level_main='', log_level=['ERROR']), _config(tmp_path)
-        )
+        resolve_log_levels(SD_OFFSET, _args(log_level_main='', log_level=['ERROR']), Config())
 
 
 # ---------------------------------------------------------------------------
@@ -758,68 +751,72 @@ def test_an_empty_per_logger_level_is_rejected(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_log_level_image_beats_the_bare_form(tmp_path: Path) -> None:
+def test_log_level_image_beats_the_bare_form() -> None:
     """The per-logger image flag is more specific than the global one."""
     args = _args(log_level=['DEBUG'], log_level_image='ERROR')
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.image == 'ERROR'
 
 
-def test_log_level_image_leaves_the_main_logger_alone(tmp_path: Path) -> None:
+def test_log_level_image_leaves_the_main_logger_alone() -> None:
     """Setting the image level does not change the main level."""
     args = _args(log_level=['DEBUG'], log_level_image='ERROR')
-    levels = resolve_log_levels(SD_OFFSET, args, _config(tmp_path))
+    levels = resolve_log_levels(SD_OFFSET, args, Config())
     assert levels.main == 'DEBUG'
 
 
-def test_a_models_category_default_applies(tmp_path: Path) -> None:
+def test_a_models_category_default_applies(nav_config_with: NavConfigWith) -> None:
     """A models category default governs every model."""
-    config = _config(tmp_path, '  models:\n    default: DEBUG\n')
+    config = nav_config_with({'logging': {'models': {'default': 'DEBUG'}}})
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('rings') == 'DEBUG'
 
 
-def test_a_shipped_module_key_beats_an_other_category_default(tmp_path: Path) -> None:
+def test_a_shipped_module_key_beats_an_other_category_default(
+    nav_config_with: NavConfigWith,
+) -> None:
     """A module named in the category keeps its own level over the default.
 
     The shipped configuration sets ``other.annotate`` explicitly, so adding a
     category default must not override it.
     """
-    config = _config(tmp_path, '  other:\n    default: DEBUG\n')
+    config = nav_config_with({'logging': {'other': {'default': 'DEBUG'}}})
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('annotate') == 'ERROR'
 
 
-def test_an_other_category_default_can_be_overridden_per_module(tmp_path: Path) -> None:
+def test_an_other_category_default_can_be_overridden_per_module(
+    nav_config_with: NavConfigWith,
+) -> None:
     """Naming the module alongside the default takes the module's value."""
-    config = _config(tmp_path, '  other:\n    default: DEBUG\n    annotate: WARNING\n')
+    config = nav_config_with({'logging': {'other': {'default': 'DEBUG', 'annotate': 'WARNING'}}})
     levels = resolve_log_levels(SD_OFFSET, None, config)
     assert levels.for_module('annotate') == 'WARNING'
 
 
-def test_run_timestamp_matches_the_documented_format(tmp_path: Path) -> None:
+def test_run_timestamp_matches_the_documented_format() -> None:
     """A generated timestamp parses back under the documented format."""
     datetime.strptime(run_timestamp(), LOG_TIMESTAMP_FORMAT)
 
 
-def test_resolution_is_stable_across_repeated_calls(tmp_path: Path) -> None:
+def test_resolution_is_stable_across_repeated_calls(nav_config_with: NavConfigWith) -> None:
     """Resolving twice gives the same answer, so nothing is mutated in place."""
-    config = _config(tmp_path, f'  programs:\n    {SD_MOSAIC}:\n      main: WARNING\n')
+    config = nav_config_with({'logging': {'programs': {SD_MOSAIC: {'main': 'WARNING'}}}})
     first = resolve_log_levels(SD_MOSAIC, None, config)
     second = resolve_log_levels(SD_MOSAIC, None, config)
     assert first == second
 
 
-def test_resolving_one_program_does_not_leak_into_another(tmp_path: Path) -> None:
+def test_resolving_one_program_does_not_leak_into_another(nav_config_with: NavConfigWith) -> None:
     """A program's merge does not contaminate the shared configuration."""
-    config = _config(
-        tmp_path, f'  main: INFO\n  programs:\n    {SD_MOSAIC}:\n      main: WARNING\n'
+    config = nav_config_with(
+        {'logging': {'main': 'INFO', 'programs': {SD_MOSAIC: {'main': 'WARNING'}}}}
     )
     resolve_log_levels(SD_MOSAIC, None, config)
     assert resolve_log_levels(SD_OFFSET, None, config).main == 'INFO'
 
 
-def test_module_keys_exclude_test_registered_classes(tmp_path: Path) -> None:
+def test_module_keys_exclude_test_registered_classes() -> None:
     """A class a test registers does not enter the resolved key set.
 
     The registries are process-global and test modules add their own
@@ -979,7 +976,7 @@ def test_a_fallback_root_is_used_when_nothing_else_names_one(
     run_logging = build_run_logging(
         SD_OFFSET,
         argparse.Namespace(),
-        _config(tmp_path),
+        Config(),
         build_main=False,
         fallback_log_root=FCPath(str(tmp_path / 'task_out' / 'logs')),
     )
@@ -994,21 +991,17 @@ def test_the_fallback_root_is_where_logs_go(
     run_logging = build_run_logging(
         SD_OFFSET,
         argparse.Namespace(),
-        _config(tmp_path),
+        Config(),
         build_main=False,
         fallback_log_root=FCPath(str(tmp_path / 'task_out' / 'logs')),
     )
     assert run_logging.sinks.log_root.as_posix().endswith('task_out/logs')
 
 
-def test_without_a_fallback_the_file_sinks_are_dropped(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_without_a_fallback_the_file_sinks_are_dropped(monkeypatch: pytest.MonkeyPatch) -> None:
     """A program with nowhere to write still runs, without log files."""
     _no_resolvable_root(monkeypatch)
-    run_logging = build_run_logging(
-        SD_OFFSET, argparse.Namespace(), _config(tmp_path), build_main=False
-    )
+    run_logging = build_run_logging(SD_OFFSET, argparse.Namespace(), Config(), build_main=False)
     assert (run_logging.sinks.main_file, run_logging.sinks.image_file) == (False, False)
 
 
@@ -1107,15 +1100,18 @@ def test_the_registry_does_not_grow_with_the_image_count(tmp_path: Path) -> None
     assert len(pdslogger._LOOKUP) == before
 
 
-def test_an_image_level_does_not_enable_the_image_console(tmp_path: Path) -> None:
+def test_an_image_level_does_not_enable_the_image_console(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """Setting the image *level* does not also turn the image console on.
 
     The two are separate questions -- how much to log, and where it goes --
     and a level key that reached sink selection would quietly answer the
     second.
     """
-    _config(tmp_path, '  image: DEBUG\n')
-    assert sinks_from_arguments(_args(), FCPath(tmp_path)).image_console is False
+    config = nav_config_with({'logging': {'image': 'DEBUG'}})
+    sinks = sinks_from_arguments(_args(), FCPath(tmp_path), config=config)
+    assert sinks.image_console is False
 
 
 # ---------------------------------------------------------------------------
@@ -1123,12 +1119,15 @@ def test_an_image_level_does_not_enable_the_image_console(tmp_path: Path) -> Non
 # ---------------------------------------------------------------------------
 
 
-def _console_sinks(root: FCPath, body: str, **arguments: object) -> LogSinks:
+def _console_sinks(
+    nav_config_with: NavConfigWith, root: FCPath, logging: dict[str, Any], **arguments: object
+) -> LogSinks:
     """Resolve sinks for sd_offset from a logging override and any arguments.
 
     Parameters:
-        root: Directory used as the log root and for the override file.
-        body: YAML placed under ``logging:``.
+        nav_config_with: Builds a configuration from an override.
+        root: Directory used as the log root.
+        logging: The mapping placed under the ``logging`` key.
         **arguments: Command-line arguments to supply.
 
     Returns:
@@ -1138,53 +1137,71 @@ def _console_sinks(root: FCPath, body: str, **arguments: object) -> LogSinks:
         _args(**arguments),
         root,
         program_name=SD_OFFSET,
-        config=_config(Path(root.as_posix()), body),
+        config=nav_config_with({'logging': logging}),
     )
 
 
-def test_the_image_console_can_be_turned_on_from_the_configuration(tmp_path: Path) -> None:
+def test_the_image_console_can_be_turned_on_from_the_configuration(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """An operator who always wants image detail on screen can say so once."""
-    assert _console_sinks(FCPath(tmp_path), '  image_console: true\n').image_console is True
+    assert (
+        _console_sinks(nav_config_with, FCPath(tmp_path), {'image_console': True}).image_console
+        is True
+    )
 
 
-def test_the_main_console_can_be_turned_off_from_the_configuration(tmp_path: Path) -> None:
+def test_the_main_console_can_be_turned_off_from_the_configuration(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """And a machine that should never chatter can say that once."""
-    assert _console_sinks(FCPath(tmp_path), '  main_console: false\n').main_console is False
+    assert (
+        _console_sinks(nav_config_with, FCPath(tmp_path), {'main_console': False}).main_console
+        is False
+    )
 
 
-def test_the_command_line_beats_the_configured_image_console(tmp_path: Path) -> None:
+def test_the_command_line_beats_the_configured_image_console(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """The flag is the more specific statement, so it wins for that run."""
-    sinks = _console_sinks(FCPath(tmp_path), '  image_console: true\n', log_image_to_console=False)
+    sinks = _console_sinks(
+        nav_config_with, FCPath(tmp_path), {'image_console': True}, log_image_to_console=False
+    )
     assert sinks.image_console is False
 
 
-def test_the_command_line_beats_the_configured_main_console(tmp_path: Path) -> None:
+def test_the_command_line_beats_the_configured_main_console(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """In the other direction too."""
-    sinks = _console_sinks(FCPath(tmp_path), '  main_console: false\n', log_main_to_console=True)
+    sinks = _console_sinks(
+        nav_config_with, FCPath(tmp_path), {'main_console': False}, log_main_to_console=True
+    )
     assert sinks.main_console is True
 
 
-def test_a_program_block_scopes_the_console_to_that_program(tmp_path: Path) -> None:
+def test_a_program_block_scopes_the_console_to_that_program(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """A console set for one program is not set for another."""
-    body = f'  programs:\n    {SD_MOSAIC}:\n      image_console: true\n'
-    config = _config(tmp_path, body)
+    config = nav_config_with({'logging': {'programs': {SD_MOSAIC: {'image_console': True}}}})
     mosaic = sinks_from_arguments(_args(), FCPath(tmp_path), program_name=SD_MOSAIC, config=config)
     assert mosaic.image_console is True
 
 
-def test_a_program_block_leaves_another_program_alone(tmp_path: Path) -> None:
+def test_a_program_block_leaves_another_program_alone(
+    tmp_path: Path, nav_config_with: NavConfigWith
+) -> None:
     """The counterpart: the program that was not named keeps the default."""
-    body = f'  programs:\n    {SD_MOSAIC}:\n      image_console: true\n'
-    config = _config(tmp_path, body)
+    config = nav_config_with({'logging': {'programs': {SD_MOSAIC: {'image_console': True}}}})
     offset = sinks_from_arguments(_args(), FCPath(tmp_path), program_name=SD_OFFSET, config=config)
     assert offset.image_console is False
 
 
 def test_the_shipped_defaults_are_unchanged(tmp_path: Path) -> None:
     """Adding the keys did not change what a run does without them."""
-    sinks = sinks_from_arguments(
-        _args(), FCPath(tmp_path), program_name=SD_OFFSET, config=_config(tmp_path)
-    )
+    sinks = sinks_from_arguments(_args(), FCPath(tmp_path), program_name=SD_OFFSET, config=Config())
     assert (sinks.main_console, sinks.image_console) == (True, False)
 
 
@@ -1205,7 +1222,7 @@ def test_one_run_stamps_every_file_it_writes_alike(tmp_path: Path) -> None:
     # both would fall in the same second.
     with mock.patch.object(logging_config, 'run_timestamp', return_value=_RUN_STAMP):
         run_logging = build_run_logging(
-            SD_OFFSET, _args(log_root=str(tmp_path)), _config(tmp_path), build_main=False
+            SD_OFFSET, _args(log_root=str(tmp_path)), Config(), build_main=False
         )
     first_handlers, first_path = build_image_log_handlers(
         'nav', 'vol/N1', run_logging.sinks, run_logging.levels, timestamp=run_logging.timestamp
@@ -1232,7 +1249,7 @@ def test_a_cloud_task_stamps_itself(tmp_path: Path) -> None:
     the time its own task was picked up, and UTC is what keeps those
     comparable across machines.
     """
-    config = _config(tmp_path)
+    config = Config()
     first = build_cloud_task_logging(SD_OFFSET, _args(log_root=str(tmp_path)), config).timestamp
     with mock.patch.object(logging_config, 'run_timestamp', return_value='2099-01-01T00-00-00'):
         second = build_cloud_task_logging(

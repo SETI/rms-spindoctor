@@ -42,8 +42,6 @@ Modules:
     ``nav_base``
         ``NavBase``, a small base class wiring ``Config`` and ``PdsLogger`` for nav
         objects.
-    ``attrdict``
-        ``AttrDict``, a ``dict`` subclass that supports attribute-style key access.
     ``flux``
         Legacy flux and filter-convolution experiments; most of the implementation is
         commented out but kept for reference.
@@ -69,7 +67,6 @@ Modules:
 """
 
 __all__ = [
-    'attrdict',
     'cmatrix',
     'command_line',
     'constants',
