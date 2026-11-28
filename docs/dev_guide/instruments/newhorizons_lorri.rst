@@ -418,6 +418,11 @@ as a rate until a non-star frame joins the library.
 what the kernel describes. The binned frames the cohort holds are measured but
 cannot check it.
 
+**Body statistics.** The cohort's LORRI frames are raw DN, and the photometric-law
+study reads only frames calibrated to I/F (see :ref:`sim-realism-law-study`), so their
+moons do not enter it. For this camera the body statistics (the limb peak, the rise
+width, the disc profile, and the law) are unchecked.
+
 Image library and test coverage
 ===============================
 

@@ -914,6 +914,11 @@ degrees, lies 0.09 px outside its silhouette and the other, Tethys at 111 degree
 front of Rhea; with the vertices whose tracks cross Rhea's disc left out, the arc that
 remains gives too imprecise an offset, so the realism match leaves it out.
 
+**Frames in the photometric-law study.** All 27 discs the photometric-law study measures
+come from the cohort's calibrated Cassini frames of Saturn's moons, 26 narrow angle and
+one wide angle, of Rhea (see :ref:`sim-realism-law-study`). The choice of the default
+body law rests on these frames (see :ref:`sim-photometric-laws`).
+
 **Iapetus in the photometric-law study.** The study measures Iapetus over a cap inside
 each of its two terrains (see :ref:`sim-realism-law-study`). Of the cohort's three
 Iapetus frames, one shows the dark terrain's cap lit (N1806609736, at 58 degrees phase),

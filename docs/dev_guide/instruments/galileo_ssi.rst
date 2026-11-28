@@ -418,6 +418,11 @@ line's light at every exposure. The entry doesn't state an exclusion reason.
 **Realism-match status.** Unverified. Every optical parameter is a published
 or scaled estimate and the cohort offers nothing to check them against.
 
+**Body statistics.** The cohort's Galileo frames are raw DN, and the photometric-law
+study reads only frames calibrated to I/F (see :ref:`sim-realism-law-study`), so their
+moons do not enter it. For this camera the body statistics (the limb peak, the rise
+width, the disc profile, and the law) are unchecked.
+
 Image library and test coverage
 ===============================
 

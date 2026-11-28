@@ -588,6 +588,12 @@ reseau-anchored resampling, so it can't say how many hits the target took.
 resampling with the frames held locally. The distortion is measured, but on
 one of the four cameras.
 
+**Body statistics.** The cohort's Voyager frames show their moons at most a few pixels
+across, and the photometric-law study leaves out moons under 10 px across (see
+:ref:`sim-realism-law-study`), so their moons do not enter it. For these cameras the
+body statistics (the limb peak, the rise width, the disc profile, and the law) are
+unchecked.
+
 Image library and test coverage
 ===============================
 

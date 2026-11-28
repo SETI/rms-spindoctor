@@ -17,9 +17,13 @@ single-variable sensitivity sweeps, and the sensitivity report
 
 Its results are reproducibility and self-consistency results, measured mostly on
 the Cassini NAC. On a simulated frame the navigator's body, ring, and star models
-are simulated counterparts that share the renderer's geometry and shading, so a
-recovered offset says how tightly the techniques converge on a frame drawn by
-their own kind of model, not how accurately navigation works on a real frame.
+are simulated counterparts that share the renderer's geometry. A body shades as the
+navigator's Lambert template does only when its scene states
+``photometric_law: lambert``. The default law is lunar-Lambert, and below about 104
+degrees phase it differs from the template, so there a recovery also measures the
+template's bias (see :ref:`sim-photometric-laws`). A recovered offset says how tightly
+the techniques converge on a frame drawn by their own kind of model, not how accurately
+navigation works on a real frame.
 The confidence values the navigator reports are provisional: they were fitted on
 a simulated campaign. :ref:`sim-capability-envelope` sets out what the simulator
 can and cannot establish.
@@ -240,15 +244,18 @@ registry beside it in :mod:`spindoctor.sim` (paths are relative to ``sim/``):
 **The navigator side** predicts what the scene *should* look like, standing in
 for the SPICE-backed models that predict a real frame; those production models
 never run on a simulated frame. Its predictions share the renderer's geometry,
-shading, point-spread function, ring projection, and star flux, so a scene drawn
-without a deliberate mismatch is the navigator's own template plus a shift and
-noise. For stars that holds only when the scene's PSF is the navigator's own,
+point-spread function, ring projection, and star flux. Its body template shades with
+the Lambert law, and a body's shading matches it only when the scene states
+``photometric_law: lambert``, since the default law is lunar-Lambert (see
+:ref:`sim-photometric-laws`). A scene that states the Lambert law and plants no other
+deliberate mismatch is the navigator's own template plus a shift and noise. For stars
+that holds only when the scene's PSF is the navigator's own,
 ``optics: {psf: {match_navigator: true}}`` (see :ref:`sim-floor`); without an
 ``optics`` block a star renders as a point, which the navigator's Gaussian
 doesn't match. Its models and the ring renderer live under
 ``nav_model/simulated/`` so the package layout states who owns them. The ellipsoid
-body template is the exception, shared on purpose so both sides shade a smooth body
-the same way: the shared
+body template is the exception, shared on purpose so both sides shade a smooth Lambert
+body the same way: the shared
 :func:`~spindoctor.sim.shared.ellipsoid.render_lambert_ellipsoid` draws the predicted
 template of an ellipsoid body, and
 :mod:`spindoctor.nav_model.simulated.predicted_ring` draws the
@@ -2939,9 +2946,10 @@ within a pixel. At 90 degrees of phase, the worst over 103 sub-pixel centers was
 8 px, and 0.024 px and 0.56% at 16 px.
 
 The navigator's predicted body is shaded on a grid four times finer than the
-detector's. A smooth body whose working grid has that same factor (oversample 4,
-the default for a scene with a point-spread function, or full anti-aliasing at
-oversample 1) is shaded exactly as the predicted body is. A scene that sets
+detector's. A smooth body that states ``photometric_law: lambert`` and whose working
+grid has that same factor (oversample 4, the default for a scene with a point-spread
+function, or full anti-aliasing at oversample 1) is shaded exactly as the predicted
+body is. A scene that sets
 another oversample factor samples the body differently from the navigator. On
 the calibrated disc sweep, shading the smooth disc at detector resolution gave
 the disc correlation a steady error of about 0.015 px.
@@ -2997,7 +3005,7 @@ Lambert, every other law, the default included, and any surge move the terminato
 and the limb-darkening profile by a known amount.
 
 The default is lunar-Lambert because the discs of real airless icy moons follow it. On
-real Cassini frames of Saturn's mid-sized moons the photometric-law study (see
+real frames of Saturn's mid-sized moons the photometric-law study (see
 :ref:`sim-realism-law-study`) fits each disc's own blend ``L``. McEwen's curve differs
 from the fitted values by an rms of 0.15, with a mean difference under 0.001, over 27
 discs from 1.5 to 136 degrees phase. Twins of those discs under the default law
@@ -3011,12 +3019,12 @@ across below 60 degrees phase, the real limbs put it 0.04 px outside the silhoue
 the default law 0.01 px outside, where the Lambert law puts it 0.54 px inside. Above
 about 104 degrees the blend reaches 0 and the default is Lambert's.
 
-Only Cassini frames of Saturnian moons back that choice. The study reads calibrated
-frames only, because its albedo and its fits need each pixel in I/F. The cohort's
-Galileo and LORRI frames are raw DN, so their moons do not enter the study, and its
-Voyager frames show their moons at most a few pixels across. For those cameras the body
-statistics (the limb peak, the rise width, the disc profile, and the law) are unchecked.
-The default law is also untested on surfaces unlike the Saturnian icy moons, such as
+The study reads calibrated frames only, because its albedo and its fits need each pixel
+in I/F, and it leaves out moons under 10 px across. So only the cameras whose cohort
+frames meet both conditions back the choice of law. Each instrument chapter of this
+guide (:doc:`instruments/instruments`) says whether its camera's frames enter the study,
+and so whether the body statistics (the limb peak, the rise width, the disc profile, and
+the law) are checked for that camera. The default law is also untested on surfaces unlike the Saturnian icy moons, such as
 volcanic or rocky and icy ones. The one dark surface the study measures is Iapetus's
 dark terrain, on one frame, and it follows the default (see
 :ref:`sim-realism-law-study`).
@@ -6310,10 +6318,12 @@ them.  The matched body is lit from the direction the real body's light comes fr
 one that best explains the real disc's incidence angles.  The matched frame's limb is
 then measured over the same stretch of limb as the real one: each vertex's direction
 from the body's center is measured from the direction the light comes from, and a
-matched vertex counts only when a real vertex the real fit used lies within twice the
+matched vertex counts only when a real vertex the real fit kept lies within twice the
 real vertices' median spacing of its direction.  The median leaves out the widest gap
 between them, the stretch of limb the real fit did not use, so two real vertices
-1 degree apart match only the directions near them.  The matched frame's rise widths
+1 degree apart match only the directions near them.  A stretch of limb whose peaks the
+real fit dropped as outliers is left out of the matched limb in the same way.  The
+matched frame's rise widths
 are taken the same way, near the directions of the real widths.  The short-arc limit
 is applied to the real limb alone; over the same directions the matched limb reads
 nearly the same
@@ -6523,8 +6533,10 @@ pixels off the line.  The lunar-Lambert blend ``L`` is fitted the same way to
 ``I = B0 (2 L mu0 / (mu0 + mu) + (1 - L) mu0)``.  The profile along the photometric
 equator, the great circle through the points under the Sun and under the camera, is the
 median brightness in 5 degree bins of luminance longitude over the pixels within 8
-degrees of it.  Below 5 degrees phase that circle is not defined, and the profile bins
-the pixels by ``mu`` instead.
+degrees of it.  A pixel's luminance coordinates come from its two cosines divided by the
+sine of the phase, so an error in either cosine grows as the phase falls, and at zero
+phase the circle is not defined.  Below 5 degrees phase the profile bins the pixels by
+``mu`` instead.
 
 **The twins.**  For each real disc the study renders a twin under every law.  The twin
 is a sphere at the moon's apparent size and position in the real frame, lit from the
@@ -6537,12 +6549,16 @@ disc lies at one phase, the line is flat at their mean exponent.
 
 Every twin of a disc is fitted over the same pixels: the ones the real disc's fits
 counted, less any that the sphere's own geometry would not count by the same rules and
-any that any one of the twins reads at its camera's ceiling.  When the twins leave some
-out, the real disc is fitted again over the rest, and that fit is the one every twin is
-compared with.  So every fit of a disc reads exactly the same pixels, the laws are
-compared over the same part of it, and a real disc that lost pixels to a terrain cap, a
-nearer body, the rings, a shadow, or clipping has twins fitted over the same part of the
-disc.  This matters: for any law but Minnaert's, the fitted exponent depends on which
+any that any one of the twins reads at its camera's ceiling.  The real disc is fitted
+again over the same pixels.  Each of these fits drops its own outliers, so each
+exponent is then fitted once more, without dropping any pixel, over the pixels that the
+real disc's fit and every twin's fit kept.  An albedo marking that the real disc's fit
+drops is therefore left out of every twin's fit as well.  So every exponent of a disc
+reads exactly the same pixels, the laws are compared over the same part of it, and a
+real disc that lost pixels to a terrain cap, a nearer body, the rings, a shadow, or
+clipping has twins fitted over the same part of the disc.  A disc whose pixels do not
+give a normal albedo under every law is left out, since its twins could not match its
+brightness.  This matters: for any law but Minnaert's, the fitted exponent depends on which
 part of the disc is sampled, so a law whose twin clipped the pixels it matches worst
 would otherwise be scored without them.  The record gives that real exponent beside each twin's.
 On the contact sheet each twin is cropped to the real disc's bounds.
@@ -6600,12 +6616,11 @@ same exponent.  The profile residual adds where along the equator the shapes par
 crater field or a dark patch on the equator moves it, so it is reported beside the
 exponent and not judged.
 
-**What the study covers.**  Only Cassini frames of Saturnian moons back it.  The study
-reads calibrated frames only, because its albedo and its fits need each pixel in I/F.
-The cohort's Galileo and LORRI frames are raw DN, so their moons do not enter the study,
-and its Voyager frames show their moons at most a few pixels across.  For those cameras
-the body statistics (the limb peak, the rise width, the disc profile, and the law) are
-unchecked.  The default law is also untested on surfaces unlike the Saturnian icy moons,
+**What the study covers.**  The study reads calibrated frames only, because its albedo
+and its fits need each pixel in I/F, and it leaves out moons under 10 px across.  Each
+instrument chapter of this guide (:doc:`instruments/instruments`) says whether its
+camera's frames enter the study, and so whether the body statistics (the limb peak, the
+rise width, the disc profile, and the law) are checked for that camera.  The default law is also untested on surfaces unlike the Saturnian icy moons,
 such as volcanic or rocky and icy ones; the one dark surface the study measures is
 Iapetus's dark terrain, on one frame.  The cohort does not hold a resolved frame of the
 Jovian moons, the Uranian and Neptunian moons, Charon, Phoebe, Janus, Helene, Telesto,
@@ -6613,8 +6628,7 @@ or Daphnis.
 
 **What the study finds.**  On 2026-11-27 the study measured 27 discs on 23 frames
 between 1.5 and 136 degrees phase: 7 of Dione, 6 of Tethys, 5 of Mimas, 4 of Rhea, 3 of
-Enceladus, and Iapetus's dark terrain and its bright terrain once each.  One Rhea is a
-wide-angle frame and the rest are narrow-angle.  It left out 93 moons in view: 70 under
+Enceladus, and Iapetus's dark terrain and its bright terrain once each.  It left out 93 moons in view: 70 under
 10 px across, 9 of irregular shape (Epimetheus, Hyperion, Pandora, and Prometheus), 5
 whose shape is not known (Atlas, Calypso, and Pan), 3 whose disc is clipped, 4 Iapetus
 terrain caps that are not lit on the side in view, a Dione of which 18% of the lit disc
