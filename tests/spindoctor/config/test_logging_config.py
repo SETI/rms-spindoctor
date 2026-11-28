@@ -1109,8 +1109,9 @@ def test_an_image_level_does_not_enable_the_image_console(
     and a level key that reached sink selection would quietly answer the
     second.
     """
-    nav_config_with({'logging': {'image': 'DEBUG'}})
-    assert sinks_from_arguments(_args(), FCPath(tmp_path)).image_console is False
+    config = nav_config_with({'logging': {'image': 'DEBUG'}})
+    sinks = sinks_from_arguments(_args(), FCPath(tmp_path), config=config)
+    assert sinks.image_console is False
 
 
 # ---------------------------------------------------------------------------

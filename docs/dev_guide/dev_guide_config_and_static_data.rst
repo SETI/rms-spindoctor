@@ -759,12 +759,17 @@ When a new YAML knob is added:
 1. Pick the file whose section it belongs to (e.g. a new ``bodies`` key goes
    in ``config_040_bodies.yaml``). If no existing file fits, allocate a new
    numeric prefix per the layout table above.
-2. Add the key with a sensible default and a one-line YAML comment that
+2. Declare the key as a field of its section's type in ``config/sections*.py``. The
+   loader parses the whole configuration, so a key the type lacks is refused at load
+   as unknown. A new top-level section also needs its own type, a field of
+   :class:`~spindoctor.config.sections.NavConfig`, and a ``Config`` property that
+   returns it.
+3. Add the key with a sensible default and a one-line YAML comment that
    identifies the consumer.
-3. Document the key on the consumer's dev-guide page (for example,
+4. Document the key on the consumer's dev-guide page (for example,
    :doc:`dev_guide_navigation_models_body` lists every key under
    ``bodies``). The page lists name, type, default, units, and consumer.
-4. If the key represents static data (a measured constant rather than a
+5. If the key represents static data (a measured constant rather than a
    knob), add the ``_sources`` entry per the citation discipline above.
-5. Add or extend a unit test under ``tests/spindoctor/config_files/`` that asserts
+6. Add or extend a unit test under ``tests/spindoctor/config_files/`` that asserts
    the loader exposes the key with the expected default.
