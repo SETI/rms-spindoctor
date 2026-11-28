@@ -195,6 +195,12 @@ neither survey has a usable measurement, the average difference between the two 
 added to its UCAC4 magnitude. UCAC4 and APASS both read bright stars too faint, so a UCAC4
 star brighter than magnitude 10 takes its magnitude from Tycho-2 or YBSC instead.
 
+A camera does not see exactly the V band, so a red star can look brighter or fainter to it
+than its V says. For a camera whose response to star color has been measured, the model
+corrects each star's V by the star's color before comparing it with the camera's faintest
+usable magnitude and before predicting how bright the star will be. The instrument chapters
+say which cameras have this correction and how large it is.
+
 Each catalog position is then corrected for the star's own proper motion at the time of
 the exposure, and for stellar aberration, the small apparent displacement caused by the
 spacecraft's own velocity. Both corrections are on by default and can be turned off with

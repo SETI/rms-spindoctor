@@ -788,7 +788,9 @@ where they differ).
 - **#1257** (this PR) — UCAC4 stars used the aperture magnitude as Johnson
   V. They now take APASS V, else V from 2MASS J - K, else the aperture
   magnitude plus the mean offset, and the #130 star photometry is refitted
-  against the new magnitudes.
+  against the new magnitudes. Each camera's `star_photometry` gains a
+  measured `color_term` (camera magnitude V + c (B - V)), which the star
+  limit, the predicted DN, and the effective SNR read.
 - **#1211** — the Galileo 1990 cruise star frames read 0.4-1.7 mag fainter
   than the 1992 frames at the same settings; the star limit uses the 1992
   scale until this is explained.

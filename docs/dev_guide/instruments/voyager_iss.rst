@@ -266,6 +266,11 @@ in three was held out of the fit.
   Jepsen 1978). A filter or gain state is measured only from 15 or more stars, and only
   CLEAR at low gain has that many. The 4 narrow-angle VIOLET stars, for example, give
   1.68 +- 0.24 mag against the 1.34 in use.
+- No camera block gives a ``color_term``, so each camera compares a star's V with its
+  limit. Fitted with the rate, the 33 narrow-angle stars with a measured color give a
+  color term of +0.18 +- 0.19, which cannot be told from zero. Only 3 of the 17
+  wide-angle stars have a measured color: the rest are bright Tycho-2 stars, whose
+  color the catalog reduction does not keep.
 
 Voyager 1 gave only one such frame, too few to fit. Its rates are Voyager 2's for
 the same kind of camera, scaled by the bench sensitivities Benesh and Jepsen (1978)
@@ -274,7 +279,7 @@ foot-lambert-second over the solar conversion factor of each serial number. Voya
 1's cameras are S/N 07 (narrow angle) and S/N 06 (wide angle), Voyager 2's S/N 05
 and S/N 04, so the narrow-angle rate is scaled by 0.648 and the wide-angle rate by
 0.600. Voyager 1 keeps its own filter factors and high-gain constants, and takes
-Voyager 2's ``min_detectable_dn``.
+Voyager 2's ``min_detectable_dn``. Like Voyager 2's cameras, it has no color term.
 
 On the held-out Voyager 2 frames, the faintest star detected lies a median 0.57 mag
 inside the predicted dimmest visible star on the narrow-angle camera, and 0.62 mag

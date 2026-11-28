@@ -7,7 +7,7 @@ Overview
 
 :class:`~spindoctor.nav_model.stars.nav_model_stars.NavModelStars` is the catalog-driven star
 navigation model. For each observation the model reduces the configured catalog set into a
-deduplicated star list, screens each star by catalog magnitude against the per-observation
+deduplicated star list, screens each star by its camera magnitude against the per-observation
 limiting magnitude :meth:`obs.star_max_usable_vmag() <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>`,
 flags stars whose predicted positions overlap a body silhouette or
 ring annulus, and emits one
@@ -66,9 +66,11 @@ before the per-star loop, rather than six positions per star.
 Johnson V for UCAC4 stars
 -------------------------
 
-Every magnitude the star model reads is Johnson V: the faint limit, the margin that sets a
-star's effective signal-to-noise ratio, the predicted DN, and the magnitude tolerances of
-the catalog merge. YBSC lists Johnson V, and Tycho-2's magnitudes agree with it. UCAC4
+Every catalog magnitude the star model reads is Johnson V or starts from it. The
+magnitude tolerances of the catalog merge read V. The faint limit, the margin that sets a
+star's effective signal-to-noise ratio, and the predicted DN read the star's camera
+magnitude, its V corrected for the camera's band (see `Camera magnitudes`_ below). YBSC
+lists Johnson V, and Tycho-2's magnitudes agree with it. UCAC4
 does not. The magnitude it lists for a star (starcat's ``vmag``) is UCAC's own aperture
 magnitude, measured in a single wide band from 579 to 642 nm, and it differs from Johnson
 V by an amount that depends on the star's color. In the fields of the 439 star-field
@@ -108,14 +110,49 @@ the stars fainter than 14 take the uncorrected fallback.
 The record keeps its aperture magnitude as ``catalog_vmag``, which the bright-end
 correction below reads. UCAC4 cuts a query on the aperture magnitude, and a star's Johnson
 V can fall in a different magnitude bin from its aperture magnitude. So the reduction walks
-UCAC4 in bins of aperture magnitude, keeps every star whose Johnson V lies in the
-observation's usable range, and lets the first and last bins reach
-:data:`~spindoctor.nav_model.stars.catalog.UCAC4_QUERY_MARGIN_MAG` (0.2 mag) past that
-range. A single query for a range of Johnson V, as other callers make, reaches the same
-margin past both ends. The 2MASS
+UCAC4 in bins of aperture magnitude, keeps every star whose camera magnitude lies in the
+observation's usable range, and lets the first and last bins reach past that range by
+:data:`~spindoctor.nav_model.stars.catalog.UCAC4_QUERY_MARGIN_MAG` (0.2 mag) plus the
+camera's color-term margin (see `Camera magnitudes`_). A single query for a range of
+camera magnitudes, as other callers make, reaches the same margin past both ends. The 2MASS
 conversion brightens 99.9% of the stars by less than 0.06 mag, and APASS V is brighter
 than the aperture magnitude by more than 0.2 mag for 5% of the stars fainter than aperture
 magnitude 10.
+
+Camera magnitudes
+-----------------
+
+No camera sees exactly the V band, so two stars of the same V but different color put
+different amounts of light on its detector. A camera whose star photometry gives a color
+term :math:`c` (:meth:`~spindoctor.obs.obs_inst.ObsInst.star_color_term`) sees a star of
+Johnson V and color :math:`B-V` at the camera magnitude
+
+.. math::
+
+    m = V + c\,(B-V),
+
+computed by :func:`~spindoctor.nav_model.stars.predicted_snr.star_camera_mag`. The star's
+:math:`B-V` is ``johnson_mag_b - johnson_mag_v``, measured or faked from its star class
+(see above). A negative :math:`c` makes a red star brighter in the camera than its V says.
+
+The star limits, :meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag` and
+:meth:`~spindoctor.obs.obs_inst.ObsInst.star_min_usable_vmag`, are camera magnitudes. The
+catalog reduction keeps a star, and the star model emits it, by its camera magnitude, and
+the camera magnitude also sets the star's effective signal-to-noise ratio, its predicted
+DN (``dn``, which orders the reduced list and scales the model stamp), and which of two
+overlapping stars outshines the other. A camera without a color term sees V. That holds
+for every camera whose star limit is not photometric, the simulated cameras among them.
+
+A catalog cuts its query on the magnitude it lists, and a star's camera magnitude can sit
+:math:`|c|\,(B-V)` from its V. So every query reaches
+:data:`~spindoctor.nav_model.stars.catalog.STAR_QUERY_MAX_B_MINUS_V` (3.5) times
+:math:`|c|` past the camera-magnitude range at both ends
+(:func:`~spindoctor.nav_model.stars.catalog.catalog_query_margin`), and UCAC4 adds its own
+0.2 mag. Of the measured colors of the stars in the star-limit measurement's fields, 99.9%
+are below 3.15. The reddest are in the LORRI fields, which lie near the galactic center.
+
+Each camera's color term and how it was measured are given in its chapter under
+:doc:`/dev_guide/instruments/instruments`.
 
 Bright-end saturation correction
 --------------------------------
@@ -238,11 +275,11 @@ filter consulted by every star technique.
 Magnitude detectability gate
 ----------------------------
 
-A star is detectable when its catalog visual magnitude is at least as bright as the
-per-observation limiting magnitude :meth:`obs.star_max_usable_vmag()
+A star is detectable when its camera magnitude :math:`m` (see `Camera magnitudes`_) is at
+least as bright as the per-observation limiting magnitude :meth:`obs.star_max_usable_vmag()
 <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>`. The gate is purely
 magnitude-based: a star with no catalog magnitude, or with
-:math:`V_{\mathrm{mag}} > m_{\mathrm{limit}}`, is skipped, and no per-pixel DN photometry
+:math:`m > m_{\mathrm{limit}}`, is skipped, and no per-pixel DN photometry
 or DN-to-image-unit scaling enters the decision. The catalog reduction applies the same
 magnitude cap, so the gate in the model is mostly a self-contained re-check that also
 handles the missing-magnitude case.
@@ -256,8 +293,9 @@ photometry,
 
     \mathrm{DN}(m) = R \cdot 10^{-0.4\,(m + f)} \cdot t_{\mathrm{exp}} \cdot k,
 
-where :math:`R` is the DN rate of a V = 0 star through the camera's reference filter in
-its reference gain state and readout mode, :math:`f` is the frame's filter's magnitude
+where :math:`m` is the star's camera magnitude, :math:`R` is the DN rate of a star of
+camera magnitude 0 through the camera's reference filter in its reference gain state and
+readout mode, :math:`f` is the frame's filter's magnitude
 offset from the reference filter, and :math:`k` is the factor by which the frame's gain
 state or readout mode multiplies the DN. The dimmest visible star is the magnitude
 :math:`m_{\mathrm{dim}}` whose DN equals the camera's measured minimum detectable DN,
@@ -295,9 +333,9 @@ from any photometric DN measurement:
 .. math::
 
     \mathrm{SNR}_{\mathrm{eff}} =
-        \mathrm{SNR}_{\mathrm{REF}} \cdot 2.512^{\,(m_{\mathrm{limit}} - V_{\mathrm{mag}})},
+        \mathrm{SNR}_{\mathrm{REF}} \cdot 2.512^{\,(m_{\mathrm{limit}} - m)},
 
-floored at the module constant ``SNR_FLOOR`` so it stays strictly positive. A star exactly
+where :math:`m` is the star's camera magnitude, floored at the module constant ``SNR_FLOOR`` so it stays strictly positive. A star exactly
 at the limit gets ``SNR_REF`` (``8.0``, just below the reliability sigmoid center); each
 magnitude of headroom multiplies the effective SNR by one Pogson ratio (``2.512``),
 matching the flux ratio per magnitude. ``SNR_FLOOR`` (``0.1``) keeps the covariance away
@@ -454,7 +492,11 @@ Tests and downstream tools read the canonical values via these symbols.
 - :data:`~spindoctor.nav_model.stars.catalog.UCAC4_UNCORRECTED_V_OFFSET` — float,
   ``0.161``. Johnson V minus the aperture magnitude for a star with no usable color.
 - :data:`~spindoctor.nav_model.stars.catalog.UCAC4_QUERY_MARGIN_MAG` — float, ``0.2``. How
-  far a UCAC4 query reaches past the Johnson V range it serves, at both ends.
+  far a UCAC4 query reaches past the range it serves, at both ends, for the difference
+  between a star's aperture magnitude and its Johnson V.
+- :data:`~spindoctor.nav_model.stars.catalog.STAR_QUERY_MAX_B_MINUS_V` — float, ``3.5``.
+  The largest :math:`|B-V|` a catalog query allows for: every query reaches this times the
+  size of the camera's color term past the range it serves, at both ends.
 - :data:`~spindoctor.nav_model.stars.saturation.UCAC4_SATURATION_VMAG_LIMIT` — float,
   ``10.0``. UCAC4 aperture magnitude brighter than which a UCAC4 record is a
   saturation-correction candidate and takes its magnitude from YBSC or Tycho-2.
@@ -614,7 +656,8 @@ Call path traced through
    <spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag>` and synthesize the
    magnitude-margin effective SNR for each star (used by the CRLB covariance and the
    reliability sigmoid).
-6. Drop stars fainter than the limiting magnitude (or with no catalog magnitude) and
+6. Drop stars whose camera magnitude is fainter than the limiting magnitude (or with no
+   catalog magnitude) and
    stars whose smear length exceeds the per-instrument cap; record the survivors on
    ``self._stars``.
 
