@@ -168,6 +168,7 @@ apart from a physics change.
 | #1030 | **Done (PR #1064).** The simulated-or-real model choice is spread over eight guards; each model class declares the inputs it needs instead | One place to choose models, and the shape Phase 5 needs, where a twin provides both kinds of input. Gated also on the library regression tier, because it touches model selection on real frames. |
 | #1009 | **Done (PR #1060).** Light direction and phase function derived twice | A shared convention with two copies can plant an unmeasured systematic. If a render moves, the move is that systematic and is explained. |
 | #1010 | **Done (PR #1058).** The stage protocol says each stage is seeded by its generator; most stages discard it | Seeding by name is the rule every later stage must follow. |
+| #1289 | **Done (PR #TBD).** **Affects no scene.** The six report and characterization programs (`sim_doc_images`, `sim_sweep_runner`, `sim_sweep_plots`, the two SNR characterizations, and `limb_bias_runner`) move from `tests/integration/` to `util/sim_reports/`, with the two tests that only check their output; the limb-bias measurement that only the runner uses moves with it | None of them is a test, and the realism match leaves the test tree the same way. |
 
 #923's fixtures and #1005 go first. The others can land in any order after them.
 

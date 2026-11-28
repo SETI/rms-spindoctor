@@ -58,9 +58,10 @@ position error, which dominates on the real frames measured here.
 ## Harness
 
 - `tests/integration/limb_bias.py` -- importable measurement functions
-  (signed per-axis error against sim planted truth; real-frame limb-vs-star
-  gap; the renderer geometry validation).
-- `tests/integration/limb_bias_runner.py` -- `python -m` driver that writes the
+  (signed per-axis error against sim planted truth; the renderer geometry
+  validation).
+- `util/sim_reports/limb_bias_runner.py` -- `python -m` driver, which also holds the
+  real-frame limb-vs-star gap measurement, that writes the
   CSV tables in this directory.
 - `tests/integration/test_limb_bias.py` -- renderer-validation and smoke tests.
 - `make_plots.py` -- renders the two PNGs in this directory from the CSVs.

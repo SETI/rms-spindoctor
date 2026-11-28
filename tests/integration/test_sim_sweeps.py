@@ -948,6 +948,6 @@ def test_atmosphere_haze_albedo_bright_haze_edge_sits_in_its_band() -> None:
 
 # The per-technique dense and wide offset sweeps (``*_offset_fine`` /
 # ``*_offset_wide``) are characterization runs, not assertions: they are executed
-# by ``sim_sweep_runner`` to produce the report's figures, and the specific defect
-# they expose (the disc gradient-NCC sub-pixel bias) is guarded by the fast
+# by ``util/sim_reports/sim_sweep_runner.py`` to produce the report's figures, and
+# the specific defect they expose (the disc gradient-NCC sub-pixel bias) is guarded by the fast
 # ``test_sim_regression`` case rather than by re-running the full sweep here.

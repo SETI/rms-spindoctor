@@ -426,16 +426,18 @@ navigate in-process and need no holdings.
 
    * - Command
      - Produces
-   * - ``python -m tests.integration.sim_sweep_runner``
+   * - ``python -m util.sim_reports.sim_sweep_runner``
      - Per-sweep response-curve JSON under ``sim_sweeps/results/`` (gitignored)
        and the offset / star / roll / mesh figures in the report. Add
        ``--dump-images DIR`` to also write every sweep frame as a PNG.
-   * - ``python -m tests.integration.technique_snr_characterization``
+   * - ``python -m util.sim_reports.technique_snr_characterization``
      - The per-technique accuracy-vs-SNR and accuracy-vs-offset report figures.
-   * - ``python -m tests.integration.star_snr_characterization``
+   * - ``python -m util.sim_reports.star_snr_characterization``
      - The star-field centroiding (moment / PSF / adaptive) report figures.
-   * - ``python -m tests.integration.sim_doc_images``
+   * - ``python -m util.sim_reports.sim_doc_images``
      - The developer-guide scene gallery and the report scene images.
+   * - ``python -m util.sim_reports.limb_bias_runner``
+     - The limb-navigation bias tables under ``util/calibration/limb_bias/``.
    * - ``python -m tests.integration.update_sim_baselines``
      - Regenerates the simulator regression baselines under ``sim_baselines/``.
    * - ``python -m tests.integration.update_baselines``
@@ -544,7 +546,7 @@ renders, and review the sheets, the galleries, and the baseline diff:
 .. code-block:: bash
 
    python -m tests.integration.render_contact_sheet
-   python -m tests.integration.sim_doc_images
+   python -m util.sim_reports.sim_doc_images
    python -m tests.integration.update_sim_baselines
 
 When a change moves a baseline, regenerate it in that change and say in the

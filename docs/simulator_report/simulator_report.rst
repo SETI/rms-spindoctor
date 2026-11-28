@@ -62,8 +62,8 @@ planted ground truth is read from the (overridden) parameter itself, so the erro
 is ``recovered - planted``. A sweep optionally **pins** one technique
 (``only_techniques=<name>``) and reads that technique's own recovered offset, so
 each technique is characterized independently. The harness, spec schema, runner,
-and plotting live in ``tests/integration/sim_sweep.py``, ``sim_sweep_runner.py``,
-and ``sim_sweep_plots.py``.
+and plotting live in ``tests/integration/sim_sweep.py`` and, under ``util/sim_reports/``,
+``sim_sweep_runner.py`` and ``sim_sweep_plots.py``.
 
 **Offset value sets.** Two offset sweeps per technique probe the offset axis at
 two scales:
@@ -145,7 +145,7 @@ figures in this chapter with:
 
 .. code-block:: bash
 
-   python -m tests.integration.sim_sweep_runner
+   python -m util.sim_reports.sim_sweep_runner
 
 A single sweep can be inspected from Python via
 ``tests.integration.sim_sweep.load_sweep`` / ``run_sweep``. The planted-recovery
@@ -862,7 +862,7 @@ Example scenes
 
 The frames below are the actual catalog scenes behind the measurements in this
 chapter, rendered from their YAML by
-``python -m tests.integration.sim_doc_images``.
+``python -m util.sim_reports.sim_doc_images``.
 
 .. figure:: _scene_images/disc.png
    :width: 45%
@@ -1333,7 +1333,7 @@ A finer characterization sweeps a uniform-brightness field across a 20x
 integrated-SNR range and overlays three centroiding modes -- moment-only,
 PSF-everywhere, and the shipped SNR-adaptive choice -- under three backgrounds:
 clean, elevated read noise, and a stray-light gradient. (Run by
-``python -m tests.integration.star_snr_characterization``; not part of pytest.)
+``python -m util.sim_reports.star_snr_characterization``; not part of pytest.)
 
 .. figure:: _figures/star_snr_clean.png
    :width: 100%
@@ -1367,7 +1367,7 @@ Per-technique accuracy across SNR and injected offset
 =====================================================
 
 Each technique's accuracy versus signal-to-noise and versus the injected offset
-is characterized by ``python -m tests.integration.technique_snr_characterization``
+is characterized by ``python -m util.sim_reports.technique_snr_characterization``
 (runner-only). Two figure families come out of it; offsets and noise levels are
 stated on each panel.
 
