@@ -14,27 +14,35 @@ exposure_sec: 1.2
 # frames of this class show body and star answers 0.8 to 1.8 px apart, and the
 # result-combining step has to reconcile them.
 #
-# BodyDiscCorrelateNav and BodyLimbNav land 1.81 to 1.84 px off on every draw, which
-# is the planted error, and are held to bands on it, so the scene fails if the error
-# stops reaching them.  With spk_error removed they land 0.03 px and 0.09 to 0.10 px
-# off.
+# The scene renders through the real frame's P60+GRN, which the simulator folds onto
+# CL1+GRN, at the real frame's 1.2 s.  There the simulator draws the stars from the
+# zero point measured on real frames (#1294), and it fills 11,000 of the disc's
+# 14,000 pixels to the full well: the scene's Dione takes the simulator's default
+# albedo.
 #
-# The stars navigate on their own.  StarFieldFromCatalogNav finds too few stars on
-# every draw (#1146), but StarUniqueMatchNav answers on 13 of the 16 draws, 0.04 to
-# 0.24 px off, and StarRefineNav, which starts from the body's pass-1 answer, lands
-# 0.01 to 0.11 px off and gives the same answer on every draw with spk_error removed.
-# With the body removed the committed draw navigates on the stars alone, 0.02 px off.
+# The saturated disc misleads the body techniques.  With spk_error removed,
+# BodyDiscCorrelateNav and BodyLimbNav land 1.98 px off on the committed draw; with
+# it they land 2.54 to 2.55 px and 2.35 px off on every draw, and are held to bands
+# there, which the answers without the planted error fall outside, so the scene
+# still fails if the error stops reaching them.  BodyBlobNav lands 9.4 px off.
+#
+# The stars navigate on their own.  StarFieldFromCatalogNav returns spurious on the
+# committed draw and lands 0.002 to 0.031 px off on the other 23; StarUniqueMatchNav
+# lands 0.08 px off or less on every draw, and StarRefineNav, which starts from the
+# body's pass-1 answer, 0.02 to 0.05 px off.
 #
 # The fused answer combines the star answers with the body's, so it lands between
-# them, 0.16 to 0.26 px from the truth over the 16 draws in the direction of the
-# body's error, within 0.9 of its reported sigmas.  With spk_error removed it lands
-# 0.01 to 0.10 px off.  The tolerance, 0.32 px, sits far below the 1.81 px of a
-# body-only answer, so a fused answer that drops the stars fails.
+# them, 0.10 to 0.13 px from the truth over the 24 draws in the direction of the
+# body's error, within 0.5 of its reported sigmas.  The tolerance, 0.18 px, sits
+# far below the 2.5 px of a body-only answer, so a fused answer that drops the
+# stars fails.
 #
 # The pointing error is the size real NAC frames carry, pointing up and to the right,
 # and the twist is the NAC's measured 0.0115 degrees, unfit, as the camera ships.
 artifacts:
   instrument_defaults: true
+detector:
+  filter: P60+GRN
 spk_error:
   dv_px: 1.13
   du_px: -1.41

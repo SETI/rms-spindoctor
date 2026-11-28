@@ -45,7 +45,7 @@ _QUIET_NOISE: dict[str, Any] = {
 }
 
 
-def _star_scene(instrument: str, *, vmag: float = 4.0, **extra: Any) -> dict[str, Any]:
+def _star_scene(instrument: str, *, vmag: float = 6.2, **extra: Any) -> dict[str, Any]:
     """A single centered star on a quiet detector, plus extra top-level keys.
 
     The default magnitude is bright enough to sample the PSF well but below

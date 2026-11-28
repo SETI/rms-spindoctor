@@ -6,8 +6,8 @@ size_u: 200
 random_seed: 7
 exposure_sec: 1.0
 # One-star lock in a field of confounders.  A single navigable bright star
-# (vmag 2.5) is the only star the navigator's simulated catalog knows about;
-# the five non-navigable confounders (vmag 4.0, dropped from nav_params
+# (vmag 5.64) is the only star the navigator's simulated catalog knows about;
+# the five non-navigable confounders (vmag 7.14, dropped from nav_params
 # entirely) render into the frame but are invisible to the navigator.
 # StarFieldFromCatalogNav needs a three-star pattern so it is infeasible here;
 # StarUniqueMatchNav's one-star path detects the brightest peak in the lone
@@ -23,12 +23,12 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: N1, v: 100.5, u: 110.5, vmag: 2.5}
-  - {name: X0, v: 40.5, u: 160.5, vmag: 4.0, navigable: false}
-  - {name: X1, v: 160.5, u: 40.5, vmag: 4.0, navigable: false}
-  - {name: X2, v: 45.5, u: 45.5, vmag: 4.0, navigable: false}
-  - {name: X3, v: 155.5, u: 155.5, vmag: 4.0, navigable: false}
-  - {name: X4, v: 100.5, u: 45.5, vmag: 4.0, navigable: false}
+  - {name: N1, v: 100.5, u: 110.5, vmag: 5.64}
+  - {name: X0, v: 40.5, u: 160.5, vmag: 7.14, navigable: false}
+  - {name: X1, v: 160.5, u: 40.5, vmag: 7.14, navigable: false}
+  - {name: X2, v: 45.5, u: 45.5, vmag: 7.14, navigable: false}
+  - {name: X3, v: 155.5, u: 155.5, vmag: 7.14, navigable: false}
+  - {name: X4, v: 100.5, u: 45.5, vmag: 7.14, navigable: false}
 noise:
   poisson: true
   read_noise_dn: 4.0

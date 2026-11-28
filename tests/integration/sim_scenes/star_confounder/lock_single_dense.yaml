@@ -6,8 +6,8 @@ size_u: 200
 random_seed: 7
 exposure_sec: 1.0
 # One-star lock at a confounder density near the breakdown region.  The single
-# navigable star (vmag 3.0) is embedded in a dense background-sky field: the
-# sky_counts law is raised to a = -0.5 so the field reaches comparable
+# navigable star (vmag 6.14) is embedded in a dense background-sky field: the
+# sky_counts law is raised to a = -1.567 so the field reaches comparable
 # brightness, and density_factor 100 crowds it.  At this density the one-star
 # path still recovers the planted offset for this seed -- but the field is close
 # enough to the cliff that a modest density increase (or a different seed's
@@ -24,9 +24,9 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: N1, v: 100.5, u: 110.5, vmag: 3.0}
+  - {name: N1, v: 100.5, u: 110.5, vmag: 6.14}
 sky_counts:
-  a: -0.5
+  a: -1.566982
   b: 0.34
   density_factor: 100.0
 noise:

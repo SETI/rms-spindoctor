@@ -14,15 +14,14 @@ exposure_sec: 2.0
 # readout-dark noise, hot pixels, cosmic rays, banding, bias structure, bloom,
 # and the fitted PSF and distortion residual.
 #
-# N1530185128 was taken through CL1+IR3, and the scene sets no filter, so its
-# stars render at the camera's clear-filter brightness.  Through CL1+IR3 the
-# simulator dims each star by the filter's throughput for sunlight, 22 times
-# (3.4 mag).  The frame then fails at 2 s, and at 10 s it navigates only with
-# cosmic rays off, where the real frame navigates at medium tier at 2 s
-# (#895).  The real frame's V 9.9 and 10.2 stars hold 2.3e7 to
-# 2.5e7 electrons per second at V 0 through CL1+IR3, about 50 times the
-# simulator's value for that filter and about twice its clear-filter value,
-# 1.0e7, so the clear filter keeps the stars closer to the real frame's.
+# N1530185128 was taken through CL1+IR3, and the scene renders through it.  The
+# simulator dims each star from the camera's clear-filter zero point, 1.8e8
+# electrons per second at V 0 measured on real frames (#1294), by the filter's
+# throughput for sunlight, 22 times (3.4 mag), to 8.1e6 at V 0.  Real CL1+IR3
+# frames give 1.1e7 for a star of B-V 0.65, 0.3 mag brighter, and redder stars
+# read brighter still in the infrared.  So the scene's stars sit a little below
+# the real frame's: the V 8.7 star peaks about 40 DN above the sky and stars
+# fainter than V 10 under 6 DN.
 #
 # The planted offset, 39.5 px, lies above the 90th percentile of the
 # operator-verified NAC offsets in the image library (median 15.9 px, 90th
@@ -31,6 +30,8 @@ exposure_sec: 2.0
 # corner), planted with roll fitting off as the camera ships.
 artifacts:
   instrument_defaults: true
+detector:
+  filter: CL1+IR3
 sky_counts: {}
 bodies: []
 stars:
@@ -55,10 +56,13 @@ stars:
 offset_v: -23.37
 offset_u: 31.81
 offset_rotation_deg: 0.0115
-# The star-field technique returns spurious on every draw, with 1 inlier where it
-# needs 6 (#1146).  It matches the catalog against the 30 brightest sources it
-# detects, and the raw frame's cosmic rays crowd the stars out of that list.  On
-# the committed seed it still fails with hot pixels off, and with cosmic rays off
-# it finds the offset to 0.02 px with hot pixels on and 0.05 px with them off.
-# The single-star and refinement techniques carry the answer, 0.01 to 0.23 px off
-# over 16 seeds.
+# The star-field technique returns spurious on every draw (#1146).  It matches the
+# catalog against the 30 brightest sources it detects, and the raw frame's cosmic
+# rays crowd the stars out of that list.  On the committed seed it still fails
+# with hot pixels off, and with cosmic rays off it finds the offset to 0.02 px
+# with hot pixels on and 0.04 px with them off.  The single-star and refinement
+# techniques carry the answer, 0.01 to 0.27 px off.  The fused answer lands 0.008
+# to 0.26 px off at medium confidence on 15 of the 16 distinct draws (the noise
+# draws repeat the random ones), within 0.7 of its reported sigmas.  On random
+# seed 909 the single-star technique also returns spurious, the refinement has
+# no start, and the frame fails.

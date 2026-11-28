@@ -287,9 +287,10 @@ spokes star frames changes.
 filter slots, and the table carries one entry with a default of 0.0. Both are
 placeholders.
 
-**Photometric zero points.** ``star_flux_dn_per_s_vmag0`` is 3.33e5 for the
-NAC and 9.29e4 for the WAC, described in the file as interim values sized from
-each camera's electron zero point over its standard gain state.
+**Photometric zero points.** ``star_flux_dn_per_s_vmag0`` is 6.00e6 DN per
+second for the NAC and 6.79e5 for the WAC: the simulator's measured star zero
+points (see the simulator model below), 1.8e8 and 1.9e7 e- per second, over each
+camera's standard gain state, 30 and 28 e-/DN.
 
 **Summed readout modes.** ``noise.by_binning`` gives each raw camera's values
 for the SUM2 and SUM4 modes, keyed by the binning factor: the read noise of one
@@ -298,7 +299,7 @@ simulated frame reads them. The published sources give the summation modes no
 read noise or gain of their own, so each entry is the full-resolution camera at
 gain state 2. For the NAC that is the published 12 e- over 30 e-/DN, or
 0.400 DN; for the WAC it is 12 e- over an estimated 28 e-/DN, or 0.429 DN. The
-zero points stay 3.33e5 and 9.29e4. Each full-resolution ``read_noise_dn`` is a
+zero points stay 6.00e6 and 6.79e5. Each full-resolution ``read_noise_dn`` is a
 placeholder above the published value, so part of the step from an unbinned
 frame's star limit to a summed one's comes from the placeholder: 1.5 of 2.2 mag
 on the NAC, and 1.5 of 2.9 mag on the WAC. Both summed read noises are below the
@@ -613,6 +614,80 @@ further out, and the calibrated entries inherit it.
 ``{k1: 9.0e-06, k2: 5.48e-05, nonradial_rms_px: 0.0}``, both measured by the
 star-field distortion analysis. The corrected field is sub-pixel and close to
 radially symmetric, which is why the non-radial wander is zero.
+
+**Star zero points.** ``star_flux.e_per_s_vmag0`` is 1.8e8 for ``coiss_nac`` and
+1.9e7 for ``coiss_wac``, the electrons a star of V = 0 deposits each second through
+CL1+CL2, and the calibrated entries share them. Both were measured on 12-bit sky
+frames taken through CL1+CL2 during the Saturn tour, drawn across gain states,
+readout modes, and exposures from 2004 to 2017, with the library's Cassini star
+frames added. Each frame's pointing was fixed on its own brightest stars. The raw
+light of every catalog star was summed within 4 pixels of where the star falls (3
+pixels on a summed frame), less the sky between 14 and 20 pixels (11 and 17 summed).
+That sky is the ring's mean after leaving out stars, cosmic rays, and hot pixels: a
+median would be held to the raw frame's whole DN, which moves a faint star's sum by up
+to half a DN in every pixel. The sum, times the gain CISSCAL writes into the calibrated
+label, over the exposure less the label's shutter offset, is the star's rate in
+electrons. The rate was then scaled by the measured ratio of the light within twice
+that radius to the light within it, over stars bright enough that faint neighbors and
+hot pixels cannot raise it: 1.06 on full narrow angle frames and 1.04 on summed ones,
+1.04 on full wide angle frames and 1.02 on summed ones. Field stars of V 10 to 14,
+with their V and B-V from APASS, give these rates for a star of B-V 0.65:
+
+* Narrow angle camera: 1.84e8 from 944 stars on 83 frames of 0.15 to 220 s, nearly
+  all of them at 29 e-/DN, full and summed. The stars scatter by 0.11 mag about that
+  rate, and the frames by 0.11 mag, so the rate is good to 0.014 mag.
+* Wide angle camera: 1.90e7 from 1188 stars on 37 frames of 1 to 220 s, all at
+  29 e-/DN. The stars scatter by 0.13 mag, and the frames by 0.08 mag, so the rate is
+  good to 0.015 mag.
+
+The uncertainties come from the scatter between frames, over the square root of the
+number of frames. Stars on one frame share its pointing, its sky, and its exposure, so
+the scatter of single stars, over the square root of their number, would give 0.005
+mag, which understates it.
+
+Stars were chosen by catalog magnitude and never by their measured light. A star was
+left out when it was blended, when it lay behind a body or inside a ring annulus, when
+it was predicted to move more than a pixel during the exposure, or when it was
+predicted to peak above 60% of the level where its pixel saturates (the full well or
+the ADC, whichever comes first). On the narrow angle camera the predicted motion
+removed 509 stars, and 67 more sat on frames whose stars are measurably elongated
+although the attitude kept the camera still. Saturation removed 204. On the wide
+angle camera the motion removed 78 stars and saturation 48.
+
+The rates hold across most of the checks. They change by 0.01 mag or less for each
+magnitude of the star and by less than 0.03 mag from the center of the field to its
+edge. The narrow angle rate rises by 0.02 mag for each factor of ten in the exposure,
+and the wide angle rate by less than 0.01 mag. Summed narrow angle frames read 0.045
+mag below full ones, and the 15 summed wide angle stars agree with the full ones. The
+18 narrow angle stars at 95 e-/DN read 0.04 mag below those at 29 e-/DN, within the
+scatter of their few frames. No frame at 12 e-/DN gave the narrow angle camera usable
+stars, the one frame at 215 e-/DN gave one, and no frame at a gain other than 29 e-/DN
+gave the wide angle camera any: their stars are smeared, near saturation, or behind
+the rings. Redder stars read brighter, by 0.5 mag for each magnitude of B-V on the
+narrow angle camera and 0.4 mag on the wide angle camera, and the simulator draws
+every star at the one zero point.
+
+The same apertures on the calibrated products, times the clear-filter throughput,
+give 2.03e8 and 2.17e7, which is 0.10 and 0.14 mag above the electron rates. These
+calibrated rates are what a calibrated simulated frame needs to show the stars as
+the real frames do. They grow with the Sun's distance, by 0.16 and 0.32 mag per AU
+over the frames' 9.0 to 10.1 AU, because CISSCAL's I/F divides by the sunlight at
+that distance. The electron rates do not grow with it. The narrow angle rate falls,
+by 0.11 mag per AU, and since the Sun's distance grew through the tour, that is also
+a fall with time. The wide angle rate falls by 0.04 mag per AU.
+
+The same measurement through other filters checks how the simulator dims stars by
+each filter's throughput for sunlight. Through CL1+GRN and CL1+IR1 the electron
+rates come within 0.07 mag of the measured clear rate times that throughput ratio on
+both cameras, from 210 and 86 narrow angle stars and 61 and 74 wide angle stars.
+Through RED+CL2 the narrow angle rate, from 91 stars, is 0.20 mag above it. Through
+CL1+IR3 the narrow angle rate is 1.1e7 from 27 stars on 4 frames, 0.29 mag above the
+8.3e6 the throughput ratio gives, and in the infrared redder stars read brighter by
+0.7 to 1.1 mag for each magnitude of B-V.
+
+The catalog's idealized narrow angle star scenes test one technique or one
+confounder at a time. Their stars' magnitudes, and the background sky some of them
+add, are set to give each test the charge it needs at this zero point.
 
 **Artifact-mode availability.** Each raw entry's ``artifact_modes.offered``
 lists its modes, and the calibrated entries inherit the list. The simulator
@@ -1042,19 +1117,17 @@ each camera, most of them near its upper end. The narrow angle scenes plant the
 measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
 
 - ``coiss_nac_star_field``: a raw narrow angle star field, 18 stars of V 8.7 to
-  11.4 at 2 s, offset 39 px. The star-field technique matches the catalog
-  against the 30 brightest sources it detects. The frame's cosmic rays crowd
-  the stars out of that list, so the technique finds one match where it needs
-  six and returns spurious. With the cosmic rays turned off it finds the offset
-  to 0.02 px, hot pixels and all. The single-star and refinement techniques
-  carry the answer, 0.01 to 0.23 px off over 16 seeds.
-
-  The scene renders its stars through the clear filter, though the real frame
-  it follows was taken through CL1+IR3. Through CL1+IR3 the simulator dims each
-  star by the filter's throughput for sunlight, 22 times, and the frame fails at
-  2 s, where the real frame navigates. The real frame's stars are about 50 times
-  brighter than the simulator draws them through that filter, and about twice
-  as bright as it draws them through the clear filter.
+  11.4 at 2 s through CL1+IR3, as the real frame it follows was taken, offset
+  39 px. Through CL1+IR3 the simulator dims each star by the filter's throughput
+  for sunlight, 22 times, which puts the stars 0.3 mag below the brightness real
+  CL1+IR3 frames show for a star of B-V 0.65 (see **Star zero points** above). The
+  star-field technique matches the catalog against the 30 brightest sources it
+  detects, and the frame's cosmic rays crowd the faint stars out of that list, so
+  it returns spurious on every draw. With the cosmic rays turned off it finds the
+  offset to 0.02 px, hot pixels and all. The single-star and refinement
+  techniques carry the answer, 0.008 to 0.26 px off on 15 of the 16 distinct
+  draws. On the 16th both star-field and single-star techniques return spurious
+  and the frame fails.
 - ``coiss_calib_nac_disc``: a calibrated narrow angle frame of a moon 280 px
   across, offset 57 px. The answer lands 0.09 to 0.10 px off.
 - ``coiss_wac_disc``: a raw wide angle frame of a moon 128 px across, offset
@@ -1063,7 +1136,7 @@ measured twist of +0.0115 degrees, and the wide angle scenes -0.0115 degrees.
   The limb fit carries the frame at low confidence, 0.13 to 0.17 px off, and
   the scene's expected block holds the low tier.
 - ``coiss_calib_wac_star_field``: a calibrated wide angle star field, 95 stars
-  of V 7.4 to 10.4 at 26 s, offset 12 px. The answer lands 0.01 to 0.03 px off.
+  of V 7.4 to 10.4 at 26 s, offset 12 px. The answer lands 0.01 to 0.02 px off.
 - ``coiss_calib_wac_star_field_large_offset``: the same field with the offset at
   the largest real per-axis extent, 12.4 px. Both star techniques find the
   offset to within 0.06 px, but an answer within 1 px of the 13 px search limit
@@ -1138,22 +1211,23 @@ real frames of this camera carry together:
   committed seed loses seven groups and 50 lines in two clusters, as the real frame
   lost four of its six groups in one cluster, and four of the groups cross the
   disc, as the real groups crossed the planet. The truncated lines hold dark sky,
-  as they do on the real truncated frame. The fused answer lands 0.019 to 0.17 px
-  off over 24 draws, at high confidence on 6 of them and medium on 18. On the
-  committed seed the disc correlation, which treats the lost lines as zeros, lands
-  0.10 px off where it lands 0.019 px off without the groups, and the stars hold
-  the answer at 0.098 px either way. On four draws the answer lands 0.069 to 0.098
-  px off with all the defects, and 0.063 to 0.098 px off with any one of them
-  removed, so the scene shows that the fused answer is unaffected by the
-  truncation and the lost groups. The star-field technique returns spurious on every draw,
-  because hot pixels and cosmic rays together crowd the stars out of the sources it
-  matches. On 5 of the 16 random seeds, the committed seed among them, lost groups
-  across the disc would move the blob's centroid by more than 1% of the radius, and
-  the blob technique drops the body. On the other 11 it lands 6.8 to 8.5 px off the
-  gibbous disc without flagging it.
+  as they do on the real truncated frame. The scene runs the real frame's 3.8 s
+  through its CL1+UV3, where the simulator dims the stars 74 times, so only the
+  brightest two stand well above the noise. It keeps the camera's standard gain
+  state, where the real frame was read at 12 e-/DN, and its moon takes the
+  simulator's default albedo, so its disc holds about 2.4 times the real frame's
+  charge. The fused answer lands 0.025 to 0.29 px off over 24 draws, at
+  high confidence on 14 of them and medium on 10, and follows the star refinement.
+  On the committed seed the disc correlation, which treats the lost lines as zeros,
+  lands 0.10 px off, and the fused answer 0.13 px. The hot pixels and cosmic rays
+  crowd the faint stars out of the sources the star-field technique matches, so it
+  returns spurious on every draw. On 5 of the 16 random seeds,
+  the committed seed among them, lost groups across the disc would move the blob's
+  centroid by more than 1% of the radius, and the blob technique drops the body. On
+  the other 11 it lands 6.8 to 8.5 px off the gibbous disc without flagging it.
 
 **Unit tests.** ``tests/spindoctor/inst/test_inst_cassini_iss.py`` covers the
-config-block selection, the shutter-mode property and the metadata surface.
+config-block selection, the shutter-mode property, and the metadata surface.
 
 **Body disc refinement against star solutions.** The body disc technique refines its
 final pass on a high-pass surface (see :doc:`../dev_guide_techniques_body_disc`). That

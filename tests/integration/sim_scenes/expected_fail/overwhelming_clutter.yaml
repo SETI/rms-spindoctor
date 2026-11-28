@@ -7,7 +7,7 @@ random_seed: 7
 exposure_sec: 1.0
 # A single navigable star drowned in confounders.  The lone catalog star is
 # embedded in a background-sky field raised to comparable brightness
-# (sky_counts a = -0.5) and crowded to density_factor 400 -- far past the
+# (sky_counts a = -1.567) and crowded to density_factor 400 -- far past the
 # breakdown density the lock_single_dense scene sits just below.  With comparable
 # confounders packed into the one-star search window, the brightness-uniqueness
 # gate can no longer single out the true star, so StarUniqueMatchNav returns a
@@ -19,9 +19,9 @@ optics:
     match_navigator: true
 bodies: []
 stars:
-  - {name: N1, v: 100.5, u: 110.5, vmag: 3.0}
+  - {name: N1, v: 100.5, u: 110.5, vmag: 6.14}
 sky_counts:
-  a: -0.5
+  a: -1.566982
   b: 0.34
   density_factor: 400.0
 noise:

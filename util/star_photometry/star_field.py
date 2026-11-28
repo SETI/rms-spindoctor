@@ -28,6 +28,7 @@ __all__ = [
     'GaussianFit',
     'PeakList',
     'aperture_photometry',
+    'clipped_mean',
     'detect_peaks',
     'detection_test',
     'encircled_energy_radii',
@@ -35,6 +36,7 @@ __all__ = [
     'highpass',
     'integrated_gaussian',
     'noise_sigma',
+    'quantization_step',
     'robust_sigma',
 ]
 
@@ -62,11 +64,30 @@ def robust_sigma(values: FloatArray) -> float:
 #: A sample with fewer distinct values than this fraction of its size is treated as quantized.
 QUANTIZED_FRACTION = 0.25
 
-#: Clipping threshold (in standard deviations) of the clipped standard deviation.
+#: Clipping threshold (in standard deviations) of the clipped standard deviation and mean.
 CLIP_SIGMA = 3.0
 
-#: Iterations of the clipped standard deviation.
+#: Iterations of the clipped standard deviation and mean.
 CLIP_ITERATIONS = 5
+
+
+def quantization_step(values: FloatArray) -> float:
+    """Return the quantization step of a sample, or 0 for a sample of continuous values.
+
+    A sample with fewer distinct values than ``QUANTIZED_FRACTION`` of its size is
+    quantized, and its step is the smallest gap between distinct values (a step of one unit
+    when the sample holds a single value).
+
+    Parameters:
+        values: The finite values of the sample.
+
+    Returns:
+        The step, or 0.0 when the sample is not quantized.
+    """
+    levels = np.unique(values)
+    if levels.size >= QUANTIZED_FRACTION * values.size:
+        return 0.0
+    return float(np.min(np.diff(levels))) if levels.size > 1 else 1.0
 
 
 def noise_sigma(values: FloatArray) -> float:
@@ -89,7 +110,8 @@ def noise_sigma(values: FloatArray) -> float:
     finite = values[np.isfinite(values)]
     if finite.size == 0:
         return float('nan')
-    if np.unique(finite).size >= QUANTIZED_FRACTION * finite.size:
+    step = quantization_step(finite)
+    if step == 0.0:
         return robust_sigma(finite)
     kept = finite
     for _ in range(CLIP_ITERATIONS):
@@ -98,9 +120,38 @@ def noise_sigma(values: FloatArray) -> float:
         if std == 0.0 or inside.sum() == kept.size:
             break
         kept = finite[inside]
-    levels = np.unique(finite)
-    step = float(np.min(np.diff(levels))) if levels.size > 1 else 1.0
     return max(float(kept.std()), step / math.sqrt(12.0))
+
+
+def clipped_mean(values: FloatArray) -> float:
+    """Return the mean of a background sample after clipping values far from its center.
+
+    The center starts at the median and becomes the mean of the values within
+    ``CLIP_SIGMA`` times :func:`noise_sigma` of it, for up to ``CLIP_ITERATIONS`` rounds.
+    For a quantized sample the distance is at least one quantization step, so the level
+    next to the sky's median is kept.  Unlike the median, it is not held to the levels of
+    an integer image.
+
+    Parameters:
+        values: The sample; non-finite values are ignored.
+
+    Returns:
+        The clipped mean, or NaN for an empty sample.
+    """
+    finite = values[np.isfinite(values)]
+    if finite.size == 0:
+        return float('nan')
+    center = float(np.median(finite))
+    limit = max(CLIP_SIGMA * noise_sigma(finite), quantization_step(finite))
+    for _ in range(CLIP_ITERATIONS):
+        kept = finite[np.abs(finite - center) <= limit]
+        if kept.size == 0:
+            break
+        mean = float(kept.mean())
+        if mean == center:
+            break
+        center = mean
+    return center
 
 
 def highpass(image: FloatArray, size: int, *, subsample: int = 1) -> FloatArray:
@@ -304,7 +355,7 @@ class ApertureResult:
 
     Attributes:
         flux: Background-subtracted sum inside the aperture.
-        sky: Median of the sky annulus, per pixel.
+        sky: The sky level per pixel: the annulus's median, or its clipped mean.
         sky_sigma: Noise of the sky annulus per pixel (see :func:`noise_sigma`).
         flux_sigma: One-sigma uncertainty of ``flux`` from the sky noise alone.
         max_value: Largest raw pixel value inside the aperture.
@@ -329,10 +380,13 @@ def aperture_photometry(
     radius: float,
     sky_inner: float,
     sky_outer: float,
+    clipped_sky: bool = False,
 ) -> ApertureResult | None:
-    """Sum an image inside a circular aperture, less the median of a surrounding annulus.
+    """Sum an image inside a circular aperture, less the sky of a surrounding annulus.
 
-    A pixel is inside a circle when its center is.
+    A pixel is inside a circle when its center is.  The sky is the annulus's median, or with
+    ``clipped_sky`` its clipped mean (:func:`clipped_mean`), which the integer levels of a
+    raw image do not quantize.
 
     Parameters:
         image: The image.
@@ -341,6 +395,7 @@ def aperture_photometry(
         radius: Aperture radius in pixels.
         sky_inner: Inner radius of the sky annulus.
         sky_outer: Outer radius of the sky annulus.
+        clipped_sky: Take the annulus's clipped mean as the sky instead of its median.
 
     Returns:
         The photometry, or None when the annulus leaves the image or the center is not
@@ -359,7 +414,7 @@ def aperture_photometry(
     r = np.hypot(gv - v, gu - u)
     inside = r <= radius
     ring = (r >= sky_inner) & (r <= sky_outer)
-    sky = float(np.median(cut[ring]))
+    sky = clipped_mean(cut[ring]) if clipped_sky else float(np.median(cut[ring]))
     sky_sigma = noise_sigma(cut[ring])
     n_in = int(inside.sum())
     flux = float((cut[inside] - sky).sum())

@@ -1,8 +1,8 @@
 {
-  "confidence": 0.5058278784228519,
+  "confidence": 0.5058262584677604,
   "confidence_rank": "low",
-  "offset_du_px": -0.5850705411665729,
-  "offset_dv_px": 1.4446725626447685,
+  "offset_du_px": -0.5849394418114855,
+  "offset_dv_px": 1.444655081621903,
   "scene_name": "lock_single",
   "status": "success"
 }

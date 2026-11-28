@@ -16,13 +16,19 @@ reference rate.  Leaving out one state's stars can
 take another state below the minimum (a filter whose stars were all taken in unmeasured gain
 states), so the selection is repeated until it is stable, and every fitted term rests on at
 least the minimum of the stars retained.
+
+:func:`fit_star_rates` fits a camera's absolute rate for the simulator instead: the rate of
+a V = 0 star of a reference color from measured rates (electrons per second, say) on an
+intercept and a color term, with the residuals tested against each grouping (gain state,
+readout mode) and covariate (magnitude, field position, exposure) a caller asks about.
 """
 
 from __future__ import annotations
 
 import math
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -31,7 +37,7 @@ from numpy.typing import NDArray
 if TYPE_CHECKING:
     from util.star_photometry.star_limit_fit import FitResult
 
-__all__ = ['fit_zero_point']
+__all__ = ['RateFit', 'fit_star_rates', 'fit_zero_point']
 
 FloatArray = NDArray[np.float64]
 
@@ -186,6 +192,142 @@ def fit_zero_point(
     good = np.isfinite(bv) & (np.abs(resid) < 1.0)
     if good.sum() >= 10:
         result.color_slope = float(np.polyfit(bv[good], resid[good], 1)[0])
+
+
+#: The fewest stars a rate fit, a group's offset, or a covariate's slope rests on.
+MIN_RATE_STARS = 5
+
+#: The fewest stars of a frame whose median residual enters the frame-to-frame scatter.
+MIN_FRAME_STARS = 3
+
+#: The ratio of the standard error of a median to that of a mean, for normal errors.
+_MEDIAN_EFFICIENCY = 1.2533
+
+
+@dataclass
+class RateFit:
+    """A camera's absolute star rate and the checks on it.
+
+    A star's zero point here is ``z = 2.5 log10(rate) + V``, so a larger ``z`` is a
+    brighter rate for a given magnitude.
+
+    Attributes:
+        rate_vmag0: The rate of a V = 0 star of the reference color (per second).
+        rate_sigma_mag: The one-sigma formal uncertainty of ``rate_vmag0`` from the
+            stars' scatter (magnitudes).  Stars of one frame share its errors, so it
+            understates the uncertainty when the frames scatter.
+        color_slope: The change of ``z`` per magnitude of B - V; positive when redder
+            stars read brighter.
+        color_slope_sigma: Its one-sigma uncertainty.
+        n_stars: The stars the robust fit kept (nonzero biweight).
+        n_frames: The frames those stars come from.
+        star_scatter_mag: The robust scatter of the kept stars about the fit.
+        frame_scatter_mag: The standard deviation of the frames' median residuals, over
+            the frames with at least ``MIN_FRAME_STARS`` kept stars, or None when fewer
+            than three frames have that many.
+        rate_frame_sigma_mag: The uncertainty of ``rate_vmag0`` from the frames:
+            ``frame_scatter_mag`` over the square root of the number of frames it is
+            measured on, or None with it.
+        groups: For each grouping key and each of its values with at least
+            ``MIN_RATE_STARS`` kept stars: ``(median residual, its standard error, star
+            count)`` in magnitudes.
+        slopes: For each covariate: ``(slope, its one-sigma uncertainty)`` of the kept
+            stars' residuals against it, in magnitudes per unit.
+    """
+
+    rate_vmag0: float
+    rate_sigma_mag: float
+    color_slope: float
+    color_slope_sigma: float
+    n_stars: int
+    n_frames: int
+    star_scatter_mag: float
+    frame_scatter_mag: float | None
+    rate_frame_sigma_mag: float | None
+    groups: dict[str, dict[str, tuple[float, float, int]]] = field(default_factory=dict)
+    slopes: dict[str, tuple[float, float]] = field(default_factory=dict)
+
+
+def fit_star_rates(
+    rows: Sequence[dict[str, Any]],
+    *,
+    reference_color: float,
+    group_keys: Sequence[str] = (),
+    covariates: Sequence[str] = (),
+) -> RateFit | None:
+    """Fit the rate of a V = 0 star of the reference color, and test the residuals.
+
+    A robust least-squares fit (Tukey biweight) of each star's ``z`` on an intercept and
+    ``B - V`` less the reference color gives the rate at the reference color.  The
+    residuals of the stars the fit keeps are then grouped by each key in ``group_keys``
+    (a group's median residual says how far its stars sit from the common rate) and
+    regressed on each covariate in ``covariates``.  A row whose covariate is not finite
+    is left out of that covariate's slope.
+
+    Parameters:
+        rows: One row per star: ``'rate'`` (positive, per second), ``'vmag'`` (Johnson V),
+            ``'bv'`` (B - V), ``'image_id'``, and every key named in ``group_keys`` and
+            ``covariates``.
+        reference_color: The B - V the rate refers to.
+        group_keys: Row keys whose values group the residuals.
+        covariates: Row keys of numeric values the residuals are regressed on.
+
+    Returns:
+        The fit, or None when there are fewer than ``MIN_RATE_STARS`` rows, when the robust
+        weighting leaves fewer than that many stars, or when the stars, before or after
+        the weighting drops outliers, all share one color so that the rate and the color
+        term cannot be told apart.
+    """
+    if len(rows) < MIN_RATE_STARS:
+        return None
+    z = np.array([2.5 * math.log10(r['rate']) + r['vmag'] for r in rows])
+    color = np.array([r['bv'] - reference_color for r in rows], dtype=np.float64)
+    design = np.column_stack([np.ones(len(rows)), color])
+    if not _full_rank(design):
+        return None
+    x, sx, resid, weights = _tukey_lstsq(design, z)
+    used = weights > 0.0
+    if used.sum() < MIN_RATE_STARS or not _full_rank(design[used]):
+        return None
+    kept = resid[used]
+    scatter = float(1.4826 * np.median(np.abs(kept - np.median(kept))))
+    by_frame: dict[str, list[float]] = defaultdict(list)
+    for r, res, keep in zip(rows, resid, used, strict=True):
+        if keep:
+            by_frame[str(r['image_id'])].append(float(res))
+    medians = [float(np.median(v)) for v in by_frame.values() if len(v) >= MIN_FRAME_STARS]
+    frame_scatter = float(np.std(medians, ddof=1)) if len(medians) >= 3 else None
+    fit = RateFit(
+        rate_vmag0=float(10 ** (0.4 * x[0])),
+        rate_sigma_mag=float(sx[0]),
+        color_slope=float(x[1]),
+        color_slope_sigma=float(sx[1]),
+        n_stars=int(used.sum()),
+        n_frames=len(by_frame),
+        star_scatter_mag=scatter,
+        frame_scatter_mag=frame_scatter,
+        rate_frame_sigma_mag=(
+            None if frame_scatter is None else frame_scatter / math.sqrt(len(medians))
+        ),
+    )
+    for key in group_keys:
+        values = np.array([str(r[key]) for r in rows])
+        fit.groups[key] = {}
+        for value in sorted(set(values[used])):
+            group = resid[used & (values == value)]
+            if group.size < MIN_RATE_STARS:
+                continue
+            spread = 1.4826 * float(np.median(np.abs(group - np.median(group))))
+            error = _MEDIAN_EFFICIENCY * spread / math.sqrt(group.size)
+            fit.groups[key][value] = (float(np.median(group)), error, int(group.size))
+    for name in covariates:
+        values_f = np.array([float(r[name]) for r in rows])
+        sel = used & np.isfinite(values_f)
+        if sel.sum() < MIN_RATE_STARS or np.ptp(values_f[sel]) == 0.0:
+            continue
+        coef, cov = np.polyfit(values_f[sel], resid[sel], 1, cov=True)
+        fit.slopes[name] = (float(coef[0]), float(math.sqrt(cov[0, 0])))
+    return fit
 
 
 def _count(values: Iterable[str]) -> dict[str, int]:

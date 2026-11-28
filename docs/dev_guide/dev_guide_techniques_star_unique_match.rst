@@ -114,7 +114,7 @@ below).
 - **A clipped core as long as the box** is measured whole. A clipped core and its
   column bleed are flat. A box lying wholly on them is centered on its own centroid
   wherever it lies, so re-centering stops a half-width in from the end it started at. On
-  the simulated ``saturated_star`` scene a vmag -1 star bled over 11 rows was measured
+  the simulated ``saturated_star`` scene a vmag 2.14 star bled over 11 rows was measured
   1.8 px off that way, and ``StarRefineNav``, which weights stars by predicted SNR,
   followed it 1.6 px off. The flat top is the 4-connected set of pixels at or above the
   brightest pixel of the candidate's box less ``detection_sigma * image_noise_sigma``.

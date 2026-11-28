@@ -4,17 +4,21 @@ instrument: coiss_nac
 size_v: 1024
 size_u: 1024
 random_seed: 13
-exposure_sec: 1.0
+exposure_sec: 3.8
 # A raw Cassini NAC frame of stars and a moon whose readout lost lines and whose
 # pointing drifted during the exposure, over the camera's whole raw chain.
 #
 # The content follows the image library's stars_plus_body frame N1686349893
 # (Iapetus 252 px across at 81 deg phase, eight stars of V 7.29 to 11.68).  The
 # star magnitudes are that frame's; their positions were drawn at random off the
-# disc.  The real frame ran 3.8 s through CL1+UV3; the scene sets no filter and
-# runs 1.0 s, which keeps the disc below the full well (99th percentile 1,445 DN)
-# and the stars at the camera's clear-filter brightness, closer to real stars
-# than the simulator draws them through UV3 (#895).
+# disc.  The scene runs the real frame's 3.8 s through its CL1+UV3, which puts
+# the disc's 99th percentile at 1,360 DN at the camera's standard gain state,
+# 30 e-/DN.  The real frame, read at 12 e-/DN, shows 1,445 DN there, so the
+# scene's disc holds about 2.4 times its charge: the moon takes the simulator's
+# default albedo, where Iapetus's varies by a factor of ten across its surface.
+# Through UV3 the simulator dims each star by the filter's throughput for
+# sunlight, 74 times (4.7 mag), so the V 7.29 star peaks about 70 DN above the sky,
+# the V 9.11 star about 10 DN, and the fainter six 5 DN or less.
 #
 # The lost lines follow two 12-bit lossless NAC frames of COISS_2023, read with
 # their line prefixes, which give each line's valid samples.  N1526130404's
@@ -63,37 +67,28 @@ exposure_sec: 1.0
 # left.  The roll is the camera's measured twist, +0.0115 deg, planted with roll
 # fitting off as the camera ships.
 #
-# The fused answer lands 0.019 to 0.17 px off over 24 distinct draws, carried by
-# the star refinement (0.021 to 0.17 px off) and the disc correlation (0.019 to
-# 0.10 px).  The worst draw, random seed 909, lands 0.17 px off with its lost
-# groups or without them, where the star refinement lands 0.17 px off.  On the
-# committed seed four groups cross the disc and the disc correlation lands 0.10 px
-# off, against 0.019 px without the groups: it correlates the lost lines as zeros
-# (#1164).  The stars hold the fused answer at 0.098 px off with the groups or
-# without them.  The tier is high on 6 of the 24 draws: random seeds 505, 808,
-# 1010, and 1212, and noise seeds 505 and 808, at a fused confidence of 0.88 to
-# 0.93, against 0.77 to 0.85 on the rest.  On the committed seed and seeds 101 to
-# 303, which land 0.069 to 0.098 px off, removing any one defect (the truncation,
-# the lost groups, the smear, the hot pixels, or the cosmic rays) leaves the fused
-# answer 0.063 to 0.098 px off.  The truncation and the lost groups are realistic
-# but do not move the fused answer, so the scene shows the fused answer
-# unaffected by them.
+# The fused answer lands 0.025 to 0.29 px off over 24 distinct draws, at high
+# confidence on 14 and medium on 10, within 0.7 of its reported sigmas, and
+# follows the star refinement (0.027 to 0.30 px off).  The worst draw is
+# noise_seed 101.  On the committed seed four groups cross the disc and the disc
+# correlation lands 0.10 px off: it correlates the lost lines as zeros (#1164).
+# The fused answer lands 0.13 px off there.
 #
-# StarFieldFromCatalogNav returns spurious on every draw, which is #1146: the hot
-# pixels and cosmic rays together crowd the stars out of the 30 sources it
-# matches.  With both removed it navigates on the committed seed and seeds 101 to
-# 303 (0.059 to 0.11 px off); with the hot pixels removed alone it stays spurious,
-# and with the cosmic rays removed alone it navigates on the committed seed only.
-# StarUniqueMatchNav returns spurious on 3 of the 24 draws, random seeds 505 and
-# 808 and noise seed 808.  BodyBlobNav drops the body where lost
-# groups across the disc would move its centroid by more than 1% of the radius: it
-# returns spurious on the committed seed and on random seeds 707, 1010, 1212, and
-# 1414, and lands 6.8 to 8.5 px off the gibbous disc without flagging it on the other
-# 11 random seeds (#975, #1207).  sim_truth has no band for it.
+# StarFieldFromCatalogNav returns spurious on every draw (#1146): the hot pixels
+# and cosmic rays crowd the faint stars out of the 30 sources it matches, and on
+# the committed seed it lands 0.08 px off only with both turned off.
+# StarUniqueMatchNav lands 0.03 to 0.29 px off on 16 of the draws and returns
+# spurious on the other 8.  BodyBlobNav drops the body where lost groups across
+# the disc would move its centroid by more than 1% of the radius: it returns
+# spurious on the committed seed and on random seeds 707, 1010, 1212, and 1414,
+# and lands 6.8 to 8.5 px off the gibbous disc without flagging it on the other 11
+# random seeds (#975, #1207).  sim_truth has no band for it.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}
   downlink_gaps: {probability: 1.0, mean_groups: 6.0, dispersion: 0.0}
+detector:
+  filter: CL1+UV3
 optics:
   smear:
     - {dv_px: 1.2, du_px: 1.6, object_class: all}

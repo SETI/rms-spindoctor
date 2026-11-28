@@ -256,7 +256,7 @@ def test_a_star_dims_by_the_throughput_ratio(
     instrument: str, filter_name: str, body_exposure: float, star_exposure: float
 ) -> None:
     """A star's total DN through a filter is the clear total times the throughput ratio."""
-    stars = [star_entry(32.0, 32.0, 4.0)]
+    stars = [star_entry(32.0, 32.0, 7.2)]
     exposure = star_exposure
     clear, _ = render_scene(
         _scene(instrument, detector={'filter': 'CL1+CL2'}, stars=stars, exposure_sec=exposure)

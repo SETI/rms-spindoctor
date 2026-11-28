@@ -1,8 +1,8 @@
 {
-  "confidence": 0.5058085238459175,
+  "confidence": 0.5058064954740369,
   "confidence_rank": "low",
-  "offset_du_px": -0.5626189789443288,
-  "offset_dv_px": 1.4565330256706088,
+  "offset_du_px": -0.562745324405455,
+  "offset_dv_px": 1.456476564303856,
   "scene_name": "planted_unique_star_single",
   "status": "success"
 }
