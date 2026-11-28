@@ -22,7 +22,7 @@ ground_truth:
     Pipeline at curation: status=success, confidence=0.4, rank=low, techniques=['BodyBlobNav', 'BodyTerminatorNav', 'StarRefineNav', 'StarUniqueMatchNav'], per-technique offsets={"StarUniqueMatchNav": [0.0, 0.0], "BodyBlobNav": [14.2106, -23.9386], "BodyTerminatorNav": [38.9556, -22.708], "StarRefineNav": [0.0, 0.0]}.
     The NCC/blob covariance carries a size-scaled centroid-model-error term, so the sigma-based tier gate rates the ground-truth-consistent BodyBlobNav solution low.
 
-    Re-pinned 2026-11-28 (issue #1302): the ground truth moves from BodyBlobNav's (14.2106, -23.9386) to the stars' (-2.198, -6.039), 24.5 px away, with uncertainty 1.0 px.
+    Re-pinned 2026-11-28 (operator decision, issue #1302): the ground truth moves from BodyBlobNav's (14.2106, -23.9386) to the stars' (-2.198, -6.039), 24.5 px away, with uncertainty 1.0 px.
     The old truth came from the blob centroid of Hyperion, an irregular body whose rotation is chaotic, so its predicted silhouette cannot place the offset to tens of pixels; the stars were not navigable at curation.
     The V 9.09 star UCAC4 130449986 is a 30-sigma source at the new offset, smeared 4.2 px along v as predicted, and the old offset puts it on empty sky.
     The new offset is the SNR-weighted mean of the four predicted catalog stars found there (UCAC4 130449986, 130188994, 130060304, and 130092871 = Tycho-2 651566), centroided independently of the star techniques.
