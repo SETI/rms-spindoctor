@@ -1,6 +1,6 @@
 # Per-body shape parameters consumed by the body NavModel and feature
 # extractors.  Schema (the type is BodyShapeEntry, in
-# spindoctor/config/sections_body_shape.py):
+# spindoctor/config/sections_models.py):
 #
 #   <BODY_NAME>:                     # every field is optional; leave out what is not known
 #     radii_km: [a, b, c]             # tri-axial ellipsoid (km)

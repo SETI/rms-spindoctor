@@ -16,13 +16,13 @@ from spindoctor.feature.feature import NavFeature, NavReliabilityBreakdown
 from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import RingAnnulusFlags
 from spindoctor.feature.geometry import RingAnnulusGeometry
-from spindoctor.nav_technique.correlation_tuning import NCCCovarianceTuning
 from spindoctor.nav_technique.diagnostics import RingAnnulusDiagnostics
 from spindoctor.nav_technique.nav_technique_ring_annulus import (
     RingAnnulusNav,
     _annulus_orbit_channel,
 )
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import NCCCovarianceTuning
 from spindoctor.support.correlate import navigate_with_pyramid_kpeaks
 from spindoctor.support.filters import NavFilterKind, NavFilterSpec
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType

@@ -33,10 +33,12 @@ configuration.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
 from spindoctor.config import DEFAULT_CONFIG, Config
-from spindoctor.config.sections_body_shape import ShapeClass
+
+if TYPE_CHECKING:  # pragma: no cover - typing-only import, which would be circular at run time
+    from spindoctor.config.sections_models import ShapeClass
 
 __all__ = [
     'BODY_SHAPE_TABLE',
