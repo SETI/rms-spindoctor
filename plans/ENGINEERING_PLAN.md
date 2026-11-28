@@ -822,6 +822,17 @@ where they differ).
   held. The lines on which every pixel is missing now count only against a
   per-camera `min_read_line_frac`, and only the other missing pixels count
   against `max_missing_frac_clean`.
+- **#1279** — the classifier's background gradient score, the ring annulus
+  correlation, the body model's detection SNR, the Titan haze fit, and the
+  star field's source detection still read the filled unread lines as data;
+  found by #1249.
+- **#1280** — Galileo SSI, Voyager ISS, and New Horizons LORRI set
+  `min_read_line_frac` to 0.70 until a sample of their truncated frames
+  measures it; Galileo summed frames (#1233) and windowed frames (#877) must
+  stay refused; found by #1249.
+- **#1281** — on N1719311354, a truncated F ring frame, `RingEdgeNav`
+  answers 1.5 px from a 19-star consensus at medium tier and outweighs the
+  one star read out; found by #1249.
 - **#836 / #994** — the star model sometimes emits one catalog star twice
   under one feature ID (#836, 23 of 1986 F ring and spokes frames). #994 is
   a likely cause: the catalog reduction queries magnitude bins whose ends
