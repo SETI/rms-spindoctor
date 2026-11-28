@@ -59,8 +59,8 @@ from spindoctor.nav_technique.nav_technique import (
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
-from spindoctor.nav_technique.star_tuning import StarRefineTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import StarRefineTuning
 from spindoctor.support.missing_light import missing_light_shift_px
 from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 

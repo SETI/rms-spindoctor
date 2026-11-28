@@ -190,7 +190,7 @@ The technique's only ``tuning`` keys, in ``techniques.ring_annulus.tuning`` in
 ``config_510_techniques.yaml``, are the covariance model-error terms. The shared pyramid-NCC
 machinery owns the numeric thresholds for peak quality, consistency, and top-k count. When
 the configuration loads, the schema core parses the keys into
-:class:`~spindoctor.nav_technique.correlation_tuning.NCCCovarianceTuning`, which checks each
+:class:`~spindoctor.nav_technique.technique_tuning.NCCCovarianceTuning`, which checks each
 value's type and range. None of them has a default in the code, so the values below are the
 ones in the packaged file.
 

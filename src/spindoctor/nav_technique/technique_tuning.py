@@ -1,12 +1,28 @@
-"""The tuning keys of the star techniques.
+"""The tuning keys of the technique families.
 
-``StarUniqueMatchNav``, ``StarRefineNav``, and ``StarFieldFromCatalogNav`` find a star's
-source the same way: a matched-filter kernel picks the detection, a box around its peak
-centroids it, and a threshold on the image noise decides whether it is a source at all.
-:class:`StarTuning` declares the keys that tune that detection and judge the result's
-position against the search window.  Each technique's tuning type extends it with the
-keys only that technique reads, and the schema core parses the technique's ``tuning``
-block into that type when the configuration loads.
+Each navigation technique reads a ``tuning`` block under its key in
+``techniques`` of the configuration, and the schema core parses that block into a
+frozen dataclass when the configuration loads.  This module declares those types, one
+group per technique family.
+
+The distance-transform techniques (``BodyLimbNav``, ``BodyTerminatorNav``, and
+``RingEdgeNav``) share the coarse-NCC, Levenberg-Marquardt, and Tukey machinery of
+:mod:`spindoctor.nav_technique.dt_fitting`, and with it the keys that tune that
+machinery and judge its result.  :class:`DTTuning` declares those keys once, and each
+technique's own tuning type extends it with the keys only that technique reads.
+
+The correlation techniques (``BodyDiscCorrelateNav``, ``BodyBlobNav``, and
+``RingAnnulusNav``) fold model-error terms into the covariance of a correlation or
+centroid fit.  :class:`NCCCovarianceTuning` declares the keys of those terms,
+:class:`BodyDiscTuning` extends it with the keys only the body-disc technique reads, and
+:class:`BodyBlobTuning` declares the blob technique's keys.
+
+The star techniques (``StarUniqueMatchNav``, ``StarRefineNav``, and
+``StarFieldFromCatalogNav``) find a star's source the same way: a matched-filter kernel
+picks the detection, a box around its peak centroids it, and a threshold on the image
+noise decides whether it is a source at all.  :class:`StarTuning` declares the keys that
+tune that detection and judge the result's position against the search window, and each
+technique's tuning type extends it with the keys only that technique reads.
 """
 
 from dataclasses import dataclass
@@ -15,6 +31,7 @@ from typing import Annotated
 from annotated_types import Ge, Gt
 from pydantic import AfterValidator
 
+from spindoctor.nav_technique.dt_fit_gates import DTFitGateConfig
 from spindoctor.schema import (
     SCHEMA_CONFIG,
     Bool,
@@ -30,11 +47,146 @@ from spindoctor.schema import (
 from spindoctor.schema.errors import RangeError
 
 __all__ = [
+    'BodyBlobTuning',
+    'BodyDiscTuning',
+    'DTTuning',
+    'NCCCovarianceTuning',
     'StarFieldTuning',
     'StarRefineTuning',
     'StarTuning',
     'StarUniqueMatchTuning',
 ]
+
+
+@dataclass(frozen=True)
+class DTTuning(DTFitGateConfig):
+    """The tuning keys shared by the distance-transform techniques.
+
+    The keys of the shared fit-quality gates come from :class:`DTFitGateConfig`, so a
+    technique passes its tuning to
+    :func:`~spindoctor.nav_technique.dt_fit_gates.evaluate_dt_fit_gates` as the gate
+    configuration.
+
+    Parameters:
+        spurious_dt_rms_factor: A final DT residual RMS above this many times the
+            smallest per-vertex sigma marks the fit spurious. Zero leaves the floor
+            as the whole threshold.
+        spurious_dt_floor_px: The least RMS threshold of that test, in pixels.
+        spurious_min_inliers: Fewer Tukey inliers than this marks the fit spurious.
+        spurious_min_inlier_fraction: A Tukey inlier fraction below this marks the fit
+            spurious.
+        spurious_max_lm_displacement_px: An LM that moves farther than this from the
+            integer coarse seed, in pixels, marks the fit spurious.
+        lm_trust_region_px: The farthest the LM may move from the coarse seed, in
+            pixels.  A trial step that would land outside it is refused.
+        lm_tikhonov_alpha: The strength of the Tikhonov anchor toward the coarse seed;
+            0 disables it.
+        at_edge_tolerance_px: Pixels of slack around the search-window bounds for the
+            at-edge test.
+        rotation_at_edge_fraction: The fraction of the largest allowed rotation at
+            which a fitted rotation trips the at-edge flag.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    spurious_dt_rms_factor: NonNeg
+    spurious_dt_floor_px: NonNeg
+    spurious_min_inliers: NonNegInt
+    spurious_min_inlier_fraction: Unit
+    spurious_max_lm_displacement_px: NonNeg
+    lm_trust_region_px: Positive
+    lm_tikhonov_alpha: NonNeg
+    at_edge_tolerance_px: NonNeg
+    rotation_at_edge_fraction: Unit
+
+
+@dataclass(frozen=True)
+class NCCCovarianceTuning:
+    """The tuning keys of the model-error terms folded into an NCC covariance.
+
+    The bare peak-curvature (matched-filter) covariance measures only the
+    statistical precision at the correlation peak.  On a well-matched
+    template that precision is far smaller than the true registration error,
+    which is dominated by silhouette / photometric model error and by
+    localization ambiguity.  Three quadrature terms restore calibration:
+
+    - ``localization_uncertainty_scale`` multiplies the inter-pyramid-level
+      peak migration (applied inside the correlator, carried here for
+      completeness of the covariance model).
+    - ``model_error_size_frac`` scales a body / template size in pixels into
+      a size-proportional silhouette-error sigma (a coherent shape mismatch
+      displaces the peak by a roughly fixed *fraction* of the extent).
+    - ``model_error_floor_px`` is a size-independent absolute floor
+      (pointing, camera distortion, sub-pixel interpolation).
+
+    The schema core parses these keys out of a correlation technique's ``tuning``
+    block when the configuration loads; a technique whose tuning holds more keys
+    extends this type.
+
+    Parameters:
+        localization_uncertainty_scale: Multiplier on the correlator
+            ``consistency`` (px); ``0.0`` disables it.
+        model_error_size_frac: Fraction of the template extent (px) taken as
+            the silhouette-error sigma; ``0.0`` disables it.
+        model_error_floor_px: Absolute floor (px); ``0.0`` disables it.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    localization_uncertainty_scale: NonNeg
+    model_error_size_frac: NonNeg
+    model_error_floor_px: NonNeg
+
+
+@dataclass(frozen=True)
+class BodyDiscTuning(NCCCovarianceTuning):
+    """The tuning keys of ``BodyDiscCorrelateNav``, beyond its covariance terms.
+
+    Parameters:
+        rotation_at_edge_fraction: The fraction of the largest allowed rotation at
+            which the best rotation candidate trips the at-edge flag.
+        consistency_max_fraction_of_diameter: The inter-pyramid peak migration
+            allowed per pixel of the largest body's extent before the result is
+            spurious.
+        consistency_max_px: The smallest migration cap in pixels, whatever the body's
+            size.
+        refine_lowpass_sigma_px: The sigma in pixels of the Gaussian low-pass applied
+            to both surfaces in the full-resolution sub-pixel refinement; 0 disables
+            it.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    rotation_at_edge_fraction: Unit
+    consistency_max_fraction_of_diameter: NonNeg
+    consistency_max_px: NonNeg
+    refine_lowpass_sigma_px: NonNeg
+
+
+@dataclass(frozen=True)
+class BodyBlobTuning:
+    """The tuning keys of ``BodyBlobNav``.
+
+    Parameters:
+        at_edge_tolerance_px: Pixels of slack around the search-window bounds for the
+            at-edge test.
+        model_error_size_frac: The bias of the brightness-weighted centroid (lit
+            hemisphere, irregular shape), which the photon-only per-blob CRLB cannot
+            see, as a fraction of the body radius.
+        model_error_floor_px: The model-error floor in pixels, added in quadrature to
+            the joint translation covariance.
+        max_missing_shift_frac: A blob is dropped when leaving its missing pixels out
+            would move the centroid of the body's predicted lit silhouette by more than
+            this fraction of the body radius.
+    """
+
+    __pydantic_config__ = SCHEMA_CONFIG
+
+    at_edge_tolerance_px: NonNeg
+    model_error_size_frac: NonNeg
+    model_error_floor_px: NonNeg
+    max_missing_shift_frac: Positive
+
 
 #: A ratio of one brightness to another that a rule requires to be at least 1.
 _AtLeastOne = Annotated[Float, Ge(1.0)]

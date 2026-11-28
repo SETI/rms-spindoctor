@@ -30,7 +30,7 @@ layer over that machinery's health signals.  Three signals feed it:
 
 All thresholds are per-technique tuning keys (``techniques.<key>.tuning`` in
 ``config_510_techniques.yaml``).  :class:`DTFitGateConfig` declares them, and each DT
-technique's tuning type extends it (:class:`~spindoctor.nav_technique.dt_tuning.DTTuning`),
+technique's tuning type extends it (:class:`~spindoctor.nav_technique.technique_tuning.DTTuning`),
 so a technique passes its own tuning as the gate configuration.
 """
 

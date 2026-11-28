@@ -111,8 +111,8 @@ from spindoctor.nav_technique.nav_technique import (
     rotation_unobservable_sigma_rad,
     search_window_for_obs,
 )
-from spindoctor.nav_technique.star_tuning import StarUniqueMatchTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
+from spindoctor.nav_technique.technique_tuning import StarUniqueMatchTuning
 from spindoctor.support.types import NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
