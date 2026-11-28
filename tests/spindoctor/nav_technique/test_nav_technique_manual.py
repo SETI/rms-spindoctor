@@ -441,5 +441,6 @@ def test_the_application_a_manual_pass_builds_outlives_the_pass() -> None:
         timeout=120,
         check=False,
     )
+    assert result.returncode == 0, result.stdout + result.stderr
     # The pass logs to stdout ahead of the script's answer.
     assert result.stdout.splitlines()[-1:] == ['True'], result.stdout + result.stderr
