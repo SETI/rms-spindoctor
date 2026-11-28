@@ -819,17 +819,18 @@ where they differ).
 - **#1249** (this PR's work: `rf_nav_1249_truncated_readouts`) — the image
   classifier refused every frame with more than 30% of its pixels missing,
   so a truncated readout was refused however much the lines it read out
-  held. The lines on which every pixel is missing now count only against a
-  per-camera `min_read_line_frac`, and only the other missing pixels count
-  against `max_missing_frac_clean`.
+  held. The lines on which every pixel is missing now never refuse a frame
+  by themselves (operator 2026-11-28: the techniques judge whether the lines
+  read out hold a star pattern, a body, or a ring); only the other missing
+  pixels count against `max_missing_frac_clean`.
 - **#1279** — the classifier's background gradient score, the ring annulus
   correlation, the body model's detection SNR, the Titan haze fit, and the
   star field's source detection still read the filled unread lines as data;
   found by #1249.
-- **#1280** — Galileo SSI, Voyager ISS, and New Horizons LORRI set
-  `min_read_line_frac` to 0.70 until a sample of their truncated frames
-  measures it; Galileo summed frames (#1233) and windowed frames (#877) must
-  stay refused; found by #1249.
+- **#1280** (done: closed, because #1249 removed the read-out limit it was
+  to measure, operator 2026-11-28) — Galileo SSI, Voyager ISS, and New
+  Horizons LORRI set `min_read_line_frac` to 0.70 until a sample of their
+  truncated frames measures it; found by #1249.
 - **#1281** — on N1719311354, a truncated F ring frame, `RingEdgeNav`
   answers 1.5 px from a 19-star consensus at medium tier and outweighs the
   one star read out; found by #1249.
