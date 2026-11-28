@@ -11,6 +11,7 @@ labels name that convention rather than leaving the reader to infer it from a
 rendered frame.
 """
 
+import dataclasses
 from typing import Any
 
 from PyQt6.QtCore import Qt
@@ -30,6 +31,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
+from spindoctor.sim.scene.declare import EditorHint, declaration_of
 from spindoctor.sim.scene.fields import default_body_name, default_body_range_km, scene_value
 from spindoctor.sim.scene.idealized import DEFAULT_SHAPE_MODEL
 from spindoctor.sim.scene.truth_body import (
@@ -38,6 +40,7 @@ from spindoctor.sim.scene.truth_body import (
     DEFAULT_CRATER_MIN_RADIUS,
     DEFAULT_CRATER_POWER_LAW_EXPONENT,
     DEFAULT_CRATER_RELIEF_SCALE,
+    Body,
 )
 from spindoctor.sim.shared.mesh import mesh_spec_from_params
 from spindoctor.ui.sim_editor.base import SimEditorBase
@@ -51,6 +54,13 @@ from spindoctor.ui.sim_editor.body_mesh_keys import (
 _CENTER_TOOLTIP = (
     'Body center {axis} position as a pixel corner: integer N is the boundary '
     'between pixel N-1 and pixel N, so the center of pixel N is N + 0.5.'
+)
+
+# The km-per-pixel control, as the body's scene type declares it.
+_KM_PER_PIXEL_HINT: EditorHint = next(
+    hint
+    for item in dataclasses.fields(Body)
+    if item.name == 'km_per_pixel' and (hint := declaration_of(item).editor) is not None
 )
 
 
@@ -340,13 +350,27 @@ class BodyTabMixin(SimEditorBase):
         w.anti_aliasing_slider = aa_slider  # type: ignore[attr-defined]
         w.anti_aliasing_spin = aa_spin  # type: ignore[attr-defined]
 
+        # Physical scale at the limb.  If the key is unset, the spin shows the control's
+        # smallest value and stays disabled, and checking the box writes what it shows.
+        has_km_pp = p.get('km_per_pixel') is not None
+        km_pp_check = QCheckBox('Set km per pixel')
+        km_pp_check.setChecked(has_km_pp)
+        km_pp_check.setToolTip(
+            'Write km_per_pixel on the body: the physical scale at the limb, which '
+            'drives the irregularity factor.  Clear the box to leave it out.'
+        )
         km_pp = QDoubleSpinBox()
-        km_pp.setRange(0.0, 1.0e9)
-        km_pp.setDecimals(4)
-        km_pp.setValue(float(scene_value(p, 'km_per_pixel', 0.0)))
-        km_pp.setToolTip('Physical scale at the limb (0 = none); drives the irregularity factor.')
-        km_pp.valueChanged.connect(lambda v, i=idx: self._on_body_field(i, 'km_per_pixel', v))
-        fl.addRow('km per pixel:', km_pp)
+        km_pp.setRange(_KM_PER_PIXEL_HINT.minimum, _KM_PER_PIXEL_HINT.maximum)
+        km_pp.setDecimals(_KM_PER_PIXEL_HINT.decimals or 4)
+        km_pp.setValue(float(scene_value(p, 'km_per_pixel', _KM_PER_PIXEL_HINT.minimum)))
+        km_pp.setEnabled(has_km_pp)
+        km_pp_check.clicked.connect(
+            lambda checked, i=idx, spin=km_pp: self._on_body_km_per_pixel_enabled(i, checked, spin)
+        )
+        km_pp.valueChanged.connect(lambda v, i=idx: self._on_body_km_per_pixel_value(i, v))
+        fl.addRow(km_pp_check, km_pp)
+        w.km_per_pixel_check = km_pp_check  # type: ignore[attr-defined]
+        w.km_per_pixel_spin = km_pp  # type: ignore[attr-defined]
 
         # Navigation-override group: the renderer ignores it (it always draws the
         # true geometry), but the navigator predicts the body with these fields
@@ -486,6 +510,37 @@ class BodyTabMixin(SimEditorBase):
             spin.setEnabled(enabled)
             self._updater.request_update()
             self._validate_ranges()
+
+    def _on_body_km_per_pixel_enabled(self, idx: int, enabled: bool, spin: QDoubleSpinBox) -> None:
+        """Write the scale the spin shows, or remove the body's ``km_per_pixel``.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+            enabled: Whether the scale box is checked.
+            spin: The body tab's km-per-pixel spin.
+        """
+        if 0 <= idx < len(self.sim_params['bodies']):
+            body = self.sim_params['bodies'][idx]
+            if enabled:
+                body['km_per_pixel'] = float(spin.value())
+            else:
+                body.pop('km_per_pixel', None)
+                spin.blockSignals(True)
+                spin.setValue(_KM_PER_PIXEL_HINT.minimum)
+                spin.blockSignals(False)
+            spin.setEnabled(enabled)
+            self._updater.request_update()
+
+    def _on_body_km_per_pixel_value(self, idx: int, value: float) -> None:
+        """Write an edited scale when the body sets one.
+
+        Parameters:
+            idx: The body's index in the scene's ``bodies`` list.
+            value: The km-per-pixel spin's value.
+        """
+        bodies = self.sim_params['bodies']
+        if 0 <= idx < len(bodies) and bodies[idx].get('km_per_pixel') is not None:
+            self._on_body_field(idx, 'km_per_pixel', float(value))
 
     def _on_body_range_value(self, idx: int, value: float) -> None:
         """Write an edited range when the body sets one.
