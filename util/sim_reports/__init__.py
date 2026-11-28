@@ -23,3 +23,9 @@ limb-bias tables under ``util/calibration/limb_bias/`` and needs
 The tests under ``tests/`` here check what these programs write.  CI does not run
 them; run them with ``pytest util/sim_reports/tests -m ""``.
 """
+
+# Importing ``tests`` first applies its NumPy SIMD pin (``NPY_DISABLE_CPU_FEATURES``)
+# before any program here imports NumPy, so their renders match the committed images on
+# every x86-64 machine.  ``python -m util.sim_reports.<name>`` imports this package
+# before the program module.
+import tests  # noqa: F401
