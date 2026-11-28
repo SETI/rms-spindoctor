@@ -10,6 +10,7 @@ import pytest
 import scipy.special
 from util.star_photometry.star_limit_fit import (
     FitResult,
+    _dimmest_visible,
     _fit_detection_limit,
     _measured_terms,
     _predict_dn,
@@ -343,6 +344,19 @@ def test_detection_limit_undefined_without_a_rise() -> None:
     assert result.min_detectable_dn_insufficient['all'] == (
         'the fitted rise lies at the edge of the data'
     )
+
+
+def test_dimmest_visible_reads_the_limit_of_the_frames_mode_and_gain_state() -> None:
+    """A frame of a pair with its own limit takes it in place of its mode's."""
+    result = FitResult(
+        camera='TEST',
+        rate_vmag0=1.0e6,
+        filter_offsets={'CLEAR': 0.0},
+        gain_ratio={'10K': 1.0},
+        min_detectable_dn_by_mode={'FULL': [1000.0]},
+        min_detectable_dn_by_mode_gain={'FULL': {'10K': [100.0]}},
+    )
+    assert _dimmest_visible(result, 'CLEAR', '10K', 1.0, 'FULL') == pytest.approx(2.5 * 4.0)
 
 
 def test_weak_fit_keeps_the_frame_table() -> None:

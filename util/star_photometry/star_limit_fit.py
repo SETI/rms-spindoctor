@@ -35,7 +35,13 @@ Reads the JSON-lines records the per-instrument measurement programs of this pac
    uncertainty.  The limit is left undefined, as insufficient data, unless there are three
    times ``MIN_STARS_PER_BIN`` stars, detections and non-detections each number
    ``MIN_STARS_PER_BIN``, the stars' predicted DN spread over ``MIN_LOG_DN_SPAN`` decades,
-   and the fitted rise lies inside that spread.  The same holds for each readout mode.
+   and the fitted rise lies inside that spread.  The same holds for each readout mode, and,
+   with ``--limit-by-gain``, for each readout mode and gain state, where a pair without
+   enough stars is scaled from another gain state of its mode
+   (:func:`util.star_photometry.star_completeness.fit_gain_limits`).  The model itself is
+   :mod:`util.star_photometry.star_completeness`.  ``--limit-exclude-smeared`` leaves
+   smeared stars out of this step and the next, and ``--limit-max-texp`` frames exposed
+   longer than it.
 4. **Held-out check.**  On the frames held out of steps 2 and 3 (one in three, chosen by a hash
    of the image ID), the predicted dimmest visible magnitude is compared with the faintest
    stars detected.
@@ -50,6 +56,7 @@ Usage::
 
     python -m util.star_photometry.star_limit_fit RECORDS.jsonl OUT_DIR --reference-filter CLEAR
         --reference-gain 10K [--search-depth-mag 1.0] [--color-term CAMERA ...]
+        [--limit-exclude-smeared] [--limit-max-texp SECONDS] [--limit-by-gain]
         [--ee-geometry MODE:R_MAX:N_BINS ...]
 
 writes ``summary.json`` (every fitted quantity), ``frames.csv`` (the per-frame table), and
@@ -70,9 +77,17 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import scipy.optimize
-import scipy.special
 from numpy.typing import NDArray
+from util.star_photometry.star_completeness import (
+    COMPLETENESS,
+    MIN_STARS_PER_BIN,
+    bootstrap_sigma,
+    completeness_curve,
+    crossing,
+    fit_gain_limits,
+    identified_model,
+    model_dn,
+)
 from util.star_photometry.star_psf_summary import gaussian_ee, psf_summary
 from util.star_photometry.star_zero_point import fit_zero_point
 
@@ -91,29 +106,8 @@ UCAC4_MIN_VMAG_FOR_FIT = 9.5
 #: Smallest flux SNR of a star used for the aperture correction.
 APCORR_MIN_FLUX_SNR = 30.0
 
-#: Detection fraction defining the faintest reliably detected signal.
-COMPLETENESS = 0.8
-
-#: Width of the predicted-DN bins of the completeness curve (decades).
-DN_BIN_DECADES = 0.1
-
-#: Smallest number of stars in a completeness bin for it to count, the fewest detected and
-#: the fewest undetected stars a detection-limit fit needs, and the fewest stars a filter or
-#: gain term of the zero point is fitted from.
-MIN_STARS_PER_BIN = 15
-
-#: Smallest spread (decades) of the stars' predicted DN, from the 10th to the 90th
-#: percentile, that can show the rise from non-detection to detection.
-MIN_LOG_DN_SPAN = 0.5
-
-#: Bounds of the detection-probability model's width (decades of DN).
-WIDTH_BOUNDS = (0.02, 2.0)
-
 #: One frame in this many is held out of the fit.
 HOLDOUT_MODULUS = 3
-
-#: Bootstrap resamples for the uncertainty of the detection limit.
-N_BOOTSTRAP = 200
 
 #: Header of an empty ``frames.csv``: the camera and the fields of :func:`_frame_table`.
 FRAME_COLUMNS = (
@@ -244,7 +238,15 @@ class FitResult:
         min_detectable_dn_empirical: The smallest DN above which the binned detection
             fraction stays at or above ``COMPLETENESS`` (a check on the model).
         min_detectable_dn_insufficient: Why the limit is undefined, for the camera (key
-            ``'all'``) and for each readout mode whose stars cannot identify the rise.
+            ``'all'``) and for each readout mode whose stars cannot identify the rise,
+            and, with ``limit_by_gain``, for each such pair of mode and gain state (key
+            ``'MODE/GAIN'``).
+        min_detectable_dn_by_mode_gain: With ``limit_by_gain``, the limit per readout
+            mode and gain state (see
+            :func:`util.star_photometry.star_completeness.fit_gain_limits`); a frame of
+            such a pair takes the pair's DN.
+        min_detectable_dn_scaled_from: For each pair in ``min_detectable_dn_by_mode_gain``
+            that was scaled rather than fitted, the gain state it was scaled from.
         completeness_model: ``[floor, plateau, mu, width]`` of the camera's fit.
         completeness: Rows ``[log10 DN, n, detected fraction]`` of the completeness curve.
         false_detection_rate: The fitted detection probability's floor.
@@ -281,6 +283,8 @@ class FitResult:
     min_detectable_dn_by_mode: dict[str, list[float]] = field(default_factory=dict)
     min_detectable_dn_empirical: float = float('nan')
     min_detectable_dn_insufficient: dict[str, str] = field(default_factory=dict)
+    min_detectable_dn_by_mode_gain: dict[str, dict[str, list[float]]] = field(default_factory=dict)
+    min_detectable_dn_scaled_from: dict[str, dict[str, str]] = field(default_factory=dict)
     completeness_model: list[float] = field(default_factory=list)
     completeness: list[list[float]] = field(default_factory=list)
     false_detection_rate: float = float('nan')
@@ -350,6 +354,9 @@ def fit_camera(
     gain_field: str = 'gain_state',
     min_texp: float = 0.0,
     limit_exclude_targets: frozenset[str] = frozenset(),
+    limit_exclude_smeared: bool = False,
+    limit_max_texp: float = math.inf,
+    limit_by_gain: bool = False,
     search_depth_mag: float = 1.0,
     calibration_offsets: dict[str, float] | None = None,
     calibration_gain_ratios: dict[str, float] | None = None,
@@ -370,6 +377,15 @@ def fit_camera(
         limit_exclude_targets: Frames of these targets are left out of the detection limit
             and the held-out check (crowded star-cluster fields, whose unresolved light and
             neighbors lower the completeness at a given DN below that of a navigation field).
+        limit_exclude_smeared: Whether stars flagged smeared are left out of the detection
+            limit and the held-out check (a frame that tracks a moving target smears every
+            star, and a smeared star needs more DN to be detected).
+        limit_max_texp: Frames exposed longer than this (seconds) are left out of the
+            detection limit and the held-out check (they stay in the zero point): on a
+            camera whose long exposures carry several times the noise of a short one, they
+            would set the limit of every frame.
+        limit_by_gain: Whether the detection limit is also fitted per readout mode and gain
+            state, for a camera whose noise in DN changes with its gain state.
         search_depth_mag: The camera's search depth past the dimmest visible star, for the
             proposed limit and the held-out check.
         calibration_offsets: The calibration document's filter offsets, for filters with
@@ -426,10 +442,24 @@ def fit_camera(
         [
             r
             for r in rows
-            if r['texp'] >= min_texp and r['target'] not in limit_exclude_targets and _clean(r)
+            if r['texp'] >= min_texp
+            and r['target'] not in limit_exclude_targets
+            and _clean(r)
+            and not (limit_exclude_smeared and r['smeared'])
+            and r['texp'] <= limit_max_texp
         ],
     )
     _fit_detection_limit(result, [r for r in limit_rows if not r['held_out']])
+    if limit_by_gain:
+        (
+            result.min_detectable_dn_by_mode_gain,
+            result.min_detectable_dn_scaled_from,
+            reasons,
+        ) = fit_gain_limits(
+            [r for r in limit_rows if not r['held_out'] and _positive_dn(r)],
+            result.gain_ratio,
+        )
+        result.min_detectable_dn_insufficient.update(reasons)
     result.holdout = _holdout_check(result, [r for r in limit_rows if r['held_out']])
     result.frames = _frame_table(result, accepted, rows, gain_field=gain_field)
     result.psf = psf_summary(rows)
@@ -497,187 +527,26 @@ def _predict_dn(result: FitResult, row: dict[str, Any]) -> float:
     return float(rate * 10 ** (-0.4 * magnitude) * row['texp'])
 
 
-def _completeness_curve(rows: list[dict[str, Any]]) -> tuple[FloatArray, FloatArray, FloatArray]:
-    """Return the detection fraction in bins of predicted DN.
+def _positive_dn(row: dict[str, Any]) -> bool:
+    """Return whether a star row has a finite, positive predicted DN.
 
     Parameters:
-        rows: Star rows with ``pred_dn``.
+        row: The star row, with its ``pred_dn``.
 
     Returns:
-        ``(log10 bin center, count, detected fraction)``.
+        True when the detection limit can use the row.
     """
-    log_dn = np.array([math.log10(r['pred_dn']) for r in rows])
-    detected = np.array([bool(r['detected']) for r in rows])
-    edges = np.arange(
-        math.floor(log_dn.min() / DN_BIN_DECADES) * DN_BIN_DECADES,
-        log_dn.max() + DN_BIN_DECADES,
-        DN_BIN_DECADES,
-    )
-    index = np.digitize(log_dn, edges) - 1
-    counts = np.bincount(index, minlength=edges.size)[: edges.size - 1]
-    hits = np.bincount(index, weights=detected, minlength=edges.size)[: edges.size - 1]
-    centers = edges[:-1] + DN_BIN_DECADES / 2
-    with np.errstate(invalid='ignore', divide='ignore'):
-        fraction = hits / counts
-    return centers, counts.astype(float), fraction
-
-
-def _crossing(centers: FloatArray, counts: FloatArray, fraction: FloatArray, level: float) -> float:
-    """Return the smallest DN above which the detection fraction stays at or above ``level``.
-
-    Bins with fewer than ``MIN_STARS_PER_BIN`` stars are ignored.  The crossing is
-    interpolated linearly in log DN between the last bin below ``level`` and the bin after it.
-
-    Parameters:
-        centers: Log10 bin centers.
-        counts: Stars per bin.
-        fraction: Detection fraction per bin.
-        level: The detection fraction.
-
-    Returns:
-        The DN, or NaN when the curve never reaches ``level``.
-    """
-    ok = counts >= MIN_STARS_PER_BIN
-    c, f = centers[ok], fraction[ok]
-    if c.size == 0 or f[-1] < level:
-        return float('nan')
-    below = np.nonzero(f < level)[0]
-    if below.size == 0:
-        return float(10 ** c[0])
-    i = int(below[-1])
-    if i + 1 >= c.size:
-        return float('nan')
-    t = (level - f[i]) / (f[i + 1] - f[i])
-    return float(10 ** (c[i] + t * (c[i + 1] - c[i])))
-
-
-def _fit_completeness_model(rows: list[dict[str, Any]]) -> tuple[float, float, float, float]:
-    """Fit the detection probability of stars against their predicted DN.
-
-    The model is ``p = floor + (plateau - floor) * Phi((log10 DN - mu) / width)``, with
-    ``Phi`` the standard normal integral: ``floor`` is the chance that noise or an unrelated
-    source passes the detection test at a faint star's position, and ``plateau`` the detected
-    fraction of bright stars, below 1 when some bright stars are missed for reasons unrelated
-    to their signal (a catalog magnitude in error, a cosmetic defect).  The fit maximizes the
-    likelihood of the individual detections.
-
-    Parameters:
-        rows: Star rows with ``pred_dn`` and ``detected``.
-
-    Returns:
-        ``(floor, plateau, mu, width)``.
-    """
-    x = np.array([math.log10(r['pred_dn']) for r in rows])
-    y = np.array([bool(r['detected']) for r in rows], dtype=float)
-
-    def neg_log_likelihood(q: FloatArray) -> float:
-        floor, plateau, mu, width = q
-        p = floor + (plateau - floor) * 0.5 * (
-            1.0 + scipy.special.erf((x - mu) / (math.sqrt(2.0) * width))
-        )
-        p = np.clip(p, 1e-9, 1.0 - 1e-9)
-        return float(-np.sum(y * np.log(p) + (1.0 - y) * np.log(1.0 - p)))
-
-    start = np.array([0.01, 0.95, float(np.median(x)), 0.2])
-    bounds = [(0.0, 0.3), (0.5, 1.0), (float(x.min()), float(x.max())), WIDTH_BOUNDS]
-    best = scipy.optimize.minimize(neg_log_likelihood, start, bounds=bounds, method='L-BFGS-B')
-    floor, plateau, mu, width = (float(v) for v in best.x)
-    return floor, plateau, mu, width
-
-
-def _model_dn(model: tuple[float, float, float, float], level: float) -> float:
-    """Return the DN at which the fitted detection probability covers ``level`` of its span.
-
-    Parameters:
-        model: ``(floor, plateau, mu, width)`` from :func:`_fit_completeness_model`.
-        level: The fraction of the span from the floor to the plateau, in (0, 1).
-
-    Returns:
-        The DN.
-    """
-    _floor, _plateau, mu, width = model
-    return float(10 ** (mu + width * math.sqrt(2.0) * scipy.special.erfinv(2.0 * level - 1.0)))
-
-
-def _bootstrap_sigma(rows: list[dict[str, Any]], value: float) -> float:
-    """Return the bootstrap (over frames) standard deviation of the detection limit.
-
-    The bootstrap samples the limit's base-10 logarithm, and the spread is carried to DN
-    to first order (``value * ln 10`` times the spread in the logarithm), which suits the
-    narrow distributions the measured frames give.
-
-    Parameters:
-        rows: Star rows with ``pred_dn``.
-        value: The limit fitted on all of them.
-
-    Returns:
-        The first-order standard deviation in DN.
-    """
-    by_frame: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for r in rows:
-        by_frame[r['image_id']].append(r)
-    frames = sorted(by_frame)
-    rng = np.random.default_rng(130)
-    samples = []
-    for _ in range(N_BOOTSTRAP):
-        pick = rng.integers(0, len(frames), len(frames))
-        sample = [r for k in pick for r in by_frame[frames[k]]]
-        samples.append(math.log10(_model_dn(_fit_completeness_model(sample), COMPLETENESS)))
-    return float(value * math.log(10) * np.std(samples))
-
-
-def _insufficient(rows: list[dict[str, Any]]) -> str:
-    """Return why stars cannot identify the detection limit, or ``''`` when they can.
-
-    Parameters:
-        rows: Star rows with a finite, positive ``pred_dn``.
-
-    Returns:
-        The reason, or ``''``.
-    """
-    if len(rows) < MIN_STARS_PER_BIN * 3:
-        return f'{len(rows)} stars'
-    n_detected = sum(1 for r in rows if r['detected'])
-    if min(n_detected, len(rows) - n_detected) < MIN_STARS_PER_BIN:
-        return f'{n_detected} detected and {len(rows) - n_detected} undetected stars'
-    log_dn = np.array([math.log10(r['pred_dn']) for r in rows])
-    p10, p90 = np.percentile(log_dn, [10.0, 90.0])
-    if p90 - p10 < MIN_LOG_DN_SPAN:
-        return f'predicted DN spread over {p90 - p10:.2f} decades'
-    return ''
-
-
-def _identified_model(
-    rows: list[dict[str, Any]],
-) -> tuple[tuple[float, float, float, float] | None, str]:
-    """Fit the detection-probability model when the stars can identify its rise.
-
-    Parameters:
-        rows: Star rows with a finite, positive ``pred_dn``.
-
-    Returns:
-        ``(model, '')``, or ``(None, reason)`` when the data are insufficient or the fitted
-        rise sits at the edge of the stars' DN range or at a width bound.
-    """
-    reason = _insufficient(rows)
-    if reason:
-        return None, reason
-    model = _fit_completeness_model(rows)
-    log_dn = [math.log10(r['pred_dn']) for r in rows]
-    inside = min(log_dn) + DN_BIN_DECADES <= model[2] <= max(log_dn) - DN_BIN_DECADES
-    if not inside or not WIDTH_BOUNDS[0] < model[3] < WIDTH_BOUNDS[1]:
-        return None, 'the fitted rise lies at the edge of the data'
-    return model, ''
+    return math.isfinite(row['pred_dn']) and row['pred_dn'] > 0.0
 
 
 def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
     """Fit ``min_detectable_dn`` from the completeness of the fitting frames' stars.
 
-    The detection probability model of :func:`_fit_completeness_model` is fitted, and the
+    The detection probability model of :func:`fit_completeness_model` is fitted, and the
     limit is the DN at which it covers ``COMPLETENESS`` of its span from floor to plateau.
     The limit is fitted on all the camera's stars and, where a readout mode has enough stars,
     on that mode's alone.  The binned curve and its empirical crossings are kept as a check.
-    Where the stars cannot identify the rise (see :func:`_identified_model`), the limit is
+    Where the stars cannot identify the rise (see :func:`identified_model`), the limit is
     left undefined and the reason is stored in ``min_detectable_dn_insufficient``.
 
     Parameters:
@@ -688,37 +557,37 @@ def _fit_detection_limit(result: FitResult, rows: list[dict[str, Any]]) -> None:
     rows = [r for r in rows if math.isfinite(r['pred_dn']) and r['pred_dn'] > 0.0]
     for mode in modes:
         members = [r for r in rows if r['mode'] == mode]
-        mode_model, reason = _identified_model(members)
+        mode_model, reason = identified_model(members)
         if mode_model is None:
             result.min_detectable_dn_insufficient[mode] = reason
             continue
-        value = _model_dn(mode_model, COMPLETENESS)
+        value = model_dn(mode_model, COMPLETENESS)
         result.min_detectable_dn_by_mode[mode] = [
             value,
-            _bootstrap_sigma(members, value),
-            _model_dn(mode_model, 0.5),
+            bootstrap_sigma(members, value),
+            model_dn(mode_model, 0.5),
             float(len(members)),
             *mode_model,
         ]
     # The binned curve and its empirical crossing are kept even where the model cannot be
     # identified, since they do not need one.
     if rows:
-        centers, counts, fraction = _completeness_curve(rows)
+        centers, counts, fraction = completeness_curve(rows)
         result.completeness = [
             [float(c), float(n), float(f)]
             for c, n, f in zip(centers, counts, fraction, strict=True)
             if n > 0
         ]
-        result.min_detectable_dn_empirical = _crossing(centers, counts, fraction, COMPLETENESS)
-    model, reason = _identified_model(rows)
+        result.min_detectable_dn_empirical = crossing(centers, counts, fraction, COMPLETENESS)
+    model, reason = identified_model(rows)
     if model is None:
         result.min_detectable_dn_insufficient['all'] = reason
         return
     result.completeness_model = list(model)
-    result.min_detectable_dn = _model_dn(model, COMPLETENESS)
-    result.min_detectable_dn_50 = _model_dn(model, 0.5)
+    result.min_detectable_dn = model_dn(model, COMPLETENESS)
+    result.min_detectable_dn_50 = model_dn(model, 0.5)
     result.false_detection_rate = model[0]
-    result.min_detectable_dn_sigma = _bootstrap_sigma(rows, result.min_detectable_dn)
+    result.min_detectable_dn_sigma = bootstrap_sigma(rows, result.min_detectable_dn)
 
 
 def _dimmest_visible(
@@ -726,7 +595,8 @@ def _dimmest_visible(
 ) -> float:
     """Return the camera magnitude whose predicted DN is the detection limit.
 
-    The limit is the mode's ``min_detectable_dn`` when the mode has one, else the camera's.
+    The limit is the DN of the frame's pair of readout mode and gain state when the fit has
+    one, else the mode's ``min_detectable_dn`` when the mode has one, else the camera's.
 
     Parameters:
         result: The camera's fit.
@@ -740,7 +610,11 @@ def _dimmest_visible(
     """
     if filter_name not in result.filter_offsets or gain not in result.gain_ratio:
         return float('nan')
-    limit = result.min_detectable_dn_by_mode.get(mode, [result.min_detectable_dn])[0]
+    by_gain = result.min_detectable_dn_by_mode_gain.get(mode, {})
+    if gain in by_gain:
+        limit = by_gain[gain][0]
+    else:
+        limit = result.min_detectable_dn_by_mode.get(mode, [result.min_detectable_dn])[0]
     if not math.isfinite(limit) or texp <= 0.0:
         return float('nan')
     dn_vmag0 = result.rate_vmag0 * result.gain_ratio[gain] * texp
@@ -926,6 +800,22 @@ def main() -> None:
         help='Leave frames of these targets out of the detection limit',
     )
     parser.add_argument(
+        '--limit-exclude-smeared',
+        action='store_true',
+        help='Leave smeared stars out of the detection limit and the held-out check',
+    )
+    parser.add_argument(
+        '--limit-max-texp',
+        type=float,
+        default=math.inf,
+        help='Leave frames exposed longer than this (s) out of the detection limit',
+    )
+    parser.add_argument(
+        '--limit-by-gain',
+        action='store_true',
+        help='Also fit the detection limit per readout mode and gain state',
+    )
+    parser.add_argument(
         '--calibration-offsets',
         nargs='*',
         default=[],
@@ -973,6 +863,9 @@ def main() -> None:
             gain_field=args.gain_field,
             min_texp=args.min_texp,
             limit_exclude_targets=frozenset(args.limit_exclude_targets),
+            limit_exclude_smeared=args.limit_exclude_smeared,
+            limit_max_texp=args.limit_max_texp,
+            limit_by_gain=args.limit_by_gain,
             search_depth_mag=args.search_depth_mag,
             calibration_offsets=_calibration(args.calibration_offsets, camera),
             calibration_gain_ratios=_calibration(args.calibration_gain_ratios, camera),
