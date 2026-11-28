@@ -242,14 +242,14 @@ TRUTH_TOLERANCES: dict[tuple[str, str], TruthTolerance] = {
     # random_seed draws and the 8 noise_seed draws, which are distinct here.  In
     # vgiss_2_wac_star_field the +0.358 deg twist moves the mean position of the stars
     # it measures by 1.6 px, and the answer lands 1.0 to 1.4 px off; without the twist
-    # it lands 0.21 px off, so a lost twist passes this tolerance and fails the
+    # it lands 0.17 px off, so a lost twist passes this tolerance and fails the
     # baseline.  The other three twists move their answers by 0.08 px at most.
     # vgiss_1_wac_saturn's error is the disc correlation's own: the navigator's
     # Lambert prediction finds the scene's Minnaert disc 0.18 to 0.69 px off.
     ('vgiss_1_nac_disc', FUSED): _t(0.246, 0.569, 0.509, 0.12),
     ('vgiss_1_wac_saturn', FUSED): _t(0.343, 0.686, 0.507, 0.14),
-    ('vgiss_2_nac_star_field', FUSED): _t(0.177, 0.259, 0.233, 0.06),
-    ('vgiss_2_wac_star_field', FUSED): _t(1.310, 1.361, 0.356, 0.28),
+    ('vgiss_2_nac_star_field', FUSED): _t(0.175, 0.259, 0.232, 0.06),
+    ('vgiss_2_wac_star_field', FUSED): _t(1.340, 1.394, 0.374, 0.28),
     # mixed_content.  In stars_body_ephemeris_error the body sits 1.81 px from where the
     # stars put it, and the fused answer lies between the two, 0.16 to 0.26 px from the
     # truth toward the body; the tolerance stays well below the body's own 1.81 px

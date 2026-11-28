@@ -17,7 +17,7 @@ exposure_sec: 0.48
 #
 # The camera's star zero point is measured on its own star frames (see the
 # instrument catalog).  The two brightest stars in the frame, V 3.86 and V
-# 4.28, peak 224 and 152 DN above the simulated sky, where on the real frame
+# 4.28, peak 223 and 152 DN above the simulated sky, where on the real frame
 # the compressing vidicon holds them to 167 and 115 raw DN.  In I/F the
 # brightest peaks at 1.76, against 2.97 on the real frame: the simulator's
 # DN-to-I/F scale differs from the archive's at this exposure (#907).

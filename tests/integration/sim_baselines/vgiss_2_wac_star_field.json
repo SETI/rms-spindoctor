@@ -1,8 +1,8 @@
 {
-  "confidence": 0.760689170014209,
+  "confidence": 0.7353821465449356,
   "confidence_rank": "medium",
-  "offset_du_px": 29.235505891516716,
-  "offset_dv_px": -21.35042197935358,
+  "offset_du_px": 29.269190421988316,
+  "offset_dv_px": -21.405779636545137,
   "scene_name": "vgiss_2_wac_star_field",
   "status": "success"
 }

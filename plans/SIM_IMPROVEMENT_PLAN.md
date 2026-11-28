@@ -465,6 +465,7 @@ model does not gain them.
 | #919 | Ghosts translate with the scene; dust donuts move between scenes |
 | #850 | The DCT codec rebuilds values outside the ADC word |
 | #848, #343 | The LORRI PSF wing is too weak; the tuned NAC PSF wing may absorb registration error |
+| #1259 | **Done (PR #TBD).** Fitted to each camera's own stars on the RAW frames, ahead of the archive's despike and resampling, the Voyager 2 narrow angle kernel is a 0.815 px core with a 9.5% wing (12 images of 6 Pleiades stars, wing undetermined) and the wide angle kernel a 0.864 px core with a 45% wing (215 images of 57 stars, core and wing degenerate), in GEOMED pixels; real stars widen with brightness and are 1.2 to 1.7 times longer than wide, which the round kernel does not draw, and the Voyager 1 cameras keep the estimate because only one Voyager 1 star could be used. `vgiss_2_wac_star_field` lands 1.02 to 1.39 px off over 24 draws (was 1.01 to 1.36), and `vgiss_2_nac_star_field` still lands 0.03 to 0.26 px off. Each Voyager camera rendered with one unmeasured PSF kernel |
 | #359 | PSF error forms the simulator cannot render, for the agreement estimator |
 | #877, simulator part | Windowed frames |
 | #333 | Four physical error axes are unmodeled |
