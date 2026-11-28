@@ -26,6 +26,9 @@ from spindoctor.nav_technique._star_unique_two_star import (
 # The solution of a pair that moves every prediction by 2 rows and -3 columns.
 _SHIFT = TwoStarAssignment(offset_vu=(2.0, -3.0), residual_px=0.0, rotation_rad=None).place
 
+# A missing-data mask for the 200 x 200 test images with no pixel missing.
+_READ = np.zeros((200, 200), dtype=bool)
+
 
 def test_source_peak_is_the_brightest_pixel_above_the_local_background(
     draw_gaussian_star: DrawGaussianStarFactory,
@@ -168,7 +171,13 @@ def test_star_like_source_of_several_as_bright_as_the_star_is_none(
     assert found is None
 
 
-def _absent_count(image: np.ndarray, stars: list[NavFeature], *, faint_snr: float = 10.0) -> int:
+def _absent_count(
+    image: np.ndarray,
+    stars: list[NavFeature],
+    *,
+    faint_snr: float = 10.0,
+    missing: np.ndarray = _READ,
+) -> int:
     """Count absent stars at offset (2, -3), 10 DN per unit SNR, 20 px padding."""
     return absent_stars(
         image,
@@ -180,7 +189,15 @@ def _absent_count(image: np.ndarray, stars: list[NavFeature], *, faint_snr: floa
         margin_vu=(20, 20),
         noise_sigma=1.0,
         box_half_px=3,
+        missing_mask_ext=missing,
     )
+
+
+def _lost_from_row(first_row: int) -> np.ndarray:
+    """Return a 200 x 200 missing-data mask whose rows from ``first_row`` on are lost."""
+    missing = np.zeros((200, 200), dtype=bool)
+    missing[first_row:, :] = True
+    return missing
 
 
 @pytest.mark.parametrize(('drawn_dn', 'absent'), [(0.0, 1), (100.0, 0)])
@@ -227,6 +244,51 @@ def test_absent_stars_judge_only_a_bright_star_on_clear_sky_in_the_image(
     assert _absent_count(image, [star]) == 0
 
 
+@pytest.mark.parametrize(('first_lost_row', 'absent'), [(108, 0), (109, 1)])
+def test_absent_stars_do_not_judge_a_star_where_lines_were_lost(
+    make_star_feature: NavFeatureFactory,
+    first_lost_row: int,
+    absent: int,
+) -> None:
+    """A star put at row 102 is not judged when a lost row lies within the 6 px it is read
+    over, and is judged absent when the lost rows begin just beyond them."""
+    image = np.random.default_rng(1).normal(0.0, 1.0, (200, 200))
+    missing = _lost_from_row(first_lost_row)
+    image[missing] = 0.0
+    star = make_star_feature('star:UCAC4:0', predicted_vu=(100.0, 100.0), predicted_snr=10.0)
+    assert _absent_count(image, [star], missing=missing) == absent
+
+
+@pytest.mark.parametrize(
+    ('near', 'found', 'votes'),
+    [
+        ((52.1, 46.9), (70.0, 30.0), (1, 0)),
+        (None, (52.1, 46.9), (1, 0)),
+        (None, (70.0, 30.0), (0, 0)),
+    ],
+    ids=['found-near-the-target', 'found-in-its-window-at-the-target', 'found-elsewhere'],
+)
+def test_a_star_put_beside_lost_lines_votes_only_when_found(
+    make_star_feature: NavFeatureFactory,
+    near: tuple[float, float] | None,
+    found: tuple[float, float],
+    votes: tuple[int, int],
+) -> None:
+    """A star put on row 52 with lost rows from 58 agrees when found there, by either
+    search, and a source elsewhere in its window does not count against the solution."""
+    star = make_star_feature('star:UCAC4:0', predicted_vu=(50.0, 50.0), predicted_snr=10.0)
+    result = third_star_votes(
+        [star],
+        _SHIFT,
+        detect=lambda feature: found,
+        detect_near=lambda feature, target: near,
+        tolerance_px=2.4,
+        missing_mask_ext=_lost_from_row(58),
+        box_half_px=3,
+    )
+    assert result == votes
+
+
 def test_a_star_with_no_detection_casts_no_vote(
     make_star_feature: NavFeatureFactory,
 ) -> None:
@@ -241,6 +303,8 @@ def test_a_star_with_no_detection_casts_no_vote(
         detect=lambda star: None,
         detect_near=lambda star, target: None,
         tolerance_px=2.4,
+        missing_mask_ext=_READ,
+        box_half_px=3,
     )
     assert votes == (0, 0)
 
@@ -263,6 +327,8 @@ def test_a_star_found_at_the_offset_agrees_whatever_else_its_window_holds(
         detect=lambda feature: (70.0, 30.0),
         detect_near=lambda feature, target: near,
         tolerance_px=2.4,
+        missing_mask_ext=_READ,
+        box_half_px=3,
     )
     assert result == votes
 
@@ -284,6 +350,8 @@ def test_a_star_is_sought_where_the_offset_puts_it(
         detect=lambda feature: None,
         detect_near=detect_near,
         tolerance_px=2.4,
+        missing_mask_ext=_READ,
+        box_half_px=3,
     )
     assert targets == [(52.0, 47.0)]
 
@@ -301,6 +369,8 @@ def test_a_source_beyond_the_tolerance_of_the_offset_does_not_agree(
         detect=lambda feature: None,
         detect_near=lambda feature, target: (target[0] + distance_px, target[1]),
         tolerance_px=2.4,
+        missing_mask_ext=_READ,
+        box_half_px=3,
     )
     assert result == (0, 0)
 
@@ -329,6 +399,8 @@ def test_one_source_in_two_windows_disagrees_once(
         detect=lambda feature: detections[feature.feature_id],
         detect_near=lambda feature, target: None,
         tolerance_px=2.4,
+        missing_mask_ext=_READ,
+        box_half_px=3,
     )
     assert result == votes
 

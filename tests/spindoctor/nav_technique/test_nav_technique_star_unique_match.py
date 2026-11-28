@@ -1404,6 +1404,43 @@ def test_star_unique_match_one_absent_star_refutes_a_pair_predicted_in_the_paddi
     assert result.spurious is spurious
 
 
+@pytest.mark.parametrize(
+    'seen_preds',
+    [[(60.0, 60.0), (80.0, 220.0)], [(60.0, 60.0)]],
+    ids=['two-star', 'one-star'],
+)
+def test_star_unique_match_stars_put_in_lost_lines_are_not_absent(
+    make_nav_context: NavContextFactory,
+    make_star_feature: NavFeatureFactory,
+    draw_gaussian_star: DrawGaussianStarFactory,
+    seen_preds: list[tuple[float, float]],
+) -> None:
+    """Brighter stars the offset puts in lines that were never read do not refute it.
+
+    Rows 200 on are lost and hold 0.0, as the orchestrator fills them.  The two brightest
+    stars are predicted there, and the stars drawn on the read rows give the answer.
+    """
+    rng = np.random.default_rng(43)
+    image = rng.normal(0.0, 1.0, (300, 300))
+    offset = (2.0, -3.0)
+    for pv, pu in seen_preds:
+        draw_gaussian_star(image, (pv + offset[0], pu + offset[1]), peak_dn=80.0)
+    missing = np.zeros(image.shape, dtype=bool)
+    missing[200:, :] = True
+    image[missing] = 0.0
+    features = [
+        make_star_feature('star:UCAC4:0', predicted_vu=(250.0, 100.0), predicted_snr=90.0),
+        make_star_feature('star:UCAC4:1', predicted_vu=(240.0, 200.0), predicted_snr=85.0),
+    ] + [
+        make_star_feature(f'star:UCAC4:{k + 2}', predicted_vu=pred, predicted_snr=40.0 - k)
+        for k, pred in enumerate(seen_preds)
+    ]
+    context = replace(make_nav_context(image), missing_data_mask_ext=missing)
+    result = StarUniqueMatchNav().navigate(features, context)
+    assert result.spurious is False
+    assert result.offset_px == pytest.approx(offset, abs=0.4)
+
+
 def test_star_unique_match_a_pair_star_seen_in_another_window_is_not_found_elsewhere(
     make_nav_context: NavContextFactory,
     make_star_feature: NavFeatureFactory,

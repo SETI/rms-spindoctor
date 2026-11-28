@@ -637,7 +637,10 @@ appear on clear sky in the image and nothing is there, and they outnumber the st
 there (``techniques.star_unique_match.tuning.pair_absent_stars``); one such star is enough
 when both of the pair's stars are predicted just outside the image. A star that the pair
 puts on a ring, a limb, or beside a bright source is not counted as missing, since its
-light could be hidden there. Two catalog entries for one star count as one star. When a
+light could be hidden there. A star that the pair, or a single-star try, places in or
+within a few pixels of lines missing from the image, such as the lines a truncated readout
+never sent, could be there unseen. Unless it is found there, it counts neither for nor
+against the pair or the try. Two catalog entries for one star count as one star. When a
 pair is refused, the next best backed pair elsewhere is tried. If two pairs backed by
 equally many stars disagree about the offset, the brighter one, for the stars' catalog
 magnitudes, is the answer, since a faint copy of the stars or a coincidence among faint
