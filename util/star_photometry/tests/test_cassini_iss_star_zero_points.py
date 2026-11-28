@@ -118,6 +118,12 @@ def _rows(record: dict[str, Any]) -> StarRows:
     return star_rows([record], 'NAC', rate=2.3e8, filters=frozenset(['CL1+CL2']))
 
 
+def test_a_non_clear_filter_is_refused_for_the_zero_point() -> None:
+    """The zero point is fitted on clear-filter frames only."""
+    with pytest.raises(ValueError, match=r'frames only; got filter\(s\) CL1\+IR3'):
+        star_rows([], 'NAC', rate=2.3e8, filters=frozenset(['CL1+CL2', 'CL1+IR3']))
+
+
 def test_calibration_terms_read_the_gain_and_the_shutter_offset() -> None:
     """The label's GAIN_CORRECTION and EXPOSURE_OFFSET give e-/DN and seconds."""
     assert calibration_terms(LABEL) == pytest.approx((GAIN, OFFSET_S))

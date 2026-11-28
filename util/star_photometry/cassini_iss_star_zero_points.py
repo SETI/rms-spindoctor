@@ -689,11 +689,20 @@ def star_rows(
         records: The frame records.
         camera: ``'NAC'`` or ``'WAC'``.
         rate: The provisional rate (e-/s for V = 0) the predicted signal uses.
-        filters: The filter combinations fitted.
+        filters: The filter combinations fitted; only the clear filter, because the
+            calibrated rate applies the clear-filter throughput to every frame.
 
     Returns:
         The rows, the aperture corrections, and the exclusion counts.
+
+    Raises:
+        ValueError: A filter other than the clear filter is asked for.
     """
+    other = sorted(filters - {CLEAR})
+    if other:
+        raise ValueError(
+            f'the zero point is fitted on {CLEAR} frames only; got filter(s) {", ".join(other)}'
+        )
     per_frame = [
         (r, _frame_stars(r))
         for r in records
