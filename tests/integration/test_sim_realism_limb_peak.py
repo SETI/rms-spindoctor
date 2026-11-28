@@ -38,6 +38,8 @@ _RECORD = load_record()
 
 _MARGIN_VU = (5, 7)
 _OBS = SimpleNamespace(extfov_margin_vu=_MARGIN_VU)
+# The sphere's center at (60.5, 60.5) as a pixel corner, in extended-FOV pixel centers.
+_CENTER_EXTFOV = (60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1])
 
 
 def _sphere_scene(center_vu: tuple[float, float], radius: float) -> dict[str, Any]:
@@ -75,15 +77,22 @@ def _limb(
     *,
     facing_deg: float = 0.0,
     half_deg: float = 85.0,
+    quantized: bool = False,
 ) -> LimbPolyline:
     """An arc of vertices 0.4 px inside a circle, in extended-FOV coordinates.
 
     Its middle normal points ``facing_deg`` from +u toward +v: 0 faces +u, the lit half
-    under ``_sphere_scene``.  The arc reaches ``half_deg`` to each side of it.
+    under ``_sphere_scene``.  The arc reaches ``half_deg`` to each side of it.  With
+    ``quantized`` each vertex's normal is rounded to a multiple of 45 degrees, as the
+    navigator's are.
     """
     angles = np.radians(np.linspace(-half_deg, half_deg, n) + facing_deg)
-    normals = np.column_stack([np.sin(angles), np.cos(angles)])
-    vertices = np.asarray(center_vu) + normals * (radius - 0.4)
+    directions = np.column_stack([np.sin(angles), np.cos(angles)])
+    vertices = np.asarray(center_vu) + directions * (radius - 0.4)
+    normals = directions
+    if quantized:
+        steps = np.radians(np.round(np.degrees(angles) / 45.0) * 45.0)
+        normals = np.column_stack([np.sin(steps), np.cos(steps)])
     return LimbPolyline(
         vertices_vu=vertices,
         normals_vu=normals,
@@ -96,8 +105,7 @@ def _limb(
 def test_the_matched_silhouette_is_the_scenes_circle() -> None:
     """A vertex 0.4 px inside the scene's circle lies 0.4 px from its silhouette."""
     offsets = matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS)
-    center = np.array([60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]])
-    limb = _limb((float(center[0]), float(center[1])), 30.0)
+    limb = _limb(_CENTER_EXTFOV, 30.0)
     distances = offsets('body_sim:REALISM_BODY', limb.vertices_vu, limb.normals_vu)
     assert np.max(np.abs(distances - 0.4)) < 1e-9
 
@@ -118,9 +126,34 @@ def test_the_matched_silhouette_leaves_out_the_unlit_limb(
     scene = _sphere_scene((60.5, 60.5), 30.0)
     scene['bodies'][0]['illumination_angle'] = illumination_deg
     offsets = matched_silhouette_offsets(scene, _OBS)
-    center = (60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1])
-    limb = _limb(center, 30.0, facing_deg=facing_deg)
+    limb = _limb(_CENTER_EXTFOV, 30.0, facing_deg=facing_deg)
     distances = offsets('body_sim:REALISM_BODY', limb.vertices_vu, limb.normals_vu)
+    assert np.all(np.isnan(distances))
+
+
+def test_the_matched_silhouette_lights_a_vertex_by_its_direction_from_the_center() -> None:
+    """A vertex 30 degrees from the light keeps its silhouette, whatever its normal.
+
+    Lit from the top of the image, its normal rounded to point to the right lies at right
+    angles to the light, yet the limb point it stands for is lit.
+    """
+    scene = _sphere_scene((60.5, 60.5), 30.0)
+    scene['bodies'][0]['illumination_angle'] = 0.0
+    offsets = matched_silhouette_offsets(scene, _OBS)
+    angle = np.radians(-60.0)
+    vertex = np.asarray(_CENTER_EXTFOV) + 29.6 * np.array([[np.sin(angle), np.cos(angle)]])
+    distances = offsets('body_sim:REALISM_BODY', vertex, np.array([[0.0, 1.0]]))
+    assert np.isfinite(distances[0])
+
+
+def test_the_matched_silhouette_leaves_out_the_limb_at_right_angles_to_the_light() -> None:
+    """The two limb points at right angles to the light lie on the terminator, unlit."""
+    scene = _sphere_scene((60.5, 60.5), 30.0)
+    scene['bodies'][0]['illumination_angle'] = 0.0
+    offsets = matched_silhouette_offsets(scene, _OBS)
+    directions = np.array([[0.0, 1.0], [0.0, -1.0]])
+    vertices = np.asarray(_CENTER_EXTFOV) + 29.6 * directions
+    distances = offsets('body_sim:REALISM_BODY', vertices, directions)
     assert np.all(np.isnan(distances))
 
 
@@ -140,6 +173,32 @@ def test_a_matched_body_that_is_not_a_sphere_is_refused() -> None:
         matched_silhouette_offsets(scene, _OBS)
 
 
+def _measure(
+    limb: LimbPolyline,
+    image: np.ndarray,
+    *,
+    scene: dict[str, Any] | None = None,
+    clear_track: Any = None,
+    peak_deg: tuple[float, ...] | None = None,
+) -> LimbPeak:
+    """The gradient peak of ``limb`` on ``image`` under a sphere scene.
+
+    The scene is :func:`_sphere_scene`'s, lit from +u, unless another is given; the
+    selection takes its orientation from the same scene.
+    """
+    scene = _sphere_scene((60.5, 60.5), 30.0) if scene is None else scene
+    return limb_peak_offset(
+        image,
+        limb,
+        'body_sim:REALISM_BODY',
+        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
+        silhouette_offsets=matched_silhouette_offsets(scene, _OBS),
+        selection=LimbSelection(
+            matched_orientation(scene), clear_track=clear_track, peak_deg=peak_deg
+        ),
+    )
+
+
 @pytest.mark.parametrize(
     ('edge_radius', 'expected'),
     [(30.0, 0.0), (29.5, -0.5)],
@@ -149,31 +208,13 @@ def test_a_limbs_peak_offset_is_its_edge_less_its_silhouette(
     edge_radius: float, expected: float
 ) -> None:
     """A disc stated at radius 30 with its edge at ``edge_radius`` peaks that far off."""
-    offsets = matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS)
-    image = _disc_image((60.0, 60.0), edge_radius)
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
-    peak = limb_peak_offset(
-        image,
-        limb,
-        'body_sim:REALISM_BODY',
-        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
-        silhouette_offsets=offsets,
-    )
+    peak = _measure(_limb(_CENTER_EXTFOV, 30.0), _disc_image((60.0, 60.0), edge_radius))
     assert peak.offset_px == pytest.approx(expected, abs=0.02)
 
 
 def test_a_misplaced_limb_moves_the_translation_and_keeps_the_offset() -> None:
     """A frame offset 1.3 px wrong toward the lit limb leaves the peak offset alone."""
-    offsets = matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS)
-    image = _disc_image((60.0, 61.3), 29.5)
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
-    peak = limb_peak_offset(
-        image,
-        limb,
-        'body_sim:REALISM_BODY',
-        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
-        silhouette_offsets=offsets,
-    )
+    peak = _measure(_limb(_CENTER_EXTFOV, 30.0), _disc_image((60.0, 61.3), 29.5))
     assert peak.offset_px == pytest.approx(-0.5, abs=0.03)
 
 
@@ -181,17 +222,20 @@ def test_a_limb_at_zero_phase_is_measured() -> None:
     """At zero phase the whole limb is lit, so even the half facing -u is measured."""
     scene = _sphere_scene((60.5, 60.5), 30.0)
     scene['bodies'][0]['phase_angle'] = 0.0
-    offsets = matched_silhouette_offsets(scene, _OBS)
-    image = _disc_image((60.0, 60.0), 30.0)
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=180.0)
-    peak = limb_peak_offset(
-        image,
-        limb,
-        'body_sim:REALISM_BODY',
-        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
-        silhouette_offsets=offsets,
-    )
+    limb = _limb(_CENTER_EXTFOV, 30.0, facing_deg=180.0)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), scene=scene)
     assert peak.offset_px == pytest.approx(0.0, abs=0.02)
+
+
+def test_a_limb_is_read_along_its_directions_from_the_center() -> None:
+    """A limb whose normals are rounded to 45 degree steps peaks where its edge lies.
+
+    Read along the rounded normals, the edge would lie up to 1 / cos(22.5 deg) times
+    farther from the silhouette, 0.54 px for an edge 0.5 px inside it.
+    """
+    limb = _limb(_CENTER_EXTFOV, 30.0, quantized=True)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 29.5))
+    assert peak.offset_px == pytest.approx(-0.5, abs=0.02)
 
 
 def test_a_noisy_limb_on_a_short_arc_is_refused_for_its_sigma() -> None:
@@ -200,43 +244,27 @@ def test_a_noisy_limb_on_a_short_arc_is_refused_for_its_sigma() -> None:
     Over so short an arc a radial offset and a translation along the arc's middle normal
     move the peaks almost alike, so the noise is magnified into the offset.
     """
-    offsets = matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS)
     rng = np.random.default_rng(1)
     image = _disc_image((60.0, 60.0), 30.0) + rng.normal(0.0, 0.05, (120, 120))
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, 40, half_deg=15.0)
-    peak = limb_peak_offset(
-        image,
-        limb,
-        'body_sim:REALISM_BODY',
-        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
-        silhouette_offsets=offsets,
-    )
+    peak = _measure(_limb(_CENTER_EXTFOV, 30.0, 40, half_deg=15.0), image)
     assert peak.refusal is not None
     assert 'worse than 0.2 px' in peak.refusal
 
 
-def _measure(
-    limb: LimbPolyline, image: np.ndarray, selection: LimbSelection | None = None
-) -> LimbPeak:
-    """The gradient peak of ``limb`` on ``image`` under the sphere scene, lit from +u."""
-    return limb_peak_offset(
-        image,
-        limb,
-        'body_sim:REALISM_BODY',
-        shift_vu=-np.asarray(_MARGIN_VU, dtype=np.float64),
-        silhouette_offsets=matched_silhouette_offsets(_sphere_scene((60.5, 60.5), 30.0), _OBS),
-        selection=selection,
-    )
+@pytest.mark.parametrize('facing_deg', [0.0, 11.25, 22.5, 33.75])
+def test_a_short_arc_is_refused_however_it_is_turned(facing_deg: float) -> None:
+    """A clean 120 degree arc is refused for its arc at every turn of the limb.
 
-
-def test_a_limb_on_a_short_arc_is_refused_for_its_arc() -> None:
-    """A clean 90 degree arc knows its offset well but cannot tell it from a translation.
-
-    Its offset correlates with the translation at 0.995, above the 0.97 ceiling, so the
-    limb is refused with that reason although its sigma lies far below 0.2 px.
+    Read along its directions from the center, the arc's offset correlates with the
+    translation at 0.983, above the 0.97 ceiling, however it is turned.  Read along the
+    normals rounded to 45 degrees, the correlation would range from 0.959 to 0.985 as the
+    arc turns, and the arc would be kept at some turns.  The whole limb is lit at zero
+    phase, so every turn is measured.
     """
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, 60, half_deg=45.0)
-    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0))
+    scene = _sphere_scene((60.5, 60.5), 30.0)
+    scene['bodies'][0]['phase_angle'] = 0.0
+    limb = _limb(_CENTER_EXTFOV, 30.0, 120, facing_deg=facing_deg, half_deg=60.0, quantized=True)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), scene=scene)
     assert peak.refusal is not None
     assert 'the arc is too short' in peak.refusal
 
@@ -252,12 +280,11 @@ def test_a_vertex_whose_track_touches_another_body_is_left_out() -> None:
     angle = np.degrees(np.arctan2(vv - 60.0, uu - 60.0))
     radius = np.hypot(vv - 60.0, uu - 60.0)
     other = (angle >= 20.0) & (angle <= 50.0) & (radius > 31.0) & (radius < 36.0)
-    selection = LimbSelection(
-        matched_orientation(_sphere_scene((60.5, 60.5), 30.0)),
+    peak = _measure(
+        _limb(_CENTER_EXTFOV, 30.0),
+        _disc_image((60.0, 60.0), 30.0),
         clear_track=lambda points, normals, half: ~tracks_touching(other, points, normals, half),
     )
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
-    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), selection)
     assert len(peak.used_deg) > 60
     assert not any(25.0 <= d <= 45.0 for d in peak.used_deg)
 
@@ -269,9 +296,8 @@ def test_the_matched_limb_is_measured_over_the_real_limbs_directions() -> None:
     two vertex spacings past -1 degree are left out.
     """
     used = tuple(float(d) for d in np.linspace(-85.0, -1.0, 45))
-    selection = LimbSelection(matched_orientation(_sphere_scene((60.5, 60.5), 30.0)), used_deg=used)
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
-    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), selection)
+    limb = _limb(_CENTER_EXTFOV, 30.0)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), peak_deg=used)
     assert max(peak.used_deg) < 3.0
 
 
@@ -281,9 +307,8 @@ def test_a_matched_limb_keeps_the_arc_the_real_limb_kept() -> None:
     The real limb's own fit judged the arc; the matched limb only follows it.
     """
     used = tuple(float(d) for d in np.linspace(-45.0, 45.0, 45))
-    selection = LimbSelection(matched_orientation(_sphere_scene((60.5, 60.5), 30.0)), used_deg=used)
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0)
-    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), selection)
+    limb = _limb(_CENTER_EXTFOV, 30.0)
+    peak = _measure(limb, _disc_image((60.0, 60.0), 30.0), peak_deg=used)
     assert peak.refusal is None
 
 
@@ -331,7 +356,7 @@ def test_the_real_silhouette_is_where_the_rays_stop_hitting_the_body() -> None:
     The rays are traced every 1/64 px, so the silhouette is found to within that.
     """
     offsets = real_silhouette_offsets(SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None))
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=0.0)
+    limb = _limb(_CENTER_EXTFOV, 30.0, facing_deg=0.0)
     distances = offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
     assert np.max(np.abs(distances - 0.4)) <= 1.0 / 64.0
 
@@ -340,7 +365,7 @@ def test_the_real_silhouette_is_where_the_rays_stop_hitting_the_body() -> None:
 def test_the_real_silhouette_leaves_out_the_unlit_limb() -> None:
     """Vertices where the Sun is below the horizon just inside the edge get NaN."""
     offsets = real_silhouette_offsets(SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None))
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=180.0)
+    limb = _limb(_CENTER_EXTFOV, 30.0, facing_deg=180.0)
     distances = offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
     assert np.all(np.isnan(distances))
 
@@ -394,7 +419,7 @@ def test_a_body_given_radii_is_traced_at_them(moon_body: _MoonBody) -> None:
         SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None),
         radii_km={'MOON': (30.5, 30.5, 30.5)},
     )
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=0.0)
+    limb = _limb(_CENTER_EXTFOV, 30.0, facing_deg=0.0)
     distances = offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
     assert np.max(np.abs(distances - 0.9)) <= 1.0 / 64.0
 
@@ -406,7 +431,7 @@ def test_a_body_given_radii_gets_its_own_shape_back(moon_body: _MoonBody) -> Non
         SimpleNamespace(extfov_margin_vu=_MARGIN_VU, fov=None),
         radii_km={'MOON': (30.5, 30.5, 30.5)},
     )
-    limb = _limb((60.0 + _MARGIN_VU[0], 60.0 + _MARGIN_VU[1]), 30.0, facing_deg=0.0)
+    limb = _limb(_CENTER_EXTFOV, 30.0, facing_deg=0.0)
     offsets('body:MOON', limb.vertices_vu, limb.normals_vu)
     assert moon_body.surface is surface
 

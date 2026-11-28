@@ -230,6 +230,15 @@ def test_a_matched_body_takes_the_measured_normal_albedo(scene_class: str) -> No
     assert scene['bodies'][0]['normal_albedo'] == 0.37
 
 
+@pytest.mark.parametrize('scene_class', ['body_full_fov', 'ring_plus_body'])
+def test_a_matched_body_is_lit_from_the_direction_it_is_given(scene_class: str) -> None:
+    """A matched limb or ring scene lights its body from the real body's direction."""
+    scene = matched_scene(
+        'N1', scene_class, 'coiss_calib_nac', 0.5, size_vu=(256, 256), illumination_deg=212.5
+    )
+    assert scene['bodies'][0]['illumination_angle'] == 212.5
+
+
 def test_an_unmeasured_matched_body_stays_white() -> None:
     """Without a measured albedo, the matched body leaves the key out."""
     scene = matched_scene('N1', 'ring_plus_body', 'coiss_calib_nac', 0.5, size_vu=(256, 256))

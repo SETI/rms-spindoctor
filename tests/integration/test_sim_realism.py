@@ -28,6 +28,7 @@ from polymath import Pair
 
 from spindoctor.config import DEFAULT_CONFIG, Config
 from spindoctor.obs import ObsSnapshotInst
+from spindoctor.obs.obs_inst_sim import ObsSim
 from spindoctor.sim.instruments.resolvers import (
     resolve_calibrated_sky_if,
     resolve_dark_sky_ceiling_if,
@@ -480,6 +481,54 @@ def test_matched_ring_body_tracks_diameter_and_phase() -> None:
     body = scene['bodies'][0]
     assert body['semi_a_px'] == pytest.approx(27.5)
     assert body['phase_angle'] == pytest.approx(126.3)
+
+
+def test_a_matched_frame_is_lit_from_its_real_bodys_direction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The matched body takes the light direction measured on the real body."""
+    monkeypatch.setattr(ObsSim, 'from_file', staticmethod(lambda _path, sim_params: sim_params))
+    record = FrameRecord(
+        image_id='N1',
+        scene_class='body_full_fov',
+        instrument='coiss_calib_nac',
+        exposure_sec=0.5,
+        stratum='0.5s_to_5s',
+        offset_vu=(0.0, 0.0),
+        frame_shape_vu=(256, 256),
+        light_deg=123.0,
+    )
+    _obs, scene = sim_realism._sim_obs_for_record(record)
+    assert scene['bodies'][0]['illumination_angle'] == 123.0
+
+
+def _twin_widths(width_directions_deg: tuple[float, ...]) -> int:
+    """How many rise widths a matched limb frame gives near the real widths' directions."""
+    record = FrameRecord(
+        image_id='WIDTH_DIRECTIONS_PROBE',
+        scene_class='body_full_fov',
+        instrument='coiss_calib_nac',
+        exposure_sec=0.5,
+        stratum='0.5s_to_5s',
+        offset_vu=(0.0, 0.0),
+        diameter_px=150.0,
+        phase_angle_deg=45.0,
+        frame_shape_vu=(256, 256),
+        light_deg=90.0,
+        limb_width_directions_deg=width_directions_deg,
+    )
+    samples, _rates = _frame_samples_sim(record)
+    return sum(len(v) for k, v in samples.samples.items() if k.startswith('limb_width_'))
+
+
+def test_a_matched_frame_takes_its_widths_near_its_real_widths_directions() -> None:
+    """Real widths over a 60 degree stretch give the twin under half its widths.
+
+    Real widths around the whole limb give the twin every width it has.
+    """
+    stretch = _twin_widths(tuple(float(d) for d in np.linspace(-30.0, 30.0, 30)))
+    whole = _twin_widths(tuple(float(d) for d in np.arange(-180.0, 180.0, 2.0)))
+    assert stretch < whole / 2
 
 
 def test_sim_side_extraction_is_deterministic() -> None:

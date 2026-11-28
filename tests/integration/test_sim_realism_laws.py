@@ -393,16 +393,23 @@ def test_a_large_disc_keeps_at_most_sixty_thousand_pixels() -> None:
 
 
 def _hiding_backplane() -> tuple[Any, dict[str, dict[str, Any]]]:
-    """A frame holding a near and a far body whose boxes overlap, rings, and a shadow."""
+    """A frame holding a near and a far body whose boxes overlap, rings, and a shadow.
+
+    The rings lie in front of the far body at (28, 28), over the sky at (5, 35), and
+    behind the near body at (12, 12).
+    """
     near = np.zeros((40, 40), dtype=bool)
     near[10:20, 10:20] = True
     far = np.zeros((40, 40), dtype=bool)
     far[15:30, 15:30] = True
     rings = np.zeros((40, 40), dtype=bool)
     rings[28, 28] = True
+    ring_plane = rings.copy()
+    ring_plane[5, 35] = True
+    ring_plane[12, 12] = True
     shadow = np.zeros((40, 40), dtype=bool)
     shadow[29, 15] = True
-    masks = {'NEAR': near, 'FAR': far}
+    masks = {'NEAR': near, 'FAR': far, 'SATURN_MAIN_RINGS': ring_plane}
     backplane = SimpleNamespace(
         where_intercepted=lambda name: SimpleNamespace(vals=masks[name]),
         where_in_back=lambda name, ring: SimpleNamespace(
@@ -458,10 +465,39 @@ def test_a_body_behind_the_limb_is_foreign() -> None:
     assert foreign[25, 25]
 
 
-def _moon_backplane(size: int, radius: float) -> tuple[Any, NDArrayFloatType]:
-    """An offset backplane of one sphere seen at zero phase, and a Lambert image of it."""
+def test_the_main_rings_beside_a_limb_are_foreign() -> None:
+    """Ring light over the sky beside the near body reaches its limb's tracks.
+
+    The rings at (5, 35) lie in front of neither body, yet a track from the near body's
+    limb that reaches them, or the clearance around them, measures their light.
+    """
+    backplane, entries = _hiding_backplane()
+    foreign = sim_realism_laws_discs.foreign_pixels(
+        backplane, 'NEAR', list(entries.items()), planet='SATURN'
+    )
+    assert foreign[5, 37]
+
+
+def test_the_main_rings_behind_a_body_are_not_foreign_to_it() -> None:
+    """Where the near body lies in front of the rings, its pixel shows the body."""
+    backplane, entries = _hiding_backplane()
+    foreign = sim_realism_laws_discs.foreign_pixels(
+        backplane, 'NEAR', list(entries.items()), planet='SATURN'
+    )
+    assert not foreign[12, 12]
+
+
+def test_the_main_rings_beside_a_moon_hide_none_of_its_disc() -> None:
+    """Rings over the sky beside a disc take none of the pixels its fits count."""
+    assert not _hidden('NEAR', 'SATURN').any()
+
+
+def _moon_backplane(
+    size: int, radius: float, *, phase_deg: float = 0.0
+) -> tuple[Any, NDArrayFloatType]:
+    """An offset backplane of one sphere lit from +u, and a Lambert image of it."""
     on_body, mu0, mu = sim_realism_laws._sphere_cosines(
-        (size, size), (size / 2.0, size / 2.0), radius, illumination_deg=90.0, phase_deg=0.0
+        (size, size), (size / 2.0, size / 2.0), radius, illumination_deg=90.0, phase_deg=phase_deg
     )
 
     def angles(cosines: NDArrayFloatType) -> Any:
@@ -478,6 +514,26 @@ def _moon_backplane(size: int, radius: float) -> tuple[Any, NDArrayFloatType]:
         ),
     )
     return backplane, 0.5 * np.where(on_body, np.clip(mu0, 0.0, None), 0.0)
+
+
+def _real_orientation() -> Any:
+    """The real limb orientation of a sphere at (50, 50), as a pixel corner, lit from +u."""
+    backplane, _data = _moon_backplane(100, 40.0, phase_deg=40.0)
+    entry = {'center_uv': (50.0, 50.0), 'u_pixel_size': 80.0, 'v_pixel_size': 80.0}
+    selection = sim_realism_laws_discs.real_limb_selection(
+        backplane, 'DIONE', [('DIONE', entry)], planet=None, offset_vu=(0.0, 0.0)
+    )
+    return selection.orientation
+
+
+def test_a_real_limb_is_lit_from_where_its_disc_says() -> None:
+    """A sphere lit from +u gives its limb a light direction of 90 degrees."""
+    assert _real_orientation().light_deg == pytest.approx(90.0, abs=1e-6)
+
+
+def test_a_real_limbs_center_is_its_bodys_center_in_pixel_centers() -> None:
+    """A body centered at (50, 50) as a pixel corner centers its limb at (49.5, 49.5)."""
+    assert _real_orientation().center_vu == pytest.approx((49.5, 49.5))
 
 
 def _measured(size: int, radius: float, *, clipped_and_hidden: Any = None) -> LawStudyInputs:

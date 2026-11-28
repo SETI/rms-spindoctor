@@ -55,9 +55,12 @@ def _limb_feature(model: str) -> Any:
     return SimpleNamespace(source_model=model, geometry=geometry)
 
 
-def _widths(features: list[Any], *, selection: LimbSelection | None = None) -> list[float]:
-    """The FOM 3 widths the features give when the matched frame renders MOON."""
-    samples = extract_feature_samples(
+_ORIENTATION = LimbOrientation((_CENTER, _CENTER), 90.0)
+
+
+def _samples(features: list[Any], selection: LimbSelection) -> Any:
+    """The feature samples the features give when the matched frame renders MOON."""
+    return extract_feature_samples(
         _disc_image(),
         features,
         _METADATA,
@@ -67,7 +70,23 @@ def _widths(features: list[Any], *, selection: LimbSelection | None = None) -> l
         matched_model='body:MOON',
         limb_selection=selection,
     )
-    return samples.samples.get(_BIN, [])
+
+
+def _widths(features: list[Any], selection: LimbSelection | None = None) -> list[float]:
+    """The FOM 3 widths the features give, by default with nothing left out."""
+    chosen = LimbSelection(_ORIENTATION) if selection is None else selection
+    widths: list[float] = _samples(features, chosen).samples.get(_BIN, [])
+    return widths
+
+
+def _upper_sky_taken() -> LimbSelection:
+    """A real frame's selection whose other body fills the sky above the center row."""
+    vv, uu = np.mgrid[0:_SIZE, 0:_SIZE].astype(np.float64)
+    other = (np.hypot(vv - _CENTER, uu - _CENTER) > _RADIUS + 3.0) & (vv < _CENTER)
+    return LimbSelection(
+        _ORIENTATION,
+        clear_track=lambda points, normals, half: ~tracks_touching(other, points, normals, half),
+    )
 
 
 def test_a_width_whose_track_crosses_another_body_is_left_out() -> None:
@@ -76,17 +95,53 @@ def test_a_width_whose_track_crosses_another_body_is_left_out() -> None:
     Each upper vertex's 8 px track reaches beyond the limb into that body; no lower
     vertex's track rises above the center row.
     """
-    vv, uu = np.mgrid[0:_SIZE, 0:_SIZE].astype(np.float64)
-    other = (np.hypot(vv - _CENTER, uu - _CENTER) > _RADIUS + 3.0) & (vv < _CENTER)
-    selection = LimbSelection(
-        LimbOrientation((_CENTER, _CENTER), 90.0),
-        clear_track=lambda points, normals, half: ~tracks_touching(other, points, normals, half),
+    assert len(_widths([_limb_feature('body:MOON')], _upper_sky_taken())) == 45
+
+
+def test_a_real_frame_records_the_directions_of_its_widths() -> None:
+    """The 45 widths below the center row record directions from 0 to 90 degrees.
+
+    The light comes from +u, so a vertex's direction is its angle from +u toward +v.
+    """
+    samples = _samples([_limb_feature('body:MOON')], _upper_sky_taken())
+    directions = np.asarray(samples.limb_width_directions_deg)
+    assert directions.size == 45
+    assert bool(np.all((directions > 0.0) & (directions < 90.0)))
+
+
+def test_a_width_whose_track_leaves_the_frame_records_no_direction() -> None:
+    """Each width of a limb whose middle runs off the frame records one direction.
+
+    Moved 25 px toward +u, 28 of the limb's 90 tracks leave the frame and give no width.
+    """
+    samples = extract_feature_samples(
+        _disc_image(),
+        [_limb_feature('body:MOON')],
+        _METADATA,
+        offset_vu=(0.0, 25.0),
+        extfov_margin_vu=(0, 0),
+        saturation_level=np.nan,
+        matched_model='body:MOON',
+        limb_selection=LimbSelection(_ORIENTATION),
     )
-    assert len(_widths([_limb_feature('body:MOON')], selection=selection)) == 45
+    widths = samples.samples[_BIN]
+    assert len(samples.limb_width_directions_deg) == len(widths)
+
+
+def test_a_matched_frame_takes_its_widths_near_the_real_widths_directions() -> None:
+    """Real widths from 20 to 85 degrees keep the twin's within two spacings of them.
+
+    The vertices lie 1.9 degrees apart, so no kept width lies below 16 degrees.
+    """
+    angles = np.linspace(-85.0, 85.0, 90)
+    selection = LimbSelection(_ORIENTATION, width_deg=tuple(angles[angles >= 20.0]))
+    samples = _samples([_limb_feature('body:MOON')], selection)
+    assert min(samples.limb_width_directions_deg) > 16.0
 
 
 def test_a_width_from_a_body_the_matched_frame_lacks_is_left_out() -> None:
     """A second body's limb adds no widths when the matched frame renders only MOON."""
     alone = _widths([_limb_feature('body:MOON')])
     both = _widths([_limb_feature('body:MOON'), _limb_feature('body:OTHER')])
+    assert alone
     assert len(both) == len(alone)
