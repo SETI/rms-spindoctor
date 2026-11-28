@@ -3,9 +3,8 @@
 CI runs the ``sim_integration`` tests and skips the rest of the integration tier,
 which needs archive holdings.  A simulator module (``test_sim_*.py`` or
 ``test_render_diffs.py``) needs none, so one marked ``integration`` without
-``sim_integration`` would drop out of CI unnoticed.  Two modules are the
-exceptions: the performance budgets, because they need a quiet host, and the
-realism smoke, because it reads real frames.
+``sim_integration`` would drop out of CI unnoticed.  The performance budgets are
+the exception, because they need a quiet host.
 
 The guard asks pytest itself which tests a marker expression selects, with
 ``--collect-only``.  Pytest's own collection applies every way a mark can
@@ -27,11 +26,6 @@ _CI_MARKER_EXPR = '(not integration or sim_integration) and not postgres'
 
 _QUIET_HOST_MODULES: frozenset[str] = frozenset({'test_sim_perf.py'})
 """Simulator modules kept out of CI because they time themselves."""
-
-_REAL_DATA_MODULES: frozenset[str] = frozenset(
-    {'test_sim_realism_regression.py', 'test_sim_realism_smoke.py'}
-)
-"""Simulator modules kept out of CI because they read archive holdings and SPICE."""
 
 _NO_TESTS_COLLECTED = 5
 """Pytest's exit status when the expression selects no test."""
@@ -78,7 +72,7 @@ def _simulator_modules() -> list[Path]:
 
 def _exempt_modules() -> list[Path]:
     """Return the simulator modules deliberately kept out of CI."""
-    return [_INTEGRATION_DIR / name for name in sorted(_QUIET_HOST_MODULES | _REAL_DATA_MODULES)]
+    return [_INTEGRATION_DIR / name for name in sorted(_QUIET_HOST_MODULES)]
 
 
 def test_integration_marked_simulator_tests_also_run_in_ci() -> None:
@@ -88,7 +82,7 @@ def test_integration_marked_simulator_tests_also_run_in_ci() -> None:
 
 
 def test_the_exempt_modules_stay_out_of_ci() -> None:
-    """CI's expression selects none of the performance budgets or the realism smoke."""
+    """CI's expression selects none of the performance budgets."""
     assert _collected(_CI_MARKER_EXPR, _exempt_modules()) == []
 
 

@@ -12,8 +12,6 @@ navigator's recovery of the planted pointing can be measured.  Its subpackages a
   the navigator-side simulated models both use.
 - :mod:`spindoctor.sim.render`: the image side, which renders a validated scene
   into an image.
-- :mod:`spindoctor.sim.realism`: the statistics that compare simulated frames with
-  real ones.
 
 Three modules sit beside them: :mod:`spindoctor.sim.artifact_modes` (the
 artifact-mode registry), :mod:`spindoctor.sim.seeds` (seed derivation for the
