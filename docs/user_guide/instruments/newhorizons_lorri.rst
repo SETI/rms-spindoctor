@@ -125,7 +125,7 @@ are missing or more than 80% are overexposed.
 **Corrections applied at load.** None beyond what the host reader does.
 
 **Stars.** The faintest catalog star the navigator looks for depends on the exposure
-and the binning mode. At 1 s it is magnitude 14.8 on an unbinned frame and 15.5 on a
+and the binning mode. At 1 s it is magnitude 14.9 on an unbinned frame and 15.5 on a
 frame binned four by four, and each factor of ten in exposure reaches 2.5 magnitudes
 deeper. The navigator expects a star's light to spread with a Gaussian sigma of 0.9
 pixels on an unbinned frame and 0.45 pixels on a binned one. Both were measured on

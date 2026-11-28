@@ -222,43 +222,44 @@ stars the camera can show.
      - ``min_detectable_dn``
      - Limit at 1 s
    * - Voyager 1 narrow angle
-     - 5.60e4
+     - 4.52e4
      - 3.92
-     - 110
-     - V 8.8
+     - 64
+     - V 9.1
    * - Voyager 1 wide angle
-     - 2.74e3
+     - 2.84e3
      - 3.94
-     - 35
-     - V 6.7
+     - 33
+     - V 6.8
    * - Voyager 2 narrow angle
-     - 8.64e4
+     - 6.98e4
      - 4.24
-     - 110
-     - V 9.2
+     - 64
+     - V 9.6
    * - Voyager 2 wide angle
-     - 4.6e3
+     - 4.73e3
      - 4.04
-     - 35
-     - V 7.3
+     - 33
+     - V 7.4
 
 The Voyager 2 rates, detection thresholds, and star widths were measured in 2026 on
 star fields of its cruise and encounters, read through the navigator's own reader and
-photometered on the raw vidicon frame. Each frame's pointing was found from the stars
+photometered on the raw vidicon frame, against the catalog stars' Johnson V magnitudes
+(see :doc:`/dev_guide/dev_guide_navigation_models_star`). Each frame's pointing was found from the stars
 alone, by a vote over star and peak pairs refined to a translation and a rotation, and
 a frame was kept when three or more stars, each on its own image peak, agreed within
 1.5 px and the chance of such a cluster anywhere in the 400 px search window was below
-one in a thousand. That kept 36 narrow-angle and 47 wide-angle frames, and one frame
+one in a thousand. That kept 38 narrow-angle and 47 wide-angle frames, and one frame
 in three was held out of the fit.
 
-- The narrow-angle rate is 8.64e4 DN per second; the fit of 48 stars gives 8.65e4
-  (+-0.07 mag). The wide-angle rate rests on 13 bright Tycho stars (+-0.20 mag). Fainter
-  wide-angle stars, V 8 to 10, read 1.1 to 1.5 mag brighter than that rate predicts,
-  which points to a compressive vidicon response at high signal.
+- The narrow-angle rate is the fit of 36 stars, 6.98e4 DN per second (+-0.07 mag). The
+  wide-angle rate rests on 17 bright stars, 4.73e3 DN per second (+-0.23 mag). Fainter
+  wide-angle stars read brighter than that rate predicts, by 0.5 mag at V 8 to 9 and
+  1.2 mag at V 9 to 10, which points to a compressive vidicon response at high signal.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to the clean
   stars taken through CLEAR at low gain, reaches 80% of the way from its floor to its
-  plateau: 101 +- 27 DN on the narrow-angle camera and 35 +- 22 DN on the wide-angle
-  camera. The narrow-angle camera keeps 110 DN, within that uncertainty.
+  plateau: 64 +- 17 DN on the narrow-angle camera and 33 +- 19 DN on the wide-angle
+  camera.
 - Every measured frame is at low gain, so the high-gain factor is the published
   constant ``g`` of Benesh and Jepsen (1978, Table 4-3) for the camera's serial number.
 - The filter offsets are 2.5 log10 of each camera's solar filter factors (Benesh and
@@ -275,8 +276,8 @@ and S/N 04, so the narrow-angle rate is scaled by 0.648 and the wide-angle rate 
 0.600. Voyager 1 keeps its own filter factors and high-gain constants, and takes
 Voyager 2's ``min_detectable_dn``.
 
-On the held-out Voyager 2 frames, the faintest star detected lies a median 0.02 mag
-inside the predicted dimmest visible star on the narrow-angle camera, and 1.21 mag
+On the held-out Voyager 2 frames, the faintest star detected lies a median 0.57 mag
+inside the predicted dimmest visible star on the narrow-angle camera, and 0.62 mag
 past it on the wide-angle camera, with broad spreads, so the limit carries about half
 a magnitude of uncertainty.
 

@@ -148,35 +148,39 @@ magnitude ``m`` puts
 
     \mathrm{DN} = \frac{R \cdot 10^{-0.4\,m} \cdot t_{\mathrm{exp}}}{g}
 
-in the image, where ``R`` is ``flux_per_s_vmag0`` (7.57e8 electrons per second for a
+in the image, where ``R`` is ``flux_per_s_vmag0`` (7.89e8 electrons per second for a
 V = 0 star) and ``g`` is the mode's ``gain`` entry, in electrons per DN. The dimmest
 visible star puts the mode's ``min_detectable_dn`` in the image, and the limit is
-that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.8
+that star's magnitude plus ``search_depth_mag`` (1.0). At 1 s the limit is V 14.9
 unbinned and V 15.5 binned. A frame is refused when the tables leave out its mode, and
 the message gives the key path (``newhorizons_lorri.star_photometry...``). A frame whose
 exposure is not positive gets a limit of ``-inf``.
 
 The rate, the detection thresholds, and the star widths were measured in 2026 on star
-fields of the cruise and the Pluto approach, read through the navigator's own reader.
+fields of the cruise and the Pluto approach, read through the navigator's own reader,
+against the catalog stars' Johnson V magnitudes (see
+:doc:`/dev_guide/dev_guide_navigation_models_star`).
 Each frame's pointing was found from the stars alone, by a vote over star and peak
 pairs refined to a translation and a rotation, and a frame was kept when three or more
 stars, each on its own image peak, agreed within 1 px and the chance of such a cluster
 anywhere in the search window (100 px unbinned, 40 px binned) was below one in a
-thousand. That kept 341 of 468 measured frames, and one frame in three was held out of
+thousand. That kept 340 of 468 measured frames, and one frame in three was held out of
 the fit. Frames shorter than 50 ms were left out: the camera has no shutter, so the
 frame transfer adds light to a short exposure.
 
-- The rate is the fit of 4,310 stars, 3.605e7 DN per second for V = 0 unbinned
-  (+-0.01 mag), times 21.0 electrons per DN. The zero point of Weaver et al. (2020)
-  gives 3.2e7 DN per second.
+- The rate is the fit of 4,178 stars, 3.757e7 DN per second for V = 0 unbinned
+  (+-0.02 mag), times 21.0 electrons per DN. The zero point of Weaver et al. (2020)
+  gives 3.2e7 DN per second. The stars scatter by 0.33 mag about the fit, and redder
+  stars read brighter, by 0.42 mag for each magnitude of B-V, which the limit does not
+  model.
 - The electrons per DN are those of Weaver et al. (2020), 21.0 unbinned and 19.4
-  binned. The stars measure the binned to unbinned DN ratio at 1.054, against the
+  binned. The stars measure the binned to unbinned DN ratio at 1.196, against the
   1.082 these give.
 - ``min_detectable_dn`` is where a detection-probability curve, fitted to every
   clean star of the mode, reaches 80% of the way from its floor to its plateau:
-  110 +- 7 DN unbinned and 60 +- 4 DN binned.
+  106 +- 5 DN unbinned and 66 +- 5 DN binned.
 
-On the held-out frames, the faintest star detected lies a median 0.04 mag past the
+On the held-out frames, the faintest star detected lies a median 0.19 mag past the
 predicted dimmest visible star.
 
 ``star_min_usable_vmag`` is 0.0: no bright-end cutoff, and saturated stars are

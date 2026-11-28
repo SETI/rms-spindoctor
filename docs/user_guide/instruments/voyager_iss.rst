@@ -166,8 +166,8 @@ no raw Voyager product the pipeline can navigate instead.
 
 **Stars.** The faintest catalog star the navigator looks for depends on the
 camera, the exposure, the filter, and the gain state. At 1 s through the clear
-filter at low gain it is magnitude 9.2 for the Voyager 2 narrow-angle camera, 7.3 for
-the Voyager 2 wide-angle camera, 8.8 for the Voyager 1 narrow-angle camera, and 6.7
+filter at low gain it is magnitude 9.6 for the Voyager 2 narrow-angle camera, 7.4 for
+the Voyager 2 wide-angle camera, 9.1 for the Voyager 1 narrow-angle camera, and 6.8
 for the Voyager 1 wide-angle camera. These limits lie 2 magnitudes past the faintest
 star each camera reliably shows. That brightness was measured for the two Voyager 2
 cameras and is scaled from them for Voyager 1. The search reaches 2 magnitudes past it
