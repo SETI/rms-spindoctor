@@ -192,7 +192,8 @@ class ObsInst(ABC):
         offset)) * texp`` in the unit of ``flux_unit``, divided by the gain state's entry
         for electrons or multiplied by it for DN, where ``offset`` is the filter's
         magnitude offset (0 when ``filter_name`` is None).  The dimmest visible star
-        deposits ``min_detectable_dn[mode]`` DN, and the limit is its magnitude plus
+        deposits ``min_detectable_dn[mode]`` DN, or ``min_detectable_dn[mode][gain_state]``
+        when the mode's entry is a table by gain state, and the limit is its magnitude plus
         ``search_depth_mag`` (see :class:`~spindoctor.config.sections_camera.StarPhotometry`).
 
         Parameters:
@@ -230,7 +231,11 @@ class ObsInst(ABC):
         gain = photometry.gain[gain_state]
         signal = photometry.flux_per_s_vmag0 * texp
         dn_vmag0 = signal / gain if photometry.flux_unit == 'electrons' else signal * gain
-        dimmest_visible = 2.5 * math.log10(dn_vmag0 / photometry.min_detectable_dn[mode])
+        # A table by gain state gives every gain state of the gain table.
+        threshold = photometry.min_detectable_dn[mode]
+        if isinstance(threshold, dict):
+            threshold = threshold[gain_state]
+        dimmest_visible = 2.5 * math.log10(dn_vmag0 / threshold)
         return dimmest_visible - offset + photometry.search_depth_mag
 
     def _photometric_star_sigma(self, *, where: str, mode: str) -> float:

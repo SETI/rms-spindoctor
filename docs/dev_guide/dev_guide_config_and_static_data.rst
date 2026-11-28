@@ -298,7 +298,10 @@ every camera, from which the star model's limiting magnitude follows (see
 - ``min_detectable_dn`` and ``psf_sigma`` — tables keyed by readout mode: the DN of the
   dimmest star a frame shows, and the Gaussian sigma of a star in the frame's own
   pixels. A camera whose star limit and star width do not depend on the readout gives
-  each one entry. The two tables must give the same modes.
+  each one entry. The two tables must give the same modes. An entry of
+  ``min_detectable_dn`` is one DN for every gain state, or, for a camera whose noise in
+  DN changes with its gain state, a table keyed by gain state that gives every gain
+  state of ``gain``; the loader refuses a table that leaves one out.
 - ``search_depth_mag`` — how many magnitudes past the dimmest visible star the catalog
   search reaches.
 - ``color_term`` — how a star's color changes its magnitude in the camera's band: a star
@@ -309,7 +312,7 @@ every camera, from which the star model's limiting magnitude follows (see
 
 A star of camera magnitude ``m`` puts ``flux_per_s_vmag0 * 10**(-0.4 * (m + offset)) * texp``
 in the image, divided or multiplied by its gain state's entry, and the dimmest visible
-star puts ``min_detectable_dn`` there. The keys of the gain, filter, and mode tables are
+star puts ``min_detectable_dn`` for the image's readout mode (and gain state) there. The keys of the gain, filter, and mode tables are
 spelled the way the camera's observation class spells the image's gain state, filter, and
 readout mode, so the loader cannot tell a misspelled key from one the camera never reads.
 The observation class (:meth:`~spindoctor.obs.obs_inst.ObsInst.star_max_usable_vmag` and

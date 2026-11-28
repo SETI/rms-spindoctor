@@ -67,6 +67,7 @@ __all__ = [
     'MaxMissingFracClean',
     'MaxOverexposedFracClean',
     'MaxRotationDeg',
+    'MinDetectableDnByGain',
     'MinDetectableDnTable',
     'NoisyThresholdDn',
     'NoisyThresholdIf',
@@ -159,9 +160,12 @@ StarGainTable = Annotated[dict[Str, Positive], MinLen(1)]
 #: How many magnitudes each filter dims a star, against the reference filter, keyed by
 #: the filter as the instrument reads it.
 FilterMagOffsetTable = Annotated[dict[Str, Float], MinLen(1)]
+#: The DN of the dimmest star a frame of one readout mode shows, keyed by the gain state as
+#: the instrument reads it.
+MinDetectableDnByGain = Annotated[dict[Str, Positive], MinLen(1)]
 #: The DN of the dimmest star a frame shows, keyed by the readout mode as the instrument
-#: spells it.
-MinDetectableDnTable = Annotated[dict[Str, Positive], MinLen(1)]
+#: spells it: one DN for every gain state, or a table of them by gain state.
+MinDetectableDnTable = Annotated[dict[Str, Positive | MinDetectableDnByGain], MinLen(1)]
 #: The Gaussian sigma of a star, in the frame's own pixels, keyed by the readout mode as
 #: the instrument spells it.
 StarPhotometryPsfSigmaTable = Annotated[dict[Str, StarPsfSigma], MinLen(1)]
@@ -369,8 +373,11 @@ class StarPhotometry:
     ``flux_per_s_vmag0 * 10**(-0.4 * (m + filter_mag_offset[filter])) * texp`` in the
     unit that ``flux_unit`` gives, divided by the gain state's electrons per DN when the
     unit is ``electrons``, or multiplied by the gain state's factor when it is ``dn``.
-    The dimmest visible star deposits ``min_detectable_dn[mode]`` DN, and the catalog
-    search reaches ``search_depth_mag`` past it.  The keys of the gain, filter, and mode tables
+    The dimmest visible star deposits ``min_detectable_dn[mode]`` DN, or
+    ``min_detectable_dn[mode][gain state]`` for a mode whose entry is a table by gain state,
+    and the catalog search reaches ``search_depth_mag`` past it.  A camera whose noise in DN
+    changes with its gain state gives each mode such a table, covering every gain state of
+    ``gain``.  The keys of the gain, filter, and mode tables
     are spelled the way the camera's reader spells the image's gain state, filter, and
     readout mode; a camera with one readout mode gives each mode table one entry.  The
     reader refuses an image when the tables leave out its gain state, filter, or mode.
@@ -381,7 +388,8 @@ class StarPhotometry:
             and, with a color term, B - V = 0) through the reference filter, at the
             reference gain state when the unit is ``dn``.
         gain: Each gain state's electrons per DN, or its DN factor (see above).
-        min_detectable_dn: The DN of the dimmest star a frame of each readout mode shows.
+        min_detectable_dn: The DN of the dimmest star a frame of each readout mode shows,
+            one DN or a table of them by gain state (see above).
         psf_sigma: The Gaussian sigma of a star, in the pixels of a frame of each readout
             mode.
         search_depth_mag: The magnitudes past the dimmest visible star that the catalog
@@ -393,7 +401,8 @@ class StarPhotometry:
             magnitude is then V.
 
     Raises:
-        RuleError: If ``psf_sigma`` and ``min_detectable_dn`` give different modes.
+        RuleError: If ``psf_sigma`` and ``min_detectable_dn`` give different modes, or a
+            mode's table by gain state does not give the gain states of ``gain``.
     """
 
     __pydantic_config__ = SCHEMA_CONFIG
@@ -408,11 +417,11 @@ class StarPhotometry:
     color_term: StarColorTerm = 0.0
 
     def __post_init__(self) -> None:
-        """Refuse mode tables that do not give the same modes.
+        """Refuse mode tables, and tables by gain state, that do not agree.
 
-        A frame reads both tables for its readout mode.  If one table gives a mode that
-        the other leaves out, the mistake would show only when a frame of that mode
-        arrives.
+        A frame reads both mode tables for its readout mode, and a mode's table by gain
+        state for its gain state.  If one table gives a mode or gain state that another
+        leaves out, the mistake would show only when such a frame arrives.
         """
         if set(self.psf_sigma) != set(self.min_detectable_dn):
             raise RuleError(
@@ -421,6 +430,14 @@ class StarPhotometry:
                 at=('psf_sigma',),
                 reads=(('psf_sigma',), ('min_detectable_dn',)),
             )
+        for mode, entry in self.min_detectable_dn.items():
+            if isinstance(entry, dict) and set(entry) != set(self.gain):
+                raise RuleError(
+                    f'gives the gain states {sorted(entry)} for the mode {mode!r}, but gain '
+                    f'gives {sorted(self.gain)}; a table by gain state gives every gain state',
+                    at=('min_detectable_dn', mode),
+                    reads=(('min_detectable_dn', mode), ('gain',)),
+                )
 
 
 # The quality limits in each of the units.
