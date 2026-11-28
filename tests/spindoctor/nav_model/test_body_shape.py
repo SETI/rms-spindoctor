@@ -26,7 +26,7 @@ def _config_with(body_shape: dict[str, BodyShapeEntry]) -> Config:
         A configuration with every other section packaged.
     """
     config = Config()
-    config._sections = dataclasses.replace(config._typed_sections(), body_shape=body_shape)
+    config._nav_config = dataclasses.replace(config.nav_config, body_shape=body_shape)
     return config
 
 

@@ -2,8 +2,8 @@ import math
 from typing import Any
 
 import pytest
-from tests.camera_sections import packaged_camera
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_GALILEO_SSI_IO_01
+from tests.packaged_sections import packaged_camera
 from tests.spindoctor.inst.conftest import (
     VicarLabelStandIn,
     bare_observation,

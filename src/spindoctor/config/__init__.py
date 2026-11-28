@@ -1,4 +1,4 @@
-from .config import DEFAULT_CONFIG, Config
+from .config import DEFAULT_CONFIG, Config, load_nav_config
 from .config_helper import (
     RESULTS_INDEX_DB_NONE,
     get_backplane_results_root,
@@ -79,6 +79,7 @@ __all__ = [
     'image_scope_is_open',
     'isolate_cloud_task_logging',
     'load_default_and_user_config',
+    'load_nav_config',
     'log_key_for',
     'log_levels',
     'logged_section',

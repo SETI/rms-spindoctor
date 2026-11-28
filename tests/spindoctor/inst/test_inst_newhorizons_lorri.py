@@ -1,8 +1,8 @@
 import math
 
 import pytest
-from tests.camera_sections import packaged_camera
 from tests.config import REQUIRES_EXTERNAL_DATA, URL_NEWHORIZONS_LORRI_CHARON_01
+from tests.packaged_sections import packaged_camera
 from tests.spindoctor.inst.conftest import bare_observation, published_clock_counts
 
 import spindoctor.obs.obs_inst_newhorizons_lorri as obstnhlorri

@@ -11,7 +11,7 @@ terms of another key of the block (``data_units``), never in terms of the instru
 A camera block is found by the key every block sets, ``data_units``: a top-level section
 that sets it is one camera's block, and a section whose entries set it holds several
 cameras, keyed by camera name.  :func:`camera_sections` finds them, and
-:class:`~spindoctor.config.sections.TypedSections` gives each one a field.
+:class:`~spindoctor.config.sections.NavConfig` gives each one a field.
 
 Each field's type is exported as a named alias, such as :data:`ReadNoiseDn`, so a reader
 that states a subset of the same keys can type them with the same ranges.

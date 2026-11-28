@@ -10,7 +10,7 @@ Every key of an entry is optional.  A key an entry leaves out is read as None, a
 tier: the body's built-in profile, or the generic profile for a body that has none.
 
 A body key must be in upper case.  The same rule covers ``bodies.geometric_albedo``, so
-:class:`~spindoctor.config.sections.TypedSections` checks it.
+:class:`~spindoctor.config.sections.NavConfig` checks it.
 """
 
 from dataclasses import dataclass

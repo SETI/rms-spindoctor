@@ -13,7 +13,7 @@ import numpy as np
 import pdslogger
 import pytest
 from filecache import FCPath
-from tests.camera_sections import raw_camera
+from tests.packaged_sections import raw_camera
 
 from spindoctor.config import (
     IMAGE_LOGGER,

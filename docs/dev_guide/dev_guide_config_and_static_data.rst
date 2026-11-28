@@ -63,25 +63,54 @@ simulator's files use (see :doc:`dev_guide_schema`):
 A file the merge refuses raises :class:`~spindoctor.schema.errors.SchemaError`, a
 :class:`ValueError` whose message has one line per problem, in the form
 ``file: key.path: message``. An override is given by the path it was loaded from, and
-a packaged file by its name. The merged result's typed sections are then parsed (see
+a packaged file by its name. The whole merged result is then parsed (see
 :ref:`config-typed-sections`). An override refused at either step leaves the
 configuration as it was, so a later override still loads.
 :attr:`~spindoctor.config.config.Config.override_paths` lists the overrides applied, in
 order, for provenance.
 
-Numeric values are typed by YAML. A consumer of a section that is not typed converts a
-value with an explicit cast.
+The loader
+----------
+
+:func:`~spindoctor.config.config.load_nav_config` does the whole job in one call. It
+takes a list of override files and, as a keyword, a list of overrides already in memory
+(each a :class:`~spindoctor.schema.layers.Layer` with a label for messages). It reads
+the packaged files, merges the files and then the in-memory overrides over them, parses
+the result, and returns a new :class:`~spindoctor.config.sections.NavConfig`. It reads
+the files again on every call and changes nothing else.
+
+:class:`~spindoctor.config.config.Config` holds the current
+:class:`~spindoctor.config.sections.NavConfig` and the overrides it was built from. Its
+section properties return the sections of that object, and its
+:attr:`~spindoctor.config.config.Config.nav_config` property returns the object itself.
+:meth:`~spindoctor.config.config.Config.update_config` reads its file once, keeps it with
+the overrides before it, and loads the configuration again from the packaged files and
+all of them. A configuration can also be made with overrides held in memory, which
+merge over the packaged files before any file. Installing a configuration assigns each
+shipped technique its confidence formula and tuning (see
+:ref:`config-techniques-section`); the loader itself never does.
 
 Direct programmatic use:
 
 .. code-block:: python
 
-   from spindoctor.config import Config, DEFAULT_CONFIG
+   from spindoctor.config import Config, load_nav_config
 
    cfg = Config()                            # lazy; reads the stack on first access
    cfg.update_config('custom.yaml')          # merge in an override file
    print(cfg.offset.correlation_fft_upsample_factor)
    print(cfg.environment.pds3_holdings_root)
+
+   nav_config = load_nav_config(['custom.yaml'])   # the parsed object alone
+
+A test that needs a configuration whose files say something else takes the
+``nav_config_with`` fixture (``tests/conftest.py``). It is a function: it takes an
+override written as a mapping, the way a user override file would write it, and returns
+a configuration loaded from the packaged files with that override merged over them. A
+refused override raises at the call, and the message gives its source as
+``the test override``. The fixture puts each technique's settings back after the test. A
+test that only needs a section object takes the packaged one from
+``tests/packaged_sections.py`` and changes fields with :func:`dataclasses.replace`.
 
 The module-level :data:`~spindoctor.config.config.DEFAULT_CONFIG` singleton is what
 most subsystems read when no explicit ``config=`` keyword is supplied.
@@ -94,12 +123,13 @@ through dependency injection.
 Typed sections
 --------------
 
-Some sections are parsed into frozen dataclasses through the schema core (see
-:doc:`dev_guide_schema`), every time a configuration is installed: once when the
-packaged files are read, and again for each override. The typed sections are the fields
-of :class:`~spindoctor.config.sections.TypedSections`. Each one is named after its
-top-level key, and the matching :class:`~spindoctor.config.config.Config` property
-returns the typed object:
+The whole merged configuration is parsed into one
+:class:`~spindoctor.config.sections.NavConfig` through the schema core (see
+:doc:`dev_guide_schema`), every time a configuration is loaded: once when the packaged
+files are read, and again for each override. Each top-level section is a field of it,
+named after its top-level key, and a top-level key that is not a field is refused as an
+unknown key, with the file that set it. The matching
+:class:`~spindoctor.config.config.Config` property returns each section:
 
 - ``planets`` — the SPICE names of the planets the navigator knows, read through
   :attr:`~spindoctor.config.config.Config.planets`.
@@ -176,12 +206,12 @@ Four mappings are keyed by planet: ``satellites``, ``stars.ring_occlusion_radii_
 keys must be a planet of ``planets``, written in upper case as SPICE spells it. Every
 reader looks a planet up by its upper-case name, and would never read a key that is
 misspelled or in lower case, so such a key is refused at load. That rule reads two
-sections, so :class:`~spindoctor.config.sections.TypedSections` checks it. The message
+sections, so :class:`~spindoctor.config.sections.NavConfig` checks it. The message
 gives the key and the file that last set either it or ``planets``.
 
 Two mappings are keyed by body: ``bodies.geometric_albedo`` and ``body_shape``. For the
 same reason, each of their keys must be in upper case, as SPICE spells it, and the loader
-refuses a key that is not. One rule in :class:`~spindoctor.config.sections.TypedSections`
+refuses a key that is not. One rule in :class:`~spindoctor.config.sections.NavConfig`
 checks both mappings, so both give the same message.
 
 Keys come in two kinds, and each kind has its own spelling. A key for a setting,
@@ -223,9 +253,9 @@ The loader finds the camera blocks by the key that every one of them sets,
 ``data_units`` (:func:`~spindoctor.config.sections_camera.camera_sections`). A top-level
 section that sets it is one camera's block. A section whose entries set it holds
 several cameras, keyed by camera name, and parses into a mapping of camera name to
-block. Each camera section becomes a field of the typed sections under its own name, so
-the key path of a problem starts at the section, followed by the camera in a section
-that holds several. :meth:`~spindoctor.config.config.Config.camera_block` returns one
+block. Each camera section becomes a field of
+:class:`~spindoctor.config.sections.NavConfig` under its own name, so the key path of a
+problem starts at the section, followed by the camera in a section that holds several. :meth:`~spindoctor.config.config.Config.camera_block` returns one
 camera's block, :meth:`~spindoctor.config.config.Config.camera_names` gives the names of
 a section's cameras, and an observation carries its camera's block as
 :attr:`~spindoctor.obs.obs_inst.ObsInst.inst_config`.
@@ -304,8 +334,8 @@ The techniques section
 
 The ``techniques`` section's type is built from the technique registry
 (:mod:`spindoctor.nav_technique.confidence_config`), so no list of techniques is
-written twice. :func:`~spindoctor.config.sections.typed_sections_type` returns the type
-the loader parses: :class:`~spindoctor.config.sections.TypedSections` with one field
+written twice. :func:`~spindoctor.config.sections.nav_config_type` returns the type
+the loader parses: :class:`~spindoctor.config.sections.NavConfig` with one field
 per shipped technique. Techniques that tests register are not shipped, have no block,
 and set their own confidence formula.
 
@@ -343,9 +373,9 @@ A block holds the technique's confidence formula (``alpha0``, ``terms``,
   attribute is refused at load with the file and key path, as in
   ``techniques.body_limb.terms[0].feature``.
 
-Each time a configuration is installed, the loader assigns every shipped technique
-class its ``confidence_spec`` and ``tuning`` from the parsed section. An override that
-is refused assigns nothing. A block under a name the section does not use, such as a
+Each time a :class:`~spindoctor.config.config.Config` installs a configuration, it
+assigns every shipped technique class its ``confidence_spec`` and ``tuning`` from the
+parsed section. An override that is refused assigns nothing. A block under a name the section does not use, such as a
 technique's class name, is refused as an unknown key.
 
 The rules for a typed section:
@@ -367,21 +397,8 @@ The rules for a typed section:
 Sections
 --------
 
-Top-level YAML keys other than the typed sections, such as each camera's block, are read
-through :meth:`~spindoctor.config.Config.category`, which returns an
-:class:`~spindoctor.support.attrdict.AttrDict` so code can write
-``cfg.category('galileo_ssi').star_psf_sigma`` instead of
-``cfg.category('galileo_ssi')['star_psf_sigma']``. That
-convenience has a cost: an :class:`~spindoctor.support.attrdict.AttrDict` is its
-own instance dictionary, so
-anything that sets an attribute on a section adds a key to it. ``oops`` caches
-its mutability verdict by setting an attribute on every object it walks, and it
-walks everything reachable from an observation, so building a backplane reaches
-the shared configuration and writes a key into every section of it, so a section
-read back holds a key that no configuration file declares.
-The class carries ``oops``'s own opt-out marker to prevent that; it is a
-workaround for one package rather than a general convention, and is tracked for
-removal. The shipping sections:
+Every top-level key of the configuration is a section, and every section is typed. The
+shipping sections:
 
 - ``general`` — global settings shared across programs; a typed section (see
   :ref:`config-typed-sections`).
@@ -747,12 +764,18 @@ When a new YAML knob is added:
 1. Pick the file whose section it belongs to (e.g. a new ``bodies`` key goes
    in ``config_040_bodies.yaml``). If no existing file fits, allocate a new
    numeric prefix per the layout table above.
-2. Add the key with a sensible default and a one-line YAML comment that
+2. Declare the key as a field of the type its section parses into: the section types
+   in ``config/sections*.py``, the logging types in ``config/logging_keys.py``, or a
+   technique's own tuning type in ``nav_technique``. The loader parses the whole
+   configuration, so a key the type lacks is refused at load as unknown. A new top-level section also needs its own type, a field of
+   :class:`~spindoctor.config.sections.NavConfig`, and a ``Config`` property that
+   returns it.
+3. Add the key with a sensible default and a one-line YAML comment that
    identifies the consumer.
-3. Document the key on the consumer's dev-guide page (for example,
+4. Document the key on the consumer's dev-guide page (for example,
    :doc:`dev_guide_navigation_models_body` lists every key under
    ``bodies``). The page lists name, type, default, units, and consumer.
-4. If the key represents static data (a measured constant rather than a
+5. If the key represents static data (a measured constant rather than a
    knob), add the ``_sources`` entry per the citation discipline above.
-5. Add or extend a unit test under ``tests/spindoctor/config_files/`` that asserts
+6. Add or extend a unit test under ``tests/spindoctor/config_files/`` that asserts
    the loader exposes the key with the expected default.

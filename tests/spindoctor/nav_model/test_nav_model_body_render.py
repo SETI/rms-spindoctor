@@ -35,7 +35,7 @@ from typing import Any, cast
 import numpy as np
 import polymath
 import pytest
-from tests.model_sections import packaged_bodies
+from tests.packaged_sections import packaged_bodies
 from tests.shims import BodyBackplaneData, FakeBackplane, FakeMeshgrid, FakeObs, bare_nav_context
 
 import spindoctor.nav_model.nav_model_body as nav_model_body_module
@@ -256,9 +256,7 @@ def _bodies_config(**overrides: Any) -> Config:
         **overrides: Fields of the packaged ``bodies`` section to change, by name.
     """
     config = Config()
-    config._sections = dataclasses.replace(
-        config._typed_sections(), bodies=packaged_bodies(**overrides)
-    )
+    config._nav_config = dataclasses.replace(config.nav_config, bodies=packaged_bodies(**overrides))
     return config
 
 

@@ -1,4 +1,4 @@
-"""Tests for how :meth:`Config.update_config` merges a user override.
+"""Tests for how :func:`load_nav_config` and :meth:`Config.update_config` load overrides.
 
 A user override of one nested key must combine key-by-key with the packaged
 defaults so sibling keys under the same sub-block survive (CODE-CFG-1).  The merge
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from spindoctor.config import Config
+from spindoctor.config import Config, load_nav_config
 from spindoctor.nav_technique import RingEdgeNav
 from spindoctor.nav_technique.confidence_config import shipped_techniques
 
@@ -72,38 +72,36 @@ def test_an_override_refused_by_a_typed_section_changes_nothing(tmp_path: Path) 
     assert RingEdgeNav.tuning is tuning
 
 
-def test_category_returns_cached_instance() -> None:
-    """CODE-CFG-3: category() returns the same cached AttrDict across calls."""
+def test_an_unknown_section_is_refused_naming_the_file(tmp_path: Path) -> None:
+    """A top-level section the navigator does not declare is refused at load."""
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text('fuzzy_satellites:\n  SATURN: [PAN]\n', encoding='utf-8')
+    expected = f"{user_path}: unknown keys: ['fuzzy_satellites']"
+    with pytest.raises(ValueError, match=re.escape(expected)):
+        Config().update_config(user_path)
+
+
+def test_a_reread_drops_the_files_merged_since(tmp_path: Path) -> None:
+    """A reread starts again from the packaged files, so no override survives it."""
     config = Config()
-    config._config_dict = {'bodies': {'MIMAS': {'albedo': 2}}}
-    config._update_attrdicts()
-    first = config.category('bodies')
-    second = config.category('bodies')
-    assert first is second
-
-
-def test_category_cache_rebuilt_on_reload() -> None:
-    """CODE-CFG-3: the category cache is dropped when the config is reloaded."""
-    config = Config()
-    config._config_dict = {'bodies': {'MIMAS': {'albedo': 2}}}
-    config._update_attrdicts()
-    before = config.category('bodies')
-    config._config_dict = {'bodies': {'MIMAS': {'albedo': 9}}}
-    config._update_attrdicts()
-    after = config.category('bodies')
-    assert after is not before
-    assert after['MIMAS']['albedo'] == 9
-
-
-def test_reread_no_path_drops_removed_keys() -> None:
-    """CODE-CFG-2: a reread starts again from the packaged files (no stale keys)."""
-    config = Config()
-    # Simulate a prior load that contains a key the bundled YAML does not.
-    config._config_dict = {'general': {'stale_only_key': 123}}
-    config._update_attrdicts()
-    # Reread from the packaged config_files glob.
+    packaged = config.orchestrator.ensemble.min_confidence
+    user_path = tmp_path / 'user_config.yaml'
+    user_path.write_text('orchestrator:\n  ensemble:\n    min_confidence: 0.1\n', encoding='utf-8')
+    config.update_config(user_path)
     config.read_config(reread=True)
-    assert 'stale_only_key' not in config._config_dict.get('general', {})
+    assert config.orchestrator.ensemble.min_confidence == packaged
+    assert config.override_paths == ()
+
+
+def test_loading_a_configuration_leaves_the_techniques_alone(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Loading builds a new object and changes nothing else, a technique's tuning included."""
+    override = object()
+    monkeypatch.setattr(RingEdgeNav, 'tuning', override)
+    first = load_nav_config()
+    assert load_nav_config() is not first
+    assert RingEdgeNav.tuning is override
 
 
 def _apply_technique_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, text: str) -> None:
