@@ -121,6 +121,49 @@ def test_reduce_catalogs_keeps_ucac4_star_whose_v_is_in_the_next_bin(
     assert len(out) == 1
 
 
+def test_reduce_catalogs_gives_a_ucac4_star_on_a_bin_edge_to_one_bin(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """A UCAC4 star whose aperture magnitude is exactly a bin edge is kept once."""
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1,
+                ra=0.1,
+                dec=0.0,
+                vmag=14.0,
+                apass_mag_v=14.1,
+                apass_mag_v_sigma=0.05,
+            )
+        ],
+    )
+    out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
+    assert len(out) == 1
+
+
+def test_reduce_catalogs_reaches_past_the_last_grid_bin(
+    monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
+) -> None:
+    """With a limit past the magnitude grid, the last UCAC4 bin still reaches past the limit."""
+    fake_obs.star_max_vmag = 17.1
+    install_fake_catalogs(
+        monkeypatch,
+        ucac4=[
+            make_star(
+                unique_number=1,
+                ra=0.1,
+                dec=0.0,
+                vmag=17.05,
+                apass_mag_v=16.9,
+                apass_mag_v_sigma=0.05,
+            )
+        ],
+    )
+    out = reduce_catalogs(cast(Any, fake_obs), DEFAULT_CONFIG)
+    assert len(out) == 1
+
+
 def test_stars_in_extfov_keeps_ucac4_aperture_magnitude(
     monkeypatch: pytest.MonkeyPatch, fake_obs: FakeObs
 ) -> None:

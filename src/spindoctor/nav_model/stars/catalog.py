@@ -146,6 +146,9 @@ nor 2MASS J and K of grade A-D.  It removes the mean offset of the aperture magn
 from Johnson V, but not the part that depends on the star's color.
 """
 
+UCAC4_HALF_MILLIMAG: float = 0.0005
+"""Half the step of UCAC4's magnitudes, which it lists in whole millimagnitudes."""
+
 # Over the same fields, a star's APASS V is brighter than its aperture magnitude by more
 # than 0.2 mag for 5% of the stars fainter than aperture magnitude 10, and the 2MASS
 # conversion brightens a star by at most 0.055 mag (99.9% of stars).
@@ -735,14 +738,21 @@ def reduce_catalogs(
                 continue
             mag_min_clamped = max(mag_min, mag_min_cap)
             mag_max_clamped = min(mag_max, mag_max_cap)
-            last_bin = mag_max >= mag_max_cap
+            last_bin = mag_max >= mag_max_cap or mag_max == CATALOG_MAGNITUDE_BINS[-1]
             if catalog_name == 'ucac4':
                 # A star's Johnson V can sit in a different bin from its aperture
                 # magnitude, so the bins split the aperture magnitude and every
                 # star is kept by its V over the whole usable range.  Only the
-                # outermost bins reach past that range.
-                low = mag_min_clamped - (UCAC4_QUERY_MARGIN_MAG if first_bin else 0.0)
-                high = mag_max_clamped + (UCAC4_QUERY_MARGIN_MAG if last_bin else 0.0)
+                # outermost bins reach past that range.  UCAC4 lists whole
+                # millimagnitudes and its query is inclusive, so an interior bin
+                # stops half a millimagnitude short of its upper edge and a star on
+                # the edge belongs to the next bin alone.
+                low = mag_min_cap - UCAC4_QUERY_MARGIN_MAG if first_bin else mag_min_clamped
+                high = (
+                    mag_max_cap + UCAC4_QUERY_MARGIN_MAG
+                    if last_bin
+                    else mag_max_clamped - UCAC4_HALF_MILLIMAG
+                )
                 chunk = stars_in_extfov(
                     obs,
                     config,
