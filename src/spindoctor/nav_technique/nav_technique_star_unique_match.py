@@ -48,6 +48,10 @@ detection would fail because the rest of the field is too faint or too
 crowded).  Every star is predicted inside the extended field of view, whose
 padding is the instrument's offset window, so every star's window reaches
 the image.
+
+A star that an offset puts on or beside missing pixels, such as lines a
+truncated readout never read, may be there unseen.  On both paths it counts
+neither for nor against that offset unless it is found there.
 """
 
 from __future__ import annotations
@@ -410,6 +414,7 @@ class StarUniqueMatchNav(NavTechnique):
             contradiction_stars=self.tuning.pair_contradiction_stars,
             absent_stars_needed=self.tuning.pair_absent_stars,
             box_half_px=self.tuning.centroid_box_half_px,
+            missing_mask_ext=np.asarray(context.missing_data_mask_ext, bool),
         )
 
     def _search_window(self, context: NavContext) -> tuple[float, float]:
@@ -709,6 +714,7 @@ class StarUniqueMatchNav(NavTechnique):
             peak_factor=self.tuning.pair_vote_peak_factor,
             absent_stars_needed=self.tuning.one_star_absent_stars,
             box_half_px=half,
+            missing_mask_ext=np.asarray(context.missing_data_mask_ext, bool),
             max_peak_per_snr=self._max_peak_per_snr(context, noise_sigma),
         )
         choice = choose_lone_star(
