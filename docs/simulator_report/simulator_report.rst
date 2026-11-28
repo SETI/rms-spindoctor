@@ -202,8 +202,8 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``0418dcc3`` on
-2026-11-27.
+code that made it.  The current record was made at commit ``a36bcdc0`` on
+2026-11-28.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
 for any tuned value -- it is built from
@@ -666,15 +666,15 @@ view, each with its reason in the record: 70 under 10 px across, 9 of irregular 
 in view, and two that showed too little of the lit disc.  Each twin is a sphere, so the
 study does not pair one with a moon that is irregular or whose shape is not known.
 
-Only Cassini frames of Saturnian moons back these numbers.  The study reads calibrated
-frames only, because its fits need each pixel in I/F.  The cohort's Galileo and LORRI
-frames are raw DN, so their moons do not enter it, and its Voyager frames show their
-moons at most a few pixels across.  For those cameras the body statistics (the limb
-peak, the rise width, the disc profile, and the law) are unchecked.  The default law is
-also untested on surfaces unlike the Saturnian icy moons, such as volcanic or rocky and
-icy ones; the one dark surface measured is Iapetus's dark terrain, on one frame.  The
-cohort does not hold a resolved frame of the Jovian moons, the Uranian and Neptunian
-moons, Charon, Phoebe, Janus, Helene, Telesto, or Daphnis.
+The study reads calibrated frames only, because its fits need each pixel in I/F, and it
+leaves out moons under 10 px across.  Each instrument chapter of the developer guide
+(:doc:`/dev_guide/instruments/instruments`) says whether its camera's frames enter the
+study, and so whether the body statistics (the limb peak, the rise width, the disc
+profile, and the law) are checked for that camera.  The default law is also untested on
+surfaces unlike the Saturnian icy moons, such as volcanic or rocky and icy ones; the one
+dark surface measured is Iapetus's dark terrain, on one frame.  The cohort does not hold a
+resolved frame of the Jovian moons, the Uranian and Neptunian moons, Charon, Phoebe,
+Janus, Helene, Telesto, or Daphnis.
 
 Each law's median distance of its twins' exponent from the real discs':
 
@@ -688,26 +688,26 @@ Each law's median distance of its twins' exponent from the real discs':
      - above 120 deg (2 discs)
    * - Lambert
      - 0.332
-     - 0.118
+     - 0.119
      - 0.142
    * - Lommel-Seeliger
-     - 0.140
-     - 0.148
-     - 0.089
+     - 0.132
+     - 0.223
+     - 0.052
    * - lunar-Lambert (the default)
-     - 0.037
-     - 0.057
+     - 0.031
+     - 0.054
      - 0.142
    * - Minnaert, exponent from the real discs' trend
      - 0.020
-     - 0.063
+     - 0.064
      - 0.107
 
 In both bins with a comparison the default agrees best among the laws that separate from
-it (bands 0.032 and 0.047).  Minnaert's law, whose exponent is fitted to the same real
+it (bands 0.025 and 0.046).  Minnaert's law, whose exponent is fitted to the same real
 discs, does not separate from it.  The default's disc-profile check lies within its band
-in both narrow-angle bins with a verdict: -0.012 against 0.028 below 60 degrees, and
-+0.042 against 0.047 at 60 to 120 degrees.  Each band comes from the scatter of the
+in both narrow-angle bins with a verdict: -0.017 against 0.023 below 60 degrees, and
++0.040 against 0.046 at 60 to 120 degrees.  Each band comes from the scatter of the
 same twin-and-real pairs it judges.  Iapetus's dark terrain follows the default (exponent
 0.85; the default misses by 0.04).  Two findings stand apart, both on too few frames for
 a verdict.  Iapetus's bright terrain at 81 degrees falls more steeply than every twin
