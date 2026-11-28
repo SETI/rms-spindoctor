@@ -85,11 +85,11 @@ exposure_sec: 1.0
 # 303 (0.059 to 0.11 px off); with the hot pixels removed alone it stays spurious,
 # and with the cosmic rays removed alone it navigates on the committed seed only.
 # StarUniqueMatchNav returns spurious on 3 of the 24 draws, random seeds 505 and
-# 808 and noise seed 808.  BodyBlobNav lands 3.0 to 12.5 px off the gibbous disc
-# without flagging it (#975).  The lost groups move it most (#1207): on random
-# seed 1010 it lands 12.5 px off with them and 7.4 px off without, and on random
-# seed 1414 3.0 px off with them and 7.5 px without.  sim_truth holds it to a
-# band.
+# 808 and noise seed 808.  BodyBlobNav drops the body where lost
+# groups across the disc would move its centroid by more than 1% of the radius: it
+# returns spurious on the committed seed and on random seeds 707, 1010, 1212, and
+# 1414, and lands 6.8 to 8.5 px off the gibbous disc without flagging it on the other
+# 11 random seeds (#975, #1207).  sim_truth has no band for it.
 artifacts:
   instrument_defaults: true
   truncated_frame: {probability: 1.0, lines: 41, from: bottom}

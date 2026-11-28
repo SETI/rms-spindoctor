@@ -98,6 +98,29 @@ model (see :doc:`dev_guide_navigation_models_body`); the per-blob residual is
 
     r_{i} = \bar{x}_{\mathrm{obs},\,i} - \bar{x}_{\mathrm{pred},\,i}.
 
+Lost lines
+----------
+
+A frame that lost lines in transmission carries the instrument's missing-data marker in
+them. The orchestrator fills those pixels with 0.0 and marks them in
+:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.missing_data_mask_ext`. The
+technique leaves them out of the frame's background and sky-noise estimate, where 0.0
+would pull the background below the sky, and out of the lit pixels the centroid is taken
+over.
+
+Leaving them out cannot restore the light that fell on them. Lines lost across one side of
+a disc take that side's light away, and the centroid of what is left moves toward the other
+side. So after the centroid is taken, the technique places a model of the body's predicted
+lit silhouette where the box was measured: the Lambertian crescent of the coarse
+acquisition when the body's direction toward the Sun is known, and a filled disc otherwise.
+The model covers the pixels whose centers the silhouette covers at the body's predicted
+center, to the fraction of a pixel, so a row or column that the body itself leaves dark
+carries none of the model's light. It then measures how far leaving the missing pixels out moves the model's centroid. A blob
+whose model moves more than ``max_missing_shift_frac`` of its predicted radius is dropped,
+and the technique reports a no-signal failure when every blob is dropped. Lost lines
+through the middle of a disc, or ones that cross it symmetrically, move the model little and
+leave the blob in the fit.
+
 Per-blob weight
 ---------------
 
@@ -222,6 +245,11 @@ has a default in the code, so the values below are the ones in the packaged file
   disables it.
 - ``model_error_floor_px`` — float, packaged value ``0.1`` px. Absolute size-independent
   floor added in quadrature. ``0.0`` disables it.
+- ``max_missing_shift_frac`` — float, packaged value ``0.01`` (fraction of the body
+  radius). A blob is dropped when leaving its missing pixels out would move the centroid
+  of its predicted lit silhouette by more than this (see "Lost lines"). The value is a
+  fifth of ``model_error_size_frac``: a bias that size raises the centroid error the
+  covariance already allows by 2%, since :math:`\sqrt{0.05^2 + 0.01^2} = 1.02 \times 0.05`.
 
 The remaining numeric thresholds (the per-blob CRLB scaling constants, the noise-floor
 detection threshold) are derived from the per-image

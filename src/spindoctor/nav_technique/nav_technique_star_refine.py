@@ -8,7 +8,9 @@ feature, the technique:
 2. Looks for the strongest matched-filter detection inside a small
    refinement window centered on that shifted prediction.
 3. Fits a brightness-weighted moment around the peak to get a sub-pixel
-   centroid.
+   centroid.  The centroid leaves out missing pixels near the star, and a
+   star that loses enough of its light to them to move its centroid by
+   more than ``max_missing_shift_px`` is dropped.
 4. Computes per-star residuals (observed - shifted_prediction) and
    averages them in inverse-variance fashion.
 
@@ -31,6 +33,7 @@ import math
 from typing import TYPE_CHECKING, ClassVar
 
 import numpy as np
+from scipy.ndimage import binary_dilation, label, map_coordinates
 
 from spindoctor.config import Config
 from spindoctor.feature.feature import NavFeature
@@ -38,7 +41,9 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_technique._star_helpers import (
-    local_centroid,
+    LocalDetection,
+    local_detection,
+    search_window_bounds,
     similarity_transform_fit,
     usable_stars,
 )
@@ -56,12 +61,21 @@ from spindoctor.nav_technique.nav_technique import (
 )
 from spindoctor.nav_technique.star_tuning import StarRefineTuning
 from spindoctor.nav_technique.technique_result import NavTechniqueResult
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.missing_light import missing_light_shift_px
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 if TYPE_CHECKING:  # pragma: no cover - typing-only import
     from spindoctor.nav_orchestrator.nav_context import NavContext
 
 __all__ = ['StarRefineNav']
+
+_MISSING_FILL_QUANTILE = 0.25
+"""The quantile of a star's present pixels that its missing pixels read as in the detection.
+
+On sky it sits about two thirds of a noise sigma below the median, close enough to the sky
+to leave the matched filter and the detection threshold almost unchanged.  The centroid
+leaves the missing pixels out whatever they read as.
+"""
 
 
 def _trace_inverse_variance(feature: NavFeature) -> float:
@@ -184,7 +198,12 @@ class StarRefineNav(NavTechnique):
             image_ext = np.asarray(context.image_ext, np.float64)
             noise_sigma = float(max(context.image_noise_sigma, 1e-9))
             inliers, per_star_residuals_v, per_star_residuals_u, weights = self._collect_residuals(
-                usable, image_ext, noise_sigma, prior_v, prior_u
+                usable,
+                image_ext,
+                noise_sigma,
+                prior_v,
+                prior_u,
+                missing_mask_ext=np.asarray(context.missing_data_mask_ext, bool),
             )
             if len(inliers) < self.tuning.min_inliers:
                 return self._fail(
@@ -336,24 +355,42 @@ class StarRefineNav(NavTechnique):
         noise_sigma: float,
         prior_v: float,
         prior_u: float,
+        *,
+        missing_mask_ext: NDArrayBoolType,
     ) -> tuple[
         list[NavFeature],
         NDArrayFloatType,
         NDArrayFloatType,
         NDArrayFloatType,
     ]:
-        """Per-star centroid residuals around the shifted predictions."""
+        """Per-star centroid residuals around the shifted predictions.
+
+        Missing pixels (``missing_mask_ext``) do not hold measurements.  Where any lie
+        within reach of a star's detection, the detection reads them as sky a little
+        darker than the pixels around them (:meth:`_star_image`), and the centroid leaves
+        them out of its background and its moments
+        (:func:`~spindoctor.nav_technique._star_helpers.local_detection`).  A star that
+        loses too much of its light to them is dropped (:meth:`_missing_shift_px`).
+        """
         inliers: list[NavFeature] = []
         residuals_v: list[float] = []
         residuals_u: list[float] = []
         weights: list[float] = []
+        filled = image_ext.copy() if missing_mask_ext.any() else image_ext
         for star in stars:
             assert isinstance(star.geometry, StarGeometry)
             assert isinstance(star.flags, StarFlags)
             pred_v, pred_u = star.geometry.predicted_vu
             shifted_pred = (pred_v + prior_v, pred_u + prior_u)
-            det, peak = local_centroid(
-                image_ext,
+            star_image = self._star_image(image_ext, filled, missing_mask_ext, shifted_pred)
+            if star_image is None:
+                self.logger.debug(
+                    'Star %s: every pixel around the prediction is missing; dropped',
+                    star.feature_id,
+                )
+                continue
+            detection = local_detection(
+                star_image,
                 shifted_pred,
                 search_half_vu=(self.tuning.refine_window_px, self.tuning.refine_window_px),
                 centroid_box_half_px=self.tuning.centroid_box_half_px,
@@ -362,13 +399,30 @@ class StarRefineNav(NavTechnique):
                 image_noise_sigma=noise_sigma,
                 detection_sigma=self.tuning.detection_sigma,
                 refuse_outshone=True,
+                missing_mask_ext=missing_mask_ext,
             )
+            det = detection.centroid_vu
             if det is None:
                 self.logger.debug(
                     'Star %s: no peak above %.2f sigma in refine window (peak %.3f DN); dropped',
                     star.feature_id,
                     self.tuning.detection_sigma,
-                    peak,
+                    detection.peak_dn,
+                )
+                continue
+            missing_shift = self._missing_shift_px(
+                detection,
+                image_ext,
+                missing_mask_ext,
+                core_tolerance_dn=self.tuning.detection_sigma * noise_sigma,
+            )
+            if missing_shift > self.tuning.max_missing_shift_px:
+                self.logger.debug(
+                    'Star %s: missing pixels where its centroid was measured would move it '
+                    '%.3f px, over max %.3f px; dropped',
+                    star.feature_id,
+                    missing_shift,
+                    self.tuning.max_missing_shift_px,
                 )
                 continue
             res_v = det[0] - shifted_pred[0]
@@ -392,6 +446,122 @@ class StarRefineNav(NavTechnique):
             np.asarray(residuals_u, dtype=np.float64),
             np.asarray(weights, dtype=np.float64),
         )
+
+    def _star_image(
+        self,
+        image_ext: NDArrayFloatType,
+        filled: NDArrayFloatType,
+        missing_mask_ext: NDArrayBoolType,
+        shifted_pred: tuple[float, float],
+    ) -> NDArrayFloatType | None:
+        """Return the image to centroid one star in, with its missing pixels as background.
+
+        The star's detection reads the refine window around ``shifted_pred`` and
+        ``2 * centroid_box_half_px`` pixels beyond it on each side (the matched filter's
+        reach and the centroid box's).  When none of those pixels is missing the image is
+        returned as it is.  Otherwise ``filled``, a copy of the image, is returned with
+        the missing pixels there set to the ``_MISSING_FILL_QUANTILE`` quantile of the
+        others, so they read as sky a little below the background the centroid
+        subtracts.
+
+        Parameters:
+            image_ext: The extfov image.
+            filled: The working copy of ``image_ext`` to write the fill into.
+            missing_mask_ext: ``True`` where a pixel is missing.
+            shifted_pred: ``(v, u)`` prediction shifted by the prior offset.
+
+        Returns:
+            ``image_ext``, the filled copy, or ``None`` when every pixel the detection
+            reads is missing.
+        """
+        window = (self.tuning.refine_window_px, self.tuning.refine_window_px)
+        bounds = search_window_bounds(shifted_pred, window, image_ext.shape)
+        if bounds is None:
+            return image_ext
+        reach = 2 * self.tuning.centroid_box_half_px
+        h, w = image_ext.shape
+        v_lo, v_hi = max(0, bounds[0] - reach), min(h, bounds[1] + reach)
+        u_lo, u_hi = max(0, bounds[2] - reach), min(w, bounds[3] + reach)
+        lost = missing_mask_ext[v_lo:v_hi, u_lo:u_hi]
+        if not lost.any():
+            return image_ext
+        present = image_ext[v_lo:v_hi, u_lo:u_hi][~lost]
+        if present.size == 0:
+            return None
+        filled[v_lo:v_hi, u_lo:u_hi][lost] = float(np.quantile(present, _MISSING_FILL_QUANTILE))
+        return filled
+
+    def _missing_shift_px(
+        self,
+        detection: LocalDetection,
+        image_ext: NDArrayFloatType,
+        missing_mask_ext: NDArrayBoolType,
+        *,
+        core_tolerance_dn: float,
+    ) -> float:
+        """Return how far the missing pixels would move the centroid of the star.
+
+        The region is the one the centroid was measured over: the centroid box, or the
+        clipped core of a saturated star padded by the box's half-width.  The model of
+        the star's light is the region's light above the median of its present pixels,
+        and a missing pixel takes the light at its mirror image through the centroid,
+        interpolated between the present pixels, with a missing pixel counted as dark.  A
+        star is close to symmetric about its center, so the model holds about the light
+        the missing pixels lost, whatever the star's width, smear, or saturation.  The
+        shift is that of :func:`missing_light_shift_px`.
+
+        The mirror cannot see light the star's core lost.  When the core falls on missing
+        pixels, the centroid of what is left moves away from them, and the mirror of a
+        missing pixel through that centroid lands on the star's faint flank.  The core is
+        the 4-connected set of present pixels within ``core_tolerance_dn`` of the region's
+        brightest present pixel, grown from that pixel: that pixel alone for most stars,
+        and the whole clipped core of a saturated one.  When a missing pixel touches the
+        core, edge or corner, part of the core may be missing and the shift is
+        ``math.inf``.
+
+        Parameters:
+            detection: The star's detection, with its centroid and measured region.
+            image_ext: The extfov image.
+            missing_mask_ext: ``True`` where a pixel is missing.
+            core_tolerance_dn: Largest step below the brightest present pixel that is
+                still the core.
+
+        Returns:
+            The shift in pixels; ``math.inf`` when a missing pixel touches the core.
+        """
+        assert detection.centroid_vu is not None
+        assert detection.region is not None
+        det_v, det_u = detection.centroid_vu
+        v_lo, v_hi, u_lo, u_hi = detection.region
+        h, w = image_ext.shape
+        pad_v_lo, pad_v_hi = max(0, v_lo - 1), min(h, v_hi + 1)
+        pad_u_lo, pad_u_hi = max(0, u_lo - 1), min(w, u_hi + 1)
+        lost_around = missing_mask_ext[pad_v_lo:pad_v_hi, pad_u_lo:pad_u_hi]
+        if not lost_around.any():
+            return 0.0
+        lost = missing_mask_ext[v_lo:v_hi, u_lo:u_hi]
+        present = ~lost
+        box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
+        brightest = np.unravel_index(int(np.argmax(np.where(present, box, -np.inf))), box.shape)
+        top = float(box[brightest])
+        labels, _count = label(present & (box >= top - core_tolerance_dn))
+        core = np.zeros(lost_around.shape, dtype=bool)
+        core[v_lo - pad_v_lo : v_hi - pad_v_lo, u_lo - pad_u_lo : u_hi - pad_u_lo] = (
+            labels == labels[brightest]
+        )
+        if (binary_dilation(core, structure=np.ones((3, 3), dtype=bool)) & lost_around).any():
+            return math.inf
+        if not lost.any():
+            return 0.0
+        light = np.where(present, np.clip(box - float(np.median(box[present])), 0.0, None), 0.0)
+        # Each pixel's mirror through the centroid, in region coordinates; the light there
+        # is interpolated between the region's present pixels.
+        mirror_v = 2.0 * (det_v - v_lo) - np.arange(v_hi - v_lo)
+        mirror_u = 2.0 * (det_u - u_lo) - np.arange(u_hi - u_lo)
+        grid_v, grid_u = np.meshgrid(mirror_v, mirror_u, indexing='ij')
+        mirrored = map_coordinates(light, [grid_v, grid_u], order=1, mode='constant')
+        model = np.where(lost, mirrored, light)
+        return missing_light_shift_px(model, (v_lo, u_lo), missing_mask_ext)
 
     def _fit_rotation_3dof(
         self,

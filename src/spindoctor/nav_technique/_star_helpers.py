@@ -31,10 +31,11 @@ from spindoctor.feature.feature_type import NavFeatureType
 from spindoctor.feature.flags import StarFlags
 from spindoctor.feature.geometry import StarGeometry
 from spindoctor.nav_model.stars.detection import matched_filter_image
-from spindoctor.support.types import NDArrayFloatType
+from spindoctor.support.types import NDArrayBoolType, NDArrayFloatType
 
 __all__ = [
     'SAME_SOURCE_PX',
+    'LocalDetection',
     'SimilarityFit',
     'WindowSource',
     'brightness_margin_mag',
@@ -42,6 +43,7 @@ __all__ = [
     'distinct_stars',
     'gaussian_psf_kernel',
     'local_centroid',
+    'local_detection',
     'predicted_snr',
     'predicted_vu',
     'search_window_bounds',
@@ -454,32 +456,36 @@ def too_sharp(
     return peak - max_sharpness * neighbors > detection_sigma * noise
 
 
-def _box_centroid(
-    image_ext: NDArrayFloatType, v: int, u: int, half: int
-) -> tuple[float, float] | None:
-    """Return the background-subtracted brightness-weighted centroid of one box.
-
-    The background is the box median.  Returns ``None`` when nothing in the box rises
-    above it.
-    """
-    h, w = image_ext.shape
-    return _region_centroid(
-        image_ext, (max(0, v - half), min(h, v + half + 1), max(0, u - half), min(w, u + half + 1))
-    )
+def _box_region(shape: tuple[int, ...], v: int, u: int, half: int) -> tuple[int, int, int, int]:
+    """Return ``(v_lo, v_hi, u_lo, u_hi)`` of the box of :func:`_box`, upper bounds exclusive."""
+    h, w = shape
+    return (max(0, v - half), min(h, v + half + 1), max(0, u - half), min(w, u + half + 1))
 
 
 def _region_centroid(
-    image_ext: NDArrayFloatType, region: tuple[int, int, int, int]
+    image_ext: NDArrayFloatType,
+    region: tuple[int, int, int, int],
+    *,
+    missing_mask_ext: NDArrayBoolType | None,
 ) -> tuple[float, float] | None:
     """Return the background-subtracted brightness-weighted centroid of a region.
 
     ``region`` is ``(v_lo, v_hi, u_lo, u_hi)``, upper bounds exclusive, inside the image.
-    The background is the region's median.  Returns ``None`` when nothing in the region
-    rises above it.
+    The background is the median of the region's pixels that ``missing_mask_ext`` does not
+    mark as missing (all of them when it is ``None``), and a missing pixel adds nothing to
+    the moments, whatever value it holds.  Returns ``None`` when nothing in the region
+    rises above the background.
     """
     v_lo, v_hi, u_lo, u_hi = region
     box = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
-    weights = np.clip(box - float(np.median(box)), 0.0, None)
+    present = (
+        np.ones(box.shape, dtype=bool)
+        if missing_mask_ext is None
+        else ~missing_mask_ext[v_lo:v_hi, u_lo:u_hi]
+    )
+    if not present.any():
+        return None
+    weights = np.where(present, np.clip(box - float(np.median(box[present])), 0.0, None), 0.0)
     total = float(weights.sum())
     if total <= 0.0:
         return None
@@ -614,9 +620,79 @@ def local_centroid(
         accepted (handy for diagnostics), the brightest DN in the window when
         the window holds no candidate, or 0.0 when the window is empty.
     """
+    detection = local_detection(
+        image_ext,
+        predicted_vu_pos,
+        search_half_vu=search_half_vu,
+        centroid_box_half_px=centroid_box_half_px,
+        psf_sigma_px=psf_sigma_px,
+        max_peak_sharpness=max_peak_sharpness,
+        image_noise_sigma=image_noise_sigma,
+        detection_sigma=detection_sigma,
+        refuse_outshone=refuse_outshone,
+        missing_mask_ext=None,
+    )
+    return detection.centroid_vu, detection.peak_dn
+
+
+@dataclass(frozen=True)
+class LocalDetection:
+    """The strongest local detection in a star's search window.
+
+    Parameters:
+        centroid_vu: ``(v, u)`` sub-pixel centroid, or ``None`` when the candidate was
+            rejected.
+        peak_dn: The peak DN :func:`local_centroid` returns.
+        region: ``(v_lo, v_hi, u_lo, u_hi)``, upper bounds exclusive, of the pixels the
+            centroid was measured over: the centroid box, or a clipped core padded by the
+            box's half-width; ``None`` when there is no centroid.
+    """
+
+    centroid_vu: tuple[float, float] | None
+    peak_dn: float
+    region: tuple[int, int, int, int] | None
+
+
+def local_detection(
+    image_ext: NDArrayFloatType,
+    predicted_vu_pos: tuple[float, float],
+    *,
+    search_half_vu: tuple[float, float],
+    centroid_box_half_px: int,
+    psf_sigma_px: float,
+    max_peak_sharpness: float,
+    image_noise_sigma: float,
+    detection_sigma: float,
+    refuse_outshone: bool,
+    missing_mask_ext: NDArrayBoolType | None,
+) -> LocalDetection:
+    """Return the detection :func:`local_centroid` measures, with the region it measured.
+
+    The detection reads every pixel of ``image_ext``.  The centroid's background and
+    moments leave out the pixels ``missing_mask_ext`` marks as missing, whatever values
+    they hold, so a caller can give the missing pixels values that suit the detection
+    without adding their light to the centroid.
+
+    Parameters:
+        image_ext: 2-D extfov image array.
+        predicted_vu_pos: ``(v, u)`` prediction at the center of the search window.
+        search_half_vu: ``(v, u)`` half-widths of the search window in pixels.
+        centroid_box_half_px: Half-width of the centroid-fit box (and of the
+            matched-filter kernel) in pixels.
+        psf_sigma_px: PSF sigma in pixels for the matched-filter kernel.
+        max_peak_sharpness: Largest ratio of a star's brightest-pixel excess to the mean
+            excess of its four edge neighbors (:func:`too_sharp`).
+        image_noise_sigma: Robust per-pixel noise sigma in DN units.
+        detection_sigma: Threshold multiplier on ``image_noise_sigma``.
+        refuse_outshone: Refuse a window outshone by a source outside it.
+        missing_mask_ext: ``True`` where a pixel is missing; ``None`` when none is.
+
+    Returns:
+        The detection, with its centroid, peak DN, and measured region.
+    """
     bounds = search_window_bounds(predicted_vu_pos, search_half_vu, image_ext.shape)
     if bounds is None:
-        return None, 0.0
+        return LocalDetection(centroid_vu=None, peak_dn=0.0, region=None)
     v_lo, v_hi, u_lo, u_hi = bounds
     half = centroid_box_half_px
     kernel = gaussian_psf_kernel(psf_sigma_px, size=2 * half + 1)
@@ -641,25 +717,29 @@ def local_centroid(
     if candidate is None:
         # No peak in the window, or none that is not a single-pixel spike.
         window = image_ext[v_lo:v_hi, u_lo:u_hi]
-        return None, float(np.max(window))
+        return LocalDetection(centroid_vu=None, peak_dn=float(np.max(window)), region=None)
     peak_v, peak_u = candidate
     box = _box(image_ext, peak_v, peak_u, half)
     peak_dn = float(box.max())
+    rejected = LocalDetection(centroid_vu=None, peak_dn=peak_dn, region=None)
     if peak_dn - float(np.median(box)) < detection_sigma * image_noise_sigma:
-        return None, peak_dn
+        return rejected
     if refuse_outshone:
         window = np.asarray(image_ext[v_lo:v_hi, u_lo:u_hi], np.float64)
         if _flank_outshines(window, peaks, peak_dn, half=half):
-            return None, peak_dn
-    centroid = _recentered_centroid(
+            return rejected
+    measured = _recentered_centroid(
         image_ext,
         peak_v,
         peak_u,
         half=half,
         bounds=bounds,
         flat_tolerance_dn=detection_sigma * image_noise_sigma,
+        missing_mask_ext=missing_mask_ext,
     )
-    return centroid, peak_dn
+    if measured is None:
+        return rejected
+    return LocalDetection(centroid_vu=measured[0], peak_dn=peak_dn, region=measured[1])
 
 
 _FLAT_TOP_WALL = 10.0
@@ -749,7 +829,8 @@ def _recentered_centroid(
     half: int,
     bounds: tuple[int, int, int, int],
     flat_tolerance_dn: float,
-) -> tuple[float, float] | None:
+    missing_mask_ext: NDArrayBoolType | None,
+) -> tuple[tuple[float, float], tuple[int, int, int, int]] | None:
     """Return a candidate's centroid, its box re-centered until it stops moving.
 
     A box that caught a source by its edge (the response peaks at the edge of a saturated
@@ -764,7 +845,8 @@ def _recentered_centroid(
     core (:func:`_flat_top_region`), the centroid is instead measured over the core padded
     by the box's half-width on every side; when the core reaches the edge of the window
     padded by that half-width, or that centroid lies outside the window, the candidate is
-    no point source of the window and has none.
+    no point source of the window and has none.  Every centroid leaves out the pixels
+    ``missing_mask_ext`` marks as missing (:func:`_region_centroid`).
 
     Parameters:
         image_ext: 2-D extfov image array.
@@ -774,10 +856,12 @@ def _recentered_centroid(
         bounds: ``(v_lo, v_hi, u_lo, u_hi)`` of the search window.
         flat_tolerance_dn: Largest step below the brightest pixel of the candidate's box
             that is still its flat top.
+        missing_mask_ext: ``True`` where a pixel is missing; ``None`` when none is.
 
     Returns:
-        The ``(v, u)`` centroid, or ``None`` when the box finds nothing above its median,
-        walks away, or holds a clipped core that is no point source of the window.
+        The ``(v, u)`` centroid and the ``(v_lo, v_hi, u_lo, u_hi)`` region it was
+        measured over, or ``None`` when the box finds nothing above its median, walks
+        away, or holds a clipped core that is no point source of the window.
     """
     v_lo, v_hi, u_lo, u_hi = bounds
     flat = _flat_top_region(
@@ -786,13 +870,14 @@ def _recentered_centroid(
     if flat is False:
         return None
     if isinstance(flat, tuple):
-        centroid = _region_centroid(image_ext, flat)
+        centroid = _region_centroid(image_ext, flat, missing_mask_ext=missing_mask_ext)
         if centroid is None:
             return None
         cv, cu = math.floor(centroid[0] + 0.5), math.floor(centroid[1] + 0.5)
-        return centroid if v_lo <= cv < v_hi and u_lo <= cu < u_hi else None
+        return (centroid, flat) if v_lo <= cv < v_hi and u_lo <= cu < u_hi else None
     start_v, start_u = peak_v, peak_u
-    centroid = _box_centroid(image_ext, peak_v, peak_u, half)
+    region = _box_region(image_ext.shape, peak_v, peak_u, half)
+    centroid = _region_centroid(image_ext, region, missing_mask_ext=missing_mask_ext)
     for _ in range(_MAX_RECENTER):
         if centroid is None:
             return None
@@ -807,8 +892,9 @@ def _recentered_centroid(
         ):
             return None
         peak_v, peak_u = next_v, next_u
-        centroid = _box_centroid(image_ext, peak_v, peak_u, half)
-    return centroid
+        region = _box_region(image_ext.shape, peak_v, peak_u, half)
+        centroid = _region_centroid(image_ext, region, missing_mask_ext=missing_mask_ext)
+    return None if centroid is None else (centroid, region)
 
 
 @dataclass(frozen=True)
@@ -898,16 +984,18 @@ def window_sources(
             detection_sigma=detection_sigma,
         ):
             continue
-        centroid = _recentered_centroid(
+        measured = _recentered_centroid(
             image_ext,
             peak_v,
             peak_u,
             half=half,
             bounds=bounds,
             flat_tolerance_dn=detection_sigma * image_noise_sigma,
+            missing_mask_ext=None,
         )
-        if centroid is None:
+        if measured is None:
             continue
+        centroid = measured[0]
         if any(
             math.hypot(centroid[0] - s.centroid_vu[0], centroid[1] - s.centroid_vu[1])
             < SAME_SOURCE_PX

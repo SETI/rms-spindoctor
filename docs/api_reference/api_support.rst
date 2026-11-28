@@ -83,6 +83,11 @@ spindoctor.support
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: spindoctor.support.missing_light
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
 .. automodule:: spindoctor.support.misc
    :members:
    :undoc-members:
