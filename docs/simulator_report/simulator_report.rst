@@ -202,7 +202,7 @@ moves only those goes unnoticed.  Each held value must stay within a band: the l
 of its value.  The bands are two-sided, because a better-looking number can come
 from a worse simulator.  A second test requires the record and the band table to
 agree, and it reads only committed files.  The record stores the commit of the
-code that made it.  The current record was made at commit ``fc241ae7`` on
+code that made it.  The current record was made at commit ``0418dcc3`` on
 2026-11-27.
 
 Figure of merit 7 (technique diagnostics) is read-only and was not consulted
@@ -687,7 +687,7 @@ Each law's median distance of its twins' exponent from the real discs':
      - 60 to 120 deg (13 discs)
      - above 120 deg (2 discs)
    * - Lambert
-     - 0.328
+     - 0.332
      - 0.118
      - 0.142
    * - Lommel-Seeliger
@@ -699,7 +699,7 @@ Each law's median distance of its twins' exponent from the real discs':
      - 0.057
      - 0.142
    * - Minnaert, exponent from the real discs' trend
-     - 0.023
+     - 0.020
      - 0.063
      - 0.107
 
@@ -727,8 +727,9 @@ twins fit 0.98 and 0.97.
    :width: 100%
 
    Left: each disc's twin exponent less its real one over the same pixels, under every
-   law.  Right: the default law's pairs, each real exponent over the pixels its twin also
-   counts beside the twin's, with each camera's verdict by phase bin.
+   law; every twin of a disc and the real disc are fitted over the pixels all of its
+   twins count.  Right: the default law's pairs, each real exponent beside the twin's,
+   with each camera's verdict by phase bin.
 
 .. figure:: _figures/realism_law_sheet.png
    :width: 80%
