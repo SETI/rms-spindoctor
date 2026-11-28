@@ -178,17 +178,20 @@ RATE_ZP, RATE_COLOR = 21.0, 0.3
 
 
 def _rate_rows(
-    n: int, *, gain_offset: float = 0.0, radius_slope: float = 0.0
+    n: int, *, gain_offset: float = 0.0, radius_slope: float = 0.0, frame_offset: float = 0.0
 ) -> list[dict[str, Any]]:
     """Return star rows whose rates follow the planted rate fit, with 0.05 mag of scatter.
 
     Every other star is at gain ``'12'`` and reads ``gain_offset`` magnitudes brighter;
-    every star reads ``radius_slope`` magnitudes brighter for each unit of its ``radius``.
+    every star reads ``radius_slope`` magnitudes brighter for each unit of its ``radius``;
+    the stars of even frames read ``frame_offset`` brighter and those of odd frames that
+    much fainter.
 
     Parameters:
         n: The number of stars.
         gain_offset: The planted offset of the gain-12 stars (magnitudes).
         radius_slope: The planted change per unit of radius (magnitudes).
+        frame_offset: The planted offset of each frame from the rate (magnitudes).
 
     Returns:
         The rows, three stars to a frame.
@@ -200,6 +203,7 @@ def _rate_rows(
         gain = '12' if k % 2 else '29'
         z = RATE_ZP + RATE_COLOR * (bv - 0.65) + rng.normal(0.0, 0.05) + radius_slope * radius
         z += gain_offset if gain == '12' else 0.0
+        z += frame_offset if (k // 3) % 2 == 0 else -frame_offset
         rows.append(
             {
                 'image_id': f'F{k // 3}',
@@ -247,10 +251,18 @@ def test_rate_fit_reports_a_covariate_slope() -> None:
 
 
 def test_rate_fit_scatter_between_frames() -> None:
-    """Thirty stars, three to a frame, give a frame-to-frame scatter from their ten frames."""
-    fit = fit_star_rates(_rate_rows(30), reference_color=0.65)
+    """Twenty frames alternately 0.3 mag bright and faint give a frame scatter of 0.3 mag."""
+    fit = fit_star_rates(_rate_rows(60, frame_offset=0.3), reference_color=0.65)
+    assert fit is not None
+    assert fit.frame_scatter_mag == pytest.approx(0.3, abs=0.03)
+
+
+def test_rate_fit_uncertainty_from_the_frames() -> None:
+    """The rate's frame uncertainty is the frame scatter over the root of the frame count."""
+    fit = fit_star_rates(_rate_rows(60, frame_offset=0.3), reference_color=0.65)
     assert fit is not None
     assert fit.frame_scatter_mag is not None
+    assert fit.rate_frame_sigma_mag == pytest.approx(fit.frame_scatter_mag / math.sqrt(20))
 
 
 def test_rate_fit_needs_five_stars() -> None:

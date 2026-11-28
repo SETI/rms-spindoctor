@@ -15,9 +15,10 @@ check the independent pointing fix.
 own reader, is the image the pointing is fixed on
 (:func:`util.star_photometry.frame_measure.measure_frame`, which needs no navigator star
 technique).  The raw product beside it is the photometric image: a star's light within
-radii ``r``, ``2r``, and ``3r`` of its fixed position, less the median of a sky annulus
-outside ``3r``, in raw DN.  The same apertures on the calibrated product give the star's
-I/F sums.  The record keeps the gain and the shutter offset CISSCAL wrote into the
+radii ``r``, ``2r``, and ``3r`` of its fixed position, less the clipped mean of a sky
+annulus outside ``3r``, in raw DN (a median would be held to the raw frame's integer
+levels).  The same apertures on the calibrated product, less the annulus's median, give
+the star's I/F sums.  The record keeps the gain and the shutter offset CISSCAL wrote into the
 calibrated label, and the Sun's distance from Saturn.
 
 **Fit.**  ``fit`` gives each star two rates.  The raw rate, the zero point's, is the raw DN
@@ -56,13 +57,14 @@ import os
 import random
 import re
 from collections import defaultdict
-from collections.abc import Iterable
 from dataclasses import asdict, dataclass
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
+from pdstable import PdsTable
 from ruamel.yaml import YAML
 from util.star_photometry.frame_measure import (
     FrameInput,
@@ -81,6 +83,7 @@ from spindoctor.sim.instruments.catalog import instrument_entry
 __all__ = [
     'PARAMS',
     'CameraFit',
+    'StarRows',
     'calibration_terms',
     'cassini_frames',
     'fit_camera',
@@ -92,8 +95,8 @@ __all__ = [
 
 FloatArray = NDArray[np.float64]
 
-#: The Saturn-tour epochs the local SPICE kernels cover (inclusive ISO dates).
-SPICE_START, SPICE_END = '2004-01-01', '2017-09-15'
+#: The Saturn-tour epochs the local SPICE kernels cover (inclusive).
+SPICE_START, SPICE_END = date(2004, 1, 1), date(2017, 9, 15)
 
 #: The shortest exposure sampled (seconds): shorter frames hold few stars, and the
 #: shutter offset is a large part of them.
@@ -148,10 +151,12 @@ MIN_FIX_AGREE = 5
 #: The largest RMS of a pointing fix's agreeing stars used in the fit (frame pixels).
 MAX_FIX_SPREAD_PX = 0.7
 
-#: The smallest flux SNR within ``2r`` of a star used for the aperture correction.  Below
-#: about 100 the ratio rises with falling SNR (1.20 at SNR 30 to 100 on full NAC frames,
-#: 1.06 above 100), because hot pixels, cosmic rays, and faint stars in the larger aperture
-#: weigh more against a fainter star.
+#: The smallest flux SNR within ``2r`` of a star used for the aperture correction and the
+#: peak fraction: the recorded ``flux_big`` over ``flux_big_sigma``, whose noise is the
+#: sky's alone.  On full NAC frames the ratio rises as the SNR falls, to 1.08 at SNR 50 to
+#: 70 and 1.12 at 30 to 50, against 1.05 to 1.07 above 70, because hot pixels, cosmic rays,
+#: and faint stars in the larger aperture weigh more against a fainter star.  The limit
+#: keeps clear of that rise.
 APCORR_MIN_SNR = 100.0
 
 #: The provisional rates (e-/s for V = 0) that the selection's predicted signal starts from:
@@ -241,38 +246,48 @@ PARAMS: dict[tuple[str, int], MeasureParams] = {
 }
 
 
-def _index_rows(holdings: Path) -> Iterable[dict[str, str]]:
-    """Yield the rows of the cumulative Cassini ISS index as column-name dictionaries.
+#: The index columns the sample reads.
+_INDEX_COLUMNS = (
+    'VOLUME_ID',
+    'FILE_SPECIFICATION_NAME',
+    'FILE_NAME',
+    'INSTRUMENT_ID',
+    'FILTER_NAME',
+    'GAIN_MODE_ID',
+    'INSTRUMENT_MODE_ID',
+    'EXPOSURE_DURATION',
+    'IMAGE_TIME',
+    'OBSERVATION_ID',
+    'DATA_CONVERSION_TYPE',
+    'TARGET_NAME',
+    'SHUTTER_STATE_ID',
+    'CALIBRATION_LAMP_STATE_FLAG',
+)
 
-    A column of several items fills one key per item, suffixed ``_1``, ``_2``, and so on.
+
+def _index_rows(holdings: Path) -> list[dict[str, Any]]:
+    """Return the rows of the cumulative Cassini ISS index, in index order.
 
     Parameters:
         holdings: The PDS3 holdings root.
 
-    Yields:
-        One dictionary per row.
+    Returns:
+        One dictionary per row, keyed by column name: ``FILTER_NAME`` the filter
+        combination (``'CL1+CL2'``), ``EXPOSURE_DURATION`` a float in milliseconds, and
+        every other column a string.
     """
-    meta = holdings / 'metadata' / 'COISS_2xxx' / 'COISS_2999'
-    names: list[str] = []
-    name = ''
-    items = 1
-    for raw in (meta / 'COISS_2999_index.lbl').read_text().splitlines():
-        line = raw.strip()
-        if line.startswith('OBJECT') and line.endswith('COLUMN'):
-            name, items = '', 1
-        elif line.startswith('NAME') and not name:
-            name = line.split('=', 1)[1].strip().strip('"')
-        elif line.startswith('ITEMS'):
-            items = int(line.split('=', 1)[1])
-        elif line.startswith('END_OBJECT') and name:
-            names.extend([name] if items == 1 else [f'{name}_{k + 1}' for k in range(items)])
-            name = ''
-    with (meta / 'COISS_2999_index.tab').open() as fh:
-        for row in csv.reader(fh):
-            yield {k: v.strip() for k, v in zip(names, row, strict=False)}
+    label = holdings / 'metadata' / 'COISS_2xxx' / 'COISS_2999' / 'COISS_2999_index.lbl'
+    table = PdsTable(str(label), columns=list(_INDEX_COLUMNS), label_method='fast')
+    rows = []
+    for raw in table.dicts_by_row():
+        row: dict[str, Any] = {name: str(raw[name]).strip() for name in _INDEX_COLUMNS}
+        row['FILTER_NAME'] = '+'.join(str(f).strip() for f in raw['FILTER_NAME'])
+        row['EXPOSURE_DURATION'] = float(raw['EXPOSURE_DURATION'])
+        rows.append(row)
+    return rows
 
 
-def _frame_from_row(holdings: Path, row: dict[str, str], *, source: str) -> FrameInput:
+def _frame_from_row(holdings: Path, row: dict[str, Any], *, source: str) -> FrameInput:
     """Return the frame of an index row: its calibrated product, the raw one beside it.
 
     Parameters:
@@ -291,10 +306,10 @@ def _frame_from_row(holdings: Path, row: dict[str, str], *, source: str) -> Fram
         image_id=spec.name,
         path=str(calib),
         camera='NAC' if row['INSTRUMENT_ID'] == 'ISSNA' else 'WAC',
-        filter_name=f'{row["FILTER_NAME_1"]}+{row["FILTER_NAME_2"]}',
+        filter_name=row['FILTER_NAME'],
         gain_state=row['GAIN_MODE_ID'].split()[0],
         mode=row['INSTRUMENT_MODE_ID'],
-        texp=float(row['EXPOSURE_DURATION']) / _MS_PER_S,
+        texp=row['EXPOSURE_DURATION'] / _MS_PER_S,
         extra={
             'raw_path': str(raw),
             'volume': volume,
@@ -306,7 +321,19 @@ def _frame_from_row(holdings: Path, row: dict[str, str], *, source: str) -> Fram
     )
 
 
-def _eligible(row: dict[str, str], filters: frozenset[str]) -> bool:
+def _image_date(image_time: str) -> date:
+    """Return the date of an index ``IMAGE_TIME`` (``YYYY-DDDThh:mm:ss.sss``, day of year).
+
+    Parameters:
+        image_time: The index's image time.
+
+    Returns:
+        The date.
+    """
+    return datetime.strptime(image_time[:8], '%Y-%j').date()
+
+
+def _eligible(row: dict[str, Any], filters: frozenset[str]) -> bool:
     """Return whether an index row is a sampleable star-field frame.
 
     Parameters:
@@ -317,15 +344,14 @@ def _eligible(row: dict[str, str], filters: frozenset[str]) -> bool:
         True for a 12-bit ``SKY`` frame through an accepted filter combination, shutter
         enabled and lamp off, inside the SPICE window, of at least ``MIN_TEXP_SEC``.
     """
-    day = row['IMAGE_TIME'][:4]
     return (
         row['TARGET_NAME'] == 'SKY'
         and row['DATA_CONVERSION_TYPE'] == '12BIT'
         and row['SHUTTER_STATE_ID'] == 'ENABLED'
         and row['CALIBRATION_LAMP_STATE_FLAG'] in ('OFF', 'N/A')
-        and f'{row["FILTER_NAME_1"]}+{row["FILTER_NAME_2"]}' in filters
-        and SPICE_START[:4] <= day <= SPICE_END[:4]
-        and float(row['EXPOSURE_DURATION']) / _MS_PER_S >= MIN_TEXP_SEC
+        and row['FILTER_NAME'] in filters
+        and SPICE_START <= _image_date(row['IMAGE_TIME']) <= SPICE_END
+        and row['EXPOSURE_DURATION'] / _MS_PER_S >= MIN_TEXP_SEC
     )
 
 
@@ -347,14 +373,14 @@ def cassini_frames(
     Returns:
         The sampled frames.
     """
-    groups: dict[tuple[str, ...], list[dict[str, str]]] = defaultdict(list)
+    groups: dict[tuple[str, ...], list[dict[str, Any]]] = defaultdict(list)
     for row in _index_rows(holdings):
         if not _eligible(row, filters):
             continue
-        octave = math.floor(math.log2(float(row['EXPOSURE_DURATION']) / _MS_PER_S))
+        octave = math.floor(math.log2(row['EXPOSURE_DURATION'] / _MS_PER_S))
         key: tuple[str, ...] = (
             row['INSTRUMENT_ID'],
-            f'{row["FILTER_NAME_1"]}+{row["FILTER_NAME_2"]}',
+            row['FILTER_NAME'],
             row['GAIN_MODE_ID'],
             row['INSTRUMENT_MODE_ID'],
             str(octave),
@@ -363,13 +389,13 @@ def cassini_frames(
     rng = random.Random(seed)
     frames: list[FrameInput] = []
     for key in sorted(groups):
-        by_observation: dict[str, list[dict[str, str]]] = defaultdict(list)
+        by_observation: dict[str, list[dict[str, Any]]] = defaultdict(list)
         for row in groups[key]:
             by_observation[row['OBSERVATION_ID']].append(row)
         # One frame per observation in turn, so that a long sequence does not fill a group.
         pools = [rng.sample(v, len(v)) for _, v in sorted(by_observation.items())]
         rng.shuffle(pools)
-        chosen: list[dict[str, str]] = []
+        chosen: list[dict[str, Any]] = []
         while len(chosen) < per_group and any(pools):
             for pool in pools:
                 if pool and len(chosen) < per_group:
@@ -457,6 +483,7 @@ def measure(frame: FrameInput) -> dict[str, Any]:
                     radius=radius,
                     sky_inner=params.sky_inner,
                     sky_outer=params.sky_outer,
+                    clipped_sky=name == 'raw',
                 )
                 star[f'{name}_{label}'] = None if result is None else result.flux
                 if result is not None and label == 'r':
@@ -493,6 +520,26 @@ class CameraFit:
     raw: RateFit | None
     calibrated: RateFit | None
     aperture_correction: dict[str, float]
+    aperture_correction_3r: dict[str, float]
+    excluded: dict[str, int]
+
+
+@dataclass
+class StarRows:
+    """A camera's fitting stars and what the selection measured on the way.
+
+    Attributes:
+        rows: One row per fitting star: the raw rate (``rate``), the calibrated rate
+            (``rate_cal``), and the star's and frame's fields the checks group on.
+        aperture_correction: Raw ``2r``-to-``r`` light ratio by readout mode.
+        aperture_correction_cal: Calibrated ``2r``-to-``r`` light ratio by readout mode.
+        aperture_correction_3r: Raw ``3r``-to-``2r`` light ratio by readout mode.
+        excluded: Stars each selection step removed, in order.
+    """
+
+    rows: list[dict[str, Any]]
+    aperture_correction: dict[str, float]
+    aperture_correction_cal: dict[str, float]
     aperture_correction_3r: dict[str, float]
     excluded: dict[str, int]
 
@@ -591,8 +638,8 @@ def _frame_stars(record: dict[str, Any]) -> list[dict[str, Any]]:
         peak = star.get('raw_max')
         star['_saturation_dn'] = limit
         star['_saturated'] = peak is None or peak - sky >= SATURATED_FRACTION * limit
-        noise = (star.get('raw_sky_sigma') or 0.0) * math.sqrt(2.0 * (star.get('raw_npix') or 0))
-        star['_snr2r'] = (star.get('raw_2r') or 0.0) / noise if noise > 0.0 else 0.0
+        flux_big, flux_big_sigma = star.get('flux_big'), star.get('flux_big_sigma')
+        star['_snr2r'] = flux_big / flux_big_sigma if flux_big and flux_big_sigma else 0.0
         star['_radius_native'] = binning * math.hypot(star['v'] - center, star['u'] - center)
         stars.append(star)
     return stars
@@ -631,7 +678,7 @@ def _usable_frame(record: dict[str, Any], stars: list[dict[str, Any]]) -> str:
 
 def star_rows(
     records: list[dict[str, Any]], camera: str, *, rate: float, filters: frozenset[str]
-) -> tuple[list[dict[str, Any]], dict[str, float], dict[str, float], dict[str, int]]:
+) -> StarRows:
     """Return a camera's fitting stars, the aperture corrections, and the exclusion counts.
 
     The catalog criteria come first (a UCAC4 star with APASS V and B, V inside
@@ -645,9 +692,7 @@ def star_rows(
         filters: The filter combinations fitted.
 
     Returns:
-        ``(rows, raw aperture correction by mode, raw 3r-to-2r ratio by mode, exclusion
-        counts)``.  Each row holds the raw rate (``rate``), the calibrated rate
-        (``rate_cal``), and the star's and frame's fields the checks group on.
+        The rows, the aperture corrections, and the exclusion counts.
     """
     per_frame = [
         (r, _frame_stars(r))
@@ -681,10 +726,16 @@ def star_rows(
         if usable[id(r)]:
             excluded[usable[id(r)]] += len(candidates)
             continue
+        mode = frame['mode']
+        if not (math.isfinite(apcorr[mode]) and math.isfinite(apcorr_cal[mode])):
+            # No star of this readout mode was bright and clean enough to measure its
+            # aperture correction.
+            excluded['mode_without_aperture_correction'] += len(candidates)
+            continue
         binning = int(r['binning'])
         gain = float(r['gain_e_per_dn'])
         t_eff = float(frame['texp']) - float(r['exposure_offset_s'])
-        peak_fraction = _peak_fraction(clean_by_mode[frame['mode']])
+        peak_fraction = _peak_fraction(clean_by_mode[mode])
         for s in candidates:
             reason = _star_exclusion(s, rate=rate, gain=gain, t_eff=t_eff, peak=peak_fraction)
             if reason:
@@ -697,14 +748,14 @@ def star_rows(
                     'source': frame['extra']['source'],
                     'filter': frame['filter_name'],
                     'gain': frame['gain_state'],
-                    'mode': frame['mode'],
+                    'mode': mode,
                     'texp': float(frame['texp']),
                     'texp_octave': str(math.floor(math.log2(float(frame['texp'])))),
                     'year': frame['extra']['image_time'][:4],
                     'vmag': vmag,
                     'bv': float(s['bmag']) - vmag,
-                    'rate': s['raw_r'] * apcorr[frame['mode']] * gain / t_eff,
-                    'rate_cal': s['cal_r'] * apcorr_cal[frame['mode']] * binning**2 * throughput,
+                    'rate': s['raw_r'] * apcorr[mode] * gain / t_eff,
+                    'rate_cal': s['cal_r'] * apcorr_cal[mode] * binning**2 * throughput,
                     'log_texp': math.log10(t_eff),
                     'field_radius': s['_radius_native'] / (NATIVE_SIZE_PX / 2.0),
                     'sun_distance_au': float(r['sun_distance_au']),
@@ -712,7 +763,13 @@ def star_rows(
                     'gain_e_per_dn': gain,
                 }
             )
-    return rows, apcorr, apcorr_3r, dict(excluded)
+    return StarRows(
+        rows=rows,
+        aperture_correction=apcorr,
+        aperture_correction_cal=apcorr_cal,
+        aperture_correction_3r=apcorr_3r,
+        excluded=dict(excluded),
+    )
 
 
 def _predicted_snr(star: dict[str, Any], *, rate: float, gain: float, t_eff: float) -> float:
@@ -804,26 +861,22 @@ def fit_camera(
         The camera's fit and its final fitting rows.
     """
     rate = PROVISIONAL_RATE[camera]
-    rows: list[dict[str, Any]] = []
-    apcorr: dict[str, float] = {}
-    apcorr_3r: dict[str, float] = {}
-    excluded: dict[str, int] = {}
-    raw: RateFit | None = None
-    for _ in range(SELECTION_PASSES):
-        rows, apcorr, apcorr_3r, excluded = star_rows(records, camera, rate=rate, filters=filters)
-        raw = _fit_rows(rows, 'rate')
+    selected = star_rows(records, camera, rate=rate, filters=filters)
+    raw = _fit_rows(selected.rows, 'rate')
+    for _ in range(SELECTION_PASSES - 1):
         if raw is None:
             break
-        rate = raw.rate_vmag0
+        selected = star_rows(records, camera, rate=raw.rate_vmag0, filters=filters)
+        raw = _fit_rows(selected.rows, 'rate')
     fit = CameraFit(
         camera=camera,
         raw=raw,
-        calibrated=_fit_rows(rows, 'rate_cal'),
-        aperture_correction=apcorr,
-        aperture_correction_3r=apcorr_3r,
-        excluded=excluded,
+        calibrated=_fit_rows(selected.rows, 'rate_cal'),
+        aperture_correction=selected.aperture_correction,
+        aperture_correction_3r=selected.aperture_correction_3r,
+        excluded=selected.excluded,
     )
-    return fit, rows
+    return fit, selected.rows
 
 
 def _fit_rows(rows: list[dict[str, Any]], key: str) -> RateFit | None:

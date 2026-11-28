@@ -213,7 +213,9 @@ class RateFit:
 
     Attributes:
         rate_vmag0: The rate of a V = 0 star of the reference color (per second).
-        rate_sigma_mag: The one-sigma uncertainty of ``rate_vmag0`` (magnitudes).
+        rate_sigma_mag: The one-sigma formal uncertainty of ``rate_vmag0`` from the
+            stars' scatter (magnitudes).  Stars of one frame share its errors, so it
+            understates the uncertainty when the frames scatter.
         color_slope: The change of ``z`` per magnitude of B - V; positive when redder
             stars read brighter.
         color_slope_sigma: Its one-sigma uncertainty.
@@ -223,6 +225,9 @@ class RateFit:
         frame_scatter_mag: The standard deviation of the frames' median residuals, over
             the frames with at least ``MIN_FRAME_STARS`` kept stars, or None when fewer
             than three frames have that many.
+        rate_frame_sigma_mag: The uncertainty of ``rate_vmag0`` from the frames:
+            ``frame_scatter_mag`` over the square root of the number of frames it is
+            measured on, or None with it.
         groups: For each grouping key and each of its values with at least
             ``MIN_RATE_STARS`` kept stars: ``(median residual, its standard error, star
             count)`` in magnitudes.
@@ -238,6 +243,7 @@ class RateFit:
     n_frames: int
     star_scatter_mag: float
     frame_scatter_mag: float | None
+    rate_frame_sigma_mag: float | None
     groups: dict[str, dict[str, tuple[float, float, int]]] = field(default_factory=dict)
     slopes: dict[str, tuple[float, float]] = field(default_factory=dict)
 
@@ -283,6 +289,7 @@ def fit_star_rates(
         if keep:
             by_frame[str(r['image_id'])].append(float(res))
     medians = [float(np.median(v)) for v in by_frame.values() if len(v) >= MIN_FRAME_STARS]
+    frame_scatter = float(np.std(medians, ddof=1)) if len(medians) >= 3 else None
     fit = RateFit(
         rate_vmag0=float(10 ** (0.4 * x[0])),
         rate_sigma_mag=float(sx[0]),
@@ -291,7 +298,10 @@ def fit_star_rates(
         n_stars=int(used.sum()),
         n_frames=len(by_frame),
         star_scatter_mag=scatter,
-        frame_scatter_mag=float(np.std(medians, ddof=1)) if len(medians) >= 3 else None,
+        frame_scatter_mag=frame_scatter,
+        rate_frame_sigma_mag=(
+            None if frame_scatter is None else frame_scatter / math.sqrt(len(medians))
+        ),
     )
     for key in group_keys:
         values = np.array([str(r[key]) for r in rows])
