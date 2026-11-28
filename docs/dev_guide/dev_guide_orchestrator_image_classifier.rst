@@ -45,11 +45,11 @@ The decision tree is order-sensitive:
    ``min_read_line_frac``, the image is
    ``mostly_missing_data``. The unread lines do not count against
    ``max_missing_frac_clean``: the lines that were read out hold good data, so a
-   truncated readout is navigated on the lines it has, however much of the frame is
-   missing, unless fewer than ``min_read_line_frac`` of its lines were read out. The fraction
-   of lines read out is the count of lines read out divided by the count of the
-   sensor's lines, so a share exactly equal to ``min_read_line_frac`` is accepted.
-   The techniques read the
+   truncated readout passes the read-line check however much of the frame is
+   missing, unless fewer than ``min_read_line_frac`` of its lines were read out. The
+   fraction of lines read out is the count of lines read out divided by the count of
+   the sensor's lines, so a share exactly equal to ``min_read_line_frac`` is
+   accepted. The techniques read the
    context's missing-data mask
    (:attr:`~spindoctor.nav_orchestrator.nav_context.NavContext.missing_data_mask_ext`)
    to varying degrees: the star techniques and the blob centroid leave the missing
